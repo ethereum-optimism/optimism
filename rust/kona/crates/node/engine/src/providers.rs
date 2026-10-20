@@ -121,7 +121,7 @@ mod tests {
         let engine = client.clone();
         fails_at_deadline(
             async move {
-                EngineClient::l2_block_by_label(&engine, BlockNumberOrTag::Latest).await.is_err()
+                engine.get_l2_block(BlockNumberOrTag::Latest.into()).full().await.is_err()
             },
             timeout,
             &mut answered,

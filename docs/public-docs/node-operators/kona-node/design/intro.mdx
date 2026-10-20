@@ -36,10 +36,8 @@ The [`RollupNode`][node] builds and starts the following actors.
   dive deeper into how the derivation actor works.
 - **Engine Actor**: Brokers the connection to the execution
   layer client (or "execution engine"). The engine actor
-  turns messages from other actors into engine "tasks"
-  that are executed in priority order against the EL client.
-  A companion engine RPC actor serves read-only engine
-  queries. The [engine][engine] docs expand on this.
+  serializes execution commands and publishes accepted state.
+  RPC handlers read that state and the L2 provider directly. The [engine][engine] docs expand on this.
 - **L1 Watcher Actor**: Watches the L1 chain for new
   head and finalized blocks and relays them to the
   derivation actor. It also keeps the unsafe block

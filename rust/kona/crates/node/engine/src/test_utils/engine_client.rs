@@ -1,16 +1,16 @@
 //! Mock implementations for testing engine client functionality.
 
 use crate::{EngineClient, HyperAuthClient};
-use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
+use alloy_eips::BlockId;
 use alloy_network::{Ethereum, Network};
-use alloy_primitives::{Address, B256, BlockHash, StorageKey};
-use alloy_provider::{EthGetBlock, ProviderCall, RpcWithBlock};
+use alloy_primitives::{B256, BlockHash};
+use alloy_provider::{EthGetBlock, ProviderCall};
 use alloy_rpc_types_engine::{
     ClientVersionV1, ExecutionPayloadBodiesV1, ExecutionPayloadEnvelopeV2, ExecutionPayloadInputV2,
     ExecutionPayloadV1, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
 };
-use alloy_rpc_types_eth::{Block, EIP1186AccountProofResponse, Transaction as EthTransaction};
+use alloy_rpc_types_eth::{Block, Transaction as EthTransaction};
 use alloy_transport::{TransportError, TransportErrorKind, TransportResult};
 use alloy_transport_http::Http;
 use async_trait::async_trait;
@@ -24,8 +24,6 @@ use op_alloy_rpc_types_engine::{
 };
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
-
-use crate::EngineClientError;
 
 /// Builder for creating test `MockEngineClient` instances with sensible defaults
 pub fn test_engine_client_builder() -> MockEngineClientBuilder {
@@ -44,8 +42,6 @@ pub struct MockEngineStorage {
     pub l2_read_error: Option<String>,
     /// Delay for each successful L2 read, used to exercise long reset traversals.
     pub l2_read_delay: std::time::Duration,
-    /// Storage for block responses by tag.
-    pub l2_blocks_by_label: HashMap<BlockNumberOrTag, Block<OpTransaction>>,
 
     // Version-specific new_payload responses
     /// Storage for `new_payload_v1` responses.
@@ -83,15 +79,13 @@ pub struct MockEngineStorage {
     /// Storage for capabilities responses.
     pub capabilities: Option<Vec<String>>,
 
-    // Storage for get_l1_block, get_l2_block, and get_proof
+    // Storage for get_l1_block and get_l2_block
     /// Storage for L1 blocks by stringified `BlockId`.
     /// L1 blocks use standard Ethereum transactions.
     pub l1_blocks_by_id: HashMap<String, Block<EthTransaction>>,
     /// Storage for L2 blocks by stringified `BlockId`.
     /// L2 blocks use OP Stack transactions.
     pub l2_blocks_by_id: HashMap<String, Block<OpTransaction>>,
-    /// Storage for proofs by (address, stringified `BlockId`) key.
-    pub proofs_by_address: HashMap<(Address, String), EIP1186AccountProofResponse>,
 }
 
 /// Builder for constructing a [`MockEngineClient`] with pre-configured responses.
@@ -129,16 +123,6 @@ impl MockEngineClientBuilder {
     /// Sets the rollup configuration.
     pub fn with_config(mut self, cfg: Arc<RollupConfig>) -> Self {
         self.cfg = Some(cfg);
-        self
-    }
-
-    /// Sets a block response for a specific tag.
-    pub fn with_l2_block_by_label(
-        mut self,
-        tag: BlockNumberOrTag,
-        block: Block<OpTransaction>,
-    ) -> Self {
-        self.storage.l2_blocks_by_label.insert(tag, block);
         self
     }
 
@@ -240,18 +224,6 @@ impl MockEngineClientBuilder {
         self
     }
 
-    /// Sets a proof response for a specific address and `BlockId`.
-    pub fn with_proof(
-        mut self,
-        address: Address,
-        block_id: BlockId,
-        proof: EIP1186AccountProofResponse,
-    ) -> Self {
-        let key = block_id_to_key(&block_id);
-        self.storage.proofs_by_address.insert((address, key), proof);
-        self
-    }
-
     /// Builds the [`MockEngineClient`] with the configured values.
     ///
     /// # Panics
@@ -297,11 +269,6 @@ impl MockEngineClient {
     /// Returns a reference to the mock storage for configuring responses.
     pub fn storage(&self) -> Arc<RwLock<MockEngineStorage>> {
         Arc::clone(&self.storage)
-    }
-
-    /// Sets a block response for a specific tag.
-    pub async fn set_l2_block_by_label(&self, tag: BlockNumberOrTag, block: Block<OpTransaction>) {
-        self.storage.write().await.l2_blocks_by_label.insert(tag, block);
     }
 
     /// Sets the `new_payload_v1` response.
@@ -380,17 +347,6 @@ impl MockEngineClient {
         let key = block_id_to_key(&block_id);
         self.storage.write().await.l2_blocks_by_id.insert(key, block);
     }
-
-    /// Sets a proof response for a specific address and `BlockId`.
-    pub async fn set_proof(
-        &self,
-        address: Address,
-        block_id: BlockId,
-        proof: EIP1186AccountProofResponse,
-    ) {
-        let key = block_id_to_key(&block_id);
-        self.storage.write().await.proofs_by_address.insert((address, key), proof);
-    }
 }
 
 #[async_trait]
@@ -442,32 +398,6 @@ impl EngineClient for MockEngineClient {
         )
     }
 
-    fn get_proof(
-        &self,
-        address: Address,
-        _keys: Vec<StorageKey>,
-    ) -> RpcWithBlock<(Address, Vec<StorageKey>), EIP1186AccountProofResponse> {
-        let storage = Arc::clone(&self.storage);
-
-        RpcWithBlock::new_provider(move |block_id| {
-            let storage = Arc::clone(&storage);
-            let block_key = block_id_to_key(&block_id);
-            let address = address;
-
-            ProviderCall::BoxedFuture(Box::pin(async move {
-                let storage_guard = storage.read().await;
-                storage_guard.proofs_by_address.get(&(address, block_key)).cloned().ok_or_else(
-                    || {
-                        TransportError::from(TransportErrorKind::custom_str(
-                            "No proof configured for this address and block. \
-                             Use with_proof() or set_proof() to set a response.",
-                        ))
-                    },
-                )
-            }))
-        })
-    }
-
     async fn new_payload_v1(&self, _payload: ExecutionPayloadV1) -> TransportResult<PayloadStatus> {
         let storage = self.storage.read().await;
         storage.new_payload_v1_response.clone().ok_or_else(|| {
@@ -476,14 +406,6 @@ impl EngineClient for MockEngineClient {
                  Use with_new_payload_v1_response() or set_new_payload_v1_response() to set a response."
             ))
         })
-    }
-
-    async fn l2_block_by_label(
-        &self,
-        numtag: BlockNumberOrTag,
-    ) -> Result<Option<Block<OpTransaction>>, EngineClientError> {
-        let storage = self.storage.read().await;
-        Ok(storage.l2_blocks_by_label.get(&numtag).cloned())
     }
 }
 

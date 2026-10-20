@@ -234,6 +234,7 @@ impl NodeCommand {
             mode: self.node_mode,
         };
         Ok(RollupNodeBuilder::new(
+            crate::version::version(),
             cfg,
             l1_config,
             self.l2_client_args.l2_trust_rpc,

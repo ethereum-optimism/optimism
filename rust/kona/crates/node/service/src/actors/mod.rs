@@ -8,14 +8,13 @@ pub use traits::NodeActor;
 pub(crate) mod engine;
 pub use engine::{
     BuildToken, Consolidated, EngineActor, EngineClientError, EngineClientResult, EngineConfig,
-    EngineContext, EngineError, EngineHandle, EngineRpcActor, EngineRpcRequest, Sealed,
-    UnsafeAdmissionError,
+    EngineContext, EngineError, EngineHandle, Sealed, UnsafeAdmissionError,
 };
 
 pub(crate) mod rpc;
 pub use rpc::{
-    JsonrpseeServerLauncher, QueuedEngineRpcClient, QueuedSequencerAdminAPIClient, RpcActor,
-    RpcActorError, RpcServerHandle, RpcServerLauncher,
+    JsonrpseeServerLauncher, QueuedSequencerAdminAPIClient, RpcActor, RpcActorError,
+    RpcServerHandle, RpcServerLauncher,
 };
 
 mod derivation;

@@ -2,6 +2,8 @@
 
 Date: 2026-10-17. Status: implementation in progress; completed package records appear below.
 
+**Execution policy updated 2026-10-18:** the user authorized completing the remaining curated stack without stopping for approval after each draft PR. Earlier review-checkpoint instructions below are historical and superseded. Keep each PR focused and validated, publish drafts for review at the end, and do not merge them or wait for hosted CI after handoff. Optional packages still require their stated value/coverage gates.
+
 ## Goal and scope
 
 Build one curated stack of reviewable PRs against `ethereum-optimism/optimism:develop`. Each PR must leave a useful, correct intermediate implementation and remove a specific source of complexity or a demonstrated failure mode. The stack is allowed to stop before reproducing any experimental branch in full.
@@ -683,7 +685,7 @@ Node-only changes should not silently alter fault-proof/no_std code. If the sele
 
 ## Implementation and PR maintenance procedure
 
-**User review checkpoint after every draft PR.** Work on one package at a time. Once its implementation, agent review and required local validation are complete, open or update its draft PR, record the checkpoint here, and hand it to the user. Include the PR link, behavior changes, validation results and any pending CI or unresolved limitations. Then stop implementation and agent work until the user explicitly asks to continue. Do not begin the next package, prepare a descendant implementation or leave subagents working on later cuts during that pause. Hosted CI may continue; report its actual state at handoff.
+**Complete the remaining draft stack before user review.** Work through the packages in order. Once a package's implementation, agent review and required local validation are complete, publish its draft PR, record the result here, and continue with the next selected package. The user authorized this policy on 2026-10-18. Keep every parent-relative diff independently reviewable. Do not merge the drafts or wait for hosted CI after handoff; report hosted results separately from local validation.
 
 1. Refresh public `develop`, the existing PR comparison metadata and relevant issues with authenticated `gh`. Record the selected base and source tips. Keep the original experimental branches and dirty worktrees intact.
 2. Before editing, write the final shared type/method sketch from this plan into the working brief and assign each issue to its ledger home. One implementation owner maintains the spine. Specialists review relevant packages; they do not maintain competing versions of common APIs.
@@ -692,7 +694,7 @@ Node-only changes should not silently alter fault-proof/no_std code. If the sele
 5. Keep mechanical deletions/moves separately readable inside the owning PR, but do not create a prerequisite cleanup branch that changes the same interfaces again. Avoid unnecessary rename commits and lockfile churn.
 6. Run focused checks and required behavior gates. Record exact commands, commit IDs, pass/fail/skip results, and unresolved limitations. Do not reuse old validation claims for a new parent or patch.
 7. For existing PRs, preserve review context where practical and rewrite title/body around the final retained scope. Reconstruct 23223's intended small patch; remove 22307's artificial dependency; split or supersede 23268 deliberately. Perform actual GitHub updates only when implementation/PR work is authorized.
-8. On user-authorized continuation, address review feedback and restack descendants onto the same accepted parent versions. Use `git range-diff` and inspect `git diff <parent>...<child>` and unique commits to detect accidental old-stack inclusion or lost fixes. Re-run checks when changed parents affect the validated behavior. Apply the user review checkpoint again after each finished draft PR.
+8. On user-authorized continuation, address review feedback and restack descendants onto the same accepted parent versions. Use `git range-diff` and inspect `git diff <parent>...<child>` and unique commits to detect accidental old-stack inclusion or lost fixes. Re-run checks when changed parents affect the validated behavior. Continue the authorized stack after each finished draft PR.
 9. At each gate, reconsider the remaining packages. Stop when the selected core is simple and the identified bugs are fixed. Optional packages do not become mandatory because a later source branch contains them.
 
 ### Review budget and when to combine
@@ -705,7 +707,7 @@ If any proposed split requires a new adapter, intermediate public enum, callback
 
 ## Progress checklist
 
-Planning is complete. A check means the package has its actual implementation, review and required local validation, with its implementation commit recorded below. Later packages remain subject to the user review checkpoint.
+Planning is complete. A check means the package has its actual implementation, review and required local validation, with its implementation commit recorded below. Remaining packages follow the execution policy above.
 
 - [x] Pin baseline/source revisions and inspect existing PR comparisons through authenticated CLI.
 - [x] Investigate engine/reset, RPC/conductor, configuration/L1/network and deletion candidates.
@@ -715,8 +717,8 @@ Planning is complete. A check means the package has its actual implementation, r
 - [x] PR 02: shared resolved configuration and bounded clients.
 - [x] PR 03: ordinary engine operations and necessary dead-code deletion.
 - [x] PR 04: canonical reset ancestry and coherent reads; strict safe selection stays with PR 10 bootstrap.
-- [ ] PR 05: engine ownership, scheduler, honest outcomes, complete pipeline handoff and epoch barrier.
-- [ ] PR 06: direct read dependencies, version and retained API coverage.
+- [x] PR 05: engine ownership, scheduler, honest outcomes, complete pipeline handoff and epoch barrier.
+- [x] PR 06: direct read dependencies, version and retained API coverage.
 - [ ] PR 07: direct admin routing and concrete sequencer dependencies.
 - [ ] PR 08: conductor publication/activation/stop phase contract and configured timeouts.
 - [ ] PR 09: local recovery override with shared assertions preserved.
@@ -940,3 +942,14 @@ The force-inclusion test is in the existing `node/reorgs` CI package. It checks 
 **Review.** Independent Rust/protocol, Go, scheduler and deletion/API reviews completed. All actionable findings were corrected, including span safety, metric-write preservation, paced exact-job retries and responsive reliable admin ingress. Public documentation and examples use the surviving APIs. Public Rust API changes are marked breaking and have a migration note in the PR.
 
 **Review checkpoint.** Publish PR 05 as a draft on PR 04 and stop implementation for user review. Do not begin PR 06, merge, or wait for hosted CI after handoff. Hosted CI status is separate from the completed local checks above.
+
+
+### PR 06 implementation and validation
+
+Branch `codex/kona-refactor-06-rpc-reads` starts from PR 05 head `db30a19fd66e1a6bb831e6d6284886b1bfa8eb48`. Rollup reads use the shared L2 provider, resolved configuration and engine state watch directly. Pre-Isthmus proofs use the fetched block's canonical hash; Isthmus outputs use that header's withdrawals root. The binary's cached release version reaches both version and health endpoints. L1 query and admin wiring remain for their owning packages.
+
+The query actor, enums, request channel, queued client and both forwarding/read traits are removed together. The resulting unused engine proof/label methods, their error type and mock helpers are also deleted; the transport deadline regression now uses the surviving full-block read. Dev queue and unsafe/safe/finalized subscriptions retain their wire interfaces and consume the actual owner watches. Publisher closure is handled, and idle client disconnect releases subscription receivers. Public examples and architecture docs use the surviving APIs.
+
+**Local validation.** All 329 offline tests in the five affected node packages passed with all features and zero skips. Full workspace Rust `just lint` passed, including formatting, Clippy, docs and repository checks; the fresh default `kona-node` binary build passed. Registered endpoint tests cover supplied release/development versions, JSON-RPC health and GET `/healthz`, proof parameters, Isthmus/missing/invalid/error paths, stalled-proof concurrency, distinct head subscriptions, publisher closure and idle disconnect. The live `simple-kona-sequencer` common suite passed all four selected cases: `TestRollupConfig`, `TestSyncUnsafe`, `TestSyncSafe` and `TestSyncFinalized`. It exercised the candidate binary against external op-reth, including canonical output comparisons. Commands and results are recorded in the task workspace's `work/pr06-validation-results.json`.
+
+**Review and comparison.** Independent Rust and deletion reviews have no remaining findings. The original RPC experiment remains open as PR 23268; this curated package selects its direct-read/version intent while retaining dev/ws methods and flags. Public Rust API removals and constructor changes have an explicit breaking-change migration note. No Go or shared proof/protocol/alloy runtime source changed. Hosted CI is separate from these completed local results. Continue with PR 07 under the updated execution policy.

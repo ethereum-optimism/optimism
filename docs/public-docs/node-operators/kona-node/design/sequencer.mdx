@@ -86,6 +86,7 @@ let sequencer_config = SequencerConfig {
 // L1/L2 provider pair and one Arc<RollupConfig>. A sequencer needs a block
 // signer: `p2p_config.gossip_signer` must be `Some`, or `start` fails.
 RollupNodeBuilder::new(
+    binary_release_version,
     Arc::new(rollup_config),
     l1_config_builder,
     l2_trust_rpc,

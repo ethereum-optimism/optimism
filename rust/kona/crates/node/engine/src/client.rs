@@ -1,42 +1,26 @@
 //! An Engine API Client.
 
 use crate::{HyperAuthClient, Metrics};
-use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
+use alloy_eips::BlockId;
 use alloy_network::{Ethereum, Network};
-use alloy_primitives::{Address, B256, BlockHash, StorageKey};
-use alloy_provider::{EthGetBlock, Provider, RpcWithBlock, ext::EngineApi};
+use alloy_primitives::{B256, BlockHash};
+use alloy_provider::{EthGetBlock, Provider, ext::EngineApi};
 use alloy_rpc_types_engine::{
     ClientVersionV1, ExecutionPayloadBodiesV1, ExecutionPayloadEnvelopeV2, ExecutionPayloadInputV2,
     ExecutionPayloadV1, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
 };
-use alloy_rpc_types_eth::{Block, EIP1186AccountProofResponse};
-use alloy_transport::{RpcError, TransportErrorKind, TransportResult};
+use alloy_transport::TransportResult;
 use alloy_transport_http::Http;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
-use kona_protocol::FromBlockError;
 use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
-use op_alloy_rpc_types::Transaction;
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
     OpPayloadAttributes,
 };
 use std::{sync::Arc, time::Instant};
-use thiserror::Error;
-
-/// An error that occurred in the [`EngineClient`].
-#[derive(Error, Debug)]
-pub enum EngineClientError {
-    /// An RPC error occurred
-    #[error("An RPC error occurred: {0}")]
-    RpcError(#[from] RpcError<TransportErrorKind>),
-
-    /// An error occurred while decoding the payload
-    #[error("An error occurred while decoding the payload: {0}")]
-    BlockInfoDecodeError(#[from] FromBlockError),
-}
 
 /// Engine API client used to communicate with L1/L2 ELs.
 /// `EngineClient` trait that is very coupled to its only implementation.
@@ -52,65 +36,8 @@ pub trait EngineClient: OpEngineApi<Optimism, Http<HyperAuthClient>> + Send + Sy
     /// Fetches the L2 block with the provided `BlockId`.
     fn get_l2_block(&self, block: BlockId) -> EthGetBlock<<Optimism as Network>::BlockResponse>;
 
-    /// Get the account and storage values of the specified account including the merkle proofs.
-    /// This call can be used to verify that the data has not been tampered with.
-    fn get_proof(
-        &self,
-        address: Address,
-        keys: Vec<StorageKey>,
-    ) -> RpcWithBlock<(Address, Vec<StorageKey>), EIP1186AccountProofResponse>;
-
     /// Sends the given payload to the execution layer client, as specified for the Paris fork.
     async fn new_payload_v1(&self, payload: ExecutionPayloadV1) -> TransportResult<PayloadStatus>;
-
-    /// Fetches the [`Block<Transaction>`] for the given [`BlockNumberOrTag`].
-    async fn l2_block_by_label(
-        &self,
-        numtag: BlockNumberOrTag,
-    ) -> Result<Option<Block<Transaction>>, EngineClientError>;
-}
-
-/// Read-only subset of [`EngineClient`] used by the engine RPC actor.
-///
-/// Exposes only the methods required to serve [`crate::EngineQueries`] — fetching an L2 block by
-/// label, and reading the L2-to-L1 message-passer storage hash. The engine RPC actor handles
-/// queries only and must not have any way to call state-mutating Engine API methods; constraining
-/// it to this trait prevents that at the type system level.
-#[async_trait]
-pub trait EngineRpcClient: Send + Sync {
-    /// Fetches the [`Block<Transaction>`] for the given [`BlockNumberOrTag`].
-    async fn l2_block_by_label(
-        &self,
-        numtag: BlockNumberOrTag,
-    ) -> Result<Option<Block<Transaction>>, EngineClientError>;
-
-    /// Returns the storage hash of `address` at the given block, used to compute the L2-to-L1
-    /// message-passer storage root pre-Isthmus. This is a narrower projection of `get_proof`'s
-    /// `storage_hash` field; callers needing the full account proof should not be using this
-    /// trait.
-    async fn get_storage_hash(
-        &self,
-        address: Address,
-        block: BlockId,
-    ) -> Result<B256, RpcError<TransportErrorKind>>;
-}
-
-#[async_trait]
-impl<T: EngineClient + ?Sized> EngineRpcClient for T {
-    async fn l2_block_by_label(
-        &self,
-        numtag: BlockNumberOrTag,
-    ) -> Result<Option<Block<Transaction>>, EngineClientError> {
-        EngineClient::l2_block_by_label(self, numtag).await
-    }
-
-    async fn get_storage_hash(
-        &self,
-        address: Address,
-        block: BlockId,
-    ) -> Result<B256, RpcError<TransportErrorKind>> {
-        Ok(self.get_proof(address, Default::default()).block_id(block).await?.storage_hash)
-    }
 }
 
 /// An Engine API client that provides authenticated HTTP communication with an execution layer.
@@ -161,23 +88,8 @@ where
         self.engine.get_block(block)
     }
 
-    fn get_proof(
-        &self,
-        address: Address,
-        keys: Vec<StorageKey>,
-    ) -> RpcWithBlock<(Address, Vec<StorageKey>), EIP1186AccountProofResponse> {
-        self.engine.get_proof(address, keys)
-    }
-
     async fn new_payload_v1(&self, payload: ExecutionPayloadV1) -> TransportResult<PayloadStatus> {
         record_call_time(self.engine.new_payload_v1(payload), Metrics::NEW_PAYLOAD_METHOD).await
-    }
-
-    async fn l2_block_by_label(
-        &self,
-        numtag: BlockNumberOrTag,
-    ) -> Result<Option<Block<Transaction>>, EngineClientError> {
-        Ok(self.engine.get_block_by_number(numtag).full().await?)
     }
 }
 

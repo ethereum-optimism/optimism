@@ -7917,8 +7917,11 @@ version = "0.3.2"
 dependencies = [
  "alloy-eips 2.5.0",
  "alloy-primitives",
+ "alloy-provider",
  "alloy-rpc-client",
  "alloy-rpc-types-engine",
+ "alloy-rpc-types-eth 2.4.2",
+ "alloy-transport",
  "async-trait",
  "backon",
  "derive_more 2.1.1",
@@ -7933,13 +7936,16 @@ dependencies = [
  "libp2p",
  "metrics",
  "op-alloy-consensus",
+ "op-alloy-network",
  "op-alloy-rpc-jsonrpsee",
  "op-alloy-rpc-types",
  "op-alloy-rpc-types-engine",
+ "reqwest 0.13.2",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tower 0.5.3",
  "tracing",
 ]
 

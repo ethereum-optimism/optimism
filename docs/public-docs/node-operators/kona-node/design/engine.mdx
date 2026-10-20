@@ -54,10 +54,11 @@ before moving finalized forkchoice. Trusted delegation uses an explicit delegate
 
 ## Queries and observability
 
-The read-only `EngineRpcActor` shares the accepted state and pending-work watches with the
-owner. It serves configuration, status, output and subscription queries through the
-existing RPC interface. Pending work includes accepted mailbox entries and active attempts,
-including while an execution RPC is stalled.
+RPC handlers read configuration and the owner's accepted state and pending-work watches
+directly. Output reads use the L2 provider independently, so a slow proof request cannot
+stall other RPC reads. Before Isthmus, the proof is pinned to the fetched block's canonical
+hash; after Isthmus, its withdrawals root comes from the same header. Pending work includes
+accepted mailbox entries and active attempts, including while an execution RPC is stalled.
 
 Existing engine operation metrics retain their wire names and labels. Block-label gauges
 reflect published accepted state, including partial changes made before a later error.
