@@ -84,8 +84,8 @@
     "sourceCodeHash": "0xcb3c8af166063f1eab2dfba33e4b701e386af9eb7e7cc54bdebd907b02cf3ffc"
   },
   "src/L2/L2ERC721Bridge.sol:L2ERC721Bridge": {
-    "initCodeHash": "0x6a93ded273dc3c1b0ea3f351412e97f0c22efd89c9760e74258c8d4c315d1b5c",
-    "sourceCodeHash": "0x0a29792f3226dac84fdb44150b622a165fe65da3b678f6540acecdfe440772bb"
+    "initCodeHash": "0xa6057573826e9b8d20c87d76e8bc0ec659d051ed43620a84720bc646b02952c1",
+    "sourceCodeHash": "0x065bd3b5559b5b24989ef9b0e195ff5059fd3708373f145769b2b9e76cffed93"
   },
   "src/L2/L2ProxyAdmin.sol:L2ProxyAdmin": {
     "initCodeHash": "0x06d4118450d161b537ec08ea938ce553768675b11758ac91de4c09158cd2ad61",
