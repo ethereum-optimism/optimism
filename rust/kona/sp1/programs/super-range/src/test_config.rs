@@ -48,7 +48,10 @@ pub(super) async fn load(
 mod tests {
     use super::*;
     use kona_sp1_client_utils::{
-        super_root::{SuperConsolidationInputs, SuperRangeInputs, TimestampSpan},
+        super_root::{
+            SuperConsolidationInputs, SuperOutputRoot, SuperRangeInputs, SuperRootProof,
+            TimestampSpan,
+        },
         witness::preimage_store::PreimageStore,
     };
 
@@ -76,7 +79,10 @@ mod tests {
             span: TimestampSpan::new(101, 101).unwrap(),
             l1_head: Default::default(),
             chain_ids: vec![u64::MAX.to_string().parse().unwrap()],
-            previous_super_root_proofs: Vec::new(),
+            previous_super_root_proofs: vec![SuperRootProof::new(
+                100,
+                vec![SuperOutputRoot { chain_id: u64::MAX, output_root: Default::default() }],
+            )],
             claimed_transitions: Vec::new(),
         });
         for mismatched_l1 in [false, true] {
