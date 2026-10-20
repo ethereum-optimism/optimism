@@ -1422,7 +1422,10 @@ fn prove_span<'s, P: SpanProver>(
                             error = %format!("{err:#}"),
                             "Span exceeds proving limits; bisecting"
                         );
-                        let halves = node.split.record(Default::default);
+                        let halves = node.split.record(|| {
+                            ProposerGauge::SpanBisections.increment(1.0);
+                            Default::default()
+                        });
                         prove_span_halves(prover, index, span, &halves).await
                     }
                 },

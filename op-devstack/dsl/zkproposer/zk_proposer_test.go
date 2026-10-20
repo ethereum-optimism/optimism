@@ -79,20 +79,20 @@ func TestVerifyStateMatchesExactValuesFromOneSnapshot(t *testing.T) {
 	require.Equal(t, 1, fetches)
 }
 
-func TestVerifyStateAcceptsLogBatchesAtOrAboveMinimum(t *testing.T) {
+func TestVerifyStateAcceptsSpanBisectionsAtOrAboveMinimum(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		for observed, ok := range map[int]bool{1: false, 2: true, 3: true} {
-			payload := fmt.Sprintf("# TYPE %[1]s gauge\n%[1]s %[2]d\n", logBatchesSubmittedMetric, observed)
+			payload := fmt.Sprintf("# TYPE %[1]s gauge\n%[1]s %[2]d\n", spanBisectionsMetric, observed)
 			proposer, _ := newTestProposer(t, func(context.Context, string, url.Values, http.Header) (*http.Response, error) {
 				return metricsResponse(payload), nil
 			}, devtestmetrics.WithWaitTimeout(time.Millisecond))
 
-			err := proposer.verifyState(context.Background(), LogBatchesSubmittedAtLeast(2))
+			err := proposer.verifyState(context.Background(), SpanBisectionsAtLeast(2))
 
 			if ok {
 				require.NoError(t, err, "observed %d", observed)
 			} else {
-				require.ErrorContains(t, err, "log batches submitted expected at least 2 but observed 1")
+				require.ErrorContains(t, err, "span bisections expected at least 2 but observed 1")
 			}
 		}
 	})

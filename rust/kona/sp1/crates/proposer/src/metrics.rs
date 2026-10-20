@@ -266,6 +266,13 @@ pub enum ProposerGauge {
         message = "Total number of failed log-commitment batch proofs"
     )]
     LogBatchError,
+    /// Total number of proving spans halved because they exceeded a size, estimate or execution
+    /// limit.
+    #[strum(
+        serialize = "op_zk_proposer_span_bisections",
+        message = "Total number of proving spans bisected for exceeding a proving limit"
+    )]
+    SpanBisections,
     /// Total number of games found permanently unprovable (claim data
     /// diverged or required L1 beyond the game's L1 head).
     #[strum(

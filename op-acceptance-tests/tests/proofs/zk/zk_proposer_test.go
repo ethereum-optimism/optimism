@@ -287,8 +287,38 @@ func TestProposerProvesBelowHeadMessageOnTablePath(gt *testing.T) {
 	}
 
 	game.WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
+	// One message references one block, so exactly one batch: more means a batch was
+	// submitted again or the block was split across batches.
 	proposer.VerifyState(
-		zkproposer.LogBatchesSubmittedAtLeast(1),
+		zkproposer.LogBatchesSubmitted(1),
+		zkproposer.ProvingFailures(0),
+	)
+}
+
+// TestProposerBisectsSpanOverBudget proves a game whose chunks are each at least
+// two timestamps long under a gas limit with no budget, so every chunk is over
+// its estimate and is bisected into single timestamps, which are requested
+// anyway. The game proves only if the halves' synthesized inputs, witnesses,
+// and outputs chain back into the aggregation in order.
+func TestProposerBisectsSpanOverBudget(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithoutHonestChallenger(),
+		presets.WithoutHonestProposer(),
+		presets.WithZKProposerOption(sysgo.WithZKFastFinality()),
+		presets.WithZKProposerOption(sysgo.WithZKMetrics()),
+		// Keeps each of the default 16 chunks at least two timestamps long.
+		presets.WithZKProposerOption(sysgo.WithZKProposalInterval(32*time.Second)),
+		presets.WithZKProposerOption(sysgo.WithZKRangeGasLimit(1)),
+	)
+	proposer := sys.StartZKProposer()
+	sys.DisputeGameFactory().WaitForZKGameAtIndex(0).
+		WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
+	// Without a bisection the game would still prove if the estimate check stopped
+	// gating splittable spans, so assert that one happened.
+	proposer.VerifyState(
+		zkproposer.SpanBisectionsAtLeast(1),
 		zkproposer.ProvingFailures(0),
 	)
 }
