@@ -44,8 +44,9 @@ def verify(kind, metadata):
     if len(sha) != 40 or any(c not in '0123456789abcdef' for c in sha):
         raise ValueError('Invalid dependency source revision')
     subprocess.run(['git', 'merge-base', '--is-ancestor', sha, 'HEAD'], cwd=ROOT, check=True)
-    if git('status', '--porcelain', '--untracked-files=no', '--', *SCOPES[kind]).strip():
-        raise ValueError('Modified dependency build inputs')
+    modified = git('status', '--porcelain', '--untracked-files=no', '--', *SCOPES[kind]).decode(errors='replace').strip()
+    if modified:
+        raise ValueError('Modified dependency build inputs: ' + modified[:2000])
     expected = fingerprint(kind)
     if metadata.get('build_inputs_sha256') != expected or fingerprint(kind, sha) != expected:
         raise ValueError('Dependency build inputs differ from current source')

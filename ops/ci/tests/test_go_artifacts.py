@@ -3,6 +3,8 @@
 import importlib.util
 import json
 import os
+import shutil
+import subprocess
 from pathlib import Path
 import tempfile
 import tarfile
@@ -93,5 +95,55 @@ class GoArtifactsTest(unittest.TestCase):
         path = self.artifact / 'metadata.json'; metadata = json.loads(path.read_text())
         metadata['archive_sha256'] = ART.digest(archive); path.write_text(json.dumps(metadata))
         with self.assertRaisesRegex(ValueError, 'archived dependency'): ART.restore('go', self.artifact)
+
+class ReusableFilteredConsumerTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        runtime = self.root / 'ops/ci/runtime'
+        runtime.mkdir(parents=True)
+        shutil.copy2(Path(ART.__file__).with_name('go-dependency-source.py'), runtime / 'go-dependency-source.py')
+        (self.root / 'mise.toml').write_text('pinned')
+        (self.root / 'justfiles').mkdir()
+        (self.root / 'justfiles/producer.just').write_text('build input')
+        (self.root / '.gitignore').write_text('.ci/\nfixture/\n')
+        (self.root / 'fixture').mkdir()
+        (self.root / 'fixture/binary').write_text('compiled')
+        self.git('init', '-q')
+        self.git('add', '.')
+        self.git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'source')
+        self.sha = self.git('rev-parse', 'HEAD').strip()
+        self.addCleanup(patch.stopall)
+        patch.object(ART, 'ROOT', self.root).start()
+        patch.dict(os.environ, CI_COMMIT_SHA=self.sha, CI_GO_REUSABLE_DEPENDENCY='1').start()
+        original = subprocess.check_output
+        patch.object(ART.subprocess, 'check_output', side_effect=lambda args, **kw: original(args, **kw) if args[0]=='git' else 'go1.26').start()
+        ART.pack('go', ['fixture'])
+        self.artifact = self.root / '.ci/go-tests/dependencies/go'
+
+    def git(self, *args):
+        return subprocess.check_output(['git', *args], cwd=self.root, text=True)
+
+    def test_same_commit_projection_restores_but_ancestor_projection_fails_closed(self):
+        omitted = self.root / 'justfiles/producer.just'
+        omitted.unlink()  # A runtime input filter omits a build-only tracked file.
+        ART.restore('go', self.artifact)
+        self.assertEqual((self.root / 'fixture/binary').read_text(), 'compiled')
+        self.git('checkout', '--', 'justfiles/producer.just')
+        (self.root / 'docs.txt').write_text('unrelated edit')
+        self.git('add', 'docs.txt')
+        self.git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'unrelated')
+        with patch.dict(os.environ, CI_COMMIT_SHA=self.git('rev-parse', 'HEAD').strip()):
+            ART.restore('go', self.artifact)  # Complete, identical ancestor inputs.
+            omitted.unlink()
+            with self.assertRaisesRegex(ValueError, 'Modified dependency build inputs'):
+                ART.restore('go', self.artifact)
+
+    def test_reusable_producer_rejects_modified_tracked_inputs(self):
+        (self.root / 'justfiles/producer.just').write_text('dirty producer input')
+        with self.assertRaisesRegex(ValueError, 'Modified dependency build inputs'):
+            ART.pack('go', ['fixture'])
+
 
 if __name__ == '__main__': unittest.main()
