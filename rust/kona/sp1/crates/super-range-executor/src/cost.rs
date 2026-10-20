@@ -4,7 +4,7 @@
 //! `docs/ai/kona-sp1-proof-limits.md` (SP1 6.8.1); the others are starting values. Check them
 //! again after an SP1 upgrade.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::B256;
@@ -44,30 +44,6 @@ mod consolidation_pgu {
     pub(super) const PROOF: u64 = 1_300_000;
     /// One gas of a deposit-only block that the consolidation executes.
     pub(super) const REPLACEMENT_GAS: u64 = 11_000;
-}
-
-/// Witness-byte bounds that the receipts-path bound prices at the witness and read unit costs.
-mod bound_bytes {
-    /// Headers, output roots, and super-root preimages of one chain at one timestamp.
-    pub(super) const CHAIN_TIMESTAMP: u64 = 8_192;
-    /// One EIP-2935 header lookup step: about 7.2 KB of nodes, plus their keys.
-    pub(super) const LOOKUP_STEP: u64 = 8_192;
-    /// Steps of a walk to the far end of the expiry window: at most 7 days at 1 s blocks, 8,191
-    /// blocks per step.
-    pub(super) const FAR_WALK_STEPS: u64 = 74;
-    /// Receipts-trie bytes per gas of a block: 8 gas per log data byte, 375 per topic, and
-    /// 21,000 per receipt, with their keys.
-    pub(super) const RECEIPTS_PER_GAS_NUMERATOR: u64 = 3;
-    pub(super) const RECEIPTS_PER_GAS_DENOMINATOR: u64 = 20;
-    /// Receipts-trie bytes of a block beyond its gas bound.
-    pub(super) const RECEIPTS_PER_BLOCK: u64 = 4_096;
-    /// Transactions-trie bytes per gas of a block: at least 4 gas per calldata byte.
-    pub(super) const TRANSACTIONS_PER_GAS_DENOMINATOR: u64 = 4;
-    /// State bytes per gas of a deposit-only block: a cold read of 24 KB of code costs 2,600 gas.
-    pub(super) const STATE_PER_DEPOSIT_GAS: u64 = 12;
-    /// Header bytes that the `BLOCKHASH` reads of a deposit-only block walk: 32,640 headers of
-    /// at most 768 bytes, as each read walks back from the parent.
-    pub(super) const BLOCKHASH_WALK: u64 = 32_640 * 768;
 }
 
 /// The default limit on the encoded stdin of one request (1.5 GiB): under the witness of an
@@ -222,7 +198,7 @@ pub fn estimate_consolidation_pgu(cost: &ConsolidationCost) -> u64 {
     .fold(0, u64::saturating_add)
 }
 
-/// One transition timestamp of a request on the receipts path, from the message scan.
+/// One transition timestamp of a consolidation request, from the message scan.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ScannedTimestampCost {
     /// Chains of the timestamp.
@@ -231,86 +207,8 @@ pub struct ScannedTimestampCost {
     pub replaced_chains: u64,
     /// Executing messages of the heads.
     pub messages: u64,
-    /// Receipts-trie bytes of the heads.
-    pub head_receipts_bytes: u64,
     /// Deposit gas of the replaced heads.
     pub replaced_deposit_gas: u64,
-    /// Gas used by the replaced heads, whose transactions tries the replacement walks.
-    pub replaced_head_gas_used: u64,
-    /// Gas used by each distinct block below a head that a message references, by chain. Each
-    /// chain needs its own walk to the far end of the window.
-    pub referenced_gas_used: BTreeMap<u64, Vec<u64>>,
-}
-
-/// An upper bound of [`estimate_consolidation_pgu`] for a request on the receipts path, before
-/// its collection.
-pub fn bound_receipts_path_pgu(timestamps: &[ScannedTimestampCost]) -> u64 {
-    use consolidation_pgu::*;
-    timestamps.iter().fold(BASE, |total, timestamp| {
-        let rounds = timestamp.replaced_chains + 1;
-        let read_per_round = [
-            timestamp.head_receipts_bytes,
-            timestamp_lookup_bytes(timestamp),
-            timestamp_referenced_bytes(timestamp),
-        ]
-        .into_iter()
-        .fold(0, u64::saturating_add);
-        let read =
-            rounds.saturating_mul(read_per_round).saturating_add(timestamp_chain_bytes(timestamp));
-        [
-            CHAIN_TIMESTAMP * timestamp.chains,
-            MESSAGE_CHECK * rounds * timestamp.messages,
-            REPLACEMENT_GAS * timestamp.replaced_deposit_gas,
-            READ_BYTE.saturating_mul(read),
-        ]
-        .into_iter()
-        .fold(total, u64::saturating_add)
-    })
-}
-
-/// An upper bound of the witness bytes of a request on the receipts path, before its collection.
-pub fn bound_receipts_path_witness_bytes(timestamps: &[ScannedTimestampCost]) -> u64 {
-    timestamps.iter().fold(0, |total, timestamp| {
-        [
-            timestamp.head_receipts_bytes,
-            timestamp_chain_bytes(timestamp),
-            timestamp_lookup_bytes(timestamp),
-            timestamp_referenced_bytes(timestamp),
-        ]
-        .into_iter()
-        .fold(total, u64::saturating_add)
-    })
-}
-
-/// Header and output-root bytes of the timestamp's chains, and the transactions tries, deposit
-/// state, and `BLOCKHASH` walks of its replaced heads.
-const fn timestamp_chain_bytes(timestamp: &ScannedTimestampCost) -> u64 {
-    bound_bytes::CHAIN_TIMESTAMP * timestamp.chains +
-        timestamp.replaced_head_gas_used / bound_bytes::TRANSACTIONS_PER_GAS_DENOMINATOR +
-        timestamp.replaced_deposit_gas * bound_bytes::STATE_PER_DEPOSIT_GAS +
-        bound_bytes::BLOCKHASH_WALK * timestamp.replaced_chains
-}
-
-/// Header-lookup bytes of one round: a far walk per referenced chain, as each timestamp has its
-/// own header cache, and a step per referenced block.
-fn timestamp_lookup_bytes(timestamp: &ScannedTimestampCost) -> u64 {
-    let chains = timestamp.referenced_gas_used.len() as u64;
-    let blocks: usize = timestamp.referenced_gas_used.values().map(Vec::len).sum();
-    bound_bytes::LOOKUP_STEP * (bound_bytes::FAR_WALK_STEPS * chains + blocks as u64)
-}
-
-/// Receipts-trie bytes of the timestamp's referenced blocks in one round.
-fn timestamp_referenced_bytes(timestamp: &ScannedTimestampCost) -> u64 {
-    timestamp
-        .referenced_gas_used
-        .values()
-        .flatten()
-        .map(|gas_used| {
-            gas_used / bound_bytes::RECEIPTS_PER_GAS_DENOMINATOR *
-                bound_bytes::RECEIPTS_PER_GAS_NUMERATOR +
-                bound_bytes::RECEIPTS_PER_BLOCK
-        })
-        .fold(0, u64::saturating_add)
 }
 
 #[cfg(test)]
@@ -437,48 +335,5 @@ mod tests {
         ] {
             assert!(estimate_consolidation_pgu(&larger) > base);
         }
-    }
-
-    /// Pins a bound that grows with each round, block, chain, message, and timestamp.
-    #[test]
-    fn receipts_path_bound_grows_per_round_chain_and_timestamp() {
-        let timestamp = ScannedTimestampCost {
-            chains: 2,
-            messages: 10,
-            head_receipts_bytes: 1_000,
-            referenced_gas_used: [(1, vec![1_000_000])].into(),
-            ..Default::default()
-        };
-        let one = bound_receipts_path_pgu(std::slice::from_ref(&timestamp));
-        let two_timestamps = bound_receipts_path_pgu(&[timestamp.clone(), timestamp.clone()]);
-        assert_eq!(two_timestamps - one, one - consolidation_pgu::BASE);
-        let same_chain = ScannedTimestampCost {
-            referenced_gas_used: [(1, vec![1_000_000; 2])].into(),
-            ..timestamp
-        };
-        let other_chain = ScannedTimestampCost {
-            referenced_gas_used: [(1, vec![1_000_000]), (2, vec![1_000_000])].into(),
-            ..timestamp
-        };
-        assert!(
-            bound_receipts_path_pgu(std::slice::from_ref(&other_chain)) >
-                bound_receipts_path_pgu(std::slice::from_ref(&same_chain))
-        );
-        for larger in [
-            ScannedTimestampCost { replaced_chains: 1, ..timestamp.clone() },
-            same_chain,
-            ScannedTimestampCost {
-                referenced_gas_used: [(1, vec![2_000_000])].into(),
-                ..timestamp.clone()
-            },
-            ScannedTimestampCost { messages: 11, ..timestamp.clone() },
-        ] {
-            assert!(bound_receipts_path_pgu(&[larger]) > one);
-        }
-        let replaced = ScannedTimestampCost { replaced_deposit_gas: 1_000, ..timestamp.clone() };
-        assert!(
-            bound_receipts_path_witness_bytes(&[replaced]) >
-                bound_receipts_path_witness_bytes(&[timestamp])
-        );
     }
 }

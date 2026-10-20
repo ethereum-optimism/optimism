@@ -250,7 +250,7 @@ func TestProposerFastFinalityProvesAtCreation(gt *testing.T) {
 
 // TestProposerProvesBelowHeadMessageOnTablePath proves a game whose span holds
 // an executing message on chain B that references a block of chain A below A's
-// block at that timestamp, with the proposer forced onto the table path.
+// block at that timestamp, on the proposer's default table path.
 func TestProposerProvesBelowHeadMessageOnTablePath(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t,
@@ -259,7 +259,6 @@ func TestProposerProvesBelowHeadMessageOnTablePath(gt *testing.T) {
 		presets.WithoutHonestProposer(),
 		presets.WithZKProposerOption(sysgo.WithZKFastFinality()),
 		presets.WithZKProposerOption(sysgo.WithZKMetrics()),
-		presets.WithZKProposerOption(sysgo.WithZKLogPath("table")),
 		// WithZK pins Jovian at genesis; executing messages need Lagoon.
 		presets.WithDeployerOptions(sysgo.WithInteropAtGenesis()),
 	)

@@ -16,7 +16,7 @@ use kona_interop::{
 };
 use kona_registry::HashMap as RegistryHashMap;
 use kona_sp1_ethereum_client_utils::chain_config::ChainConfigs;
-use kona_sp1_super_range_executor::{SuperRootAtTimestampResponse, receipts_trie_bytes};
+use kona_sp1_super_range_executor::SuperRootAtTimestampResponse;
 use op_alloy_consensus::OpReceiptEnvelope;
 
 use crate::ports::L2BlockSource;
@@ -28,7 +28,6 @@ pub(crate) struct ReferencedBlock {
     pub(crate) number: u64,
     pub(crate) hash: B256,
     pub(crate) receipts_root: B256,
-    pub(crate) gas_used: u64,
 }
 
 /// One transition timestamp of a span.
@@ -40,12 +39,8 @@ pub(crate) struct ScannedTimestamp {
     pub(crate) replaced_chains: u64,
     /// Deposit gas of the replaced heads, which the deposit-only blocks execute again.
     pub(crate) replaced_deposit_gas: u64,
-    /// Gas used by the replaced heads.
-    pub(crate) replaced_head_gas_used: u64,
     /// Executing messages in the heads.
     pub(crate) messages: u64,
-    /// Receipts-trie bytes of the heads.
-    pub(crate) head_receipts_bytes: u64,
     /// `(chain, number)` of each distinct referenced block below its chain's head.
     pub(crate) references: BTreeSet<(u64, u64)>,
 }
@@ -62,7 +57,6 @@ pub(crate) struct ScannedSpan {
 struct ScannedHead {
     header: Header,
     messages: Vec<ExecutingMessage>,
-    receipts_bytes: u64,
     deposit_gas: u64,
 }
 
@@ -101,11 +95,9 @@ pub(crate) async fn scan_span(
             };
             scanned.chains += 1;
             scanned.messages += head.messages.len() as u64;
-            scanned.head_receipts_bytes += head.receipts_bytes;
             if claimed.get(chain_id) != Some(&optimistic.output_root) {
                 scanned.replaced_chains += 1;
                 scanned.replaced_deposit_gas += head.deposit_gas;
-                scanned.replaced_head_gas_used += head.header.gas_used;
             }
             chain_heads.push((chain, head));
         }
@@ -142,7 +134,6 @@ pub(crate) async fn scan_span(
             number,
             hash: header.hash(),
             receipts_root: header.receipts_root,
-            gas_used: header.gas_used,
         };
         blocks.insert((chain_id, number), block);
     }
@@ -161,12 +152,7 @@ async fn scan_head(source: &dyn L2BlockSource, chain_id: u64, hash: B256) -> Res
         .last()
         // Receipts give the gas after refunds, which return at most 1/5 of the gas spent.
         .map_or(0, |receipt| receipt.cumulative_gas_used() * 5 / 4);
-    Ok(ScannedHead {
-        messages: extract_executing_messages(&receipts),
-        receipts_bytes: receipts_trie_bytes(&receipts),
-        deposit_gas,
-        header,
-    })
+    Ok(ScannedHead { messages: extract_executing_messages(&receipts), deposit_gas, header })
 }
 
 /// The `(chain, number)` of the block below a head that the run reads for `message`, with the

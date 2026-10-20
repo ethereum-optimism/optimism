@@ -15,7 +15,7 @@ use kona_sp1_host_utils::{
 };
 use op_zk_proposer::{
     ENV_VAR_PREFIX,
-    config::{ProofProviderKind, ProposerConfig},
+    config::{LogPath, ProofProviderKind, ProposerConfig},
     contract::DisputeGameFactory,
     metrics::{ProposerGauge, record_spn_requester, register_metrics},
     proposer::Proposer,
@@ -77,6 +77,13 @@ async fn main() -> Result<()> {
         log_gas_limit = config.proof_provider_config.log_gas_limit,
         "Resolved proposer configuration"
     );
+    if config.log_path == LogPath::Receipts {
+        tracing::warn!(
+            "OP_ZK_PROPOSER_LOG_PATH overrides the log path to receipts mode: games prove \
+             references below a local safe head through block receipts, with no log-commitment \
+             batch proofs (only for chains with interop off)"
+        );
+    }
 
     // Mock deployments need no SPN credentials.
     let mut spn_requester = None;

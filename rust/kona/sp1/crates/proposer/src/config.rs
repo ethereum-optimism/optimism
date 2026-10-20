@@ -77,12 +77,10 @@ impl FromStr for ProofProviderKind {
 /// The consolidation path of a game's references to blocks below a local-safe head.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogPath {
-    /// The receipts path when every consolidation request of the game fits on it, otherwise the
-    /// table path.
-    Auto,
-    /// The receipts path: no log-commitment batch proofs.
+    /// The receipts path: no log-commitment batch proofs. Only for chains with interop off.
     Receipts,
-    /// The table path: a batch proof for every referenced block below a head.
+    /// The table path, the default: a batch proof for every referenced block below a head. A game
+    /// without such references makes no batches.
     Table,
 }
 
@@ -91,10 +89,9 @@ impl FromStr for LogPath {
 
     fn from_str(value: &str) -> Result<Self> {
         match value.to_ascii_lowercase().as_str() {
-            "auto" => Ok(Self::Auto),
             "receipts" => Ok(Self::Receipts),
             "table" => Ok(Self::Table),
-            other => bail!("{other} (expected auto|receipts|table)"),
+            other => bail!("{other} (expected receipts|table)"),
         }
     }
 }
@@ -394,7 +391,7 @@ impl ProposerConfig {
                 NonZeroU64::MIN,
             )?,
             proof_provider_config: ProofProviderConfig::from_env()?,
-            log_path: parsed_env_or("LOG_PATH", LogPath::Auto)?,
+            log_path: parsed_env_or("LOG_PATH", LogPath::Table)?,
         })
     }
 }
@@ -1185,18 +1182,18 @@ mod tests {
             assert_eq!(config.log_proof_strategy, FulfillmentStrategy::Reserved);
         }
 
-        /// Pins the path default, its override, and an unknown path.
+        /// Pins the table default, the receipts opt-out, and an unknown path.
         #[test]
         #[serial]
         fn log_settings_path() {
             clear_proposer_env();
             set_required_mock_env();
             let config = ProposerConfig::from_env(None).unwrap();
-            assert_eq!(config.log_path, LogPath::Auto);
-
-            set_proposer_env("LOG_PATH", "Table");
-            let config = ProposerConfig::from_env(None).unwrap();
             assert_eq!(config.log_path, LogPath::Table);
+
+            set_proposer_env("LOG_PATH", "Receipts");
+            let config = ProposerConfig::from_env(None).unwrap();
+            assert_eq!(config.log_path, LogPath::Receipts);
 
             set_proposer_env("LOG_PATH", "sometimes");
             let err = ProposerConfig::from_env(None).unwrap_err().to_string();

@@ -52,8 +52,7 @@ use sp1_sdk::{
 mod cost;
 pub use cost::{
     ConsolidationCost, DEFAULT_MAX_STDIN_BYTES, LogBatchBlock, MAX_ENTRIES_PER_BATCH,
-    ScannedTimestampCost, batch_log_blocks, bound_receipts_path_pgu,
-    bound_receipts_path_witness_bytes, estimate_consolidation_pgu, estimate_log_block_pgu,
+    ScannedTimestampCost, batch_log_blocks, estimate_consolidation_pgu, estimate_log_block_pgu,
     estimate_log_commitment_pgu, receipts_trie_bytes, split_log_batches,
 };
 mod l2;

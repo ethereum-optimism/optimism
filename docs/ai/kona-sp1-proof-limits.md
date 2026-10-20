@@ -40,7 +40,7 @@ it as a performance note.
 | Guest input region | 16 GiB | `INPUT_REGION_SIZE` default (`1 << 34`), `sp1-zkvm` build script | `read_vec_raw` panics: "Input region overflowed." All stdin uses this region. The witness-encoding limit applies to the witness first. |
 | Guest heap | Up to 112 GiB: `MAX_MEMORY` (`1 << 37`) minus the input region. The memory limit below applies first. | `sp1-zkvm` build script and embedded allocator | The allocator fails. Decoded copies of the witness use the heap. |
 | Executor and prover memory | 24 GiB RSS of the executor child process that SP1 starts. The guest memory, the stdin, and the child's own buffers share it, so the guest gets less than 24 GiB. | `DEFAULT_MEMORY_LIMIT` in `sp1-core-executor` (`SP1CoreOpts::memory_limit`, env `MEMORY_LIMIT`). The `zkvm-canary` default is the same value. The prover network applies the same limit on its side. The SDK does not send it. | SP1 stops the child. Local execution and the canary fail, and a network request gives no proof. |
-| Range and consolidation request | 2 × 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_RANGE_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` in `config.rs` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE` (`EXCEEDED_GAS_LIMIT` or `EXCEEDED_CYCLE_LIMIT`). The proposer reads it as `Unexecutable` and does not resubmit it. It bisects a span of more than one timestamp; a single timestamp's request stays terminal until SIGUSR1, except a consolidation on a receipts path that `auto` chose: its game moves to the table path. |
+| Range and consolidation request | 2 × 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_RANGE_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` in `config.rs` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE` (`EXCEEDED_GAS_LIMIT` or `EXCEEDED_CYCLE_LIMIT`). The proposer reads it as `Unexecutable` and does not resubmit it. It bisects a span of more than one timestamp; a single timestamp's request stays terminal until SIGUSR1. |
 | Aggregation request | 10⁹ PGU, 10¹² cycles | Proposer `DEFAULT_AGG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE`. The proposer reads it as `Unexecutable` and does not resubmit it. |
 | Log-commitment batch request | 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_LOG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE`. The proposer reads it as `Unexecutable` and does not resubmit it. It splits a batch of several blocks into halves (`LogBatchProgress::split_after`); a one-block batch fails the game attempt. |
 | Request stdin | 5 GB of compressed stdin, with every compressed proof, in one upload (SP1 SDK). The proposer's own limit is lower: 1.5 GiB of encoded stdin by default, at most 2 GiB. One embedded compressed batch proof with its verifying key encodes to 1,272,646 bytes (measured on mainnet SPN proofs). | SP1 SDK 6.8.1 (`NetworkClient::create_artifact_with_content`). Proposer `OP_ZK_PROPOSER_MAX_STDIN_BYTES` (`StdinByteLimit`, default `DEFAULT_MAX_STDIN_BYTES`), checked on the exact bincode 1 length of each range, consolidation, and log-commitment request's stdin, in mock mode too. The aggregation request is not checked: it carries no witness. | The proposer refuses the request with `StdinTooLarge` before it submits it, and bisects the span or splits the batch; a single timestamp or a single block is `GameUnprovable`. |
@@ -116,10 +116,10 @@ chain's local safe head in one of two ways:
 - **Table path:** it checks one Merkle opening against a log-commitment entry. The entry comes from
   a `log-commitment` batch proof that the consolidation verifies as a deferred proof.
 
-The proposer chooses one path for each game, before any witness collection. It scans the span's
-executing messages and computes `bound_receipts_path_pgu` and `bound_receipts_path_witness_bytes`
-for each top-level chunk. It keeps the receipts path when each PGU bound is under 80% of the
-range gas limit and each witness bound is under `OP_ZK_PROPOSER_MAX_STDIN_BYTES`. Otherwise it
+Every game takes the table path, unless `OP_ZK_PROPOSER_LOG_PATH=receipts` turns it off (meant
+only for chains with interop off; the proposer warns at startup). Before any witness collection,
+the proposer scans the span's executing messages, and it makes no batches when no message
+references a block below a head. Otherwise it
 proves each referenced block once in batches: `batch_log_blocks` cuts the blocks, ordered by chain
 and number, into the fewest even groups by `estimate_log_block_pgu` (`split_log_batches`), and
 halves any group still over a cap. A batch of several blocks whose stdin is over the stdin limit,
@@ -129,13 +129,10 @@ split reads no receipts. Before each consolidation request, it computes
 the budget (`EstimateOverBudget`) or whose stdin is over the stdin limit (`StdinTooLarge`), and it
 does both checks before it submits the span's range request. The consolidation stdin check counts
 1.5 MiB (`LOG_BATCH_PROOF_STDIN_BYTES`) for each batch proof that the request will carry, since the
-proofs do not exist yet. A single timestamp is submitted whatever its estimate. A single timestamp
-on a receipts path that `auto` chose, whose consolidation is over the stdin limit or that SPN
-cannot execute, marks the stage for the table path (`receipts_path_fallback`), and the game keeps
-the table path from then on: the bounds do not count the archive's overhead or every guest cost,
-so they can miss. On the table path, a run that read a block below a head without an entry fails
-the attempt, and the next attempt scans the span again.
-`OP_ZK_PROPOSER_LOG_PATH=receipts` or `=table` overrides the choice.
+proofs do not exist yet. A single timestamp is submitted whatever its estimate; one whose
+consolidation is over the stdin limit is unprovable, and one that SPN cannot execute stays
+terminal, on either path. On the table path, a run that read a block below a head without an
+entry fails the attempt, and the next attempt scans the span again.
 
 The estimators are coarse on purpose: a batch is priced by its blocks, logs, and receipts-trie
 bytes, and a consolidation by its chains, message checks, read bytes, opening siblings, batch
@@ -144,12 +141,11 @@ and witness-byte prices, log checks into the sibling price, and proof verificati
 into the base and per-proof prices. With SP1 6.8.1, each calibration shape's estimate is 1.3× to
 40× its measured PGU.
 
-Each estimate must be at or above the measured PGU, and each bound at or above the estimate.
+Each estimate must be at or above the measured PGU.
 ELF-gated tests in `kona-sp1-super-range-executor` pin this:
 
 - `log_estimate_bounds_measured_pgu` (`tests/log_commitment.rs`)
-- `consolidation_estimate_bounds_measured_pgu` and `receipts_path_bound_bounds_measured_pgu`
-  (`src/consolidation_tests.rs`)
+- `consolidation_estimate_bounds_measured_pgu` (`src/consolidation_tests.rs`)
 
 The daily `sp1-super-range-elf-smoke` CI job runs them. To run them in `rust/` after an SP1 upgrade
 or a guest change, build the ELFs with `just build-elfs-native test-config-fallback`, then:
@@ -268,9 +264,9 @@ the expiry window is a valid target, so the attacker references many large block
   gas) reach that limit.
 
 The table path (see "Log commitments and the proposer's estimates") removes this cost for blocks
-below the local safe head. The proposer uses the receipts path only when its bound fits, unless
-`OP_ZK_PROPOSER_LOG_PATH=receipts` forces it. Do not report this case again unless the diff makes it
-worse, or it changes the path choice or a bound.
+below the local safe head. The proposer uses the receipts path only when
+`OP_ZK_PROPOSER_LOG_PATH=receipts` turns the table path off. Do not report this case again unless
+the diff makes it worse, or it changes the path choice.
 
 ## Output
 
