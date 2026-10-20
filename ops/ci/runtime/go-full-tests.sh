@@ -48,6 +48,9 @@ case "${1:-run}" in
     ;;
   run)
     mkdir -p tmp/test-results tmp/testlogs/per-test
+    # Compiler ancestry can contain the seed's older discovery layer. Restore
+    # the exact discovery sealed with this shard before selecting or running it.
+    python3 ops/ci/runtime/go-compiled-tests.py restore --suite go-tests
     cp .ci/go-tests/{manifest.json,go-list.json,all-packages.txt} tmp/testlogs/
     python3 ops/ci/runtime/go-package-shards.py select --prefix github.com/ethereum-optimism/optimism \
       --total "$CI_SHARD_TOTAL" --index "$CI_SHARD_INDEX" --manifest .ci/go-tests/manifest.json >tmp/testlogs/packages.txt

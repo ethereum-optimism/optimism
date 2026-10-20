@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[3]
 BUILD = ROOT / ".ci/go-rollup/build"
 PREFIX = "github.com/ethereum-optimism/optimism/op-node/rollup"
 SUITE = "go-rollup"
+DISCOVERY_FILES = ("manifest.json", "go-list.json", "all-packages.txt")
 SPEC = importlib.util.spec_from_file_location("shards", Path(__file__).with_name("go-package-shards.py"))
 SHARDS = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SHARDS)
@@ -144,8 +145,15 @@ def build():
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     if head != metadata["commit_sha"]:
         raise ValueError("Go compilation belongs to a different commit")
+    if SUITE == 'go-tests':
+        metadata['discovery_sha256'] = {}
+        for name in DISCOVERY_FILES:
+            source = ROOT / '.ci' / SUITE / name
+            (BUILD / name).write_bytes(source.read_bytes())
+            metadata['discovery_sha256'][name] = digest(source)
+    else:
+        (BUILD / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (BUILD / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
-    (BUILD / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     if SUITE == "go-tests":
         # Runtime modules come from the shared preparation artifact. Do not
         # duplicate the entire module set into every shard's binary artifact.
@@ -172,6 +180,22 @@ def build():
             archive.add(module_cache / path, arcname=str(path), filter=lambda info: None if info.name.endswith((".zip", ".tmp", ".lock")) else info)
 
 
+def restore_discovery():
+    """Rebind discovery after inherited compiler-seed layers have been assembled."""
+    if SUITE != 'go-tests':
+        raise ValueError('Discovery restoration requires the full Go suite')
+    metadata = json.loads((BUILD / 'metadata.json').read_text())
+    hashes = metadata.get('discovery_sha256', {})
+    if metadata.get('commit_sha') != os.environ['CI_COMMIT_SHA'] or set(hashes) != set(DISCOVERY_FILES):
+        raise ValueError('Compiled discovery source or file coverage differs')
+    for name in DISCOVERY_FILES:
+        if digest(BUILD / name) != hashes[name]:
+            raise ValueError('Compiled discovery file changed: ' + name)
+    check_environment(json.loads((BUILD / 'manifest.json').read_text()))
+    for name in DISCOVERY_FILES:
+        (ROOT / '.ci' / SUITE / name).write_bytes((BUILD / name).read_bytes())
+
+
 def verify():
     metadata = json.loads((BUILD / "metadata.json").read_text())
     manifest_path = ROOT / ".ci" / SUITE / "manifest.json"
@@ -184,6 +208,9 @@ def verify():
         raise ValueError("Compiled Go package coverage differs from the authoritative manifest")
     if SUITE == "go-tests":
         check_environment(manifest)
+        hashes = metadata.get('discovery_sha256', {})
+        if set(hashes) != set(DISCOVERY_FILES) or any(digest(ROOT / '.ci' / SUITE / name) != hashes[name] for name in DISCOVERY_FILES):
+            raise ValueError('Go runtime discovery differs from the sealed compilation inputs')
         expected_settings = full_settings()
         if (metadata.get("suite") != SUITE or metadata.get("settings") != expected_settings
                 or metadata.get("environment") != manifest["environment"]
@@ -328,7 +355,7 @@ if __name__ == "__main__":
     os.environ.pop('GOROOT', None)
     try:
         parser = argparse.ArgumentParser(description=__doc__)
-        parser.add_argument("command", choices=["build", "verify", "run"])
+        parser.add_argument("command", choices=["build", "restore", "verify", "run"])
         parser.add_argument("--suite", choices=["go-rollup", "go-tests"], default="go-rollup")
         options, arguments = parser.parse_known_args()
         command, SUITE = options.command, options.suite
@@ -341,12 +368,15 @@ if __name__ == "__main__":
         signal.signal(signal.SIGINT, cancel)
         if command == "build":
             build()
+        elif command == "restore":
+            restore_discovery()
+            verify()
         elif command == "verify":
             verify()
         elif command == "run":
             sys.exit(run(arguments))
         else:
-            raise ValueError("Expected build, verify, or run")
+            raise ValueError("Expected build, restore, verify, or run")
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         sys.exit(1)

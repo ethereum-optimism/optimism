@@ -139,6 +139,9 @@ remain part of downstream filesystems. Mixing ancestor helper producers with
 HEAD can therefore restore ancestor Git metadata. Discovery, compilation and
 runtime entrypoints reset to their declared current SHA after assembly, then
 verify the actual checkout and clean tracked source before using sealed inputs.
+The compiler bundle also seals and carries its discovery manifest, tagged package
+inventory and complete package list. Runtime restores these verified files after
+layer assembly so compiler-seed discovery cannot override the current shard plan.
 
 Module sources travel through native filesystem inheritance instead of a full
 module-cache tarball repeated in every runtime artifact. The sealed helper
