@@ -300,6 +300,12 @@ contract Bytes_ToNibbles_Test is Bytes_TestInit {
 /// @title Bytes_Equal_Test
 /// @notice Tests the `equal` function of the `Bytes` library.
 contract Bytes_Equal_Test is Bytes_TestInit {
+    /// @notice Different lengths are unequal even when one input is a prefix of the other.
+    function test_equal_differentLengths_works() public pure {
+        assertFalse(Bytes.equal(hex"0102", hex"010200"));
+        assertFalse(Bytes.equal(hex"010200", hex"0102"));
+    }
+
     /// @notice Tests that the `equal` function in the `Bytes` library returns `false` if given two
     ///         non-equal byte arrays.
     function testFuzz_equal_notEqual_works(bytes memory _a, bytes memory _b) public pure {
