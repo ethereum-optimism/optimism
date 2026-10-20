@@ -31,7 +31,7 @@ where
     latest_finalized: watch::Sender<Option<BlockInfo>>,
     head_stream: BlockStream,
     finalized_stream: BlockStream,
-    /// Moved into workers on the first step, so construction does not require a runtime.
+    /// Moved into workers on the first call to `next`, so construction does not require a runtime.
     chains: Vec<L1WatcherChain<Client>>,
     workers: JoinSet<ChainExit>,
 }
@@ -42,7 +42,7 @@ where
     L1Provider: Provider + Clone,
     Client: L1WatcherDerivationClient,
 {
-    /// Constructs a watcher. Workers are started by the first call to `step`.
+    /// Constructs a watcher. Workers are started by the first call to `next`.
     ///
     /// # Panics
     /// Panics when there are no chains to serve.

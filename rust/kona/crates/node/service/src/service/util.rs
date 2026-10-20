@@ -6,6 +6,10 @@ use tokio_util::sync::CancellationToken;
 
 /// How long to wait for the actors to finish handling their current input once shutdown begins.
 ///
+/// Handling a single input is not necessarily quick: the engine actor, for example, drains its
+/// whole task queue, which can hold a backlog after the execution layer was unavailable. Actors
+/// that do not finish in time are aborted.
+///
 /// Kept below the 10 second grace period that `docker stop` gives before sending SIGKILL.
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -99,10 +103,14 @@ pub(crate) async fn wait_for_actors(
     // Wait for all remaining actors.
     let join_all = async {
         while let Some(exit) = task_handles.join_next().await {
-            // Peers are torn down concurrently, so errors here, such as closed channels, are
-            // usually a consequence of the shutdown rather than its cause.
-            if let Some(e) = exit_error(exit) {
-                warn!(target: "rollup_node", "Actor exited with an error during shutdown: {e}");
+            match exit {
+                Ok(Ok(())) => {}
+                // Peers are torn down concurrently, so errors here, such as closed channels, are
+                // usually a consequence of the shutdown rather than its cause.
+                Ok(Err(e)) => {
+                    warn!(target: "rollup_node", "Actor exited with an error during shutdown: {e}");
+                }
+                Err(e) => error!(target: "rollup_node", "Task join error during shutdown: {e}"),
             }
         }
     };
@@ -111,7 +119,7 @@ pub(crate) async fn wait_for_actors(
     tokio::select! {
         _ = join_all => info!(target: "rollup_node", "All actors stopped"),
         _ = shutdown_signal() => {
-            warn!(target: "rollup_node", "Received second shutdown signal, aborting remaining actors");
+            warn!(target: "rollup_node", "Received shutdown signal while stopping actors, aborting remaining actors");
         }
         _ = tokio::time::sleep(SHUTDOWN_TIMEOUT) => {
             warn!(target: "rollup_node", timeout = ?SHUTDOWN_TIMEOUT, "Timed out waiting for actors to stop, aborting remaining actors");

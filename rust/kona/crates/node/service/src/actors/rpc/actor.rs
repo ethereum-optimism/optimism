@@ -10,7 +10,7 @@ use jsonrpsee::RpcModule;
 /// An actor that runs the JSON-RPC server for the rollup node.
 ///
 /// The first launch happens upstream of this actor; restarts (up to `restart_count` provided
-/// at construction) are handled inside [`Self::step`].
+/// at construction) are handled inside [`NodeActor::handle`].
 #[derive(Debug)]
 pub struct RpcActor<Launcher: RpcServerLauncher> {
     /// Launcher used to relaunch the server if it stops.
@@ -19,7 +19,7 @@ pub struct RpcActor<Launcher: RpcServerLauncher> {
     modules: RpcModule<()>,
     /// The currently-running server handle. Replaced on each successful relaunch.
     handle: Option<Launcher::Handle>,
-    /// Remaining relaunches allowed before [`Self::step`] returns
+    /// Remaining relaunches allowed before [`NodeActor::handle`] returns
     /// [`RpcActorError::ServerStopped`].
     restarts_remaining: u32,
 }
