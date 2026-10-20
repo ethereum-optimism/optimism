@@ -7,10 +7,10 @@ import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 // Libraries
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IOptimismMintableERC721 } from "interfaces/L2/IOptimismMintableERC721.sol";
 
 /// @title OptimismMintableERC721
 /// @notice This contract is the remote representation for some token that lives on another network,
@@ -46,8 +46,8 @@ contract OptimismMintableERC721 is ERC721Enumerable, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.2
-    string public constant version = "1.3.2";
+    /// @custom:semver 1.4.0
+    string public constant version = "1.4.0";
 
     /// @param _bridge        Address of the bridge on this network.
     /// @param _remoteChainId Chain ID where the remote token is deployed.
@@ -122,8 +122,9 @@ contract OptimismMintableERC721 is ERC721Enumerable, ISemver {
     /// @param _interfaceId The interface ID to check.
     /// @return True if the interface ID is supported, false otherwise.
     function supportsInterface(bytes4 _interfaceId) public view override(ERC721Enumerable) returns (bool) {
-        bytes4 iface = type(IOptimismMintableERC721).interfaceId;
-        return _interfaceId == iface || super.supportsInterface(_interfaceId);
+        return _interfaceId == Constants.OPTIMISM_MINTABLE_ERC721_INTERFACE_ID
+            || _interfaceId == Constants.LEGACY_OPTIMISM_MINTABLE_ERC721_INTERFACE_ID
+            || super.supportsInterface(_interfaceId);
     }
 
     /// @notice Returns the base token URI.
