@@ -307,6 +307,10 @@ the Cargo.lock digest on both services, keeping assignments stable across source
 edits. Both providers default to `CARGO_INCREMENTAL=0` so sccache can cache local
 crate compilations. The explicit incremental trial remains available on RWX.
 
+The test compiler seed runs a second compilation discovery after its cold build,
+so generated watched inputs (the superchain archive) precede Cargo's final
+build-script fingerprints. Fresh HEAD workers still create their own test archive.
+
 An intermediate ancestor need not build. Optional preparation retains its original
 failure and discards partial targets before fresh HEAD compilation. Such a fallback
 is not evidence of a warm cache. Changes to `cache-epoch` invalidate the preparation

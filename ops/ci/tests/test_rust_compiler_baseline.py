@@ -22,9 +22,10 @@ class BaselineTests(unittest.TestCase):
                 (report / 'final.json').write_text(json.dumps({'exit_code': status}))
                 (report / 'archive.log').write_text('original compiler output')
                 (report / 'tests.tar.zst').write_bytes(b'large binary archive')
-                with patch.object(BASELINE.subprocess, 'run', return_value=subprocess.CompletedProcess([], status)), \
+                with patch.object(BASELINE.subprocess, 'run', return_value=subprocess.CompletedProcess([], status)) as build, \
                         patch.object(BASELINE.subprocess, 'check_output', return_value='a'*40+'\n'):
                     BASELINE.prepare('tests-build', root)
+                self.assertEqual(build.call_args.kwargs['env']['CI_RUST_BASELINE'], 'true')
                 self.assertEqual(target.exists(), status == 0)
                 evidence = root / '.ci/rust-workspace/compiler-baseline/tests-build'
                 self.assertEqual(json.loads((evidence / 'final.json').read_text())['exit_code'], status)
