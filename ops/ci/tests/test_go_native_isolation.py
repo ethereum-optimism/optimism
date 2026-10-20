@@ -48,6 +48,10 @@ func TestFresh(t *testing.T) {
             built=execute([sys.executable,str(helpers/'go-compiled-tests.py'),'build','--suite','go-tests'])
             self.assertEqual(built.returncode,0,built.stderr)
             self.assertFalse((root/'.ci/calls').exists(),'Compilation must execute zero tests')
+            for name in ('manifest.json', 'go-list.json', 'all-packages.txt'):
+                (root / '.ci/go-tests' / name).write_text('inherited ancestor discovery')
+            restored=execute([sys.executable,str(helpers/'go-compiled-tests.py'),'restore','--suite','go-tests'])
+            self.assertEqual(restored.returncode,0,restored.stderr)
             metadata=json.loads((root/'.ci/go-tests/build/metadata.json').read_text())
             self.assertIsNone(metadata['packages']['github.com/ethereum-optimism/optimism/fixture/empty']['file'])
             for label,failing in [('fresh-one',False),('fresh-two',False),('intentional-failure',True)]:

@@ -235,6 +235,11 @@ class FullCompiledGoTest(CompiledGoTest):
         (parent / "go-list.json").write_text("\n".join(json.dumps({"ImportPath": p, "TestGoFiles": [] if p.endswith('/mocks') else ['test.go']}) for p in self.packages))
         self.metadata.update(suite="go-tests", settings=self.settings, environment=environment, go_environment={"GOOS":"linux"}, shard_index=0, shard_total=1,
                              manifest_sha256=self.digest(manifest), compile_root=str(self.root), go_version="go version fixture")
+        (parent / 'all-packages.txt').write_text('\n'.join(self.packages) + '\n')
+        self.metadata['discovery_sha256'] = {}
+        for name in ('manifest.json', 'go-list.json', 'all-packages.txt'):
+            (self.build / name).write_bytes((parent / name).read_bytes())
+            self.metadata['discovery_sha256'][name] = self.digest(parent / name)
         self.save_metadata()
         tools = self.root / "bin"
         tools.mkdir()
@@ -251,6 +256,25 @@ class FullCompiledGoTest(CompiledGoTest):
             result = self.run_helper('run', **env)
             self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertFalse(self.calls.exists())
+
+    def test_restore_rebinds_ancestor_discovery_to_current_compiled_inputs(self):
+        for name in self.metadata['discovery_sha256']:
+            (self.build.parent / name).write_text('ancestor discovery')
+        self.assertNotEqual(self.run_helper('verify').returncode, 0)
+        result = self.run_helper('restore')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for name in self.metadata['discovery_sha256']:
+            self.assertEqual((self.build.parent / name).read_bytes(), (self.build / name).read_bytes())
+        result = self.run_helper('run')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(self.calls.exists())
+
+    def test_restore_rejects_corrupt_bundle_before_replacing_discovery(self):
+        original = (self.build.parent / 'go-list.json').read_bytes()
+        (self.build / 'go-list.json').write_text('corrupt')
+        self.assertNotEqual(self.run_helper('restore').returncode, 0)
+        self.assertEqual((self.build.parent / 'go-list.json').read_bytes(), original)
+        self.assertFalse(self.calls.exists())
 
     def test_selected_go_sdk_ignores_inherited_root(self):
         tools = self.root / 'bin'
