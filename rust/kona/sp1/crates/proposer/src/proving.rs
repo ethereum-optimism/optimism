@@ -1640,7 +1640,7 @@ async fn scan_log_stage(
         .await
         .context("failed to scan the span's executing messages")?;
     let last = plans.last().context("game proof has no chunks")?.last;
-    let costs = timestamp_costs(&scan, 0, last);
+    let costs = timestamp_costs(&scan, last);
     let settings = request.log;
     let table = settings.path == LogPath::Table;
     tracing::info!(

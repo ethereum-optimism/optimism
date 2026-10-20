@@ -17,7 +17,7 @@ you review or change:
   uses this set.
 - The proposer split logic (`RangeSplitCount`).
 - The proposer's cost estimators (`rust/kona/sp1/crates/super-range-executor/src/cost.rs`), and its
-  path choice and request checks (`rust/kona/sp1/crates/proposer/src/log_proofs/`).
+  request checks (`rust/kona/sp1/crates/proposer/src/log_proofs/`).
 
 PGU is the SP1 unit of proving gas. The prover network bills and limits requests in PGU.
 

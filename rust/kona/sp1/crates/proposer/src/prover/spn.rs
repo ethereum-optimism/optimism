@@ -628,7 +628,8 @@ enum ProofStatus {
 /// A fulfilled proof wins. `UNEXECUTABLE` comes next: SPN marks a request that breaks its gas or
 /// cycle limit UNFULFILLABLE and UNEXECUTABLE together, and only the execution status says
 /// resubmitting the same input cannot succeed. The terminal fulfillment statuses follow, then
-/// `VALIDATION_FAILED`. This is the order of the SP1 SDK's own status handling.
+/// `VALIDATION_FAILED`. The SP1 SDK's analogue is `decide_status_outcome` in
+/// `sp1-sdk/src/network/prover.rs`.
 fn check_status(fulfillment_status: i32, execution_status: i32) -> ProofStatus {
     let fulfillment_status = FulfillmentStatus::try_from(fulfillment_status).ok();
     let execution_status = ExecutionStatus::try_from(execution_status).ok();

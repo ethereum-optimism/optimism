@@ -337,13 +337,9 @@ pub(crate) fn check_collected(
     Ok(())
 }
 
-/// The scanned costs of the transition timestamps `first..last` (indices into `scan.timestamps`).
-pub(crate) fn timestamp_costs(
-    scan: &ScannedSpan,
-    first: usize,
-    last: usize,
-) -> Vec<ScannedTimestampCost> {
-    scan.timestamps[first..last]
+/// The scanned costs of the transition timestamps before `last` (an index into `scan.timestamps`).
+pub(crate) fn timestamp_costs(scan: &ScannedSpan, last: usize) -> Vec<ScannedTimestampCost> {
+    scan.timestamps[..last]
         .iter()
         .map(|timestamp| ScannedTimestampCost {
             chains: timestamp.chains,
