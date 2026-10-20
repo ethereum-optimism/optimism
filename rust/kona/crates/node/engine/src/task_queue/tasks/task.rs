@@ -100,7 +100,7 @@ pub enum EngineTask<EngineClient_: EngineClient> {
     /// engine.
     Seal(Box<SealTask<EngineClient_>>),
     /// Performs consolidation on the engine state, reverting to payload attribute processing
-    /// via the [`BuildTask`] if consolidation fails.
+    /// by building and importing the derived attributes if consolidation fails.
     Consolidate(Box<ConsolidateTask<EngineClient_>>),
     /// Finalizes an L2 block
     Finalize(Box<FinalizeTask<EngineClient_>>),

@@ -2,7 +2,8 @@
 
 use crate::{
     ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, ImportedBlockSink,
-    SynchronizeTask, state::EngineSyncStateUpdate, task_queue::build_and_seal,
+    state::EngineSyncStateUpdate,
+    task_queue::{build_and_import, synchronize},
 };
 use alloy_rpc_types_eth::Block;
 use async_trait::async_trait;
@@ -86,26 +87,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         Self { client, cfg, input, block_sink }
     }
 
-    /// This is used when the [`ConsolidateTask`] fails to consolidate the engine state
-    async fn execute_build_and_seal_tasks(
-        &self,
-        state: &mut EngineState,
-        attributes: &OpAttributesWithParent,
-    ) -> Result<(), ConsolidateTaskError> {
-        build_and_seal(
-            state,
-            self.client.clone(),
-            self.cfg.clone(),
-            attributes.clone(),
-            true,
-            self.block_sink.clone(),
-        )
-        .await?;
-
-        Ok(())
-    }
-
-    /// This provides symmetric fallback behavior to with `build_and_seal`.
+    /// This provides symmetric fallback behavior to with `build_and_import`.
     async fn reconcile_to_safe_head(
         &self,
         state: &mut EngineState,
@@ -123,9 +105,9 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         // self-consistent head state. This is required to correctly handle reorgs (where unsafe
         // may be ahead on a non-canonical fork) and to trigger EL sync when the local unsafe head
         // lags behind the safe head.
-        SynchronizeTask::new(
-            Arc::clone(&self.client),
-            self.cfg.clone(),
+        synchronize(
+            self.client.as_ref(),
+            state,
             EngineSyncStateUpdate {
                 unsafe_head: Some(*safe_l2),
                 safe_head: Some(*safe_l2),
@@ -133,7 +115,6 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                 ..Default::default()
             },
         )
-        .execute(state)
         .await
         .map_err(|e| {
             warn!(target: "engine", ?e, "Apply safe head failed");
@@ -159,9 +140,15 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         state: &mut EngineState,
     ) -> Result<(), ConsolidateTaskError> {
         match &self.input {
-            ConsolidateInput::Attributes(attributes) => {
-                self.execute_build_and_seal_tasks(state, attributes).await
-            }
+            ConsolidateInput::Attributes(attributes) => build_and_import(
+                self.client.as_ref(),
+                &self.cfg,
+                state,
+                attributes.as_ref().clone(),
+                self.block_sink.as_ref(),
+            )
+            .await
+            .map_err(Into::into),
             ConsolidateInput::BlockInfo(safe_l2) => {
                 self.reconcile_to_safe_head(state, safe_l2).await
             }
@@ -232,16 +219,15 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
 
                     let fcu_start = Instant::now();
 
-                    SynchronizeTask::new(
-                        Arc::clone(&self.client),
-                        self.cfg.clone(),
+                    synchronize(
+                        self.client.as_ref(),
+                        state,
                         EngineSyncStateUpdate {
                             safe_head: Some(block_info),
                             local_safe_head: Some(block_info),
                             ..Default::default()
                         },
                     )
-                    .execute(state)
                     .await
                     .map_err(|e| {
                         warn!(target: "engine", ?e, "Consolidation failed");
@@ -265,7 +251,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                 }
                 Err(e) => {
                     // Continue on to build the block since we failed to construct the block info.
-                    warn!(target: "engine", ?e, "Failed to construct L2BlockInfo, proceeding to build task");
+                    warn!(target: "engine", ?e, "Failed to construct L2BlockInfo, proceeding to build the attributes");
                 }
             }
         }

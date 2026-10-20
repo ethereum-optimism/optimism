@@ -29,9 +29,8 @@
 //! - **Client** - HTTP client for Engine API communication via [`EngineClient`]
 //! - **State** - Engine state management and synchronization via [`EngineState`]
 //! - **Versions** - Engine API version selection via [`EngineForkchoiceVersion`],
-//!   [`EngineNewPayloadVersion`], [`EngineGetPayloadVersion`]
+//!   [`EngineGetPayloadVersion`]
 //! - **Attributes** - Payload attribute validation via [`AttributesMatch`]
-//! - **Kinds** - Engine client type identification via [`EngineKind`]
 //! - **Query** - Engine query interface via [`EngineQueries`]
 //! - **Metrics** - Optional Prometheus metrics collection via [`Metrics`]
 
@@ -40,11 +39,10 @@ extern crate tracing;
 
 mod task_queue;
 pub use task_queue::{
-    BuildSealCoupling, BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask,
-    ConsolidateTaskError, Engine, EngineBuildError, EngineResetError, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, EngineTaskErrors, EngineTaskExt, FinalizeBlockId, FinalizeTask,
-    FinalizeTaskError, InsertTask, InsertTaskError, SealTask, SealTaskError, SynchronizeTask,
-    SynchronizeTaskError,
+    BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask, ConsolidateTaskError, Engine,
+    EngineBuildError, EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
+    EngineTaskErrors, EngineTaskExt, FinalizeBlockId, FinalizeTask, FinalizeTaskError, InsertTask,
+    InsertTaskError, SealTask, SealTaskError, SynchronizeTaskError,
 };
 
 mod attributes;
@@ -60,13 +58,10 @@ mod providers;
 pub use providers::{HyperAuthClient, l1_provider, l2_provider};
 
 mod versions;
-pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion, EngineNewPayloadVersion};
+pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion};
 
 mod state;
 pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate};
-
-mod kinds;
-pub use kinds::EngineKind;
 
 mod query;
 pub use query::{EngineQueries, EngineQueriesError, EngineQuerySender};
