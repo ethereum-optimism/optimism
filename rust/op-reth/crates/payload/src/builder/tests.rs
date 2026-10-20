@@ -993,6 +993,70 @@ fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
     assert_eq!(build(&failsafe), vec![normal_hash, interop_hash]);
 }
 
+/// Builds a ctx rebuilding a derived block whose embedded `0x7D` tx anchors to
+/// `post_exec_anchor`. The parent is block 0, so block 1 is the only valid anchor, and Lagoon is
+/// either active from genesis or not at all.
+fn derived_ctx(
+    lagoon_active: bool,
+    post_exec_anchor: u64,
+) -> OpPayloadBuilderCtx<
+    OpEvmConfig<OpChainSpec, OpPrimitives>,
+    OpChainSpec,
+    OpPayloadBuilderAttributes<OpTransactionSigned>,
+> {
+    let spec = OpChainSpecBuilder::optimism_mainnet();
+    let spec = if lagoon_active { spec.lagoon_activated() } else { spec };
+    let chain_spec = Arc::new(spec.build());
+    let parent = SealedHeader::seal_slow(Header { number: 0, timestamp: 0, ..Default::default() });
+    let attributes = OpPayloadBuilderAttributes {
+        no_tx_pool: true,
+        timestamp: 1,
+        transactions: vec![
+            deposit_with_encoded(),
+            post_exec_with_encoded(post_exec_anchor, entries(&[(0, 1)])),
+        ],
+        ..Default::default()
+    };
+
+    OpPayloadBuilderCtx {
+        evm_config: OpEvmConfig::optimism(chain_spec.clone()),
+        builder_config: OpBuilderConfig::default(),
+        chain_spec,
+        config: PayloadConfig {
+            parent_header: Arc::new(parent),
+            parent_block_info: None,
+            payload_id: attributes.id,
+            attributes,
+        },
+        cancel: Default::default(),
+        best_payload: None,
+    }
+}
+
+/// The rules the encoded-transaction preflight cannot check — activation and the anchor — are
+/// applied when the builder parses the decoded attributes, and a rejection there reaches the
+/// same counters.
+#[rstest]
+#[case::wrong_anchor(/* lagoon_active */ true, /* post_exec_anchor */ 2, "block_number_mismatch")]
+#[case::before_activation(/* lagoon_active */ false, /* post_exec_anchor */ 1, "unexpected_post_exec_tx")]
+fn rejected_embedded_post_exec_counts_under_the_failed_rule(
+    #[case] lagoon_active: bool,
+    #[case] post_exec_anchor: u64,
+    #[case] reason: &str,
+) {
+    use crate::sdm_metrics::test_support::{FAILURES, RESULTS, recorder, series};
+
+    let (recorder, handle) = recorder();
+    let result = with_local_recorder(&recorder, || {
+        derived_ctx(lagoon_active, post_exec_anchor).post_exec_mode()
+    });
+    let exposition = handle.render();
+
+    assert!(result.is_err(), "the embedded post-exec tx is rejected");
+    assert_eq!(series(&exposition, FAILURES, "reason", reason), Some(1.0), "{exposition}");
+    assert_eq!(series(&exposition, RESULTS, "result", "fail"), Some(1.0), "{exposition}");
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error("unrelated executor failure")]
 struct UnrelatedExecutionError;
