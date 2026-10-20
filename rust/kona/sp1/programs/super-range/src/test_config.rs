@@ -17,7 +17,7 @@ pub(super) async fn load(
     oracle: &impl PreimageOracleClient,
 ) -> anyhow::Result<ChainConfigs> {
     let chain_ids = match inputs {
-        SuperInteropInputs::Range(inputs) => inputs.chain_ids.clone(),
+        SuperInteropInputs::Range(inputs) => inputs.super_root_chain_ids(),
         SuperInteropInputs::Consolidation(inputs) => inputs
             .transitions
             .first()
