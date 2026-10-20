@@ -25,7 +25,7 @@ Most of the OP Stack Rust code here was **officially migrated** into the monorep
 - **alloy-op-\*** (`rust/alloy-op-evm/`, `rust/alloy-op-hardforks/`)
 - **op-revm** (`rust/op-revm/`)
 
-These crates are owned and edited directly here — do not look upstream for their source. They still *depend on* generic upstream crates (e.g. reth's engine/provider crates, `alloy`, `revm`), which remain external and pinned in `rust/Cargo.toml`; a change to one of those generic APIs has to go upstream first and then be consumed via a version bump. When changing upstream behavior or API leads to a better overall solution than working around it locally, it is acceptable — and often preferable — to propose that change upstream (a PR to the respective repository); suggest this when it applies.
+These crates are owned and edited directly here — do not look upstream for their source. They still *depend on* generic upstream crates (e.g. reth's engine/provider crates, `alloy`, `revm`), which remain external and pinned in `rust/Cargo.toml`; a change to one of those generic APIs has to go upstream first and then be consumed via a version bump. For reth, the monorepo need not wait for the next reth update: backport the upstream change to our fork, `ethereum-optimism/reth`, with a PR to the branch of the pinned base, and pin it through a new fork tag ([UPDATING-RETH, "The reth fork"](../../rust/UPDATING-RETH.md#the-reth-fork)). When changing upstream behavior or API leads to a better overall solution than working around it locally, it is acceptable — and often preferable — to propose that change upstream (a PR to the respective repository); suggest this when it applies.
 
 **Known exception:** `op-alloy-flz` has not been migrated yet and is still an external dependency, tracked by [#21087](https://github.com/ethereum-optimism/optimism/issues/21087).
 
@@ -196,7 +196,7 @@ The OP fork → implied L1 (Ethereum) fork mapping is defined once, in `OpHardfo
 
 ## Updating the reth dependency
 
-The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before bumping the reth pin in `rust/Cargo.toml` — or run the `/update-reth` skill (`.claude/skills/update-reth/`), which wraps the guide in an end-to-end agent workflow.
+The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before any change to the reth pin in `rust/Cargo.toml`. That covers an update to a new upstream base and a change to our fork on the current base: a fork change gets a new `op-<base>-<n>` tag, and the monorepo pins the fork PR's commit by `rev` only while that PR is still open, switching to the tag before the monorepo PR merges ([Pinning a fork change](../../rust/UPDATING-RETH.md#pinning-a-fork-change)). For an update, the `/update-reth` skill (`.claude/skills/update-reth/`) wraps the guide in an end-to-end agent workflow.
 
 When **reviewing** a bump (rather than performing one), use [reth-update-review.md](reth-update-review.md) and the `reth-update-reviewer` agent — they surface upstream `reth`/`revm`/`alloy` changes that should have forced a change in our in-tree op- forks but produced no diff in our tree.
 
