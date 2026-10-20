@@ -27,6 +27,11 @@ tasks:
     use: package.use
     docker: true
     run: |
+      if ! git cat-file -e "$CI_COMMIT_SHA^{commit}"; then git fetch --no-tags origin "$CI_COMMIT_SHA"; fi
+      git reset --hard "$CI_COMMIT_SHA"
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
       for dependency in go contracts kona op-reth prestate; do
         case "$dependency" in
           go) artifact="$GO_ARTIFACT" ;;

@@ -10,6 +10,7 @@ export GOCACHE="${CI_GO_BUILD_CACHE:-$PWD/.ci/go-cache/full/${1:-run}}"
 mkdir -p "$GOMODCACHE" "$GOCACHE"
 # Unlike `go test`, invoking compiled binaries does not replace mise's GOROOT
 # when GOTOOLCHAIN selects the newer version required by go.mod.
+unset GOROOT
 export GOROOT
 GOROOT="$(go env GOROOT)"
 export PATH="$GOROOT/bin:$PATH"
