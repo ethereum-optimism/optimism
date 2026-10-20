@@ -53,6 +53,9 @@ if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
     sccache --zero-stats
   fi
 fi
+if [[ "${CI_RUST_PROVIDER:-circleci}" == circleci ]] && command -v sccache >/dev/null; then
+  sccache --zero-stats
+fi
 report_job="$job"
 if [[ "$job" == tests-merge ]]; then report_job=tests; fi
 python3 "$HELPERS/rust-workspace-report.py" begin "$report" "$report_job"
@@ -67,10 +70,13 @@ finish() {
     if [[ "$status" == 0 ]]; then
       python3 "$HELPERS/rust-target-cache.py" commit >"$report/cache-publication.json" || diagnostics=$?
       python3 "$HELPERS/rust-target-cache.py" size | tee "$report/cache-size.json" || diagnostics=$?
-      if [[ "$diagnostics" == 0 && -n "${packed_target:-}" ]]; then
-        stage_at . cache-pack python3 "$HELPERS/rust-target-cache.py" pack "$packed_target" || diagnostics=$?
+      if [[ "$diagnostics" == 0 && "$job" == tests-build ]]; then
+        python3 "$HELPERS/rust-workspace-report.py" compiler-artifact "$report" || diagnostics=$?
       fi
     fi
+  fi
+  if [[ "${CI_RUST_PROVIDER:-circleci}" == circleci ]] && command -v sccache >/dev/null; then
+    sccache --show-stats --stats-format json >"$report/sccache.json" || diagnostics=$?
   fi
   if [[ "$status" == 0 && "$diagnostics" != 0 ]]; then status=$diagnostics; fi
   local finish_mode=finish
@@ -86,18 +92,8 @@ stage_at() { python3 "$HELPERS/rust-workspace-report.py" stage-at "$report" "$@"
 json_stage() { python3 "$HELPERS/rust-workspace-report.py" json-stage "$report" "$@"; }
 if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx && "$job" != tests-merge ]]; then
   case "$job" in
-    tests-build)
-      packed_target="$ROOT/.ci/rust-cache/target-cache.tar.zst"
-      # This immutable artifact seeds a first verdict. RWX retains the individual
-      # target files; the archive is excluded from filesystem cache outputs.
-      ;;
     tests|tests-compiler)
-      # Prefer the runtime's protected baseline. Seed an empty target from the
-      # current producer, without inheriting the producer's cache layer history.
-      if [[ ! -f "$CARGO_TARGET_DIR/.rwx-source-fingerprint.json" &&
-            ! -f "$CARGO_TARGET_DIR/.rwx-source-pending.json" ]]; then
-        stage_at . cache-restore python3 "$HELPERS/rust-target-cache.py" restore "${COMPILED_TARGET:?COMPILED_TARGET must identify the producer artifact}"
-      fi
+      python3 "$HELPERS/rust-workspace-report.py" verify-compiler-artifact "${COMPILED_STATE:?COMPILED_STATE must identify the producer compiler manifest}"
       ;;
   esac
   python3 "$HELPERS/op-reth-report.py" prepare-superchain "$report"
@@ -127,7 +123,7 @@ features() {
     fi
   done
 }
-seed="$(git rev-parse HEAD)"
+seed="$(sha256sum rust/Cargo.lock | cut -d' ' -f1)"
 case "$job" in
   tests-build)
     stage archive mold -run cargo nextest archive --workspace --all-features --locked --archive-file "$report/tests.tar.zst"

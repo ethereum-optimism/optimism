@@ -29,7 +29,7 @@ where
         Value::Number(num) => T::Ruint::from_str(&num.to_string())
             .map_err(|_| de::Error::custom("failed to deserialize quantity number"))
             .map(T::from_ruint),
-        _ => Err(de::Error::custom("only string and number types are supported")),
+        _ => Err(de::Error::custom("expected a quantity string or number")),
     }
 }
 
@@ -108,6 +108,14 @@ mod tests {
         ] {
             let error = serde_json::from_str::<Quantity>(input).unwrap_err();
             assert!(error.to_string().contains(expected), "{error}");
+        }
+    }
+
+    #[test]
+    fn rejects_boolean_and_null_quantities() {
+        for input in [r#"{"value":true}"#, r#"{"value":null}"#] {
+            let error = serde_json::from_str::<Quantity>(input).unwrap_err();
+            assert!(error.to_string().contains("expected a quantity string or number"), "{error}");
         }
     }
 }

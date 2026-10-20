@@ -35,6 +35,27 @@ class RustTargetCacheTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             CACHE.manage(phase, self.root, self.target)
 
+    def test_compiler_anchor_survives_source_edits_and_advances_for_build_inputs(self):
+        def commit(message):
+            subprocess.run(['git', 'add', '.'], cwd=self.root, check=True)
+            subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                            'commit', '-qm', message], cwd=self.root, check=True)
+            return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=self.root, text=True).strip()
+        initial = commit('initial build inputs')
+        self.assertEqual(CACHE.compiler_base(self.root), initial)
+        self.source.write_text('pub fn source_changed() {}')
+        commit('ordinary source edit')
+        self.assertEqual(CACHE.compiler_base(self.root), initial)
+        for name in ('rust/Cargo.lock', 'rust/local/Cargo.toml', 'ops/ci/runtime/helper.py',
+                     '.rwx/rust.yml', 'rust/.cargo/config.toml'):
+            path = self.root / name; path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('changed build input')
+            changed = commit(name)
+            self.assertEqual(CACHE.compiler_base(self.root), changed)
+            self.source.write_text(self.source.read_text() + '\n// ordinary source edit')
+            commit('source after build change')
+            self.assertEqual(CACHE.compiler_base(self.root), changed)
+
     def test_size_counts_file_bytes_once_per_inode_and_does_not_follow_symlinks(self):
         binary = self.target / 'debug/deps/test-binary'
         binary.parent.mkdir(parents=True)
