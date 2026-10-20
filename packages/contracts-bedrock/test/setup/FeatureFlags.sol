@@ -67,8 +67,6 @@ abstract contract FeatureFlags {
             return "DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION";
         } else if (_feature == DevFeatures.BRIDGE_HOOK) {
             return "DEV_FEATURE__BRIDGE_HOOK";
-        } else if (_feature == Features.BRIDGE_HOOK) {
-            return "SYS_FEATURE__BRIDGE_HOOK";
         } else if (_feature == Features.CUSTOM_GAS_TOKEN) {
             return "SYS_FEATURE__CUSTOM_GAS_TOKEN";
         } else if (_feature == Features.ETH_LOCKBOX) {

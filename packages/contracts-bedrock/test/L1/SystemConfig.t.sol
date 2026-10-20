@@ -12,7 +12,6 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 import { Constants } from "src/libraries/Constants.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Features } from "src/libraries/Features.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -97,11 +96,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
     function setUp() public override {
         super.setUp();
         skipIfForkTest("SystemConfig_Initialize_Test: cannot test initialization on forked network");
-    }
-
-    /// @notice Tests that deploy setup enables BRIDGE_HOOK exactly when the dev feature is set.
-    function test_initialize_bridgeHookFlag_succeeds() external view {
-        assertEq(systemConfig.isFeatureEnabled(Features.BRIDGE_HOOK), isDevFeatureEnabled(DevFeatures.BRIDGE_HOOK));
     }
 
     function test_initialize_interopFlag_succeeds() external view {
@@ -872,7 +866,7 @@ contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
     /// @param _feature The feature to check.
     function testFuzz_isFeatureEnabled_unsetFeature_succeeds(bytes32 _feature) external {
         if (
-            (_feature == Features.ETH_LOCKBOX || _feature == Features.INTEROP || _feature == Features.BRIDGE_HOOK)
+            (_feature == Features.ETH_LOCKBOX || _feature == Features.INTEROP)
                 && systemConfig.isFeatureEnabled(_feature)
         ) {
             vm.skip(true);

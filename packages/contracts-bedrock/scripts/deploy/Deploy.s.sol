@@ -23,7 +23,6 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
@@ -31,7 +30,6 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -182,13 +180,6 @@ contract Deploy is Deployer {
 
         // Deploy Current OPChain Contracts
         deployOpChainV2();
-
-        // TODO(optimism-private#744): remove once OPCM enables BRIDGE_HOOK.
-        if (useBridgeHook) {
-            ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
-            vm.prank(IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin")).owner());
-            systemConfig.setFeature(Features.BRIDGE_HOOK, true);
-        }
 
         // Set the respected game type according to the deploy config
         vm.startPrank(ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy")).guardian());
