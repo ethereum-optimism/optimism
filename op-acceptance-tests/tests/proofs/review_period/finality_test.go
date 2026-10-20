@@ -14,6 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	ps "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 )
 
 // resolvedWithdrawal is a proven withdrawal whose game resolved 13 hours ago: still inside the
@@ -77,6 +79,13 @@ func TestBlacklistedGameStaysUnfinalizableAfterLoweringFinalityDelay(gt *testing
 
 	newGuardian(t, r.sys.L1EL, r.sys.L1Network.ChainID(), r.sys.L2Chain, r.sys.FunderL1).BlacklistGame(r.delays, game.Address)
 	newDelayOwner(t, r.sys.L1EL, r.sys.L1Network.ChainID(), r.sys.L2Chain, r.sys.FunderL1).SetFinalityDelay(r.delays, 43200)
+
+	// The lowered delay took effect, so the blacklist is the only thing left blocking the withdrawal.
+	asr := bindings.NewBindings[bindings.AnchorStateRegistry](
+		bindings.WithClient(r.sys.L1EL.EthClient()), bindings.WithTo(r.delays.AnchorStateRegistry), bindings.WithTest(t))
+	finalized, err := contractio.Read(asr.IsGameFinalized(game.Address), t.Ctx())
+	t.Require().NoError(err, "failed to read isGameFinalized")
+	t.Require().True(finalized, "game is not finalized after lowering the finality delay")
 
 	t.Require().Error(r.withdrawal.CheckFinalizable(r.user), "withdrawal against a blacklisted game is finalizable")
 }
