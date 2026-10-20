@@ -48,7 +48,7 @@ type ChainDelays struct {
 	ProofMaturityDelaySeconds       uint64
 	DisputeGameFinalityDelaySeconds uint64
 	WithdrawalDelaySeconds          uint64
-	// LastUsedOPCMVersion labels the output only. It is empty if the SystemConfig has no lastUsedOPCMVersion().
+	// LastUsedOPCMVersion labels the output only. It is empty on older SystemConfigs, which don't track the last used OPCM.
 	LastUsedOPCMVersion string
 }
 
