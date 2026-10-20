@@ -70,6 +70,11 @@ def full_settings():
 
 
 def check_environment(manifest):
+    head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+    if head != manifest.get('commit_sha') or head != os.environ['CI_COMMIT_SHA']:
+        raise ValueError('Go checkout differs from requested compilation/verdict source')
+    if subprocess.run(['git', 'diff', '--quiet', 'HEAD', '--'], cwd=ROOT).returncode:
+        raise ValueError('Go tracked source changed before compilation/verdict')
     if manifest.get('environment') != SUITE_HELPER.environment() or manifest.get('go_environment') != SUITE_HELPER.go_environment():
         raise ValueError('Go compiler flags or test environment differ from discovery')
 
@@ -319,6 +324,8 @@ def run(args):
 
 
 if __name__ == "__main__":
+    # Preserve the selected executable's SDK, rather than a parent's mise root.
+    os.environ.pop('GOROOT', None)
     try:
         parser = argparse.ArgumentParser(description=__doc__)
         parser.add_argument("command", choices=["build", "verify", "run"])

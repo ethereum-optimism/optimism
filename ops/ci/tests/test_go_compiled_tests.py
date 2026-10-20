@@ -239,11 +239,26 @@ class FullCompiledGoTest(CompiledGoTest):
         tools = self.root / "bin"
         tools.mkdir()
         self.executable(tools / "go", "#!/bin/sh\nif [ \"$1\" = version ]; then echo 'go version fixture'; else echo '{\"GOOS\":\"linux\"}'; fi\n")
+        self.executable(tools / "git", '#!/bin/sh\nif [ "$1" = rev-parse ]; then echo "${GO_TEST_CHECKOUT_SHA:-$CI_COMMIT_SHA}"; else exit "${GO_TEST_DIRTY_SOURCE:-0}"; fi\n')
         self.env['PATH'] = str(tools) + os.pathsep + self.env['PATH']
         self.suite_args = ("--suite", "go-tests")
 
     def run_helper(self, command, *args, **env):
         return super().run_helper(command, *self.suite_args, *args, **env)
+
+    def test_full_suite_rejects_other_checkout_and_dirty_source_before_execution(self):
+        for env in ({'GO_TEST_CHECKOUT_SHA': 'b'*40}, {'GO_TEST_DIRTY_SOURCE': '1'}):
+            result = self.run_helper('run', **env)
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertFalse(self.calls.exists())
+
+    def test_selected_go_sdk_ignores_inherited_root(self):
+        tools = self.root / 'bin'
+        original = (tools / 'go').read_text()
+        (tools / 'go').write_text(original.replace('if [', '[ -z "${GOROOT:-}" ] || exit 91\nif [', 1))
+        result = self.run_helper('run', GOROOT='/stale-parent-sdk')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(self.calls.exists())
 
     def test_full_suite_rejects_settings_root_shard_and_manifest_mismatch(self):
         for key, value in [('suite', 'go-rollup'), ('settings', {}), ('environment', {}), ('go_environment', {}), ('shard_index', 1),

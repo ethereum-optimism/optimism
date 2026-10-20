@@ -104,6 +104,9 @@ def record_circle(flags):
 
 
 def main():
+    # A selected Go toolchain can be newer than mise's exported GOROOT.
+    # Let the executable infer its matching SDK before compiling helpers.
+    os.environ.pop('GOROOT', None)
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     discovery = commands.add_parser("discover")
