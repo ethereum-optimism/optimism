@@ -18,10 +18,14 @@
 
 use reth_metrics::{
     Metrics,
-    metrics::{self, Gauge},
+    metrics::{self, Counter, Gauge},
 };
 
 const NO_LABELS: &[(&str, &str)] = &[];
+
+/// Label value for an automatic disable caused by a refund policy that could not undo a candidate
+/// transaction.
+pub(crate) const AUTO_DISABLE_REASON_REFUND_POLICY_REVERT: &str = "refund_policy_revert";
 
 /// The operator opt-in the node booted with, 0 or 1.
 ///
@@ -41,6 +45,25 @@ struct SdmOperatorOptInConfiguredMetrics {
 struct SdmOperatorOptInMetrics {
     /// Whether the operator has opted in to SDM post-exec production.
     operator_opt_in: Gauge,
+}
+
+/// Times the node turned the operator opt-in off by itself, by reason.
+///
+/// A counter rather than a gauge value: the opt-in gauge already shows the flag is off, and the
+/// configured gauge shows a restart would turn it back on. What neither can say is whether the
+/// node or an operator turned it off, which decides whether re-enabling is safe.
+#[derive(Metrics)]
+#[metrics(scope = "op_sdm")]
+struct SdmOperatorOptInAutoDisabledMetrics {
+    /// Automatic disables of the SDM operator opt-in, by reason.
+    operator_opt_in_auto_disabled_total: Counter,
+}
+
+/// Records that the node turned the operator opt-in off by itself.
+pub(crate) fn record_operator_opt_in_auto_disabled(reason: &'static str) {
+    SdmOperatorOptInAutoDisabledMetrics::new_with_labels(&[("reason", reason)])
+        .operator_opt_in_auto_disabled_total
+        .increment(1);
 }
 
 /// Records the operator opt-in the node booted with.

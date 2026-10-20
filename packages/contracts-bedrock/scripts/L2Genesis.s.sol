@@ -24,6 +24,7 @@ import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -75,6 +76,7 @@ contract L2Genesis is Script {
         uint256 nativeAssetLiquidityAmount;
         address liquidityControllerOwner;
         bytes32 devFeatureBitmap;
+        uint256 l2ToL2MessageExpiryPeriod;
     }
 
     using ForkUtils for Fork;
@@ -131,6 +133,12 @@ contract L2Genesis is Script {
             _input.useInterop
                 == DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP),
             "L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree"
+        );
+        // The messenger only takes a non-production expiry period when interop is active at
+        // genesis; a later activation initializes it with the production period.
+        require(
+            _input.l2ToL2MessageExpiryPeriod == 0 || _isGenesisInteropEnabled(_input),
+            "L2Genesis: expiry period override needs interop at genesis"
         );
         address deployer = makeAddr("deployer");
         vm.startPrank(deployer);
@@ -281,6 +289,7 @@ contract L2Genesis is Script {
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainETHBridge(); // 24
             setETHLiquidity(); // 25
+            setUndeliveredMessageExporter(); // 30
         }
         if (_input.useCustomGasToken) {
             setLiquidityController(_input); // 29
@@ -366,6 +375,9 @@ contract L2Genesis is Script {
             gasPayingTokenName: _input.gasPayingTokenName,
             gasPayingTokenSymbol: _input.gasPayingTokenSymbol
         });
+        config_.l2ToL2MessageExpiryPeriod = _input.l2ToL2MessageExpiryPeriod == 0
+            ? Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
+            : _input.l2ToL2MessageExpiryPeriod;
         config_.isCustomGasToken = _input.useCustomGasToken;
         config_.isInterop = _isGenesisInteropEnabled(_input);
     }
@@ -608,12 +620,12 @@ contract L2Genesis is Script {
     }
 
     /// @notice This predeploy is following the safety invariant #1.
-    ///         This contract has no initializer.
     function setL2ToL2CrossDomainMessenger() internal {
         Predeploys.assertGates(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
         );
-        _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        address impl = _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        IL2ToL2CrossDomainMessenger(impl).initialize({ _expiryPeriod: Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD });
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -629,6 +641,14 @@ contract L2Genesis is Script {
     function setSuperchainETHBridge() internal {
         Predeploys.assertGates(Predeploys.SUPERCHAIN_ETH_BRIDGE, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
         _setImplementationCode(Predeploys.SUPERCHAIN_ETH_BRIDGE);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    function setUndeliveredMessageExporter() internal {
+        Predeploys.assertGates(
+            Predeploys.UNDELIVERED_MESSAGE_EXPORTER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
+        );
+        _setImplementationCode(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
     }
 
     /// @notice This predeploy is following the safety invariant #1.

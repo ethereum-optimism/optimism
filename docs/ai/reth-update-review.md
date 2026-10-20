@@ -122,8 +122,8 @@ after it is a bug we knowingly ship. Sweep forward as well:
    subsystem op-reth enables. Flag fixes to a consensus-critical surface (risk E) as
    aggressively as full-range findings.
 3. For each reth finding, test whether it cherry-picks cleanly and builds on the new
-   pin, and list the commits it depends on. A picked fix goes below the fork's CI commit
-   (UPDATING-RETH step 3). For revm and alloy findings, check whether a
+   pin, and list the commits it depends on. A picked fix goes on the fork's `op-*` branch
+   after its CI commit (UPDATING-RETH, "The reth fork"). For revm and alloy findings, check whether a
    semver-compatible release contains the fix.
 4. Report the findings with a recommendation the human decides on: cherry-pick the
    fixes (or take the patch release), or move the target to a newer upstream release or

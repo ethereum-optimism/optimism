@@ -40,3 +40,18 @@ pub(crate) fn vkey_hex<'a>(toml: &'a str, key: &str) -> &'a str {
     }
     panic!("vkeys.toml missing key {key:?}");
 }
+
+/// Inverse of [`unpack_vkey_bytes32`]: packs eight canonical 31-bit words back into 32 bytes.
+#[cfg(test)]
+pub(crate) fn repack_vkey_words(words: [u32; 8]) -> [u8; 32] {
+    let mut bytes = [0u8; 32];
+    for (i, word) in words.iter().copied().enumerate() {
+        assert!(word <= 0x7fff_ffff);
+        for b in 0..31 {
+            let position = 8 + 31 * i + b;
+            let bit = ((word >> (30 - b)) & 1) as u8;
+            bytes[position / 8] |= bit << (7 - (position % 8));
+        }
+    }
+    bytes
+}

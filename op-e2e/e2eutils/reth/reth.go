@@ -14,9 +14,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/ethclient"
 
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -94,7 +94,7 @@ func (i *Instance) Close() error {
 // InitL2 initializes the op-reth databases, starts the node, and waits for its
 // RPC endpoints. Set exactly one genesis source: genesis or cfg.GenesisJSONPath.
 // The caller must create cfg.DataDir with t.TempDir().
-func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Genesis, jwtPath string, cfg Config) (*Instance, error) {
+func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *opgenesis.Genesis, jwtPath string, cfg Config) (*Instance, error) {
 	if (genesis == nil) == (cfg.GenesisJSONPath == "") {
 		return nil, errors.New("set exactly one of genesis or GenesisJSONPath")
 	}

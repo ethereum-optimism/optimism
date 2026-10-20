@@ -170,7 +170,7 @@
           },
           "Roles": {
             "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0x6d5b183f538abb8572f5cd17109c617b994d5833",
+            "ProxyAdminOwner": "0x5a0aae59d09fccbddb6c6cceb07b7279367c3d2a",
             "Guardian": null,
             "Challenger": null,
             "Proposer": null,
@@ -252,7 +252,7 @@
           },
           "Roles": {
             "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0x441f31c4cdf772558d4ea31f3114de59ae145e7c",
+            "ProxyAdminOwner": "0x3228f00fbfd0e1f4c282601c489664b10932c40f",
             "Guardian": null,
             "Challenger": null,
             "Proposer": null,
@@ -422,7 +422,7 @@
           },
           "Roles": {
             "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0x4a4962275df8c60a80d3a25faec5aa7de116a746",
+            "ProxyAdminOwner": "0x3c54be307e15258e51d42e585831bd7e04bbc03b",
             "Guardian": null,
             "Challenger": null,
             "Proposer": null,
@@ -1292,7 +1292,7 @@
           "PublicRPC": "https://rpc.metall2.com",
           "SequencerRPC": "https://rpc.metall2.com",
           "Explorer": "https://explorer.metall2.com",
-          "GovernedByOptimism": true,
+          "GovernedByOptimism": false,
           "SuperchainTime": 0,
           "DataAvailabilityType": "eth-da",
           "l2_chain_id": 1750,
@@ -1345,7 +1345,7 @@
           },
           "Roles": {
             "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0x5a0aae59d09fccbddb6c6cceb07b7279367c3d2a",
+            "ProxyAdminOwner": "0x4a4962275df8c60a80d3a25faec5aa7de116a746",
             "Guardian": null,
             "Challenger": null,
             "Proposer": null,
@@ -1787,7 +1787,7 @@
             "SuperchainConfig": null,
             "AnchorStateRegistryProxy": null,
             "DelayedWethProxy": null,
-            "DisputeGameFactoryProxy": "0xbf4676f21a7889e0fd61bcdc9b98e60b01c1b36f",
+            "DisputeGameFactoryProxy": "0xacc66304d26a01a9bd60d0584dcedbacec8e10e0",
             "FaultDisputeGame": null,
             "Mips": null,
             "PermissionedDisputeGame": null,
@@ -1851,7 +1851,7 @@
           },
           "Roles": {
             "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0x4a4962275df8c60a80d3a25faec5aa7de116a746",
+            "ProxyAdminOwner": "0x1b99d8a4ce6883fa9fc3538ea518a4628aac6135",
             "Guardian": null,
             "Challenger": null,
             "Proposer": null,
@@ -1959,7 +1959,7 @@
             "SuperchainConfig": null,
             "AnchorStateRegistryProxy": null,
             "DelayedWethProxy": null,
-            "DisputeGameFactoryProxy": "0x2dc9d2cb1ba0b8a46ae252ab4fbe1ad5c5c3b795",
+            "DisputeGameFactoryProxy": "0xc371fd8c4ab7f585bdca7aa19c2a680a70920c98",
             "FaultDisputeGame": null,
             "Mips": null,
             "PermissionedDisputeGame": null,
@@ -1972,7 +1972,7 @@
           "PublicRPC": "https://mainnet.mode.network",
           "SequencerRPC": "https://mainnet-sequencer.mode.network",
           "Explorer": "https://explorer.mode.network",
-          "GovernedByOptimism": true,
+          "GovernedByOptimism": false,
           "SuperchainTime": 0,
           "DataAvailabilityType": "eth-da",
           "l2_chain_id": 34443,
@@ -2025,7 +2025,7 @@
           },
           "Roles": {
             "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0x5a0aae59d09fccbddb6c6cceb07b7279367c3d2a",
+            "ProxyAdminOwner": "0x4a4962275df8c60a80d3a25faec5aa7de116a746",
             "Guardian": null,
             "Challenger": null,
             "Proposer": null,
@@ -2572,7 +2572,7 @@
           "PublicRPC": "https://rpc.zora.energy",
           "SequencerRPC": "https://rpc.zora.energy",
           "Explorer": "https://explorer.zora.energy",
-          "GovernedByOptimism": true,
+          "GovernedByOptimism": false,
           "SuperchainTime": 0,
           "DataAvailabilityType": "eth-da",
           "l2_chain_id": 7777777,
@@ -2625,7 +2625,7 @@
           },
           "Roles": {
             "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0x5a0aae59d09fccbddb6c6cceb07b7279367c3d2a",
+            "ProxyAdminOwner": "0x4a4962275df8c60a80d3a25faec5aa7de116a746",
             "Guardian": null,
             "Challenger": null,
             "Proposer": null,
@@ -2850,7 +2850,7 @@
           "PublicRPC": "https://sepolia.mode.network",
           "SequencerRPC": "https://sepolia.mode.network",
           "Explorer": "https://sepolia.explorer.mode.network",
-          "GovernedByOptimism": true,
+          "GovernedByOptimism": false,
           "SuperchainTime": 1703203200,
           "DataAvailabilityType": "eth-da",
           "l2_chain_id": 919,
@@ -2905,7 +2905,7 @@
           },
           "Roles": {
             "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0x1eb2ffc903729a0f03966b917003800b145f56e2",
+            "ProxyAdminOwner": "0x34478c2eb9018d5a6487bf0440838cd4238e8cf2",
             "Guardian": null,
             "Challenger": null,
             "Proposer": null,
@@ -2993,7 +2993,7 @@
           },
           "Roles": {
             "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0xd363339ee47775888df411a163c586a8bdea9dbf",
+            "ProxyAdminOwner": "0x1eb2ffc903729a0f03966b917003800b145f56e2",
             "Guardian": null,
             "Challenger": null,
             "Proposer": null,
@@ -3026,7 +3026,7 @@
           "PublicRPC": "https://testnet.rpc.metall2.com",
           "SequencerRPC": "https://testnet.rpc.metall2.com",
           "Explorer": "https://testnet.explorer.metall2.com",
-          "GovernedByOptimism": true,
+          "GovernedByOptimism": false,
           "SuperchainTime": 1708534800,
           "DataAvailabilityType": "eth-da",
           "l2_chain_id": 1740,
@@ -3081,7 +3081,7 @@
           },
           "Roles": {
             "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0x1eb2ffc903729a0f03966b917003800b145f56e2",
+            "ProxyAdminOwner": "0x34478c2eb9018d5a6487bf0440838cd4238e8cf2",
             "Guardian": null,
             "Challenger": null,
             "Proposer": null,
@@ -3786,6 +3786,92 @@
           }
         },
         {
+          "Name": "GIWA Sepolia Testnet",
+          "PublicRPC": "https://sepolia-rpc.giwa.io",
+          "SequencerRPC": "https://sepolia-sequencer.giwa.io",
+          "Explorer": "https://sepolia-explorer.giwa.io",
+          "GovernedByOptimism": false,
+          "SuperchainTime": null,
+          "DataAvailabilityType": "eth-da",
+          "l2_chain_id": 91342,
+          "batch_inbox_address": "0x00ef2e3b7754f2a65f1e897a27a3306d9b52f544",
+          "block_time": 1,
+          "seq_window_size": 3600,
+          "max_sequencer_drift": 600,
+          "GasPayingToken": null,
+          "hardfork_configuration": {
+            "canyon_time": 0,
+            "delta_time": 0,
+            "ecotone_time": 0,
+            "fjord_time": 0,
+            "granite_time": 0,
+            "holocene_time": 0,
+            "isthmus_time": 1753349700,
+            "jovian_time": 1767070800,
+            "karst_time": 1783317600
+          },
+          "optimism": {
+            "eip1559Elasticity": 6,
+            "eip1559Denominator": 50,
+            "eip1559DenominatorCanyon": 250
+          },
+          "alt_da": null,
+          "genesis": {
+            "l1": {
+              "number": 8830872,
+              "hash": "0xa8abf5bcc0d58df55c95bd5b7d197e91a7c10d05eed3ac17362ede48fc87cae1"
+            },
+            "l2": {
+              "number": 0,
+              "hash": "0xca1b5fee64a196abfca007b3a4d4e3ec2b37be83a452d452bf4e45937004cab2"
+            },
+            "l2_time": 1753345116,
+            "system_config": {
+              "batcherAddr": "0x1caaaa58002a7e8b4c6f427ac2c943767b4d6cd7",
+              "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "scalar": "0x010000000000000000000000000000000000000000000000000c5fc500000558",
+              "gasLimit": 60000000,
+              "baseFeeScalar": null,
+              "blobBaseFeeScalar": null,
+              "eip1559Denominator": null,
+              "eip1559Elasticity": null,
+              "operatorFeeScalar": null,
+              "operatorFeeConstant": null,
+              "minBaseFee": null,
+              "daFootprintGasScalar": null
+            }
+          },
+          "Roles": {
+            "SystemConfigOwner": null,
+            "ProxyAdminOwner": "0x0b266965c88c78f17e1f9f59784249bf8da1cb9e",
+            "Guardian": null,
+            "Challenger": null,
+            "Proposer": null,
+            "UnsafeBlockSigner": null,
+            "BatchSubmitter": null
+          },
+          "Addresses": {
+            "AddressManager": null,
+            "L1CrossDomainMessengerProxy": null,
+            "L1Erc721BridgeProxy": null,
+            "L1StandardBridgeProxy": "0x77b2ffc0f57598cae1db76cb398059cf5d10a7e7",
+            "L2OutputOracleProxy": null,
+            "OptimismMintableErc20FactoryProxy": null,
+            "OptimismPortalProxy": "0x956962c34687a954e611a83619abaa37ce6bc78a",
+            "SystemConfigProxy": "0x8352825ba56c32d816dd906ad4a392b5bc9ec984",
+            "ProxyAdmin": null,
+            "SuperchainConfig": null,
+            "AnchorStateRegistryProxy": null,
+            "DelayedWethProxy": null,
+            "DisputeGameFactoryProxy": "0x37347cab2afaa49b776372279143d71ad1f354f6",
+            "FaultDisputeGame": null,
+            "Mips": null,
+            "PermissionedDisputeGame": null,
+            "PreimageOracle": null,
+            "DataAvailabilityChallenge": null
+          }
+        },
+        {
           "Name": "Camp Network Testnet V2",
           "PublicRPC": "https://rpc.camp-network-testnet.gelato.digital",
           "SequencerRPC": "https://rpc.camp-network-testnet.gelato.digital",
@@ -4183,7 +4269,7 @@
           },
           "Roles": {
             "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0x5e60d897cd62588291656b54655e98ee73f0aabf",
+            "ProxyAdminOwner": "0x009a6ac23eebe98488ed28a52af69bf46f1c18cb",
             "Guardian": null,
             "Challenger": null,
             "Proposer": null,
@@ -4385,7 +4471,7 @@
           "PublicRPC": "https://sepolia.rpc.zora.energy",
           "SequencerRPC": "https://sepolia.rpc.zora.energy",
           "Explorer": "https://sepolia.explorer.zora.energy",
-          "GovernedByOptimism": true,
+          "GovernedByOptimism": false,
           "SuperchainTime": 0,
           "DataAvailabilityType": "eth-da",
           "l2_chain_id": 999999999,
@@ -4440,7 +4526,7 @@
           },
           "Roles": {
             "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0x1eb2ffc903729a0f03966b917003800b145f56e2",
+            "ProxyAdminOwner": "0x34478c2eb9018d5a6487bf0440838cd4238e8cf2",
             "Guardian": null,
             "Challenger": null,
             "Proposer": null,
@@ -4572,6 +4658,113 @@
           "interop": {
             "dependencies": {
               "420130015": {}
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "sepolia-devnet-3",
+      "config": {
+        "name": "sepolia-devnet-3",
+        "l1": {
+          "chain_id": 11155111,
+          "public_rpc": "https://ethereum-sepolia-rpc.publicnode.com",
+          "explorer": ""
+        },
+        "hardforks": {},
+        "superchain_config_addr": "0x289d2a1b1ae6e0470d8b72e53b6e3f485f251dbb",
+        "op_contracts_manager_proxy_addr": null
+      },
+      "chains": [
+        {
+          "Name": "sepolia-devnet-3",
+          "PublicRPC": "https://sepolia-devnet-3.optimism.io/rpc",
+          "SequencerRPC": "",
+          "Explorer": "",
+          "GovernedByOptimism": false,
+          "SuperchainTime": 0,
+          "DataAvailabilityType": "eth-da",
+          "l2_chain_id": 420130018,
+          "batch_inbox_address": "0x004993affe905f42aae45e1a5f78c830766c3e79",
+          "block_time": 2,
+          "seq_window_size": 3600,
+          "max_sequencer_drift": 600,
+          "GasPayingToken": null,
+          "hardfork_configuration": {
+            "canyon_time": 0,
+            "delta_time": 0,
+            "ecotone_time": 0,
+            "fjord_time": 0,
+            "granite_time": 0,
+            "holocene_time": 0,
+            "isthmus_time": 0,
+            "jovian_time": 0,
+            "karst_time": 0
+          },
+          "optimism": {
+            "eip1559Elasticity": 6,
+            "eip1559Denominator": 50,
+            "eip1559DenominatorCanyon": 250
+          },
+          "alt_da": null,
+          "genesis": {
+            "l1": {
+              "number": 11481671,
+              "hash": "0x2b469fe62dfd6604e392eb59bf1803901f95b68d307971d5111f3c55d01c74d9"
+            },
+            "l2": {
+              "number": 0,
+              "hash": "0xaab365bf4b86a69dcec883fdd462a8d8eccd7947e1fcb8a25b67be1e82bdbf79"
+            },
+            "l2_time": 1786642416,
+            "system_config": {
+              "batcherAddr": "0x9595c7b2697cd91f0e920068693dee2f0aaf5150",
+              "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "scalar": "0x010000000000000000000000000000000000000000000000000c3c9d00000558",
+              "gasLimit": 60000000,
+              "baseFeeScalar": null,
+              "blobBaseFeeScalar": null,
+              "eip1559Denominator": null,
+              "eip1559Elasticity": null,
+              "operatorFeeScalar": null,
+              "operatorFeeConstant": null,
+              "minBaseFee": null,
+              "daFootprintGasScalar": null
+            }
+          },
+          "Roles": {
+            "SystemConfigOwner": null,
+            "ProxyAdminOwner": "0xe934dc97e347c6acef74364b50125bb8689c40ff",
+            "Guardian": null,
+            "Challenger": null,
+            "Proposer": null,
+            "UnsafeBlockSigner": null,
+            "BatchSubmitter": null
+          },
+          "Addresses": {
+            "AddressManager": null,
+            "L1CrossDomainMessengerProxy": null,
+            "L1Erc721BridgeProxy": null,
+            "L1StandardBridgeProxy": "0xe28e8180240424f0350be1b606dc220a2fc7a7b9",
+            "L2OutputOracleProxy": null,
+            "OptimismMintableErc20FactoryProxy": null,
+            "OptimismPortalProxy": "0x49fd1562cb0290c535813bfdfb43949762ae96b2",
+            "SystemConfigProxy": "0x66dac055c7cd3b3a043760521dca840cb3e8f3ff",
+            "ProxyAdmin": null,
+            "SuperchainConfig": null,
+            "AnchorStateRegistryProxy": null,
+            "DelayedWethProxy": null,
+            "DisputeGameFactoryProxy": "0xbde04dc0b4dbda6a1a60b0bf5f32262e129523ea",
+            "FaultDisputeGame": null,
+            "Mips": null,
+            "PermissionedDisputeGame": null,
+            "PreimageOracle": null,
+            "DataAvailabilityChallenge": null
+          },
+          "interop": {
+            "dependencies": {
+              "420130018": {}
             }
           }
         }

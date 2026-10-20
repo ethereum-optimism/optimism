@@ -1,7 +1,9 @@
 [workspace]
 members = [
+  "log-commitment",
   "super-range",
   "super-aggregation",
+  "tests/bls12-381-check",
 ]
 resolver = "2"
 
@@ -115,18 +117,21 @@ too_long_first_doc_paragraph = "allow"
 # END SHARED WORKSPACE LINTS
 
 [workspace.dependencies]
+alloy-primitives = { version = "1.6.1", default-features = false, features = ["serde"] }
 kona-preimage = { path = "../../crates/proof/preimage", default-features = false }
 serde_json = { version = "1.0.149", default-features = false, features = ["alloc"] }
 # Guest path dependencies. Paths are relative to rust/kona/sp1/programs.
 kona-proof = { path = "../../crates/proof/proof", version = "0.3.0", default-features = false }
+kona-sp1-bls12-381-check = { path = "../crates/bls12-381-check" }
 kona-sp1-build-info = { path = "../crates/build-info" }
 kona-sp1-client-utils = { path = "../crates/client" }
 kona-sp1-ethereum-client-utils = { path = "../crates/ethereum/client" }
+kona-sp1-log-commitment-vkey = { path = "../crates/log-commitment-vkey" }
 kona-sp1-range-vkeys = { path = "../crates/range-vkeys" }
 
 # Feature anchor only: revm's `bn` forwards to revm-precompile/bn so the guest
 # build uses the SP1-patched substrate-bn backend for bn128.
-revm = { version = "42.0.1", default-features = false, features = ["bn"] }
+revm = { version = "43.0.2", default-features = false, features = ["bn"] }
 
 sp1-lib = { version = "6.8.1", features = ["verify"] }
 sp1-zkvm = { version = "6.8.1", features = ["verify"] }
@@ -137,7 +142,7 @@ anyhow = { version = "1.0.101", default-features = false }
 
 [patch.crates-io]
 sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "patch-sha2-0.10.9-sp1-6.2.0" }
-# revm-precompile 42 resolves the 0.11 line next to the 0.10 one; a patch only covers the version it names.
+# revm-precompile 43 resolves the 0.11 line next to the 0.10 one; a patch only covers the version it names.
 sha2-0-11 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "patch-sha2-0.11.0-sp1-6.2.0" }
 sha3 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", tag = "patch-sha3-0.11.0-sp1-6.0.0" }
 crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag = "patch-0.5.5-sp1-6.2.0" }

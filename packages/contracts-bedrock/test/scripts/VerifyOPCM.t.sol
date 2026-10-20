@@ -17,6 +17,7 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { ISP1PlonkAdapter } from "interfaces/dispute/zk/ISP1PlonkAdapter.sol";
 import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
@@ -103,6 +104,10 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _verifyAnchorStateRegistryDelays(_asr);
     }
 
+    function verifyDelayedWETHDelays(IDelayedWETH _weth) public view returns (bool) {
+        return _verifyDelayedWETHDelays(_weth);
+    }
+
     function verifyStandardValidatorArgs(
         IOPContractsManagerV2 _opcm,
         address _validator,
@@ -154,13 +159,8 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         // script correctly rejects them.
         vm.setEnv("EXPECTED_L1_PAO_MULTISIG", vm.toString(validator.l1PAOMultisig()));
         vm.setEnv("EXPECTED_CHALLENGER", vm.toString(validator.challenger()));
-        vm.setEnv("EXPECTED_WITHDRAWAL_DELAY_SECONDS", vm.toString(validator.withdrawalDelaySeconds()));
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(optimismPortal2.superchainConfig())));
-        vm.setEnv("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.proofMaturityDelaySeconds()));
-        vm.setEnv(
-            "EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS",
-            vm.toString(anchorStateRegistry.disputeGameFinalityDelaySeconds())
-        );
+        _setExpectedDelayBoundsEnv();
         if (zkDisputeGameEnabled()) {
             ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
             ISP1Verifier verifier = adapter.sp1Verifier();
@@ -177,6 +177,27 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
 
     function zkDisputeGameEnabled() internal view returns (bool) {
         return DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.ZK_DISPUTE_GAME);
+    }
+
+    /// @notice Points the expected delay bound env vars at the live implementation values so the
+    ///         bound checks pass by default.
+    function _setExpectedDelayBoundsEnv() internal {
+        vm.setEnv(
+            "EXPECTED_MIN_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.minProofMaturityDelaySeconds())
+        );
+        vm.setEnv(
+            "EXPECTED_MAX_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.maxProofMaturityDelaySeconds())
+        );
+        vm.setEnv(
+            "EXPECTED_MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS",
+            vm.toString(anchorStateRegistry.minDisputeGameFinalityDelaySeconds())
+        );
+        vm.setEnv(
+            "EXPECTED_MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS",
+            vm.toString(anchorStateRegistry.maxDisputeGameFinalityDelaySeconds())
+        );
+        vm.setEnv("EXPECTED_MIN_WITHDRAWAL_DELAY_SECONDS", vm.toString(delayedWeth.minDelay()));
+        vm.setEnv("EXPECTED_MAX_WITHDRAWAL_DELAY_SECONDS", vm.toString(delayedWeth.maxDelay()));
     }
 }
 
@@ -752,59 +773,111 @@ contract VerifyOPCM_isValidConstructorArgs_Test is VerifyOPCM_TestInit {
 }
 
 /// @title VerifyOPCM_verifyPortalDelays_Test
-/// @notice Tests for the portal delay verification function.
+/// @notice Tests for the portal delay bounds verification function.
 contract VerifyOPCM_verifyPortalDelays_Test is VerifyOPCM_TestInit {
     function setUp() public override {
         super.setUp();
-        vm.setEnv("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.proofMaturityDelaySeconds()));
+        _setExpectedDelayBoundsEnv();
     }
 
-    /// @notice Tests that portal delay verification succeeds with correct values.
-    function test_verifyPortalDelays_matchingDelay_succeeds() public view {
+    /// @notice Tests that portal delay bounds verification succeeds with correct values.
+    function test_verifyPortalDelays_matchingBounds_succeeds() public view {
         bool result = harness.verifyPortalDelays(optimismPortal2);
-        assertTrue(result, "Portal delay verification should succeed");
+        assertTrue(result, "Portal delay bounds verification should succeed");
     }
 
-    /// @notice Tests that portal delay verification fails with wrong expected value.
-    function test_verifyPortalDelays_mismatchedDelay_fails() public {
-        // Mock the portal to return a different delay than expected.
+    /// @notice Tests that portal delay bounds verification fails when the lower bound differs.
+    function test_verifyPortalDelays_mismatchedMinBound_fails() public {
+        // Mock the portal to return a different lower bound than expected.
         vm.mockCall(
             address(optimismPortal2),
-            abi.encodeCall(IOptimismPortal2.proofMaturityDelaySeconds, ()),
+            abi.encodeCall(IOptimismPortal2.minProofMaturityDelaySeconds, ()),
             abi.encode(uint256(12345))
         );
         bool result = harness.verifyPortalDelays(optimismPortal2);
-        assertFalse(result, "Portal delay verification should fail with wrong expected value");
+        assertFalse(result, "Portal delay bounds verification should fail with wrong lower bound");
+    }
+
+    /// @notice Tests that portal delay bounds verification fails when the upper bound differs.
+    function test_verifyPortalDelays_mismatchedMaxBound_fails() public {
+        // Mock the portal to return a different upper bound than expected.
+        vm.mockCall(
+            address(optimismPortal2),
+            abi.encodeCall(IOptimismPortal2.maxProofMaturityDelaySeconds, ()),
+            abi.encode(uint256(12345))
+        );
+        bool result = harness.verifyPortalDelays(optimismPortal2);
+        assertFalse(result, "Portal delay bounds verification should fail with wrong upper bound");
     }
 }
 
 /// @title VerifyOPCM_verifyAnchorStateRegistryDelays_Test
-/// @notice Tests for the anchor state registry delay verification function.
+/// @notice Tests for the anchor state registry delay bounds verification function.
 contract VerifyOPCM_verifyAnchorStateRegistryDelays_Test is VerifyOPCM_TestInit {
     function setUp() public override {
         super.setUp();
-        vm.setEnv(
-            "EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS",
-            vm.toString(anchorStateRegistry.disputeGameFinalityDelaySeconds())
-        );
+        _setExpectedDelayBoundsEnv();
     }
 
-    /// @notice Tests that ASR delay verification succeeds with correct values.
-    function test_verifyAnchorStateRegistryDelays_matchingDelay_succeeds() public view {
+    /// @notice Tests that ASR delay bounds verification succeeds with correct values.
+    function test_verifyAnchorStateRegistryDelays_matchingBounds_succeeds() public view {
         bool result = harness.verifyAnchorStateRegistryDelays(anchorStateRegistry);
-        assertTrue(result, "ASR delay verification should succeed");
+        assertTrue(result, "ASR delay bounds verification should succeed");
     }
 
-    /// @notice Tests that ASR delay verification fails with wrong expected value.
-    function test_verifyAnchorStateRegistryDelays_mismatchedDelay_fails() public {
-        // Mock the ASR to return a different delay than expected.
+    /// @notice Tests that ASR delay bounds verification fails when the lower bound differs.
+    function test_verifyAnchorStateRegistryDelays_mismatchedMinBound_fails() public {
+        // Mock the ASR to return a different lower bound than expected.
         vm.mockCall(
             address(anchorStateRegistry),
-            abi.encodeCall(IAnchorStateRegistry.disputeGameFinalityDelaySeconds, ()),
+            abi.encodeCall(IAnchorStateRegistry.minDisputeGameFinalityDelaySeconds, ()),
             abi.encode(uint256(99999))
         );
         bool result = harness.verifyAnchorStateRegistryDelays(anchorStateRegistry);
-        assertFalse(result, "ASR delay verification should fail with wrong expected value");
+        assertFalse(result, "ASR delay bounds verification should fail with wrong lower bound");
+    }
+
+    /// @notice Tests that ASR delay bounds verification fails when the upper bound differs.
+    function test_verifyAnchorStateRegistryDelays_mismatchedMaxBound_fails() public {
+        // Mock the ASR to return a different upper bound than expected.
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.maxDisputeGameFinalityDelaySeconds, ()),
+            abi.encode(uint256(99999))
+        );
+        bool result = harness.verifyAnchorStateRegistryDelays(anchorStateRegistry);
+        assertFalse(result, "ASR delay bounds verification should fail with wrong upper bound");
+    }
+}
+
+/// @title VerifyOPCM_verifyDelayedWETHDelays_Test
+/// @notice Tests for the DelayedWETH delay bounds verification function.
+contract VerifyOPCM_verifyDelayedWETHDelays_Test is VerifyOPCM_TestInit {
+    function setUp() public override {
+        super.setUp();
+        _setExpectedDelayBoundsEnv();
+    }
+
+    /// @notice Tests that DelayedWETH delay bounds verification succeeds with correct values.
+    function test_verifyDelayedWETHDelays_matchingBounds_succeeds() public view {
+        bool result = harness.verifyDelayedWETHDelays(delayedWeth);
+        assertTrue(result, "DelayedWETH delay bounds verification should succeed");
+    }
+
+    /// @notice Tests that DelayedWETH delay bounds verification fails when the lower bound differs.
+    function test_verifyDelayedWETHDelays_mismatchedMinBound_fails() public {
+        uint256 wrongMin = delayedWeth.minDelay() + 1;
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.minDelay, ()), abi.encode(wrongMin));
+        bool result = harness.verifyDelayedWETHDelays(delayedWeth);
+        assertFalse(result, "DelayedWETH delay bounds verification should fail with wrong lower bound");
+    }
+
+    /// @notice Tests that DelayedWETH delay bounds verification fails when the upper bound differs.
+    function test_verifyDelayedWETHDelays_mismatchedMaxBound_fails() public {
+        uint256 wrongMax = delayedWeth.maxDelay() + 1;
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.maxDelay, ()), abi.encode(wrongMax));
+        bool result = harness.verifyDelayedWETHDelays(delayedWeth);
+        assertFalse(result, "DelayedWETH delay bounds verification should fail with wrong upper bound");
     }
 }
 

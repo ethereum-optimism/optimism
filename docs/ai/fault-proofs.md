@@ -28,6 +28,8 @@ ask for op-program changes.
 - **Kona-SP1 acceptance boundary**: tests exercise the shipping super-root path through the
   `super-range` and `super-aggregation` programs. Single-chain coverage uses a dependency set of
   size one.
+- **Kona-SP1 proof limits**: if an honest kona-sp1 proof exceeds a resource limit, the proposer
+  loses its `ZKDisputeGame`. See [kona-sp1-proof-limits.md](kona-sp1-proof-limits.md).
 
 ## Invariants
 

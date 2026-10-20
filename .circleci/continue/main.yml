@@ -10,9 +10,6 @@ parameters:
   c-base_image:
     type: string
     default: default
-  c-github-event-base64:
-    type: string
-    default: "__not_set__"
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   c-go-cache-version:
     type: string
@@ -74,15 +71,6 @@ parameters:
   l2_fork_test_dispatch:
     type: boolean
     default: false
-  github-event-type:
-    type: string
-    default: "__not_set__"
-  github-event-action:
-    type: string
-    default: "__not_set__"
-  github-event-base64:
-    type: string
-    default: "__not_set__"
   go-cache-version:
     type: string
     default: "v0.1"
@@ -114,9 +102,6 @@ parameters:
   c-run_scheduled_heavy_fuzz_tests:
     type: boolean
     default: false
-  c-run_close_issue:
-    type: boolean
-    default: false
   c-run_l2_fork_test:
     type: boolean
     default: false
@@ -146,7 +131,6 @@ orbs:
   slack: circleci/slack@6.0.0
   shellcheck: circleci/shellcheck@3.2.0
   docker: circleci/docker@2.8.2
-  github-cli: circleci/github-cli@2.7.0
 
 # ============================================================================
 # COMMANDS
@@ -1699,6 +1683,48 @@ jobs:
           command: |
             just check-op-geth-version
 
+  opgeth-ratchet:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    # Seconds and under 1 GB with a warm build cache; about 2 minutes on 2 cores when cold.
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - attach_workspace:
+          at: .
+      - go-restore-cache:
+          namespace: opgeth-ratchet
+      # Modules and checksum database tiles the check needs that the shared
+      # module cache lacks: upstream go-ethereum and the dependencies it adds.
+      # go.mod determines its version through the op-geth replace. Other
+      # fetches (tests of dependencies, lookups of op-geth-only packages) don't
+      # affect the result and may fail. To refresh the list, run the check
+      # with an empty module cache and compare what it adds to the shared one.
+      # The fallback restores the upstream modules across go.mod changes that
+      # rarely touch them; an old go-ethereum version then lingers in the cache
+      # until c-go-cache-version is bumped.
+      - restore_cache:
+          name: Restore upstream go-ethereum modules
+          keys:
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-
+      - run:
+          name: Check op-geth-only API uses against the allowlist
+          command: |
+            just opgeth-ratchet
+      - save_cache:
+          name: Save upstream go-ethereum modules
+          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}
+          paths:
+            - ~/go/pkg/mod/cache/download/github.com/ethereum/go-ethereum
+            - ~/go/pkg/mod/cache/download/github.com/pion/stun/v2
+            - ~/go/pkg/mod/cache/download/github.com/pion/transport/v3
+            - ~/go/pkg/mod/cache/download/sumdb
+      - go-save-cache:
+          namespace: opgeth-ratchet
+
   # Builds op-core/superchain/superchain-configs.zip from the pinned commit and
   # makes it available to downstream Go-build jobs via persist_to_workspace.
   # The zip itself is gitignored; this is the only job that persists it to the
@@ -2394,8 +2420,10 @@ jobs:
             gcloud auth configure-docker us-docker.pkg.dev
       - run:
           name: Run goreleaser
+          # Without an explicit tag, goreleaser picks the highest version-sorted tag on HEAD.
+          # Git sorts v1.0.0-rc.1 above v1.0.0, so a final tag on an rc's commit releases as the rc.
           command: |
-            goreleaser release --clean -f ./<<parameters.module>>/<<parameters.filename>>
+            GORELEASER_CURRENT_TAG="$CIRCLE_TAG" goreleaser release --clean -f ./<<parameters.module>>/<<parameters.filename>>
 
   diff-fetcher-forge-artifacts:
     docker:
@@ -2440,31 +2468,6 @@ jobs:
           days-before-pr-stale: 14
           days-before-issue-close: 5
           days-before-pr-close: 5
-
-  close-issue:
-    machine:
-      image: ubuntu-2204:2024.08.1
-    parameters:
-      label_name:
-        type: string
-      message:
-        type: string
-    steps:
-      - github-cli/install
-      - utils/github-event-handler-setup:
-          github_event_base64: << pipeline.parameters.c-github-event-base64 >>
-          env_prefix: "github_"
-      - run:
-          name: Close issue if label is added
-          command: |
-            if [ ! -z "$github_pull_request_number" ] && [ "$github_label_name" = "$LABEL_NAME" ]; then
-                echo "Closing issue $github_pull_request_number as label $LABEL_NAME is added on repository ${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME} "
-                export GH_TOKEN=$GITHUB_TOKEN_GOVERNANCE
-                gh issue close --repo "${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" "$github_pull_request_number" --comment "$MESSAGE"
-            fi
-          environment:
-            MESSAGE: << parameters.message >>
-            LABEL_NAME: << parameters.label_name >>
 
   generate-flaky-report:
     machine: true
@@ -2553,6 +2556,12 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - check-op-geth-version:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - opgeth-ratchet:
+          requires:
+            - prep-superchain
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
       - prep-superchain:
@@ -2739,6 +2748,7 @@ workflows:
             - check-nut-locks: terminal
             - check-nut-prefork-states: terminal
             - check-op-geth-version: terminal
+            - opgeth-ratchet: terminal
             - op-deployer-forge-version: terminal
             - l2-chains-sync-check: terminal
             - nut-provenance-verify: terminal
@@ -2954,21 +2964,6 @@ workflows:
           context:
             - circleci-api-token
             - circleci-repo-readonly-authenticated-github-token
-
-  close-issue-workflow:
-    when: << pipeline.parameters.c-run_close_issue >>
-    jobs:
-      - close-issue:
-          label_name: "auto-close-trivial-contribution"
-          message: "Thank you for your interest in contributing! At this time, we are not
-            accepting contributions that primarily fix spelling, stylistic, or
-            grammatical errors in documentation, code, or elsewhere. Please
-            check our [contribution
-            guidelines](https://github.com/ethereum-optimism/optimism/blob/deve\
-            lop/CONTRIBUTING.md#contributions-related-to-spelling-and-grammar)
-            for more information. This issue will be closed now."
-          context:
-            - circleci-repo-optimism
 
   l2-fork-test-workflow:
     when: << pipeline.parameters.c-run_l2_fork_test >>

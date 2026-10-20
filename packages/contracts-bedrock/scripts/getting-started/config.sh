@@ -140,6 +140,7 @@ cat << EOL >> tmp_config.json
   "faultGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "faultGameSplitDepth": 14,
   "faultGameWithdrawalDelay": 600,
+  "minWithdrawalDelaySeconds": 1,
 
   "preimageOracleMinProposalSize": 1800000,
   "preimageOracleChallengePeriod": 300

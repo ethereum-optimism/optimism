@@ -9,6 +9,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use kona_sp1_client_utils::{
     BlobStore,
+    log_commitment::{LogCommitmentInputs, VerifiedLogCommitments},
     super_root::{SuperInteropInputs, SuperInteropOutputs},
     witness::{DefaultWitnessData, WitnessData, preimage_store::WitnessOracle},
 };
@@ -42,9 +43,22 @@ async fn run(inputs: SuperInteropInputs) -> anyhow::Result<SuperInteropOutputs> 
         SuperInteropInputs::Range(inputs) => Ok(SuperInteropOutputs::Range(
             build_range_outputs(inputs, oracle, beacon, configs.as_ref()).await?,
         )),
-        SuperInteropInputs::Consolidation(inputs) => Ok(SuperInteropOutputs::Consolidation(
-            build_consolidation_outputs(inputs, oracle, configs.as_ref()).await?,
-        )),
+        SuperInteropInputs::Consolidation(inputs) => {
+            let log_commitments = VerifiedLogCommitments::new(
+                LogCommitmentInputs::decode(&sp1_zkvm::io::read_vec()),
+                &kona_sp1_log_commitment_vkey::LOG_COMMITMENT_VKEY,
+                sp1_lib::verify::verify_sp1_proof,
+            );
+            Ok(SuperInteropOutputs::Consolidation(
+                build_consolidation_outputs(
+                    inputs,
+                    oracle,
+                    configs.as_ref(),
+                    Arc::new(log_commitments),
+                )
+                .await?,
+            ))
+        }
     }
 }
 

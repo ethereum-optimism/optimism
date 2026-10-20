@@ -6,9 +6,10 @@ SP1_TAG := "v6.8.1"
 # Build the super-range-executor host binary, used by acceptance smoke tests to run the
 # super-range guest in SP1 execute mode. The binary loads the guest ELF at runtime, so build the
 # test ELFs first (build-elfs test-config-fallback) and set KONA_SP1_ELF_DIR before
-# running synthetic-chain tests without --native-core.
-build-super-range-executor:
-    cd ../.. && cargo build -p kona-sp1-super-range-executor --release
+# running synthetic-chain tests without --native-core. Pass `sp1-sdk/profiling` as features for
+# per-label cycle counts in `--report`.
+build-super-range-executor features="":
+    cd ../.. && cargo build -p kona-sp1-super-range-executor --release --features "{{features}}"
 
 # Build all ELF files.
 # ELF builds use the nested guest workspace with SP1 precompile-patched crypto,
@@ -19,10 +20,18 @@ build-elfs features="":
     export KONA_SP1_GIT_SHA="$(just _git-sha "{{features}}")"
     m=elf/vkeys.toml
     just _vkeys-header > "$m"
+    just build-log-commitment-elf
+    just _append-vkey log-commitment "$m"
     just build-super-range-elf "{{features}}"
     just _append-vkey super-range "$m"
     just build-super-aggregation-elf
     just _append-vkey super-aggregation "$m"
+
+# Build ELF file for the per-block log-commitment program.
+# Does not update elf/vkeys.toml; prefer build-elfs.
+[private]
+build-log-commitment-elf:
+    @just _build-elf log-commitment docker
 
 # Build ELF file for the unified super-root range/consolidation program.
 # Does not update elf/vkeys.toml; prefer build-elfs.
@@ -40,8 +49,22 @@ build-super-aggregation-elf:
 install-sp1-toolchain:
     cargo prove install-toolchain
 
+# Build the test-only EIP-2537 BLS12-381 zkVM check guest into elf/ (not part of build-elfs).
+build-bls12-381-check-elf:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export KONA_SP1_GIT_SHA="$(just _git-sha)"
+    just _build-elf bls12-381-check native "" tests/bls12-381-check
+
+# Execute elf/bls12-381-check-elf in SP1's CPU executor and print per-op cycle counts.
+run-bls12-381-check:
+    cd ../.. && KONA_SP1_ELF_DIR="{{justfile_directory()}}/elf" cargo run --release --locked -p kona-sp1-bls12-381-check --example zkvm_check
+
+# Build + run the BLS12-381 zkVM differential check (requires `just install-sp1-toolchain`).
+check-bls12-381-zkvm: build-bls12-381-check-elf run-bls12-381-check
+
 [private]
-_build-elf NAME MODE features="":
+_build-elf NAME MODE features="" DIR="":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -77,8 +100,8 @@ _build-elf NAME MODE features="":
       fi
     fi
 
-    # Commit for kona-sp1-build-info's marker, resolved by the calling recipe so both guests
-    # carry the same one; see crates/build-info/build.rs for the two channels.
+    # Commit for kona-sp1-build-info's marker, resolved by the calling recipe so the production
+    # guests carry the same one; see crates/build-info/build.rs for the two channels.
     : "${KONA_SP1_GIT_SHA:?resolve it via build-elfs or build-elfs-native}"
     export KONA_SP1_GIT_SHA
 
@@ -105,7 +128,8 @@ _build-elf NAME MODE features="":
       args+=(--features "{{features}}")
     fi
 
-    cd "{{justfile_directory()}}/programs/{{NAME}}"
+    program_dir="{{DIR}}"
+    cd "{{justfile_directory()}}/programs/${program_dir:-{{NAME}}}"
     cargo prove build "${args[@]}"
 
     # Nothing fails at compile time if the marker literal is dropped or an injection channel
@@ -120,7 +144,8 @@ _build-elf NAME MODE features="":
       exit 1
     fi
 
-# Commit recorded in the guest build marker. Resolved once per build so both guests agree.
+# Commit recorded in the guest build marker. Resolved once per build so the guests built together
+# agree.
 # `-custom` marks a KONA_CUSTOM_CONFIGS_DIR build: those compile chain configs from outside the
 # repo into the guest, so the commit alone does not describe the artifact.
 [private]
@@ -159,7 +184,7 @@ build-elfs-native features="":
     export KONA_SP1_GIT_SHA="$(just _git-sha "{{features}}")"
     m=elf/vkeys.toml
     just _vkeys-header > "$m"
-    for name in super-range super-aggregation; do
+    for name in log-commitment super-range super-aggregation; do
       just _build-elf "${name}" native "{{features}}"
       just _append-vkey "${name}" "$m"
     done

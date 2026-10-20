@@ -4,6 +4,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -13,7 +14,7 @@ type L1Output struct {
 }
 
 type L2Output struct {
-	Genesis   *core.Genesis
+	Genesis   *opgenesis.Genesis
 	RollupCfg *rollup.Config
 }
 

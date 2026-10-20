@@ -5,7 +5,7 @@ use alloy_primitives::B256;
 use reth_db::DatabaseError;
 use reth_execution_errors::BlockExecutionError;
 use reth_provider::ProviderError;
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Error type for storage operations
@@ -112,21 +112,47 @@ pub enum OpProofsStorageError {
     /// Error occurred while interacting with the provider.
     #[error(transparent)]
     ProviderError(Arc<ProviderError>),
-    /// The proofs database still holds data written by the removed v1 proofs storage.
-    #[error(
-        "v1 proofs database detected at {}; delete it and run 'op-reth proofs init'",
-        path.display()
-    )]
-    LegacyV1Database {
-        /// Path of the proofs database.
-        path: PathBuf,
-    },
     /// Initialization detected inconsistent state between proofs storage and source DB.
     #[error(
         "Initialization Proofs storage detected inconsistent state. Storage does not match source DB. \
          Please clear proofs data and retry initialization."
     )]
     InitializeStorageInconsistentState,
+    /// The source database's hashed-state and trie tables lag its block tip, so they describe no
+    /// single block and cannot seed the proofs storage.
+    #[error(
+        "reth database state is not durable at its tip #{db_tip}: hashed state and trie tables \
+         are only persisted through #{partial_state_trie}. This happens while a node is running \
+         on this datadir, after an unclean shutdown, or when the datadir was copied from a \
+         running node. Stop any node running on this datadir, start `op-reth node` on it so it \
+         repairs its state, stop it cleanly, then re-run initialization."
+    )]
+    InitializeSourceStateTrieLagging {
+        /// Block number of reth's Finish checkpoint.
+        db_tip: u64,
+        /// Highest block whose hashed state and trie are durable in reth's database.
+        partial_state_trie: u64,
+    },
+    /// reth's database tip moved past the initialization anchor before the copy, so the copied
+    /// tables would not describe the anchored block.
+    #[error(
+        "reth database tip moved from #{anchor} to #{db_tip} during initialization. Stop any \
+         node running on this datadir, then re-run initialization."
+    )]
+    InitializeSourceTipMoved {
+        /// Block number read as the chain tip when initialization started.
+        anchor: u64,
+        /// Block number of reth's Finish checkpoint in the copy transaction.
+        db_tip: u64,
+    },
+    /// reth's repair unwind of a lagging hashed-state/trie frontier was interrupted, so those
+    /// tables are half-unwound.
+    #[error(
+        "reth database is in the middle of repairing its state (an interrupted partial state \
+         trie unwind). Start `op-reth node` on this datadir so it completes the repair, stop it \
+         cleanly, then re-run initialization."
+    )]
+    InitializeSourceStateTrieUnwindPending,
     /// The snapshot has never been initialized — no init job has run yet.
     #[error("Snapshot is not initialized")]
     SnapshotNotInitialized,

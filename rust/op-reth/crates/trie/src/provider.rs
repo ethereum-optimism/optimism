@@ -8,7 +8,6 @@ use crate::{
     },
 };
 use alloy_primitives::keccak256;
-use derive_more::Constructor;
 use reth_primitives_traits::{Account, Bytecode};
 use reth_provider::{
     AccountReader, BlockHashReader, BytecodeReader, HashedPostStateProvider, ProviderError,
@@ -25,22 +24,50 @@ use reth_trie::{
     witness::TrieWitness,
 };
 use reth_trie_common::{
-    AccountProof, HashedPostState, HashedStorage, KeccakKeyHasher, MultiProof, MultiProofTargets,
-    StorageMultiProof, StorageProof, TrieInput, updates::TrieUpdates,
+    AccountProof, DecodedMultiProofV2, HashedPostState, HashedStorage, KeccakKeyHasher, MultiProof,
+    MultiProofTargets, MultiProofTargetsV2, StorageMultiProof, StorageProof, TrieInput,
+    updates::TrieUpdates,
 };
 use std::fmt::Debug;
 
+/// The reth data needed alongside the account, storage, and trie state in the proofs DB.
+///
+/// Bytecode is immutable and addressed by hash; neither lookup requires a historical state view.
+pub(crate) trait OpProofsAuxiliaryProvider: BlockHashReader + BytecodeReader {}
+
+impl<T: BlockHashReader + BytecodeReader> OpProofsAuxiliaryProvider for T {}
+
 /// State provider for external proofs storage.
-#[derive(Constructor)]
 pub struct OpProofsStateProviderRef<'a, P> {
-    /// Historical state provider for non-state related tasks.
-    latest: Box<dyn StateProvider + Send + 'a>,
+    /// Reader for bytecode and block hashes.
+    auxiliary: Box<dyn OpProofsAuxiliaryProvider + Send + 'a>,
 
     /// Storage provider for state lookups.
     provider: P,
 
     /// Max block number that can be used for state lookups.
     block_number: BlockNumber,
+}
+
+impl<'a, P> OpProofsStateProviderRef<'a, P> {
+    /// Creates a proofs state provider using an existing reth state provider for bytecode and
+    /// block-hash reads. Account, storage, and trie reads come from the proofs storage.
+    pub fn new(
+        auxiliary: Box<dyn StateProvider + Send + 'a>,
+        provider: P,
+        block_number: BlockNumber,
+    ) -> Self {
+        Self::with_auxiliary(Box::new(auxiliary), provider, block_number)
+    }
+
+    /// Creates a proofs state provider without requiring a full reth state provider.
+    pub(crate) const fn with_auxiliary(
+        auxiliary: Box<dyn OpProofsAuxiliaryProvider + Send + 'a>,
+        provider: P,
+        block_number: BlockNumber,
+    ) -> Self {
+        Self { auxiliary, provider, block_number }
+    }
 }
 
 impl<'a, P> Debug for OpProofsStateProviderRef<'a, P>
@@ -63,7 +90,7 @@ impl From<OpProofsStorageError> for ProviderError {
 
 impl<'a, P> BlockHashReader for OpProofsStateProviderRef<'a, P> {
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
-        self.latest.block_hash(number)
+        self.auxiliary.block_hash(number)
     }
 
     fn canonical_hashes_range(
@@ -71,7 +98,7 @@ impl<'a, P> BlockHashReader for OpProofsStateProviderRef<'a, P> {
         start: BlockNumber,
         end: BlockNumber,
     ) -> ProviderResult<Vec<B256>> {
-        self.latest.canonical_hashes_range(start, end)
+        self.auxiliary.canonical_hashes_range(start, end)
     }
 }
 
@@ -177,6 +204,15 @@ where
             .map_err(ProviderError::from)
     }
 
+    fn multiproof_v2(
+        &self,
+        input: TrieInput,
+        targets: MultiProofTargetsV2,
+    ) -> ProviderResult<DecodedMultiProofV2> {
+        Proof::overlay_multiproof_v2(self.provider.clone(), self.block_number, input, targets)
+            .map_err(ProviderError::from)
+    }
+
     fn witness(
         &self,
         input: TrieInput,
@@ -193,7 +229,7 @@ impl<'a, P> HashedPostStateProvider for OpProofsStateProviderRef<'a, P>
 where
     P: OpProofsProviderRO + Clone,
 {
-    /// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
+    /// UPSTREAM-MIRROR(copy): reth@rev:8d359d0
     /// `reth_provider::LatestStateProviderRef::hashed_post_state`
     ///
     /// Mirrors the hashing/zeroing sequence, using historical OP proofs cursors instead of
@@ -247,7 +283,7 @@ where
 
 impl<'a, P> BytecodeReader for OpProofsStateProviderRef<'a, P> {
     fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
-        self.latest.bytecode_by_hash(code_hash)
+        self.auxiliary.bytecode_by_hash(code_hash)
     }
 }
 

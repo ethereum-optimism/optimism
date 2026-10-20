@@ -1,5 +1,6 @@
-// Tests for the safe/finalized head decision at EL-sync completion (insertUnsafePayload):
-// offset retraction, and preserving / trimming / clearing the safedb.
+// Tests for insertUnsafePayload in EL-sync mode: whether EL sync starts or is skipped, and the
+// safe/finalized head decision at completion (offset retraction, preserving / trimming / clearing
+// the safedb).
 package engine
 
 import (
@@ -249,6 +250,26 @@ func TestInsertUnsafePayload_ELSync_preservesSafeDB(t *testing.T) {
 	_, l2, err := db.SafeHeadAtL1(context.Background(), l1A.Number)
 	require.NoError(t, err, "safedb was wiped on EL-sync restart")
 	require.Equal(t, refA1.ID(), l2)
+}
+
+// Without SupportsPostFinalizationELSync, a non-genesis finalized head skips EL sync: the
+// controller goes straight to CL sync and drops the payload without touching the engine.
+func TestInsertUnsafePayload_ELSync_skipsWhenFinalized(t *testing.T) {
+	cfg, _, refA1, refA2, refA3, payload := buildELSyncTipChain(t)
+
+	mockEngine := &testutils.MockEngine{}
+	// No NewPayload or ForkchoiceUpdate expectation: the mock fails the test on either call.
+	mockEngine.ExpectL2BlockRefByLabel(eth.Finalized, refA1, nil)
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg,
+		&sync.Config{SyncMode: sync.ELSync}, &testutils.MockL1Source{}, discardEmitter{}, nil)
+	ec.SetUnsafeHead(refA2)
+
+	require.NoError(t, ec.InsertUnsafePayload(context.Background(), payload, refA3))
+	mockEngine.AssertExpectations(t)
+
+	require.Equal(t, syncStatusFinishedEL, ec.syncStatus)
+	require.Equal(t, refA2, ec.unsafeHead)
 }
 
 // TestInsertUnsafePayload_ELSync_resumesFromSafeDBBelowFinalized covers restoring a safedb

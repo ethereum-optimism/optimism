@@ -3,8 +3,8 @@ package el
 import (
 	"testing"
 
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +16,7 @@ func TestInitL2GenesisInputValidation(t *testing.T) {
 	}{
 		{
 			name:   "op-reth in-memory genesis",
-			config: L2Config{Kind: services.ELKindOpReth, Genesis: &core.Genesis{}},
+			config: L2Config{Kind: services.ELKindOpReth, Genesis: &opgenesis.Genesis{}},
 		},
 		{
 			name:   "op-reth genesis path",
@@ -31,14 +31,14 @@ func TestInitL2GenesisInputValidation(t *testing.T) {
 			name: "op-reth conflicting genesis inputs",
 			config: L2Config{
 				Kind:            services.ELKindOpReth,
-				Genesis:         &core.Genesis{},
+				Genesis:         &opgenesis.Genesis{},
 				GenesisJSONPath: "genesis.json",
 			},
 			wantErr: "set exactly one of Genesis or GenesisJSONPath",
 		},
 		{
 			name:   "op-geth in-memory genesis",
-			config: L2Config{Kind: services.ELKindOpGeth, Genesis: &core.Genesis{}},
+			config: L2Config{Kind: services.ELKindOpGeth, Genesis: &opgenesis.Genesis{}},
 		},
 		{
 			name:    "op-geth genesis path",
