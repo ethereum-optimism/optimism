@@ -939,4 +939,70 @@ fn failed_candidate_reports_its_own_error_when_refund_policy_reverts() {
     );
 }
 
+/// Only errors that the transactions cause make a derived payload invalid. A failure of the node
+/// classified as invalid would derive a wrong deposits-only block.
+#[test]
+fn only_transaction_errors_make_a_payload_invalid() {
+    let validation = BlockExecutionError::Validation;
+    let op = validation_error;
+    let cases = [
+        (
+            validation(BlockValidationError::InvalidTx {
+                hash: B256::ZERO,
+                error: Box::new(revm::context::result::InvalidTransaction::NonceTooHigh {
+                    tx: 5,
+                    state: 0,
+                }),
+            }),
+            true,
+        ),
+        (
+            validation(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
+                transaction_gas_limit: 2,
+                block_available_gas: 1,
+            }),
+            true,
+        ),
+        (validation(BlockValidationError::BlockGasExceeded), true),
+        (
+            op(OpBlockExecutionError::TransactionDaFootprintAboveGasLimit {
+                transaction_da_footprint: 2,
+                available_block_da_footprint: 1,
+            }),
+            true,
+        ),
+        (op(OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock), true),
+        (op(OpBlockExecutionError::InvalidPostExecPayload("invalid".to_string())), true),
+        (
+            op(OpBlockExecutionError::PostExecSettlementUnderflow {
+                address: Address::ZERO,
+                delta: U256::from(1),
+            }),
+            true,
+        ),
+        (validation(BlockValidationError::msg("unclassified")), false),
+        (validation(BlockValidationError::IncrementBalanceFailed), false),
+        (validation(BlockValidationError::MissingParentBeaconBlockRoot), false),
+        (BlockExecutionError::msg("database read failed"), false),
+        // A failure of the node goes through `BlockExecutionError::other`, whatever its type.
+        (
+            BlockExecutionError::other(OpBlockExecutionError::InvalidPostExecPayload(
+                "invalid".to_string(),
+            )),
+            false,
+        ),
+        (
+            BlockExecutionError::Internal(InternalBlockExecutionError::EVM {
+                hash: B256::ZERO,
+                error: "internal EVM failure".into(),
+            }),
+            false,
+        ),
+    ];
+
+    for (err, expected) in cases {
+        assert_eq!(is_invalid_payload_error(&err), expected, "{err:?}");
+    }
+}
+
 mod structural_tests;

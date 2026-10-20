@@ -6,12 +6,13 @@ use crate::{
 use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_evm::Evm as AlloyEvm;
+use alloy_op_evm::block::is_invalid_payload_error;
 use alloy_primitives::{Address, B256, Sealed, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
 use op_alloy_consensus::{
-    ParsedPostExecPayload, SDMGasEntry, TxPostExec, build_post_exec_tx,
-    parse_post_exec_payload_from_transactions, total_gas_refund,
+    ParsedPostExecPayload, PostExecPayloadValidationError, SDMGasEntry, TxPostExec,
+    build_post_exec_tx, parse_post_exec_payload_from_transactions, total_gas_refund,
 };
 use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
 use reth_basic_payload_builder::*;
@@ -488,9 +489,10 @@ impl<Txs> OpBuilder<'_, Txs> {
         let mut builder = ctx.block_builder_with_mode(&mut db, post_exec_mode)?;
 
         // 1. apply pre-execution changes
-        builder.apply_pre_execution_changes().map_err(|err| {
+        // Propagated as an execution error, so that `is_invalid_derived_payload_error` classifies
+        // an invalid `0x7D`, which is rejected here, as invalid attributes.
+        builder.apply_pre_execution_changes().inspect_err(|err| {
             warn!(target: "payload_builder", %err, "failed to apply pre-execution changes");
-            PayloadBuilderError::Internal(err.into())
         })?;
 
         // 2. execute sequencer transactions
@@ -577,6 +579,9 @@ impl<Txs> OpBuilder<'_, Txs> {
     }
 
     /// Builds the payload and returns its [`ExecutionWitness`] based on the state after execution.
+    ///
+    /// If a transaction makes a derived payload invalid, the witness covers the state read up to
+    /// that transaction.
     pub fn witness<Evm, ChainSpec, N, Attrs, HP>(
         self,
         state_provider: impl StateProvider,
@@ -599,11 +604,22 @@ impl<Txs> OpBuilder<'_, Txs> {
             .with_database(StateProviderDatabase::new(&state_provider))
             .with_bundle_update()
             .build();
-        let mut builder = ctx.block_builder(&mut db)?;
-
-        builder.apply_pre_execution_changes()?;
-        ctx.execute_sequencer_transactions(&mut builder, None)?;
-        builder.into_executor().apply_post_execution_changes()?;
+        let executed = (|| {
+            let mut builder = ctx.block_builder(&mut db)?;
+            builder.apply_pre_execution_changes()?;
+            ctx.execute_sequencer_transactions(&mut builder, None)?;
+            builder.into_executor().apply_post_execution_changes()?;
+            Ok::<_, PayloadBuilderError>(())
+        })();
+        match executed {
+            Ok(()) => {}
+            // The fault proof program stops executing a derived block at its first invalid
+            // transaction, so it needs the state read up to there.
+            Err(err) if is_invalid_derived_payload_error(&err) => {
+                debug!(target: "payload_builder", %err, "witness covers the payload up to its invalid transaction");
+            }
+            Err(err) => return Err(err),
+        }
 
         if ctx.chain_spec.is_isthmus_active_at_timestamp(ctx.attributes().timestamp()) {
             // force load `L2ToL1MessagePasser.sol` so l2 withdrawals root can be computed even if
@@ -617,6 +633,44 @@ impl<Txs> OpBuilder<'_, Txs> {
             ctx.parent().number() + 1,
             Default::default(),
         )?)
+    }
+}
+
+/// Returns whether building a derived (`noTxPool`) payload failed because of its transactions.
+///
+/// Only these failures may be reported as invalid payload attributes, which makes the rollup node
+/// replace the block with a deposits-only one. A node-local failure reported that way would derive
+/// a wrong block, so every other error must stay retryable.
+pub fn is_invalid_derived_payload_error(err: &PayloadBuilderError) -> bool {
+    match err {
+        PayloadBuilderError::EvmExecutionError(e) => {
+            e.downcast_ref::<BlockExecutionError>().is_some_and(is_invalid_payload_error)
+        }
+        // An undecodable, blob or unrecoverable transaction, or a malformed `0x7D`.
+        PayloadBuilderError::Other(e) => {
+            e.is::<alloy_rlp::Error>() ||
+                e.is::<PostExecPayloadValidationError>() ||
+                e.downcast_ref::<OpPayloadBuilderError>()
+                    .is_some_and(is_invalid_op_payload_error)
+        }
+        PayloadBuilderError::InvalidAttributes(_) => true,
+        PayloadBuilderError::MissingParentHeader(_) |
+        PayloadBuilderError::MissingParentBlock(_) |
+        PayloadBuilderError::ChannelClosed |
+        PayloadBuilderError::MissingPayload |
+        PayloadBuilderError::Internal(_) => false,
+    }
+}
+
+// Exhaustive, like `is_invalid_payload_error`, so a new variant must be classified: one that
+// defaults to node-local would stall derivation on every node.
+const fn is_invalid_op_payload_error(err: &OpPayloadBuilderError) -> bool {
+    match err {
+        OpPayloadBuilderError::TransactionEcRecoverFailed |
+        OpPayloadBuilderError::BlobTransactionRejected => true,
+        OpPayloadBuilderError::L1BlockInfoParseFailed |
+        OpPayloadBuilderError::AccountLoadFailed(_) |
+        OpPayloadBuilderError::ForceCreate2DeployerFail => false,
     }
 }
 
@@ -1038,10 +1092,11 @@ where
 
             let gas_used = match builder.execute_transaction(sequencer_tx.clone()) {
                 Ok(gas_used) => gas_used,
+                // A derived block must be reproduced exactly, so an invalid transaction fails it.
                 Err(BlockExecutionError::Validation(BlockValidationError::InvalidTx {
                     error,
                     ..
-                })) => {
+                })) if !self.force_empty() => {
                     trace!(target: "payload_builder", %error, ?sequencer_tx, "Error in sequencer transaction, skipping.");
                     continue;
                 }
