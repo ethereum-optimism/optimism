@@ -4,19 +4,17 @@
 //!
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/develop/op-node/flags/p2p_flags.go
 
-use crate::flags::{GlobalArgs, SignerArgs};
+use crate::flags::SignerArgs;
 use alloy_primitives::B256;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
 use clap::Parser;
 use enr::k256;
-use kona_derive::ChainProvider;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::GaterConfig;
 use kona_node_service::NetworkConfig;
 use kona_peers::{BootNode, BootStoreFile, PeerMonitoring, PeerScoreLevel};
-use kona_providers_alloy::AlloyChainProvider;
 use libp2p::identity::Keypair;
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
@@ -25,7 +23,6 @@ use std::{
     str::FromStr,
 };
 use tokio::time::Duration;
-use url::Url;
 
 /// Resolves a hostname or IP address string to an [`IpAddr`].
 ///
@@ -313,45 +310,8 @@ impl P2PArgs {
         None
     }
 
-    /// Returns the unsafe block signer from the CLI arguments.
-    pub async fn unsafe_block_signer(
-        &self,
-        args: &GlobalArgs,
-        rollup_config: &RollupConfig,
-        l1_eth_rpc: Option<Url>,
-    ) -> anyhow::Result<alloy_primitives::Address> {
-        if let Some(l1_eth_rpc) = l1_eth_rpc {
-            let mut provider = AlloyChainProvider::new_http(l1_eth_rpc, 1024);
-            let latest_block_num = provider.latest_block_number().await?;
-            let block_info = provider.block_info_by_number(latest_block_num).await?;
-            return Ok(kona_providers_alloy::unsafe_block_signer(
-                &provider.inner,
-                rollup_config.l1_system_config_address,
-                block_info.hash,
-            )
-            .await?);
-        }
-
-        // Otherwise use the genesis signer or the configured unsafe block signer.
-        args.genesis_signer().or_else(|_| {
-            self.unsafe_block_signer
-                .ok_or_else(|| anyhow::anyhow!("Unsafe block signer not provided"))
-        })
-    }
-
-    /// Constructs kona's P2P network [`NetworkConfig`] from CLI arguments.
-    ///
-    /// ## Parameters
-    ///
-    /// - [`GlobalArgs`]: required to fetch the genesis unsafe block signer.
-    ///
-    /// Errors if the genesis unsafe block signer isn't available for the specified L2 Chain ID.
-    pub async fn config(
-        self,
-        config: &RollupConfig,
-        args: &GlobalArgs,
-        l1_rpc: Option<Url>,
-    ) -> anyhow::Result<NetworkConfig> {
+    /// Resolves local network settings without querying L1.
+    pub fn config(self, config: &RollupConfig) -> anyhow::Result<NetworkConfig> {
         // Note: the advertised address is contained in the ENR for external peers from the
         // discovery layer to use.
 
@@ -411,13 +371,11 @@ impl P2PArgs {
         let mut gossip_address = libp2p::Multiaddr::from(self.listen_ip);
         gossip_address.push(libp2p::multiaddr::Protocol::Tcp(self.listen_tcp_port));
 
-        let unsafe_block_signer = self.unsafe_block_signer(args, config, l1_rpc).await?;
-
         let bootstore = if self.disable_bootstore {
             None
         } else {
             Some(self.bootstore.map_or_else(
-                || BootStoreFile::Default { chain_id: args.l2_chain_id.into() },
+                || BootStoreFile::Default { chain_id: config.l2_chain_id.id() },
                 BootStoreFile::Custom,
             ))
         };
@@ -437,7 +395,6 @@ impl P2PArgs {
             enr_update: !static_ip,
             gossip_address,
             keypair,
-            unsafe_block_signer,
             gossip_config,
             scoring: self.scoring,
             monitor_peers,
@@ -448,8 +405,7 @@ impl P2PArgs {
                 dial_period: Duration::from_secs(60 * self.redial_period),
             },
             bootnodes,
-            rollup_config: config.clone(),
-            gossip_signer: self.signer.config(args)?,
+            gossip_signer: self.signer.config()?,
         })
     }
 
@@ -536,6 +492,27 @@ mod tests {
     fn test_p2p_args() {
         let args = MockCommand::parse_from(["test"]);
         assert_eq!(args.p2p, P2PArgs::default());
+    }
+
+    #[test]
+    fn bootstore_uses_the_resolved_chain() {
+        let config =
+            RollupConfig { l2_chain_id: alloy_chains::Chain::from_id(8453), ..Default::default() };
+        let mut args = MockCommand::parse_from(["test"]);
+        args.p2p.private_key = Some(B256::repeat_byte(1));
+        assert_eq!(
+            args.p2p.config(&config).unwrap().bootstore,
+            Some(BootStoreFile::Default { chain_id: 8453 })
+        );
+        let mut args = MockCommand::parse_from(["test", "--p2p.bootstore", "/tmp/bootstore.json"]);
+        args.p2p.private_key = Some(B256::repeat_byte(1));
+        assert_eq!(
+            args.p2p.config(&config).unwrap().bootstore,
+            Some(BootStoreFile::Custom(PathBuf::from("/tmp/bootstore.json")))
+        );
+        let mut args = MockCommand::parse_from(["test", "--p2p.no-bootstore"]);
+        args.p2p.private_key = Some(B256::repeat_byte(1));
+        assert_eq!(args.p2p.config(&config).unwrap().bootstore, None);
     }
 
     #[test]

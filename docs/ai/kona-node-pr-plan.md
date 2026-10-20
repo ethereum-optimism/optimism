@@ -274,7 +274,7 @@ Actual review order may move a truly independent leaf earlier, but its patch and
 
 ### PR 02: Resolve chain rules and build shared bounded clients once
 
-**Title:** `kona-node,kona-engine,kona-node-service: share resolved chain configuration and RPC clients`.
+**Title:** `kona-node,kona-engine,kona-node-service!: share config and clients`.
 
 **Problem and resulting behavior.** Overrides are parsed but not applied by startup. Custom rollup files can still get global default-chain P2P identity/storage choices. The engine and ordinary L1/L2 readers construct different clients. Resolve once and inject the same authoritative inputs.
 
@@ -693,7 +693,7 @@ Planning is complete. A check means the package has its actual implementation, r
 - [x] Reconcile the investigations into one stack and review intermediate-state hazards.
 - [ ] Reconcile existing standalone fixes with the refreshed baseline, without duplicating them.
 - [x] PR 01: synchronous unsafe-payload validation and its acceptance tests.
-- [ ] PR 02: shared resolved configuration and bounded clients.
+- [x] PR 02: shared resolved configuration and bounded clients.
 - [ ] PR 03: ordinary engine operations and necessary dead-code deletion.
 - [ ] PR 04: corrected reusable reset walk.
 - [ ] PR 05: engine ownership, scheduler, honest outcomes, complete pipeline handoff and epoch barrier.
@@ -756,3 +756,54 @@ The initial acceptance attempt inherited `RUST_LOG=warn`, which hid the info mes
 The gap test now actually submits the invalid-ancestor payload, then submits a valid payload and independently requires both CL and EL advancement. Together with the registered RPC regression, this covers issue 22250's synchronous rejection and continued valid-payload processing requirements.
 
 **Review checkpoint:** open PR 01 as a draft and stop implementation. Local checks are complete; GitHub CI status must be reported separately. Do not begin PR 02 or run background work on later packages until the user resumes.
+
+
+## Execution record: PR 02
+
+Completed on 2026-10-17 in `codex/kona-refactor-02-resolved-config`, stacked directly on [PR 01](https://github.com/ethereum-optimism/optimism/pull/23484) at `30fcd89998c72fc6ca3a828bbf88f38fab774872`. Public `develop` remains `9c14635375e22608458da1d3ec4830af491009dd`.
+
+Implementation commit: `72499cf49a` (`kona-node,kona-engine,kona-node-service!: share config and clients`), 22 files, +778/-555, including tests, API examples and removal of obsolete direct dependencies. Existing standalone fixes were used as references; no experimental branch was merged.
+
+- CLI resolution applies overrides to registry and file configurations before constructing the shared `Arc<RollupConfig>`. The resolved chain controls bootstore selection and network rules.
+- `RollupNodeBuilder::build` creates the bounded provider pair once and assembles through `build_with_providers`. `OpEngineClient::new` receives those providers and the shared rules. Runtime nodes retain the client and mode rather than connection settings.
+- Capability exchange and the initial unsafe-signer lookup run at service startup through those same providers, after local configuration validation. The signer read is pinned to the returned L1 head hash. Existing refresh retries and stale/same-height-reorg guards remain intact.
+- `--l2-engine-timeout`, `--l2.timeout` and their existing environment variable now govern complete L2 responses, including body reads. The advertised default is corrected to 10,000ms, preserving the previous effective engine deadline. L1 requests have a separate 10-second deadline.
+- Configured signing-key files are read without generating a replacement; missing, unreadable, malformed and invalid-scalar inputs fail. Existing valid key formats and P2P identity loading/creation are retained. JWT file/encoded/default fallback is preserved and tested.
+- Network construction receives the resolved rules and a real signer watch receiver. Local network settings no longer carry independent runtime copies of those values.
+
+**Rust API migration.** Replace `EngineClientBuilder` and `OpEngineClient::rpc_client` with `l1_provider`/`l2_provider` and `OpEngineClient::new(l1, l2, config)`. Pass an `Arc<RollupConfig>` to `RollupNodeBuilder`; `EngineConfig` drops duplicate rules/L1 URL and receives a `Duration`. `NetworkConfig::new` no longer takes runtime rules/signer; use `NetworkBuilder::from_config(config, &rules, signer_watch)`. Updated operator examples and the commit/PR breaking-change notes document these changes.
+
+### Local validation
+
+| Check | Result |
+| --- | --- |
+| Affected-package nextest, all features | 327 passed, 0 skipped |
+| Full workspace `just lint` from `rust/` | Passed: Clippy across features/targets, formatting, rustdoc and mirror checks |
+| Fresh `cargo build -p kona-node --bin kona-node` | Passed with default features |
+| Common wrapper, `simple-kona` | All 3 selected live checks passed |
+| Common wrapper, `simple-kona-sequencer` | All 3 selected live checks passed |
+| `git diff --check` | Passed |
+
+The package tests cover configured 2-second and 20-second deadlines with missing headers and stalled bodies; JWT authentication; actual provider injection with unusable fallback URLs; shared rule identity; permanent authentication rejection versus transient startup retries; local errors before any startup RPC; registry/file overrides; actual-chain bootstore selection; and required signer-key file behavior. Existing signer refresh/reorg regressions also pass. Review found and corrected a JWT test-server request-body race; final independent Rust and deletion/config reviews have no unresolved findings.
+
+The six live passes are `TestRollupConfig`, `TestP2PChainID` and `TestL2TransactionInclusion` in each configuration. They use the freshly built Kona binary and the unchanged op-reth binary explicitly; existing contract/deployment prerequisites match the unchanged public base.
+
+With the pinned tool environment, run package checks from `rust/`:
+
+```sh
+cargo nextest run -p kona-engine -p kona-node-service -p kona-rpc -p kona-node \
+  -p kona-sources --all-features --test-threads 6 -E '!test(test_online)'
+just lint
+cargo build -p kona-node --bin kona-node
+```
+
+Run the live wrappers from `rust/kona/tests`, with `RUST_LOG=info` and `RUST_BINARY_PATH_KONA_NODE`/`RUST_BINARY_PATH_OP_RETH` set to the selected binaries:
+
+```sh
+just test-e2e-sysgo-run node node/common simple-kona \
+  '^(TestRollupConfig|TestP2PChainID|TestL2TransactionInclusion)$ -parallel=1'
+just test-e2e-sysgo-run node node/common simple-kona-sequencer \
+  '^(TestRollupConfig|TestP2PChainID|TestL2TransactionInclusion)$ -parallel=1'
+```
+
+This completes the timeout portion of issue 23034; its discovery/peer requirements remain open. **Review checkpoint:** publish PR 02 as a draft and stop. Report GitHub CI separately; do not begin PR 03 until the user resumes.

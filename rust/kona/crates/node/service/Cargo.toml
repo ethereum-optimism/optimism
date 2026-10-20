@@ -39,12 +39,10 @@ alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
 alloy-provider = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls"] }
 alloy-eips.workspace = true
 alloy-transport.workspace = true
-alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls", "jwt-auth"] }
 
 # op-alloy
 op-alloy-network.workspace = true
 op-alloy-rpc-types-engine = { workspace = true, features = ["std"] }
-op-alloy-provider.workspace = true
 
 # general
 url.workspace = true
@@ -64,7 +62,6 @@ derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
 jsonrpsee = { workspace = true, features = ["server", "http-client"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 tower.workspace = true
-http-body-util.workspace = true
 
 # metrics
 metrics = { workspace = true, optional = true }

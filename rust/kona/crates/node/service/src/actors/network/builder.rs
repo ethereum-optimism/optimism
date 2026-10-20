@@ -29,16 +29,23 @@ pub struct NetworkBuilder {
     pub(super) enr_update: bool,
 }
 
-impl From<NetworkConfig> for NetworkBuilder {
-    fn from(config: NetworkConfig) -> Self {
+impl NetworkBuilder {
+    /// Applies network settings with the node's resolved chain rules and current signer.
+    pub fn from_config(
+        config: NetworkConfig,
+        rollup_config: &RollupConfig,
+        signer: watch::Receiver<Address>,
+    ) -> Self {
+        let initial_signer = *signer.borrow();
         Self::new(
-            config.rollup_config,
-            config.unsafe_block_signer,
+            rollup_config.clone(),
+            initial_signer,
             config.gossip_address,
             config.keypair,
             config.discovery_address,
             config.discovery_config,
         )
+        .with_unsafe_block_signer(signer)
         .with_enr_update(config.enr_update)
         .with_discovery_randomize(config.discovery_randomize)
         .with_bootstore(config.bootstore)
@@ -50,9 +57,7 @@ impl From<NetworkConfig> for NetworkBuilder {
         .with_topic_scoring(config.topic_scoring)
         .with_gater_config(config.gater_config)
     }
-}
 
-impl NetworkBuilder {
     /// Creates a new [`NetworkBuilder`].
     pub fn new(
         rollup_config: RollupConfig,

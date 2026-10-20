@@ -69,6 +69,7 @@ To configure a Kona node programmatically for sequencer mode, set `NodeMode::Seq
 
 ```rust
 use kona_node_service::{NodeMode, RollupNodeBuilder, SequencerConfig};
+use std::sync::Arc;
 
 // Configure sequencer settings
 let sequencer_config = SequencerConfig {
@@ -81,10 +82,11 @@ let sequencer_config = SequencerConfig {
 };
 
 // engine_config carries `mode: NodeMode::Sequencer` along with the
-// L2 engine URL, JWT secret, and L1 RPC URL. A sequencer needs a block
+// L2 engine URL, JWT secret, and per-request timeout. The builder shares one
+// L1/L2 provider pair and one Arc<RollupConfig>. A sequencer needs a block
 // signer: `p2p_config.gossip_signer` must be `Some`, or `start` fails.
 RollupNodeBuilder::new(
-    rollup_config,
+    Arc::new(rollup_config),
     l1_config_builder,
     l2_trust_rpc,
     engine_config,
