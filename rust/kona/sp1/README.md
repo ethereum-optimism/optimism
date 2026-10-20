@@ -409,6 +409,9 @@ timed out; the next attempt can reuse the request.
 `op_zk_proposer_game_unprovable` counts games the proposer cannot prove.
 `op_zk_proposer_log_batch_error` counts failed log-commitment batch proofs; each
 fails its game attempt. A batch that the proposer splits (see below) is not counted.
+`op_zk_proposer_span_bisections` counts proving spans halved for exceeding a size,
+estimate or execution limit; log-batch splits are not counted. A steady rise means the
+chunks are too large for the limits: raise `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT`.
 
 `op_zk_proposer_proving_duration_seconds` records only successful runs,
 including the L1 transaction path. Use the task-stats log to investigate stuck work.

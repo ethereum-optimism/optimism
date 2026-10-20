@@ -19,6 +19,7 @@ const (
 	defenseTasksSpawnedMetric  = "op_zk_proposer_games_defense_spawned"
 	gameProvingFailuresMetric  = "op_zk_proposer_game_proving_error"
 	logBatchesSubmittedMetric  = "op_zk_proposer_log_batches_submitted"
+	spanBisectionsMetric       = "op_zk_proposer_span_bisections"
 	metricsDisabledInstruction = "ZK proposer metrics are disabled; pass presets.WithZKProposerOption(sysgo.WithZKMetrics()) when creating the preset"
 )
 
@@ -70,13 +71,23 @@ func ProvingFailures(expected int) *StateExpectation {
 	}
 }
 
-// LogBatchesSubmittedAtLeast expects at least minimum log-commitment batch
-// proof requests.
-func LogBatchesSubmittedAtLeast(minimum int) *StateExpectation {
+// LogBatchesSubmitted expects the exact number of log-commitment batch proof
+// requests.
+func LogBatchesSubmitted(expected int) *StateExpectation {
 	return &StateExpectation{
 		description: "log batches submitted",
-		expected:    minimum,
+		expected:    expected,
 		metric:      logBatchesSubmittedMetric,
+	}
+}
+
+// SpanBisectionsAtLeast expects at least minimum proving spans halved for
+// exceeding a proving limit.
+func SpanBisectionsAtLeast(minimum int) *StateExpectation {
+	return &StateExpectation{
+		description: "span bisections",
+		expected:    minimum,
+		metric:      spanBisectionsMetric,
 		atLeast:     true,
 	}
 }

@@ -72,6 +72,7 @@ type zkProposerConfig struct {
 	FastFinality     bool
 	Metrics          bool
 	LogPath          string
+	RangeGasLimit    uint64
 }
 
 // ZKProposerRuntime is the opaque handle for a running op-zk-proposer.
@@ -117,6 +118,16 @@ func WithZKMetrics() ZKProposerOption {
 func WithZKLogPath(path string) ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.LogPath = path
+	}
+}
+
+// WithZKRangeGasLimit sets the range and consolidation request gas limit. The
+// mock provider proves nothing, so the limit only drives the proposer's
+// estimate checks: a small one makes it bisect spans. Zero keeps the proposer
+// default.
+func WithZKRangeGasLimit(limit uint64) ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.RangeGasLimit = limit
 	}
 }
 
@@ -243,6 +254,9 @@ func startZKProposer(
 	}
 	if cfg.LogPath != "" {
 		env = append(env, zkProposerEnv("LOG_PATH", cfg.LogPath))
+	}
+	if cfg.RangeGasLimit != 0 {
+		env = append(env, zkProposerEnv("RANGE_GAS_LIMIT", strconv.FormatUint(cfg.RangeGasLimit, 10)))
 	}
 	// Always pin the metrics port so inherited host configuration cannot
 	// reach every devstack proposer and collide across parallel systems.
