@@ -203,6 +203,13 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
         }
     }
 
+    /// @notice Sets the bridge hook.
+    /// @param _hook Address of the bridge hook to set.
+    function forceSetBridgeHook(address _hook) public {
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "bridgeHook");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(_hook))));
+    }
+
     /// @notice Enables the runtime interop features used by portal migration methods.
     function forceEnableInterop() public {
         forceEnableLockbox(address(ethLockbox));
@@ -1174,6 +1181,70 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
         }
     }
 
+    /// @notice Tests that the L1StandardBridge is an unsafe withdrawal target.
+    function test_proveWithdrawalTransaction_standardBridgeTarget_reverts() external {
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+
+        _defaultTx.target = address(l1StandardBridge);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @notice Tests that a configured hook is an unsafe withdrawal target.
+    function test_proveWithdrawalTransaction_bridgeHookTarget_reverts() external {
+        address hook = makeAddr("bridgeHook");
+        forceSetBridgeHook(hook);
+
+        _defaultTx.target = hook;
+        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @notice Tests that address(0) is not an **unsafe target**, by proving a
+    ///         withdrawal that targets it.
+    function test_proveWithdrawalTransaction_zeroTargetWithNoHook_succeeds() external {
+        skipIfForkTest("Skipping because of the L2ToL1MessagePasser call below");
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+
+        Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
+            nonce: l2ToL1MessagePasser.messageNonce(),
+            sender: alice,
+            target: address(0),
+            value: 0,
+            gasLimit: 100_000,
+            data: hex""
+        });
+        (
+            bytes32 stateRoot,
+            bytes32 storageRoot,
+            bytes32 outputRoot,
+            bytes32 withdrawalHash,
+            bytes[] memory withdrawalProof
+        ) = ffi.getProveWithdrawalTransactionInputs(_tx);
+        Types.OutputRootProof memory proof = Types.OutputRootProof({
+            version: bytes32(uint256(0)),
+            stateRoot: stateRoot,
+            messagePasserStorageRoot: storageRoot,
+            latestBlockhash: bytes32(uint256(0))
+        });
+        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(outputRoot));
+
+        optimismPortal2.proveWithdrawalTransaction(_tx, _proposedGameIndex, proof, withdrawalProof);
+
+        (IDisputeGame provenGame,) = optimismPortal2.provenWithdrawals(withdrawalHash, address(this));
+        assertEq(address(provenGame), address(game));
+    }
+
     /// @notice Tests that `proveWithdrawalTransaction` reverts when the current timestamp is less
     ///         than or equal to the creation timestamp of the dispute game.
     function testFuzz_proveWithdrawalTransaction_timestampLessThanOrEqualToCreation_reverts(uint64 _timestamp)
@@ -1568,6 +1639,20 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
             vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
             optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
         }
+    }
+
+    /// @notice Tests that the L1StandardBridge and a configured hook are refused at finalization.
+    function test_finalizeWithdrawalTransaction_badTargets_reverts() external {
+        address hook = makeAddr("bridgeHook");
+        forceSetBridgeHook(hook);
+
+        _defaultTx.target = address(l1StandardBridge);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        _defaultTx.target = hook;
+        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts if the target reverts and caller
@@ -3164,8 +3249,7 @@ contract OptimismPortal2_Params_Test is CommonTest {
 }
 
 /// @title OptimismPortal2_BridgeHook_Test
-/// @notice Test contract for OptimismPortal2 bridge hook configuration and the guards it shares
-///         with the withdrawal path.
+/// @notice Test contract for OptimismPortal2 bridge hook configuration.
 contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
     event BridgeHookSet(address indexed bridgeHook);
     event BridgeHookRemoved(address indexed bridgeHook);
@@ -3190,12 +3274,6 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         optimismPortal2.initialize(
             systemConfig, anchorStateRegistry, IETHLockbox(address(0)), portalProofMaturityDelay, IBridgeHook(_hook)
         );
-    }
-
-    /// @notice Sets the hook through initialize.
-    function _setHook(address _hook) internal {
-        _allowReinitialize();
-        _initialize(_hook);
     }
 
     /// @notice Marks an item as held by writing its bit directly.
@@ -3224,7 +3302,7 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
 
     /// @notice Tests that initializing with a zero hook keeps the hook and its held items.
     function test_initialize_zeroBridgeHookKeepsCurrent_succeeds() external {
-        _setHook(hook);
+        forceSetBridgeHook(hook);
         bytes32 depositId = keccak256("deposit");
         bytes32 withdrawalId = keccak256("withdrawal");
         _mockHeld("heldDeposits", depositId);
@@ -3248,7 +3326,7 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
     /// @notice Tests that initializing with another nonzero hook replaces the current one and
     ///         leaves held items untouched.
     function test_initialize_replacesBridgeHook_succeeds() external {
-        _setHook(hook);
+        forceSetBridgeHook(hook);
         bytes32 depositId = keccak256("deposit");
         bytes32 withdrawalId = keccak256("withdrawal");
         _mockHeld("heldDeposits", depositId);
@@ -3267,7 +3345,7 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
 
     /// @notice Tests that the ProxyAdmin owner can remove the hook.
     function test_removeHook_succeeds() external {
-        _setHook(hook);
+        forceSetBridgeHook(hook);
 
         vm.expectEmit(address(optimismPortal2));
         emit BridgeHookRemoved(hook);
@@ -3279,7 +3357,7 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
 
     /// @notice Tests that removing the hook while items are held succeeds.
     function test_removeHook_withHeldItems_succeeds() external {
-        _setHook(hook);
+        forceSetBridgeHook(hook);
         bytes32 depositId = keccak256("deposit");
         bytes32 withdrawalId = keccak256("withdrawal");
         _mockHeld("heldDeposits", depositId);
@@ -3297,7 +3375,7 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
     /// @param _caller The address attempting the call.
     function testFuzz_removeHook_notProxyAdminOwner_reverts(address _caller) external {
         vm.assume(_caller != proxyAdminOwner && _caller != address(proxyAdmin));
-        _setHook(hook);
+        forceSetBridgeHook(hook);
 
         vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
         vm.prank(_caller);
@@ -3311,81 +3389,5 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidBridgeHookState.selector);
         vm.prank(proxyAdminOwner);
         optimismPortal2.removeHook();
-    }
-
-    /// @notice Tests that the L1StandardBridge is an unsafe withdrawal target.
-    function test_proveWithdrawalTransaction_standardBridgeTarget_reverts() external {
-        assertEq(address(optimismPortal2.bridgeHook()), address(0));
-
-        _defaultTx.target = address(l1StandardBridge);
-        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
-        optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-    }
-
-    /// @notice Tests that a configured hook is an unsafe withdrawal target.
-    function test_proveWithdrawalTransaction_bridgeHookTarget_reverts() external {
-        _setHook(hook);
-
-        _defaultTx.target = hook;
-        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
-        optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
-    }
-
-    /// @notice Tests that the same targets are refused at finalization.
-    function test_finalizeWithdrawalTransaction_badTargets_reverts() external {
-        _setHook(hook);
-
-        _defaultTx.target = address(l1StandardBridge);
-        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
-        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
-
-        _defaultTx.target = hook;
-        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
-        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
-    }
-
-    /// @notice Tests that address(0) is not an unsafe target while no hook is set, by proving a
-    ///         withdrawal that targets it.
-    function test_proveWithdrawalTransaction_zeroTargetWithNoHook_succeeds() external {
-        skipIfForkTest("Skipping on forked tests because of the L2ToL1MessagePasser call below");
-        assertEq(address(optimismPortal2.bridgeHook()), address(0));
-
-        Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
-            nonce: l2ToL1MessagePasser.messageNonce(),
-            sender: alice,
-            target: address(0),
-            value: 0,
-            gasLimit: 100_000,
-            data: hex""
-        });
-        (
-            bytes32 stateRoot,
-            bytes32 storageRoot,
-            bytes32 outputRoot,
-            bytes32 withdrawalHash,
-            bytes[] memory withdrawalProof
-        ) = ffi.getProveWithdrawalTransactionInputs(_tx);
-        Types.OutputRootProof memory proof = Types.OutputRootProof({
-            version: bytes32(uint256(0)),
-            stateRoot: stateRoot,
-            messagePasserStorageRoot: storageRoot,
-            latestBlockhash: bytes32(uint256(0))
-        });
-        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(outputRoot));
-
-        optimismPortal2.proveWithdrawalTransaction(_tx, _proposedGameIndex, proof, withdrawalProof);
-
-        (IDisputeGame provenGame,) = optimismPortal2.provenWithdrawals(withdrawalHash, address(this));
-        assertEq(address(provenGame), address(game));
     }
 }
