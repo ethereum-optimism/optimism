@@ -40,8 +40,9 @@ def provenance(kind):
             "settings": SETTINGS[kind], "mise_sha256": digest(ROOT / 'mise.toml')}
 
 def pack(kind, paths):
-    if subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip() != os.environ['CI_COMMIT_SHA']:
-        raise ValueError('Dependency revision differs from the requested source')
+    actual_sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+    if actual_sha != os.environ['CI_COMMIT_SHA']:
+        raise ValueError(f"Dependency revision {actual_sha} differs from requested {os.environ['CI_COMMIT_SHA']}")
     output = ROOT / '.ci/go-tests/dependencies' / kind
     output.mkdir(parents=True, exist_ok=True)
     files = {}

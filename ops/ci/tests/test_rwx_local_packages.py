@@ -44,7 +44,7 @@ class LocalPackageTests(unittest.TestCase):
                              {phase + '-' + str(index) for index in range(12)})
         for index in range(12):
             compile_task = graph['compile-' + str(index)]
-            self.assertEqual(compile_task['use'], ['compiler-seed-' + str(index), 'source', 'go-build-tools', 'discovery'])
+            self.assertEqual(compile_task['use'], ['compiler-seed-' + str(index), 'go-build-tools', 'discovery', 'source'])
             verdict = graph['verdict-' + str(index)]
             self.assertEqual([key for key in verdict['use'] if key.startswith('compile-')],
                              ['compile-' + str(index) + '.build'])
