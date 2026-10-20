@@ -96,6 +96,8 @@ metrics.workspace = true
 strum.workspace = true
 
 [dev-dependencies]
+reth-network-api.workspace = true
+reth-provider = { workspace = true, features = ["test-utils"] }
 alloy-op-hardforks.workspace = true
 alloy-genesis.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }

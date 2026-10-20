@@ -10,14 +10,14 @@ use op_alloy_consensus::{
 };
 use reth_chain_state::CanonStateSubscriptions;
 use reth_optimism_primitives::DepositReceipt;
-use reth_primitives_traits::{SignedTransaction, SignerRecoverable, WithEncoded};
+use reth_primitives_traits::{SignedTransaction, WithEncoded};
 use reth_rpc_eth_api::{
     EthApiTypes as _, FromEthApiError, FromEvmError, RpcConvert, RpcNodeCore, RpcReceipt,
     TxInfoMapper,
-    helpers::{EthTransactions, LoadReceipt, LoadTransaction, SpawnBlocking, spec::SignersForRpc},
+    helpers::{EthTransactions, LoadReceipt, LoadTransaction, spec::SignersForRpc},
 };
 use reth_rpc_eth_types::{EthApiError, TransactionSource, block::convert_transaction_receipt};
-use reth_storage_api::{ProviderTx, ReceiptProvider, TransactionsProvider, errors::ProviderError};
+use reth_storage_api::{ProviderTx, ReceiptProvider, errors::ProviderError};
 use reth_transaction_pool::{
     AddedTransactionOutcome, PoolTransaction, PoolTx, TransactionOrigin, TransactionPool,
 };
@@ -208,39 +208,13 @@ where
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
-    /// UPSTREAM-MIRROR(override): reth@rev:8d359d0
-    /// `reth_rpc_eth_api::helpers::LoadTransaction::transaction_by_hash`
-    ///
-    /// Inserts a flashblock lookup between upstream's disk and pool lookups, and does not
-    /// reproduce upstream's leading RPC-cache lookup.
-    async fn transaction_by_hash(
+    // Keep the cache, historical lookup, recovery, and pool fallback in reth's shared pipeline.
+    // Flashblocks take precedence over the pool, while mined transactions take precedence over
+    // Flashblocks. Ignore Flashblocks lookup failures as for the other pending-block RPC paths.
+    async fn transaction_by_hash_from_pending(
         &self,
         hash: B256,
     ) -> Result<Option<TransactionSource<ProviderTx<Self::Provider>>>, Self::Error> {
-        // 1. Try to find the transaction on disk (historical blocks)
-        if let Some((tx, meta)) = self
-            .spawn_blocking_io(move |this| {
-                this.provider()
-                    .transaction_by_hash_with_meta(hash)
-                    .map_err(Self::Error::from_eth_err)
-            })
-            .await?
-        {
-            let transaction = tx
-                .try_into_recovered_unchecked()
-                .map_err(|_| EthApiError::InvalidTransactionSignature)?;
-
-            return Ok(Some(TransactionSource::Block {
-                transaction,
-                index: meta.index,
-                block_hash: meta.block_hash,
-                block_number: meta.block_number,
-                block_timestamp: meta.timestamp,
-                base_fee: meta.base_fee,
-            }));
-        }
-
-        // 2. check flashblocks (sequencer preconfirmations)
         if let Ok(Some(pending_block)) = self.pending_flashblock().await &&
             let Some(indexed_tx) = pending_block.block().find_indexed(hash)
         {
@@ -253,11 +227,6 @@ where
                 block_timestamp: meta.timestamp,
                 base_fee: meta.base_fee,
             }));
-        }
-
-        // 3. check local pool
-        if let Some(tx) = self.pool().get(&hash).map(|tx| tx.transaction.clone_into_consensus()) {
-            return Ok(Some(TransactionSource::Pool(tx)));
         }
 
         Ok(None)
@@ -324,5 +293,143 @@ where
         .unwrap_or_default();
 
         Ok(OpTransactionInfo::new(tx_info, deposit_meta))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::eth::receipt::OpReceiptConverter;
+    use alloy_consensus::{Block, BlockBody, Header};
+    use alloy_primitives::{Address, Signature, U256};
+    use op_alloy_consensus::{OpTypedTransaction, TxDeposit};
+    use op_alloy_network::Optimism;
+    use reth_chain_state::{CanonStateNotification, ExecutedBlock};
+    use reth_network_api::noop::NoopNetwork;
+    use reth_optimism_chainspec::OP_MAINNET;
+    use reth_optimism_evm::{OpEvmConfig, tx::OpTxEnvConverter};
+    use reth_optimism_flashblocks::{FlashblocksListeners, PendingFlashBlock};
+    use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
+    use reth_optimism_txpool::OpPooledTransaction;
+    use reth_primitives_traits::RecoveredBlock;
+    use reth_provider::{Chain, ExecutionOutcome, test_utils::MockEthProvider};
+    use reth_rpc::eth::EthApiBuilder;
+    use reth_rpc_eth_api::{RpcConverter, RpcNodeCoreExt};
+    use reth_rpc_eth_types::{PendingBlock, cache::cache_new_blocks_task};
+    use reth_transaction_pool::noop::NoopTransactionPool;
+    use std::{
+        sync::Arc,
+        time::{Duration, Instant},
+    };
+    use tokio::sync::{broadcast, watch};
+
+    #[tokio::test]
+    async fn flashblocks_transaction_lookup_preserves_metadata_and_handles_missing_blocks() {
+        let provider =
+            MockEthProvider::<OpPrimitives>::new().with_chain_spec(OP_MAINNET.as_ref().clone());
+        let converter = RpcConverter::<Optimism, OpEvmConfig, _>::new(OpReceiptConverter::new(
+            provider.clone(),
+        ))
+        .with_mapper(OpTxInfoMapper::new(provider.clone()))
+        .with_tx_env_converter(OpTxEnvConverter);
+        let backend = EthApiBuilder::new(
+            provider,
+            NoopTransactionPool::<OpPooledTransaction>::new(),
+            NoopNetwork::default(),
+            OpEvmConfig::optimism(OP_MAINNET.clone()),
+        )
+        .with_rpc_converter(converter)
+        .build_inner();
+        let transaction = OpTransactionSigned::new_unhashed(
+            OpTypedTransaction::Deposit(TxDeposit {
+                from: Address::repeat_byte(1),
+                gas_limit: 21_000,
+                ..Default::default()
+            }),
+            Signature::new(U256::ZERO, U256::ZERO, false),
+        );
+        let hash = transaction.tx_hash();
+        let block = RecoveredBlock::new_unhashed(
+            Block::new(
+                Header {
+                    number: 42,
+                    timestamp: 43,
+                    base_fee_per_gas: Some(7),
+                    ..Default::default()
+                },
+                BlockBody { transactions: vec![transaction.clone()], ..Default::default() },
+            ),
+            vec![Address::repeat_byte(1)],
+        );
+        let block_hash = block.hash();
+        let mut canonical_block = block.clone().into_block();
+        canonical_block.header.number = 41;
+        let canonical = Arc::new(Chain::<OpPrimitives>::new(
+            [RecoveredBlock::new_unhashed(canonical_block, vec![Address::repeat_byte(1)])],
+            ExecutionOutcome::new(Default::default(), vec![vec![]], 41, vec![]),
+            Default::default(),
+        ));
+        let pending = PendingFlashBlock::new(
+            PendingBlock::with_executed_block(
+                Instant::now() + Duration::from_secs(1),
+                ExecutedBlock::new(Arc::new(block), Default::default(), Default::default()),
+            ),
+            B256::ZERO,
+            0,
+            block_hash,
+            false,
+        );
+        let (pending_tx, pending_rx) = watch::channel(Some(pending));
+        let (_in_progress_tx, in_progress_rx) = watch::channel(None);
+        let listeners = FlashblocksListeners::new(
+            pending_rx,
+            broadcast::channel(1).0,
+            in_progress_rx,
+            broadcast::channel(1).0,
+        );
+        let api = OpEthApi::new(backend, None, U256::ZERO, Some(listeners), false);
+        // Exercise the inherited pipeline, including the custom Flashblocks hook.
+        let result = LoadTransaction::transaction_by_hash(&api, hash).await.unwrap().unwrap();
+        assert!(matches!(&result, TransactionSource::Block {
+            block_hash: actual, block_number: 42, block_timestamp: 43, base_fee: Some(7), index: 0, ..
+        } if *actual == block_hash));
+        assert_eq!(result.into_recovered().into_inner(), transaction);
+        cache_new_blocks_task(
+            api.cache().clone(),
+            futures::stream::iter([CanonStateNotification::Commit { new: canonical.clone() }]),
+        )
+        .await;
+        assert!(matches!(
+            LoadTransaction::transaction_by_hash(&api, hash).await.unwrap(),
+            Some(TransactionSource::Block { block_number: 41, .. })
+        ));
+        let replacement = Arc::new(Chain::<OpPrimitives>::new(
+            [RecoveredBlock::new_unhashed(
+                Block::new(
+                    Header { number: 41, timestamp: 44, ..Default::default() },
+                    Default::default(),
+                ),
+                vec![],
+            )],
+            ExecutionOutcome::new(Default::default(), vec![vec![]], 41, vec![]),
+            Default::default(),
+        ));
+        cache_new_blocks_task(
+            api.cache().clone(),
+            futures::stream::iter([CanonStateNotification::Reorg {
+                old: canonical,
+                new: replacement,
+            }]),
+        )
+        .await;
+        assert!(matches!(
+            LoadTransaction::transaction_by_hash(&api, hash).await.unwrap(),
+            Some(TransactionSource::Block { block_number: 42, .. })
+        ));
+        assert!(LoadTransaction::transaction_by_hash(&api, B256::ZERO).await.unwrap().is_none());
+        pending_tx.send_replace(None);
+        assert!(LoadTransaction::transaction_by_hash(&api, hash).await.unwrap().is_none());
+        drop(pending_tx);
+        assert!(LoadTransaction::transaction_by_hash(&api, hash).await.unwrap().is_none());
     }
 }
