@@ -799,7 +799,7 @@ jobs:
 
   # Kona SP1 Publish Prestate Artifacts
   #
-  # Publishes the standard SP1 guest ELFs (super-range, super-aggregation) built
+  # Publishes the standard SP1 guest ELFs (log-commitment, super-range, super-aggregation) built
   # reproducibly in Docker. Like kona-publish-prestate-artifacts, one job serves
   # both triggers and tells them apart by whether the pipeline branch is empty:
   #   tag pipeline     -> vkey-addressed objects, the layout
@@ -881,7 +881,7 @@ jobs:
               exit 1
             }
 
-            for KEY in super-range super-aggregation; do
+            for KEY in log-commitment super-range super-aggregation; do
               VALUE=$(toml_string "${KEY}")
               [[ "${VALUE}" =~ ^0x[0-9a-fA-F]{64}$ ]] || {
                 echo "${KEY} vkey '${VALUE}' is not a 0x-prefixed bytes32 hex value" >&2
@@ -920,6 +920,7 @@ jobs:
               BASE="${SP1_AGG_VKEY}"
               VERSION="${TAG}"
             fi
+            LOG_OBJECT="${BASE}.log.bin.gz"
             RANGE_OBJECT="${BASE}.range.bin.gz"
             AGG_OBJECT="${BASE}.agg.bin.gz"
 
@@ -938,14 +939,16 @@ jobs:
 
             WORK=$(mktemp -d)
             trap 'rm -rf "${WORK}"' EXIT
+            gzip -9 -n -c elf/log-commitment-elf > "${WORK}/log.bin.gz"
             gzip -9 -n -c elf/super-range-elf > "${WORK}/range.bin.gz"
             gzip -9 -n -c elf/super-aggregation-elf > "${WORK}/agg.bin.gz"
-            [ -s "${WORK}/range.bin.gz" ] && [ -s "${WORK}/agg.bin.gz" ] || {
+            [ -s "${WORK}/log.bin.gz" ] && [ -s "${WORK}/range.bin.gz" ] && [ -s "${WORK}/agg.bin.gz" ] || {
               echo "empty gzip output" >&2; exit 1; }
 
             echo "Publishing SP1 prestates ${SP1_AGG_VKEY} (${VERSION})"
-            # Range first, then aggregation: a vkey-addressed aggregation object
-            # never appears before the range object it depends on.
+            # Log commitment, range, then aggregation: a vkey-addressed object
+            # never appears before the objects whose vkeys it pins.
+            upload_elf "${WORK}/log.bin.gz" "${LOG_OBJECT}"
             upload_elf "${WORK}/range.bin.gz" "${RANGE_OBJECT}"
             upload_elf "${WORK}/agg.bin.gz" "${AGG_OBJECT}"
 
@@ -956,6 +959,7 @@ jobs:
               gsutil -h "Cache-Control:no-cache" cp "${INFO_FILE}" "${GCS_DIR}/${BASE}.bin.gz.txt"
               echo "${HTTP_DIR}/${BASE}.bin.gz.txt"
             fi
+            echo "${HTTP_DIR}/${LOG_OBJECT}"
             echo "${HTTP_DIR}/${RANGE_OBJECT}"
             echo "${HTTP_DIR}/${AGG_OBJECT}"
             echo "Successfully published SP1 prestates to GCS"

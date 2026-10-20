@@ -16,6 +16,8 @@ you review or change:
 - The OP precompile set and its input-size limits (`rust/op-revm/src/precompiles.rs`). The guest
   uses this set.
 - The proposer split logic (`RangeSplitCount`).
+- The proposer's cost estimators (`rust/kona/sp1/crates/super-range-executor/src/cost.rs`), and its
+  request checks (`rust/kona/sp1/crates/proposer/src/log_proofs/`).
 
 PGU is the SP1 unit of proving gas. The prover network bills and limits requests in PGU.
 
@@ -34,21 +36,23 @@ it as a performance note.
 
 | Limit | Value | Source | Effect when exceeded |
 |---|---|---|---|
-| Witness encoding | About 2 GiB (2³¹ bytes) of rkyv archive | rkyv 0.8.17 without `pointer_width_64` stores each relative pointer as an `i32`. The host encodes the witness in `build_super_interop_stdin` (`kona-sp1-super-range-executor`). | The host panics in `rkyv::to_bytes`: "out of range integral type conversion attempted." The request gets no stdin and no proof. |
+| Witness encoding | About 2 GiB (2³¹ bytes) of rkyv archive | rkyv 0.8.17 without `pointer_width_64` stores each relative pointer as an `i32`, and panics in `rkyv::to_bytes` ("out of range integral type conversion attempted") when one overflows. The host encodes every witness through `archive_witness` (`kona-sp1-super-range-executor`), which first bounds the archive size from the preimage and blob sizes and refuses a witness over `MAX_ARCHIVED_WITNESS_BYTES` (`i32::MAX`). | The host returns `WitnessTooLarge` without calling rkyv. The request gets no stdin and no proof. The proposer bisects the span; a single timestamp is `GameUnprovable`. |
 | Guest input region | 16 GiB | `INPUT_REGION_SIZE` default (`1 << 34`), `sp1-zkvm` build script | `read_vec_raw` panics: "Input region overflowed." All stdin uses this region. The witness-encoding limit applies to the witness first. |
 | Guest heap | Up to 112 GiB: `MAX_MEMORY` (`1 << 37`) minus the input region. The memory limit below applies first. | `sp1-zkvm` build script and embedded allocator | The allocator fails. Decoded copies of the witness use the heap. |
 | Executor and prover memory | 24 GiB RSS of the executor child process that SP1 starts. The guest memory, the stdin, and the child's own buffers share it, so the guest gets less than 24 GiB. | `DEFAULT_MEMORY_LIMIT` in `sp1-core-executor` (`SP1CoreOpts::memory_limit`, env `MEMORY_LIMIT`). The `zkvm-canary` default is the same value. The prover network applies the same limit on its side. The SDK does not send it. | SP1 stops the child. Local execution and the canary fail, and a network request gives no proof. |
-| Range and consolidation request | 2 × 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_RANGE_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` in `config.rs` | The prover stops. The request gives no proof. |
-| Aggregation request | 10⁹ PGU, 10¹² cycles | Proposer `DEFAULT_AGG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | The prover stops. The request gives no proof. |
-| Split | At most 128 chunks per game (default 16). Each chunk is one range request and one consolidation request. At 128 chunks, the largest chunk holds ceil(span / 128) timestamps (29 for a 3,600 s game). | `RangeSplitCount::MAX`, `RangeSplitCount::default`, `RangeSplitCount::split` | The proposer cannot split the work of one timestamp. |
+| Range and consolidation request | 2 × 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_RANGE_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` in `config.rs` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE` (`EXCEEDED_GAS_LIMIT` or `EXCEEDED_CYCLE_LIMIT`). The proposer reads it as `Unexecutable` and does not resubmit it. It bisects a span of more than one timestamp; a single timestamp's request stays terminal until SIGUSR1. |
+| Aggregation request | 10⁹ PGU, 10¹² cycles | Proposer `DEFAULT_AGG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE`. The proposer reads it as `Unexecutable` and does not resubmit it. |
+| Log-commitment batch request | 10¹¹ PGU, 10¹² cycles | Proposer `DEFAULT_LOG_GAS_LIMIT`, `DEFAULT_PROOF_CYCLE_LIMIT` | The request ends `UNFULFILLABLE` + `UNEXECUTABLE`. The proposer reads it as `Unexecutable` and does not resubmit it. It splits a batch of several blocks into halves (`LogBatchProgress::split_after`); a one-block batch fails the game attempt. |
+| Request stdin | 5 GB of compressed stdin, with every compressed proof, in one upload (SP1 SDK). The proposer's own limit is lower: 1.5 GiB of encoded stdin by default, at most 2 GiB. One embedded compressed batch proof with its verifying key encodes to 1,272,646 bytes (measured on mainnet SPN proofs). | SP1 SDK 6.8.1 (`NetworkClient::create_artifact_with_content`). Proposer `OP_ZK_PROPOSER_MAX_STDIN_BYTES` (`StdinByteLimit`, default `DEFAULT_MAX_STDIN_BYTES`), checked on the exact bincode 1 length of each range, consolidation, and log-commitment request's stdin, in mock mode too. The aggregation request is not checked: it carries no witness. | The proposer refuses the request with `StdinTooLarge` before it submits it, and bisects the span or splits the batch; a single timestamp or a single block is `GameUnprovable`. |
+| Split | At most 128 chunks per game (default 16). Each chunk is one range request and one consolidation request, until it is bisected. At 128 chunks, the largest chunk holds ceil(span / 128) timestamps (29 for a 3,600 s game). On the table path, the game also has log-commitment batch requests. A batch holds at most 4,096 blocks (`MAX_ENTRIES_PER_BATCH`), `OP_ZK_PROPOSER_MAX_STDIN_BYTES` of receipts-trie witness, and 80% of `LOG_GAS_LIMIT` by estimate, unless it is one block. | `RangeSplitCount::MAX`, `RangeSplitCount::default`, `RangeSplitCount::split`, `batch_log_blocks`. A span over a size limit, over its estimate, or `Unexecutable` is halved at its timestamp midpoint (`prove_span` in `proving.rs`), and the halves are recorded on its `ChunkProgress`. A batch of several blocks over the stdin limit or `Unexecutable` is halved by `LogBatch::halves` and recorded on its `LogBatchProgress`. | The proposer cannot split the work of one timestamp or of one block. |
 
 The SP1 values are the SP1 6.8.1 defaults: `sp1-zkvm` in `rust/kona/sp1/programs/Cargo.lock`,
 `sp1-core-executor` in `rust/Cargo.lock`. Nothing in this repository sets
 `SP1_ZKVM_INPUT_REGION_SIZE` or `SP1_ZKVM_MAX_MEMORY`. Check the values again after an SP1 upgrade.
 Both workspaces use rkyv 0.8.17 with the same features. To check, run
 `cargo tree --offline --locked --workspace -e features -i rkyv` in `rust/` and in
-`rust/kona/sp1/programs`. Check the witness-encoding limit again after an rkyv upgrade or a feature
-change.
+`rust/kona/sp1/programs`. Check the witness-encoding limit, and the per-entry overhead behind
+`witness_archive_bound`, again after an rkyv upgrade or a feature change.
 
 Only SP1's native executor applies the memory limit to the process RSS. SP1 uses it on x86-64
 Linux when the `profiling` feature is off. SP1's portable executor counts only guest memory. It
@@ -74,7 +78,8 @@ upgrade.
 | Receipts trie walk and decode | 22–49 PGU per witness byte. A full 30M-gas block: 81.2M PGU for a 3.66 MB witness (3,480 logs of 1 KB), 88.9M PGU for 1.80 MB (75,000 empty logs). |
 | One EIP-2935 header lookup step | 330K PGU and 7.2 KB of witness. The first lookup to the far end of a 7-day window at 1 s blocks takes about 74 steps. |
 | One Merkle opening | 46K PGU (depth 12) to 63K PGU (depth 17) |
-| In-guest `verify_sp1_proof` | 84K PGU per call, plus about 1.1M PGU once. Each deferred proof also adds about 1.1M PGU-equivalent of recursion work. The PGU count does not include it. |
+| In-guest `verify_sp1_proof` | 84K PGU per call, plus about 1.1M PGU once. Each deferred proof also adds about 1.1M PGU-equivalent of recursion work. The PGU count does not include it. A local CPU proof (16 cores, one run for each count) of a small consolidation took 85.6 s with 1 batch proof, 94.5 s with 2, and 106.3 s with 4: about 7 s of CPU time per deferred proof. No measurement converts this time to PGU. |
+| `log-commitment` program | A full 30M-gas block: 152M PGU (3,480 logs of 1 KB), 647M PGU (75,000 empty logs), 203M PGU (16,000 logs of 4 topics). A batch of 4,096 one-log blocks: 112M PGU. |
 
 Estimate first: multiply the unit costs by the worst-case input counts. Measure with the SP1
 executor only when the estimate is within 10× of a limit and the run is allowed (see "Untrusted
@@ -99,7 +104,82 @@ input"). To measure, do these steps in `rust/kona/sp1`:
 With `--report`, it prints the PGU, the instruction count, and the stdin bytes of the range run and
 of the consolidation run. A `profiling` build also prints the cycles and calls of each
 `cycle-tracker-report` label in the guest. SP1 gives PGU only for the whole run, not for each
-label. A witness above the witness-encoding limit panics before the guest runs.
+label. A witness above the witness-encoding limit fails with `WitnessTooLarge` before the guest
+runs; the executor then exits 2.
+
+## Log commitments and the proposer's estimates
+
+The consolidation checks an executing message whose initiating block is below the initiating
+chain's local safe head in one of two ways:
+
+- **Receipts path:** it loads the block's receipts (see "Known case" below).
+- **Table path:** it checks one Merkle opening against a log-commitment entry. The entry comes from
+  a `log-commitment` batch proof that the consolidation verifies as a deferred proof.
+
+Every game takes the table path, unless `OP_ZK_PROPOSER_LOG_PATH=receipts` turns it off (meant
+only for chains with interop off; the proposer warns at startup). Before any witness collection,
+the proposer scans the span's executing messages, and it makes no batches when no message
+references a block below a head. Otherwise it
+proves each referenced block once in batches: `batch_log_blocks` cuts the blocks, ordered by chain
+and number, into the fewest even groups by `estimate_log_block_pgu` (`split_log_batches`), and
+halves any group still over a cap. A batch of several blocks whose stdin is over the stdin limit,
+or that SPN cannot execute, is split again into halves that take their entries from it, so the
+split reads no receipts. Before each consolidation request, it computes
+`estimate_consolidation_pgu` from the collection. It bisects a span whose estimate is not under
+the budget (`EstimateOverBudget`) or whose stdin is over the stdin limit (`StdinTooLarge`), and it
+does both checks before it submits the span's range request. The consolidation stdin check counts
+1.5 MiB (`LOG_BATCH_PROOF_STDIN_BYTES`) for each batch proof that the request will carry, since the
+proofs do not exist yet. A single timestamp is submitted whatever its estimate; one whose
+consolidation is over the stdin limit is unprovable, and one that SPN cannot execute stays
+terminal, on either path. On the table path, a run that read a block below a head without an
+entry fails the attempt, and the next attempt scans the span again.
+
+The estimators are coarse on purpose: a batch is priced by its blocks, logs, and receipts-trie
+bytes, and a consolidation by its chains, message checks, read bytes, opening siblings, batch
+entries, deferred proofs, and replacement gas. Witness bytes and keccak blocks fold into the read
+and witness-byte prices, log checks into the sibling price, and proof verification and recursion
+into the base and per-proof prices. With SP1 6.8.1, each calibration shape's estimate is 1.3× to
+40× its measured PGU.
+
+Each estimate must be at or above the measured PGU.
+ELF-gated tests in `kona-sp1-super-range-executor` pin this:
+
+- `log_estimate_bounds_measured_pgu` (`tests/log_commitment.rs`)
+- `consolidation_estimate_bounds_measured_pgu` (`src/consolidation_tests.rs`)
+
+The daily `sp1-super-range-elf-smoke` CI job runs them. To run them in `rust/` after an SP1 upgrade
+or a guest change, build the ELFs with `just build-elfs-native test-config-fallback`, then:
+
+```bash
+KONA_SP1_ELF_DIR="$PWD/kona/sp1/elf" \
+  cargo nextest run -p kona-sp1-super-range-executor --lib --test log_commitment
+```
+
+Their fixture has no state. Isthmus is active through Lagoon, but each EIP-2935 lookup fails on the
+empty state and falls back to the parent-hash walk. Every fixture request has one timestamp. Thus
+the tests do not measure:
+
+- A replaced head, a second replacement round, or a cycle at one timestamp. `REPLACEMENT_GAS` is a
+  starting value.
+- An EIP-2935 lookup step, or a lookup to the far end of the window.
+- A request with more than one timestamp.
+
+Measure these on a devnet with `--report`. On the acceptance devnet (Isthmus, two chains), a
+consolidation with one below-head message on the table path measured 7.1M PGU in total. Its
+`--report` stdin was 11.3 KB, which does not count the batch proof (about 1.27 MB).
+
+The memory of a request at the limit is not yet measured with SP1's native executor. SP1 gives only
+the stdin buffers to the executor child: the witness and the log-commitment section. It verifies
+the batch proofs in the parent process, so the proof share of the stdin limit only bounds the
+upload. The proposer holds a span's range and consolidation stdin together until it uploads the
+range request, so a proving task can hold twice the stdin limit. The `#[ignore]` test
+`measure_consolidation_memory_at_stdin_cap` builds a receipts-path
+stdin of about `DEFAULT_MAX_STDIN_BYTES` (1.5 GiB), nearly all of it witness. Run it on x86-64
+Linux without `profiling` before you rely on the default: SP1 stops the child above 24 GiB, and
+the test then fails. For the margin, read the child's `VmHWM` from `/proc/<pid>/status`, or run
+again with a lower `MEMORY_LIMIT`. Also measure two shapes that the test does not build: a witness
+of small preimages (300–600 B) at the limit, and a `log-commitment` batch with about 1.5 GiB of
+witness.
 
 ## Untrusted input
 
@@ -183,9 +263,10 @@ the expiry window is a valid target, so the attacker references many large block
   witness-encoding limit. About 590 messages that reference distinct 3.66 MB blocks (about 5.4M
   gas) reach that limit.
 
-The planned fix is per-block log-commitment sub-proofs. The consolidation then checks one Merkle
-opening per message. Do not report this case again unless the diff makes it worse. Remove this
-section when the fix merges.
+The table path (see "Log commitments and the proposer's estimates") removes this cost for blocks
+below the local safe head. The proposer uses the receipts path only when
+`OP_ZK_PROPOSER_LOG_PATH=receipts` turns the table path off. Do not report this case again unless
+the diff makes it worse, or it changes the path choice.
 
 ## Output
 

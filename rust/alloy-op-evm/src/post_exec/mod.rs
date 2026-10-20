@@ -5,7 +5,7 @@ mod null;
 mod refund;
 
 pub use null::NullRefundPolicy;
-pub use refund::{PostExecRefundInspector, PostExecRefundPolicyFactory};
+pub use refund::{PostExecRefundInspector, PostExecRefundPolicyFactory, RevertToCheckpointError};
 
 use alloc::vec::Vec;
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory, block::BlockExecutionError};
@@ -51,8 +51,8 @@ pub fn noop_post_exec_result<HaltReason>() -> ResultAndState<HaltReason> {
 
 /// Extension trait for EVMs that can track post-exec per-transaction warming results.
 pub trait PostExecEvm: alloy_evm::Evm {
-    /// Opaque block-scoped refund state.
-    type Snapshot: Clone;
+    /// Opaque marker of the refund policy's block-scoped state.
+    type Checkpoint;
 
     /// Begin post-exec tracking for the next transaction.
     fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext);
@@ -60,11 +60,14 @@ pub trait PostExecEvm: alloy_evm::Evm {
     /// Take the extracted post-exec result for the most recently executed transaction.
     fn take_last_post_exec_tx_result(&mut self) -> PostExecExecutedTx;
 
-    /// Snapshot refund state to carry across subblock executors.
-    fn refund_snapshot(&self) -> Self::Snapshot;
+    /// Mark the refund policy's block-scoped state before a candidate transaction.
+    fn refund_checkpoint(&mut self) -> Self::Checkpoint;
 
-    /// Seed refund state captured from a prior subblock.
-    fn seed_refund_snapshot(&mut self, state: Self::Snapshot);
+    /// Roll the refund policy's block-scoped state back to `checkpoint`.
+    fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError>;
 }
 
 /// Extension trait for EVM factories whose produced EVMs support post-exec tracking.
@@ -72,8 +75,8 @@ pub trait PostExecEvm: alloy_evm::Evm {
 /// This exposes factory hooks through [`PostExecEvm`] without constraining every generic EVM
 /// associated type directly.
 pub trait PostExecEvmFactoryHooks: EvmFactory {
-    /// Opaque block-scoped refund state produced by this factory.
-    type Snapshot: Clone;
+    /// Opaque marker of the block-scoped refund state of EVMs produced by this factory.
+    type Checkpoint;
 
     /// Begin post-exec tracking for the next transaction.
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
@@ -87,14 +90,17 @@ pub trait PostExecEvmFactoryHooks: EvmFactory {
         DB: Database,
         I: Inspector<Self::Context<DB>>;
 
-    /// Snapshot refund state to carry across subblock executors.
-    fn refund_snapshot<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
+    /// Mark the refund policy's block-scoped state before a candidate transaction.
+    fn refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>) -> Self::Checkpoint
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
 
-    /// Seed refund state captured from a prior subblock.
-    fn seed_refund_snapshot<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
+    /// Roll the refund policy's block-scoped state back to `checkpoint`.
+    fn revert_refund_checkpoint<DB, I>(
+        evm: &mut Self::Evm<DB, I>,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError>
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
@@ -199,7 +205,7 @@ where
     DB: Database,
     I: Inspector<F::Context<DB>>,
 {
-    type Snapshot = F::Snapshot;
+    type Checkpoint = F::Checkpoint;
 
     fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext) {
         F::begin_post_exec_tx(&mut self.inner, ctx);
@@ -209,12 +215,15 @@ where
         F::take_last_post_exec_tx_result(&mut self.inner)
     }
 
-    fn refund_snapshot(&self) -> Self::Snapshot {
-        F::refund_snapshot(&self.inner)
+    fn refund_checkpoint(&mut self) -> Self::Checkpoint {
+        F::refund_checkpoint(&mut self.inner)
     }
 
-    fn seed_refund_snapshot(&mut self, state: Self::Snapshot) {
-        F::seed_refund_snapshot(&mut self.inner, state);
+    fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
+        F::revert_refund_checkpoint(&mut self.inner, checkpoint)
     }
 }
 
@@ -281,9 +290,6 @@ where
 
 /// Extension trait for block executors that collect post-exec payload entries.
 pub trait PostExecExecutorExt {
-    /// Opaque block-scoped refund state.
-    type Snapshot: Clone;
-
     /// Returns the accumulated post-exec entries for the current block without clearing them.
     fn post_exec_entries(&self) -> &[SDMGasEntry];
 
@@ -292,12 +298,6 @@ pub trait PostExecExecutorExt {
 
     /// Take the exact per-transaction policy-provided refund events aligned with receipts.
     fn take_refund_events_by_tx(&mut self) -> Vec<Vec<PostExecRefundEvent>>;
-
-    /// Snapshot refund state to carry across subblock executors.
-    fn refund_snapshot(&self) -> Self::Snapshot;
-
-    /// Seed refund state captured from a prior subblock.
-    fn seed_refund_snapshot(&mut self, state: Self::Snapshot);
 
     /// Resumes the block at transaction index `first_tx_index`, after a prefix that another
     /// executor ran. See [`OpBlockExecutor::resume_at_tx_index`].
@@ -314,8 +314,6 @@ where
     R: OpReceiptBuilder,
     Spec: alloy_op_hardforks::OpHardforks + Clone,
 {
-    type Snapshot = E::Snapshot;
-
     fn post_exec_entries(&self) -> &[SDMGasEntry] {
         Self::post_exec_entries(self)
     }
@@ -326,14 +324,6 @@ where
 
     fn take_refund_events_by_tx(&mut self) -> Vec<Vec<PostExecRefundEvent>> {
         Self::take_refund_events_by_tx(self)
-    }
-
-    fn refund_snapshot(&self) -> Self::Snapshot {
-        Self::refund_snapshot(self)
-    }
-
-    fn seed_refund_snapshot(&mut self, state: Self::Snapshot) {
-        Self::seed_refund_snapshot(self, state);
     }
 
     fn resume_at_tx_index(&mut self, first_tx_index: u64) -> Result<(), BlockExecutionError> {

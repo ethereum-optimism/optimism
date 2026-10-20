@@ -51,7 +51,8 @@ def configure(feature):
            if replay in ('true', '1') else None
     os.environ.update(FORK_TEST='false', L2_FORK_TEST='false', L2CM_ACTIVATION_TEST='false', CI='true', NO_COLOR='1')
     if seed: os.environ[FFI_REPLAY_INPUT] = seed
-    if feature != 'main': os.environ[UP.FEATURES[feature]] = 'true'
+    if feature != 'main':
+        for variable in UP.FEATURES[feature].split(): os.environ[variable] = 'true'
     return branch, seed
 
 

@@ -31,6 +31,20 @@ class ReportTests(unittest.TestCase):
         self.junit = '<testsuites><testsuite><testcase classname="crate::lib" name="runs"/></testsuite></testsuites>'
         self.unit_files()
 
+    def test_no_std_requires_every_host_target_completion(self):
+        source = 'no_std_packages=(\n  proof\n)\nhost_no_std_packages=(\n  reth-optimism-evm\n)\n'
+        base = 'Checking no_std build for: proof\nSuccessfully checked no_std build for: proof\n'
+        host = 'Checking host-target no_std build for: reth-optimism-evm\nSuccessfully checked host-target no_std build for: reth-optimism-evm\n'
+        with patch.object(Path, 'read_text', autospec=True, side_effect=lambda p: source if p.name == 'justfile' else (self.root / 'source.log').read_bytes().decode()):
+            for text in (base, base + host.splitlines()[0] + '\n', base + host + host):
+                (self.root / 'source.log').write_text(text)
+                with self.assertRaisesRegex(ValueError, 'no_std package coverage'): REPORT.no_std_report(self.root)
+            (self.root / 'source.log').write_text(base + host)
+            REPORT.no_std_report(self.root)
+        report = json.loads((self.root / 'no-std-coverage.json').read_text())
+        self.assertEqual(report['host_selected'], ['reth-optimism-evm'])
+        self.assertEqual(report['host_completed'], report['host_selected'])
+
     def unit_files(self):
         (self.root / 'unit-list.json').write_text(json.dumps(self.discovery))
         (self.root / 'junit.xml').write_text(self.junit)

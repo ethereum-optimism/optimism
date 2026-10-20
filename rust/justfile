@@ -409,7 +409,8 @@ rust-review base='':
 
 ############################ no_std #################################
 
-# Check no_std compatibility for proof, protocol, alloy, and op-alloy crates
+# Check no_std compatibility for proof, protocol, alloy, and op-alloy crates, plus the host-target
+# no_std build of op-reth's evm crate, whose reth dependencies do not build for riscv.
 check-no-std:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -452,6 +453,16 @@ check-no-std:
     echo "Checking no_std build for: $package"
     cargo build -p "$package" --target riscv32imac-unknown-none-elf --no-default-features
     echo "Successfully checked no_std build for: $package"
+  done
+
+  host_no_std_packages=(
+    reth-optimism-evm
+  )
+
+  for package in "${host_no_std_packages[@]}"; do
+    echo "Checking host-target no_std build for: $package"
+    cargo check -p "$package" --no-default-features
+    echo "Successfully checked host-target no_std build for: $package"
   done
 
 ########################### Benchmarks ##############################
