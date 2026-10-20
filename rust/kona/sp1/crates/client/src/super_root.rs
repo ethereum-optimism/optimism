@@ -382,9 +382,9 @@ impl SuperAggregationInputs {
     }
 
     /// Checks that the range outputs, read in order, prove every `(timestamp, chain)` of the claim
-    /// exactly once, timestamp-major and chain-minor. An output may cover any run of that order,
-    /// so a timestamp may be proven by one output for every chain or by several outputs that each
-    /// cover some of its chains.
+    /// exactly once, timestamp-major and chain-minor. An output covers either whole timestamps for
+    /// every chain or one timestamp for some of its chains, so a timestamp may be proven by one
+    /// output or by several outputs that each cover some of its chains.
     fn validate_range_outputs(
         &self,
         first_timestamp: u64,
@@ -401,6 +401,14 @@ impl SuperAggregationInputs {
                 });
             }
             ensure_range_previous_super_root_outputs(&output.span, &output.previous_super_roots)?;
+            let first = output.transitions.first().map(|transition| transition.timestamp);
+            let last = output.transitions.last().map(|transition| transition.timestamp);
+            if first != Some(output.span.start) || last != Some(output.span.end) {
+                return Err(SuperRootError::RangeOutputSpanMismatch {
+                    start: output.span.start,
+                    end: output.span.end,
+                });
+            }
 
             for transition in &output.transitions {
                 let (timestamp, chain_index, chain_id) =
@@ -634,6 +642,13 @@ pub enum SuperRootError {
         /// Root produced by the final consolidation output.
         actual: B256,
     },
+    /// A range output's transitions do not run from its span start to its span end.
+    RangeOutputSpanMismatch {
+        /// Output span start.
+        start: u64,
+        /// Output span end.
+        end: u64,
+    },
     /// A range transition follows the last `(timestamp, chain)` the claim needs.
     ExtraRangeTransition {
         /// Transition timestamp.
@@ -760,6 +775,10 @@ impl core::fmt::Display for SuperRootError {
             Self::RootClaimMismatch { expected, actual } => {
                 write!(f, "final super root {actual} does not match root claim {expected}")
             }
+            Self::RangeOutputSpanMismatch { start, end } => write!(
+                f,
+                "range output transitions do not run from its span start {start} to its end {end}"
+            ),
             Self::ExtraRangeTransition { timestamp, chain_id } => write!(
                 f,
                 "range transition at timestamp {timestamp} for chain {chain_id} follows full coverage"
@@ -1377,6 +1396,67 @@ mod tests {
                 expected: B256::from([0x44; 32]),
                 actual: B256::from([0xee; 32]),
             })
+        );
+    }
+
+    /// The fixture's two single-timestamp range outputs proven as one output over both.
+    fn merge_range_outputs(inputs: &mut SuperAggregationInputs) {
+        let merged = SuperRangeOutputs {
+            span: TimestampSpan::new(100, 101).expect("valid span"),
+            l1_head: inputs.l1_head,
+            previous_super_roots: inputs
+                .range_outputs
+                .iter()
+                .flat_map(|output| output.previous_super_roots.clone())
+                .collect(),
+            transitions: inputs
+                .range_outputs
+                .iter()
+                .flat_map(|output| output.transitions.clone())
+                .collect(),
+        };
+        inputs.range_outputs = vec![merged];
+    }
+
+    #[test]
+    fn aggregation_inputs_bind_every_previous_root_of_a_multi_timestamp_range_output() {
+        let mut inputs = valid_aggregation_inputs();
+        merge_range_outputs(&mut inputs);
+        inputs.validate().expect("one range output over both timestamps is valid");
+
+        inputs.range_outputs[0].previous_super_roots[1] = B256::from([0xee; 32]);
+        assert_eq!(
+            inputs.validate(),
+            Err(SuperRootError::PreviousSuperRootMismatch {
+                expected: B256::from([0x44; 32]),
+                actual: B256::from([0xee; 32]),
+            })
+        );
+    }
+
+    /// A range output whose transitions do not run from its span start to its span end is not
+    /// one the range guest produces, and would leave some of its previous roots unchecked.
+    #[test]
+    fn aggregation_inputs_reject_range_outputs_not_spanned_by_their_transitions() {
+        let mut widened = valid_aggregation_inputs();
+        merge_range_outputs(&mut widened);
+        widened.range_outputs[0].span = TimestampSpan::new(100, 102).expect("valid span");
+        widened.range_outputs[0].previous_super_roots.push(B256::from([0xee; 32]));
+        assert_eq!(
+            widened.validate(),
+            Err(SuperRootError::RangeOutputSpanMismatch { start: 100, end: 102 })
+        );
+
+        let mut empty = valid_aggregation_inputs();
+        empty.range_outputs.push(SuperRangeOutputs {
+            span: TimestampSpan::new(5, 5).expect("valid span"),
+            l1_head: empty.l1_head,
+            previous_super_roots: vec![B256::from([0xee; 32])],
+            transitions: Vec::new(),
+        });
+        assert_eq!(
+            empty.validate(),
+            Err(SuperRootError::RangeOutputSpanMismatch { start: 5, end: 5 })
         );
     }
 
