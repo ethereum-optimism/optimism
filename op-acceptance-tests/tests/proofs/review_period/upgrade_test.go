@@ -3,8 +3,6 @@ package review_period
 import (
 	"testing"
 
-	"github.com/ethereum/go-ethereum/rpc"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-review-period/reviewperiod"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -33,10 +31,10 @@ func TestOPCMUpgradePreservesReviewPeriodDelays(gt *testing.T) {
 	// The upgrade sets SuperPermissioned as the respected game type.
 	sys.StandardBridge().VerifyRespectedGameType(gameTypes.SuperPermissionedGameType)
 
-	// Read the delays the same way check-review-period does on staging.
-	systemConfig := sys.L2Chain.Escape().Deployment().SystemConfigProxyAddr()
-	delays, err := reviewperiod.ReadChainDelays(t.Ctx(), sys.L1EL.EthClient(), systemConfig, rpc.LatestBlockNumber)
-	t.Require().NoError(err, "failed to read the review period delays")
+	pre, delays := readDelaysAcrossLastUpgrade(t, sys.L1EL, sys.L2Chain.Escape().Deployment().SystemConfigProxyAddr())
+	for _, d := range reviewperiod.CompareDelays(pre, delays) {
+		t.Require().False(d.Changed(), "%s changed across the OPCM upgrade: %d -> %d", d.Name, d.Before, d.After)
+	}
 	t.Require().Equal(uint64(proofMaturityDelaySeconds), delays.ProofMaturityDelaySeconds,
 		"proof maturity delay changed across the OPCM upgrade")
 	t.Require().Equal(uint64(disputeGameFinalityDelaySeconds), delays.DisputeGameFinalityDelaySeconds,

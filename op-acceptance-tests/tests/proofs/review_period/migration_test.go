@@ -3,8 +3,6 @@ package review_period
 import (
 	"testing"
 
-	"github.com/ethereum/go-ethereum/rpc"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-review-period/reviewperiod"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -22,9 +20,10 @@ func TestSuperRootMigrationPreservesReviewPeriodDelays(gt *testing.T) {
 
 	var chains []reviewperiod.ChainDelays
 	for _, l2 := range sys.L2Networks() {
-		systemConfig := l2.Escape().Deployment().SystemConfigProxyAddr()
-		delays, err := reviewperiod.ReadChainDelays(t.Ctx(), sys.L1EL.EthClient(), systemConfig, rpc.LatestBlockNumber)
-		t.Require().NoError(err, "failed to read the review period delays of chain %s", l2.ChainID())
+		pre, delays := readDelaysAcrossLastUpgrade(t, sys.L1EL, l2.Escape().Deployment().SystemConfigProxyAddr())
+		for _, d := range reviewperiod.CompareDelays(pre, delays) {
+			t.Require().False(d.Changed(), "%s of chain %s changed across the migration: %d -> %d", d.Name, l2.ChainID(), d.Before, d.After)
+		}
 		t.Require().Equal(uint64(proofMaturityDelaySeconds), delays.ProofMaturityDelaySeconds,
 			"proof maturity delay of chain %s changed across the migration", l2.ChainID())
 		t.Require().Equal(uint64(disputeGameFinalityDelaySeconds), delays.DisputeGameFinalityDelaySeconds,
