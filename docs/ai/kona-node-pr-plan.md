@@ -721,7 +721,7 @@ Planning is complete. A check means the package has its actual implementation, r
 - [x] PR 06: direct read dependencies, version and retained API coverage.
 - [x] PR 07: direct admin routing and concrete sequencer dependencies.
 - [x] PR 08: conductor publication/activation/stop phase contract and configured timeouts.
-- [ ] PR 09: local recovery override with shared assertions preserved.
+- [x] PR 09: local recovery override with shared assertions preserved.
 - [ ] PR 10: autonomous bootstrap/reorg resets and actual L1 progress publication.
 - [ ] PR 11: move applied-safe finality map, or explicitly absorb it into 10.
 - [ ] Decide whether optional PR 12's network/discovery benefit warrants its remaining scope.
@@ -970,7 +970,7 @@ The new `TestAdminResetPreservesSafeProgress` passed in both `simple-kona-sequen
 
 ### PR 08 implementation and validation
 
-Branch `codex/kona-refactor-08-conductor-publication` starts from PR 07 head `62c2d95cf7c615aed6005c859025b6c1c8a1f273`. The sequencer retains a build token until conductor acknowledgement, then pins the exact envelope for import retries. Rejection, timeout or a lost reply cannot canonicalize or gossip a new block. Unmanaged sequencing has explicit local permission. Expired/stale/invalid work is discarded, and temporary retries are paced without admitting another build.
+[Draft PR 23492](https://github.com/ethereum-optimism/optimism/pull/23492), branch `codex/kona-refactor-08-conductor-publication`, starts from PR 07 head `62c2d95cf7c615aed6005c859025b6c1c8a1f273`. The sequencer retains a build token until conductor acknowledgement, then pins the exact envelope for import retries. Rejection, timeout or a lost reply cannot canonicalize or gossip a new block. Unmanaged sequencing has explicit local permission. Expired/stale/invalid work is discarded, and temporary retries are paced without admitting another build.
 
 Managed nodes start inactive in production construction. Registered `admin_startSequencer` requires the expected unsafe hash, checks leadership before active state, and reads the head after the leadership await. Domain rejections use -32000; malformed/missing parameters remain -32602 and closed owners remain -32603. The existing whole-seconds conductor timeout reaches the shared complete-response transport for both leader and commit calls.
 
@@ -979,3 +979,14 @@ Stop persists after its RPC caller disappears. Late accepted commits/imports rec
 **Local validation.** All 82 focused regressions passed. All 328 offline tests across the five affected node packages passed with all features and zero skips. Full workspace Rust lint passed after correcting two Clippy findings. Custom Go lint reported zero issues and an empty module tidy diff; a fresh default binary build passed. The shared `TestRejectedConductorCommitDoesNotPublish` and `TestSequencerStopsAndRestartsAtPreviousHead` both passed with external op-reth on Kona (66.247 seconds total) and op-node (60.895 seconds total). The publication test pauses controller automation while leaving Raft live, proves follower commit rejection, checks both attached EL and CL remain at the settled head across repeated retries, then verifies recovery. Wrong-hash rejection and exact-head restart assertions remain shared across clients. Commands/results are recorded in `work/pr08-validation-results.json` in the task workspace.
 
 **Review and scope.** Independent Rust, Go and deletion/API reviews have no remaining findings. Public admin documentation describes required hash input and Stop settlement. Public Rust constructor/trait changes and the required RPC parameter have an explicit breaking-change migration note. Local override and the full shared conductor suite follow in PR 09; issue 22667 remains partial because max-safe-lag is separate. No shared proof/protocol/alloy runtime source changed. Hosted CI is separate from these local results. Continue without a user approval pause.
+
+
+### PR 09 implementation and validation
+
+Branch `codex/kona-refactor-09-local-override` starts from PR 08 head `b84e6c9badba6c47587238218f41f5a91311f720`. `admin_overrideLeader` installs process-local permission to bypass conductor leader checks and commits, including committed Stop settlement. It is idempotent, survives an abandoned reply, does not activate sequencing, and clears when constructing a fresh node process. Unmanaged override is harmless. Configured conductor reporting, required expected head, engine epochs and exact-envelope retries remain intact. The external override forwarder and unused error variant are removed.
+
+The shared disaster-recovery scenario retains the pre-override non-leader rejection required by issue 23323. It resumes real production with only the node override, requires the conductor's external override to remain false and its proxy to refuse traffic, then separately enables proxy access with the conductor override. Clearing that external override refuses all five API families again. The Kona skip is removed without changing the shared contract.
+
+**Local validation.** All 330 offline tests in the five affected node packages passed with all features and zero skips. Full workspace Rust lint, custom Go lint/module tidiness (zero issues, empty tidy diff) and a fresh default node build passed. The complete shared conductor suite now has thirteen cases including PR 08's new publication regression; all thirteen passed with zero skips against both Kona/op-reth (333.060 seconds) and op-node/op-reth (298.283 seconds). These include startup, membership, proxy gating, unsafe submission, exact-head stop/restart, publication rejection, handoff, failover, convergence and disaster recovery. Results/commands are in `work/pr09-validation-results.json` in the task workspace.
+
+**Review and scope.** Rust, Go and deletion reviews have no remaining findings. The public override documentation distinguishes process-local permission from the conductor proxy and ordinary Raft leadership recovery. The removed public Rust trait method/error variant have a breaking-change migration note. This completes the selected conductor gate across PRs 01, 08 and 09; the broader umbrella issues remain open. No hosted-CI completion is claimed. Continue directly with PR 10.

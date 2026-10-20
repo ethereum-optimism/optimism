@@ -132,18 +132,25 @@ async fn commit_failure_keeps_the_job_reseals_after_one_second_and_publishes_not
     assert!(!actor.state.active);
 }
 
+#[rstest]
+#[case::managed(false)]
+#[case::local_override(true)]
 #[tokio::test]
-async fn acknowledged_import_retry_uses_only_the_exact_envelope() {
+async fn acknowledged_import_retry_uses_only_the_exact_envelope(#[case] local_override: bool) {
     let payload = payload(3);
     let mut conductor = MockConductor::new();
     let expected = payload.clone();
     conductor
         .expect_commit_unsafe_payload()
-        .times(1)
+        .times(if local_override { 0 } else { 1 })
         .withf(move |payload| payload == &expected)
         .return_once(|_| Ok(()));
-    let (mut actor, _handle) = test_actor_with_handle(false, false, Some(conductor));
+    conductor.expect_leader().times(0);
+    let (mut actor, handle) = test_actor_with_handle(false, false, Some(conductor));
     let mut engine = install_engine(&mut actor);
+    if local_override {
+        run_command(&mut actor, handle.override_leader()).await.unwrap();
+    }
     let expected = payload.clone();
     actor
         .unsafe_payload_gossip_client
@@ -295,20 +302,25 @@ async fn stop_clears_uncommitted_or_reset_jobs_before_restart(
 }
 
 #[rstest]
-#[case::reply_waited(false)]
-#[case::reply_abandoned(true)]
+#[case::reply_waited(false, false)]
+#[case::reply_abandoned(true, false)]
+#[case::local_override(false, true)]
 #[tokio::test(start_paused = true)]
 async fn stop_retries_exact_committed_import_and_gossips_before_acknowledging(
     #[case] abandoned: bool,
+    #[case] local_override: bool,
 ) {
     let payload = payload(8);
     let mut conductor = MockConductor::new();
-    conductor.expect_leader().times(2).returning(|| Ok(true));
+    conductor.expect_leader().times(if local_override { 0 } else { 2 }).returning(|| Ok(true));
     let (mut actor, handle) = test_actor_with_handle(false, false, Some(conductor));
     actor.state.active = true;
     actor.publish();
     let mut engine = install_engine(&mut actor);
     actor.test_pending(pending(&payload, true));
+    if local_override {
+        run_command(&mut actor, handle.override_leader()).await.unwrap();
+    }
     let gossiped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let seen = gossiped.clone();
     let expected = payload.clone();
@@ -431,10 +443,6 @@ impl crate::Conductor for HeldCommit {
         self.entered.notify_one();
         self.release.notified().await;
         Ok(())
-    }
-
-    async fn override_leader(&self) -> Result<(), ConductorError> {
-        unreachable!("no recovery override")
     }
 }
 

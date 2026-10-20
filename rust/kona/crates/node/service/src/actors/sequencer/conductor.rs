@@ -19,9 +19,6 @@ pub trait Conductor: Debug + Send + Sync {
         &self,
         payload: &OpExecutionPayloadEnvelope,
     ) -> Result<(), ConductorError>;
-
-    /// Override the leader of the conductor.
-    async fn override_leader(&self) -> Result<(), ConductorError>;
 }
 
 /// A client for communicating with the conductor service via RPC
@@ -43,11 +40,6 @@ impl Conductor for ConductorClient {
         payload: &OpExecutionPayloadEnvelope,
     ) -> Result<(), ConductorError> {
         self.rpc.request("conductor_commitUnsafePayload", [payload]).await.map_err(Into::into)
-    }
-
-    /// Override the leader of the conductor.
-    async fn override_leader(&self) -> Result<(), ConductorError> {
-        self.rpc.request("conductor_overrideLeader", ()).await.map_err(Into::into)
     }
 }
 

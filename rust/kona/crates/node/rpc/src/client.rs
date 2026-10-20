@@ -86,10 +86,6 @@ pub enum SequencerAdminAPIError {
     /// Sequencer stopped successfully, followed by some error.
     #[error("Sequencer stopped successfully, followed by error: {0}.")]
     ErrorAfterSequencerWasStopped(String),
-
-    /// Error overriding leader.
-    #[error("Error overriding leader: {0}.")]
-    LeaderOverrideError(String),
 }
 
 impl SequencerAdminAPIError {
