@@ -15,7 +15,7 @@ Active flags:
 
 | Flag | Gates |
 |------|-------|
-| `OptimismPortalInterop` | Interop migration functions on OptimismPortal2 |
+| `OptimismPortalInterop` | Interop predeploys on L2 (genesis and L2ContractsManager upgrades) |
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `ZKDisputeGame` | ZK dispute game system |
 | `BridgeHook` | Bridge hook configuration on OptimismPortal2, currently planned only for the compliance module |
