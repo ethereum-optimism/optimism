@@ -133,6 +133,10 @@ Docker inputs and CI helpers. Restoring a different source revision requires an
 ancestor relationship and exact input identity; changed helper inputs force a
 new producer. Binaries retain their actual build revision and consumers record
 the current PR revision separately.
+Reusable producers verify their tracked inputs before publishing. Same-commit
+consumers retain strict revision/settings/hash checks and may project build-only
+files out of their runtime workspace. Ancestor reuse additionally requires the
+complete unchanged input scope; a filtered or modified ancestor scope fails closed.
 
 RWX output filters apply to a task's modified layer; inherited parent layers
 remain part of downstream filesystems. Mixing ancestor helper producers with
