@@ -437,7 +437,7 @@ PROOF_EXEX_GO_FLAGS := env("PROOF_EXEX_GO_FLAGS", "-parallel 2 -timeout 60m")
 # builds the contracts and the release Rust binaries first and skips the kona prestates, which
 # these tests never use. Pick the L2 CL with DEVSTACK_L2CL_KIND (op-node or kona-node). Every
 # test step runs even when an earlier one fails; the recipe fails at the end and names the failed
-# steps. Expect about an hour after a warm build.
+# steps. Expect about 25 minutes after a warm build.
 
 # Run the proofs-history ExEx test coverage (Rust suites, acceptance packages, proofs e2e suite).
 [script('bash')]
