@@ -720,7 +720,7 @@ Planning is complete. A check means the package has its actual implementation, r
 - [x] PR 05: engine ownership, scheduler, honest outcomes, complete pipeline handoff and epoch barrier.
 - [x] PR 06: direct read dependencies, version and retained API coverage.
 - [x] PR 07: direct admin routing and concrete sequencer dependencies.
-- [ ] PR 08: conductor publication/activation/stop phase contract and configured timeouts.
+- [x] PR 08: conductor publication/activation/stop phase contract and configured timeouts.
 - [ ] PR 09: local recovery override with shared assertions preserved.
 - [ ] PR 10: autonomous bootstrap/reorg resets and actual L1 progress publication.
 - [ ] PR 11: move applied-safe finality map, or explicitly absorb it into 10.
@@ -966,3 +966,16 @@ The sequencer owns a concrete handle, four private mutation messages, a bounded 
 The new `TestAdminResetPreservesSafeProgress` passed in both `simple-kona-sequencer` and `simple-kona`. It resets the actual Kona roles, requires later safe progress, and compares canonical output blocks across all CL peers, including reference nodes. The existing real `TestPostedUnsafePayloadAdvancesVerifier` and `TestPostedUnsafePayloadRejectsBadBlockHash` both passed with Kona and external op-reth. Exact commands/results are recorded in the task workspace's `work/pr07-validation-results.json`.
 
 **Review.** Independent Rust, Go and deletion reviews have no remaining findings. Fixed findings include the explicit state fixture and non-vacuous cross-client convergence comparison. Public Rust capability/constructor removals have a breaking-change migration note. Hosted CI remains separate from local validation. Continue with PR 08 under the updated execution policy.
+
+
+### PR 08 implementation and validation
+
+Branch `codex/kona-refactor-08-conductor-publication` starts from PR 07 head `62c2d95cf7c615aed6005c859025b6c1c8a1f273`. The sequencer retains a build token until conductor acknowledgement, then pins the exact envelope for import retries. Rejection, timeout or a lost reply cannot canonicalize or gossip a new block. Unmanaged sequencing has explicit local permission. Expired/stale/invalid work is discarded, and temporary retries are paced without admitting another build.
+
+Managed nodes start inactive in production construction. Registered `admin_startSequencer` requires the expected unsafe hash, checks leadership before active state, and reads the head after the leadership await. Domain rejections use -32000; malformed/missing parameters remain -32602 and closed owners remain -32603. The existing whole-seconds conductor timeout reaches the shared complete-response transport for both leader and commit calls.
+
+Stop persists after its RPC caller disappears. Late accepted commits/imports reconcile before acknowledgement; committed retries keep the exact envelope while leadership and context remain valid. Successful engine publication and gossip admission precede the inactive state and returned settled hash. Queued controls run before the following build, and Stop/Start during asynchronous preparation discards those old attributes even if the final state and head match their originals.
+
+**Local validation.** All 82 focused regressions passed. All 328 offline tests across the five affected node packages passed with all features and zero skips. Full workspace Rust lint passed after correcting two Clippy findings. Custom Go lint reported zero issues and an empty module tidy diff; a fresh default binary build passed. The shared `TestRejectedConductorCommitDoesNotPublish` and `TestSequencerStopsAndRestartsAtPreviousHead` both passed with external op-reth on Kona (66.247 seconds total) and op-node (60.895 seconds total). The publication test pauses controller automation while leaving Raft live, proves follower commit rejection, checks both attached EL and CL remain at the settled head across repeated retries, then verifies recovery. Wrong-hash rejection and exact-head restart assertions remain shared across clients. Commands/results are recorded in `work/pr08-validation-results.json` in the task workspace.
+
+**Review and scope.** Independent Rust, Go and deletion/API reviews have no remaining findings. Public admin documentation describes required hash input and Stop settlement. Public Rust constructor/trait changes and the required RPC parameter have an explicit breaking-change migration note. Local override and the full shared conductor suite follow in PR 09; issue 22667 remains partial because max-safe-lag is separate. No shared proof/protocol/alloy runtime source changed. Hosted CI is separate from these local results. Continue without a user approval pause.

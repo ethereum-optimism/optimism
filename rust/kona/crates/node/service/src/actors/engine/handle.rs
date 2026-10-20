@@ -23,11 +23,40 @@ pub struct BuildToken {
     pub(super) timestamp: u64,
 }
 
+impl BuildToken {
+    /// Returns the epoch and parent under which this job was started.
+    pub const fn context(&self) -> EngineContext {
+        self.context
+    }
+
+    #[cfg(test)]
+    pub(crate) const fn test(context: EngineContext, id: PayloadId, timestamp: u64) -> Self {
+        Self { context, id, timestamp }
+    }
+}
+
 /// A retrieved payload tied to its original engine context, reusable for an exact import retry.
 #[derive(Debug, Clone)]
 pub struct Sealed {
     pub(super) context: EngineContext,
     pub(super) payload: OpExecutionPayloadEnvelope,
+}
+
+impl Sealed {
+    /// Returns the original job's epoch and parent.
+    pub const fn context(&self) -> EngineContext {
+        self.context
+    }
+
+    /// Returns the exact retrieved payload retained for import retries.
+    pub const fn payload(&self) -> &OpExecutionPayloadEnvelope {
+        &self.payload
+    }
+
+    #[cfg(test)]
+    pub(crate) const fn test(context: EngineContext, payload: OpExecutionPayloadEnvelope) -> Self {
+        Self { context, payload }
+    }
 }
 
 /// The actual accepted state and derivation outcome, published before this reply is sent.

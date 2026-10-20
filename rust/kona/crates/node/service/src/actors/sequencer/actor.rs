@@ -46,7 +46,8 @@ pub(super) struct UnsealedPayloadHandle {
 #[derive(Debug)]
 pub(super) enum PendingBuild {
     Building(BuildToken),
-    Retrieved(Box<Sealed>),
+    /// A positive conductor acknowledgement, or explicit unmanaged publication permission.
+    Committed(Box<Sealed>),
 }
 
 /// The [`SequencerActor`] is responsible for building L2 blocks on top of the current unsafe head
@@ -88,7 +89,7 @@ pub struct SequencerActor<
     /// The handle for the payload built on the previous tick that is waiting to be sealed.
     next_payload_to_seal: Option<UnsealedPayloadHandle>,
     /// Duration of the most recent seal operation, used to back-pressure the build ticker.
-    last_seal_duration: Duration,
+    pub(super) last_seal_duration: Duration,
     /// Whether the one-shot startup work (metrics + initial engine reset) has run.
     started: bool,
 }
@@ -114,7 +115,10 @@ where
         unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
     ) -> (Self, SequencerHandle) {
         let (command_tx, commands) = mpsc::channel(32);
-        let state = SequencerState { active: is_active, recovery_mode: in_recovery_mode };
+        let state = SequencerState {
+            active: is_active && conductor.is_none(),
+            recovery_mode: in_recovery_mode,
+        };
         let (state_tx, state_rx) = watch::channel(state);
         let handle = SequencerHandle::new(command_tx, state_rx, conductor.is_some());
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
@@ -141,43 +145,109 @@ where
         self.update_metrics();
     }
 
-    /// Sends a seal request to seal the provided [`UnsealedPayloadHandle`], committing and
-    /// gossiping the resulting block, if one is built.
-    async fn seal_and_commit_payload_if_applicable(
+    #[cfg(test)]
+    pub(super) fn test_pending(&mut self, pending: UnsealedPayloadHandle) {
+        self.next_payload_to_seal = Some(pending);
+        self.started = true;
+    }
+
+    #[cfg(test)]
+    pub(super) const fn has_pending(&self) -> bool {
+        self.next_payload_to_seal.is_some()
+    }
+
+    /// A reset or competing head makes this job unusable, even when the reset kept the same heads.
+    fn context_is_current(&self, context: EngineContext) -> bool {
+        let state = self.engine_client.state();
+        state.epoch == context.epoch &&
+            state.sync_state.unsafe_head() == context.parent &&
+            state.phase != EnginePhase::Resetting
+    }
+
+    /// Retrieve until positively acknowledged, then import only that exact envelope.
+    /// `false` retains an unacknowledged job for another getPayload/commit attempt.
+    pub(super) async fn publish_payload(
         &self,
-        unsealed_payload_handle: &mut UnsealedPayloadHandle,
-    ) -> Result<(), SequencerActorError> {
-        let seal_request_start = Instant::now();
-
-        if let PendingBuild::Building(token) = &unsealed_payload_handle.job {
+        pending: &mut UnsealedPayloadHandle,
+    ) -> Result<bool, SequencerActorError> {
+        if let PendingBuild::Building(token) = &pending.job {
             let sealed = self.engine_client.seal(token.clone()).await?;
-            unsealed_payload_handle.job = PendingBuild::Retrieved(Box::new(sealed));
-        }
-        let PendingBuild::Retrieved(sealed) = &unsealed_payload_handle.job else {
-            unreachable!("retrieved above")
-        };
-        let payload = self.engine_client.canonicalize(sealed.as_ref().clone()).await?;
-
-        update_seal_duration_metrics(seal_request_start.elapsed());
-
-        let payload_transaction_count =
-            unsealed_payload_handle.attributes_with_parent.count_transactions();
-        update_total_transactions_sequenced(payload_transaction_count);
-
-        // If the conductor is available, commit the payload to it.
-        if let Some(conductor) = &self.conductor {
-            let _conductor_commitment_start = Instant::now();
-            if let Err(err) = conductor.commit_unsafe_payload(&payload).await {
-                error!(target: "sequencer", ?err, "Failed to commit unsafe payload to conductor");
+            if !self.context_is_current(sealed.context()) {
+                return Err(EngineClientError::Stale.into());
             }
-
-            update_conductor_commitment_duration_metrics(_conductor_commitment_start.elapsed());
+            // Without a conductor, the local sequencer explicitly owns publication permission.
+            if let Some(conductor) = &self.conductor {
+                let started = Instant::now();
+                let result = conductor.commit_unsafe_payload(sealed.payload()).await;
+                update_conductor_commitment_duration_metrics(started.elapsed());
+                if let Err(error) = result {
+                    warn!(target: "sequencer", %error, "Conductor did not acknowledge payload; retaining build job");
+                    return Ok(false);
+                }
+            }
+            pending.job = PendingBuild::Committed(Box::new(sealed));
         }
+        self.import_committed(pending).await?;
+        Ok(true)
+    }
 
-        self.unsafe_payload_gossip_client
-            .schedule_execution_payload_gossip(payload)
-            .await
-            .map_err(Into::into)
+    /// Engine publication precedes signing/gossip admission and any Stop acknowledgement.
+    async fn import_committed(
+        &self,
+        pending: &UnsealedPayloadHandle,
+    ) -> Result<(), SequencerActorError> {
+        let PendingBuild::Committed(sealed) = &pending.job else {
+            unreachable!("only acknowledged or unmanaged payloads may be imported")
+        };
+        let started = Instant::now();
+        let payload = self.engine_client.canonicalize(sealed.as_ref().clone()).await?;
+        update_seal_duration_metrics(started.elapsed());
+        update_total_transactions_sequenced(pending.attributes_with_parent.count_transactions());
+        self.unsafe_payload_gossip_client.schedule_execution_payload_gossip(payload).await?;
+        Ok(())
+    }
+
+    /// Stop owns settlement even if its RPC caller drops the reply while this method waits.
+    pub(super) async fn settle_committed(&mut self) -> Result<(), SequencerActorError> {
+        let Some(pending) = self.next_payload_to_seal.take() else { return Ok(()) };
+        let PendingBuild::Committed(sealed) = &pending.job else { return Ok(()) };
+        loop {
+            if !self.context_is_current(sealed.context()) {
+                return Ok(());
+            }
+            if let Some(conductor) = &self.conductor {
+                match conductor.leader().await {
+                    Ok(true) => {}
+                    Ok(false) | Err(_) => return Ok(()),
+                }
+            }
+            // Leadership I/O may have crossed a reset. The engine also rechecks on application.
+            if !self.context_is_current(sealed.context()) {
+                return Ok(());
+            }
+            match self.import_committed(&pending).await {
+                Err(SequencerActorError::EngineError(EngineClientError::Temporary(_))) => {
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+                Ok(()) |
+                Err(SequencerActorError::EngineError(
+                    EngineClientError::Stale |
+                    EngineClientError::Expired |
+                    EngineClientError::Rejected(_),
+                )) => return Ok(()),
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    /// Commands queued during a bounded action run before any following build admission.
+    async fn drain_commands(&mut self) -> Result<bool, SequencerActorError> {
+        let mut handled = false;
+        while let Ok(command) = self.commands.try_recv() {
+            handled = true;
+            self.handle_command(command).await?;
+        }
+        Ok(handled)
     }
 
     /// Starts building an L2 block by creating and populating payload attributes referencing the
@@ -214,6 +284,11 @@ where
         };
 
         update_attributes_build_duration_metrics(attributes_build_start.elapsed());
+
+        // A Stop or recovery-mode change queued during preparation supersedes these attributes.
+        if self.drain_commands().await? || !self.state.active {
+            return Ok(None);
+        }
 
         // Send the built attributes to the engine to be built.
         let build_request_start = Instant::now();
@@ -423,8 +498,7 @@ where
             // This is important to limit the occurrence of race conditions where a stopped query is received when a sequencer is building a new block.
             biased;
             Some(command) = self.commands.recv() => {
-                self.handle_command(command).await;
-                Ok(())
+                self.handle_command(command).await
             }
             // The sequencer must be active to build new blocks.
             _ = self.build_ticker.tick(), if self.state.active => {
@@ -433,23 +507,26 @@ where
                     return Ok(());
                 }
                 info!(target: "sequencer", "Sequencing tick, building block");
+                let mut may_build = true;
                 if let Some(mut pending) = self.next_payload_to_seal.take() {
                     let started = Instant::now();
-                    match self.seal_and_commit_payload_if_applicable(&mut pending).await {
-                        Ok(()) => self.last_seal_duration = started.elapsed(),
-                        Err(SequencerActorError::EngineError(EngineClientError::Temporary(error))) => {
-                            debug!(target:"sequencer",%error,"Retaining payload job for retry");
+                    match self.publish_payload(&mut pending).await {
+                        Ok(true) => self.last_seal_duration = started.elapsed(),
+                        Ok(false) | Err(SequencerActorError::EngineError(EngineClientError::Temporary(_))) => {
                             self.next_payload_to_seal = Some(pending);
-                            self.build_ticker.reset();
-                            return Ok(());
+                            may_build = false;
                         }
                         Err(SequencerActorError::EngineError(error @ (EngineClientError::Stale | EngineClientError::Expired | EngineClientError::Rejected(_)))) => {
                             debug!(target:"sequencer",?error,"Discarding obsolete or rejected job");
-                            self.build_ticker.reset();
-                            return Ok(());
+                            may_build = false;
                         }
                         Err(error) => return Err(error),
                     }
+                }
+                self.drain_commands().await?;
+                if !self.state.active || !may_build {
+                    self.build_ticker.reset_after(Duration::from_secs(1));
+                    return Ok(());
                 }
                 match self.build_unsealed_payload().await {
                     Ok(payload) => self.next_payload_to_seal = payload,

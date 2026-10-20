@@ -40,7 +40,7 @@ mod client;
 pub use client::{EngineClient, OpEngineClient};
 
 mod providers;
-pub use providers::{HyperAuthClient, l1_provider, l2_provider};
+pub use providers::{HyperAuthClient, l1_provider, l2_provider, rpc_client};
 
 mod versions;
 pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion};

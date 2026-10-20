@@ -33,7 +33,7 @@ pub trait SequencerAdminAPIClient: Send + Sync + Debug {
     async fn is_recovery_mode(&self) -> Result<bool, SequencerAdminAPIError>;
 
     /// Start the sequencer.
-    async fn start_sequencer(&self) -> Result<(), SequencerAdminAPIError>;
+    async fn start_sequencer(&self, expected: B256) -> Result<(), SequencerAdminAPIError>;
 
     /// Stop the sequencer.
     async fn stop_sequencer(&self) -> Result<B256, SequencerAdminAPIError>;
@@ -48,6 +48,30 @@ pub trait SequencerAdminAPIClient: Send + Sync + Debug {
 /// Errors that can occur when using the sequencer admin API.
 #[derive(Debug, Error)]
 pub enum SequencerAdminAPIError {
+    /// Activation requires a stopped sequencer.
+    #[error("sequencer already running")]
+    AlreadyRunning,
+    /// A stopped sequencer has no stop operation to settle.
+    #[error("sequencer not running")]
+    NotRunning,
+    /// Conductor leadership is required before activation.
+    #[error("sequencer is not the leader, aborting")]
+    NotLeader,
+    /// The conductor could not establish leadership.
+    #[error("sequencer leader check failed: {0}")]
+    LeaderCheckFailed(String),
+    /// Execution has not published a usable current head.
+    #[error("no prestate, cannot determine if sequencer start at {0} is safe")]
+    NoPrestate(B256),
+    /// The operator's expected head differs from the current engine head.
+    #[error("block hash does not match: head {hash}:{number}, received {received}", hash = .head.block_info.hash, number = .head.block_info.number)]
+    HeadMismatch {
+        /// Actual published unsafe head after the leadership check.
+        head: kona_protocol::L2BlockInfo,
+        /// Expected unsafe head supplied by the caller.
+        received: B256,
+    },
+
     /// Error sending request.
     #[error("Error sending request: {0}.")]
     RequestError(String),
@@ -66,4 +90,19 @@ pub enum SequencerAdminAPIError {
     /// Error overriding leader.
     #[error("Error overriding leader: {0}.")]
     LeaderOverrideError(String),
+}
+
+impl SequencerAdminAPIError {
+    /// Domain rejections use the same server-error category as op-node.
+    pub const fn is_domain_error(&self) -> bool {
+        matches!(
+            self,
+            Self::AlreadyRunning |
+                Self::NotRunning |
+                Self::NotLeader |
+                Self::LeaderCheckFailed(_) |
+                Self::NoPrestate(_) |
+                Self::HeadMismatch { .. }
+        )
+    }
 }

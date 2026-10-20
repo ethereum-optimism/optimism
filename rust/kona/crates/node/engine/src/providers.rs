@@ -2,7 +2,7 @@
 
 use alloy_primitives::Bytes;
 use alloy_provider::RootProvider;
-use alloy_rpc_client::ClientBuilder;
+use alloy_rpc_client::{ClientBuilder, RpcClient};
 use alloy_rpc_types_engine::JwtSecret;
 use alloy_transport::{TransportErrorKind, TransportFut};
 use alloy_transport_http::{
@@ -34,9 +34,14 @@ fn deadline(
     })
 }
 
+/// Creates an HTTP RPC client whose complete responses are bounded by `timeout`.
+pub fn rpc_client(url: Url, timeout: Duration) -> RpcClient {
+    ClientBuilder::default().layer(deadline(timeout)).http(url)
+}
+
 /// Creates an L1 provider whose individual requests are bounded by `timeout`.
 pub fn l1_provider(url: Url, timeout: Duration) -> RootProvider {
-    RootProvider::new(ClientBuilder::default().layer(deadline(timeout)).http(url))
+    RootProvider::new(rpc_client(url, timeout))
 }
 
 /// Creates an authenticated L2 provider whose individual requests are bounded by `timeout`.
