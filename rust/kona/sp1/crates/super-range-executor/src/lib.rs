@@ -275,7 +275,8 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         synthesized.current_super_root,
         config.end_timestamp,
     )?;
-    let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
+    let configs =
+        deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
     let mut preloaded_preimages = synthesized.preloaded_preimages.clone();
     if !config.native_core {
         // Test guests consume Local config keys; production guests ignore these preimages.

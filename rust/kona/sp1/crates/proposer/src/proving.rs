@@ -1162,7 +1162,8 @@ async fn check_span(
         synthesized.current_super_root,
         timestamps.end,
     )?;
-    let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
+    let configs =
+        deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
     let (range_witness, range_outputs) = collect_range_witness(
         range_host,
         &synthesized.range_inputs,
@@ -1635,7 +1636,8 @@ async fn scan_log_stage(
         first.synthesized.current_super_root,
         first.claimed_timestamp,
     )?;
-    let configs = deployment_chain_configs(&host, &first.synthesized.range_inputs.chain_ids)?;
+    let configs =
+        deployment_chain_configs(&host, &first.synthesized.range_inputs.super_root_chain_ids())?;
     let scan = scan_span(request.l2, request.responses, &configs)
         .await
         .context("failed to scan the span's executing messages")?;
