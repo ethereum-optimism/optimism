@@ -420,12 +420,17 @@ class ConfigurationTests(unittest.TestCase):
                          '${{ tasks.tests-build.artifacts.compiler-state }}')
         self.assertFalse(tasks['tests-compiler']['outputs']['filesystem'])
         self.assertFalse(tasks['tests-unit']['outputs']['filesystem'])
-        self.assertEqual(tasks['tests-cache']['use'], 'compiler-source')
+        self.assertEqual(tasks['tests-cache']['use'], 'rust-dependencies')
         self.assertEqual(tasks['tests-cache']['env']['CI_COMMIT_SHA'], '${{ tasks.compiler-base.values.sha }}')
         self.assertEqual(tasks['compiler-code']['with']['ref'], '${{ tasks.compiler-base.values.sha }}')
         self.assertEqual(tasks['compiler-tools']['use'], ['mise', 'compiler-code'])
         self.assertEqual(tasks['compiler-rust-tools']['use'], ['compiler-code', 'compiler-tools'])
         self.assertEqual(tasks['compiler-source']['use'], ['compiler-rust-tools', 'compiler-code'])
+        self.assertEqual(tasks['rust-dependencies']['use'], 'compiler-source')
+        self.assertNotIn('tool-cache', tasks['rust-dependencies'])
+        self.assertEqual(tasks['rust-dependencies']['env']['COMPILER_CACHE_EPOCH'], '${{ init.cache-epoch }}')
+        self.assertEqual(tasks['head-source']['use'], ['rust-dependencies', 'code'])
+        self.assertIn('git clean -fdx -- rust', tasks['head-source']['run'])
         for trigger in ('cli', 'cache-rebuild'):
             self.assertEqual(config['on'][trigger]['init']['cargo-incremental'], '0')
         coordinator = json.loads(subprocess.check_output(['yq', '-o=json', '.tasks', str(repo / '.rwx/pr-gates.yml')], text=True))
@@ -465,7 +470,7 @@ class ConfigurationTests(unittest.TestCase):
         for i in range(10):
             producer, verdict = tasks[f'features-build-{i}'], tasks[f'features-{i}']
             self.assertEqual(verdict['use'], [producer['key'], 'head-source'])
-            self.assertEqual(producer['use'], 'compiler-source')
+            self.assertEqual(producer['use'], 'rust-dependencies')
             self.assertEqual(producer['run'], 'python3 ops/ci/runtime/rust-compiler-baseline.py features')
             self.assertEqual(verdict['run'], 'bash ops/ci/runtime/rust-workspace.sh features')
             self.assertEqual(producer['runner'], verdict['runner'])

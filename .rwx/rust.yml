@@ -96,6 +96,7 @@ tasks:
     run: |
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_workspace.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_compiler_baseline.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_dependencies.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rwx_materialize_linker.py'
       python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_rust_workspace.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_target_cache.py'
@@ -135,32 +136,34 @@ tasks:
     with:
       mode: go
 
+  # Fetch from the immutable compiler ancestor, so source-only edits reuse the
+  # same Cargo registry/checkouts even when PRs cannot write shared tool caches.
   - key: rust-dependencies
-    use: [code, rust-tools]
+    use: compiler-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: |
-      export CARGO_HOME="$PWD/.ci/rust-cache/cargo"
-      cd rust
-      attempt=0
-      until cargo fetch --locked; do
-        attempt=$((attempt + 1))
-        if [[ "$attempt" -ge 5 ]]; then exit 1; fi
-        sleep "$((2 ** attempt))"
-      done
-    filter: [rust, mise.toml]
-    tool-cache: op-reth-dependencies-${{ init.cache-epoch }}
+    run: python3 ops/ci/runtime/rust-dependencies.py
+    env:
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
     timeout: 30m
     outputs:
       filesystem:
         filter:
           workspace: [.ci/rust-cache/cargo]
           system: []
+      artifacts:
+        - key: report
+          path: .ci/rust-dependencies
 
   # Keep full source, Git metadata and the pinned submodule as build inputs.
   - key: head-source
-    use: [code, rust-dependencies]
+    use: [rust-dependencies, code]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
+    run: |
+      git reset --hard "$CI_COMMIT_SHA"
+      git clean -fdx -- rust
+      bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
     timeout: 15m
 
   - key: feature-plan
@@ -222,7 +225,7 @@ tasks:
     timeout: 15m
 
   - key: tests-cache
-    use: compiler-source
+    use: rust-dependencies
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: python3 ops/ci/runtime/rust-compiler-baseline.py tests-build
     env: &compiler-base-env
@@ -439,7 +442,7 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-0
-    use: compiler-source
+    use: rust-dependencies
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
@@ -479,7 +482,7 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-1
-    use: compiler-source
+    use: rust-dependencies
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
@@ -519,7 +522,7 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-2
-    use: compiler-source
+    use: rust-dependencies
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
@@ -559,7 +562,7 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-3
-    use: compiler-source
+    use: rust-dependencies
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
@@ -599,7 +602,7 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-4
-    use: compiler-source
+    use: rust-dependencies
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
@@ -639,7 +642,7 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-5
-    use: compiler-source
+    use: rust-dependencies
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
@@ -679,7 +682,7 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-6
-    use: compiler-source
+    use: rust-dependencies
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
@@ -719,7 +722,7 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-7
-    use: compiler-source
+    use: rust-dependencies
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
@@ -759,7 +762,7 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-8
-    use: compiler-source
+    use: rust-dependencies
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
@@ -799,7 +802,7 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-9
-    use: compiler-source
+    use: rust-dependencies
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
