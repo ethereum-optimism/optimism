@@ -17,6 +17,7 @@ import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Claim, GameStatus, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { Features } from "src/libraries/Features.sol";
+import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -28,6 +29,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 
 /// @custom:proxied true
 /// @title OptimismPortal2
@@ -270,9 +272,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 6.0.0
+    /// @custom:semver 6.1.0
     function version() public pure virtual returns (string memory) {
-        return "6.0.0";
+        return "6.1.0";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -823,6 +825,35 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256) {
         return proofSubmitters[_withdrawalHash].length;
     }
+
+    /// @notice Returns the hook that screens deposits and withdrawal finalizations.
+    /// @return Bridge hook, or the zero address if unset.
+    function bridgeHook() external view returns (IBridgeHook) { }
+
+    /// @notice Sets the bridge hook. Only callable by the ProxyAdmin owner.
+    ///         A nonzero hook requires the BRIDGE_HOOK feature.
+    /// @param _hook Bridge hook, or the zero address to unset it.
+    function setBridgeHook(IBridgeHook _hook) external { }
+
+    /// @notice Returns whether a deposit is held.
+    /// @param _id Deposit item hash.
+    /// @return True if held.
+    function heldDeposits(bytes32 _id) external view returns (bool) { }
+
+    /// @notice Returns whether a withdrawal is held.
+    /// @param _id Withdrawal item hash.
+    /// @return True if held.
+    function heldWithdrawals(bytes32 _id) external view returns (bool) { }
+
+    /// @notice Sends a held deposit to L2 on its original terms. Only callable by the bridge hook.
+    ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
+    /// @param _item Held deposit.
+    function completeDepositTransaction(BridgeHookTypes.Item calldata _item) external payable { }
+
+    /// @notice Executes a held withdrawal on its original terms. Only callable by the bridge hook.
+    ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
+    /// @param _item Held withdrawal.
+    function completeWithdrawalTransaction(BridgeHookTypes.Item calldata _item) external payable { }
 
     /// @notice Checks if the ETHLockbox feature is enabled.
     /// @return bool True if the ETHLockbox feature is enabled.

@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	forkstest "github.com/ethereum-optimism/optimism/op-core/forks/test"
+	"github.com/ethereum-optimism/optimism/op-core/params/opgethtest"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
 
@@ -35,33 +36,6 @@ func jsonTestConfig(t *testing.T, s forkstest.Schedule) *ChainConfig {
 		cfg.SetActivationTime(fork, s(fork))
 	}
 	return cfg
-}
-
-// opGethTestConfig is the op-geth chain config equivalent to jsonTestConfig, built from
-// op-geth's own OP Stack test config independently of GethChainConfig.
-func opGethTestConfig(t *testing.T, s forkstest.Schedule) *gethparams.ChainConfig {
-	cfg := *gethparams.OptimismTestConfig
-	cfg.ChainID = big.NewInt(901)
-	// OptimismTestConfig inherits an ethash config from go-ethereum's merged test config;
-	// the op-geth config that op-chain-ops writes has no consensus engine config.
-	cfg.Ethash = nil
-	cfg.Optimism = &gethparams.OptimismConfig{
-		EIP1559Elasticity:        6,
-		EIP1559Denominator:       50,
-		EIP1559DenominatorCanyon: ptr.New[uint64](250),
-	}
-	fields := reflect.ValueOf(&cfg).Elem()
-	for _, fork := range forkstest.TimestampELForks {
-		name := forkstest.Title(fork) + "Time"
-		field := fields.FieldByName(name)
-		require.Truef(t, field.IsValid(), "op-geth ChainConfig lacks field %s", name)
-		field.Set(reflect.ValueOf(s(fork)))
-	}
-	cfg.ShanghaiTime = s(forks.Canyon)
-	cfg.CancunTime = s(forks.Ecotone)
-	cfg.PragueTime = s(forks.Isthmus)
-	cfg.OsakaTime = s(forks.Karst)
-	return &cfg
 }
 
 var jsonTestCases = []struct {
@@ -166,7 +140,7 @@ func TestChainConfigJSONDirectFieldsDominate(t *testing.T) {
 func TestChainConfigJSONMatchesOpGeth(t *testing.T) {
 	for _, tc := range jsonTestCases {
 		t.Run(tc.name, func(t *testing.T) {
-			want, err := json.Marshal(opGethTestConfig(t, tc.schedule))
+			want, err := json.Marshal(opgethtest.ChainConfig(t, 901, tc.schedule))
 			require.NoError(t, err)
 			got, err := json.Marshal(jsonTestConfig(t, tc.schedule))
 			require.NoError(t, err)
@@ -188,7 +162,7 @@ func TestChainConfigJSONKeyOrder(t *testing.T) {
 	}
 	for _, tc := range jsonTestCases {
 		t.Run(tc.name, func(t *testing.T) {
-			opGethJSON, err := json.Marshal(opGethTestConfig(t, tc.schedule))
+			opGethJSON, err := json.Marshal(opgethtest.ChainConfig(t, 901, tc.schedule))
 			require.NoError(t, err)
 			opGethKeys := objectKeys(t, opGethJSON)
 			isOP := func(k string) bool { return opKeys[k] }
@@ -236,7 +210,7 @@ func TestChainConfigJSONRoundTrip(t *testing.T) {
 // chain config, and the same with osakaTime absent, as op-chain-ops writes it for Karst.
 func TestChainConfigJSONUnmarshalOpGeth(t *testing.T) {
 	s := forkstest.Staggered()
-	opGeth := opGethTestConfig(t, s)
+	opGeth := opgethtest.ChainConfig(t, 901, s)
 	for name, osaka := range map[string]*uint64{"with osakaTime": s(forks.Karst), "without osakaTime": nil} {
 		t.Run(name, func(t *testing.T) {
 			opGeth.OsakaTime = osaka

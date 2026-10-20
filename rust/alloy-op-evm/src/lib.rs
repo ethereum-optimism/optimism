@@ -85,27 +85,35 @@ pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx, R = post_exec::N
     _tx: PhantomData<Tx>,
 }
 
+/// UPSTREAM-MIRROR(copy): revm-context@43.0.2 `revm_context::Evm::with_inspector`
+///
+/// Rebuilds `evm` with its inspector replaced by `f(inspector)`. Upstream `with_inspector` takes
+/// the new inspector by value, so it cannot derive it from the old one.
+///
+/// revm's [`Evm`](revm::context::Evm) has feature-gated fields, so it must not be constructed or
+/// destructured exhaustively here: Cargo feature unification can enable those fields without this
+/// crate knowing. Construct through the upstream constructor instead, carrying over the frame
+/// stack; every field not named below is reset to its default. In revm 43 the only such field is
+/// `async_stack` (under `revm/asyncdb`), a lazily allocated fiber stack, so resetting it only drops
+/// a cached allocation. On a revm bump, compare `Evm`'s fields against the ones carried over here.
+fn map_inspector<CTX, INSP, OINSP, I, P, F: Default>(
+    evm: revm::context::Evm<CTX, INSP, I, P, F>,
+    f: impl FnOnce(INSP) -> OINSP,
+) -> revm::context::Evm<CTX, OINSP, I, P, F> {
+    let revm::context::Evm { ctx, inspector, instruction, precompiles, frame_stack, .. } = evm;
+    let mut evm =
+        revm::context::Evm::new_with_inspector(ctx, f(inspector), instruction, precompiles);
+    evm.frame_stack = frame_stack;
+    evm
+}
+
 impl<DB: Database, I, P, Tx, R> OpEvm<DB, I, P, Tx, R> {
     /// Consumes self and return the inner EVM instance.
     pub fn into_inner(
         self,
     ) -> op_revm::OpEvm<OpEvmContext<DB>, I, EthInstructions<EthInterpreter, OpEvmContext<DB>>, P>
     {
-        let op_revm::OpEvm(revm::context::Evm {
-            ctx,
-            inspector,
-            instruction,
-            precompiles,
-            frame_stack,
-        }) = self.inner;
-
-        op_revm::OpEvm(revm::context::Evm {
-            ctx,
-            inspector: inspector.into_inner(),
-            instruction,
-            precompiles,
-            frame_stack,
-        })
+        op_revm::OpEvm(map_inspector(self.inner.0, |inspector| inspector.into_inner()))
     }
 
     /// Provides a reference to the EVM context.
@@ -134,25 +142,18 @@ impl<DB: Database, I, P, Tx, R> OpEvm<DB, I, P, Tx, R> {
         inspect: bool,
         refund_policy: R,
     ) -> Self {
-        let op_revm::OpEvm(revm::context::Evm {
-            ctx,
-            inspector,
-            instruction,
-            precompiles,
-            frame_stack,
-        }) = evm;
+        Self::from_inner(
+            op_revm::OpEvm(map_inspector(evm.0, |inspector| {
+                post_exec::PostExecCompositeInspector::new_with_post_exec(inspector, refund_policy)
+            })),
+            inspect,
+        )
+    }
 
+    /// Wraps an inner EVM whose inspector already carries the post-exec refund policy.
+    fn from_inner(inner: OpEvmInner<DB, I, P, R>, inspect: bool) -> Self {
         Self {
-            inner: op_revm::OpEvm(revm::context::Evm {
-                ctx,
-                inspector: post_exec::PostExecCompositeInspector::new_with_post_exec(
-                    inspector,
-                    refund_policy,
-                ),
-                instruction,
-                precompiles,
-                frame_stack,
-            }),
+            inner,
             inspect,
             post_exec_tracking_active: false,
             last_tx_post_exec_result: Default::default(),
@@ -193,12 +194,17 @@ impl<DB: Database, I, Tx, R> OpEvm<DB, I, PrecompilesMap, Tx, R> {
             .with_db(db)
             .with_block(input.block_env)
             .with_cfg(input.cfg_env)
-            .build_op_with_inspector(inspector)
+            // Wrap the inspector before building, rather than via `new_with_refund_policy`, so the
+            // EVM's frame stack is only allocated once.
+            .build_op_with_inspector(post_exec::PostExecCompositeInspector::new_with_post_exec(
+                inspector,
+                refund_policy,
+            ))
             .with_precompiles(PrecompilesMap::from_static(
                 OpPrecompiles::new_with_spec(spec_id).precompiles(),
             ));
 
-        Self::new_with_refund_policy(inner, inspect, refund_policy)
+        Self::from_inner(inner, inspect)
     }
 }
 
@@ -236,14 +242,22 @@ where
         core::mem::take(&mut self.last_tx_post_exec_result)
     }
 
-    /// Snapshot refund state to carry across subblock executors.
-    pub fn refund_snapshot(&self) -> R::Snapshot {
-        self.inner.0.inspector.refund_snapshot()
+    /// Returns the refund policy.
+    pub const fn refund_policy(&self) -> &R {
+        self.inner.0.inspector.refund_policy()
     }
 
-    /// Seed refund state captured from a prior subblock.
-    pub fn seed_refund_snapshot(&mut self, state: R::Snapshot) {
-        self.inner.0.inspector.seed_refund_snapshot(state);
+    /// Mark the refund policy's block-scoped state before a candidate transaction.
+    pub fn refund_checkpoint(&mut self) -> R::Checkpoint {
+        self.inner.0.inspector.refund_checkpoint()
+    }
+
+    /// Roll the refund policy's block-scoped state back to `checkpoint`.
+    pub fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: R::Checkpoint,
+    ) -> Result<(), post_exec::RevertToCheckpointError> {
+        self.inner.0.inspector.revert_refund_checkpoint(checkpoint)
     }
 }
 
@@ -252,7 +266,7 @@ where
     Self: Evm,
     R: post_exec::PostExecRefundInspector,
 {
-    type Snapshot = R::Snapshot;
+    type Checkpoint = R::Checkpoint;
 
     fn begin_post_exec_tx(&mut self, ctx: post_exec::PostExecTxContext) {
         Self::begin_post_exec_tx(self, ctx);
@@ -262,12 +276,15 @@ where
         Self::take_last_post_exec_tx_result(self)
     }
 
-    fn refund_snapshot(&self) -> Self::Snapshot {
-        Self::refund_snapshot(self)
+    fn refund_checkpoint(&mut self) -> Self::Checkpoint {
+        Self::refund_checkpoint(self)
     }
 
-    fn seed_refund_snapshot(&mut self, state: Self::Snapshot) {
-        Self::seed_refund_snapshot(self, state);
+    fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), post_exec::RevertToCheckpointError> {
+        Self::revert_refund_checkpoint(self, checkpoint)
     }
 }
 
@@ -276,7 +293,7 @@ where
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>> + Default + Clone + Debug,
     F: post_exec::PostExecRefundPolicyFactory,
 {
-    type Snapshot = <F::Policy as post_exec::PostExecRefundInspector>::Snapshot;
+    type Checkpoint = <F::Policy as post_exec::PostExecRefundInspector>::Checkpoint;
 
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: post_exec::PostExecTxContext)
     where
@@ -296,20 +313,23 @@ where
         evm.take_last_post_exec_tx_result()
     }
 
-    fn refund_snapshot<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
+    fn refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>) -> Self::Checkpoint
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.refund_snapshot()
+        evm.refund_checkpoint()
     }
 
-    fn seed_refund_snapshot<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
+    fn revert_refund_checkpoint<DB, I>(
+        evm: &mut Self::Evm<DB, I>,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), post_exec::RevertToCheckpointError>
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.seed_refund_snapshot(state);
+        evm.revert_refund_checkpoint(checkpoint)
     }
 }
 
@@ -329,7 +349,7 @@ impl<DB: Database, I, P, Tx, R> DerefMut for OpEvm<DB, I, P, Tx, R> {
     }
 }
 
-/// UPSTREAM-MIRROR(copy): alloy-evm@0.38.0 `alloy_evm::eth::EthEvm`
+/// UPSTREAM-MIRROR(copy): alloy-evm@0.39.0 `alloy_evm::eth::EthEvm`
 ///
 /// Mirrors upstream's `Evm` impl for `EthEvm`, adding the OP transaction wrapper, the post-exec
 /// transaction short-circuit and the post-exec refund tracking. A method added to the `Evm`

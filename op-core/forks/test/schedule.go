@@ -50,3 +50,11 @@ func Override(base Schedule, fork forks.Name, t *uint64) Schedule {
 func Title(fork forks.Name) string {
 	return strings.ToUpper(string(fork[:1])) + string(fork[1:])
 }
+
+// StaticSchedule activates every fork of [TimestampELForks] at t.
+func StaticSchedule(t uint64) Schedule {
+	return func(forks.Name) *uint64 {
+		v := t
+		return &v
+	}
+}

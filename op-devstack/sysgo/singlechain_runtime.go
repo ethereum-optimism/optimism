@@ -15,6 +15,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	challengermetrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
@@ -30,7 +31,6 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -110,7 +110,6 @@ func startDefaultSingleChainPrimary(
 			Key:           "sequencer",
 			IsSequencer:   true,
 			NoDiscovery:   true,
-			EnableReqResp: true,
 			DependencySet: world.Interop.DependencySet,
 			L2CLOptions:   l2CLOptions,
 		})
@@ -438,7 +437,7 @@ func startMinimalChallenger(
 	logger.Info("Challenger key acquired", "addr", crypto.PubkeyToAddress(challengerSecret.PublicKey))
 
 	rollupCfgs := []*rollup.Config{l2Net.rollupCfg}
-	l2Geneses := []*core.Genesis{l2Net.genesis}
+	l2Geneses := []*opgenesis.Genesis{l2Net.genesis}
 	dependencySet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
 		l2Net.ChainID(): {},
 	})

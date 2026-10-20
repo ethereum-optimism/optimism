@@ -201,7 +201,7 @@ REPO="ethereum-optimism/other" run_scenario \
 REPO="ethereum-optimism/other" run_scenario \
   "API: publish_contract_artifacts_dispatch, outside the public repo" \
   "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true}' \
   release \
   --not publish_contract_artifacts
 
@@ -231,34 +231,28 @@ run_scenario \
   scheduled_rust_nightly_bump
 
 run_scenario \
-  "API: main_dispatch (no github event)" \
+  "API: main_dispatch" \
   "api" "" "" "" \
-  '{"c-main_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": true}' \
   release main contracts_feature_tests
 
 run_scenario \
   "API: rust_ci_dispatch" \
   "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-rust_ci_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": false, "c-rust_ci_dispatch": true}' \
   release rust_ci
 
 run_scenario \
   "API: rust_nightly_bump_dispatch" \
   "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-rust_nightly_bump_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": false, "c-rust_nightly_bump_dispatch": true}' \
   release scheduled_rust_nightly_bump
 
 run_scenario \
   "API: publish_contract_artifacts_dispatch" \
   "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true}' \
   release publish_contract_artifacts
-
-run_scenario \
-  "API: github event labeled PR" \
-  "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-github-event-type": "pull_request", "c-github-event-action": "labeled"}' \
-  release close_issue
 
 # --- Summary ---
 echo ""

@@ -169,8 +169,9 @@ Do not dismiss a candidate for these reasons:
 
 The consolidation checks each executing message against its initiating block.
 `MessageGraph::check_single_dependency` (`kona-interop`) calls
-`OracleInteropProvider::receipts_by_number` (`kona-proof-interop`). Its `derive_receipts` walks
-the receipts trie and decodes every receipt of the block. `MessageGraph::resolve` sorts the
+`OracleInteropProvider::initiating_logs` (`kona-proof-interop`). Unless the block is below the
+local-safe head and has a log-commitment entry, `derive_receipts` walks the receipts trie and
+decodes every receipt of the block. `MessageGraph::resolve` sorts the
 messages by initiating block, so each distinct initiating block loads once per resolve. Any log in
 the expiry window is a valid target, so the attacker references many large blocks that exist.
 

@@ -421,7 +421,10 @@ function testTransferSucceeds() external { }          // No underscores
 
 Dispute games, OPCM, OptimismPortal2, StorageSetter and L2ContractsManager compile with
 5,000 optimizer runs for bytecode size management (`compilation_restrictions` in
-`foundry.toml`; `OPContractsManagerStandardValidator` is the outlier at 200).
+`foundry.toml`; `OPContractsManagerV2` and `OPContractsManagerStandardValidator` are the
+outliers at 200).
+
+TODO(optimism-private#779): Restore `OPContractsManagerV2` to 5,000 optimizer runs.
 
 ## Build and Test Commands
 

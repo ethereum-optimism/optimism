@@ -38,6 +38,11 @@ type FixedPolicyOpEvmConfig<ChainSpec, N> = OpEvmConfig<
 /// By default this delegates to the stock [`BasicPayloadServiceBuilder`] and EVM configuration. A
 /// hidden test-only configuration may instead select the deterministic fixed-refund SDM policy.
 /// The choice is made once while constructing the service.
+///
+/// The service must be wrapped in [`DerivedPayloadServiceBuilder`], as [`OpNode`] does.
+///
+/// [`DerivedPayloadServiceBuilder`]: crate::DerivedPayloadServiceBuilder
+/// [`OpNode`]: crate::OpNode
 #[derive(Debug, Clone)]
 pub struct OpPayloadServiceBuilder {
     payload_builder: OpPayloadBuilder,

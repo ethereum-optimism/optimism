@@ -1,6 +1,6 @@
 [package]
 name = "reth-optimism-consensus"
-version = "1.11.3"
+version = "2.0.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -17,6 +17,7 @@ reth-execution-types.workspace = true
 reth-chainspec.workspace = true
 reth-consensus-common.workspace = true
 reth-consensus.workspace = true
+reth-ethereum-consensus.workspace = true
 reth-primitives-traits.workspace = true
 reth-storage-api.workspace = true
 reth-storage-errors.workspace = true
@@ -47,6 +48,9 @@ reth-optimism-chainspec.workspace = true
 [dev-dependencies]
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
+reth-chain-state = { workspace = true, features = ["test-utils"] }
+reth-stages-types.workspace = true
+reth-storage-overlay.workspace = true
 reth-db-common.workspace = true
 reth-revm.workspace = true
 reth-trie.workspace = true
@@ -64,6 +68,7 @@ std = [
     "reth-chainspec/std",
     "reth-consensus/std",
     "reth-consensus-common/std",
+    "reth-ethereum-consensus/std",
     "reth-primitives-traits/std",
     "reth-optimism-forks/std",
     "reth-optimism-chainspec/std",

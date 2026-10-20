@@ -8,8 +8,8 @@ use alloy_evm::{
     Database, Evm, EvmFactory, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockValidationError, CommitChanges, ExecutableTx, GasOutput, StateDB, SystemCaller,
-        TxResult, state_changes::post_block_balance_increments,
+        BlockValidationError, CommitChanges, ExecutableTx, GasOutput, InternalBlockExecutionError,
+        StateDB, SystemCaller, TxResult, state_changes::post_block_balance_increments,
     },
     eth::{EthTxResult, receipt_builder::ReceiptBuilderCtx},
 };
@@ -579,33 +579,55 @@ where
     }
 }
 
-impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
-where
-    E: PostExecEvm,
-    R: OpReceiptBuilder,
-{
-    /// Snapshot refund state to carry across subblock executors.
-    pub fn refund_snapshot(&self) -> E::Snapshot {
-        self.evm.refund_snapshot()
-    }
-
-    /// Seed refund state captured from a prior subblock.
-    pub fn seed_refund_snapshot(&mut self, state: E::Snapshot) {
-        self.evm.seed_refund_snapshot(state);
+/// Returns whether `err` shows that the block's transactions are invalid, rather than a failure of
+/// the node that executes it.
+///
+/// A derived block that fails with such an error is replaced with its deposits-only block. The
+/// fault proof program and op-reth's payload builder both decide with this function, so that they
+/// replace the same blocks. A node-local failure classified as invalid would derive a wrong
+/// deposits-only block, so every other error is not.
+pub fn is_invalid_payload_error(err: &BlockExecutionError) -> bool {
+    // Exhaustive, so a new variant must be classified: one that defaults to node-local would stall
+    // derivation on every node.
+    match err {
+        BlockExecutionError::Validation(validation) => match validation {
+            BlockValidationError::InvalidTx { .. } |
+            BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas { .. } |
+            BlockValidationError::BlockGasExceeded => true,
+            // The OP executor boxes only `OpBlockExecutionError` into `Other`. Any other type is
+            // unclassified and so node-local.
+            BlockValidationError::Other(err) => {
+                err.downcast_ref::<OpBlockExecutionError>().is_some_and(|err| match err {
+                    OpBlockExecutionError::TransactionDaFootprintAboveGasLimit { .. } |
+                    OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock |
+                    OpBlockExecutionError::InvalidPostExecPayload(_) |
+                    OpBlockExecutionError::PostExecSettlementUnderflow { .. } => true,
+                })
+            }
+            BlockValidationError::EVM { .. } |
+            BlockValidationError::IncrementBalanceFailed |
+            BlockValidationError::MissingParentBeaconBlockRoot |
+            BlockValidationError::CancunGenesisParentBeaconBlockRootNotZero { .. } |
+            BlockValidationError::BeaconRootContractCall { .. } |
+            BlockValidationError::BlockHashContractCall { .. } |
+            BlockValidationError::WithdrawalRequestsContractCall { .. } |
+            BlockValidationError::ConsolidationRequestsContractCall { .. } |
+            BlockValidationError::BuilderDepositRequestsContractCall { .. } |
+            BlockValidationError::BuilderExitRequestsContractCall { .. } |
+            BlockValidationError::DepositRequestDecode(_) => false,
+        },
+        BlockExecutionError::Internal(
+            InternalBlockExecutionError::EVM { .. } | InternalBlockExecutionError::Other(_),
+        ) => false,
     }
 }
 
 /// Custom errors that can occur during OP block execution.
+///
+/// Each variant is caused by the block's transactions (see [`is_invalid_payload_error`]). A failure
+/// of the node, such as a database read, must use [`BlockExecutionError::other`] instead.
 #[derive(Debug, thiserror::Error)]
 pub enum OpBlockExecutionError {
-    /// Failed to load cache account.
-    #[error("failed to load cache account")]
-    LoadCacheAccount,
-
-    /// Failed to get Jovian da footprint gas scalar from database.
-    #[error("failed to get da footprint gas scalar from database: {_0}")]
-    GetJovianDaFootprintScalar(Box<dyn core::error::Error + Send + Sync + 'static>),
-
     /// Transaction DA footprint exceeds available block DA footprint.
     #[error(
         "transaction DA footprint exceeds available block DA footprint. transaction_da_footprint: {transaction_da_footprint}, available_block_da_footprint: {available_block_da_footprint}"
@@ -926,14 +948,34 @@ fn validate_block_gas(
     Ok(())
 }
 
-/// UPSTREAM-MIRROR(copy): alloy-evm@0.38.0 `alloy_evm::eth::block::EthBlockExecutor`
+impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
+where
+    E: PostExecEvm,
+    R: OpReceiptBuilder,
+{
+    /// Rolls the refund policy back to the checkpoint taken before a candidate, if one was taken.
+    ///
+    /// A failed revert outranks whatever made the candidate fail: the policy's block-scoped state
+    /// is unspecified from then on, so a caller must not skip the candidate and carry on.
+    fn revert_refund_checkpoint(
+        &mut self,
+        refund_checkpoint: Option<E::Checkpoint>,
+    ) -> Result<(), BlockExecutionError> {
+        refund_checkpoint.map_or(Ok(()), |checkpoint| {
+            self.evm.revert_refund_checkpoint(checkpoint).map_err(BlockExecutionError::other)
+        })
+    }
+}
+
+/// UPSTREAM-MIRROR(copy): alloy-evm@0.39.0 `alloy_evm::eth::block::EthBlockExecutor`
 ///
 /// Mirrors upstream's `BlockExecutor` impl, reusing its `EthTxResult` for the inner result
 /// but reimplementing every method. Known divergences to re-confirm on each bump: upstream
 /// tracks regular and state block gas separately and returns `GasOutput::with_state_gas`,
 /// this tracks `gas_used`/`evm_gas_used` and returns `GasOutput::new`; upstream's admission
 /// check clamps the transaction gas limit by `cfg.tx_gas_limit_cap`, `validate_block_gas`
-/// does not.
+/// does not. Upstream's Amsterdam state-gas capacity check is inapplicable until an OP fork maps
+/// to Amsterdam semantics.
 impl<E, R, Spec> BlockExecutor for OpBlockExecutor<E, R, Spec>
 where
     E: PostExecEvm<
@@ -987,35 +1029,33 @@ where
         // Producer policy state is updated during EVM execution (before the commit decision) and
         // is not journaled with EVM state. A declined candidate must not affect a later committed
         // transaction, or the producer's payload can diverge from commit-only derivation paths.
-        // Snapshot only in Produce mode and restore on decline or execution error.
-        let refund_snapshot = self.post_exec.is_producing().then(|| self.refund_snapshot());
+        // Checkpoint only in Produce mode and revert on decline or execution error. This runs for
+        // every candidate, which is why the policy contract requires an O(1) checkpoint.
+        let refund_checkpoint = self.post_exec.is_producing().then(|| self.evm.refund_checkpoint());
 
         let output = match self.execute_transaction_without_commit(tx) {
             Ok(output) => output,
             Err(err) => {
-                if let Some(snapshot) = refund_snapshot {
-                    self.seed_refund_snapshot(snapshot);
-                }
+                self.revert_refund_checkpoint(refund_checkpoint)?;
                 return Err(err);
             }
         };
 
         if !f(&output).should_commit() {
-            if let Some(snapshot) = refund_snapshot {
-                self.seed_refund_snapshot(snapshot);
-            }
+            self.revert_refund_checkpoint(refund_checkpoint)?;
             return Ok(None);
         }
 
         Ok(Some(self.commit_transaction(output)))
     }
 
-    /// In Produce mode, this method does not snapshot or restore producer-policy state. A failing
+    /// In Produce mode, this method does not checkpoint or revert producer-policy state. A failing
     /// transaction still records its fee-vault touches on the `transact_raw` error path, and a
     /// successfully executed transaction does the same even if its commit is later declined.
-    /// Callers that may discard a candidate must snapshot and restore the policy themselves or use
+    /// Callers that may discard a candidate must checkpoint and revert the policy themselves, via
+    /// [`PostExecEvm::refund_checkpoint`] and [`PostExecEvm::revert_refund_checkpoint`], or use
     /// [`execute_transaction_with_commit_condition`](Self::execute_transaction_with_commit_condition),
-    /// which restores the per-candidate snapshot on execution error and declined commit.
+    /// which reverts to the per-candidate checkpoint on execution error and declined commit.
     fn execute_transaction_without_commit(
         &mut self,
         tx: impl ExecutableTx<Self>,

@@ -19,7 +19,7 @@ use reth_storage_api::{BalProvider, BlockReader, HeaderProvider, StateProviderFa
 use reth_transaction_pool::TransactionPool;
 use tracing::{debug, trace};
 
-/// UPSTREAM-MIRROR(set): reth@rev:0fbe428 `reth_rpc_engine_api::capabilities::CAPABILITIES`
+/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_engine_api::capabilities::CAPABILITIES`
 ///
 /// Advertised capabilities must stay in step with the methods declared on [`OpEngineApi`].
 /// The list of all supported Engine capabilities available over the engine endpoint.
@@ -50,7 +50,7 @@ pub const OP_ENGINE_CAPABILITIES: &[&str] = &[
 /// <https://specs.optimism.io/protocol/exec-engine.html#engine-api>
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "engine"), server_bounds(Engine::PayloadAttributes: jsonrpsee::core::DeserializeOwned))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "engine", client_bounds(Engine::PayloadAttributes: jsonrpsee::core::Serialize + Clone), server_bounds(Engine::PayloadAttributes: jsonrpsee::core::DeserializeOwned)))]
-/// UPSTREAM-MIRROR(set): reth@rev:0fbe428 `reth_rpc_api::EngineApi`
+/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_api::EngineApi`
 ///
 /// Re-declares the engine RPC surface rather than extending upstream's trait. A method added
 /// upstream produces no diff here, so compare the method sets on each bump and update
@@ -253,6 +253,9 @@ pub trait OpEngineApi<Engine: EngineTypes> {
 
 /// The Engine API implementation that grants the Consensus layer access to data and
 /// functions in the Execution layer that are crucial for the consensus process.
+///
+/// Rejecting invalid derived transactions at `engine_forkchoiceUpdated` depends on the node's
+/// payload service being wrapped in `reth_optimism_node::DerivedPayloadServiceBuilder`.
 #[derive(Debug, Constructor)]
 pub struct OpEngineApi<Provider, EngineT: EngineTypes, Pool, Validator, ChainSpec> {
     inner: EngineApi<Provider, EngineT, Pool, Validator, ChainSpec>,

@@ -28,7 +28,9 @@ use revm::{
 
 use crate::{
     OpEvm,
-    post_exec::{PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext},
+    post_exec::{
+        PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext, RevertToCheckpointError,
+    },
 };
 
 use super::*;
@@ -687,7 +689,7 @@ struct HookObservingPolicy {
 }
 
 impl PostExecRefundInspector for HookObservingPolicy {
-    type Snapshot = u64;
+    type Checkpoint = u64;
 
     fn begin_tx(&mut self, _ctx: PostExecTxContext) {
         self.observed_hooks = 0;
@@ -746,12 +748,16 @@ impl PostExecRefundInspector for HookObservingPolicy {
         self.observed_hooks |= 8;
     }
 
-    fn snapshot(&self) -> Self::Snapshot {
+    fn checkpoint(&mut self) -> Self::Checkpoint {
         self.observed_hooks
     }
 
-    fn restore(&mut self, snapshot: Self::Snapshot) {
-        self.observed_hooks = snapshot;
+    fn revert_to_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
+        self.observed_hooks = checkpoint;
+        Ok(())
     }
 }
 
@@ -772,13 +778,15 @@ fn post_exec_composite_dispatches_every_observer_hook() {
     );
 }
 
+/// Claims one unit of refund per transaction and counts the candidates it saw. With
+/// `REVERTS = false` it refuses every revert, like a policy handed a checkpoint it did not issue.
 #[derive(Debug, Clone, Default)]
-struct ScriptedRefundPolicy {
+struct ScriptedRefundPolicy<const REVERTS: bool = true> {
     executed_candidates: u64,
 }
 
-impl PostExecRefundInspector for ScriptedRefundPolicy {
-    type Snapshot = u64;
+impl<const REVERTS: bool> PostExecRefundInspector for ScriptedRefundPolicy<REVERTS> {
+    type Checkpoint = u64;
 
     fn begin_tx(&mut self, _ctx: PostExecTxContext) {}
 
@@ -829,17 +837,24 @@ impl PostExecRefundInspector for ScriptedRefundPolicy {
 
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-    fn snapshot(&self) -> Self::Snapshot {
+    fn checkpoint(&mut self) -> Self::Checkpoint {
         self.executed_candidates
     }
 
-    fn restore(&mut self, snapshot: Self::Snapshot) {
-        self.executed_candidates = snapshot;
+    fn revert_to_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
+        if !REVERTS {
+            return Err(RevertToCheckpointError::new("scripted to refuse every revert"));
+        }
+        self.executed_candidates = checkpoint;
+        Ok(())
     }
 }
 
 #[test]
-fn declined_candidate_restores_refund_policy_snapshot() {
+fn declined_candidate_reverts_refund_policy_checkpoint() {
     let mut db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
     let hardforks = OpChainHardforks::op_mainnet();
@@ -858,6 +873,136 @@ fn declined_candidate_restores_refund_policy_snapshot() {
         &[op_alloy::consensus::SDMGasEntry { index: 0, gas_refund: 1 }],
         "a declined candidate must not leak policy state into the committed transaction"
     );
+}
+
+fn assert_refund_policy_revert_error(err: &BlockExecutionError) {
+    let revert_error = RevertToCheckpointError::from_block_execution_error(err)
+        .unwrap_or_else(|| panic!("expected the policy's revert error, got {err}"));
+    assert_eq!(revert_error.reason(), "scripted to refuse every revert");
+}
+
+#[test]
+fn declined_candidate_fails_when_refund_policy_cannot_revert() {
+    let mut db = prepare_observer_db();
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let hardforks = OpChainHardforks::op_mainnet();
+    let mut executor =
+        build_policy_executor::<ScriptedRefundPolicy<false>>(&mut db, &receipt_builder, &hardforks);
+
+    let err = executor
+        .execute_transaction_with_commit_condition(&observer_test_tx(), |_| CommitChanges::No)
+        .expect_err("a policy that cannot undo the declined candidate fails the call");
+    assert_refund_policy_revert_error(&err);
+}
+
+// The policy's revert error outranks the candidate's own execution error: a caller that saw only
+// the invalid transaction would skip it and keep building on unspecified policy state.
+#[test]
+fn failed_candidate_reports_refund_policy_revert_error_over_its_own() {
+    let mut db = prepare_observer_db();
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let hardforks = OpChainHardforks::op_mainnet();
+    let mut executor =
+        build_policy_executor::<ScriptedRefundPolicy<false>>(&mut db, &receipt_builder, &hardforks);
+    let nonce_too_high = recovered_legacy(TxLegacy {
+        to: TxKind::Call(OBSERVER_TEST_CONTRACT),
+        gas_limit: 200_000,
+        nonce: 7,
+        ..Default::default()
+    });
+
+    let err = executor
+        .execute_transaction(&nonce_too_high)
+        .expect_err("an invalid transaction whose rollback also fails errors");
+    assert_refund_policy_revert_error(&err);
+}
+
+#[test]
+fn failed_candidate_reports_its_own_error_when_refund_policy_reverts() {
+    let mut db = prepare_observer_db();
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let hardforks = OpChainHardforks::op_mainnet();
+    let mut executor =
+        build_policy_executor::<ScriptedRefundPolicy>(&mut db, &receipt_builder, &hardforks);
+    let nonce_too_high = recovered_legacy(TxLegacy {
+        to: TxKind::Call(OBSERVER_TEST_CONTRACT),
+        gas_limit: 200_000,
+        nonce: 7,
+        ..Default::default()
+    });
+
+    let err =
+        executor.execute_transaction(&nonce_too_high).expect_err("an invalid transaction errors");
+    assert!(
+        matches!(err, BlockExecutionError::Validation(BlockValidationError::InvalidTx { .. })),
+        "expected the transaction's own validation error, got {err}"
+    );
+}
+
+/// Only errors that the transactions cause make a derived payload invalid. A failure of the node
+/// classified as invalid would derive a wrong deposits-only block.
+#[test]
+fn only_transaction_errors_make_a_payload_invalid() {
+    let validation = BlockExecutionError::Validation;
+    let op = validation_error;
+    let cases = [
+        (
+            validation(BlockValidationError::InvalidTx {
+                hash: B256::ZERO,
+                error: Box::new(revm::context::result::InvalidTransaction::NonceTooHigh {
+                    tx: 5,
+                    state: 0,
+                }),
+            }),
+            true,
+        ),
+        (
+            validation(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
+                transaction_gas_limit: 2,
+                block_available_gas: 1,
+            }),
+            true,
+        ),
+        (validation(BlockValidationError::BlockGasExceeded), true),
+        (
+            op(OpBlockExecutionError::TransactionDaFootprintAboveGasLimit {
+                transaction_da_footprint: 2,
+                available_block_da_footprint: 1,
+            }),
+            true,
+        ),
+        (op(OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock), true),
+        (op(OpBlockExecutionError::InvalidPostExecPayload("invalid".to_string())), true),
+        (
+            op(OpBlockExecutionError::PostExecSettlementUnderflow {
+                address: Address::ZERO,
+                delta: U256::from(1),
+            }),
+            true,
+        ),
+        (validation(BlockValidationError::msg("unclassified")), false),
+        (validation(BlockValidationError::IncrementBalanceFailed), false),
+        (validation(BlockValidationError::MissingParentBeaconBlockRoot), false),
+        (BlockExecutionError::msg("database read failed"), false),
+        // A failure of the node goes through `BlockExecutionError::other`, whatever its type.
+        (
+            BlockExecutionError::other(OpBlockExecutionError::InvalidPostExecPayload(
+                "invalid".to_string(),
+            )),
+            false,
+        ),
+        (
+            BlockExecutionError::Internal(InternalBlockExecutionError::EVM {
+                hash: B256::ZERO,
+                error: "internal EVM failure".into(),
+            }),
+            false,
+        ),
+    ];
+
+    for (err, expected) in cases {
+        assert_eq!(is_invalid_payload_error(&err), expected, "{err:?}");
+    }
 }
 
 mod structural_tests;
