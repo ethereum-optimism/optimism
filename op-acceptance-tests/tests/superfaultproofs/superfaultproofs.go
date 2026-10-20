@@ -1124,6 +1124,60 @@ func RunConsolidateValidCrossChainMessageTest(t devtest.T, sys *presets.SimpleIn
 	}, runners...)
 }
 
+// RunConsolidateBelowHeadMessageTest proves a timestamp whose executing message on chain B
+// references a block of chain A below A's block at that timestamp. The SP1 consolidation checks
+// such a message against a log commitment of the initiating block.
+func RunConsolidateBelowHeadMessageTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
+	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
+	rng := rand.New(rand.NewSource(1234))
+
+	chains := orderedChains(sys)
+	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
+
+	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
+	aliceB := aliceA.AsEL(sys.L2ELB)
+	sys.FunderB.Fund(aliceB, eth.OneEther)
+
+	eventLogger := aliceA.DeployEventLogger()
+	initMsg := aliceA.SendRandomInitMessage(rng, eventLogger, 2, 10)
+	initBlock := bigs.Uint64Strict(initMsg.BlockNumber())
+	// The margin keeps the initiating block below A's block at B's exec timestamp if B lags.
+	sys.L2ELA.WaitForBlockNumber(initBlock + 3)
+	execMsg := aliceB.SendExecMessage(initMsg)
+
+	endTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execMsg.BlockNumber()))
+	startTimestamp := endTimestamp - 1
+	headA, err := sys.L2ChainA.Escape().RollupConfig().TargetBlockNumber(endTimestamp)
+	t.Require().NoError(err, "chain A block at the executing timestamp")
+	t.Require().Less(initBlock, headA, "the initiating block must be below chain A's block at the executing timestamp")
+
+	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
+	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
+
+	start := superRootAtTimestamp(t, chains, startTimestamp)
+	end := superRootAtTimestamp(t, chains, endTimestamp)
+
+	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[1].ID, endTimestamp)
+	tests := []*transitionTest{
+		{
+			Name:               "ConsolidateBelowHead-Valid",
+			AgreedClaim:        marshalTransition(start, consolidateStep, firstOptimistic, secondOptimistic),
+			DisputedClaim:      end.Marshal(),
+			DisputedTraceIndex: consolidateStep,
+			ExpectValid:        true,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+	}
+
+	runScenarioProofs(t, &sys.SingleChainInterop, chains, &scenarioProofData{
+		fpvmTransitions:    tests,
+		fpvmStartTimestamp: startTimestamp,
+		zkCheckpoint:       newZKCheckpointForRunners(t, &sys.SingleChainInterop, endTimestamp, false, runners),
+	}, runners...)
+}
+
 func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
 	rng := rand.New(rand.NewSource(1234))

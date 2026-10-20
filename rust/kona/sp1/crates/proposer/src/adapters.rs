@@ -1,11 +1,13 @@
 //! Production implementations of proposer dependency capabilities.
 
 use std::{
+    collections::BTreeMap,
     num::NonZeroUsize,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use alloy_consensus::{Header, Sealed};
 use alloy_contract::{CallBuilder, CallDecoder};
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::Ethereum;
@@ -15,9 +17,11 @@ use alloy_rpc_client::{BatchRequest, Waiter};
 use alloy_rpc_types_eth::{TransactionReceipt, TransactionRequest};
 use alloy_sol_types::SolEvent;
 use alloy_transport_http::reqwest::Url;
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use async_trait::async_trait;
-use kona_sp1_super_range_executor::{HostInputs, SuperRootAtTimestampResponse};
+use kona_sources::redacted_url;
+use kona_sp1_super_range_executor::{HostInputs, L2BlockClient, SuperRootAtTimestampResponse};
+use op_alloy_consensus::OpReceiptEnvelope;
 
 use crate::{
     TX_REVERTED_PREFIX, ZK_GAME_TYPE,
@@ -27,16 +31,17 @@ use crate::{
         DisputeGameFactory::{DisputeGameCreated, DisputeGameFactoryInstance},
         GameStatus, ISP1Verifier, ProposalStatus, SP1PlonkAdapter, ZKDisputeGame, ZKGameArgs,
     },
+    env_var,
     ports::{
         ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
         GameCreationReceipt, GameIdentity, GameLifecycle, GameStanding, GameValidity, L1BlockRef,
-        L1View, NonceState, ProofEngine, ProofInputs, ProposalHorizon, QueryTime,
+        L1View, L2BlockSource, NonceState, ProofEngine, ProofInputs, ProposalHorizon, QueryTime,
         SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
     },
     prover::{ProofKeys, ProofProvider},
     proving::{
-        GameProofInputs, InMemoryProofProgress, ProofRequestCounts, ProveGameRequest,
-        prove_game_inner,
+        GameProofInputs, InMemoryProofProgress, LogProofSettings, ProofRequestCounts,
+        ProveGameRequest, prove_game_inner,
     },
     signer::SignerLock,
     superroot::{ResponseSelection, SuperrootClient},
@@ -488,12 +493,68 @@ impl SuperRootSource for ProductionSuperRootSource {
     }
 }
 
+/// Production L2 block reads over the configured L2 execution nodes, keyed by the chain ID that
+/// each reports at startup.
+pub(crate) struct ProductionL2BlockSource {
+    clients: BTreeMap<u64, L2BlockClient>,
+}
+
+impl ProductionL2BlockSource {
+    /// Connects to each of `urls` and reads its chain ID. Fails when a node does not answer or two
+    /// nodes serve one chain.
+    pub(crate) async fn connect(urls: &[Url]) -> Result<Self> {
+        let mut clients = BTreeMap::new();
+        for url in urls {
+            let client = L2BlockClient::connect(url.as_str()).await?;
+            let chain_id = client
+                .chain_id()
+                .await
+                .with_context(|| format!("failed to read the chain ID of {}", redacted_url(url)))?;
+            ensure!(
+                clients.insert(chain_id, client).is_none(),
+                "two {} entries serve chain {chain_id}; the second is {}",
+                env_var("L2_RPCS"),
+                redacted_url(url),
+            );
+        }
+        Ok(Self { clients })
+    }
+
+    fn client(&self, chain_id: u64) -> Result<&L2BlockClient> {
+        self.clients
+            .get(&chain_id)
+            .with_context(|| format!("no {} entry serves chain {chain_id}", env_var("L2_RPCS")))
+    }
+}
+
+#[async_trait]
+impl L2BlockSource for ProductionL2BlockSource {
+    async fn header_by_hash(&self, chain_id: u64, hash: B256) -> Result<Header> {
+        self.client(chain_id)?.header_by_hash(hash).await
+    }
+
+    async fn header_by_number(&self, chain_id: u64, number: u64) -> Result<Sealed<Header>> {
+        self.client(chain_id)?.header_by_number(number).await
+    }
+
+    async fn receipts(
+        &self,
+        chain_id: u64,
+        hash: B256,
+        receipts_root: B256,
+    ) -> Result<Vec<OpReceiptEnvelope>> {
+        self.client(chain_id)?.receipts(hash, receipts_root).await
+    }
+}
+
 /// Production witness collection and SP1 proof execution.
 pub(crate) struct ProductionProofEngine {
     provider: ProofProvider,
     host_inputs: Arc<HostInputs>,
     split: RangeSplitCount,
     max_concurrent: NonZeroUsize,
+    l2: Arc<dyn L2BlockSource>,
+    log: LogProofSettings,
     proof_progress: InMemoryProofProgress,
 }
 
@@ -503,12 +564,16 @@ impl ProductionProofEngine {
         host_inputs: Arc<HostInputs>,
         split: RangeSplitCount,
         max_concurrent: NonZeroUsize,
+        l2: Arc<dyn L2BlockSource>,
+        log: LogProofSettings,
     ) -> Self {
         Self {
             provider,
             host_inputs,
             split,
             max_concurrent,
+            l2,
+            log,
             proof_progress: InMemoryProofProgress::default(),
         }
     }
@@ -538,6 +603,8 @@ impl ProofEngine for ProductionProofEngine {
                 split: self.split,
                 max_concurrent: self.max_concurrent,
                 proof_progress: &self.proof_progress,
+                l2: self.l2.as_ref(),
+                log: &self.log,
             },
         )
         .await
@@ -675,8 +742,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        TxErrorExt, contract::DisputeGameFactory, ports::L1View, prover::MockProofProvider,
-        proving::is_unprovable,
+        TxErrorExt, config::LogPath, contract::DisputeGameFactory, ports::L1View,
+        prover::MockProofProvider, proving::is_unprovable,
     };
 
     fn view(asserter: Asserter) -> ProductionL1View<crate::L1Provider> {
@@ -856,6 +923,13 @@ mod tests {
             }),
             RangeSplitCount::one(),
             NonZeroUsize::MIN,
+            Arc::new(ProductionL2BlockSource::connect(&[]).await.unwrap()),
+            LogProofSettings {
+                path: LogPath::Table,
+                range_gas_limit: 1,
+                log_gas_limit: 1,
+                max_stdin_bytes: Default::default(),
+            },
         );
 
         let error =
@@ -1055,5 +1129,31 @@ mod tests {
         assert!(view.game_validity(Address::ZERO, BlockId::latest()).await.is_err());
         // As above: every read was issued in the batch before the invalid status was converted.
         assert!(asserter.read_q().is_empty());
+    }
+
+    /// Pins an error, not a replaced entry, for two L2 nodes of one chain.
+    #[tokio::test]
+    async fn l2_source_rejects_two_nodes_of_one_chain() {
+        use httpmock::{MockServer, prelude::POST};
+        let mut servers = Vec::new();
+        for _ in 0..2 {
+            let server = MockServer::start_async().await;
+            server
+                .mock_async(|when, then| {
+                    when.method(POST);
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(r#"{"jsonrpc":"2.0","id":0,"result":"0x7"}"#);
+                })
+                .await;
+            servers.push(server);
+        }
+        let urls: Vec<Url> =
+            servers.iter().map(|server| server.url("/").parse().unwrap()).collect();
+        let err = ProductionL2BlockSource::connect(&urls)
+            .await
+            .err()
+            .expect("two nodes of one chain must be rejected");
+        assert!(err.to_string().contains("serve chain 7"), "{err}");
     }
 }
