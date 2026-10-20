@@ -15,7 +15,11 @@ func TryAddRevertReason(err error) error {
 	var errData errWithData
 	ok := errors.As(err, &errData)
 	if ok {
-		return fmt.Errorf("%w, reason: %v", err, errData.ErrorData())
+		data := errData.ErrorData()
+		if data == nil {
+			return err
+		}
+		return fmt.Errorf("%w, reason: %v", err, data)
 	} else {
 		return err
 	}

@@ -2,6 +2,7 @@ package errutil
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,6 +20,26 @@ func TestTryAddRevertReason(t *testing.T) {
 		result := TryAddRevertReason(err)
 		require.Same(t, err, result)
 	})
+
+	t.Run("NilDataPreservesOriginal", func(t *testing.T) {
+		err := &nilDataError{}
+		require.Same(t, err, TryAddRevertReason(err))
+	})
+
+	t.Run("WrappedNilDataPreservesOriginal", func(t *testing.T) {
+		err := fmt.Errorf("RPC request failed: %w", &nilDataError{})
+		require.Same(t, err, TryAddRevertReason(err))
+	})
+}
+
+type nilDataError struct{}
+
+func (e *nilDataError) Error() string {
+	return "reverted without data"
+}
+
+func (e *nilDataError) ErrorData() interface{} {
+	return nil
 }
 
 type stubError struct{}
