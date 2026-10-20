@@ -28,9 +28,8 @@ pragma solidity ^0.8.0;
 ///      For the parallel SYSTEM feature checklist, see
 ///      packages/contracts-bedrock/src/libraries/Features.sol.
 library DevFeatures {
-    /// @notice The feature that enables the L2 interop predeploys, at L2 genesis and in
-    ///         L2ContractsManager upgrades. DeployImplementations and VerifyOPCM also read it, ORed
-    ///         with SUPER_ROOT_GAMES_MIGRATION, for the super dispute game implementations.
+    /// @notice The feature that enables the interop predeploys on L2, at genesis and in
+    ///         L2ContractsManager upgrades.
     bytes32 public constant OPTIMISM_PORTAL_INTEROP =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000001);
 
