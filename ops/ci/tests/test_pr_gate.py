@@ -324,9 +324,9 @@ class GateTests(unittest.TestCase):
         result,output,record=self.run_aggregate(env,gate='required-contracts-ci')
         selection=G.configuration('required-contracts-ci')[1]['required-contracts-ci']
         self.assertEqual(result,0)
-        self.assertEqual(len(selection['requires']),21)
+        self.assertEqual(len(selection['requires']),29)
         self.assertEqual([row['name'] for row in record['dependencies']],selection['requires'])
-        self.assertEqual([len(G.group_tasks(self.manifest,group)) for group in selection['groups']],[1,4,1,8,7])
+        self.assertEqual([len(G.group_tasks(self.manifest,group)) for group in selection['groups']],[1,6,1,12,9])
         self.assertEqual(G.originals(output)['tests'],0)
         self.assertEqual(self.manifest['groups']['contracts-checks']['embedded_task'],
                          self.manifest['groups']['main-checks']['embedded_task'])

@@ -253,6 +253,9 @@ pub trait OpEngineApi<Engine: EngineTypes> {
 
 /// The Engine API implementation that grants the Consensus layer access to data and
 /// functions in the Execution layer that are crucial for the consensus process.
+///
+/// Rejecting invalid derived transactions at `engine_forkchoiceUpdated` depends on the node's
+/// payload service being wrapped in `reth_optimism_node::DerivedPayloadServiceBuilder`.
 #[derive(Debug, Constructor)]
 pub struct OpEngineApi<Provider, EngineT: EngineTypes, Pool, Validator, ChainSpec> {
     inner: EngineApi<Provider, EngineT, Pool, Validator, ChainSpec>,

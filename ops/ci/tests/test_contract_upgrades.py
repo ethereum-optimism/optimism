@@ -109,8 +109,8 @@ class UpgradeTests(unittest.TestCase):
             row['creation_bytecode'].pop('out/Fixture.json')
             with self.assertRaisesRegex(ValueError, 'artifact binding'): UP.deployable(row)
 
-    def test_all_seven_occurrences_have_distinct_identity_including_both_op_main(self):
-        self.assertEqual(len(UP.VARIANTS), 7)
+    def test_all_nine_occurrences_have_distinct_identity_including_both_op_main(self):
+        self.assertEqual(len(UP.VARIANTS), 9)
         self.assertEqual(UP.VARIANTS['chain-op'], UP.VARIANTS['feature-main'])
         with patch.dict(os.environ, {'CI_BRANCH': 'pilot', 'FOUNDRY_MATCH_TEST': 'partial',
                          'FOUNDRY_FUZZ_RUNS': '0', 'DEV_FEATURE__UNRELATED': 'true', 'ETH_RPC_URL': 'ambient'}, clear=True):
@@ -120,6 +120,16 @@ class UpgradeTests(unittest.TestCase):
             for name in ('ETH_RPC_URL', 'FOUNDRY_MATCH_TEST', 'DEV_FEATURE__UNRELATED'): self.assertNotIn(name, os.environ)
             os.environ['CI_BRANCH'] = 'develop'; UP.configure('chain-ink'); self.assertEqual(os.environ['FOUNDRY_PROFILE'], 'ci')
             self.assertNotIn('SYS_FEATURE__CUSTOM_GAS_TOKEN', os.environ)
+
+    def test_bridge_combinations_enable_exact_flags_and_clear_previous_features(self):
+        with patch.dict(os.environ, {'CI_BRANCH': 'pilot', 'SYS_FEATURE__CUSTOM_GAS_TOKEN': 'true'}, clear=True):
+            UP.configure('feature-BRIDGE_HOOK,ZK_DISPUTE_GAME')
+            enabled = {k: v for k, v in os.environ.items() if k.startswith(('DEV_FEATURE__', 'SYS_FEATURE__'))}
+            self.assertEqual(enabled, {'DEV_FEATURE__BRIDGE_HOOK': 'true', 'DEV_FEATURE__ZK_DISPUTE_GAME': 'true'})
+            UP.configure('feature-BRIDGE_HOOK')
+            self.assertNotIn('DEV_FEATURE__ZK_DISPUTE_GAME', os.environ)
+            self.assertEqual(os.environ['DEV_FEATURE__BRIDGE_HOOK'], 'true')
+            with self.assertRaises(KeyError): UP.configure('feature-BRIDGE_HOOK_CUSTOM_GAS_TOKEN')
 
     def test_rpc_identity_checks_actual_chain_height_hash_and_availability(self):
         correct = {'number': '0x42', 'hash': '0x' + 'a' * 64, 'timestamp': '0x64'}

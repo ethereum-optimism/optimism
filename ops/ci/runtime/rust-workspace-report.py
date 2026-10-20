@@ -234,8 +234,15 @@ def no_std_report(directory):
     log = (directory / 'no-std.log').read_text()
     attempted = re.findall(r'^Checking no_std build for: (.+)$', log, re.M)
     completed = re.findall(r'^Successfully checked no_std build for: (.+)$', log, re.M)
-    write(directory / 'no-std-coverage.json', {'selected': selected, 'attempted': attempted, 'completed': completed})
-    if not selected or len(selected) != len(set(selected)) or attempted != selected or completed != selected:
+    host_array = re.search(r'host_no_std_packages=\((.*?)\n\s*\)', source, re.S)
+    host_selected = shlex.split(host_array.group(1), comments=True) if host_array else []
+    host_attempted = re.findall(r'^Checking host-target no_std build for: (.+)$', log, re.M)
+    host_completed = re.findall(r'^Successfully checked host-target no_std build for: (.+)$', log, re.M)
+    write(directory / 'no-std-coverage.json', {'selected': selected, 'attempted': attempted, 'completed': completed,
+          'host_selected': host_selected, 'host_attempted': host_attempted, 'host_completed': host_completed})
+    if (not selected or len(selected) != len(set(selected)) or attempted != selected or completed != selected
+            or len(host_selected) != len(set(host_selected)) or host_attempted != host_selected
+            or host_completed != host_selected):
         raise ValueError('Incomplete no_std package coverage')
 
 

@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [compile-standard-main, compile-standard-CUSTOM_GAS_TOKEN, compile-standard-OPTIMISM_PORTAL_INTEROP, compile-standard-ZK_DISPUTE_GAME, compile-modified-main, compile-modified-CUSTOM_GAS_TOKEN, compile-modified-OPTIMISM_PORTAL_INTEROP, compile-modified-ZK_DISPUTE_GAME]
+    target: [compile-standard-main, compile-standard-CUSTOM_GAS_TOKEN, compile-standard-OPTIMISM_PORTAL_INTEROP, compile-standard-ZK_DISPUTE_GAME, compile-modified-main, compile-modified-CUSTOM_GAS_TOKEN, compile-modified-OPTIMISM_PORTAL_INTEROP, compile-modified-ZK_DISPUTE_GAME, compile-standard-BRIDGE_HOOK, compile-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME, compile-modified-BRIDGE_HOOK, compile-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -256,6 +256,30 @@ tasks:
       suite: standard
       feature: ZK_DISPUTE_GAME
 
+  - key: compile-standard-BRIDGE_HOOK
+    use: [source, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-standard-BRIDGE_HOOK-${{ init.cache-epoch }}
+      suite: standard
+      feature: BRIDGE_HOOK
+
+  - key: compile-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME
+    use: [source, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      suite: standard
+      feature: BRIDGE_HOOK,ZK_DISPUTE_GAME
+
   - key: verdict-standard-ZK_DISPUTE_GAME
     use: [source, go-tools, contract-tools, go-modules, compile-standard-ZK_DISPUTE_GAME]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-ZK_DISPUTE_GAME.tasks.build.values.eligible == 'true' }}
@@ -267,6 +291,30 @@ tasks:
       cache-key: contract-suites-runtime-standard-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
       suite: standard
       feature: ZK_DISPUTE_GAME
+
+  - key: verdict-standard-BRIDGE_HOOK
+    use: [source, go-tools, contract-tools, go-modules, compile-standard-BRIDGE_HOOK]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-BRIDGE_HOOK.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/standard-BRIDGE_HOOK/prepare
+      cache-key: contract-suites-runtime-standard-BRIDGE_HOOK-${{ init.cache-epoch }}
+      suite: standard
+      feature: BRIDGE_HOOK
+
+  - key: verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME
+    use: [source, go-tools, contract-tools, go-modules, compile-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/standard-BRIDGE_HOOK,ZK_DISPUTE_GAME/prepare
+      cache-key: contract-suites-runtime-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      suite: standard
+      feature: BRIDGE_HOOK,ZK_DISPUTE_GAME
 
   - key: compile-modified-main
     use: [modified-baseline, go-tools, contract-tools, go-modules]
@@ -359,6 +407,32 @@ tasks:
       suite: modified
       feature: ZK_DISPUTE_GAME
 
+  - key: compile-modified-BRIDGE_HOOK
+    use: [modified-baseline, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-modified-BRIDGE_HOOK-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: BRIDGE_HOOK
+
+  - key: compile-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME
+    use: [modified-baseline, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: BRIDGE_HOOK,ZK_DISPUTE_GAME
+
   - key: verdict-modified-ZK_DISPUTE_GAME
     use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-ZK_DISPUTE_GAME]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-ZK_DISPUTE_GAME.tasks.build.values.eligible == 'true' }}
@@ -372,12 +446,50 @@ tasks:
       suite: modified
       feature: ZK_DISPUTE_GAME
 
+  - key: verdict-modified-BRIDGE_HOOK
+    use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-BRIDGE_HOOK]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-BRIDGE_HOOK.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/modified-BRIDGE_HOOK/prepare
+      cache-key: contract-suites-runtime-modified-BRIDGE_HOOK-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: BRIDGE_HOOK
+
+  - key: verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME
+    use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/modified-BRIDGE_HOOK,ZK_DISPUTE_GAME/prepare
+      cache-key: contract-suites-runtime-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: BRIDGE_HOOK,ZK_DISPUTE_GAME
+
   - key: contracts-gate-receipt
     use: [code, tools]
-    after: ${{ (verdict-modified-CUSTOM_GAS_TOKEN.succeeded || verdict-modified-CUSTOM_GAS_TOKEN.failed || verdict-modified-CUSTOM_GAS_TOKEN.skipped) && (verdict-modified-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-modified-OPTIMISM_PORTAL_INTEROP.failed || verdict-modified-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-modified-ZK_DISPUTE_GAME.succeeded || verdict-modified-ZK_DISPUTE_GAME.failed || verdict-modified-ZK_DISPUTE_GAME.skipped) && (verdict-modified-main.succeeded || verdict-modified-main.failed || verdict-modified-main.skipped) && (verdict-standard-CUSTOM_GAS_TOKEN.succeeded || verdict-standard-CUSTOM_GAS_TOKEN.failed || verdict-standard-CUSTOM_GAS_TOKEN.skipped) && (verdict-standard-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-standard-OPTIMISM_PORTAL_INTEROP.failed || verdict-standard-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-standard-ZK_DISPUTE_GAME.succeeded || verdict-standard-ZK_DISPUTE_GAME.failed || verdict-standard-ZK_DISPUTE_GAME.skipped) && (verdict-standard-main.succeeded || verdict-standard-main.failed || verdict-standard-main.skipped) }}
+    after: ${{ (verdict-modified-BRIDGE_HOOK.succeeded || verdict-modified-BRIDGE_HOOK.failed || verdict-modified-BRIDGE_HOOK.skipped) && (verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME.succeeded || verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME.failed || verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME.skipped) && (verdict-modified-CUSTOM_GAS_TOKEN.succeeded || verdict-modified-CUSTOM_GAS_TOKEN.failed || verdict-modified-CUSTOM_GAS_TOKEN.skipped) && (verdict-modified-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-modified-OPTIMISM_PORTAL_INTEROP.failed || verdict-modified-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-modified-ZK_DISPUTE_GAME.succeeded || verdict-modified-ZK_DISPUTE_GAME.failed || verdict-modified-ZK_DISPUTE_GAME.skipped) && (verdict-modified-main.succeeded || verdict-modified-main.failed || verdict-modified-main.skipped) && (verdict-standard-BRIDGE_HOOK.succeeded || verdict-standard-BRIDGE_HOOK.failed || verdict-standard-BRIDGE_HOOK.skipped) && (verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME.succeeded || verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME.failed || verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME.skipped) && (verdict-standard-CUSTOM_GAS_TOKEN.succeeded || verdict-standard-CUSTOM_GAS_TOKEN.failed || verdict-standard-CUSTOM_GAS_TOKEN.skipped) && (verdict-standard-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-standard-OPTIMISM_PORTAL_INTEROP.failed || verdict-standard-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-standard-ZK_DISPUTE_GAME.succeeded || verdict-standard-ZK_DISPUTE_GAME.failed || verdict-standard-ZK_DISPUTE_GAME.skipped) && (verdict-standard-main.succeeded || verdict-standard-main.failed || verdict-standard-main.skipped) }}
     if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt contracts-suites
     env:
+      TASK_VERDICT_STANDARD_BRIDGE_HOOK_ZK_DISPUTE_GAME_SUCCEEDED: ${{ tasks.verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME.succeeded }}
+      TASK_VERDICT_STANDARD_BRIDGE_HOOK_ZK_DISPUTE_GAME_FAILED: ${{ tasks.verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME.failed }}
+      TASK_VERDICT_STANDARD_BRIDGE_HOOK_ZK_DISPUTE_GAME_SKIPPED: ${{ tasks.verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME.skipped }}
+      TASK_VERDICT_STANDARD_BRIDGE_HOOK_SUCCEEDED: ${{ tasks.verdict-standard-BRIDGE_HOOK.succeeded }}
+      TASK_VERDICT_STANDARD_BRIDGE_HOOK_FAILED: ${{ tasks.verdict-standard-BRIDGE_HOOK.failed }}
+      TASK_VERDICT_STANDARD_BRIDGE_HOOK_SKIPPED: ${{ tasks.verdict-standard-BRIDGE_HOOK.skipped }}
+      TASK_VERDICT_MODIFIED_BRIDGE_HOOK_ZK_DISPUTE_GAME_SUCCEEDED: ${{ tasks.verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME.succeeded }}
+      TASK_VERDICT_MODIFIED_BRIDGE_HOOK_ZK_DISPUTE_GAME_FAILED: ${{ tasks.verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME.failed }}
+      TASK_VERDICT_MODIFIED_BRIDGE_HOOK_ZK_DISPUTE_GAME_SKIPPED: ${{ tasks.verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME.skipped }}
+      TASK_VERDICT_MODIFIED_BRIDGE_HOOK_SUCCEEDED: ${{ tasks.verdict-modified-BRIDGE_HOOK.succeeded }}
+      TASK_VERDICT_MODIFIED_BRIDGE_HOOK_FAILED: ${{ tasks.verdict-modified-BRIDGE_HOOK.failed }}
+      TASK_VERDICT_MODIFIED_BRIDGE_HOOK_SKIPPED: ${{ tasks.verdict-modified-BRIDGE_HOOK.skipped }}
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
       GROUP_SELECTED: ${{ tasks.route.values.run-contracts }}

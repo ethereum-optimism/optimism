@@ -97,7 +97,8 @@ def configure(suite, feature):
     profile = 'ciheavy' if suite == 'modified' else 'ci' if branch == 'develop' else 'liteci'
     if os.environ.get('CI_CONTRACT_PROFILE', profile) != profile: raise ValueError('Circle contract profile differs from suite and branch')
     os.environ.update(FOUNDRY_PROFILE=profile, FORK_TEST='false', L2_FORK_TEST='false', L2CM_ACTIVATION_TEST='false', CI='true')
-    if feature != 'main': os.environ[UP.FEATURES[feature]] = 'true'
+    if feature != 'main':
+        for variable in UP.FEATURES[feature].split(): os.environ[variable] = 'true'
     return branch, profile
 
 

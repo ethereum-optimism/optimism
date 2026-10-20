@@ -20,4 +20,6 @@ mod estimate_gas_7825;
 
 mod p2p_version;
 
+mod derived_attributes;
+
 const fn main() {}

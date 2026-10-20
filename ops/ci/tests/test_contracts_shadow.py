@@ -17,6 +17,8 @@ FEATURES = {
     "CUSTOM_GAS_TOKEN": "SYS_FEATURE__CUSTOM_GAS_TOKEN",
     "OPTIMISM_PORTAL_INTEROP": "DEV_FEATURE__OPTIMISM_PORTAL_INTEROP",
     "ZK_DISPUTE_GAME": "DEV_FEATURE__ZK_DISPUTE_GAME",
+    "BRIDGE_HOOK": "DEV_FEATURE__BRIDGE_HOOK",
+    "BRIDGE_HOOK,ZK_DISPUTE_GAME": "DEV_FEATURE__BRIDGE_HOOK DEV_FEATURE__ZK_DISPUTE_GAME",
 }
 CONFIG = {
     "test": "test", "ffi": True, "optimizer": False, "optimizer_runs": 0,
@@ -200,7 +202,7 @@ class ContractsShadowTest(unittest.TestCase):
                                  ["test/A.t.sol", "test/invariants/C.t.sol", "test/nested/B.t.sol"])
                 test_call = [call for call in self.calls() if call["command"] == "just" and call["args"] == ["test"]][-1]
                 enabled = {key: value for key, value in test_call["env"].items() if key.startswith(("DEV_FEATURE__", "SYS_FEATURE__"))}
-                self.assertEqual(enabled, {variable: "true"} if variable else {})
+                self.assertEqual(enabled, {key: "true" for key in variable.split()} if variable else {})
                 self.assertEqual(test_call["env"]["FORK_TEST"], "false")
                 self.assertEqual(test_call["env"]["L2_FORK_TEST"], "false")
                 self.assertEqual(test_call["env"]["L2CM_ACTIVATION_TEST"], "false")
