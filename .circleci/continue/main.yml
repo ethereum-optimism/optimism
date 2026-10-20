@@ -2425,34 +2425,6 @@ jobs:
           command: |
             GORELEASER_CURRENT_TAG="$CIRCLE_TAG" goreleaser release --clean -f ./<<parameters.module>>/<<parameters.filename>>
 
-  diff-fetcher-forge-artifacts:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium.gen2
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - install-contracts-dependencies
-      - run:
-          name: Build contracts
-          command: |
-            just build-contracts
-          working_directory: op-fetcher
-      - run:
-          name: Compare forge artifacts
-          command: |
-            diff -qr "packages/contracts-bedrock/forge-artifacts/FetchChainInfo.s.sol" \
-                    "op-fetcher/pkg/fetcher/fetch/forge-artifacts/FetchChainInfo.s.sol"
-
-            if [ $? -ne 0 ]; then
-              echo "ERROR: The checked-in forge artifacts for FetchChainInfo.s.sol do not match the ci build."
-              echo "Please run 'just build-contracts' in the op-fetcher directory and commit the changes."
-              exit 1
-            fi
-
-            echo "✅ Checked-in forge artifacts match the ci build"
-
   stale-check:
     machine:
       image: ubuntu-2204:2024.08.1
@@ -2529,11 +2501,6 @@ workflows:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - diff-fetcher-forge-artifacts:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - contracts-bedrock-build
       - op-deployer-forge-version:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2752,7 +2719,6 @@ workflows:
             - op-deployer-forge-version: terminal
             - l2-chains-sync-check: terminal
             - nut-provenance-verify: terminal
-            - diff-fetcher-forge-artifacts: terminal
           context:
             - circleci-api-token
           filters:

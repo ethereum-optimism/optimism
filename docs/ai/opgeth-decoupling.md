@@ -268,7 +268,7 @@ tooling) cannot generate it at all. The registry→`ChainConfig` conversion (`Op
 one-way. `TestBundleReachability` in `op-core/superchain/deps_test.go` guards the whole
 monorepo against reaching the bundle via a `bundleAllowed` allowlist; per-package guard
 tests (`op-service/testutils/depguard`) in `op-node/rollup`, `op-chain-ops/{genesis,script}`,
-and `op-fetcher/pkg/fetcher/fetch{,/script}` give a local failure signal on top.
+and `op-fetcher/pkg/fetcher/fetch` give a local failure signal on top.
 
 `rollup.Config` carries the full OP hardfork schedule itself (loaded from the registry,
 bypassing any geth `ChainConfig`); future forks extend `rollup.Config` directly. Any remaining

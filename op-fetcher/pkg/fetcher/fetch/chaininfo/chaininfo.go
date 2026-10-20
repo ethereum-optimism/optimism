@@ -1,11 +1,11 @@
-package script
+// Package chaininfo holds the chain configuration that op-fetcher reads from L1, in the
+// shapes it is returned and serialized in.
+package chaininfo
 
 import (
 	"math"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -28,14 +28,12 @@ type FetchChainInfoInput struct {
 	L1StandardBridgeProxy common.Address
 }
 
+// FetchChainInfoOutput is the flat result of a fetch. A RespectedGameType of math.MaxUint32
+// means the chain has no fault proofs.
 type FetchChainInfoOutput struct {
 	Addresses
 	addresses.OpChainRoles
 	FaultProofStatus
-}
-
-func (output *FetchChainInfoOutput) CheckOutput(input common.Address) error {
-	return nil
 }
 
 type ChainConfig struct {
@@ -57,8 +55,4 @@ func CreateChainConfig(output FetchChainInfoOutput) ChainConfig {
 		chain.FaultProofStatus = &output.FaultProofStatus
 	}
 	return chain
-}
-
-func FetchChainInfo(h *script.Host, input FetchChainInfoInput) (FetchChainInfoOutput, error) {
-	return opcm.RunScriptSingle[FetchChainInfoInput, FetchChainInfoOutput](h, input, "FetchChainInfo.s.sol", "FetchChainInfo")
 }
