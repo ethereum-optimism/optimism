@@ -13,7 +13,7 @@ use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use crossbeam_channel::{Receiver, RecvError, RecvTimeoutError, bounded};
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
-use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory};
+use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, StageCheckpointReader};
 use std::time::Duration;
 #[cfg(feature = "metrics")]
 use std::time::Instant;
@@ -171,6 +171,7 @@ where
     Evm: ConfigureEvm,
     Provider: BlockHashReader
         + CanonicalInMemoryStateProvider
+        + StageCheckpointReader
         + DatabaseProviderFactory
         + BlockReader<Block = BlockTy<Evm::Primitives>>
         + Clone

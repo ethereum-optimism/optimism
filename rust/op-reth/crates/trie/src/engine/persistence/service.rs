@@ -6,7 +6,7 @@ use super::{error::PersistenceError, handle::PersistenceAction};
 use crate::{BlockStateDiff, OpProofsStore, api::OpProofsProviderRw, prune::OpProofStoragePruner};
 use alloy_eips::eip1898::BlockWithParent;
 use crossbeam_channel::{Receiver, Sender};
-use reth_provider::BlockNumReader;
+use reth_provider::{BlockHashReader, StageCheckpointReader};
 use std::{sync::Arc, time::Instant};
 use tracing::{debug, error, info, warn};
 
@@ -22,7 +22,7 @@ pub struct PersistenceService<H, S> {
     metrics: PersistenceMetrics,
 }
 
-impl<H: BlockNumReader, S: OpProofsStore> PersistenceService<H, S> {
+impl<H: BlockHashReader + StageCheckpointReader, S: OpProofsStore> PersistenceService<H, S> {
     /// Create a new persistence service.
     pub fn new(
         pruner: OpProofStoragePruner<S, H>,

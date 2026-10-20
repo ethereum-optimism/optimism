@@ -10,7 +10,7 @@ use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_primitives_traits::{AlloyBlockHeader, BlockBody, NodePrimitives, RecoveredBlock};
 use reth_provider::{
     BlockHashReader, BlockReader, DatabaseProviderFactory, HashedPostStateProvider,
-    StateRootProvider,
+    StageCheckpointReader, StateRootProvider,
 };
 use reth_revm::database::StateProviderDatabase;
 use reth_trie_common::EMPTY_ROOT_HASH;
@@ -28,6 +28,7 @@ impl<Block: reth_primitives_traits::Block> ExecuteBlockTask<Block> {
         Evm: ConfigureEvm<Primitives: NodePrimitives<Block = Block>>,
         Provider: BlockHashReader
             + CanonicalInMemoryStateProvider
+            + StageCheckpointReader
             + DatabaseProviderFactory
             + BlockReader<Block = Block>
             + Clone
@@ -48,6 +49,7 @@ where
     Evm: ConfigureEvm<Primitives: NodePrimitives<Block = Block>>,
     Provider: BlockHashReader
         + CanonicalInMemoryStateProvider
+        + StageCheckpointReader
         + DatabaseProviderFactory
         + BlockReader<Block = Block>
         + Clone

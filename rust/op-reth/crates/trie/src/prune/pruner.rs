@@ -6,7 +6,8 @@ use crate::{
 };
 
 use alloy_eips::{BlockNumHash, eip1898::BlockWithParent};
-use reth_provider::BlockNumReader;
+use reth_provider::{BlockHashReader, StageCheckpointReader};
+use reth_stages_types::StageId;
 use std::cmp;
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace};
@@ -55,7 +56,7 @@ impl<S, H> OpProofStoragePruner<S, H> {
 impl<S, H> OpProofStoragePruner<S, H>
 where
     S: OpProofsStore,
-    H: BlockNumReader,
+    H: BlockHashReader + StageCheckpointReader,
 {
     fn run_inner(&self) -> OpProofStoragePrunerResult {
         let provider_ro = self.store.provider_ro()?;
@@ -157,8 +158,13 @@ where
             return Ok(None);
         }
         // reth may drop the blocks above its persisted head after a crash, and the storage can
-        // only be unwound down to its earliest block.
-        let persisted_head = self.block_hash_reader.last_block_number()?;
+        // only be unwound down to its earliest block. The `Finish` checkpoint is that head: reth
+        // publishes static files before committing the database, so their tip can be ahead of it.
+        let persisted_head = self
+            .block_hash_reader
+            .get_stage_checkpoint(StageId::Finish)?
+            .map(|checkpoint| checkpoint.block_number)
+            .unwrap_or_default();
         let target_earliest_block = (latest_block - self.min_block_interval).min(persisted_head);
         if target_earliest_block <= earliest_block {
             trace!(
@@ -251,9 +257,8 @@ mod tests {
     use alloy_eips::{BlockHashOrNumber, BlockNumHash, NumHash};
     use alloy_primitives::{B256, BlockNumber, U256};
     use mockall::mock;
-    use reth_chainspec::ChainInfo;
     use reth_primitives_traits::Account;
-    use reth_provider::BlockHashReader;
+    use reth_stages_types::StageCheckpoint;
     use reth_storage_errors::provider::ProviderResult;
     use reth_trie::{
         BranchNodeCompact, HashedPostState, HashedStorage, Nibbles,
@@ -266,9 +271,9 @@ mod tests {
 
     mock! (
         #[derive(Debug)]
-        pub BlockNumReader {}
+        pub ChainReader {}
 
-        impl BlockHashReader for BlockNumReader {
+        impl BlockHashReader for ChainReader {
             fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>>;
 
             fn convert_block_hash(
@@ -283,14 +288,12 @@ mod tests {
             ) -> ProviderResult<Vec<B256>>;
         }
 
-        impl BlockNumReader for BlockNumReader {
-            fn chain_info(&self) -> ProviderResult<ChainInfo>;
+        impl StageCheckpointReader for ChainReader {
+            fn get_stage_checkpoint(&self, id: StageId) -> ProviderResult<Option<StageCheckpoint>>;
 
-            fn best_block_number(&self) -> ProviderResult<BlockNumber>;
+            fn get_stage_checkpoint_progress(&self, id: StageId) -> ProviderResult<Option<Vec<u8>>>;
 
-            fn last_block_number(&self) -> ProviderResult<BlockNumber>;
-
-            fn block_number(&self, hash: B256) -> ProviderResult<Option<BlockNumber>>;
+            fn get_all_checkpoints(&self) -> ProviderResult<Vec<(String, StageCheckpoint)>>;
         }
     );
 
@@ -512,7 +515,7 @@ mod tests {
 
         // --- prune: remove the first 3 blocks, keep 4 and 5
         // new_earliest = 5-1 = 4
-        let mut block_hash_reader = MockBlockNumReader::new();
+        let mut block_hash_reader = MockChainReader::new();
         block_hash_reader
             .expect_block_hash()
             .withf(move |block_num| *block_num == 4)
@@ -522,7 +525,9 @@ mod tests {
             .expect_block_hash()
             .withf(move |block_num| *block_num == 3)
             .returning(move |_| Ok(Some(b256(3))));
-        block_hash_reader.expect_last_block_number().returning(|| Ok(5));
+        block_hash_reader
+            .expect_get_stage_checkpoint()
+            .returning(|_| Ok(Some(StageCheckpoint::new(5))));
 
         let pruner = OpProofStoragePruner::new(store.clone(), block_hash_reader, 1);
         let out = pruner.run_inner().expect("pruner ok");
@@ -625,7 +630,7 @@ mod tests {
             assert!(matches!(latest, Err(OpProofsStorageError::NoBlocksFound)));
         }
 
-        let block_hash_reader = MockBlockNumReader::new();
+        let block_hash_reader = MockChainReader::new();
         let pruner = OpProofStoragePruner::new(store, block_hash_reader, 10);
         let out = pruner.run_inner().expect("ok");
         assert_eq!(out, PrunerOutput::default(), "should early-return default output");
@@ -657,7 +662,7 @@ mod tests {
             assert_eq!(latest.number, 3, "commit_initial_state bootstraps both anchors");
         }
 
-        let block_hash_reader = MockBlockNumReader::new();
+        let block_hash_reader = MockChainReader::new();
         let pruner = OpProofStoragePruner::new(store, block_hash_reader, 1);
         let out = pruner.run_inner().expect("ok");
         assert_eq!(out, PrunerOutput::default(), "should early-return default output");
@@ -701,7 +706,7 @@ mod tests {
         }
 
         // Require min_block_interval=2 (or greater) so interval < min
-        let block_hash_reader = MockBlockNumReader::new();
+        let block_hash_reader = MockChainReader::new();
         let pruner = OpProofStoragePruner::new(store, block_hash_reader, 2);
         let out = pruner.run_inner().expect("ok");
         assert_eq!(out, PrunerOutput::default(), "no pruning should occur");
@@ -729,9 +734,9 @@ mod tests {
     async fn run_inner_keeps_earliest_at_or_below_persisted_head() {
         let (_dir, store) = store_with_blocks(10);
 
-        let mut reader = MockBlockNumReader::new();
+        let mut reader = MockChainReader::new();
         reader.expect_block_hash().returning(|n| Ok(Some(b256(n))));
-        reader.expect_last_block_number().returning(|| Ok(4));
+        reader.expect_get_stage_checkpoint().returning(|_| Ok(Some(StageCheckpoint::new(4))));
 
         let pruner = OpProofStoragePruner::new(store.clone(), reader, 2);
         let out = pruner.run_inner().expect("pruner ok");
@@ -742,13 +747,48 @@ mod tests {
         assert_eq!(provider.get_latest_block().expect("latest"), NumHash::new(10, b256(10)));
     }
 
+    // reth publishes static-file headers before it commits the database, so a crash can drop the
+    // headers above the `Finish` checkpoint. The earliest block must stay at or below the
+    // checkpoint.
+    #[tokio::test]
+    async fn run_inner_caps_at_finish_checkpoint_behind_static_file_headers() {
+        use alloy_consensus::Header;
+        use reth_provider::{
+            BlockNumReader, StageCheckpointWriter, StaticFileProviderFactory, StaticFileSegment,
+            StaticFileWriter, test_utils::create_test_provider_factory,
+        };
+
+        let (_dir, store) = store_with_blocks(10);
+
+        let factory = create_test_provider_factory();
+        let static_files = factory.static_file_provider();
+        let mut writer = static_files.latest_writer(StaticFileSegment::Headers).unwrap();
+        for n in 0..=10 {
+            writer.append_header(&Header { number: n, ..Default::default() }, &b256(n)).unwrap();
+        }
+        writer.commit().unwrap();
+        drop(writer);
+        let provider_rw = factory.provider_rw().unwrap();
+        provider_rw.save_stage_checkpoint(StageId::Finish, StageCheckpoint::new(4)).unwrap();
+        provider_rw.commit().unwrap();
+        assert_eq!(factory.last_block_number().unwrap(), 10);
+
+        let pruner = OpProofStoragePruner::new(store.clone(), factory, 2);
+        let out = pruner.run_inner().expect("pruner ok");
+        assert_eq!((out.start_block, out.end_block), (0, 4));
+        assert_eq!(
+            store.provider_ro().unwrap().get_earliest_block().unwrap(),
+            NumHash::new(4, b256(4))
+        );
+    }
+
     // Nothing is pruned while reth's persisted head is at or below the earliest block.
     #[tokio::test]
     async fn run_inner_skips_when_persisted_head_at_earliest() {
         let (_dir, store) = store_with_blocks(10);
 
-        let mut reader = MockBlockNumReader::new();
-        reader.expect_last_block_number().returning(|| Ok(0));
+        let mut reader = MockChainReader::new();
+        reader.expect_get_stage_checkpoint().returning(|_| Ok(Some(StageCheckpoint::new(0))));
 
         let pruner = OpProofStoragePruner::new(store.clone(), reader, 2);
         let out = pruner.run_inner().expect("pruner ok");

@@ -67,7 +67,7 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> PruneCommand<C> {
     /// Run the pruner against the given proofs storage.
     fn run_prune(
         storage: impl OpProofsStore,
-        block_hash_reader: impl reth_provider::BlockNumReader,
+        block_hash_reader: impl reth_provider::BlockHashReader + reth_provider::StageCheckpointReader,
         proofs_history_window: u64,
         prune_batch_size: u64,
     ) -> eyre::Result<()> {
