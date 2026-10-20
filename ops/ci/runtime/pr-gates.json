@@ -388,6 +388,20 @@
           ]
         },
         {
+          "name": "contracts-bedrock-tests BRIDGE_HOOK",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-standard-BRIDGE_HOOK"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests BRIDGE_HOOK,ZK_DISPUTE_GAME",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME"
+          ]
+        },
+        {
           "name": "contracts-bedrock-tests-heavy-fuzz-modified main",
           "group": "contracts-suites",
           "tasks": [
@@ -413,6 +427,20 @@
           "group": "contracts-suites",
           "tasks": [
             "verdict-modified-ZK_DISPUTE_GAME"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-heavy-fuzz-modified BRIDGE_HOOK",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-modified-BRIDGE_HOOK"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-heavy-fuzz-modified BRIDGE_HOOK,ZK_DISPUTE_GAME",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME"
           ]
         },
         {
@@ -444,6 +472,20 @@
           ]
         },
         {
+          "name": "contracts-bedrock-coverage BRIDGE_HOOK",
+          "group": "contracts-coverage",
+          "tasks": [
+            "verdict-BRIDGE_HOOK"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-coverage BRIDGE_HOOK,ZK_DISPUTE_GAME",
+          "group": "contracts-coverage",
+          "tasks": [
+            "verdict-BRIDGE_HOOK_ZK_DISPUTE_GAME"
+          ]
+        },
+        {
           "name": "contracts-bedrock-tests-upgrade op-mainnet main",
           "group": "contracts-upgrades",
           "tasks": [
@@ -469,6 +511,20 @@
           "group": "contracts-upgrades",
           "tasks": [
             "verdict-feature-ZK_DISPUTE_GAME"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade op-mainnet BRIDGE_HOOK",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-feature-BRIDGE_HOOK"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade op-mainnet BRIDGE_HOOK,ZK_DISPUTE_GAME",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-feature-BRIDGE_HOOK_ZK_DISPUTE_GAME"
           ]
         },
         {

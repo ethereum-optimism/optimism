@@ -29,9 +29,6 @@ type L2CLConfig struct {
 	ConductorRPC        string
 	ConductorRPCTimeout time.Duration
 
-	// EnableReqRespSync enables/disables the req-resp sync server (serving payloads to peers).
-	EnableReqRespSync bool
-
 	// NoDiscovery is the flag to enable/disable discovery
 	NoDiscovery bool
 
@@ -71,7 +68,6 @@ func DefaultL2CLConfig() *L2CLConfig {
 		VerifierSyncMode:  nodeSync.CLSync,
 		SafeDBPath:        "",
 		IsSequencer:       false,
-		EnableReqRespSync: true,
 		NoDiscovery:       false,
 		FollowSource:      "",
 	}

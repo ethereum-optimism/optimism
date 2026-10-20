@@ -383,6 +383,7 @@ fn test_config(fetch_interval: u64) -> ProposerConfig {
         l1_config_path: None,
         dependency_set_path: None,
         range_split_count: RangeSplitCount::one(),
+        max_stdin_bytes: Default::default(),
         max_concurrent_range_proofs: NonZeroUsize::MIN,
         max_concurrent_defense_tasks: NonZeroU64::new(8).unwrap(),
         fast_finality_mode: false,
@@ -397,20 +398,19 @@ fn test_config(fetch_interval: u64) -> ProposerConfig {
             range_gas_limit: 1,
             agg_cycle_limit: 1,
             agg_gas_limit: 1,
+            log_proof_strategy: sp1_sdk::network::FulfillmentStrategy::Reserved,
+            log_cycle_limit: 1,
+            log_gas_limit: 1,
             max_price_per_pgu: Some(NonZeroU64::MIN),
             min_auction_period: 1,
         },
+        log_path: crate::config::LogPath::Table,
     }
 }
 
 async fn proposer_with(config: ProposerConfig, l1_view: Arc<ScenarioL1View>) -> Arc<Proposer> {
     let prestates = Arc::new(crate::proposer::PrestateCache::new(config.prestates_url.clone()));
-    prestates
-        .insert_for_tests(
-            B256::ZERO,
-            PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-        )
-        .await;
+    prestates.insert_for_tests(B256::ZERO, PrestatePrograms::stub(1)).await;
     let proposer = Arc::new(
         Proposer::new_with_dependencies(
             config,

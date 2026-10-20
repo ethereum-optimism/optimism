@@ -169,6 +169,13 @@ contract Deploy is Deployer {
             cfg.setUseCustomGasToken(true);
         }
 
+        // TODO(optimism-private#744): remove once OPCM rejects unsupported BRIDGE_HOOK combinations.
+        bool useBridgeHook = DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.BRIDGE_HOOK);
+        require(
+            !useBridgeHook || !(cfg.useInterop() || cfg.useCustomGasToken()),
+            "Deploy: BRIDGE_HOOK is not supported with interop or a custom gas token"
+        );
+
         deployImplementations();
 
         // Deploy Current OPChain Contracts

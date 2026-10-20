@@ -168,12 +168,12 @@ CircleCI publishes the standard ELFs, built with the Docker recipe `just build-e
 configs, to `gs://oplabs-network-data/proofs/kona/sp1/`, served publicly under
 <https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1/>. The publish job refuses to
 upload unless `elf/vkeys.toml` records exactly the pipeline commit as `git_sha`, with no `-dirty`
-or `-custom` suffix, and both vkeys are nonzero.
+or `-custom` suffix, and all three vkeys are nonzero.
 
 | Trigger | Workflow | Objects |
 |---|---|---|
-| `kona-sp1-program/v*` tag | `kona-sp1-publish-prestates-on-tag` | `<vkey>.range.bin.gz`, `<vkey>.agg.bin.gz` |
-| Push to `develop` | `kona-sp1-publish-prestates` | `develop.range.bin.gz`, `develop.agg.bin.gz`, `develop.bin.gz.txt` |
+| `kona-sp1-program/v*` tag | `kona-sp1-publish-prestates-on-tag` | `<vkey>.log.bin.gz`, `<vkey>.range.bin.gz`, `<vkey>.agg.bin.gz` |
+| Push to `develop` | `kona-sp1-publish-prestates` | `develop.log.bin.gz`, `develop.range.bin.gz`, `develop.agg.bin.gz`, `develop.bin.gz.txt` |
 
 - **Tag objects** are content-addressed by the lowercase `0x`-prefixed super-aggregation vkey.
   That is the layout `OP_ZK_PROPOSER_PRESTATES_URL` resolves through `absolutePrestate()`, and
@@ -296,9 +296,11 @@ proposer loses the ability to defend, resolve, and claim those games.
 ### Proof providers
 
 - `OP_ZK_PROPOSER_PROOF_PROVIDER=network`: real SP1 proving via the Succinct Prover Network.
-  Proving keys are set up per prestate on first use, and the aggregation
-  verifying key must hash to the on-chain prestate (mismatches poison the
-  prestate and remove its games from the owned set). The registered prestate's
+  Proving keys are set up per prestate on first use. The aggregation
+  verifying key must hash to the on-chain prestate, the aggregation ELF must
+  pin the super-range vkey, and the super-range ELF must pin the
+  log-commitment vkey (mismatches poison the prestate and remove its games
+  from the owned set). The registered prestate's
   keys are verified BEFORE any game is created on it, so the proposer never
   bonds a game it has not proven it can defend.
   The proposer also reads the verifier behind each `SP1PlonkAdapter` it is about to rely on
@@ -318,7 +320,9 @@ proposer loses the ability to defend, resolve, and claim those games.
 Proving progress is process-local. Retries with unchanged inputs reuse submitted
 request IDs, completed chunks, and fulfilled aggregation proofs. `Cancelled`,
 `Expired`, `Reverted`, and `Unfulfillable` requests are retryable and may
-purchase replacements. Progress is cleared when a game becomes terminal, is
+purchase replacements. A request that SPN also reports `UNEXECUTABLE` (how it
+reports gas, cycle, and memory breaches) is treated as `Unexecutable`, not
+`Unfulfillable`. Progress is cleared when a game becomes terminal, is
 evicted, fails a definitive pre-submit check, or is proven successfully.
 
 A restart loses all progress and re-detects games that still need proofs. A
@@ -330,7 +334,10 @@ re-detects unproven, signer-created games after restart.
 `Unexecutable` and local `ValidationFailed` requests are sticky. For unchanged
 attempt inputs, the proposer rejects the attempt before collecting witnesses
 or submitting another SPN request. Scheduler tasks may still run and check
-inputs. A change to the full attempt identity permits a new attempt.
+inputs. A change to the full attempt identity permits a new attempt. An
+`Unexecutable` range or consolidation request of a span with more than one
+timestamp is not sticky: the proposer bisects the span (see below), and only
+the halves' requests count from then on.
 
 SIGUSR1 is a Unix signal: a message you send to a running program. Send it to
 the proposer to retry terminal proof requests without restarting it. This
@@ -376,7 +383,8 @@ Names below use the `op_zk_proposer_` prefix.
 | `prove_balance` | Gauge | Configured SP1 network account's spendable balance in PROVE, not the signer's ERC-20 wallet balance. Absent in mock mode. |
 | `deadline_passed_total` | Counter | Missed game windows observed by this process, with `window="defense"` or `window="fast_finality"`. Defense expiry and missed fast-finality acceleration have different consequences. |
 | `defense_deadline_remaining_seconds` | Gauge | Minimum observed defense deadline minus L1 block time, including queued and active games. Zero is the deadline boundary; negative values indicate expiry. |
-| `proof_requests` | Gauge | SPN requests of games still being proven, by `kind` (`range`, `consolidation`, `aggregation`) and `state` (`submitting`, `submitted`, `fulfilled`, `terminal`). A game's requests drop out once its proof is submitted or its progress is discarded. `terminal` requests wait for a retry signal. |
+| `proof_requests` | Gauge | SPN requests of games still being proven, by `kind` (`range`, `consolidation`, `aggregation`, `log`) and `state` (`submitting`, `submitted`, `fulfilled`, `terminal`). A game's requests drop out once its proof is submitted or its progress is discarded. `terminal` requests wait for a retry signal. |
+| `log_batches_submitted` | Gauge | Total log-commitment batch requests submitted. Unlike `proof_requests`, it keeps counting after a game's progress clears. |
 | `spn_requester_info` | Gauge | `1`, with the SPN requester address in the `address` label. Absent in mock mode. |
 | `tx_sends_total` | Counter | L1 sends by `outcome`: `confirmed`, `reverted` (mined with status 0) or `failed` (no receipt: send timeout, nonce-too-low abort, or an error before publishing such as a gas-estimation revert). |
 
@@ -399,6 +407,11 @@ response. Use the error metrics below for diagnosis, not separate alerts.
 replacement proofs. `op_zk_proposer_proving_timeout_error` means polling
 timed out; the next attempt can reuse the request.
 `op_zk_proposer_game_unprovable` counts games the proposer cannot prove.
+`op_zk_proposer_log_batch_error` counts failed log-commitment batch proofs; each
+fails its game attempt. A batch that the proposer splits (see below) is not counted.
+`op_zk_proposer_span_bisections` counts proving spans halved for exceeding a size,
+estimate or execution limit; log-batch splits are not counted. A steady rise means the
+chunks are too large for the limits: raise `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT`.
 
 `op_zk_proposer_proving_duration_seconds` records only successful runs,
 including the L1 transaction path. Use the task-stats log to investigate stuck work.
@@ -433,10 +446,10 @@ Required core configuration:
 | `OP_ZK_PROPOSER_SUPERROOT_RPCS` | op-supernode or single-chain op-node RPCs serving `superroot_atTimestamp`. Multiple comma-separated RPCs can be provided for redundancy |
 | `OP_ZK_PROPOSER_NETWORK` | Predefined network name recognized by OP Stack services, such as `op-mainnet`; alternative to `OP_ZK_PROPOSER_FACTORY_ADDRESS` |
 | `OP_ZK_PROPOSER_FACTORY_ADDRESS` | Explicit `DisputeGameFactory` address; required when no network is selected and overrides network lookup |
-| `OP_ZK_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz` + `<vkey>.range.bin.gz`) |
+| `OP_ZK_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz`, `<vkey>.range.bin.gz`, and `<vkey>.log.bin.gz`) |
 | `OP_ZK_PROPOSER_PROOF_PROVIDER` | `network` or `mock`; no default |
 | `OP_ZK_PROPOSER_L1_BEACON_RPC` | L1 beacon API (blob sidecars for derivation witnesses) |
-| `OP_ZK_PROPOSER_L2_RPCS` | comma-separated L2 EL RPCs, one per chain (order-irrelevant) |
+| `OP_ZK_PROPOSER_L2_RPCS` | comma-separated L2 EL RPCs, one per chain, in any order; each must serve a different chain. The proposer reads every chain ID at startup and exits on a duplicate chain or a node that does not answer |
 
 Optional core and operational configuration:
 
@@ -455,10 +468,12 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `16`, maximum `128`) |
+| `OP_ZK_PROPOSER_MAX_STDIN_BYTES` | encoded stdin bytes that one range, consolidation, or log-commitment request may upload, including embedded batch proofs (default `1610612736`, 1.5 GiB; maximum `2147483648`). The proposer collects the whole witness, so it holds an oversized one in memory before it refuses it, then checks the stdin before submitting it, in mock mode too. A proving task holds its range and consolidation stdin together until the range request is uploaded, and its consolidation stdin until the consolidation request is, so plan memory for twice this limit per concurrent chunk. A span over the limit is bisected; a single timestamp over it makes the game unprovable. The aggregation request is not checked |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
 | `OP_ZK_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
 | `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` | total in-flight proving tasks before creation pauses (default `1`) |
+| `OP_ZK_PROPOSER_LOG_PATH` | how a game proves executing messages that reference blocks below a local safe head: `table` (the default) or `receipts`. `receipts` turns the table path off and is meant only for chains with interop off; the proposer logs a warning at startup when it is set |
 
 SP1 network configuration applies when `OP_ZK_PROPOSER_PROOF_PROVIDER=network`.
 `OP_ZK_PROPOSER_NETWORK_CALLS_TIMEOUT` also bounds metric observations in mock mode.
@@ -481,6 +496,9 @@ SP1 network configuration applies when `OP_ZK_PROPOSER_PROOF_PROVIDER=network`.
 | `OP_ZK_PROPOSER_RANGE_GAS_LIMIT` | range request gas limit (default `200000000000`) |
 | `OP_ZK_PROPOSER_AGG_CYCLE_LIMIT` | aggregation request cycle limit (default `1e12`) |
 | `OP_ZK_PROPOSER_AGG_GAS_LIMIT` | aggregation request gas limit (default `1000000000`) |
+| `OP_ZK_PROPOSER_LOG_PROOF_STRATEGY` | log-commitment batch fulfillment strategy (default `auction`); must give the network mode of the range and aggregation strategies |
+| `OP_ZK_PROPOSER_LOG_CYCLE_LIMIT` | log-commitment batch cycle limit (default `1e12`) |
+| `OP_ZK_PROPOSER_LOG_GAS_LIMIT` | log-commitment batch gas limit (default `100000000000`) |
 | `OP_ZK_PROPOSER_MAX_PRICE_PER_PGU` | optional maximum price per proving gas unit; unset, empty, or `0` uses mainnet auction pricing |
 | `OP_ZK_PROPOSER_MIN_AUCTION_PERIOD` | minimum auction period in seconds (default `30`) |
 
@@ -500,12 +518,39 @@ large chunk can require a range proof and a consolidation proof before the final
 PLONK aggregation proof. `SP1_TIMEOUT_SECONDS` applies independently to each
 proof request, not to the complete defense.
 
+A chunk is bisected at its timestamp midpoint, and each half proved in turn, when one
+of its requests is over `MAX_STDIN_BYTES`, its consolidation estimate is not under
+80% of `RANGE_GAS_LIMIT`, or SPN reports its range or consolidation request
+`UNEXECUTABLE`. The proposer collects both witnesses and checks both requests before it
+submits the range request, so a size or estimate split buys no proof. The log line
+`Span exceeds proving limits; bisecting` names the span. Halves persist across
+attempts until the game's progress is cleared. A single timestamp over a size limit
+makes the game unprovable; one over its estimate is submitted anyway; one that SPN
+cannot execute stays terminal.
+
 At the default one-hour interval, an OP Mainnet span contains about 1,800
 two-second blocks. The default 16 chunks average 112.5 blocks each; configuring
 18 targets 100 blocks per chunk. Higher counts reduce per-request work but
 increase witness collection, fixed proving overhead, SPN request count, and
 aggregation input size. `RANGE_GAS_LIMIT` limits each range request, not the
 total work of the defense.
+
+An executing message can reference a block below its chain's local safe head. By
+default every game takes the table path: the proposer scans the span's messages and
+makes no batches when no message references such a block. With `LOG_PATH=receipts`, a
+consolidation reads the receipts of each such block instead. On the table path, the
+proposer submits `log-commitment` batch requests that prove each referenced
+block once, under `LOG_GAS_LIMIT`, before any consolidation collection. It cuts the
+blocks evenly into the fewest batches that fit 80% of `LOG_GAS_LIMIT` by estimate,
+4,096 entries, and `MAX_STDIN_BYTES` of witness, and halves any batch still over one.
+Each consolidation request then waits for and carries the batch proofs of the blocks
+that it reads.
+Every range, consolidation, and batch stdin must stay under `MAX_STDIN_BYTES`. A
+batch of several blocks whose stdin is over it, or that SPN reports `UNEXECUTABLE`, is
+split into halves that are proved in its place; a chunk whose consolidation was
+collected against the split batch collects it again. One block over the limit makes the
+game unprovable. Any other failed batch proof, or an `UNEXECUTABLE` batch of one block,
+fails the game attempt; it does not bisect a chunk.
 
 Transaction signing requires exactly one of these configurations:
 
@@ -740,6 +785,12 @@ collects range and consolidation witnesses through kona's `InteropHost`, runs th
 `super-range` ELF in the SP1 emulator, and exits `0` (valid claim) / `1` (invalid claim) / `2`
 (infrastructure error) — mirroring the native fault-proof program convention.
 
+The consolidation takes the table path. When the first collection reads a
+block below a local safe head, the executor fetches that block's receipts from the L2 node,
+computes its entry with the `log-commitment` ELF (natively with `--native-core`), and collects
+again through the entries. A block still without an entry after that, or any failure in this
+log stage, exits `2`.
+
 The op-e2e action test `TestSP1SuperRangeSimpleEmptyChain`
 (`rust/kona/tests/proofs/sp1_simple_program_test.go`) drives this binary against an
 in-process action-test chain, exercising both guest modes end-to-end on real inputs. Run it
@@ -755,7 +806,8 @@ and `KONA_SP1_ELF_DIR` set — the same two variables the acceptance full-ELF su
 executor loads the `super-range` ELF at runtime. The test skips when the executor-path variable
 is unset, so the heavy SP1 toolchain is only required when explicitly running the SP1 action
 tests. Per-PR CI doesn't set it; the daily `scheduled-sp1-elf-smoke` CircleCI workflow runs these
-tests in its `kona-sp1-action-tests` job.
+tests in its `kona-sp1-action-tests` job. The executor also loads `log-commitment-elf` when the
+consolidation reads a block below a local safe head.
 
 Because the executor is a separate process that resolves the transition itself, the action-test
 harness serves op-node's superroot API over a loopback HTTP listener

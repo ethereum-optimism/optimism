@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [compile-main, compile-CUSTOM_GAS_TOKEN, compile-OPTIMISM_PORTAL_INTEROP, compile-ZK_DISPUTE_GAME]
+    target: [compile-main, compile-CUSTOM_GAS_TOKEN, compile-OPTIMISM_PORTAL_INTEROP, compile-ZK_DISPUTE_GAME, compile-BRIDGE_HOOK, compile-BRIDGE_HOOK_ZK_DISPUTE_GAME]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -259,6 +259,26 @@ tasks:
       cache-key: contract-coverage-compile-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
       feature: ZK_DISPUTE_GAME
 
+  - key: compile-BRIDGE_HOOK
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contract-coverage-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-key: contract-coverage-compile-BRIDGE_HOOK-${{ init.cache-epoch }}
+      feature: BRIDGE_HOOK
+
+  - key: compile-BRIDGE_HOOK_ZK_DISPUTE_GAME
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contract-coverage-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-key: contract-coverage-compile-BRIDGE_HOOK_ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      feature: BRIDGE_HOOK,ZK_DISPUTE_GAME
+
   - key: verdict-ZK_DISPUTE_GAME
     use: [code, go-tools, contract-tools, go-modules, compile-ZK_DISPUTE_GAME, rpc-check]
     if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
@@ -271,14 +291,44 @@ tasks:
       cache-key: contract-coverage-runtime-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
       feature: ZK_DISPUTE_GAME
 
+  - key: verdict-BRIDGE_HOOK
+    use: [code, go-tools, contract-tools, go-modules, compile-BRIDGE_HOOK, rpc-check]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    call: ${{ run.dir }}/packages/contract-coverage-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-coverage/BRIDGE_HOOK/prepare
+      archive-preflight: .ci/contract-coverage/preflight
+      cache-key: contract-coverage-runtime-BRIDGE_HOOK-${{ init.cache-epoch }}
+      feature: BRIDGE_HOOK
+
+  - key: verdict-BRIDGE_HOOK_ZK_DISPUTE_GAME
+    use: [code, go-tools, contract-tools, go-modules, compile-BRIDGE_HOOK_ZK_DISPUTE_GAME, rpc-check]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    call: ${{ run.dir }}/packages/contract-coverage-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-coverage/BRIDGE_HOOK,ZK_DISPUTE_GAME/prepare
+      archive-preflight: .ci/contract-coverage/preflight
+      cache-key: contract-coverage-runtime-BRIDGE_HOOK_ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      feature: BRIDGE_HOOK,ZK_DISPUTE_GAME
+
   - key: contracts-gate-receipt
     use: [code, tools]
-    after: ${{ (verdict-CUSTOM_GAS_TOKEN.succeeded || verdict-CUSTOM_GAS_TOKEN.failed || verdict-CUSTOM_GAS_TOKEN.skipped) && (verdict-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-OPTIMISM_PORTAL_INTEROP.failed || verdict-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-ZK_DISPUTE_GAME.succeeded || verdict-ZK_DISPUTE_GAME.failed || verdict-ZK_DISPUTE_GAME.skipped) && (verdict-main.succeeded || verdict-main.failed || verdict-main.skipped) }}
+    after: ${{ (verdict-BRIDGE_HOOK.succeeded || verdict-BRIDGE_HOOK.failed || verdict-BRIDGE_HOOK.skipped) && (verdict-BRIDGE_HOOK_ZK_DISPUTE_GAME.succeeded || verdict-BRIDGE_HOOK_ZK_DISPUTE_GAME.failed || verdict-BRIDGE_HOOK_ZK_DISPUTE_GAME.skipped) && (verdict-CUSTOM_GAS_TOKEN.succeeded || verdict-CUSTOM_GAS_TOKEN.failed || verdict-CUSTOM_GAS_TOKEN.skipped) && (verdict-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-OPTIMISM_PORTAL_INTEROP.failed || verdict-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-ZK_DISPUTE_GAME.succeeded || verdict-ZK_DISPUTE_GAME.failed || verdict-ZK_DISPUTE_GAME.skipped) && (verdict-main.succeeded || verdict-main.failed || verdict-main.skipped) }}
     if: ${{ init.cache-warm != 'true' }}
     run: |
       cd project
       python3 ops/ci/runtime/pr-gate.py receipt contracts-coverage
     env:
+      TASK_VERDICT_BRIDGE_HOOK_ZK_DISPUTE_GAME_SUCCEEDED: ${{ tasks.verdict-BRIDGE_HOOK_ZK_DISPUTE_GAME.succeeded }}
+      TASK_VERDICT_BRIDGE_HOOK_ZK_DISPUTE_GAME_FAILED: ${{ tasks.verdict-BRIDGE_HOOK_ZK_DISPUTE_GAME.failed }}
+      TASK_VERDICT_BRIDGE_HOOK_ZK_DISPUTE_GAME_SKIPPED: ${{ tasks.verdict-BRIDGE_HOOK_ZK_DISPUTE_GAME.skipped }}
+      TASK_VERDICT_BRIDGE_HOOK_SUCCEEDED: ${{ tasks.verdict-BRIDGE_HOOK.succeeded }}
+      TASK_VERDICT_BRIDGE_HOOK_FAILED: ${{ tasks.verdict-BRIDGE_HOOK.failed }}
+      TASK_VERDICT_BRIDGE_HOOK_SKIPPED: ${{ tasks.verdict-BRIDGE_HOOK.skipped }}
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
       GROUP_SELECTED: ${{ tasks.route.values.run-contracts }}

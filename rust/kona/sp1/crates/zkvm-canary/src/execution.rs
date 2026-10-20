@@ -405,6 +405,7 @@ pub(crate) async fn execute_snapshot(
             &synthesized.consolidation_inputs,
             &synthesized.preloaded_preimages,
             Some(&configs),
+            // TODO(proofs-team#30): take the table path for a below-head reference.
             &[],
         ),
     )

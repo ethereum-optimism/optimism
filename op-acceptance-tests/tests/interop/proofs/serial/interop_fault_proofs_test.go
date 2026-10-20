@@ -39,6 +39,12 @@ func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 	sfp.RunConsolidateValidCrossChainMessageTest(t, sys, proofRunners()...)
 }
 
+func TestInteropFaultProofs_ConsolidateBelowHeadMessage(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunConsolidateBelowHeadMessageTest(t, sys, proofRunners()...)
+}
+
 func TestInteropFaultProofs_DepositMessage(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)

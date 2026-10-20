@@ -4,7 +4,7 @@ use crate::{
     EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, ImportedBlockSink,
     InsertTask,
     InsertTaskError::{self},
-    task_queue::build_and_seal,
+    task_queue::handle_rejected_attributes,
 };
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
 use async_trait::async_trait;
@@ -142,12 +142,8 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
         Ok(payload_envelope)
     }
 
-    /// Inserts a payload into the engine with Holocene fallback support.
-    ///
-    /// This function handles:
-    /// 1. Executing the `InsertTask` to import the payload
-    /// 2. Handling deposits-only payload failures
-    /// 3. Holocene fallback via `build_and_seal` if needed
+    /// Inserts a payload into the engine. If the engine rejects it, [`handle_rejected_attributes`]
+    /// decides whether a deposits-only block replaces it.
     ///
     /// Returns the inserted block information, or an error if insertion fails.
     async fn insert_payload(
@@ -166,39 +162,18 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
         .execute(state)
         .await
         {
-            Err(InsertTaskError::UnexpectedPayloadStatus(e))
-                if self.attributes.is_deposits_only() =>
-            {
-                error!(target: "engine", error = ?e, "Critical: Deposit-only payload import failed");
-                return Err(SealTaskError::DepositOnlyPayloadFailed);
-            }
-            Err(InsertTaskError::UnexpectedPayloadStatus(e))
-                if self.cfg.is_holocene_active(
-                    self.attributes.attributes().payload_attributes.timestamp,
-                ) =>
-            {
-                warn!(target: "engine", error = ?e, "Re-attempting payload import with deposits only.");
-
-                // HOLOCENE: Re-attempt payload import with deposits only
-                // First build the deposits-only payload, then seal it
-                let deposits_only_attrs = self.attributes.as_deposits_only();
-
-                return match build_and_seal(
+            Err(err @ InsertTaskError::UnexpectedPayloadStatus(_)) => {
+                warn!(target: "engine", %err, "Payload rejected at newPayload");
+                return Err(handle_rejected_attributes(
                     state,
                     self.engine.clone(),
                     self.cfg.clone(),
-                    deposits_only_attrs.clone(),
+                    &self.attributes,
                     self.is_attributes_derived,
                     self.block_sink.clone(),
                 )
                 .await
-                {
-                    Ok(_) => {
-                        info!(target: "engine", "Successfully imported deposits-only payload");
-                        Err(SealTaskError::HoloceneInvalidFlush)
-                    }
-                    Err(_) => Err(SealTaskError::DepositOnlyPayloadReattemptFailed),
-                };
+                .unwrap_or_else(|| Box::new(err).into()));
             }
             Err(e) => {
                 error!(target: "engine", "Payload import failed: {e}");

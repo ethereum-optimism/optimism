@@ -2,6 +2,7 @@ package zk
 
 import (
 	"math"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -9,8 +10,10 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/zkproposer"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -243,6 +246,81 @@ func TestProposerFastFinalityProvesAtCreation(gt *testing.T) {
 	// The early-resolved game feeds the anchor like any other win.
 	advanceL1To(&sys.SingleChainInterop, game0.ResolvedAt()+uint64(presets.DefaultZKFinalityDelay/time.Second)+1)
 	sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRootAtLeast(game0)
+}
+
+// TestProposerProvesBelowHeadMessageOnTablePath proves a game whose span holds
+// an executing message on chain B that references a block of chain A below A's
+// block at that timestamp, on the proposer's default table path.
+func TestProposerProvesBelowHeadMessageOnTablePath(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithoutHonestChallenger(),
+		presets.WithoutHonestProposer(),
+		presets.WithZKProposerOption(sysgo.WithZKFastFinality()),
+		presets.WithZKProposerOption(sysgo.WithZKMetrics()),
+		// WithZK pins Jovian at genesis; executing messages need Lagoon.
+		presets.WithDeployerOptions(sysgo.WithInteropAtGenesis()),
+	)
+	rng := rand.New(rand.NewSource(1234))
+
+	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
+	aliceB := aliceA.AsEL(sys.L2ELB)
+	sys.FunderB.Fund(aliceB, eth.OneEther)
+	initMsg := aliceA.SendRandomInitMessage(rng, aliceA.DeployEventLogger(), 2, 10)
+	initBlock := bigs.Uint64Strict(initMsg.BlockNumber())
+	// The margin keeps the initiating block below A's block at B's exec timestamp if B lags.
+	sys.L2ELA.WaitForBlockNumber(initBlock + 3)
+	execMsg := aliceB.SendExecMessage(initMsg)
+	execTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execMsg.BlockNumber()))
+	headA, err := sys.L2ChainA.Escape().RollupConfig().TargetBlockNumber(execTimestamp)
+	t.Require().NoError(err, "chain A block at the executing timestamp")
+	t.Require().Less(initBlock, headA, "the initiating block must be below chain A's block at the executing timestamp")
+	sys.SuperRoots.AwaitValidatedTimestamp(execTimestamp)
+
+	proposer := sys.StartZKProposer()
+	factory := sys.DisputeGameFactory()
+	game := factory.WaitForZKGameAtIndex(0)
+	// Proposer games chain in factory order, so the first one at or past execTimestamp contains it.
+	for game.L2SequenceNumber() < execTimestamp {
+		game = factory.WaitForZKGameAtIndex(int64(game.FactoryIndex() + 1))
+	}
+
+	game.WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
+	// One message references one block, so exactly one batch: more means a batch was
+	// submitted again or the block was split across batches.
+	proposer.VerifyState(
+		zkproposer.LogBatchesSubmitted(1),
+		zkproposer.ProvingFailures(0),
+	)
+}
+
+// TestProposerBisectsSpanOverBudget proves a game whose chunks are each at least
+// two timestamps long under a gas limit with no budget, so every chunk is over
+// its estimate and is bisected into single timestamps, which are requested
+// anyway. The game proves only if the halves' synthesized inputs, witnesses,
+// and outputs chain back into the aggregation in order.
+func TestProposerBisectsSpanOverBudget(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithoutHonestChallenger(),
+		presets.WithoutHonestProposer(),
+		presets.WithZKProposerOption(sysgo.WithZKFastFinality()),
+		presets.WithZKProposerOption(sysgo.WithZKMetrics()),
+		// Keeps each of the default 16 chunks at least two timestamps long.
+		presets.WithZKProposerOption(sysgo.WithZKProposalInterval(32*time.Second)),
+		presets.WithZKProposerOption(sysgo.WithZKRangeGasLimit(1)),
+	)
+	proposer := sys.StartZKProposer()
+	sys.DisputeGameFactory().WaitForZKGameAtIndex(0).
+		WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
+	// Without a bisection the game would still prove if the estimate check stopped
+	// gating splittable spans, so assert that one happened.
+	proposer.VerifyState(
+		zkproposer.SpanBisectionsAtLeast(1),
+		zkproposer.ProvingFailures(0),
+	)
 }
 
 // zkProposerAddress derives the address the sysgo ZK proposer signs with: the

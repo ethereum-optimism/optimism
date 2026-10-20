@@ -68,6 +68,16 @@ branch that only added a new `op-core/types` package. The diff touched nothing i
 `op-deployer`; the failures were a data-dependent flake already fixed on `develop` by
 #21396. Rebasing made CI green with no change to the branch's own work.
 
+## Go module cache on Circle machines
+
+Machine and Docker images can use different `GOPATH` defaults. The shared
+`restore-go-mod-cache` helper sets `GOMODCACHE=$HOME/go/pkg/mod` through `BASH_ENV`
+so every later step reads the directory Circle actually restores and saves.
+A successful cache restore alone does not prove Go uses it: compare `go env
+GOMODCACHE` with the cached paths. The cache key includes `go.mod`, `go.sum` and
+`mise.toml` so the module producer can retain newly selected modules/toolchains
+instead of trying to overwrite an immutable older snapshot.
+
 ## Missing `op-core/superchain` bundle (`superchain-configs.zip`)
 
 A CI-only compile error like:
