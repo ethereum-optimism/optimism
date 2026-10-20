@@ -43,6 +43,17 @@ pub struct MockEngineStorage {
     /// Delay for each successful L2 read, used to exercise long reset traversals.
     pub l2_read_delay: std::time::Duration,
 
+    /// Whether the EL reports active synchronization.
+    pub el_syncing: bool,
+    /// Exact progress returned while synchronization is active.
+    pub syncing_info: alloy_rpc_types_eth::SyncInfo,
+    /// Injected failure of the bounded synchronization probe.
+    pub syncing_error: Option<String>,
+    /// Observed no-attributes and build forkchoice requests.
+    pub forkchoice_calls: Vec<ForkchoiceState>,
+    /// Observed numeric/hash L1 reads.
+    pub l1_reads: Vec<BlockId>,
+
     // Version-specific new_payload responses
     /// Storage for `new_payload_v1` responses.
     pub new_payload_v1_response: Option<PayloadStatus>,
@@ -355,6 +366,18 @@ impl EngineClient for MockEngineClient {
         self.cfg.as_ref()
     }
 
+    async fn syncing(&self) -> TransportResult<alloy_rpc_types_eth::SyncStatus> {
+        let storage = self.storage.read().await;
+        if let Some(error) = &storage.syncing_error {
+            return Err(TransportErrorKind::custom_str(error));
+        }
+        Ok(if storage.el_syncing {
+            alloy_rpc_types_eth::SyncStatus::Info(Box::new(storage.syncing_info.clone()))
+        } else {
+            alloy_rpc_types_eth::SyncStatus::None
+        })
+    }
+
     fn get_l1_block(&self, block: BlockId) -> EthGetBlock<<Ethereum as Network>::BlockResponse> {
         let storage = Arc::clone(&self.storage);
         let block_key = block_id_to_key(&block);
@@ -366,7 +389,8 @@ impl EngineClient for MockEngineClient {
                 let block_key = block_key.clone();
 
                 ProviderCall::BoxedFuture(Box::pin(async move {
-                    let storage_guard = storage.read().await;
+                    let mut storage_guard = storage.write().await;
+                    storage_guard.l1_reads.push(block);
                     if let Some(error) = &storage_guard.l1_read_error {
                         return Err(alloy_transport::TransportErrorKind::custom_str(error));
                     }
@@ -454,10 +478,11 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
 
     async fn fork_choice_updated_v2(
         &self,
-        _fork_choice_state: ForkchoiceState,
+        fork_choice_state: ForkchoiceState,
         _payload_attributes: Option<OpPayloadAttributes>,
     ) -> TransportResult<ForkchoiceUpdated> {
-        let storage = self.storage.read().await;
+        let mut storage = self.storage.write().await;
+        storage.forkchoice_calls.push(fork_choice_state);
         storage.fork_choice_updated_v2_response.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str(
                 "fork_choice_updated_v2 was called but no v2 response configured. \
@@ -468,10 +493,11 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
 
     async fn fork_choice_updated_v3(
         &self,
-        _fork_choice_state: ForkchoiceState,
+        fork_choice_state: ForkchoiceState,
         _payload_attributes: Option<OpPayloadAttributes>,
     ) -> TransportResult<ForkchoiceUpdated> {
-        let storage = self.storage.read().await;
+        let mut storage = self.storage.write().await;
+        storage.forkchoice_calls.push(fork_choice_state);
         storage.fork_choice_updated_v3_response.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str(
                 "fork_choice_updated_v3 was called but no v3 response configured. \

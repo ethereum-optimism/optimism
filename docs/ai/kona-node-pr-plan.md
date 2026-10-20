@@ -499,23 +499,21 @@ Owns issue 22681's engine failure mechanism. Its closure requires the actual for
 
 **Ready when.** Failed/stale consolidation creates no finality record; L1 already finalized when new safe work arrives progresses; derivation-idle finality progresses; wrong-fork same-height hash cannot finalize; same-head reset invalidates old-source record; failed FCU retries; catch-up does not lose progress. Verify multiple newly safe blocks under the same finalized L1 observation: the optimization in `61d023c126` is not authority to suppress required later progress. Reuse epoch/snapshot code unchanged. This package changes in-memory finalization ownership, not persistent safe-head history.
 
-### PR 12 optional: Give network and discovery their own responsive boundaries
+### PR 12 selected leaf: Wait for actual P2P connection effects
 
-**Title:** `kona-node,kona-rpc: keep gossip responsive and honor discovery disablement`.
+**Title:** `kona-rpc: wait for peer connection effects within one deadline`.
 
-**Value and dependency.** Adopt only if the remaining network boundary still warrants its review cost after the core stack. Consume the final engine ingress API and sequencer publication policy; no new engine or signer design.
+**Value and dependency.** The tail audit found two directly reproducible RPC bugs that can be corrected without a network actor rewrite. The existing retry treats `Ok(false)` as completion, so a normal asynchronous connection transition fails too early. Its delay budget also leaves channel admission and replies unbounded. This leaf consumes the existing request interface unchanged.
 
-**Sources.** `9bbcd13f3f`, `4982e4f7a3`, `ede5685b42`, `77b0927a1d`, `227c22592c`, `b4117f0934`, `987ca53178`, `fe86e3336b`. The baseline RPC declaration's `blocAddr` spelling supplies direct evidence for the endpoint-name correction.
+**Changes.** Send the requested mutation once, then observe connected peer membership until the promised connect/disconnect effect occurs. Poll unsatisfied observations at a bounded pace under one ten-second deadline covering mutation admission, observation admission and replies. Channel closure returns promptly. Register canonical `opp2p_blockAddr` while retaining `opp2p_blocAddr` as an explicit legacy alias. Delete the RPC crate's resulting unused retry dependency.
 
-**Changes.** Network owns private mutation messages, concrete handle and published gossip state. Read-only P2P methods use snapshots; mutation replies follow publication. Separate discovery ownership only enough to prevent its I/O from blocking swarm polling. Honor existing `--p2p.no-discovery` and discovery-on default: no UDP bind, ENR/discovery startup, bootstore I/O or discovery-only DNS when disabled. Keep the existing endpoint set.
+**Ready when.** Registered regressions prove delayed effects, terminal closure, a false predicate through deadline, stalled mutation admission/read admission/reply, and a combined admission-plus-reply wait bounded by the same deadline. Both endpoint spellings must validate arguments and mutate/read the same actual connection gater. Reuse the existing real P2P common suite as a compatibility smoke check.
 
-PR 05 already establishes nonblocking engine admission for best-effort gossip and a bounded pending reliable admin payload while other network events continue. Preserve that final ingress API and its Full/Closed policy; do not implement it again here. Remove the remaining network self-channel, add admission-drop observability if still warranted, and preserve reliable admin ingress and committed sequencer output as bounded, non-dropping policies. Do not await discovery bans/dials from inside the swarm loop.
-
-Fix connect/disconnect waiting: the current `backon` path treats `Ok(false)` as success rather than retrying, so asynchronous effects are checked too early. Prefer watch-change plus deadline, with publisher closure handling. Distinguish mutation admitted/processed from actual connection established; success for connect/disconnect requires the promised observed effect. Register `opp2p_blockAddr` correctly and explicitly decide a legacy typo alias rather than accidentally changing the method set.
-
-**Ready when.** Full engine/discovery queues do not freeze gossip/P2P reads; mutation reply followed by read observes it; delayed connect/disconnect succeeds or times out correctly; disabled discovery works with occupied UDP port and explicit-peer gossip; malformed used bootnodes return errors; closure cannot spin. Preserve signer retry/stale-target guards and actual peer IDs without discovery. Run real two-node propagation before removing any acceptance skip. Addresses discovery portion of 23034; peer-manager settings remain separate.
+**Deferred broader candidate.** Do not transplant private network/discovery actors, snapshot APIs, a general network handle, or an origin preparation system to fix these RPC bugs. Honoring `--p2p.no-discovery` remains valuable separate work: it needs no UDP bind, ENR/discovery startup, bootstore I/O or discovery-only DNS, plus occupied-port and real explicit-peer propagation coverage. Discovery-ban queue responsiveness, the gossip self-channel and peer-manager settings also remain separate. Issue 23034 stays open. PR 05/07 already own engine admission/admin routing and PR 08 owns committed sequencer publication; do not recreate those paths.
 
 ### PR 13 optional: Prepare origins and the actual attributes inputs before sequencing
+
+**Execution decision.** Defer the performance implementation: no measurement establishes a material avoidable preparation delay, and the attributes reader's actual receipt/header inputs would need to share any warmed cache. Issue 23281 stays open. Select a separate small correctness leaf in the existing delayed provider: a positive confirmation depth must not silently disappear while the observed L1 head is unknown. Preserve explicit zero-depth/genesis behavior and direct by-hash current-origin reads; use overflow-safe eligibility and prove actual RPC counts before/after a watch observation. This leaf introduces no preparation actor, cache or performance claim. Its implementation/validation is recorded separately below when complete.
 
 **Title:** `kona-node: prepare L1 origins and attributes inputs before sequencing`.
 
@@ -722,10 +720,12 @@ Planning is complete. A check means the package has its actual implementation, r
 - [x] PR 07: direct admin routing and concrete sequencer dependencies.
 - [x] PR 08: conductor publication/activation/stop phase contract and configured timeouts.
 - [x] PR 09: local recovery override with shared assertions preserved.
-- [ ] PR 10: autonomous bootstrap/reorg resets and actual L1 progress publication.
+- [x] PR 10: autonomous bootstrap/reorg resets and actual L1 progress publication.
 - [ ] PR 11: move applied-safe finality map, or explicitly absorb it into 10.
-- [ ] Decide whether optional PR 12's network/discovery benefit warrants its remaining scope.
-- [ ] Decide whether optional PR 13 is needed; implement receipt preparation as well as origins if selected.
+- [x] Select only the optional PR 12 connect/disconnect deadline and endpoint-alias leaf; defer the broader network/discovery redesign.
+- [ ] Validate and publish the selected narrow PR 12.
+- [x] Defer unmeasured PR 13 origin/receipt prefetch; select only the independent confirmation-policy correction.
+- [ ] Validate and publish the narrow confirmation-policy leaf.
 - [ ] Final selected-tip validation, issue closure audit and removal of obsolete PR dependencies.
 
 ### Decisions to retain during execution
@@ -990,3 +990,18 @@ The shared disaster-recovery scenario retains the pre-override non-leader reject
 **Local validation.** All 330 offline tests in the five affected node packages passed with all features and zero skips. Full workspace Rust lint, custom Go lint/module tidiness (zero issues, empty tidy diff) and a fresh default node build passed. The complete shared conductor suite now has thirteen cases including PR 08's new publication regression; all thirteen passed with zero skips against both Kona/op-reth (333.060 seconds) and op-node/op-reth (298.283 seconds). These include startup, membership, proxy gating, unsafe submission, exact-head stop/restart, publication rejection, handoff, failover, convergence and disaster recovery. Results/commands are in `work/pr09-validation-results.json` in the task workspace.
 
 **Review and scope.** Rust, Go and deletion reviews have no remaining findings. The public override documentation distinguishes process-local permission from the conductor proxy and ordinary Raft leadership recovery. The removed public Rust trait method/error variant have a breaking-change migration note. This completes the selected conductor gate across PRs 01, 08 and 09; the broader umbrella issues remain open. No hosted-CI completion is claimed. Continue directly with PR 10.
+
+
+### PR 10 implementation and validation
+
+Branch `codex/kona-refactor-10-engine-bootstrap` starts from PR 09 head `3924e3fa7c44fe5c1e8975bf8805c9ecd273491c`. The engine initializes from real EL labels and owns canonical-origin checks, reset selection and dependency retries. Readiness requires a current `VALID` forkchoice. A fresh EL that reports syncing until its first forkchoice can confirm the exact configured genesis, including a `SYNCING` then `VALID` response, without redirecting any later advertised/requested sync target. Trusted following retains its exact target until its body and origins are usable.
+
+Initialization preserves the documented once-only bounded trusted-resume assumption when no reusable safe checkpoint exists; canonical history is not local derivation proof. It preserves finalized and creates no local finality record. Later resets retain the completed-safe ceiling and immutable finalized anchor, select a validated epoch parent and tolerate an EL current unsafe below that retained ceiling. Accepted pending-safe remains the pipeline-only reset parent. Local pipeline retries back off without pretending progress or clearing accepted finality; engine epoch changes invalidate context and sequencing origin caches.
+
+Independent L1 head/safe/finalized observations replace RPC query messages. RPC reports actual pipeline or validated delegate progress even with unchanged L2 safe. Unknown values remain optional internally and become the existing zero wire values only at the RPC boundary. Signer retries and stale-result guards remain. Sequencing consumes usable owner context and no longer independently requests startup/origin resets.
+
+**Local validation.** All 357 offline tests across the five affected node packages passed with all features and zero skips. Full workspace Rust lint, custom Go lint/module tidiness (zero issues, empty tidy diff) and a fresh default node build passed. The isolated forced-inclusion/recovery test passed (313.11 seconds), both existing L1/L2 reorg subcases passed in both presets, both restart cases passed, and registered admin reset passed for sequencer and validator. The three selected shared conductor startup, disaster-recovery and exact-head stop/restart cases passed with zero skips on Kona/op-reth (76.794 seconds).
+
+The existing forced-inclusion regression now has no startup unsafe-payload primer: its isolated verifier must bootstrap and derive solely from L1, then independently agree on the forced deposit and recovered safe/finalized chain. No recovery, finality or cross-node assertion was removed. Commands/results are recorded in `work/pr10-validation-results.json` in the task workspace.
+
+**Review and scope.** Independent Rust/protocol, Go and whole-tree deletion/API reviews have no unresolved findings. Corrected findings include pending-safe pipeline reset, local-finality retention, cache invalidation, no-observation origin checks, first-forkchoice startup and retained safe-ceiling recovery. Public Rust changes have an explicit migration note; no shared proof/protocol/alloy runtime source changed. Engine-owned finality follows separately in PR 11. Optional networking is narrowed to the RPC effect/deadline/alias leaf; the separate confirmation-policy correction adds no prefetch. Hosted CI remains separate from these local results. Continue directly without a user approval pause.

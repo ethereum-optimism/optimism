@@ -172,7 +172,14 @@ async fn synchronize_commits_only_accepted_forkchoice(
     )
     .await;
     if accepted {
-        result.unwrap();
+        assert_eq!(
+            result.unwrap(),
+            if status == PayloadStatusEnum::Valid {
+                ForkchoiceStatus::Valid
+            } else {
+                ForkchoiceStatus::Syncing
+            }
+        );
         assert_eq!(state.sync_state.unsafe_head(), head);
     } else {
         assert!(matches!(result, Err(ForkchoiceError::UnexpectedStatus(_))));

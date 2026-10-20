@@ -68,34 +68,67 @@ impl<C: EngineClient> SyncSource for EngineSyncSource<'_, C> {
     }
 }
 
-/// Searches for the heads from which to resume derivation.
+/// The safety checkpoint retained by the owner across one recovery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyncStartPolicy {
+    /// Ordinary recovery cannot exceed the previously completed safe head.
+    Checkpoint {
+        /// Completed safe, never a pending span prefix.
+        safe: L2BlockInfo,
+        /// Immutable finalized anchor.
+        finalized: L2BlockInfo,
+    },
+    /// Once-only initialization trust when no useful safety checkpoint exists.
+    /// Canonical origins and elapsed windows are not proof of local derivation.
+    TrustedResume {
+        /// Finalized is preserved exactly; it is never advanced to accelerate startup.
+        finalized: L2BlockInfo,
+    },
+}
+
+/// Finds canonical recovery heads under the owner's explicit checkpoint policy.
 ///
-/// Unsafe may extend beyond the L1 visibility captured at the start of this walk. Within that
-/// visibility, an origin must agree with a canonical L1 anchor fetched by number. Safe retains
-/// Kona's recent-window resume policy: the first block more than a lookback window behind the
-/// highest confirmed canonical origin. Finalized remains unchanged and bounds the walk below.
-/// Choosing safe below the prior label and at an epoch boundary is deferred to the bootstrap
-/// lifecycle change; applying those rules here would walk back to genesis after initial EL sync.
-///
-/// The canonical anchor is rechecked before returning. A concurrent L1 reorg or unavailable
-/// dependency returns an ordinary error: retrying the whole walk belongs to the reset owner.
-/// This does not promise that L1 cannot extend or reorg after that final check.
+/// Safe is the parent of an epoch start more than a lookback window behind the highest
+/// confirmed canonical origin. Ordinary recovery also obeys its prior completed-safe ceiling.
+/// Initialization alone may omit that ceiling under the documented trusted-resume assumption.
+/// Unsafe beyond captured L1 visibility remains plausible. A numeric anchor, descending hash
+/// ancestry and a final anchor recheck prevent mixing L1 branches during an attempt.
 pub async fn find_starting_forkchoice<EngineClient_: EngineClient>(
     cfg: &RollupConfig,
     engine_client: &EngineClient_,
+    policy: SyncStartPolicy,
 ) -> Result<L2ForkchoiceState, SyncStartError> {
-    find_heads(cfg, &EngineSyncSource { client: engine_client, cfg }).await
+    find_heads(cfg, &EngineSyncSource { client: engine_client, cfg }, policy).await
 }
 
 async fn find_heads(
     cfg: &RollupConfig,
     source: &impl SyncSource,
+    policy: SyncStartPolicy,
 ) -> Result<L2ForkchoiceState, SyncStartError> {
-    let initial = L2ForkchoiceState::load(cfg, source).await?;
+    let mut initial = L2ForkchoiceState::load(cfg, source).await?;
     info!(target: "sync_start", %initial, "Loaded current L2 EL forkchoice state");
     if initial.finalized.block_info.number > initial.safe.block_info.number ||
         initial.safe.block_info.number > initial.un_safe.block_info.number ||
         initial.finalized.block_info.number < cfg.genesis.l2.number
+    {
+        return Err(SyncStartError::InvalidHeadOrder);
+    }
+
+    let ceiling = match policy {
+        SyncStartPolicy::Checkpoint { safe, finalized } => {
+            initial.safe = safe;
+            initial.finalized = finalized;
+            Some(safe.block_info.number)
+        }
+        SyncStartPolicy::TrustedResume { finalized } => {
+            initial.finalized = finalized;
+            None
+        }
+    };
+    if initial.finalized.block_info.number < cfg.genesis.l2.number ||
+        initial.finalized.block_info.number > initial.un_safe.block_info.number ||
+        ceiling.is_some_and(|safe| safe < initial.finalized.block_info.number)
     {
         return Err(SyncStartError::InvalidHeadOrder);
     }
@@ -115,6 +148,7 @@ async fn find_heads(
     let mut anchor = None;
     let result = async {
         let mut current = initial.un_safe;
+        let mut safe_parent = false;
         let mut unsafe_head = Some(current);
         let mut highest_canonical: Option<L2BlockInfo> = None;
         // A single descending L1 cursor caches all reads of a repeated origin. Once anchored by
@@ -209,12 +243,9 @@ async fn find_heads(
             {
                 return Err(SyncStartError::FinalizedL1OriginMismatch);
             }
-            // Keep the existing bounded recent-window resume policy until bootstrap can
-            // establish a useful safe checkpoint. Invisible origins never complete this window.
-            let behind_window = highest_canonical.is_some_and(|highest| {
-                highest.l1_origin.number.saturating_sub(origin.number) > lookback
-            });
-            if behind_window || current.block_info.number == initial.finalized.block_info.number {
+            // A selected parent still passes this loop's canonical/genesis/finality checks.
+            // Invisible origins cannot complete the sequencing/AltDA lookback.
+            if safe_parent || current.block_info.number == initial.finalized.block_info.number {
                 return Ok(L2ForkchoiceState {
                     un_safe: unsafe_head.ok_or(SyncStartError::FinalizedL1OriginMismatch)?,
                     safe: current,
@@ -222,6 +253,11 @@ async fn find_heads(
                 });
             }
 
+            safe_parent = current.seq_num == 0 &&
+                ceiling.is_none_or(|safe| current.block_info.number <= safe) &&
+                highest_canonical.is_some_and(|highest| {
+                    highest.l1_origin.number.saturating_sub(origin.number) > lookback
+                });
             let parent_id = current.block_info.parent_hash.into();
             let parent = read_l2(source, parent_id)
                 .await?

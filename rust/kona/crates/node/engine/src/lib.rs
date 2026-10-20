@@ -26,8 +26,8 @@ extern crate tracing;
 mod operations;
 pub use operations::{
     BuildError, ConsolidateError, Consolidation, FinalizationSource, FinalizeError,
-    ForkchoiceError, ImportMode, InsertError, ResetError, consolidate, finalize, follow_safe,
-    get_payload, insert_payload, start_build, synchronize,
+    ForkchoiceError, ForkchoiceStatus, ImportMode, InsertError, ResetError, consolidate, finalize,
+    follow_safe, get_payload, insert_payload, start_build, synchronize,
 };
 
 mod attributes;
@@ -52,7 +52,7 @@ mod metrics;
 pub use metrics::Metrics;
 
 mod sync;
-pub use sync::{L2ForkchoiceState, SyncStartError, find_starting_forkchoice};
+pub use sync::{L2ForkchoiceState, SyncStartError, SyncStartPolicy, find_starting_forkchoice};
 
 #[cfg(any(test, feature = "test-utils"))]
 /// Utilities that are useful when creating unit tests using structs within this library.

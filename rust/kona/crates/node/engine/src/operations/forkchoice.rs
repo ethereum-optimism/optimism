@@ -6,13 +6,23 @@ use crate::{
 use alloy_rpc_types_engine::PayloadStatusEnum;
 use tokio::time::Instant;
 
-/// Applies a heads update after the execution layer accepts the resulting forkchoice.
-/// Builds send their own forkchoice update with attributes instead.
+/// Current acceptance of a no-attributes forkchoice update.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ForkchoiceStatus {
+    /// This exact forkchoice is validated by the execution layer.
+    Valid,
+    /// Execution has not validated this target; the caller must retain it for retry.
+    Syncing,
+}
+
+/// Records requested heads and reports whether the execution layer has validated them.
+/// A `SYNCING` target requires retry while the caller remains unready. Builds send their
+/// own forkchoice update with attributes instead.
 pub async fn synchronize(
     client: &impl EngineClient,
     state: &mut EngineState,
     state_update: EngineSyncStateUpdate,
-) -> Result<(), ForkchoiceError> {
+) -> Result<ForkchoiceStatus, ForkchoiceError> {
     // Apply the sync state update to the engine state.
     let new_sync_state = state.sync_state.apply_update(state_update);
 
@@ -23,7 +33,7 @@ pub async fn synchronize(
         state.sync_state == new_sync_state
     {
         debug!(target: "engine", ?new_sync_state, "No forkchoice update needed");
-        return Ok(());
+        return Ok(ForkchoiceStatus::Valid);
     }
 
     // Check if the head is behind the finalized head.
@@ -49,18 +59,21 @@ pub async fn synchronize(
 
     let valid_response = response.map_err(ForkchoiceError::from)?;
 
-    match &valid_response.payload_status.status {
+    let status = match &valid_response.payload_status.status {
         PayloadStatusEnum::Valid => {
             if !state.el_sync_finished {
                 info!(target: "engine", "Finished execution layer sync.");
                 state.el_sync_finished = true;
             }
+            ForkchoiceStatus::Valid
         }
         PayloadStatusEnum::Syncing => {
             debug!(target: "engine", "Attempting to update forkchoice state while EL syncing");
+            state.phase = EnginePhase::Syncing;
+            ForkchoiceStatus::Syncing
         }
         status => return Err(ForkchoiceError::UnexpectedStatus(status.clone())),
-    }
+    };
 
     // Apply the new sync state to the engine state.
     state.sync_state = new_sync_state;
@@ -74,5 +87,5 @@ pub async fn synchronize(
         "Forkchoice updated"
     );
 
-    Ok(())
+    Ok(status)
 }

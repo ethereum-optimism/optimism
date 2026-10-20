@@ -48,7 +48,7 @@ mod rollup;
 pub use rollup::RollupRpc;
 
 mod l1_watcher;
-pub use l1_watcher::{L1State, L1WatcherQueries, L1WatcherQuerySender};
+pub use l1_watcher::{DerivationStatus, L1State};
 
 mod ws;
 pub use ws::WsRPC;

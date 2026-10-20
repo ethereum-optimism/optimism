@@ -30,6 +30,9 @@ pub trait EngineClient: OpEngineApi<Optimism, Http<HyperAuthClient>> + Send + Sy
     /// Returns a reference to the inner [`RollupConfig`].
     fn cfg(&self) -> &RollupConfig;
 
+    /// Reports whether the execution layer is synchronizing.
+    async fn syncing(&self) -> TransportResult<alloy_rpc_types_eth::SyncStatus>;
+
     /// Fetches the L1 block with the provided `BlockId`.
     fn get_l1_block(&self, block: BlockId) -> EthGetBlock<<Ethereum as Network>::BlockResponse>;
 
@@ -78,6 +81,10 @@ where
 {
     fn cfg(&self) -> &RollupConfig {
         self.cfg.as_ref()
+    }
+
+    async fn syncing(&self) -> TransportResult<alloy_rpc_types_eth::SyncStatus> {
+        self.engine.syncing().await
     }
 
     fn get_l1_block(&self, block: BlockId) -> EthGetBlock<<Ethereum as Network>::BlockResponse> {

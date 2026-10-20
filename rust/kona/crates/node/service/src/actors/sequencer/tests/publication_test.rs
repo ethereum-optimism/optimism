@@ -543,6 +543,8 @@ struct HeldOrigin {
 
 #[async_trait::async_trait]
 impl crate::OriginSelector for HeldOrigin {
+    fn reset(&mut self) {}
+
     async fn next_l1_origin(
         &mut self,
         _: kona_protocol::L2BlockInfo,

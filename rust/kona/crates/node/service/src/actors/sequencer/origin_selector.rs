@@ -6,6 +6,7 @@ use alloy_transport::{RpcError, TransportErrorKind};
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_rpc::L1State;
 use std::{fmt::Debug, sync::Arc};
 use tokio::sync::watch;
 
@@ -16,6 +17,10 @@ use tokio::sync::watch;
 #[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait OriginSelector: Debug + Send + Sync {
+    /// Discards cached origins when engine recovery invalidates the sequencing context.
+    /// Stateless implementations may leave this empty.
+    fn reset(&mut self);
+
     /// Selects the next L1 origin block for sequencing.
     ///
     /// # Arguments
@@ -47,6 +52,11 @@ pub struct L1OriginSelector<P: L1OriginSelectorProvider> {
 
 #[async_trait]
 impl<P: L1OriginSelectorProvider + Send + Sync> OriginSelector for L1OriginSelector<P> {
+    fn reset(&mut self) {
+        self.current = None;
+        self.next = None;
+    }
+
     /// Determines what the next L1 origin block should be, based off of the [`L2BlockInfo`] unsafe
     /// head.
     ///
@@ -220,8 +230,8 @@ pub trait L1OriginSelectorProvider: Debug + Sync {
 pub struct DelayedL1OriginSelectorProvider {
     /// The inner [`RootProvider`].
     inner: RootProvider,
-    /// The L1 head watch channel.
-    l1_head: watch::Receiver<Option<BlockInfo>>,
+    /// Shared L1 observations.
+    l1_state: watch::Receiver<L1State>,
     /// The confirmation depth to delay the view of the L1 chain.
     confirmation_depth: u64,
 }
@@ -230,10 +240,10 @@ impl DelayedL1OriginSelectorProvider {
     /// Creates a new [`DelayedL1OriginSelectorProvider`].
     pub const fn new(
         inner: RootProvider,
-        l1_head: watch::Receiver<Option<BlockInfo>>,
+        l1_state: watch::Receiver<L1State>,
         confirmation_depth: u64,
     ) -> Self {
-        Self { inner, l1_head, confirmation_depth }
+        Self { inner, l1_state, confirmation_depth }
     }
 }
 
@@ -251,7 +261,7 @@ impl L1OriginSelectorProvider for DelayedL1OriginSelectorProvider {
         &self,
         number: u64,
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
-        let Some(l1_head) = *self.l1_head.borrow() else {
+        let Some(l1_head) = self.l1_state.borrow().head else {
             // If the L1 head is not available, do not enforce a confirmation delay.
             return Ok(Provider::get_block_by_number(&self.inner, number.into())
                 .await?
@@ -274,12 +284,16 @@ mod test {
     use super::*;
     use alloy_eips::NumHash;
     use rstest::rstest;
-    use std::collections::HashSet;
+    use std::{
+        collections::HashSet,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
 
     /// A mock [`OriginSelectorProvider`] with a local set of [`BlockInfo`]s available.
     #[derive(Default, Debug, Clone)]
     struct MockOriginSelectorProvider {
         blocks: HashSet<BlockInfo>,
+        reads: Arc<AtomicUsize>,
     }
 
     impl MockOriginSelectorProvider {
@@ -295,6 +309,7 @@ mod test {
             &self,
             hash: B256,
         ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
+            self.reads.fetch_add(1, Ordering::Relaxed);
             Ok(self.blocks.iter().find(|b| b.hash == hash).copied())
         }
 
@@ -302,8 +317,90 @@ mod test {
             &self,
             number: u64,
         ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
+            self.reads.fetch_add(1, Ordering::Relaxed);
             Ok(self.blocks.iter().find(|b| b.number == number).copied())
         }
+    }
+
+    #[tokio::test]
+    async fn engine_epoch_change_discards_an_orphaned_cached_next_origin() {
+        use crate::{
+            EngineHandle, SequencerActor,
+            actors::{MockConductor, MockUnsafePayloadGossipClient},
+        };
+        use kona_derive::{PipelineError, test_utils::TestAttributesBuilder};
+        use kona_engine::{EnginePhase, EngineState, EngineSyncStateUpdate};
+
+        let cfg = Arc::new(RollupConfig {
+            block_time: 2,
+            max_sequencer_drift: 600,
+            ..Default::default()
+        });
+        let current = BlockInfo {
+            hash: B256::repeat_byte(1),
+            number: 1,
+            timestamp: 12,
+            ..Default::default()
+        };
+        let orphaned = BlockInfo {
+            hash: B256::repeat_byte(2),
+            parent_hash: current.hash,
+            number: 2,
+            timestamp: 24,
+        };
+        let canonical = BlockInfo { hash: B256::repeat_byte(3), ..orphaned };
+        let unsafe_head = L2BlockInfo {
+            block_info: BlockInfo {
+                hash: B256::repeat_byte(4),
+                number: 5,
+                timestamp: 22,
+                ..Default::default()
+            },
+            l1_origin: current.id(),
+            seq_num: 0,
+        };
+        let mut state = EngineState { epoch: 7, phase: EnginePhase::Ready, ..Default::default() };
+        state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+            unsafe_head: Some(unsafe_head),
+            ..Default::default()
+        });
+        let (engine, owner) = EngineHandle::test_channel(state);
+        let mut provider = MockOriginSelectorProvider::default();
+        provider.with_block(current);
+        provider.with_block(orphaned);
+        let reads = provider.reads.clone();
+        let (mut actor, _sequencer) = SequencerActor::new(
+            TestAttributesBuilder {
+                attributes: (0..3).map(|_| Err(PipelineError::Eof.temp())).collect(),
+            },
+            None::<MockConductor>,
+            engine,
+            true,
+            false,
+            L1OriginSelector::new(cfg.clone(), provider),
+            cfg,
+            MockUnsafePayloadGossipClient::new(),
+        );
+
+        assert!(actor.build_unsealed_payload().await.unwrap().is_none());
+        assert_eq!(actor.origin_selector.current(), Some(&current));
+        assert_eq!(actor.origin_selector.next(), Some(&orphaned));
+        assert_eq!(reads.load(Ordering::Relaxed), 2);
+        actor.origin_selector.l1.blocks.remove(&orphaned);
+        actor.origin_selector.l1.with_block(canonical);
+
+        // A normal retry reuses its cache without adding steady-state L1 reads.
+        assert!(actor.build_unsealed_payload().await.unwrap().is_none());
+        assert_eq!(actor.origin_selector.next(), Some(&orphaned));
+        assert_eq!(reads.load(Ordering::Relaxed), 2);
+
+        owner.state.send_replace(EngineState { epoch: 8, phase: EnginePhase::Resetting, ..state });
+        assert!(actor.build_unsealed_payload().await.unwrap().is_none());
+        owner.state.send_replace(EngineState { epoch: 8, ..state });
+        assert!(actor.build_unsealed_payload().await.unwrap().is_none());
+        assert_eq!(actor.origin_selector.current(), Some(&current));
+        assert_eq!(actor.origin_selector.next(), Some(&canonical));
+        assert_eq!(reads.load(Ordering::Relaxed), 4);
     }
 
     #[tokio::test]

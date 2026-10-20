@@ -11,6 +11,7 @@ use kona_derive::{
 };
 use kona_engine::{Consolidation, EnginePhase, EngineState, FinalizationSource};
 use kona_protocol::{BlockInfo, OpAttributesWithParent};
+use kona_rpc::DerivationStatus;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::{
@@ -29,6 +30,7 @@ where
     engine: EngineHandle,
     engine_state: watch::Receiver<EngineState>,
     pipeline: P,
+    status: watch::Sender<DerivationStatus>,
     /// Installed only after a successful pipeline reset or an accepted consolidation.
     applied_pipeline_context: Option<EngineContext>,
     observed_epoch: u64,
@@ -36,6 +38,8 @@ where
     pending_signal: Option<Signal>,
     deriving: bool,
     retry_at: Option<Instant>,
+    /// Repeated local resets without acknowledged L2 progress are paced up to twelve seconds.
+    reset_delay: Duration,
     finalized_l1: Option<BlockInfo>,
     finality_retry_at: Option<Instant>,
     pub(crate) finalizer: L2Finalizer,
@@ -47,6 +51,7 @@ impl<P: Pipeline + SignalReceiver> DerivationActor<P> {
         engine: EngineHandle,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
         pipeline: P,
+        status: watch::Sender<DerivationStatus>,
     ) -> Self {
         let engine_state = engine.subscribe();
         let observed_epoch = engine.state().epoch;
@@ -55,12 +60,14 @@ impl<P: Pipeline + SignalReceiver> DerivationActor<P> {
             engine,
             engine_state,
             pipeline,
+            status,
             applied_pipeline_context: None,
             observed_epoch,
             pending_attributes: None,
             pending_signal: None,
             deriving: false,
             retry_at: None,
+            reset_delay: Duration::ZERO,
             finalized_l1: None,
             finality_retry_at: None,
             finalizer: L2Finalizer::default(),
@@ -72,16 +79,30 @@ impl<P: Pipeline + SignalReceiver> DerivationActor<P> {
         self.pending_attributes = None;
         self.pending_signal = None;
         self.retry_at = None;
-        self.finalizer.clear();
-        self.finality_retry_at = None;
         self.deriving = false;
+        while self.pipeline.next().is_some() {}
+        self.status.send_if_modified(|status| status.current_l1.take().is_some());
+    }
+
+    fn publish_status(&self) {
+        let state = self.engine.state();
+        let current_l1 = self
+            .applied_pipeline_context
+            .filter(|context| context.epoch == state.epoch && state.phase == EnginePhase::Ready)
+            .and_then(|_| self.pipeline.origin());
+        self.status.send_if_modified(|status| {
+            std::mem::replace(&mut status.current_l1, current_l1) != current_l1
+        });
     }
 
     fn observe_engine(&mut self) -> EngineState {
         let state = *self.engine_state.borrow_and_update();
         if state.epoch != self.observed_epoch || state.phase != EnginePhase::Ready {
             self.invalidate_pipeline();
+            self.finalizer.clear();
+            self.finality_retry_at = None;
             self.observed_epoch = state.epoch;
+            self.reset_delay = Duration::ZERO;
         }
         state
     }
@@ -105,11 +126,15 @@ impl<P: Pipeline + SignalReceiver> DerivationActor<P> {
 
     /// A cancelled signal/step is never reused before another complete reset succeeds.
     async fn reset_pipeline(&mut self, state: EngineState) -> Result<(), DerivationError> {
-        let parent = state.sync_state.safe_head();
+        // A pipeline-local reset preserves accepted span progress in this engine epoch.
+        let parent = state.pending_safe_head;
+        self.reset_delay =
+            (self.reset_delay * 2).clamp(Duration::from_secs(1), Duration::from_secs(12));
         let result = select! {
             biased;
             result = context_changed(&mut self.engine_state, state.epoch) => {
                 result?;
+                self.observe_engine();
                 return Ok(());
             }
             result = self.pipeline.signal(Signal::Reset(ResetSignal { l2_safe_head: parent })) => result,
@@ -121,19 +146,21 @@ impl<P: Pipeline + SignalReceiver> DerivationActor<P> {
                 let latest = self.observe_engine();
                 if latest.phase == EnginePhase::Ready &&
                     latest.epoch == state.epoch &&
-                    latest.sync_state.safe_head() == parent
+                    latest.pending_safe_head == parent
                 {
                     self.applied_pipeline_context =
                         Some(EngineContext { epoch: state.epoch, parent });
+                    self.retry_at = None;
                     self.deriving = true;
                 }
             }
             Err(error @ PipelineErrorKind::Critical(_)) => return Err(error.into()),
             Err(error) => {
                 warn!(target: "derivation", %error, "Retrying pipeline reset");
-                self.retry();
+                self.retry_at = Some(Instant::now() + self.reset_delay);
             }
         }
+        self.publish_status();
         Ok(())
     }
 
@@ -146,7 +173,7 @@ impl<P: Pipeline + SignalReceiver> DerivationActor<P> {
             biased;
             result = context_changed(&mut self.engine_state, context.epoch) => {
                 result?;
-                self.invalidate_pipeline();
+                self.observe_engine();
                 return Ok(());
             }
             result = self.pipeline.signal(signal) => result,
@@ -163,6 +190,7 @@ impl<P: Pipeline + SignalReceiver> DerivationActor<P> {
                 self.retry();
             }
         }
+        self.publish_status();
         Ok(())
     }
 
@@ -177,7 +205,7 @@ impl<P: Pipeline + SignalReceiver> DerivationActor<P> {
             biased;
             result = context_changed(&mut self.engine_state, context.epoch) => {
                 result?;
-                self.invalidate_pipeline();
+                self.observe_engine();
                 return Ok(());
             }
             result = self.engine.consolidate(context, attributes) => result,
@@ -189,6 +217,11 @@ impl<P: Pipeline + SignalReceiver> DerivationActor<P> {
         match result {
             Ok(result) => {
                 self.pending_attributes = None;
+                if result.state.pending_safe_head.block_info.number >
+                    context.parent.block_info.number
+                {
+                    self.reset_delay = Duration::ZERO;
+                }
                 // Pending progress may advance within a span, or rewind when a legacy span
                 // is dropped. Only completed safe progress can enter the finality map.
                 self.applied_pipeline_context = Some(EngineContext {
@@ -223,7 +256,7 @@ impl<P: Pipeline + SignalReceiver> DerivationActor<P> {
             biased;
             result = context_changed(&mut self.engine_state, context.epoch) => {
                 result?;
-                self.invalidate_pipeline();
+                self.observe_engine();
                 return Ok(());
             }
             result = self.engine.finalize(context.epoch, record.block.block_info.id(), FinalizationSource::Local(record.source.id())) => result,
@@ -252,7 +285,7 @@ impl<P: Pipeline + SignalReceiver> DerivationActor<P> {
             biased;
             result = context_changed(&mut self.engine_state, context.epoch) => {
                 result?;
-                self.invalidate_pipeline();
+                self.observe_engine();
                 return Ok(());
             }
             result = async {
@@ -279,11 +312,10 @@ impl<P: Pipeline + SignalReceiver> DerivationActor<P> {
                         kona_macros::inc!(counter, Metrics::L1_REORG_COUNT);
                     }
                     self.invalidate_pipeline();
-                    // The owner publishes the new epoch before attempting its reset walk.
-                    select! {
-                        biased;
-                        result = context_changed(&mut self.engine_state, context.epoch) => result?,
-                        result = self.engine.reset() => result?,
+                    // The engine independently observes canonicality. Restart only this pipeline;
+                    // repeating a reset without accepted L2 progress must not form a busy loop.
+                    if !self.reset_delay.is_zero() {
+                        self.retry_at = Some(Instant::now() + self.reset_delay);
                     }
                 }
                 error @ PipelineErrorKind::Critical(_) => {
@@ -292,6 +324,7 @@ impl<P: Pipeline + SignalReceiver> DerivationActor<P> {
                 }
             },
         }
+        self.publish_status();
         Ok(())
     }
 }
@@ -328,7 +361,10 @@ impl<P: Pipeline + SignalReceiver + Send + Sync + 'static> NodeActor for Derivat
             }
             select! {
                 biased;
-                result = self.engine_state.changed() => result.map_err(|_| EngineClientError::Closed)?,
+                result = self.engine_state.changed() => {
+                    result.map_err(|_| EngineClientError::Closed)?;
+                    self.observe_engine();
+                },
                 request = self.inbound_request_rx.recv() => self.receive_l1(request)?,
                 _ = tokio::time::sleep_until(deadline) => self.retry_at = None,
             }
@@ -358,7 +394,10 @@ impl<P: Pipeline + SignalReceiver + Send + Sync + 'static> NodeActor for Derivat
         let finality_deadline = self.finality_retry_at;
         select! {
             biased;
-            result = self.engine_state.changed() => result.map_err(|_| EngineClientError::Closed)?,
+            result = self.engine_state.changed() => {
+                    result.map_err(|_| EngineClientError::Closed)?;
+                    self.observe_engine();
+                },
             request = self.inbound_request_rx.recv() => self.receive_l1(request)?,
             _ = async {
                 if let Some(deadline) = finality_deadline { tokio::time::sleep_until(deadline).await; }
@@ -407,6 +446,8 @@ mod tests {
         parents: Vec<L2BlockInfo>,
         step_result: Option<StepResult>,
         blocked_step: Option<Arc<Notify>>,
+        origin: Option<BlockInfo>,
+        next_origin: Option<BlockInfo>,
     }
 
     impl Iterator for TestPipeline {
@@ -417,7 +458,7 @@ mod tests {
     }
     impl OriginProvider for TestPipeline {
         fn origin(&self) -> Option<BlockInfo> {
-            Some(BlockInfo::default())
+            self.origin
         }
     }
     #[async_trait]
@@ -435,6 +476,9 @@ mod tests {
         async fn step(&mut self, parent: L2BlockInfo) -> StepResult {
             self.steps += 1;
             self.parents.push(parent);
+            if let Some(origin) = self.next_origin.take() {
+                self.origin = Some(origin);
+            }
             if let Some(started) = &self.blocked_step {
                 started.notify_one();
                 std::future::pending::<()>().await;
@@ -473,14 +517,18 @@ mod tests {
     async fn reset_installs_context_only_after_success_and_discards_prepared_output() {
         let (engine, _owner) = EngineHandle::test_channel(ready(1));
         let (_l1, requests) = mpsc::channel(1);
+        let actual_origin = BlockInfo { number: 3, ..Default::default() };
+        let (status, progress) = watch::channel(DerivationStatus::default());
         let pipeline = TestPipeline {
+            origin: Some(actual_origin),
             prepared: VecDeque::from([attributes(L2BlockInfo::default())]),
             signal_results: VecDeque::from([Err(PipelineError::Eof.temp()), Ok(())]),
             ..Default::default()
         };
-        let mut actor = DerivationActor::new(engine, requests, pipeline);
+        let mut actor = DerivationActor::new(engine, requests, pipeline, status);
         actor.step().await.unwrap();
         assert_eq!(actor.applied_pipeline_context, None);
+        assert_eq!(progress.borrow().current_l1, None);
         assert_eq!(actor.pipeline.steps, 0);
         assert!(actor.retry_at.is_some());
         actor.reset_pipeline(ready(1)).await.unwrap();
@@ -489,6 +537,7 @@ mod tests {
             Some(EngineContext { epoch: 1, parent: L2BlockInfo::default() })
         );
         assert!(actor.pipeline.prepared.is_empty());
+        assert_eq!(progress.borrow().current_l1, Some(actual_origin));
         assert_eq!(actor.pipeline.signals.len(), 2);
     }
 
@@ -500,7 +549,12 @@ mod tests {
             signal_results: VecDeque::from([Err(PipelineError::Eof.temp()), Ok(())]),
             ..Default::default()
         };
-        let mut actor = DerivationActor::new(engine, requests, pipeline);
+        let mut actor = DerivationActor::new(
+            engine,
+            requests,
+            pipeline,
+            watch::channel(DerivationStatus::default()).0,
+        );
         actor.step().await.unwrap();
         owner.state.send_replace(ready(2));
         actor.step().await.unwrap();
@@ -516,7 +570,12 @@ mod tests {
             signal_results: VecDeque::from([Err(PipelineError::MissingOrigin.crit())]),
             ..Default::default()
         };
-        let mut actor = DerivationActor::new(engine, requests, pipeline);
+        let mut actor = DerivationActor::new(
+            engine,
+            requests,
+            pipeline,
+            watch::channel(DerivationStatus::default()).0,
+        );
         assert!(matches!(
             actor.step().await,
             Err(DerivationError::Pipeline(PipelineErrorKind::Critical(_)))
@@ -534,7 +593,12 @@ mod tests {
     ) {
         let (engine, mut owner) = EngineHandle::test_channel(ready(1));
         let (_l1, requests) = mpsc::channel(1);
-        let mut actor = DerivationActor::new(engine, requests, TestPipeline::default());
+        let mut actor = DerivationActor::new(
+            engine,
+            requests,
+            TestPipeline::default(),
+            watch::channel(DerivationStatus::default()).0,
+        );
         actor.step().await.unwrap();
         let context = actor.applied_pipeline_context.unwrap();
         let attrs = attributes(context.parent);
@@ -580,6 +644,7 @@ mod tests {
             return;
         }
         assert_eq!(actor.applied_pipeline_context.unwrap().parent, accepted.sync_state.safe_head());
+        assert_eq!(actor.reset_delay, Duration::ZERO);
         let record = actor.finalizer.candidate(4).unwrap();
         assert_eq!(record.block, accepted.sync_state.safe_head());
         assert_eq!(record.source, source);
@@ -601,11 +666,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn pending_span_progress_is_not_finality_and_drop_rewinds_the_next_parent_without_reset()
-    {
+    async fn a_local_reset_preserves_pending_span_progress_and_drop_rewinds_without_finality() {
         let (engine, mut owner) = EngineHandle::test_channel(ready(1));
         let (_l1, requests) = mpsc::channel(1);
-        let mut actor = DerivationActor::new(engine, requests, TestPipeline::default());
+        let mut actor = DerivationActor::new(
+            engine,
+            requests,
+            TestPipeline::default(),
+            watch::channel(DerivationStatus::default()).0,
+        );
         actor.step().await.unwrap();
         let completed = L2BlockInfo::default();
         let pending = L2BlockInfo {
@@ -643,18 +712,42 @@ mod tests {
             assert_eq!(actor.applied_pipeline_context.unwrap().parent, accepted.pending_safe_head);
             assert_eq!(actor.finalizer.candidate(u64::MAX), None);
             assert_eq!(actor.pending_signal, None);
-            assert_eq!(actor.pipeline.signals.len(), 1);
+            if outcome == Consolidation::Applied {
+                actor.pipeline.step_result = Some(StepResult::StepFailed(
+                    ResetError::ReorgDetected(B256::ZERO, B256::repeat_byte(1)).reset(),
+                ));
+                actor.step().await.unwrap();
+                assert_eq!(actor.applied_pipeline_context, None);
+                actor.step().await.unwrap();
+                assert_eq!(
+                    actor.applied_pipeline_context,
+                    Some(EngineContext { epoch: 1, parent: pending })
+                );
+                assert_eq!(
+                    actor.pipeline.signals.last(),
+                    Some(&Signal::Reset(ResetSignal { l2_safe_head: pending }))
+                );
+                assert_eq!(owner.state.borrow().sync_state.safe_head(), completed);
+                assert_eq!(actor.finalizer.candidate(u64::MAX), None);
+                assert!(owner.resets.try_recv().is_err());
+            }
+            assert_eq!(actor.pipeline.signals.len(), 2);
         }
         actor.step().await.unwrap();
-        assert_eq!(actor.pipeline.parents, [completed]);
-        assert_eq!(actor.pipeline.signals.len(), 1);
+        assert_eq!(actor.pipeline.parents, [pending, completed]);
+        assert_eq!(actor.pipeline.signals.len(), 2);
     }
 
     #[tokio::test]
     async fn same_head_reset_discards_an_in_flight_reply_and_its_finality() {
         let (engine, mut owner) = EngineHandle::test_channel(ready(1));
         let (_l1, requests) = mpsc::channel(1);
-        let mut actor = DerivationActor::new(engine, requests, TestPipeline::default());
+        let mut actor = DerivationActor::new(
+            engine,
+            requests,
+            TestPipeline::default(),
+            watch::channel(DerivationStatus::default()).0,
+        );
         actor.step().await.unwrap();
         let context = actor.applied_pipeline_context.unwrap();
         actor.pending_attributes = Some(attributes(context.parent));
@@ -684,7 +777,12 @@ mod tests {
         let (_l1, requests) = mpsc::channel(1);
         let started = Arc::new(Notify::new());
         let pipeline = TestPipeline { blocked_step: Some(started.clone()), ..Default::default() };
-        let mut actor = DerivationActor::new(engine, requests, pipeline);
+        let mut actor = DerivationActor::new(
+            engine,
+            requests,
+            pipeline,
+            watch::channel(DerivationStatus::default()).0,
+        );
         actor.step().await.unwrap();
         let (result, ()) = tokio::join!(actor.step(), async {
             started.notified().await;
@@ -703,7 +801,12 @@ mod tests {
     async fn temporary_attributes_and_finalization_retain_the_original_work_until_acknowledged() {
         let (engine, mut owner) = EngineHandle::test_channel(ready(1));
         let (_l1, requests) = mpsc::channel(1);
-        let mut actor = DerivationActor::new(engine, requests, TestPipeline::default());
+        let mut actor = DerivationActor::new(
+            engine,
+            requests,
+            TestPipeline::default(),
+            watch::channel(DerivationStatus::default()).0,
+        );
         actor.step().await.unwrap();
         let context = actor.applied_pipeline_context.unwrap();
         let attrs = attributes(context.parent);
@@ -771,7 +874,12 @@ mod tests {
     async fn finalization_backoff_does_not_block_pipeline_progress() {
         let (engine, _owner) = EngineHandle::test_channel(ready(1));
         let (_l1, requests) = mpsc::channel(1);
-        let mut actor = DerivationActor::new(engine, requests, TestPipeline::default());
+        let mut actor = DerivationActor::new(
+            engine,
+            requests,
+            TestPipeline::default(),
+            watch::channel(DerivationStatus::default()).0,
+        );
         actor.step().await.unwrap();
         actor.finalizer.record(L2BlockInfo::default(), BlockInfo::default());
         actor.finalized_l1 = Some(BlockInfo::default());
@@ -781,8 +889,99 @@ mod tests {
         assert!(actor.finalizer.candidate(0).is_some());
     }
 
-    #[tokio::test]
-    async fn a_pipeline_reorg_requests_an_owner_reset() {
+    #[tokio::test(start_paused = true)]
+    async fn a_local_pipeline_reset_preserves_accepted_finality_and_its_retry() {
+        let block = L2BlockInfo {
+            block_info: BlockInfo { number: 7, hash: B256::repeat_byte(7), ..Default::default() },
+            ..Default::default()
+        };
+        let source = BlockInfo { number: 4, hash: B256::repeat_byte(4), ..Default::default() };
+        let mut state = ready(1);
+        state.pending_safe_head = block;
+        state.sync_state = state.sync_state.apply_update(kona_engine::EngineSyncStateUpdate {
+            unsafe_head: Some(block),
+            local_safe_head: Some(block),
+            safe_head: Some(block),
+            ..Default::default()
+        });
+        let (engine, mut owner) = EngineHandle::test_channel(state);
+        let (_l1, requests) = mpsc::channel(1);
+        let pipeline = TestPipeline {
+            step_result: Some(StepResult::StepFailed(
+                ResetError::ReorgDetected(B256::ZERO, B256::repeat_byte(1)).reset(),
+            )),
+            ..Default::default()
+        };
+        let mut actor = DerivationActor::new(
+            engine,
+            requests,
+            pipeline,
+            watch::channel(DerivationStatus::default()).0,
+        );
+        actor.step().await.unwrap();
+        actor.finalizer.record(block, source);
+        let record = actor.finalizer.candidate(source.number).unwrap();
+        let retry = Instant::now() + Duration::from_secs(30);
+        actor.finality_retry_at = Some(retry);
+        actor.step().await.unwrap(); // A local reset invalidates pipeline context, not accepted safe.
+        assert_eq!(actor.applied_pipeline_context, None);
+        assert_eq!(actor.finalizer.candidate(source.number), Some(record));
+        assert_eq!(actor.finality_retry_at, Some(retry));
+        tokio::time::advance(Duration::from_secs(1)).await;
+        actor.step().await.unwrap();
+        actor.step().await.unwrap(); // Reinstall the same engine epoch's pipeline context.
+        assert!(actor.applied_pipeline_context.is_some());
+        actor.finalized_l1 = Some(source);
+        tokio::time::advance(retry - Instant::now()).await;
+        let (result, ()) = tokio::join!(actor.step(), async {
+            let Message::Finalize(epoch, received, provenance, reply) =
+                owner.commands.recv().await.unwrap()
+            else {
+                panic!("expected retained finalization")
+            };
+            assert_eq!(epoch, 1);
+            assert_eq!(received, block.block_info.id());
+            assert_eq!(provenance, FinalizationSource::Local(source.id()));
+            reply.send(Ok(())).unwrap();
+        });
+        result.unwrap();
+        assert_eq!(actor.finalizer.candidate(source.number), None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn pipeline_resets_retry_locally_with_backoff_and_never_step_while_reset_failed() {
+        let (engine, mut owner) = EngineHandle::test_channel(ready(1));
+        let (_l1, requests) = mpsc::channel(1);
+        let pipeline = TestPipeline {
+            signal_results: (0..7).map(|_| Err(PipelineError::Eof.temp())).collect(),
+            ..Default::default()
+        };
+        let mut actor = DerivationActor::new(
+            engine,
+            requests,
+            pipeline,
+            watch::channel(DerivationStatus::default()).0,
+        );
+        actor.step().await.unwrap();
+        for delay in [1, 2, 4, 8, 12, 12] {
+            let signals = actor.pipeline.signals.len();
+            assert!(tokio::time::timeout(Duration::from_millis(500), actor.step()).await.is_err());
+            assert_eq!(actor.pipeline.signals.len(), signals);
+            let deadline = actor.retry_at.unwrap();
+            assert_eq!(
+                deadline - Instant::now(),
+                Duration::from_secs(delay) - Duration::from_millis(500)
+            );
+            tokio::time::advance(deadline - Instant::now()).await;
+            actor.step().await.unwrap(); // Consume the retry deadline before the next attempt.
+            actor.step().await.unwrap();
+            assert_eq!(actor.pipeline.steps, 0);
+        }
+        assert!(owner.resets.try_recv().is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_pipeline_reorg_resets_only_the_pipeline_and_a_new_epoch_supersedes_its_backoff() {
         let (engine, mut owner) = EngineHandle::test_channel(ready(1));
         let (_l1, requests) = mpsc::channel(1);
         let pipeline = TestPipeline {
@@ -791,14 +990,44 @@ mod tests {
             )),
             ..Default::default()
         };
-        let mut actor = DerivationActor::new(engine, requests, pipeline);
+        let mut actor = DerivationActor::new(
+            engine,
+            requests,
+            pipeline,
+            watch::channel(DerivationStatus::default()).0,
+        );
         actor.step().await.unwrap();
-        let (result, ()) = tokio::join!(actor.step(), async {
-            let reply = owner.resets.recv().await.unwrap();
-            owner.state.send_replace(EngineState { phase: EnginePhase::Resetting, ..ready(2) });
-            let _ = reply.send(Ok(()));
-        });
-        result.unwrap();
+        actor.step().await.unwrap();
         assert_eq!(actor.applied_pipeline_context, None);
+        assert_eq!(actor.retry_at.unwrap() - Instant::now(), Duration::from_secs(1));
+        assert!(owner.resets.try_recv().is_err());
+        owner.state.send_replace(ready(2));
+        actor.step().await.unwrap();
+        assert_eq!(actor.applied_pipeline_context.unwrap().epoch, 2);
+        assert_eq!(actor.pipeline.signals.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn progress_reports_actual_pipeline_origin_even_when_safe_does_not_move() {
+        let (engine, owner) = EngineHandle::test_channel(ready(1));
+        let (_l1, requests) = mpsc::channel(1);
+        let (status, current) = watch::channel(DerivationStatus::default());
+        let reset_origin =
+            BlockInfo { number: 3, hash: B256::repeat_byte(3), ..Default::default() };
+        let next_origin = BlockInfo { number: 4, hash: B256::repeat_byte(4), ..Default::default() };
+        let pipeline = TestPipeline {
+            origin: Some(reset_origin),
+            next_origin: Some(next_origin),
+            ..Default::default()
+        };
+        let mut actor = DerivationActor::new(engine, requests, pipeline, status);
+        actor.step().await.unwrap();
+        assert_eq!(current.borrow().current_l1, Some(reset_origin));
+        actor.step().await.unwrap(); // EOF still reports the origin reached by the step.
+        assert_eq!(current.borrow().current_l1, Some(next_origin));
+        assert_eq!(owner.state.borrow().sync_state.safe_head(), L2BlockInfo::default());
+        owner.state.send_replace(EngineState { phase: EnginePhase::Resetting, ..ready(2) });
+        actor.observe_engine();
+        assert_eq!(current.borrow().current_l1, None);
     }
 }

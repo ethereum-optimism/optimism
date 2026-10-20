@@ -67,6 +67,7 @@ tower.workspace = true
 metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
+op-alloy-rpc-types.workspace = true
 alloy-json-rpc.workspace = true
 serde_json.workspace = true
 kona-engine = { workspace = true, features = ["test-utils"] }
