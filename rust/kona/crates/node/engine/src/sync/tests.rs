@@ -1,5 +1,5 @@
 use super::*;
-use crate::{EngineResetError, OpEngineClient};
+use crate::{OpEngineClient, ResetError};
 use alloy_eips::BlockNumHash;
 use alloy_json_rpc::{RequestPacket, ResponsePacket};
 use alloy_network::Ethereum;
@@ -196,7 +196,7 @@ async fn missing_parent_is_retryable_without_being_wrong_chain() {
     assert!(
         matches!(&error, SyncStartError::BlockNotFound(id) if *id == chain.blocks[1].block_info.hash.into())
     );
-    assert!(EngineResetError::SyncStart(error).is_temporary());
+    assert!(ResetError::SyncStart(error).is_temporary());
 }
 
 #[tokio::test]
@@ -216,7 +216,7 @@ async fn historical_l1_hole_is_retryable_but_origins_beyond_captured_visibility_
     chain.l1.remove(&3);
     let error = find_heads(&chain.cfg, &chain).await.unwrap_err();
     assert!(matches!(&error, SyncStartError::BlockNotFound(id) if *id == BlockId::number(3)));
-    assert!(EngineResetError::SyncStart(error).is_temporary());
+    assert!(ResetError::SyncStart(error).is_temporary());
 }
 
 #[rstest::rstest]
@@ -231,7 +231,7 @@ async fn changed_or_missing_anchor_retries_the_whole_walk(#[case] missing: bool)
         VecDeque::from([Some(anchor), if missing { None } else { Some(changed) }]);
     let error = find_heads(&chain.cfg, &chain).await.unwrap_err();
     assert!(matches!(&error, SyncStartError::L1ChainChanged));
-    assert!(EngineResetError::SyncStart(error).is_temporary());
+    assert!(ResetError::SyncStart(error).is_temporary());
 }
 
 #[tokio::test]

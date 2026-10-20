@@ -7322,7 +7322,6 @@ dependencies = [
  "alloy-transport-http",
  "arbitrary",
  "async-trait",
- "derive_more 2.1.1",
  "http-body-util",
  "kona-genesis",
  "kona-macros",

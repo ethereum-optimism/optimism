@@ -1,11 +1,10 @@
 use crate::{
     ConductorError, EngineClientError, SequencerAdminQuery,
-    actors::{MockConductor, MockSequencerEngineClient, sequencer::tests::test_util::test_actor},
+    actors::{MockConductor, sequencer::tests::test_util::test_actor},
 };
 use alloy_primitives::B256;
 use alloy_transport::RpcError;
 use kona_protocol::{BlockInfo, L2BlockInfo};
-use kona_rpc::SequencerAdminAPIError;
 use rstest::rstest;
 use tokio::sync::oneshot;
 
@@ -132,11 +131,13 @@ async fn test_stop_sequencer_success(
     };
     let expected_hash = unsafe_head.hash();
 
-    let mut client = MockSequencerEngineClient::new();
-    client.expect_get_unsafe_head().times(1).return_once(move || Ok(unsafe_head));
-
     let mut actor = test_actor();
-    actor.engine_client = client;
+    let mut state = kona_engine::EngineState::default();
+    state.sync_state = state.sync_state.apply_update(kona_engine::EngineSyncStateUpdate {
+        unsafe_head: Some(unsafe_head),
+        ..Default::default()
+    });
+    actor.engine_client = crate::EngineHandle::test_channel(state).0;
     actor.is_active = !already_stopped;
 
     // verify starting state
@@ -163,38 +164,6 @@ async fn test_stop_sequencer_success(
     let result = actor.is_sequencer_active().await;
     assert!(result.is_ok());
     assert!(!result.unwrap());
-}
-
-#[rstest]
-#[tokio::test]
-async fn test_stop_sequencer_error_fetching_unsafe_head(#[values(true, false)] via_channel: bool) {
-    let mut client = MockSequencerEngineClient::new();
-    client
-        .expect_get_unsafe_head()
-        .times(1)
-        .return_once(|| Err(EngineClientError::RequestError("whoops!".to_string())));
-
-    let mut actor = test_actor();
-    actor.engine_client = client;
-
-    let result = async {
-        match via_channel {
-            false => actor.stop_sequencer().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::StopSequencer(tx)).await;
-                rx.await.unwrap()
-            }
-        }
-    }
-    .await;
-    assert!(result.is_err());
-
-    assert!(matches!(
-        result.unwrap_err(),
-        SequencerAdminAPIError::ErrorAfterSequencerWasStopped(_)
-    ));
-    assert!(!actor.is_active);
 }
 
 #[rstest]
@@ -294,11 +263,13 @@ async fn test_override_leader(
 #[rstest]
 #[tokio::test]
 async fn test_reset_derivation_pipeline_success(#[values(true, false)] via_channel: bool) {
-    let mut client = MockSequencerEngineClient::new();
-    client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
-
     let mut actor = test_actor();
-    actor.engine_client = client;
+    let (handle, mut engine) =
+        crate::EngineHandle::test_channel(kona_engine::EngineState::default());
+    actor.engine_client = handle;
+    let responder = tokio::spawn(async move {
+        let _ = engine.resets.recv().await.unwrap().send(Ok(()));
+    });
 
     let result = async {
         match via_channel {
@@ -312,20 +283,25 @@ async fn test_reset_derivation_pipeline_success(#[values(true, false)] via_chann
     }
     .await;
 
+    responder.await.unwrap();
     assert!(result.is_ok());
 }
 
 #[rstest]
 #[tokio::test]
 async fn test_reset_derivation_pipeline_error(#[values(true, false)] via_channel: bool) {
-    let mut client = MockSequencerEngineClient::new();
-    client
-        .expect_reset_engine_forkchoice()
-        .times(1)
-        .return_once(|| Err(EngineClientError::RequestError("reset failed".to_string())));
-
     let mut actor = test_actor();
-    actor.engine_client = client;
+    let (handle, mut engine) =
+        crate::EngineHandle::test_channel(kona_engine::EngineState::default());
+    actor.engine_client = handle;
+    let responder = tokio::spawn(async move {
+        let _ = engine
+            .resets
+            .recv()
+            .await
+            .unwrap()
+            .send(Err(EngineClientError::Temporary("reset failed".into())));
+    });
 
     let result = async {
         match via_channel {
@@ -339,6 +315,7 @@ async fn test_reset_derivation_pipeline_error(#[values(true, false)] via_channel
     }
     .await;
 
+    responder.await.unwrap();
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Failed to reset engine"));
 }
@@ -353,13 +330,18 @@ async fn test_handle_admin_query_resilient_to_dropped_receiver() {
         block_info: BlockInfo { hash: B256::from([1u8; 32]), ..Default::default() },
         ..Default::default()
     };
-    let mut client = MockSequencerEngineClient::new();
-    client.expect_get_unsafe_head().times(1).returning(move || Ok(unsafe_head));
-    client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
-
     let mut actor = test_actor();
     actor.conductor = Some(conductor);
-    actor.engine_client = client;
+    let mut state = kona_engine::EngineState::default();
+    state.sync_state = state.sync_state.apply_update(kona_engine::EngineSyncStateUpdate {
+        unsafe_head: Some(unsafe_head),
+        ..Default::default()
+    });
+    let (handle, mut engine) = crate::EngineHandle::test_channel(state);
+    actor.engine_client = handle;
+    let responder = tokio::spawn(async move {
+        let _ = engine.resets.recv().await.unwrap().send(Ok(()));
+    });
 
     let mut queries: Vec<SequencerAdminQuery> = Vec::new();
     {
@@ -407,4 +389,5 @@ async fn test_handle_admin_query_resilient_to_dropped_receiver() {
     for query in queries {
         actor.handle_admin_query(query).await;
     }
+    responder.await.unwrap();
 }

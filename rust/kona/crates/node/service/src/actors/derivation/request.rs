@@ -1,5 +1,4 @@
-use kona_derive::Signal;
-use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_protocol::BlockInfo;
 use thiserror::Error;
 
 /// The result of an Engine client call.
@@ -21,14 +20,6 @@ pub enum DerivationClientError {
 /// Inbound requests that the [`crate::DerivationActor`] can process.
 #[derive(Debug)]
 pub enum DerivationActorRequest {
-    /// Request to process the fact that Engine sync has completed, along with the current safe
-    /// head.
-    ProcessEngineSyncCompletionRequest(Box<L2BlockInfo>),
-    /// Request to process the provided L2 engine safe head update.
-    ProcessEngineSafeHeadUpdateRequest(Box<L2BlockInfo>),
-    /// A request containing a [`Signal`] to the derivation pipeline.
-    /// This allows the Engine to send the `DerivationActor` signals (e.g. to Flush or Reset).
-    ProcessEngineSignalRequest(Box<Signal>),
     /// A request to process the provided finalized L1 [`BlockInfo`].
     ProcessFinalizedL1Block(Box<BlockInfo>),
     /// Request to process the provided L1 head block update.

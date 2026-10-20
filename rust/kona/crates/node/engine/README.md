@@ -1,44 +1,15 @@
 # `kona-engine`
 
-An extensible implementation of the [OP Stack][op-stack] rollup node engine client.
+Engine API operations and reset traversal for the [OP Stack](https://specs.optimism.io).
 
-## Overview
+`EngineClient` supplies the configured L1/L2 RPC connections. Ordinary functions build,
+retrieve, insert, consolidate, finalize and synchronize execution payloads, updating
+`EngineState` only for accepted changes. Consolidation reports whether derived attributes
+applied, required a deposits-only replacement, or were dropped.
 
-The `kona-engine` crate provides a task-based engine client for interacting with Ethereum execution layers. It implements the Engine API specification and manages the execution layer state through a priority-driven task queue system.
+`find_starting_forkchoice` finds a canonical reset point. Scheduling, bounded admission,
+retries, reset epochs and producer acknowledgements belong to the engine actor in
+`kona-node-service`.
 
-## Key Components
-
-- **[`Engine`](crate::Engine)** - Main task queue processor that executes engine operations atomically
-- **[`EngineClient`](crate::EngineClient)** - HTTP client for Engine API communication with JWT authentication
-- **[`EngineState`](crate::EngineState)** - Tracks the current state of the execution layer
-- **Task Types** - Specialized tasks for different engine operations:
-  - [`InsertTask`](crate::InsertTask) - Insert new payloads into the execution engine
-  - [`BuildTask`](crate::BuildTask) - Build new payloads with automatic forkchoice synchronization
-  - [`ConsolidateTask`](crate::ConsolidateTask) - Consolidate unsafe payloads to advance the safe chain
-  - [`FinalizeTask`](crate::FinalizeTask) - Finalize safe payloads on L1 confirmation
-
-## Architecture
-
-The engine implements a task-driven architecture where forkchoice synchronization is handled automatically:
-
-- **Automatic Forkchoice Handling**: The [`BuildTask`] automatically performs forkchoice updates during block building, eliminating the need for explicit forkchoice management in user code.
-- **Shared Operations**: Tasks call ordinary helpers for forkchoice synchronization, building, payload retrieval and insertion. Only the queue executes tasks; tasks do not execute other tasks.
-- **Priority-Based Execution**: Tasks are executed in priority order to ensure optimal sequencer performance and block processing efficiency.
-
-## Engine API Compatibility
-
-The crate supports multiple Engine API versions with automatic version selection based on the rollup configuration:
-
-- **Engine Forkchoice Updated**: V2, V3
-- **Engine New Payload**: V2, V3, V4
-- **Engine Get Payload**: V2, V3, V4
-
-Version selection follows Optimism hardfork activation times (Bedrock, Canyon, Delta, Ecotone, Isthmus).
-
-## Features
-
-- `metrics` - Enable Prometheus metrics collection (optional)
-
-<!-- Hyper Links -->
-
-[op-stack]: https://specs.optimism.io
+Engine API versions follow the injected rollup configuration. The `metrics` feature enables
+Prometheus metrics; `test-utils` supplies shared engine fixtures and a strict RPC script.

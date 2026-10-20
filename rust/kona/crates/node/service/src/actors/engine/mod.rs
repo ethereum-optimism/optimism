@@ -1,25 +1,21 @@
 //! The [`EngineActor`], [`EngineRpcActor`], and their components.
 
 mod actor;
-pub use actor::{EngineActor, EngineActorRequest};
+pub use actor::EngineActor;
 
-mod client;
-pub use client::{EngineDerivationClient, QueuedEngineDerivationClient};
+pub(crate) mod handle;
+pub use handle::{
+    BuildToken, Consolidated, EngineContext, EngineHandle, Sealed, UnsafeAdmissionError,
+};
 
 mod config;
 pub use config::EngineConfig;
 
 mod error;
-pub use error::EngineError;
+pub use error::{EngineClientError, EngineClientResult, EngineError};
 
 mod request;
-pub use request::{
-    BuildRequest, EngineClientError, EngineClientResult, EngineRpcRequest, ResetRequest,
-    SealRequest,
-};
+pub use request::EngineRpcRequest;
 
 mod rpc_actor;
 pub use rpc_actor::EngineRpcActor;
-
-#[cfg(test)]
-mod tests;

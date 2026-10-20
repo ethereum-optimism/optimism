@@ -18,6 +18,7 @@ kona-macros.workspace = true
 kona-protocol = {workspace = true, features = ["serde", "std"]}
 
 # alloy
+alloy-json-rpc = { workspace = true, optional = true }
 alloy-hardforks.workspace = true
 alloy-eips.workspace = true
 alloy-consensus.workspace = true
@@ -46,7 +47,6 @@ thiserror.workspace = true
 url.workspace = true
 tower = { workspace = true, features = ["util"] }
 http-body-util.workspace = true
-derive_more = { workspace = true, features = ["display", "deref", "from_str", "constructor"] }
 serde_json.workspace = true
 
 # metrics
@@ -65,6 +65,7 @@ rstest.workspace = true
 [features]
 metrics = [ "dep:metrics" ]
 test-utils = [
+	"dep:alloy-json-rpc",
 	"kona-protocol/test-utils",
 	"alloy-primitives/rand",
 ]

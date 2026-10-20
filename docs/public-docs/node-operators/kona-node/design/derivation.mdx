@@ -3,193 +3,49 @@ title: "Derivation in Kona Node"
 diataxis: explanation
 ---
 
-The derivation system in kona-node is responsible for transforming L1 data into L2 payload attributes that can be executed to produce the canonical L2 blocks. This document covers how the [`kona-derive`][kd] crate is integrated and used within the kona-node architecture.
+The `DerivationActor` runs the `kona-derive` pipeline to turn canonical L1 inputs into L2
+payload attributes. It uses the engine owner's atomic snapshot and acknowledged results
+to choose the parent for its next pipeline step.
 
-## Overview
+## Pipeline context
 
-The derivation subsystem in kona-node is built around the **DerivationActor**, which manages the derivation pipeline lifecycle and coordinates with other node components. The actor uses the trait-abstracted [`kona-derive`][kd] pipeline to continuously process L1 data and produce L2 payload attributes.
+Derivation starts after the engine reaches its ready phase. Before stepping, it resets the
+pipeline to the accepted safe head. Only a successful reset installs that epoch and safe
+parent as the pipeline context. Temporary reset failures retry; critical failures stop the
+node. Prepared attributes left in the pipeline's output queue are discarded after reset.
 
-### Key Components
+Every newer reset epoch invalidates pending attributes, pipeline context and finality
+records, even if the safe head has not changed. An interrupted pipeline step is followed
+by a complete successful reset before the pipeline is used again.
 
-- **DerivationActor**: The main actor responsible for running the derivation pipeline
-- **OnlinePipeline**: A concrete implementation of the derivation pipeline using online providers
-- **DerivationStateMachine**: Manages when derivation is allowed to occur and tracks the confirmed safe head
-- **L2Finalizer**: Tracks derived L2 blocks awaiting finalization
-- **Signal System**: Handles pipeline resets, hardfork activations, and error conditions
+## Applying attributes
 
-## Architecture
+The actor sends attributes with the context under which they were produced and waits for
+an engine acknowledgement. A temporary failure retains those exact attributes and context.
+An obsolete acknowledgement cannot install a parent, flush a channel or record finality.
 
-### DerivationActor
+An `Applied` result advances the context to the actual accepted pending-safe parent.
+Before Holocene a span prefix remains pending until its concluding element succeeds. `Replaced`
+also requires a successful channel flush before another pipeline step. `Dropped` consumes
+the rejected batch and follows the returned pending parent, without adding a finality record
+or requesting a flush. A rewound parent makes the batch queue discard the invalid span remainder.
 
-The `DerivationActor` is a [`NodeActor`][na] that runs as part of the node service. It receives requests from other actors over a single inbound channel and steps the derivation pipeline forward to produce new payload attributes.
+## Finality
 
-```rust
-pub struct DerivationActor<DerivationEngineClient_, PipelineSignalReceiver>
-where
-    DerivationEngineClient_: DerivationEngineClient,
-    PipelineSignalReceiver: Pipeline + SignalReceiver,
-{
-    /// The channel on which all inbound requests are received by the actor.
-    inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
-    /// The Engine client used to interact with the engine.
-    engine_client: DerivationEngineClient_,
-    /// The derivation pipeline.
-    pipeline: PipelineSignalReceiver,
-    /// The state machine controlling when derivation can occur.
-    derivation_state_machine: DerivationStateMachine,
-    /// The L2Finalizer tracks derived L2 blocks awaiting finalization.
-    finalizer: L2Finalizer,
-}
-```
+After an accepted current-epoch result, the actor records the actual L2 block hash and the
+L1 block containing its derivation inputs. L1 finality notifications select eligible
+records, which remain pending until the engine acknowledges finalization. Temporary
+failure retries without requiring another L1 event. The engine revalidates canonical
+hashes before sending finalized forkchoice.
 
-Inbound requests are expressed as the `DerivationActorRequest` enum: L1 head updates, finalized L1 block updates, engine safe head updates, engine sync completion, and pipeline signals from the engine (for example flush or reset).
+## Inputs and delegation
 
-The actor coordinates with several other node components:
-- **Engine Actor**: Receives payload attributes for execution and sends back safe head updates and pipeline signals
-- **L1 Watcher Actor**: Sends L1 head and finalized block updates from the L1 chain
+The L1 watcher still sends head and finalized-block notifications to derivation. Engine
+readiness, reset and safe-state changes arrive through the shared snapshot; there is no
+engine-to-derivation callback queue.
 
-### Pipeline Construction
+Delegated derivation polls an upstream node, checks its L1 references against canonical L1,
+and passes explicit safe and finalized hashes to the engine under the captured epoch.
 
-The derivation pipeline is constructed by the `RollupNode` service when it wires up the derivation actor. The node builds caching L1/L2 providers and then creates an `OnlinePipeline`, which traverses L1 by polling its chain provider for the next block:
-
-```rust
-OnlinePipeline::new_polled(
-    self.config.clone(),
-    self.l1_config.chain_config.clone(),
-    OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
-    l1_derivation_provider,
-    l2_derivation_provider,
-    self.dependency_set.clone(),
-)
-```
-
-### Provider Configuration
-
-The node uses caching providers to optimize performance:
-
-- **AlloyChainProvider**: Provides L1 blockchain data with configurable cache size
-- **AlloyL2ChainProvider**: Provides L2 blockchain data and system configuration
-- **OnlineBlobProvider**: Retrieves blob data from the beacon chain for post-4844 transactions
-
-The cache size is set to 1024 entries by default:
-
-```rust
-const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
-```
-
-## Pipeline Operation
-
-### Main Processing Loop
-
-The derivation actor runs a continuous loop that handles various events:
-
-1. **Shutdown signals**: Graceful shutdown when cancellation token is triggered
-2. **L1 head updates**: Triggers derivation when new L1 blocks are available  
-3. **Safe head updates**: Triggers derivation when the L2 safe head advances
-4. **Pipeline signals**: Handles resets, hardfork activations, and channel flushes
-
-### Stepping Logic
-
-The core derivation logic is implemented in `produce_next_attributes()`:
-
-```rust
-async fn produce_next_attributes(
-    &mut self,
-) -> Result<OpAttributesWithParent, DerivationError>
-```
-
-This method continuously steps the pipeline until payload attributes are produced:
-
-1. **Step the pipeline** with the last confirmed L2 safe head from the derivation state machine
-2. **Handle step results**:
-   - `PreparedAttributes`: Attributes are ready to be consumed
-   - `AdvancedOrigin`: Pipeline advanced to next L1 block
-   - `OriginAdvanceErr`/`StepFailed`: Handle various error conditions
-3. **Return attributes** when available
-
-### Error Handling
-
-The derivation actor handles three categories of pipeline errors:
-
-#### Temporary Errors
-- `PipelineError::NotEnoughData`: Continue stepping, more data may become available
-- `PipelineError::Eof`: Yield and wait for more L1 data
-
-#### Reset Errors  
-- `ResetError::HoloceneActivation`: Send an `ActivationSignal` to the pipeline and keep stepping
-- Any other reset error, including `ResetError::ReorgDetected`: Send a reset request to the engine, then wait for the engine's signal before continuing. `ReorgDetected` additionally increments the `L1_REORG_COUNT` metric.
-
-#### Critical Errors
-- Unrecoverable errors that terminate the derivation process
-- Increment metrics counter and propagate error up
-
-### Signal Handling
-
-The pipeline supports several signal types for coordination:
-
-- **ResetSignal**: Resets pipeline state with new L1 origin and system config
-- **ActivationSignal**: Handles hardfork activations (e.g., Holocene)
-- **FlushChannel**: Invalidates current channel data for deposit-only blocks
-
-Signals are sent from the engine actor when specific conditions are detected during payload execution.
-
-## Configuration
-
-### Rollup Configuration
-
-The derivation pipeline requires a [`RollupConfig`][rc] that defines:
-- Chain parameters (chain ID, block time, etc.)
-- Hardfork activation heights
-- System configuration addresses
-- Batch and channel parameters
-
-### Runtime Configuration
-
-Runtime configuration includes:
-- Provider cache sizes
-- Polling intervals for L1 data
-- Metrics collection settings
-
-## Integration Patterns
-
-### With Engine Actor
-
-The derivation actor produces `OpAttributesWithParent` that are sent to the engine actor for execution through the `DerivationEngineClient` interface:
-
-```rust
-// Send payload attributes out for processing.
-self.engine_client
-    .send_safe_l2_signal(payload_attributes.into())
-    .await
-```
-
-The engine actor executes these attributes and updates the L2 safe head, which triggers the next derivation cycle.
-
-### With the L1 Watcher
-
-The derivation actor receives L1 head updates from the L1 watcher actor as `DerivationActorRequest::ProcessL1HeadUpdateRequest` messages on its inbound request channel, which indicate when new L1 data is available for processing. Finalized L1 blocks arrive the same way and drive the `L2Finalizer`.
-
-### With RPC Layer
-
-The RPC layer can query derivation status and potentially trigger pipeline operations through the standard node RPC interface.
-
-## Metrics and Observability
-
-The derivation actor exposes several metrics for monitoring:
-
-- `DERIVATION_L1_ORIGIN`: Current L1 origin block number
-- `DERIVATION_CRITICAL_ERROR`: Count of critical derivation errors  
-- `L1_REORG_COUNT`: Count of detected L1 reorganizations
-
-These metrics help operators monitor the health and progress of the derivation process.
-
-## Related Documentation
-
-For more details on the underlying derivation pipeline implementation, see:
-- The [`kona-derive` crate source](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive)
-- The [`kona-derive` API documentation](https://docs.rs/kona-derive/latest/kona_derive/) on docs.rs
-- The [derivation pipeline specification](https://specs.optimism.io/protocol/derivation.html)
-
-[kd]: https://crates.io/crates/kona-derive
-[na]: /node-operators/kona-node/design/intro#actors
-[rc]: https://docs.rs/kona-genesis/latest/kona_genesis/struct.RollupConfig.html
+See the [derivation specification](https://specs.optimism.io/protocol/derivation.html) for
+protocol rules and the [engine design](./engine) for execution ownership and recovery.

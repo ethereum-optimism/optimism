@@ -31,6 +31,7 @@ pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     publish_rx: mpsc::Receiver<SignedPayload>,
     /// A client to use to interact with the engine actor.
     engine_client: NetworkEngineClient_,
+    pending_admin_payload: Option<OpExecutionPayloadEnvelope>,
     // Purely-internal channel: loops gossip-swarm events back into this actor's own select. It
     // never crosses an actor boundary, so it lives here rather than being injected.
     unsafe_block_tx: UnboundedSender<OpExecutionPayloadEnvelope>,
@@ -59,6 +60,7 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
             admin_query_rx,
             publish_rx,
             engine_client,
+            pending_admin_payload: None,
             unsafe_block_tx,
             unsafe_block_rx,
         }
@@ -99,7 +101,7 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                     return Err(NetworkActorError::ChannelClosed);
                 };
 
-                if self.engine_client.send_unsafe_block(block).await.is_err() {
+                if self.engine_client.try_send_unsafe_block(block).is_err() {
                     warn!(target: "network", "Failed to forward unsafe block to engine");
                     return Err(NetworkActorError::ChannelClosed);
                 }
@@ -141,11 +143,16 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 self.handler.handle_peer_monitoring().await;
                 Ok(())
             }
-            Some(NetworkAdminQuery::PostUnsafePayload { payload }) = self.admin_query_rx.recv(), if !self.admin_query_rx.is_closed() => {
+            Some(NetworkAdminQuery::PostUnsafePayload { payload }) = self.admin_query_rx.recv(), if self.pending_admin_payload.is_none() && !self.admin_query_rx.is_closed() => {
                 debug!(target: "node::p2p", "Broadcasting unsafe payload from admin api");
-                if self.unsafe_block_tx.send(payload).is_err() {
-                    warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
-                }
+                self.pending_admin_payload = Some(payload);
+                Ok(())
+            }
+            result = async {
+                self.engine_client.send_unsafe_block(self.pending_admin_payload.as_ref().expect("guarded pending admin payload").clone()).await
+            }, if self.pending_admin_payload.is_some() => {
+                result.map_err(|_|NetworkActorError::ChannelClosed)?;
+                self.pending_admin_payload = None;
                 Ok(())
             }
             Some(req) = self.p2p_rpc_rx.recv(), if !self.p2p_rpc_rx.is_closed() => {

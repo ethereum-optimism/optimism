@@ -72,40 +72,12 @@ impl EngineSyncState {
     /// Applies the update to the provided sync state, using the current state values if the update
     /// is not specified. Returns the new sync state.
     pub fn apply_update(self, sync_state_update: EngineSyncStateUpdate) -> Self {
-        if let Some(unsafe_head) = sync_state_update.unsafe_head {
-            Self::update_block_label_metric(
-                Metrics::UNSAFE_BLOCK_LABEL,
-                unsafe_head.block_info.number,
-            );
-        }
-        if let Some(local_safe_head) = sync_state_update.local_safe_head {
-            Self::update_block_label_metric(
-                Metrics::LOCAL_SAFE_BLOCK_LABEL,
-                local_safe_head.block_info.number,
-            );
-        }
-        if let Some(safe_head) = sync_state_update.safe_head {
-            Self::update_block_label_metric(Metrics::SAFE_BLOCK_LABEL, safe_head.block_info.number);
-        }
-        if let Some(finalized_head) = sync_state_update.finalized_head {
-            Self::update_block_label_metric(
-                Metrics::FINALIZED_BLOCK_LABEL,
-                finalized_head.block_info.number,
-            );
-        }
-
         Self {
             unsafe_head: sync_state_update.unsafe_head.unwrap_or(self.unsafe_head),
             local_safe_head: sync_state_update.local_safe_head.unwrap_or(self.local_safe_head),
             safe_head: sync_state_update.safe_head.unwrap_or(self.safe_head),
             finalized_head: sync_state_update.finalized_head.unwrap_or(self.finalized_head),
         }
-    }
-
-    /// Updates a block label metric, keyed by the label.
-    #[inline]
-    fn update_block_label_metric(label: &'static str, number: u64) {
-        kona_macros::set!(gauge, Metrics::BLOCK_LABELS, "label", label, number as f64);
     }
 }
 
@@ -124,14 +96,69 @@ pub struct EngineSyncStateUpdate {
     pub finalized_head: Option<L2BlockInfo>,
 }
 
+/// Readiness and recovery phase, published together with the reset epoch and applied heads.
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum EnginePhase {
+    /// Actual execution heads have not been loaded.
+    #[default]
+    Initializing,
+    /// The execution layer is still syncing.
+    Syncing,
+    /// A reset invalidated earlier work; completed heads are not ready yet.
+    Resetting,
+    /// The published heads are ready for sequencing and derivation.
+    Ready,
+}
+
 /// The chain state viewed by the engine controller.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
 pub struct EngineState {
+    /// Monotonically increasing reset context, including same-head resets.
+    pub epoch: u64,
+    /// Whether the published heads can be used for new work.
+    pub phase: EnginePhase,
     /// The sync state of the engine.
     pub sync_state: EngineSyncState,
+    /// Accepted derived prefix. It becomes safe only when its batch concludes.
+    pub pending_safe_head: L2BlockInfo,
 
-    /// Whether or not the EL has finished syncing.
+    /// Whether an Engine API forkchoice has returned VALID at least once.
+    /// Readiness for new work is represented by `phase`, including during resets.
     pub el_sync_finished: bool,
+}
+
+impl EngineState {
+    /// Records the applied heads when their owner publishes this snapshot.
+    pub fn record_metrics(&self) {
+        kona_macros::set!(
+            gauge,
+            Metrics::BLOCK_LABELS,
+            "label",
+            Metrics::UNSAFE_BLOCK_LABEL,
+            self.sync_state.unsafe_head().block_info.number as f64
+        );
+        kona_macros::set!(
+            gauge,
+            Metrics::BLOCK_LABELS,
+            "label",
+            Metrics::LOCAL_SAFE_BLOCK_LABEL,
+            self.sync_state.local_safe_head().block_info.number as f64
+        );
+        kona_macros::set!(
+            gauge,
+            Metrics::BLOCK_LABELS,
+            "label",
+            Metrics::SAFE_BLOCK_LABEL,
+            self.sync_state.safe_head().block_info.number as f64
+        );
+        kona_macros::set!(
+            gauge,
+            Metrics::BLOCK_LABELS,
+            "label",
+            Metrics::FINALIZED_BLOCK_LABEL,
+            self.sync_state.finalized_head().block_info.number as f64
+        );
+    }
 }
 
 #[cfg(test)]
@@ -145,7 +172,7 @@ mod test {
     impl EngineState {
         /// Set the unsafe head.
         pub fn set_unsafe_head(&mut self, unsafe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.sync_state = self.sync_state.apply_update(EngineSyncStateUpdate {
                 unsafe_head: Some(unsafe_head),
                 ..Default::default()
             });
@@ -153,7 +180,7 @@ mod test {
 
         /// Set the local safe head.
         pub fn set_local_safe_head(&mut self, local_safe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.sync_state = self.sync_state.apply_update(EngineSyncStateUpdate {
                 local_safe_head: Some(local_safe_head),
                 ..Default::default()
             });
@@ -161,7 +188,7 @@ mod test {
 
         /// Set the safe head.
         pub fn set_safe_head(&mut self, safe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.sync_state = self.sync_state.apply_update(EngineSyncStateUpdate {
                 safe_head: Some(safe_head),
                 ..Default::default()
             });
@@ -169,7 +196,7 @@ mod test {
 
         /// Set the finalized head.
         pub fn set_finalized_head(&mut self, finalized_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.sync_state = self.sync_state.apply_update(EngineSyncStateUpdate {
                 finalized_head: Some(finalized_head),
                 ..Default::default()
             });
@@ -199,6 +226,7 @@ mod test {
             },
         );
 
+        state.record_metrics();
         assert!(handle.render().contains(
             format!("kona_node_block_labels{{label=\"{label_name}\"}} {number}").as_str()
         ));
