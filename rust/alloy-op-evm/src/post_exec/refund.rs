@@ -4,6 +4,8 @@
 //! [`PostExecExecutedTx::refund_total`]; refund events are optional diagnostics. Verification,
 //! settlement, and the `0x7D` consensus type never run a refund inspector.
 
+use alloc::string::String;
+use alloy_evm::block::BlockExecutionError;
 use alloy_primitives::{Address, U256};
 use revm::{
     context_interface::ContextTr,
@@ -12,6 +14,35 @@ use revm::{
 };
 
 use super::{PostExecExecutedTx, PostExecTxContext};
+
+/// A refund policy could not undo the block-scoped changes made since a checkpoint, so its
+/// block-scoped state is unspecified from then on.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("refund policy cannot revert to its checkpoint: {reason}")]
+pub struct RevertToCheckpointError {
+    reason: String,
+}
+
+impl RevertToCheckpointError {
+    /// Creates the error with the policy's explanation.
+    pub fn new(reason: impl Into<String>) -> Self {
+        Self { reason: reason.into() }
+    }
+
+    /// The policy's explanation.
+    pub fn reason(&self) -> &str {
+        &self.reason
+    }
+
+    /// Finds this error behind the internal block-execution error the OP block executor surfaces
+    /// a failed revert through.
+    pub fn from_block_execution_error(err: &BlockExecutionError) -> Option<&Self> {
+        match err {
+            BlockExecutionError::Internal(internal) => internal.as_other()?.downcast_ref(),
+            BlockExecutionError::Validation(_) => None,
+        }
+    }
+}
 
 /// Creates fresh post-exec refund policies for new EVM instances.
 ///
@@ -50,14 +81,24 @@ pub trait PostExecRefundPolicyFactory {
 ///   **including when the EVM call itself errors** (`transact_raw` runs its finish block before
 ///   propagating). Implementors must tolerate finishing a failed tx.
 /// - [`begin_tx`](Self::begin_tx) must fully reset per-transaction state.
-///   [`snapshot`](Self::snapshot)/[`restore`](Self::restore) only cover block-scoped carry-forward,
-///   so a failed or declined candidate relies on the next `begin_tx` for per-tx cleanup.
+///   [`checkpoint`](Self::checkpoint)/[`revert_to_checkpoint`](Self::revert_to_checkpoint) only
+///   cover block-scoped state, so a failed or declined candidate relies on the next `begin_tx` for
+///   per-tx cleanup.
+/// - The producer takes a [`checkpoint`](Self::checkpoint) before every candidate transaction and
+///   either reverts to it or drops it before taking the next, so taking a checkpoint invalidates
+///   every earlier one and a policy may discard the undo information of everything before the
+///   latest checkpoint. A checkpoint must be O(1), and a revert must cost no more than undoing the
+///   block-scoped changes made since it. Neither may copy or walk the block-scoped state
+///   accumulated so far: that state grows with every transaction in the block, so a per-candidate
+///   cost proportional to it makes block building quadratic in the block's transaction count.
 /// - The observer hooks must never synthesize call/create outcomes and must not mutate EVM state.
 ///   Every implementation must define every hook explicitly so a downstream observing policy cannot
 ///   compile after an API migration while silently inheriting no-op behavior.
 pub trait PostExecRefundInspector {
-    /// Opaque block-scoped state carried across subblocks and candidate rollback.
-    type Snapshot: Clone;
+    /// Opaque marker of the block-scoped state, used to roll back a candidate transaction the
+    /// producer does not commit. Only the most recent checkpoint is valid, and only on the policy
+    /// that issued it.
+    type Checkpoint;
 
     /// Begin observing the next transaction.
     fn begin_tx(&mut self, ctx: PostExecTxContext);
@@ -115,10 +156,16 @@ pub trait PostExecRefundInspector {
     /// Observe a self-destruct while post-exec tracking is active.
     fn inspect_selfdestruct(&mut self, contract: Address, target: Address, value: U256);
 
-    /// Snapshot the block-scoped carry-forward state.
-    fn snapshot(&self) -> Self::Snapshot;
+    /// Mark the current block-scoped state and invalidate every earlier checkpoint. Must be O(1).
+    fn checkpoint(&mut self) -> Self::Checkpoint;
 
-    /// Restore block-scoped carry-forward state previously captured by
-    /// [`snapshot`](Self::snapshot).
-    fn restore(&mut self, snapshot: Self::Snapshot);
+    /// Undo every block-scoped change made since `checkpoint` was taken.
+    ///
+    /// Fails when the policy cannot, such as for a checkpoint it did not issue or one a later
+    /// checkpoint invalidated. The producer then stops using the policy, so the implementation
+    /// need not leave its state consistent.
+    fn revert_to_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError>;
 }

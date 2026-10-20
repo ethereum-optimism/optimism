@@ -1,7 +1,7 @@
 //! Optimism payload builder implementation.
 use crate::{
     OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives, config::OpBuilderConfig,
-    error::OpPayloadBuilderError, payload::OpBuiltPayload,
+    error::OpPayloadBuilderError, payload::OpBuiltPayload, sdm_metrics,
 };
 use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
 use alloy_eips::eip2718::Encodable2718;
@@ -29,6 +29,7 @@ use reth_metrics::{
 };
 use reth_optimism_evm::{
     ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode, PreRefundGasUsed,
+    RevertToCheckpointError,
 };
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransaction};
@@ -53,7 +54,7 @@ use reth_storage_api::{
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, TransactionPool};
 use revm::context::{Block, BlockEnv};
 use std::{marker::PhantomData, sync::Arc};
-use tracing::{debug, trace, warn};
+use tracing::{debug, error, trace, warn};
 
 /// SDM/PostExec payload-builder metrics.
 #[derive(Metrics, Clone)]
@@ -523,7 +524,10 @@ impl<Txs> OpBuilder<'_, Txs> {
             let entries = builder.executor_mut().take_post_exec_entries();
             let refund_gas = total_gas_refund(&entries);
             try_include_post_exec_tx(block_number, entries, |tx| {
-                builder.execute_transaction(tx).map(|g| g.tx_gas_used())
+                builder
+                    .execute_transaction(tx)
+                    .inspect_err(|err| ctx.disable_sdm_on_refund_policy_failure(err))
+                    .map(|g| g.tx_gas_used())
             })?;
             refund_gas
         } else {
@@ -872,6 +876,26 @@ where
         protocol_active && self.builder_config.operator_sdm_opt_in.enabled()
     }
 
+    /// Turns the operator SDM opt-in off when `err` says the refund policy could not undo a
+    /// candidate transaction. The policy's block-scoped state is unspecified from then on, so the
+    /// attempt that raised `err` aborts, and every later payload builds with legacy gas accounting
+    /// until an operator opts in again.
+    pub fn disable_sdm_on_refund_policy_failure(&self, err: &BlockExecutionError) {
+        let Some(revert_error) = RevertToCheckpointError::from_block_execution_error(err) else {
+            return;
+        };
+        error!(
+            target: "payload_builder",
+            reason = sdm_metrics::AUTO_DISABLE_REASON_REFUND_POLICY_REVERT,
+            %revert_error,
+            "refund policy cannot undo a candidate transaction, disabling SDM"
+        );
+        sdm_metrics::record_operator_opt_in_auto_disabled(
+            sdm_metrics::AUTO_DISABLE_REASON_REFUND_POLICY_REVERT,
+        );
+        self.builder_config.operator_sdm_opt_in.set(false);
+    }
+
     /// Returns true when the tx pool is excluded and the block must be reproduced
     /// deterministically from forced transactions only (i.e. `no_tx_pool = true`).
     ///
@@ -1017,6 +1041,7 @@ where
                 }
                 Err(err) => {
                     // this is an error that we should treat as fatal for this attempt
+                    self.disable_sdm_on_refund_policy_failure(&err);
                     return Err(PayloadBuilderError::EvmExecutionError(Box::new(err)));
                 }
             };
@@ -1179,6 +1204,7 @@ where
                 }
                 Err(err) => {
                     // this is an error that we should treat as fatal for this attempt
+                    self.disable_sdm_on_refund_policy_failure(&err);
                     return Err(PayloadBuilderError::EvmExecutionError(Box::new(err)));
                 }
             };

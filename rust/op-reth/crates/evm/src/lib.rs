@@ -72,7 +72,7 @@ pub use alloy_op_evm::{
     post_exec::{
         NullRefundPolicy, PostExecEvmFactoryAdapter, PostExecExecutedTx, PostExecExecutorExt,
         PostExecRefundEvent, PostExecRefundInspector, PostExecRefundKind,
-        PostExecRefundPolicyFactory, PostExecTxContext, PostExecTxKind,
+        PostExecRefundPolicyFactory, PostExecTxContext, PostExecTxKind, RevertToCheckpointError,
     },
 };
 

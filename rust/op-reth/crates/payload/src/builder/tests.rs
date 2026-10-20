@@ -15,14 +15,17 @@ use alloy_eips::{
 use alloy_evm::RecoveredTx;
 use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxHash, TxKind, U256};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
+use metrics_exporter_prometheus::PrometheusBuilder;
+use metrics_util::layers::{Layer, PrefixLayer};
 use op_alloy_consensus::{
     POST_EXEC_PAYLOAD_VERSION, PostExecPayload, SDMGasEntry, TxDeposit, build_post_exec_tx,
 };
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::MIN_TRANSACTION_GAS;
-use reth_evm::execute::{BlockBuilder, BlockExecutionError};
+use reth_evm::execute::{BlockBuilder, BlockExecutionError, BlockValidationError};
+use reth_metrics::metrics::with_local_recorder;
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
-use reth_optimism_evm::{OpEvmConfig, PostExecMode, PreRefundGasUsed};
+use reth_optimism_evm::{OpEvmConfig, PostExecMode, PreRefundGasUsed, RevertToCheckpointError};
 use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
 use reth_optimism_txpool::{
     OpPooledTransaction, OpPooledTx,
@@ -36,6 +39,7 @@ use reth_payload_util::PayloadTransactionsFixed;
 use reth_primitives_traits::{Account, InMemorySize, SealedHeader};
 use reth_revm::{database::StateProviderDatabase, db::State, test_utils::StateProviderTest};
 use reth_transaction_pool::PoolTransaction;
+use rstest::rstest;
 use std::{borrow::Cow, cell::Cell, sync::Arc};
 
 fn entries(specs: &[(u64, u64)]) -> Vec<SDMGasEntry> {
@@ -987,4 +991,55 @@ fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
     // build's `mark_invalid` did not permanently exclude it.
     failsafe.set(false);
     assert_eq!(build(&failsafe), vec![normal_hash, interop_hash]);
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("unrelated executor failure")]
+struct UnrelatedExecutionError;
+
+#[rstest]
+#[case::refund_policy_cannot_revert(
+    BlockExecutionError::other(RevertToCheckpointError::new("foreign checkpoint")),
+    false
+)]
+#[case::other_internal_error(BlockExecutionError::other(UnrelatedExecutionError), true)]
+#[case::invalid_transaction(BlockValidationError::IncrementBalanceFailed.into(), true)]
+fn sdm_production_is_disabled_only_when_the_refund_policy_cannot_revert(
+    #[case] err: BlockExecutionError,
+    #[case] expected_opt_in: bool,
+) {
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
+    let ctx = payload_builder_ctx(chain_spec, 1_000_000);
+    ctx.builder_config.operator_sdm_opt_in.set(true);
+
+    ctx.disable_sdm_on_refund_policy_failure(&err);
+
+    assert_eq!(ctx.builder_config.operator_sdm_opt_in.enabled(), expected_opt_in);
+}
+
+/// An automatic disable is counted under its reason, so an alert can tell it from an operator
+/// calling `admin_setOperatorSdmOptIn(false)`; any other fatal error counts nothing.
+#[rstest]
+#[case::refund_policy_cannot_revert(
+    BlockExecutionError::other(RevertToCheckpointError::new("foreign checkpoint")),
+    Some(1.0)
+)]
+#[case::other_internal_error(BlockExecutionError::other(UnrelatedExecutionError), None)]
+fn automatic_disable_is_counted_by_reason(
+    #[case] err: BlockExecutionError,
+    #[case] expected_count: Option<f64>,
+) {
+    let recorder = PrometheusBuilder::new().build_recorder();
+    let handle = recorder.handle();
+    let recorder = PrefixLayer::new("reth").layer(recorder);
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
+    let ctx = payload_builder_ctx(chain_spec, 1_000_000);
+
+    with_local_recorder(&recorder, || ctx.disable_sdm_on_refund_policy_failure(&err));
+
+    let exposition = handle.render();
+    let series = "reth_op_sdm_operator_opt_in_auto_disabled_total{reason=\"refund_policy_revert\"}";
+    let count =
+        exposition.lines().find_map(|line| line.strip_prefix(series)?.trim().parse::<f64>().ok());
+    assert_eq!(count, expected_count, "{exposition}");
 }
