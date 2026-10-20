@@ -162,6 +162,8 @@ cannot escape the assigned group. Ordinary local CLI tests retain their own
 helper build. Splitting repeats package setup, so benchmark the complete affected
 workflow rather than summing individual test durations.
 
+The 12-worker Circle Go job uses per-node build-cache namespaces. Shared immutable branch/revision keys preserve only the first writer's snapshot, so a successful parent run does not establish warmth for every shard. Verify all twelve restored parent keys and actual compiler subprocess counts; module-cache permissions and sharing are unchanged.
+
 ## Cache, artifacts and credentials
 
 Keep native Go module/build/runtime, Foundry, Cargo target, sccache and
