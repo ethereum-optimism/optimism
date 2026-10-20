@@ -156,47 +156,21 @@ func beforeBlock(c *cli.Context, l1 l1Caller) (uint64, *types.Receipt, error) {
 	return bigs.Uint64Strict(receipt.BlockNumber) - 1, receipt, nil
 }
 
-// logRangeSize keeps eth_getLogs requests within the block range limits of common RPC providers.
-const logRangeSize = 10_000
-
 // upgradedProxies counts the Upgraded events emitted by the chain's proxies, as they were before the
 // upgrade, in the upgrade transaction or, without one, in the blocks after the before block.
 func upgradedProxies(ctx context.Context, client *ethclient.Client, receipt *types.Receipt, pre reviewperiod.ChainDelays, before, after uint64) (map[string]int, error) {
-	proxies := pre.Proxies()
-	counts := make(map[string]int)
-	count := func(logs []*types.Log) {
-		for _, l := range logs {
-			if name, ok := proxies[l.Address]; ok && len(l.Topics) > 0 && l.Topics[0] == reviewperiod.UpgradedTopic {
-				counts[name]++
-			}
-		}
-	}
 	if receipt != nil {
-		count(receipt.Logs)
-		return counts, nil
-	}
-	addrs := make([]common.Address, 0, len(proxies))
-	for addr := range proxies {
-		addrs = append(addrs, addr)
-	}
-	for from := before + 1; from <= after; from += logRangeSize {
-		to := min(from+logRangeSize-1, after)
-		logs, err := client.FilterLogs(ctx, ethereum.FilterQuery{
-			FromBlock: new(big.Int).SetUint64(from),
-			ToBlock:   new(big.Int).SetUint64(to),
-			Addresses: addrs,
-			Topics:    [][]common.Hash{{reviewperiod.UpgradedTopic}},
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to get Upgraded logs for blocks %d-%d: %w", from, to, err)
+		logs := make([]types.Log, len(receipt.Logs))
+		for i, l := range receipt.Logs {
+			logs[i] = *l
 		}
-		ptrs := make([]*types.Log, len(logs))
-		for i := range logs {
-			ptrs[i] = &logs[i]
-		}
-		count(ptrs)
+		return reviewperiod.CountUpgrades(pre, logs), nil
 	}
-	return counts, nil
+	logs, err := reviewperiod.UpgradedLogs(ctx, client, pre, before+1, after)
+	if err != nil {
+		return nil, err
+	}
+	return reviewperiod.CountUpgrades(pre, logs), nil
 }
 
 // compare logs the result for one chain and returns the number of failed checks.
@@ -211,19 +185,12 @@ func compare(logger log.Logger, pre, post reviewperiod.ChainDelays, upgrades map
 		l.Info("Upgraded", "proxies", upgrades, "fromOPCMVersion", pre.LastUsedOPCMVersion, "toOPCMVersion", post.LastUsedOPCMVersion)
 	}
 
-	for _, d := range []struct {
-		name      string
-		pre, post uint64
-	}{
-		{"proofMaturityDelaySeconds", pre.ProofMaturityDelaySeconds, post.ProofMaturityDelaySeconds},
-		{"disputeGameFinalityDelaySeconds", pre.DisputeGameFinalityDelaySeconds, post.DisputeGameFinalityDelaySeconds},
-		{"withdrawalDelaySeconds", pre.WithdrawalDelaySeconds, post.WithdrawalDelaySeconds},
-	} {
-		if d.pre != d.post {
+	for _, d := range reviewperiod.CompareDelays(pre, post) {
+		if d.Changed() {
 			failures++
-			l.Error("Delay changed", "delay", d.name, "before", d.pre, "after", d.post)
+			l.Error("Delay changed", "delay", d.Name, "before", d.Before, "after", d.After)
 		} else {
-			l.Info("Delay unchanged", "delay", d.name, "value", d.post)
+			l.Info("Delay unchanged", "delay", d.Name, "value", d.After)
 		}
 	}
 
