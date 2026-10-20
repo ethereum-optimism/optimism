@@ -67,6 +67,7 @@ def pack(kind, paths):
                                                 'op-reth': ['rustc', 'cargo'], 'sp1-executor': ['rustc', 'cargo'], 'prestate': ['docker']}[kind]})
     if os.environ.get('CI_GO_REUSABLE_DEPENDENCY') == '1':
         metadata['build_inputs_sha256'] = dependency_source().fingerprint(kind)
+        dependency_source().verify(kind, metadata)
     (output / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
 
 def restore(kind, artifact):
@@ -77,8 +78,12 @@ def restore(kind, artifact):
         actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
         if actual != os.environ['CI_COMMIT_SHA']:
             raise ValueError(f"Consumer checkout {actual} differs from requested {os.environ['CI_COMMIT_SHA']}")
-        dependency_source().verify(kind, metadata)
-        expected.pop('commit_sha')
+        # Same-commit consumers may intentionally project the workspace (e.g.
+        # acceptance tests). Their artifact still has the strict source binding.
+        # Relax that binding only after verifying an ancestor's complete inputs.
+        if metadata.get('commit_sha') != expected['commit_sha']:
+            dependency_source().verify(kind, metadata)
+            expected.pop('commit_sha')
     if any(metadata.get(key) != value for key, value in expected.items()):
         raise ValueError('Dependency revision, toolchain pins or settings mismatch')
     archive = artifact / 'files.tar.gz'
