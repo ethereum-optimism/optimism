@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
@@ -23,7 +23,7 @@ import (
 type KeyedBroadcaster struct {
 	lgr    log.Logger
 	mgr    txmgr.TxManager
-	bcasts []script.Broadcast
+	bcasts []Broadcast
 	mtx    sync.Mutex
 }
 
@@ -88,8 +88,8 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 	}, nil
 }
 
-func (t *KeyedBroadcaster) Hook(bcast script.Broadcast) {
-	if bcast.Type != script.BroadcastCreate2 && bcast.From != t.mgr.From() {
+func (t *KeyedBroadcaster) Hook(bcast Broadcast) {
+	if bcast.Type != BroadcastCreate2 && bcast.From != t.mgr.From() {
 		panic(fmt.Sprintf("invalid from for broadcast:%v, expected:%v", bcast.From, t.mgr.From()))
 	}
 	t.mtx.Lock()
@@ -159,11 +159,11 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 	return results, nil
 }
 
-func asTxCandidate(bcast script.Broadcast, gasLimit uint64) txmgr.TxCandidate {
+func asTxCandidate(bcast Broadcast, gasLimit uint64) txmgr.TxCandidate {
 	value := ((*uint256.Int)(bcast.Value)).ToBig()
 	var candidate txmgr.TxCandidate
 	switch bcast.Type {
-	case script.BroadcastCall:
+	case BroadcastCall:
 		to := &bcast.To
 		candidate = txmgr.TxCandidate{
 			TxData:   bcast.Input,
@@ -171,20 +171,20 @@ func asTxCandidate(bcast script.Broadcast, gasLimit uint64) txmgr.TxCandidate {
 			Value:    value,
 			GasLimit: gasLimit,
 		}
-	case script.BroadcastCreate:
+	case BroadcastCreate:
 		candidate = txmgr.TxCandidate{
 			TxData:   bcast.Input,
 			To:       nil,
 			GasLimit: gasLimit,
 		}
-	case script.BroadcastCreate2:
+	case BroadcastCreate2:
 		txData := make([]byte, len(bcast.Salt)+len(bcast.Input))
 		copy(txData, bcast.Salt[:])
 		copy(txData[len(bcast.Salt):], bcast.Input)
 
 		candidate = txmgr.TxCandidate{
 			TxData:   txData,
-			To:       &script.DeterministicDeployerAddress,
+			To:       &predeploys.DeterministicDeploymentProxyAddr,
 			Value:    value,
 			GasLimit: gasLimit,
 		}
