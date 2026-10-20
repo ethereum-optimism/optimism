@@ -15,7 +15,7 @@ func TryAddRevertReason(err error) error {
 	var errData errWithData
 	ok := errors.As(err, &errData)
 	if ok {
-		return fmt.Errorf("%w, reason: %v", err, errData.ErrorData())
+		return fmt.Errorf("%w, EVM revert reason: %v", err, errData.ErrorData())
 	} else {
 		return err
 	}
