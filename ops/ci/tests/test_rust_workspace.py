@@ -145,6 +145,31 @@ class ReportTests(unittest.TestCase):
                         with self.assertRaisesRegex(ValueError, 'mismatch'):
                             REPORT.artifact(self.root, True)
 
+    def test_native_compiler_handoff_rejects_stale_partial_and_missing_state(self):
+        target = self.root / 'target'; target.mkdir()
+        state = target / '.rwx-source-fingerprint.json'; state.write_text('complete producer')
+        with patch.dict(os.environ, {'CARGO_TARGET_DIR': str(target), 'CARGO_INCREMENTAL': '0'}), \
+                patch.object(REPORT, 'command', return_value='pinned'), \
+                patch.object(REPORT, 'inputs', return_value={'configuration': 'same'}):
+            REPORT.compiler_artifact(self.root)
+            manifest = self.root / 'compiler.json'
+            REPORT.compiler_artifact(manifest, True)
+            pending = target / '.rwx-source-pending.json'; pending.write_text('partial build')
+            with self.assertRaisesRegex(ValueError, 'Uncommitted'):
+                REPORT.compiler_artifact(manifest, True)
+            pending.unlink()
+            for env in ({'CARGO_INCREMENTAL': '1'}, {'RUSTFLAGS': '-C opt-level=2'}):
+                with patch.dict(os.environ, env), self.assertRaisesRegex(ValueError, 'mismatch'):
+                    REPORT.compiler_artifact(manifest, True)
+            with patch.object(REPORT, 'command', return_value='new source'), self.assertRaisesRegex(ValueError, 'mismatch'):
+                REPORT.compiler_artifact(manifest, True)
+            state.write_text('different compiler state')
+            with self.assertRaisesRegex(ValueError, 'mismatch'):
+                REPORT.compiler_artifact(manifest, True)
+            state.unlink()
+            with self.assertRaises(FileNotFoundError):
+                REPORT.compiler_artifact(manifest, True)
+
     def test_original_exit_is_not_hidden_by_report_errors(self):
         (self.root / 'settings.json').write_text('{"job":"tests"}')
         (self.root / 'junit.xml').unlink()
@@ -380,36 +405,36 @@ class ConfigurationTests(unittest.TestCase):
     def test_incremental_trial_is_limited_to_feature_checks_and_tests(self):
         repo = Path(__file__).resolve().parents[3]
         config = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(repo / '.rwx/rust.yml')], text=True))
-        selected = {'tests-build', 'tests-unit', 'tests-compiler', 'tests'} | {f'features-{i}' for i in range(10)} | {f'features-build-{i}' for i in range(10)}
+        selected = {'tests-cache', 'tests-build', 'tests-unit', 'tests-compiler', 'tests'} | {f'features-{i}' for i in range(10)} | {f'features-build-{i}' for i in range(10)}
         actual = {t['key'] for t in config['tasks'] if 'CI_RUST_INCREMENTAL' in t.get('env', {})}
         self.assertEqual(actual, selected)
         tasks = {t['key']: t for t in config['tasks']}
-        for key in ('tests-build', 'tests-unit', 'tests-compiler'):
-            self.assertIn('${{ init.cargo-incremental }}', tasks[key]['tool-cache'])
-            self.assertIn('${{ tasks.test-cache-identity.values.namespace }}', tasks[key]['tool-cache'])
-            self.assertIn('test-cache-identity', tasks[key]['use'])
+        for key in ('tests-cache', 'tests-build', 'tests-unit', 'tests-compiler'):
             self.assertEqual(tasks[key]['runner'], {'cpus': 16, 'memory': '32gb', 'disk': '150gb'})
-            output = tasks[key]['outputs']['filesystem']['filter']['workspace']
-            self.assertIn('rust/target', output)
-            self.assertIn('!.ci/rust-cache/target-cache.tar.zst', output)
-            self.assertIn('-files-incremental-', tasks[key]['tool-cache'])
-        self.assertNotIn('tests-build', tasks['tests-compiler']['use'])
-        self.assertEqual(tasks['tests-compiler']['env']['COMPILED_TARGET'],
-                         '${{ tasks.tests-build.artifacts.compiler-cache }}')
-        self.assertTrue(all('disk' not in t.get('runner', {}) for t in config['tasks']
-                            if t['key'] not in ('tests-build', 'tests-unit', 'tests-compiler')))
+        for key in ('tests-build', 'tests-unit', 'tests-compiler'):
+            self.assertFalse(tasks[key]['cache'])
+            self.assertNotIn('tool-cache', tasks[key])
+        self.assertEqual(tasks['tests-build']['use'], ['tests-cache', 'head-source'])
+        self.assertEqual(tasks['tests-compiler']['use'], ['tests-build', 'head-source'])
+        self.assertEqual(tasks['tests-compiler']['env']['COMPILED_STATE'],
+                         '${{ tasks.tests-build.artifacts.compiler-state }}')
+        self.assertFalse(tasks['tests-compiler']['outputs']['filesystem'])
+        self.assertFalse(tasks['tests-unit']['outputs']['filesystem'])
+        self.assertEqual(tasks['tests-cache']['use'], 'compiler-source')
+        self.assertEqual(tasks['tests-cache']['env']['CI_COMMIT_SHA'], '${{ tasks.compiler-base.values.sha }}')
+        self.assertEqual(tasks['compiler-code']['with']['ref'], '${{ tasks.compiler-base.values.sha }}')
         for trigger in ('cli', 'cache-rebuild'):
-            self.assertEqual(config['on'][trigger]['init']['cargo-incremental'], '1')
+            self.assertEqual(config['on'][trigger]['init']['cargo-incremental'], '0')
         coordinator = json.loads(subprocess.check_output(['yq', '-o=json', '.tasks', str(repo / '.rwx/pr-gates.yml')], text=True))
-        self.assertEqual(next(t for t in coordinator if t['key'] == 'native-workspace')['init']['cargo-incremental'], '1')
+        self.assertEqual(next(t for t in coordinator if t['key'] == 'native-workspace')['init']['cargo-incremental'], '0')
 
     @unittest.skipUnless(shutil.which('yq'), 'requires the pinned yq tool')
     def test_fresh_verdicts_keep_compiler_caches_enabled(self):
         definition = Path(__file__).resolve().parents[3] / '.rwx/rust.yml'
         tasks = json.loads(subprocess.check_output(['yq', '-o=json', '.tasks', str(definition)], text=True))
-        selected = {'tests-unit', 'tests-compiler', 'doctest', 'build', 'docs', 'clippy', 'no-std', 'udeps'}
+        selected = {'doctest', 'build', 'docs', 'clippy', 'no-std', 'udeps'}
         selected.update({'wasm-unknown', 'wasm-wasi', 'zepter', 'typos', 'registry', 'interop'})
-        selected.update((f'features-build-{i}' for i in range(10)))
+
         actual = {t['key']: t for t in tasks if t['key'] in selected}
         self.assertEqual(set(actual), selected)
         for name, task in actual.items():
@@ -424,7 +449,7 @@ class ConfigurationTests(unittest.TestCase):
                 output = task['outputs']['filesystem']['filter']['workspace']
                 self.assertIn('rust/target', output)
                 self.assertNotIn('.ci/rust-workspace', output)
-        self.assertIn('head-source', actual['tests-unit']['use'])
+
 
     @unittest.skipUnless(shutil.which('yq'), 'requires the pinned yq tool')
     def test_features_reuse_compilers_but_keep_current_pr_gate_verdicts(self):
@@ -436,9 +461,10 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(gate['tasks'], [f'features-{i}' for i in range(10)])
         for i in range(10):
             producer, verdict = tasks[f'features-build-{i}'], tasks[f'features-{i}']
-            self.assertEqual(verdict['use'], ['head-source', producer['key']])
-            self.assertEqual(producer['use'], 'head-source')
-            self.assertEqual(producer['run'], verdict['run'])
+            self.assertEqual(verdict['use'], [producer['key'], 'head-source'])
+            self.assertEqual(producer['use'], 'compiler-source')
+            self.assertEqual(producer['run'], 'python3 ops/ci/runtime/rust-compiler-baseline.py features')
+            self.assertEqual(verdict['run'], 'bash ops/ci/runtime/rust-workspace.sh features')
             self.assertEqual(producer['runner'], verdict['runner'])
             self.assertNotEqual(producer.get('cache'), False)
             self.assertIn('rust/target', producer['outputs']['filesystem']['filter']['workspace'])
@@ -447,7 +473,7 @@ class ConfigurationTests(unittest.TestCase):
             self.assertFalse(verdict['outputs']['filesystem'])
             self.assertIn(producer['key'], config['on']['cache-rebuild']['target'])
             self.assertNotIn(verdict['key'], config['on']['cache-rebuild']['target'])
-            for name in ('CI_RUST_INCREMENTAL', 'CI_RUST_PARTITION_INDEX', 'CI_RUST_PARTITION_TOTAL', 'CI_COMMIT_SHA'):
+            for name in ('CI_RUST_INCREMENTAL', 'CI_RUST_PARTITION_INDEX', 'CI_RUST_PARTITION_TOTAL'):
                 self.assertEqual(producer['env'][name], verdict['env'][name])
             for nonce in ('RWX_RUN_ID', 'RWX_TASK_ATTEMPT_NUMBER'):
                 self.assertNotIn(nonce, producer['env'])
@@ -659,7 +685,8 @@ pub fn compile_only() {}
             self.assertTrue(any((root / 'rust/target/debug/incremental').iterdir()))
             self.assertTrue(any((root / 'rust/target/fast-build/incremental').iterdir()))
             packed = root / '.ci/rust-cache/target-cache.tar.zst'
-            self.assertTrue(packed.is_file())
+            self.assertFalse(packed.exists())
+            self.assertTrue((root / '.ci/rust-workspace/tests-build/compiler.json').is_file())
             before = json.loads((root / '.ci/rust-workspace/tests-build/cache-size.json').read_text())
             self.assertGreater(before['target']['bytes'], 0)
             # RWX restores individual files, with the archive excluded from its
@@ -686,41 +713,47 @@ pub fn compile_only() {}
             self.assertEqual(bundle.stat().st_mtime_ns, bundle_stamp // 10**9 * 10**9)
             self.assertIn('Compiling kona-providers-alloy',
                           (root / '.ci/rust-workspace/tests-build/archive.log').read_text())
-            # First runtime receives only the current compiler artifact. Its own
-            # tool cache is empty and raw producer targets are absent.
-            compiled = root / 'producer-cache.tar.zst'
-            packed.replace(compiled)
-            shutil.rmtree(root / 'rust/target')
-            env['COMPILED_TARGET'] = str(compiled)
+            # Simulate the immutable native compiler filesystem independently
+            # of the binary-only worker and fresh compiler verdicts.
+            snapshot = root / 'producer-target'
+            shutil.copytree(root / 'rust/target', snapshot)
+            env['COMPILED_STATE'] = str(root / '.ci/rust-workspace/tests-build/compiler.json')
             env['TEST_ARCHIVE'] = str(root / '.ci/rust-workspace/tests-build')
-            corrupt = root / 'corrupt-target.tar.zst'; corrupt.write_bytes(b'corrupt snapshot')
-            rejected = run('tests', {'COMPILED_TARGET': str(corrupt)})
+            corrupt = root / 'corrupt-compiler.json'; corrupt.write_text('{}')
+            rejected = run('tests', {'COMPILED_STATE': str(corrupt)})
             self.assertNotEqual(rejected.returncode, 0)
             final = json.loads((root / '.ci/rust-workspace/tests/final.json').read_text())
             self.assertEqual(final['exit_code'], rejected.returncode)
-            self.assertIn('tar', (root / '.ci/rust-workspace/tests/cache-restore.log').read_text())
+            self.assertIn('mismatch', rejected.stderr)
             self.assertFalse((root / '.ci/rust-workspace/tests/unit-list.json').exists())
             mismatch = run('tests', {'CI_RUST_INCREMENTAL': '0'})
             self.assertNotEqual(mismatch.returncode, 0)
             self.assertIn('mismatch', mismatch.stderr)
             self.assertEqual(json.loads((root / '.ci/rust-workspace/tests/final.json').read_text())['exit_code'], mismatch.returncode)
+            def restore_target():
+                shutil.rmtree(root / 'rust/target')
+                shutil.copytree(snapshot, root / 'rust/target')
+            # Every native consumer starts from the producer, rather than from
+            # a previous verdict's mutated compiler fingerprint.
+            restore_target()
             first = run('tests')
             self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
             self.assertFalse(packed.exists(), 'verdict must not repack the compiler cache')
             self.assertFalse((root / '.ci/rust-workspace/tests/cache-pack.log').exists())
-            # A subsequent verdict prefers its native target files. It must not
-            # read the transfer archive, even when that artifact is unavailable.
-            native = run('tests', {'COMPILED_TARGET': str(root / 'unavailable-transfer.tar.zst')})
+            restore_target()
+            native = run('tests')
             self.assertEqual(native.returncode, 0, native.stdout + native.stderr)
             self.assertFalse((root / '.ci/rust-workspace/tests/cache-restore.log').exists())
             self.assertNotIn('Compiling kona-providers-alloy',
                              (root / '.ci/rust-workspace/tests/beacon-list.log').read_text())
+            restore_target()
             failed = run('tests', {'RWX_FIXTURE_FAIL': '1'})
             self.assertNotEqual(failed.returncode, 0)
             final = json.loads((root / '.ci/rust-workspace/tests/final.json').read_text())
             self.assertEqual(final['exit_code'], failed.returncode)
             self.assertIn('intentional original failure', (root / '.ci/rust-workspace/tests/junit.xml').read_text())
             self.assertEqual(json.loads((root / '.ci/rust-workspace/tests/unit-coverage.json').read_text())['outcomes']['fail'], 1)
+            restore_target()
             fresh = run('tests')
             self.assertEqual(fresh.returncode, 0, fresh.stdout + fresh.stderr)
             # A binary-only worker starts without producer targets and must
@@ -733,6 +766,7 @@ pub fn compile_only() {}
             self.assertFalse((root / 'rust/target/debug/lokahi').exists())
             self.assertFalse((root / '.ci/rust-workspace/tests-unit/beacon.log').exists())
             shutil.rmtree(root / 'rust/target')
+            shutil.copytree(snapshot, root / 'rust/target')
             compiler = run('tests-compiler')
             self.assertEqual(compiler.returncode, 0, compiler.stdout + compiler.stderr)
             self.assertFalse((root / '.ci/rust-workspace/tests-compiler/unit.log').exists())
@@ -757,6 +791,7 @@ pub fn compile_only() {}
                                     capture_output=True, text=True, timeout=180)
             self.assertEqual(circle.returncode, 0, circle.stdout + circle.stderr)
             self.assertEqual(json.loads((root / '.ci/rust-workspace/doctest/settings.json').read_text())['incremental'], '0')
+            subprocess.run(['sccache', '--stop-server'], check=True, capture_output=True)
             for index in ('0', '9'):
                 feature = run('features', {'CI_RUST_PARTITION_INDEX': index})
                 self.assertEqual(feature.returncode, 0, feature.stdout + feature.stderr)

@@ -69,7 +69,7 @@ def begin(directory, job):
         'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER'),
         'input_sha256': inputs(job), 'rustc': command('rustc', '--version'),
         'cargo': command('cargo', '--version'), 'nextest': command('cargo', 'nextest', '--version'),
-        'feature_seed': sha, 'feature_partitions':
+        'feature_seed': digest('rust/Cargo.lock'), 'feature_partitions':
             int(os.environ.get('CI_RUST_PARTITION_TOTAL', os.environ.get('CIRCLE_NODE_TOTAL', '10')))
             if job == 'features' else 10,
         'feature_partition_index': int(os.environ.get('CI_RUST_PARTITION_INDEX', os.environ.get('CIRCLE_NODE_INDEX', '0'))),
@@ -377,6 +377,24 @@ def artifact(directory, verify=False):
         write(directory / 'archive.json', expected)
 
 
+def compiler_artifact(path, verify=False):
+    """Bind a native filesystem handoff without repacking or hashing target/."""
+    target = Path(os.environ['CARGO_TARGET_DIR'])
+    state = target / '.rwx-source-fingerprint.json'
+    if (target / '.rwx-source-pending.json').exists():
+        raise ValueError('Uncommitted compiler state')
+    expected = {'source_sha': command('git', 'rev-parse', 'HEAD'),
+                'input_sha256': inputs(), 'rustc': command('rustc', '--version'),
+                'cargo': command('cargo', '--version'), **incremental_settings(),
+                'rustflags': os.environ.get('RUSTFLAGS', ''),
+                'fingerprint_sha256': digest(state)}
+    if verify:
+        if json.loads(path.read_text()) != expected:
+            raise ValueError('Compiler state revision, settings, toolchain or fingerprint mismatch')
+    else:
+        write(path / 'compiler.json', expected)
+
+
 def merge_tests(directory, unit, compiler):
     """Verify same-run child evidence and retain original bytes for the aggregate.
 
@@ -513,6 +531,8 @@ if __name__ == '__main__':
         registry_snapshot(directory, sys.argv[3])
     elif mode in ('artifact', 'verify-artifact'):
         artifact(directory, mode == 'verify-artifact')
+    elif mode in ('compiler-artifact', 'verify-compiler-artifact'):
+        compiler_artifact(directory, mode == 'verify-compiler-artifact')
     elif mode == 'merge-tests':
         sys.exit(merge_tests(directory, Path(sys.argv[3]).resolve(), Path(sys.argv[4]).resolve()))
     elif mode in ('finish', 'finish-merged-tests'):

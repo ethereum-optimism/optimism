@@ -103,7 +103,7 @@ been retired.
 
 | Workload | Definition / contract |
 | --- | --- |
-| Full Go | `go-tests.yml`: 12 duration-balanced package shards; compile 16 CPU / 32 GiB, verdict 8 CPU / 16 GiB; `-p=4`, `-parallel=8`, `40m` package timeout, three gotestsum retries / 50-failure ceiling |
+| Full Go | `go-tests.yml`: 12 duration-balanced package shards; compile 8 CPU / 16 GiB, verdict 8 CPU / 16 GiB; `-p=4`, `-parallel=8`, `40m` package timeout, three gotestsum retries / 50-failure ceiling |
 | Acceptance | `acceptance.yml`: eight shards each for op-node and Kona, Fusaka / op-reth; separate discovery/compilation and fresh verdicts, per-variant memory |
 | Contracts | `contracts.yml`: standard and modified-file matrices for four features; PR standard `liteci`, protected standard `ci`, modified `ciheavy` |
 | Coverage / upgrades / L2 fork | Separate definitions and compile/verdict packages; preserve `cicoverage`, chain/feature matrices, pinned fork inputs and reporting |
@@ -276,8 +276,8 @@ also verified source-change invalidation and reuse after the changed build.
 These trials used isolated default-vault cache names; they do not establish
 protected-branch cache warming or change the production cache grants.
 
-Full-test build/runtime tool caches retain individual `rust/target` files in
-`files` namespaces. Keep compiler binaries, fingerprints and incremental state;
+Full-test compiler producers retain individual `rust/target` files. Keep compiler
+binaries and fingerprints;
 remove nextest reports before publication. RWX can reuse unchanged filesystem
 files without retaining another full compressed snapshot on every update.
 The complete producer artifact at `4047caccc5` measured 54.24 GiB of regular-file
@@ -288,21 +288,37 @@ allocated bytes, hardlink counts and directory breakdowns for targets, Cargo
 and sccache. These sizes describe the current tree; the engine's layer accounting
 also includes inherited and superseded layers.
 
-The producer still exports `.ci/rust-cache/target-cache.tar.zst` as an immutable
-artifact for an empty runtime cache. This archive is excluded from both tasks'
-filesystem outputs. GNU tar's PAX format preserves nanosecond timestamps and
-permissions during that transfer. The compiler-dependent verdict receives it through
-`COMPILED_TARGET`, prefers its own raw target baseline when present, and does not
-repack targets after tests. It does not inherit the producer's target-cache layer
-history. Other workspace jobs retain their existing raw target outputs.
-Retain cold `cache-restore`, producer `cache-pack`, and size evidence separately
-from native cache-network transport timings.
+The Rust test handoff uses RWX's immutable filesystem directly. The current-source
+`tests-build` producer publishes compiler files plus a small `compiler.json`
+artifact. The compiler-dependent worker inherits those files and checks the
+manifest's revision, toolchain, flags and source-fingerprint digest before Cargo
+runs. A pending fingerprint is rejected. Neither task packs a target archive;
+compiler and unit verdict workers publish reports only, avoiding another full
+compiler-layer publication after tests. The nextest binary archive remains the
+handoff to the execution-only worker.
+
+Compiler preparation uses a source ancestor selected by the last change to build
+inputs: manifests, lockfile, toolchain, Cargo/Just configuration and CI helpers.
+Its checkout and compiler outputs are immutable cached tasks, reusable across
+source-only PR edits without shared-cache writer permission. Current-source
+workers overlay HEAD and always invoke Cargo; source fingerprint preparation
+restores unchanged timestamps and refreshes edited inputs. Feature partitions use
+the Cargo.lock digest on both services, keeping assignments stable across source
+edits. Both providers default to `CARGO_INCREMENTAL=0` so sccache can cache local
+crate compilations. The explicit incremental trial remains available on RWX.
+
+An intermediate ancestor need not build. Optional preparation retains its original
+failure and discards partial targets before fresh HEAD compilation. Such a fallback
+is not evidence of a warm cache. Changes to `cache-epoch` invalidate the preparation
+tasks. Benchmark evidence must verify the actual restored targets, current-source
+recompilation, cache hits and fresh coverage rather than assuming warmth from a
+successful previous run.
 
 The full Rust test workload has two fresh verdict workers. `tests-unit` executes
 nextest from the checksum-verified binary archive. It receives no compiler archive;
-its separate tool cache can retain runtime fixture compilation, but excludes test
-reports and unpacked execution binaries. `tests-compiler` runs the beacon Cargo test
-and doctests using the protected runtime target baseline and cold archive fallback.
+its unpacked execution binaries and runtime fixture outputs are excluded from
+filesystem publication. `tests-compiler` runs the beacon Cargo test
+and doctests using the current producer's inherited compiler filesystem.
 Both workers retain the selected 16 CPU / 32 GiB resources and may execute in
 parallel. The `tests` task collects both artifacts after execution, including
 ordinary failures. It verifies source, tools, settings and run identity, retains
@@ -315,7 +331,7 @@ neither verdict worker nor the aggregate.
 For an isolated execution fixture, run
 `RWX_LIVE_RUST_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_rust_workspace.py'`
 on Linux with the pinned Rust, nextest, Just, mold and sccache tools. This exercises
-an empty-target nextest worker, compiler-cache restoration, aggregate coverage and
+an empty-target nextest worker, native compiler handoff validation, aggregate coverage and
 original failure retention. It also copies the real Lokahi CLI tests and verifies
 the runtime `CARGO_BIN_EXE_lokahi` path under nextest and ordinary Cargo. Rust 1.95
 and nextest 0.9.132 provide this input; compile-time executable paths are not
@@ -323,8 +339,8 @@ portable to an extracted target directory. The shared `tests` CLI mode remains a
 Circle and earlier collected commands. The split changes scheduling and transport;
 it does not remove the independently scheduled `doctest` workload. Compare hosted
 end-to-end timings before claiming a speed improvement. The compiler-dependent
-cold fallback still needs an archive; native compaction and metadata-preserving
-handoffs remain an RWX support question.
+worker inherits compiler state and publishes only reports; hosted cache transport
+and filesystem restoration performance remain part of the benchmark.
 
 Raw target layers exceeded the cap even after executable pruning: at
 `d233b6c244`, 73.5 GiB inherited plus 26.6 GiB added failed publication after

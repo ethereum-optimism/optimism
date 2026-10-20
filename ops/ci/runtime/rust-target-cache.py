@@ -55,6 +55,26 @@ def sources(root):
     return entries, digest.hexdigest()
 
 
+def compiler_base(root):
+    """Anchor immutable compiler preparation at the last build-input change.
+
+    Source-only PR edits reuse this ancestor's compiler filesystem. Fresh workers
+    always overlay HEAD and run Cargo, which checks changed source dependencies.
+    No compiler-cache writer permission is needed to reuse a task result.
+    """
+    paths = ['mise.toml', 'rust/Cargo.lock', ':(glob)rust/**/Cargo.toml',
+             'rust/.cargo', 'rust/.config', 'rust/rust-toolchain.toml', 'rust/justfile',
+             'ops/ci/runtime', '.rwx/rust.yml', '.rwx/packages',
+             'rust/op-reth/crates/chainspec/res/superchain-configs.tar.sha256']
+    anchor = subprocess.check_output(['git', 'log', '-1', '--format=%H', 'HEAD', '--',
+                                     *paths], cwd=root, text=True).strip()
+    # Merge history can have a different ordering than the final tree. Never
+    # prepare a baseline with different build inputs from the current checkout.
+    if subprocess.run(['git', 'diff', '--quiet', anchor, 'HEAD', '--', *paths], cwd=root).returncode:
+        return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+    return anchor
+
+
 def namespace(root):
     """Keep source edits incremental; reset large targets when build inputs change.
 
@@ -254,7 +274,9 @@ def manage(phase, root, target):
 
 
 if __name__ == '__main__':
-    if sys.argv[1] == 'namespace':
+    if sys.argv[1] == 'base':
+        print(compiler_base(Path.cwd()))
+    elif sys.argv[1] == 'namespace':
         print(json.dumps(namespace(Path.cwd()), sort_keys=True))
     elif sys.argv[1] in ('pack', 'restore'):
         snapshot(sys.argv[1], Path(os.environ['CARGO_TARGET_DIR']), Path(sys.argv[2]))

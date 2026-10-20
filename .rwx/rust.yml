@@ -2,13 +2,13 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [tests-build, build, clippy, docs, no-std, udeps, feature-plan, features-build-0, features-build-1, features-build-2, features-build-3, features-build-4, features-build-5, features-build-6, features-build-7, features-build-8, features-build-9, wasm-unknown, wasm-wasi, registry, cannon-env, cannon-go, cannon-witness, cannon-build]
+    target: [tests-cache, tests-build, build, clippy, docs, no-std, udeps, feature-plan, features-build-0, features-build-1, features-build-2, features-build-3, features-build-4, features-build-5, features-build-6, features-build-7, features-build-8, features-build-9, wasm-unknown, wasm-wasi, registry, cannon-env, cannon-go, cannon-witness, cannon-build]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
       tag: ""
       cache-epoch: v1
-      cargo-incremental: "1"
+      cargo-incremental: "0"
       cache-warm: "true"
   # Automatic pushes are coordinated by pr-gates.yml; CLI and warming remain.
   cli:
@@ -17,7 +17,7 @@ on:
       branch: ${{ event.git.branch }}
       tag: ""
       cache-epoch: v1
-      cargo-incremental: "1"
+      cargo-incremental: "0"
       cache-warm: "false"
 
 base:
@@ -95,6 +95,7 @@ tasks:
     use: [code, tools]
     run: |
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_workspace.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_compiler_baseline.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rwx_materialize_linker.py'
       python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_rust_workspace.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_target_cache.py'
@@ -177,33 +178,45 @@ tasks:
         - key: report
           path: .ci/rust-workspace/feature-plan
 
-  # Dependency/toolchain changes need a new initial target-cache layer. Source
-  # edits keep the same namespace and can reuse incremental compilation.
-  - key: test-cache-identity
-    use: [code, rust-tools]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: |
-      mkdir -p .ci
-      python3 ops/ci/runtime/rust-target-cache.py namespace > .ci/rust-test-cache-identity.json
-      jq -er '.namespace' .ci/rust-test-cache-identity.json > "$RWX_VALUES/namespace"
+  # Anchor compiler preparation at the last compiler/configuration change.
+  # Ordinary source edits reuse these immutable task results without granting
+  # PRs shared-cache writes. Fresh HEAD workers below still run every verdict.
+  - key: compiler-base
+    use: code
+    run: python3 ops/ci/runtime/rust-target-cache.py base > "$RWX_VALUES/sha"
     outputs:
       filesystem: false
-      artifacts:
-        - key: identity
-          path: .ci/rust-test-cache-identity.json
 
-  - key: tests-build
-    use: [head-source, test-cache-identity]
+  - key: compiler-code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ tasks.compiler-base.values.sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: compiler-source
+    use: [rust-tools, compiler-code]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/runtime/rust-workspace.sh tests-build
-    env: &incremental-rust-env
-      <<: *rust-env
+    run: |
+      git reset --hard "$COMPILER_BASE_SHA"
+      git clean -fdx -- rust
+      bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
+    env:
+      COMPILER_BASE_SHA: ${{ tasks.compiler-base.values.sha }}
+    timeout: 15m
+
+  - key: tests-cache
+    use: compiler-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: python3 ops/ci/runtime/rust-compiler-baseline.py tests-build
+    env: &compiler-base-env
+      COMPILER_CACHE_EPOCH: ${{ init.cache-epoch }}
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ tasks.compiler-base.values.sha }}
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
-    # Retain individual files in a format-specific namespace. Source timestamps
-    # survive restoration; dependency/toolchain changes select a new baseline.
-    tool-cache: rust-workspace-tests-build-${{ init.cache-epoch }}-files-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
     timeout: 90m
-    # Warm dependencies occupy 88.37 GB; RWX also requires 20 GB of scratch.
     runner: &test-runner
       cpus: 16
       memory: 32gb
@@ -211,18 +224,35 @@ tasks:
     outputs:
       filesystem: &test-compiler-output
         filter:
-          workspace: [rust/target, .ci/rust-cache, '!.ci/rust-cache/target-cache.tar.zst', rust/op-reth/crates/chainspec/res/superchain-configs.tar]
+          workspace: [rust/target, .ci/rust-cache, rust/op-reth/crates/chainspec/res/superchain-configs.tar]
           system: []
       artifacts:
         - key: report
+          path: .ci/rust-workspace/compiler-baseline/tests-build
+
+  - key: tests-build
+    use: [tests-cache, head-source]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh tests-build
+    env: &incremental-rust-env
+      <<: *rust-env
+      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
+    # Compile the current source afresh using the ancestor's compiler state.
+    cache: false
+    timeout: 90m
+    runner: *test-runner
+    outputs:
+      filesystem: *test-compiler-output
+      artifacts:
+        - key: report
           path: .ci/rust-workspace/tests-build
-        - key: compiler-cache
-          path: .ci/rust-cache/target-cache.tar.zst
+        - key: compiler-state
+          path: .ci/rust-workspace/tests-build/compiler.json
 
   # Execution-only nextest workers receive the verified test archive, never the
-  # full compiler snapshot. Runtime fixture compilation has its own small cache.
+  # full compiler snapshot.
   - key: tests-unit
-    use: [head-source, test-cache-identity]
+    use: head-source
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh tests-unit
     env:
@@ -232,35 +262,35 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-    tool-cache: rust-workspace-tests-unit-${{ init.cache-epoch }}-files-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
+    cache: false
     timeout: 90m
     runner: *test-runner
     outputs:
-      filesystem: *test-compiler-output
+      filesystem: false
       test-results:
         - path: .ci/rust-workspace/tests-unit/junit.xml
       artifacts:
         - key: report
           path: .ci/rust-workspace/tests-unit
 
-  # Beacon and doctests need Cargo compiler state. Keep their protected runtime
-  # baseline and cold archive fallback while nextest executes independently.
+  # Compiler-dependent verdicts inherit the producer's immutable filesystem.
+  # Publish reports only: never pack, restore or republish the compiler tree.
   - key: tests-compiler
-    use: [head-source, test-cache-identity]
+    use: [tests-build, head-source]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh tests-compiler
     env:
       <<: *incremental-rust-env
-      COMPILED_TARGET: ${{ tasks.tests-build.artifacts.compiler-cache }}
+      COMPILED_STATE: ${{ tasks.tests-build.artifacts.compiler-state }}
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-    tool-cache: rust-workspace-tests-runtime-${{ init.cache-epoch }}-files-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
+    cache: false
     timeout: 90m
     runner: *test-runner
     outputs:
-      filesystem: *test-compiler-output
+      filesystem: false
       test-results:
         - path: .ci/rust-workspace/tests-compiler/beacon.junit.xml
         - path: .ci/rust-workspace/tests-compiler/doctests.junit.xml
@@ -395,15 +425,14 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-0
-    use: head-source
+    use: compiler-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/runtime/rust-workspace.sh features
+    run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
-      <<: *rust-env
+      <<: *compiler-base-env
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "0"
       CI_RUST_PARTITION_TOTAL: "10"
-    tool-cache: rust-workspace-features-0-${{ init.cache-epoch }}
     timeout: 120m
     runner:
       cpus: 4
@@ -412,10 +441,10 @@ tasks:
       filesystem: *compiler-output
       artifacts:
         - key: report
-          path: .ci/rust-workspace/features-0
+          path: .ci/rust-workspace/compiler-baseline/features-0
 
   - key: features-0
-    use: [head-source, features-build-0]
+    use: [features-build-0, head-source]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
@@ -436,15 +465,14 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-1
-    use: head-source
+    use: compiler-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/runtime/rust-workspace.sh features
+    run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
-      <<: *rust-env
+      <<: *compiler-base-env
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "1"
       CI_RUST_PARTITION_TOTAL: "10"
-    tool-cache: rust-workspace-features-1-${{ init.cache-epoch }}
     timeout: 120m
     runner:
       cpus: 4
@@ -453,10 +481,10 @@ tasks:
       filesystem: *compiler-output
       artifacts:
         - key: report
-          path: .ci/rust-workspace/features-1
+          path: .ci/rust-workspace/compiler-baseline/features-1
 
   - key: features-1
-    use: [head-source, features-build-1]
+    use: [features-build-1, head-source]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
@@ -477,15 +505,14 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-2
-    use: head-source
+    use: compiler-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/runtime/rust-workspace.sh features
+    run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
-      <<: *rust-env
+      <<: *compiler-base-env
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "2"
       CI_RUST_PARTITION_TOTAL: "10"
-    tool-cache: rust-workspace-features-2-${{ init.cache-epoch }}
     timeout: 120m
     runner:
       cpus: 4
@@ -494,10 +521,10 @@ tasks:
       filesystem: *compiler-output
       artifacts:
         - key: report
-          path: .ci/rust-workspace/features-2
+          path: .ci/rust-workspace/compiler-baseline/features-2
 
   - key: features-2
-    use: [head-source, features-build-2]
+    use: [features-build-2, head-source]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
@@ -518,15 +545,14 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-3
-    use: head-source
+    use: compiler-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/runtime/rust-workspace.sh features
+    run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
-      <<: *rust-env
+      <<: *compiler-base-env
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "3"
       CI_RUST_PARTITION_TOTAL: "10"
-    tool-cache: rust-workspace-features-3-${{ init.cache-epoch }}
     timeout: 120m
     runner:
       cpus: 4
@@ -535,10 +561,10 @@ tasks:
       filesystem: *compiler-output
       artifacts:
         - key: report
-          path: .ci/rust-workspace/features-3
+          path: .ci/rust-workspace/compiler-baseline/features-3
 
   - key: features-3
-    use: [head-source, features-build-3]
+    use: [features-build-3, head-source]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
@@ -559,15 +585,14 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-4
-    use: head-source
+    use: compiler-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/runtime/rust-workspace.sh features
+    run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
-      <<: *rust-env
+      <<: *compiler-base-env
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "4"
       CI_RUST_PARTITION_TOTAL: "10"
-    tool-cache: rust-workspace-features-4-${{ init.cache-epoch }}
     timeout: 120m
     runner:
       cpus: 4
@@ -576,10 +601,10 @@ tasks:
       filesystem: *compiler-output
       artifacts:
         - key: report
-          path: .ci/rust-workspace/features-4
+          path: .ci/rust-workspace/compiler-baseline/features-4
 
   - key: features-4
-    use: [head-source, features-build-4]
+    use: [features-build-4, head-source]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
@@ -600,15 +625,14 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-5
-    use: head-source
+    use: compiler-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/runtime/rust-workspace.sh features
+    run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
-      <<: *rust-env
+      <<: *compiler-base-env
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "5"
       CI_RUST_PARTITION_TOTAL: "10"
-    tool-cache: rust-workspace-features-5-${{ init.cache-epoch }}
     timeout: 120m
     runner:
       cpus: 4
@@ -617,10 +641,10 @@ tasks:
       filesystem: *compiler-output
       artifacts:
         - key: report
-          path: .ci/rust-workspace/features-5
+          path: .ci/rust-workspace/compiler-baseline/features-5
 
   - key: features-5
-    use: [head-source, features-build-5]
+    use: [features-build-5, head-source]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
@@ -641,15 +665,14 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-6
-    use: head-source
+    use: compiler-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/runtime/rust-workspace.sh features
+    run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
-      <<: *rust-env
+      <<: *compiler-base-env
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "6"
       CI_RUST_PARTITION_TOTAL: "10"
-    tool-cache: rust-workspace-features-6-${{ init.cache-epoch }}
     timeout: 120m
     runner:
       cpus: 4
@@ -658,10 +681,10 @@ tasks:
       filesystem: *compiler-output
       artifacts:
         - key: report
-          path: .ci/rust-workspace/features-6
+          path: .ci/rust-workspace/compiler-baseline/features-6
 
   - key: features-6
-    use: [head-source, features-build-6]
+    use: [features-build-6, head-source]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
@@ -682,15 +705,14 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-7
-    use: head-source
+    use: compiler-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/runtime/rust-workspace.sh features
+    run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
-      <<: *rust-env
+      <<: *compiler-base-env
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "7"
       CI_RUST_PARTITION_TOTAL: "10"
-    tool-cache: rust-workspace-features-7-${{ init.cache-epoch }}
     timeout: 120m
     runner:
       cpus: 4
@@ -699,10 +721,10 @@ tasks:
       filesystem: *compiler-output
       artifacts:
         - key: report
-          path: .ci/rust-workspace/features-7
+          path: .ci/rust-workspace/compiler-baseline/features-7
 
   - key: features-7
-    use: [head-source, features-build-7]
+    use: [features-build-7, head-source]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
@@ -723,15 +745,14 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-8
-    use: head-source
+    use: compiler-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/runtime/rust-workspace.sh features
+    run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
-      <<: *rust-env
+      <<: *compiler-base-env
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "8"
       CI_RUST_PARTITION_TOTAL: "10"
-    tool-cache: rust-workspace-features-8-${{ init.cache-epoch }}
     timeout: 120m
     runner:
       cpus: 4
@@ -740,10 +761,10 @@ tasks:
       filesystem: *compiler-output
       artifacts:
         - key: report
-          path: .ci/rust-workspace/features-8
+          path: .ci/rust-workspace/compiler-baseline/features-8
 
   - key: features-8
-    use: [head-source, features-build-8]
+    use: [features-build-8, head-source]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
@@ -764,15 +785,14 @@ tasks:
 
   # Reuse compiler preparation; the separate consumer always checks this PR afresh.
   - key: features-build-9
-    use: head-source
+    use: compiler-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/runtime/rust-workspace.sh features
+    run: python3 ops/ci/runtime/rust-compiler-baseline.py features
     env:
-      <<: *rust-env
+      <<: *compiler-base-env
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
       CI_RUST_PARTITION_INDEX: "9"
       CI_RUST_PARTITION_TOTAL: "10"
-    tool-cache: rust-workspace-features-9-${{ init.cache-epoch }}
     timeout: 120m
     runner:
       cpus: 4
@@ -781,10 +801,10 @@ tasks:
       filesystem: *compiler-output
       artifacts:
         - key: report
-          path: .ci/rust-workspace/features-9
+          path: .ci/rust-workspace/compiler-baseline/features-9
 
   - key: features-9
-    use: [head-source, features-build-9]
+    use: [features-build-9, head-source]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh features
     env:
