@@ -33,7 +33,7 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 				require.False(t, elNode.IsCanonical(unsafeRef[i].ID()), "Previous unsafe block should have been reorged")
 			}
 		}
-		testL2ReorgAfterL1Reorg(gt, 3, pre, post)
+		testL2ReorgAfterL1Reorg(gt, 3, true, pre, post)
 	})
 
 	gt.Run("unsafe, local-safe, cross-safe reorgs", func(gt *testing.T) {
@@ -50,7 +50,8 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 				require.False(t, elNode.IsCanonical(localSafeRef[i].ID()), "Previous local-safe block should have been reorged", "elNode", elNode.String(), "localSafeRef", localSafeRef[i].ID())
 			}
 		}
-		testL2ReorgAfterL1Reorg(gt, 20, pre, post)
+		// Reorg L2 safe history without replacing the L1 safe/finalized anchors.
+		testL2ReorgAfterL1Reorg(gt, 10, false, pre, post)
 	})
 }
 
@@ -58,7 +59,7 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 // for unsafe reorgs - n must be at least >= confDepth, which is 2 in our test deployments
 // for cross-safe reorgs - n must be at least >= safe distance, which is 10 in our test deployments
 // pre- and post-checks are sanity checks to ensure that the blocks we expected to be reorged were indeed reorged or not
-func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksFunc) {
+func testL2ReorgAfterL1Reorg(gt *testing.T, n int, pauseBatcher bool, preChecks, postChecks checksFunc) {
 	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
 
@@ -67,7 +68,17 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 
 	sys.L1Network.WaitForBlock()
 
+	if pauseBatcher {
+		var safeChecks []dsl.CheckFunc
+		for _, elNode := range sys.L2ELNodes() {
+			safeChecks = append(safeChecks, elNode.ReachedFn(eth.Safe, 1, 60))
+		}
+		dsl.CheckAll(t, safeChecks...)
+		// Drain submissions while L1 still runs, retaining their inclusion history.
+		sys.L2Batcher.Stop()
+	}
 	sys.L1CL.Stop()
+	retainedL1 := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 
 	// sequence a few L1 and L2 blocks
 	for range n + 1 {
@@ -85,6 +96,15 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 
 		divergence = sys.L1EL.BlockRefByNumber(tip.Number - uint64(n))
 	}
+	require.Greater(t, divergence.Number, retainedL1.Number, "history from before suffix production must survive")
+	require.Greater(t, divergence.Number, sys.L1EL.BlockRefByLabel(eth.Safe).Number, "L1 safe must survive the reorg")
+	require.Greater(t, divergence.Number, sys.L1EL.BlockRefByLabel(eth.Finalized).Number, "L1 finalized must survive the reorg")
+	for _, elNode := range sys.L2ELNodes() {
+		if pauseBatcher {
+			require.Less(t, elNode.BlockRefByLabel(eth.Safe).L1Origin.Number, divergence.Number, "safe origin must survive", "node", elNode.String())
+		}
+		require.GreaterOrEqual(t, elNode.BlockRefByLabel(eth.Unsafe).L1Origin.Number, divergence.Number, "unsafe origin must be replaced", "node", elNode.String())
+	}
 
 	// print the chains before sequencing an alternative L1 block
 	sys.L2Chain.PrintChain()
@@ -100,6 +120,9 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 
 	// continue building on the alternative L1 chain
 	sys.L1CL.Start()
+	if pauseBatcher {
+		sys.L2Batcher.Start()
+	}
 
 	// confirm L1 reorged
 	sys.L1EL.ReorgTriggered(divergence, 5)

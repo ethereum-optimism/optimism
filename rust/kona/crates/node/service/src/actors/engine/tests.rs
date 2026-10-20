@@ -23,7 +23,13 @@ async fn reset_recovers_and_completes_original_request(
 ) {
     let block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
         Default::default();
+    let l1_block: alloy_rpc_types_eth::Block = alloy_rpc_types_eth::Block::new(
+        alloy_rpc_types_eth::Header::new(Default::default()),
+        alloy_rpc_types_eth::BlockTransactions::Hashes(vec![]),
+    );
     let mut config = RollupConfig::default();
+    config.genesis.l1.hash = l1_block.header.hash;
+    config.genesis.l1.number = l1_block.header.number;
     config.genesis.l2.hash = block.header.inner.hash_slow();
     let config = Arc::new(config);
     let client = Arc::new(
@@ -32,7 +38,8 @@ async fn reset_recovers_and_completes_original_request(
             .with_l2_block(BlockId::finalized(), block.clone())
             .with_l2_block(BlockId::safe(), block.clone())
             .with_l2_block(BlockId::latest(), block)
-            .with_l1_block(config.genesis.l1.hash.into(), Default::default())
+            .with_l1_block(BlockId::latest(), l1_block.clone())
+            .with_l1_block(config.genesis.l1.number.into(), l1_block)
             .with_fork_choice_updated_v3_response(ForkchoiceUpdated::new(
                 PayloadStatus::from_status(PayloadStatusEnum::Valid),
             ))

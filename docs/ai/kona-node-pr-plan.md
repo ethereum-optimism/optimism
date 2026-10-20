@@ -1,6 +1,6 @@
 # Kona node refactor extraction plan
 
-Date: 2026-10-17. Status: proposed implementation plan; no source changes or PR restacks performed.
+Date: 2026-10-17. Status: implementation in progress; completed package records appear below.
 
 ## Goal and scope
 
@@ -314,9 +314,11 @@ Actual review order may move a truly independent leaf earlier, but its patch and
 
 ### PR 04: Correct the reset walk without changing its owner
 
-**Title:** `kona-engine: choose reset heads from the canonical L1 chain`.
+**Title:** `kona-engine!: choose reset heads from the canonical L1 chain`.
 
-**Problem and resulting behavior.** Fetching an L1 origin by hash does not prove it is canonical; providers retain old-fork blocks. Current safe-head search can also choose above the prior safe label. Correct the walk in its existing module, then reuse it unchanged in later reset ownership.
+**Problem and resulting behavior.** Fetching an L1 origin by hash does not prove it is canonical; providers retain old-fork blocks. Correct canonicality, ancestry and coherent L1 reads in the existing walk, then reuse that implementation in later reset ownership.
+
+**Safe-selection dependency.** Retain Kona's existing recent-window resume policy here: return the current block once its origin is more than the lookback behind the highest confirmed canonical origin, or finalized is reached. This may select above the old safe label. A strict prior-safe ceiling would force first-sync/imported-EL startup back to genesis because Kona has not yet established a reusable bootstrap checkpoint. PR 10 owns the explicit initialization checkpoint contract and the stricter normal-reset safe selector together. PR 05 preserves this compatibility policy while changing command ownership; it must not implement a second selector.
 
 **Evidence and implementation basis.** At the pinned baseline, `engine/src/sync/mod.rs::find_starting_forkchoice` accepts an unsafe origin whenever a by-hash lookup returns a block, then starts its safe search from unsafe without a prior-safe ceiling. Standalone `ce54ccff44` identifies the canonicality problem. Compare the existing `op-node/rollup/sync/start.go::FindL2Heads` and its test table. Implement the correction through kona-node's existing external RPC boundary; this package requires new standalone implementation and tests rather than a ready-made Rust patch.
 
@@ -324,11 +326,12 @@ Actual review order may move a truly independent leaf earlier, but its patch and
 
 - Keep `kona-engine::find_starting_forkchoice`; refactor only the read boundary needed for scripted cases in `engine/src/sync/{mod,forkchoice,error}.rs`.
 - Validate origin hashes against canonical L1 blocks by number; preserve plausible unsafe origins beyond current L1 visibility instead of treating lack of visibility as proof of invalidity.
-- Preserve configured genesis, finalized anchor, prior-safe ceiling, sequence continuity and reorg-distance rules. Cache repeated canonical origin reads within one walk, not in a new actor.
+- Preserve configured genesis, finalized anchor, sequence continuity and reorg-distance rules. Measure the safe-resume lookback from the highest confirmed canonical origin, rather than an unseen ahead-of-L1 origin. Lookback is the sequencing window or the longer AltDA challenge-plus-resolution window, in L1 blocks. Cache repeated canonical origin reads within one walk, not in a new actor.
 - Distinguish retryable dependency reads from deterministic invalid chain structure. The later owner retries; this function does not sleep forever internally.
-- If it reads a mixed L1 view while a reorg occurs, detect/recheck that view and restart the walk rather than committing an inconsistent result.
+- Capture L1 visibility at the beginning of an attempt, anchor the relevant canonical chain by number, and follow its parent hashes. Recheck the numeric anchor before returning; a changed or missing anchor returns a retryable error to the existing owner, which restarts the whole walk. Ordinary L1 extension leaves that captured visibility valid and does not force a retry. This does not promise an atomic snapshot through the later FCU.
+- Preserve an early safe-resume return; do not add a mandatory traversal from that boundary to finalized or genesis. Check either anchor's identity whenever its height is reached. Missing provider data remains retryable; malformed ancestry and wrong genesis/finality remain fatal through the existing reset error classifier.
 
-**Ready when.** Port the applicable op-node walk table plus retained-old-hash, unsafe-ahead-of-L1, prior-safe ceiling, missing parent, finalized reorg and genesis cases. The function returns an ordinary result and can be called unchanged by PRs 05 and 10. If the implementation cannot keep that reuse boundary, combine this change with reset ownership instead of writing two walks.
+**Ready when.** Cover the applicable op-node canonicality/ancestry/error behavior with focused regressions; do not transplant overlapping table rows or claim full safe-output parity. Cover retained-old-hash, unsafe-ahead-of-L1, missing parent, finalized reorg and genesis cases. A large-height startup with genesis safety labels must resume after bounded recent-window reads. The function returns an ordinary result and PR 05 calls it unchanged. PR 10 reuses the canonical reader/cursor/anchor and changes the shared safe-selection policy once with its bootstrap prerequisite; no duplicate walk or temporary public API.
 
 ### PR 05: Give engine commands one owner and honest outcomes
 
@@ -467,6 +470,8 @@ Owns issue 22681's engine failure mechanism. Its closure requires the actual for
 **Changes.**
 
 - Fetch real initial EL heads through the shared bounded client; engine owns initial reset and readiness/EL-sync phase. Do not use finalized>genesis alone as an unproved universal readiness heuristic.
+- Establish the initialization checkpoint contract before enforcing a prior-safe ceiling. Cover validator first-VALID and sequencer initial-reset paths, including an imported/synced EL far from genesis without safety labels. State the trusted resume assumption explicitly: canonical origins and elapsed windows alone do not prove local L1 derivation. Preserve finalized; do not promote unsafe to safe/finalized as an expedient shortcut. Any initialization exception must be consumed after successful initialization and must not apply to later ordinary resets or override a known reusable checkpoint.
+- In the same change, activate strict normal-reset safe selection: never exceed prior safe, find the first qualifying epoch-start block using the strict sequencing/AltDA lookback, then select its parent. Reuse PR 04's canonical ancestry and coherent-view machinery; this policy and its bootstrap prerequisite have one implementation owner here.
 - Engine observes the L1 head and canonicality of the origins its applied heads rest on, using bounded canonical-by-height lookup. Remove sequencer-initiated startup/reorg resets only after the engine observes those causes itself.
 - Remove only obsolete bootstrap initiator calls/gates. The result-driven pipeline handoff, applied context, consolidation outcomes, flush handling and post-application finality records from PR 05 stay unchanged. Do not rewrite the pipeline loop or introduce another reset interface.
 - Callback queues, `EngineDerivationClient` and pushed safe/reset/sync/Flush delivery were already deleted in PR 05. This PR neither reintroduces nor migrates them.
@@ -476,7 +481,7 @@ Owns issue 22681's engine failure mechanism. Its closure requires the actual for
 
 **Files.** `service/src/actors/{engine,derivation,l1_watcher}`, derivation state-machine/client/request modules, service startup/composition, `rpc/src/{l1_watcher,rollup}.rs`. No new canonical-history storage, proof-provider actor dependency, trust-default change or CLI renaming.
 
-**Ready when.** Table-test pristine sequencer, first-sync validator, synced/restarted validator before/after finality, and trusted following. Temporary L1/EL loss recovers without new events. Same-head reset discards old work; pipeline reset failure forbids stepping; newer reset supersedes retry; startup reset publishes before consumers use heads. Actual current-L1 can lag the observed head and change while safe head is stable. Signer refresh still retries without a new head and rejects stale/same-height-reorg results. Preserve PR 07's registered reset/acknowledgement tests and PR 05's force-inclusion regression.
+**Ready when.** Table-test pristine sequencer, first-sync validator, synced/restarted validator before/after finality, and trusted following. Large-height initialization without safety labels uses bounded recent history; subsequent ordinary resets obey the prior-safe ceiling and epoch-parent boundary. A temporary initialization failure retains eligibility, success consumes it, known safe checkpoints are respected, and finalized never advances merely to accelerate startup. Temporary L1/EL loss recovers without new events. Same-head reset discards old work; pipeline reset failure forbids stepping; newer reset supersedes retry; startup reset publishes before consumers use heads. Actual current-L1 can lag the observed head and change while safe head is stable. Signer refresh still retries without a new head and rejects stale/same-height-reorg results. Preserve PR 07's registered reset/acknowledgement tests and PR 05's force-inclusion regression.
 
 ### PR 11: Finalize only blocks the engine actually made safe
 
@@ -547,6 +552,8 @@ This ledger is the authority for where fixes live. When a source patch lands sep
 | [22262](https://github.com/ethereum-optimism/optimism/issues/22262), merged 23220 | Baseline harness | Verify actual Kona route/coverage; do not count old harness transplantation as new work |
 | [21903](https://github.com/ethereum-optimism/optimism/issues/21903), [21906](https://github.com/ethereum-optimism/optimism/issues/21906) | Final gate across 01, 08, 09 | Shared real Kona conductor suite, CI route, handoff/failure/convergence and publication safety all proven |
 | Actual `current_l1` progress | PR 10 | Use standalone `2cef02680c`; do not create a second implementation outside its owning status source |
+| Reset canonicality / coherent L1 ancestry | PR 04 | Retained old-fork hashes cannot validate an origin; moving anchor retries through the existing owner |
+| Bootstrap checkpoint and strict safe-reset selection | PR 10, together | Bounded initialization far from genesis; subsequent reset respects prior safe and epoch-parent boundary; PR 05 preserves PR 04's compatibility selector |
 | Configured signing-key path creates a random missing key | PR 02 | Required key reading is distinct from P2P identity creation; verify baseline/existing standalone PR before authoring |
 | `opp2p_blockAddr` declaration typo | PR 12 or a disjoint early leaf, once | Baseline registered-method test; no duplicate correction in both places |
 | 23034 discovery-disable portion | Optional PR 12 | Disabled discovery has no discovery side effects; occupied UDP port is harmless |
@@ -660,6 +667,7 @@ The wrapper uses incremental dependency builds and runs Go from the monorepo roo
 |---|---|
 | Each mechanical/helper/construction PR | Focused check/tests/Clippy/format and relevant feature/docs checks; actual tests for changed observable behavior |
 | PR 01 | Invalid-then-valid test against both CLs, real production RPC path |
+| PR 04 | Canonical ancestry/coherent-view cases, bounded large-height startup, valid L1 reorg fixtures in both node topologies and existing restart cases; safe-selector parity remains PR 10's responsibility |
 | PR 05 | Engine/pipeline interleavings; real short-window force-inclusion recovery; relevant sync/restart cases |
 | PRs 06-07 | Registered HTTP/WS/API-gating/version/reset tests; validator and sequencer modes |
 | PRs 08-09 | Actual Kona conductor cluster, op-node baseline, no weakened assertions, production routing and durable commit-failure test |
@@ -704,7 +712,7 @@ Planning is complete. A check means the package has its actual implementation, r
 - [x] PR 01: synchronous unsafe-payload validation and its acceptance tests.
 - [x] PR 02: shared resolved configuration and bounded clients.
 - [x] PR 03: ordinary engine operations and necessary dead-code deletion.
-- [ ] PR 04: corrected reusable reset walk.
+- [x] PR 04: canonical reset ancestry and coherent reads; strict safe selection stays with PR 10 bootstrap.
 - [ ] PR 05: engine ownership, scheduler, honest outcomes, complete pipeline handoff and epoch barrier.
 - [ ] PR 06: direct read dependencies, version and retained API coverage.
 - [ ] PR 07: direct admin routing and concrete sequencer dependencies.
@@ -862,3 +870,44 @@ just test-e2e-sysgo-run node node/restart simple-kona \
 ```
 
 **Review checkpoint:** publish PR 03 as a draft and stop all implementation for review. Report GitHub CI separately; do not begin PR 04 or later packages until the user resumes.
+
+## PR 04 execution record
+
+**Implementation:** `a9659f14c3db1cc41590fad7b4c2ae021494ffe8` on `codex/kona-refactor-04-canonical-reset`, based on PR 03's `8d8edf7364885fcdf75a8d8ec9501b98793d4e5f`. Public `develop` remains `9c14635375e22608458da1d3ec4830af491009dd`. Parent PR 03 has no review feedback, 79 successful checks and one skipped Mintlify deployment at the final pre-publication check.
+
+**Result.** A retained old-fork L1 block served by hash no longer validates an unsafe origin. The walk anchors canonical ancestry by number, caches a descending parent cursor and rechecks its numeric anchor before returning. Origins beyond captured L1 visibility remain plausible. Traversed ancestry, sequence, configured genesis, finality and actual unsafe-rewind distance are checked. Missing reads and a changed L1 view retry through the existing reset owner; deterministic invalid structure remains fatal. There is no internal retry loop or new actor. Public function/client signatures are unchanged; exhaustive downstream matches must handle the added `SyncStartError` variants, disclosed by the breaking-change title and commit body.
+
+**Safe-selection cut.** The user approved retaining the existing current-block/recent-window resume policy while correcting its canonicality basis. Safe can still exceed its prior label and need not be an epoch boundary. Applying the stricter selector before establishing an initialization checkpoint would make a synced/imported EL with genesis safety labels walk back to genesis. PR 10 owns that checkpoint contract and the normal-reset prior-safe/epoch-parent selector together; PR 05 consumes this walk unchanged. The stricter proposal is not included in this implementation.
+
+**Regression coverage.** Focused regressions cover retained orphan hashes, plausible ahead origins, historical holes, moving/missing anchors, malformed responses/parents, sequence transitions, genesis/finality, unsafe-rewind limits, AltDA windows and read caching. A real RPC adapter test verifies canonical numeric reads, full L2 blocks, caller-supplied genesis config and label-error compatibility. A compact negative matrix preserves errors outside the unset Safe/Finalized compatibility case. A sparse chain near L2 height 10 million with genesis safe/finalized labels resumes after exactly three parent reads plus three label reads; older history is inaccessible, so a hidden genesis walk fails the test.
+
+**Live fixture correction.** Fixed depth alone did not establish the intended L2 safety relationship. The shallow fixture now waits for nonzero EL safe, drains batching while L1 runs, then produces its unsafe suffix. It asserts that all earlier inclusion history and L1 safety anchors survive, safe origins precede divergence and unsafe origins are replaced. The deeper fixture replaces L2 safe history while preserving L1 safe/finalized anchors. Existing L2 safe/unsafe canonicality, origin and resumed-progress assertions remain intact. No shared FakePoS redesign or assertion relaxation is included.
+
+**Validation.** Root ran all checks serially using pinned tools through the trusted original checkout's `mise exec`, then executed in the isolated worktree. Rust/Go concurrency was bounded to six. Commands, per-step overrides, exit codes and logs are recorded in `work/pr04-validation-results.json` in the task workspace; its runner scripts capture the shared environment.
+
+| Check | Result |
+|---|---|
+| Go `TestFindSyncStart` reference table | 16 cases passed |
+| Rust `just fmt-fix` and Go fixture formatting | Passed |
+| Five node packages, all features, sync/reset selection | 43 passed |
+| `kona-engine`, `kona-node-service`, `kona-rpc`, `kona-node`, `kona-sources`, all features, offline selection | 367 passed, zero skipped |
+| Full Rust workspace `just lint` | Passed, including Clippy, rustdoc and format checks |
+| Root `just lint-go` | Passed, zero issues; module tidy diff empty |
+| Rust `just check-no-std` | All 19 package builds passed for `riscv32imac-unknown-none-elf` |
+| Fresh default `cargo build -p kona-node --bin kona-node` | Passed |
+| `TestL2ReorgAfterL1Reorg`, `simple-kona` | Shallow and deep subcases passed |
+| `TestL2ReorgAfterL1Reorg`, `simple-kona-sequencer` | Shallow and deep subcases passed |
+| `TestRestartSync` and `TestSequencerRestart` | Both passed with the actual Kona sequencer/validator pair |
+
+The reorg presets include reference op-node components; the Kona-sequencer preset adds the op-node sequencer required by the test-sequencer harness. They are mixed-client integration tests. Online unit tests are excluded. The unconditionally skipped `TestL2Reorg` was not selected or counted. The genesis crate changes are two documentation corrections from seconds to L1 blocks; protocol runtime code is unchanged.
+
+**Review.** Independent Rust/protocol, client/actor/API/deletion and Go fixture/flake reviews have no remaining findings within the revised scope. The startup regression was addressed by the approved scope cut and bounded-startup regression; invalid live fixture assumptions were corrected and both topologies rerun successfully. No finding was dismissed as a flaky pass.
+
+**Review checkpoint:** publish PR 04 as a draft on PR 03 and stop all implementation for user review. Hosted CI is separate from the completed local validation; do not claim it is green before its results exist. Do not begin PR 05 or later packages until the user resumes.
+
+
+### PR 04 test simplification
+
+Following user review, reduce `sync/tests.rs` from 966 to 585 formatted lines. Remove the overlapping 16-row Rust transplant of the Go table, its Case/Expected types, the second fixture layer, duplicate decoded label/genesis/boundary cases and trivial classifier-only assertions. Keep focused regressions for each distinct invariant, including orphan ancestry beneath a plausible ahead suffix, view-change retry, bounded startup, sequence/parent checks, genesis/finality, and AltDA/depth boundaries. The real RPC test covers actual request methods/parameters and nonzero L1/L2 genesis with the caller's config; existing Alloy mocks cover label compatibility concisely.
+
+The original local results above record the initial implementation. The test-only revision reruns formatting, the focused sync/reset selection (37 passed) and all five affected node packages (361 passed, zero skipped), plus full workspace Rust lint (passed). Results are recorded in `work/pr04-trim-validation-results.json` in the task workspace. Production code, Go fixtures and previous live/default-build/no-std validation are unchanged. The user explicitly authorized continuing to PR 05 after this update.
