@@ -14,7 +14,8 @@ def prepare(job, root):
     index = os.environ.get('CI_RUST_PARTITION_INDEX', '0')
     name = 'features-' + index if job == 'features' else job
     report = root / '.ci/rust-workspace' / name
-    result = subprocess.run(['bash', str(root / 'ops/ci/runtime/rust-workspace.sh'), job], cwd=root)
+    result = subprocess.run(['bash', str(root / 'ops/ci/runtime/rust-workspace.sh'), job], cwd=root,
+                            env={**os.environ, 'CI_RUST_BASELINE': 'true'})
     # An intermediate ancestor can be broken even though HEAD fixes it. Retain
     # its original failure and discard partial targets, then let fresh HEAD
     # workers compile normally. A fallback is never reported as a warm cache.

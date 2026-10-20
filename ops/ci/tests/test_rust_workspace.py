@@ -674,7 +674,15 @@ pub fn compile_only() {}
             bundle = checksums / 'superchain-configs.tar'
             bundle.write_bytes(b'fixture generated bundle')
             (checksums / 'superchain-configs.tar.sha256').write_text(REPORT.digest(bundle) + '\n')
-            (root / 'rust/providers/build.rs').write_text('fn main() { println!("cargo:rerun-if-changed=../op-reth/crates/chainspec/res/superchain-configs.tar"); }\n')
+            bundle.unlink()
+            (root / 'rust/providers/build.rs').write_text('''fn main() {
+    let path = "../op-reth/crates/chainspec/res/superchain-configs.tar";
+    println!("cargo:rerun-if-changed={path}");
+    if !std::path::Path::new(path).exists() {
+        std::fs::write(path, b"fixture generated bundle").unwrap();
+    }
+}
+''')
             subprocess.run(['cargo', 'generate-lockfile', '--offline'], cwd=root / 'rust', check=True, capture_output=True)
             for args in (['init', '-q'], ['add', '.'], ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture']):
                 subprocess.run(['git', *args], cwd=root, check=True, capture_output=True)
@@ -685,8 +693,10 @@ pub fn compile_only() {}
                 result = subprocess.run(['bash', str(helpers / 'rust-workspace.sh'), job], cwd=root,
                                         env={**env, **(extra or {})}, capture_output=True, text=True, timeout=180)
                 return result
-            build = run('tests-build')
+            build = run('tests-build', {'CI_RUST_BASELINE': 'true'})
             self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
+            settled = json.loads((root / '.ci/rust-workspace/tests-build/final.json').read_text())
+            self.assertEqual(settled['stages']['compiler-settle']['exit_code'], 0)
             settings = json.loads((root / '.ci/rust-workspace/tests-build/settings.json').read_text())
             self.assertIsNone(settings['incremental'])
             self.assertEqual(set(settings['profile_incremental'].values()), {'true'})
