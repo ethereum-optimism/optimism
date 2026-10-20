@@ -872,7 +872,7 @@ contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
     /// @param _feature The feature to check.
     function testFuzz_isFeatureEnabled_unsetFeature_succeeds(bytes32 _feature) external {
         if (
-            (_feature == Features.ETH_LOCKBOX || _feature == Features.INTEROP)
+            (_feature == Features.ETH_LOCKBOX || _feature == Features.INTEROP || _feature == Features.BRIDGE_HOOK)
                 && systemConfig.isFeatureEnabled(_feature)
         ) {
             vm.skip(true);
