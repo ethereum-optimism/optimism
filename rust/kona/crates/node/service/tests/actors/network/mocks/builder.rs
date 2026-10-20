@@ -7,7 +7,6 @@ use discv5::{ConfigBuilder, Enr, ListenConfig};
 
 use crate::actors::network::TestNetwork;
 use alloy_primitives::Address;
-use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_node_service::{
@@ -104,7 +103,6 @@ impl TestNetworkBuilder {
 
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
         let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel(1024);
-        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
         let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
         let (signed_payload_tx, signed_payload_rx) = mpsc::channel(16);
 
@@ -112,7 +110,6 @@ impl TestNetworkBuilder {
             ForwardingNetworkEngineClient { blocks_tx },
             handler,
             p2p_rpc_rx,
-            admin_rpc_rx,
             signed_payload_rx,
         );
 
@@ -143,7 +140,7 @@ impl TestNetworkBuilder {
             Ok(())
         });
 
-        TestNetwork { p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx, blocks_rx, handle }
+        TestNetwork { p2p_rpc_tx, gossip_payload_tx, blocks_rx, handle }
     }
 }
 
@@ -152,7 +149,6 @@ struct ForwardingNetworkEngineClient {
     blocks_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
 }
 
-#[async_trait]
 impl NetworkEngineClient for ForwardingNetworkEngineClient {
     fn try_send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
         match self.blocks_tx.try_send(block) {
@@ -161,14 +157,5 @@ impl NetworkEngineClient for ForwardingNetworkEngineClient {
                 Err(kona_node_service::EngineClientError::Closed)
             }
         }
-    }
-
-    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
-        let _ = self
-            .blocks_tx
-            .send(block)
-            .await
-            .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
-        Ok(())
     }
 }

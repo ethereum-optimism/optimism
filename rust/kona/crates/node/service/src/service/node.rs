@@ -4,8 +4,8 @@ use crate::{
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor, EngineHandle,
     JsonrpseeServerLauncher, L1OriginSelector, L1WatcherActor, L1WatcherChain, NetworkActor,
     NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode,
-    QueuedL1WatcherDerivationClient, QueuedSequencerAdminAPIClient, RpcActor, RpcServerLauncher,
-    SequencerActor, SequencerConfig, SignedPayload, SignerActor,
+    QueuedL1WatcherDerivationClient, RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
+    SequencerHandle, SignedPayload, SignerActor,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
     service::BufferImportedBlocks,
 };
@@ -28,8 +28,8 @@ use kona_providers_alloy::{
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
     AdminApiServer, AdminRpc, DevEngineApiServer, DevEngineRpc, HealthzApiServer, HealthzRpc,
-    L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc,
-    RpcBuilder, WsRPC, WsServer,
+    L1WatcherQueries, OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder,
+    SequencerAdminApiServer, SequencerAdminRpc, WsRPC, WsServer,
 };
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -322,8 +322,7 @@ impl RollupNode {
         engine: EngineHandle,
         gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
         l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
-        sequencer_admin_api_rx: mpsc::Receiver<crate::SequencerAdminQuery>,
-    ) -> Option<ConfiguredSequencerActor> {
+    ) -> Option<(ConfiguredSequencerActor, SequencerHandle)> {
         if !self.mode().is_sequencer() {
             return None;
         }
@@ -342,7 +341,6 @@ impl RollupNode {
         let queued_gossip_client = QueuedUnsafePayloadGossipClient::new(gossip_payload_tx);
 
         Some(SequencerActor::new(
-            sequencer_admin_api_rx,
             self.create_attributes_builder(),
             conductor,
             engine,
@@ -359,9 +357,8 @@ impl RollupNode {
     async fn build_rpc_actor(
         &self,
         engine: &EngineHandle,
-        sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
+        sequencer_admin_client: Option<SequencerHandle>,
         p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
-        network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
     ) -> Result<Option<ConfiguredRpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
@@ -375,12 +372,7 @@ impl RollupNode {
         modules
             .merge(P2pRpc::new(p2p_rpc_tx).into_rpc())
             .map_err(|e| format!("Failed to register p2p module: {e:?}"))?;
-        merge_admin_module(
-            &mut modules,
-            config.enable_admin(),
-            sequencer_admin_client,
-            network_admin_tx,
-        )?;
+        merge_admin_module(&mut modules, config.enable_admin(), sequencer_admin_client, engine)?;
         modules
             .merge(
                 RollupRpc::new(
@@ -457,10 +449,8 @@ impl RollupNode {
         let (derivation_actor_request_tx, derivation_actor_request_rx) =
             mpsc::channel::<DerivationActorRequest>(1024);
         let (l1_query_tx, l1_query_rx) = mpsc::channel::<L1WatcherQueries>(1024);
-        let (sequencer_admin_api_tx, sequencer_admin_api_rx) = mpsc::channel(1024);
         // Network actor inbound channels
         let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel::<P2pRpcRequest>(1024);
-        let (network_admin_tx, network_admin_rx) = mpsc::channel::<NetworkAdminQuery>(1024);
         // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
         // network actor. While signing stalls, a full sequencer queue pauses block production.
         let (gossip_payload_tx, gossip_payload_rx) =
@@ -494,13 +484,7 @@ impl RollupNode {
             .await
             .map_err(|e| format!("Failed to start network: {e:?}"))?;
 
-        let network = NetworkActor::new(
-            engine.clone(),
-            handler,
-            p2p_rpc_rx,
-            network_admin_rx,
-            signed_payload_rx,
-        );
+        let network = NetworkActor::new(engine.clone(), handler, p2p_rpc_rx, signed_payload_rx);
 
         let l1_watcher = self.build_l1_watcher(
             derivation_actor_request_tx,
@@ -509,25 +493,11 @@ impl RollupNode {
             l1_head_updates_tx,
         )?;
 
-        let sequencer_actor = self.build_sequencer(
-            engine.clone(),
-            gossip_payload_tx,
-            l1_head_updates_rx,
-            sequencer_admin_api_rx,
-        );
-        let sequencer_admin_client = sequencer_actor
-            .is_some()
-            .then(|| QueuedSequencerAdminAPIClient::new(sequencer_admin_api_tx));
+        let (sequencer_actor, sequencer_admin_client) =
+            self.build_sequencer(engine.clone(), gossip_payload_tx, l1_head_updates_rx).unzip();
 
-        let rpc = self
-            .build_rpc_actor(
-                &engine,
-                sequencer_admin_client,
-                p2p_rpc_tx,
-                network_admin_tx,
-                l1_query_tx,
-            )
-            .await?;
+        let rpc =
+            self.build_rpc_actor(&engine, sequencer_admin_client, p2p_rpc_tx, l1_query_tx).await?;
 
         crate::service::spawn_and_wait!(
             cancellation,
@@ -606,13 +576,19 @@ async fn validate_engine_jwt(
 fn merge_admin_module(
     modules: &mut RpcModule<()>,
     enable_admin: bool,
-    sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
-    network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
+    sequencer: Option<SequencerHandle>,
+    engine: &EngineHandle,
 ) -> Result<(), String> {
-    if enable_admin {
+    if !enable_admin {
+        return Ok(());
+    }
+    modules
+        .merge(AdminRpc::new(engine.clone()).into_rpc())
+        .map_err(|error| format!("Failed to register admin module: {error}"))?;
+    if let Some(sequencer) = sequencer {
         modules
-            .merge(AdminRpc::new(sequencer_admin_client, network_admin_tx).into_rpc())
-            .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
+            .merge(SequencerAdminRpc::new(sequencer).into_rpc())
+            .map_err(|error| format!("Failed to register sequencer admin module: {error}"))?;
     }
     Ok(())
 }
@@ -621,29 +597,129 @@ fn merge_admin_module(
 mod tests {
     use super::*;
 
-    fn admin_method_names(enable_admin: bool) -> Vec<String> {
-        let mut modules = RpcModule::new(());
-        let (network_admin_tx, _rx) = mpsc::channel(1);
-        merge_admin_module(&mut modules, enable_admin, None, network_admin_tx)
-            .expect("admin module registration");
-        modules.method_names().map(ToString::to_string).collect()
-    }
-
-    #[test]
-    fn admin_module_registered_only_when_enabled() {
-        // Without `--rpc.enable-admin`, no admin methods are exposed.
-        assert!(
-            admin_method_names(false).is_empty(),
-            "admin namespace must not be registered when disabled"
-        );
-
-        // With it enabled, the sequencer-control and payload-injection methods the acceptance
-        // suite relies on are present.
-        let enabled = admin_method_names(true);
-        for method in ["admin_postUnsafePayload", "admin_startSequencer", "admin_stopSequencer"] {
-            assert!(enabled.iter().any(|m| m == method), "missing {method}");
+    #[tokio::test]
+    async fn admin_registration_matches_the_enabled_node_capabilities() {
+        let base = ["admin_postUnsafePayload", "admin_resetDerivationPipeline"];
+        let controls = [
+            "admin_sequencerActive",
+            "admin_startSequencer",
+            "admin_stopSequencer",
+            "admin_conductorEnabled",
+            "admin_adminRecoverMode",
+            "admin_setRecoverMode",
+            "admin_overrideLeader",
+        ];
+        for enabled in [false, true] {
+            for is_sequencer in [false, true] {
+                let (engine, _engine_peer) =
+                    EngineHandle::test_channel(kona_engine::EngineState::default());
+                let (sequencer, _sequencer_peer) = SequencerHandle::test_channel(
+                    crate::SequencerState { active: false, recovery_mode: false },
+                    false,
+                );
+                let mut modules = RpcModule::new(());
+                merge_admin_module(
+                    &mut modules,
+                    enabled,
+                    is_sequencer.then_some(sequencer),
+                    &engine,
+                )
+                .unwrap();
+                let names: Vec<_> = modules.method_names().collect();
+                for method in base {
+                    assert_eq!(names.contains(&method), enabled, "{method}");
+                }
+                for method in controls {
+                    assert_eq!(names.contains(&method), enabled && is_sequencer, "{method}");
+                }
+                if !enabled || !is_sequencer {
+                    let error = modules
+                        .call::<_, bool>("admin_sequencerActive", jsonrpsee::rpc_params![])
+                        .await
+                        .unwrap_err();
+                    assert!(
+                        matches!(error, jsonrpsee::core::server::MethodsError::JsonRpc(error) if error.code() == -32601)
+                    );
+                }
+            }
         }
     }
+    #[tokio::test]
+    async fn registered_reset_and_reads_bypass_a_full_sequencer_mailbox() {
+        use kona_rpc::SequencerAdminAPIClient;
+        let (engine, mut engine_peer) =
+            EngineHandle::test_channel(kona_engine::EngineState::default());
+        let unpolled_pipeline = engine.subscribe();
+        let (sequencer, sequencer_peer) = SequencerHandle::test_channel(
+            crate::SequencerState { active: false, recovery_mode: true },
+            true,
+        );
+        let mut waiting = Vec::new();
+        for _ in 0..32 {
+            let handle = sequencer.clone();
+            waiting.push(tokio::spawn(async move { handle.start_sequencer().await }));
+        }
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while sequencer_peer.commands.capacity() != 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        let mut modules = RpcModule::new(());
+        merge_admin_module(&mut modules, true, Some(sequencer), &engine).unwrap();
+        tokio::time::timeout(Duration::from_secs(2), async {
+            assert!(
+                !modules
+                    .call::<_, bool>("admin_sequencerActive", jsonrpsee::rpc_params![])
+                    .await
+                    .unwrap()
+            );
+            assert!(
+                modules
+                    .call::<_, bool>("admin_adminRecoverMode", jsonrpsee::rpc_params![])
+                    .await
+                    .unwrap()
+            );
+            assert!(
+                modules
+                    .call::<_, bool>("admin_conductorEnabled", jsonrpsee::rpc_params![])
+                    .await
+                    .unwrap()
+            );
+        })
+        .await
+        .unwrap();
+        let rpc = modules.clone();
+        let reset = tokio::spawn(async move {
+            rpc.call::<_, ()>("admin_resetDerivationPipeline", jsonrpsee::rpc_params![]).await
+        });
+        let reply = tokio::time::timeout(Duration::from_secs(2), engine_peer.resets.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(sequencer_peer.commands.len(), 32);
+        engine_peer.state.send_replace(kona_engine::EngineState {
+            epoch: 1,
+            phase: kona_engine::EnginePhase::Ready,
+            ..Default::default()
+        });
+        reply.send(Ok(())).unwrap();
+        tokio::time::timeout(Duration::from_secs(2), reset).await.unwrap().unwrap().unwrap();
+        assert_eq!(unpolled_pipeline.borrow().epoch, 1);
+        drop(engine_peer);
+        let error = modules
+            .call::<_, ()>("admin_resetDerivationPipeline", jsonrpsee::rpc_params![])
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(error, jsonrpsee::core::server::MethodsError::JsonRpc(error) if error.code() == -32603)
+        );
+        for task in waiting {
+            task.abort();
+        }
+    }
+
     fn node_with_providers(
         l1: &alloy_transport::mock::Asserter,
         l2: &alloy_transport::mock::Asserter,

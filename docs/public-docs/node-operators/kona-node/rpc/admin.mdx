@@ -3,11 +3,11 @@ title: "Admin RPC Methods"
 diataxis: reference
 ---
 
-The `admin` api provides methods for controlling and monitoring Kona's consensus node operations.
+Enable `--rpc.enable-admin` to expose these methods. Payload submission and engine reset work in both validator and sequencer modes. Sequencer controls are registered only on sequencer nodes; unavailable methods return Method not found.
 
 ## `admin_postUnsafePayload`
 
-Posts an unsafe payload to the network.
+Validates the payload block hash and waits for bounded engine admission. Success precedes execution, and the node does not gossip this submission.
 
 | Client | Method invocation                                           |
 | ------ | ----------------------------------------------------------- |
@@ -21,6 +21,17 @@ Posts an unsafe payload to the network.
 
 ```js
 // > {"jsonrpc":"2.0","id":1,"method":"admin_postUnsafePayload","params":[{...payload...}]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+## `admin_resetDerivationPipeline`
+
+Resets the engine forkchoice and invalidates earlier derivation work. Success acknowledges
+completed recovery after the engine publishes its new epoch and accepted heads. Derivation
+consumes that publication independently; a full sequencer mailbox cannot delay the reset.
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_resetDerivationPipeline","params":[]}
 {"jsonrpc":"2.0","id":1,"result":null}
 ```
 
@@ -39,8 +50,6 @@ Returns whether the sequencer is currently active.
 {"jsonrpc":"2.0","id":1,"result":true}
 ```
 
-**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
-
 ## `admin_startSequencer`
 
 Starts the sequencer.
@@ -55,8 +64,6 @@ Starts the sequencer.
 // > {"jsonrpc":"2.0","id":1,"method":"admin_startSequencer","params":[]}
 {"jsonrpc":"2.0","id":1,"result":null}
 ```
-
-**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
 
 ## `admin_stopSequencer`
 
@@ -73,8 +80,6 @@ Stops the sequencer and returns the hash of the last processed block.
 {"jsonrpc":"2.0","id":1,"result":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"}
 ```
 
-**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
-
 ## `admin_conductorEnabled`
 
 Returns whether the conductor is enabled.
@@ -90,7 +95,14 @@ Returns whether the conductor is enabled.
 {"jsonrpc":"2.0","id":1,"result":false}
 ```
 
-**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+## `admin_adminRecoverMode`
+
+Returns the sequencer's published recovery mode.
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_adminRecoverMode","params":[]}
+{"jsonrpc":"2.0","id":1,"result":false}
+```
 
 ## `admin_setRecoverMode`
 
@@ -111,8 +123,6 @@ Sets the recovery mode for the sequencer.
 {"jsonrpc":"2.0","id":1,"result":null}
 ```
 
-**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
-
 ## `admin_overrideLeader`
 
 Overrides the leader in the conductor.
@@ -127,5 +137,3 @@ Overrides the leader in the conductor.
 // > {"jsonrpc":"2.0","id":1,"method":"admin_overrideLeader","params":[]}
 {"jsonrpc":"2.0","id":1,"result":null}
 ```
-
-**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).

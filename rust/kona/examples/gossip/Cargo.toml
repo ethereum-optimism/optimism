@@ -19,4 +19,3 @@ tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 discv5.workspace = true
 enr.workspace = true
 op-alloy-rpc-types-engine = { workspace = true, features = ["std"] }
-async-trait.workspace = true

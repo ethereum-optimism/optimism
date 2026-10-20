@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use kona_gossip::P2pRpcRequest;
-use kona_rpc::NetworkAdminQuery;
 use libp2p::TransportError;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
@@ -25,13 +24,10 @@ pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     handler: NetworkHandler,
     /// A channel to receive p2p RPC requests.
     p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
-    /// A channel to receive admin RPC queries.
-    admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
     /// A channel to receive signed unsafe blocks and publish them through the gossip layer.
     publish_rx: mpsc::Receiver<SignedPayload>,
     /// A client to use to interact with the engine actor.
     engine_client: NetworkEngineClient_,
-    pending_admin_payload: Option<OpExecutionPayloadEnvelope>,
     // Purely-internal channel: loops gossip-swarm events back into this actor's own select. It
     // never crosses an actor boundary, so it lives here rather than being injected.
     unsafe_block_tx: UnboundedSender<OpExecutionPayloadEnvelope>,
@@ -50,20 +46,10 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
         engine_client: NetworkEngineClient_,
         handler: NetworkHandler,
         p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
-        admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
         publish_rx: mpsc::Receiver<SignedPayload>,
     ) -> Self {
         let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();
-        Self {
-            handler,
-            p2p_rpc_rx,
-            admin_query_rx,
-            publish_rx,
-            engine_client,
-            pending_admin_payload: None,
-            unsafe_block_tx,
-            unsafe_block_rx,
-        }
+        Self { handler, p2p_rpc_rx, publish_rx, engine_client, unsafe_block_tx, unsafe_block_rx }
     }
 }
 
@@ -141,18 +127,6 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
             }
             _ = self.handler.peer_score_inspector.tick(), if self.handler.gossip.peer_monitoring.as_ref().is_some() => {
                 self.handler.handle_peer_monitoring().await;
-                Ok(())
-            }
-            Some(NetworkAdminQuery::PostUnsafePayload { payload }) = self.admin_query_rx.recv(), if self.pending_admin_payload.is_none() && !self.admin_query_rx.is_closed() => {
-                debug!(target: "node::p2p", "Broadcasting unsafe payload from admin api");
-                self.pending_admin_payload = Some(payload);
-                Ok(())
-            }
-            result = async {
-                self.engine_client.send_unsafe_block(self.pending_admin_payload.as_ref().expect("guarded pending admin payload").clone()).await
-            }, if self.pending_admin_payload.is_some() => {
-                result.map_err(|_|NetworkActorError::ChannelClosed)?;
-                self.pending_admin_payload = None;
                 Ok(())
             }
             Some(req) = self.p2p_rpc_rx.recv(), if !self.p2p_rpc_rx.is_closed() => {

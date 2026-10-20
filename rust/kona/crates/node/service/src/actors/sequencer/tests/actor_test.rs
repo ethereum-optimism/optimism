@@ -1,21 +1,20 @@
+use super::test_util::test_actor_with_handle;
 #[cfg(test)]
 use crate::{
-    NodeActor, SequencerActorError, SequencerAdminQuery,
+    NodeActor, SequencerActorError,
     actors::{
         MockOriginSelector, MockUnsafePayloadGossipClient, sequencer::tests::test_util::test_actor,
     },
 };
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
 use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_rpc::SequencerAdminAPIClient;
 use rstest::rstest;
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
-use tokio::{
-    sync::{mpsc, oneshot},
-    time::{self, Duration},
-};
+use tokio::time::{self, Duration};
 
 #[rstest]
 #[case::temp(PipelineErrorKind::Temporary(BuilderError::Custom(String::new()).into()), false)]
@@ -65,9 +64,7 @@ async fn test_build_unsealed_payload_prepare_payload_attributes_error(
 /// blocking the actor, so admin queries such as op-conductor's `StopSequencer` are still answered.
 #[tokio::test(start_paused = true)]
 async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
-    let mut actor = test_actor();
-    let (admin_tx, admin_rx) = mpsc::channel(1);
-    actor.admin_api_rx = admin_rx;
+    let (mut actor, sequencer) = test_actor_with_handle(true, false, None);
 
     let (handle, mut engine) = crate::EngineHandle::test_channel(kona_engine::EngineState {
         phase: kona_engine::EnginePhase::Ready,
@@ -87,11 +84,13 @@ async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
     responder.await.unwrap();
 
-    let (tx, rx) = oneshot::channel();
-    admin_tx.send(SequencerAdminQuery::StopSequencer(tx)).await.unwrap();
-    time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
-    assert_eq!(rx.await.unwrap().unwrap(), L2BlockInfo::default().hash());
-    assert!(!actor.is_active);
+    let (result, step) = tokio::join!(
+        sequencer.stop_sequencer(),
+        time::timeout(Duration::from_secs(10), actor.step())
+    );
+    step.unwrap().unwrap();
+    assert_eq!(result.unwrap(), L2BlockInfo::default().hash());
+    assert!(!sequencer.is_sequencer_active().await.unwrap());
 }
 
 /// Block building resumes on the first tick after the gossip queue has room again.

@@ -1,3 +1,4 @@
+use super::super::SequencerHandle;
 use crate::{
     SequencerActor,
     actors::{MockConductor, MockOriginSelector, MockUnsafePayloadGossipClient},
@@ -5,27 +6,31 @@ use crate::{
 use kona_derive::test_utils::TestAttributesBuilder;
 use kona_genesis::RollupConfig;
 use std::sync::Arc;
-use tokio::sync::mpsc;
 
-// Returns a test SequencerActor with mocks that can be used or overridden.
-pub(crate) fn test_actor() -> SequencerActor<
+pub(crate) type TestActor = SequencerActor<
     TestAttributesBuilder,
     MockConductor,
     MockOriginSelector,
     MockUnsafePayloadGossipClient,
-> {
-    // The sender is intentionally dropped, so the channel starts closed.
-    // If future tests need to send messages, keep the sender instead of dropping it.
-    let (_admin_api_tx, admin_api_rx) = mpsc::channel(20);
+>;
+
+pub(crate) fn test_actor() -> TestActor {
+    test_actor_with_handle(true, false, None).0
+}
+
+pub(crate) fn test_actor_with_handle(
+    active: bool,
+    recovery_mode: bool,
+    conductor: Option<MockConductor>,
+) -> (TestActor, SequencerHandle) {
     SequencerActor::new(
-        admin_api_rx,
         TestAttributesBuilder { attributes: vec![] },
-        None,
+        conductor,
         crate::EngineHandle::test_channel(kona_engine::EngineState::default()).0,
-        true,
-        false,
+        active,
+        recovery_mode,
         MockOriginSelector::new(),
-        // tokio::time::interval requires a non-zero period; the default block_time is 0.
+        // tokio::time::interval requires a non-zero period.
         Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
         MockUnsafePayloadGossipClient::new(),
     )

@@ -4,6 +4,7 @@ use alloy_primitives::{B256, Sealed};
 use alloy_rpc_types_engine::{
     ExecutionPayloadV1, ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum,
 };
+use jsonrpsee::rpc_params;
 use kona_engine::{
     NoopBlockSink,
     test_utils::{
@@ -12,6 +13,7 @@ use kona_engine::{
     },
 };
 use kona_protocol::{BlockInfo, L1BlockInfoBedrock};
+use kona_rpc::{AdminApiServer, AdminRpc};
 use op_alloy_consensus::{OpBlock, OpTxEnvelope, TxDeposit};
 use tokio::sync::oneshot;
 
@@ -113,7 +115,7 @@ impl ResetFixture {
 #[case::l2(false, Duration::ZERO)]
 #[case::slow_l2(false, Duration::from_secs(4))]
 #[tokio::test(start_paused = true)]
-async fn reset_recovers_and_completes_original_request(
+async fn registered_reset_recovers_and_publishes_before_acknowledgement(
     #[case] l1_failure: bool,
     #[case] read_delay: Duration,
 ) {
@@ -129,10 +131,22 @@ async fn reset_recovers_and_completes_original_request(
     }
     let (mut actor, handle) =
         EngineActor::new(fixture.client, fixture.config, Arc::new(NoopBlockSink));
-    let mut reply = request_reset(&handle);
+    // Keep a real pipeline actor unpolled with a full L1 notification queue: RPC completion
+    // depends on engine application and publication, never on derivation draining callbacks.
+    let (l1, requests) = mpsc::channel(1);
+    l1.try_send(crate::DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::default())).unwrap();
+    let _derivation = crate::DerivationActor::new(
+        handle.clone(),
+        requests,
+        kona_derive::test_utils::new_test_pipeline(),
+    );
+    let rpc = AdminRpc::new(handle.clone()).into_rpc();
+    let reply = rpc.call::<_, ()>("admin_resetDerivationPipeline", rpc_params![]);
+    tokio::pin!(reply);
+    assert!(futures::poll!(reply.as_mut()).is_pending());
     actor.step().await.unwrap();
     actor.step().await.unwrap();
-    assert!(reply.try_recv().is_err());
+    assert!(futures::poll!(reply.as_mut()).is_pending());
     assert_eq!(handle.state().phase, EnginePhase::Resetting);
     let epoch = handle.state().epoch;
     {
@@ -143,8 +157,10 @@ async fn reset_recovers_and_completes_original_request(
     }
     time::advance(Duration::from_millis(100)).await;
     actor.step().await.unwrap();
-    reply.await.unwrap().unwrap();
+    // The published state must already be complete before polling the RPC result again.
     assert_eq!(handle.state().phase, EnginePhase::Ready);
+    reply.await.unwrap();
+    assert_eq!(l1.capacity(), 0);
     assert_eq!(handle.state().epoch, epoch);
     assert_eq!(handle.state().sync_state.safe_head(), fixture.genesis);
     assert_eq!(*handle.queue_length_subscribe().borrow(), 0);
@@ -357,4 +373,40 @@ async fn ambiguous_forkchoice_transport_failure_starts_an_owner_reset() {
     let config = Arc::new(RollupConfig::default());
     let client = Arc::new(MockEngineClient::builder().with_config(config.clone()).build());
     build_failure_invalidates_epoch(client, config).await;
+}
+
+#[tokio::test]
+async fn registered_unsafe_admission_waits_for_engine_capacity_without_executing_early() {
+    let script = Script::new((0..3).flat_map(|_| {
+        [
+            ExpectedCall::success("engine_newPayloadV1", valid()),
+            ExpectedCall::success("engine_forkchoiceUpdatedV3", fcu()),
+        ]
+    }));
+    let config = Arc::new(RollupConfig::default());
+    let parent = test_block_info(1);
+    let (mut actor, handle) = ready(Arc::new(script.client(config.clone())), config, parent);
+    let rpc = AdminRpc::new(handle.clone()).into_rpc();
+    let first = payload(2, parent.hash());
+    let second = payload(3, first.block_hash());
+    let third = payload(4, second.block_hash());
+    for block in [&first, &second] {
+        rpc.call::<_, ()>("admin_postUnsafePayload", rpc_params![block]).await.unwrap();
+    }
+    assert_eq!(actor.unsafe_payloads.len(), 2);
+    assert_eq!(handle.state().sync_state.unsafe_head(), parent);
+    assert!(script.calls().is_empty());
+    let admission = rpc.call::<_, ()>("admin_postUnsafePayload", rpc_params![third.clone()]);
+    tokio::pin!(admission);
+    assert!(futures::poll!(admission.as_mut()).is_pending());
+    actor.step().await.unwrap();
+    admission.await.unwrap();
+    assert_eq!(handle.state().sync_state.unsafe_head().hash(), first.block_hash());
+    assert_eq!(*handle.queue_length_subscribe().borrow(), 2);
+    actor.step().await.unwrap();
+    assert_eq!(handle.state().sync_state.unsafe_head().hash(), second.block_hash());
+    actor.step().await.unwrap();
+    assert_eq!(handle.state().sync_state.unsafe_head().hash(), third.block_hash());
+    assert_eq!(*handle.queue_length_subscribe().borrow(), 0);
+    script.assert_finished();
 }

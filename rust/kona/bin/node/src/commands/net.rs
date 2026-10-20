@@ -3,7 +3,7 @@
 use crate::flags::{GlobalArgs, P2PArgs, RpcArgs};
 use clap::Parser;
 use futures::future::OptionFuture;
-use jsonrpsee::{RpcModule, core::async_trait, server::Server};
+use jsonrpsee::{RpcModule, server::Server};
 use kona_cli::LogConfig;
 use kona_gossip::P2pRpcRequest;
 use kona_node_service::{
@@ -88,11 +88,9 @@ impl NetCommand {
 
         let (block_tx, mut block_rx) = mpsc::channel(1024);
         let (rpc, p2p_rpc_rx) = mpsc::channel(1024);
-        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
         let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
-        // admin_rpc_tx and gossip_payload_tx are not used by this single-purpose binary — they
-        // exist solely to satisfy NetworkActor::new and are held to keep the channels open.
-        let _unused_senders = (admin_rpc_tx, gossip_payload_tx);
+        // This binary only consumes gossip; keep the unused publication channel open.
+        let _unused_sender = gossip_payload_tx;
 
         let handler =
             NetworkBuilder::from_config(p2p_config, rollup_config, watch::channel(signer).1)
@@ -104,7 +102,6 @@ impl NetCommand {
             ForwardingNetworkEngineClient { block_tx },
             handler,
             p2p_rpc_rx,
-            admin_rpc_rx,
             gossip_payload_rx,
         );
 
@@ -180,7 +177,6 @@ struct ForwardingNetworkEngineClient {
     block_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
 }
 
-#[async_trait]
 impl NetworkEngineClient for ForwardingNetworkEngineClient {
     fn try_send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
         match self.block_tx.try_send(block) {
@@ -189,15 +185,5 @@ impl NetworkEngineClient for ForwardingNetworkEngineClient {
                 Err(kona_node_service::EngineClientError::Closed)
             }
         }
-    }
-
-    async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
-        let _ = self
-            .block_tx
-            .send(block)
-            .await
-            .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
-
-        Ok(())
     }
 }

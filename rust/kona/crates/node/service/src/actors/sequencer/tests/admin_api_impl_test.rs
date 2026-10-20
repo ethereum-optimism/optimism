@@ -1,393 +1,193 @@
-use crate::{
-    ConductorError, EngineClientError, SequencerAdminQuery,
-    actors::{MockConductor, sequencer::tests::test_util::test_actor},
+use super::{
+    super::{SequencerHandle, SequencerState, handle::Message},
+    test_util::test_actor_with_handle,
 };
+use crate::{ConductorError, actors::MockConductor};
 use alloy_primitives::B256;
 use alloy_transport::RpcError;
 use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_rpc::{SequencerAdminAPIClient, SequencerAdminAPIError};
 use rstest::rstest;
 use tokio::sync::oneshot;
 
 #[rstest]
+#[case::running(true, false)]
+#[case::recovering(false, true)]
 #[tokio::test]
-async fn test_is_sequencer_active(
-    #[values(true, false)] active: bool,
-    #[values(true, false)] via_channel: bool,
-) {
-    let mut actor = test_actor();
-    actor.is_active = active;
-
-    let result = async {
-        match via_channel {
-            false => actor.is_sequencer_active().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::SequencerActive(tx)).await;
-                rx.await.unwrap()
-            }
-        }
-    }
-    .await;
-
-    assert!(result.is_ok());
-    assert_eq!(active, result.unwrap());
+async fn constructor_publishes_configured_state(#[case] active: bool, #[case] recovery: bool) {
+    let (_actor, handle) = test_actor_with_handle(active, recovery, Some(MockConductor::new()));
+    assert_eq!(handle.is_sequencer_active().await.unwrap(), active);
+    assert_eq!(handle.is_recovery_mode().await.unwrap(), recovery);
+    assert!(handle.is_conductor_enabled().await.unwrap());
 }
 
 #[rstest]
+#[case::already_running(true)]
+#[case::stopped(false)]
 #[tokio::test]
-async fn test_is_conductor_enabled(
-    #[values(true, false)] conductor_exists: bool,
-    #[values(true, false)] via_channel: bool,
-) {
-    let mut actor = test_actor();
-    if conductor_exists {
-        actor.conductor = Some(MockConductor::new())
-    };
-
-    let result = async {
-        match via_channel {
-            false => actor.is_conductor_enabled().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::ConductorEnabled(tx)).await;
-                rx.await.unwrap()
-            }
+async fn start_publishes_active_before_acknowledgement(#[case] active: bool) {
+    let (mut actor, handle) = test_actor_with_handle(active, false, None);
+    let ((), ()) = tokio::join!(
+        async {
+            handle.start_sequencer().await.unwrap();
+            assert!(handle.is_sequencer_active().await.unwrap());
+        },
+        async {
+            let command = actor.commands.recv().await.unwrap();
+            actor.handle_command(command).await;
         }
-    }
-    .await;
-
-    assert!(result.is_ok());
-    assert_eq!(conductor_exists, result.unwrap());
+    );
+    assert!(actor.state.active);
 }
 
 #[rstest]
+#[case::running(true)]
+#[case::already_stopped(false)]
 #[tokio::test]
-async fn test_in_recovery_mode(
-    #[values(true, false)] recovery_mode: bool,
-    #[values(true, false)] via_channel: bool,
-) {
-    let mut actor = test_actor();
-    actor.in_recovery_mode = recovery_mode;
-
-    let result = async {
-        match via_channel {
-            false => actor.in_recovery_mode().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::RecoveryMode(tx)).await;
-                rx.await.unwrap()
-            }
-        }
-    }
-    .await;
-
-    assert!(result.is_ok());
-    assert_eq!(recovery_mode, result.unwrap());
-}
-
-#[rstest]
-#[tokio::test]
-async fn test_start_sequencer(
-    #[values(true, false)] already_started: bool,
-    #[values(true, false)] via_channel: bool,
-) {
-    let mut actor = test_actor();
-    actor.is_active = already_started;
-
-    // verify starting state
-    let result = actor.is_sequencer_active().await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), already_started);
-
-    // start the sequencer
-    let result = async {
-        match via_channel {
-            false => actor.start_sequencer().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::StartSequencer(tx)).await;
-                rx.await.unwrap()
-            }
-        }
-    }
-    .await;
-    assert!(result.is_ok());
-
-    // verify it is started
-    let result = actor.is_sequencer_active().await;
-    assert!(result.is_ok());
-    assert!(result.unwrap());
-}
-
-#[rstest]
-#[tokio::test]
-async fn test_stop_sequencer_success(
-    #[values(true, false)] already_stopped: bool,
-    #[values(true, false)] via_channel: bool,
-) {
-    let unsafe_head = L2BlockInfo {
-        block_info: BlockInfo { hash: B256::from([1u8; 32]), ..Default::default() },
+async fn stop_publishes_inactive_and_returns_current_engine_head(#[case] active: bool) {
+    let head = L2BlockInfo {
+        block_info: BlockInfo { hash: B256::repeat_byte(7), ..Default::default() },
         ..Default::default()
     };
-    let expected_hash = unsafe_head.hash();
-
-    let mut actor = test_actor();
     let mut state = kona_engine::EngineState::default();
     state.sync_state = state.sync_state.apply_update(kona_engine::EngineSyncStateUpdate {
-        unsafe_head: Some(unsafe_head),
+        unsafe_head: Some(head),
         ..Default::default()
     });
+    let (mut actor, handle) = test_actor_with_handle(active, false, None);
     actor.engine_client = crate::EngineHandle::test_channel(state).0;
-    actor.is_active = !already_stopped;
-
-    // verify starting state
-    let result = actor.is_sequencer_active().await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), !already_stopped);
-
-    // stop the sequencer
-    let result = async {
-        match via_channel {
-            false => actor.stop_sequencer().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::StopSequencer(tx)).await;
-                rx.await.unwrap()
-            }
+    let ((), ()) = tokio::join!(
+        async {
+            assert_eq!(handle.stop_sequencer().await.unwrap(), head.hash());
+            assert!(!handle.is_sequencer_active().await.unwrap());
+        },
+        async {
+            let command = actor.commands.recv().await.unwrap();
+            actor.handle_command(command).await;
         }
-    }
-    .await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), expected_hash);
-
-    // verify ending state
-    let result = actor.is_sequencer_active().await;
-    assert!(result.is_ok());
-    assert!(!result.unwrap());
+    );
 }
 
 #[rstest]
+#[case::enable(false, true)]
+#[case::disable(true, false)]
+#[case::unchanged(true, true)]
 #[tokio::test]
-async fn test_set_recovery_mode(
-    #[values(true, false)] starting_mode: bool,
-    #[values(true, false)] mode_to_set: bool,
-    #[values(true, false)] via_channel: bool,
+async fn recovery_mode_is_published_before_acknowledgement(
+    #[case] initial: bool,
+    #[case] mode: bool,
 ) {
-    let mut actor = test_actor();
-    actor.in_recovery_mode = starting_mode;
-
-    // verify starting state
-    let result = actor.in_recovery_mode().await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), starting_mode);
-
-    // set recovery mode
-    let result = async {
-        match via_channel {
-            false => actor.set_recovery_mode(mode_to_set).await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor
-                    .handle_admin_query(SequencerAdminQuery::SetRecoveryMode(mode_to_set, tx))
-                    .await;
-                rx.await.unwrap()
-            }
+    let (mut actor, handle) = test_actor_with_handle(true, initial, None);
+    let ((), ()) = tokio::join!(
+        async {
+            handle.set_recovery_mode(mode).await.unwrap();
+            assert_eq!(handle.is_recovery_mode().await.unwrap(), mode);
+        },
+        async {
+            let command = actor.commands.recv().await.unwrap();
+            actor.handle_command(command).await;
         }
-    }
-    .await;
-    assert!(result.is_ok());
-
-    // verify it is set
-    let result = actor.in_recovery_mode().await;
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), mode_to_set);
+    );
 }
 
 #[rstest]
+#[case::absent(false, false)]
+#[case::success(true, false)]
+#[case::dependency_error(true, true)]
 #[tokio::test]
-async fn test_override_leader(
-    #[values(true, false)] conductor_configured: bool,
-    #[values(true, false)] conductor_error: bool,
-    #[values(true, false)] via_channel: bool,
+async fn override_leader_preserves_dependency_results(
+    #[case] configured: bool,
+    #[case] fails: bool,
 ) {
-    // mock error string returned by conductor, if configured (to differentiate between error
-    // returned if not configured)
-    let conductor_error_string = "test: error within conductor";
-
-    let mut actor = {
-        // wire up conductor absence/presence and response error/success
-        if !conductor_configured {
-            test_actor()
-        } else if conductor_error {
-            let mut conductor = MockConductor::new();
-            conductor.expect_override_leader().times(1).return_once(move || {
-                Err(ConductorError::Rpc(RpcError::local_usage_str(conductor_error_string)))
-            });
-            let mut actor = test_actor();
-            actor.conductor = Some(conductor);
-            actor
+    let conductor = configured.then(|| {
+        let mut conductor = MockConductor::new();
+        conductor.expect_override_leader().times(1).return_once(move || {
+            if fails {
+                Err(ConductorError::Rpc(RpcError::local_usage_str("override unavailable")))
+            } else {
+                Ok(())
+            }
+        });
+        conductor
+    });
+    let (mut actor, handle) = test_actor_with_handle(true, false, conductor);
+    let (result, ()) = tokio::join!(handle.override_leader(), async {
+        let command = actor.commands.recv().await.unwrap();
+        actor.handle_command(command).await;
+    });
+    assert_eq!(result.is_ok(), configured && !fails);
+    if let Err(error) = result {
+        assert!(matches!(error, SequencerAdminAPIError::LeaderOverrideError(_)));
+        assert!(error.to_string().contains(if configured {
+            "override unavailable"
         } else {
-            let mut conductor = MockConductor::new();
-            conductor.expect_override_leader().times(1).return_once(|| Ok(()));
-            let mut actor = test_actor();
-            actor.conductor = Some(conductor);
-            actor
-        }
-    };
-
-    // call to override leader
-    let result = async {
-        match via_channel {
-            false => actor.override_leader().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::OverrideLeader(tx)).await;
-                rx.await.unwrap()
-            }
-        }
+            "No conductor configured"
+        }));
     }
-    .await;
-
-    // verify result
-    if !conductor_configured || conductor_error {
-        assert!(result.is_err());
-        assert_eq!(
-            conductor_configured,
-            result.err().unwrap().to_string().contains(conductor_error_string)
-        );
-    } else {
-        assert!(result.is_ok())
-    }
+    assert_eq!(handle.is_conductor_enabled().await.unwrap(), configured);
 }
 
-#[rstest]
 #[tokio::test]
-async fn test_reset_derivation_pipeline_success(#[values(true, false)] via_channel: bool) {
-    let mut actor = test_actor();
-    let (handle, mut engine) =
-        crate::EngineHandle::test_channel(kona_engine::EngineState::default());
-    actor.engine_client = handle;
-    let responder = tokio::spawn(async move {
-        let _ = engine.resets.recv().await.unwrap().send(Ok(()));
+async fn reads_bypass_a_full_command_queue_and_reject_a_closed_publisher() {
+    let initial = SequencerState { active: false, recovery_mode: false };
+    let (handle, owner) = SequencerHandle::test_channel(initial, true);
+    let commands = futures::future::join_all((0..32).map(|_| handle.start_sequencer()));
+    tokio::pin!(commands);
+    assert!(futures::poll!(commands.as_mut()).is_pending());
+    assert_eq!(owner.commands.len(), 32);
+    assert!(!handle.is_sequencer_active().await.unwrap());
+    assert!(!handle.is_recovery_mode().await.unwrap());
+    assert!(handle.is_conductor_enabled().await.unwrap());
+    owner.state.send_replace(SequencerState { active: true, recovery_mode: true });
+    assert!(handle.is_sequencer_active().await.unwrap());
+    assert!(handle.is_recovery_mode().await.unwrap());
+    // Close with an unread last publication, so merely borrowing stale state would be wrong.
+    owner.state.send_replace(initial);
+    drop(owner.state);
+    assert!(matches!(
+        handle.is_sequencer_active().await,
+        Err(SequencerAdminAPIError::ResponseError)
+    ));
+    assert!(matches!(handle.is_recovery_mode().await, Err(SequencerAdminAPIError::ResponseError)));
+    assert!(matches!(
+        handle.is_conductor_enabled().await,
+        Err(SequencerAdminAPIError::ResponseError)
+    ));
+}
+
+#[tokio::test]
+async fn closed_command_and_reply_channels_return_the_existing_errors() {
+    let (handle, mut owner) = SequencerHandle::test_channel(
+        SequencerState { active: false, recovery_mode: false },
+        false,
+    );
+    let (result, ()) = tokio::join!(handle.start_sequencer(), async {
+        drop(owner.commands.recv().await.unwrap());
     });
-
-    let result = async {
-        match via_channel {
-            false => actor.reset_derivation_pipeline().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::ResetDerivationPipeline(tx)).await;
-                rx.await.unwrap()
-            }
-        }
-    }
-    .await;
-
-    responder.await.unwrap();
-    assert!(result.is_ok());
+    assert!(matches!(result, Err(SequencerAdminAPIError::ResponseError)));
+    drop(owner.commands);
+    assert!(matches!(handle.start_sequencer().await, Err(SequencerAdminAPIError::RequestError(_))));
 }
 
-#[rstest]
 #[tokio::test]
-async fn test_reset_derivation_pipeline_error(#[values(true, false)] via_channel: bool) {
-    let mut actor = test_actor();
-    let (handle, mut engine) =
-        crate::EngineHandle::test_channel(kona_engine::EngineState::default());
-    actor.engine_client = handle;
-    let responder = tokio::spawn(async move {
-        let _ = engine
-            .resets
-            .recv()
-            .await
-            .unwrap()
-            .send(Err(EngineClientError::Temporary("reset failed".into())));
-    });
-
-    let result = async {
-        match via_channel {
-            false => actor.reset_derivation_pipeline().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::ResetDerivationPipeline(tx)).await;
-                rx.await.unwrap()
-            }
-        }
-    }
-    .await;
-
-    responder.await.unwrap();
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Failed to reset engine"));
-}
-
-#[rstest]
-#[tokio::test]
-async fn test_handle_admin_query_resilient_to_dropped_receiver() {
+async fn dropped_mutation_replies_do_not_cancel_accepted_commands() {
     let mut conductor = MockConductor::new();
-    conductor.expect_override_leader().times(1).returning(|| Ok(()));
-
-    let unsafe_head = L2BlockInfo {
-        block_info: BlockInfo { hash: B256::from([1u8; 32]), ..Default::default() },
-        ..Default::default()
-    };
-    let mut actor = test_actor();
-    actor.conductor = Some(conductor);
-    let mut state = kona_engine::EngineState::default();
-    state.sync_state = state.sync_state.apply_update(kona_engine::EngineSyncStateUpdate {
-        unsafe_head: Some(unsafe_head),
-        ..Default::default()
-    });
-    let (handle, mut engine) = crate::EngineHandle::test_channel(state);
-    actor.engine_client = handle;
-    let responder = tokio::spawn(async move {
-        let _ = engine.resets.recv().await.unwrap().send(Ok(()));
-    });
-
-    let mut queries: Vec<SequencerAdminQuery> = Vec::new();
-    {
-        // immediately drop receiver
-        let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::SequencerActive(tx));
-    }
-    {
-        // immediately drop receiver
-        let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::StartSequencer(tx));
-    }
-    {
-        // immediately drop receiver
-        let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::StopSequencer(tx));
-    }
-    {
-        // immediately drop receiver
-        let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::ConductorEnabled(tx));
-    }
-    {
-        // immediately drop receiver
-        let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::RecoveryMode(tx));
-    }
-    {
-        // immediately drop receiver
-        let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::SetRecoveryMode(true, tx));
-    }
-    {
-        // immediately drop receiver
-        let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::OverrideLeader(tx));
-    }
-    {
-        // immediately drop receiver
-        let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::ResetDerivationPipeline(tx));
-    }
-
-    // None of these should fail even if the receiver is dropped
-    for query in queries {
-        actor.handle_admin_query(query).await;
-    }
-    responder.await.unwrap();
+    conductor.expect_override_leader().times(1).return_once(|| Ok(()));
+    let (mut actor, handle) = test_actor_with_handle(false, false, Some(conductor));
+    let (reply, result) = oneshot::channel();
+    drop(result);
+    actor.handle_command(Message::Start(reply)).await;
+    assert!(handle.is_sequencer_active().await.unwrap());
+    let (reply, result) = oneshot::channel();
+    drop(result);
+    actor.handle_command(Message::Stop(reply)).await;
+    assert!(!handle.is_sequencer_active().await.unwrap());
+    let (reply, result) = oneshot::channel();
+    drop(result);
+    actor.handle_command(Message::SetRecoveryMode(true, reply)).await;
+    assert!(handle.is_recovery_mode().await.unwrap());
+    let (reply, result) = oneshot::channel();
+    drop(result);
+    actor.handle_command(Message::OverrideLeader(reply)).await;
+    assert!(handle.is_conductor_enabled().await.unwrap());
 }
