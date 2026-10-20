@@ -1,9 +1,9 @@
 //! Log-commitment batch proofs at proof time.
 //!
-//! A game proves its consolidations on one path. On the receipts path, the consolidation reads
-//! the receipts of every block below a local-safe head that a message references. On the table
-//! path, the proposer first proves every such block in log-commitment batches, and each
-//! consolidation checks its messages against the batches' entries.
+//! A game takes the table path unless `OP_ZK_PROPOSER_LOG_PATH=receipts`. On the receipts path,
+//! the consolidation reads the receipts of every block below a local-safe head that a message
+//! references. On the table path, the proposer first proves every such block in log-commitment
+//! batches, and each consolidation checks its messages against the batches' entries.
 
 pub(crate) mod scan;
 
@@ -21,15 +21,14 @@ use kona_sp1_client_utils::{
 };
 use kona_sp1_super_range_executor::{
     CollectedConsolidation, ConsolidationCost, LogBatchBlock, MissingLogCommitment,
-    ScannedTimestampCost, batch_log_blocks, bound_receipts_path_pgu,
-    bound_receipts_path_witness_bytes, build_log_commitment_stdin_from_receipts,
+    ScannedTimestampCost, batch_log_blocks, build_log_commitment_stdin_from_receipts,
     estimate_log_block_pgu, expected_batch_public_values, receipts_trie_bytes, split_log_batches,
 };
 use sha2::{Digest, Sha256};
 use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues, SP1PublicValues, SP1Stdin};
 
 use crate::{
-    config::{LogPath, StdinByteLimit},
+    config::StdinByteLimit,
     ports::L2BlockSource,
     prover::{PROOF_STATUS_POLL_INTERVAL, ProofId, ProofKeys, ProofProvider, ProofWaitError},
     proving::ensure_stdin_fits,
@@ -42,49 +41,6 @@ const REQUEST_FILL_PERCENT: u64 = 80;
 /// The share of `gas_limit` that a request may fill by estimate.
 pub(crate) const fn request_budget(gas_limit: u64) -> u64 {
     gas_limit / 100 * REQUEST_FILL_PERCENT
-}
-
-/// The receipts-path bounds of one consolidation request, before its collection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RequestBound {
-    pub(crate) pgu: u64,
-    pub(crate) witness_bytes: u64,
-}
-
-impl RequestBound {
-    pub(crate) fn of(costs: &[ScannedTimestampCost]) -> Self {
-        Self {
-            pgu: bound_receipts_path_pgu(costs),
-            witness_bytes: bound_receipts_path_witness_bytes(costs),
-        }
-    }
-}
-
-/// The path of a game, with the largest receipts-path bound of its consolidation requests.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PathChoice {
-    pub(crate) table: bool,
-    pub(crate) largest_bound: u64,
-}
-
-/// Chooses the table path when `setting` forces it, or when a request's receipts-path bound is
-/// not under the budget of `gas_limit` or its witness bound is over `stdin_limit`.
-pub(crate) fn choose_log_path(
-    setting: LogPath,
-    bounds: &[RequestBound],
-    gas_limit: u64,
-    stdin_limit: StdinByteLimit,
-) -> PathChoice {
-    let largest_bound = bounds.iter().map(|bound| bound.pgu).max().unwrap_or_default();
-    let over = bounds.iter().any(|bound| {
-        bound.pgu >= request_budget(gas_limit) || bound.witness_bytes > stdin_limit.get()
-    });
-    let table = match setting {
-        LogPath::Receipts => false,
-        LogPath::Table => true,
-        LogPath::Auto => over,
-    };
-    PathChoice { table, largest_bound }
 }
 
 /// One log-commitment batch of a game.
@@ -381,32 +337,19 @@ pub(crate) fn check_collected(
     Ok(())
 }
 
-/// The receipts-path costs of the transition timestamps `first..last` (indices into
-/// `scan.timestamps`).
-pub(crate) fn receipts_path_costs(
+/// The scanned costs of the transition timestamps `first..last` (indices into `scan.timestamps`).
+pub(crate) fn timestamp_costs(
     scan: &ScannedSpan,
     first: usize,
     last: usize,
 ) -> Vec<ScannedTimestampCost> {
     scan.timestamps[first..last]
         .iter()
-        .map(|timestamp| {
-            let mut referenced_gas_used = BTreeMap::<u64, Vec<u64>>::new();
-            for reference @ (chain_id, _) in &timestamp.references {
-                referenced_gas_used
-                    .entry(*chain_id)
-                    .or_default()
-                    .push(scan.blocks[reference].gas_used);
-            }
-            ScannedTimestampCost {
-                chains: timestamp.chains,
-                replaced_chains: timestamp.replaced_chains,
-                messages: timestamp.messages,
-                head_receipts_bytes: timestamp.head_receipts_bytes,
-                replaced_deposit_gas: timestamp.replaced_deposit_gas,
-                replaced_head_gas_used: timestamp.replaced_head_gas_used,
-                referenced_gas_used,
-            }
+        .map(|timestamp| ScannedTimestampCost {
+            chains: timestamp.chains,
+            replaced_chains: timestamp.replaced_chains,
+            messages: timestamp.messages,
+            replaced_deposit_gas: timestamp.replaced_deposit_gas,
         })
         .collect()
 }
@@ -431,10 +374,7 @@ pub(crate) fn consolidation_cost(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        scan::{ReferencedBlock, ScannedTimestamp},
-        *,
-    };
+    use super::*;
 
     const LIMIT: u64 = 1_000;
 
@@ -447,10 +387,6 @@ mod tests {
             pgu: 1,
             witness_bytes: 1,
         }
-    }
-
-    fn bound(pgu: u64) -> RequestBound {
-        RequestBound { pgu, witness_bytes: 0 }
     }
 
     fn batch(blocks: Vec<LogBatchBlock>) -> LogBatch {
@@ -475,68 +411,8 @@ mod tests {
         check_collected(table, &request, LIMIT, true)
     }
 
-    fn stdin_limit(bytes: u64) -> StdinByteLimit {
-        StdinByteLimit::new(bytes).unwrap()
-    }
-
     fn span() -> TimestampSpan {
         TimestampSpan::new(10, 12).unwrap()
-    }
-
-    /// Pins the receipts path when every request's bound is under 80% of the limit.
-    #[test]
-    fn path_is_receipts_when_every_request_fits() {
-        let choice =
-            choose_log_path(LogPath::Auto, &[bound(100), bound(799)], LIMIT, stdin_limit(1));
-        assert_eq!(choice, PathChoice { table: false, largest_bound: 799 });
-    }
-
-    /// Pins the table path when a request's bound reaches 80% of the limit or the stdin limit.
-    #[test]
-    fn path_is_table_when_any_request_is_over() {
-        let choice =
-            choose_log_path(LogPath::Auto, &[bound(100), bound(800)], LIMIT, stdin_limit(1));
-        assert_eq!(choice, PathChoice { table: true, largest_bound: 800 });
-        let wide = RequestBound { pgu: 1, witness_bytes: 11 };
-        assert!(!choose_log_path(LogPath::Auto, &[wide], LIMIT, stdin_limit(11)).table);
-        assert!(choose_log_path(LogPath::Auto, &[wide], LIMIT, stdin_limit(10)).table);
-    }
-
-    /// Pins the forced path on either side of the limit.
-    #[test]
-    fn log_path_setting_forces_the_path() {
-        for bounds in [[bound(10)], [bound(10_000)]] {
-            assert!(!choose_log_path(LogPath::Receipts, &bounds, LIMIT, stdin_limit(1)).table);
-            assert!(choose_log_path(LogPath::Table, &bounds, LIMIT, stdin_limit(1)).table);
-        }
-    }
-
-    /// Pins a referenced block counted once at each timestamp that references it.
-    #[test]
-    fn receipts_estimate_counts_a_shared_block_once_per_timestamp() {
-        let referenced = |number, gas_used| {
-            (
-                (7, number),
-                ReferencedBlock {
-                    chain_id: 7,
-                    number,
-                    hash: B256::ZERO,
-                    receipts_root: B256::ZERO,
-                    gas_used,
-                },
-            )
-        };
-        let scan = ScannedSpan {
-            timestamps: vec![
-                ScannedTimestamp { references: [(7, 1)].into(), ..Default::default() },
-                ScannedTimestamp { references: [(7, 1), (7, 2)].into(), ..Default::default() },
-            ],
-            blocks: [referenced(1, 100), referenced(2, 200)].into(),
-        };
-        let costs = receipts_path_costs(&scan, 0, 2);
-        let gas: Vec<_> = costs.iter().map(|cost| cost.referenced_gas_used.clone()).collect();
-        assert_eq!(gas, [BTreeMap::from([(7, vec![100])]), BTreeMap::from([(7, vec![100, 200])])]);
-        assert_eq!(receipts_path_costs(&scan, 1, 2).len(), 1);
     }
 
     /// Pins an error that names each block the table path read without an entry.

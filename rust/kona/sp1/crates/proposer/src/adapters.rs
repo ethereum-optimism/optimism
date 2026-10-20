@@ -925,7 +925,7 @@ mod tests {
             NonZeroUsize::MIN,
             Arc::new(ProductionL2BlockSource::connect(&[]).await.unwrap()),
             LogProofSettings {
-                path: LogPath::Auto,
+                path: LogPath::Table,
                 range_gas_limit: 1,
                 log_gas_limit: 1,
                 max_stdin_bytes: Default::default(),

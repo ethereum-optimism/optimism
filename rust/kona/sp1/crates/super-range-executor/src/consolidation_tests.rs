@@ -51,9 +51,9 @@ mod vkey_codec;
 
 use crate::{
     ConsolidationCost, DEFAULT_MAX_STDIN_BYTES, LogCommitmentProofs, MAX_ENTRIES_PER_BATCH,
-    ScannedTimestampCost, bound_receipts_path_pgu, build_log_commitment_stdin_from_receipts,
-    build_super_consolidation_stdin, decode_super_consolidation_public_values,
-    estimate_consolidation_pgu, log_commitments::run_native_consolidation, receipts_trie_bytes,
+    build_log_commitment_stdin_from_receipts, build_super_consolidation_stdin,
+    decode_super_consolidation_public_values, estimate_consolidation_pgu,
+    log_commitments::run_native_consolidation,
 };
 
 const INITIATING: u64 = u64::MAX - 1;
@@ -76,8 +76,6 @@ struct Fixture {
     configs: ChainConfigs,
     chains: u64,
     messages: u64,
-    /// [`receipts_trie_bytes`] of the executing chain's head.
-    head_receipts_bytes: u64,
 }
 
 impl Fixture {
@@ -210,7 +208,6 @@ impl Fixture {
             configs,
             chains: idle_chains + 2,
             messages: messages.len() as u64,
-            head_receipts_bytes: receipts_trie_bytes(&executing.receipts),
         }
     }
 
@@ -917,66 +914,6 @@ async fn consolidation_estimate_bounds_measured_pgu() {
                 "{shape}, {count} batches: measured {measured} PGU over estimate {estimate}"
             );
         }
-    }
-}
-
-/// The least gas of a block with `receipts`: 21,000 per transaction, and 375 per log, 375 per
-/// topic, and 8 per data byte.
-fn min_gas_used(receipts: &[OpReceiptEnvelope]) -> u64 {
-    receipts
-        .iter()
-        .flat_map(|receipt| {
-            receipt
-                .logs()
-                .iter()
-                .map(|log| 375 + 375 * log.topics().len() as u64 + 8 * log.data.data.len() as u64)
-        })
-        .sum::<u64>() +
-        21_000 * receipts.len() as u64
-}
-
-/// Pins a receipts-path bound, at each shape's least gas, over the estimate and measured PGU.
-#[tokio::test(flavor = "multi_thread")]
-async fn receipts_path_bound_bounds_measured_pgu() {
-    let Some(dir) = elf_dir() else { return };
-    let shapes = [
-        ("75,000 empty logs", vec![eip1559(logs(0, 75_000, 0, 0))]),
-        ("3,480 logs of 1 KB", vec![eip1559(logs(0, 3_480, 0, 1_024))]),
-        ("36 logs of 100 KB", vec![eip1559(logs(0, 36, 0, 100 * 1_024))]),
-        ("16,000 logs of 4 topics", vec![eip1559(logs(0, 16_000, 4, 0))]),
-        (
-            "1,428 receipts and one log",
-            (0..1_428).map(|i| eip1559(if i == 0 { logs(0, 1, 0, 0) } else { vec![] })).collect(),
-        ),
-    ];
-    // The fixture's lookups walk parent headers, so the bound's far walk must stay unused.
-    let walks = |referenced_gas_used| {
-        bound_receipts_path_pgu(&[ScannedTimestampCost {
-            referenced_gas_used,
-            ..Default::default()
-        }])
-    };
-    let far_walk = walks([(1, vec![0]), (2, vec![0])].into()) - walks([(1, vec![0, 0])].into());
-    for (shape, receipts) in shapes {
-        let gas_used = min_gas_used(&receipts);
-        let fixture = Fixture::new(vec![receipts], &[(1, 0)]);
-        let bound = bound_receipts_path_pgu(&[ScannedTimestampCost {
-            chains: fixture.chains,
-            messages: fixture.messages,
-            head_receipts_bytes: fixture.head_receipts_bytes,
-            referenced_gas_used: [(INITIATING, vec![gas_used])].into(),
-            ..Default::default()
-        }]);
-        let (measured, estimate) = measure_against_estimate(&dir, &fixture, vec![]).await;
-        println!(
-            "RESULT shape={shape:?} gas_used={gas_used} measured={measured} estimate={estimate} \
-             bound={bound}"
-        );
-        assert!(measured <= estimate, "{shape}: measured {measured} PGU over estimate {estimate}");
-        assert!(
-            estimate + far_walk <= bound,
-            "{shape}: estimate {estimate} PGU and a far walk {far_walk} over bound {bound}"
-        );
     }
 }
 

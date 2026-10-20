@@ -2480,7 +2480,7 @@ pub(super) fn scenario_config() -> ProposerConfig {
             max_price_per_pgu: Some(NonZeroU64::MIN),
             min_auction_period: 1,
         },
-        log_path: crate::config::LogPath::Auto,
+        log_path: crate::config::LogPath::Table,
     }
 }
 

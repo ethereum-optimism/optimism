@@ -113,7 +113,7 @@ func WithZKMetrics() ZKProposerOption {
 }
 
 // WithZKLogPath sets how the proposer proves logs below a local safe head:
-// "auto", "receipts", or "table".
+// "table" (the proposer's default) or "receipts".
 func WithZKLogPath(path string) ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.LogPath = path
