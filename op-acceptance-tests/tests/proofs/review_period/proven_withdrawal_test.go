@@ -6,16 +6,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-review-period/reviewperiod"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	ps "github.com/ethereum-optimism/optimism/op-proposer/proposer"
+	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -27,28 +26,31 @@ type gameClaimValidity struct {
 	IsGameClaimValid func(game common.Address) bindings.TypedCall[bool] `sol:"isGameClaimValid"`
 }
 
+// provenWithdrawal returns the portal's record of the proof prover submitted for the withdrawal.
+func provenWithdrawal(t devtest.T, sys *presets.Minimal, portal common.Address, w *dsl.Withdrawal, prover *dsl.EOA) bindings.ProvenWithdrawalsResult {
+	l2, err := ethclient.DialContext(t.Ctx(), sys.L2EL.Escape().UserRPC())
+	t.Require().NoError(err, "failed to dial the L2 RPC")
+	defer l2.Close()
+	receipt, err := l2.TransactionReceipt(t.Ctx(), w.InitiateTxHash())
+	t.Require().NoError(err, "failed to get the withdrawal's L2 receipt")
+	ev, err := withdrawals.ParseMessagePassed(receipt)
+	t.Require().NoError(err, "the withdrawal's L2 receipt has no MessagePassed event")
+
+	portalBindings := bindings.NewBindings[bindings.OptimismPortal2](
+		bindings.WithClient(sys.L1EL.EthClient()), bindings.WithTo(portal), bindings.WithTest(t))
+	proven, err := contractio.Read(portalBindings.ProvenWithdrawals(ev.WithdrawalHash, prover.Address()), t.Ctx())
+	t.Require().NoError(err, "failed to read the proven withdrawal")
+	return proven
+}
+
 // TestWithdrawalProvenBeforeOPCMUpgradeKeepsItsProofMaturity checks that a withdrawal proven before an
 // OPCM upgrade still can't finalize before its original proof maturity, and finalizes after it without
 // being proven again.
 func TestWithdrawalProvenBeforeOPCMUpgradeKeepsItsProofMaturity(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	gameType := gameTypes.PermissionedGameType
-	sys := presets.NewMinimal(t,
-		presets.WithTimeTravelEnabled(),
-		presets.WithDeployerOptions(
-			sysgo.WithFinalizationPeriodSeconds(1),
-			sysgo.WithProofMaturityDelaySeconds(proofMaturityDelaySeconds),
-			// Short game clocks and finality delay, so only the proof maturity blocks finalization.
-			sysgo.WithDisputeGameFinalityDelaySeconds(4),
-			sysgo.WithFaultGameMaxClockDuration(40),
-			sysgo.WithFaultGameClockExtension(1),
-			sysgo.WithPreimageOracleChallengePeriod(10),
-		),
-		presets.WithRespectedGameTypeOverride(gameType),
-		presets.WithProposerOption(func(_ sysgo.ComponentTarget, cfg *ps.CLIConfig) {
-			cfg.DisputeGameType = uint32(gameType)
-		}),
-		presets.WithGameTypeAdded(gameType),
+	sys := newPermissionedMinimal(t,
+		sysgo.WithFinalizationPeriodSeconds(1),
+		sysgo.WithProofMaturityDelaySeconds(proofMaturityDelaySeconds),
 	)
 	bridge := sys.StandardBridge()
 	proofNotOldEnough := hexutil.Encode(dsl.ErrorSelector("OptimismPortal_ProofNotOldEnough()"))
@@ -74,20 +76,16 @@ func TestWithdrawalProvenBeforeOPCMUpgradeKeepsItsProofMaturity(gt *testing.T) {
 	t.Require().True(valid, "the proven game's claim is not valid")
 	t.Require().ErrorContains(errutil.TryAddRevertReason(withdrawal.CheckFinalizable(user)), proofNotOldEnough,
 		"the proof should be too young before the upgrade")
+	proven := provenWithdrawal(t, sys, delays.OptimismPortal, withdrawal, user)
 
-	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
-	t.Require().NoError(err, "failed to derive the dev keys")
-	sysgo.UpgradeOPChain(t, keys, sys.L1Network.ChainID(), sys.L1EL.Escape().UserRPC(),
-		sys.L2Chain.ChainID(), systemConfig, gameType)
+	upgradeMidTest(t, sys)
 
-	pre, post := readDelaysAcrossLastUpgrade(t, sys.L1EL, systemConfig)
-	for _, d := range reviewperiod.CompareDelays(pre, post) {
-		t.Require().False(d.Changed(), "%s changed across the OPCM upgrade: %d -> %d", d.Name, d.Before, d.After)
-	}
+	// The upgrade keeps the proof as it was, so its maturity still counts from the original proof.
+	t.Require().Equal(proven, provenWithdrawal(t, sys, delays.OptimismPortal, withdrawal, user), "the proven withdrawal changed across the OPCM upgrade")
 	t.Require().ErrorContains(errutil.TryAddRevertReason(withdrawal.CheckFinalizable(user)), proofNotOldEnough,
 		"the proof should still be too young after the upgrade")
 
-	// A day after the proof, the withdrawal is past its original maturity and finalizes without a new proof.
+	// Past the original proof's maturity, the withdrawal finalizes without a new proof.
 	sys.AdvanceTime(proofMaturityDelaySeconds * time.Second)
 	t.Require().NoError(withdrawal.CheckFinalizable(user), "withdrawal is not finalizable after its original proof maturity")
 	withdrawal.Finalize(user)

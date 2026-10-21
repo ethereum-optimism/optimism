@@ -9,35 +9,75 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-review-period/reviewperiod"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	ps "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 )
 
-// readDelaysAcrossLastUpgrade reads a chain's delays at the block before its proxies last emitted
-// Upgraded and at the latest block, the same way check-review-period does on a live network.
-func readDelaysAcrossLastUpgrade(t devtest.T, l1 *dsl.L1ELNode, systemConfig common.Address) (pre, post reviewperiod.ChainDelays) {
+// requireDelaysUnchangedAcrossLastUpgrade reads a chain's delays at the block before its proxies last
+// emitted Upgraded and at the latest block, the same way check-review-period does on a live network, and
+// requires them to be equal. It returns the latest delays and the block of the last upgrade.
+func requireDelaysUnchangedAcrossLastUpgrade(t devtest.T, l1 *dsl.L1ELNode, systemConfig common.Address, upgrade string) (reviewperiod.ChainDelays, uint64) {
 	client, err := ethclient.DialContext(t.Ctx(), l1.Escape().UserRPC())
 	t.Require().NoError(err, "failed to dial the L1 RPC")
 	t.Cleanup(client.Close)
 
 	head, err := client.BlockNumber(t.Ctx())
 	t.Require().NoError(err, "failed to get the L1 block number")
-	post, err = reviewperiod.ReadChainDelays(t.Ctx(), l1.EthClient(), systemConfig, rpc.BlockNumber(head))
+	post, err := reviewperiod.ReadChainDelays(t.Ctx(), l1.EthClient(), systemConfig, rpc.BlockNumber(head))
 	t.Require().NoError(err, "failed to read the delays at block %d", head)
 
 	upgrades, err := reviewperiod.UpgradedLogs(t.Ctx(), client, post, 0, head)
 	t.Require().NoError(err, "failed to get the Upgraded logs")
 	t.Require().NotEmpty(upgrades, "no proxy of chain %d was ever upgraded", post.L2ChainID)
-	before := upgrades[len(upgrades)-1].BlockNumber - 1
+	last := upgrades[len(upgrades)-1]
 	t.Logf("Comparing chain %d's delays at block %d, before its last upgrade in tx %s, and at block %d",
-		post.L2ChainID, before, upgrades[len(upgrades)-1].TxHash, head)
+		post.L2ChainID, last.BlockNumber-1, last.TxHash, head)
 
-	pre, err = reviewperiod.ReadChainDelays(t.Ctx(), l1.EthClient(), systemConfig, rpc.BlockNumber(before))
-	t.Require().NoError(err, "failed to read the delays at block %d, before the last upgrade", before)
-	return pre, post
+	pre, err := reviewperiod.ReadChainDelays(t.Ctx(), l1.EthClient(), systemConfig, rpc.BlockNumber(last.BlockNumber-1))
+	t.Require().NoError(err, "failed to read the delays at block %d, before the last upgrade", last.BlockNumber-1)
+	for _, d := range reviewperiod.CompareDelays(pre, post) {
+		t.Require().False(d.Changed(), "%s of chain %d changed across %s: %d -> %d", d.Name, post.L2ChainID, upgrade, d.Before, d.After)
+	}
+	return post, last.BlockNumber
+}
+
+// newPermissionedMinimal returns a minimal chain whose proposer creates permissioned games, with short game
+// clocks and finality delay so a game resolves and finalizes within seconds.
+func newPermissionedMinimal(t devtest.T, deployerOpts ...sysgo.DeployerOption) *presets.Minimal {
+	gameType := gameTypes.PermissionedGameType
+	// The game requires max(2*clockExtension, clockExtension+preimageOracleChallengePeriod) <= maxClockDuration.
+	opts := append([]sysgo.DeployerOption{
+		sysgo.WithDisputeGameFinalityDelaySeconds(4),
+		sysgo.WithFaultGameMaxClockDuration(40),
+		sysgo.WithFaultGameClockExtension(1),
+		sysgo.WithPreimageOracleChallengePeriod(10),
+	}, deployerOpts...)
+	return presets.NewMinimal(t,
+		presets.WithTimeTravelEnabled(),
+		presets.WithDeployerOptions(opts...),
+		presets.WithRespectedGameTypeOverride(gameType),
+		presets.WithProposerOption(func(_ sysgo.ComponentTarget, cfg *ps.CLIConfig) {
+			cfg.DisputeGameType = uint32(gameType)
+		}),
+		presets.WithGameTypeAdded(gameType),
+	)
+}
+
+// upgradeMidTest runs an OPCM upgrade on the chain and requires it to leave the delays and the respected
+// game type unchanged.
+func upgradeMidTest(t devtest.T, sys *presets.Minimal) {
+	before := sys.L1EL.BlockRefByLabel(eth.Unsafe).Number
+	sysgo.UpgradeOPChain(t, sys.L1EL.Escape(), sys.L2Chain.Escape(), gameTypes.PermissionedGameType)
+	_, upgradeBlock := requireDelaysUnchangedAcrossLastUpgrade(t, sys.L1EL, sys.L2Chain.Escape().Deployment().SystemConfigProxyAddr(), "the OPCM upgrade")
+	t.Require().Greater(upgradeBlock, before, "the last upgrade is not the one this test ran")
+	sys.StandardBridge().VerifyRespectedGameType(gameTypes.PermissionedGameType)
 }
 
 // delaySetters binds the review period delay setters.
