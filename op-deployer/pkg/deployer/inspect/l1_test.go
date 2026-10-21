@@ -2,9 +2,7 @@ package inspect
 
 import (
 	"encoding/json"
-	"maps"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -54,12 +52,29 @@ func TestL1CLI_KeepsChainGameImpls(t *testing.T) {
 	got, err := jsonutil.LoadJSON[addresses.L1Contracts](outfile)
 	require.NoError(t, err)
 	require.Equal(t, &addresses.L1Contracts{
-		Superchain:      superchain,
-		Implementations: impls,
-		OpChain:         chain,
+		SuperchainContracts: superchain,
+		Implementations:     impls,
+		OpChainContracts:    chain,
 	}, got)
 
+	// Superchain and chain addresses are top-level keys, the OPCM implementations are nested.
 	raw, err := jsonutil.LoadJSON[map[string]json.RawMessage](outfile)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"superchain", "implementations", "opChain"}, slices.Collect(maps.Keys(*raw)))
+	top := func(key string) common.Address {
+		var addr common.Address
+		require.NoError(t, json.Unmarshal((*raw)[key], &addr), key)
+		return addr
+	}
+	require.Equal(t, superchain.SuperchainConfigProxy, top("SuperchainConfigProxy"))
+	require.Equal(t, chain.SystemConfigProxy, top("SystemConfigProxy"))
+	require.Equal(t, chain.DisputeGameFactoryProxy, top("DisputeGameFactoryProxy"))
+	require.Equal(t, chain.FaultDisputeGameImpl, top("FaultDisputeGameImpl"))
+	require.Equal(t, chain.PermissionedDisputeGameImpl, top("PermissionedDisputeGameImpl"))
+	require.Equal(t, chain.SuperFaultDisputeGameImpl, top("SuperFaultDisputeGameImpl"))
+	require.Equal(t, chain.SuperPermissionedDisputeGameImpl, top("SuperPermissionedDisputeGameImpl"))
+	require.NotContains(t, *raw, "OpcmV2Impl")
+
+	var nested addresses.ImplementationsContracts
+	require.NoError(t, json.Unmarshal((*raw)["implementations"], &nested))
+	require.Equal(t, impls, nested)
 }
