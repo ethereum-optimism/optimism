@@ -3,6 +3,7 @@
 use crate::{
     OpEngineApiBuilder, OpEngineTypes,
     args::RollupArgs,
+    derived_payload_service::DerivedPayloadServiceBuilder,
     engine::OpEngineValidator,
     payload_service::OpPayloadServiceBuilder,
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
@@ -235,15 +236,20 @@ pub struct OpNode {
 }
 
 /// The component builder used by the stock node configuration.
-pub type OpNodeComponentBuilder<Node, PayloadServiceBuilder = OpPayloadServiceBuilder> =
-    ComponentsBuilder<
-        Node,
-        OpPoolBuilder,
-        PayloadServiceBuilder,
-        OpNetworkBuilder,
-        OpExecutorBuilder,
-        OpConsensusBuilder,
-    >;
+///
+/// A payload service builder that replaces the default must be wrapped in
+/// [`DerivedPayloadServiceBuilder`].
+pub type OpNodeComponentBuilder<
+    Node,
+    PayloadServiceBuilder = DerivedPayloadServiceBuilder<OpPayloadServiceBuilder>,
+> = ComponentsBuilder<
+    Node,
+    OpPoolBuilder,
+    PayloadServiceBuilder,
+    OpNetworkBuilder,
+    OpExecutorBuilder,
+    OpConsensusBuilder,
+>;
 
 impl Default for OpNode {
     fn default() -> Self {
@@ -316,13 +322,17 @@ impl OpNode {
     /// Returns the payload builder stock components install.
     ///
     /// Exposed so a wrapper node that replaces only the payload *service* still builds payloads
-    /// from the same configured builder.
+    /// from the same configured builder. That payload service must be wrapped in
+    /// [`DerivedPayloadServiceBuilder`].
     pub fn payload_builder(&self) -> OpPayloadBuilder {
         OpPayloadBuilder::new(self.args.compute_pending_block)
             .with_builder_config(self.builder_config())
     }
 
     /// Returns the components for the given [`RollupArgs`].
+    ///
+    /// The payload service is wrapped in [`DerivedPayloadServiceBuilder`], which a node that
+    /// assembles its own components must keep.
     pub fn components<Node>(&self) -> OpNodeComponentBuilder<Node>
     where
         Node: FullNodeTypes<Types: OpNodeTypes>,
@@ -332,10 +342,10 @@ impl OpNode {
             .node_types::<Node>()
             .executor(OpExecutorBuilder::default())
             .pool(self.standard_pool_builder())
-            .payload(OpPayloadServiceBuilder::new(
+            .payload(DerivedPayloadServiceBuilder::new(OpPayloadServiceBuilder::new(
                 self.payload_builder(),
                 self.args.testing_sdm_fixed_policy,
-            ))
+            )))
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
     }
@@ -1653,6 +1663,8 @@ where
 }
 
 /// A basic optimism payload service builder
+///
+/// A payload service built from it must be wrapped in [`DerivedPayloadServiceBuilder`].
 #[derive(Debug, Default, Clone)]
 pub struct OpPayloadBuilder<Txs = ()> {
     /// By default the pending block equals the latest block

@@ -113,27 +113,42 @@ You can write your own actor by implementing the `NodeActor` trait.
 This allows you to introduce new background services, event
 processors, or integrations with external systems.
 
-The trait has one associated type and one method. Each call to `step`
-handles a single inbound request, event, or scheduled tick. Returning
-`Ok(())` means the actor is ready to be stepped again; returning an
-error is fatal and stops the actor. Cancellation is handled by the
-caller that drives the loop, so the actor itself does not own a
-cancellation token.
+The trait splits an actor's work in two. `next` waits for the next
+inbound request, event, or scheduled tick and returns it as the
+actor's `Input` type, and `handle` processes that input. Returning an
+error from either is fatal and stops the actor. The provided `step`
+method calls both, to process a single input.
+
+Cancellation is handled by the caller that drives the loop, so the
+actor itself does not own a cancellation token. On shutdown, the node
+cancels an actor only while it waits in `next`, then gives it a few
+seconds to finish handling its current input. So `next` should only
+wait, without losing an input if it is cancelled, and any work that
+should not be interrupted belongs in `handle`.
 
 **Example: Defining a Custom Actor**
 
 ```rust
 use async_trait::async_trait;
 use kona_node_service::NodeActor;
+use tokio::sync::mpsc;
 
-struct MyCustomActor;
+struct MyCustomActor {
+    inbox: mpsc::Receiver<String>,
+}
 
 #[async_trait]
 impl NodeActor for MyCustomActor {
     type Error = std::io::Error;
+    type Input = String;
 
-    async fn step(&mut self) -> Result<(), Self::Error> {
-        // Your actor logic for one step here.
+    async fn next(&mut self) -> Result<Self::Input, Self::Error> {
+        // Only wait here: receiving from a channel is safe to cancel.
+        self.inbox.recv().await.ok_or_else(|| std::io::Error::other("inbox closed"))
+    }
+
+    async fn handle(&mut self, message: Self::Input) -> Result<(), Self::Error> {
+        // Your actor logic for one input here.
         Ok(())
     }
 }
@@ -154,7 +169,8 @@ too, spread across `kona-node-service`, sibling kona crates such as
 `kona-rpc` and `kona-gossip`, and the shared alloy engine types. A
 custom binary can therefore construct the actors it needs, wire them
 together over channels, add its own `NodeActor` implementations, and
-drive each actor's `step` method in its own task.
+drive each actor in its own task by calling its `step` method in a
+loop.
 
 #### Programmatic Node Construction
 

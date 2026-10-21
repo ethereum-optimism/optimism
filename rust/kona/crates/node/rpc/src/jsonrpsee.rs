@@ -89,7 +89,7 @@ pub trait OpP2PApi {
     async fn opp2p_list_blocked_peers(&self) -> RpcResult<Vec<String>>;
 
     /// Blocks the given address
-    #[method(name = "blocAddr")]
+    #[method(name = "blockAddr")]
     async fn opp2p_block_addr(&self, ip: IpAddr) -> RpcResult<()>;
 
     /// Unblocks the given address

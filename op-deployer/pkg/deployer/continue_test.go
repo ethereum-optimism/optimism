@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -260,19 +259,19 @@ func chainIDRPC(t *testing.T, chainID uint64) string {
 func TestValidateContinuationBroadcast(t *testing.T) {
 	deployer := common.Address{0x01}
 	opcmAddress := common.Address{0x02}
-	valid := script.Broadcast{Type: script.BroadcastCall, From: deployer, To: opcmAddress}
+	valid := broadcaster.Broadcast{Type: broadcaster.BroadcastCall, From: deployer, To: opcmAddress}
 
 	tests := []struct {
 		name       string
-		broadcasts []script.Broadcast
+		broadcasts []broadcaster.Broadcast
 		wantErr    string
 	}{
-		{name: "valid", broadcasts: []script.Broadcast{valid}},
+		{name: "valid", broadcasts: []broadcaster.Broadcast{valid}},
 		{name: "none", wantErr: "exactly one"},
-		{name: "multiple", broadcasts: []script.Broadcast{valid, valid}, wantErr: "exactly one"},
-		{name: "type", broadcasts: []script.Broadcast{{Type: script.BroadcastCreate, From: deployer, To: opcmAddress}}, wantErr: "broadcast type"},
-		{name: "target", broadcasts: []script.Broadcast{{Type: script.BroadcastCall, From: deployer, To: common.Address{0x03}}}, wantErr: "target mismatch"},
-		{name: "sender", broadcasts: []script.Broadcast{{Type: script.BroadcastCall, From: common.Address{0x04}, To: opcmAddress}}, wantErr: "sender mismatch"},
+		{name: "multiple", broadcasts: []broadcaster.Broadcast{valid, valid}, wantErr: "exactly one"},
+		{name: "type", broadcasts: []broadcaster.Broadcast{{Type: broadcaster.BroadcastCreate, From: deployer, To: opcmAddress}}, wantErr: "broadcast type"},
+		{name: "target", broadcasts: []broadcaster.Broadcast{{Type: broadcaster.BroadcastCall, From: deployer, To: common.Address{0x03}}}, wantErr: "target mismatch"},
+		{name: "sender", broadcasts: []broadcaster.Broadcast{{Type: broadcaster.BroadcastCall, From: common.Address{0x04}, To: opcmAddress}}, wantErr: "sender mismatch"},
 	}
 
 	for _, tt := range tests {

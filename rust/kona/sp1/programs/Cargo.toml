@@ -105,6 +105,8 @@ zero_sized_map_values = "warn"
 as_ptr_cast_mut = "allow"
 cognitive_complexity = "allow"
 debug_assert_with_mut_call = "allow"
+# Enabled per module where the system clock is banned; see `clippy.toml`.
+disallowed_methods = "allow"
 fallible_impl_from = "allow"
 future_not_send = "allow"
 needless_collect = "allow"

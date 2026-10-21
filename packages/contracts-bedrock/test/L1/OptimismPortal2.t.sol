@@ -21,7 +21,6 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 import "src/dispute/lib/Types.sol";
 import { UnknownChainId } from "src/dispute/lib/Errors.sol";
@@ -323,8 +322,6 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
     /// @param _sender The address of the sender to test.
 
     function testFuzz_initialize_interopNotProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         // Prank as the not ProxyAdmin or ProxyAdmin owner.
         vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
 
@@ -344,8 +341,6 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 
     /// @notice Tests that the initialize function reverts when lockbox state is invalid.
     function test_initialize_invalidLockboxState_reverts() external {
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
 
@@ -373,8 +368,6 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
     /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
     /// @param _sender The address of the sender to test.
     function testFuzz_initialize_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         // Prank as the not ProxyAdmin or ProxyAdmin owner.
         vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
 
@@ -946,7 +939,6 @@ contract OptimismPortal2_MigrateLiquidity_Test is OptimismPortal2_TestInit {
 contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_TestInit {
     function setUp() public override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
         forceEnableInterop();
     }
 
@@ -1371,8 +1363,6 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` reverts when super roots are active
     ///         and the game's rootClaimByChainId reverts with UnknownChainId.
     function test_proveWithdrawalTransaction_superRootsVersionBadChainId_reverts() external {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         _enableSuperRoots();
 
         // Mock rootClaimByChainId to revert with UnknownChainId.
@@ -1395,8 +1385,6 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` reverts when super roots are active
     ///         and the output root proof doesn't match the game's rootClaimByChainId.
     function test_proveWithdrawalTransaction_superRootsVersionBadOutputRootProof_reverts() external {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         _enableSuperRoots();
 
         // Mock rootClaimByChainId to return a different output root (wrong one).
@@ -1420,8 +1408,6 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` succeeds when super roots are active
     ///         and all parameters are valid.
     function test_proveWithdrawalTransaction_superRootsVersion_succeeds() external {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         _enableSuperRoots();
 
         // Mock rootClaimByChainId to return the correct output root.
@@ -1443,8 +1429,6 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` uses rootClaimByChainId for super game types
     ///         via the stateless _isSuperGameType check in OptimismPortal2.
     function test_proveWithdrawalTransaction_superGameType_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         // Mock the game type to be SUPER_CANNON_KONA.
         vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.SUPER_CANNON_KONA));
 
@@ -1480,8 +1464,6 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` reverts when a super game type's
     ///         rootClaimByChainId reverts with UnknownChainId.
     function test_proveWithdrawalTransaction_superGameTypeWrongChainId_reverts() external {
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         // Mock the game type to be SUPER_CANNON_KONA.
         vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.SUPER_CANNON_KONA));
 

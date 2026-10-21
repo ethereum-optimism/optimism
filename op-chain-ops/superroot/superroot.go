@@ -1,4 +1,5 @@
-package script
+// Package superroot computes the super root of a set of L2 chains from their execution clients.
+package superroot
 
 import (
 	"context"
@@ -38,9 +39,9 @@ type ChainSettings struct {
 	TargetBlockNumber *big.Int
 }
 
-// SuperRootMigrator orchestrates the process of calculating a super root
+// Migrator orchestrates the process of calculating a super root
 // based on the common finalized state of multiple L2 chains.
-type SuperRootMigrator struct {
+type Migrator struct {
 	// log provides structured logging capabilities
 	log log.Logger
 	// rpcEndpoints is the list of L2 EL RPC URLs provided as input
@@ -58,15 +59,15 @@ type SuperRootMigrator struct {
 	chainOutputs []eth.ChainIDAndOutput
 }
 
-// NewSuperRootMigrator creates a new instance of the SuperRootMigrator.
+// NewMigrator creates a new instance of the Migrator.
 // It requires a logger, a list of L2 execution client RPC endpoints,
 // and an optional target timestamp.
-func NewSuperRootMigrator(logger log.Logger, rpcEndpoints []string, targetTimestamp *uint64) (*SuperRootMigrator, error) {
+func NewMigrator(logger log.Logger, rpcEndpoints []string, targetTimestamp *uint64) (*Migrator, error) {
 	if len(rpcEndpoints) == 0 {
 		return nil, errors.New("must provide at least one RPC endpoint")
 	}
 
-	migrator := &SuperRootMigrator{
+	migrator := &Migrator{
 		log:             logger,
 		rpcEndpoints:    rpcEndpoints,
 		chainSettings:   make(map[string]*ChainSettings),
@@ -76,7 +77,7 @@ func NewSuperRootMigrator(logger log.Logger, rpcEndpoints []string, targetTimest
 }
 
 // Run executes the main logic of the super root migrator within the given context.
-func (m *SuperRootMigrator) Run(ctx context.Context) (common.Hash, error) {
+func (m *Migrator) Run(ctx context.Context) (common.Hash, error) {
 	clients, err := dialClients(ctx, m.rpcEndpoints)
 	if err != nil {
 		return common.Hash{}, err
@@ -120,7 +121,7 @@ func dialClients(ctx context.Context, urls []string) (map[string]*ethclient.Clie
 
 // initClientsAndFetchIDs establishes connections to all RPC endpoints
 // and retrieves their chain IDs.
-func (m *SuperRootMigrator) initClientsAndFetchIDs(ctx context.Context) error {
+func (m *Migrator) initClientsAndFetchIDs(ctx context.Context) error {
 	for endpoint, client := range m.ethClients {
 		chainID, err := client.ChainID(ctx)
 		if err != nil {
@@ -141,7 +142,7 @@ func (m *SuperRootMigrator) initClientsAndFetchIDs(ctx context.Context) error {
 
 // findAnchorTimestamp finds the minimum finalized block timestamp across all connected chains
 // if no target timestamp is provided, otherwise uses the target timestamp.
-func (m *SuperRootMigrator) findAnchorTimestamp(ctx context.Context) error {
+func (m *Migrator) findAnchorTimestamp(ctx context.Context) error {
 	// Check if a target timestamp was provided by the user
 	if m.TargetTimestamp != nil {
 		m.log.Info("Using user-provided timestamp", "timestamp", *m.TargetTimestamp)
@@ -176,7 +177,7 @@ func (m *SuperRootMigrator) findAnchorTimestamp(ctx context.Context) error {
 	return nil
 }
 
-func (m *SuperRootMigrator) calculateTargetBlockNumbers(ctx context.Context) error {
+func (m *Migrator) calculateTargetBlockNumbers(ctx context.Context) error {
 	for endpoint, client := range m.ethClients {
 		// Get the latest block
 		latestBlock, err := client.BlockByNumber(ctx, nil)
@@ -219,7 +220,7 @@ func (m *SuperRootMigrator) calculateTargetBlockNumbers(ctx context.Context) err
 }
 
 // calculateOutputRoots computes the L2 output root for each chain's target block.
-func (m *SuperRootMigrator) calculateOutputRoots(ctx context.Context) error {
+func (m *Migrator) calculateOutputRoots(ctx context.Context) error {
 	// Initialize or clear the chainOutputs slice
 	m.chainOutputs = make([]eth.ChainIDAndOutput, 0, len(m.chainSettings))
 
@@ -257,7 +258,7 @@ func (m *SuperRootMigrator) calculateOutputRoots(ctx context.Context) error {
 }
 
 // calculateSuperRoot computes the final super root hash from the sorted chain outputs.
-func (m *SuperRootMigrator) calculateSuperRoot() error {
+func (m *Migrator) calculateSuperRoot() error {
 	if len(m.chainOutputs) == 0 {
 		return errors.New("cannot compute super root: no chain outputs were generated")
 	}
