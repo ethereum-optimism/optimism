@@ -1154,8 +1154,8 @@ arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: 
 arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [action: Set] [num-args: 1] [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
 arg: --proofs-history.prune-batch-size <PROOFS_HISTORY_PRUNE_BATCH_SIZE> [action: Set] [num-args: 1] [default: 1000] help: The batch size for pruning operations
 
-== op-reth proofs repair-history
-about: Repair history shard keys left stale by unwinds before the unwind fix
+== op-reth proofs check-history
+about: Check history shard keys for damage left by unwinds before the unwind fix
 arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
 arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
 arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
@@ -1182,7 +1182,6 @@ arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE
 arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
 arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
 arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] help: Deprecated: v2 is the only storage format, so `v2` is a no-op and any other value is rejected
-arg: --dry-run [action: SetTrue] [num-args: 0] help: Only report how many shards need repair; do not modify the storage
 
 == op-reth proofs snapshot
 command: [arg-required-else-help] [subcommand-required]

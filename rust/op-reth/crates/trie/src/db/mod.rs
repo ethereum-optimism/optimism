@@ -10,8 +10,8 @@ pub use models::*;
 
 mod store;
 pub use store::{
-    MdbxAccountCursor, MdbxAccountTrieCursor, MdbxAccountTrieSnapshotCursor,
-    MdbxHashedAccountSnapshotCursor, MdbxHashedStorageSnapshotCursor, MdbxProofsProvider,
-    MdbxProofsStorage, MdbxStorageCursor, MdbxStorageTrieCursor, MdbxStorageTrieSnapshotCursor,
-    ShardKeyRepairCounts,
+    HISTORY_LAYOUT_VERSION, HistoryLayoutReport, MdbxAccountCursor, MdbxAccountTrieCursor,
+    MdbxAccountTrieSnapshotCursor, MdbxHashedAccountSnapshotCursor,
+    MdbxHashedStorageSnapshotCursor, MdbxProofsProvider, MdbxProofsStorage, MdbxStorageCursor,
+    MdbxStorageTrieCursor, MdbxStorageTrieSnapshotCursor, MisplacedShardCounts,
 };

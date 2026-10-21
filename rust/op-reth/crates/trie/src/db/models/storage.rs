@@ -132,6 +132,31 @@ impl Decode for ProofWindowKey {
     }
 }
 
+/// Key of the proofs store's own metadata.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum StoreMetaKey {
+    /// Version of the history-index layout the store has been migrated to. Absent means 0.
+    HistoryLayoutVersion = 0,
+}
+
+impl Encode for StoreMetaKey {
+    type Encoded = [u8; 1];
+
+    fn encode(self) -> Self::Encoded {
+        [self as u8]
+    }
+}
+
+impl Decode for StoreMetaKey {
+    fn decode(value: &[u8]) -> Result<Self, DatabaseError> {
+        match value.first() {
+            Some(&0) => Ok(Self::HistoryLayoutVersion),
+            _ => Err(DatabaseError::Decode),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
