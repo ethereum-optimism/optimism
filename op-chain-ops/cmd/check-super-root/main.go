@@ -7,7 +7,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-super-root/superroot"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/superroot"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
@@ -49,9 +49,9 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 
 // Main is the entrypoint for the check-super-root command.
 func Main(cfg *Config, ctx *cli.Context) error {
-	migrator, err := superroot.NewSuperRootMigrator(cfg.Logger, cfg.RPCEndpoints, cfg.TargetTimestamp)
+	migrator, err := superroot.NewMigrator(cfg.Logger, cfg.RPCEndpoints, cfg.TargetTimestamp)
 	if err != nil {
-		return fmt.Errorf("failed to create SuperRootMigrator: %w", err)
+		return fmt.Errorf("failed to create super root migrator: %w", err)
 	}
 
 	if _, err := migrator.Run(ctx.Context); err != nil {

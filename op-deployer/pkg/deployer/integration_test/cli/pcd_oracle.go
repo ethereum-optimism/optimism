@@ -95,7 +95,7 @@ func pcdSuperRootFromArtifacts(artifacts []pcdChainArtifacts) (common.Hash, uint
 		})
 	}
 
-	// The aggregation follows (*SuperRootMigrator).calculateSuperRoot in op-chain-ops/cmd/check-super-root/superroot.
+	// The aggregation follows (*Migrator).calculateSuperRoot in op-chain-ops/superroot.
 	return common.Hash(eth.SuperRoot(eth.NewSuperV1(genesisTime, chainOutputs...))), genesisTime, nil
 }
 
