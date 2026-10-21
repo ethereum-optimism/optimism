@@ -7,8 +7,8 @@ use crate::{
 };
 use async_trait::async_trait;
 use kona_derive::{
-    ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, Signal,
-    SignalReceiver, StepResult,
+    ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, PipelineResult, ResetError,
+    ResetSignal, Signal, SignalReceiver, StepResult,
 };
 use kona_engine::FinalizeBlockId;
 use kona_protocol::{BlockInfo, OpAttributesWithParent};
@@ -69,21 +69,13 @@ where
 
     /// Handles a [`Signal`] received over the derivation signal receiver channel.
     async fn signal(&mut self, signal: Signal) {
-        let is_reset = matches!(signal, Signal::Reset(_));
-        if is_reset {
-            self.origin_valid = false;
-            self.origin_tx.send_replace(None);
-            // Clear the finalization queue on reset.
-            self.finalizer.clear();
-        }
-
-        match self.pipeline.signal(signal).await {
-            Ok(_) => {
-                if is_reset {
-                    self.origin_valid = true;
-                }
-                info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully");
-            }
+        let result = match signal {
+            Signal::Reset(reset) => self.signal_reset(reset).await,
+            Signal::Activation(activation) => self.signal_activation(activation).await,
+            Signal::FlushChannel => self.signal_flush_channel().await,
+        };
+        match result {
+            Ok(()) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
             Err(e) => {
                 error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline")
             }
@@ -92,6 +84,26 @@ where
         if self.origin_valid {
             self.origin_tx.send_replace(self.pipeline.origin());
         }
+    }
+
+    /// Resets the pipeline and clears finalization and origin state before the reset starts.
+    async fn signal_reset(&mut self, reset: ResetSignal) -> PipelineResult<()> {
+        self.origin_valid = false;
+        self.origin_tx.send_replace(None);
+        self.finalizer.clear();
+        self.pipeline.signal(Signal::Reset(reset)).await?;
+        self.origin_valid = true;
+        Ok(())
+    }
+
+    /// Activates a hardfork while preserving the pipeline's derivation state.
+    async fn signal_activation(&mut self, activation: ActivationSignal) -> PipelineResult<()> {
+        self.pipeline.signal(Signal::Activation(activation)).await
+    }
+
+    /// Flushes the pipeline's currently active channel.
+    async fn signal_flush_channel(&mut self) -> PipelineResult<()> {
+        self.pipeline.signal(Signal::FlushChannel).await
     }
 
     /// Attempts to step the derivation pipeline forward as much as possible in order to produce the
@@ -313,7 +325,6 @@ mod tests {
     use super::*;
     use crate::actors::derivation::engine_client::MockDerivationEngineClient;
     use alloy_primitives::B256;
-    use kona_derive::PipelineResult;
     use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
     use kona_protocol::{BlockInfo, L2BlockInfo};
     use rstest::rstest;
