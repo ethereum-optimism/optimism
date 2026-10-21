@@ -59,11 +59,11 @@ pub struct ResetRequest {
     pub result_tx: mpsc::Sender<EngineClientResult<()>>,
 }
 
-/// A request to seal and canonicalize a payload.
+/// A request to fetch a sealed payload without importing or canonicalizing it.
 /// Contains the `PayloadId`, attributes, and a channel to send back the result.
 #[derive(Debug)]
 pub struct SealRequest {
-    /// The `PayloadId` to seal and canonicalize.
+    /// The `PayloadId` to seal.
     pub payload_id: PayloadId,
     /// The attributes necessary for the seal operation.
     pub attributes: OpAttributesWithParent,

@@ -204,6 +204,10 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
             .seal_payload(&self.cfg, &self.engine, self.payload_id, self.attributes.clone())
             .await?;
 
+        if self.coupling == BuildSealCoupling::Detached {
+            return Ok(new_payload);
+        }
+
         // Insert the payload into the engine and reuse its decoded block information.
         let new_block_ref = self.insert_payload(state, new_payload.clone()).await?;
 

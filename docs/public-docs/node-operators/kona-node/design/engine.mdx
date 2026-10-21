@@ -111,7 +111,7 @@ Handles payload building initiation with `engine_forkchoiceUpdated`.
 
 #### SealTask
 
-Seals a block started by a `BuildTask`, retrieving the payload with version-specific `engine_getPayload` calls, inserting it, and canonicalizing it:
+Seals a block started by a `BuildTask` using version-specific `engine_getPayload` calls. Detached sequencer seals only fetch the envelope; atomic derivation seals retain their combined import and replacement behavior:
 
 ```rust
 pub struct SealTask<EngineClient_: EngineClient> {
@@ -125,6 +125,7 @@ pub struct SealTask<EngineClient_: EngineClient> {
     pub attributes: OpAttributesWithParent,
     /// Whether or not the payload was derived, or created by the sequencer.
     pub is_attributes_derived: bool,
+    pub coupling: BuildSealCoupling,
     /// An optional sender for the built OpExecutionPayloadEnvelope or the
     /// SealTaskError that occurred during processing.
     pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
