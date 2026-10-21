@@ -7,9 +7,9 @@ pub use traits::NodeActor;
 
 mod engine;
 pub use engine::{
-    BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
-    EngineConfig, EngineDerivationClient, EngineError, EngineRpcActor, EngineRpcRequest,
-    QueuedEngineDerivationClient, ResetRequest, SealRequest,
+    BuildRequest, CanonicalizeRequest, EngineActor, EngineActorRequest, EngineClientError,
+    EngineClientResult, EngineConfig, EngineDerivationClient, EngineError, EngineRpcActor,
+    EngineRpcRequest, QueuedEngineDerivationClient, ResetRequest, SealRequest,
 };
 
 pub(crate) mod rpc;

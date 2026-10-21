@@ -1,12 +1,13 @@
 use crate::{
-    BuildRequest, EngineDerivationClient, EngineError, NodeActor, ResetRequest, SealRequest,
+    BuildRequest, CanonicalizeRequest, EngineDerivationClient, EngineError, NodeActor,
+    ResetRequest, SealRequest,
 };
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildSealCoupling, BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient,
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask,
-    ImportedBlockSink, InsertTask, SealTask,
+    BuildSealCoupling, BuildTask, CanonicalizeTask, ConsolidateInput, ConsolidateTask, Engine,
+    EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId,
+    FinalizeTask, ImportedBlockSink, InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -20,6 +21,8 @@ use tokio::{
 /// A request handled by the [`EngineActor`].
 #[derive(Debug)]
 pub enum EngineActorRequest {
+    /// Import a sequenced payload after conductor acceptance.
+    Canonicalize(Box<CanonicalizeRequest>),
     /// Request to start building a block.
     Build(Box<BuildRequest>),
     /// Request to process a Safe signal, which can be derived attributes or delegated block info.
@@ -297,6 +300,18 @@ where
         };
 
         match request {
+            EngineActorRequest::Canonicalize(request) => {
+                let CanonicalizeRequest { payload, parent, result_tx } = *request;
+                self.engine.enqueue(EngineTask::Canonicalize(Box::new(CanonicalizeTask::new(
+                    self.client.clone(),
+                    self.rollup.clone(),
+                    payload,
+                    parent,
+                    result_tx,
+                    self.unsafe_head_tx.clone(),
+                    self.block_sink.clone(),
+                ))));
+            }
             EngineActorRequest::Build(build_request) => {
                 let BuildRequest { attributes, result_tx } = *build_request;
                 let task = EngineTask::Build(Box::new(BuildTask::new(
