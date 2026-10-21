@@ -1,4 +1,7 @@
 //! Public IO and encoding helpers for SP1 super-root interop programs.
+//!
+//! `SuperAggregationInputs::validate` is proven in Lean in `rust/kona/sp1/verification`; its
+//! README lists the code shapes that the extraction rejects.
 
 use alloy_primitives::{Address, B256, U256, keccak256};
 use alloy_sol_types::{SolValue, sol};
@@ -390,9 +393,9 @@ impl SuperAggregationInputs {
         first_timestamp: u64,
         chain_ids: &[U256],
     ) -> Result<(), SuperRootError> {
-        let mut expected = (first_timestamp..=self.l2_sequence_number).flat_map(|timestamp| {
-            chain_ids.iter().enumerate().map(move |(index, &chain_id)| (timestamp, index, chain_id))
-        });
+        let chain_count = chain_ids.len();
+        let mut expected = (first_timestamp..=self.l2_sequence_number)
+            .flat_map(move |timestamp| (0..chain_count).map(move |index| (timestamp, index)));
         for output in &self.range_outputs {
             if output.l1_head != self.l1_head {
                 return Err(SuperRootError::RangeL1HeadMismatch {
@@ -409,51 +412,71 @@ impl SuperAggregationInputs {
                     end: output.span.end,
                 });
             }
+            self.validate_range_output_transitions(
+                output,
+                first_timestamp,
+                chain_ids,
+                &mut expected,
+            )?;
+        }
 
-            for transition in &output.transitions {
-                let (timestamp, chain_index, chain_id) =
-                    expected.next().ok_or(SuperRootError::ExtraRangeTransition {
-                        timestamp: transition.timestamp,
-                        chain_id: transition.optimistic_block.chain_id,
-                    })?;
-                if transition.timestamp != timestamp {
-                    return Err(SuperRootError::RangeTransitionTimestampMismatch {
-                        expected: timestamp,
-                        actual: transition.timestamp,
-                    });
-                }
-                if transition.optimistic_block.chain_id != chain_id {
-                    return Err(SuperRootError::RangeTransitionChainIdMismatch {
-                        expected: chain_id,
-                        actual: transition.optimistic_block.chain_id,
-                    });
-                }
+        if let Some((timestamp, _)) = expected.next() {
+            return Err(SuperRootError::MissingRangeTimestamp { timestamp });
+        }
+        Ok(())
+    }
 
-                let actual_previous_super_root = timestamp
-                    .checked_sub(output.span.start)
-                    .and_then(|offset| usize::try_from(offset).ok())
-                    .and_then(|offset| output.previous_super_roots.get(offset))
-                    .ok_or(SuperRootError::MissingRangeTimestamp { timestamp })?;
-                let expected_previous_super_root =
-                    self.super_root_before_timestamp(timestamp, first_timestamp)?;
-                if *actual_previous_super_root != expected_previous_super_root {
-                    return Err(SuperRootError::PreviousSuperRootMismatch {
-                        expected: expected_previous_super_root,
-                        actual: *actual_previous_super_root,
-                    });
-                }
+    /// Checks the transitions of one range output against the next `(timestamp, chain index)`
+    /// items of `expected` (see `validate_range_outputs`). Every chain index must be below
+    /// `chain_ids.len()`.
+    fn validate_range_output_transitions(
+        &self,
+        output: &SuperRangeOutputs,
+        first_timestamp: u64,
+        chain_ids: &[U256],
+        expected: &mut impl Iterator<Item = (u64, usize)>,
+    ) -> Result<(), SuperRootError> {
+        for transition in &output.transitions {
+            let (timestamp, chain_index) =
+                expected.next().ok_or(SuperRootError::ExtraRangeTransition {
+                    timestamp: transition.timestamp,
+                    chain_id: transition.optimistic_block.chain_id,
+                })?;
+            let chain_id = chain_ids[chain_index];
+            if transition.timestamp != timestamp {
+                return Err(SuperRootError::RangeTransitionTimestampMismatch {
+                    expected: timestamp,
+                    actual: transition.timestamp,
+                });
+            }
+            if transition.optimistic_block.chain_id != chain_id {
+                return Err(SuperRootError::RangeTransitionChainIdMismatch {
+                    expected: chain_id,
+                    actual: transition.optimistic_block.chain_id,
+                });
+            }
 
-                let consolidation_block =
-                    self.consolidation_transition_at(timestamp)?.optimistic_blocks.get(chain_index);
-                if consolidation_block != Some(&transition.optimistic_block) {
-                    return Err(SuperRootError::RangeConsolidationMismatch { timestamp });
-                }
+            let actual_previous_super_root = timestamp
+                .checked_sub(output.span.start)
+                .and_then(|offset| usize::try_from(offset).ok())
+                .and_then(|offset| output.previous_super_roots.get(offset).copied())
+                .ok_or(SuperRootError::MissingRangeTimestamp { timestamp })?;
+            let expected_previous_super_root =
+                self.super_root_before_timestamp(timestamp, first_timestamp)?;
+            if actual_previous_super_root != expected_previous_super_root {
+                return Err(SuperRootError::PreviousSuperRootMismatch {
+                    expected: expected_previous_super_root,
+                    actual: actual_previous_super_root,
+                });
+            }
+
+            let consolidation_block =
+                self.consolidation_transition_at(timestamp)?.optimistic_blocks.get(chain_index);
+            if consolidation_block != Some(&transition.optimistic_block) {
+                return Err(SuperRootError::RangeConsolidationMismatch { timestamp });
             }
         }
 
-        if let Some((timestamp, _, _)) = expected.next() {
-            return Err(SuperRootError::MissingRangeTimestamp { timestamp });
-        }
         Ok(())
     }
 
@@ -1043,6 +1066,14 @@ fn ensure_consolidation_transition_coverage(
         });
     }
 
+    ensure_consolidation_transitions(span, chain_ids, transitions)
+}
+
+fn ensure_consolidation_transitions(
+    span: &TimestampSpan,
+    chain_ids: &[U256],
+    transitions: &[SuperConsolidationTransition],
+) -> Result<(), SuperRootError> {
     for (offset, transition) in transitions.iter().enumerate() {
         let expected_timestamp = span.start + offset as u64;
         if transition.timestamp != expected_timestamp {
