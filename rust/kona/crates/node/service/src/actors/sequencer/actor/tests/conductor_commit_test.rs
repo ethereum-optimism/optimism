@@ -2,11 +2,14 @@ use super::{super::*, test_actor};
 use crate::actors::{
     MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
 };
-use alloy_consensus::{Block, TxEnvelope};
+use alloy_consensus::{Block, SignableTransaction, TxEip1559, TxEnvelope};
+use alloy_eips::eip2718::Encodable2718;
+use alloy_primitives::{Sealed, Signature};
 use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatusEnum};
 use alloy_transport::{RpcError, TransportErrorKind};
 use kona_derive::test_utils::TestAttributesBuilder;
 use mockall::Sequence;
+use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
 use rstest::rstest;
 
 fn sealed_payload(timestamp: u64) -> OpExecutionPayloadEnvelope {
@@ -376,4 +379,124 @@ async fn invalid_forkchoice_resets_before_rebuilding(#[case] reset_succeeds: boo
         Some(InFlightBlock::Building(handle))
             if handle.payload_id == new_id && handle.attributes_with_parent.parent == new_head
     ));
+}
+
+/// op-node drops sequenced newPayload INVALID and starts a fresh build, even for a
+/// deposits-only block. The fresh payload must pass the conductor gate independently.
+#[rstest]
+#[case::deposits_only(true)]
+#[case::with_user_transaction(false)]
+#[tokio::test(start_paused = true)]
+async fn invalid_sequenced_payload_rebuilds_through_the_conductor_gate(
+    #[case] deposits_only: bool,
+) {
+    let mut block = Block::<OpTxEnvelope>::default();
+    block.header.number = 1;
+    block.header.timestamp = 2;
+    block.body.transactions.push(OpTxEnvelope::Deposit(Sealed::new(TxDeposit {
+        input: kona_protocol::L1BlockInfoBedrock::default().encode_calldata(),
+        ..Default::default()
+    })));
+    if !deposits_only {
+        block.body.transactions.push(OpTxEnvelope::Eip1559(
+            TxEip1559::default().into_signed(Signature::test_signature()),
+        ));
+    }
+    assert_eq!(block.body.transactions.iter().all(OpTxEnvelope::is_deposit), deposits_only);
+    let transactions = block.body.transactions.iter().map(|tx| tx.encoded_2718().into()).collect();
+    let rejected = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(&block));
+    let mut actor = test_actor();
+    actor.started = true;
+    let mut handle = pending_handle();
+    handle.attributes_with_parent.attributes.transactions = Some(transactions);
+    actor.in_flight = Some(InFlightBlock::Building(handle));
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
+    actor.engine_client.expect_reset_engine_forkchoice().times(0);
+    let mut sequence = Sequence::new();
+    let sealed = rejected.clone();
+    actor
+        .engine_client
+        .expect_seal_block()
+        .withf(|id, _| *id == PayloadId::new([1; 8]))
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(move |_, _| Ok(sealed));
+    let mut conductor = MockConductor::new();
+    let expected = rejected.clone();
+    conductor
+        .expect_commit_unsafe_payload()
+        .withf(move |payload| payload == &expected)
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| Ok(()));
+    actor
+        .engine_client
+        .expect_canonicalize_block()
+        .withf(move |payload, _| payload == &rejected)
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| {
+            Err(EngineClientError::CanonicalizeError(
+                CanonicalizeTaskError::PayloadInsertionFailed(Box::new(
+                    InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid {
+                        validation_error: "invalid sequenced block".into(),
+                    }),
+                )),
+            ))
+        });
+    actor
+        .engine_client
+        .expect_get_unsafe_head()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|| Ok(L2BlockInfo::default()));
+    actor
+        .origin_selector
+        .expect_next_l1_origin()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| Ok(BlockInfo::default()));
+    actor.attributes_builder.attributes.push(Ok(OpPayloadAttributes::default()));
+    let new_id = PayloadId::new([2; 8]);
+    actor
+        .engine_client
+        .expect_start_build_block()
+        .withf(|attrs| attrs.parent == L2BlockInfo::default())
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(move |_| Ok(new_id));
+    block.header.timestamp = 4;
+    let rebuilt = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(&block));
+    let sealed = rebuilt.clone();
+    actor
+        .engine_client
+        .expect_seal_block()
+        .withf(move |id, _| *id == new_id)
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(move |_, _| Ok(sealed));
+    conductor
+        .expect_commit_unsafe_payload()
+        .withf(move |payload| payload == &rebuilt)
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| {
+            Err(crate::actors::ConductorError::Rpc(RpcError::local_usage_str(
+                "fresh payload commit rejected",
+            )))
+        });
+    actor.conductor = Some(conductor);
+
+    actor.step().await.unwrap();
+    assert!(actor.in_flight.is_none(), "INVALID must discard the old committed block");
+    actor.step().await.unwrap();
+    assert!(
+        matches!(&actor.in_flight, Some(InFlightBlock::Building(handle)) if handle.payload_id == new_id)
+    );
+    tick(&mut actor).await;
+    assert!(
+        matches!(&actor.in_flight, Some(InFlightBlock::Building(handle)) if handle.payload_id == new_id),
+        "a failed fresh commit must retain its own build job without canonicalization or gossip"
+    );
 }

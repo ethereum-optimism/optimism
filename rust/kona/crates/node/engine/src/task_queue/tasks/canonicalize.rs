@@ -43,7 +43,9 @@ impl EngineTaskError for CanonicalizeTaskError {
 /// The conductor RPC runs outside the engine queue. Derivation or another unsafe payload may
 /// advance the head while that RPC is pending, so this check and insertion must be atomic.
 /// Unlike derived attributes, an invalid sequenced payload must not be replaced by a deposits-only
-/// block here: that replacement would need its own conductor commit.
+/// block here: that replacement would need its own conductor commit. As in op-node, this also
+/// applies when the rejected payload contains only deposits: the sequencer drops it and rebuilds.
+/// This differs from rejecting deposits-only attributes while starting a build.
 #[derive(Debug, Clone, Constructor)]
 pub struct CanonicalizeTask {
     /// The engine API client.
