@@ -1,15 +1,17 @@
 //! [`NodeActor`] trait.
 
 use async_trait::async_trait;
+use std::convert::Infallible;
 
 /// The [`NodeActor`] is an actor-like service for the node.
 ///
 /// An actor's work is split in two phases: [`Self::next`] waits for the next inbound request,
-/// event, or tick, and [`Self::handle`] processes it. The node's actor loop races only
-/// [`Self::next`] against shutdown, so once an input has been received, it is handled to
-/// completion.
+/// event, or tick, and [`Self::handle`] processes it. The node calls them in turn, in a loop.
 ///
-/// Callers may call [`Self::step`] to wait for and handle a single input.
+/// The split lets the node choose how far shutdown interrupts an actor without changing any actor:
+/// stopping actors only while they wait in [`Self::next`], and waiting for them, would let an
+/// actor finish handling its current input. The node currently stops actors wherever they are and
+/// does not wait for them, so shutdown is crash-only.
 #[async_trait]
 pub trait NodeActor: Send + 'static {
     /// The error type for the actor.
@@ -20,9 +22,9 @@ pub trait NodeActor: Send + 'static {
 
     /// Wait for the next inbound request, event, or scheduled tick.
     ///
-    /// This must be cancellation safe: on shutdown, the future is dropped if it has not resolved,
-    /// which must neither lose an input nor leave the actor in an inconsistent state. Any work
-    /// that must not be interrupted belongs in [`Self::handle`].
+    /// This should do no work that must not be interrupted, which belongs in [`Self::handle`], so
+    /// that the node could stop actors only while they wait here if it ever wanted them to finish
+    /// handling their current input. See the trait docs.
     ///
     /// Returning `Err(_)` indicates the actor has encountered a fatal
     /// condition and should not be stepped further.
@@ -30,7 +32,8 @@ pub trait NodeActor: Send + 'static {
 
     /// Handle an input returned by [`Self::next`].
     ///
-    /// This is never interrupted by shutdown.
+    /// Shutdown may interrupt this at any `.await`, so any state it changes outside the process
+    /// must be recoverable after a restart.
     ///
     /// Returning `Ok(())` indicates the actor is ready to be stepped again.
     /// Returning `Err(_)` indicates the actor has encountered a fatal
@@ -39,9 +42,22 @@ pub trait NodeActor: Send + 'static {
 
     /// Wait for the next input and handle it.
     ///
-    /// Unlike [`Self::next`], this is not cancellation safe.
+    /// A convenience for driving an actor one input at a time, for example in tests. The node calls
+    /// [`Self::next`] and [`Self::handle`] itself.
     async fn step(&mut self) -> Result<(), Self::Error> {
         let input = self.next().await?;
         self.handle(input).await
+    }
+}
+
+/// Drives `actor` until it fails: waits for its next input with [`NodeActor::next`], then handles
+/// it with [`NodeActor::handle`].
+///
+/// This is how the node runs its actors. It never returns `Ok`, so awaiting it yields the error
+/// the actor failed with.
+pub async fn run_actor<A: NodeActor>(mut actor: A) -> Result<Infallible, A::Error> {
+    loop {
+        let input = actor.next().await?;
+        actor.handle(input).await?;
     }
 }

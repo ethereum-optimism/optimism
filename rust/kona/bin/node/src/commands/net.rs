@@ -7,7 +7,7 @@ use jsonrpsee::{RpcModule, core::async_trait, server::Server};
 use kona_cli::LogConfig;
 use kona_gossip::P2pRpcRequest;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor,
+    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, run_actor,
 };
 use kona_registry::scr_rollup_config_by_alloy_ident;
 use kona_rpc::{OpP2PApiServer, P2pRpc, RpcBuilder};
@@ -81,7 +81,7 @@ impl NetCommand {
 
         let handler = NetworkBuilder::from(p2p_config).build()?.start().await?;
 
-        let mut network = NetworkActor::new(
+        let network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx },
             handler,
             p2p_rpc_rx,
@@ -91,12 +91,8 @@ impl NetCommand {
 
         // Spawn the actor; the loop below polls the p2p RPC interface on an interval.
         tokio::spawn(async move {
-            loop {
-                if let Err(e) = network.step().await {
-                    error!(target: "net", "Network actor error: {e:?}");
-                    return;
-                }
-            }
+            let Err(e) = run_actor(network).await;
+            error!(target: "net", "Network actor error: {e:?}");
         });
 
         info!(target: "net", "Network started, receiving blocks.");

@@ -23,7 +23,7 @@ use enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::LocalNode;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, NodeActor,
+    EngineClientResult, NetworkActor, NetworkConfig, NetworkEngineClient, run_actor,
 };
 use kona_registry::ROLLUP_CONFIGS;
 use libp2p::{Multiaddr, identity::Keypair};
@@ -139,7 +139,7 @@ impl GossipCommand {
 
         let handler = network_config.build()?.start().await?;
 
-        let mut network = NetworkActor::new(
+        let network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx: unsafe_blocks_tx },
             handler,
             p2p_rpc_rx,
@@ -148,12 +148,8 @@ impl GossipCommand {
         );
 
         tokio::spawn(async move {
-            loop {
-                if let Err(e) = network.step().await {
-                    error!(target: "gossip", "Network actor error: {e:?}");
-                    return;
-                }
-            }
+            let Err(e) = run_actor(network).await;
+            error!(target: "gossip", "Network actor error: {e:?}");
         });
 
         tracing::info!(target: "gossip", "Gossip driver started, receiving blocks.");

@@ -6,7 +6,7 @@
 #![warn(clippy::disallowed_methods)]
 
 mod traits;
-pub use traits::NodeActor;
+pub use traits::{NodeActor, run_actor};
 
 mod clock;
 pub use clock::{Clock, SystemClock};

@@ -83,10 +83,13 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 
 The derivation actor runs a continuous loop that handles various events:
 
-1. **Shutdown signals**: Graceful shutdown when cancellation token is triggered
-2. **L1 head updates**: Triggers derivation when new L1 blocks are available  
-3. **Safe head updates**: Triggers derivation when the L2 safe head advances
-4. **Pipeline signals**: Handles resets, hardfork activations, and channel flushes
+1. **L1 head updates**: Triggers derivation when new L1 blocks are available
+2. **Safe head updates**: Triggers derivation when the L2 safe head advances
+3. **Pipeline signals**: Handles resets, hardfork activations, and channel flushes
+
+The actor does not handle shutdown itself. When any actor fails, or the node receives SIGINT or
+SIGTERM, the node stops all actors wherever they are, without waiting for them to finish what they
+are doing, and recovers on restart.
 
 ### Stepping Logic
 

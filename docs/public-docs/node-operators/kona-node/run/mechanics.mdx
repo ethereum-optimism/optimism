@@ -119,12 +119,13 @@ actor's `Input` type, and `handle` processes that input. Returning an
 error from either is fatal and stops the actor. The provided `step`
 method calls both, to process a single input.
 
-Cancellation is handled by the caller that drives the loop, so the
-actor itself does not own a cancellation token. On shutdown, the node
-cancels an actor only while it waits in `next`, then gives it a few
-seconds to finish handling its current input. So `next` should only
-wait, without losing an input if it is cancelled, and any work that
-should not be interrupted belongs in `handle`.
+Shutdown is handled by the caller that drives the loop, so the actor
+itself does not own a cancellation token. When any actor fails, or the
+node receives SIGINT or SIGTERM, the node stops all actors wherever
+they are, even in the middle of `handle`, and recovers on restart. Any
+state an actor changes outside the process must therefore be
+recoverable after a restart. Keep `next` to waiting for input, and do
+the work in `handle`.
 
 **Example: Defining a Custom Actor**
 
@@ -169,8 +170,8 @@ too, spread across `kona-node-service`, sibling kona crates such as
 `kona-rpc` and `kona-gossip`, and the shared alloy engine types. A
 custom binary can therefore construct the actors it needs, wire them
 together over channels, add its own `NodeActor` implementations, and
-drive each actor in its own task by calling its `step` method in a
-loop.
+drive each actor in its own task with `run_actor`, which calls `next`
+and `handle` in a loop until the actor fails.
 
 #### Programmatic Node Construction
 
