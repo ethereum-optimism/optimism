@@ -1,97 +1,69 @@
 //! Utilities for the rollup node service, internal to the crate.
 
-use tokio::task::{JoinError, JoinSet};
-use tokio_util::sync::CancellationToken;
+use crate::NodeActor;
+use std::convert::Infallible;
+use tokio::task::JoinSet;
 
-/// Spawns a set of parallel actors in a [`JoinSet`], and cancels all actors if any of them fail.
-/// The type of the error in the [`NodeActor`](crate::NodeActor)s is erased to avoid having to
-/// specify a common error type between actors.
+/// Spawns a set of parallel actors in a [`JoinSet`], and stops all of them as soon as any of them
+/// fails. The type of the error in the [`NodeActor`]s is erased to avoid having to specify a common
+/// error type between actors.
 ///
-/// Actors are passed in as `Option<actor>`. Each actor is stepped in a loop, with external
-/// cancellation via the provided [`CancellationToken`].
+/// Actors are passed in as `Option<actor>`, and each one is driven by [`run_actor`].
 ///
-/// Shutdown is crash-only: each whole [`NodeActor::step`](crate::NodeActor::step) is raced against
-/// cancellation, so an actor stops at its next `.await` even while handling an input, and the node
-/// does not wait for actors to stop. The node has to recover from being killed at any point anyway,
-/// so this is its only shutdown path. Racing only [`NodeActor::next`](crate::NodeActor::next)
-/// against cancellation, and waiting for the actors to stop, would let them finish handling their
-/// current input instead, without changing any actor.
+/// Shutdown is crash-only: once an actor fails, this returns without waiting for the others, and
+/// dropping the [`JoinSet`] aborts them at their next `.await`, even while they handle an input.
+/// The node has to recover from being killed at any point anyway, so this is its only shutdown
+/// path. Stopping actors only while they wait in [`NodeActor::next`], and waiting for them, would
+/// let them finish handling their current input instead, without changing any actor.
 ///
 /// OS signals are handled by the caller.
 ///
 /// Evaluates to the `Result<(), String>` of [`wait_for_actors`].
 macro_rules! spawn_and_wait {
-    ($cancellation:expr, actors = [$($actor:expr),* $(,)?]) => {{
+    (actors = [$($actor:expr),* $(,)?]) => {{
         let mut task_handles = tokio::task::JoinSet::new();
 
         $(
-            if let Some(mut actor) = $actor {
-                let cancellation = $cancellation.clone();
-                task_handles.spawn(async move {
-                    // This guard ensures that the cancellation token is cancelled when the actor
-                    // task exits for any reason. This ensures peer actors observe shutdown on
-                    // their next macro-level `select!`.
-                    // Note the underscore prefix: this is to signal that we don't use the guard
-                    // anywhere, but *the compiler shouldn't optimize it away*. Note that using a
-                    // simple `_` would not work here because it gets optimized away in release
-                    // mode.
-                    let _guard = cancellation.clone().drop_guard();
-                    loop {
-                        tokio::select! {
-                            biased;
-                            _ = cancellation.cancelled() => return Ok(()),
-                            result = $crate::NodeActor::step(&mut actor) => {
-                                result.map_err(|e| format!("{e:?}"))?;
-                            }
-                        }
-                    }
-                });
+            if let Some(actor) = $actor {
+                task_handles.spawn($crate::service::run_actor(actor));
             }
         )*
 
-        $crate::service::wait_for_actors($cancellation, task_handles).await
+        $crate::service::wait_for_actors(task_handles).await
     }};
 }
 
 // Export the `spawn_and_wait` macro for use in other modules.
 pub(crate) use spawn_and_wait;
 
-/// Waits for the first actor to fail, then cancels the others, without waiting for them to stop.
-///
-/// Returns the error of the actor that failed first, or `Ok` if all actors finished.
-pub(crate) async fn wait_for_actors(
-    cancellation: CancellationToken,
-    mut task_handles: JoinSet<Result<(), String>>,
-) -> Result<(), String> {
-    let result = loop {
-        let Some(exit) = task_handles.join_next().await else { break Ok(()) }; // All tasks completed
-        // Actors only exit successfully once cancelled by a peer's exit,
-        // whose error may not have been joined yet.
-        if let Some(e) = exit_error(exit) {
-            error!(target: "rollup_node", "Critical error in sub-routine: {e}");
-            break Err(e);
-        }
-    };
-
-    cancellation.cancel();
-
-    // Dropping `task_handles` aborts any actors that are still running.
-    result
+/// Drives `actor` until it fails: waits for its next input, then handles it.
+pub(crate) async fn run_actor<A: NodeActor>(mut actor: A) -> Result<Infallible, String> {
+    loop {
+        let input = actor.next().await.map_err(|e| format!("{e:?}"))?;
+        actor.handle(input).await.map_err(|e| format!("{e:?}"))?;
+    }
 }
 
-/// Returns the error an actor task exited with, if any.
-fn exit_error(exit: Result<Result<(), String>, JoinError>) -> Option<String> {
-    match exit {
-        Ok(Ok(())) => None,
-        Ok(Err(e)) => Some(e),
-        Err(e) => Some(format!("Task join error: {e}")),
-    }
+/// Waits for the first actor to fail, then returns without waiting for the others: dropping
+/// `task_handles` aborts them.
+///
+/// Returns the error of the actor that failed, or `Ok` if there were no actors.
+pub(crate) async fn wait_for_actors(
+    mut task_handles: JoinSet<Result<Infallible, String>>,
+) -> Result<(), String> {
+    // Actors only stop by failing, so the first one to stop is the failure.
+    let Some(exit) = task_handles.join_next().await else { return Ok(()) };
+    let error = match exit {
+        Ok(Err(e)) => e,
+        Err(e) => format!("Task join error: {e}"),
+    };
+    error!(target: "rollup_node", "Critical error in sub-routine: {error}");
+    Err(error)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::NodeActor;
     use async_trait::async_trait;
     use tokio::{
         sync::oneshot,
@@ -143,17 +115,13 @@ mod tests {
         }
     }
 
-    async fn run(
-        cancellation: CancellationToken,
-        worker: Worker,
-        failing: Failing,
-    ) -> Result<(), String> {
-        spawn_and_wait!(cancellation, actors = [Some(worker), Some(failing)])
+    async fn run(worker: Worker, failing: Failing) -> Result<(), String> {
+        spawn_and_wait!(actors = [Some(worker), Some(failing)])
     }
 
     /// When a peer fails, an actor in the middle of handling an input does not get to finish it:
-    /// the node returns straight away and the actor is stopped. This fails if the node both races
-    /// only `next` against cancellation and waits for the actors to stop, which would make shutdown
+    /// the node returns straight away and the actor is stopped. This fails if the node waits for
+    /// the actors to stop, which with stopping actors only in `next` would make shutdown
     /// graceful.
     #[tokio::test(start_paused = true)]
     async fn in_flight_input_is_not_waited_for_on_failure() {
@@ -161,8 +129,7 @@ mod tests {
         let (mut release, release_rx) = oneshot::channel();
         let (trigger, trigger_rx) = oneshot::channel();
         let worker = Worker { started: Some(started_tx), release: Some(release_rx) };
-        let run =
-            tokio::spawn(run(CancellationToken::new(), worker, Failing { trigger: trigger_rx }));
+        let run = tokio::spawn(run(worker, Failing { trigger: trigger_rx }));
 
         started.await.unwrap();
         trigger.send(()).unwrap();

@@ -5,13 +5,12 @@ use async_trait::async_trait;
 /// The [`NodeActor`] is an actor-like service for the node.
 ///
 /// An actor's work is split in two phases: [`Self::next`] waits for the next inbound request,
-/// event, or tick, and [`Self::handle`] processes it. Callers may call [`Self::step`] to wait for
-/// and handle a single input.
+/// event, or tick, and [`Self::handle`] processes it. The node calls them in turn, in a loop.
 ///
 /// The split lets the node choose how far shutdown interrupts an actor without changing any actor:
-/// racing only [`Self::next`] against cancellation, and waiting for the actors to stop, would let
-/// an actor finish handling its current input. The node currently races the whole [`Self::step`]
-/// and does not wait, so shutdown is crash-only.
+/// stopping actors only while they wait in [`Self::next`], and waiting for them, would let an
+/// actor finish handling its current input. The node currently stops actors wherever they are and
+/// does not wait for them, so shutdown is crash-only.
 #[async_trait]
 pub trait NodeActor: Send + 'static {
     /// The error type for the actor.
@@ -23,7 +22,7 @@ pub trait NodeActor: Send + 'static {
     /// Wait for the next inbound request, event, or scheduled tick.
     ///
     /// This should do no work that must not be interrupted, which belongs in [`Self::handle`], so
-    /// that the node could race only this against cancellation if it ever wanted actors to finish
+    /// that the node could stop actors only while they wait here if it ever wanted them to finish
     /// handling their current input. See the trait docs.
     ///
     /// Returning `Err(_)` indicates the actor has encountered a fatal
@@ -42,8 +41,8 @@ pub trait NodeActor: Send + 'static {
 
     /// Wait for the next input and handle it.
     ///
-    /// Cancelling this can interrupt [`Self::handle`], which the node only does when it discards
-    /// the actor afterwards.
+    /// A convenience for driving an actor one input at a time, for example in tests. The node calls
+    /// [`Self::next`] and [`Self::handle`] itself.
     async fn step(&mut self) -> Result<(), Self::Error> {
         let input = self.next().await?;
         self.handle(input).await

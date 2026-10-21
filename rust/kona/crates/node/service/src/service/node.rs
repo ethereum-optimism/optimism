@@ -36,7 +36,6 @@ use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{ops::Not as _, sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
-use tokio_util::sync::CancellationToken;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// How many recently imported blocks to keep for the local L2 lookups.
@@ -510,17 +509,13 @@ impl RollupNode {
     ///
     /// ## Shutdown
     ///
-    /// Shutdown is crash-only: when any actor exits (success, error, or panic), the umbrella
-    /// cancellation token fires, and this returns without waiting for the other actors to stop.
-    /// They are interrupted at their next `.await`, even while handling an input, and messages
-    /// still queued between them are dropped. The node recovers on restart, as it must after being
-    /// killed at any point anyway. OS signals are handled by the caller. Actors may log
-    /// channel-closed errors while peers are torn down concurrently; this is expected and not a
-    /// sign of an unclean exit.
+    /// Shutdown is crash-only: when any actor fails (with an error or a panic), this returns
+    /// without waiting for the other actors to stop. They are aborted at their next `.await`, even
+    /// while handling an input, and messages still queued between them are dropped. The node
+    /// recovers on restart, as it must after being killed at any point anyway. OS signals are
+    /// handled by the caller. Actors may log channel-closed errors while peers are torn down
+    /// concurrently; this is expected and not a sign of an unclean exit.
     pub async fn start(&self) -> Result<(), String> {
-        // Single umbrella cancellation token owned by the spawn_and_wait! macro.
-        let cancellation = CancellationToken::new();
-
         // ─── cross-actor channels ───────────────────────────────────────────────────────────
         // actor request channels
         let (derivation_actor_request_tx, derivation_actor_request_rx) =
@@ -611,7 +606,6 @@ impl RollupNode {
             .await?;
 
         crate::service::spawn_and_wait!(
-            cancellation,
             actors = [
                 rpc,
                 sequencer_actor,
