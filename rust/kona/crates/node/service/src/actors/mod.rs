@@ -5,6 +5,9 @@
 mod traits;
 pub use traits::NodeActor;
 
+mod clock;
+pub use clock::{Clock, SystemClock};
+
 mod engine;
 pub use engine::{
     BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
@@ -47,10 +50,10 @@ pub use network::{
 mod sequencer;
 
 pub use sequencer::{
-    Clock, Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider,
-    L1OriginSelector, L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector,
-    QueuedSequencerEngineClient, SequencerActor, SequencerActorError, SequencerAdminQuery,
-    SequencerConfig, SequencerEngineClient, SystemClock,
+    Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider, L1OriginSelector,
+    L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector, QueuedSequencerEngineClient,
+    SequencerActor, SequencerActorError, SequencerAdminQuery, SequencerConfig,
+    SequencerEngineClient,
 };
 
 #[cfg(test)]

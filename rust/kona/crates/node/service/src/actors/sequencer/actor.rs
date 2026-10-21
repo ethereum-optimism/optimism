@@ -3,10 +3,9 @@
 use crate::{
     NodeActor, SequencerAdminQuery, UnsafePayloadGossipClient,
     actors::{
-        SequencerEngineClient,
+        Clock, SequencerEngineClient,
         engine::EngineClientError,
         sequencer::{
-            clock::Clock,
             conductor::Conductor,
             error::SequencerActorError,
             metrics::{
