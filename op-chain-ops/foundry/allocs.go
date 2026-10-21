@@ -24,20 +24,35 @@ type ForgeAllocs struct {
 // Any previous allocs contents are removed.
 // Warning: the state must be committed first, trie-key preimages must be present for iteration,
 // and a fresh state around the committed state-root must be presented, for the latest state-contents to be dumped.
-func (f *ForgeAllocs) FromState(stateDB StateDB) {
+// It returns the dump errors that go-ethereum versions newer than op-geth's base report; op-geth
+// reports none.
+func (f *ForgeAllocs) FromState(stateDB *state.StateDB) error {
 	f.Accounts = make(types.GenesisAlloc)
-	stateDB.DumpToCollector((*forgeAllocsDump)(f), &state.DumpConfig{
+	return dumpToCollector(stateDB.DumpToCollector, (*forgeAllocsDump)(f), &state.DumpConfig{
 		OnlyWithAddresses: true,
 	})
 }
 
-// StateDB is a minimal interface to support dumping of Geth EVM state to ForgeAllocs.
-type StateDB interface {
-	DumpToCollector(c state.DumpCollector, conf *state.DumpConfig) (nextKey []byte)
+// stateDumper is the type of state.StateDB.DumpToCollector, which also returns an error in
+// go-ethereum versions newer than op-geth's base. Modules outside the monorepo build this package
+// against those.
+type stateDumper interface {
+	func(state.DumpCollector, *state.DumpConfig) []byte |
+		func(state.DumpCollector, *state.DumpConfig) ([]byte, error)
 }
 
-// Assert that the Geth StateDB implements this interface still.
-var _ StateDB = (*state.StateDB)(nil)
+// dumpToCollector calls dump, which is state.StateDB.DumpToCollector.
+func dumpToCollector[F stateDumper](dump F, c state.DumpCollector, conf *state.DumpConfig) error {
+	switch dump := any(dump).(type) {
+	case func(state.DumpCollector, *state.DumpConfig) []byte:
+		dump(c, conf)
+		return nil
+	case func(state.DumpCollector, *state.DumpConfig) ([]byte, error):
+		_, err := dump(c, conf)
+		return err
+	}
+	panic("unreachable: stateDumper has no other types")
+}
 
 // forgeAllocsDump is a wrapper to hide the error-prone state-dumping interface from public API.
 // Use ForgeAllocs.FromState to dump a state to forge-allocs.

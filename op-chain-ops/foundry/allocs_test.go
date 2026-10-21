@@ -6,17 +6,17 @@ import (
 	"os"
 	"testing"
 
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/hashdb"
 )
@@ -27,52 +27,39 @@ func TestForgeAllocs_FromState(t *testing.T) {
 	cfg.Level = log.LevelTrace
 	logcli.SetGlobalLogHandler(logcli.NewLogHandler(os.Stdout, cfg))
 
-	rawDB := rawdb.NewMemoryDatabase()
-	stateDB := state.NewDatabase(triedb.NewDatabase(rawDB, &triedb.Config{
-		Preimages: true,
-		IsVerkle:  false,
-		HashDB:    hashdb.Defaults,
-		PathDB:    nil,
-	}), nil)
-	st, err := state.New(types.EmptyRootHash, stateDB)
-	require.NoError(t, err)
-
 	alice := common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
-	st.CreateAccount(alice)
-	st.SetBalance(alice, uint256.NewInt(123), tracing.BalanceChangeUnspecified)
-	st.SetNonce(alice, 42, tracing.NonceChangeUnspecified)
-
 	bob := common.HexToAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
-	st.CreateAccount(bob)
-	st.CreateContract(bob)
-	st.SetBalance(bob, uint256.NewInt(100), tracing.BalanceChangeUnspecified)
-	st.SetNonce(bob, 1, tracing.NonceChangeUnspecified)
-	st.SetState(bob, common.Hash{0: 0x42}, common.Hash{0: 7})
-
 	contract := common.HexToAddress("0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC")
-	st.CreateAccount(contract)
-	st.CreateContract(contract)
-	st.SetNonce(contract, 30, tracing.NonceChangeUnspecified)
-	st.SetBalance(contract, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
-	st.SetCode(contract, []byte{10, 11, 12, 13, 14}, tracing.CodeChangeUnspecified)
-
-	// Commit and make a new state, we cannot reuse the state after Commit
-	// (see doc-comment in Commit, absolute footgun)
-	root, err := st.Commit(0, false, false)
+	genesis := &core.Genesis{
+		Config: params.TestChainConfig,
+		Alloc: types.GenesisAlloc{
+			alice: {Balance: big.NewInt(123), Nonce: 42},
+			bob: {
+				Balance: big.NewInt(100),
+				Nonce:   1,
+				Storage: map[common.Hash]common.Hash{{0: 0x42}: {0: 7}},
+			},
+			contract: {
+				Balance: big.NewInt(0),
+				Nonce:   30,
+				Code:    []byte{10, 11, 12, 13, 14},
+				Storage: map[common.Hash]common.Hash{
+					{0: 0xa}:                              {0: 1},
+					crypto.Keccak256Hash([]byte("hello")): crypto.Keccak256Hash([]byte("world")),
+				},
+			},
+		},
+	}
+	// Dumping iterates the committed state, and needs the preimages of its trie keys.
+	rawDB := rawdb.NewMemoryDatabase()
+	trieDB := triedb.NewDatabase(rawDB, &triedb.Config{Preimages: true, HashDB: hashdb.Defaults})
+	block, err := genesis.Commit(rawDB, trieDB, nil)
 	require.NoError(t, err)
-	st, err = state.New(root, stateDB)
-	require.NoError(t, err)
-
-	st.SetState(contract, common.Hash{0: 0xa}, common.Hash{0: 1})
-	st.SetState(contract, crypto.Keccak256Hash([]byte("hello")), crypto.Keccak256Hash([]byte("world")))
-
-	root, err = st.Commit(0, false, false)
-	require.NoError(t, err)
-	st, err = state.New(root, stateDB)
+	st, err := state.New(block.Root(), state.NewDatabase(trieDB, nil))
 	require.NoError(t, err)
 
 	var allocs ForgeAllocs
-	allocs.FromState(st)
+	require.NoError(t, allocs.FromState(st))
 
 	require.Len(t, allocs.Accounts, 3)
 

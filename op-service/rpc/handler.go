@@ -223,7 +223,7 @@ func (b *Handler) newHealthMiddleware(next http.Handler) http.Handler {
 func (b *Handler) newHttpRPCMiddleware(server *rpc.Server, next http.Handler, jwtSecret []byte) http.Handler {
 	// Only allow RPC handlers behind the appropriate CORS / vhost / JWT setup.
 	// Note that websockets have their own handler-stack, also configured with CORS and JWT, separately.
-	httpHandler := node.NewHTTPHandlerStack(server, b.corsHosts, b.vHosts, jwtSecret)
+	httpHandler := newHTTPHandlerStack(node.NewHTTPHandlerStack, server, b.corsHosts, b.vHosts, jwtSecret)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// URL is already stripped with http.StripPrefix
 		if r.URL.Path == "" {
@@ -232,6 +232,26 @@ func (b *Handler) newHttpRPCMiddleware(server *rpc.Server, next http.Handler, jw
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// httpHandlerStack is the type of node.NewHTTPHandlerStack. go-ethereum versions newer than
+// op-geth's base add a disableGzip parameter, and modules outside the monorepo build this package
+// against them.
+type httpHandlerStack interface {
+	func(http.Handler, []string, []string, []byte) http.Handler |
+		func(http.Handler, []string, []string, []byte, bool) http.Handler
+}
+
+// newHTTPHandlerStack wraps srv in go-ethereum's CORS, vhost, JWT and gzip handlers, built by
+// stack, which is node.NewHTTPHandlerStack.
+func newHTTPHandlerStack[F httpHandlerStack](stack F, srv http.Handler, cors, vhosts []string, jwtSecret []byte) http.Handler {
+	switch stack := any(stack).(type) {
+	case func(http.Handler, []string, []string, []byte) http.Handler:
+		return stack(srv, cors, vhosts, jwtSecret)
+	case func(http.Handler, []string, []string, []byte, bool) http.Handler:
+		return stack(srv, cors, vhosts, jwtSecret, false)
+	}
+	panic("unreachable: httpHandlerStack has no other types")
 }
 
 func (b *Handler) newWsMiddleWare(server *rpc.Server, next http.Handler, jwtSecret []byte) http.Handler {

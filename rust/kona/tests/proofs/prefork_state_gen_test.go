@@ -68,7 +68,7 @@ func writePreForkState(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, f
 	stateDB, err := env.Engine.L2Chain().StateAt(actHeader.Root)
 	require.NoError(t, err, "open state at %s activation block", fork)
 	var full foundry.ForgeAllocs
-	full.FromState(stateDB)
+	require.NoError(t, full.FromState(stateDB), "dump state at %s activation block", fork)
 	scoped := predeployScoped(&full)
 	require.NotEmptyf(t, scoped.Accounts,
 		"dumped state is empty — are trie-key preimages enabled? (set %s)", genPreForkStateEnv)

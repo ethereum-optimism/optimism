@@ -822,7 +822,9 @@ func (h *Host) StateDump() (*foundry.ForgeAllocs, error) {
 	// I.e. the trie is committed and ready to provide all data,
 	// and the state is new and iterable, prepared specifically for FromState(state).
 	var allocs foundry.ForgeAllocs
-	allocs.FromState(st)
+	if err := allocs.FromState(st); err != nil {
+		return nil, fmt.Errorf("failed to dump state: %w", err)
+	}
 
 	// Sanity check we have no lingering scripts.
 	for i := uint64(0); i <= allocs.Accounts[addresses.ScriptDeployer].Nonce; i++ {
