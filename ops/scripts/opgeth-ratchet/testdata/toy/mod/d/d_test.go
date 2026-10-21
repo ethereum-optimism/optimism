@@ -6,4 +6,4 @@ import (
 	"example.com/geth/types"
 )
 
-func TestD(t *testing.T) { _ = types.Tx{Mint: D} }
+func TestD(t *testing.T) { _ = types.Tx{Mint: D + types.Holesky} }

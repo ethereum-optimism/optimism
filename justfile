@@ -100,7 +100,9 @@ check-op-geth-version:
   go run ./ops/scripts/check-op-geth-version
 
 # Type-checks the tree against upstream go-ethereum and fails on op-geth-only API uses that are
-# not in ops/scripts/opgeth-ratchet/allowlist.txt, or on allowlist entries no longer used.
+# not in ops/scripts/opgeth-ratchet/allowlist.txt, or on allowlist entries no longer used. Also
+# fails on packages free of such uses that don't type-check against the release in
+# ops/scripts/opgeth-ratchet/latest-upstream.txt.
 opgeth-ratchet: build-superchain-go
   go run ./ops/scripts/opgeth-ratchet
 

@@ -1,5 +1,9 @@
 package c
 
-import "example.com/toy/a"
+import (
+	"example.com/geth/types"
 
-func Signer() int { return a.Signer() }
+	"example.com/toy/a"
+)
+
+func Signer() int { return a.Signer() + types.Holesky }

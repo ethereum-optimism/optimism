@@ -26,6 +26,9 @@ type Use struct {
 
 func (u Use) String() string { return u.Package + " | " + u.Need }
 
+// testsSuffix marks the uses of a package's test files.
+const testsSuffix = " (tests)"
+
 var (
 	undefinedQualified = regexp.MustCompile(`^undefined: \w+\.(\w+)$`)
 	missingMember      = regexp.MustCompile(`^.+ undefined \(type .+ has no field or method (\w+)`)
@@ -101,7 +104,7 @@ func collectUses(ctx context.Context, dir, modPath, gethPath string, buildFlags,
 				u := Use{Package: rel, Need: need}
 				if strings.HasSuffix(file, "_test.go") {
 					// Kept apart so that a use in tests doesn't admit the same use in production.
-					u.Package += " (tests)"
+					u.Package += testsSuffix
 				}
 				uses[u] = true
 			}
@@ -124,8 +127,13 @@ func (c classifier) expectedListError(e packages.Error) bool {
 	if m := missingPackage.FindStringSubmatch(msg); m != nil {
 		return c.isGeth(m[1])
 	}
-	// Compiler output from building export data: the package is type-checked from source too.
-	return e.Kind == packages.ListError && strings.HasPrefix(msg, "# ")
+	return isExportBuildOutput(e)
+}
+
+// isExportBuildOutput reports whether e is compiler output from building a package's export
+// data. The package is type-checked from source too, which reports the same errors.
+func isExportBuildOutput(e packages.Error) bool {
+	return e.Kind == packages.ListError && strings.HasPrefix(e.Msg, "# ")
 }
 
 // classify describes the fork API a type error needs, in terms that don't depend on local names

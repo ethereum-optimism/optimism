@@ -645,6 +645,30 @@ for uses in its test files) and what it needs from the fork, e.g.
   allowlisted with reason "upstream backport" and are not decoupling work: they go when op-geth's
   upstream base catches up.
 
+**Second pass: upstream API drift.** Modules outside the monorepo (§20) that import its packages
+build them against the *latest* upstream go-ethereum, through Go's minimum version selection, not
+against op-geth's base. So the check type-checks the tree a second time, against the upstream
+release pinned in `ops/scripts/opgeth-ratchet/latest-upstream.txt`, and fails on *any* error in
+an **upstream-clean** package: one whose import closure within the monorepo reaches no package
+with a fork-API use in the first pass. There is no allowlist for this pass.
+
+- **The set is derived.** A package that sheds its last fork use, directly or through its imports,
+  is covered from then on. A use in a package's test files keeps only its test variants out, so
+  its importers stay covered. An "upstream backport" use keeps a package out too, although the
+  pinned release may well have the API.
+- **Fixes must compile against both** op-geth and the pinned release. Prefer an API that both
+  share (e.g. `op-core/genesis` computes the Isthmus withdrawals root with a `trie.StackTrie`
+  instead of `StateDB.Commit`, whose signature changed). When a call can't avoid a changed
+  signature, pass the function to a generic helper whose type parameter is constrained to the
+  union of both signatures, and type-switch on it (`op-service/rpc`'s `newHTTPHandlerStack`): the
+  constraint keeps a third signature a compile error the check catches. When neither works,
+  move the code behind a seam out of the clean package, as for the fork uses themselves.
+- **Dependencies count.** The second pass also fails when a module that the pinned release pulls
+  in fails to build for a clean package, since a downstream module would hit the same failure.
+- **Bump the pin with upstream releases** by editing `latest-upstream.txt`; it can't be older
+  than op-geth's base, and the pass is skipped when it is the same. The CI job's module cache is keyed on the file, and its list of cached module
+  directories may need the modules a new release adds (see the job's comment).
+
 #20266 is executable when the allowlist is empty; the flip PR deletes the tool, the allowlist and
 the CI job. The op-core differential tests are allowlist entries until then.
 
@@ -666,6 +690,12 @@ release, not merely deleting the `replace`.** A repo that drops the replace whil
 pin stays on a stale geth, which is how these modules drift in the first place; and an old
 monorepo pin will not build against a current geth anyway. Treat "drop the replace" and "bump to
 latest" as one change.
+
+**The monorepo keeps what downstream modules can import building against current upstream.** A
+module without the replace builds the monorepo packages it imports against the latest go-ethereum
+it requires, not against op-geth's base. The ratchet's second pass (§19) type-checks every
+package whose imports reach no fork-API use against a recent upstream release, so a monorepo pin
+from `develop` builds against upstream wherever the imported closure is free of fork uses.
 
 Two qualifications, because that standard is not always satisfiable today.
 
@@ -777,6 +807,6 @@ monorepo has to fix on their behalf.
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | **done** (#21746) |
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | `op-wheel/engine` fork-config reads (§18) | `opparams.ChainConfig` + `eth.HardforkConfig` | open (#23217) |
-| CI ratchet (§19) | required upstream type-check against a shrinking allowlist | **done** |
+| CI ratchet (§19) | required upstream type-check against a shrinking allowlist, plus upstream-clean packages against the latest release | **done** |
 | Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | a few modules unblocked; most wait for the final cutover (the `op-core/types` deposit edge) |
 | Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |

@@ -3,9 +3,12 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
 
 func TestUpstreamVersion(t *testing.T) {
@@ -22,6 +25,34 @@ func TestUpstreamVersion(t *testing.T) {
 	for _, bad := range []string{"v1.17.2", "v1.1017.0", "v1.101702.0-0.20250101000000-abcdef123456"} {
 		_, err := upstreamVersion(bad)
 		require.Error(t, err, bad)
+	}
+}
+
+func TestLatestVersion(t *testing.T) {
+	root, err := opservice.FindMonorepoRoot(".")
+	require.NoError(t, err)
+	base, err := baseVersion(root)
+	require.NoError(t, err)
+	got, err := latestVersion(latestUpstreamPin, base)
+	require.NoError(t, err, "latest-upstream.txt")
+	require.Equal(t, strings.TrimSpace(latestUpstreamPin), got)
+
+	got, err = latestVersion("v1.17.10\n", "v1.17.9")
+	require.NoError(t, err)
+	require.Equal(t, "v1.17.10", got)
+	got, err = latestVersion("v1.17.2", "v1.17.2")
+	require.NoError(t, err)
+	require.Equal(t, "v1.17.2", got)
+	for pin, want := range map[string]string{
+		"v1.16.9":       "older",
+		"1.17.8":        "release version",
+		"v1.18":         "release version",
+		"v1.17.8-rc.1":  "release version",
+		"v1.17.8+meta":  "release version",
+		"v1.17.8 v1.18": "release version",
+	} {
+		_, err := latestVersion(pin, "v1.17.2")
+		require.ErrorContains(t, err, want, pin)
 	}
 }
 
@@ -47,7 +78,9 @@ replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth 
 	retryDelay = 0
 	t.Cleanup(func() { retryDelay = old })
 
-	_, _, _, err := upstreamModFile(t.Context(), root, t.TempDir())
+	version, err := baseVersion(root)
+	require.NoError(t, err)
+	_, _, err = upstreamModFile(t.Context(), root, t.TempDir(), version)
 	require.ErrorContains(t, err, "github.com/ethereum/go-ethereum@v1.17.2: module lookup disabled by GOPROXY=off")
 }
 

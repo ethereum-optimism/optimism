@@ -8,19 +8,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestCollectUses type-checks testdata/toy/mod, which builds against testdata/toy/fork, against
-// testdata/toy/upstream instead.
-func TestCollectUses(t *testing.T) {
+// toyModFile writes a module file for testdata/toy/mod that builds it against the go-ethereum
+// stand-in testdata/toy/<geth>, and returns the toy directory and the file's path.
+func toyModFile(t *testing.T, geth string) (toy, modFile string) {
 	toy, err := filepath.Abs("testdata/toy")
 	require.NoError(t, err)
-	modFile := filepath.Join(t.TempDir(), "go.mod")
+	modFile = filepath.Join(t.TempDir(), "go.mod")
 	require.NoError(t, os.WriteFile(modFile, []byte(
 		"module example.com/toy\n\ngo 1.24\n\nrequire example.com/geth v0.0.0\n\nreplace example.com/geth => "+
-			filepath.Join(toy, "upstream")+"\n"), 0o644))
+			filepath.Join(toy, geth)+"\n"), 0o644))
+	return toy, modFile
+}
 
+func toyUses(t *testing.T) map[Use]bool {
+	toy, modFile := toyModFile(t, "upstream")
 	uses, err := collectUses(t.Context(), filepath.Join(toy, "mod"), "example.com/toy", "example.com/geth",
 		[]string{"-modfile=" + modFile}, []string{"./..."})
 	require.NoError(t, err)
+	return uses
+}
+
+// TestCollectUses type-checks testdata/toy/mod, which builds against testdata/toy/fork, against
+// testdata/toy/upstream instead.
+func TestCollectUses(t *testing.T) {
+	uses := toyUses(t)
 	require.Equal(t, map[Use]bool{
 		// Resolved through the import alias.
 		{"a", "missing go-ethereum/types.NewIsthmusSigner"}: true,

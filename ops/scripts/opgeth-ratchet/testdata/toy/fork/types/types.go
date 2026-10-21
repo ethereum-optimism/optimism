@@ -13,3 +13,5 @@ func Gas(limit int) int { return limit }
 type ChainConfig struct{}
 
 func (*ChainConfig) IsCanyon() bool { return true }
+
+const Holesky = 17000

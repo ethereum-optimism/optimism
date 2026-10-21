@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
 	"io"
 	"os"
@@ -14,12 +15,19 @@ import (
 	"time"
 
 	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/semver"
 )
 
 const (
 	goEthereumPath = "github.com/ethereum/go-ethereum"
 	opGethPath     = "github.com/ethereum-optimism/op-geth"
 )
+
+// latestUpstreamPin is the upstream go-ethereum release that upstream-clean packages must also
+// type-check against. Bump it with upstream releases.
+//
+//go:embed latest-upstream.txt
+var latestUpstreamPin string
 
 var retryDelay = 5 * time.Second
 
@@ -38,73 +46,108 @@ func upstreamVersion(opGeth string) (string, error) {
 	return fmt.Sprintf("v%s.%d.%d", m[1], minor, patch), nil
 }
 
-// upstreamModFile derives from go.mod a module file without the op-geth replace, requiring the
-// upstream go-ethereum version op-geth is based on instead. It writes the file and its go.sum
-// to dir, resolves upstream's dependencies into them, and returns the module path, the upstream
-// version and the file's path.
-// The repository's go.mod and go.sum are left untouched.
-func upstreamModFile(ctx context.Context, root, dir string) (modPath, version, path string, err error) {
+// latestVersion validates pin, the content of latest-upstream.txt, as a go-ethereum release no
+// older than base and returns it.
+func latestVersion(pin, base string) (string, error) {
+	v := strings.TrimSpace(pin)
+	if semver.Canonical(v) != v || semver.Prerelease(v) != "" {
+		return "", fmt.Errorf("latest-upstream.txt: want a go-ethereum release version, got %q", v)
+	}
+	if semver.Compare(v, base) < 0 {
+		return "", fmt.Errorf("latest-upstream.txt: %s is older than op-geth's upstream base %s", v, base)
+	}
+	return v, nil
+}
+
+func parseGoMod(root string) (*modfile.File, error) {
 	goMod := filepath.Join(root, "go.mod")
 	content, err := os.ReadFile(goMod)
 	if err != nil {
-		return "", "", "", err
+		return nil, err
 	}
-	f, err := modfile.Parse(goMod, content, nil)
-	if err != nil {
-		return "", "", "", err
-	}
-	var opGeth, replacedVersion string
+	return modfile.Parse(goMod, content, nil)
+}
+
+// opGethReplace returns the op-geth version that f replaces go-ethereum with, and the
+// go-ethereum version the replace applies to.
+func opGethReplace(f *modfile.File) (opGeth, replaced string, err error) {
 	for _, r := range f.Replace {
 		if r.Old.Path == goEthereumPath && r.New.Path == opGethPath {
-			opGeth, replacedVersion = r.New.Version, r.Old.Version
+			return r.New.Version, r.Old.Version, nil
 		}
 	}
-	if opGeth == "" {
-		return "", "", "", fmt.Errorf("no replace of %s by %s in %s", goEthereumPath, opGethPath, goMod)
+	return "", "", fmt.Errorf("no replace of %s by %s in %s", goEthereumPath, opGethPath, f.Syntax.Name)
+}
+
+// baseVersion returns the upstream go-ethereum version that the op-geth in go.mod is based on.
+func baseVersion(root string) (string, error) {
+	f, err := parseGoMod(root)
+	if err != nil {
+		return "", err
 	}
-	if version, err = upstreamVersion(opGeth); err != nil {
-		return "", "", "", err
+	opGeth, _, err := opGethReplace(f)
+	if err != nil {
+		return "", err
 	}
-	if err := f.DropReplace(goEthereumPath, replacedVersion); err != nil {
-		return "", "", "", err
+	return upstreamVersion(opGeth)
+}
+
+// upstreamModFile derives from go.mod a module file without the op-geth replace, requiring
+// upstream go-ethereum at version instead. It writes the file and its go.sum to dir, resolves
+// upstream's dependencies into them, and returns the module path and the file's path.
+// The repository's go.mod and go.sum are left untouched.
+func upstreamModFile(ctx context.Context, root, dir, version string) (modPath, path string, err error) {
+	f, err := parseGoMod(root)
+	if err != nil {
+		return "", "", err
+	}
+	_, replaced, err := opGethReplace(f)
+	if err != nil {
+		return "", "", err
+	}
+	if err := f.DropReplace(goEthereumPath, replaced); err != nil {
+		return "", "", err
 	}
 	if err := f.AddRequire(goEthereumPath, version); err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 	out, err := f.Format()
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", "", err
+	}
 	path = filepath.Join(dir, "go.mod")
 	if err := os.WriteFile(path, out, 0o644); err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 	sum, err := os.ReadFile(filepath.Join(root, "go.sum"))
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 	if err := os.WriteFile(filepath.Join(dir, "go.sum"), sum, 0o644); err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 	if err := resolve(ctx, root, path, goEthereumPath+"@"+version); err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 	// go mod tidy may upgrade go-ethereum while looking for packages only op-geth provides.
 	resolved, err := os.ReadFile(path)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 	rf, err := modfile.Parse(path, resolved, nil)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 	for _, r := range rf.Require {
 		if r.Mod.Path == goEthereumPath && r.Mod.Version != version {
-			return "", "", "", fmt.Errorf("resolving moved %s from %s to %s", goEthereumPath, version, r.Mod.Version)
+			return "", "", fmt.Errorf("resolving moved %s from %s to %s", goEthereumPath, version, r.Mod.Version)
 		}
 	}
-	return f.Module.Mod.Path, version, path, nil
+	return f.Module.Mod.Path, path, nil
 }
 
 // resolve adds upstream, a go-ethereum module query, to the module file at path and completes

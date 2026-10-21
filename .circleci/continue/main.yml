@@ -1686,7 +1686,7 @@ jobs:
   opgeth-ratchet:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    # Seconds and under 1 GB with a warm build cache; about 2 minutes on 2 cores when cold.
+    # Seconds and about 1 GB with a warm build cache; a few minutes on 2 cores when cold.
     resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
@@ -1697,30 +1697,49 @@ jobs:
       - go-restore-cache:
           namespace: opgeth-ratchet
       # Modules and checksum database tiles the check needs that the shared
-      # module cache lacks: upstream go-ethereum and the dependencies it adds.
-      # go.mod determines its version through the op-geth replace. Other
-      # fetches (tests of dependencies, lookups of op-geth-only packages) don't
-      # affect the result and may fail. To refresh the list, run the check
-      # with an empty module cache and compare what it adds to the shared one.
-      # The fallback restores the upstream modules across go.mod changes that
-      # rarely touch them; an old go-ethereum version then lingers in the cache
-      # until c-go-cache-version is bumped.
+      # module cache lacks: the two upstream go-ethereum versions it checks
+      # against and the dependencies they add or upgrade. go.mod determines the
+      # first through the op-geth replace, latest-upstream.txt the second.
+      # Other fetches (tests of dependencies, lookups of op-geth-only packages)
+      # don't affect the result and may fail. To refresh the list, run the
+      # check with an empty module cache and compare what it adds to the shared
+      # one. The fallback restores the upstream modules across changes that
+      # rarely touch them; old versions then linger in the cache until
+      # c-go-cache-version is bumped.
       - restore_cache:
           name: Restore upstream go-ethereum modules
           keys:
-            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}
+            - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}-{{ checksum "ops/scripts/opgeth-ratchet/latest-upstream.txt" }}
             - go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-
       - run:
-          name: Check op-geth-only API uses against the allowlist
+          name: Check op-geth-only API uses and upstream API drift
           command: |
             just opgeth-ratchet
       - save_cache:
           name: Save upstream go-ethereum modules
-          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}
+          key: go-mod-opgeth-ratchet-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}-{{ checksum "ops/scripts/opgeth-ratchet/latest-upstream.txt" }}
           paths:
             - ~/go/pkg/mod/cache/download/github.com/ethereum/go-ethereum
-            - ~/go/pkg/mod/cache/download/github.com/pion/stun/v2
-            - ~/go/pkg/mod/cache/download/github.com/pion/transport/v3
+            - ~/go/pkg/mod/cache/download/github.com/ethereum/c-kzg-4844
+            - ~/go/pkg/mod/cache/download/github.com/!data!dog/zstd
+            - ~/go/pkg/mod/cache/download/github.com/!radu!berinde
+            - ~/go/pkg/mod/cache/download/github.com/cockroachdb/crlib
+            - ~/go/pkg/mod/cache/download/github.com/cockroachdb/pebble
+            - ~/go/pkg/mod/cache/download/github.com/cockroachdb/swiss
+            - ~/go/pkg/mod/cache/download/github.com/fjl/jsonw
+            - ~/go/pkg/mod/cache/download/github.com/go-logr/logr
+            - ~/go/pkg/mod/cache/download/github.com/golang/snappy
+            - ~/go/pkg/mod/cache/download/github.com/minio/minlz
+            - ~/go/pkg/mod/cache/download/github.com/pion/dtls
+            - ~/go/pkg/mod/cache/download/github.com/pion/stun
+            - ~/go/pkg/mod/cache/download/github.com/pion/transport
+            - ~/go/pkg/mod/cache/download/github.com/stretchr/objx
+            - ~/go/pkg/mod/cache/download/github.com/stretchr/testify
+            - ~/go/pkg/mod/cache/download/go.opentelemetry.io/otel/@v
+            - ~/go/pkg/mod/cache/download/go.opentelemetry.io/otel/metric
+            - ~/go/pkg/mod/cache/download/go.opentelemetry.io/otel/trace
+            - ~/go/pkg/mod/cache/download/go.yaml.in/yaml
+            - ~/go/pkg/mod/cache/download/google.golang.org/protobuf
             - ~/go/pkg/mod/cache/download/sumdb
       - go-save-cache:
           namespace: opgeth-ratchet
