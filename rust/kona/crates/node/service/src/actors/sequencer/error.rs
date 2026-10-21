@@ -7,6 +7,9 @@ use kona_engine::BuildTaskError;
 /// An error produced by the [`crate::SequencerActor`].
 #[derive(Debug, thiserror::Error)]
 pub enum SequencerActorError {
+    /// A payload has not been accepted by the conductor.
+    #[error(transparent)]
+    ConductorCommit(#[from] crate::ConductorError),
     /// An error occurred while building payload attributes.
     #[error(transparent)]
     AttributesBuilder(#[from] PipelineErrorKind),

@@ -29,11 +29,11 @@ pub trait SequencerEngineClient: Debug + Send + Sync {
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<PayloadId>;
 
-    /// Seals and canonicalizes a previously started block.
+    /// Fetches a previously started block without changing forkchoice.
     ///
     /// Takes a `PayloadId` from a previous `start_build_block` call and returns
     /// the finalized execution payload envelope.
-    async fn seal_and_canonicalize_block(
+    async fn seal_block(
         &self,
         payload_id: PayloadId,
         attributes: OpAttributesWithParent,
@@ -113,7 +113,7 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
         })
     }
 
-    async fn seal_and_canonicalize_block(
+    async fn seal_block(
         &self,
         payload_id: PayloadId,
         attributes: OpAttributesWithParent,

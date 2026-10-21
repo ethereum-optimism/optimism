@@ -56,6 +56,8 @@ pub struct SequencerConfig {
     pub sequencer_recovery_mode: bool,
     /// The Url for the conductor RPC endpoint. If Some, enables the conductor service.
     pub conductor_rpc_url: Option<Url>,
+    /// Deadline for each complete conductor RPC call.
+    pub conductor_rpc_timeout: Duration,
     /// The confirmation delay for the sequencer.
     pub l1_conf_delay: u64,
 }
@@ -77,6 +79,7 @@ let sequencer_config = SequencerConfig {
     conductor_rpc_url: Some(            // Optional conductor integration
         Url::parse("http://conductor:8080").unwrap()
     ),
+    conductor_rpc_timeout: Duration::from_secs(1),
     l1_conf_delay: 4,                   // L1 origin confirmation delay
 };
 
@@ -104,9 +107,18 @@ RollupNodeBuilder::new(
 | `sequencer_stopped` | Start sequencer in stopped state | `false` |
 | `sequencer_recovery_mode` | Enable recovery mode for catch-up | `false` |
 | `conductor_rpc_url` | Conductor service endpoint for leader election | `None` |
+| `conductor_rpc_timeout` | Deadline for leader and commit RPCs | One second |
 | `l1_conf_delay` | Confirmation delay for L1 origin selection | `0` |
 
 ## Next Steps
 
 - To run a sequencer from the command line, including the required flags and example configurations, see [run a sequencer node](/node-operators/kona-node/run/sequencer).
 - For the full CLI flag catalogue, see the [Kona node CLI reference](/node-operators/kona-node/configuration).
+
+### Conductor publication ordering
+
+The sequencer fetches a payload without importing it, commits that envelope to the conductor,
+and then canonicalizes and gossips it. Rejection or an ambiguous timeout retains the build job
+for a new `getPayload` attempt after one second. Once accepted, temporary engine failures retain
+the exact envelope. Canonicalization requires `VALID` responses; `SYNCING` does not publish a head.
+Stopping discards uncommitted work and settles already accepted work before returning its head.

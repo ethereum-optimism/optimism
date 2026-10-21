@@ -132,6 +132,13 @@ where
 
         self.update_metrics();
 
+        if let Some(super::actor::InFlightBlock::Committed(block)) = self.in_flight.take() &&
+            let Err(err) = self.canonicalize_and_gossip(&block).await
+        {
+            self.in_flight = Some(super::actor::InFlightBlock::Committed(block));
+            return Err(SequencerAdminAPIError::ErrorAfterSequencerWasStopped(err.to_string()));
+        }
+
         self.engine_client.get_unsafe_head().await
             .map(|h| h.hash())
             .map_err(|e| {
