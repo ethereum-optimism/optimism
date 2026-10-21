@@ -26,6 +26,8 @@ import (
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/lmittmann/w3"
+	w3eth "github.com/lmittmann/w3/module/eth"
 )
 
 func setRespectedGameTypeForRuntime(
@@ -81,6 +83,8 @@ func setRespectedGameTypeForRuntime(
 	require.Equal(rcpt.Status, gethTypes.ReceiptStatusSuccessful, "set respected game type tx did not execute correctly")
 }
 
+var lastUsedOPCMFn = w3.MustNewFunc("lastUsedOPCM()", "address")
+
 // addGameTypesForRuntime uses OPCMv2.upgrade to configure dispute game types.
 // Game types in enabledGameTypes are enabled; the rest are disabled.
 func addGameTypesForRuntime(
@@ -94,9 +98,44 @@ func addGameTypesForRuntime(
 	require := t.Require()
 	require.NotNil(l2Net, "l2 network must exist")
 	require.NotNil(l2Net.deployment, "l2 deployment must exist")
-	require.NotEqual(common.Address{}, l2Net.opcmImpl, "missing OPCM implementation address")
+	addGameTypes(t, keys, enabledGameTypes, l1ChainID, l1EL.UserRPC(), l2Net.ChainID(),
+		l2Net.deployment.SystemConfigProxyAddr(), l2Net.opcmImpl)
+}
 
-	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
+// UpgradeOPChain runs the same OPCMv2.upgrade as WithGameTypeAdded, but from a test after setup, with
+// the OPCM that last upgraded the chain. It lets a test create state before an upgrade and check it after.
+func UpgradeOPChain(
+	t devtest.T,
+	keys devkeys.Keys,
+	l1ChainID eth.ChainID,
+	l1RPC string,
+	l2ChainID eth.ChainID,
+	systemConfig common.Address,
+	enabledGameTypes ...gameTypes.GameType,
+) {
+	rpcClient, err := rpc.DialContext(t.Ctx(), l1RPC)
+	t.Require().NoError(err)
+	defer rpcClient.Close()
+	var opcm common.Address
+	err = w3.NewClient(rpcClient).Call(w3eth.CallFunc(systemConfig, lastUsedOPCMFn).Returns(&opcm))
+	t.Require().NoError(err, "failed to read the last used OPCM")
+	addGameTypes(t, keys, enabledGameTypes, l1ChainID, l1RPC, l2ChainID, systemConfig, opcm)
+}
+
+func addGameTypes(
+	t devtest.T,
+	keys devkeys.Keys,
+	enabledGameTypes []gameTypes.GameType,
+	l1ChainID eth.ChainID,
+	l1RPC string,
+	l2ChainID eth.ChainID,
+	systemConfig common.Address,
+	opcm common.Address,
+) {
+	require := t.Require()
+	require.NotEqual(common.Address{}, opcm, "missing OPCM implementation address")
+
+	rpcClient, err := rpc.DialContext(t.Ctx(), l1RPC)
 	require.NoError(err)
 	defer rpcClient.Close()
 	client := ethclient.NewClient(rpcClient)
@@ -104,7 +143,7 @@ func addGameTypesForRuntime(
 	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
 	// Operator roles are scoped to the OP chain, even though the game contracts use them on L1.
-	chainOps := devkeys.ChainOperatorKeys(l2Net.ChainID().ToBig())
+	chainOps := devkeys.ChainOperatorKeys(l2ChainID.ToBig())
 	proposer, err := keys.Address(chainOps(devkeys.ProposerRole))
 	require.NoError(err, "failed to get proposer address")
 	challenger, err := keys.Address(chainOps(devkeys.ChallengerRole))
@@ -190,9 +229,9 @@ func addGameTypesForRuntime(
 
 	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
 		Prank: l1PAO,
-		Opcm:  l2Net.opcmImpl,
+		Opcm:  opcm,
 		UpgradeInputV2: &embedded.UpgradeInputV2{
-			SystemConfig:       l2Net.deployment.SystemConfigProxyAddr(),
+			SystemConfig:       systemConfig,
 			DisputeGameConfigs: configs,
 			ExtraInstructions:  extraInstructions,
 		},
