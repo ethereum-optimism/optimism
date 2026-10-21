@@ -3,7 +3,7 @@ use kona_node_service::DerivationDelegateConfig;
 use std::path::PathBuf;
 use url::Url;
 
-const DEFAULT_L2_ENGINE_TIMEOUT: u64 = 30_000;
+const DEFAULT_L2_ENGINE_TIMEOUT: u64 = 10_000;
 
 const DEFAULT_L2_TRUST_RPC: bool = true;
 const DEFAULT_L1_TRUST_RPC: bool = true;
@@ -106,5 +106,28 @@ impl DerivationDelegateArgs {
     /// Builds the derivation delegate configuration if an L2 CL URL was provided.
     pub fn config(self) -> Option<DerivationDelegateConfig> {
         self.l2_follow_source.map(|url| DerivationDelegateConfig { l2_cl_url: url })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser)]
+    struct Command {
+        #[command(flatten)]
+        l2: L2ClientArgs,
+    }
+
+    #[test]
+    fn engine_deadline_default_and_aliases_are_milliseconds() {
+        let command = Command::parse_from(["test", "--l2-engine-rpc", "http://127.0.0.1:1"]);
+        assert_eq!(command.l2.l2_engine_timeout, 10_000);
+        for flag in ["--l2-engine-timeout", "--l2.timeout"] {
+            let command =
+                Command::parse_from(["test", "--l2-engine-rpc", "http://127.0.0.1:1", flag, "321"]);
+            assert_eq!(command.l2.l2_engine_timeout, 321);
+        }
     }
 }

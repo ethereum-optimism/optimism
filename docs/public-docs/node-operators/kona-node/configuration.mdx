@@ -25,10 +25,13 @@ For more details on each flag, see the inline help (`kona-node node --help`) or 
 | `--l1-trust-rpc <true/false>` | `KONA_NODE_L1_TRUST_RPC` | Whether to trust the L1 RPC without verification | No | `true` |
 | `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | URL of the L1 beacon API | Yes | - |
 | `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | URL of the engine API endpoint of an L2 execution client | Yes | - |
+| `--l2-engine-timeout <MILLISECONDS>` (alias `--l2.timeout`) | `KONA_NODE_L2_ENGINE_TIMEOUT` | Deadline for each complete L2 RPC response, including Engine API, execution reads and startup capability exchange | No | `10000` |
 | `--l2-trust-rpc <true/false>` | `KONA_NODE_L2_TRUST_RPC` | Whether to trust the L2 RPC without verification | No | `true` |
 | `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | Path to file containing the hex-encoded JWT secret for the execution client | No | - |
 | `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | Path to a custom L2 rollup configuration file | No | - |
 | `--l1-runtime-config-reload-interval <SECONDS>` | `KONA_NODE_L1_RUNTIME_CONFIG_RELOAD_INTERVAL` | Poll interval for reloading runtime config | No | `600` |
+
+The L2 timeout now applies to explicit operator values. Its default is 10 seconds, preserving the engine's previous effective deadline; older CLI help advertised 30 seconds for an unused setting. L1 requests retain a separate 10-second deadline.
 
 ## Global Arguments
 
@@ -95,7 +98,7 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
 | `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
 | `--p2p.sequencer.key <HEX>` | `KONA_NODE_P2P_SEQUENCER_KEY` | Hex-encoded private key that signs gossiped blocks. A sequencer needs this, `--p2p.sequencer.key.path`, or a remote signer | - |
-| `--p2p.sequencer.key.path <PATH>` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH` | Path to a file with the hex-encoded private key that signs gossiped blocks | - |
+| `--p2p.sequencer.key.path <PATH>` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH` | Existing file with the hex-encoded block-signing key; startup fails if it is missing, unreadable or invalid | - |
 | `--p2p.signer.endpoint <URL>` | `KONA_NODE_P2P_SIGNER_ENDPOINT` | Remote op-signer that signs gossiped blocks. Requires `--p2p.signer.address` | - |
 | `--p2p.signer.address <ADDRESS>` | `KONA_NODE_P2P_SIGNER_ADDRESS` | Address of the remote signer's key | - |
 
@@ -163,4 +166,3 @@ in the help menu by running `kona-node node --help`. The only
 overrides currently supported are hardfork timestamps in seconds.
 
 [scr]: https://github.com/ethereum-optimism/superchain-registry/tree/main
-

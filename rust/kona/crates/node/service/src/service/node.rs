@@ -2,7 +2,7 @@
 use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
-    EngineActorRequest, EngineConfig, EngineRpcActor, EngineRpcRequest, JsonrpseeServerLauncher,
+    EngineActorRequest, EngineRpcActor, EngineRpcRequest, JsonrpseeServerLauncher,
     L1OriginSelector, L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig,
     NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
     QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
@@ -13,10 +13,12 @@ use crate::{
 };
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
-use alloy_provider::RootProvider;
+use alloy_provider::{Provider, RootProvider};
+use alloy_transport::{TransportError, TransportErrorKind};
+use backon::{ExponentialBuilder, Retryable};
 use jsonrpsee::RpcModule;
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
-use kona_engine::{Engine, EngineState, OpEngineClient};
+use kona_engine::{Engine, EngineClient, EngineState, OpEngineClient};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_gossip::P2pRpcRequest;
 use kona_interop::DependencySet;
@@ -72,8 +74,10 @@ pub struct RollupNode {
     pub(crate) l2_provider: RootProvider<Optimism>,
     /// Whether to trust the L2 RPC.
     pub(crate) l2_trust_rpc: bool,
-    /// The [`EngineConfig`] for the node.
-    pub(crate) engine_config: EngineConfig,
+    /// The engine wrapper over the node's shared L1/L2 providers and resolved chain rules.
+    pub(crate) engine_client: OpEngineClient<RootProvider, RootProvider<Optimism>>,
+    /// The mode chosen at composition.
+    pub(crate) mode: NodeMode,
     /// The [`RpcBuilder`] for the node.
     pub(crate) rpc_builder: Option<RpcBuilder>,
     /// The P2P [`NetworkConfig`] for the node.
@@ -155,13 +159,13 @@ type ConfiguredRpcActor = RpcActor<JsonrpseeServerLauncher>;
 impl RollupNode {
     /// The mode of operation for the node.
     const fn mode(&self) -> NodeMode {
-        self.engine_config.mode
+        self.mode
     }
 
     /// Creates a network builder for the node whose gossip validation follows
     /// `unsafe_block_signer`.
     fn network_builder(&self, unsafe_block_signer: watch::Receiver<Address>) -> NetworkBuilder {
-        NetworkBuilder::from(self.p2p_config.clone()).with_unsafe_block_signer(unsafe_block_signer)
+        NetworkBuilder::from_config(self.p2p_config.clone(), &self.config, unsafe_block_signer)
     }
 
     /// Returns an rpc builder for the node.
@@ -242,7 +246,7 @@ impl RollupNode {
         let (engine_queue_length_tx, engine_queue_length_rx) = watch::channel(0);
         let engine = Engine::new(engine_state, engine_state_tx, engine_queue_length_tx);
 
-        let engine_client = Arc::new(self.engine_config.clone().build_engine_client());
+        let engine_client = Arc::new(self.engine_client.clone());
 
         // unsafe_head_tx is only meaningful in sequencer mode; validators ignore it.
         let unsafe_head_tx_opt = self.mode().is_sequencer().then_some(unsafe_head_tx);
@@ -496,6 +500,14 @@ impl RollupNode {
     /// next `select!`. Actors may log channel-closed errors while peers are torn down
     /// concurrently; this is expected and not a sign of an unclean exit.
     pub async fn start(&self) -> Result<(), String> {
+        validate_engine_jwt(&self.engine_client, ExponentialBuilder::default()).await?;
+        let initial_signer = unsafe_block_signer_at_l1_head(
+            &self.l1_config.engine_provider,
+            self.config.l1_system_config_address,
+        )
+        .await
+        .map_err(|error| format!("Failed to read initial unsafe block signer: {error}"))?;
+
         // Single umbrella cancellation token owned by the spawn_and_wait! macro.
         let cancellation = CancellationToken::new();
 
@@ -521,7 +533,7 @@ impl RollupNode {
         let (unsafe_head_tx, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
         // The unsafe block signer: the L1 watcher keeps it current from `SystemConfig`, starting
         // from the value read at startup.
-        let (signer_tx, signer_rx) = watch::channel(self.p2p_config.unsafe_block_signer);
+        let (signer_tx, signer_rx) = watch::channel(initial_signer);
         let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel::<Option<BlockInfo>>(None);
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
@@ -605,6 +617,61 @@ impl RollupNode {
     }
 }
 
+/// Reads the initial signer at the returned L1 head's hash, before gossip starts.
+pub async fn unsafe_block_signer_at_l1_head(
+    provider: &RootProvider,
+    system_config: Address,
+) -> Result<Address, TransportError> {
+    let head = provider
+        .get_block_by_number(BlockNumberOrTag::Latest)
+        .await?
+        .ok_or_else(|| TransportErrorKind::custom_str("the L1 RPC returned no head block"))?;
+    kona_providers_alloy::unsafe_block_signer(provider, system_config, head.header.hash).await
+}
+
+#[derive(Debug, thiserror::Error)]
+enum EngineStartupError {
+    #[error(
+        "Engine API rejected the JWT secret; check --l2-engine-jwt-secret/--l2-engine-jwt-encoded"
+    )]
+    JwtRejected,
+    #[error("Failed to exchange capabilities with engine: {0}")]
+    Capabilities(TransportError),
+}
+
+/// Checks the injected Engine API connection. Authentication failures are permanent; other
+/// failures retain the existing bounded startup retry policy.
+async fn validate_engine_jwt(
+    engine: &impl EngineClient,
+    backoff: ExponentialBuilder,
+) -> Result<(), String> {
+    let exchange = || async {
+        let error = match engine.exchange_capabilities(vec![]).await {
+            Ok(_) => return Ok(()),
+            Err(error) => error,
+        };
+        let mut source: Option<&dyn std::error::Error> = Some(&error);
+        while let Some(cause) = source {
+            let message = cause.to_string().to_lowercase();
+            if message.contains("signature invalid") ||
+                (message.contains("jwt") && message.contains("invalid")) ||
+                message.contains("unauthorized") ||
+                message.contains("authentication failed")
+            {
+                return Err(EngineStartupError::JwtRejected);
+            }
+            source = cause.source();
+        }
+        Err(EngineStartupError::Capabilities(error))
+    };
+    exchange
+        .retry(backoff)
+        .when(|error| !matches!(error, EngineStartupError::JwtRejected))
+        .notify(|_, duration| debug!("Retrying engine capability handshake after {duration:?}"))
+        .await
+        .map_err(|error| error.to_string())
+}
+
 /// Registers the admin API namespace on `modules`, but only when `enable_admin` is set.
 ///
 /// The admin API is opt-in via `--rpc.enable-admin`, matching op-node's admin namespace.
@@ -648,5 +715,120 @@ mod tests {
         for method in ["admin_postUnsafePayload", "admin_startSequencer", "admin_stopSequencer"] {
             assert!(enabled.iter().any(|m| m == method), "missing {method}");
         }
+    }
+    fn node_with_providers(
+        l1: &alloy_transport::mock::Asserter,
+        l2: &alloy_transport::mock::Asserter,
+    ) -> (RollupNode, Arc<RollupConfig>) {
+        use crate::{EngineConfig, L1ConfigBuilder, RollupNodeBuilder};
+        use alloy_rpc_client::RpcClient;
+        use alloy_rpc_types_engine::JwtSecret;
+        let mut config =
+            RollupConfig { l2_chain_id: alloy_chains::Chain::from_id(8453), ..Default::default() };
+        config.hardforks.karst_time = Some(123);
+        let config = Arc::new(config);
+        let enr::CombinedKey::Secp256k1(key) = enr::CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let mut network = NetworkConfig::new(
+            kona_disc::LocalNode::new(key, std::net::Ipv4Addr::LOCALHOST.into(), 0, 0),
+            "/ip4/127.0.0.1/tcp/0".parse().unwrap(),
+        );
+        network.gossip_config = kona_gossip::default_config();
+        // These URLs are deliberately unusable: supplying providers must replace every consumer.
+        let node = RollupNodeBuilder::new(
+            config.clone(),
+            L1ConfigBuilder {
+                chain_config: L1ChainConfig::default(),
+                trust_rpc: false,
+                beacon: "http://127.0.0.1:1".parse().unwrap(),
+                rpc_url: "http://127.0.0.1:1".parse().unwrap(),
+                slot_duration_override: Some(12),
+            },
+            false,
+            EngineConfig {
+                l2_url: "http://127.0.0.1:1".parse().unwrap(),
+                l2_jwt_secret: JwtSecret::random(),
+                timeout: Duration::from_millis(321),
+                mode: NodeMode::Validator,
+            },
+            network,
+            None,
+        )
+        .build_with_providers(
+            RootProvider::new(RpcClient::mocked(l1.clone())),
+            RootProvider::<Optimism>::new(RpcClient::mocked(l2.clone())),
+        );
+        (node, config)
+    }
+
+    #[tokio::test]
+    async fn production_wiring_shares_rules_and_injected_clients() {
+        use alloy_primitives::{B256, U256};
+        use alloy_transport::mock::Asserter;
+        let l1 = Asserter::new();
+        let l2 = Asserter::new();
+        let (node, config) = node_with_providers(&l1, &l2);
+        assert!(Arc::ptr_eq(&node.config, &config));
+        assert!(std::ptr::eq(node.engine_client.cfg(), config.as_ref()));
+        assert_eq!(node.engine_client.cfg().hardforks.karst_time, Some(123));
+        assert!(!node.l1_config.trust_rpc);
+        assert!(!node.l2_trust_rpc);
+
+        l2.push_success(&Vec::<String>::new());
+        validate_engine_jwt(&node.engine_client, ExponentialBuilder::default()).await.unwrap();
+        l2.push_success(&serde_json::Value::Null);
+        assert!(
+            node.engine_client.get_l2_block(alloy_eips::BlockId::latest()).await.unwrap().is_none()
+        );
+        l2.push_success(&"0x11");
+        assert_eq!(node.l2_provider.get_block_number().await.unwrap(), 17);
+        l1.push_success(&serde_json::Value::Null);
+        assert!(
+            node.engine_client.get_l1_block(alloy_eips::BlockId::latest()).await.unwrap().is_none()
+        );
+        l1.push_success(&"0x13");
+        assert_eq!(node.l1_config.engine_provider.get_block_number().await.unwrap(), 19);
+
+        let mut block = alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default();
+        block.header.hash = B256::repeat_byte(42);
+        l1.push_success(&block);
+        let signer = Address::repeat_byte(23);
+        l1.push_success(&U256::from_be_bytes(signer.into_word().0));
+        assert_eq!(
+            unsafe_block_signer_at_l1_head(
+                &node.l1_config.engine_provider,
+                Address::repeat_byte(8)
+            )
+            .await
+            .unwrap(),
+            signer
+        );
+        assert!(l1.read_q().is_empty());
+        assert!(l2.read_q().is_empty());
+        let network = node.network_builder(watch::channel(signer).1).build().unwrap();
+        assert_eq!(network.discovery.chain_id, 8453);
+        assert_eq!(network.gossip.handler.rollup_config.hardforks.karst_time, Some(123));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn capability_rejection_is_permanent_but_dependency_failure_retries() {
+        use alloy_transport::mock::Asserter;
+        let l1 = Asserter::new();
+        let l2 = Asserter::new();
+        let (node, _) = node_with_providers(&l1, &l2);
+        l2.push_failure_msg("signature invalid");
+        l2.push_success(&Vec::<String>::new());
+        let backoff = ExponentialBuilder::default()
+            .with_min_delay(Duration::from_millis(1))
+            .with_max_times(2);
+        let error = validate_engine_jwt(&node.engine_client, backoff).await.unwrap_err();
+        assert!(error.contains("JWT"));
+        assert_eq!(l2.read_q().len(), 1, "authentication failure must not retry");
+        let _ = l2.pop_response();
+        l2.push_failure_msg("temporarily unavailable");
+        l2.push_success(&Vec::<String>::new());
+        validate_engine_jwt(&node.engine_client, backoff).await.unwrap();
+        assert!(l2.read_q().is_empty());
     }
 }

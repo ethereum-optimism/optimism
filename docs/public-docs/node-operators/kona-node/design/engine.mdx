@@ -248,15 +248,13 @@ pub enum EngineQueries {
 ### Basic Engine Setup
 
 ```rust
-// Create an engine client. The `EngineClient` trait is implemented by
-// `OpEngineClient`, constructed through the `EngineClientBuilder`.
-let client = EngineClientBuilder {
-    l2: l2_engine_url,
-    l2_jwt: jwt_secret,
-    l1_rpc: l1_rpc_url,
-    cfg: rollup_config,
-}
-.build();
+use kona_engine::OpEngineClient;
+use std::time::Duration;
+
+// Use the same bounded providers and resolved Arc<RollupConfig> as the rest of the node.
+let l1 = kona_engine::l1_provider(l1_rpc_url, Duration::from_secs(10));
+let l2 = kona_engine::l2_provider(l2_engine_url, jwt_secret, engine_timeout);
+let client = OpEngineClient::new(l1, l2, rollup_config);
 
 // Initialize engine state
 let state = EngineState::default();

@@ -13,7 +13,7 @@ mod mode;
 pub use mode::NodeMode;
 
 mod node;
-pub use node::{L1Config, RollupNode};
+pub use node::{L1Config, RollupNode, unsafe_block_signer_at_l1_head};
 
 pub(crate) mod util;
 pub(crate) use util::{shutdown_signal, spawn_and_wait};
