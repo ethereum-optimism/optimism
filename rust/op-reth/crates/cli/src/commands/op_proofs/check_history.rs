@@ -7,17 +7,18 @@ use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
 use reth_optimism_node::args::ProofsHistoryStorageArgs;
-use reth_optimism_trie::db::{HISTORY_LAYOUT_VERSION, MdbxProofsStorage};
+use reth_optimism_trie::db::{HISTORY_LAYOUT_VERSION, HistoryLayoutVerdict, MdbxProofsStorage};
 use std::sync::Arc;
 use tracing::info;
 
 /// Reports the proofs-history layout version and any history shards with stale keys.
 ///
 /// A stale key makes `eth_getProof` silently serve chain-tip values for a band of historical
-/// blocks. Opening the storage with this release migrates it and re-keys those shards; this
-/// command inspects the storage without migrating it, so it can be run before an upgrade. It
-/// exits with an error when it finds damage. Run it with the node stopped: the scan holds the
-/// storage's write lock.
+/// blocks. Starting this release on the storage migrates it once and re-keys those shards. This
+/// command inspects the storage without migrating it, so it can run before an upgrade, and exits
+/// with an error when it finds damage. `--repair` re-keys the shards regardless of the recorded
+/// version, which repairs a storage damaged again by an older release. Run it with the node
+/// stopped.
 #[derive(Debug, Parser)]
 pub struct CheckHistoryCommand<C: ChainSpecParser> {
     #[command(flatten)]
@@ -26,6 +27,10 @@ pub struct CheckHistoryCommand<C: ChainSpecParser> {
     /// Shared proofs-history storage flags (storage path + version).
     #[command(flatten)]
     pub history: ProofsHistoryStorageArgs,
+
+    /// Re-key stale shards instead of only reporting them.
+    #[arg(long)]
+    pub repair: bool,
 }
 
 impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> CheckHistoryCommand<C> {
@@ -42,9 +47,13 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> CheckHistoryCommand<C> {
         let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
         info!(target: "reth::cli", "Checking OP proofs history shard keys at: {:?}", storage_path);
 
-        let storage = MdbxProofsStorage::open_unmigrated(&storage_path)
-            .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorage: {e}"))?;
-        let report = storage.check_history_layout()?;
+        if self.repair {
+            let rekeyed = MdbxProofsStorage::repair_history_layout_at(&storage_path)?;
+            info!(target: "reth::cli", total = rekeyed.total(), "Re-keyed proofs history shards");
+            return Ok(());
+        }
+
+        let report = MdbxProofsStorage::check_history_layout_at(&storage_path)?;
         let misplaced = report.misplaced;
         info!(
             target: "reth::cli",
@@ -58,17 +67,24 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> CheckHistoryCommand<C> {
             "Checked proofs history layout"
         );
 
-        match (misplaced.total(), report.version < HISTORY_LAYOUT_VERSION) {
-            (0, _) => Ok(()),
-            (total, true) => Err(eyre::eyre!(
+        let total = misplaced.total();
+        match report.verdict() {
+            HistoryLayoutVerdict::Clean => Ok(()),
+            HistoryLayoutVerdict::NeedsMigration => Err(eyre::eyre!(
                 "{total} history shards have stale keys; starting this release on the storage \
                  migrates it and re-keys them"
             )),
-            (total, false) => Err(eyre::eyre!(
+            HistoryLayoutVerdict::DamagedAfterMigration => Err(eyre::eyre!(
                 "{total} history shards have stale keys although the storage is already at layout \
                  version {}, so it was damaged after migrating, most likely by an older release; \
-                 rebuild the proofs storage with `op-reth proofs init`",
+                 rerun with --repair",
                 report.version
+            )),
+            HistoryLayoutVerdict::NewerLayout => Err(eyre::eyre!(
+                "the storage records history layout version {}, newer than the {} this release \
+                 supports; check it with a newer op-reth",
+                report.version,
+                HISTORY_LAYOUT_VERSION
             )),
         }
     }

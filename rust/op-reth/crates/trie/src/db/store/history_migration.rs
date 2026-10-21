@@ -1,4 +1,4 @@
-//! One-time migration of the history-index layout, run when the store is opened.
+//! Migration to history layout version 1: re-key stale history shards.
 //!
 //! Reads resolve a historical value by seeking the first shard keyed above the target block
 //! (`find_source`), and appends only ever extend the shard keyed `u64::MAX`. Both rely on every
@@ -10,29 +10,30 @@
 //! Unwinds before ethereum-optimism/optimism#23334 broke this: they trimmed the top of a shard but
 //! kept its old key, and could delete the sentinel. A stale key shadows the later shards, so reads
 //! in the band below it silently resolve to current state (#22501). Fixing the unwind does not
-//! repair shards it already damaged, so layout version 1 re-keys them. Only shard keys change: the
+//! repair shards it already damaged, so this migration re-keys them. Only shard keys change: the
 //! block lists, the changesets and current state are already correct.
 //!
-//! Re-keying cannot recover entries that were already lost: after a deep unwind onto a different
-//! chain, a later rechunk can overwrite a stale shard outright. History whose shards are out of
-//! block order is refused rather than re-keyed, and the store must be rebuilt with
-//! `op-reth proofs init`.
+//! Limits of the repair:
 //!
-//! The version only certifies the layout at the time of migration. An older release opened later
-//! ignores it, and its unwind can damage the store again without lowering the version;
-//! `op-reth proofs check-history` scans the shards regardless of the version.
+//! - Re-keying cannot recover entries that are already gone. After a deep unwind onto a different
+//!   chain, a later rechunk can overwrite a stale shard outright; the history then looks well
+//!   formed but is missing entries. Rebuild the store if that may have happened.
+//! - History whose shards are out of block order is refused rather than re-keyed.
+//! - The version only certifies the layout at the time of migration. A release without this
+//!   migration ignores the version, and its unwind can damage the store again; `op-reth proofs
+//!   check-history` scans the shards regardless of the version, and `--repair` re-keys them again.
 //!
 //! This module is temporary. Once every supported upgrade path has passed layout version 1, delete
-//! it together with `op-reth proofs check-history`, and make opening a store below version 1 fail
-//! with a rebuild instruction, as `drop_legacy_v1_tables` does for v1 stores.
+//! it together with `op-reth proofs check-history`, and make `ensure_history_layout` refuse a store
+//! below version 1 with a rebuild instruction, as `drop_legacy_v1_tables` does for v1 stores.
 
-use super::{MdbxProofsProvider, MdbxProofsStorage};
+use super::{MdbxProofsProvider, MdbxProofsStorage, layout::HISTORY_LAYOUT_VERSION};
 use crate::{
     OpProofsStorageError, OpProofsStorageResult,
     db::models::{
         AccountTrieShardedKey, HashedAccountShardedKey, HashedStorageShardedKey,
-        StorageTrieShardedKey, StoreMetaKey, V2AccountsTrieHistory, V2HashedAccountsHistory,
-        V2HashedStoragesHistory, V2StoragesTrieHistory, V2StoreMeta,
+        StorageTrieShardedKey, V2AccountsTrieHistory, V2HashedAccountsHistory,
+        V2HashedStoragesHistory, V2StoragesTrieHistory,
     },
 };
 use reth_db::{
@@ -42,11 +43,8 @@ use reth_db::{
     table::Table,
     transaction::{DbTx, DbTxMut},
 };
-use std::cmp::Ordering;
+use std::path::Path;
 use tracing::info;
-
-/// History-index layout version this release writes and expects.
-pub const HISTORY_LAYOUT_VERSION: u64 = 1;
 
 /// Number of history shards whose key violates the layout, per history table.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -68,7 +66,7 @@ impl MisplacedShardCounts {
     }
 }
 
-/// What [`MdbxProofsStorage::check_history_layout`] found.
+/// What [`MdbxProofsStorage::check_history_layout_at`] found.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HistoryLayoutReport {
     /// Layout version recorded in the store.
@@ -77,69 +75,82 @@ pub struct HistoryLayoutReport {
     pub misplaced: MisplacedShardCounts,
 }
 
+/// What a [`HistoryLayoutReport`] means for the operator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HistoryLayoutVerdict {
+    /// No misplaced shards.
+    Clean,
+    /// Misplaced shards in a store below the current version; starting this release on the store
+    /// re-keys them.
+    NeedsMigration,
+    /// Misplaced shards in a store already at the current version: damaged after migrating, most
+    /// likely by an older release.
+    DamagedAfterMigration,
+    /// The store records a layout newer than this release supports.
+    NewerLayout,
+}
+
+impl HistoryLayoutReport {
+    /// Classifies the report.
+    pub const fn verdict(&self) -> HistoryLayoutVerdict {
+        match self {
+            report if report.version > HISTORY_LAYOUT_VERSION => HistoryLayoutVerdict::NewerLayout,
+            report if report.misplaced.total() == 0 => HistoryLayoutVerdict::Clean,
+            report if report.version < HISTORY_LAYOUT_VERSION => {
+                HistoryLayoutVerdict::NeedsMigration
+            }
+            _ => HistoryLayoutVerdict::DamagedAfterMigration,
+        }
+    }
+}
+
 impl MdbxProofsStorage {
-    /// Reports the recorded layout version and every misplaced shard, without changing anything.
+    /// Reports the recorded layout version and every misplaced shard of the store at `path`,
+    /// without migrating it.
     ///
     /// Scans in a write transaction that is dropped uncommitted: a full scan of a production store
     /// can outlast MDBX's read-transaction timeout, which write transactions are not subject to.
-    pub fn check_history_layout(&self) -> OpProofsStorageResult<HistoryLayoutReport> {
-        let provider = MdbxProofsProvider::new(self.env.tx_mut()?);
+    /// Opening still creates tables this release adds and drops empty legacy v1 tables.
+    pub fn check_history_layout_at(path: &Path) -> OpProofsStorageResult<HistoryLayoutReport> {
+        let storage = Self::open_existing(path)?;
+        let provider = MdbxProofsProvider::new(storage.env.tx_mut()?);
         Ok(HistoryLayoutReport {
             version: provider.history_layout_version()?,
-            misplaced: MisplacedShardCounts {
-                account_trie: provider.misplaced_account_trie_shards()?.len(),
-                storage_trie: provider.misplaced_storage_trie_shards()?.len(),
-                hashed_accounts: provider.misplaced_hashed_account_shards()?.len(),
-                hashed_storages: provider.misplaced_hashed_storage_shards()?.len(),
-            },
+            misplaced: provider.count_misplaced_shards().map_err(|e| e.at(path))?,
         })
     }
 
-    /// Migrates a store below [`HISTORY_LAYOUT_VERSION`] by re-keying its misplaced shards and
-    /// recording the new version, in one write transaction. Returns the re-keyed shards, or `None`
-    /// when the store was already current.
-    ///
-    /// Fails without changing anything if the history cannot be re-keyed, or if the store records
-    /// a newer layout than this release knows.
+    /// Re-keys the misplaced shards of the store at `path` whatever its recorded version, and
+    /// records the current version. Repairs a store damaged after migrating, such as by an older
+    /// release.
+    pub fn repair_history_layout_at(path: &Path) -> OpProofsStorageResult<MisplacedShardCounts> {
+        let storage = Self::open_existing(path)?;
+        let found = MdbxProofsProvider::new(storage.env.tx()?).history_layout_version()?;
+        if found > HISTORY_LAYOUT_VERSION {
+            return Err(OpProofsStorageError::NewerHistoryLayout {
+                found,
+                supported: HISTORY_LAYOUT_VERSION,
+                path: path.to_path_buf(),
+            });
+        }
+        storage.migrate_history_layout(path)
+    }
+
+    /// Re-keys every misplaced shard and records [`HISTORY_LAYOUT_VERSION`], in one write
+    /// transaction. Fails without changing anything if the history cannot be re-keyed.
     pub(super) fn migrate_history_layout(
         &self,
-    ) -> OpProofsStorageResult<Option<MisplacedShardCounts>> {
+        path: &Path,
+    ) -> OpProofsStorageResult<MisplacedShardCounts> {
         let provider = MdbxProofsProvider::new(self.env.tx_mut()?);
-        let version = provider.history_layout_version()?;
-        match version.cmp(&HISTORY_LAYOUT_VERSION) {
-            Ordering::Equal => return Ok(None),
-            Ordering::Greater => {
-                return Err(DatabaseError::Other(format!(
-                    "proofs storage has history layout version {version}, but this release only \
-                     knows up to {HISTORY_LAYOUT_VERSION}; upgrade op-reth or rebuild the proofs \
-                     storage with `op-reth proofs init`"
-                ))
-                .into());
-            }
-            Ordering::Less => {}
-        }
-
         info!(
             target: "trie::db",
-            from = version,
+            from = provider.history_layout_version()?,
             to = HISTORY_LAYOUT_VERSION,
             "Migrating proofs history layout; this scans every history table once"
         );
-        let rekeyed = MisplacedShardCounts {
-            account_trie: provider
-                .rekey_shards::<V2AccountsTrieHistory>(provider.misplaced_account_trie_shards()?)?,
-            storage_trie: provider
-                .rekey_shards::<V2StoragesTrieHistory>(provider.misplaced_storage_trie_shards()?)?,
-            hashed_accounts: provider.rekey_shards::<V2HashedAccountsHistory>(
-                provider.misplaced_hashed_account_shards()?,
-            )?,
-            hashed_storages: provider.rekey_shards::<V2HashedStoragesHistory>(
-                provider.misplaced_hashed_storage_shards()?,
-            )?,
-        };
-        provider
-            .tx
-            .put::<V2StoreMeta>(StoreMetaKey::HistoryLayoutVersion, HISTORY_LAYOUT_VERSION)?;
+        let rekeyed = provider.rekey_misplaced_shards().map_err(|e| e.at(path))?;
+        provider.set_history_layout_version(HISTORY_LAYOUT_VERSION)?;
         provider.tx.commit()?;
 
         info!(
@@ -152,19 +163,72 @@ impl MdbxProofsStorage {
             total = rekeyed.total(),
             "Migrated proofs history layout"
         );
-        Ok(Some(rekeyed))
+        Ok(rekeyed)
+    }
+
+    /// Opens the store at `path`, refusing to create one: a mistyped path must not pass a check.
+    fn open_existing(path: &Path) -> OpProofsStorageResult<Self> {
+        if !path.join("mdbx.dat").is_file() {
+            return Err(OpProofsStorageError::MissingProofsDatabase { path: path.to_path_buf() });
+        }
+        Self::open_env(path)
     }
 }
 
+/// Error from scanning or re-keying a history table, before the store's path is attached.
+#[derive(Debug)]
+enum ScanError {
+    /// Damage that re-keying cannot repair.
+    Unrepairable {
+        table: &'static str,
+        reason: &'static str,
+    },
+    Storage(OpProofsStorageError),
+}
+
+impl ScanError {
+    fn at(self, path: &Path) -> OpProofsStorageError {
+        match self {
+            Self::Unrepairable { table, reason } => OpProofsStorageError::UnrepairableHistory {
+                table,
+                reason,
+                path: path.to_path_buf(),
+            },
+            Self::Storage(err) => err,
+        }
+    }
+}
+
+impl From<DatabaseError> for ScanError {
+    fn from(err: DatabaseError) -> Self {
+        Self::Storage(err.into())
+    }
+}
+
+const fn unrepairable<T: Table>(reason: &'static str) -> ScanError {
+    ScanError::Unrepairable { table: T::NAME, reason }
+}
+
+/// A history shard to move from a misplaced key to the key the layout requires.
+#[derive(Debug)]
+struct ShardMove<K> {
+    from: K,
+    to: K,
+}
+
 impl<TX: DbTx> MdbxProofsProvider<TX> {
-    /// Layout version recorded in the store; a store that predates the version records none.
-    fn history_layout_version(&self) -> OpProofsStorageResult<u64> {
-        Ok(self.tx.get::<V2StoreMeta>(StoreMetaKey::HistoryLayoutVersion)?.unwrap_or(0))
+    fn count_misplaced_shards(&self) -> Result<MisplacedShardCounts, ScanError> {
+        Ok(MisplacedShardCounts {
+            account_trie: self.misplaced_account_trie_shards()?.len(),
+            storage_trie: self.misplaced_storage_trie_shards()?.len(),
+            hashed_accounts: self.misplaced_hashed_account_shards()?.len(),
+            hashed_storages: self.misplaced_hashed_storage_shards()?.len(),
+        })
     }
 
     fn misplaced_account_trie_shards(
         &self,
-    ) -> OpProofsStorageResult<Vec<ShardMove<AccountTrieShardedKey>>> {
+    ) -> Result<Vec<ShardMove<AccountTrieShardedKey>>, ScanError> {
         self.misplaced_shards::<V2AccountsTrieHistory>(
             |a, b| a.key == b.key,
             |key| key.highest_block_number,
@@ -174,7 +238,7 @@ impl<TX: DbTx> MdbxProofsProvider<TX> {
 
     fn misplaced_storage_trie_shards(
         &self,
-    ) -> OpProofsStorageResult<Vec<ShardMove<StorageTrieShardedKey>>> {
+    ) -> Result<Vec<ShardMove<StorageTrieShardedKey>>, ScanError> {
         self.misplaced_shards::<V2StoragesTrieHistory>(
             |a, b| a.hashed_address == b.hashed_address && a.key == b.key,
             |key| key.highest_block_number,
@@ -184,7 +248,7 @@ impl<TX: DbTx> MdbxProofsProvider<TX> {
 
     fn misplaced_hashed_account_shards(
         &self,
-    ) -> OpProofsStorageResult<Vec<ShardMove<HashedAccountShardedKey>>> {
+    ) -> Result<Vec<ShardMove<HashedAccountShardedKey>>, ScanError> {
         self.misplaced_shards::<V2HashedAccountsHistory>(
             |a, b| a.0.key == b.0.key,
             |key| key.0.highest_block_number,
@@ -194,7 +258,7 @@ impl<TX: DbTx> MdbxProofsProvider<TX> {
 
     fn misplaced_hashed_storage_shards(
         &self,
-    ) -> OpProofsStorageResult<Vec<ShardMove<HashedStorageShardedKey>>> {
+    ) -> Result<Vec<ShardMove<HashedStorageShardedKey>>, ScanError> {
         self.misplaced_shards::<V2HashedStoragesHistory>(
             |a, b| a.hashed_address == b.hashed_address && a.sharded_key.key == b.sharded_key.key,
             |key| key.sharded_key.highest_block_number,
@@ -216,7 +280,7 @@ impl<TX: DbTx> MdbxProofsProvider<TX> {
         same_logical_key: impl Fn(&T::Key, &T::Key) -> bool,
         highest_block: impl Fn(&T::Key) -> u64,
         with_highest_block: impl Fn(&T::Key, u64) -> T::Key,
-    ) -> OpProofsStorageResult<Vec<ShardMove<T::Key>>>
+    ) -> Result<Vec<ShardMove<T::Key>>, ScanError>
     where
         T: Table<Value = BlockNumberList>,
     {
@@ -247,32 +311,27 @@ impl<TX: DbTx> MdbxProofsProvider<TX> {
     }
 }
 
-/// A history shard to move from a misplaced key to the key the layout requires.
-#[derive(Debug)]
-struct ShardMove<K> {
-    from: K,
-    to: K,
-}
-
-/// Error for history damage that re-keying cannot repair. It is raised before the migration
-/// transaction commits, so the store is left unchanged.
-fn unrepairable<T: Table>(reason: &str) -> OpProofsStorageError {
-    DatabaseError::Other(format!(
-        "cannot migrate {}: {reason}; nothing was changed. Rebuild the proofs storage with \
-         `op-reth proofs init`",
-        T::NAME
-    ))
-    .into()
-}
-
 impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
+    fn rekey_misplaced_shards(&self) -> Result<MisplacedShardCounts, ScanError> {
+        Ok(MisplacedShardCounts {
+            account_trie: self
+                .rekey_shards::<V2AccountsTrieHistory>(self.misplaced_account_trie_shards()?)?,
+            storage_trie: self
+                .rekey_shards::<V2StoragesTrieHistory>(self.misplaced_storage_trie_shards()?)?,
+            hashed_accounts: self
+                .rekey_shards::<V2HashedAccountsHistory>(self.misplaced_hashed_account_shards()?)?,
+            hashed_storages: self
+                .rekey_shards::<V2HashedStoragesHistory>(self.misplaced_hashed_storage_shards()?)?,
+        })
+    }
+
     /// Moves each shard from its current key to its expected key.
     ///
     /// `moves` must be in table key order. A shard's expected key can be another misplaced
     /// shard's current key (two unwinds can leave a shard under a stale key equal to the largest
     /// block of the shard after it); key order frees the stale key before that shard moves onto
     /// it.
-    fn rekey_shards<T>(&self, moves: Vec<ShardMove<T::Key>>) -> OpProofsStorageResult<usize>
+    fn rekey_shards<T>(&self, moves: Vec<ShardMove<T::Key>>) -> Result<usize, ScanError>
     where
         T: Table<Value = BlockNumberList>,
     {
@@ -325,17 +384,18 @@ mod tests {
         (dir, storage)
     }
 
-    /// Closes `storage` and opens it again through [`MdbxProofsStorage::new`].
-    fn reopen(
-        dir: &TempDir,
-        storage: MdbxProofsStorage,
-    ) -> OpProofsStorageResult<MdbxProofsStorage> {
-        drop(storage);
+    /// Opens the store at `dir` the way the node does, migrating it.
+    fn open(dir: &TempDir) -> OpProofsStorageResult<MdbxProofsStorage> {
         MdbxProofsStorage::new(dir.path())
     }
 
-    fn reopen_unmigrated(dir: &TempDir) -> MdbxProofsStorage {
-        MdbxProofsStorage::open_unmigrated(dir.path()).expect("open unmigrated")
+    /// Opens the store at `dir` without checking its layout.
+    fn open_raw(dir: &TempDir) -> MdbxProofsStorage {
+        MdbxProofsStorage::open_env(dir.path()).expect("open env")
+    }
+
+    fn check(dir: &TempDir) -> HistoryLayoutReport {
+        MdbxProofsStorage::check_history_layout_at(dir.path()).expect("check")
     }
 
     fn store_blocks(storage: &MdbxProofsStorage, blocks: RangeInclusive<u64>) {
@@ -365,11 +425,17 @@ mod tests {
     fn set_version(storage: &MdbxProofsStorage, version: u64) {
         let tx = storage.env.tx_mut().expect("rw tx");
         if version == 0 {
-            tx.delete::<V2StoreMeta>(StoreMetaKey::HistoryLayoutVersion, None).expect("delete");
+            tx.delete::<crate::db::models::V2StoreMeta>(
+                crate::db::models::StoreMetaKey::HistoryLayoutVersion,
+                None,
+            )
+            .expect("delete version");
+            tx.commit().expect("commit version");
         } else {
-            tx.put::<V2StoreMeta>(StoreMetaKey::HistoryLayoutVersion, version).expect("put");
+            let provider = MdbxProofsProvider::new(tx);
+            provider.set_history_layout_version(version).expect("set version");
+            provider.tx.commit().expect("commit version");
         }
-        tx.commit().expect("commit version");
     }
 
     fn version(storage: &MdbxProofsStorage) -> u64 {
@@ -435,131 +501,6 @@ mod tests {
         MisplacedShardCounts { hashed_accounts: count, ..Default::default() }
     }
 
-    #[test]
-    fn a_new_store_is_created_at_the_current_layout() {
-        let dir = TempDir::new().expect("tmpdir");
-        let storage = MdbxProofsStorage::new(dir.path()).expect("open storage");
-        assert_eq!(version(&storage), HISTORY_LAYOUT_VERSION);
-    }
-
-    #[test]
-    fn migration_leaves_well_formed_history_unchanged() {
-        let (_dir, storage) = setup(1..=4_100);
-        let before = shards(&storage);
-        assert_eq!(
-            before,
-            vec![(2_000, 1, 2_000), (4_000, 2_001, 4_000), (u64::MAX, 4_001, 4_100)]
-        );
-        set_version(&storage, 0);
-
-        assert_eq!(
-            storage.migrate_history_layout().unwrap(),
-            Some(MisplacedShardCounts::default())
-        );
-        assert_eq!(shards(&storage), before);
-        assert_eq!(version(&storage), HISTORY_LAYOUT_VERSION);
-    }
-
-    // The layout left by unwinding to 1801 and refilling to 2100 before #23334.
-    #[test]
-    fn opening_an_old_store_restores_reads_shadowed_by_a_stale_shard_key() {
-        let (dir, storage) = setup(1..=2_100);
-        set_shards(&storage, &[(2_000, 1..=1_800), (u64::MAX, 1_801..=2_100)]);
-        set_version(&storage, 0);
-        assert_eq!(wrong_reads(&storage, 1..=2_100), (1_800..=1_999).collect::<Vec<_>>());
-
-        assert_eq!(
-            storage.check_history_layout().unwrap(),
-            HistoryLayoutReport { version: 0, misplaced: hashed_accounts(1) }
-        );
-        assert_eq!(
-            shards(&storage),
-            vec![(2_000, 1, 1_800), (u64::MAX, 1_801, 2_100)],
-            "check must not modify the store"
-        );
-
-        let storage = reopen(&dir, storage).expect("migrate on open");
-        assert_eq!(shards(&storage), vec![(1_800, 1, 1_800), (u64::MAX, 1_801, 2_100)]);
-        assert_eq!(wrong_reads(&storage, 1..=2_100), Vec::<u64>::new());
-        assert_eq!(
-            storage.check_history_layout().unwrap(),
-            HistoryLayoutReport { version: HISTORY_LAYOUT_VERSION, misplaced: Default::default() }
-        );
-
-        store_blocks(&storage, 2_101..=4_500);
-        assert_eq!(wrong_reads(&storage, 1..=4_500), Vec::<u64>::new());
-    }
-
-    #[test]
-    fn opening_unmigrated_leaves_an_old_store_untouched() {
-        let (dir, storage) = setup(1..=2_100);
-        set_shards(&storage, &[(2_000, 1..=1_800), (u64::MAX, 1_801..=2_100)]);
-        set_version(&storage, 0);
-        drop(storage);
-
-        let storage = reopen_unmigrated(&dir);
-        assert_eq!(version(&storage), 0);
-        assert_eq!(shards(&storage), vec![(2_000, 1, 1_800), (u64::MAX, 1_801, 2_100)]);
-    }
-
-    // A release without this migration ignores the version, so its unwind can damage a store that
-    // is already marked current. The migration does not run again, but the check still sees it.
-    #[test]
-    fn a_current_store_is_not_rescanned_but_check_reports_later_damage() {
-        let (dir, storage) = setup(1..=2_100);
-        set_shards(&storage, &[(2_000, 1..=1_800), (u64::MAX, 1_801..=2_100)]);
-
-        let storage = reopen(&dir, storage).expect("open current store");
-        assert_eq!(shards(&storage), vec![(2_000, 1, 1_800), (u64::MAX, 1_801, 2_100)]);
-        assert_eq!(
-            storage.check_history_layout().unwrap(),
-            HistoryLayoutReport { version: HISTORY_LAYOUT_VERSION, misplaced: hashed_accounts(1) }
-        );
-    }
-
-    #[test]
-    fn opening_a_store_from_a_newer_layout_is_refused() {
-        let (dir, storage) = setup(1..=1);
-        set_version(&storage, HISTORY_LAYOUT_VERSION + 1);
-
-        let err = reopen(&dir, storage).unwrap_err().to_string();
-        assert!(err.contains("only knows up to"), "unexpected error: {err}");
-    }
-
-    // The layout left by unwinding to 1801 before #23334, before any refill: the sentinel is gone.
-    #[test]
-    fn migration_restores_a_missing_sentinel() {
-        let (_dir, storage) = setup(1..=1_800);
-        set_shards(&storage, &[(2_000, 1..=1_800)]);
-        set_version(&storage, 0);
-
-        assert_eq!(storage.migrate_history_layout().unwrap(), Some(hashed_accounts(1)));
-        assert_eq!(shards(&storage), vec![(u64::MAX, 1, 1_800)]);
-
-        // Without the sentinel these appends would start a new last shard behind the stale one.
-        store_blocks(&storage, 1_801..=2_100);
-        assert_eq!(shards(&storage), vec![(2_000, 1, 2_000), (u64::MAX, 2_001, 2_100)]);
-        assert_eq!(wrong_reads(&storage, 1..=2_100), Vec::<u64>::new());
-    }
-
-    // Key order disagrees with block order (a deep unwind onto a different chain): re-keying by
-    // position would move the oldest shard to the sentinel, so the store must not open.
-    #[test]
-    fn opening_a_store_with_shards_out_of_block_order_is_refused() {
-        let (dir, storage) = setup(1..=2_000);
-        let layout = vec![(2_000, 1_801, 2_000), (3_000, 1, 1_800)];
-        set_shards(&storage, &[(2_000, 1_801..=2_000), (3_000, 1..=1_800)]);
-        set_version(&storage, 0);
-
-        let err = reopen(&dir, storage).unwrap_err().to_string();
-        assert!(err.contains("out of block order"), "unexpected error: {err}");
-
-        let storage = reopen_unmigrated(&dir);
-        assert_eq!(version(&storage), 0, "a refused migration must not record the version");
-        assert_eq!(shards(&storage), layout, "a refused migration must not change the store");
-        assert!(storage.check_history_layout().is_err());
-    }
-
     fn put_rows<T>(storage: &MdbxProofsStorage, rows: &[(T::Key, Vec<u64>)])
     where
         T: Table<Value = BlockNumberList>,
@@ -586,11 +527,197 @@ mod tests {
             .collect()
     }
 
+    #[test]
+    fn a_new_store_is_created_at_the_current_layout() {
+        let dir = TempDir::new().expect("tmpdir");
+        let storage = open(&dir).expect("open storage");
+        assert_eq!(version(&storage), HISTORY_LAYOUT_VERSION);
+    }
+
+    #[test]
+    fn migration_leaves_well_formed_history_unchanged() {
+        let (dir, storage) = setup(1..=4_100);
+        let before = shards(&storage);
+        assert_eq!(
+            before,
+            vec![(2_000, 1, 2_000), (4_000, 2_001, 4_000), (u64::MAX, 4_001, 4_100)]
+        );
+        set_version(&storage, 0);
+
+        assert_eq!(storage.migrate_history_layout(dir.path()).unwrap(), Default::default());
+        assert_eq!(shards(&storage), before);
+        assert_eq!(version(&storage), HISTORY_LAYOUT_VERSION);
+    }
+
+    // The layout left by unwinding to 1801 and refilling to 2100 before #23334.
+    #[test]
+    fn opening_an_old_store_restores_reads_shadowed_by_a_stale_shard_key() {
+        let (dir, storage) = setup(1..=2_100);
+        set_shards(&storage, &[(2_000, 1..=1_800), (u64::MAX, 1_801..=2_100)]);
+        set_version(&storage, 0);
+        assert_eq!(wrong_reads(&storage, 1..=2_100), (1_800..=1_999).collect::<Vec<_>>());
+        drop(storage);
+
+        let report = check(&dir);
+        assert_eq!(report, HistoryLayoutReport { version: 0, misplaced: hashed_accounts(1) });
+        assert_eq!(report.verdict(), HistoryLayoutVerdict::NeedsMigration);
+        let storage = open_raw(&dir);
+        assert_eq!(
+            shards(&storage),
+            vec![(2_000, 1, 1_800), (u64::MAX, 1_801, 2_100)],
+            "check must not modify the store"
+        );
+        drop(storage);
+
+        let storage = open(&dir).expect("migrate on open");
+        assert_eq!(shards(&storage), vec![(1_800, 1, 1_800), (u64::MAX, 1_801, 2_100)]);
+        assert_eq!(wrong_reads(&storage, 1..=2_100), Vec::<u64>::new());
+        store_blocks(&storage, 2_101..=4_500);
+        assert_eq!(wrong_reads(&storage, 1..=4_500), Vec::<u64>::new());
+        drop(storage);
+
+        assert_eq!(check(&dir).verdict(), HistoryLayoutVerdict::Clean);
+    }
+
+    // A release without this migration ignores the version, so its unwind can damage a store that
+    // is already marked current. Opening does not migrate again; check reports it and repair fixes
+    // it.
+    #[test]
+    fn damage_after_migrating_is_reported_and_repaired_on_request() {
+        let (dir, storage) = setup(1..=2_100);
+        set_shards(&storage, &[(2_000, 1..=1_800), (u64::MAX, 1_801..=2_100)]);
+        drop(storage);
+
+        let storage = open(&dir).expect("open current store");
+        assert_eq!(shards(&storage), vec![(2_000, 1, 1_800), (u64::MAX, 1_801, 2_100)]);
+        drop(storage);
+        let report = check(&dir);
+        assert_eq!(
+            report,
+            HistoryLayoutReport { version: HISTORY_LAYOUT_VERSION, misplaced: hashed_accounts(1) }
+        );
+        assert_eq!(report.verdict(), HistoryLayoutVerdict::DamagedAfterMigration);
+
+        assert_eq!(
+            MdbxProofsStorage::repair_history_layout_at(dir.path()).unwrap(),
+            hashed_accounts(1)
+        );
+        assert_eq!(check(&dir).verdict(), HistoryLayoutVerdict::Clean);
+        let storage = open(&dir).expect("open repaired store");
+        assert_eq!(wrong_reads(&storage, 1..=2_100), Vec::<u64>::new());
+    }
+
+    #[test]
+    fn a_store_from_a_newer_layout_is_refused() {
+        let (dir, storage) = setup(1..=1);
+        set_version(&storage, HISTORY_LAYOUT_VERSION + 1);
+        drop(storage);
+
+        let is_newer = |err: &OpProofsStorageError| {
+            matches!(err, OpProofsStorageError::NewerHistoryLayout { found, supported, path }
+                if *found == HISTORY_LAYOUT_VERSION + 1
+                    && *supported == HISTORY_LAYOUT_VERSION
+                    && path == dir.path())
+        };
+        let err = open(&dir).unwrap_err();
+        assert!(is_newer(&err), "unexpected error: {err:?}");
+        let err = MdbxProofsStorage::repair_history_layout_at(dir.path()).unwrap_err();
+        assert!(is_newer(&err), "unexpected error: {err:?}");
+        assert_eq!(check(&dir).verdict(), HistoryLayoutVerdict::NewerLayout);
+    }
+
+    #[test]
+    fn check_and_repair_refuse_a_missing_store() {
+        let dir = TempDir::new().expect("tmpdir");
+        let missing = dir.path().join("historical-proofs");
+
+        for err in [
+            MdbxProofsStorage::check_history_layout_at(&missing).unwrap_err(),
+            MdbxProofsStorage::repair_history_layout_at(&missing).unwrap_err(),
+        ] {
+            assert!(
+                matches!(&err, OpProofsStorageError::MissingProofsDatabase { path } if *path == missing),
+                "unexpected error: {err:?}"
+            );
+        }
+        assert!(!missing.exists(), "a check must not create a store");
+    }
+
+    // The layout left by unwinding to 1801 before #23334, before any refill: the sentinel is gone.
+    #[test]
+    fn migration_restores_a_missing_sentinel() {
+        let (dir, storage) = setup(1..=1_800);
+        set_shards(&storage, &[(2_000, 1..=1_800)]);
+        set_version(&storage, 0);
+
+        assert_eq!(storage.migrate_history_layout(dir.path()).unwrap(), hashed_accounts(1));
+        assert_eq!(shards(&storage), vec![(u64::MAX, 1, 1_800)]);
+
+        // Without the sentinel these appends would start a new last shard behind the stale one.
+        store_blocks(&storage, 1_801..=2_100);
+        assert_eq!(shards(&storage), vec![(2_000, 1, 2_000), (u64::MAX, 2_001, 2_100)]);
+        assert_eq!(wrong_reads(&storage, 1..=2_100), Vec::<u64>::new());
+    }
+
+    // Key order disagrees with block order (a deep unwind onto a different chain): re-keying by
+    // position would move the oldest shard to the sentinel, so the store must not open.
+    #[test]
+    fn a_store_with_shards_out_of_block_order_is_refused() {
+        let (dir, storage) = setup(1..=2_000);
+        let layout = vec![(2_000, 1_801, 2_000), (3_000, 1, 1_800)];
+        set_shards(&storage, &[(2_000, 1_801..=2_000), (3_000, 1..=1_800)]);
+        set_version(&storage, 0);
+        drop(storage);
+
+        let is_unrepairable = |err: &OpProofsStorageError| {
+            matches!(err, OpProofsStorageError::UnrepairableHistory { table, path, .. }
+                if *table == V2HashedAccountsHistory::NAME && path == dir.path())
+        };
+        let err = open(&dir).unwrap_err();
+        assert!(is_unrepairable(&err), "unexpected error: {err:?}");
+        let err = MdbxProofsStorage::check_history_layout_at(dir.path()).unwrap_err();
+        assert!(is_unrepairable(&err), "unexpected error: {err:?}");
+
+        let storage = open_raw(&dir);
+        assert_eq!(version(&storage), 0, "a refused migration must not record the version");
+        assert_eq!(shards(&storage), layout, "a refused migration must not change the store");
+    }
+
+    // The migration is one transaction across all four tables: a refusal in the last table scanned
+    // must undo the re-keys already made in the first.
+    #[test]
+    fn a_refused_migration_leaves_every_table_unchanged() {
+        let (dir, storage) = setup(1..=1);
+        let path = || -> reth_trie::StoredNibbles { Nibbles::from_nibbles([0xf, 0xe]).into() };
+        put_rows::<V2AccountsTrieHistory>(
+            &storage,
+            &[(AccountTrieShardedKey::new(path(), 9), vec![3])],
+        );
+        let slot = |highest| HashedStorageShardedKey {
+            hashed_address: ADDR,
+            sharded_key: ShardedKey::new(B256::repeat_byte(1), highest),
+        };
+        put_rows::<V2HashedStoragesHistory>(&storage, &[(slot(5), vec![4, 5]), (slot(9), vec![2])]);
+        let account_trie_before = rows::<V2AccountsTrieHistory>(&storage);
+        set_version(&storage, 0);
+        drop(storage);
+
+        let err = open(&dir).unwrap_err();
+        assert!(
+            matches!(&err, OpProofsStorageError::UnrepairableHistory { table, .. }
+                if *table == V2HashedStoragesHistory::NAME),
+            "unexpected error: {err:?}"
+        );
+        let storage = open_raw(&dir);
+        assert_eq!(rows::<V2AccountsTrieHistory>(&storage), account_trie_before);
+        assert_eq!(version(&storage), 0);
+    }
+
     // The last shard of a key is judged against the next row of a different key, so a sentinel
     // directly followed by a neighbouring slot's shards must be left alone.
     #[test]
     fn migration_respects_storage_slot_boundaries() {
-        let (_dir, storage) = setup(1..=1);
+        let (dir, storage) = setup(1..=1);
         let key = |address: u8, slot: u8, highest| HashedStorageShardedKey {
             hashed_address: B256::repeat_byte(address),
             sharded_key: ShardedKey::new(B256::repeat_byte(slot), highest),
@@ -606,11 +733,8 @@ mod tests {
         );
         set_version(&storage, 0);
 
-        let rekeyed = storage.migrate_history_layout().unwrap();
-        assert_eq!(
-            rekeyed,
-            Some(MisplacedShardCounts { hashed_storages: 1, ..Default::default() })
-        );
+        let rekeyed = storage.migrate_history_layout(dir.path()).unwrap();
+        assert_eq!(rekeyed, MisplacedShardCounts { hashed_storages: 1, ..Default::default() });
         assert_eq!(
             rows::<V2HashedStoragesHistory>(&storage),
             vec![
@@ -625,7 +749,7 @@ mod tests {
     // Trie paths `0` and `00` are distinct logical keys that sort next to each other.
     #[test]
     fn migration_respects_storage_trie_path_boundaries() {
-        let (_dir, storage) = setup(1..=1);
+        let (dir, storage) = setup(1..=1);
         let address = B256::repeat_byte(1);
         let key = |path: &[u8], highest| {
             StorageTrieShardedKey::new(address, Nibbles::from_nibbles(path).into(), highest)
@@ -641,8 +765,8 @@ mod tests {
         );
         set_version(&storage, 0);
 
-        let rekeyed = storage.migrate_history_layout().unwrap();
-        assert_eq!(rekeyed, Some(MisplacedShardCounts { storage_trie: 1, ..Default::default() }));
+        let rekeyed = storage.migrate_history_layout(dir.path()).unwrap();
+        assert_eq!(rekeyed, MisplacedShardCounts { storage_trie: 1, ..Default::default() });
         assert_eq!(
             rows::<V2StoragesTrieHistory>(&storage),
             vec![
@@ -658,7 +782,7 @@ mod tests {
     // shard after it; moving shards in key order frees that key first.
     #[test]
     fn migration_moves_shards_whose_targets_collide_with_stale_keys() {
-        let (_dir, storage) = setup(1..=2_100);
+        let (dir, storage) = setup(1..=2_100);
         set_shards(
             &storage,
             &[(2_000, 1..=1_200), (3_200, 1_201..=2_000), (u64::MAX, 2_001..=2_100)],
@@ -666,11 +790,34 @@ mod tests {
         set_version(&storage, 0);
         assert!(!wrong_reads(&storage, 1..=2_100).is_empty());
 
-        assert_eq!(storage.migrate_history_layout().unwrap(), Some(hashed_accounts(2)));
+        assert_eq!(storage.migrate_history_layout(dir.path()).unwrap(), hashed_accounts(2));
         assert_eq!(
             shards(&storage),
             vec![(1_200, 1, 1_200), (2_000, 1_201, 2_000), (u64::MAX, 2_001, 2_100)]
         );
         assert_eq!(wrong_reads(&storage, 1..=2_100), Vec::<u64>::new());
+    }
+
+    #[test]
+    fn verdict_classifies_every_report() {
+        let report = |version, misplaced| HistoryLayoutReport {
+            version,
+            misplaced: hashed_accounts(misplaced),
+        };
+        let current = HISTORY_LAYOUT_VERSION;
+        for (version, misplaced, verdict) in [
+            (0, 0, HistoryLayoutVerdict::Clean),
+            (0, 3, HistoryLayoutVerdict::NeedsMigration),
+            (current, 0, HistoryLayoutVerdict::Clean),
+            (current, 3, HistoryLayoutVerdict::DamagedAfterMigration),
+            (current + 1, 0, HistoryLayoutVerdict::NewerLayout),
+            (current + 1, 3, HistoryLayoutVerdict::NewerLayout),
+        ] {
+            assert_eq!(
+                report(version, misplaced).verdict(),
+                verdict,
+                "version {version}, {misplaced} misplaced"
+            );
+        }
     }
 }

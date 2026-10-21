@@ -121,6 +121,40 @@ pub enum OpProofsStorageError {
         /// Path of the proofs database.
         path: PathBuf,
     },
+    /// The proofs database's history index is damaged in a way re-keying cannot repair.
+    #[error(
+        "proofs database at {} cannot be migrated: {reason} in {table}; nothing was changed. \
+         Delete it and run 'op-reth proofs init', or start the node without --proofs-history",
+        path.display()
+    )]
+    UnrepairableHistory {
+        /// History table holding the damage.
+        table: &'static str,
+        /// What is wrong with the table.
+        reason: &'static str,
+        /// Path of the proofs database.
+        path: PathBuf,
+    },
+    /// The proofs database records a history layout newer than this release supports.
+    #[error(
+        "proofs database at {} has history layout version {found}, but this release supports up \
+         to {supported}; upgrade op-reth, or delete it and run 'op-reth proofs init'",
+        path.display()
+    )]
+    NewerHistoryLayout {
+        /// Layout version recorded in the database.
+        found: u64,
+        /// Newest layout version this release supports.
+        supported: u64,
+        /// Path of the proofs database.
+        path: PathBuf,
+    },
+    /// No proofs database exists at the given path.
+    #[error("no proofs database at {}", path.display())]
+    MissingProofsDatabase {
+        /// Path that was expected to hold the proofs database.
+        path: PathBuf,
+    },
     /// Initialization detected inconsistent state between proofs storage and source DB.
     #[error(
         "Initialization Proofs storage detected inconsistent state. Storage does not match source DB. \

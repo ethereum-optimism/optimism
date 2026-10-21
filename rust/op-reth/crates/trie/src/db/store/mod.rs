@@ -13,6 +13,7 @@ mod backfill;
 pub(crate) mod cursor;
 mod history_migration;
 mod init;
+mod layout;
 #[cfg(feature = "metrics")]
 mod metrics;
 mod provider_ro;
@@ -22,7 +23,8 @@ mod snapshot_init;
 mod snapshot_read;
 mod write;
 
-pub use history_migration::{HISTORY_LAYOUT_VERSION, HistoryLayoutReport, MisplacedShardCounts};
+pub use history_migration::{HistoryLayoutReport, HistoryLayoutVerdict, MisplacedShardCounts};
+pub use layout::HISTORY_LAYOUT_VERSION;
 
 pub use cursor::{
     MdbxAccountCursor, MdbxAccountTrieCursor, MdbxAccountTrieSnapshotCursor,
@@ -73,17 +75,18 @@ pub struct MdbxProofsStorage {
 }
 
 impl MdbxProofsStorage {
-    /// Creates a new [`MdbxProofsStorage`] instance with the given path, migrating the store's
-    /// history layout to the current version first.
+    /// Creates a new [`MdbxProofsStorage`] instance with the given path.
+    ///
+    /// Brings the store to the current history layout first. On the first start after upgrading
+    /// from a store below it, that scans every history table once.
     pub fn new(path: &Path) -> Result<Self, OpProofsStorageError> {
-        let storage = Self::open_unmigrated(path)?;
-        storage.migrate_history_layout()?;
+        let storage = Self::open_env(path)?;
+        storage.ensure_history_layout(path)?;
         Ok(storage)
     }
 
-    /// Opens the store without migrating its history layout, so diagnostics can inspect a store
-    /// as an older release left it. Use [`Self::new`] for anything that reads or writes proofs.
-    pub fn open_unmigrated(path: &Path) -> Result<Self, OpProofsStorageError> {
+    /// Opens or creates the database without checking its history layout.
+    fn open_env(path: &Path) -> Result<Self, OpProofsStorageError> {
         let env = init_db_for::<_, Tables>(path, DatabaseArguments::default())
             .map_err(|e| DatabaseError::Other(format!("Failed to open database: {e}")))?;
         Self::drop_legacy_v1_tables(&env, path)?;

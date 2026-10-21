@@ -1182,6 +1182,7 @@ arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE
 arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
 arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
 arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] help: Deprecated: v2 is the only storage format, so `v2` is a no-op and any other value is rejected
+arg: --repair [action: SetTrue] [num-args: 0] help: Re-key stale shards instead of only reporting them
 
 == op-reth proofs snapshot
 command: [arg-required-else-help] [subcommand-required]

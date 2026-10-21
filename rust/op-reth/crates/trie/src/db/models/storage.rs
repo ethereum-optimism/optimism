@@ -163,6 +163,14 @@ mod tests {
     use reth_trie::Nibbles;
 
     #[test]
+    fn store_meta_key_roundtrip() {
+        let key = StoreMetaKey::HistoryLayoutVersion;
+        assert_eq!(StoreMetaKey::decode(&key.encode()).unwrap(), key);
+        assert!(StoreMetaKey::decode(&[1]).is_err(), "unknown key byte must not decode");
+        assert!(StoreMetaKey::decode(&[]).is_err(), "empty key must not decode");
+    }
+
+    #[test]
     fn test_storage_branch_subkey_encode_decode() {
         let addr = B256::from([1u8; 32]);
         let path = StoredNibbles(Nibbles::from_nibbles_unchecked([1, 2, 3, 4]));
