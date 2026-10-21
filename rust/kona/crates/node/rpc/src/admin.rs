@@ -2,13 +2,14 @@
 
 use crate::{AdminApiServer, SequencerAdminAPIClient};
 use alloy_primitives::B256;
+use alloy_rpc_types_engine::PayloadError;
 use async_trait::async_trait;
 use core::fmt::Debug;
 use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
 
 /// The query types to the network actor for the admin api.
 #[derive(Debug)]
@@ -64,6 +65,17 @@ where
         payload: OpExecutionPayloadEnvelope,
     ) -> RpcResult<()> {
         kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "admin_postUnsafePayload");
+        payload.check_block_hash().map_err(|err| {
+            let message = match &err {
+                OpPayloadError::Eth(PayloadError::BlockHash { execution, consensus }) => {
+                    format!(
+                        "payload has bad block hash: {consensus}, actual block hash is: {execution}"
+                    )
+                }
+                _ => format!("invalid payload: {err}"),
+            };
+            ErrorObject::owned(ErrorCode::InvalidParams.code(), message, None::<()>)
+        })?;
         self.network_sender
             .send(NetworkAdminQuery::PostUnsafePayload { payload })
             .await
@@ -164,5 +176,91 @@ where
             .reset_derivation_pipeline()
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::SequencerAdminAPIError;
+    use alloy_rpc_types_engine::ExecutionPayloadV1;
+    use jsonrpsee::core::server::MethodsError;
+    use op_alloy_consensus::OpBlock;
+    use tokio::sync::mpsc;
+
+    /// Admin payload submission must work without a sequencer.
+    #[derive(Debug)]
+    struct NoSequencer;
+
+    #[async_trait]
+    impl SequencerAdminAPIClient for NoSequencer {
+        async fn is_sequencer_active(&self) -> Result<bool, SequencerAdminAPIError> {
+            Ok(false)
+        }
+
+        async fn is_conductor_enabled(&self) -> Result<bool, SequencerAdminAPIError> {
+            unreachable!("validator has no sequencer")
+        }
+
+        async fn is_recovery_mode(&self) -> Result<bool, SequencerAdminAPIError> {
+            unreachable!("validator has no sequencer")
+        }
+
+        async fn start_sequencer(&self) -> Result<(), SequencerAdminAPIError> {
+            unreachable!("validator has no sequencer")
+        }
+
+        async fn stop_sequencer(&self) -> Result<B256, SequencerAdminAPIError> {
+            unreachable!("validator has no sequencer")
+        }
+
+        async fn set_recovery_mode(&self, _mode: bool) -> Result<(), SequencerAdminAPIError> {
+            unreachable!("validator has no sequencer")
+        }
+
+        async fn override_leader(&self) -> Result<(), SequencerAdminAPIError> {
+            unreachable!("validator has no sequencer")
+        }
+
+        async fn reset_derivation_pipeline(&self) -> Result<(), SequencerAdminAPIError> {
+            unreachable!("validator has no sequencer")
+        }
+    }
+
+    #[tokio::test]
+    async fn unsafe_payload_validation_precedes_admission() {
+        let (sender, mut receiver) = mpsc::channel(1);
+        let rpc = AdminRpc::<NoSequencer>::new(None, sender).into_rpc();
+        let mut payload = ExecutionPayloadV1::from_block_slow(&OpBlock::default());
+        payload.block_hash = payload.clone().into_block_raw().unwrap().header.hash_slow();
+        let valid = OpExecutionPayloadEnvelope::V1(payload.clone());
+        let actual_hash = payload.block_hash;
+        payload.block_hash = B256::repeat_byte(0xaa);
+        let invalid_hash = payload.block_hash;
+
+        let error = rpc
+            .call::<_, ()>(
+                "admin_postUnsafePayload",
+                jsonrpsee::rpc_params![OpExecutionPayloadEnvelope::V1(payload)],
+            )
+            .await
+            .unwrap_err();
+        let MethodsError::JsonRpc(error) = error else {
+            panic!("expected a JSON-RPC error, got {error}");
+        };
+        assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+        assert_eq!(
+            error.message(),
+            format!(
+                "payload has bad block hash: {invalid_hash}, actual block hash is: {actual_hash}"
+            )
+        );
+        assert!(matches!(receiver.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+
+        rpc.call::<_, ()>("admin_postUnsafePayload", jsonrpsee::rpc_params![valid.clone()])
+            .await
+            .unwrap();
+        let NetworkAdminQuery::PostUnsafePayload { payload } = receiver.try_recv().unwrap();
+        assert_eq!(payload, valid);
     }
 }

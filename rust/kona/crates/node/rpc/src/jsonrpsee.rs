@@ -166,7 +166,9 @@ pub trait DevEngineApi {
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "admin"))]
 #[async_trait]
 pub trait AdminApi {
-    /// Posts the unsafe payload.
+    /// Validates the payload's block hash and queues it for engine processing.
+    ///
+    /// Returns after queue admission, before execution. Submitted payloads are not gossiped.
     #[method(name = "postUnsafePayload")]
     async fn admin_post_unsafe_payload(&self, payload: OpExecutionPayloadEnvelope)
     -> RpcResult<()>;
