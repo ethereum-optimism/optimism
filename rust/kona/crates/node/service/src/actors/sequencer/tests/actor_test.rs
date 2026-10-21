@@ -10,12 +10,9 @@ use alloy_rpc_types_engine::PayloadId;
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use rstest::rstest;
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
-    time::{SystemTime, UNIX_EPOCH},
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
 };
 use tokio::{
     sync::{mpsc, oneshot},
@@ -130,12 +127,10 @@ async fn building_resumes_once_the_gossip_queue_drains() {
 async fn next_block_is_not_built_before_it_is_due() {
     let mut actor = test_actor();
 
-    // With the parent at the current wall-clock second and a 2s block time, the next block is due
-    // in more than 1s and at most 2s.
-    let now =
-        SystemTime::now().duration_since(UNIX_EPOCH).expect("clock before UNIX epoch").as_secs();
+    // The test's time starts at 2000-01-01T00:00:00Z, when the parent was built, so with a 2s block
+    // time the next block is due in exactly 2s.
     let mut unsafe_head = L2BlockInfo::default();
-    unsafe_head.block_info.timestamp = now;
+    unsafe_head.block_info.timestamp = 946_684_800;
 
     let mut engine = MockSequencerEngineClient::new();
     engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
@@ -160,15 +155,13 @@ async fn next_block_is_not_built_before_it_is_due() {
         .expect("the first tick did not fire")
         .expect("the first step failed");
 
-    // The delay is computed from the real wall clock, which keeps moving while the test runs, so
-    // wait well short of the minimum 1s rather than just under it.
     let step = actor.step();
     tokio::pin!(step);
     assert!(
         time::timeout(Duration::from_millis(500), &mut step).await.is_err(),
         "the next tick fired before the next block was due"
     );
-    time::timeout(Duration::from_secs(2), &mut step)
+    time::timeout(Duration::from_millis(1_500), &mut step)
         .await
         .expect("the next tick did not fire once the next block was due")
         .expect("the next step failed");
