@@ -2,8 +2,6 @@ package broadcaster
 
 import (
 	"context"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 )
 
 type discardBroadcaster struct {
@@ -17,4 +15,4 @@ func (d *discardBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, 
 	return nil, nil
 }
 
-func (d *discardBroadcaster) Hook(bcast script.Broadcast) {}
+func (d *discardBroadcaster) Hook(bcast Broadcast) {}

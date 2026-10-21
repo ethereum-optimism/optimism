@@ -4,7 +4,9 @@ use super::{precompiles::OpFpvmPrecompiles, tx::FpvmOpTx};
 use alloy_evm::{Database, EvmEnv, EvmFactory};
 use alloy_op_evm::{
     OpEvm, OpEvmContext, OpTx, OpTxError,
-    post_exec::{PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext},
+    post_exec::{
+        PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext, RevertToCheckpointError,
+    },
 };
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use op_revm::{L1BlockInfo, OpBuilder, OpHaltReason, OpSpecId, OpTransaction};
@@ -49,7 +51,7 @@ where
     H: HintWriterClient + Clone + Send + Sync + 'static,
     O: PreimageOracleClient + Clone + Send + Sync + 'static,
 {
-    type Snapshot = ();
+    type Checkpoint = ();
 
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
     where
@@ -67,20 +69,23 @@ where
         evm.take_last_post_exec_tx_result()
     }
 
-    fn refund_snapshot<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
+    fn refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>) -> Self::Checkpoint
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.refund_snapshot()
+        evm.refund_checkpoint()
     }
 
-    fn seed_refund_snapshot<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
+    fn revert_refund_checkpoint<DB, I>(
+        evm: &mut Self::Evm<DB, I>,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError>
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.seed_refund_snapshot(state);
+        evm.revert_refund_checkpoint(checkpoint)
     }
 }
 

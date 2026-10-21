@@ -1,6 +1,6 @@
 [package]
 name = "reth-optimism-txpool"
-version = "1.11.3"
+version = "2.0.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -38,7 +38,7 @@ op-revm.workspace = true
 op-alloy-consensus.workspace = true
 op-alloy-flz.workspace = true
 op-alloy-rpc-types.workspace = true
-reth-optimism-evm.workspace = true
+reth-optimism-evm = { workspace = true, features = ["std"] }
 reth-optimism-forks.workspace = true
 reth-optimism-primitives.workspace = true
 

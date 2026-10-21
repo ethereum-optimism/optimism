@@ -374,12 +374,16 @@ func (el *L2ELNode) L1OriginReachedFn(label eth.BlockLabel, l1OriginTarget uint6
 		logger.Info("Expecting L2EL to reach L1 origin")
 		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 1 * time.Second},
 			func() error {
-				head := el.BlockRefByLabel(label)
+				head, err := el.blockRefByLabel(label)
+				if err != nil {
+					logger.Warn("Failed to fetch L2EL head, retrying", "err", err)
+					return fmt.Errorf("fetch %s head: %w", label, err)
+				}
 				if head.L1Origin.Number >= l1OriginTarget {
 					logger.Info("L2EL advanced L1 origin", "l1OriginTarget", l1OriginTarget)
 					return nil
 				}
-				logger.Debug("L2EL sync status", "head", head.ID())
+				logger.Debug("L2EL sync status", "head", head.ID(), "l1Origin", head.L1Origin.Number)
 				return fmt.Errorf("L1 origin of %s not advanced yet", label)
 			})
 	}

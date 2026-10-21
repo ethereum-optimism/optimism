@@ -130,11 +130,11 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 		},
 		FaultProofDeployConfig: genesis.FaultProofDeployConfig{
 			UseFaultProofs:                  true,
-			FaultGameWithdrawalDelay:        604800,
+			FaultGameWithdrawalDelay:        standard.WithdrawalDelaySeconds,
 			PreimageOracleMinProposalSize:   126000,
 			PreimageOracleChallengePeriod:   86400,
-			ProofMaturityDelaySeconds:       604800,
-			DisputeGameFinalityDelaySeconds: 302400,
+			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
+			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 		},
 	}
 

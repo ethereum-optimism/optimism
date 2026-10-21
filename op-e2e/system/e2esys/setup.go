@@ -45,6 +45,7 @@ import (
 	batcherCfg "github.com/ethereum-optimism/optimism/op-batcher/config"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -322,9 +323,6 @@ type SystemConfig struct {
 	// Any node name not in the topology will not have p2p enabled.
 	P2PTopology map[string][]string
 
-	// Enables req-resp sync in the P2P nodes
-	P2PReqRespSync bool
-
 	// If the proposer can make proposals for L2 blocks derived from L1 blocks which are not finalized on L1 yet.
 	NonFinalizedProposals bool
 
@@ -379,7 +377,7 @@ type System struct {
 
 	RollupConfig *rollup.Config
 	L1GenesisCfg *core.Genesis
-	L2GenesisCfg *core.Genesis
+	L2GenesisCfg *opgenesis.Genesis
 
 	// Connections to running nodes
 	EthInstances      map[string]services.EthInstance
@@ -488,12 +486,12 @@ func (sys *System) L1Genesis() *core.Genesis {
 	return sys.L1GenesisCfg
 }
 
-func (sys *System) L2Genesis() *core.Genesis {
+func (sys *System) L2Genesis() *opgenesis.Genesis {
 	return sys.L2GenesisCfg
 }
 
-func (sys *System) L2Geneses() []*core.Genesis {
-	return []*core.Genesis{sys.L2GenesisCfg}
+func (sys *System) L2Geneses() []*opgenesis.Genesis {
+	return []*opgenesis.Genesis{sys.L2GenesisCfg}
 }
 
 func (sys *System) AllocType() config.AllocType {
@@ -859,10 +857,9 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			// TODO we can enable discv5 in the testnodes to test discovery of new peers.
 			// Would need to mock though, and the discv5 implementation does not provide nice mocks here.
 			p := &p2p.Prepared{
-				HostP2P:           h,
-				LocalNode:         nil,
-				UDPv5:             nil,
-				EnableReqRespSync: cfg.P2PReqRespSync,
+				HostP2P:   h,
+				LocalNode: nil,
+				UDPv5:     nil,
 			}
 			p2pNodes[name] = p
 			return p, nil

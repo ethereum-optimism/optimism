@@ -18,10 +18,11 @@ use alloy_op_evm::{
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
     evm_env_for_op_block, evm_env_for_op_next_block,
 };
+use alloy_primitives::B256;
 use core::fmt::Debug;
 use op_alloy_consensus::{
-    EIP1559ParamError, OpTransaction as OpConsensusTransaction,
-    parse_post_exec_payload_from_transactions,
+    EIP1559ParamError, OpTransaction as OpConsensusTransaction, PostExecPayloadValidationError,
+    parse_post_exec_payload_from_transactions, validate_post_exec_entry_count,
 };
 use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
@@ -45,7 +46,6 @@ use {
 #[cfg(feature = "std")]
 use {
     alloy_op_evm::evm_env_for_op_payload,
-    op_alloy_consensus::{PostExecPayloadValidationError, validate_post_exec_entry_count},
     reth_evm::{ConfigureEngineEvm, ExecutableTxIterator},
 };
 
@@ -72,7 +72,7 @@ pub use alloy_op_evm::{
     post_exec::{
         NullRefundPolicy, PostExecEvmFactoryAdapter, PostExecExecutedTx, PostExecExecutorExt,
         PostExecRefundEvent, PostExecRefundInspector, PostExecRefundKind,
-        PostExecRefundPolicyFactory, PostExecTxContext, PostExecTxKind,
+        PostExecRefundPolicyFactory, PostExecTxContext, PostExecTxKind, RevertToCheckpointError,
     },
 };
 
@@ -80,6 +80,7 @@ mod post_exec_ext;
 pub use post_exec_ext::*;
 
 mod sdm_metrics;
+pub use sdm_metrics::report_post_exec_validation_failure;
 
 /// Optimism-related EVM configuration.
 #[derive(Debug)]
@@ -189,6 +190,18 @@ pub(crate) fn preflight_post_exec_payload(
     })
 }
 
+/// Runs the encoded-transaction preflight for payload-builder attributes
+/// (`forkchoiceUpdated` with transactions); a rejection is logged against the parent block hash
+/// and counted under the failed rule and as a failed validation.
+pub fn validate_post_exec_attributes(
+    transactions: &[Bytes],
+    parent_hash: B256,
+) -> Result<(), PostExecPayloadValidationError> {
+    validate_post_exec_entry_count(transactions).inspect_err(|error| {
+        sdm_metrics::report_post_exec_attributes_rejection(parent_hash, *error);
+    })
+}
+
 impl<ChainSpec, N, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory>
 where
     ChainSpec: OpHardforks,
@@ -242,7 +255,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@rev:8d359d0 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream `ConfigureEvm` plumbing with OP environments and execution context.
 impl<ChainSpec, N, R, EvmF> ConfigureEvm for OpEvmConfig<ChainSpec, N, R, EvmF>
@@ -342,7 +355,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@rev:8d359d0 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream payload-to-EVM configuration with OP payload and fork semantics.
 /// `tx_iterator_for_payload` recovers senders directly; upstream routes the same recovery through

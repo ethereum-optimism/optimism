@@ -71,15 +71,6 @@ parameters:
   l2_fork_test_dispatch:
     type: boolean
     default: false
-  github-event-type:
-    type: string
-    default: "__not_set__"
-  github-event-action:
-    type: string
-    default: "__not_set__"
-  github-event-base64:
-    type: string
-    default: "__not_set__"
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   go-cache-version:
     type: string
@@ -144,7 +135,7 @@ jobs:
       # Forward string pipeline parameters to /tmp/pipeline-parameters.json.
       # collect-params.sh picks up all env vars starting with "c-" and writes them as JSON strings.
       # Add a line here when a new string value needs to reach continuation config jobs
-      # (e.g., a new docker image, event payload, or cache version).
+      # (e.g., a new docker image or cache version).
       - run:
           name: Store string pipeline parameters in JSON file
           command: .circleci/scripts/collect-params.sh str
@@ -152,9 +143,6 @@ jobs:
             c-default_docker_image: << pipeline.parameters.default_docker_image >>
             c-rust_base_image: << pipeline.parameters.rust_base_image >>
             c-base_image: << pipeline.parameters.base_image >>
-            c-github-event-type: << pipeline.parameters.github-event-type >>
-            c-github-event-action: << pipeline.parameters.github-event-action >>
-            c-github-event-base64: << pipeline.parameters.github-event-base64 >>
             c-go-cache-version: << pipeline.parameters.go-cache-version >>
             c-publish_contract_artifacts_ref: << pipeline.parameters.publish_contract_artifacts_ref >>
       # Same as above but for booleans. Separate step because CircleCI renders

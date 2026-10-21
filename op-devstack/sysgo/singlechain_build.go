@@ -135,9 +135,66 @@ func startL2CLForKey(
 			Key:            clKey,
 			IsSequencer:    isSequencer,
 			NoDiscovery:    true,
-			EnableReqResp:  true,
 			L2FollowSource: followSource,
 			L2CLOptions:    l2CLOpts,
+		})
+	}
+}
+
+// startStoppedSequencerCL starts the env-selected sequencer CL in the stopped
+// state required while a conductor cluster is being assembled.
+func startStoppedSequencerCL(
+	t devtest.T,
+	keys devkeys.Keys,
+	l1Net *L1Network,
+	l2Net *L2Network,
+	l1EL L1ELNode,
+	l1CL *L1CLNode,
+	l2EL L2ELNode,
+	jwtSecret [32]byte,
+	key string,
+	l2CLOpts []L2CLOption,
+) L2CLNode {
+	switch devstackL2CLKind() {
+	case MixedL2CLKona:
+		baseCfg := *DefaultL2CLConfig()
+		baseCfg.IsSequencer = true
+		konaCfg := baseCfg
+		target := NewComponentTarget(key, l2Net.ChainID())
+		for _, opt := range l2CLOpts {
+			if opt != nil {
+				opt.Apply(t, target, &konaCfg)
+			}
+		}
+		// Only the conductor settings are forwarded to kona. Fail on any other
+		// option rather than silently running a node that never saw it.
+		// SafeDBPath is set on every primary but is not forwarded to kona.
+		unsupported := konaCfg
+		unsupported.ConductorRPC = ""
+		unsupported.ConductorRPCTimeout = 0
+		unsupported.SafeDBPath = ""
+		t.Require().Equal(baseCfg, unsupported, "L2CL options other than the conductor settings cannot be applied to kona-node")
+		extraEnv := []string{"KONA_NODE_SEQUENCER_STOPPED=true"}
+		if konaCfg.ConductorRPC != "" {
+			t.Require().Positive(konaCfg.ConductorRPCTimeout, "conductor RPC timeout must be positive")
+			// kona-node parses this flag but does not apply it yet (#21906).
+			t.Require().Zero(konaCfg.ConductorRPCTimeout%time.Second, "Kona conductor RPC timeout must use whole seconds")
+			extraEnv = append(extraEnv,
+				"KONA_NODE_CONDUCTOR_RPC="+konaCfg.ConductorRPC,
+				fmt.Sprintf("KONA_NODE_CONDUCTOR_RPC_TIMEOUT=%d", konaCfg.ConductorRPCTimeout/time.Second),
+			)
+		}
+		return startMixedKonaNode(
+			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, key, key, true, nil,
+			extraEnv...,
+		)
+	default: // op-node
+		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
+			Key:              key,
+			IsSequencer:      true,
+			NoDiscovery:      true,
+			L2CLOptions:      l2CLOpts,
+			SequencerStopped: true,
 		})
 	}
 }
@@ -229,7 +286,6 @@ type l2CLNodeStartConfig struct {
 	Key            string
 	IsSequencer    bool
 	NoDiscovery    bool
-	EnableReqResp  bool
 	L2FollowSource string
 	DependencySet  depset.DependencySet
 	L2CLOptions    []L2CLOption
@@ -266,7 +322,6 @@ func startL2CLNode(
 	cfg := DefaultL2CLConfig()
 	cfg.IsSequencer = startCfg.IsSequencer
 	cfg.NoDiscovery = startCfg.NoDiscovery
-	cfg.EnableReqRespSync = startCfg.EnableReqResp
 	cfg.FollowSource = startCfg.L2FollowSource
 	if len(startCfg.L2CLOptions) > 0 {
 		l2CLTarget := NewComponentTarget(startCfg.Key, l2Net.ChainID())
@@ -323,7 +378,6 @@ func startL2CLNode(
 	p2pConfig, err := p2pcli.NewConfig(cliCtx, l2Net.rollupCfg.BlockTime)
 	require.NoError(err, "failed to load p2p config")
 	p2pConfig.NoDiscovery = cfg.NoDiscovery
-	p2pConfig.EnableReqRespSync = cfg.EnableReqRespSync
 	// Devstack chain timestamps are synthetic: genesis is set in the past and the
 	// chain may lag many seconds behind wallclock during startup (or many minutes
 	// during long tests like dispute games). The production-default 60s gossip
@@ -393,6 +447,14 @@ func startL2CLNode(
 		AltDA:                           altda.CLIConfig{},
 		IgnoreMissingPectraBlobSchedule: false,
 		ExperimentalOPStackAPI:          true,
+	}
+	if cfg.ConductorRPC != "" {
+		require.Positive(cfg.ConductorRPCTimeout, "conductor RPC timeout must be positive")
+		nodeCfg.ConductorEnabled = true
+		nodeCfg.ConductorRpcTimeout = cfg.ConductorRPCTimeout
+		nodeCfg.ConductorRpc = func(context.Context) (string, error) {
+			return cfg.ConductorRPC, nil
+		}
 	}
 	l2CL := &OpNode{
 		name:     startCfg.Key,

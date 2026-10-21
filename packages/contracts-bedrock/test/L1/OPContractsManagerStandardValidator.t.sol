@@ -856,6 +856,15 @@ contract OPContractsManagerStandardValidator_OptimismPortal_Test is OPContractsM
         );
         assertEq("PORTAL-90", _validate(true));
     }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         OptimismPortal proof maturity delay is outside the standard range.
+    function test_validate_optimismPortalDelayOutOfRange_succeeds() public {
+        vm.mockCall(
+            address(optimismPortal2), abi.encodeCall(IOptimismPortal2.proofMaturityDelaySeconds, ()), abi.encode(1)
+        );
+        assertEq("PORTAL-100", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_ETHLockbox_Test
@@ -1146,9 +1155,7 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
             abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
             abi.encode(standardValidator.l1PAOMultisig())
         );
-        vm.mockCall(
-            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
-        );
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(delayedWeth.delay()));
         vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.ethLockbox, ()), abi.encode(expectedETHLockboxFor(sysCfg)));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
 
@@ -1294,6 +1301,17 @@ contract OPContractsManagerStandardValidator_AnchorStateRegistry_Test is OPContr
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
+    ///         AnchorStateRegistry finality delay is outside the standard range.
+    function test_validate_anchorStateRegistryDelayOutOfRange_succeeds() public {
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.disputeGameFinalityDelaySeconds, ()),
+            abi.encode(1)
+        );
+        assertEq("PDDG-ANCHORP-80,CKDG-ANCHORP-80", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
     ///         AnchorStateRegistry ETHLockbox is invalid.
     function test_validate_anchorStateRegistryInvalidETHLockbox_succeeds() public {
         vm.mockCall(
@@ -1384,7 +1402,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         DelayedWETH delay is invalid.
+    ///         DelayedWETH delay is outside the standard range.
     function test_validate_delayedWETHInvalidDelay_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1000));
         assertEq("PDDG-DWETH-40,CKDG-DWETH-40", _validate(true));
@@ -1545,9 +1563,7 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
             abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
             abi.encode(standardValidator.l1PAOMultisig())
         );
-        vm.mockCall(
-            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
-        );
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(delayedWeth.delay()));
         vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.ethLockbox, ()), abi.encode(expectedETHLockboxFor(sysCfg)));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
     }
@@ -1909,6 +1925,33 @@ contract OPContractsManagerStandardValidator_SuperModeCoreValidation_Test is
         );
         assertEq("SPDG-ANCHORP-70,SCKDG-ANCHORP-70", _validate(true));
     }
+
+    /// @notice Tests that the validate function returns PORTAL-100 when the portal's proof maturity
+    ///         delay is outside the standard range.
+    function test_validate_optimismPortalDelayOutOfRange_succeeds() public {
+        vm.mockCall(
+            address(optimismPortal2), abi.encodeCall(IOptimismPortal2.proofMaturityDelaySeconds, ()), abi.encode(1)
+        );
+        assertEq("PORTAL-100", _validate(true));
+    }
+
+    /// @notice Tests that the validate function returns SPDG-ANCHORP-80 and SCKDG-ANCHORP-80 when
+    ///         the registry's finality delay is outside the standard range.
+    function test_validate_anchorStateRegistryDelayOutOfRange_succeeds() public {
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.disputeGameFinalityDelaySeconds, ()),
+            abi.encode(1)
+        );
+        assertEq("SPDG-ANCHORP-80,SCKDG-ANCHORP-80", _validate(true));
+    }
+
+    /// @notice Tests that the validate function returns SCKDG-DWETH-40 when the DelayedWETH delay is
+    ///         outside the standard range. Only the permissionless super game carries a DelayedWETH.
+    function test_validate_delayedWETHDelayOutOfRange_succeeds() public {
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1));
+        assertEq("SCKDG-DWETH-40", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_SuperRootDisputeGames_Test
@@ -2050,6 +2093,11 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
         );
         vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
+        vm.mockCall(
+            badASR,
+            abi.encodeCall(IAnchorStateRegistry.disputeGameFinalityDelaySeconds, ()),
+            abi.encode(anchorStateRegistry.disputeGameFinalityDelaySeconds())
+        );
 
         assertEq("SPDG-ANCHORP-10,SPDG-ANCHORP-20,SPDG-ANCHORP-70", _validate(true));
     }
@@ -2547,6 +2595,14 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is OPContractsMan
             address(dgf), abi.encodeCall(IDisputeGameFactory.initBonds, (GameTypes.ZK_DISPUTE_GAME)), abi.encode(0)
         );
         assertEq("ZKDG-160", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-DWETH-40 when the DelayedWETH delay is outside the standard range. The ZK
+    ///         game shares the DelayedWETH with the active permissionless super game, so that game
+    ///         reports the same code.
+    function test_validate_zkDisputeGameDelayedWETHDelayOutOfRange_succeeds() public {
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1));
+        assertEq("SCKDG-DWETH-40,ZKDG-DWETH-40", _validate(true));
     }
 }
 

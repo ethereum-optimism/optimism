@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -44,7 +44,7 @@ func GenesisCLI(cliCtx *cli.Context) error {
 	return nil
 }
 
-func GenesisAndRollup(globalState *state.State, chainID common.Hash) (*core.Genesis, *rollup.Config, error) {
+func GenesisAndRollup(globalState *state.State, chainID common.Hash) (*opgenesis.Genesis, *rollup.Config, error) {
 	if globalState.AppliedIntent == nil {
 		return nil, nil, fmt.Errorf("chain state is not applied - run op-deployer apply")
 	}

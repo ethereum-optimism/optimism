@@ -3,9 +3,12 @@
 use std::{collections::BTreeMap, num::NonZeroU64};
 
 use anyhow::{Context, Result, bail, ensure};
-use kona_sp1_client_utils::super_root::{
-    SuperConsolidationInputs, SuperConsolidationOutputs, SuperInteropOutputs, SuperRangeInputs,
-    SuperRangeOutputs, hash_super_root_proof,
+use kona_sp1_client_utils::{
+    log_commitment::LogCommitmentInputs,
+    super_root::{
+        SuperConsolidationInputs, SuperConsolidationOutputs, SuperInteropOutputs, SuperRangeInputs,
+        SuperRangeOutputs, hash_super_root_proof,
+    },
 };
 use kona_sp1_super_range_executor::{
     HostInputs, SynthesizedExecution, build_interop_host, build_super_consolidation_stdin,
@@ -402,11 +405,13 @@ pub(crate) async fn execute_snapshot(
             &synthesized.consolidation_inputs,
             &synthesized.preloaded_preimages,
             Some(&configs),
+            // TODO(proofs-team#30): take the table path for a below-head reference.
+            &[],
         ),
     )
     .await;
     let (consolidation_witness, native_consolidation) = match consolidation_witness {
-        Ok(Ok(result)) => result,
+        Ok(Ok(collected)) => (collected.witness, collected.outputs),
         Ok(Err(error)) => {
             return finish_with_consolidation_failure(
                 range,
@@ -426,6 +431,8 @@ pub(crate) async fn execute_snapshot(
     let consolidation = match build_super_consolidation_stdin(
         &synthesized.consolidation_inputs,
         consolidation_witness,
+        &LogCommitmentInputs::default(),
+        None,
     ) {
         Ok(stdin) => {
             let execution = {

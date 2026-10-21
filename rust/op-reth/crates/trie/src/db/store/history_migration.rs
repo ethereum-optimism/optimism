@@ -25,7 +25,7 @@
 //!
 //! This module is temporary. Once every supported upgrade path has passed layout version 1, delete
 //! it together with `op-reth proofs check-history`, and make `ensure_history_layout` refuse a store
-//! below version 1 with a rebuild instruction, as `drop_legacy_v1_tables` does for v1 stores.
+//! below version 1 with an instruction to delete it and run `op-reth proofs init`.
 
 use super::{MdbxProofsProvider, MdbxProofsStorage, layout::HISTORY_LAYOUT_VERSION};
 use crate::{

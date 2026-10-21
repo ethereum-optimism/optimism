@@ -305,7 +305,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 
 	return &SetupData{
 		L1Cfg:         l1Genesis,
-		L2Cfg:         l2Genesis,
+		L2Cfg:         l2Genesis.GethGenesis(),
 		RollupCfg:     rollupCfg,
 		ChainSpec:     rollup.NewChainSpec(rollupCfg),
 		DeploymentsL1: l1Deployments,

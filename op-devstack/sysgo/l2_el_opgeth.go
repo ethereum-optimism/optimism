@@ -78,7 +78,7 @@ func (n *OpGeth) Start() {
 	}
 
 	require := n.p.Require()
-	l2Geth, err := geth.InitL2(NewComponentTarget(n.name, n.l2Net.ChainID()).String(), n.l2Net.genesis, n.jwtPath,
+	l2Geth, err := geth.InitL2(NewComponentTarget(n.name, n.l2Net.ChainID()).String(), n.l2Net.genesis.GethGenesis(), n.jwtPath,
 		func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
 			ethCfg.InteropMessageRPC = n.supervisorRPC
 			ethCfg.InteropMempoolFiltering = true

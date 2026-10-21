@@ -14,6 +14,7 @@ use revm::{
     primitives::AddressSet,
 };
 
+mod bls12_381;
 mod custom;
 pub use custom::CustomCrypto;
 
@@ -36,6 +37,20 @@ pub mod cycle_tracker {
         pub const P256_VERIFY: &str = "p256-verify";
         /// KZG eval tracker name.
         pub const KZG_EVAL: &str = "kzg-eval";
+        /// EIP-2537 BLS12-381 G1 add tracker name.
+        pub const BLS12_381_G1_ADD: &str = "bls12-381-g1-add";
+        /// EIP-2537 BLS12-381 G1 MSM tracker name.
+        pub const BLS12_381_G1_MSM: &str = "bls12-381-g1-msm";
+        /// EIP-2537 BLS12-381 G2 add tracker name.
+        pub const BLS12_381_G2_ADD: &str = "bls12-381-g2-add";
+        /// EIP-2537 BLS12-381 G2 MSM tracker name.
+        pub const BLS12_381_G2_MSM: &str = "bls12-381-g2-msm";
+        /// EIP-2537 BLS12-381 pairing tracker name.
+        pub const BLS12_381_PAIRING: &str = "bls12-381-pairing";
+        /// EIP-2537 BLS12-381 map field element to G1 tracker name.
+        pub const BLS12_381_MAP_FP_TO_G1: &str = "bls12-381-map-fp-to-g1";
+        /// EIP-2537 BLS12-381 map Fp2 element to G2 tracker name.
+        pub const BLS12_381_MAP_FP2_TO_G2: &str = "bls12-381-map-fp2-to-g2";
     }
 
     /// Full cycle tracker keys with the `precompile-` prefix.
@@ -52,6 +67,20 @@ pub mod cycle_tracker {
         pub const P256_VERIFY: &str = "precompile-p256-verify";
         /// KZG eval cycle-tracker key.
         pub const KZG_EVAL: &str = "precompile-kzg-eval";
+        /// EIP-2537 BLS12-381 G1 add cycle-tracker key.
+        pub const BLS12_381_G1_ADD: &str = "precompile-bls12-381-g1-add";
+        /// EIP-2537 BLS12-381 G1 MSM cycle-tracker key.
+        pub const BLS12_381_G1_MSM: &str = "precompile-bls12-381-g1-msm";
+        /// EIP-2537 BLS12-381 G2 add cycle-tracker key.
+        pub const BLS12_381_G2_ADD: &str = "precompile-bls12-381-g2-add";
+        /// EIP-2537 BLS12-381 G2 MSM cycle-tracker key.
+        pub const BLS12_381_G2_MSM: &str = "precompile-bls12-381-g2-msm";
+        /// EIP-2537 BLS12-381 pairing cycle-tracker key.
+        pub const BLS12_381_PAIRING: &str = "precompile-bls12-381-pairing";
+        /// EIP-2537 BLS12-381 map field element to G1 cycle-tracker key.
+        pub const BLS12_381_MAP_FP_TO_G1: &str = "precompile-bls12-381-map-fp-to-g1";
+        /// EIP-2537 BLS12-381 map Fp2 element to G2 cycle-tracker key.
+        pub const BLS12_381_MAP_FP2_TO_G2: &str = "precompile-bls12-381-map-fp2-to-g2";
     }
 }
 
@@ -67,6 +96,13 @@ fn get_precompile_tracker_name(id: &PrecompileId) -> Option<&'static str> {
         PrecompileId::EcRec => Some(cycle_tracker::names::EC_RECOVER),
         PrecompileId::P256Verify => Some(cycle_tracker::names::P256_VERIFY),
         PrecompileId::KzgPointEvaluation => Some(cycle_tracker::names::KZG_EVAL),
+        PrecompileId::Bls12G1Add => Some(cycle_tracker::names::BLS12_381_G1_ADD),
+        PrecompileId::Bls12G1Msm => Some(cycle_tracker::names::BLS12_381_G1_MSM),
+        PrecompileId::Bls12G2Add => Some(cycle_tracker::names::BLS12_381_G2_ADD),
+        PrecompileId::Bls12G2Msm => Some(cycle_tracker::names::BLS12_381_G2_MSM),
+        PrecompileId::Bls12Pairing => Some(cycle_tracker::names::BLS12_381_PAIRING),
+        PrecompileId::Bls12MapFpToGp1 => Some(cycle_tracker::names::BLS12_381_MAP_FP_TO_G1),
+        PrecompileId::Bls12MapFp2ToGp2 => Some(cycle_tracker::names::BLS12_381_MAP_FP2_TO_G2),
         _ => None,
     }
 }

@@ -44,7 +44,7 @@ func ScriptHost(
 		nil,
 		scriptCtx,
 		append([]script.HostOption{
-			script.WithBroadcastHook(bcaster.Hook),
+			script.WithBroadcastHook(func(b script.Broadcast) { bcaster.Hook(toBroadcast(b)) }),
 			script.WithIsolatedBroadcasts(),
 			script.WithCreate2Deployer(),
 		}, additionalOpts...)...,
@@ -55,6 +55,20 @@ func ScriptHost(
 	}
 
 	return h, nil
+}
+
+// toBroadcast converts a broadcast of the Go script host into a broadcaster.Broadcast.
+func toBroadcast(b script.Broadcast) broadcaster.Broadcast {
+	return broadcaster.Broadcast{
+		From:    b.From,
+		To:      b.To,
+		Input:   b.Input,
+		Value:   b.Value,
+		Salt:    b.Salt,
+		GasUsed: b.GasUsed,
+		Type:    broadcaster.BroadcastType(b.Type),
+		Nonce:   b.Nonce,
+	}
 }
 
 func DefaultForkedScriptHost(

@@ -33,6 +33,9 @@ pub use node::*;
 pub mod payload_service;
 pub use payload_service::OpPayloadServiceBuilder;
 
+mod derived_payload_service;
+pub use derived_payload_service::DerivedPayloadServiceBuilder;
+
 pub mod rpc;
 pub use rpc::OpEngineApiBuilder;
 
@@ -58,6 +61,3 @@ pub use reth_optimism_storage::OpStorage;
 
 use op_revm as _;
 use revm as _;
-
-#[cfg(feature = "test-utils")]
-use reth_tasks as _;

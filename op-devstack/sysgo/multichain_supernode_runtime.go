@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -274,13 +275,18 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 	}
 	var l1EL *L1Geth
 	var l1CL *L1CLNode
+	require.NoError(checkL2ToL2MessageExpiryPeriod(cfg, enableInterop, delaySeconds))
+	deployerOpts := cfg.DeployerOptions
+	if cfg.L2ToL2MessageExpiryPeriod != 0 {
+		deployerOpts = append(slices.Clone(deployerOpts), withL2ToL2MessageExpiryPeriod(cfg.L2ToL2MessageExpiryPeriod))
+	}
 	wb, l1Net, l2Nets := buildMultiL2RuntimeWorld(
 		t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath,
 		chainSpecs, genesisAnchorGameType(cfg),
 		func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
 			l1EL, l1CL = startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 			return l1EL, l1CL
-		}, cfg.DeployerOptions...,
+		}, deployerOpts...,
 	)
 	migration := newInteropMigrationState(wb)
 	if cfg.PreGenesisSuperGame != nil {
@@ -368,7 +374,6 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 				Key:              "sequencer",
 				IsSequencer:      true,
 				NoDiscovery:      true,
-				EnableReqResp:    true,
 				DependencySet:    runtimeDepSet,
 				L2FollowSource:   supernodeCLs[i].UserRPC(),
 				L2CLOptions:      cfg.GlobalL2CLOptions,
@@ -508,7 +513,6 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 		Key:            name,
 		IsSequencer:    false,
 		NoDiscovery:    true,
-		EnableReqResp:  false,
 		L2FollowSource: chain.CL.UserRPC(),
 		DependencySet:  runtime.DependencySet,
 		// Follow nodes catch up to their follow source via EL sync.
@@ -560,7 +564,6 @@ func startSharedSupernode(
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
 			false,
-			true,
 			sequencerP2PKeyHex,
 		)
 		cfg := &opnodeconfig.Config{
@@ -672,7 +675,6 @@ func startSingleChainSharedSupernode(
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
 			false,
-			true,
 			sequencerP2PKeyHex,
 		)
 		cfg := &opnodeconfig.Config{

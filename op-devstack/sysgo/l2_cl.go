@@ -24,8 +24,10 @@ type L2CLConfig struct {
 
 	IsSequencer bool
 
-	// EnableReqRespSync enables/disables the req-resp sync server (serving payloads to peers).
-	EnableReqRespSync bool
+	// ConductorRPC configures this node to use the conductor at the given RPC
+	// endpoint. Empty disables conductor integration.
+	ConductorRPC        string
+	ConductorRPCTimeout time.Duration
 
 	// NoDiscovery is the flag to enable/disable discovery
 	NoDiscovery bool
@@ -66,7 +68,6 @@ func DefaultL2CLConfig() *L2CLConfig {
 		VerifierSyncMode:  nodeSync.CLSync,
 		SafeDBPath:        "",
 		IsSequencer:       false,
-		EnableReqRespSync: true,
 		NoDiscovery:       false,
 		FollowSource:      "",
 	}

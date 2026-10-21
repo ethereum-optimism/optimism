@@ -21,8 +21,10 @@ pub mod prover;
 pub mod proving;
 pub mod signer;
 pub mod superroot;
+pub mod tx_sender;
 
 mod adapters;
+mod log_proofs;
 mod ports;
 mod verifier;
 

@@ -1000,6 +1000,25 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
+    /// @notice Tests that the upgrade carries the live withdrawal delays forward into proxy storage
+    ///         when no override is given.
+    function test_upgrade_withdrawalDelaysUnchangedWithoutOverride_succeeds() public {
+        uint256 proofMaturityBefore = optimismPortal2.proofMaturityDelaySeconds();
+        uint256 finalityBefore = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+        uint256 wethDelayBefore = delayedWeth.delay();
+
+        runCurrentUpgradeV2(chainPAO);
+
+        assertEq(optimismPortal2.proofMaturityDelaySeconds(), proofMaturityBefore, "proof maturity delay changed");
+        assertEq(anchorStateRegistry.disputeGameFinalityDelaySeconds(), finalityBefore, "finality delay changed");
+        assertEq(delayedWeth.delay(), wethDelayBefore, "withdrawal delay changed");
+        // After the upgrade the values are read from proxy storage (portal slot 64, registry slot 7,
+        // DelayedWETH slot 6).
+        assertEq(uint256(vm.load(address(optimismPortal2), bytes32(uint256(64)))), proofMaturityBefore);
+        assertEq(uint256(vm.load(address(anchorStateRegistry), bytes32(uint256(7)))), finalityBefore);
+        assertEq(uint256(vm.load(address(delayedWeth), bytes32(uint256(6)))), wethDelayBefore);
+    }
+
     /// @notice Tests that overriding to a disabled game type reverts during upgrade.
     function test_upgrade_respectedGameTypeOverrideToDisabled_reverts() public {
         v2UpgradeInput.disputeGameConfigs[4].enabled = false;
@@ -1667,6 +1686,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.blobBasefeeScalar = 801949;
         deployConfig.gasLimit = 60_000_000;
         deployConfig.l2ChainId = 999_999_999;
+        deployConfig.proofMaturityDelaySeconds = 604800;
+        deployConfig.disputeGameFinalityDelaySeconds = 302400;
+        deployConfig.withdrawalDelaySeconds = 302400;
         deployConfig.resourceConfig = IResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,
@@ -1862,6 +1884,21 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         _assertUpgradeInstructionRejected("10.0.0", Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"));
     }
 
+    /// @notice Tests that the per-chain withdrawal delays cannot be overridden during an upgrade.
+    ///         The live values are always carried forward; only the L1PAO setters change them.
+    function test_upgrade_withdrawalDelayInstructions_reverts() public {
+        string memory version = opcmV2.version();
+        _assertUpgradeInstructionRejected(
+            version, "overrides.cfg.proofMaturityDelaySeconds", abi.encode(uint256(1 days))
+        );
+        _assertUpgradeInstructionRejected(
+            version, "overrides.cfg.disputeGameFinalityDelaySeconds", abi.encode(uint256(12 hours))
+        );
+        _assertUpgradeInstructionRejected(
+            version, "overrides.cfg.withdrawalDelaySeconds", abi.encode(uint256(12 hours))
+        );
+    }
+
     /// @notice Tests that the anchor root override remains unavailable in v9.
     function test_upgrade_anchorRootInstructionV9_reverts() public {
         _assertUpgradeInstructionRejected(
@@ -2018,6 +2055,90 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertTrue(cts.systemConfig.paused(), "SystemConfig not paused");
         assertTrue(cts.optimismPortal.paused(), "portal not paused");
         assertTrue(cts.anchorStateRegistry.paused(), "ASR not paused");
+    }
+
+    /// @notice Tests that deploy stores the per-chain withdrawal delays in proxy storage.
+    function test_deploy_setsWithdrawalDelays_succeeds() public {
+        deployConfig.proofMaturityDelaySeconds = 2 days;
+        deployConfig.disputeGameFinalityDelaySeconds = 1 days;
+        deployConfig.withdrawalDelaySeconds = 1 days;
+
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
+
+        assertEq(cts.optimismPortal.proofMaturityDelaySeconds(), 2 days, "proof maturity delay mismatch");
+        assertEq(cts.anchorStateRegistry.disputeGameFinalityDelaySeconds(), 1 days, "finality delay mismatch");
+        assertEq(cts.delayedWETH.delay(), 1 days, "withdrawal delay mismatch");
+
+        // The values live in the proxies (portal slot 64, registry slot 7, DelayedWETH slot 6), not
+        // in the implementations.
+        assertEq(uint256(vm.load(address(cts.optimismPortal), bytes32(uint256(64)))), 2 days);
+        assertEq(uint256(vm.load(address(cts.anchorStateRegistry), bytes32(uint256(7)))), 1 days);
+        assertEq(uint256(vm.load(address(cts.delayedWETH), bytes32(uint256(6)))), 1 days);
+        IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
+        assertEq(IOptimismPortal2(payable(impls.optimismPortalImpl)).proofMaturityDelaySeconds(), 0);
+        assertEq(IAnchorStateRegistry(impls.anchorStateRegistryImpl).disputeGameFinalityDelaySeconds(), 0);
+        assertEq(IDelayedWETH(payable(impls.delayedWETHImpl)).delay(), 0);
+    }
+
+    /// @notice Tests that a zero withdrawal delay is rejected by OPCM's config validation before
+    ///         any proxy is touched.
+    function test_deploy_zeroWithdrawalDelay_reverts() public {
+        deployConfig.withdrawalDelaySeconds = 0;
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidDelayConfig.selector)
+        );
+    }
+
+    /// @notice Tests that the DelayedWETH bounds reject an out-of-range withdrawal delay on deploy.
+    ///         The bounds error is raised inside initialize(), which the Proxy wraps in its own
+    ///         delegatecall failure message.
+    function test_deploy_withdrawalDelayOutOfBounds_reverts() public {
+        IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
+        deployConfig.withdrawalDelaySeconds = IDelayedWETH(payable(impls.delayedWETHImpl)).maxDelay() + 1;
+        runDeployV2(deployConfig, bytes("Proxy: delegatecall to new implementation contract failed"));
+    }
+
+    /// @notice Tests that a zero proof maturity delay is rejected by OPCM's config validation
+    ///         before any proxy is touched.
+    function test_deploy_zeroProofMaturityDelay_reverts() public {
+        deployConfig.proofMaturityDelaySeconds = 0;
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidDelayConfig.selector)
+        );
+    }
+
+    /// @notice Tests that a zero dispute game finality delay is rejected by OPCM's config
+    ///         validation before any proxy is touched.
+    function test_deploy_zeroDisputeGameFinalityDelay_reverts() public {
+        deployConfig.disputeGameFinalityDelaySeconds = 0;
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidDelayConfig.selector)
+        );
+    }
+
+    /// @notice Tests that the portal's bounds reject an out-of-range proof maturity delay on deploy.
+    ///         The bounds error is raised inside initialize(), which the Proxy wraps in its own
+    ///         delegatecall failure message.
+    function test_deploy_proofMaturityDelayOutOfBounds_reverts() public {
+        IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
+        deployConfig.proofMaturityDelaySeconds =
+            IOptimismPortal2(payable(impls.optimismPortalImpl)).maxProofMaturityDelaySeconds() + 1;
+        runDeployV2(deployConfig, bytes("Proxy: delegatecall to new implementation contract failed"));
+    }
+
+    /// @notice Tests that the registry's bounds reject an out-of-range finality delay on deploy.
+    ///         The bounds error is raised inside initialize(), which the Proxy wraps in its own
+    ///         delegatecall failure message.
+    function test_deploy_disputeGameFinalityDelayOutOfBounds_reverts() public {
+        IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
+        deployConfig.disputeGameFinalityDelaySeconds =
+            IAnchorStateRegistry(impls.anchorStateRegistryImpl).maxDisputeGameFinalityDelaySeconds() + 1;
+        runDeployV2(deployConfig, bytes("Proxy: delegatecall to new implementation contract failed"));
     }
 
     /// @notice Tests that deploy reverts when the superchainConfig needs upgrade.
@@ -2460,10 +2581,8 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice Super root prestate for super cannon games.
     Claim superPrestate = Claim.wrap(bytes32(keccak256("superPrestate")));
 
-    /// @notice Function requires interop portal.
     function setUp() public override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Deploy two chains via OPCMv2 for migration testing.
         chainContracts1 = _deployChainForMigration(1000001);
@@ -2549,7 +2668,10 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
                 maximumBaseFee: type(uint128).max
             }),
             disputeGameConfigs: dgConfigs,
-            useCustomGasToken: false
+            useCustomGasToken: false,
+            proofMaturityDelaySeconds: 604800,
+            disputeGameFinalityDelaySeconds: 302400,
+            withdrawalDelaySeconds: 302400
         });
 
         // Deploy the chain.
@@ -3093,10 +3215,12 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         oldWETH.unlock(depositor, 1 ether);
         vm.stopPrank();
         (uint256 amount, uint256 timestamp) = oldWETH.withdrawals(depositor, depositor);
+        uint256 delayBefore = oldWETH.delay();
 
         _doMigration(_getDefaultMigrateInput());
 
         assertNotEq(chainContracts2.systemConfig.delayedWETH(), address(oldWETH));
+        assertEq(oldWETH.delay(), delayBefore, "retired WETH delay");
         assertEq(oldWETH.balanceOf(depositor), 1 ether);
         (uint256 migratedAmount, uint256 migratedTimestamp) = oldWETH.withdrawals(depositor, depositor);
         assertEq(migratedAmount, amount);
@@ -3143,6 +3267,78 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
         assertTrue(config.isFeatureEnabled(Features.ETH_LOCKBOX));
         assertTrue(config.isFeatureEnabled(Features.INTEROP));
+    }
+
+    /// @notice Tests that migration keeps each portal's proof maturity delay, gives the shared
+    ///         registry the finality delay the legacy registries agree on, leaves the legacy
+    ///         registries' delay untouched, and keeps every DelayedWETH's withdrawal delay.
+    function test_migrate_preservesWithdrawalDelays_succeeds() public {
+        // Give chain 2 a distinct, in-range proof maturity delay so a reset would be visible.
+        uint256 chain2ProofMaturity = chainContracts2.optimismPortal.minProofMaturityDelaySeconds();
+        address chain2PAO = chainContracts2.proxyAdmin.owner();
+        vm.prank(chain2PAO);
+        chainContracts2.optimismPortal.setProofMaturityDelaySeconds(chain2ProofMaturity);
+
+        uint256 chain1ProofMaturity = chainContracts1.optimismPortal.proofMaturityDelaySeconds();
+        uint256 legacyFinalityDelay = chainContracts1.anchorStateRegistry.disputeGameFinalityDelaySeconds();
+        assertEq(chainContracts2.anchorStateRegistry.disputeGameFinalityDelaySeconds(), legacyFinalityDelay);
+
+        // Give both DelayedWETHs the same distinct, in-range withdrawal delay so a reset to the
+        // default would be visible. They must agree or the migration refuses them.
+        IDelayedWETH weth1 = IDelayedWETH(payable(chainContracts1.systemConfig.delayedWETH()));
+        IDelayedWETH weth2 = IDelayedWETH(payable(chainContracts2.systemConfig.delayedWETH()));
+        uint256 wethDelay = weth1.minDelay();
+        assertTrue(wethDelay != weth1.delay());
+        vm.prank(chainContracts1.proxyAdmin.owner());
+        weth1.setDelay(wethDelay);
+        vm.prank(chain2PAO);
+        weth2.setDelay(wethDelay);
+
+        _doMigration(_getDefaultMigrateInput());
+
+        assertEq(chainContracts1.optimismPortal.proofMaturityDelaySeconds(), chain1ProofMaturity);
+        assertEq(chainContracts2.optimismPortal.proofMaturityDelaySeconds(), chain2ProofMaturity);
+
+        IAnchorStateRegistry sharedAsr = chainContracts1.optimismPortal.anchorStateRegistry();
+        assertEq(sharedAsr.disputeGameFinalityDelaySeconds(), legacyFinalityDelay, "shared ASR delay");
+        assertEq(chainContracts1.anchorStateRegistry.disputeGameFinalityDelaySeconds(), legacyFinalityDelay);
+        assertEq(chainContracts2.anchorStateRegistry.disputeGameFinalityDelaySeconds(), legacyFinalityDelay);
+
+        // The shared DelayedWETH is chain 1's; chain 2's is retired but keeps its delay for legacy games.
+        IDelayedWETH sharedWeth = IDelayedWETH(payable(chainContracts2.systemConfig.delayedWETH()));
+        assertEq(address(sharedWeth), address(weth1), "shared WETH");
+        assertEq(sharedWeth.delay(), wethDelay, "shared WETH delay");
+        assertEq(weth2.delay(), wethDelay, "legacy WETH delay");
+    }
+
+    /// @notice Tests that migration refuses chains whose DelayedWETHs disagree on the withdrawal
+    ///         delay, since every chain's new games would use the first chain's DelayedWETH.
+    function test_migrate_mismatchedWithdrawalDelays_reverts() public {
+        IDelayedWETH weth2 = IDelayedWETH(payable(chainContracts2.systemConfig.delayedWETH()));
+        uint256 otherDelay = weth2.minDelay();
+        assertTrue(otherDelay != IDelayedWETH(payable(chainContracts1.systemConfig.delayedWETH())).delay());
+        address chain2PAO = chainContracts2.proxyAdmin.owner();
+        vm.prank(chain2PAO);
+        weth2.setDelay(otherDelay);
+
+        _doMigration(
+            _getDefaultMigrateInput(),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_WithdrawalDelayMismatch.selector
+        );
+    }
+
+    /// @notice Tests that migration refuses chains whose registries disagree on the finality delay.
+    function test_migrate_mismatchedFinalityDelays_reverts() public {
+        uint256 otherDelay = chainContracts2.anchorStateRegistry.minDisputeGameFinalityDelaySeconds();
+        assertTrue(otherDelay != chainContracts1.anchorStateRegistry.disputeGameFinalityDelaySeconds());
+        address chain2PAO = chainContracts2.proxyAdmin.owner();
+        vm.prank(chain2PAO);
+        chainContracts2.anchorStateRegistry.setDisputeGameFinalityDelaySeconds(otherDelay);
+
+        _doMigration(
+            _getDefaultMigrateInput(),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch.selector
+        );
     }
 
     /// @notice Tests that migration respects a pause keyed to an existing per-chain lockbox.
@@ -3654,23 +3850,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
     }
 
-    /// @notice Tests that the migration function reverts when the OPTIMISM_PORTAL_INTEROP dev
-    ///         feature is not enabled.
-    function test_migrate_interopNotEnabled_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-
-        // Mock the container's isDevFeatureEnabled to return false for OPTIMISM_PORTAL_INTEROP,
-        // simulating a container that was deployed without the interop dev feature.
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.OPTIMISM_PORTAL_INTEROP)),
-            abi.encode(false)
-        );
-
-        // Execute the migration, expect revert.
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropNotEnabled.selector);
-    }
-
     /// @notice Builds the dispute game configs for upgrading a migrated super-permissioned
     ///         interop chain. Order must match VALID_GAME_TYPES in
     ///         OPContractsManagerV2._assertValidFullConfig(): only SUPER_PERMISSIONED is enabled,
@@ -3734,6 +3913,15 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         IDisputeGameFactory sharedDgf = sharedAsr.disputeGameFactory();
         IETHLockbox sharedLockbox = portal1.ethLockbox();
         IDelayedWETH sharedWeth = IDelayedWETH(payable(chainContracts1.systemConfig.delayedWETH()));
+        uint256 sharedFinalityDelayBefore = sharedAsr.disputeGameFinalityDelaySeconds();
+        uint256 sharedWethDelayBefore = sharedWeth.delay();
+
+        // Give chain 2 a distinct, in-range proof maturity delay so a reset would be visible.
+        IOptimismPortal2 portal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
+        uint256 chain2ProofMaturity = portal2.minProofMaturityDelaySeconds();
+        vm.prank(chainContracts2.proxyAdmin.owner());
+        portal2.setProofMaturityDelaySeconds(chain2ProofMaturity);
+        uint256 chain1ProofMaturity = portal1.proofMaturityDelaySeconds();
 
         // Sanity: the members have distinct ProxyAdmins, but the shared contracts are administered
         // by the first chain's ProxyAdmin — the exact condition that breaks the naive upgrade path.
@@ -3796,6 +3984,15 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             address(sharedLockbox),
             "shared AnchorStateRegistry re-pointed away from the shared ETHLockbox"
         );
+        // Each member's upgrade re-initializes the shared registry with the delay it reads back.
+        assertEq(
+            sharedAsr.disputeGameFinalityDelaySeconds(),
+            sharedFinalityDelayBefore,
+            "shared AnchorStateRegistry finality delay changed"
+        );
+        // Each portal keeps its own proof maturity delay through the upgrade.
+        assertEq(portal1.proofMaturityDelaySeconds(), chain1ProofMaturity, "chain 1 proof maturity delay changed");
+        assertEq(portal2.proofMaturityDelaySeconds(), chain2ProofMaturity, "chain 2 proof maturity delay changed");
         assertEq(
             address(sharedLockbox.superchainConfig()),
             address(chainContracts1.systemConfig.superchainConfig()),
@@ -3806,9 +4003,9 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             address(sharedLockbox),
             "shared DelayedWETH re-pointed away from the shared ETHLockbox"
         );
+        assertEq(sharedWeth.delay(), sharedWethDelayBefore, "shared DelayedWETH delay changed");
 
         // Per-chain contracts remain bound to their own chain's SystemConfig.
-        IOptimismPortal2 portal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
         assertEq(
             address(portal2.systemConfig()),
             address(chainContracts2.systemConfig),
@@ -3844,6 +4041,9 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
         baseConfig.basefeeScalar = 1368;
         baseConfig.blobBasefeeScalar = 801949;
         baseConfig.gasLimit = 60_000_000;
+        baseConfig.proofMaturityDelaySeconds = 2 days;
+        baseConfig.disputeGameFinalityDelaySeconds = 1 days;
+        baseConfig.withdrawalDelaySeconds = 1 days;
         baseConfig.resourceConfig = IResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,

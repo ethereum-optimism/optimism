@@ -15,9 +15,10 @@ Active flags:
 
 | Flag | Gates |
 |------|-------|
-| `OptimismPortalInterop` | Interop migration functions on OptimismPortal2 |
+| `OptimismPortalInterop` | Interop predeploys on L2 (genesis and L2ContractsManager upgrades) |
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `ZKDisputeGame` | ZK dispute game system |
+| `BridgeHook` | Bridge hook configuration on OptimismPortal2, currently planned only for the compliance module |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade — **enabled by default** |
 
 
@@ -68,8 +69,9 @@ A separate, **test-only** assembler exists for Foundry tests and fork scripts. I
 
 - `DEV_FEATURE__OPTIMISM_PORTAL_INTEROP`
 - `DEV_FEATURE__ZK_DISPUTE_GAME`
+- `DEV_FEATURE__BRIDGE_HOOK`
 
-Interop and ZK are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
+Interop, ZK and bridge hook are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
 
 - `test/setup/FeatureFlags.sol` — `resolveFeaturesFromEnv()` OR-s each enabled flag into `devFeatureBitmap`
 - `test/setup/ForkL1Live.s.sol` — branches on individual `Config.devFeature*` returns
@@ -103,7 +105,7 @@ It does **not** flow to op-node or kona at runtime. They learn about feature act
 
 **On L2 (Solidity)**, readers consult either the in-memory bitmap (during deploy scripts) or the `L2DevFeatureFlags` predeploy (at runtime):
 
-- `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. Gates whether the interop predeploys (`CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, `SuperchainETHBridge`, `ETHLiquidity`, all under `OptimismPortalInterop`) are considered "real" predeploys.
+- `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. Gates whether the interop predeploys (`CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, `SuperchainETHBridge`, `ETHLiquidity`, `UndeliveredMessageExporter`, all under `OptimismPortalInterop`) are considered "real" predeploys.
 - `scripts/L2Genesis.s.sol` — gates which predeploys get installed at genesis.
 - `L2ContractsManager._isDevFeatureEnabled()` in `src/L2/L2ContractsManager.sol` — at runtime, calls `IL2DevFeatureFlags.isDevFeatureEnabled(...)` on the predeploy to decide whether to execute upgrade flows.
 

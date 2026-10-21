@@ -26,8 +26,8 @@ use super::{NamedBarrier, ScenarioControl, ScenarioError};
 use crate::{
     TX_REVERTED_PREFIX, ZK_GAME_TYPE,
     config::{
-        AGGREGATION_ARTIFACT_SUFFIX, ProofProviderConfig, ProofProviderKind, ProposalSafety,
-        ProposerConfig, RANGE_ARTIFACT_SUFFIX, RangeSplitCount,
+        AGGREGATION_ARTIFACT_SUFFIX, LOG_COMMITMENT_ARTIFACT_SUFFIX, ProofProviderConfig,
+        ProofProviderKind, ProposalSafety, ProposerConfig, RANGE_ARTIFACT_SUFFIX, RangeSplitCount,
     },
     contract::{BondDistributionMode, GameStatus, ProposalStatus, ZKGameArgs},
     ports::{
@@ -42,8 +42,8 @@ use crate::{
     },
     prover::ProofKeys,
     proving::{GameProofInputs, ProofRequestCounts},
-    signer::NUM_CONFIRMATIONS,
     superroot::{SuperRootAt, zk_extra_data},
+    tx_sender::NUM_CONFIRMATIONS,
 };
 
 const INITIAL_BLOCK: u64 = 10;
@@ -1511,7 +1511,9 @@ fn super_root_timestamp(root: B256) -> Result<u64> {
 }
 
 fn publish_prestate_at(directory: &Path, prestate: B256) {
-    for suffix in [AGGREGATION_ARTIFACT_SUFFIX, RANGE_ARTIFACT_SUFFIX] {
+    for suffix in
+        [AGGREGATION_ARTIFACT_SUFFIX, RANGE_ARTIFACT_SUFFIX, LOG_COMMITMENT_ARTIFACT_SUFFIX]
+    {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
         encoder.write_all(&[0x7f, b'E', b'L', b'F']).expect("compress scenario ELF");
         let compressed = encoder.finish().expect("finish scenario ELF compression");
@@ -2457,6 +2459,7 @@ pub(super) fn scenario_config() -> ProposerConfig {
         l1_config_path: None,
         dependency_set_path: None,
         range_split_count: RangeSplitCount::one(),
+        max_stdin_bytes: Default::default(),
         max_concurrent_range_proofs: NonZeroUsize::MIN,
         max_concurrent_defense_tasks: NonZeroU64::new(2).unwrap(),
         fast_finality_mode: false,
@@ -2471,9 +2474,13 @@ pub(super) fn scenario_config() -> ProposerConfig {
             range_gas_limit: 1,
             agg_cycle_limit: 1,
             agg_gas_limit: 1,
+            log_proof_strategy: sp1_sdk::network::FulfillmentStrategy::Reserved,
+            log_cycle_limit: 1,
+            log_gas_limit: 1,
             max_price_per_pgu: Some(NonZeroU64::MIN),
             min_auction_period: 1,
         },
+        log_path: crate::config::LogPath::Table,
     }
 }
 

@@ -18,10 +18,14 @@
 
 use reth_metrics::{
     Metrics,
-    metrics::{self, Gauge},
+    metrics::{self, Counter, Gauge},
 };
 
 const NO_LABELS: &[(&str, &str)] = &[];
+
+/// Label value for an automatic disable caused by a refund policy that could not undo a candidate
+/// transaction.
+pub(crate) const AUTO_DISABLE_REASON_REFUND_POLICY_REVERT: &str = "refund_policy_revert";
 
 /// The operator opt-in the node booted with, 0 or 1.
 ///
@@ -43,6 +47,25 @@ struct SdmOperatorOptInMetrics {
     operator_opt_in: Gauge,
 }
 
+/// Times the node turned the operator opt-in off by itself, by reason.
+///
+/// A counter rather than a gauge value: the opt-in gauge already shows the flag is off, and the
+/// configured gauge shows a restart would turn it back on. What neither can say is whether the
+/// node or an operator turned it off, which decides whether re-enabling is safe.
+#[derive(Metrics)]
+#[metrics(scope = "op_sdm")]
+struct SdmOperatorOptInAutoDisabledMetrics {
+    /// Automatic disables of the SDM operator opt-in, by reason.
+    operator_opt_in_auto_disabled_total: Counter,
+}
+
+/// Records that the node turned the operator opt-in off by itself.
+pub(crate) fn record_operator_opt_in_auto_disabled(reason: &'static str) {
+    SdmOperatorOptInAutoDisabledMetrics::new_with_labels(&[("reason", reason)])
+        .operator_opt_in_auto_disabled_total
+        .increment(1);
+}
+
 /// Records the operator opt-in the node booted with.
 pub(crate) fn record_operator_opt_in_configured(enabled: bool) {
     SdmOperatorOptInConfiguredMetrics::new_with_labels(NO_LABELS)
@@ -57,4 +80,28 @@ pub(crate) fn record_operator_opt_in(enabled: bool) {
 
 const fn gauge_value(flag: bool) -> f64 {
     if flag { 1.0 } else { 0.0 }
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
+    use metrics_util::layers::{Layer, Prefix, PrefixLayer};
+
+    pub(crate) const FAILURES: &str = "reth_op_sdm_post_exec_validation_failure_total";
+    pub(crate) const RESULTS: &str = "reth_op_sdm_post_exec_validation_total";
+
+    /// A recorder private to one test, prefixed like the node's recorder stack so the rendered
+    /// series names are the ones operators query.
+    pub(crate) fn recorder() -> (Prefix<PrometheusRecorder>, PrometheusHandle) {
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let handle = recorder.handle();
+        (PrefixLayer::new("reth").layer(recorder), handle)
+    }
+
+    /// Reads one exactly-labeled series out of the exposition. `None` distinguishes a series
+    /// that was never registered from one reporting 0.
+    pub(crate) fn series(exposition: &str, metric: &str, label: &str, value: &str) -> Option<f64> {
+        let series = format!("{metric}{{{label}=\"{value}\"}} ");
+        exposition.lines().find_map(|line| line.strip_prefix(series.as_str())?.trim().parse().ok())
+    }
 }

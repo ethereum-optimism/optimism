@@ -34,9 +34,6 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when the chainSystemConfigs array is empty.
     error OPContractsManagerMigrator_NoChains();
 
-    /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
-    error OPContractsManagerMigrator_InteropNotEnabled();
-
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
 
@@ -76,6 +73,9 @@ interface IOPContractsManagerMigrator {
     error OPContractsManagerMigrator_DisputeGameNotEnabled();
 
     error OPContractsManagerMigrator_InvalidStartingAnchorRoot();
+
+    error OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch();
+    error OPContractsManagerMigrator_WithdrawalDelayMismatch();
 
     error SemverComp_InvalidSemverParts();
 

@@ -26,6 +26,10 @@ use kona_preimage::{
 };
 use kona_proof::{CachingOracle, FlushableCache, l1::OracleBlobProvider};
 use kona_sp1_client_utils::{
+    log_commitment::{
+        BlockReceipts, LogCommitmentInputs, LogOpening, VerifiedLogCommitments,
+        log_commitment_public_values, log_commitment_witness,
+    },
     super_root::{
         SuperConsolidationInputs, SuperConsolidationOutputs, SuperConsolidationTransitionInput,
         SuperInteropInputs, SuperInteropOutputs, SuperOptimisticBlock, SuperOutputRoot,
@@ -40,7 +44,25 @@ use kona_sp1_ethereum_client_utils::{
 };
 use kona_sp1_host_utils::witness_generation::{OnlineBlobStore, PreimageWitnessCollector};
 use serde::Deserialize;
-use sp1_sdk::{Elf, Prover, ProverClient, SP1PublicValues, SP1Stdin};
+use sp1_sdk::{
+    Elf, Prover, ProverClient, SP1Proof, SP1ProofWithPublicValues, SP1PublicValues, SP1Stdin,
+    SP1VerifyingKey,
+};
+
+mod cost;
+pub use cost::{
+    ConsolidationCost, DEFAULT_MAX_STDIN_BYTES, LogBatchBlock, MAX_ENTRIES_PER_BATCH,
+    ScannedTimestampCost, batch_log_blocks, estimate_consolidation_pgu, estimate_log_block_pgu,
+    estimate_log_commitment_pgu, receipts_trie_bytes, split_log_batches,
+};
+mod l2;
+pub use l2::L2BlockClient;
+mod log_commitments;
+pub use log_commitments::MissingLogCommitment;
+use log_commitments::{NativeConsolidation, run_native_consolidation};
+
+#[cfg(test)]
+mod consolidation_tests;
 
 /// Exit code signalling a valid super-range claim.
 pub const EXIT_VALID: u8 = 0;
@@ -48,6 +70,76 @@ pub const EXIT_VALID: u8 = 0;
 pub const EXIT_INVALID: u8 = 1;
 /// Exit code signalling an infrastructure failure before a verdict was reached.
 pub const EXIT_INFRA: u8 = 2;
+
+/// Largest witness archive rkyv can write. rkyv 0.8 without `pointer_width_64` stores each
+/// relative pointer as an `i32` and panics, rather than erroring, when one overflows. No offset
+/// within an archive this size can overflow.
+pub const MAX_ARCHIVED_WITNESS_BYTES: u64 = i32::MAX as u64;
+
+/// Archive bytes per preimage beyond the key and value that
+/// [`PreimageStore::preimage_bytes`] counts. rkyv's hash map stores each entry as the archived
+/// key and an 8-byte vector header in a table of at most `len * 8 / 7 + 1` slots, with one
+/// control byte per slot: under 16 bytes per entry, so 64 leaves a 4× margin.
+const WITNESS_ENTRY_OVERHEAD_BYTES: u64 = 64;
+
+/// Archive bytes independent of the witness size: the root, vector headers, the hash table's
+/// slot rounding and control-byte tail, and alignment padding.
+const WITNESS_ARCHIVE_FIXED_BYTES: u64 = 4_096;
+
+/// A witness whose rkyv archive could exceed [`MAX_ARCHIVED_WITNESS_BYTES`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WitnessTooLarge {
+    /// Upper bound on the witness's archive size.
+    pub bound: u64,
+    /// The archive limit.
+    pub limit: u64,
+}
+
+impl fmt::Display for WitnessTooLarge {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "witness archive may reach {} bytes, above the {}-byte rkyv limit",
+            self.bound, self.limit
+        )
+    }
+}
+
+impl std::error::Error for WitnessTooLarge {}
+
+/// Returns true when `err`'s chain contains a [`WitnessTooLarge`].
+pub fn is_witness_too_large(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| cause.is::<WitnessTooLarge>())
+}
+
+/// An upper bound on the size of `witness`'s rkyv archive, computed without archiving it.
+fn witness_archive_bound(witness: &DefaultWitnessData) -> u64 {
+    let preimages = witness.preimage_store();
+    let blobs = witness.blob_data();
+    preimages.preimage_bytes() as u64 +
+        preimages.preimage_count() as u64 * WITNESS_ENTRY_OVERHEAD_BYTES +
+        size_of_val(blobs.blobs.as_slice()) as u64 +
+        size_of_val(blobs.commitments.as_slice()) as u64 +
+        size_of_val(blobs.proofs.as_slice()) as u64 +
+        WITNESS_ARCHIVE_FIXED_BYTES
+}
+
+/// Archives `witness` with rkyv, or returns [`WitnessTooLarge`] without calling rkyv when its
+/// archive could exceed [`MAX_ARCHIVED_WITNESS_BYTES`].
+fn archive_witness(witness: &DefaultWitnessData) -> Result<rkyv::util::AlignedVec> {
+    archive_witness_within(witness, MAX_ARCHIVED_WITNESS_BYTES)
+}
+
+fn archive_witness_within(
+    witness: &DefaultWitnessData,
+    limit: u64,
+) -> Result<rkyv::util::AlignedVec> {
+    let bound = witness_archive_bound(witness);
+    if bound > limit {
+        return Err(WitnessTooLarge { bound, limit }.into());
+    }
+    rkyv::to_bytes::<rkyv::rancor::Error>(witness).context("rkyv failed to archive the witness")
+}
 
 /// CLI/runtime configuration for one super-range execution.
 #[derive(Clone, Debug)]
@@ -58,6 +150,9 @@ pub struct RunConfig {
     /// Corrupt the claimed optimistic output root the guest sees, after collecting witnesses on
     /// the honest one, so the guest rejects the claim.
     pub corrupt_claimed_root: bool,
+    /// Print the PGU, instruction count, stdin size, and cycle-tracker totals of each SP1 guest
+    /// execution.
+    pub report: bool,
     /// Supernode JSON-RPC endpoint.
     pub supernode_address: String,
     /// L1 execution JSON-RPC endpoint.
@@ -136,6 +231,16 @@ pub struct SynthesizedExecution {
     pub previous_super_root_proof_bytes: Vec<u8>,
 }
 
+/// The verdict of a `mode` replay that failed with `err`. A witness over the archive limit is the
+/// executor's limit, not a rejected claim, so it is returned as an error (exit 2).
+fn replay_failure(mode: &str, err: anyhow::Error) -> Result<Verdict> {
+    if is_witness_too_large(&err) {
+        return Err(err);
+    }
+    tracing::info!("super-range {mode} replay failed (claim rejected): {err}");
+    Ok(Verdict::Invalid)
+}
+
 /// Runs the full two-pass super-range executor.
 pub async fn run(config: RunConfig) -> Result<Verdict> {
     let super_range_elf = if config.native_core {
@@ -199,6 +304,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
 
     let replayed_range_outputs = match replay_range(
         config.native_core,
+        config.report,
         &replay_range_inputs,
         range_witness,
         super_range_elf.clone(),
@@ -207,10 +313,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     .await
     {
         Ok(outputs) => outputs,
-        Err(err) => {
-            tracing::info!("super-range range replay failed (claim rejected): {err}");
-            return Ok(Verdict::Invalid);
-        }
+        Err(err) => return replay_failure("range", err),
     };
 
     if replayed_range_outputs != native_range_outputs {
@@ -232,35 +335,55 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
 
     ensure_range_outputs_match_inputs(&replayed_range_outputs, &synthesized.range_inputs)?;
 
-    let consolidation_host = build_interop_host(
-        &host_inputs,
-        config.l1_head,
-        &synthesized.previous_super_root_proof_bytes,
-        synthesized.current_super_root,
-        config.end_timestamp,
-    )?;
-    let (consolidation_witness, native_consolidation_outputs) = collect_consolidation_witness(
-        consolidation_host,
-        &synthesized.consolidation_inputs,
-        &preloaded_preimages,
-        Some(&configs),
-    )
-    .await?;
+    let collect = async |batches: &[Vec<u8>]| {
+        let host = build_interop_host(
+            &host_inputs,
+            config.l1_head,
+            &synthesized.previous_super_root_proof_bytes,
+            synthesized.current_super_root,
+            config.end_timestamp,
+        )?;
+        collect_consolidation_witness(
+            host,
+            &synthesized.consolidation_inputs,
+            &preloaded_preimages,
+            Some(&configs),
+            batches,
+        )
+        .await
+    };
+    // The table path: commit the blocks below the heads that the first run read, then recollect.
+    let mut consolidation = collect(&[]).await?;
+    let mut batches = Vec::new();
+    if !consolidation.missing.is_empty() {
+        batches.push(
+            commit_missing_blocks(&config, &consolidation.missing)
+                .await
+                .context("failed to commit the blocks below the local safe heads")?,
+        );
+        consolidation = collect(&batches).await?;
+        ensure!(
+            consolidation.missing.is_empty(),
+            "blocks below the local safe heads have no entry after the log stage: {:?}",
+            consolidation.missing,
+        );
+    }
+    let native_consolidation_outputs = consolidation.outputs;
+    let log_commitments = LogCommitmentInputs { batches, openings: consolidation.openings };
 
     let replayed_consolidation_outputs = match replay_consolidation(
         config.native_core,
+        config.report,
         &synthesized.consolidation_inputs,
-        consolidation_witness,
+        consolidation.witness,
+        &log_commitments,
         super_range_elf,
         Some(&configs),
     )
     .await
     {
         Ok(outputs) => outputs,
-        Err(err) => {
-            tracing::info!("super-range consolidation replay failed (claim rejected): {err}");
-            return Ok(Verdict::Invalid);
-        }
+        Err(err) => return replay_failure("consolidation", err),
     };
 
     if replayed_consolidation_outputs != native_consolidation_outputs {
@@ -283,6 +406,36 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         "super-range program validated the optimistic transitions and consolidation",
     );
     Ok(Verdict::Valid)
+}
+
+/// The batch of entries of `missing`, from their receipts on the L2 nodes, computed by the
+/// `log-commitment` ELF, or natively with `--native-core`.
+async fn commit_missing_blocks(
+    config: &RunConfig,
+    missing: &[MissingLogCommitment],
+) -> Result<Vec<u8>> {
+    let mut clients = BTreeMap::new();
+    for address in &config.l2_node_addresses {
+        let client = L2BlockClient::connect(address).await?;
+        clients.insert(client.chain_id().await?, client);
+    }
+    let mut blocks = Vec::with_capacity(missing.len());
+    for block in missing {
+        let client = clients
+            .get(&block.chain_id)
+            .with_context(|| format!("no L2 node for chain {}", block.chain_id))?;
+        let receipts = client.receipts(block.block_hash, block.receipts_root).await?;
+        blocks.push(BlockReceipts { receipts_root: block.receipts_root, receipts });
+    }
+    let stdin = build_log_commitment_stdin_from_receipts(&blocks)?;
+    if config.native_core {
+        return Ok(expected_batch_public_values(&stdin));
+    }
+    let elf =
+        kona_sp1_elfs::load_elf("log-commitment-elf").context("log-commitment ELF unavailable")?;
+    let public_values =
+        execute_sp1("log-commitment", stdin, elf.into(), config.report, true).await?;
+    Ok(public_values.to_vec())
 }
 
 /// Resolves deployment files as registry overrides, using embedded values for omitted files.
@@ -491,12 +644,103 @@ pub fn build_super_range_stdin(
     build_super_interop_stdin(SuperInteropInputs::Range(inputs.clone()), witness)
 }
 
-/// Encodes consolidation-mode SP1 stdin as typed inputs followed by rkyv witness bytes.
+/// Compressed batch proofs of the `log-commitment` program, with its verifying key.
+#[derive(Clone)]
+pub struct LogCommitmentProofs {
+    /// The `log-commitment` program's verifying key.
+    pub vk: SP1VerifyingKey,
+    /// The batch proofs, in the order of the batches they commit.
+    pub proofs: Vec<SP1ProofWithPublicValues>,
+}
+
+impl Debug for LogCommitmentProofs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LogCommitmentProofs").field("proofs", &self.proofs.len()).finish()
+    }
+}
+
+impl LogCommitmentProofs {
+    /// The public values of each proof: the batches of [`LogCommitmentInputs`].
+    pub fn batches(&self) -> Vec<Vec<u8>> {
+        self.proofs.iter().map(|proof| proof.public_values.to_vec()).collect()
+    }
+}
+
+/// Encodes consolidation-mode SP1 stdin: typed inputs, rkyv witness bytes, and the encoded
+/// `log_commitments`. `proofs` go to the proof stream (see [`write_log_commitment_proofs`]).
+/// Without `proofs`, only execution with the deferred-proof check off can use batches.
 pub fn build_super_consolidation_stdin(
     inputs: &SuperConsolidationInputs,
     witness: DefaultWitnessData,
+    log_commitments: &LogCommitmentInputs,
+    proofs: Option<&LogCommitmentProofs>,
 ) -> Result<SP1Stdin> {
-    build_super_interop_stdin(SuperInteropInputs::Consolidation(inputs.clone()), witness)
+    log_commitments.validate()?;
+    let mut stdin =
+        build_super_interop_stdin(SuperInteropInputs::Consolidation(inputs.clone()), witness)?;
+    stdin.write_vec(log_commitments.encode());
+    if let Some(proofs) = proofs {
+        write_log_commitment_proofs(
+            &mut stdin,
+            &proofs.vk,
+            &log_commitments.batches,
+            &proofs.proofs,
+        )?;
+    }
+    Ok(stdin)
+}
+
+/// Adds `proofs` to the proof stream of a consolidation `stdin` that carries `batches`, with the
+/// `log-commitment` program's `vk`. Each proof must be compressed and commit the batch at its
+/// position.
+pub fn write_log_commitment_proofs(
+    stdin: &mut SP1Stdin,
+    vk: &SP1VerifyingKey,
+    batches: &[impl AsRef<[u8]>],
+    proofs: &[impl std::borrow::Borrow<SP1ProofWithPublicValues>],
+) -> Result<()> {
+    ensure!(
+        proofs.len() == batches.len(),
+        "{} log-commitment proofs for {} batches",
+        proofs.len(),
+        batches.len(),
+    );
+    for (index, (proof, batch)) in proofs.iter().zip(batches).enumerate() {
+        let proof = proof.borrow();
+        ensure!(
+            proof.public_values.as_slice() == batch.as_ref(),
+            "log-commitment proof {index} does not commit its batch",
+        );
+        let SP1Proof::Compressed(recursion_proof) = &proof.proof else {
+            bail!("log-commitment proof {index} is not compressed");
+        };
+        stdin.write_proof((**recursion_proof).clone(), vk.vk.clone());
+    }
+    Ok(())
+}
+
+/// Encodes log-commitment SP1 stdin for `blocks`. Fails if receipts do not hash to their root.
+pub fn build_log_commitment_stdin_from_receipts(blocks: &[BlockReceipts]) -> Result<SP1Stdin> {
+    let receipts_roots: Vec<B256> = blocks.iter().map(|block| block.receipts_root).collect();
+    build_log_commitment_stdin(&receipts_roots, log_commitment_witness(blocks)?)
+}
+
+/// Encodes log-commitment SP1 stdin as the receipts roots followed by rkyv witness bytes.
+pub fn build_log_commitment_stdin(
+    receipts_roots: &[B256],
+    witness: DefaultWitnessData,
+) -> Result<SP1Stdin> {
+    let mut stdin = SP1Stdin::new();
+    stdin.write(&receipts_roots);
+    stdin.write_slice(&archive_witness(&witness)?);
+    Ok(stdin)
+}
+
+/// The public values that the `log-commitment` program commits for `stdin` from
+/// [`build_log_commitment_stdin`], by the program's own function over the same stdin items.
+pub fn expected_batch_public_values(stdin: &SP1Stdin) -> Vec<u8> {
+    let receipts_roots: Vec<B256> = SP1Stdin::from(&stdin.buffer[0]).read();
+    log_commitment_public_values(&receipts_roots, &stdin.buffer[1])
 }
 
 fn build_super_interop_stdin(
@@ -505,8 +749,7 @@ fn build_super_interop_stdin(
 ) -> Result<SP1Stdin> {
     let mut stdin = SP1Stdin::new();
     stdin.write(&inputs);
-    let witness_bytes = rkyv::to_bytes::<rkyv::rancor::Error>(&witness)?;
-    stdin.write_slice(&witness_bytes);
+    stdin.write_slice(&archive_witness(&witness)?);
     Ok(stdin)
 }
 
@@ -536,32 +779,72 @@ pub fn decode_super_consolidation_public_values(
     }
 }
 
+/// Executes `elf` on `stdin`. Without `deferred_proof_verification`, the guest's
+/// `verify_sp1_proof` calls pass with no proof in the stdin.
+async fn execute_sp1(
+    mode: &str,
+    stdin: SP1Stdin,
+    elf: Arc<[u8]>,
+    report: bool,
+    deferred_proof_verification: bool,
+) -> Result<SP1PublicValues> {
+    let stdin_bytes: usize = stdin.buffer.iter().map(Vec::len).sum();
+    let client = ProverClient::builder().cpu().build().await;
+    let (public_values, execution_report) = client
+        .execute(Elf::Dynamic(elf), stdin)
+        .deferred_proof_verification(deferred_proof_verification)
+        .calculate_gas(true)
+        .await?;
+    ensure!(
+        execution_report.exit_code == 0,
+        "{mode} guest exited with code {}",
+        execution_report.exit_code
+    );
+    if report {
+        let pgu = execution_report.gas().expect("calculate_gas(true) reports PGU");
+        println!(
+            "{mode}: pgu={pgu} instructions={} stdin_bytes={stdin_bytes}",
+            execution_report.total_instruction_count(),
+        );
+        // SP1 fills the cycle trackers only when built with `sp1-sdk/profiling`.
+        let trackers: BTreeMap<_, _> = execution_report.cycle_tracker.iter().collect();
+        for (label, cycles) in trackers {
+            let invocations =
+                execution_report.invocation_tracker.get(label).copied().unwrap_or_default();
+            println!("{mode} {label}: cycles={cycles} invocations={invocations}");
+        }
+    }
+    Ok(public_values)
+}
+
 async fn execute_sp1_range(
     inputs: &SuperRangeInputs,
     witness: DefaultWitnessData,
     super_range_elf: Arc<[u8]>,
+    report: bool,
 ) -> Result<SuperRangeOutputs> {
     let stdin = build_super_range_stdin(inputs, witness)?;
-    let client = ProverClient::builder().cpu().build().await;
-    let elf = Elf::Dynamic(super_range_elf);
-    let (mut public_values, _report) = client.execute(elf, stdin).await?;
+    let mut public_values = execute_sp1("range", stdin, super_range_elf, report, true).await?;
     decode_super_range_public_values(&mut public_values)
 }
 
 async fn execute_sp1_consolidation(
     inputs: &SuperConsolidationInputs,
     witness: DefaultWitnessData,
+    log_commitments: &LogCommitmentInputs,
     super_range_elf: Arc<[u8]>,
+    report: bool,
 ) -> Result<SuperConsolidationOutputs> {
-    let stdin = build_super_consolidation_stdin(inputs, witness)?;
-    let client = ProverClient::builder().cpu().build().await;
-    let elf = Elf::Dynamic(super_range_elf);
-    let (mut public_values, _report) = client.execute(elf, stdin).await?;
+    let stdin = build_super_consolidation_stdin(inputs, witness, log_commitments, None)?;
+    // The stdin carries the batches' public values without their proofs.
+    let mut public_values =
+        execute_sp1("consolidation", stdin, super_range_elf, report, false).await?;
     decode_super_consolidation_public_values(&mut public_values)
 }
 
 async fn replay_range(
     native_core: bool,
+    report: bool,
     inputs: &SuperRangeInputs,
     witness: DefaultWitnessData,
     super_range_elf: Option<Arc<[u8]>>,
@@ -572,6 +855,7 @@ async fn replay_range(
             inputs,
             witness,
             super_range_elf.expect("super-range ELF is loaded for SP1 execution"),
+            report,
         )
         .await;
     }
@@ -581,8 +865,10 @@ async fn replay_range(
 
 async fn replay_consolidation(
     native_core: bool,
+    report: bool,
     inputs: &SuperConsolidationInputs,
     witness: DefaultWitnessData,
+    log_commitments: &LogCommitmentInputs,
     super_range_elf: Option<Arc<[u8]>>,
     configs: Option<&ChainConfigs>,
 ) -> Result<SuperConsolidationOutputs> {
@@ -590,12 +876,16 @@ async fn replay_consolidation(
         return execute_sp1_consolidation(
             inputs,
             witness,
+            log_commitments,
             super_range_elf.expect("super-range ELF is loaded for SP1 execution"),
+            report,
         )
         .await;
     }
     let (oracle, _) = witness.get_oracle_and_blob_provider().await?;
-    build_consolidation_outputs(inputs.clone(), oracle, configs).await
+    // The guest's source; the native replay has no proof to verify.
+    let log_commitments = VerifiedLogCommitments::new(log_commitments.clone(), &[0; 8], |_, _| {});
+    build_consolidation_outputs(inputs.clone(), oracle, configs, Arc::new(log_commitments)).await
 }
 
 /// Flips a bit in the first claimed transition's optimistic output root.
@@ -683,18 +973,52 @@ pub async fn collect_range_witness(
     .await
 }
 
+/// A consolidation witness with what the native run that collected it computed.
+#[derive(Debug)]
+pub struct CollectedConsolidation {
+    /// The witness.
+    pub witness: DefaultWitnessData,
+    /// The natively computed consolidation outputs.
+    pub outputs: SuperConsolidationOutputs,
+    /// The openings of the logs that the entry table served, for [`LogCommitmentInputs`].
+    pub openings: Vec<LogOpening>,
+    /// The blocks below the local safe heads that had no entry, so the witness holds their
+    /// receipts.
+    pub missing: Vec<MissingLogCommitment>,
+    /// The receipts roots whose entries the run read, so the stdin must carry their batches.
+    pub served: Vec<B256>,
+    /// The bytes that the run read from the oracle, with repeats.
+    pub read_bytes: u64,
+    /// The siblings of the openings that the run's log checks verify.
+    pub log_check_siblings: u64,
+}
+
 /// Collects a consolidation-mode witness and the natively computed consolidation outputs.
+///
+/// `batches` are the public values of the log-commitment batch proofs that the consolidation
+/// stdin will carry; the run takes the guest's path for them (see [`VerifiedLogCommitments`]).
 pub async fn collect_consolidation_witness(
     host: InteropHost,
     inputs: &SuperConsolidationInputs,
     preloaded_preimages: &[(PreimageKey, Vec<u8>)],
     configs: Option<&ChainConfigs>,
-) -> Result<(DefaultWitnessData, SuperConsolidationOutputs)> {
-    collect_witness(preloaded_preimages, host, |oracle, _beacon| {
-        let inputs = inputs.clone();
-        async move { build_consolidation_outputs(inputs, oracle, configs).await }
+    batches: &[Vec<u8>],
+) -> Result<CollectedConsolidation> {
+    let (witness, native) = collect_witness(preloaded_preimages, host, |oracle, _beacon| {
+        run_native_consolidation(oracle, inputs.clone(), configs, batches)
     })
-    .await
+    .await?;
+    let NativeConsolidation { outputs, openings, missing, served, read_bytes, log_check_siblings } =
+        native;
+    Ok(CollectedConsolidation {
+        witness,
+        outputs,
+        openings,
+        missing,
+        served,
+        read_bytes,
+        log_check_siblings,
+    })
 }
 
 struct AbortOnDrop(tokio::task::AbortHandle);
@@ -1184,6 +1508,17 @@ mod tests {
     use super::*;
     use kona_preimage::errors::PreimageOracleError;
 
+    #[test]
+    fn replay_witness_over_the_limit_is_not_a_rejected_claim() {
+        let too_large =
+            anyhow::Error::new(WitnessTooLarge { bound: 2, limit: 1 }).context("replay");
+        let err = replay_failure("range", too_large).expect_err("an oversized witness is an error");
+        assert!(is_witness_too_large(&err));
+
+        let verdict = replay_failure("range", anyhow!("guest panicked")).expect("a verdict");
+        assert_eq!(verdict, Verdict::Invalid);
+    }
+
     fn b256(fill: u8) -> B256 {
         B256::from([fill; 32])
     }
@@ -1311,7 +1646,7 @@ mod tests {
         configs.rollup_configs.insert(u64::MAX, rollup.clone());
         let dependency = configs.dependency_set.dependencies.remove(&10).unwrap();
         configs.dependency_set.dependencies.insert(u64::MAX, dependency);
-        configs.dependency_set.override_message_expiry_window = Some(123);
+        configs.dependency_set.override_message_expiry_window = Some(123.try_into().unwrap());
         let rollup_path = dir.path().join("rollup.json");
         let dependency_path = dir.path().join("depset.json");
         let l1_path = dir.path().join("l1.json");
@@ -1356,15 +1691,22 @@ mod tests {
             .save_preimage(PreimageKey::new_keccak256(*block_hash), alloy_rlp::encode(&header))
             .unwrap();
         let witness = DefaultWitnessData::from_parts(preimages, BlobData::default());
-        let outputs =
-            replay_range(true, &synthesized.range_inputs, witness.clone(), None, Some(&loaded))
-                .await
-                .unwrap();
+        let outputs = replay_range(
+            true,
+            false,
+            &synthesized.range_inputs,
+            witness.clone(),
+            None,
+            Some(&loaded),
+        )
+        .await
+        .unwrap();
         assert_eq!(outputs.transitions, synthesized.range_inputs.claimed_transitions);
         assert_eq!(outputs.span, synthesized.range_inputs.span);
         assert_eq!(outputs.l1_head, synthesized.range_inputs.l1_head);
-        let err =
-            replay_range(true, &synthesized.range_inputs, witness, None, None).await.unwrap_err();
+        let err = replay_range(true, false, &synthesized.range_inputs, witness, None, None)
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("no embedded dependency set"), "unexpected error: {err}");
     }
 
@@ -1779,5 +2121,60 @@ mod tests {
 
     impl FlushableCache for FailingOracle {
         fn flush(&self) {}
+    }
+
+    fn sized_witness(entries: u64, value_len: usize, blobs: usize) -> DefaultWitnessData {
+        let mut store = PreimageStore::default();
+        for index in 0..entries {
+            let mut key = [0; 32];
+            key[..8].copy_from_slice(&index.to_le_bytes());
+            let key = PreimageKey::new(key, kona_preimage::PreimageKeyType::GlobalGeneric);
+            store.save_preimage(key, vec![0xab; value_len]).unwrap();
+        }
+        let blob_data = BlobData {
+            blobs: vec![kzg_rs::Blob([0; kzg_rs::BYTES_PER_BLOB]); blobs],
+            commitments: vec![kzg_rs::Bytes48([0; 48]); blobs],
+            proofs: vec![kzg_rs::Bytes48([0; 48]); blobs],
+        };
+        DefaultWitnessData::from_parts(store, blob_data)
+    }
+
+    #[test]
+    fn witness_archive_bound_covers_the_real_archive() {
+        for entries in [0, 1, 16, 17, 1_024, 1_025, 65_536, 65_537] {
+            for value_len in [0, 1, 33, 4_096] {
+                if entries > 1_025 && value_len > 33 {
+                    continue;
+                }
+                for blobs in [0, 2] {
+                    let witness = sized_witness(entries, value_len, blobs);
+                    let archived = rkyv::to_bytes::<rkyv::rancor::Error>(&witness).unwrap();
+                    assert!(
+                        archived.len() as u64 <= witness_archive_bound(&witness),
+                        "{entries} entries of {value_len} bytes and {blobs} blobs archive to {} \
+                         bytes, above the bound {}",
+                        archived.len(),
+                        witness_archive_bound(&witness),
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn archive_witness_refuses_a_bound_over_the_limit() {
+        let witness = sized_witness(17, 33, 2);
+        let bound = witness_archive_bound(&witness);
+
+        let err = archive_witness_within(&witness, bound - 1).unwrap_err();
+        assert!(is_witness_too_large(&err));
+        assert_eq!(
+            err.downcast_ref::<WitnessTooLarge>(),
+            Some(&WitnessTooLarge { bound, limit: bound - 1 }),
+        );
+
+        let archived = archive_witness_within(&witness, bound).unwrap();
+        let expected = rkyv::to_bytes::<rkyv::rancor::Error>(&witness).unwrap();
+        assert_eq!(archived.as_slice(), expected.as_slice());
     }
 }

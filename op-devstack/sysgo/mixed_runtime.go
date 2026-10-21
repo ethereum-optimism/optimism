@@ -274,7 +274,6 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				Key:           spec.CLKey,
 				IsSequencer:   spec.IsSequencer,
 				NoDiscovery:   true,
-				EnableReqResp: true,
 				DependencySet: depSet,
 			})
 		case MixedL2CLKona:
@@ -543,6 +542,7 @@ func startMixedKonaNode(
 	elKey string,
 	isSequencer bool,
 	depSet coredepset.DependencySet,
+	extraEnv ...string,
 ) *KonaNode {
 	tempKonaDir := t.TempDirWithPrefix("l2-cl-kona-" + NewComponentTarget(clKey, l2Net.ChainID()).String())
 
@@ -605,6 +605,7 @@ func startMixedKonaNode(
 	} else {
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
+	envVars = append(envVars, extraEnv...)
 
 	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",
