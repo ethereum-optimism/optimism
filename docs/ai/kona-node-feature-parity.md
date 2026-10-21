@@ -34,7 +34,7 @@ This source audit evaluates `develop` at `3c49e02437` on 20 October 2026. Its pu
 | Static peers | No equivalent startup/redial configuration is implemented in standalone Kona. Bootnodes are discovery seeds, not static peer connections. | [P2P flags](../../rust/kona/bin/node/src/flags/p2p.rs), [#23430](https://github.com/ethereum-optimism/optimism/issues/23430). |
 | Peer connect/disconnect | Methods exist; the baseline observes the first connection state and does not reliably wait for the requested transition. | [P2P handlers](../../rust/kona/crates/node/rpc/src/p2p.rs). #23496 provides bounded effect-waiting. |
 | L1 receipt and beacon compatibility | Providers exist; open PRs add raw-receipt fallback and repeated Beacon API hash parameters. | [Alloy providers](../../rust/kona/crates/providers/providers-alloy/src), #22553 and #22594. |
-| Alt-DA deployment | op-node wires the `op-alt-da` CLI/configuration and data source; standalone Kona has no corresponding CLI or construction path on this baseline. Protocol configuration fields alone do not establish support. | [op-node flags](../../op-node/flags/flags.go), [Kona node construction](../../rust/kona/crates/node/service/src/service/node.rs). |
+| Alt-DA deployment | Unsupported by design. Kona will not implement Alt-DA support; Alt-DA deployments are excluded from feature-parity and migration requirements. This is not an unresolved parity gap or cutover blocker. | [Feature-parity scope](https://github.com/ethereum-optimism/protocol-team/issues/49). |
 | Beacon endpoint resilience | op-node supports headers and fallback/archive endpoints. Kona's CLI supplies one beacon URL and a slot-duration override; no equivalent fallback/header configuration is wired. | [op-node flags](../../op-node/flags/flags.go), [Kona provider flags](../../rust/kona/bin/node/src/flags/engine/providers.rs). |
 | Signer rotation | Kona refreshes the current signer from L1. op-node additionally accepts the previous signer during rotation grace until the new signer is confirmed; Kona does not expose equivalent grace state. | [Kona signer refresh](../../rust/kona/crates/node/service/src/actors/l1_watcher/chain.rs), [op-node gossip validation](../../op-node/p2p/gossip.go), [runtime signer state](../../op-node/node/runcfg/runtime_config.go). |
 | Derivation delegation | Implemented as a separate actor that trusts a configured CL's reported safety progress. It is a distinct trust mode. | [Delegated derivation](../../rust/kona/crates/node/service/src/actors/derivation/delegated). |
@@ -56,6 +56,8 @@ Relevant sources:
 For each production parity fix, retain focused Rust regressions and run the affected real-node acceptance behavior. Reorg/checkpoint tests must invalidate batch input while leaving an L2 origin unchanged; otherwise they cannot distinguish safe retention from unsafe origin-only shortcuts. A long-lived mixed-client devnet and recorded chaos tests remain operational gates beyond this source audit.
 
 ## Boundaries and maintenance
+
+Alt-DA support is explicitly out of scope for Kona; Alt-DA deployments are excluded from Kona feature-parity and migration requirements.
 
 This inventory intentionally does not prescribe identical internal architectures, identical CLI spellings, support for retired request/response CL sync, or identical behavior for every malformed derivation input. Consensus-edge behavior and fault-proof agreement require their own protocol review and shared vectors. Deployment dashboards, alerting, and production rollout readiness require live evidence.
 
