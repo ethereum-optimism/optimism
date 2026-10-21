@@ -17,7 +17,10 @@ pub(super) async fn load(
     oracle: &impl PreimageOracleClient,
 ) -> anyhow::Result<ChainConfigs> {
     let chain_ids = match inputs {
-        SuperInteropInputs::Range(inputs) => inputs.super_root_chain_ids(),
+        SuperInteropInputs::Range(inputs) => {
+            inputs.validate()?;
+            inputs.super_root_chain_ids()
+        }
         SuperInteropInputs::Consolidation(inputs) => inputs
             .transitions
             .first()
@@ -49,8 +52,8 @@ mod tests {
     use super::*;
     use kona_sp1_client_utils::{
         super_root::{
-            SuperConsolidationInputs, SuperOutputRoot, SuperRangeInputs, SuperRootProof,
-            TimestampSpan,
+            SuperConsolidationInputs, SuperOptimisticBlock, SuperOutputRoot, SuperRangeInputs,
+            SuperRangeTransition, SuperRootProof, TimestampSpan,
         },
         witness::preimage_store::PreimageStore,
     };
@@ -68,22 +71,35 @@ mod tests {
 
     #[test]
     fn test_guest_loads_complete_synthetic_configs_and_rejects_mismatched_l1() {
+        // The range proves only the synthetic chain, while its previous super root also holds
+        // chain 10, so the configs must cover both.
         let mut configs = ChainConfigs::from_registry(&["0xa".parse().unwrap()]).unwrap();
         configs.l1_config = Default::default();
-        let mut rollup = configs.rollup_configs.remove(&10).unwrap();
+        let mut rollup = configs.rollup_configs[&10].clone();
         rollup.l2_chain_id = u64::MAX.into();
         configs.rollup_configs.insert(u64::MAX, rollup);
-        let dependency = configs.dependency_set.dependencies.remove(&10).unwrap();
+        let dependency = configs.dependency_set.dependencies[&10].clone();
         configs.dependency_set.dependencies.insert(u64::MAX, dependency);
+        let synthetic = u64::MAX.to_string().parse().unwrap();
         let inputs = SuperInteropInputs::Range(SuperRangeInputs {
             span: TimestampSpan::new(101, 101).unwrap(),
             l1_head: Default::default(),
-            chain_ids: vec![u64::MAX.to_string().parse().unwrap()],
+            chain_ids: vec![synthetic],
             previous_super_root_proofs: vec![SuperRootProof::new(
                 100,
-                vec![SuperOutputRoot { chain_id: u64::MAX, output_root: Default::default() }],
+                vec![
+                    SuperOutputRoot { chain_id: 10, output_root: Default::default() },
+                    SuperOutputRoot { chain_id: u64::MAX, output_root: Default::default() },
+                ],
             )],
-            claimed_transitions: Vec::new(),
+            claimed_transitions: vec![SuperRangeTransition {
+                timestamp: 101,
+                optimistic_block: SuperOptimisticBlock {
+                    chain_id: synthetic,
+                    block_hash: Default::default(),
+                    output_root: Default::default(),
+                },
+            }],
         });
         for mismatched_l1 in [false, true] {
             let mut supplied = configs.clone();

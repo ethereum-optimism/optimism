@@ -114,7 +114,8 @@ impl SuperRangeInputs {
     }
 
     /// The chain IDs of the previous super roots, which every proof of the span shares. A range
-    /// over some of these chains still derives under the dependency set of all of them.
+    /// over some of these chains still derives under the dependency set of all of them. Meaningful
+    /// only after [`Self::validate`]: inputs without a previous proof give no chain IDs.
     pub fn super_root_chain_ids(&self) -> Vec<U256> {
         self.previous_super_root_proofs
             .first()
@@ -921,6 +922,10 @@ fn ensure_range_previous_super_root_coverage(
         });
     }
 
+    let super_root_chains = previous_super_root_proofs
+        .first()
+        .map(|proof| proof.super_root.output_roots.as_slice())
+        .unwrap_or_default();
     for (offset, proof) in previous_super_root_proofs.iter().enumerate() {
         let transition_timestamp = span.start + offset as u64;
         let expected_timestamp = transition_timestamp
@@ -934,13 +939,9 @@ fn ensure_range_previous_super_root_coverage(
         }
 
         proof.validate()?;
-        ensure_previous_super_root_chains_match(
-            &previous_super_root_proofs[0].super_root.output_roots,
-            &proof.super_root.output_roots,
-        )?;
+        ensure_previous_super_root_chains_match(super_root_chains, &proof.super_root.output_roots)?;
     }
 
-    let super_root_chains = &previous_super_root_proofs[0].super_root.output_roots;
     for &chain_id in chain_ids {
         if !super_root_chains.iter().any(|output_root| U256::from(output_root.chain_id) == chain_id)
         {
@@ -1147,9 +1148,10 @@ mod tests {
     use crate::test_utils::valid_aggregation_inputs;
 
     use super::{
-        SuperAggregationInputs, SuperConsolidationInputs, SuperConsolidationTransitionInput,
-        SuperInteropInputs, SuperOptimisticBlock, SuperOutputRoot, SuperRangeInputs,
-        SuperRangeOutputs, SuperRangeTransition, SuperRootError, SuperRootProof, TimestampSpan,
+        SuperAggregationInputs, SuperConsolidationInputs, SuperConsolidationOutputs,
+        SuperConsolidationTransition, SuperConsolidationTransitionInput, SuperInteropInputs,
+        SuperOptimisticBlock, SuperOutputRoot, SuperRangeInputs, SuperRangeOutputs,
+        SuperRangeTransition, SuperRootError, SuperRootProof, TimestampSpan,
         encode_super_root_proof, ensure_strictly_increasing_chains, hash_super_root_proof,
     };
 
@@ -1457,6 +1459,120 @@ mod tests {
         assert_eq!(
             empty.validate(),
             Err(SuperRootError::RangeOutputSpanMismatch { start: 5, end: 5 })
+        );
+    }
+
+    /// A valid claim over `chains` at `timestamps` timestamps from 100, with one consolidation
+    /// output per timestamp. Its range outputs cut the timestamp-major `(timestamp, chain)` grid
+    /// into consecutive runs of the given lengths, one output per run.
+    fn grid_aggregation_inputs(
+        chains: &[u64],
+        timestamps: u64,
+        runs: &[usize],
+    ) -> SuperAggregationInputs {
+        let starting_super_root_proof = SuperRootProof::new(
+            99,
+            chains.iter().enumerate().map(|(i, &chain)| output(chain, 0x01 + i as u8)).collect(),
+        );
+        let starting_root_hash = hash_super_root_proof(&starting_super_root_proof).unwrap();
+        let super_root_at = |timestamp: u64| B256::from([0x40 + (timestamp - 100) as u8; 32]);
+        let root_before = |timestamp: u64| {
+            if timestamp == 100 { starting_root_hash } else { super_root_at(timestamp - 1) }
+        };
+        let last = 99 + timestamps;
+        let grid: Vec<SuperRangeTransition> = (100..=last)
+            .flat_map(|timestamp| {
+                chains.iter().enumerate().map(move |(i, &chain)| {
+                    let fill = 0x10 + ((timestamp - 100) as u8) * 0x10 + i as u8;
+                    transition(timestamp, chain, fill, fill + 0x80)
+                })
+            })
+            .collect();
+        assert_eq!(runs.iter().sum::<usize>(), grid.len(), "runs must cover the grid");
+
+        let consolidation_outputs = (100..=last)
+            .map(|timestamp| SuperConsolidationOutputs {
+                span: TimestampSpan::new(timestamp, timestamp).unwrap(),
+                previous_super_root: root_before(timestamp),
+                transitions: vec![SuperConsolidationTransition {
+                    timestamp,
+                    optimistic_blocks: grid
+                        .iter()
+                        .filter(|transition| transition.timestamp == timestamp)
+                        .map(|transition| transition.optimistic_block)
+                        .collect(),
+                    super_root: super_root_at(timestamp),
+                }],
+            })
+            .collect();
+        let mut rest = grid.as_slice();
+        let range_outputs = runs
+            .iter()
+            .map(|&len| {
+                let (run, tail) = rest.split_at(len);
+                rest = tail;
+                let span = TimestampSpan::new(run[0].timestamp, run[len - 1].timestamp).unwrap();
+                SuperRangeOutputs {
+                    span,
+                    l1_head: B256::from([0x99; 32]),
+                    previous_super_roots: (span.start..=span.end).map(root_before).collect(),
+                    transitions: run.to_vec(),
+                }
+            })
+            .collect();
+        SuperAggregationInputs {
+            l1_head: B256::from([0x99; 32]),
+            starting_root_hash,
+            starting_super_root_proof,
+            root_claim: super_root_at(last),
+            l2_sequence_number: last,
+            prover: Address::ZERO,
+            range_outputs,
+            consolidation_outputs,
+        }
+    }
+
+    #[test]
+    fn aggregation_inputs_accept_contiguous_chain_runs_of_a_timestamp() {
+        for runs in [[3].as_slice(), &[1, 2], &[2, 1], &[1, 1, 1]] {
+            grid_aggregation_inputs(&[10, 20, 30], 1, runs)
+                .validate()
+                .unwrap_or_else(|err| panic!("runs {runs:?}: {err}"));
+        }
+    }
+
+    #[test]
+    fn aggregation_inputs_reject_non_contiguous_chain_runs_of_a_timestamp() {
+        let mut inputs = grid_aggregation_inputs(&[10, 20, 30], 1, &[2, 1]);
+        let (first, second) = inputs.range_outputs.split_at_mut(1);
+        std::mem::swap(&mut first[0].transitions[1], &mut second[0].transitions[0]);
+        assert_eq!(
+            inputs.validate(),
+            Err(SuperRootError::RangeTransitionChainIdMismatch {
+                expected: U256::from(20),
+                actual: U256::from(30),
+            })
+        );
+    }
+
+    /// A timestamp split by chain next to an output over several whole timestamps, on either side.
+    #[test]
+    fn aggregation_inputs_accept_split_timestamps_next_to_multi_timestamp_outputs() {
+        grid_aggregation_inputs(&[10, 20], 3, &[1, 1, 4])
+            .validate()
+            .expect("split 100, full 101-102");
+        grid_aggregation_inputs(&[10, 20], 3, &[4, 1, 1])
+            .validate()
+            .expect("full 100-101, split 102");
+
+        let mut wrong_root = grid_aggregation_inputs(&[10, 20], 3, &[1, 1, 4]);
+        wrong_root.range_outputs[2].previous_super_roots[1] = B256::from([0xee; 32]);
+        assert_eq!(
+            wrong_root.validate(),
+            Err(SuperRootError::PreviousSuperRootMismatch {
+                expected: B256::from([0x41; 32]),
+                actual: B256::from([0xee; 32]),
+            })
         );
     }
 

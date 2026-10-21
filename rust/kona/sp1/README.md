@@ -23,7 +23,8 @@ zkVM programs that execute inside the SP1 prover:
 - **`super-aggregation`**: Recursively verifies unified super-range proofs and
   commits the public values consumed by `ZKDisputeGame`. Read in order, the range outputs must
   prove every `(timestamp, chain)` of the claim once, timestamp-major and chain-minor, so a
-  timestamp may be proven by one output for every chain or by several outputs for some chains each.
+  timestamp may be proven by one output for every chain or by several outputs that each cover a
+  contiguous run of its chains, in chain-ID order.
 - **`tests/bls12-381-check`** (test-only): Differential check of `CustomCrypto`'s EIP-2537
   operations against revm's arkworks backend inside the zkVM; not part of `build-elfs`.
 
