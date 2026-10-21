@@ -319,6 +319,9 @@ func TestFetchChainInfo_PermissionlessGetters(t *testing.T) {
 			factory := withFaultProofs(l1, gameTypeCannon)
 			withPermissionedGameGetters(l1)
 			l1.contract(portal).address("anchorStateRegistry()", portalAnchorStateReg)
+			// The portal names the AnchorStateRegistry, so the game's required getter must not
+			// be called.
+			delete(l1.contract(permissionedGame).returns, string(selector("anchorStateRegistry()")))
 			for gameType, impl := range map[uint32]common.Address{gameTypeCannon: tt.cannon, gameTypeCannonKona: tt.cannonKona} {
 				if impl != (common.Address{}) {
 					factory.gameImpl(gameType, impl)
@@ -463,39 +466,46 @@ func TestFetchChainInfo_Errors(t *testing.T) {
 		name    string
 		setup   func(l1 *fakeL1)
 		input   chainInfoInput
+		wantMsg string
 		wantErr error
 	}{
 		{
-			name:  "zero SystemConfig",
-			input: chainInfoInput{L1StandardBridgeProxy: l1StandardBridge},
+			name:    "zero SystemConfig",
+			input:   chainInfoInput{L1StandardBridgeProxy: l1StandardBridge},
+			wantMsg: "SystemConfigProxy not set",
 		},
 		{
-			name:  "zero L1StandardBridge",
-			input: chainInfoInput{SystemConfigProxy: systemConfig},
+			name:    "zero L1StandardBridge",
+			input:   chainInfoInput{SystemConfigProxy: systemConfig},
+			wantMsg: "L1StandardBridgeProxy not set",
 		},
 		{
 			name: "required getter reverts",
 			setup: func(l1 *fakeL1) {
 				delete(l1.contract(systemConfig).returns, string(selector("unsafeBlockSigner()")))
 			},
+			wantMsg: "unsafeBlockSigner(): execution reverted",
 		},
 		{
 			name: "legacy fallback reverts",
 			setup: func(l1 *fakeL1) {
 				delete(l1.contract(portal).returns, string(selector("guardian()")))
 			},
+			wantMsg: "GUARDIAN(): execution reverted",
 		},
 		{
 			name: "call to an address without code",
 			setup: func(l1 *fakeL1) {
 				l1.contract(l1StandardBridge).address("messenger()", addr(0xff))
 			},
+			wantMsg: "portal(): return data too short",
 		},
 		{
 			name: "transport error is not a revert",
 			setup: func(l1 *fakeL1) {
 				l1.contract(systemConfig).errs[string(selector("l1ERC721Bridge()"))] = errTransport
 			},
+			wantMsg: "failed to call " + systemConfig.Hex() + ".l1ERC721Bridge()",
 			wantErr: errTransport,
 		},
 		{
@@ -504,6 +514,7 @@ func TestFetchChainInfo_Errors(t *testing.T) {
 			setup: func(l1 *fakeL1) {
 				l1.contract(portal).errs[string(selector("respectedGameType()"))] = errTransport
 			},
+			wantMsg: "failed to call " + portal.Hex() + ".respectedGameType()",
 			wantErr: errTransport,
 		},
 		{
@@ -511,12 +522,14 @@ func TestFetchChainInfo_Errors(t *testing.T) {
 			setup: func(l1 *fakeL1) {
 				l1.contract(systemConfig).raw("owner()", common.LeftPadBytes([]byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 32))
 			},
+			wantMsg: "owner(): returned value is not an address",
 		},
 		{
 			name: "respected game type out of range",
 			setup: func(l1 *fakeL1) {
 				l1.contract(portal).raw("respectedGameType()", common.LeftPadBytes([]byte{1, 0, 0, 0, 0}, 32))
 			},
+			wantMsg: "respectedGameType(): returned value does not fit a uint32",
 		},
 		{
 			name: "game args of invalid length",
@@ -525,6 +538,7 @@ func TestFetchChainInfo_Errors(t *testing.T) {
 					gameImpl(gameTypePermissionedCannon, permissionedGame).
 					gameArgs(gameTypePermissionedCannon, make([]byte, 100))
 			},
+			wantMsg: "game args of game type 1 of factory " + disputeGameFactory.Hex() + ": invalid length 100",
 		},
 		{
 			name: "super permissioned game args of invalid length",
@@ -533,6 +547,7 @@ func TestFetchChainInfo_Errors(t *testing.T) {
 					gameImpl(gameTypeSuperPermissioned, superPermissionedGame).
 					gameArgs(gameTypeSuperPermissioned, make([]byte, 41))
 			},
+			wantMsg: "SUPER_PERMISSIONED game args of factory " + disputeGameFactory.Hex() + ": invalid length 41",
 		},
 		{
 			name: "game args with an out-of-bounds length",
@@ -544,6 +559,7 @@ func TestFetchChainInfo_Errors(t *testing.T) {
 				ret[63] = 33
 				factory.returns[string(encodeGameTypeCall("gameArgs(uint32)", gameTypePermissionedCannon))] = ret
 			},
+			wantMsg: "gameArgs(uint32): invalid bytes length",
 		},
 	}
 	for _, tt := range tests {
@@ -561,7 +577,7 @@ func TestFetchChainInfo_Errors(t *testing.T) {
 				in = tt.input
 			}
 			_, err := fetchChainInfo(context.Background(), l1, in.SystemConfigProxy, in.L1StandardBridgeProxy)
-			require.Error(t, err)
+			require.ErrorContains(t, err, tt.wantMsg)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 			}
