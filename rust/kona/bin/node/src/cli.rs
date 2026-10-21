@@ -74,22 +74,12 @@ impl Cli {
 
         // Run the subcommand.
         match self.subcommand {
-            // The node handles shutdown signals itself, to stop its actors gracefully.
-            Commands::Node(node) => Self::run_until_complete(node.run(&self.global)),
+            Commands::Node(node) => Self::run_until_ctrl_c(node.run(&self.global)),
             Commands::Net(net) => Self::run_until_ctrl_c(net.run(&self.global)),
             Commands::Registry(registry) => registry.run(&self.global),
             Commands::Bootstore(bootstore) => bootstore.run(&self.global),
             Commands::Info(info) => info.run(&self.global),
         }
-    }
-
-    /// Run until the future completes.
-    pub fn run_until_complete<F>(fut: F) -> Result<()>
-    where
-        F: std::future::Future<Output = Result<()>>,
-    {
-        let rt = Self::tokio_runtime().map_err(|e| anyhow::anyhow!(e))?;
-        rt.block_on(fut)
     }
 
     /// Run until ctrl-c is pressed.

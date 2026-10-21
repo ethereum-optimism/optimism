@@ -510,12 +510,13 @@ impl RollupNode {
     ///
     /// ## Shutdown
     ///
-    /// Shutdown is unordered: when any actor exits (success, error, or panic) or an OS signal is
-    /// received, the umbrella cancellation token fires. Each actor finishes handling its current
-    /// input and stops instead of waiting for the next one. The node waits for the actors to stop
-    /// for a bounded time, and a second signal aborts the remaining actors. Messages still queued
-    /// between actors are dropped. Actors may log channel-closed errors while peers are torn down
-    /// concurrently; this is expected and not a sign of an unclean exit.
+    /// Shutdown is crash-only: when any actor exits (success, error, or panic), the umbrella
+    /// cancellation token fires, and this returns without waiting for the other actors to stop.
+    /// They are interrupted at their next `.await`, even while handling an input, and messages
+    /// still queued between them are dropped. The node recovers on restart, as it must after being
+    /// killed at any point anyway. OS signals are handled by the caller. Actors may log
+    /// channel-closed errors while peers are torn down concurrently; this is expected and not a
+    /// sign of an unclean exit.
     pub async fn start(&self) -> Result<(), String> {
         // Single umbrella cancellation token owned by the spawn_and_wait! macro.
         let cancellation = CancellationToken::new();

@@ -1,28 +1,24 @@
 //! Utilities for the rollup node service, internal to the crate.
 
-use std::time::Duration;
 use tokio::task::{JoinError, JoinSet};
 use tokio_util::sync::CancellationToken;
-
-/// How long to wait for the actors to finish handling their current input once shutdown begins.
-///
-/// Handling a single input is not necessarily quick: the engine actor, for example, drains its
-/// whole task queue, which can hold a backlog after the execution layer was unavailable. Actors
-/// that do not finish in time are aborted.
-///
-/// Kept below the 10 second grace period that `docker stop` gives before sending SIGKILL.
-const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Spawns a set of parallel actors in a [`JoinSet`], and cancels all actors if any of them fail.
 /// The type of the error in the [`NodeActor`](crate::NodeActor)s is erased to avoid having to
 /// specify a common error type between actors.
 ///
 /// Actors are passed in as `Option<actor>`. Each actor is stepped in a loop, with external
-/// cancellation via the provided [`CancellationToken`]. Only waiting for the next input, with
-/// [`NodeActor::next`](crate::NodeActor::next), is raced against cancellation; once an input is
-/// received, [`NodeActor::handle`](crate::NodeActor::handle) runs to completion.
+/// cancellation via the provided [`CancellationToken`].
 ///
-/// This macro also handles OS shutdown signals (SIGTERM, SIGINT); see [`wait_for_actors`].
+/// Shutdown is crash-only: each whole [`NodeActor::step`](crate::NodeActor::step) is raced against
+/// cancellation, so an actor stops at its next `.await` even while handling an input, and the node
+/// does not wait for actors to stop. The node has to recover from being killed at any point anyway,
+/// so this is its only shutdown path. Racing only [`NodeActor::next`](crate::NodeActor::next)
+/// against cancellation, and waiting for the actors to stop, would let them finish handling their
+/// current input instead, without changing any actor.
+///
+/// OS signals are left to the caller: the CLI stops the node on SIGINT, and SIGTERM terminates the
+/// process.
 ///
 /// Evaluates to the `Result<(), String>` of [`wait_for_actors`].
 macro_rules! spawn_and_wait {
@@ -42,16 +38,13 @@ macro_rules! spawn_and_wait {
                     // mode.
                     let _guard = cancellation.clone().drop_guard();
                     loop {
-                        let input = tokio::select! {
+                        tokio::select! {
                             biased;
                             _ = cancellation.cancelled() => return Ok(()),
-                            input = $crate::NodeActor::next(&mut actor) => {
-                                input.map_err(|e| format!("{e:?}"))?
+                            result = $crate::NodeActor::step(&mut actor) => {
+                                result.map_err(|e| format!("{e:?}"))?;
                             }
-                        };
-                        $crate::NodeActor::handle(&mut actor, input)
-                            .await
-                            .map_err(|e| format!("{e:?}"))?;
+                        }
                     }
                 });
             }
@@ -64,67 +57,24 @@ macro_rules! spawn_and_wait {
 // Export the `spawn_and_wait` macro for use in other modules.
 pub(crate) use spawn_and_wait;
 
-/// Waits for a shutdown signal or for the first actor to fail, then cancels the actors and waits
-/// for them to finish handling their current input.
+/// Waits for the first actor to fail, then cancels the others, without waiting for them to stop.
 ///
-/// The wait for the actors to stop is bounded by [`SHUTDOWN_TIMEOUT`], and cut short by a second
-/// shutdown signal; actors still running after that are aborted.
-///
-/// Returns the error of the actor that failed first, if any.
+/// Returns the error of the actor that failed first, or `Ok` if all actors finished.
 pub(crate) async fn wait_for_actors(
     cancellation: CancellationToken,
     mut task_handles: JoinSet<Result<(), String>>,
 ) -> Result<(), String> {
-    let shutdown = shutdown_signal();
-    tokio::pin!(shutdown);
-
-    // Wait for the first error or until all actors are finished, or the first shutdown signal.
     let result = loop {
-        tokio::select! {
-            _ = &mut shutdown => {
-                info!(target: "rollup_node", "Received shutdown signal, initiating graceful shutdown...");
-                break Ok(());
-            }
-            exit = task_handles.join_next() => {
-                let Some(exit) = exit else { break Ok(()) }; // All tasks completed
-                // Actors only exit successfully once cancelled by a peer's exit,
-                // whose error may not have been joined yet.
-                if let Some(e) = exit_error(exit) {
-                    error!(target: "rollup_node", "Critical error in sub-routine: {e}");
-                    break Err(e);
-                }
-            }
+        let Some(exit) = task_handles.join_next().await else { break Ok(()) }; // All tasks completed
+        // Actors only exit successfully once cancelled by a peer's exit,
+        // whose error may not have been joined yet.
+        if let Some(e) = exit_error(exit) {
+            error!(target: "rollup_node", "Critical error in sub-routine: {e}");
+            break Err(e);
         }
     };
 
-    // Signal to any actors that are still running to stop.
     cancellation.cancel();
-
-    // Wait for all remaining actors.
-    let join_all = async {
-        while let Some(exit) = task_handles.join_next().await {
-            match exit {
-                Ok(Ok(())) => {}
-                // Peers are torn down concurrently, so errors here, such as closed channels, are
-                // usually a consequence of the shutdown rather than its cause.
-                Ok(Err(e)) => {
-                    warn!(target: "rollup_node", "Actor exited with an error during shutdown: {e}");
-                }
-                Err(e) => error!(target: "rollup_node", "Task join error during shutdown: {e}"),
-            }
-        }
-    };
-
-    // Give a grace period for actors to stop.
-    tokio::select! {
-        _ = join_all => info!(target: "rollup_node", "All actors stopped"),
-        _ = shutdown_signal() => {
-            warn!(target: "rollup_node", "Received shutdown signal while stopping actors, aborting remaining actors");
-        }
-        _ = tokio::time::sleep(SHUTDOWN_TIMEOUT) => {
-            warn!(target: "rollup_node", timeout = ?SHUTDOWN_TIMEOUT, "Timed out waiting for actors to stop, aborting remaining actors");
-        }
-    }
 
     // Dropping `task_handles` aborts any actors that are still running.
     result
@@ -139,35 +89,6 @@ fn exit_error(exit: Result<Result<(), String>, JoinError>) -> Option<String> {
     }
 }
 
-/// Listens for OS shutdown signals (SIGTERM, SIGINT)
-///
-/// Only signals received after this future is first polled are observed.
-pub(crate) async fn shutdown_signal() {
-    let ctrl_c = async {
-        tokio::signal::ctrl_c().await.expect("failed to install Ctrl+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install SIGTERM handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        _ = ctrl_c => {
-            tracing::info!(target: "rollup_node", "Received SIGINT (Ctrl+C)");
-        },
-        _ = terminate => {
-            tracing::info!(target: "rollup_node", "Received SIGTERM");
-        },
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -177,7 +98,10 @@ mod tests {
         Arc,
         atomic::{AtomicBool, Ordering},
     };
-    use tokio::sync::oneshot;
+    use tokio::{
+        sync::oneshot,
+        time::{self, Duration},
+    };
 
     /// Receives a single input, then blocks in `handle` until released.
     struct Worker {
@@ -235,7 +159,6 @@ mod tests {
     }
 
     struct Harness {
-        cancellation: CancellationToken,
         started: oneshot::Receiver<()>,
         release: oneshot::Sender<()>,
         trigger: oneshot::Sender<()>,
@@ -251,32 +174,24 @@ mod tests {
         let done = Arc::new(AtomicBool::new(false));
         let worker =
             Worker { started: Some(started_tx), release: Some(release_rx), done: done.clone() };
-        let run = tokio::spawn(run(cancellation.clone(), worker, Failing { trigger: trigger_rx }));
-        Harness { cancellation, started, release, trigger, done, run }
+        let run = tokio::spawn(run(cancellation, worker, Failing { trigger: trigger_rx }));
+        Harness { started, release, trigger, done, run }
     }
 
-    /// An actor's in-flight input is handled to completion when a peer fails.
-    #[tokio::test]
-    async fn in_flight_input_is_handled_to_completion_on_shutdown() {
-        let h = harness();
-        h.started.await.unwrap();
-        h.trigger.send(()).unwrap();
-        h.cancellation.cancelled().await;
-        assert!(!h.run.is_finished(), "shutdown must wait for the in-flight input");
-
-        h.release.send(()).unwrap();
-        assert_eq!(h.run.await.unwrap(), Err(format!("{:?}", "boom")));
-        assert!(h.done.load(Ordering::SeqCst));
-    }
-
-    /// An actor that does not finish handling its input is abandoned after the timeout.
+    /// When a peer fails, an actor in the middle of handling an input does not get to finish it:
+    /// the node returns straight away. This fails if the node both races only `next` against
+    /// cancellation and waits for the actors to stop, which would make shutdown graceful.
     #[tokio::test(start_paused = true)]
-    async fn stuck_actor_is_abandoned_after_timeout() {
+    async fn in_flight_input_is_not_waited_for_on_failure() {
         let h = harness();
         h.started.await.unwrap();
         h.trigger.send(()).unwrap();
 
-        assert_eq!(h.run.await.unwrap(), Err(format!("{:?}", "boom")));
+        // The worker never gets released, so waiting for it would hang until the timeout.
+        let result = time::timeout(Duration::from_secs(1), h.run)
+            .await
+            .expect("the node waited for the in-flight input");
+        assert_eq!(result.unwrap(), Err(format!("{:?}", "boom")));
         assert!(!h.done.load(Ordering::SeqCst));
         drop(h.release);
     }

@@ -5,11 +5,13 @@ use async_trait::async_trait;
 /// The [`NodeActor`] is an actor-like service for the node.
 ///
 /// An actor's work is split in two phases: [`Self::next`] waits for the next inbound request,
-/// event, or tick, and [`Self::handle`] processes it. The node's actor loop races only
-/// [`Self::next`] against shutdown, so once an input has been received, it is handled to
-/// completion.
+/// event, or tick, and [`Self::handle`] processes it. Callers may call [`Self::step`] to wait for
+/// and handle a single input.
 ///
-/// Callers may call [`Self::step`] to wait for and handle a single input.
+/// The split lets the node choose how far shutdown interrupts an actor without changing any actor:
+/// racing only [`Self::next`] against cancellation, and waiting for the actors to stop, would let
+/// an actor finish handling its current input. The node currently races the whole [`Self::step`]
+/// and does not wait, so shutdown is crash-only.
 #[async_trait]
 pub trait NodeActor: Send + 'static {
     /// The error type for the actor.
@@ -20,9 +22,9 @@ pub trait NodeActor: Send + 'static {
 
     /// Wait for the next inbound request, event, or scheduled tick.
     ///
-    /// This must be cancellation safe: on shutdown, the future is dropped if it has not resolved,
-    /// which must neither lose an input nor leave the actor in an inconsistent state. Any work
-    /// that must not be interrupted belongs in [`Self::handle`].
+    /// This must be cancellation safe: dropping the future before it resolves must neither lose an
+    /// input nor leave the actor in an inconsistent state, so that the node can stop an actor while
+    /// it waits.
     ///
     /// Returning `Err(_)` indicates the actor has encountered a fatal
     /// condition and should not be stepped further.
@@ -30,7 +32,8 @@ pub trait NodeActor: Send + 'static {
 
     /// Handle an input returned by [`Self::next`].
     ///
-    /// This is never interrupted by shutdown.
+    /// Shutdown may interrupt this at any `.await`, so any state it changes outside the process
+    /// must be recoverable after a restart.
     ///
     /// Returning `Ok(())` indicates the actor is ready to be stepped again.
     /// Returning `Err(_)` indicates the actor has encountered a fatal
