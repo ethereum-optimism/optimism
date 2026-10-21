@@ -53,6 +53,47 @@ pub(super) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
 const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
 
+/// The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
+fn merge_admin_module(
+    modules: &mut RpcModule<()>,
+    enable_admin: bool,
+    admin_rpc: AdminRpc,
+) -> Result<(), String> {
+    if enable_admin {
+        modules
+            .merge(admin_rpc.into_rpc())
+            .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn admin_module_registered_only_when_enabled() {
+        for enabled in [false, true] {
+            let mut modules = RpcModule::new(());
+            let admin = AdminRpc::new(None, mpsc::channel(1).0, mpsc::channel(1).0);
+            merge_admin_module(&mut modules, enabled, admin).unwrap();
+            let methods: Vec<_> = modules.method_names().collect();
+            if enabled {
+                for method in [
+                    "admin_postUnsafePayload",
+                    "admin_startSequencer",
+                    "admin_stopSequencer",
+                    "admin_resetDerivationPipeline",
+                ] {
+                    assert!(methods.contains(&method), "missing {method}");
+                }
+            } else {
+                assert!(methods.is_empty(), "admin methods must be disabled by default");
+            }
+        }
+    }
+}
+
 /// The configuration for the L1 chain.
 #[derive(Debug, Clone)]
 pub struct L1Config {
@@ -432,12 +473,7 @@ impl RollupNode {
         modules
             .merge(p2p_rpc.into_rpc())
             .map_err(|e| format!("Failed to register p2p module: {e:?}"))?;
-        // The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
-        if config.enable_admin() {
-            modules
-                .merge(admin_rpc.into_rpc())
-                .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
-        }
+        merge_admin_module(&mut modules, config.enable_admin(), admin_rpc)?;
         modules
             .merge(
                 RollupRpc::new(

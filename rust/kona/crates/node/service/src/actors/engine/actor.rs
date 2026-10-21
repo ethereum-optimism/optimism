@@ -14,6 +14,10 @@ use tokio::{
     time::{self, Duration, Instant},
 };
 
+#[cfg(test)]
+#[path = "queue_tests.rs"]
+mod queue_tests;
+
 /// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
 /// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of
 /// the [`Ord`] implementation of [`EngineTask`].
