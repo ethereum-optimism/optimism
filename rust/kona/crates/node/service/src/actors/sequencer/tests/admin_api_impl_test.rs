@@ -249,6 +249,7 @@ async fn local_recovery_override_does_not_call_the_conductor() {
     let mut actor = test_actor();
     let mut conductor = MockConductor::new();
     conductor.expect_override_leader().times(0);
+    conductor.expect_leader().times(0);
     actor.conductor = Some(conductor);
     actor.override_leader().await.unwrap();
     assert!(actor.leader_override);
@@ -256,9 +257,16 @@ async fn local_recovery_override_does_not_call_the_conductor() {
 }
 
 #[tokio::test]
-async fn start_rejects_mismatched_head() {
+async fn start_rejects_follower_and_mismatched_head() {
     let mut actor = test_actor();
     actor.is_active = false;
+    let mut conductor = MockConductor::new();
+    conductor.expect_leader().times(1).return_once(|| Ok(false));
+    actor.conductor = Some(conductor);
+    let err = actor.start_sequencer(B256::repeat_byte(1)).await.unwrap_err();
+    assert!(err.to_string().contains("sequencer is not the leader"));
+    assert!(!actor.is_active);
+    actor.override_leader().await.unwrap();
     actor.engine_client.expect_get_unsafe_head().returning(|| {
         Ok(L2BlockInfo {
             block_info: BlockInfo { hash: B256::repeat_byte(1), ..Default::default() },
@@ -327,6 +335,7 @@ async fn test_reset_derivation_pipeline_error(#[values(true, false)] via_channel
 async fn test_handle_admin_query_resilient_to_dropped_receiver() {
     let mut conductor = MockConductor::new();
     conductor.expect_override_leader().times(0);
+    conductor.expect_leader().times(1).returning(|| Ok(true));
 
     let unsafe_head = L2BlockInfo {
         block_info: BlockInfo { hash: B256::from([1u8; 32]), ..Default::default() },
@@ -411,4 +420,58 @@ async fn start_rejects_unknown_mismatched_or_unavailable_head(
     });
     assert!(actor.start_sequencer(requested).await.is_err());
     assert!(!actor.is_active);
+}
+
+#[rstest]
+#[tokio::test]
+async fn conductor_managed_actor_always_starts_stopped(
+    #[values(true, false)] managed: bool,
+    #[values(true, false)] requested_active: bool,
+) {
+    let template = test_actor();
+    let actor = crate::SequencerActor::new(
+        template.admin_api_rx,
+        template.attributes_builder,
+        managed.then(MockConductor::new),
+        template.engine_client,
+        requested_active,
+        false,
+        template.origin_selector,
+        template.rollup_config,
+        template.unsafe_payload_gossip_client,
+    );
+    assert_eq!(actor.is_active, requested_active && !managed);
+}
+
+#[rstest]
+#[case::follower(0)]
+#[case::unavailable(1)]
+#[case::leader(2)]
+#[tokio::test]
+async fn activation_requires_a_successful_leadership_check(#[case] response: u8) {
+    let mut actor = test_actor();
+    actor.is_active = false;
+    let mut conductor = MockConductor::new();
+    conductor.expect_leader().times(1).return_once(move || match response {
+        0 => Ok(false),
+        1 => Err(crate::ConductorError::Rpc(alloy_transport::RpcError::local_usage_str(
+            "conductor unavailable",
+        ))),
+        _ => Ok(true),
+    });
+    actor.conductor = Some(conductor);
+    actor.engine_client.expect_get_unsafe_head().times(usize::from(response == 2)).returning(
+        || {
+            Ok(L2BlockInfo {
+                block_info: BlockInfo { hash: B256::repeat_byte(1), ..Default::default() },
+                ..Default::default()
+            })
+        },
+    );
+    let result = actor.start_sequencer(B256::repeat_byte(1)).await;
+    assert_eq!(result.is_ok(), response == 2);
+    assert_eq!(actor.is_active, response == 2);
+    if response == 1 {
+        assert!(result.unwrap_err().to_string().contains("conductor unavailable"));
+    }
 }

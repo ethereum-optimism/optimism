@@ -149,9 +149,9 @@ where
         Self {
             admin_api_rx,
             attributes_builder,
+            is_active: is_active && conductor.is_none(),
             conductor,
             leader_override: false,
-            is_active,
             engine_client,
             in_recovery_mode,
             origin_selector,

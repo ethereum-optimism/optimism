@@ -18,6 +18,9 @@ pub trait Conductor: Debug + Send + Sync {
         payload: &OpExecutionPayloadEnvelope,
     ) -> Result<(), ConductorError>;
 
+    /// Check the local conductor leadership.
+    async fn leader(&self) -> Result<bool, ConductorError>;
+
     /// Override the leader of the conductor.
     async fn override_leader(&self) -> Result<(), ConductorError>;
 }
@@ -32,6 +35,12 @@ pub struct ConductorClient {
 
 #[async_trait]
 impl Conductor for ConductorClient {
+    async fn leader(&self) -> Result<bool, ConductorError> {
+        tokio::time::timeout(self.timeout, self.rpc.request("conductor_leader", ()))
+            .await?
+            .map_err(Into::into)
+    }
+
     /// Commit an unsafe payload to the conductor.
     async fn commit_unsafe_payload(
         &self,
@@ -66,9 +75,7 @@ impl ConductorClient {
 
     /// Check if the node is a leader of the conductor.
     pub async fn leader(&self) -> Result<bool, ConductorError> {
-        tokio::time::timeout(self.timeout, self.rpc.request("conductor_leader", ()))
-            .await?
-            .map_err(Into::into)
+        <Self as Conductor>::leader(self).await
     }
 
     /// Check if the conductor is active.
