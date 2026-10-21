@@ -22,3 +22,7 @@ clap = { workspace = true, features = ["derive"] }
 futures.workspace = true
 anyhow.workspace = true
 hdrhistogram = "7.5"
+
+[lints.clippy]
+# Times benchmarks with the system clock, which `clippy.toml` bans where enabled.
+disallowed_methods = "allow"

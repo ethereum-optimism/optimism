@@ -2,6 +2,9 @@
 //!
 //! [NodeActor]: super::NodeActor
 
+// Actors read time from tokio's clock or an injected `Clock`, so tests can control it.
+#![warn(clippy::disallowed_methods)]
+
 mod traits;
 pub use traits::NodeActor;
 

@@ -20,6 +20,8 @@ pub trait Clock: Debug + Send + Sync {
 pub struct SystemClock;
 
 impl Clock for SystemClock {
+    // The system clock is what this implementation provides.
+    #[allow(clippy::disallowed_methods)]
     fn now(&self) -> SystemTime {
         SystemTime::now()
     }
