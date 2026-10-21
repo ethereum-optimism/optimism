@@ -23,6 +23,8 @@ use crate::{
 /// This is a server implementation of [`crate::RollupNodeApiServer`].
 #[derive(Debug)]
 pub struct RollupRpc<EngineRpcClient_> {
+    /// The running binary's release version.
+    pub version: &'static str,
     /// The channel to send [`kona_engine::EngineQueries`]s.
     pub engine_client: EngineRpcClient_,
     /// The channel to send [`crate::L1WatcherQueries`]s.
@@ -35,10 +37,11 @@ impl<EngineRpcClient_: EngineRpcClient> RollupRpc<EngineRpcClient_> {
 
     /// Constructs a new [`RollupRpc`] given a sender channel.
     pub const fn new(
+        version: &'static str,
         engine_client: EngineRpcClient_,
         l1_watcher_sender: L1WatcherQuerySender,
     ) -> Self {
-        Self { engine_client, l1_watcher_sender }
+        Self { version, engine_client, l1_watcher_sender }
     }
 
     // Important note: we zero-out the fields that can't be derived yet to follow op-node's
@@ -124,8 +127,62 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
     async fn op_version(&self) -> RpcResult<String> {
         kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_version");
 
-        const RPC_VERSION: &str = env!("CARGO_PKG_VERSION");
+        Ok(self.version.to_string())
+    }
+}
 
-        return Ok(RPC_VERSION.to_string());
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{HealthzApiServer, HealthzResponse, HealthzRpc};
+    use kona_protocol::{L2BlockInfo, OutputRoot};
+    use tokio::sync::{mpsc, watch};
+
+    #[derive(Debug, Clone)]
+    struct UnusedEngine;
+
+    #[async_trait]
+    impl EngineRpcClient for UnusedEngine {
+        async fn get_config(&self) -> RpcResult<RollupConfig> {
+            unreachable!()
+        }
+        async fn get_state(&self) -> RpcResult<EngineState> {
+            unreachable!()
+        }
+        async fn output_at_block(
+            &self,
+            _: BlockNumberOrTag,
+        ) -> RpcResult<(L2BlockInfo, OutputRoot, EngineState)> {
+            unreachable!()
+        }
+        async fn dev_get_task_queue_length(&self) -> RpcResult<usize> {
+            unreachable!()
+        }
+        async fn dev_subscribe_to_engine_queue_length(&self) -> RpcResult<watch::Receiver<usize>> {
+            unreachable!()
+        }
+        async fn dev_subscribe_to_engine_state(&self) -> RpcResult<watch::Receiver<EngineState>> {
+            unreachable!()
+        }
+    }
+
+    #[tokio::test]
+    async fn registered_endpoints_report_the_binary_version() {
+        for version in ["1.2.3", "0.0.0-dev"] {
+            let (sender, _receiver) = mpsc::channel(1);
+            let mut rpc = RollupRpc::new(version, UnusedEngine, sender).into_rpc();
+            rpc.merge(HealthzRpc::new(version).into_rpc()).unwrap();
+            assert_eq!(
+                rpc.call::<_, String>("optimism_version", jsonrpsee::rpc_params![]).await.unwrap(),
+                version
+            );
+            assert_eq!(
+                rpc.call::<_, HealthzResponse>("healthz", jsonrpsee::rpc_params![])
+                    .await
+                    .unwrap()
+                    .version,
+                version
+            );
+        }
     }
 }

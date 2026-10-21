@@ -84,6 +84,7 @@ let sequencer_config = SequencerConfig {
 // L2 engine URL, JWT secret, and L1 RPC URL. A sequencer needs a block
 // signer: `p2p_config.gossip_signer` must be `Some`, or `start` fails.
 RollupNodeBuilder::new(
+    binary_release_version,
     rollup_config,
     l1_config_builder,
     l2_trust_rpc,
