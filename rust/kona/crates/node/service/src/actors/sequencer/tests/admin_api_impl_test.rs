@@ -93,6 +93,12 @@ async fn test_start_sequencer(
 ) {
     let mut actor = test_actor();
     actor.is_active = already_started;
+    actor.engine_client.expect_get_unsafe_head().returning(|| {
+        Ok(L2BlockInfo {
+            block_info: BlockInfo { hash: B256::repeat_byte(1), ..Default::default() },
+            ..Default::default()
+        })
+    });
 
     // verify starting state
     let result = actor.is_sequencer_active().await;
@@ -102,10 +108,15 @@ async fn test_start_sequencer(
     // start the sequencer
     let result = async {
         match via_channel {
-            false => actor.start_sequencer().await,
+            false => actor.start_sequencer(B256::repeat_byte(1)).await,
             true => {
                 let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::StartSequencer(tx)).await;
+                actor
+                    .handle_admin_query(SequencerAdminQuery::StartSequencer(
+                        B256::repeat_byte(1),
+                        tx,
+                    ))
+                    .await;
                 rx.await.unwrap()
             }
         }
@@ -244,6 +255,21 @@ async fn local_recovery_override_does_not_call_the_conductor() {
     assert!(actor.is_conductor_enabled().await.unwrap());
 }
 
+#[tokio::test]
+async fn start_rejects_mismatched_head() {
+    let mut actor = test_actor();
+    actor.is_active = false;
+    actor.engine_client.expect_get_unsafe_head().returning(|| {
+        Ok(L2BlockInfo {
+            block_info: BlockInfo { hash: B256::repeat_byte(1), ..Default::default() },
+            ..Default::default()
+        })
+    });
+    assert!(actor.start_sequencer(B256::repeat_byte(2)).await.is_err());
+    actor.start_sequencer(B256::repeat_byte(1)).await.unwrap();
+    assert!(actor.is_active);
+}
+
 #[rstest]
 #[tokio::test]
 async fn test_reset_derivation_pipeline_success(#[values(true, false)] via_channel: bool) {
@@ -307,7 +333,7 @@ async fn test_handle_admin_query_resilient_to_dropped_receiver() {
         ..Default::default()
     };
     let mut client = MockSequencerEngineClient::new();
-    client.expect_get_unsafe_head().times(1).returning(move || Ok(unsafe_head));
+    client.expect_get_unsafe_head().times(2).returning(move || Ok(unsafe_head));
     client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
 
     let mut actor = test_actor();
@@ -323,7 +349,7 @@ async fn test_handle_admin_query_resilient_to_dropped_receiver() {
     {
         // immediately drop receiver
         let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::StartSequencer(tx));
+        queries.push(SequencerAdminQuery::StartSequencer(B256::repeat_byte(1), tx));
     }
     {
         // immediately drop receiver
@@ -360,4 +386,29 @@ async fn test_handle_admin_query_resilient_to_dropped_receiver() {
     for query in queries {
         actor.handle_admin_query(query).await;
     }
+}
+
+#[rstest]
+#[case::unknown(B256::ZERO, B256::ZERO, false)]
+#[case::mismatched(B256::repeat_byte(2), B256::repeat_byte(1), false)]
+#[case::unavailable(B256::repeat_byte(1), B256::repeat_byte(1), true)]
+#[tokio::test]
+async fn start_rejects_unknown_mismatched_or_unavailable_head(
+    #[case] current: B256,
+    #[case] requested: B256,
+    #[case] unavailable: bool,
+) {
+    let mut actor = test_actor();
+    actor.is_active = false;
+    actor.engine_client.expect_get_unsafe_head().times(1).return_once(move || {
+        if unavailable {
+            return Err(EngineClientError::ResponseError("head unavailable".into()));
+        }
+        Ok(L2BlockInfo {
+            block_info: BlockInfo { hash: current, ..Default::default() },
+            ..Default::default()
+        })
+    });
+    assert!(actor.start_sequencer(requested).await.is_err());
+    assert!(!actor.is_active);
 }

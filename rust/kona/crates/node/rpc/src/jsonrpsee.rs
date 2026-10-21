@@ -177,7 +177,7 @@ pub trait AdminApi {
 
     /// Starts the sequencer.
     #[method(name = "startSequencer")]
-    async fn admin_start_sequencer(&self) -> RpcResult<()>;
+    async fn admin_start_sequencer(&self, head: B256) -> RpcResult<()>;
 
     /// Stops the sequencer.
     #[method(name = "stopSequencer")]

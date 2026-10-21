@@ -11,7 +11,7 @@ pub enum SequencerAdminQuery {
     /// A query to check if the sequencer is active.
     SequencerActive(oneshot::Sender<Result<bool, SequencerAdminAPIError>>),
     /// A query to start the sequencer.
-    StartSequencer(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
+    StartSequencer(B256, oneshot::Sender<Result<(), SequencerAdminAPIError>>),
     /// A query to stop the sequencer.
     StopSequencer(oneshot::Sender<Result<B256, SequencerAdminAPIError>>),
     /// A query to check if the conductor is enabled.
@@ -57,8 +57,8 @@ where
                     warn!(target: "sequencer", "Failed to send response for is_sequencer_active query");
                 }
             }
-            SequencerAdminQuery::StartSequencer(tx) => {
-                if tx.send(self.start_sequencer().await).is_err() {
+            SequencerAdminQuery::StartSequencer(head, tx) => {
+                if tx.send(self.start_sequencer(head).await).is_err() {
                     warn!(target: "sequencer", "Failed to send response for start_sequencer query");
                 }
             }
@@ -111,7 +111,21 @@ where
     }
 
     /// Starts the sequencer in an idempotent fashion.
-    pub(super) async fn start_sequencer(&mut self) -> Result<(), SequencerAdminAPIError> {
+    pub(super) async fn start_sequencer(
+        &mut self,
+        head: B256,
+    ) -> Result<(), SequencerAdminAPIError> {
+        let current = self
+            .engine_client
+            .get_unsafe_head()
+            .await
+            .map_err(|err| SequencerAdminAPIError::StartRejected(err.to_string()))?;
+        if current.hash() == B256::ZERO || current.hash() != head {
+            return Err(SequencerAdminAPIError::StartRejected(
+                "unsafe head is unknown or does not match the requested hash".into(),
+            ));
+        }
+
         if self.is_active {
             info!(target: "sequencer", "received request to start sequencer, but it is already started");
             return Ok(());

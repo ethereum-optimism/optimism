@@ -43,16 +43,16 @@ Returns whether the sequencer is currently active.
 
 ## `admin_startSequencer`
 
-Starts the sequencer.
+Starts the sequencer at the expected unsafe-head hash. A missing or mismatched unsafe head is rejected.
 
 | Client | Method invocation                                   |
 | ------ | --------------------------------------------------- |
-| RPC    | `{"method": "admin_startSequencer"}`                |
+| RPC    | `{"method": "admin_startSequencer", "params": ["0x<unsafe-head-hash>"]}`                |
 
 ### Example
 
 ```js
-// > {"jsonrpc":"2.0","id":1,"method":"admin_startSequencer","params":[]}
+// > {"jsonrpc":"2.0","id":1,"method":"admin_startSequencer","params":["0x<unsafe-head-hash>"]}
 {"jsonrpc":"2.0","id":1,"result":null}
 ```
 
