@@ -22,9 +22,9 @@ pub trait NodeActor: Send + 'static {
 
     /// Wait for the next inbound request, event, or scheduled tick.
     ///
-    /// This must be cancellation safe: dropping the future before it resolves must neither lose an
-    /// input nor leave the actor in an inconsistent state, so that the node can stop an actor while
-    /// it waits.
+    /// This should do no work that must not be interrupted, which belongs in [`Self::handle`], so
+    /// that the node could race only this against cancellation if it ever wanted actors to finish
+    /// handling their current input. See the trait docs.
     ///
     /// Returning `Err(_)` indicates the actor has encountered a fatal
     /// condition and should not be stepped further.
@@ -42,7 +42,8 @@ pub trait NodeActor: Send + 'static {
 
     /// Wait for the next input and handle it.
     ///
-    /// Unlike [`Self::next`], this is not cancellation safe.
+    /// Cancelling this can interrupt [`Self::handle`], which the node only does when it discards
+    /// the actor afterwards.
     async fn step(&mut self) -> Result<(), Self::Error> {
         let input = self.next().await?;
         self.handle(input).await

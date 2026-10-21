@@ -17,8 +17,7 @@ use tokio_util::sync::CancellationToken;
 /// against cancellation, and waiting for the actors to stop, would let them finish handling their
 /// current input instead, without changing any actor.
 ///
-/// OS signals are left to the caller: the CLI stops the node on SIGINT, and SIGTERM terminates the
-/// process.
+/// OS signals are handled by the caller.
 ///
 /// Evaluates to the `Result<(), String>` of [`wait_for_actors`].
 macro_rules! spawn_and_wait {
@@ -94,10 +93,6 @@ mod tests {
     use super::*;
     use crate::NodeActor;
     use async_trait::async_trait;
-    use std::sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    };
     use tokio::{
         sync::oneshot,
         time::{self, Duration},
@@ -107,7 +102,6 @@ mod tests {
     struct Worker {
         started: Option<oneshot::Sender<()>>,
         release: Option<oneshot::Receiver<()>>,
-        done: Arc<AtomicBool>,
     }
 
     #[async_trait]
@@ -125,7 +119,6 @@ mod tests {
         async fn handle(&mut self, (): ()) -> Result<(), String> {
             let _ = self.started.take().unwrap().send(());
             let _ = self.release.take().unwrap().await;
-            self.done.store(true, Ordering::SeqCst);
             Ok(())
         }
     }
@@ -158,41 +151,30 @@ mod tests {
         spawn_and_wait!(cancellation, actors = [Some(worker), Some(failing)])
     }
 
-    struct Harness {
-        started: oneshot::Receiver<()>,
-        release: oneshot::Sender<()>,
-        trigger: oneshot::Sender<()>,
-        done: Arc<AtomicBool>,
-        run: tokio::task::JoinHandle<Result<(), String>>,
-    }
-
-    fn harness() -> Harness {
-        let cancellation = CancellationToken::new();
-        let (started_tx, started) = oneshot::channel();
-        let (release, release_rx) = oneshot::channel();
-        let (trigger, trigger_rx) = oneshot::channel();
-        let done = Arc::new(AtomicBool::new(false));
-        let worker =
-            Worker { started: Some(started_tx), release: Some(release_rx), done: done.clone() };
-        let run = tokio::spawn(run(cancellation, worker, Failing { trigger: trigger_rx }));
-        Harness { started, release, trigger, done, run }
-    }
-
     /// When a peer fails, an actor in the middle of handling an input does not get to finish it:
-    /// the node returns straight away. This fails if the node both races only `next` against
-    /// cancellation and waits for the actors to stop, which would make shutdown graceful.
+    /// the node returns straight away and the actor is stopped. This fails if the node both races
+    /// only `next` against cancellation and waits for the actors to stop, which would make shutdown
+    /// graceful.
     #[tokio::test(start_paused = true)]
     async fn in_flight_input_is_not_waited_for_on_failure() {
-        let h = harness();
-        h.started.await.unwrap();
-        h.trigger.send(()).unwrap();
+        let (started_tx, started) = oneshot::channel();
+        let (mut release, release_rx) = oneshot::channel();
+        let (trigger, trigger_rx) = oneshot::channel();
+        let worker = Worker { started: Some(started_tx), release: Some(release_rx) };
+        let run =
+            tokio::spawn(run(CancellationToken::new(), worker, Failing { trigger: trigger_rx }));
 
-        // The worker never gets released, so waiting for it would hang until the timeout.
-        let result = time::timeout(Duration::from_secs(1), h.run)
+        started.await.unwrap();
+        trigger.send(()).unwrap();
+
+        // The worker is never released, so waiting for it would hang until the timeout.
+        let result = time::timeout(Duration::from_secs(1), run)
             .await
             .expect("the node waited for the in-flight input");
         assert_eq!(result.unwrap(), Err(format!("{:?}", "boom")));
-        assert!(!h.done.load(Ordering::SeqCst));
-        drop(h.release);
+        // Stopping the worker drops its end of the channel, rather than leaving it running.
+        time::timeout(Duration::from_secs(1), release.closed())
+            .await
+            .expect("the worker was not stopped");
     }
 }

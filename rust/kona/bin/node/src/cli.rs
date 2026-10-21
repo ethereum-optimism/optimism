@@ -74,25 +74,41 @@ impl Cli {
 
         // Run the subcommand.
         match self.subcommand {
-            Commands::Node(node) => Self::run_until_ctrl_c(node.run(&self.global)),
-            Commands::Net(net) => Self::run_until_ctrl_c(net.run(&self.global)),
+            Commands::Node(node) => Self::run_until_signal(node.run(&self.global)),
+            Commands::Net(net) => Self::run_until_signal(net.run(&self.global)),
             Commands::Registry(registry) => registry.run(&self.global),
             Commands::Bootstore(bootstore) => bootstore.run(&self.global),
             Commands::Info(info) => info.run(&self.global),
         }
     }
 
-    /// Run until ctrl-c is pressed.
-    pub fn run_until_ctrl_c<F>(fut: F) -> Result<()>
+    /// Run until the future completes, or until SIGINT (Ctrl-C) or SIGTERM is received, in which
+    /// case the future is dropped.
+    ///
+    /// Handling SIGTERM also matters when the binary runs as PID 1 in a container, where the kernel
+    /// ignores signals that have no handler.
+    pub fn run_until_signal<F>(fut: F) -> Result<()>
     where
         F: std::future::Future<Output = Result<()>>,
     {
         let rt = Self::tokio_runtime().map_err(|e| anyhow::anyhow!(e))?;
         rt.block_on(async move {
+            #[cfg(unix)]
+            let mut sigterm =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+            #[cfg(unix)]
+            let terminate = sigterm.recv();
+            #[cfg(not(unix))]
+            let terminate = std::future::pending::<Option<()>>();
+
             tokio::select! {
                 res = fut => res,
                 _ = tokio::signal::ctrl_c() => {
                     tracing::info!(target: "cli", "Received Ctrl-C, shutting down...");
+                    Ok(())
+                }
+                _ = terminate => {
+                    tracing::info!(target: "cli", "Received SIGTERM, shutting down...");
                     Ok(())
                 }
             }
@@ -110,6 +126,19 @@ impl Cli {
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// SIGTERM stops the future and returns normally, rather than killing the process: without the
+    /// handler, the signal's default action would terminate this test.
+    #[cfg(unix)]
+    #[test]
+    fn run_until_signal_stops_on_sigterm() {
+        let result = Cli::run_until_signal(async {
+            let pid = std::process::id().to_string();
+            std::process::Command::new("kill").args(["-TERM", &pid]).status()?;
+            std::future::pending().await
+        });
+        assert!(result.is_ok(), "{result:?}");
+    }
 
     #[rstest]
     #[case::node_subcommand_long(Commands::Node(Default::default()), "node")]
