@@ -32,15 +32,18 @@ const (
 // mapping, which the legacy L1CrossDomainMessenger proxy is keyed into.
 const addressManagerMappingSlot = 1
 
-// chainInfoReader reads a chain's L1 contracts, roles and fault proof status. It walks the
-// contracts from the SystemConfig and L1StandardBridge proxies, and supports every contract
-// release a live chain may run by falling back to legacy getters where a call reverts.
+// chainInfoReader reads a chain's L1 contracts, roles and fault proof status into out. It
+// walks the contracts from the SystemConfig and L1StandardBridge proxies, and supports every
+// contract release a live chain may run by falling back to legacy getters where a call
+// reverts. The fill methods read the addresses that earlier steps filled into out, and fill
+// in what they read from L1.
 //
 // The first error is sticky: once a read fails, further reads return zero values and the
 // result is discarded, which keeps the walk itself free of error plumbing.
 type chainInfoReader struct {
 	ctx context.Context
 	l1  l1State
+	out chaininfo.FetchChainInfoOutput
 	err error
 }
 
@@ -52,18 +55,20 @@ func fetchChainInfo(ctx context.Context, l1 l1State, in chaininfo.FetchChainInfo
 		return chaininfo.FetchChainInfoOutput{}, errors.New("L1StandardBridgeProxy not set")
 	}
 	r := &chainInfoReader{ctx: ctx, l1: l1}
-	var out chaininfo.FetchChainInfoOutput
-	r.readSystemConfig(in.SystemConfigProxy, &out)
-	r.readMessengerAndPortal(in.L1StandardBridgeProxy, &out)
-	r.readFaultProofs(&out)
+	r.out.SystemConfigProxy = in.SystemConfigProxy
+	r.out.L1StandardBridgeProxy = in.L1StandardBridgeProxy
+	r.fillSystemConfig()
+	r.fillMessengerAndPortal()
+	r.fillFaultProofs()
 	if r.err != nil {
 		return chaininfo.FetchChainInfoOutput{}, r.err
 	}
-	return out, nil
+	return r.out, nil
 }
 
-func (r *chainInfoReader) readSystemConfig(systemConfig common.Address, out *chaininfo.FetchChainInfoOutput) {
-	out.SystemConfigProxy = systemConfig
+func (r *chainInfoReader) fillSystemConfig() {
+	out := &r.out
+	systemConfig := out.SystemConfigProxy
 	out.SystemConfigOwner = r.address(systemConfig, "owner()")
 	out.UnsafeBlockSigner = r.address(systemConfig, "unsafeBlockSigner()")
 	// The batcher hash is the batcher address, left-padded to 32 bytes.
@@ -76,21 +81,25 @@ func (r *chainInfoReader) readSystemConfig(systemConfig common.Address, out *cha
 	out.OptimismMintableErc20FactoryProxy = r.tryAddress(systemConfig, "optimismMintableERC20Factory()")
 }
 
-func (r *chainInfoReader) readMessengerAndPortal(l1StandardBridge common.Address, out *chaininfo.FetchChainInfoOutput) {
-	out.L1StandardBridgeProxy = l1StandardBridge
-	messenger := r.address(l1StandardBridge, "messenger()")
+func (r *chainInfoReader) fillMessengerAndPortal() {
+	out := &r.out
+	messenger := r.address(out.L1StandardBridgeProxy, "messenger()")
 	out.L1CrossDomainMessengerProxy = messenger
 	out.AddressManagerImpl = r.addressManager(messenger)
 	portal := r.addressOr(messenger, "portal()", "PORTAL()")
 	out.OptimismPortalProxy = portal
 	out.OpChainGuardian = r.addressOr(portal, "guardian()", "GUARDIAN()")
 	out.EthLockboxProxy = r.tryAddress(portal, "ethLockbox()")
+	// Newer portals point to the AnchorStateRegistry; otherwise a dispute game names it.
 	out.AnchorStateRegistryProxy = r.tryAddress(portal, "anchorStateRegistry()")
 	out.SuperchainConfigProxy = r.tryAddress(portal, "superchainConfig()")
 }
 
-func (r *chainInfoReader) readFaultProofs(out *chaininfo.FetchChainInfoOutput) {
-	systemConfig := out.SystemConfigProxy
+// fillFaultProofs fills the respected game type and either the L2OutputOracle or the
+// dispute games. The AnchorStateRegistry and the VM are shared across game types: the first
+// read that names one wins, starting with the portal's anchorStateRegistry().
+func (r *chainInfoReader) fillFaultProofs() {
+	out := &r.out
 	portal := out.OptimismPortalProxy
 
 	respectedGameType, ok := r.tryGameType(portal, "respectedGameType()")
@@ -98,143 +107,136 @@ func (r *chainInfoReader) readFaultProofs(out *chaininfo.FetchChainInfoOutput) {
 		// A portal that predates fault proofs reads outputs from an L2OutputOracle. The
 		// respected game type is uint32.max rather than 0, which is CANNON.
 		out.RespectedGameType = math.MaxUint32
-		r.readL2OutputOracle(r.addressOr(portal, "l2Oracle()", "L2_ORACLE()"), out)
+		r.fillL2OutputOracle(r.addressOr(portal, "l2Oracle()", "L2_ORACLE()"))
 		return
 	}
 	out.RespectedGameType = respectedGameType
 
-	factory := r.tryAddress(systemConfig, "disputeGameFactory()")
-	if factory == (common.Address{}) {
-		r.readL2OutputOracle(r.address(portal, "L2_ORACLE()"), out)
+	out.DisputeGameFactoryProxy = r.tryAddress(out.SystemConfigProxy, "disputeGameFactory()")
+	if out.DisputeGameFactoryProxy == (common.Address{}) {
+		r.fillL2OutputOracle(r.address(portal, "L2_ORACLE()"))
 		return
 	}
-	out.DisputeGameFactoryProxy = factory
 
-	// Newer portals point to the AnchorStateRegistry; otherwise it comes from the game args
-	// or the game implementations below.
-	anchorStateRegistry := out.AnchorStateRegistryProxy
-	// The VM is shared across game types: the first game that names it wins.
-	var vm common.Address
+	r.fillPermissionedGame()
+	r.fillSuperPermissionedGame()
+	r.fillPermissionlessGame()
+	r.fillSuperCannonKonaGame()
 
-	if permissioned := r.gameImpl(factory, gameTypePermissionedCannon); permissioned != (common.Address{}) {
-		out.Permissioned = true
-		out.PermissionedDisputeGameImpl = permissioned
-		if args, ok := r.gameArgs(factory, gameTypePermissionedCannon); ok {
-			out.Challenger = args.challenger
-			out.Proposer = args.proposer
-			out.DelayedWethPermissionedGameProxy = args.weth
-			if anchorStateRegistry == (common.Address{}) {
-				anchorStateRegistry = args.anchorStateRegistry
-			}
-			vm = args.vm
-		} else {
-			// Games that predate game args expose their configuration as getters.
-			out.Challenger = r.address(permissioned, "challenger()")
-			out.Proposer = r.address(permissioned, "proposer()")
-			out.DelayedWethPermissionedGameProxy = r.delayedWETH(permissioned)
-			if anchorStateRegistry == (common.Address{}) {
-				anchorStateRegistry = r.address(permissioned, "anchorStateRegistry()")
-			}
-			vm = r.address(permissioned, "vm()")
-		}
-	}
-
-	anchorStateRegistry = r.readSuperPermissioned(factory, anchorStateRegistry, out)
-
-	// Report the live permissionless game. CANNON is being replaced by CANNON_KONA, so report
-	// whichever is registered, preferring CANNON when both are, which keeps
-	// FaultDisputeGameImpl stable for chains that have not migrated.
-	cannon := r.gameImpl(factory, gameTypeCannon)
-	cannonKona := r.gameImpl(factory, gameTypeCannonKona)
-	permissionlessGameType, permissionless := gameTypeCannon, cannon
-	if cannon == (common.Address{}) {
-		permissionlessGameType, permissionless = gameTypeCannonKona, cannonKona
-	}
-	if permissionless != (common.Address{}) {
-		out.FaultDisputeGameImpl = permissionless
-		out.Permissionless = true
-		if args, ok := r.gameArgs(factory, permissionlessGameType); ok {
-			out.DelayedWethPermissionlessGameProxy = args.weth
-			if vm == (common.Address{}) {
-				vm = args.vm
-			}
-			if anchorStateRegistry == (common.Address{}) {
-				anchorStateRegistry = args.anchorStateRegistry
-			}
-		} else {
-			out.DelayedWethPermissionlessGameProxy = r.delayedWETH(permissionless)
-			if vm == (common.Address{}) {
-				vm = r.address(permissionless, "vm()")
-			}
-		}
-	}
-
-	anchorStateRegistry, vm = r.readSuperCannonKona(factory, anchorStateRegistry, vm, out)
-
-	if anchorStateRegistry != (common.Address{}) {
-		out.AnchorStateRegistryProxy = anchorStateRegistry
-	}
-	if vm != (common.Address{}) {
-		out.MipsImpl = vm
-		out.PreimageOracleImpl = r.address(vm, "oracle()")
-	}
-	if cannonKona != (common.Address{}) {
-		out.FaultDisputeGameCannonKonaImpl = cannonKona
+	if out.MipsImpl != (common.Address{}) {
+		out.PreimageOracleImpl = r.address(out.MipsImpl, "oracle()")
 	}
 }
 
-func (r *chainInfoReader) readL2OutputOracle(l2OutputOracle common.Address, out *chaininfo.FetchChainInfoOutput) {
-	out.L2OutputOracleProxy = l2OutputOracle
-	out.Proposer = r.address(l2OutputOracle, "PROPOSER()")
+func (r *chainInfoReader) fillL2OutputOracle(l2OutputOracle common.Address) {
+	r.out.L2OutputOracleProxy = l2OutputOracle
+	r.out.Proposer = r.address(l2OutputOracle, "PROPOSER()")
 }
 
-// readSuperPermissioned reads the SUPER_PERMISSIONED game, if registered, and returns the
-// AnchorStateRegistry, taking it from the game args if it is not known yet.
-func (r *chainInfoReader) readSuperPermissioned(factory, anchorStateRegistry common.Address, out *chaininfo.FetchChainInfoOutput) common.Address {
-	impl := r.gameImpl(factory, gameTypeSuperPermissioned)
-	if impl == (common.Address{}) {
-		return anchorStateRegistry
+func (r *chainInfoReader) fillPermissionedGame() {
+	out := &r.out
+	factory := out.DisputeGameFactoryProxy
+	game := r.gameImpl(factory, gameTypePermissionedCannon)
+	if game == (common.Address{}) {
+		return
 	}
 	out.Permissioned = true
-	out.SuperPermissionedDisputeGameImpl = impl
+	out.PermissionedDisputeGameImpl = game
+	if args, ok := r.gameArgs(factory, gameTypePermissionedCannon); ok {
+		out.Challenger = args.challenger
+		out.Proposer = args.proposer
+		out.DelayedWethPermissionedGameProxy = args.weth
+		setIfZero(&out.AnchorStateRegistryProxy, args.anchorStateRegistry)
+		out.MipsImpl = args.vm
+		return
+	}
+	// Games that predate game args expose their configuration as getters.
+	out.Challenger = r.address(game, "challenger()")
+	out.Proposer = r.address(game, "proposer()")
+	out.DelayedWethPermissionedGameProxy = r.delayedWETH(game)
+	if out.AnchorStateRegistryProxy == (common.Address{}) {
+		out.AnchorStateRegistryProxy = r.address(game, "anchorStateRegistry()")
+	}
+	out.MipsImpl = r.address(game, "vm()")
+}
+
+func (r *chainInfoReader) fillSuperPermissionedGame() {
+	out := &r.out
+	factory := out.DisputeGameFactoryProxy
+	game := r.gameImpl(factory, gameTypeSuperPermissioned)
+	if game == (common.Address{}) {
+		return
+	}
+	out.Permissioned = true
+	out.SuperPermissionedDisputeGameImpl = game
 
 	raw := r.rawGameArgs(factory, gameTypeSuperPermissioned)
 	if len(raw) == 0 {
-		return anchorStateRegistry
+		return
 	}
 	if len(raw) != superPermissionedArgsLength {
 		r.fail(fmt.Errorf("SUPER_PERMISSIONED game args of factory %s: invalid length %d", factory, len(raw)))
-		return anchorStateRegistry
+		return
 	}
 	out.Proposer = common.BytesToAddress(raw[20:40])
-	if anchorStateRegistry == (common.Address{}) {
-		return common.BytesToAddress(raw[0:20])
-	}
-	return anchorStateRegistry
+	setIfZero(&out.AnchorStateRegistryProxy, common.BytesToAddress(raw[0:20]))
 }
 
-// readSuperCannonKona reads the SUPER_CANNON_KONA game, if registered, and returns the
-// AnchorStateRegistry and VM, taking each from the game args if it is not known yet.
-func (r *chainInfoReader) readSuperCannonKona(factory, anchorStateRegistry, vm common.Address, out *chaininfo.FetchChainInfoOutput) (common.Address, common.Address) {
-	impl := r.gameImpl(factory, gameTypeSuperCannonKona)
-	if impl == (common.Address{}) {
-		return anchorStateRegistry, vm
+// fillPermissionlessGame fills the live permissionless game. CANNON is being replaced by
+// CANNON_KONA, so it reports whichever is registered, preferring CANNON when both are, which
+// keeps FaultDisputeGameImpl stable for chains that have not migrated.
+func (r *chainInfoReader) fillPermissionlessGame() {
+	out := &r.out
+	factory := out.DisputeGameFactoryProxy
+	cannon := r.gameImpl(factory, gameTypeCannon)
+	cannonKona := r.gameImpl(factory, gameTypeCannonKona)
+	out.FaultDisputeGameCannonKonaImpl = cannonKona
+	gameType, game := gameTypeCannon, cannon
+	if cannon == (common.Address{}) {
+		gameType, game = gameTypeCannonKona, cannonKona
 	}
-	out.SuperFaultDisputeGameImpl = impl
+	if game == (common.Address{}) {
+		return
+	}
+	out.FaultDisputeGameImpl = game
+	out.Permissionless = true
+	if args, ok := r.gameArgs(factory, gameType); ok {
+		out.DelayedWethPermissionlessGameProxy = args.weth
+		setIfZero(&out.MipsImpl, args.vm)
+		setIfZero(&out.AnchorStateRegistryProxy, args.anchorStateRegistry)
+		return
+	}
+	out.DelayedWethPermissionlessGameProxy = r.delayedWETH(game)
+	if out.MipsImpl == (common.Address{}) {
+		out.MipsImpl = r.address(game, "vm()")
+	}
+}
+
+func (r *chainInfoReader) fillSuperCannonKonaGame() {
+	out := &r.out
+	factory := out.DisputeGameFactoryProxy
+	game := r.gameImpl(factory, gameTypeSuperCannonKona)
+	if game == (common.Address{}) {
+		return
+	}
+	out.SuperFaultDisputeGameImpl = game
 	out.Permissionless = true
 
 	args, ok := r.gameArgs(factory, gameTypeSuperCannonKona)
 	if !ok {
-		return anchorStateRegistry, vm
+		return
 	}
 	out.DelayedWethPermissionlessGameProxy = args.weth
-	if anchorStateRegistry == (common.Address{}) {
-		anchorStateRegistry = args.anchorStateRegistry
+	setIfZero(&out.AnchorStateRegistryProxy, args.anchorStateRegistry)
+	setIfZero(&out.MipsImpl, args.vm)
+}
+
+// setIfZero sets *addr to v unless an earlier read has already set it. v is evaluated before
+// the call, so a getter that must only be called when *addr is zero needs an explicit if.
+func setIfZero(addr *common.Address, v common.Address) {
+	if *addr == (common.Address{}) {
+		*addr = v
 	}
-	if vm == (common.Address{}) {
-		vm = args.vm
-	}
-	return anchorStateRegistry, vm
 }
 
 // gameArgs holds the fields of LibGameArgs.GameArgs that are read here.
