@@ -26,10 +26,7 @@ type scriptOutput struct {
 }
 
 // TestFetchChainInfoMatchesScriptOutput is a differential test against the FetchChainInfo
-// forge script on live chains. The recorded outputs cover the contract releases that live
-// chains run: L2OutputOracle without fault proofs and with the oldest SystemConfig,
-// permissioned and permissionless games before game args, game args with a custom respected
-// game type, CANNON_KONA, and super-root games with and without a permissionless game.
+// forge script on live chains: super-root games with and without a permissionless game.
 //
 // It needs archive L1 RPCs in MAINNET_RPC_URL and SEPOLIA_RPC_URL, and skips a network whose
 // RPC is unset.
