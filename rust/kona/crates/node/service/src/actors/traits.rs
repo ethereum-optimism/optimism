@@ -1,6 +1,7 @@
 //! [`NodeActor`] trait.
 
 use async_trait::async_trait;
+use std::convert::Infallible;
 
 /// The [`NodeActor`] is an actor-like service for the node.
 ///
@@ -46,5 +47,17 @@ pub trait NodeActor: Send + 'static {
     async fn step(&mut self) -> Result<(), Self::Error> {
         let input = self.next().await?;
         self.handle(input).await
+    }
+}
+
+/// Drives `actor` until it fails: waits for its next input with [`NodeActor::next`], then handles
+/// it with [`NodeActor::handle`].
+///
+/// This is how the node runs its actors. It never returns `Ok`, so awaiting it yields the error
+/// the actor failed with.
+pub async fn run_actor<A: NodeActor>(mut actor: A) -> Result<Infallible, A::Error> {
+    loop {
+        let input = actor.next().await?;
+        actor.handle(input).await?;
     }
 }

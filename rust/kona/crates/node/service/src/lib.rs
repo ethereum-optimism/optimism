@@ -34,7 +34,7 @@ pub use actors::{
     ResetRequest, RpcActor, RpcActorError, RpcServerHandle, RpcServerLauncher, SealRequest,
     SequencerActor, SequencerActorError, SequencerActorInput, SequencerAdminQuery, SequencerConfig,
     SequencerEngineClient, SignedPayload, SignerActor, SignerActorError, UnsafePayloadGossipClient,
-    UnsafePayloadGossipClientError,
+    UnsafePayloadGossipClientError, run_actor,
 };
 
 mod metrics;

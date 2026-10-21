@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, SignerActor,
+    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, SignerActor, run_actor,
 };
 use kona_peers::BootNode;
 use kona_sources::BlockSignerHandler;
@@ -108,7 +108,7 @@ impl TestNetworkBuilder {
         let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
         let (signed_payload_tx, signed_payload_rx) = mpsc::channel(16);
 
-        let mut actor = NetworkActor::new(
+        let actor = NetworkActor::new(
             ForwardingNetworkEngineClient { blocks_tx },
             handler,
             p2p_rpc_rx,
@@ -118,7 +118,7 @@ impl TestNetworkBuilder {
 
         // Every test network can sign: payloads sent to `gossip_payload_tx` are signed with this
         // node's key and then gossiped.
-        let mut signer = SignerActor::new(
+        let signer = SignerActor::new(
             BlockSignerHandler::Local(block_signer),
             self.chain_id,
             watch::channel(self.unsafe_block_signer).1,
@@ -126,22 +126,11 @@ impl TestNetworkBuilder {
             signed_payload_tx,
         );
         tokio::spawn(async move {
-            let err = loop {
-                if let Err(err) = signer.step().await {
-                    break err;
-                }
-            };
+            let Err(err) = run_actor(signer).await;
             error!(target: "net", ?err, "Signer actor failed");
         });
 
-        let handle = tokio::spawn(async move {
-            loop {
-                actor.step().await?;
-            }
-            // Unreachable: the loop above only exits via Err.
-            #[allow(unreachable_code)]
-            Ok(())
-        });
+        let handle = tokio::spawn(run_actor(actor));
 
         TestNetwork { p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx, blocks_rx, handle }
     }

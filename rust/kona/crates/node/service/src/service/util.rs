@@ -1,20 +1,21 @@
 //! Utilities for the rollup node service, internal to the crate.
 
-use crate::NodeActor;
 use std::convert::Infallible;
 use tokio::task::JoinSet;
 
 /// Spawns a set of parallel actors in a [`JoinSet`], and stops all of them as soon as any of them
-/// fails. The type of the error in the [`NodeActor`]s is erased to avoid having to specify a common
-/// error type between actors.
+/// fails. The type of the error in the [`NodeActor`](crate::NodeActor)s is erased to avoid having
+/// to specify a common error type between actors.
 ///
-/// Actors are passed in as `Option<actor>`, and each one is driven by [`run_actor`].
+/// Actors are passed in as `Option<actor>`, and each one is driven by
+/// [`run_actor`](crate::run_actor).
 ///
 /// Shutdown is crash-only: once an actor fails, this returns without waiting for the others, and
 /// dropping the [`JoinSet`] aborts them at their next `.await`, even while they handle an input.
 /// The node has to recover from being killed at any point anyway, so this is its only shutdown
-/// path. Stopping actors only while they wait in [`NodeActor::next`], and waiting for them, would
-/// let them finish handling their current input instead, without changing any actor.
+/// path. Stopping actors only while they wait in [`NodeActor::next`](crate::NodeActor::next), and
+/// waiting for them, would let them finish handling their current input instead, without changing
+/// any actor.
 ///
 /// OS signals are handled by the caller.
 ///
@@ -25,7 +26,9 @@ macro_rules! spawn_and_wait {
 
         $(
             if let Some(actor) = $actor {
-                task_handles.spawn($crate::service::run_actor(actor));
+                task_handles.spawn(async move {
+                    $crate::run_actor(actor).await.map_err(|e| format!("{e:?}"))
+                });
             }
         )*
 
@@ -35,14 +38,6 @@ macro_rules! spawn_and_wait {
 
 // Export the `spawn_and_wait` macro for use in other modules.
 pub(crate) use spawn_and_wait;
-
-/// Drives `actor` until it fails: waits for its next input, then handles it.
-pub(crate) async fn run_actor<A: NodeActor>(mut actor: A) -> Result<Infallible, String> {
-    loop {
-        let input = actor.next().await.map_err(|e| format!("{e:?}"))?;
-        actor.handle(input).await.map_err(|e| format!("{e:?}"))?;
-    }
-}
 
 /// Waits for the first actor to fail, then returns without waiting for the others: dropping
 /// `task_handles` aborts them.
@@ -63,7 +58,7 @@ pub(crate) async fn wait_for_actors(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::NodeActor;
     use async_trait::async_trait;
     use tokio::{
         sync::oneshot,

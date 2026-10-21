@@ -3,7 +3,7 @@
 //! [NodeActor]: super::NodeActor
 
 mod traits;
-pub use traits::NodeActor;
+pub use traits::{NodeActor, run_actor};
 
 mod engine;
 pub use engine::{

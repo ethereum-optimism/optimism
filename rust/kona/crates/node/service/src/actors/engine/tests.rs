@@ -1,5 +1,5 @@
 use super::{EngineActor, EngineActorRequest, QueuedEngineDerivationClient, ResetRequest};
-use crate::{DerivationActorRequest, NodeActor};
+use crate::{DerivationActorRequest, NodeActor, run_actor};
 use alloy_eips::BlockId;
 use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
 use kona_engine::{Engine, EngineState, NoopBlockSink, test_utils::MockEngineClient};
@@ -82,13 +82,7 @@ async fn reset_recovers_and_completes_original_request(
     }
     // The next step waits for the backoff and then performs recovery; the response arrives first.
     let mut tasks = tokio::task::JoinSet::new();
-    tasks.spawn(async move {
-        loop {
-            actor.step().await?;
-        }
-        #[allow(unreachable_code)]
-        Ok::<(), crate::EngineError>(())
-    });
+    tasks.spawn(run_actor(actor));
     time::timeout(Duration::from_secs(20), reply_rx.recv()).await.unwrap().unwrap().unwrap();
     assert!(matches!(
         derivation_rx.recv().await.unwrap(),

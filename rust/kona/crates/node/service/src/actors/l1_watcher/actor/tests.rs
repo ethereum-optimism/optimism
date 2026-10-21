@@ -1,5 +1,5 @@
 use super::*;
-use crate::{DerivationActorRequest, QueuedL1WatcherDerivationClient};
+use crate::{DerivationActorRequest, QueuedL1WatcherDerivationClient, run_actor};
 use alloy_json_rpc::{RequestPacket, Response, ResponsePacket, ResponsePayload};
 use alloy_primitives::{Address, B256, U256};
 use alloy_provider::RootProvider;
@@ -7,9 +7,12 @@ use alloy_rpc_client::RpcClient;
 use alloy_transport::{TransportError, TransportErrorKind};
 use kona_genesis::RollupConfig;
 use kona_rpc::L1WatcherQueries;
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    convert::Infallible,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 use tokio::{
     sync::{Notify, mpsc, oneshot},
@@ -101,7 +104,7 @@ struct Harness {
     heads: mpsc::Sender<BlockInfo>,
     finalized: mpsc::Sender<BlockInfo>,
     chains: Vec<ChainHandles>,
-    tasks: JoinSet<Result<(), L1WatcherActorError<BlockInfo>>>,
+    tasks: JoinSet<Result<Infallible, L1WatcherActorError<BlockInfo>>>,
     rpc: Arc<RpcState>,
 }
 fn head(number: u64) -> BlockInfo {
@@ -131,7 +134,7 @@ impl Harness {
         let (heads, head_rx) = mpsc::channel(4);
         let (finalized, finalized_rx) = mpsc::channel(4);
         let (latest, _) = watch::channel(None);
-        let mut actor = L1WatcherActor::new(
+        let actor = L1WatcherActor::new(
             provider(rpc.clone()),
             latest,
             ReceiverStream::new(head_rx),
@@ -139,13 +142,7 @@ impl Harness {
             configs,
         );
         let mut tasks = JoinSet::new();
-        tasks.spawn(async move {
-            loop {
-                actor.step().await?;
-            }
-            #[allow(unreachable_code)]
-            Ok(())
-        });
+        tasks.spawn(run_actor(actor));
         Self { heads, finalized, chains, tasks, rpc }
     }
 

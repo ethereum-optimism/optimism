@@ -1,6 +1,6 @@
 //! Tests interactions with sequencer actor's inputs channels.
 
-use std::{str::FromStr, time::Duration};
+use std::{convert::Infallible, str::FromStr, time::Duration};
 
 use backon::{ExponentialBuilder, Retryable};
 use discv5::Enr;
@@ -22,7 +22,7 @@ pub(crate) struct TestNetwork {
     pub(super) gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
     pub(super) blocks_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     #[allow(dead_code)]
-    handle: JoinHandle<Result<(), NetworkActorError>>,
+    handle: JoinHandle<Result<Infallible, NetworkActorError>>,
 }
 
 #[derive(Debug, thiserror::Error)]
