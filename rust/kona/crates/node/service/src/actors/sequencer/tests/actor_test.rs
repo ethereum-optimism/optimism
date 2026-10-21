@@ -6,12 +6,16 @@ use crate::{
         sequencer::tests::test_util::test_actor,
     },
 };
+use alloy_rpc_types_engine::PayloadId;
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use rstest::rstest;
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::{SystemTime, UNIX_EPOCH},
 };
 use tokio::{
     sync::{mpsc, oneshot},
@@ -118,4 +122,54 @@ async fn building_resumes_once_the_gossip_queue_drains() {
 
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
+}
+
+/// After building a block, the next build tick waits until that block is due, rather than firing
+/// straight away.
+#[tokio::test(start_paused = true)]
+async fn next_block_is_not_built_before_it_is_due() {
+    let mut actor = test_actor();
+
+    // With the parent at the current wall-clock second and a 2s block time, the next block is due
+    // in more than 1s and at most 2s.
+    let now =
+        SystemTime::now().duration_since(UNIX_EPOCH).expect("clock before UNIX epoch").as_secs();
+    let mut unsafe_head = L2BlockInfo::default();
+    unsafe_head.block_info.timestamp = now;
+
+    let mut engine = MockSequencerEngineClient::new();
+    engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
+    engine.expect_get_unsafe_head().times(1).return_once(move || Ok(unsafe_head));
+    engine.expect_start_build_block().times(1).return_once(|_| Ok(PayloadId::new([1; 8])));
+    actor.engine_client = engine;
+
+    let mut origin_selector = MockOriginSelector::new();
+    origin_selector.expect_next_l1_origin().times(1).return_once(|_, _| Ok(BlockInfo::default()));
+    actor.origin_selector = origin_selector;
+    actor.attributes_builder = TestAttributesBuilder { attributes: vec![Ok(Default::default())] };
+
+    // Room on the first tick, to start building; none on the second, so it returns before sealing.
+    let ticks = Arc::new(AtomicUsize::new(0));
+    let mut gossip = MockUnsafePayloadGossipClient::new();
+    gossip.expect_has_capacity().returning(move || ticks.fetch_add(1, Ordering::SeqCst) == 0);
+    actor.unsafe_payload_gossip_client = gossip;
+
+    // Reset the engine and start building on the first tick, which fires immediately.
+    time::timeout(Duration::from_secs(10), actor.step())
+        .await
+        .expect("the first tick did not fire")
+        .expect("the first step failed");
+
+    // The delay is computed from the real wall clock, which keeps moving while the test runs, so
+    // wait well short of the minimum 1s rather than just under it.
+    let step = actor.step();
+    tokio::pin!(step);
+    assert!(
+        time::timeout(Duration::from_millis(500), &mut step).await.is_err(),
+        "the next tick fired before the next block was due"
+    );
+    time::timeout(Duration::from_secs(2), &mut step)
+        .await
+        .expect("the next tick did not fire once the next block was due")
+        .expect("the next step failed");
 }
