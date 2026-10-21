@@ -369,3 +369,36 @@ async fn stopped_sequencer_settles_committed_work_before_reporting_its_head(
     assert!(actor.in_flight.is_none());
     assert_eq!(actor.stop_sequencer().await.unwrap(), L2BlockInfo::default().hash());
 }
+
+#[tokio::test]
+async fn local_recovery_bypasses_commit_but_still_canonicalizes_before_gossip() {
+    let mut actor = actor_with_pending_handle();
+    let mut conductor = MockConductor::new();
+    conductor.expect_commit_unsafe_payload().times(0);
+    conductor.expect_override_leader().times(0);
+    actor.conductor = Some(conductor);
+    actor.override_leader().await.unwrap();
+    let mut sequence = Sequence::new();
+    actor
+        .engine_client
+        .expect_seal_block()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| Ok(sealed_payload(2)));
+    actor
+        .engine_client
+        .expect_canonicalize_block()
+        .withf(|payload, _| payload == &sealed_payload(2))
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| Ok(()));
+    actor
+        .unsafe_payload_gossip_client
+        .expect_schedule_execution_payload_gossip()
+        .withf(|payload| payload == &sealed_payload(2))
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| Ok(()));
+    tick(&mut actor).await;
+    assert!(actor.in_flight.is_none());
+}

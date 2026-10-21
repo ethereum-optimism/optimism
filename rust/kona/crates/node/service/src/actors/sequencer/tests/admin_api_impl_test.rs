@@ -1,9 +1,8 @@
 use crate::{
-    ConductorError, EngineClientError, SequencerAdminQuery,
+    EngineClientError, SequencerAdminQuery,
     actors::{MockConductor, MockSequencerEngineClient, sequencer::tests::test_util::test_actor},
 };
 use alloy_primitives::B256;
-use alloy_transport::RpcError;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use kona_rpc::SequencerAdminAPIError;
 use rstest::rstest;
@@ -234,61 +233,15 @@ async fn test_set_recovery_mode(
     assert_eq!(result.unwrap(), mode_to_set);
 }
 
-#[rstest]
 #[tokio::test]
-async fn test_override_leader(
-    #[values(true, false)] conductor_configured: bool,
-    #[values(true, false)] conductor_error: bool,
-    #[values(true, false)] via_channel: bool,
-) {
-    // mock error string returned by conductor, if configured (to differentiate between error
-    // returned if not configured)
-    let conductor_error_string = "test: error within conductor";
-
-    let mut actor = {
-        // wire up conductor absence/presence and response error/success
-        if !conductor_configured {
-            test_actor()
-        } else if conductor_error {
-            let mut conductor = MockConductor::new();
-            conductor.expect_override_leader().times(1).return_once(move || {
-                Err(ConductorError::Rpc(RpcError::local_usage_str(conductor_error_string)))
-            });
-            let mut actor = test_actor();
-            actor.conductor = Some(conductor);
-            actor
-        } else {
-            let mut conductor = MockConductor::new();
-            conductor.expect_override_leader().times(1).return_once(|| Ok(()));
-            let mut actor = test_actor();
-            actor.conductor = Some(conductor);
-            actor
-        }
-    };
-
-    // call to override leader
-    let result = async {
-        match via_channel {
-            false => actor.override_leader().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::OverrideLeader(tx)).await;
-                rx.await.unwrap()
-            }
-        }
-    }
-    .await;
-
-    // verify result
-    if !conductor_configured || conductor_error {
-        assert!(result.is_err());
-        assert_eq!(
-            conductor_configured,
-            result.err().unwrap().to_string().contains(conductor_error_string)
-        );
-    } else {
-        assert!(result.is_ok())
-    }
+async fn local_recovery_override_does_not_call_the_conductor() {
+    let mut actor = test_actor();
+    let mut conductor = MockConductor::new();
+    conductor.expect_override_leader().times(0);
+    actor.conductor = Some(conductor);
+    actor.override_leader().await.unwrap();
+    assert!(actor.leader_override);
+    assert!(actor.is_conductor_enabled().await.unwrap());
 }
 
 #[rstest]
@@ -347,7 +300,7 @@ async fn test_reset_derivation_pipeline_error(#[values(true, false)] via_channel
 #[tokio::test]
 async fn test_handle_admin_query_resilient_to_dropped_receiver() {
     let mut conductor = MockConductor::new();
-    conductor.expect_override_leader().times(1).returning(|| Ok(()));
+    conductor.expect_override_leader().times(0);
 
     let unsafe_head = L2BlockInfo {
         block_info: BlockInfo { hash: B256::from([1u8; 32]), ..Default::default() },

@@ -85,6 +85,8 @@ pub struct SequencerActor<
     pub attributes_builder: AttributesBuilder_,
     /// The optional conductor RPC client.
     pub conductor: Option<Conductor_>,
+    /// Process-local disaster recovery; never changes external proxy leadership.
+    pub(super) leader_override: bool,
     /// The struct used to interact with the engine.
     pub engine_client: SequencerEngineClient_,
     /// Whether the sequencer is active.
@@ -148,6 +150,7 @@ where
             admin_api_rx,
             attributes_builder,
             conductor,
+            leader_override: false,
             is_active,
             engine_client,
             in_recovery_mode,
@@ -174,7 +177,9 @@ where
             .await?;
         update_seal_duration_metrics(seal_request_start.elapsed());
 
-        if let Some(conductor) = &self.conductor {
+        if let Some(conductor) = &self.conductor &&
+            !self.leader_override
+        {
             let commitment_start = Instant::now();
             let result = conductor.commit_unsafe_payload(&envelope).await;
             update_conductor_commitment_duration_metrics(commitment_start.elapsed());

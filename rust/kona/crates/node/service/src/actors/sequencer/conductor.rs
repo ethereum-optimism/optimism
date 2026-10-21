@@ -47,7 +47,7 @@ impl Conductor for ConductorClient {
 
     /// Override the leader of the conductor.
     async fn override_leader(&self) -> Result<(), ConductorError> {
-        tokio::time::timeout(self.timeout, self.rpc.request("conductor_overrideLeader", ()))
+        tokio::time::timeout(self.timeout, self.rpc.request("conductor_overrideLeader", [true]))
             .await?
             .map_err(Into::into)
     }
@@ -108,5 +108,30 @@ mod tests {
         let result = tokio::time::timeout(Duration::from_secs(2), client.leader()).await.unwrap();
         assert!(matches!(result, Err(ConductorError::Timeout(_))));
         stalled.abort();
+    }
+
+    #[tokio::test]
+    async fn external_override_uses_the_boolean_wire_contract() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        };
+        let called = Arc::new(AtomicBool::new(false));
+        let server =
+            jsonrpsee::server::ServerBuilder::default().build("127.0.0.1:0").await.unwrap();
+        let address = server.local_addr().unwrap();
+        let mut module = jsonrpsee::RpcModule::new(called.clone());
+        module
+            .register_method("conductor_overrideLeader", |params, called, _| {
+                let enabled: bool = params.one()?;
+                called.store(enabled, Ordering::SeqCst);
+                Ok::<_, jsonrpsee::types::ErrorObjectOwned>(())
+            })
+            .unwrap();
+        let handle = server.start(module);
+        let client = ConductorClient::new_http(format!("http://{address}").parse().unwrap());
+        client.override_leader().await.unwrap();
+        assert!(called.load(Ordering::SeqCst));
+        handle.stop().unwrap();
     }
 }
