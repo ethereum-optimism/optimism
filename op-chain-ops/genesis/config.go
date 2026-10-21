@@ -1108,12 +1108,12 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 }
 
 func (d *DeployConfig) SetContracts(contracts *addresses.L1Contracts) {
-	d.L1StandardBridgeProxy = contracts.L1StandardBridgeProxy
-	d.L1CrossDomainMessengerProxy = contracts.L1CrossDomainMessengerProxy
-	d.L1ERC721BridgeProxy = contracts.L1Erc721BridgeProxy
-	d.SystemConfigProxy = contracts.SystemConfigProxy
-	d.OptimismPortalProxy = contracts.OptimismPortalProxy
-	d.DAChallengeProxy = contracts.AltDAChallengeProxy
+	d.L1StandardBridgeProxy = contracts.OpChain.L1StandardBridgeProxy
+	d.L1CrossDomainMessengerProxy = contracts.OpChain.L1CrossDomainMessengerProxy
+	d.L1ERC721BridgeProxy = contracts.OpChain.L1Erc721BridgeProxy
+	d.SystemConfigProxy = contracts.OpChain.SystemConfigProxy
+	d.OptimismPortalProxy = contracts.OpChain.OptimismPortalProxy
+	d.DAChallengeProxy = contracts.OpChain.AltDAChallengeProxy
 }
 
 // RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the
@@ -1258,27 +1258,27 @@ type L1Deployments struct {
 
 func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deployments {
 	return &L1Deployments{
-		AddressManager:                    contracts.AddressManagerImpl,
-		DisputeGameFactory:                contracts.DisputeGameFactoryImpl,
-		DisputeGameFactoryProxy:           contracts.DisputeGameFactoryProxy,
-		L1CrossDomainMessenger:            contracts.L1CrossDomainMessengerImpl,
-		L1CrossDomainMessengerProxy:       contracts.L1CrossDomainMessengerProxy,
-		L1ERC721Bridge:                    contracts.L1Erc721BridgeImpl,
-		L1ERC721BridgeProxy:               contracts.L1Erc721BridgeProxy,
-		L1StandardBridge:                  contracts.L1StandardBridgeImpl,
-		L1StandardBridgeProxy:             contracts.L1StandardBridgeProxy,
-		L2OutputOracleProxy:               contracts.L2OutputOracleProxy,
-		OptimismMintableERC20Factory:      contracts.OptimismMintableErc20FactoryImpl,
-		OptimismMintableERC20FactoryProxy: contracts.OptimismMintableErc20FactoryProxy,
-		OptimismPortal:                    contracts.OptimismPortalImpl,
-		OptimismPortalProxy:               contracts.OptimismPortalProxy,
-		ETHLockbox:                        contracts.EthLockboxImpl,
-		ETHLockboxProxy:                   contracts.EthLockboxProxy,
-		ProxyAdmin:                        contracts.OpChainProxyAdminImpl,
-		SystemConfig:                      contracts.SystemConfigImpl,
-		SystemConfigProxy:                 contracts.SystemConfigProxy,
-		DataAvailabilityChallenge:         contracts.AltDAChallengeImpl,
-		DataAvailabilityChallengeProxy:    contracts.AltDAChallengeProxy,
+		AddressManager:                    contracts.OpChain.AddressManagerImpl,
+		DisputeGameFactory:                contracts.Implementations.DisputeGameFactoryImpl,
+		DisputeGameFactoryProxy:           contracts.OpChain.DisputeGameFactoryProxy,
+		L1CrossDomainMessenger:            contracts.Implementations.L1CrossDomainMessengerImpl,
+		L1CrossDomainMessengerProxy:       contracts.OpChain.L1CrossDomainMessengerProxy,
+		L1ERC721Bridge:                    contracts.Implementations.L1Erc721BridgeImpl,
+		L1ERC721BridgeProxy:               contracts.OpChain.L1Erc721BridgeProxy,
+		L1StandardBridge:                  contracts.Implementations.L1StandardBridgeImpl,
+		L1StandardBridgeProxy:             contracts.OpChain.L1StandardBridgeProxy,
+		L2OutputOracleProxy:               contracts.OpChain.L2OutputOracleProxy,
+		OptimismMintableERC20Factory:      contracts.Implementations.OptimismMintableErc20FactoryImpl,
+		OptimismMintableERC20FactoryProxy: contracts.OpChain.OptimismMintableErc20FactoryProxy,
+		OptimismPortal:                    contracts.Implementations.OptimismPortalImpl,
+		OptimismPortalProxy:               contracts.OpChain.OptimismPortalProxy,
+		ETHLockbox:                        contracts.Implementations.EthLockboxImpl,
+		ETHLockboxProxy:                   contracts.OpChain.EthLockboxProxy,
+		ProxyAdmin:                        contracts.OpChain.OpChainProxyAdminImpl,
+		SystemConfig:                      contracts.Implementations.SystemConfigImpl,
+		SystemConfigProxy:                 contracts.OpChain.SystemConfigProxy,
+		DataAvailabilityChallenge:         contracts.OpChain.AltDAChallengeImpl,
+		DataAvailabilityChallengeProxy:    contracts.OpChain.AltDAChallengeProxy,
 	}
 }
 

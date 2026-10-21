@@ -7,10 +7,14 @@ import "github.com/ethereum/go-ethereum/common"
 //     by feature set (e.g. FaultProofs has its own set of contracts nested within the OpChainContracts struct)
 //   - all contract field names are suffixed with "Impl" or "Proxy" to indicate the type of contract
 
+// L1Contracts holds all L1 contracts of an OpChain, grouped by deployment contract bundle.
+//   - the bundles are named fields because ImplementationsContracts and OpChainContracts share
+//     field names (e.g. FaultDisputeGameImpl is both the OPCM's and the chain's game
+//     implementation), which embedding would shadow
 type L1Contracts struct {
-	SuperchainContracts
-	ImplementationsContracts
-	OpChainContracts
+	Superchain      SuperchainContracts      `json:"superchain"`
+	Implementations ImplementationsContracts `json:"implementations"`
+	OpChain         OpChainContracts         `json:"opChain"`
 }
 
 // SuperchainContracts struct contains all the superchain-level contracts
