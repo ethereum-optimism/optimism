@@ -141,6 +141,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         );
         synchronize.execute(&mut self.state).await?;
 
+        self.state_sender.send_replace(self.state);
         kona_macros::inc!(counter, Metrics::ENGINE_RESET_COUNT);
 
         Ok(start.safe)
