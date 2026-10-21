@@ -1,10 +1,11 @@
 //! A task to insert an unsafe payload into the execution engine.
 
+use super::super::util::submit_payload;
 use crate::{
     EngineClient, EngineState, EngineTaskExt, ImportedBlockSink, InsertTaskError, SynchronizeTask,
     state::EngineSyncStateUpdate,
 };
-use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
+use alloy_rpc_types_engine::PayloadStatusEnum;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -24,8 +25,6 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     /// If the payload is safe this is true.
     /// A payload is safe if it is derived from a safe block.
     is_payload_safe: bool,
-    /// Sequenced publication requires actual validation instead of driving EL sync.
-    require_valid: bool,
     /// Where to hand the decoded block once the engine has canonicalized it.
     block_sink: Arc<dyn ImportedBlockSink>,
 }
@@ -39,25 +38,12 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
         is_attributes_derived: bool,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
-        Self {
-            client,
-            rollup_config,
-            payload,
-            is_payload_safe: is_attributes_derived,
-            block_sink,
-            require_valid: false,
-        }
-    }
-
-    pub(crate) const fn requiring_valid(mut self) -> Self {
-        self.require_valid = true;
-        self
+        Self { client, rollup_config, payload, is_payload_safe: is_attributes_derived, block_sink }
     }
 
     /// Checks the response of the `engine_newPayload` call.
     const fn check_new_payload_status(&self, status: &PayloadStatusEnum) -> bool {
-        matches!(status, PayloadStatusEnum::Valid) ||
-            (!self.require_valid && matches!(status, PayloadStatusEnum::Syncing))
+        matches!(status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing)
     }
 }
 
@@ -74,31 +60,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         // Form the new unsafe block ref from the execution payload.
         let payload = self.payload.clone();
         let insert_time_start = Instant::now();
-        let response = match payload.clone() {
-            OpExecutionPayloadEnvelope::V1(payload) => self.client.new_payload_v1(payload).await,
-            OpExecutionPayloadEnvelope::V2(payload) => {
-                let payload_input = ExecutionPayloadInputV2 {
-                    execution_payload: payload.payload_inner,
-                    withdrawals: Some(payload.withdrawals),
-                };
-                self.client.new_payload_v2(payload_input).await
-            }
-            OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
-                self.client.new_payload_v3(payload, parent_beacon_block_root).await
-            }
-            OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
-                self.client.new_payload_v4(payload, parent_beacon_block_root).await
-            }
-        };
-
-        // Check the `engine_newPayload` response.
-        let response = match response {
-            Ok(resp) => resp,
-            Err(e) => {
-                warn!(target: "engine", "Failed to insert new payload: {e}");
-                return Err(InsertTaskError::InsertFailed(e));
-            }
-        };
+        let response = submit_payload(self.client.as_ref(), payload.clone()).await?;
         if !self.check_new_payload_status(&response.status) {
             return Err(InsertTaskError::UnexpectedPayloadStatus(response.status));
         }
@@ -120,7 +82,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
                 ..Default::default()
             },
         )
-        .execute_with_validation(state, self.require_valid)
+        .execute(state)
         .await?;
 
         // The block is now canonical, so anything reading the L2 chain locally can rely on it.

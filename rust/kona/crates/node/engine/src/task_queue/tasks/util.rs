@@ -1,10 +1,80 @@
 //! Utility functions for task execution.
 
 use super::{BuildSealCoupling, BuildTask, BuildTaskError, EngineTaskExt, SealTask, SealTaskError};
-use crate::{EngineClient, EngineState, ImportedBlockSink};
+use crate::{
+    EngineClient, EngineState, EngineSyncState, ImportedBlockSink, InsertTaskError,
+    SynchronizeTaskError,
+};
+use alloy_rpc_types_engine::{
+    ExecutionPayloadInputV2, ForkchoiceUpdated, INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatus,
+};
 use kona_genesis::RollupConfig;
 use kona_protocol::OpAttributesWithParent;
-use std::sync::Arc;
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use std::{sync::Arc, time::Instant};
+
+/// Submits an envelope using the appropriate Engine API version, without interpreting its status.
+pub(super) async fn submit_payload<C: EngineClient>(
+    client: &C,
+    payload: OpExecutionPayloadEnvelope,
+) -> Result<PayloadStatus, InsertTaskError> {
+    let response = match payload {
+        OpExecutionPayloadEnvelope::V1(payload) => client.new_payload_v1(payload).await,
+        OpExecutionPayloadEnvelope::V2(payload) => {
+            let payload_input = ExecutionPayloadInputV2 {
+                execution_payload: payload.payload_inner,
+                withdrawals: Some(payload.withdrawals),
+            };
+            client.new_payload_v2(payload_input).await
+        }
+        OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
+            client.new_payload_v3(payload, parent_beacon_block_root).await
+        }
+        OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
+            client.new_payload_v4(payload, parent_beacon_block_root).await
+        }
+    };
+    response.map_err(|error| {
+        warn!(target: "engine", "Failed to insert new payload: {error}");
+        InsertTaskError::InsertFailed(error)
+    })
+}
+
+/// Sends forkchoice without applying local state or interpreting the returned payload status.
+pub(super) async fn update_forkchoice<C: EngineClient>(
+    client: &C,
+    sync_state: &EngineSyncState,
+) -> Result<ForkchoiceUpdated, SynchronizeTaskError> {
+    if sync_state.unsafe_head().block_info.number < sync_state.finalized_head().block_info.number {
+        return Err(SynchronizeTaskError::FinalizedAheadOfUnsafe(
+            sync_state.unsafe_head().block_info.number,
+            sync_state.finalized_head().block_info.number,
+        ));
+    }
+
+    let fcu_time_start = Instant::now();
+    let forkchoice = sync_state.create_forkchoice_state();
+    // Without payload attributes, the forkchoice update is version agnostic.
+    let response = client.fork_choice_updated_v3(forkchoice, None).await.map_err(|error| {
+        let error = error
+            .as_error_resp()
+            .and_then(|response| {
+                (response.code == INVALID_FORK_CHOICE_STATE_ERROR as i64)
+                    .then_some(SynchronizeTaskError::InvalidForkchoiceState)
+            })
+            .unwrap_or_else(|| SynchronizeTaskError::ForkchoiceUpdateFailed(error));
+        debug!(target: "engine", ?error, "Unexpected forkchoice update error");
+        error
+    })?;
+    debug!(
+        target: "engine",
+        fcu_duration = ?fcu_time_start.elapsed(),
+        ?forkchoice,
+        ?response,
+        "Received forkchoice update response"
+    );
+    Ok(response)
+}
 
 /// Error type for build and seal operations.
 #[derive(Debug, thiserror::Error)]
