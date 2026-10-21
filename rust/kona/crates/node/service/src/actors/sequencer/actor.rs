@@ -616,6 +616,18 @@ where
                                 error!(target: "sequencer", ?err, "Critical canonicalization error occurred");
                                 return Err(SequencerActorError::EngineError(EngineClientError::CanonicalizeError(err)));
                             }
+                            // Canonicalization errors are relayed to us, so the engine queue
+                            // cannot initiate this reset. Discard the committed block and wait
+                            // for the reset before rebuilding on the engine's new unsafe head.
+                            CanonicalizeTaskError::PayloadInsertionFailed(insert_err) if matches!(
+                                **insert_err,
+                                InsertTaskError::ForkchoiceUpdateFailed(SynchronizeTaskError::InvalidForkchoiceState)
+                            ) => {
+                                warn!(target: "sequencer", ?err, "Invalid forkchoice during canonicalization; resetting engine");
+                                self.engine_client.reset_engine_forkchoice().await?;
+                                self.build_ticker.reset_after(Duration::from_secs(1));
+                                return Ok(());
+                            }
                             // The engine rejected the block. Drop it and rebuild on the next tick.
                             CanonicalizeTaskError::PayloadInsertionFailed(insert_err) if matches!(
                                 **insert_err,
