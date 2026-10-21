@@ -158,12 +158,18 @@ where
             return Ok(None);
         }
         // reth may drop the blocks above its persisted head after a crash, and the storage can
-        // only be unwound down to its earliest block. The `Finish` checkpoint is that head: reth
-        // publishes static files before committing the database, so their tip can be ahead of it.
+        // only be unwound down to its earliest block. That head is the `Finish` checkpoint, or its
+        // partial state trie frontier when set: reth publishes static files before committing the
+        // database, and unwinds to the frontier at startup after an unclean shutdown.
         let persisted_head = self
             .block_hash_reader
             .get_stage_checkpoint(StageId::Finish)?
-            .map(|checkpoint| checkpoint.block_number)
+            .map(|checkpoint| {
+                checkpoint
+                    .finish_stage_checkpoint()
+                    .and_then(|finish| finish.partial_state_trie())
+                    .unwrap_or(checkpoint.block_number)
+            })
             .unwrap_or_default();
         let target_earliest_block = (latest_block - self.min_block_interval).min(persisted_head);
         if target_earliest_block <= earliest_block {
@@ -258,7 +264,7 @@ mod tests {
     use alloy_primitives::{B256, BlockNumber, U256};
     use mockall::mock;
     use reth_primitives_traits::Account;
-    use reth_stages_types::StageCheckpoint;
+    use reth_stages_types::{FinishCheckpoint, StageCheckpoint};
     use reth_storage_errors::provider::ProviderResult;
     use reth_trie::{
         BranchNodeCompact, HashedPostState, HashedStorage, Nibbles,
@@ -745,6 +751,31 @@ mod tests {
         let provider = store.provider_ro().expect("provider_ro");
         assert_eq!(provider.get_earliest_block().expect("earliest"), NumHash::new(4, b256(4)));
         assert_eq!(provider.get_latest_block().expect("latest"), NumHash::new(10, b256(10)));
+    }
+
+    // reth persists hashed state and trie only up to `Finish`'s partial state trie frontier and,
+    // after an unclean shutdown, unwinds to it at startup. The earliest block must stay at or
+    // below that frontier.
+    #[tokio::test]
+    async fn run_inner_caps_at_partial_state_trie_frontier() {
+        let (_dir, store) = store_with_blocks(10);
+
+        let mut reader = MockChainReader::new();
+        reader.expect_block_hash().returning(|n| Ok(Some(b256(n))));
+        reader.expect_get_stage_checkpoint().returning(|_| {
+            Ok(Some(
+                StageCheckpoint::new(10)
+                    .with_finish_stage_checkpoint(FinishCheckpoint { partial_state_trie: Some(4) }),
+            ))
+        });
+
+        let pruner = OpProofStoragePruner::new(store.clone(), reader, 2);
+        let out = pruner.run_inner().expect("pruner ok");
+        assert_eq!((out.start_block, out.end_block), (0, 4));
+        assert_eq!(
+            store.provider_ro().unwrap().get_earliest_block().unwrap(),
+            NumHash::new(4, b256(4))
+        );
     }
 
     // reth publishes static-file headers before it commits the database, so a crash can drop the
