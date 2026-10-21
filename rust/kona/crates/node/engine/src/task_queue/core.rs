@@ -4,7 +4,8 @@ use super::EngineTaskExt;
 use crate::{
     EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
     EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTask, SynchronizeTaskError,
-    find_starting_forkchoice, task_queue::EngineTaskErrors,
+    sync::{SafeCheckpoint, find_starting_forkchoice_with_checkpoints},
+    task_queue::EngineTaskErrors,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -64,6 +65,8 @@ pub struct Engine<EngineClient_: EngineClient> {
     /// Preserve the task being retried ahead of newly enqueued work: it may have already
     /// performed part of an Engine API operation.
     active: Option<EngineTask<EngineClient_>>,
+    /// Recent accepted completed-safe checkpoints; no unverified EL labels are recorded.
+    safe_checkpoints: Vec<SafeCheckpoint>,
 }
 
 impl<EngineClient_: EngineClient> Engine<EngineClient_> {
@@ -79,6 +82,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
             task_queue_length,
             tasks: BinaryHeap::default(),
             active: None,
+            safe_checkpoints: Vec::new(),
             next_sequence: 0,
         }
     }
@@ -119,14 +123,20 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     }
 
     /// Resets the engine by finding a plausible sync starting point via
-    /// [`find_starting_forkchoice`]. The state will be updated to the starting point, and a
+    /// [`crate::find_starting_forkchoice`]. The state will be updated to the starting point, and a
     /// forkchoice update will be enqueued in order to reorg the execution layer.
     pub async fn reset(
         &mut self,
         client: Arc<EngineClient_>,
         config: Arc<RollupConfig>,
     ) -> Result<L2BlockInfo, EngineResetError> {
-        let start = find_starting_forkchoice(&config, client.as_ref()).await?;
+        let previous_safe = self.state.sync_state.safe_head();
+        let start = find_starting_forkchoice_with_checkpoints(
+            &config,
+            client.as_ref(),
+            &self.safe_checkpoints,
+        )
+        .await?;
 
         // One attempt. The actor retains the reset request and retries transient failures.
         let synchronize = SynchronizeTask::new(
@@ -141,6 +151,15 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         );
         synchronize.execute(&mut self.state).await?;
 
+        self.safe_checkpoints
+            .retain(|checkpoint| checkpoint.safe.block_info.number <= start.safe.block_info.number);
+        self.state_sender.send_replace(self.state);
+        if start.safe.block_info.number < previous_safe.block_info.number {
+            warn!(target: "engine", old_safe = previous_safe.block_info.number,
+                new_safe = start.safe.block_info.number,
+                rollback_blocks = previous_safe.block_info.number - start.safe.block_info.number,
+                "Reset demoted completed safe head");
+        }
         kona_macros::inc!(counter, Metrics::ENGINE_RESET_COUNT);
 
         Ok(start.safe)
@@ -173,6 +192,24 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
                 return result;
             }
 
+            if let EngineTask::Consolidate(task) = task &&
+                let crate::ConsolidateInput::Attributes(attributes) = &task.input &&
+                attributes.is_last_in_span &&
+                let Some(source) = attributes.derived_from &&
+                self.state.sync_state.safe_head().block_info.number == attributes.block_number()
+            {
+                let safe = self.state.sync_state.safe_head();
+                // Replace records after a rewind, and coalesce multiple blocks derived from
+                // one L1 input. Bound memory; older reorgs use conservative walkback.
+                self.safe_checkpoints.retain(|entry| {
+                    entry.safe.block_info.number < safe.block_info.number &&
+                        entry.source.number < source.number
+                });
+                self.safe_checkpoints.push(SafeCheckpoint { safe, source });
+                if self.safe_checkpoints.len() > 4096 {
+                    self.safe_checkpoints.remove(0);
+                }
+            }
             self.state_sender.send_replace(self.state);
             self.active = None;
             self.task_queue_length.send_replace(self.len());
@@ -199,7 +236,11 @@ impl EngineResetError {
     /// Whether retrying the reset can recover without changing the node configuration.
     pub fn is_temporary(&self) -> bool {
         match self {
-            Self::SyncStart(SyncStartError::RpcError(_)) => true,
+            Self::SyncStart(
+                SyncStartError::RpcError(_) |
+                SyncStartError::ChainViewChanged |
+                SyncStartError::CheckpointNotValidated,
+            ) => true,
             Self::SyncStart(_) => false,
             Self::Forkchoice(err) => err.severity() != EngineTaskErrorSeverity::Critical,
         }
@@ -284,14 +325,20 @@ mod recovery_tests {
 
     // A flush means the task already replaced its block with a deposits-only block. Keeping it
     // would rebuild that replacement on every later drain.
+    #[rstest::rstest]
+    #[case(true)]
+    #[case(false)]
     #[tokio::test]
-    async fn flushed_task_is_dropped_not_retried() {
+    async fn flushed_task_is_dropped_not_retried(#[case] completed_span: bool) {
         let parent = test_block_info(10);
         let deposit = alloy_primitives::Bytes::from(vec![op_alloy_consensus::DEPOSIT_TX_TYPE_ID]);
-        let attributes = TestAttributesBuilder::new()
+        let mut attributes = TestAttributesBuilder::new()
             .with_parent(parent)
             .with_transactions(vec![deposit, alloy_primitives::Bytes::from(vec![0x02])])
             .build();
+        let source = kona_protocol::BlockInfo { number: 20, ..Default::default() };
+        attributes.derived_from = Some(source);
+        attributes.is_last_in_span = completed_span;
 
         // The deposits-only block the engine builds. It is genesis, so its block info needs no
         // L1-info deposit.
@@ -349,10 +396,119 @@ mod recovery_tests {
         assert_eq!(builds, 2, "one build for the batch, one for its replacement");
         assert!(engine.is_empty());
         assert_eq!(*queue_rx.borrow(), 0);
+        assert_eq!(engine.safe_checkpoints.len(), usize::from(completed_span));
+        if completed_span {
+            assert_eq!(engine.safe_checkpoints[0].source, source);
+            assert_eq!(engine.safe_checkpoints[0].safe.hash(), imported.header.hash_slow());
+        }
         // The task updates `engine.state()` itself; only drain publishes it.
         assert_eq!(
             state_rx.borrow().sync_state.safe_head().block_info.hash,
             imported.header.hash_slow()
         );
+    }
+}
+
+#[cfg(test)]
+mod checkpoint_reset_tests {
+    use super::*;
+    use crate::test_utils::{MockEngineClient, TestEngineStateBuilder};
+    use alloy_eips::BlockId;
+    use alloy_primitives::{B256, Sealed};
+    use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
+    use kona_protocol::{BlockInfo, L1BlockInfoBedrock};
+
+    fn l2_block(
+        number: u64,
+        origin: u64,
+    ) -> alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction> {
+        let data = L1BlockInfoBedrock::new(
+            origin,
+            0,
+            0,
+            B256::repeat_byte(1),
+            0,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        )
+        .encode_calldata();
+        let transaction =
+            op_alloy_consensus::OpTxEnvelope::Deposit(Sealed::new(op_alloy_consensus::TxDeposit {
+                input: data,
+                ..Default::default()
+            }));
+        let transaction = op_alloy_rpc_types::Transaction::from_transaction(
+            alloy_consensus::transaction::Recovered::new_unchecked(transaction, Default::default()),
+            Default::default(),
+        );
+        let mut block: alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction> =
+            Default::default();
+        block.header.inner.number = number;
+        block.header.inner.timestamp = number * 2;
+        block.header.hash = block.header.inner.hash_slow();
+        block.transactions = alloy_rpc_types_eth::BlockTransactions::Full(vec![transaction]);
+        block
+    }
+
+    #[tokio::test]
+    async fn reset_retains_recent_completed_safe_instead_of_walking_seventy_thousand_blocks() {
+        let config = Arc::new(RollupConfig::default());
+        let safe = l2_block(117029, 10635);
+        let unsafe_block = l2_block(117174, 10690);
+        let finalized = l2_block(44302, 7084);
+        let safe_info =
+            L2BlockInfo::from_block_and_genesis(&safe.clone().into_consensus(), &config.genesis)
+                .unwrap();
+        let unsafe_info = L2BlockInfo::from_block_and_genesis(
+            &unsafe_block.clone().into_consensus(),
+            &config.genesis,
+        )
+        .unwrap();
+        let mut head: <alloy_network::Ethereum as alloy_provider::Network>::BlockResponse =
+            Default::default();
+        head.header.inner.number = 10690;
+        head.header.hash = B256::repeat_byte(2); // A replacement head, not the old branch's hash.
+        let mut source: <alloy_network::Ethereum as alloy_provider::Network>::BlockResponse =
+            Default::default();
+        source.header.inner.number = 10679;
+        source.header.hash = B256::repeat_byte(3);
+        let checkpoint = SafeCheckpoint {
+            safe: safe_info,
+            source: BlockInfo {
+                number: source.header.number,
+                hash: source.header.hash,
+                ..Default::default()
+            },
+        };
+        let client = Arc::new(
+            MockEngineClient::builder()
+                .with_config(config.clone())
+                .with_l2_block(BlockId::latest(), unsafe_block.clone())
+                .with_l2_block(BlockId::safe(), safe.clone())
+                .with_l2_block(BlockId::finalized(), finalized)
+                .with_l2_block(safe_info.block_info.number.into(), safe)
+                .with_l2_block(unsafe_info.block_info.number.into(), unsafe_block)
+                .with_l1_block(unsafe_info.l1_origin.hash.into(), head.clone())
+                .with_l1_block(BlockId::latest(), head.clone())
+                .with_l1_block(head.header.number.into(), head)
+                .with_l1_block(checkpoint.source.number.into(), source)
+                .with_fork_choice_updated_v3_response(ForkchoiceUpdated::new(
+                    PayloadStatus::from_status(PayloadStatusEnum::Valid),
+                ))
+                .build(),
+        );
+        let state = TestEngineStateBuilder::new()
+            .with_safe_head(safe_info)
+            .with_unsafe_head(unsafe_info)
+            .build();
+        let (sender, receiver) = tokio::sync::watch::channel(state);
+        let (queue, _) = tokio::sync::watch::channel(0);
+        let mut engine = Engine::new(state, sender, queue);
+        engine.safe_checkpoints.push(checkpoint);
+        // No old L2 ancestors are supplied: the historical full-window walk fails this fixture.
+        assert_eq!(engine.reset(client, config).await.unwrap(), safe_info);
+        assert_eq!(engine.state().sync_state.safe_head(), safe_info);
+        assert_eq!(receiver.borrow().sync_state.safe_head(), safe_info);
     }
 }
