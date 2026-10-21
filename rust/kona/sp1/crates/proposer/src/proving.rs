@@ -10,6 +10,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     fs,
     future::Future,
+    io,
     num::NonZeroUsize,
     ops::AsyncFnOnce,
     path::{Path, PathBuf},
@@ -17,6 +18,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
+    time::Duration,
 };
 
 use alloy_primitives::{Address, B256, U256, keccak256};
@@ -1169,15 +1171,16 @@ async fn check_span(
     )?;
     let configs =
         deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
-    let (range_witness, range_outputs) = collect_range_witness(
+    let collected = collect_range_witness(
         range_host,
         &synthesized.range_inputs,
         &synthesized.preloaded_preimages,
         Some(&configs),
     )
-    .await
-    .with_context(|| format!("range witness collection failed for span {timestamps:?}"))?;
-    drop(range_dir);
+    .await;
+    remove_collection_dir(range_dir).await;
+    let (range_witness, range_outputs) = collected
+        .with_context(|| format!("range witness collection failed for span {timestamps:?}"))?;
     let range_stdin = build_super_range_stdin(&synthesized.range_inputs, range_witness)?;
     let range_stdin_bytes = ensure_stdin_fits("range", &range_stdin, settings.max_stdin_bytes)?;
     tracing::info!(range_stdin_bytes, "Checked the range request");
@@ -1219,9 +1222,11 @@ async fn check_consolidation(
         &entries,
         log_trees.as_deref(),
     )
-    .await
-    .with_context(|| format!("consolidation witness collection failed for span {timestamps:?}"))?;
-    drop(dir);
+    .await;
+    remove_collection_dir(dir).await;
+    let collected = collected.with_context(|| {
+        format!("consolidation witness collection failed for span {timestamps:?}")
+    })?;
 
     let stage = &logs.stage;
     let batch_refs: Vec<&LogBatch> = batches.iter().map(|batch| &**batch).collect();
@@ -1551,8 +1556,44 @@ fn preimage_store(dir: Option<&TempDir>) -> Option<PathBuf> {
     dir.map(|dir| dir.path().join(PREIMAGE_STORE_DIR))
 }
 
-/// Creates `data_dir` and removes the entries that an earlier process left in it. A killed
-/// collection leaves its directory behind, and the directory survives a container restart.
+/// Attempts to remove a collection directory before it is left to the next startup.
+const COLLECTION_DIR_REMOVE_ATTEMPTS: u32 = 50;
+/// The wait between attempts to remove a collection directory.
+const COLLECTION_DIR_REMOVE_RETRY: Duration = Duration::from_millis(100);
+
+/// Removes `dir` on a blocking thread, since its preimage store can hold GBs. kona-host aborts its
+/// server tasks without awaiting them, so the store can still be closing and deleting its files
+/// when the collection returns; the removal is retried while the directory is not empty. A
+/// directory that stays is logged and left to the next startup.
+async fn remove_collection_dir(dir: Option<TempDir>) {
+    let Some(dir) = dir else { return };
+    let path = dir.keep();
+    let mut error = String::new();
+    for _ in 0..COLLECTION_DIR_REMOVE_ATTEMPTS {
+        let target = path.clone();
+        match tokio::task::spawn_blocking(move || fs::remove_dir_all(target)).await {
+            Ok(Ok(())) => return,
+            Ok(Err(err)) if err.kind() == io::ErrorKind::NotFound => return,
+            Ok(Err(err)) if err.kind() == io::ErrorKind::DirectoryNotEmpty => {
+                error = err.to_string();
+                tokio::time::sleep(COLLECTION_DIR_REMOVE_RETRY).await;
+            }
+            Ok(Err(err)) => {
+                error = err.to_string();
+                break;
+            }
+            Err(err) => {
+                error = err.to_string();
+                break;
+            }
+        }
+    }
+    tracing::warn!(path = %path.display(), error, "Failed to remove a collection directory");
+}
+
+/// Creates `data_dir`, removes the `collection-*` entries an earlier process left, and checks that
+/// a collection directory can be created. A killed collection leaves its directory behind, and
+/// the directory survives a container restart.
 pub(crate) fn prepare_data_dir(data_dir: &Path) -> Result<()> {
     fs::create_dir_all(data_dir)
         .with_context(|| format!("failed to create data directory {}", data_dir.display()))?;
@@ -1571,7 +1612,6 @@ pub(crate) fn prepare_data_dir(data_dir: &Path) -> Result<()> {
                 .with_context(|| format!("failed to remove {}", path.display()))?;
         }
     }
-    // A collection that cannot create its directory fails, so check the permission up front.
     drop(collection_dir(Some(data_dir))?);
     Ok(())
 }

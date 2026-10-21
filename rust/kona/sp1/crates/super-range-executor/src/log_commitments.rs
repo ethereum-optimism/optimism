@@ -206,6 +206,23 @@ impl LogCommitmentRecord {
             log_check_siblings: state.log_check_siblings,
         })
     }
+
+    /// The stored leaves of the tree of `receipts_root`, or `None` without a tree directory or a
+    /// stored tree.
+    fn stored_leaves(&self, receipts_root: B256) -> Result<Option<Vec<B256>>> {
+        let Some(dir) = &self.tree_dir else { return Ok(None) };
+        read_leaves(&dir.join(receipts_root.to_string()))
+    }
+
+    /// Stores `leaves` as the tree of `receipts_root` when the record has a tree directory.
+    fn store_leaves(&self, receipts_root: B256, leaves: Vec<B256>) -> Result<Vec<B256>> {
+        if let Some(dir) = &self.tree_dir {
+            let path = dir.join(receipts_root.to_string());
+            fs::write(&path, leaves.concat())
+                .with_context(|| format!("failed to write log tree {}", path.display()))?;
+        }
+        Ok(leaves)
+    }
 }
 
 /// The most log trees kept. `resolve` sorts messages by initiating block, so a tree is built again
@@ -306,17 +323,9 @@ where
         if let Some(tree) = self.record.state().trees.get(&receipts_root) {
             return Ok(tree);
         }
-        let path = self.record.tree_dir.as_ref().map(|dir| dir.join(receipts_root.to_string()));
-        let leaves = match path.as_deref().map(read_leaves).transpose()?.flatten() {
+        let leaves = match self.record.stored_leaves(receipts_root)? {
             Some(leaves) => leaves,
-            None => {
-                let leaves = self.build_leaves()?;
-                if let Some(path) = &path {
-                    fs::write(path, leaves.concat())
-                        .with_context(|| format!("failed to write log tree {}", path.display()))?;
-                }
-                leaves
-            }
+            None => self.record.store_leaves(receipts_root, self.build_leaves()?)?,
         };
         let tree = LogTree::new(leaves);
         ensure!(
@@ -350,8 +359,13 @@ fn read_leaves(path: &Path) -> Result<Option<Vec<B256>>> {
             return Err(err).with_context(|| format!("failed to read log tree {}", path.display()));
         }
     };
-    ensure!(bytes.len() % 32 == 0, "log tree {} has {} bytes", path.display(), bytes.len());
-    Ok(Some(bytes.chunks_exact(32).map(B256::from_slice).collect()))
+    ensure!(
+        bytes.len() % B256::len_bytes() == 0,
+        "log tree {} has {} bytes",
+        path.display(),
+        bytes.len()
+    );
+    Ok(Some(bytes.chunks_exact(B256::len_bytes()).map(B256::from_slice).collect()))
 }
 
 impl<O> LogCommitment for NativeBlock<O>
@@ -610,7 +624,8 @@ mod tests {
         assert_eq!(opened, [chains.below_head[0].0]);
     }
 
-    /// Pins a stored log tree that serves a later run without the block's receipts.
+    /// Pins a stored log tree that serves a run without the block's receipts. The second run
+    /// starts with no tree in memory, as a run does after evicting one, so it reads the file.
     #[tokio::test(flavor = "multi_thread")]
     async fn stored_tree_serves_a_later_run() {
         let chains = chains();
@@ -663,6 +678,17 @@ mod tests {
         chains.resolve(chains.withheld.clone(), native, 1);
         let err = record.finish().unwrap_err();
         assert!(format!("{err:#}").contains("does not give the entry"), "{err:#}");
+    }
+
+    /// Pins a read error for a stored tree whose length is not a whole number of leaves.
+    #[test]
+    fn truncated_stored_tree_fails_to_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tree");
+        std::fs::write(&path, &[B256::repeat_byte(1), B256::repeat_byte(2)].concat()[..63])
+            .unwrap();
+        let err = read_leaves(&path).unwrap_err();
+        assert!(err.to_string().contains("has 63 bytes"), "{err:#}");
     }
 
     /// Pins at most [`MAX_CACHED_TREES`] trees, evicting the least recently used.
