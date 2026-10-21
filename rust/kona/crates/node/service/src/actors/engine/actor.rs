@@ -185,10 +185,11 @@ where
                         return Ok(());
                     }
                     EngineTaskErrorSeverity::Flush => {
-                        // This error is encountered when the payload is marked INVALID
-                        // by the engine api. Post-holocene, the payload is replaced by
-                        // a "deposits-only" block and re-executed. At the same time,
-                        // the channel and any remaining buffered batches are flushed.
+                        // This error is encountered when the engine API rejects a derived
+                        // payload: its attributes at forkchoiceUpdated, or the payload at
+                        // newPayload. Post-holocene, the payload is replaced by a
+                        // "deposits-only" block. At the same time, the channel and any
+                        // remaining buffered batches are flushed.
                         warn!(target: "engine", ?err, "Invalid payload, Flushing derivation pipeline.");
                         match self.derivation_client.send_signal(Signal::FlushChannel).await {
                             Ok(_) => {

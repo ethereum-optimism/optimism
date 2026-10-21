@@ -53,9 +53,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when the chainSystemConfigs array is empty.
     error OPContractsManagerMigrator_NoChains();
 
-    /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
-    error OPContractsManagerMigrator_InteropNotEnabled();
-
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
 
@@ -141,11 +138,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // Check that at least one chain is being migrated.
         if (_input.chainSystemConfigs.length == 0) {
             revert OPContractsManagerMigrator_NoChains();
-        }
-
-        // Check that the OPTIMISM_PORTAL_INTEROP dev feature is enabled.
-        if (!contractsContainer().isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            revert OPContractsManagerMigrator_InteropNotEnabled();
         }
 
         // Check that the starting respected game type is a valid super game type.

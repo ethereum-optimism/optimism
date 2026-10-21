@@ -1,13 +1,17 @@
 #[cfg(test)]
 use crate::{
-    NodeActor, SequencerActorError, SequencerAdminQuery,
+    NodeActor, SequencerActorError, SequencerAdminQuery, SequencerEngineClient,
     actors::{
         MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
-        sequencer::tests::test_util::test_actor,
+        sequencer::tests::test_util::{
+            SlowSealEngine, TEST_START, TestActor, test_actor, test_actor_with_engine,
+        },
     },
 };
+use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadId};
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
 use kona_protocol::{BlockInfo, L2BlockInfo};
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rstest::rstest;
 use std::sync::{
     Arc,
@@ -122,4 +126,138 @@ async fn building_resumes_once_the_gossip_queue_drains() {
     for _ in 0..3 {
         time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
     }
+}
+
+/// An unsafe head built at `timestamp`.
+fn block_at(timestamp: u64) -> L2BlockInfo {
+    let mut block = L2BlockInfo::default();
+    block.block_info.timestamp = timestamp;
+    block
+}
+
+/// A sealed payload, as returned by the engine.
+fn payload() -> OpExecutionPayloadEnvelope {
+    let block = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
+    OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(&block))
+}
+
+/// Returns an engine that is reset once, then builds one block on top of each of `heads`, in order.
+fn mock_engine(heads: Vec<L2BlockInfo>) -> MockSequencerEngineClient {
+    let builds = heads.len();
+    let mut heads = heads.into_iter();
+    let mut engine = MockSequencerEngineClient::new();
+    engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
+    engine
+        .expect_get_unsafe_head()
+        .times(builds)
+        .returning(move || Ok(heads.next().expect("no more unsafe heads")));
+    engine.expect_start_build_block().times(builds).returning(|_| Ok(PayloadId::new([1; 8])));
+    engine
+}
+
+/// Sets up `actor` to build `blocks` blocks. The gossip queue has room on the first
+/// `ticks_with_room` ticks only, so a later tick returns before sealing.
+fn expect_builds<E: SequencerEngineClient>(
+    actor: &mut TestActor<E>,
+    blocks: usize,
+    ticks_with_room: usize,
+) {
+    let mut origin_selector = MockOriginSelector::new();
+    origin_selector
+        .expect_next_l1_origin()
+        .times(blocks)
+        .returning(|_, _| Ok(BlockInfo::default()));
+    actor.origin_selector = origin_selector;
+    actor.attributes_builder =
+        TestAttributesBuilder { attributes: (0..blocks).map(|_| Ok(Default::default())).collect() };
+
+    let ticks = Arc::new(AtomicUsize::new(0));
+    let mut gossip = MockUnsafePayloadGossipClient::new();
+    gossip
+        .expect_has_capacity()
+        .returning(move || ticks.fetch_add(1, Ordering::SeqCst) < ticks_with_room);
+    gossip.expect_schedule_execution_payload_gossip().returning(|_| Ok(()));
+    actor.unsafe_payload_gossip_client = gossip;
+}
+
+/// Steps `actor` once and returns how much time passed on tokio's clock.
+async fn step_time<E: SequencerEngineClient + 'static>(actor: &mut TestActor<E>) -> Duration {
+    let start = time::Instant::now();
+    time::timeout(Duration::from_secs(10), actor.step())
+        .await
+        .expect("the tick did not fire")
+        .expect("the step failed");
+    start.elapsed()
+}
+
+/// After building a block, the next build tick fires when the next block is due by the actor's
+/// clock, which starts at `TEST_START`: neither earlier, nor after one block time (2s) if the block
+/// is due at another time.
+///
+/// With `T` as `TEST_START`, `t` as the time since the test started, and `P` as the parent's
+/// timestamp:
+///
+/// | t       | Tick | What happens                                   | Block due at |
+/// |---------|------|------------------------------------------------|--------------|
+/// | 0       | 1    | Reset; start building A on a parent built at P | A: P+2       |
+/// | P+2 - T | 2    | A is due; nothing has been sealed yet, so no   |              |
+/// |         |      | time is taken off for sealing                  |              |
+///
+/// When A is already overdue (`P+2 < T`), tick 2 fires straight away.
+#[rstest]
+#[case::due_later(TEST_START + 1, Duration::from_secs(3))]
+#[case::overdue(TEST_START - 3, Duration::ZERO)]
+#[tokio::test(start_paused = true)]
+async fn next_block_is_built_when_it_is_due(#[case] parent_timestamp: u64, #[case] wait: Duration) {
+    let mut actor = test_actor();
+    actor.engine_client = mock_engine(vec![block_at(parent_timestamp)]);
+    expect_builds(&mut actor, 1, 1);
+
+    // Reset the engine, then start building on the first tick, which fires immediately.
+    step_time(&mut actor).await;
+    step_time(&mut actor).await;
+
+    assert_eq!(step_time(&mut actor).await, wait, "the next tick fired at the wrong time");
+}
+
+/// Each tick seals the block built since the previous tick, then starts building the next one. The
+/// next tick is scheduled for when the next block is due, less the time the last seal took, so the
+/// next seal finishes when its block is due. A seal that takes longer than the time left means the
+/// next tick fires straight away.
+///
+/// With `T` as `TEST_START`, `t` as the time since the test started, and `s` as the seal time:
+///
+/// | t       | Tick | What happens                                   | Block due at |
+/// |---------|------|------------------------------------------------|--------------|
+/// | 0       | 1    | Reset; start building A on a parent built at T | A: T+2       |
+/// | 2       | 2    | A is due; seal A, which takes `s`              |              |
+/// | 2 + s   | 2    | Start building B on A                          | B: T+4       |
+/// | 4 - s   | 3    | Seal B, so that it finishes at t=4             |              |
+///
+/// The test checks the wait between the end of tick 2 and tick 3: `2 - 2s`, or none if that is
+/// negative. Tick 1 had nothing to seal, so tick 2 takes no time off for sealing.
+#[rstest]
+#[case::wait_less(Duration::from_millis(500), Duration::from_secs(1))]
+#[case::no_time_left(Duration::from_millis(1_500), Duration::ZERO)]
+#[case::longer_than_block_time(Duration::from_millis(2_500), Duration::ZERO)]
+#[tokio::test(start_paused = true)]
+async fn next_block_starts_earlier_by_the_seal_time(
+    #[case] seal_time: Duration,
+    #[case] wait: Duration,
+) {
+    // The first block builds on a parent at `TEST_START`, and is sealed into the parent of the
+    // second block, due at `TEST_START + 2`.
+    let mut engine = mock_engine(vec![block_at(TEST_START), block_at(TEST_START + 2)]);
+    engine.expect_seal_and_canonicalize_block().times(1).return_once(|_, _| Ok(payload()));
+    let mut actor = test_actor_with_engine(SlowSealEngine { inner: engine, seal_time });
+    expect_builds(&mut actor, 2, 2);
+
+    // Reset the engine, then start building the first block, immediately.
+    step_time(&mut actor).await;
+    step_time(&mut actor).await;
+    // When the first block is due, seal it and start building the second.
+    assert_eq!(step_time(&mut actor).await, Duration::from_secs(2) + seal_time);
+
+    // The second block is due 2s after the first, less the time the seal took.
+    assert_eq!(step_time(&mut actor).await, wait, "the next tick fired at the wrong time");
 }

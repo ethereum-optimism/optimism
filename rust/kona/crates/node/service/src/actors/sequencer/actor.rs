@@ -3,7 +3,7 @@
 use crate::{
     NodeActor, SequencerAdminQuery, UnsafePayloadGossipClient,
     actors::{
-        SequencerEngineClient,
+        Clock, SequencerEngineClient,
         engine::EngineClientError,
         sequencer::{
             conductor::Conductor,
@@ -26,9 +26,13 @@ use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use std::{
     sync::Arc,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, UNIX_EPOCH},
 };
-use tokio::{select, sync::mpsc, time::Interval};
+use tokio::{
+    select,
+    sync::mpsc,
+    time::{Instant, Interval},
+};
 
 /// The handle to a block that has been started but not sealed.
 #[derive(Debug)]
@@ -85,6 +89,8 @@ pub struct SequencerActor<
     /// A client that hands built payloads to the signer actor, which signs them for the network
     /// actor to gossip.
     pub unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
+    /// The wall clock used to schedule blocks.
+    pub clock: Arc<dyn Clock>,
 
     /// Ticker that paces block-building attempts.
     build_ticker: Interval,
@@ -129,6 +135,7 @@ where
         origin_selector: OriginSelector_,
         rollup_config: Arc<RollupConfig>,
         unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
+        clock: Arc<dyn Clock>,
     ) -> Self {
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
         Self {
@@ -141,6 +148,7 @@ where
             origin_selector,
             rollup_config,
             unsafe_payload_gossip_client,
+            clock,
             build_ticker,
             next_payload_to_seal: None,
             last_seal_duration: Duration::from_secs(0),
@@ -519,7 +527,7 @@ where
                     // next block time is last + block_time - time it takes to seal.
                     let next_block_time = UNIX_EPOCH + Duration::from_secs(next_block_seconds) -
                         self.last_seal_duration;
-                    match next_block_time.duration_since(SystemTime::now()) {
+                    match next_block_time.duration_since(self.clock.now()) {
                         Ok(duration) => self.build_ticker.reset_after(duration),
                         Err(_) => self.build_ticker.reset_immediately(),
                     };

@@ -73,7 +73,7 @@ The portal-derived lookups return the chain's current `DisputeGameFactory`, `Anc
 
 | Item | Source |
 | --- | --- |
-| `OPCM` address for the migrate-feature container | The same OPCM the chains ran for the prerequisite `OPCMv2.upgrade()`. This run is what enables `Features.ETH_LOCKBOX` on each `SystemConfig`. `Features.INTEROP` is not set by the upgrade; `migrate()` sets it. The container must have `OPTIMISM_PORTAL_INTEROP` set in `devFeatureBitmap`, which gates `migrate()` itself; without it `migrate()` reverts with `OPContractsManagerMigrator_InteropNotEnabled`. |
+| `OPCM` address | The same OPCM the chains ran for the prerequisite `OPCMv2.upgrade()`. This run is what enables `Features.ETH_LOCKBOX` on each `SystemConfig`. `Features.INTEROP` is not set by the upgrade; `migrate()` sets it. |
 | `SUPER_CANNON_KONA` absolute prestate hash | `validation/standard/standard-prestates.toml` in `superchain-registry`. Use the entry with `type="cannon64-kona-interop"` for the OPCM release version. |
 | Prestate artifact URL | The `cannon-kona-prestates-url` server, with the kona-interop prestate uploaded ahead of the migration. |
 | Shared `op-supernode` RPC URL | Your infrastructure team. The instance must derive **exactly `chainA` and `chainB`** (and no other chains). The shared `op-proposer`, `op-challenger`, and `op-dispute-mon` for the merged factory all point at this same instance. The per-chain services will be pointed to chain-specific endpoints under this URL. |
@@ -249,7 +249,7 @@ l2chains = [
 templateName = "OPCMMigrateInterop"
 
 [addresses]
-OPCM = "0x<OPCM address with OPTIMISM_PORTAL_INTEROP enabled>"
+OPCM = "0x<OPCM address>"
 
 # One stanza per chain, both required.
 [[migrateChains]]

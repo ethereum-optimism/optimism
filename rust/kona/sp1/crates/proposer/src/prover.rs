@@ -7,8 +7,11 @@
 mod spn;
 
 pub use spn::NetworkProofProvider;
+pub(crate) use spn::PROOF_STATUS_POLL_INTERVAL;
+#[cfg(test)]
+pub(crate) use spn::scripted;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use alloy_primitives::B256;
 use anyhow::{Context, Result, bail};
@@ -80,6 +83,10 @@ pub struct ProofKeys {
     /// Verifying key for the super-aggregation program. Its hash is the
     /// on-chain `absolutePrestate()`.
     pub agg_vk: Arc<SP1VerifyingKey>,
+    /// Proving key for the log-commitment program.
+    pub log_pk: Arc<SP1ProvingKey>,
+    /// Verifying key for the log-commitment program.
+    pub log_vk: Arc<SP1VerifyingKey>,
 }
 
 impl std::fmt::Debug for ProofKeys {
@@ -88,7 +95,7 @@ impl std::fmt::Debug for ProofKeys {
     }
 }
 
-/// Runs lightweight SP1 key setup for both of a prestate's programs.
+/// Runs lightweight SP1 key setup for the three programs of a prestate.
 ///
 /// Network proving only needs each ELF and its verifying key. Using the light
 /// prover avoids initializing the local CPU proving machinery and its proving
@@ -105,11 +112,18 @@ pub async fn setup_proof_keys(programs: &PrestatePrograms) -> Result<ProofKeys> 
         .await
         .context("aggregation ELF setup failed")?;
     let agg_vk = agg_pk.verifying_key().clone();
+    let log_pk = prover
+        .setup(Elf::Dynamic(programs.log_commitment_elf.clone().into()))
+        .await
+        .context("log-commitment ELF setup failed")?;
+    let log_vk = log_pk.verifying_key().clone();
     Ok(ProofKeys {
         range_pk: Arc::new(range_pk),
         range_vk: Arc::new(range_vk),
         agg_pk: Arc::new(agg_pk),
         agg_vk: Arc::new(agg_vk),
+        log_pk: Arc::new(log_pk),
+        log_vk: Arc::new(log_vk),
     })
 }
 
@@ -149,6 +163,14 @@ impl ProofProvider {
         }
     }
 
+    /// Submits a compressed log-commitment batch proof request.
+    pub async fn request_log_proof(&self, keys: &ProofKeys, stdin: SP1Stdin) -> Result<ProofId> {
+        match self {
+            Self::Network(provider) => provider.request_log_proof(keys, stdin).await,
+            Self::Mock(_) => bail!("mock provider produces no SP1 log-commitment proofs"),
+        }
+    }
+
     /// Submits an on-chain aggregation proof request.
     pub async fn request_aggregation_proof(
         &self,
@@ -166,8 +188,17 @@ impl ProofProvider {
         &self,
         proof_id: ProofId,
     ) -> Result<SP1ProofWithPublicValues, ProofWaitError> {
+        self.wait_for_proof_every(proof_id, PROOF_STATUS_POLL_INTERVAL).await
+    }
+
+    /// Polls an existing proof request every `interval` until it finishes.
+    pub(crate) async fn wait_for_proof_every(
+        &self,
+        proof_id: ProofId,
+        interval: Duration,
+    ) -> Result<SP1ProofWithPublicValues, ProofWaitError> {
         match self {
-            Self::Network(provider) => provider.wait_for_proof(proof_id).await,
+            Self::Network(provider) => provider.wait_for_proof(proof_id, interval).await,
             Self::Mock(_) => Err(ProofWaitError::Uncertain(anyhow::anyhow!(
                 "mock provider owns no SP1 proof requests"
             ))),
@@ -183,6 +214,18 @@ impl ProofProvider {
         match self {
             Self::Network(provider) => provider.verify(proof, keys.range_vk.as_ref()),
             Self::Mock(_) => bail!("mock provider produces no SP1 range proofs"),
+        }
+    }
+
+    /// Verifies a compressed log-commitment batch proof locally.
+    pub fn verify_log_proof(
+        &self,
+        keys: &ProofKeys,
+        proof: &SP1ProofWithPublicValues,
+    ) -> Result<()> {
+        match self {
+            Self::Network(provider) => provider.verify(proof, keys.log_vk.as_ref()),
+            Self::Mock(_) => bail!("mock provider produces no SP1 log-commitment proofs"),
         }
     }
 

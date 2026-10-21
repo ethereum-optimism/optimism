@@ -16,7 +16,7 @@ pub use service::{
 
 mod actors;
 pub use actors::{
-    BlockStream, BuildRequest, Conductor, ConductorClient, ConductorError,
+    BlockStream, BuildRequest, Clock, Conductor, ConductorClient, ConductorError,
     DelayedL1OriginSelectorProvider, DelegateDerivationActor, DelegateDerivationActorInput,
     DerivationActor, DerivationActorRequest, DerivationClientError, DerivationClientResult,
     DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
@@ -33,8 +33,8 @@ pub use actors::{
     QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient,
     ResetRequest, RpcActor, RpcActorError, RpcServerHandle, RpcServerLauncher, SealRequest,
     SequencerActor, SequencerActorError, SequencerActorInput, SequencerAdminQuery, SequencerConfig,
-    SequencerEngineClient, SignedPayload, SignerActor, SignerActorError, UnsafePayloadGossipClient,
-    UnsafePayloadGossipClientError,
+    SequencerEngineClient, SignedPayload, SignerActor, SignerActorError, SystemClock,
+    UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
 };
 
 mod metrics;

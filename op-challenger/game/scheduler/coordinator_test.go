@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"testing"
@@ -96,6 +97,94 @@ func TestSchedule_PrestateValidationFailure(t *testing.T) {
 
 	err := c.schedule(ctx, asGames(gameAddr1), 0)
 	require.ErrorIs(t, err, games.PrestateErr)
+}
+
+var errSafeHeadHistoryUnavailable = errors.New("l1 at safe head history unavailable")
+
+func TestSchedule_ResolvedGameWithFailingPrestateDoesNotPinActedL1Block(t *testing.T) {
+	tests := []struct {
+		status        types.GameStatus
+		expectedGames gamesStatus
+	}{
+		{status: types.GameStatusDefenderWon, expectedGames: gamesStatus{inProgress: 1, defenderWon: 1}},
+		{status: types.GameStatusChallengerWon, expectedGames: gamesStatus{inProgress: 1, challengerWon: 1}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.status.String(), func(t *testing.T) {
+			c, workQueue, _, games, disk, _ := setupCoordinatorTest(t, 10)
+			activeGame := common.Address{0xaa}
+			resolvedGame := common.Address{0xbb}
+			games.statuses[resolvedGame] = tc.status
+			games.prestateErrs[resolvedGame] = errSafeHeadHistoryUnavailable
+			m := c.m.(*stubSchedulerMetrics)
+			ctx := context.Background()
+
+			for block := uint64(1); block <= 3; block++ {
+				require.NoError(t, c.schedule(ctx, asGames(activeGame, resolvedGame), block))
+				require.Equal(t, block-1, m.actedL1Blocks, "should only lag the active game")
+				require.Equal(t, block, c.states[resolvedGame].lastProcessedBlockNum)
+				require.Equal(t, tc.expectedGames, m.gamesStatus)
+				processOnlyJob(t, c, workQueue, activeGame)
+				require.False(t, disk.gameDirExists[resolvedGame], "should delete resolved game data")
+			}
+			require.Zero(t, games.created[resolvedGame].ValidateCount, "should not validate resolved game prestate")
+		})
+	}
+}
+
+func TestSchedule_InProgressGameWithFailingPrestateStillBlocked(t *testing.T) {
+	c, workQueue, _, games, _, _ := setupCoordinatorTest(t, 10)
+	games.allowRecreate = true
+	activeGame := common.Address{0xaa}
+	failingGame := common.Address{0xbb}
+	games.prestateErrs[failingGame] = errSafeHeadHistoryUnavailable
+	m := c.m.(*stubSchedulerMetrics)
+	ctx := context.Background()
+
+	for block := uint64(1); block <= 2; block++ {
+		require.NoError(t, c.schedule(ctx, asGames(activeGame), block))
+		processOnlyJob(t, c, workQueue, activeGame)
+	}
+
+	// The failing game is first seen at block 3, so it starts at the previously scheduled block 2.
+	for block := uint64(3); block <= 5; block++ {
+		err := c.schedule(ctx, asGames(activeGame, failingGame), block)
+		require.ErrorIs(t, err, errSafeHeadHistoryUnavailable)
+		require.Equal(t, uint64(2), m.actedL1Blocks, "should pin to where the failing game was first seen")
+		require.Equal(t, gamesStatus{inProgress: 2}, m.gamesStatus)
+		processOnlyJob(t, c, workQueue, activeGame)
+	}
+	require.Equal(t, 3, games.createCount[failingGame], "should retry creating the player each pass")
+}
+
+func TestSchedule_GameResolvedAfterFailingPrestateStopsPinning(t *testing.T) {
+	c, workQueue, _, games, _, _ := setupCoordinatorTest(t, 10)
+	games.allowRecreate = true
+	activeGame := common.Address{0xaa}
+	failingGame := common.Address{0xbb}
+	games.prestateErrs[failingGame] = errSafeHeadHistoryUnavailable
+	m := c.m.(*stubSchedulerMetrics)
+	ctx := context.Background()
+
+	for block := uint64(1); block <= 2; block++ {
+		err := c.schedule(ctx, asGames(activeGame, failingGame), block)
+		require.ErrorIs(t, err, errSafeHeadHistoryUnavailable)
+		require.Zero(t, m.actedL1Blocks, "failing game should pin the metric")
+		processOnlyJob(t, c, workQueue, activeGame)
+	}
+
+	games.statuses[failingGame] = types.GameStatusDefenderWon
+	require.NoError(t, c.schedule(ctx, asGames(activeGame, failingGame), 3))
+	require.Equal(t, uint64(2), m.actedL1Blocks, "should catch up with the active game")
+	require.Equal(t, gamesStatus{inProgress: 1, defenderWon: 1}, m.gamesStatus)
+}
+
+// processOnlyJob completes the single queued job, which must be for addr.
+func processOnlyJob(t *testing.T, c *coordinator, workQueue <-chan job, addr common.Address) {
+	require.Len(t, workQueue, 1, "should only schedule one game")
+	j := <-workQueue
+	require.Equal(t, addr, j.addr)
+	require.NoError(t, c.processResult(j))
 }
 
 func TestScheduleGameAgainAfterCompletion(t *testing.T) {
@@ -397,8 +486,11 @@ func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan jo
 	workQueue := make(chan job, bufferSize)
 	resultQueue := make(chan job, bufferSize)
 	games := &createdGames{
-		t:       t,
-		created: make(map[common.Address]*test.StubGamePlayer),
+		t:            t,
+		created:      make(map[common.Address]*test.StubGamePlayer),
+		createCount:  make(map[common.Address]int),
+		statuses:     make(map[common.Address]types.GameStatus),
+		prestateErrs: make(map[common.Address]error),
 	}
 	disk := &stubDiskManager{gameDirExists: make(map[common.Address]bool)}
 	c := newCoordinator(logger, &stubSchedulerMetrics{}, workQueue, resultQueue, games.CreateGame, disk, false)
@@ -406,11 +498,15 @@ func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan jo
 }
 
 type createdGames struct {
-	t               *testing.T
-	createCompleted common.Address
-	creationFails   common.Address
-	created         map[common.Address]*test.StubGamePlayer
-	PrestateErr     error
+	t             *testing.T
+	creationFails common.Address
+	created       map[common.Address]*test.StubGamePlayer
+	createCount   map[common.Address]int
+	// allowRecreate permits creating a player again, as happens when prestate validation fails.
+	allowRecreate bool
+	statuses      map[common.Address]types.GameStatus
+	prestateErrs  map[common.Address]error
+	PrestateErr   error
 }
 
 func (c *createdGames) CreateGame(fdg types.GameMetadata, dir string) (GamePlayer, error) {
@@ -418,36 +514,43 @@ func (c *createdGames) CreateGame(fdg types.GameMetadata, dir string) (GamePlaye
 	if c.creationFails == addr {
 		return nil, fmt.Errorf("refusing to create player for game: %v", addr)
 	}
-	if _, exists := c.created[addr]; exists {
+	if _, exists := c.created[addr]; exists && !c.allowRecreate {
 		c.t.Fatalf("game %v already exists", addr)
 	}
-	status := types.GameStatusInProgress
-	if addr == c.createCompleted {
-		status = types.GameStatusDefenderWon
+	prestateErr, ok := c.prestateErrs[addr]
+	if !ok {
+		prestateErr = c.PrestateErr
 	}
 	game := &test.StubGamePlayer{
 		Addr:        addr,
-		StatusValue: status,
+		StatusValue: c.statuses[addr],
 		Dir:         dir,
-	}
-	if c.PrestateErr != nil {
-		game.PrestateErr = c.PrestateErr
+		PrestateErr: prestateErr,
 	}
 	c.created[addr] = game
+	c.createCount[addr]++
 	return game, nil
+}
+
+type gamesStatus struct {
+	inProgress, defenderWon, challengerWon int
 }
 
 type stubSchedulerMetrics struct {
 	actedL1Blocks uint64
+	gamesStatus   gamesStatus
 }
 
 func (s *stubSchedulerMetrics) RecordActedL1Block(n uint64) {
 	s.actedL1Blocks = n
 }
 
-func (s *stubSchedulerMetrics) RecordGamesStatus(_, _, _ int) {}
-func (s *stubSchedulerMetrics) RecordGameUpdateScheduled()    {}
-func (s *stubSchedulerMetrics) RecordGameUpdateCompleted()    {}
+func (s *stubSchedulerMetrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {
+	s.gamesStatus = gamesStatus{inProgress, defenderWon, challengerWon}
+}
+
+func (s *stubSchedulerMetrics) RecordGameUpdateScheduled() {}
+func (s *stubSchedulerMetrics) RecordGameUpdateCompleted() {}
 
 type stubDiskManager struct {
 	gameDirExists map[common.Address]bool

@@ -17,7 +17,11 @@ use kona_genesis::RollupConfig;
 use kona_interop::{
     ChainBuilder, ChainDependency, DependencySet, ExecutingMessageBuilder, RawMessagePayload,
 };
-use kona_preimage::{DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L2_ROLLUP_CONFIG_KEY, PreimageKey};
+use kona_preimage::{
+    CommsClient, DEPENDENCY_SET_KEY, HintWriterClient, L1_CONFIG_KEY, L2_ROLLUP_CONFIG_KEY,
+    PreimageKey, PreimageOracleClient, errors::PreimageOracleResult,
+};
+use kona_proof::FlushableCache;
 use kona_sp1_client_utils::{
     log_commitment::{
         BlockReceipts, LOG_COMMITMENT_ENTRY_LEN, LogCommitmentEntry, LogCommitmentInputs,
@@ -46,17 +50,21 @@ use sp1_sdk::{
 mod vkey_codec;
 
 use crate::{
-    LogCommitmentProofs, build_log_commitment_stdin_from_receipts, build_super_consolidation_stdin,
-    decode_super_consolidation_public_values, log_commitments::run_native_consolidation,
+    ConsolidationCost, DEFAULT_MAX_STDIN_BYTES, LogCommitmentProofs, MAX_ENTRIES_PER_BATCH,
+    build_log_commitment_stdin_from_receipts, build_super_consolidation_stdin,
+    decode_super_consolidation_public_values, estimate_consolidation_pgu,
+    log_commitments::run_native_consolidation,
 };
 
 const INITIATING: u64 = u64::MAX - 1;
 const EXECUTING: u64 = u64::MAX;
-/// Block `k` of either chain has timestamp `GENESIS_TIME + k`.
+/// Idle chain `i` of a fixture has chain ID `IDLE + i`.
+const IDLE: u64 = 1_000;
+/// Block `k` of each chain has timestamp `GENESIS_TIME + k`.
 const GENESIS_TIME: u64 = 1_000;
 
-/// A one-timestamp, two-chain consolidation. The initiating chain's blocks `1..=n` sit below its
-/// head `n + 1`; the executing chain's head executes messages into them.
+/// A one-timestamp consolidation. The initiating chain's blocks `1..=n` sit below its head
+/// `n + 1`; the executing chain's head executes messages into them; idle chains have empty blocks.
 struct Fixture {
     /// Every preimage of the consolidation except the receipts tries of blocks `1..=n`.
     withheld: PreimageStore,
@@ -66,15 +74,25 @@ struct Fixture {
     references: Vec<(B256, u64)>,
     inputs: SuperConsolidationInputs,
     configs: ChainConfigs,
+    chains: u64,
+    messages: u64,
 }
 
 impl Fixture {
     /// `messages` are `(block number, log index)` pairs into `blocks`, the receipts of blocks
     /// `1..=n`. Each message carries the origin and payload hash of the log it references.
     fn new(blocks: Vec<Vec<OpReceiptEnvelope>>, messages: &[(u64, u64)]) -> Self {
+        Self::with_idle_chains(blocks, messages, 0)
+    }
+
+    fn with_idle_chains(
+        blocks: Vec<Vec<OpReceiptEnvelope>>,
+        messages: &[(u64, u64)],
+        idle_chains: u64,
+    ) -> Self {
         let mut witness = PreimageStore::default();
         save(&mut witness, vec![EMPTY_STRING_CODE]);
-        let configs = configs();
+        let configs = configs(idle_chains);
         for (key, value) in [
             (DEPENDENCY_SET_KEY, serde_json::to_vec(&configs.dependency_set).unwrap()),
             (L2_ROLLUP_CONFIG_KEY, serde_json::to_vec(&configs.rollup_configs).unwrap()),
@@ -107,26 +125,56 @@ impl Fixture {
         let mut previous_initiating = B256::ZERO;
         for (number, receipts) in (1..).zip(blocks) {
             let receipts_root = receipts_root(&receipts);
-            parent = save_header(&mut witness, number, parent, receipts_root);
+            parent = save_header(&mut witness, INITIATING, number, parent, receipts_root);
             previous_initiating = parent;
             below_head.push(BlockReceipts { receipts_root, receipts });
         }
-        let initiating_head = save_header(&mut witness, head_number, parent, EMPTY_ROOT_HASH);
+        let initiating_head =
+            save_header(&mut witness, INITIATING, head_number, parent, EMPTY_ROOT_HASH);
         let previous_executing =
-            save_header(&mut witness, head_number - 1, B256::ZERO, EMPTY_ROOT_HASH);
+            save_header(&mut witness, EXECUTING, head_number - 1, B256::ZERO, EMPTY_ROOT_HASH);
         let executing_receipts = save_receipts(&mut witness, &executing.receipts);
-        let executing_head =
-            save_header(&mut witness, head_number, previous_executing, executing_receipts);
-
-        let outputs = [previous_initiating, previous_executing, initiating_head, executing_head]
-            .map(|block_hash| save_output_root(&mut witness, block_hash));
-        let previous_super_root = SuperRoot::new(
-            GENESIS_TIME + head_number - 1,
-            vec![
-                SuperOutputRoot { chain_id: INITIATING, output_root: outputs[0] },
-                SuperOutputRoot { chain_id: EXECUTING, output_root: outputs[1] },
-            ],
+        let executing_head = save_header(
+            &mut witness,
+            EXECUTING,
+            head_number,
+            previous_executing,
+            executing_receipts,
         );
+
+        let mut chains: Vec<(u64, B256, B256)> = (1..=idle_chains)
+            .map(|index| {
+                let chain_id = IDLE + index;
+                let previous = save_header(
+                    &mut witness,
+                    chain_id,
+                    head_number - 1,
+                    B256::ZERO,
+                    EMPTY_ROOT_HASH,
+                );
+                let head =
+                    save_header(&mut witness, chain_id, head_number, previous, EMPTY_ROOT_HASH);
+                (chain_id, previous, head)
+            })
+            .collect();
+        chains.push((INITIATING, previous_initiating, initiating_head));
+        chains.push((EXECUTING, previous_executing, executing_head));
+        let previous_outputs = chains
+            .iter()
+            .map(|(chain_id, previous, _)| SuperOutputRoot {
+                chain_id: *chain_id,
+                output_root: save_output_root(&mut witness, *previous),
+            })
+            .collect();
+        let heads: Vec<_> = chains
+            .iter()
+            .map(|(chain_id, _, head)| SuperOptimisticBlock {
+                chain_id: U256::from(*chain_id),
+                block_hash: *head,
+                output_root: save_output_root(&mut witness, *head),
+            })
+            .collect();
+        let previous_super_root = SuperRoot::new(GENESIS_TIME + head_number - 1, previous_outputs);
         let mut encoded = Vec::new();
         previous_super_root.encode(&mut encoded);
         let previous_super_root = save(&mut witness, encoded);
@@ -135,32 +183,32 @@ impl Fixture {
             span: TimestampSpan::new(timestamp, timestamp).unwrap(),
             previous_super_root,
             transitions: vec![SuperConsolidationTransitionInput {
-                optimistic_blocks: vec![
-                    SuperOptimisticBlock {
-                        chain_id: U256::from(INITIATING),
-                        block_hash: initiating_head,
-                        output_root: outputs[2],
-                    },
-                    SuperOptimisticBlock {
-                        chain_id: U256::from(EXECUTING),
-                        block_hash: executing_head,
-                        output_root: outputs[3],
-                    },
-                ],
                 claimed_super_root_proof: SuperRootProof::new(
                     timestamp,
-                    vec![
-                        SuperOutputRoot { chain_id: INITIATING, output_root: outputs[2] },
-                        SuperOutputRoot { chain_id: EXECUTING, output_root: outputs[3] },
-                    ],
+                    heads
+                        .iter()
+                        .map(|head| SuperOutputRoot {
+                            chain_id: head.chain_id.to(),
+                            output_root: head.output_root,
+                        })
+                        .collect(),
                 ),
+                optimistic_blocks: heads,
             }],
         };
         let references = messages
             .iter()
             .map(|(number, index)| (below_head[*number as usize - 1].receipts_root, *index))
             .collect();
-        Self { withheld: witness, below_head, references, inputs, configs }
+        Self {
+            withheld: witness,
+            below_head,
+            references,
+            inputs,
+            configs,
+            chains: idle_chains + 2,
+            messages: messages.len() as u64,
+        }
     }
 
     /// Every preimage of the consolidation.
@@ -170,6 +218,18 @@ impl Fixture {
             save_receipts(&mut witness, &block.receipts);
         }
         witness
+    }
+
+    /// Saves the configs that only the test guest reads into `witness`, and returns their bytes.
+    async fn save_configs(&self, witness: &mut PreimageStore) -> u64 {
+        let mut bytes = 0;
+        for key in [DEPENDENCY_SET_KEY, L2_ROLLUP_CONFIG_KEY, L1_CONFIG_KEY] {
+            let key = PreimageKey::new_local(key.to());
+            let config = self.withheld.get(key).await.unwrap();
+            bytes += config.len() as u64;
+            witness.save_preimage(key, config).unwrap();
+        }
+        bytes
     }
 
     /// One batch with the entry of every block below the head, computed natively.
@@ -240,7 +300,7 @@ impl Fixture {
     }
 }
 
-fn configs() -> ChainConfigs {
+fn configs(idle_chains: u64) -> ChainConfigs {
     let rollup_config = |chain_id: u64| {
         let mut config = RollupConfig {
             block_time: 1,
@@ -252,19 +312,30 @@ fn configs() -> ChainConfigs {
         config.hardforks.lagoon_time = Some(0);
         (chain_id, config)
     };
+    let chain_ids: Vec<u64> =
+        (1..=idle_chains).map(|index| IDLE + index).chain([INITIATING, EXECUTING]).collect();
     ChainConfigs {
         dependency_set: DependencySet {
-            dependencies: [(INITIATING, ChainDependency {}), (EXECUTING, ChainDependency {})]
-                .into(),
+            dependencies: chain_ids
+                .iter()
+                .map(|chain_id| (*chain_id, ChainDependency {}))
+                .collect(),
             override_message_expiry_window: None,
         },
-        rollup_configs: [rollup_config(INITIATING), rollup_config(EXECUTING)].into(),
+        rollup_configs: chain_ids.iter().map(|chain_id| rollup_config(*chain_id)).collect(),
         l1_config: kona_registry::L1_CONFIGS[&1].clone(),
     }
 }
 
-fn save_header(witness: &mut PreimageStore, number: u64, parent: B256, receipts: B256) -> B256 {
+fn save_header(
+    witness: &mut PreimageStore,
+    chain_id: u64,
+    number: u64,
+    parent: B256,
+    receipts: B256,
+) -> B256 {
     let header = Header {
+        beneficiary: Address::left_padding_from(&chain_id.to_be_bytes()),
         number,
         timestamp: GENESIS_TIME + number,
         parent_hash: parent,
@@ -335,11 +406,14 @@ fn block_without_entry_reads_its_receipts() {
 }
 
 /// The native run over a collector with `host` as its host oracle, and the collected witness.
-async fn collect(
+async fn collect<H>(
     fixture: &Fixture,
-    host: PreimageStore,
+    host: H,
     batches: &[Vec<u8>],
-) -> (anyhow::Result<crate::log_commitments::NativeConsolidation>, PreimageStore) {
+) -> (anyhow::Result<crate::log_commitments::NativeConsolidation>, PreimageStore)
+where
+    H: CommsClient + FlushableCache + std::fmt::Debug + Send + Sync + Clone + 'static,
+{
     let witness = Arc::new(Mutex::new(PreimageStore::default()));
     let collector = Arc::new(PreimageWitnessCollector {
         preimage_oracle: Arc::new(host),
@@ -359,8 +433,6 @@ async fn collect(
 /// Pins a collected witness without served receipts that replays to the native outputs.
 #[tokio::test(flavor = "multi_thread")]
 async fn collected_witness_omits_served_receipts() {
-    use kona_preimage::PreimageOracleClient;
-
     let fixture = small_fixture();
     let batches = vec![fixture.native_batch()];
     let (native, witness) = collect(&fixture, fixture.full_witness(), &batches).await;
@@ -394,6 +466,80 @@ async fn collection_reports_missing_blocks() {
         fixture.below_head.iter().map(|block| block.receipts_root).collect();
     expected.sort();
     assert_eq!(missing, expected);
+}
+
+/// A host oracle that suspends once before each read and records the keys it reads.
+#[derive(Debug, Clone)]
+struct SuspendingHost {
+    store: PreimageStore,
+    reads: Arc<Mutex<Vec<PreimageKey>>>,
+}
+
+/// Returns `Pending` on its first poll.
+#[derive(Default)]
+struct SuspendOnce(bool);
+
+impl std::future::Future for SuspendOnce {
+    type Output = ();
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<()> {
+        if self.0 {
+            return std::task::Poll::Ready(());
+        }
+        self.0 = true;
+        cx.waker().wake_by_ref();
+        std::task::Poll::Pending
+    }
+}
+
+#[async_trait::async_trait]
+impl PreimageOracleClient for SuspendingHost {
+    async fn get(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
+        SuspendOnce::default().await;
+        self.reads.lock().unwrap().push(key);
+        self.store.get(key).await
+    }
+
+    async fn get_exact(&self, key: PreimageKey, buf: &mut [u8]) -> PreimageOracleResult<()> {
+        SuspendOnce::default().await;
+        self.reads.lock().unwrap().push(key);
+        self.store.get_exact(key, buf).await
+    }
+}
+
+#[async_trait::async_trait]
+impl HintWriterClient for SuspendingHost {
+    async fn write(&self, hint: &str) -> PreimageOracleResult<()> {
+        self.store.write(hint).await
+    }
+}
+
+impl FlushableCache for SuspendingHost {
+    fn flush(&self) {}
+}
+
+/// Pins the failing host read as the run's last host read.
+#[tokio::test(flavor = "multi_thread")]
+async fn host_failure_stops_at_the_next_host_read() {
+    let fixture = small_fixture();
+    let mut store = fixture.withheld.clone();
+    for block in &fixture.below_head[1..] {
+        save_receipts(&mut store, &block.receipts);
+    }
+    let reads = Arc::new(Mutex::new(Vec::new()));
+    let host = SuspendingHost { store, reads: reads.clone() };
+    let (native, _) = collect(&fixture, host, &[fixture.native_batch()]).await;
+    let err = native.expect_err("a host failure must fail the collection");
+    assert!(format!("{err:#}").contains("failed to open a committed log"), "{err:#}");
+    // Messages are checked in initiating-block order, so block 1 fails first.
+    let failing = PreimageKey::new_keccak256(*fixture.below_head[0].receipts_root);
+    let reads = reads.lock().unwrap();
+    assert_eq!(reads.last(), Some(&failing), "{} reads after the failure", {
+        reads.iter().rev().position(|key| *key == failing).unwrap_or(reads.len())
+    });
 }
 
 /// Pins a collection error, not outputs, when the host cannot serve a served block's receipts.
@@ -587,6 +733,52 @@ async fn consolidation_proof_binds_batch_proof() {
     println!("RESULT prove error: {err:#}");
 }
 
+/// Pins a CPU batch proof and a consolidation proof that verifies with it under the log vkey.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "local CPU proving"]
+async fn cpu_proves_batch_and_consolidation() {
+    let dir = elf_dir().expect("set KONA_SP1_ELF_DIR to the built ELF directory");
+    let fixture = small_fixture();
+    let receipts_roots: Vec<B256> =
+        fixture.below_head.iter().map(|block| block.receipts_root).collect();
+    let expected = crate::expected_batch_public_values(
+        &build_log_commitment_stdin_from_receipts(&fixture.below_head).unwrap(),
+    );
+    let proofs = prove_batch(&dir, &fixture).await;
+    assert_eq!(proofs.batches(), [expected]);
+
+    let (native, mut witness) = collect(&fixture, fixture.full_witness(), &proofs.batches()).await;
+    let native = native.unwrap();
+    assert!(native.missing.is_empty());
+    fixture.save_configs(&mut witness).await;
+    let mut served = native.served.clone();
+    served.sort();
+    let mut all = receipts_roots;
+    all.sort();
+    assert_eq!(served, all);
+    let log_commitments =
+        LogCommitmentInputs { batches: proofs.batches(), openings: native.openings };
+    let stdin = build_super_consolidation_stdin(
+        &fixture.inputs,
+        DefaultWitnessData::from_parts(witness, BlobData::default()),
+        &log_commitments,
+        Some(&proofs),
+    )
+    .unwrap();
+    assert_eq!(stdin.proofs.len(), 1);
+    assert_eq!(stdin.proofs[0].1, proofs.vk.vk);
+
+    let elf = Arc::<[u8]>::from(load_elf_from(&dir, "super-range-elf").unwrap());
+    let client = ProverClient::builder().cpu().build().await;
+    let pk = client.setup(Elf::Dynamic(elf)).await.unwrap();
+    let mut proof = client.prove(&pk, stdin).compressed().await.unwrap();
+    client.verify(&proof, pk.verifying_key(), None).unwrap();
+    assert_eq!(
+        decode_super_consolidation_public_values(&mut proof.public_values).unwrap(),
+        native.outputs
+    );
+}
+
 async fn prove_batch(dir: &std::path::Path, fixture: &Fixture) -> LogCommitmentProofs {
     let elf = Arc::<[u8]>::from(load_elf_from(dir, "log-commitment-elf").unwrap());
     let client = ProverClient::builder().cpu().build().await;
@@ -638,5 +830,152 @@ async fn measure_consolidation_cost() {
                 report.gas(),
             );
         }
+    }
+}
+
+/// `batch` split into `count` batches of whole entries.
+fn split_batch(batch: &[u8], count: usize) -> Vec<Vec<u8>> {
+    let entries = batch.len() / LOG_COMMITMENT_ENTRY_LEN;
+    batch.chunks(entries.div_ceil(count) * LOG_COMMITMENT_ENTRY_LEN).map(<[u8]>::to_vec).collect()
+}
+
+/// The measured PGU of the consolidation through `batches`, and its estimate from the collection.
+///
+/// The estimate also counts recursion work, which the executor does not measure.
+async fn measure_against_estimate(
+    dir: &std::path::Path,
+    fixture: &Fixture,
+    batches: Vec<Vec<u8>>,
+) -> (u64, u64) {
+    let (native, mut witness) = collect(fixture, fixture.full_witness(), &batches).await;
+    let native = native.unwrap();
+    assert!(batches.is_empty() || native.missing.is_empty());
+    let config_bytes = fixture.save_configs(&mut witness).await;
+    let cost = ConsolidationCost {
+        chain_timestamps: fixture.chains,
+        message_checks: fixture.messages,
+        read_bytes: native.read_bytes + config_bytes,
+        log_check_siblings: native.log_check_siblings,
+        batch_proofs: batches.len() as u64,
+        batch_entries: batches
+            .iter()
+            .map(|batch| (batch.len() / LOG_COMMITMENT_ENTRY_LEN) as u64)
+            .sum(),
+        replaced_gas: 0,
+    };
+    let log_commitments = LogCommitmentInputs { batches, openings: native.openings };
+    let stdin = fixture.stdin(witness, &log_commitments);
+    let (outputs, report) = execute_consolidation(dir, stdin, false).await;
+    assert_eq!(outputs, native.outputs);
+    (report.gas().expect("gas is calculated"), estimate_consolidation_pgu(&cost))
+}
+
+/// Pins a consolidation estimate at or above the measured PGU on both paths for each shape.
+#[tokio::test(flavor = "multi_thread")]
+async fn consolidation_estimate_bounds_measured_pgu() {
+    let Some(dir) = elf_dir() else { return };
+    let mixed = vec![
+        vec![eip1559(logs(0, 300, 1, 1_024))],
+        vec![eip1559(logs(1_000, 2_000, 0, 0))],
+        (0..200).map(|i| eip1559(if i == 0 { logs(5_000, 1, 2, 8) } else { vec![] })).collect(),
+        vec![eip1559(logs(6_000, 1, 0, 20 * 1_024)), eip1559(logs(6_001, 3, 4, 0))],
+    ];
+    let mixed_messages = [(1, 0), (1, 299), (2, 1_999), (3, 0), (4, 0), (4, 3), (4, 3)];
+    let many_messages: Vec<_> = (0..3_239).map(|index| (1, index)).collect();
+    let deep_trees: Vec<_> =
+        (0..4).map(|b| vec![eip1559(logs(b * 100_000, 75_000, 0, 0))]).collect();
+    let deep_messages: Vec<_> =
+        (1..=4).flat_map(|number| [(number, 0), (number, 37_500), (number, 74_999)]).collect();
+    let entry_cap = (0..MAX_ENTRIES_PER_BATCH as u64).map(|b| vec![eip1559(logs(b, 1, 0, 0))]);
+    let shapes = [
+        ("mixed, 2 chains", Fixture::with_idle_chains(mixed.clone(), &mixed_messages, 0)),
+        ("mixed, 6 chains", Fixture::with_idle_chains(mixed, &mixed_messages, 4)),
+        ("3,239 messages", Fixture::new(vec![vec![eip1559(logs(0, 3_239, 1, 0))]], &many_messages)),
+        ("deep trees", Fixture::new(deep_trees, &deep_messages)),
+        (
+            "entry cap",
+            Fixture::new(entry_cap.collect(), &[(1, 0), (MAX_ENTRIES_PER_BATCH as u64, 0)]),
+        ),
+    ];
+    for (shape, fixture) in shapes {
+        let batch = fixture.native_batch();
+        let mut runs = vec![vec![], split_batch(&batch, 1)];
+        if fixture.below_head.len() >= 4 {
+            runs.push(split_batch(&batch, 4));
+        }
+        for batches in runs {
+            let count = batches.len();
+            let (measured, estimate) = measure_against_estimate(&dir, &fixture, batches).await;
+            println!(
+                "RESULT shape={shape:?} batches={count} measured={measured} estimate={estimate}"
+            );
+            assert!(
+                measured <= estimate,
+                "{shape}, {count} batches: measured {measured} PGU over estimate {estimate}"
+            );
+        }
+    }
+}
+
+/// Measures `client.execute()` of a consolidation whose stdin is about
+/// [`DEFAULT_MAX_STDIN_BYTES`], nearly all of it witness, on the receipts path. It fails on x86-64
+/// Linux when the executor child exceeds SP1's memory limit.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "manual SP1 memory measurement"]
+async fn measure_consolidation_memory_at_stdin_cap() {
+    let dir = elf_dir().expect("set KONA_SP1_ELF_DIR to the built ELF directory");
+    let fixture = small_fixture();
+    let mut witness = fixture.full_witness();
+    let filler = 1 << 16;
+    let fillers = (DEFAULT_MAX_STDIN_BYTES - witness.preimage_bytes() as u64) / (filler + 32);
+    for nonce in 0..fillers {
+        let mut preimage = vec![0; filler as usize];
+        preimage[..8].copy_from_slice(&nonce.to_le_bytes());
+        save(&mut witness, preimage);
+    }
+    let witness_bytes = witness.preimage_bytes();
+    let stdin = fixture.stdin(witness, &LogCommitmentInputs::default());
+    let buffer_bytes: usize = stdin.buffer.iter().map(Vec::len).sum();
+    let (_, report) = execute_consolidation(&dir, stdin, false).await;
+    println!(
+        "RESULT witness_bytes={witness_bytes} buffer_bytes={buffer_bytes} pgu={:?}",
+        report.gas()
+    );
+}
+
+/// Measures the CPU time of a compressed consolidation proof that carries 1, 2, and 4 real batch
+/// proofs; the slope is the recursion time of one deferred proof.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "manual SP1 cost measurement"]
+async fn measure_recursion_time_per_deferred_proof() {
+    let dir = elf_dir().expect("set KONA_SP1_ELF_DIR to the built ELF directory");
+    let blocks = (0..4).map(|block| vec![eip1559(logs(block * 10, 4, 1, 32))]).collect();
+    let fixture = Fixture::new(blocks, &[(1, 0), (2, 1), (3, 2), (4, 3)]);
+    let client = ProverClient::builder().cpu().build().await;
+    let setup = async |name| {
+        let elf = Arc::<[u8]>::from(load_elf_from(&dir, name).unwrap());
+        client.setup(Elf::Dynamic(elf)).await.unwrap()
+    };
+    let log_pk = setup("log-commitment-elf").await;
+    let range_pk = setup("super-range-elf").await;
+    for count in [1, 2, 4] {
+        let mut proofs = Vec::new();
+        for blocks in fixture.below_head.chunks(4 / count) {
+            let stdin = build_log_commitment_stdin_from_receipts(blocks).unwrap();
+            proofs.push(client.prove(&log_pk, stdin).compressed().await.unwrap());
+        }
+        let proofs = LogCommitmentProofs { vk: log_pk.verifying_key().clone(), proofs };
+        let log_commitments =
+            LogCommitmentInputs { batches: proofs.batches(), openings: fixture.openings() };
+        let stdin = build_super_consolidation_stdin(
+            &fixture.inputs,
+            DefaultWitnessData::from_parts(fixture.withheld.clone(), BlobData::default()),
+            &log_commitments,
+            Some(&proofs),
+        )
+        .unwrap();
+        let started = std::time::Instant::now();
+        client.prove(&range_pk, stdin).compressed().await.unwrap();
+        println!("RESULT batch_proofs={count} seconds={:.1}", started.elapsed().as_secs_f64());
     }
 }
