@@ -11,23 +11,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestChainConfigJSON pins the JSON encoding of ChainConfig, which superchain-registry tooling
+// TestConfigJSON pins the JSON encoding of Config, which superchain-registry tooling
 // consumes.
-func TestChainConfigJSON(t *testing.T) {
-	var out FetchChainInfoOutput
+func TestConfigJSON(t *testing.T) {
+	var out Info
 	setDistinctAddresses(reflect.ValueOf(&out).Elem(), new(byte))
 	out.Permissioned = true
 	out.Permissionless = true
 	out.RespectedGameType = 1
 
-	got, err := json.MarshalIndent(CreateChainConfig(out), "", "  ")
+	got, err := json.MarshalIndent(out.Config(), "", "  ")
 	require.NoError(t, err)
 	want, err := os.ReadFile("testdata/chain-config.json")
 	require.NoError(t, err)
 	require.Equal(t, string(want), string(got)+"\n")
 
 	out.RespectedGameType = math.MaxUint32
-	cfg := CreateChainConfig(out)
+	cfg := out.Config()
 	require.Nil(t, cfg.FaultProofStatus, "no fault proofs")
 	got, err = json.Marshal(cfg)
 	require.NoError(t, err)

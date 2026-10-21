@@ -7,7 +7,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch/chaininfo"
+	"github.com/ethereum-optimism/optimism/op-fetcher/chaininfo"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -150,7 +150,13 @@ var (
 	challenger        = addr(0xa7)
 )
 
-var input = chaininfo.FetchChainInfoInput{
+// chainInfoInput holds the arguments of fetchChainInfo.
+type chainInfoInput struct {
+	SystemConfigProxy     common.Address
+	L1StandardBridgeProxy common.Address
+}
+
+var input = chainInfoInput{
 	SystemConfigProxy:     systemConfig,
 	L1StandardBridgeProxy: l1StandardBridge,
 }
@@ -180,8 +186,8 @@ func newChain() *fakeL1 {
 }
 
 // baseOutput is the output for newChain, before any fault proof fields.
-func baseOutput() chaininfo.FetchChainInfoOutput {
-	var out chaininfo.FetchChainInfoOutput
+func baseOutput() chaininfo.Info {
+	var out chaininfo.Info
 	out.SystemConfigProxy = systemConfig
 	out.SystemConfigOwner = systemConfigOwner
 	out.UnsafeBlockSigner = unsafeBlockSigner
@@ -219,9 +225,9 @@ func withPermissionedGameGetters(l1 *fakeL1) {
 		address("vm()", mips)
 }
 
-func fetch(t *testing.T, l1 l1State) chaininfo.FetchChainInfoOutput {
+func fetch(t *testing.T, l1 l1State) chaininfo.Info {
 	t.Helper()
-	out, err := fetchChainInfo(context.Background(), l1, input)
+	out, err := fetchChainInfo(context.Background(), l1, input.SystemConfigProxy, input.L1StandardBridgeProxy)
 	require.NoError(t, err)
 	return out
 }
@@ -456,16 +462,16 @@ func TestFetchChainInfo_Errors(t *testing.T) {
 	tests := []struct {
 		name    string
 		setup   func(l1 *fakeL1)
-		input   chaininfo.FetchChainInfoInput
+		input   chainInfoInput
 		wantErr error
 	}{
 		{
 			name:  "zero SystemConfig",
-			input: chaininfo.FetchChainInfoInput{L1StandardBridgeProxy: l1StandardBridge},
+			input: chainInfoInput{L1StandardBridgeProxy: l1StandardBridge},
 		},
 		{
 			name:  "zero L1StandardBridge",
-			input: chaininfo.FetchChainInfoInput{SystemConfigProxy: systemConfig},
+			input: chainInfoInput{SystemConfigProxy: systemConfig},
 		},
 		{
 			name: "required getter reverts",
@@ -551,10 +557,10 @@ func TestFetchChainInfo_Errors(t *testing.T) {
 				tt.setup(l1)
 			}
 			in := input
-			if tt.input != (chaininfo.FetchChainInfoInput{}) {
+			if tt.input != (chainInfoInput{}) {
 				in = tt.input
 			}
-			_, err := fetchChainInfo(context.Background(), l1, in)
+			_, err := fetchChainInfo(context.Background(), l1, in.SystemConfigProxy, in.L1StandardBridgeProxy)
 			require.Error(t, err)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)

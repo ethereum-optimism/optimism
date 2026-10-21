@@ -23,36 +23,29 @@ type FaultProofStatus struct {
 	RespectedGameType uint32 `toml:"respected_game_type" json:"respectedGameType"`
 }
 
-type FetchChainInfoInput struct {
-	SystemConfigProxy     common.Address
-	L1StandardBridgeProxy common.Address
-}
-
-// FetchChainInfoOutput is the flat result of a fetch. A RespectedGameType of math.MaxUint32
-// means the chain has no fault proofs.
-type FetchChainInfoOutput struct {
+// Info is the flat result of a fetch. A RespectedGameType of math.MaxUint32 means the chain
+// has no fault proofs.
+type Info struct {
 	Addresses
 	addresses.OpChainRoles
 	FaultProofStatus
 }
 
-type ChainConfig struct {
+// Config is the structured form of an Info, as the superchain-registry stores it.
+type Config struct {
 	Addresses        Addresses              `json:"addresses"`
 	Roles            addresses.OpChainRoles `json:"roles"`
 	FaultProofStatus *FaultProofStatus      `json:"faultProofs,omitempty" toml:"fault_proofs,omitempty"`
 }
 
-// CreateChainConfig creates a nicely structured output from the flat FetchChainInfoOutput
-func CreateChainConfig(output FetchChainInfoOutput) ChainConfig {
-	chain := ChainConfig{
-		Addresses: output.Addresses,
-		Roles:     output.OpChainRoles,
+// Config returns the structured form of i, without fault proofs if the chain has none.
+func (i Info) Config() Config {
+	cfg := Config{
+		Addresses: i.Addresses,
+		Roles:     i.OpChainRoles,
 	}
-
-	if output.FaultProofStatus.RespectedGameType == math.MaxUint32 {
-		chain.FaultProofStatus = nil
-	} else {
-		chain.FaultProofStatus = &output.FaultProofStatus
+	if i.RespectedGameType != math.MaxUint32 {
+		cfg.FaultProofStatus = &i.FaultProofStatus
 	}
-	return chain
+	return cfg
 }

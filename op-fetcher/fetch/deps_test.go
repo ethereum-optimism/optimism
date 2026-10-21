@@ -15,10 +15,12 @@ import (
 //     its own.
 func TestImportClosure(t *testing.T) {
 	const repo = "github.com/ethereum-optimism/optimism"
-	depguard.RequireNoTransitiveImportUnder(t, "./...", repo+"/op-core")
-	depguard.RequireNoTransitiveImportUnder(t, "./...", repo+"/op-deployer")
-	depguard.RequireNoTransitiveImport(t, "./...",
-		repo+"/op-chain-ops/script",
-		repo+"/op-chain-ops/foundry",
-	)
+	for _, pkgs := range []string{repo + "/op-fetcher/fetch/...", repo + "/op-fetcher/chaininfo/..."} {
+		depguard.RequireNoTransitiveImportUnder(t, pkgs, repo+"/op-core")
+		depguard.RequireNoTransitiveImportUnder(t, pkgs, repo+"/op-deployer")
+		depguard.RequireNoTransitiveImport(t, pkgs,
+			repo+"/op-chain-ops/script",
+			repo+"/op-chain-ops/foundry",
+		)
+	}
 }

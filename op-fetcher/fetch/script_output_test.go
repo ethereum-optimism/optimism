@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch/chaininfo"
+	"github.com/ethereum-optimism/optimism/op-fetcher/chaininfo"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -18,11 +18,11 @@ import (
 // scriptOutput is an output of the FetchChainInfo forge script for a live chain, recorded at
 // a pinned L1 block.
 type scriptOutput struct {
-	Network string                         `json:"network"`
-	Chain   string                         `json:"chain"`
-	Block   uint64                         `json:"block"`
-	Input   chaininfo.FetchChainInfoInput  `json:"input"`
-	Output  chaininfo.FetchChainInfoOutput `json:"output"`
+	Network string         `json:"network"`
+	Chain   string         `json:"chain"`
+	Block   uint64         `json:"block"`
+	Input   chainInfoInput `json:"input"`
+	Output  chaininfo.Info `json:"output"`
 }
 
 // TestFetchChainInfoMatchesScriptOutput is a differential test against the FetchChainInfo
@@ -57,7 +57,7 @@ func TestFetchChainInfoMatchesScriptOutput(t *testing.T) {
 
 			l1, _, err := newRPCL1State(ctx, client, new(big.Int).SetUint64(want.Block))
 			require.NoError(t, err)
-			got, err := fetchChainInfo(ctx, l1, want.Input)
+			got, err := fetchChainInfo(ctx, l1, want.Input.SystemConfigProxy, want.Input.L1StandardBridgeProxy)
 			require.NoError(t, err)
 			require.Equal(t, want.Output, got)
 		})

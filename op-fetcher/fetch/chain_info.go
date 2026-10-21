@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch/chaininfo"
+	"github.com/ethereum-optimism/optimism/op-fetcher/chaininfo"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -43,25 +43,25 @@ const addressManagerMappingSlot = 1
 type chainInfoReader struct {
 	ctx context.Context
 	l1  l1State
-	out chaininfo.FetchChainInfoOutput
+	out chaininfo.Info
 	err error
 }
 
-func fetchChainInfo(ctx context.Context, l1 l1State, in chaininfo.FetchChainInfoInput) (chaininfo.FetchChainInfoOutput, error) {
-	if in.SystemConfigProxy == (common.Address{}) {
-		return chaininfo.FetchChainInfoOutput{}, errors.New("SystemConfigProxy not set")
+func fetchChainInfo(ctx context.Context, l1 l1State, systemConfig, l1StandardBridge common.Address) (chaininfo.Info, error) {
+	if systemConfig == (common.Address{}) {
+		return chaininfo.Info{}, errors.New("SystemConfigProxy not set")
 	}
-	if in.L1StandardBridgeProxy == (common.Address{}) {
-		return chaininfo.FetchChainInfoOutput{}, errors.New("L1StandardBridgeProxy not set")
+	if l1StandardBridge == (common.Address{}) {
+		return chaininfo.Info{}, errors.New("L1StandardBridgeProxy not set")
 	}
 	r := &chainInfoReader{ctx: ctx, l1: l1}
-	r.out.SystemConfigProxy = in.SystemConfigProxy
-	r.out.L1StandardBridgeProxy = in.L1StandardBridgeProxy
+	r.out.SystemConfigProxy = systemConfig
+	r.out.L1StandardBridgeProxy = l1StandardBridge
 	r.fillSystemConfig()
 	r.fillMessengerAndPortal()
 	r.fillFaultProofs()
 	if r.err != nil {
-		return chaininfo.FetchChainInfoOutput{}, r.err
+		return chaininfo.Info{}, r.err
 	}
 	return r.out, nil
 }
