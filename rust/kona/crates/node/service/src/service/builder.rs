@@ -56,8 +56,6 @@ pub struct L1ConfigBuilder {
 /// The [`RollupNodeBuilder`] is used to construct a [`RollupNode`] service.
 #[derive(Debug)]
 pub struct RollupNodeBuilder {
-    /// The binary release version shared by CLI, metrics and RPC.
-    pub version: &'static str,
     /// The rollup configuration.
     pub config: RollupConfig,
     /// The L1 chain configuration.
@@ -82,7 +80,6 @@ pub struct RollupNodeBuilder {
 impl RollupNodeBuilder {
     /// Creates a new [`RollupNodeBuilder`] with the given [`RollupConfig`].
     pub const fn new(
-        version: &'static str,
         config: RollupConfig,
         l1_config_builder: L1ConfigBuilder,
         l2_trust_rpc: bool,
@@ -91,7 +88,6 @@ impl RollupNodeBuilder {
         rpc_config: Option<RpcBuilder>,
     ) -> Self {
         Self {
-            version,
             config,
             l1_config_builder,
             l2_trust_rpc,
@@ -191,7 +187,6 @@ impl RollupNodeBuilder {
         });
 
         RollupNode {
-            version: self.version,
             config: rollup_config,
             l1_config,
             l2_provider,
