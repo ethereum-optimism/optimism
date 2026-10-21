@@ -236,6 +236,12 @@ where
         Ok(GameValidity { root_claim, was_respected, status, absolute_prestate })
     }
 
+    async fn game_l1_head_number(&self, game: Address, block: BlockId) -> Result<u64> {
+        let l1_head =
+            ZKDisputeGame::new(game, self.provider.clone()).l1Head().block(block).call().await?;
+        kona_sp1_super_range_executor::fetch_l1_head_number(self.l1_rpc.as_str(), l1_head).await
+    }
+
     async fn game_lifecycle(
         &self,
         game: Address,

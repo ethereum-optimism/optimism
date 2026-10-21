@@ -204,6 +204,8 @@ pub(crate) trait L1View: Send + Sync {
     async fn game_claim(&self, game: Address, block: BlockId) -> Result<GameClaim>;
     async fn game_identity(&self, game: Address, block: BlockId) -> Result<GameIdentity>;
     async fn game_validity(&self, game: Address, block: BlockId) -> Result<GameValidity>;
+    /// Block number of the game's immutable `l1Head()`.
+    async fn game_l1_head_number(&self, game: Address, block: BlockId) -> Result<u64>;
     async fn game_lifecycle(
         &self,
         game: Address,

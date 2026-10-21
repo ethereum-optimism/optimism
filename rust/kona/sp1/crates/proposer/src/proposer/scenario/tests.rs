@@ -138,6 +138,10 @@ impl L1View for ScenarioL1View {
         unreachable!("scenario fixture does not discover factory games")
     }
 
+    async fn game_l1_head_number(&self, _game: Address, _block: BlockId) -> anyhow::Result<u64> {
+        unreachable!("scenario fixture does not discover factory games")
+    }
+
     async fn game_lifecycle(
         &self,
         _game: Address,
