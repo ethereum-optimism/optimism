@@ -628,6 +628,7 @@ fn merge_admin_module(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kona_rpc::HealthzResponse;
 
     fn admin_method_names(enable_admin: bool) -> Vec<String> {
         let mut modules = RpcModule::new(());
@@ -650,6 +651,28 @@ mod tests {
         let enabled = admin_method_names(true);
         for method in ["admin_postUnsafePayload", "admin_startSequencer", "admin_stopSequencer"] {
             assert!(enabled.iter().any(|m| m == method), "missing {method}");
+        }
+    }
+
+    #[tokio::test]
+    async fn registered_endpoints_report_the_binary_version() {
+        for version in ["1.2.3", "0.0.0-dev"] {
+            let (engine_tx, _engine_rx) = mpsc::channel(1);
+            let (l1_tx, _l1_rx) = mpsc::channel(1);
+            let engine_client = QueuedEngineRpcClient::new(engine_tx);
+            let mut rpc = RollupRpc::new(version, engine_client, l1_tx).into_rpc();
+            rpc.merge(HealthzRpc::new(version).into_rpc()).unwrap();
+            assert_eq!(
+                rpc.call::<_, String>("optimism_version", jsonrpsee::rpc_params![]).await.unwrap(),
+                version
+            );
+            assert_eq!(
+                rpc.call::<_, HealthzResponse>("healthz", jsonrpsee::rpc_params![])
+                    .await
+                    .unwrap()
+                    .version,
+                version
+            );
         }
     }
 }
