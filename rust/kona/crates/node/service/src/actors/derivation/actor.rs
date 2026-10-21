@@ -319,13 +319,13 @@ mod tests {
     use rstest::rstest;
     use std::sync::Arc;
 
-    /// A pipeline stub whose steps run `step` on its origin. It never produces attributes, and a
-    /// reset moves its origin to the safe head's L1 origin.
+    /// A pipeline stub that returns `step_result` once, then yields. Origin advances increment
+    /// its L1 block number, and a reset moves it to the safe head's L1 origin.
     #[derive(Debug)]
     struct StubPipeline {
         rollup_config: Arc<RollupConfig>,
         origin: BlockInfo,
-        step: fn(&mut BlockInfo) -> StepResult,
+        step_result: StepResult,
         reset_error: Option<PipelineErrorKind>,
     }
 
@@ -367,7 +367,14 @@ mod tests {
         }
 
         async fn step(&mut self, _: L2BlockInfo) -> StepResult {
-            (self.step)(&mut self.origin)
+            let result = std::mem::replace(
+                &mut self.step_result,
+                StepResult::StepFailed(PipelineError::Eof.temp()),
+            );
+            if matches!(result, StepResult::AdvancedOrigin | StepResult::OriginAdvanceErr(_)) {
+                self.origin.number += 1;
+            }
+            result
         }
 
         fn rollup_config(&self) -> &RollupConfig {
@@ -407,12 +414,9 @@ mod tests {
                 rollup_config: rollup_config.clone(),
                 origin: BlockInfo::default(),
                 reset_error: None,
-                step: |_| {
-                    StepResult::StepFailed(PipelineErrorKind::Reset(ResetError::ReorgDetected(
-                        B256::ZERO,
-                        B256::repeat_byte(1),
-                    )))
-                },
+                step_result: StepResult::StepFailed(
+                    ResetError::ReorgDetected(B256::ZERO, B256::repeat_byte(1)).reset(),
+                ),
             },
             origin_tx,
         );
@@ -440,24 +444,10 @@ mod tests {
     /// `optimism_syncStatus` serves the published origin as `current_l1`, so it must follow the
     /// pipeline forward, including across a Holocene activation, and back on a reset.
     #[rstest]
-    #[case::advanced_origin(|origin: &mut BlockInfo| {
-        if origin.number.is_multiple_of(2) {
-            origin.number += 1;
-            StepResult::AdvancedOrigin
-        } else {
-            StepResult::StepFailed(PipelineError::Eof.temp())
-        }
-    })]
-    #[case::holocene_activation(|origin: &mut BlockInfo| {
-        if origin.number.is_multiple_of(2) {
-            origin.number += 1;
-            StepResult::OriginAdvanceErr(ResetError::HoloceneActivation.reset())
-        } else {
-            StepResult::StepFailed(PipelineError::Eof.temp())
-        }
-    })]
+    #[case::advanced_origin(StepResult::AdvancedOrigin)]
+    #[case::holocene_activation(StepResult::OriginAdvanceErr(ResetError::HoloceneActivation.reset()))]
     #[tokio::test]
-    async fn test_origin_is_published(#[case] step: fn(&mut BlockInfo) -> StepResult) {
+    async fn test_origin_is_published(#[case] step_result: StepResult) {
         let (origin_tx, origin_rx) = watch::channel(None);
         let (request_tx, request_rx) = mpsc::channel(1);
         let mut actor = DerivationActor::new(
@@ -466,7 +456,7 @@ mod tests {
             StubPipeline {
                 rollup_config: Arc::new(RollupConfig::default()),
                 origin: BlockInfo::default(),
-                step,
+                step_result,
                 reset_error: None,
             },
             origin_tx,
@@ -508,10 +498,7 @@ mod tests {
                 rollup_config: Arc::new(RollupConfig::default()),
                 origin: BlockInfo::default(),
                 reset_error: None,
-                step: |origin| {
-                    origin.number += 1;
-                    StepResult::StepFailed(PipelineError::Eof.temp())
-                },
+                step_result: StepResult::AdvancedOrigin,
             },
             origin_tx,
         );
