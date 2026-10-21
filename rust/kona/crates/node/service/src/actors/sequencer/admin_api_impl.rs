@@ -115,6 +115,19 @@ where
         &mut self,
         head: B256,
     ) -> Result<(), SequencerAdminAPIError> {
+        if let Some(conductor) = &self.conductor &&
+            !self.leader_override
+        {
+            let leader = conductor
+                .leader()
+                .await
+                .map_err(|err| SequencerAdminAPIError::StartRejected(err.to_string()))?;
+            if !leader {
+                return Err(SequencerAdminAPIError::StartRejected(
+                    "sequencer is not the leader".into(),
+                ));
+            }
+        }
         let current = self
             .engine_client
             .get_unsafe_head()

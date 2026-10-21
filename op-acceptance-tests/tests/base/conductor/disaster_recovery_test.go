@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
@@ -18,7 +17,6 @@ import (
 // on a surviving node and force it to resume sequencing.
 func TestDisasterRecoveryLeaderOverride(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnKonaNode(t, "conductor activation leadership checks land in the next stack PR")
 
 	sys := presets.NewMinimalWithConductors(t)
 

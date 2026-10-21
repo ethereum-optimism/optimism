@@ -69,11 +69,33 @@ impl SequencerArgs {
     /// Creates a [`SequencerConfig`] from the [`SequencerArgs`].
     pub fn config(&self) -> SequencerConfig {
         SequencerConfig {
-            sequencer_stopped: self.stopped,
+            sequencer_stopped: self.stopped || self.conductor_rpc.is_some(),
             sequencer_recovery_mode: self.recover,
             conductor_rpc_url: self.conductor_rpc.clone(),
             conductor_rpc_timeout: self.conductor_rpc_timeout,
             l1_conf_delay: self.l1_confs,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn conductor_managed_config_starts_stopped() {
+        for stopped in [true, false] {
+            for managed in [true, false] {
+                let args = SequencerArgs {
+                    stopped,
+                    conductor_rpc: managed.then(|| "http://127.0.0.1:8547".parse().unwrap()),
+                    conductor_rpc_timeout: Duration::from_secs(7),
+                    ..Default::default()
+                };
+                let config = args.config();
+                assert_eq!(config.sequencer_stopped, stopped || managed);
+                assert_eq!(config.conductor_rpc_timeout, Duration::from_secs(7));
+            }
         }
     }
 }
