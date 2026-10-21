@@ -343,3 +343,10 @@ The trait-based architecture allows for:
 - **Testing and mocking** support
 
 This modular design ensures the engine can adapt to future OP Stack protocol changes while maintaining backward compatibility.
+
+### Conductor-accepted canonicalization
+
+`CanonicalizeTask` checks that a committed payload still extends the unsafe head inside the engine
+queue, then imports that exact envelope with `VALID` validation required. It never substitutes a
+deposits-only block. The unsafe-head watch is published before acknowledging completion. The
+sequencer owns retry policy, so rejected or temporary imports are returned through its reply channel.

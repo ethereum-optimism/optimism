@@ -2,7 +2,9 @@
 //!
 //! [`Engine`]: crate::Engine
 
-use super::{BuildTask, ConsolidateTask, FinalizeTask, InsertTask};
+use super::{
+    BuildTask, CanonicalizeTask, CanonicalizeTaskError, ConsolidateTask, FinalizeTask, InsertTask,
+};
 use crate::{
     BuildTaskError, ConsolidateTaskError, EngineClient, EngineState, FinalizeTaskError,
     InsertTaskError,
@@ -58,6 +60,9 @@ pub trait EngineTaskExt {
 /// An error that may occur during an [`EngineTask`]'s execution.
 #[derive(Error, Debug)]
 pub enum EngineTaskErrors {
+    /// An error importing a conductor-accepted payload.
+    #[error(transparent)]
+    Canonicalize(#[from] CanonicalizeTaskError),
     /// An error that occurred while inserting a block into the engine.
     #[error(transparent)]
     Insert(#[from] InsertTaskError),
@@ -78,6 +83,7 @@ pub enum EngineTaskErrors {
 impl EngineTaskError for EngineTaskErrors {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
+            Self::Canonicalize(inner) => inner.severity(),
             Self::Insert(inner) => inner.severity(),
             Self::Build(inner) => inner.severity(),
             Self::Seal(inner) => inner.severity(),
@@ -92,6 +98,8 @@ impl EngineTaskError for EngineTaskErrors {
 /// [`Engine`]: crate::Engine
 #[derive(Debug, Clone)]
 pub enum EngineTask<EngineClient_: EngineClient> {
+    /// Imports a sequenced payload after conductor acceptance.
+    Canonicalize(Box<CanonicalizeTask<EngineClient_>>),
     /// Inserts an unsafe payload into the execution engine.
     Insert(Box<InsertTask<EngineClient_>>),
     /// Begins building a new block with the given attributes, producing a new payload ID.
@@ -121,6 +129,7 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
                 Err(err) => return Err(err.into()),
                 Ok(_) => {}
             },
+            Self::Canonicalize(task) => task.execute(state).await?,
             Self::Seal(task) => task.execute(state).await?,
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,
@@ -137,7 +146,7 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
             Self::Insert(_) => crate::Metrics::INSERT_TASK_LABEL,
             Self::Consolidate(_) => crate::Metrics::CONSOLIDATE_TASK_LABEL,
             Self::Build(_) => crate::Metrics::BUILD_TASK_LABEL,
-            Self::Seal(_) => crate::Metrics::SEAL_TASK_LABEL,
+            Self::Canonicalize(_) | Self::Seal(_) => crate::Metrics::SEAL_TASK_LABEL,
             Self::Finalize(_) => crate::Metrics::FINALIZE_TASK_LABEL,
         }
     }
@@ -147,7 +156,8 @@ impl<EngineClient_: EngineClient> PartialEq for EngineTask<EngineClient_> {
     fn eq(&self, other: &Self) -> bool {
         matches!(
             (self, other),
-            (Self::Insert(_), Self::Insert(_)) |
+            (Self::Canonicalize(_), Self::Canonicalize(_)) |
+                (Self::Insert(_), Self::Insert(_)) |
                 (Self::Build(_), Self::Build(_)) |
                 (Self::Seal(_), Self::Seal(_)) |
                 (Self::Consolidate(_), Self::Consolidate(_)) |
@@ -179,11 +189,15 @@ impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
         // - Finalize tasks have the lowest priority, as they only update finalized status.
         match (self, other) {
             // Same variant cases
+            (Self::Canonicalize(_), Self::Canonicalize(_)) |
             (Self::Insert(_), Self::Insert(_)) |
             (Self::Consolidate(_), Self::Consolidate(_)) |
             (Self::Build(_), Self::Build(_)) |
             (Self::Seal(_), Self::Seal(_)) |
             (Self::Finalize(_), Self::Finalize(_)) => Ordering::Equal,
+
+            (Self::Canonicalize(_), _) => Ordering::Greater,
+            (_, Self::Canonicalize(_)) => Ordering::Less,
 
             // SealBlock tasks are prioritized over all others
             (Self::Seal(_), _) => Ordering::Greater,
