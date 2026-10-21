@@ -288,3 +288,92 @@ async fn failed_payload_fetch_drops_the_expired_build_job() {
     actor.step().await.unwrap();
     assert!(actor.in_flight.is_none());
 }
+
+/// An inconsistent forkchoice requires a reset, not a retry of the committed block. Only a
+/// successful reset allows a fresh build, using the engine's new unsafe head.
+#[rstest]
+#[case::reset_succeeds(true)]
+#[case::reset_fails(false)]
+#[tokio::test(start_paused = true)]
+async fn invalid_forkchoice_resets_before_rebuilding(#[case] reset_succeeds: bool) {
+    let mut actor = test_actor();
+    actor.started = true;
+    actor.in_flight = Some(InFlightBlock::Committed(CommittedBlock {
+        envelope: sealed_payload(2),
+        parent: L2BlockInfo::default(),
+        tx_count: 0,
+    }));
+    actor.engine_client.expect_seal_block().times(0);
+    let mut sequence = Sequence::new();
+    actor
+        .engine_client
+        .expect_canonicalize_block()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| {
+            Err(EngineClientError::CanonicalizeError(
+                CanonicalizeTaskError::PayloadInsertionFailed(Box::new(
+                    InsertTaskError::ForkchoiceUpdateFailed(
+                        SynchronizeTaskError::InvalidForkchoiceState,
+                    ),
+                )),
+            ))
+        });
+    actor
+        .engine_client
+        .expect_reset_engine_forkchoice()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(move || {
+            if reset_succeeds {
+                Ok(())
+            } else {
+                Err(EngineClientError::ResetForkchoiceError("reset failed".into()))
+            }
+        });
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
+
+    let result = actor.step().await;
+    assert!(actor.in_flight.is_none(), "the old committed block must be discarded");
+    if !reset_succeeds {
+        assert!(matches!(
+            result,
+            Err(SequencerActorError::EngineError(EngineClientError::ResetForkchoiceError(_)))
+        ));
+        return;
+    }
+    result.unwrap();
+
+    let mut new_head = L2BlockInfo::default();
+    new_head.block_info.number = 10;
+    new_head.block_info.hash = alloy_primitives::B256::repeat_byte(10);
+    actor
+        .engine_client
+        .expect_get_unsafe_head()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(move || Ok(new_head));
+    actor
+        .origin_selector
+        .expect_next_l1_origin()
+        .withf(move |head, _| *head == new_head)
+        .times(1)
+        .return_once(|_, _| Ok(BlockInfo::default()));
+    actor.attributes_builder.attributes.push(Ok(OpPayloadAttributes::default()));
+    let new_id = PayloadId::new([2; 8]);
+    actor
+        .engine_client
+        .expect_start_build_block()
+        .withf(move |attributes| attributes.parent == new_head)
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(move |_| Ok(new_id));
+
+    actor.step().await.unwrap();
+    assert!(matches!(
+        actor.in_flight,
+        Some(InFlightBlock::Building(handle))
+            if handle.payload_id == new_id && handle.attributes_with_parent.parent == new_head
+    ));
+}

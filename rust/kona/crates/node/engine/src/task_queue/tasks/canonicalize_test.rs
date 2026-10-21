@@ -163,3 +163,36 @@ async fn unsafe_head_is_published_before_the_canonicalization_response() {
     l1.assert_finished();
     l2.assert_finished();
 }
+
+#[tokio::test]
+async fn invalid_forkchoice_state_is_relayed_as_a_reset_error() {
+    let PayloadFixture { payload, cfg } = payload_fixture();
+    let (client, l1, l2) = test_engine_client(cfg.clone());
+    l2.expect("engine_newPayloadV1", PayloadStatus::from_status(PayloadStatusEnum::Valid));
+    l2.expect_error_code("engine_forkchoiceUpdatedV3", -38002);
+    let (tx, mut rx) = mpsc::channel(1);
+    let mut state = EngineState::default();
+    let task = CanonicalizeTask::new(
+        Arc::new(client),
+        cfg,
+        payload,
+        L2BlockInfo::default(),
+        tx,
+        None,
+        Arc::new(NoopBlockSink),
+    );
+    // The engine queue sees success; only the sequencer can act on this reset.
+    task.execute(&mut state).await.unwrap();
+    let err = rx.recv().await.unwrap().unwrap_err();
+    assert!(matches!(
+        &err,
+        CanonicalizeTaskError::PayloadInsertionFailed(inner)
+            if matches!(**inner, InsertTaskError::ForkchoiceUpdateFailed(
+                SynchronizeTaskError::InvalidForkchoiceState
+            ))
+    ));
+    assert_eq!(err.severity(), crate::EngineTaskErrorSeverity::Reset);
+    assert_eq!(state, EngineState::default());
+    l1.assert_finished();
+    l2.assert_finished();
+}
