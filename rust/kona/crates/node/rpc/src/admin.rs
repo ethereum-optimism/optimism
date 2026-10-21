@@ -195,7 +195,7 @@ mod tests {
     #[async_trait]
     impl SequencerAdminAPIClient for NoSequencer {
         async fn is_sequencer_active(&self) -> Result<bool, SequencerAdminAPIError> {
-            unreachable!("validator has no sequencer")
+            Ok(false)
         }
 
         async fn is_conductor_enabled(&self) -> Result<bool, SequencerAdminAPIError> {
