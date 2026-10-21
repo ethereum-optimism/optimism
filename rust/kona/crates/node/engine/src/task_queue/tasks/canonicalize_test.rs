@@ -1,10 +1,11 @@
 use super::*;
 use crate::{InsertTaskError, NoopBlockSink, SynchronizeTaskError, test_utils::test_engine_client};
-use alloy_consensus::Block;
+use alloy_consensus::{Block, SignableTransaction, TxEip1559};
+use alloy_primitives::{Sealed, Signature};
 use alloy_rpc_types_engine::{
     ExecutionPayloadV1, ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum,
 };
-use op_alloy_consensus::OpTxEnvelope;
+use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
 
 #[derive(Debug, Default)]
 pub(crate) struct RecordingSink(pub(crate) std::sync::Mutex<Vec<L2BlockInfo>>);
@@ -96,12 +97,31 @@ async fn failed_forkchoice_update_is_relayed_and_retry_imports_the_same_payload(
     l2.assert_finished();
 }
 
+#[rstest::rstest]
+#[case::deposits_only(true)]
+#[case::with_user_transaction(false)]
 #[tokio::test]
-async fn invalid_committed_payload_does_not_build_an_uncommitted_replacement() {
-    let PayloadFixture { payload, cfg } = payload_fixture();
+async fn invalid_committed_payload_does_not_build_an_uncommitted_replacement(
+    #[case] deposits_only: bool,
+) {
+    let PayloadFixture { cfg, .. } = payload_fixture();
+    let mut block = Block::<OpTxEnvelope>::default();
+    block.body.transactions.push(OpTxEnvelope::Deposit(Sealed::new(TxDeposit {
+        input: kona_protocol::L1BlockInfoBedrock::default().encode_calldata(),
+        ..Default::default()
+    })));
+    if !deposits_only {
+        block.body.transactions.push(OpTxEnvelope::Eip1559(
+            TxEip1559::default().into_signed(Signature::test_signature()),
+        ));
+    }
+    assert_eq!(block.body.transactions.iter().all(OpTxEnvelope::is_deposit), deposits_only);
+    let payload_v1 = ExecutionPayloadV1::from_block_slow(&block);
+    let payload = OpExecutionPayloadEnvelope::V1(payload_v1.clone());
     let (client, l1, l2) = test_engine_client(cfg.clone());
-    l2.expect(
+    l2.expect_params(
         "engine_newPayloadV1",
+        serde_json::json!([payload_v1]),
         PayloadStatus::from_status(PayloadStatusEnum::Invalid {
             validation_error: "invalid transaction".into(),
         }),
@@ -110,21 +130,29 @@ async fn invalid_committed_payload_does_not_build_an_uncommitted_replacement() {
     let (tx, mut rx) = mpsc::channel(1);
     let mut state = EngineState::default();
     let original = state;
+    let sink = Arc::new(RecordingSink::default());
+    let (head_tx, mut head_rx) = watch::channel(L2BlockInfo::default());
     let task = CanonicalizeTask::new(
         client,
         cfg,
         payload,
         L2BlockInfo::default(),
         tx,
-        None,
-        Arc::new(NoopBlockSink),
+        Some(head_tx),
+        sink.clone(),
     );
+    // Like op-node's processNewPayload/handleInvalid, even deposits-only INVALID is relayed
+    // to the sequencer for drop-and-rebuild, rather than terminating the engine task queue.
     task.execute(&mut state).await.unwrap();
     assert!(
         matches!(rx.recv().await.unwrap(), Err(CanonicalizeTaskError::PayloadInsertionFailed(err))
         if matches!(*err, InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. })))
     );
     assert_eq!(state, original);
+    assert!(sink.0.lock().unwrap().is_empty());
+    assert!(!head_rx.has_changed().unwrap());
+    assert_eq!(*head_rx.borrow_and_update(), L2BlockInfo::default());
+    // Strict RPC expectations also reject any replacement build or forkchoice update.
     l1.assert_finished();
     l2.assert_finished();
 }
