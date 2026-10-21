@@ -18,6 +18,13 @@ impl RpcActor {
     }
 }
 
+impl Drop for RpcActor {
+    fn drop(&mut self) {
+        // Stop even if another component still holds a handle to the server.
+        let _ = self.handle.stop();
+    }
+}
+
 #[async_trait]
 impl NodeActor for RpcActor {
     type Error = RpcActorError;
@@ -34,4 +41,40 @@ pub enum RpcActorError {
     /// The [`crate::RpcActor`]'s RPC server stopped unexpectedly.
     #[error("RPC server stopped unexpectedly")]
     ServerStopped,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use jsonrpsee::{RpcModule, server::Server};
+    use std::time::Duration;
+    use tokio::time::timeout;
+
+    async fn running_actor() -> (RpcActor, ServerHandle) {
+        let server = Server::builder().build("127.0.0.1:0").await.unwrap();
+        let handle = server.start(RpcModule::new(()));
+        (RpcActor::new(handle.clone()), handle)
+    }
+
+    #[tokio::test]
+    async fn unexpected_server_stop_is_fatal() {
+        let (mut actor, handle) = running_actor().await;
+        let step = actor.step();
+        tokio::pin!(step);
+        assert!(futures::poll!(&mut step).is_pending(), "a running server must keep serving");
+        handle.stop().unwrap();
+        assert!(matches!(
+            timeout(Duration::from_secs(1), step).await.unwrap(),
+            Err(RpcActorError::ServerStopped)
+        ));
+    }
+
+    #[tokio::test]
+    async fn dropping_actor_stops_server_with_other_handles_alive() {
+        let (actor, handle) = running_actor().await;
+        drop(actor);
+        timeout(Duration::from_secs(1), handle.stopped())
+            .await
+            .expect("dropping the actor must shut down its server");
+    }
 }
