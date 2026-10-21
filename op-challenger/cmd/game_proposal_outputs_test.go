@@ -136,16 +136,14 @@ func TestQueryProposalOutputSuperRootGames(t *testing.T) {
 		superRoot  string
 		rootMatch  *bool
 		nodeSynced bool
-		// Super fault games replace a root that is not derivable by l1Head with the invalid
-		// transition hash; ZK games keep superRoot and rootMatch as listed.
-		invalidForFaultGames bool
 	}{
 		{name: "match", currentL1: l1HeadNum + 1, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(proposed), VerifiedRequiredL1: eth.BlockID{Number: l1HeadNum}}, superRoot: proposed.Hex(), rootMatch: ptr.New(true), nodeSynced: true},
 		{name: "mismatch", currentL1: l1HeadNum + 1, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(other)}, superRoot: other.Hex(), rootMatch: ptr.New(false), nodeSynced: true},
 		{name: "nil data", currentL1: l1HeadNum + 1, data: nil, superRoot: "", rootMatch: ptr.New(false), nodeSynced: true},
 		{name: "node at l1 head", currentL1: l1HeadNum, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(proposed)}, nodeSynced: false},
 		{name: "node at l1 head with nil data", currentL1: l1HeadNum, data: nil, nodeSynced: false},
-		{name: "verified after l1 head", currentL1: l1HeadNum + 10, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(proposed), VerifiedRequiredL1: eth.BlockID{Number: l1HeadNum + 1}}, superRoot: proposed.Hex(), rootMatch: ptr.New(true), nodeSynced: true, invalidForFaultGames: true},
+		// A root that is not derivable by l1Head is the invalid transition for every super-root game type.
+		{name: "verified after l1 head", currentL1: l1HeadNum + 10, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(proposed), VerifiedRequiredL1: eth.BlockID{Number: l1HeadNum + 1}}, superRoot: eth.InvalidTransitionHash.Hex(), rootMatch: ptr.New(false), nodeSynced: true},
 	}
 	for _, kind := range gameKinds {
 		for _, tc := range cases {
@@ -165,18 +163,14 @@ func TestQueryProposalOutputSuperRootGames(t *testing.T) {
 				record, err := queryProposalOutput(context.Background(), caller, l1, unusedRollupClient{}, superRoots,
 					gameRef{addr: gameAddr, gameType: kind.gameType, index: &index})
 				require.NoError(t, err)
-				superRoot, rootMatch := tc.superRoot, tc.rootMatch
-				if tc.invalidForFaultGames && kind.gameType != gameTypes.ZKDisputeGameType {
-					superRoot, rootMatch = eth.InvalidTransitionHash.Hex(), ptr.New(false)
-				}
 				require.Equal(t, proposalOutputRecord{
 					Index:        &index,
 					Game:         gameAddr.Hex(),
 					Status:       gameTypes.GameStatusInProgress.String(),
 					ProposedRoot: proposed.Hex(),
 					Timestamp:    &timestamp,
-					SuperRoot:    superRoot,
-					RootMatch:    rootMatch,
+					SuperRoot:    tc.superRoot,
+					RootMatch:    tc.rootMatch,
 					L1Head:       l1Head.Hex(),
 					L1HeadNumber: l1HeadNum,
 					NodeSynced:   &tc.nodeSynced,
