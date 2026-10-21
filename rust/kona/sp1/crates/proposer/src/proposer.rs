@@ -978,6 +978,7 @@ impl Proposer {
                 log_gas_limit: config.proof_provider_config.log_gas_limit,
                 max_stdin_bytes: config.max_stdin_bytes,
                 data_dir: config.data_dir.clone(),
+                testing_max_range_chains: config.testing_max_range_chains,
             },
         ));
         let action_executor = Arc::new(ProductionActionExecutor::new(
@@ -5611,6 +5612,7 @@ mod tests {
             dependency_set_path: None,
             range_split_count: RangeSplitCount::one(),
             max_stdin_bytes: Default::default(),
+            testing_max_range_chains: None,
             max_concurrent_range_proofs: std::num::NonZeroUsize::MIN,
             max_concurrent_defense_tasks: std::num::NonZeroU64::new(8).unwrap(),
             fast_finality_mode: false,

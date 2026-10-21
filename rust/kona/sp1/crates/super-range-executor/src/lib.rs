@@ -255,9 +255,23 @@ impl SynthesizedExecution {
     /// Collects a range-mode witness and the natively computed range outputs through `host`,
     /// seeded with the preloaded preimages and the agreed outputs that the span's super roots
     /// replaced, which it reads through `host`'s L2 nodes.
-    pub async fn collect_range_witness(
+    ///
+    /// Not `async`, so that it adds no future layer: the canary's run future is at the
+    /// compiler's query depth limit.
+    pub fn collect_range_witness(
         &self,
         host: InteropHost,
+        configs: Option<&ChainConfigs>,
+    ) -> impl Future<Output = Result<(DefaultWitnessData, SuperRangeOutputs)>> {
+        self.collect_range_witness_over(host, &self.range_inputs, configs)
+    }
+
+    /// Like [`Self::collect_range_witness`], over `inputs`: `range_inputs`, or those inputs
+    /// restricted to some of their chains.
+    pub async fn collect_range_witness_over(
+        &self,
+        host: InteropHost,
+        inputs: &SuperRangeInputs,
         configs: Option<&ChainConfigs>,
     ) -> Result<(DefaultWitnessData, SuperRangeOutputs)> {
         let preimages = self
@@ -265,7 +279,7 @@ impl SynthesizedExecution {
             .await
             .context("failed to read the replaced agreed outputs")?;
         collect_witness(&preimages, host, |oracle, beacon| {
-            let inputs = self.range_inputs.clone();
+            let inputs = inputs.clone();
             async move { build_range_outputs(inputs, oracle, beacon, configs).await }
         })
         .await
