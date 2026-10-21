@@ -25,3 +25,6 @@ pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
 
 mod util;
 pub(super) use util::{BuildAndSealError, build_and_seal, handle_rejected_attributes};
+
+mod canonicalize;
+pub use canonicalize::{CanonicalizeTask, CanonicalizeTaskError};

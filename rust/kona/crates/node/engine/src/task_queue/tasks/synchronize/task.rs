@@ -77,12 +77,12 @@ impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
     }
 }
 
-#[async_trait]
-impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient_> {
-    type Output = ();
-    type Error = SynchronizeTaskError;
-
-    async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, SynchronizeTaskError> {
+impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
+    pub(crate) async fn execute_with_validation(
+        &self,
+        state: &mut EngineState,
+        require_valid: bool,
+    ) -> Result<(), SynchronizeTaskError> {
         // Apply the sync state update to the engine state.
         let new_sync_state = state.sync_state.apply_update(self.state_update);
 
@@ -96,7 +96,10 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
         // We shouldn't retry the synchronize task there. Since the `sync_state` is only updated
         // inside the `SynchronizeTask` (except inside the ConsolidateTask, when the block is not
         // the last in the batch) - the engine will get stuck retrying the `SynchronizeTask`
-        if state.sync_state != Default::default() && state.sync_state == new_sync_state {
+        if !require_valid &&
+            state.sync_state != Default::default() &&
+            state.sync_state == new_sync_state
+        {
             debug!(target: "engine", ?new_sync_state, "No forkchoice update needed");
             return Ok(());
         }
@@ -137,6 +140,11 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
             error
         })?;
 
+        if require_valid && valid_response.payload_status.status != PayloadStatusEnum::Valid {
+            return Err(SynchronizeTaskError::UnexpectedPayloadStatus(
+                valid_response.payload_status.status,
+            ));
+        }
         self.check_forkchoice_updated_status(state, &valid_response.payload_status.status)?;
 
         // Apply the new sync state to the engine state.
@@ -152,5 +160,14 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
         );
 
         Ok(())
+    }
+}
+
+#[async_trait]
+impl<C: EngineClient> EngineTaskExt for SynchronizeTask<C> {
+    type Output = ();
+    type Error = SynchronizeTaskError;
+    async fn execute(&self, state: &mut EngineState) -> Result<(), SynchronizeTaskError> {
+        self.execute_with_validation(state, false).await
     }
 }

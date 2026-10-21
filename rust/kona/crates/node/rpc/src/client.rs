@@ -47,7 +47,7 @@ pub trait SequencerAdminAPIClient: Send + Sync + Debug {
     async fn is_recovery_mode(&self) -> Result<bool, SequencerAdminAPIError>;
 
     /// Start the sequencer.
-    async fn start_sequencer(&self) -> Result<(), SequencerAdminAPIError>;
+    async fn start_sequencer(&self, head: B256) -> Result<(), SequencerAdminAPIError>;
 
     /// Stop the sequencer.
     async fn stop_sequencer(&self) -> Result<B256, SequencerAdminAPIError>;
@@ -65,6 +65,9 @@ pub trait SequencerAdminAPIClient: Send + Sync + Debug {
 /// Errors that can occur when using the sequencer admin API.
 #[derive(Debug, Error)]
 pub enum SequencerAdminAPIError {
+    /// Conductor activation or head validation failed.
+    #[error("{0}")]
+    StartRejected(String),
     /// Error sending request.
     #[error("Error sending request: {0}.")]
     RequestError(String),
@@ -79,8 +82,4 @@ pub enum SequencerAdminAPIError {
     /// Sequencer stopped successfully, followed by some error.
     #[error("Sequencer stopped successfully, followed by error: {0}.")]
     ErrorAfterSequencerWasStopped(String),
-
-    /// Error overriding leader.
-    #[error("Error overriding leader: {0}.")]
-    LeaderOverrideError(String),
 }

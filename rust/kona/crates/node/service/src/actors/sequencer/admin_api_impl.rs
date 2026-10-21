@@ -11,7 +11,7 @@ pub enum SequencerAdminQuery {
     /// A query to check if the sequencer is active.
     SequencerActive(oneshot::Sender<Result<bool, SequencerAdminAPIError>>),
     /// A query to start the sequencer.
-    StartSequencer(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
+    StartSequencer(B256, oneshot::Sender<Result<(), SequencerAdminAPIError>>),
     /// A query to stop the sequencer.
     StopSequencer(oneshot::Sender<Result<B256, SequencerAdminAPIError>>),
     /// A query to check if the conductor is enabled.
@@ -57,8 +57,8 @@ where
                     warn!(target: "sequencer", "Failed to send response for is_sequencer_active query");
                 }
             }
-            SequencerAdminQuery::StartSequencer(tx) => {
-                if tx.send(self.start_sequencer().await).is_err() {
+            SequencerAdminQuery::StartSequencer(head, tx) => {
+                if tx.send(self.start_sequencer(head).await).is_err() {
                     warn!(target: "sequencer", "Failed to send response for start_sequencer query");
                 }
             }
@@ -111,7 +111,34 @@ where
     }
 
     /// Starts the sequencer in an idempotent fashion.
-    pub(super) async fn start_sequencer(&mut self) -> Result<(), SequencerAdminAPIError> {
+    pub(super) async fn start_sequencer(
+        &mut self,
+        head: B256,
+    ) -> Result<(), SequencerAdminAPIError> {
+        if let Some(conductor) = &self.conductor &&
+            !self.leader_override
+        {
+            let leader = conductor
+                .leader()
+                .await
+                .map_err(|err| SequencerAdminAPIError::StartRejected(err.to_string()))?;
+            if !leader {
+                return Err(SequencerAdminAPIError::StartRejected(
+                    "sequencer is not the leader".into(),
+                ));
+            }
+        }
+        let current = self
+            .engine_client
+            .get_unsafe_head()
+            .await
+            .map_err(|err| SequencerAdminAPIError::StartRejected(err.to_string()))?;
+        if current.hash() == B256::ZERO || current.hash() != head {
+            return Err(SequencerAdminAPIError::StartRejected(
+                "unsafe head is unknown or does not match the requested hash".into(),
+            ));
+        }
+
         if self.is_active {
             info!(target: "sequencer", "received request to start sequencer, but it is already started");
             return Ok(());
@@ -131,6 +158,13 @@ where
         self.is_active = false;
 
         self.update_metrics();
+
+        if let Some(super::actor::InFlightBlock::Committed(block)) = self.in_flight.take() &&
+            let Err(err) = self.canonicalize_and_gossip(&block).await
+        {
+            self.in_flight = Some(super::actor::InFlightBlock::Committed(block));
+            return Err(SequencerAdminAPIError::ErrorAfterSequencerWasStopped(err.to_string()));
+        }
 
         self.engine_client.get_unsafe_head().await
             .map(|h| h.hash())
@@ -153,20 +187,10 @@ where
         Ok(())
     }
 
-    /// Overrides the leader, if the conductor is enabled.
-    /// If not, an error will be returned.
+    /// Enables the process-local recovery override, bypassing conductor leader and commit checks.
     pub(super) async fn override_leader(&mut self) -> Result<(), SequencerAdminAPIError> {
-        let Some(conductor) = self.conductor.as_mut() else {
-            return Err(SequencerAdminAPIError::LeaderOverrideError(
-                "No conductor configured".to_string(),
-            ));
-        };
-
-        if let Err(e) = conductor.override_leader().await {
-            error!(target: "sequencer::rpc", "Failed to override leader: {}", e);
-            return Err(SequencerAdminAPIError::LeaderOverrideError(e.to_string()));
-        }
-        info!(target: "sequencer", "Overrode leader via the conductor service");
+        self.leader_override = true;
+        info!(target: "sequencer", "Enabled local conductor recovery override");
 
         self.update_metrics();
 

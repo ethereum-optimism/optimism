@@ -24,6 +24,8 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     /// If the payload is safe this is true.
     /// A payload is safe if it is derived from a safe block.
     is_payload_safe: bool,
+    /// Sequenced publication requires actual validation instead of driving EL sync.
+    require_valid: bool,
     /// Where to hand the decoded block once the engine has canonicalized it.
     block_sink: Arc<dyn ImportedBlockSink>,
 }
@@ -37,12 +39,25 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
         is_attributes_derived: bool,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
-        Self { client, rollup_config, payload, is_payload_safe: is_attributes_derived, block_sink }
+        Self {
+            client,
+            rollup_config,
+            payload,
+            is_payload_safe: is_attributes_derived,
+            block_sink,
+            require_valid: false,
+        }
+    }
+
+    pub(crate) const fn requiring_valid(mut self) -> Self {
+        self.require_valid = true;
+        self
     }
 
     /// Checks the response of the `engine_newPayload` call.
     const fn check_new_payload_status(&self, status: &PayloadStatusEnum) -> bool {
-        matches!(status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing)
+        matches!(status, PayloadStatusEnum::Valid) ||
+            (!self.require_valid && matches!(status, PayloadStatusEnum::Syncing))
     }
 }
 
@@ -105,7 +120,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
                 ..Default::default()
             },
         )
-        .execute(state)
+        .execute_with_validation(state, self.require_valid)
         .await?;
 
         // The block is now canonical, so anything reading the L2 chain locally can rely on it.

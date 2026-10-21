@@ -1,5 +1,5 @@
 use alloy_rpc_types_engine::PayloadId;
-use kona_engine::{BuildTaskError, EngineQueries, SealTaskError};
+use kona_engine::{BuildTaskError, CanonicalizeTaskError, EngineQueries, SealTaskError};
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
@@ -11,6 +11,9 @@ pub type EngineClientResult<T> = Result<T, EngineClientError>;
 /// Error making requests to the `BlockEngine`.
 #[derive(Debug, Error)]
 pub enum EngineClientError {
+    /// An error importing a conductor-accepted payload.
+    #[error(transparent)]
+    CanonicalizeError(#[from] CanonicalizeTaskError),
     /// Error making a request to the engine. The request never made it there.
     #[error("Error making a request to the engine: {0}.")]
     RequestError(String),
@@ -66,4 +69,15 @@ pub struct SealRequest {
     pub attributes: OpAttributesWithParent,
     /// The channel on which the result, successful or not, will be sent.
     pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
+}
+
+/// A request to canonicalize a sequenced payload after its conductor commit succeeds.
+#[derive(Debug)]
+pub struct CanonicalizeRequest {
+    /// The committed payload to import.
+    pub payload: OpExecutionPayloadEnvelope,
+    /// The unsafe head on which the build started.
+    pub parent: kona_protocol::L2BlockInfo,
+    /// The response, including any import error, is relayed to the sequencer.
+    pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, CanonicalizeTaskError>>,
 }

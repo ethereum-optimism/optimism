@@ -1,9 +1,8 @@
 use crate::{
-    ConductorError, EngineClientError, SequencerAdminQuery,
+    EngineClientError, SequencerAdminQuery,
     actors::{MockConductor, MockSequencerEngineClient, sequencer::tests::test_util::test_actor},
 };
 use alloy_primitives::B256;
-use alloy_transport::RpcError;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use kona_rpc::SequencerAdminAPIError;
 use rstest::rstest;
@@ -94,6 +93,12 @@ async fn test_start_sequencer(
 ) {
     let mut actor = test_actor();
     actor.is_active = already_started;
+    actor.engine_client.expect_get_unsafe_head().returning(|| {
+        Ok(L2BlockInfo {
+            block_info: BlockInfo { hash: B256::repeat_byte(1), ..Default::default() },
+            ..Default::default()
+        })
+    });
 
     // verify starting state
     let result = actor.is_sequencer_active().await;
@@ -103,10 +108,15 @@ async fn test_start_sequencer(
     // start the sequencer
     let result = async {
         match via_channel {
-            false => actor.start_sequencer().await,
+            false => actor.start_sequencer(B256::repeat_byte(1)).await,
             true => {
                 let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::StartSequencer(tx)).await;
+                actor
+                    .handle_admin_query(SequencerAdminQuery::StartSequencer(
+                        B256::repeat_byte(1),
+                        tx,
+                    ))
+                    .await;
                 rx.await.unwrap()
             }
         }
@@ -234,61 +244,38 @@ async fn test_set_recovery_mode(
     assert_eq!(result.unwrap(), mode_to_set);
 }
 
-#[rstest]
 #[tokio::test]
-async fn test_override_leader(
-    #[values(true, false)] conductor_configured: bool,
-    #[values(true, false)] conductor_error: bool,
-    #[values(true, false)] via_channel: bool,
-) {
-    // mock error string returned by conductor, if configured (to differentiate between error
-    // returned if not configured)
-    let conductor_error_string = "test: error within conductor";
+async fn local_recovery_override_does_not_call_the_conductor() {
+    let mut actor = test_actor();
+    let mut conductor = MockConductor::new();
+    conductor.expect_override_leader().times(0);
+    conductor.expect_leader().times(0);
+    actor.conductor = Some(conductor);
+    actor.override_leader().await.unwrap();
+    assert!(actor.leader_override);
+    assert!(actor.is_conductor_enabled().await.unwrap());
+}
 
-    let mut actor = {
-        // wire up conductor absence/presence and response error/success
-        if !conductor_configured {
-            test_actor()
-        } else if conductor_error {
-            let mut conductor = MockConductor::new();
-            conductor.expect_override_leader().times(1).return_once(move || {
-                Err(ConductorError::Rpc(RpcError::local_usage_str(conductor_error_string)))
-            });
-            let mut actor = test_actor();
-            actor.conductor = Some(conductor);
-            actor
-        } else {
-            let mut conductor = MockConductor::new();
-            conductor.expect_override_leader().times(1).return_once(|| Ok(()));
-            let mut actor = test_actor();
-            actor.conductor = Some(conductor);
-            actor
-        }
-    };
-
-    // call to override leader
-    let result = async {
-        match via_channel {
-            false => actor.override_leader().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::OverrideLeader(tx)).await;
-                rx.await.unwrap()
-            }
-        }
-    }
-    .await;
-
-    // verify result
-    if !conductor_configured || conductor_error {
-        assert!(result.is_err());
-        assert_eq!(
-            conductor_configured,
-            result.err().unwrap().to_string().contains(conductor_error_string)
-        );
-    } else {
-        assert!(result.is_ok())
-    }
+#[tokio::test]
+async fn start_rejects_follower_and_mismatched_head() {
+    let mut actor = test_actor();
+    actor.is_active = false;
+    let mut conductor = MockConductor::new();
+    conductor.expect_leader().times(1).return_once(|| Ok(false));
+    actor.conductor = Some(conductor);
+    let err = actor.start_sequencer(B256::repeat_byte(1)).await.unwrap_err();
+    assert!(err.to_string().contains("sequencer is not the leader"));
+    assert!(!actor.is_active);
+    actor.override_leader().await.unwrap();
+    actor.engine_client.expect_get_unsafe_head().returning(|| {
+        Ok(L2BlockInfo {
+            block_info: BlockInfo { hash: B256::repeat_byte(1), ..Default::default() },
+            ..Default::default()
+        })
+    });
+    assert!(actor.start_sequencer(B256::repeat_byte(2)).await.is_err());
+    actor.start_sequencer(B256::repeat_byte(1)).await.unwrap();
+    assert!(actor.is_active);
 }
 
 #[rstest]
@@ -347,14 +334,15 @@ async fn test_reset_derivation_pipeline_error(#[values(true, false)] via_channel
 #[tokio::test]
 async fn test_handle_admin_query_resilient_to_dropped_receiver() {
     let mut conductor = MockConductor::new();
-    conductor.expect_override_leader().times(1).returning(|| Ok(()));
+    conductor.expect_override_leader().times(0);
+    conductor.expect_leader().times(1).returning(|| Ok(true));
 
     let unsafe_head = L2BlockInfo {
         block_info: BlockInfo { hash: B256::from([1u8; 32]), ..Default::default() },
         ..Default::default()
     };
     let mut client = MockSequencerEngineClient::new();
-    client.expect_get_unsafe_head().times(1).returning(move || Ok(unsafe_head));
+    client.expect_get_unsafe_head().times(2).returning(move || Ok(unsafe_head));
     client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
 
     let mut actor = test_actor();
@@ -370,7 +358,7 @@ async fn test_handle_admin_query_resilient_to_dropped_receiver() {
     {
         // immediately drop receiver
         let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::StartSequencer(tx));
+        queries.push(SequencerAdminQuery::StartSequencer(B256::repeat_byte(1), tx));
     }
     {
         // immediately drop receiver
