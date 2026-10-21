@@ -189,6 +189,17 @@ async fn step_time<E: SequencerEngineClient + 'static>(actor: &mut TestActor<E>)
 /// After building a block, the next build tick fires when the next block is due by the actor's
 /// clock, which starts at `TEST_START`: neither earlier, nor after one block time (2s) if the block
 /// is due at another time.
+///
+/// With `T` as `TEST_START`, `t` as the time since the test started, and `P` as the parent's
+/// timestamp:
+///
+/// | t       | Tick | What happens                                   | Block due at |
+/// |---------|------|------------------------------------------------|--------------|
+/// | 0       | 1    | Reset; start building A on a parent built at P | A: P+2       |
+/// | P+2 - T | 2    | A is due; nothing has been sealed yet, so no   |              |
+/// |         |      | time is taken off for sealing                  |              |
+///
+/// When A is already overdue (`P+2 < T`), tick 2 fires straight away.
 #[rstest]
 #[case::due_later(TEST_START + 1, Duration::from_secs(3))]
 #[case::overdue(TEST_START - 3, Duration::ZERO)]
@@ -204,9 +215,22 @@ async fn next_block_is_built_when_it_is_due(#[case] parent_timestamp: u64, #[cas
     assert_eq!(step_time(&mut actor).await, wait, "the next tick fired at the wrong time");
 }
 
-/// The sequencer starts building the next block earlier by the time the last seal took, so that
-/// the next block is sealed when it is due. A seal that takes longer than the time left means the
-/// next block is built straight away.
+/// Each tick seals the block built since the previous tick, then starts building the next one. The
+/// next tick is scheduled for when the next block is due, less the time the last seal took, so the
+/// next seal finishes when its block is due. A seal that takes longer than the time left means the
+/// next tick fires straight away.
+///
+/// With `T` as `TEST_START`, `t` as the time since the test started, and `s` as the seal time:
+///
+/// | t       | Tick | What happens                                   | Block due at |
+/// |---------|------|------------------------------------------------|--------------|
+/// | 0       | 1    | Reset; start building A on a parent built at T | A: T+2       |
+/// | 2       | 2    | A is due; seal A, which takes `s`              |              |
+/// | 2 + s   | 2    | Start building B on A                          | B: T+4       |
+/// | 4 - s   | 3    | Seal B, so that it finishes at t=4             |              |
+///
+/// The test checks the wait between the end of tick 2 and tick 3: `2 - 2s`, or none if that is
+/// negative. Tick 1 had nothing to seal, so tick 2 takes no time off for sealing.
 #[rstest]
 #[case::wait_less(Duration::from_millis(500), Duration::from_secs(1))]
 #[case::no_time_left(Duration::from_millis(1_500), Duration::ZERO)]
