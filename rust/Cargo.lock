@@ -17841,6 +17841,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "spn-wallet"
+version = "0.1.0"
+dependencies = [
+ "alloy-contract",
+ "alloy-network 2.4.2",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-signer 2.5.0",
+ "alloy-signer-local 2.4.2",
+ "alloy-sol-types",
+ "alloy-transport-http",
+ "anyhow",
+ "clap",
+ "prost 0.13.5",
+ "rustls",
+ "sp1-sdk",
+ "tokio",
+ "tonic 0.12.3",
+ "url",
+]
+
+[[package]]
 name = "sponge-cursor"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
