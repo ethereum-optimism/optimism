@@ -33,7 +33,7 @@ use kona_sp1_client_utils::{
     log_commitment::LogCommitmentInputs,
     super_root::{
         SuperAggregationInputs, SuperAggregationPublicValues, SuperConsolidationOutputs,
-        SuperRangeOutputs, TimestampSpan,
+        SuperRangeInputs, SuperRangeOutputs, TimestampSpan,
     },
 };
 use kona_sp1_ethereum_client_utils::chain_config::ChainConfigs;
@@ -294,7 +294,7 @@ struct RequestSummary {
 #[derive(Default)]
 struct ChunkProgress {
     completed: Mutex<Option<Arc<ChunkResult>>>,
-    range_request: Mutex<RequestState>,
+    range: RangeProgress,
     consolidation_request: Mutex<RequestState>,
     /// The halves proved instead of this span once it exceeded a size or execution limit.
     split: Halves<Self>,
@@ -310,7 +310,7 @@ impl ChunkProgress {
             }
             return;
         }
-        visit("range", &self.range_request);
+        self.range.visit_requests(visit);
         visit("consolidation", &self.consolidation_request);
     }
 }
@@ -418,6 +418,25 @@ impl LogBatchProgress {
             "Log batch exceeds proving limits; splitting"
         );
         Ok(self.split.record(|| halves.map(Self::new)))
+    }
+}
+
+/// A range request's slot, and the chain halves proved instead once a single timestamp's request
+/// exceeded a size or execution limit.
+#[derive(Default)]
+struct RangeProgress {
+    request: Mutex<RequestState>,
+    split: Halves<Self>,
+}
+
+impl RangeProgress {
+    /// Visits the live range request slots under this one, in chain order: once it is split, only
+    /// its halves' slots.
+    fn visit_requests(&self, visit: &mut dyn FnMut(&'static str, &Mutex<RequestState>)) {
+        match self.split.get() {
+            Some(halves) => halves.iter().for_each(|half| half.visit_requests(visit)),
+            None => visit("range", &self.request),
+        }
     }
 }
 
@@ -853,18 +872,21 @@ where
     Ok(result)
 }
 
+/// One range request's natively computed outputs and, in network mode, its proof.
 #[derive(Clone)]
-struct ChildProofs {
-    range: Arc<SP1ProofWithPublicValues>,
-    consolidation: Arc<SP1ProofWithPublicValues>,
+struct RangeResult {
+    outputs: SuperRangeOutputs,
+    proof: Option<Arc<SP1ProofWithPublicValues>>,
 }
 
-/// The outputs and proofs of one range + consolidation pair.
+/// The outputs and, in network mode, the proofs of one span's range requests and consolidation.
 #[derive(Clone)]
 struct SpanResult {
-    range_outputs: SuperRangeOutputs,
+    /// The span's range requests in chain order: one, or several once a single timestamp is
+    /// split by chain.
+    ranges: Vec<RangeResult>,
     consolidation_outputs: SuperConsolidationOutputs,
-    proofs: Option<ChildProofs>,
+    consolidation_proof: Option<Arc<SP1ProofWithPublicValues>>,
 }
 
 /// One proven (or natively executed) top-level chunk, tagged with its position. A bisected chunk
@@ -1018,6 +1040,68 @@ fn ensure_bytes_fit(kind: &'static str, bytes: u64, limit: StdinByteLimit) -> Re
     Ok(bytes)
 }
 
+/// A range request over more chains than `OP_ZK_PROPOSER_TESTING_MAX_RANGE_CHAINS`.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("range request over {chains} chains, above the {limit}-chain testing limit")]
+pub(crate) struct RangeOverChainLimit {
+    chains: usize,
+    limit: usize,
+}
+
+/// Fails with [`RangeOverChainLimit`] when a range request over `chains` chains is over `limit`.
+fn check_range_chains(chains: usize, limit: Option<NonZeroUsize>) -> Result<()> {
+    match limit {
+        Some(limit) if chains > limit.get() => {
+            Err(RangeOverChainLimit { chains, limit: limit.get() }.into())
+        }
+        _ => Ok(()),
+    }
+}
+
+/// Checks that a range request over `chains` of `span` has a shape the aggregation accepts: a
+/// contiguous run of `super_root_chains`, and every chain unless the span is one timestamp.
+fn check_range_shape(span: ChunkSpan, super_root_chains: &[U256], chains: &[U256]) -> Result<()> {
+    let Some(first) = chains.first() else { bail!("range request covers no chains") };
+    let run = super_root_chains
+        .iter()
+        .position(|id| id == first)
+        .and_then(|start| super_root_chains.get(start..start + chains.len()));
+    ensure!(
+        run == Some(chains),
+        "range request chains {chains:?} are not a contiguous run of the super-root chains \
+         {super_root_chains:?}"
+    );
+    ensure!(
+        chains.len() == super_root_chains.len() || !span.is_splittable(),
+        "range request over chains {chains:?} spans timestamps {}..={}; only a single timestamp \
+         may cover some chains",
+        span.agreed + 1,
+        span.claimed
+    );
+    Ok(())
+}
+
+/// The range inputs of `inputs` restricted to `chain_ids`, validated.
+fn range_inputs_for_chains(
+    inputs: &SuperRangeInputs,
+    chain_ids: &[U256],
+) -> Result<SuperRangeInputs> {
+    let restricted = SuperRangeInputs {
+        span: inputs.span,
+        l1_head: inputs.l1_head,
+        chain_ids: chain_ids.to_vec(),
+        previous_super_root_proofs: inputs.previous_super_root_proofs.clone(),
+        claimed_transitions: inputs
+            .claimed_transitions
+            .iter()
+            .filter(|transition| chain_ids.contains(&transition.optimistic_block.chain_id))
+            .copied()
+            .collect(),
+    };
+    restricted.validate().context("range inputs over some chains are invalid")?;
+    Ok(restricted)
+}
+
 async fn prove_range_request(
     provider: &ProofProvider,
     keys: &ProofKeys,
@@ -1062,7 +1146,8 @@ async fn prove_consolidation_request(
     .await
 }
 
-/// The timestamps `agreed + 1..=claimed`, proved by one range + consolidation pair.
+/// The timestamps `agreed + 1..=claimed`, proved by one or more range requests and one
+/// consolidation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct ChunkSpan {
     agreed: u64,
@@ -1082,20 +1167,23 @@ impl ChunkSpan {
     }
 }
 
-/// Proves one span as a single range + consolidation pair, in two steps, so that a span over a
-/// limit is found before any request is bought.
+/// Proves one span as its range requests and one consolidation, in two steps, so that a span over
+/// a limit is found before any of its requests is bought. The pieces of a single timestamp split
+/// by chain are each checked just before they are bought (see [`prove_range`]).
 trait SpanProver: Sync {
-    /// A span whose requests are collected and checked, and not submitted.
+    /// A span whose consolidation is collected and checked, and not submitted.
     type Checked: Send;
 
-    /// Collects and checks the span's requests. Takes no request slot, so it cannot submit.
+    /// Checks the span's chain count and collects and checks its consolidation. Takes no request
+    /// slot, so it cannot submit.
     fn check_leaf(
         &self,
         span: ChunkSpan,
         synthesized: Option<SynthesizedExecution>,
     ) -> BoxFuture<'_, Result<Self::Checked>>;
 
-    /// Submits or resumes the requests of a checked span, in `node`'s slots.
+    /// Collects, checks, and submits or resumes the range requests of a checked span, then its
+    /// consolidation, in `node`'s slots.
     fn prove_leaf<'s>(
         &'s self,
         checked: Self::Checked,
@@ -1103,14 +1191,13 @@ trait SpanProver: Sync {
     ) -> BoxFuture<'s, Result<SpanResult>>;
 }
 
-/// A span's range and consolidation requests, collected and checked.
+/// A span with its consolidation request collected and checked.
 struct CheckedSpan {
     span: ChunkSpan,
-    /// Kept to collect the consolidation again if a batch it carries is split.
+    /// Kept to collect the range requests, and the consolidation again if a batch it carries is
+    /// split.
     synthesized: SynthesizedExecution,
     configs: ChainConfigs,
-    range_stdin: SP1Stdin,
-    range_outputs: SuperRangeOutputs,
     consolidation: CheckedConsolidation,
 }
 
@@ -1150,8 +1237,9 @@ impl SpanProver for GameAttempt<'_, '_> {
     }
 }
 
-/// Collects the range witness of `span` and checks its stdin, then collects and checks the
-/// consolidation against the stage's live batches.
+/// Checks a span of several timestamps against the range chain limit, since only a single
+/// timestamp can be split by chain, then collects and checks the consolidation against the
+/// stage's live batches.
 async fn check_span(
     attempt: &GameAttempt<'_, '_>,
     span: ChunkSpan,
@@ -1159,35 +1247,170 @@ async fn check_span(
 ) -> Result<CheckedSpan> {
     let GameAttempt { host_inputs, game, logs, settings, .. } = *attempt;
     check_log_batches(&logs.proofs)?;
-    let timestamps = synthesized.range_inputs.span;
-    let range_dir = collection_dir(settings.data_dir.as_deref())?;
-    let range_host = build_interop_host(
+    if span.is_splittable() {
+        check_range_chains(
+            synthesized.range_inputs.chain_ids.len(),
+            settings.testing_max_range_chains,
+        )?;
+    }
+    let host = build_interop_host(
         host_inputs,
         game.l1_head,
         &synthesized.previous_super_root_proof_bytes,
         synthesized.current_super_root,
-        timestamps.end,
-        preimage_store(range_dir.as_ref()).as_deref(),
+        synthesized.range_inputs.span.end,
+        None,
     )?;
     let configs =
-        deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
-    let collected = collect_range_witness(
-        range_host,
-        &synthesized.range_inputs,
-        &synthesized.preloaded_preimages,
-        Some(&configs),
-    )
-    .await;
-    remove_collection_dir(range_dir).await;
-    let (range_witness, range_outputs) = collected
-        .with_context(|| format!("range witness collection failed for span {timestamps:?}"))?;
-    let range_stdin = build_super_range_stdin(&synthesized.range_inputs, range_witness)?;
-    let range_stdin_bytes = ensure_stdin_fits("range", &range_stdin, settings.max_stdin_bytes)?;
-    tracing::info!(range_stdin_bytes, "Checked the range request");
+        deployment_chain_configs(&host, &synthesized.range_inputs.super_root_chain_ids())?;
     let consolidation =
         check_consolidation(attempt, span, &synthesized, &configs, &logs.stage.leaf_batches())
             .await?;
-    Ok(CheckedSpan { span, synthesized, configs, range_stdin, range_outputs, consolidation })
+    Ok(CheckedSpan { span, synthesized, configs, consolidation })
+}
+
+/// Proves the range of one span over some of its chains, as one request.
+trait RangeProver: Sync {
+    /// Checks, collects, and in network mode proves the range over `chains` in `node`'s slot.
+    fn prove_range_leaf<'s>(
+        &'s self,
+        chains: &'s [U256],
+        node: &'s RangeProgress,
+    ) -> BoxFuture<'s, Result<RangeResult>>;
+}
+
+/// The range requests of one checked span.
+#[derive(Clone, Copy)]
+struct SpanRange<'r> {
+    provider: &'r ProofProvider,
+    /// `None` in mock mode, which requests nothing.
+    keys: Option<&'r ProofKeys>,
+    host_inputs: &'r HostInputs,
+    l1_head: B256,
+    settings: &'r LogProofSettings,
+    span: ChunkSpan,
+    /// The chains of the span's super roots, in the order the aggregation reads them.
+    super_root_chains: &'r [U256],
+    synthesized: &'r SynthesizedExecution,
+    configs: &'r ChainConfigs,
+}
+
+impl RangeProver for SpanRange<'_> {
+    fn prove_range_leaf<'s>(
+        &'s self,
+        chains: &'s [U256],
+        node: &'s RangeProgress,
+    ) -> BoxFuture<'s, Result<RangeResult>> {
+        async move {
+            let Self {
+                provider,
+                keys,
+                host_inputs,
+                l1_head,
+                settings,
+                span,
+                super_root_chains,
+                synthesized,
+                configs,
+            } = *self;
+            check_range_shape(span, super_root_chains, chains)?;
+            check_range_chains(chains.len(), settings.testing_max_range_chains)?;
+            let inputs = range_inputs_for_chains(&synthesized.range_inputs, chains)?;
+            let dir = collection_dir(settings.data_dir.as_deref())?;
+            let host = build_interop_host(
+                host_inputs,
+                l1_head,
+                &synthesized.previous_super_root_proof_bytes,
+                synthesized.current_super_root,
+                inputs.span.end,
+                preimage_store(dir.as_ref()).as_deref(),
+            )?;
+            let collected = collect_range_witness(
+                host,
+                &inputs,
+                &synthesized.preloaded_preimages,
+                Some(configs),
+            )
+            .await;
+            remove_collection_dir(dir).await;
+            let (witness, outputs) = collected.with_context(|| {
+                format!(
+                    "range witness collection failed for span {:?} chains {chains:?}",
+                    inputs.span
+                )
+            })?;
+            let stdin = build_super_range_stdin(&inputs, witness)?;
+            let range_stdin_bytes = ensure_stdin_fits("range", &stdin, settings.max_stdin_bytes)?;
+            tracing::info!(range_stdin_bytes, chains = chains.len(), "Checked the range request");
+            let proof = match keys {
+                None => None,
+                Some(keys) => {
+                    Some(prove_range_request(provider, keys, stdin, &outputs, &node.request).await?)
+                }
+            };
+            Ok(RangeResult { outputs, proof })
+        }
+        .boxed()
+    }
+}
+
+/// Proves the range of `span` over `chains` as one request or, once a single timestamp exceeds a
+/// limit, as two chain halves recorded on `node` and proved in chain order.
+///
+/// A span of several timestamps fails with the error instead, so that [`prove_span`] bisects it:
+/// the aggregation accepts a range over some chains only for a single timestamp. A single chain
+/// over a size limit is unprovable, and one that SPN cannot execute stays terminal.
+fn prove_range<'s, P: RangeProver>(
+    prover: &'s P,
+    span: ChunkSpan,
+    chains: &'s [U256],
+    node: &'s RangeProgress,
+) -> BoxFuture<'s, Result<Vec<RangeResult>>> {
+    async move {
+        if let Some(halves) = node.split.get() {
+            return prove_range_halves(prover, span, chains, &halves).await;
+        }
+        let err = match prover.prove_range_leaf(chains, node).await {
+            Ok(result) => return Ok(vec![result]),
+            Err(err) if span.is_splittable() => return Err(err),
+            Err(err) => err,
+        };
+        match limit_outcome(&err, exceeds_limits(&err), chains.len() > 1) {
+            LimitOutcome::Fail => Err(err),
+            LimitOutcome::TooLarge => Err(too_large_to_prove(
+                format_args!("timestamp {} chain {}", span.claimed, chains[0]),
+                &err,
+            )),
+            LimitOutcome::Split => {
+                tracing::warn!(
+                    timestamp = span.claimed,
+                    chains = ?chains,
+                    split_chain = %chains[chains.len() / 2],
+                    error = %format!("{err:#}"),
+                    "Range request exceeds proving limits; splitting by chain"
+                );
+                let halves = node.split.record(|| {
+                    ProposerGauge::RangeChainSplits.increment(1.0);
+                    Default::default()
+                });
+                prove_range_halves(prover, span, chains, &halves).await
+            }
+        }
+    }
+    .boxed()
+}
+
+/// Proves the ranges of the two chain `halves` of `chains`, in chain order.
+async fn prove_range_halves<P: RangeProver>(
+    prover: &P,
+    span: ChunkSpan,
+    chains: &[U256],
+    halves: &[RangeProgress; 2],
+) -> Result<Vec<RangeResult>> {
+    let (first, second) = chains.split_at(chains.len() / 2);
+    let mut ranges = prove_range(prover, span, first, &halves[0]).await?;
+    ranges.extend(prove_range(prover, span, second, &halves[1]).await?);
+    Ok(ranges)
 }
 
 /// Collects the consolidation of `span` against `batches`, estimates it, and checks it against
@@ -1307,31 +1530,42 @@ async fn with_batch_proofs(
     Ok((consolidation, proofs))
 }
 
-/// In network mode, proves the range, then adds the covering batch proofs to the consolidation
-/// stdin (see [`with_batch_proofs`]), checks it again, and proves the consolidation. The mock
-/// provider requests nothing.
+/// Collects and checks the span's range requests, and in network mode proves them (see
+/// [`prove_range`]), then adds the covering batch proofs to the consolidation stdin (see
+/// [`with_batch_proofs`]), checks it again, and proves the consolidation. The mock provider
+/// requests nothing.
 async fn prove_checked_span(
     attempt: &GameAttempt<'_, '_>,
     checked: CheckedSpan,
     node: &ChunkProgress,
 ) -> Result<SpanResult> {
-    let GameAttempt { provider, keys, logs, settings, .. } = *attempt;
-    let CheckedSpan { span, synthesized, configs, range_stdin, range_outputs, mut consolidation } =
-        checked;
+    let GameAttempt { provider, keys, host_inputs, game, logs, settings, .. } = *attempt;
+    let CheckedSpan { span, synthesized, configs, mut consolidation } = checked;
     let keys = match (provider, keys) {
-        (ProofProvider::Mock(_), _) => {
-            return Ok(SpanResult {
-                range_outputs,
-                consolidation_outputs: consolidation.outputs,
-                proofs: None,
-            });
-        }
-        (_, Some(keys)) => keys,
+        (ProofProvider::Mock(_), _) => None,
+        (_, Some(keys)) => Some(keys),
         (_, None) => bail!("network proving requires prestate proving keys"),
     };
-    let range =
-        prove_range_request(provider, keys, range_stdin, &range_outputs, &node.range_request)
-            .await?;
+    let super_root_chains = synthesized.range_inputs.super_root_chain_ids();
+    let range = SpanRange {
+        provider,
+        keys,
+        host_inputs,
+        l1_head: game.l1_head,
+        settings,
+        span,
+        super_root_chains: &super_root_chains,
+        synthesized: &synthesized,
+        configs: &configs,
+    };
+    let ranges = prove_range(&range, span, &super_root_chains, &node.range).await?;
+    let Some(keys) = keys else {
+        return Ok(SpanResult {
+            ranges,
+            consolidation_outputs: consolidation.outputs,
+            consolidation_proof: None,
+        });
+    };
     if !consolidation.covering.is_empty() {
         let proven = logs.proofs.clone().await.map_err(|err| batch_failure(&err))?;
         let (proven_consolidation, proofs) =
@@ -1349,11 +1583,7 @@ async fn prove_checked_span(
     let proof =
         prove_consolidation_request(provider, keys, stdin, &outputs, &node.consolidation_request)
             .await?;
-    Ok(SpanResult {
-        range_outputs,
-        consolidation_outputs: outputs,
-        proofs: Some(ChildProofs { range, consolidation: proof }),
-    })
+    Ok(SpanResult { ranges, consolidation_outputs: outputs, consolidation_proof: Some(proof) })
 }
 
 /// Synthesizes the guest inputs of `span` from the game's verified responses.
@@ -1387,26 +1617,30 @@ fn is_unexecutable(err: &anyhow::Error) -> bool {
     })
 }
 
-/// True when `err` shows that a span is too large for one range + consolidation pair: a request
-/// over a size limit, an estimate over the budget, or one of the span's own requests that SPN
-/// cannot execute. A batch failure reaches a span flattened ([`batch_failure`]), so it never
-/// matches.
+/// True when `err` shows that a request is too large to prove as it is: a request over a size
+/// limit or the range chain limit, an estimate over the budget, or one of the span's own requests
+/// that SPN cannot execute. A span of several timestamps is then bisected, and the range of a
+/// single timestamp split by chain (see [`prove_range`]). A batch failure reaches a span
+/// flattened ([`batch_failure`]), so it never matches.
 ///
 /// Any `Unexecutable` counts, whatever SPN's execute-failure cause: SP1 execution is
 /// deterministic, so the same span cannot succeed on resubmission. A guest failure is bisected
-/// down to a single timestamp, at most log2(span length) extra requests.
+/// down to a single timestamp, at most log2(span length) extra requests, and then down to a
+/// single chain, at most log2(chain count) more.
 fn exceeds_limits(err: &anyhow::Error) -> bool {
     is_too_large(err) ||
         is_unexecutable(err) ||
-        err.chain().any(|cause| cause.is::<EstimateOverBudget>())
+        err.chain()
+            .any(|cause| cause.is::<EstimateOverBudget>() || cause.is::<RangeOverChainLimit>())
 }
 
-/// Proves `span` as one range + consolidation pair or, once it exceeds a limit, as two halves
-/// recorded on `node` and proved in timestamp order.
+/// Proves `span` as its range requests and one consolidation or, once it exceeds a limit, as two
+/// halves recorded on `node` and proved in timestamp order.
 ///
 /// The halves stay on `node` across scheduler retries, so a span over a limit is not collected
-/// again, and each half caches its own result. The caller caches `node`'s result. A single
-/// timestamp over a size limit is unprovable; one over its estimate is requested anyway (see
+/// again, and each half caches its own result. The caller caches `node`'s result. The range of a
+/// single timestamp over a limit is split by chain (see [`prove_range`]). A single timestamp's
+/// consolidation over a size limit is unprovable; one over its estimate is requested anyway (see
 /// [`check_collected`]); and one that SPN cannot execute stays terminal.
 fn prove_span<'s, P: SpanProver>(
     prover: &'s P,
@@ -1498,14 +1732,18 @@ async fn prove_chunk(
                     range_transition_count = chunk
                         .spans
                         .iter()
-                        .map(|span| span.range_outputs.transitions.len())
+                        .flat_map(|span| &span.ranges)
+                        .map(|range| range.outputs.transitions.len())
                         .sum::<usize>(),
                     consolidation_transition_count = chunk
                         .spans
                         .iter()
                         .map(|span| span.consolidation_outputs.transitions.len())
                         .sum::<usize>(),
-                    proofs_generated = chunk.spans.iter().all(|span| span.proofs.is_some()),
+                    proofs_generated = chunk.spans.iter().all(|span| {
+                        span.consolidation_proof.is_some() &&
+                            span.ranges.iter().all(|range| range.proof.is_some())
+                    }),
                     "Proof replay chunk completed after validating range output-root/block bindings and consolidated super-root claims"
                 ),
                 Err(error) => tracing::error!(
@@ -1898,6 +2136,8 @@ pub(crate) struct LogProofSettings {
     /// Where witness collections keep their preimage stores and log trees; `None` keeps them in
     /// memory.
     pub(crate) data_dir: Option<PathBuf>,
+    /// Testing only: most chains one range request may prove; `None` is no limit.
+    pub(crate) testing_max_range_chains: Option<NonZeroUsize>,
 }
 
 /// Inputs for one in-process game-proving attempt.
@@ -1979,7 +2219,8 @@ pub(crate) async fn prove_game_inner(
         "chunk results do not cover the game's chunks"
     );
     let spans: Vec<&SpanResult> = results.iter().flat_map(|chunk| &chunk.spans).collect();
-    let range_outputs = spans.iter().map(|span| span.range_outputs.clone()).collect();
+    let ranges: Vec<&RangeResult> = spans.iter().flat_map(|span| &span.ranges).collect();
+    let range_outputs = ranges.iter().map(|range| range.outputs.clone()).collect();
     let consolidation_outputs =
         spans.iter().map(|span| span.consolidation_outputs.clone()).collect();
 
@@ -2015,19 +2256,25 @@ pub(crate) async fn prove_game_inner(
         ProofProvider::Network(_) => {
             let keys = keys.context("network proving requires prestate proving keys")?;
             let mut stdin = SP1Stdin::new();
-            let (range_proofs, consolidation_proofs): (Vec<_>, Vec<_>) = spans
+            let range_proofs = ranges
+                .iter()
+                .enumerate()
+                .map(|(position, range)| {
+                    range
+                        .proof
+                        .as_ref()
+                        .ok_or_else(|| anyhow!("missing proof for range {position}"))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let consolidation_proofs = spans
                 .iter()
                 .enumerate()
                 .map(|(position, span)| {
-                    let proofs = span
-                        .proofs
+                    span.consolidation_proof
                         .as_ref()
-                        .ok_or_else(|| anyhow!("missing proofs for span {position}"))?;
-                    Ok((Arc::clone(&proofs.range), Arc::clone(&proofs.consolidation)))
+                        .ok_or_else(|| anyhow!("missing consolidation proof for span {position}"))
                 })
-                .collect::<Result<Vec<_>>>()?
-                .into_iter()
-                .unzip();
+                .collect::<Result<Vec<_>>>()?;
             for proof in range_proofs.into_iter().chain(consolidation_proofs) {
                 let SP1Proof::Compressed(compressed) = &proof.proof else {
                     bail!("child proof is not in compressed form");
@@ -2192,6 +2439,7 @@ mod tests {
             log_gas_limit: 1,
             max_stdin_bytes: StdinByteLimit::default(),
             data_dir: None,
+            testing_max_range_chains: None,
         }
     }
 
@@ -2374,9 +2622,12 @@ mod tests {
         ChunkResult {
             index,
             spans: vec![SpanResult {
-                range_outputs: inputs.range_outputs[index].clone(),
+                ranges: vec![RangeResult {
+                    outputs: inputs.range_outputs[index].clone(),
+                    proof: None,
+                }],
                 consolidation_outputs: inputs.consolidation_outputs[index].clone(),
-                proofs: None,
+                consolidation_proof: None,
             }],
         }
     }
@@ -2445,7 +2696,11 @@ mod tests {
         range_outputs.span = timestamps;
         let mut consolidation_outputs = inputs.consolidation_outputs[0].clone();
         consolidation_outputs.span = timestamps;
-        SpanResult { range_outputs, consolidation_outputs, proofs: None }
+        SpanResult {
+            ranges: vec![RangeResult { outputs: range_outputs, proof: None }],
+            consolidation_outputs,
+            consolidation_proof: None,
+        }
     }
 
     /// The `(agreed, claimed)` pairs of a result's spans, in order.
@@ -2453,7 +2708,10 @@ mod tests {
         result
             .spans
             .iter()
-            .map(|span| (span.range_outputs.span.start - 1, span.range_outputs.span.end))
+            .map(|span| {
+                let timestamps = span.consolidation_outputs.span;
+                (timestamps.start - 1, timestamps.end)
+            })
             .collect()
     }
 
@@ -2555,7 +2813,7 @@ mod tests {
             if span.agreed != 100 {
                 return Ok(());
             }
-            *node.range_request.lock() = RequestState::Terminal(ProofTerminalState::Unexecutable);
+            *node.range.request.lock() = RequestState::Terminal(ProofTerminalState::Unexecutable);
             Err(unexecutable())
         });
         let span = ChunkSpan { agreed: 100, claimed: 102 };
@@ -2598,6 +2856,228 @@ mod tests {
         let unexecutable = batch_failure(&unexecutable());
         assert!(!is_unprovable(&unexecutable));
         assert!(!exceeds_limits(&unexecutable));
+    }
+
+    /// Records each chain list it proves a range over, and returns its script's outcome.
+    struct ScriptedRangeProver<P> {
+        calls: Mutex<Vec<Vec<U256>>>,
+        prove: P,
+    }
+
+    impl<P> ScriptedRangeProver<P>
+    where
+        P: Fn(&[U256], &RangeProgress) -> Result<RangeResult> + Sync,
+    {
+        fn new(prove: P) -> Self {
+            Self { calls: Mutex::default(), prove }
+        }
+
+        fn calls(&self) -> Vec<Vec<U256>> {
+            self.calls.lock().clone()
+        }
+    }
+
+    impl<P> RangeProver for ScriptedRangeProver<P>
+    where
+        P: Fn(&[U256], &RangeProgress) -> Result<RangeResult> + Sync,
+    {
+        fn prove_range_leaf<'s>(
+            &'s self,
+            chains: &'s [U256],
+            node: &'s RangeProgress,
+        ) -> BoxFuture<'s, Result<RangeResult>> {
+            self.calls.lock().push(chains.to_vec());
+            let outcome = (self.prove)(chains, node);
+            async move { outcome }.boxed()
+        }
+    }
+
+    fn chain_ids(ids: &[u64]) -> Vec<U256> {
+        ids.iter().copied().map(U256::from).collect()
+    }
+
+    /// The fixture's range output at `position` (timestamp 100 or 101), over only `chains`.
+    fn fixture_range(position: usize, chains: &[U256]) -> RangeResult {
+        let mut outputs = valid_aggregation_inputs().range_outputs[position].clone();
+        outputs
+            .transitions
+            .retain(|transition| chains.contains(&transition.optimistic_block.chain_id));
+        RangeResult { outputs, proof: None }
+    }
+
+    fn over_one_chain(chains: &[U256]) -> anyhow::Error {
+        RangeOverChainLimit { chains: chains.len(), limit: 1 }.into()
+    }
+
+    /// Pins halving by chain at each refusal of a single timestamp, down to requests that fit.
+    #[tokio::test]
+    async fn single_timestamp_range_splits_by_chain_until_each_request_fits() {
+        let chains = chain_ids(&[10, 20, 30]);
+        let prover = ScriptedRangeProver::new(|chains, _| {
+            if chains.len() > 1 { Err(over_one_chain(chains)) } else { Ok(fixture_range(0, &[])) }
+        });
+        let node = RangeProgress::default();
+        let span = ChunkSpan { agreed: 100, claimed: 101 };
+
+        let ranges = prove_range(&prover, span, &chains, &node).await.unwrap();
+
+        assert_eq!(ranges.len(), 3);
+        assert_eq!(
+            prover.calls(),
+            [
+                chain_ids(&[10, 20, 30]),
+                chain_ids(&[10]),
+                chain_ids(&[20, 30]),
+                chain_ids(&[20]),
+                chain_ids(&[30])
+            ]
+        );
+        let halves = node.split.get().unwrap();
+        assert!(halves[0].split.get().is_none());
+        assert!(halves[1].split.get().is_some());
+    }
+
+    /// Pins per-chain range outputs of one timestamp, in the order they are proved, passing the
+    /// aggregation's coverage check beside a whole range of the next timestamp.
+    #[tokio::test]
+    async fn chain_split_range_outputs_pass_the_aggregation_check() {
+        let chains = chain_ids(&[10, 20]);
+        let split = ScriptedRangeProver::new(|chains, _| {
+            if chains.len() > 1 { Err(stdin_too_large()) } else { Ok(fixture_range(0, chains)) }
+        });
+        let whole = ScriptedRangeProver::new(|chains, _| Ok(fixture_range(1, chains)));
+
+        let mut ranges = prove_range(
+            &split,
+            ChunkSpan { agreed: 99, claimed: 100 },
+            &chains,
+            &RangeProgress::default(),
+        )
+        .await
+        .unwrap();
+        ranges.extend(
+            prove_range(
+                &whole,
+                ChunkSpan { agreed: 100, claimed: 101 },
+                &chains,
+                &RangeProgress::default(),
+            )
+            .await
+            .unwrap(),
+        );
+
+        let inputs = SuperAggregationInputs {
+            range_outputs: ranges.into_iter().map(|range| range.outputs).collect(),
+            ..valid_aggregation_inputs()
+        };
+        assert_eq!(inputs.range_outputs.len(), 3);
+        inputs.validate().unwrap();
+    }
+
+    /// Pins an unexecutable range of a single timestamp split by chain, with the superseded slot
+    /// ignored by preflight and metrics.
+    #[tokio::test]
+    async fn unexecutable_range_splits_by_chain_and_superseded_slot_is_ignored() {
+        let cache = InMemoryProofProgress::default();
+        let progress = cache.load_or_create(Address::repeat_byte(0x4a), game_identity());
+        let prover = ScriptedRangeProver::new(|chains, node| {
+            if chains.len() == 1 {
+                return Ok(fixture_range(0, chains));
+            }
+            *node.request.lock() = RequestState::Terminal(ProofTerminalState::Unexecutable);
+            Err(unexecutable())
+        });
+        let span = ChunkSpan { agreed: 99, claimed: 100 };
+
+        let ranges = prove_range(&prover, span, &chain_ids(&[10, 20]), &progress.chunks[0].range)
+            .await
+            .unwrap();
+
+        assert_eq!(ranges.len(), 2);
+        progress.check_terminal_requests().unwrap();
+        assert_eq!(cache.request_counts().get(&("range", "terminal")), None);
+    }
+
+    /// Pins a range of several timestamps failing unsplit, so that its span is bisected instead.
+    #[tokio::test]
+    async fn multi_timestamp_range_is_not_split_by_chain() {
+        let prover = ScriptedRangeProver::new(|_, _| Err(stdin_too_large()));
+        let node = RangeProgress::default();
+
+        let err = prove_range(&prover, SPAN, &chain_ids(&[10, 20]), &node).await.err().unwrap();
+
+        assert!(exceeds_limits(&err), "{err:#}");
+        assert!(!is_unprovable(&err));
+        assert!(node.split.get().is_none());
+        assert_eq!(prover.calls(), [chain_ids(&[10, 20])]);
+    }
+
+    /// Pins a single chain of a single timestamp over a size limit as unprovable, and one that
+    /// SPN cannot execute as terminal.
+    #[tokio::test]
+    async fn one_chain_range_over_a_limit_cannot_split() {
+        let span = ChunkSpan { agreed: 99, claimed: 100 };
+        let chains = chain_ids(&[10]);
+
+        let too_large = ScriptedRangeProver::new(|_, _| Err(stdin_too_large()));
+        let err =
+            prove_range(&too_large, span, &chains, &RangeProgress::default()).await.err().unwrap();
+        assert!(is_unprovable(&err), "{err:#}");
+        assert!(err.to_string().contains("timestamp 100 chain 10"), "{err:#}");
+
+        let unexecutable = ScriptedRangeProver::new(|_, _| Err(unexecutable()));
+        let err = prove_range(&unexecutable, span, &chains, &RangeProgress::default())
+            .await
+            .err()
+            .unwrap();
+        assert!(!is_unprovable(&err), "{err:#}");
+        assert!(err.downcast_ref::<ProofWaitError>().is_some(), "{err:#}");
+    }
+
+    /// Pins a retry that proves only the chain halves, without proving the parent again.
+    #[tokio::test]
+    async fn chain_split_retry_reuses_halves() {
+        let chains = chain_ids(&[10, 20]);
+        let span = ChunkSpan { agreed: 99, claimed: 100 };
+        let node = RangeProgress::default();
+        let failing = ScriptedRangeProver::new(|chains, _| match chains {
+            [_, _, ..] => Err(over_one_chain(chains)),
+            [chain] if *chain == U256::from(20) => Err(anyhow!("transient")),
+            _ => Ok(fixture_range(0, chains)),
+        });
+        let err = prove_range(&failing, span, &chains, &node).await.err().unwrap();
+        assert!(err.to_string().contains("transient"), "{err:#}");
+
+        let retry = ScriptedRangeProver::new(|chains, _| Ok(fixture_range(0, chains)));
+        let ranges = prove_range(&retry, span, &chains, &node).await.unwrap();
+
+        assert_eq!(ranges.len(), 2);
+        assert_eq!(retry.calls(), [chain_ids(&[10]), chain_ids(&[20])]);
+    }
+
+    /// Pins the range shapes that the aggregation accepts: a contiguous run of the super-root
+    /// chains, and some chains only over a single timestamp.
+    #[test]
+    fn range_shape_matches_the_aggregation() {
+        let super_root_chains = chain_ids(&[10, 20, 30]);
+        let one = ChunkSpan { agreed: 100, claimed: 101 };
+        let several = ChunkSpan { agreed: 100, claimed: 104 };
+        let check = |span, chains: &[u64]| {
+            check_range_shape(span, &super_root_chains, &chain_ids(chains))
+                .map_err(|err| err.to_string())
+        };
+
+        check(several, &[10, 20, 30]).unwrap();
+        check(one, &[20, 30]).unwrap();
+        for (span, chains, expected) in [
+            (one, &[10, 30][..], "not a contiguous run"),
+            (one, &[40], "not a contiguous run"),
+            (several, &[20, 30], "only a single timestamp"),
+            (one, &[], "covers no chains"),
+        ] {
+            let err = check(span, chains).unwrap_err();
+            assert!(err.contains(expected), "{chains:?}: {err}");
+        }
     }
 
     fn fulfilled_proof() -> SP1ProofWithPublicValues {
@@ -2661,20 +3141,20 @@ mod tests {
             log: &log_settings(),
         };
         let (_, progress) = plan_game_attempt(&provider, None, &request).unwrap();
-        *progress.chunks[0].range_request.lock() =
+        *progress.chunks[0].range.request.lock() =
             RequestState::Terminal(ProofTerminalState::Unexecutable);
         assert!(plan_game_attempt(&provider, None, &request).is_err());
 
         let changed_responses = vec![start, response_at(101, 0x04, 5), end];
         let request = ProveGameRequest { responses: &changed_responses, ..request };
         let (_, progress) = plan_game_attempt(&provider, None, &request).unwrap();
-        *progress.chunks[0].range_request.lock() =
+        *progress.chunks[0].range.request.lock() =
             RequestState::Terminal(ProofTerminalState::ValidationFailed);
         assert!(plan_game_attempt(&provider, None, &request).is_err());
 
         assert_eq!(cache.retry_terminal_requests(request.game_address), 1);
         let (_, progress) = plan_game_attempt(&provider, None, &request).unwrap();
-        *progress.chunks[0].range_request.lock() =
+        *progress.chunks[0].range.request.lock() =
             RequestState::Terminal(ProofTerminalState::Unexecutable);
         assert!(plan_game_attempt(&provider, None, &request).is_err());
     }
@@ -2729,10 +3209,10 @@ mod tests {
         let mut proof = fulfilled_proof();
         proof.public_values = SP1PublicValues::from(&[0x42]);
         let proof = Arc::new(proof);
-        *progress.chunks[0].range_request.lock() = RequestState::Fulfilled(proof.clone());
+        *progress.chunks[0].range.request.lock() = RequestState::Fulfilled(proof.clone());
         *progress.chunks[0].consolidation_request.lock() = RequestState::Fulfilled(proof);
         let pending_id = B256::repeat_byte(0x46);
-        *progress.chunks[1].range_request.lock() = RequestState::Submitted(pending_id);
+        *progress.chunks[1].range.request.lock() = RequestState::Submitted(pending_id);
         *progress.chunks[1].consolidation_request.lock() =
             RequestState::Terminal(ProofTerminalState::Unexecutable);
         *progress.aggregation_request.lock() =
@@ -2744,7 +3224,7 @@ mod tests {
             .await
             .unwrap();
         let reused = complete_request(
-            &progress.chunks[0].range_request,
+            &progress.chunks[0].range.request,
             async || panic!("fulfilled request was resubmitted"),
             async |_| panic!("fulfilled request was polled"),
             |_| Ok(()),
@@ -2753,7 +3233,7 @@ mod tests {
         .unwrap();
         assert_eq!(reused.public_values.as_slice(), &[0x42]);
         complete_request(
-            &progress.chunks[1].range_request,
+            &progress.chunks[1].range.request,
             async || panic!("pending request was resubmitted"),
             async |id| {
                 assert_eq!(id, pending_id);
@@ -2837,9 +3317,9 @@ mod tests {
         let progress = GameProgress::new(attempt_identity(game_for(&start, &end, 10)));
         let first_id = B256::repeat_byte(0x13);
         let second_id = B256::repeat_byte(0x14);
-        *progress.chunks[0].range_request.lock() = RequestState::Submitted(first_id);
+        *progress.chunks[0].range.request.lock() = RequestState::Submitted(first_id);
         *progress.chunks[0].consolidation_request.lock() = RequestState::Submitting;
-        *progress.chunks[1].range_request.lock() =
+        *progress.chunks[1].range.request.lock() =
             RequestState::Fulfilled(Arc::new(fulfilled_proof()));
         *progress.chunks[1].consolidation_request.lock() = RequestState::Submitted(second_id);
         *progress.aggregation_request.lock() = RequestState::Fulfilled(Arc::new(fulfilled_proof()));
@@ -2927,14 +3407,14 @@ mod tests {
         let address = Address::repeat_byte(0x48);
         let cache = InMemoryProofProgress::default();
         let progress = cache.load_or_create(address, attempt_identity(game.clone()));
-        *progress.chunks[0].range_request.lock() = RequestState::Submitted(B256::repeat_byte(0x49));
+        *progress.chunks[0].range.request.lock() = RequestState::Submitted(B256::repeat_byte(0x49));
 
         let mut changed = game;
         changed.root_claim = B256::repeat_byte(0x4a);
         let replacement = cache.load_or_create(address, attempt_identity(changed));
 
         assert!(!Arc::ptr_eq(&progress, &replacement));
-        assert!(matches!(*replacement.chunks[0].range_request.lock(), RequestState::Missing));
+        assert!(matches!(*replacement.chunks[0].range.request.lock(), RequestState::Missing));
     }
 
     #[tokio::test]
@@ -3219,7 +3699,7 @@ mod tests {
                         admitted_started.notify_one();
                         release_admitted.notified().await;
                         let result = complete_request(
-                            &progress.chunks[0].range_request,
+                            &progress.chunks[0].range.request,
                             async || Ok(B256::repeat_byte(0x49)),
                             async |proof_id| {
                                 Err(ProofWaitError::Terminal {

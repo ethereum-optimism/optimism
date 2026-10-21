@@ -69,6 +69,7 @@ async fn main() -> Result<()> {
         dependency_set_path = ?config.dependency_set_path,
         range_split_count = ?config.range_split_count,
         max_stdin_bytes = config.max_stdin_bytes.get(),
+        testing_max_range_chains = ?config.testing_max_range_chains,
         max_concurrent_range_proofs = %config.max_concurrent_range_proofs,
         max_concurrent_defense_tasks = %config.max_concurrent_defense_tasks,
         fast_finality_mode = config.fast_finality_mode,
@@ -83,6 +84,13 @@ async fn main() -> Result<()> {
             "OP_ZK_PROPOSER_LOG_PATH overrides the log path to receipts mode: games prove \
              references below a local safe head through block receipts, with no log-commitment \
              batch proofs (only for chains with interop off)"
+        );
+    }
+    if let Some(limit) = config.testing_max_range_chains {
+        tracing::warn!(
+            limit = limit.get(),
+            "OP_ZK_PROPOSER_TESTING_MAX_RANGE_CHAINS is set: testing only, every span over the \
+             limit is proved one timestamp at a time"
         );
     }
 
