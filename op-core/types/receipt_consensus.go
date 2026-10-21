@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -19,35 +20,11 @@ import (
 // The encoding reads the OUTER Receipt fields (DepositNonce,
 // DepositReceiptVersion) — they are authoritative, per the Receipt contract.
 // Receipts must be produced through this package's decoders; a wrapper
-// hand-built around a receipt whose deposit fields live only on the embedded
-// struct encodes without them.
+// hand-built around a go-ethereum receipt leaves them nil and encodes a deposit
+// receipt without them.
 type Receipts []*Receipt
 
 var _ types.DerivableList = (Receipts)(nil)
-
-// FromGethReceipt wraps a go-ethereum receipt. The receipt struct is
-// shallow-copied (reference fields like Logs still alias the source). While
-// go-ethereum resolves to op-geth, the deposit receipt fields are mirrored to
-// the authoritative outer copies so consensus encoding stays correct; those two
-// assignments stop compiling at the final cutover and are removed then.
-//
-// Use this rather than wrapping by hand: a Receipt built as &Receipt{Receipt: *r}
-// leaves the outer deposit fields nil and encodes a deposit receipt without them.
-func FromGethReceipt(r *types.Receipt) *Receipt {
-	wrapped := &Receipt{Receipt: *r}
-	wrapped.DepositNonce = r.DepositNonce
-	wrapped.DepositReceiptVersion = r.DepositReceiptVersion
-	return wrapped
-}
-
-// FromGethReceipts wraps go-ethereum receipts into Receipts, per FromGethReceipt.
-func FromGethReceipts(rs types.Receipts) Receipts {
-	out := make(Receipts, len(rs))
-	for i, r := range rs {
-		out[i] = FromGethReceipt(r)
-	}
-	return out
-}
 
 // Geth returns a view of the embedded go-ethereum receipts, for boundaries
 // that operate on standard receipt fields only. The elements alias the
@@ -144,16 +121,15 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 	}
 }
 
-// DeriveFields overrides the promoted go-ethereum method, which reads the
-// deposit nonce for contract-address derivation off the embedded receipt —
-// the shadow of the wrapper's authoritative outer field. While go-ethereum
-// resolves to op-geth, the shadows are synced before delegating; the two
-// assignments stop compiling at the final cutover and the method is rewritten
-// then.
+// DeriveFields overrides the promoted go-ethereum method so that the contract
+// address of a deposit that creates a contract derives from the authoritative
+// outer DepositNonce rather than the transaction's nonce.
 func (r *Receipt) DeriveFields(signer types.Signer, context types.DeriveReceiptContext) {
-	r.Receipt.DepositNonce = r.DepositNonce
-	r.Receipt.DepositReceiptVersion = r.DepositReceiptVersion
 	r.Receipt.DeriveFields(signer, context)
+	if context.Tx.To() == nil && r.DepositNonce != nil {
+		from, _ := types.Sender(signer, context.Tx)
+		r.ContractAddress = crypto.CreateAddress(from, *r.DepositNonce)
+	}
 }
 
 // Size overrides the promoted go-ethereum method, which measures only the
@@ -259,12 +235,6 @@ func (r *Receipt) UnmarshalBinary(b []byte) error {
 		r.Type = DepositTxType
 		r.DepositNonce = data.DepositNonce
 		r.DepositReceiptVersion = data.DepositReceiptVersion
-		// While go-ethereum resolves to op-geth, the embedded receipt carries
-		// identically-named shadow fields; keep them consistent so op-geth code
-		// reading through Geth() sees the same values. These two assignments
-		// stop compiling at the final cutover and are removed then.
-		r.Receipt.DepositNonce = data.DepositNonce
-		r.Receipt.DepositReceiptVersion = data.DepositReceiptVersion
 		r.CumulativeGasUsed, r.Bloom, r.Logs = data.CumulativeGasUsed, data.Bloom, data.Logs
 		return r.setStatus(data.PostStateOrStatus)
 	case PostExecTxType:

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 
@@ -151,30 +152,6 @@ func TestReceiptsEncodeIndexOuterFieldsAuthoritative(t *testing.T) {
 	require.NotEqual(t, mirroredBuf.Bytes(), desyncedBuf.Bytes())
 }
 
-// TestFromGethReceiptMirrorsDepositFields covers the wrapping constructor
-// against the hazard above: it carries the deposit fields to the authoritative
-// outer copies, where wrapping by hand leaves them nil.
-func TestFromGethReceiptMirrorsDepositFields(t *testing.T) {
-	gr := *consensusReceiptCases()[0] // legacy shape, mutate into a deposit
-	gr.Type = gethtypes.DepositTxType
-	gr.DepositNonce = uint64Ptr(7)
-	gr.DepositReceiptVersion = uint64Ptr(gethtypes.CanyonDepositReceiptVersion)
-
-	wrapped := optypes.FromGethReceipt(&gr)
-	require.Equal(t, gr.DepositNonce, wrapped.DepositNonce)
-	require.Equal(t, gr.DepositReceiptVersion, wrapped.DepositReceiptVersion)
-
-	var wrappedBuf, handBuiltBuf bytes.Buffer
-	optypes.Receipts{wrapped}.EncodeIndex(0, &wrappedBuf)
-	optypes.Receipts{{Receipt: gr}}.EncodeIndex(0, &handBuiltBuf)
-	require.NotEqual(t, handBuiltBuf.Bytes(), wrappedBuf.Bytes())
-
-	// The list constructor wraps identically.
-	var listBuf bytes.Buffer
-	optypes.FromGethReceipts(gethtypes.Receipts{&gr}).EncodeIndex(0, &listBuf)
-	require.Equal(t, wrappedBuf.Bytes(), listBuf.Bytes())
-}
-
 // TestReceiptUnmarshalBinaryDifferential asserts the consensus decode against
 // op-geth's MarshalBinary for every encoding arm. It will be removed in the
 // final cutover, when the op-geth dependency is replaced with upstream
@@ -278,31 +255,39 @@ func TestReceiptUnmarshalBinaryErrors(t *testing.T) {
 	require.Error(t, r.UnmarshalBinary([]byte{optypes.PostExecTxType, 0xff}))
 }
 
-// TestReceiptDeriveFieldsOuterNonce pins that contract-address derivation uses
-// the wrapper's authoritative outer DepositNonce, even when the embedded
-// shadow is unset — the promoted go-ethereum method read the shadow.
-func TestReceiptDeriveFieldsOuterNonce(t *testing.T) {
-	depositTx := gethtypes.NewTx(&gethtypes.DepositTx{
-		From:  common.HexToAddress("0x7777777777777777777777777777777777777777"),
-		To:    nil, // contract creation
-		Value: big.NewInt(0),
-		Gas:   1_000_000,
-	})
-	ctx := gethtypes.DeriveReceiptContext{
-		BlockNumber: 101,
-		BaseFee:     big.NewInt(7),
-		Tx:          depositTx,
-	}
+// TestReceiptDeriveFieldsContractAddress pins contract-address derivation: a
+// contract-creating deposit derives it from the outer DepositNonce when set
+// (Regolith), and from the transaction nonce otherwise.
+func TestReceiptDeriveFieldsContractAddress(t *testing.T) {
 	signer := gethtypes.LatestSignerForChainID(big.NewInt(10))
+	depositor := common.HexToAddress("0x7777777777777777777777777777777777777777")
+	to := common.HexToAddress("0x8888888888888888888888888888888888888888")
+	deposit := func(to *common.Address) *gethtypes.Transaction {
+		return gethtypes.NewTx(&gethtypes.DepositTx{From: depositor, To: to, Value: big.NewInt(0), Gas: 1_000_000})
+	}
+	key, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	creation, err := gethtypes.SignNewTx(key, signer, &gethtypes.LegacyTx{Nonce: 3, GasPrice: big.NewInt(7), Gas: 1_000_000})
+	require.NoError(t, err)
+	creator := crypto.PubkeyToAddress(key.PublicKey)
 
-	r := &optypes.Receipt{}
-	r.DepositNonce = uint64Ptr(7) // outer only — embedded shadow left nil
-	r.DeriveFields(signer, ctx)
-
-	want := &gethtypes.Receipt{DepositNonce: uint64Ptr(7)}
-	want.DeriveFields(signer, ctx)
-	require.Equal(t, want.ContractAddress, r.ContractAddress,
-		"contract address must derive from the outer deposit nonce")
+	for _, tc := range []struct {
+		name         string
+		tx           *gethtypes.Transaction
+		depositNonce *uint64
+		want         common.Address
+	}{
+		{name: "deposit creation", tx: deposit(nil), depositNonce: uint64Ptr(7), want: crypto.CreateAddress(depositor, 7)},
+		{name: "pre-Regolith deposit creation", tx: deposit(nil), want: crypto.CreateAddress(depositor, 0)},
+		{name: "deposit call", tx: deposit(&to), depositNonce: uint64Ptr(7)},
+		{name: "user creation", tx: creation, want: crypto.CreateAddress(creator, 3)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &optypes.Receipt{DepositNonce: tc.depositNonce}
+			r.DeriveFields(signer, gethtypes.DeriveReceiptContext{BlockNumber: 101, BaseFee: big.NewInt(7), Tx: tc.tx})
+			require.Equal(t, tc.want, r.ContractAddress)
+		})
+	}
 }
 
 // TestReceiptSizeCountsExtensions pins that Size accounts for the wrapper's

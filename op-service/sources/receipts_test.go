@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/opgeth"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -58,7 +59,7 @@ type alchemyBackend struct {
 
 func (b *alchemyBackend) GetTransactionReceipts(p blockHashParameter) (*receiptsWrapper, error) {
 	out := b.Mock.MethodCalled("alchemy_getTransactionReceipts", p.BlockHash.String())
-	return &receiptsWrapper{Receipts: optypes.FromGethReceipts(out[0].([]*types.Receipt))}, *out[1].(*error)
+	return &receiptsWrapper{Receipts: opgeth.FromGethReceipts(out[0].([]*types.Receipt))}, *out[1].(*error)
 }
 
 type debugBackend struct {
@@ -452,7 +453,7 @@ func TestVerifyReceipts(t *testing.T) {
 				TransactionIndex:  3,
 			},
 		}
-		receipts := optypes.FromGethReceipts(gethReceipts)
+		receipts := opgeth.FromGethReceipts(gethReceipts)
 		receiptsHash := types.DeriveSha(receipts, trie.NewStackTrie(nil))
 		return block, receiptsHash, txHashes, receipts
 	}

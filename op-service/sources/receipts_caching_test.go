@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/opgeth"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -33,7 +34,7 @@ func TestCachingReceiptsProvider_Caching(t *testing.T) {
 	defer done()
 
 	mrp.On("FetchReceipts", ctx, blockid, txHashes).
-		Return(optypes.FromGethReceipts(receipts), error(nil)).
+		Return(opgeth.FromGethReceipts(receipts), error(nil)).
 		Once() // receipts should be cached after first fetch
 
 	bInfo, _, _ := block.Info(true, true)
@@ -55,7 +56,7 @@ func TestCachingReceiptsProvider_Concurrency(t *testing.T) {
 	rp := NewCachingReceiptsProvider(mrp, nil, 1)
 
 	mrp.On("FetchReceipts", mock.Anything, blockid, txHashes).
-		Return(optypes.FromGethReceipts(receipts), error(nil)).
+		Return(opgeth.FromGethReceipts(receipts), error(nil)).
 		Once() // receipts should be cached after first fetch
 
 	runConcurrentFetchingTest(t, rp, 32, receipts, block)

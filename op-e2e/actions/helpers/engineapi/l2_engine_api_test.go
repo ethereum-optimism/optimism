@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/opgeth"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -191,7 +192,7 @@ func createGenesisWithIsthmusTimeOffset(forkTimeOffset uint64) *core.Genesis {
 		panic(err)
 	}
 
-	return l2Genesis.GethGenesis()
+	return opgeth.Genesis(l2Genesis)
 }
 
 type stubCachingBackend struct {

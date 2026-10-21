@@ -325,8 +325,10 @@ type GethReceiptGetter interface {
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
 }
 
-// FromGethReceipts adapts a go-ethereum receipt getter to ReceiptGetter.
-// The JSON-only OP fee fields stay nil — suitable for L1 clients.
+// FromGethReceipts adapts a go-ethereum receipt getter to ReceiptGetter, for
+// the inclusion options in this package. The OP Stack fields of the adapted
+// receipts stay nil; the inclusion options return only the embedded
+// go-ethereum receipt, which is the getter's receipt unchanged.
 func FromGethReceipts(cl GethReceiptGetter) ReceiptGetter {
 	return gethReceiptGetter{inner: cl}
 }
@@ -338,7 +340,7 @@ func (g gethReceiptGetter) TransactionReceipt(ctx context.Context, txHash common
 	if err != nil || receipt == nil {
 		return nil, err
 	}
-	return optypes.FromGethReceipt(receipt), nil
+	return &optypes.Receipt{Receipt: *receipt}, nil
 }
 
 // WithAssumedInclusion assumes inclusion at the time of evaluation,

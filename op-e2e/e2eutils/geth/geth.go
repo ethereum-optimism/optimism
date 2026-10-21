@@ -2,6 +2,7 @@ package geth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -136,8 +137,13 @@ func defaultNodeConfig(name string, jwtPath string) *node.Config {
 
 type GethOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
 
-// InitL2 inits a L2 geth node.
+// InitL2 inits a L2 geth node. The genesis must carry op-geth's OP Stack chain config, as
+// op-core/opgeth.Genesis builds it.
 func InitL2(name string, genesis *core.Genesis, jwtPath string, opts ...GethOption) (*GethInstance, error) {
+	// Without it op-geth would run the chain as an Ethereum chain.
+	if genesis.Config == nil || genesis.Config.Optimism == nil {
+		return nil, errors.New("L2 genesis config has no Optimism config: build it with op-core/opgeth.Genesis")
+	}
 	ethConfig := &ethconfig.Config{
 		NetworkId:   bigs.Uint64Strict(genesis.Config.ChainID),
 		Genesis:     genesis,

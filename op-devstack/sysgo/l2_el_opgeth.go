@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 
+	"github.com/ethereum-optimism/optimism/op-core/opgeth"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -78,7 +79,7 @@ func (n *OpGeth) Start() {
 	}
 
 	require := n.p.Require()
-	l2Geth, err := geth.InitL2(NewComponentTarget(n.name, n.l2Net.ChainID()).String(), n.l2Net.genesis.GethGenesis(), n.jwtPath,
+	l2Geth, err := geth.InitL2(NewComponentTarget(n.name, n.l2Net.ChainID()).String(), opgeth.Genesis(n.l2Net.genesis), n.jwtPath,
 		func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
 			ethCfg.InteropMessageRPC = n.supervisorRPC
 			ethCfg.InteropMempoolFiltering = true

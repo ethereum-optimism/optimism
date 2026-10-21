@@ -96,10 +96,9 @@ func requireUnsupported(t *testing.T, fork forks.Name) {
 }
 
 // TestGethChainConfig is a direct unit test of ChainConfig.GethChainConfig: it
-// asserts the OP→go-ethereum mapping — the Ethereum fork schedule derived from the
-// OP schedule (Shanghai=Canyon, Cancun=Ecotone, Prague=Isthmus, Osaka=Karst), the
-// OP fork timestamps carried through unchanged, and the OptimismConfig mapping.
-// Distinct fork times are used so a mis-wired mapping can't pass.
+// asserts the Ethereum fork schedule derived from the OP schedule (Shanghai=Canyon,
+// Cancun=Ecotone, Prague=Isthmus, Osaka=Karst) and that no OP Stack field is carried
+// over. Distinct fork times are used so a mis-wired mapping can't pass.
 func TestGethChainConfig(t *testing.T) {
 	cfg := &opparams.ChainConfig{
 		ChainID:      big.NewInt(1234),
@@ -114,7 +113,6 @@ func TestGethChainConfig(t *testing.T) {
 	geth := cfg.GethChainConfig()
 
 	require.Equal(t, cfg.ChainID, geth.ChainID)
-	require.Equal(t, cfg.BedrockBlock, geth.BedrockBlock)
 
 	// Ethereum fork schedule is derived from the OP schedule.
 	require.Equal(t, cfg.CanyonTime, geth.ShanghaiTime, "Shanghai activates with Canyon")
@@ -122,19 +120,18 @@ func TestGethChainConfig(t *testing.T) {
 	require.Equal(t, cfg.IsthmusTime, geth.PragueTime, "Prague activates with Isthmus")
 	require.Equal(t, cfg.KarstTime, geth.OsakaTime, "Osaka activates with Karst")
 
+	// op-geth's config declares the OP Stack fields too; they stay unset. Upstream
+	// go-ethereum's config has none of them.
 	gethFields := reflect.ValueOf(geth).Elem()
+	opFields := []string{"BedrockBlock", "Optimism"}
 	for _, fork := range forkstest.TimestampELForks {
-		name := forkstest.Title(fork) + "Time"
-		f := gethFields.FieldByName(name)
-		require.Truef(t, f.IsValid(), "go-ethereum ChainConfig lacks field %s", name)
-		require.Equal(t, cfg.ActivationTime(fork), f.Interface(), name)
+		opFields = append(opFields, forkstest.Title(fork)+"Time")
 	}
-
-	// OptimismConfig maps across.
-	require.NotNil(t, geth.Optimism)
-	require.Equal(t, cfg.Optimism.EIP1559Elasticity, geth.Optimism.EIP1559Elasticity)
-	require.Equal(t, cfg.Optimism.EIP1559Denominator, geth.Optimism.EIP1559Denominator)
-	require.Equal(t, cfg.Optimism.EIP1559DenominatorCanyon, geth.Optimism.EIP1559DenominatorCanyon)
+	for _, name := range opFields {
+		if f := gethFields.FieldByName(name); f.IsValid() {
+			require.Truef(t, f.IsNil(), "go-ethereum config field %s is set", name)
+		}
+	}
 
 	// Non-OP-Mainnet chains get no pre-Bedrock block overrides (base values stay 0).
 	require.Equal(t, int64(0), geth.BerlinBlock.Int64())

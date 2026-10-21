@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/opgeth"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -36,7 +37,7 @@ func (c *L2Network) L1ChainID() eth.ChainID {
 }
 
 func (c *L2Network) ChainConfig() *params.ChainConfig {
-	return c.genesis.Config.GethChainConfig()
+	return opgeth.ChainConfig(c.genesis.Config)
 }
 
 func (c *L2Network) RollupConfig() *rollup.Config {

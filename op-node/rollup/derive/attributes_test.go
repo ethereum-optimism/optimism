@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	"github.com/ethereum-optimism/optimism/op-core/opgeth"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -163,7 +164,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 
 		l2Txs := append(append(make([]eth.Data, 0), l1InfoTx), usedDepositTxs...)
 
-		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, optypes.FromGethReceipts(receipts), nil)
+		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, opgeth.FromGethReceipts(receipts), nil)
 		attrBuilder := NewFetchingAttributesBuilder(cfg, params.MergedTestChainConfig, nil, l1Fetcher, l1CfgFetcher)
 		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)
@@ -242,7 +243,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l2Txs = append(l2Txs, l1InfoTx)
 		l2Txs = append(l2Txs, userDepositTxs...)
 
-		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, optypes.FromGethReceipts(receipts), nil)
+		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, opgeth.FromGethReceipts(receipts), nil)
 		attrBuilder := NewFetchingAttributesBuilder(cfg, params.MergedTestChainConfig, depSet, l1Fetcher, l1CfgFetcher)
 		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)

@@ -12,6 +12,7 @@ import (
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-core/opgeth"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
@@ -383,11 +384,11 @@ func (m *MockEthClient) FetchReceipts(ctx context.Context, blockHash common.Hash
 	// Find the block info for this hash
 	for _, block := range m.blocksByNumber {
 		if block.Hash() == blockHash {
-			return block, optypes.FromGethReceipts(receipts), nil
+			return block, opgeth.FromGethReceipts(receipts), nil
 		}
 	}
 
-	return nil, optypes.FromGethReceipts(receipts), nil
+	return nil, opgeth.FromGethReceipts(receipts), nil
 }
 
 // Close implements EthClient.

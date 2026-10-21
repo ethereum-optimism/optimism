@@ -5,8 +5,9 @@ import (
 )
 
 // GethGenesis returns the equivalent go-ethereum core.Genesis, for committing the genesis
-// state with go-ethereum. Its Config is g.Config.GethChainConfig(). The result shares
-// memory with g.
+// state with go-ethereum. Its Config is g.Config.GethChainConfig(), which carries no OP
+// Stack fields, so go-ethereum treats it as an Ethereum chain. The result shares memory
+// with g.
 //
 // Compute the genesis block with ToBlock instead: go-ethereum's core.Genesis.ToBlock
 // doesn't apply the Isthmus withdrawals root in upstream go-ethereum.

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	coreopgeth "github.com/ethereum-optimism/optimism/op-core/opgeth"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
@@ -88,7 +89,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 	var node services.EthInstance
 	// Intentionally op-geth: this harness exercises op-geth-specific RPC and is
 	// not routed through the el selector. Revisit when op-geth is removed.
-	gethNode, err := geth.InitL2("l2", l2Genesis.GethGenesis(), cfg.JWTFilePath)
+	gethNode, err := geth.InitL2("l2", coreopgeth.Genesis(l2Genesis), cfg.JWTFilePath)
 	require.NoError(t, err)
 	require.NoError(t, gethNode.Node.Start())
 	node = gethNode
@@ -126,7 +127,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 		l2Engine:      l2Engine,
 		SystemConfig:  rollupGenesis.SystemConfig,
 		L1ChainConfig: l1Genesis.Config,
-		L2ChainConfig: l2Genesis.Config.GethChainConfig(),
+		L2ChainConfig: coreopgeth.ChainConfig(l2Genesis.Config),
 		L1Head:        eth.BlockToInfo(l1Block),
 		L2Head:        genesisPayload,
 		lgr:           logger,

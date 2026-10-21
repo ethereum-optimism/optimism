@@ -74,6 +74,9 @@ All op-geth-specific code lives in `op-core/` packages (alongside the pre-existi
 | `superchain/` + `sync-superchain.sh` | `op-core/superchain/` | embedded registry (absorbed `op-service/superutil`) |
 | `consensus/misc/eip1559/eip1559_optimism.go` | `op-core/eip1559/` | Holocene/Jovian extraData helpers |
 
+These packages build against upstream go-ethereum. The op-geth-only conversions that the
+in-process op-geth ELs still need live apart, in the transitional `op-core/opgeth` (§5).
+
 ### Design principles (apply to all future op-core additions)
 
 - **Monorepo-best, not op-geth-faithful.** Names and shapes diverge freely; only *computed
@@ -186,6 +189,13 @@ a custom JSON unmarshaler and a differential test. Complete deliberately: the e2
 suites read more fields than the one production consumer, and a partial set would silently drop
 fields at cutover — invisible while the replace still points at op-geth.
 
+The outer deposit fields (`DepositNonce`, `DepositReceiptVersion`) are authoritative: the
+consensus codecs and `DeriveFields` (a deposit's contract address) read and write only them, so
+op-geth's same-named fields on the embedded receipt stay unset after a binary decode. To wrap an
+op-geth receipt that carries them, use `op-core/opgeth.FromGethReceipt`, which copies them out;
+a hand-built `&optypes.Receipt{Receipt: *r}` leaves them nil and encodes a deposit receipt
+without them.
+
 Production consumer: `op-service/txinclude` reads the fee fields off receipts fetched via RPC.
 Its `EL.TransactionReceipt` (and `apis.EthClient` / `FetchReceipts` generally) now return
 `*optypes.Receipt` rather than `*types.Receipt` — landed with §11 (#20264). This matters because
@@ -226,9 +236,21 @@ concrete go-ethereum config converts explicitly via `GethChainConfig()` (Ethereu
 derived from the OP schedule: Shanghai=Canyon, Cancun=Ecotone, Prague=Isthmus, Osaka=Karst —
 op-geth's own loader is missing Osaka=Karst; the monorepo follows op-reth, which is correct).
 
-While the build still resolves go-ethereum to op-geth, `GethChainConfig()` also carries the OP
-fork fields and `Optimism` struct on the produced config (in-process test ELs need them). Those
-fields don't exist upstream — **shedding them is a cutover edit** (#20266).
+`GethChainConfig()` carries the Ethereum fork schedule only. Code that starts op-geth in-process
+or reads op-geth's OP fork fields off a go-ethereum config takes the config from
+`op-core/opgeth.ChainConfig` instead, which adds the OP fork fields and the `Optimism` struct.
+**The trap:** op-geth treats a config without `Optimism` as an Ethereum chain — `IsOptimism()`
+is false and no OP rule applies — and nothing fails to compile, so new code that hands an L2
+config to op-geth must get it from `op-core/opgeth`. op-e2e's `geth.InitL2`, which every
+in-process op-geth L2 EL starts through, rejects a genesis without `Optimism`.
+
+`op-core/opgeth` holds all of op-core's op-geth-only bridging: `ChainConfig`, `Genesis` (§14)
+and `FromGethReceipt(s)` (§3). It builds only against op-geth, and is deleted at the cutover
+(#20266). `TestReachability` (`op-core/opgeth/deps_test.go`) limits it to the test and devnet
+code that runs op-geth in-process — the same walk over the whole monorepo as
+`TestBundleReachability` (§7), with its own allowlist — so no non-test package of op-core or
+op-service reaches it. Test files elsewhere may import it (unit tests wrap receipts with
+`FromGethReceipts`); the walk does not cover them.
 
 **Swaps landed (#20270, closed):** `rollup.Config.ChainOpConfig` is now
 `*opparams.OptimismConfig` (JSON tags identical → wire-compatible), and
@@ -429,10 +451,13 @@ is rejected. `Genesis.ToBlock()` computes the genesis block on upstream go-ether
 `core.Genesis.ToBlock()` builds for `GethGenesis()`, with the one OP rule op-geth's genesis path
 adds — from Isthmus the header's `WithdrawalsHash` is the storage root of the
 `L2ToL1MessagePasser` predeploy (upstream `state`/`triedb`) instead of the empty hash.
-`GethGenesis()` bridges to `core.Genesis` for code that commits genesis state with go-ethereum:
-the in-process op-geth ELs of op-e2e and op-devstack (§17) and op-e2e's action-test
-`SetupData.L2Cfg`. op-devstack's `L2Network.ChainConfig()` still returns the go-ethereum config
-`GethChainConfig()` derives (§13).
+`GethGenesis()` bridges to an upstream `core.Genesis`, whose config carries the Ethereum fork
+schedule only (§5). Code that starts op-geth on the genesis — the in-process op-geth ELs of
+op-e2e and op-devstack (§17) and op-e2e's action-test `SetupData.L2Cfg` — uses
+`op-core/opgeth.Genesis`, which sets the op-geth config with the OP fields;
+`TestGenesisToBlockMatchesOpGeth` checks that op-geth computes `ToBlock()`'s block from it.
+op-devstack's `L2Network.ChainConfig()` returns `opgeth.ChainConfig` too, because tests read OP
+fork times off it (§13).
 
 `opparams.ChainConfig`'s JSON codec writes the go-ethereum config `GethChainConfig()` derives,
 embedded, with the OP fields declared directly: `encoding/json` lets a direct field dominate a
@@ -449,13 +474,12 @@ hooks to geth's infrastructure packages, and op-service foundations grew to depe
 sit under every service, so they break the whole tree at cutover, and two of them are *features*
 rather than symbols. (Found by the 2026-07 upstream-build spike; §19 keeps finding such uses.)
 
-**§15's seams are owned; what keeps most of op-service on op-geth is the `op-core/types`
-deposit edge** (see §20). `op-core/params`, `op-core/predeploys` and
-`op-service/{log,testlog,jsonrpc,client}` build against upstream go-ethereum today.
-`op-core/types` still fails where `FromGethReceipt` and the other receipt wrappers copy op-geth's
-deposit fields (`Receipt.DepositNonce`, `DepositReceiptVersion`). Those assignments are removed at
-the final cutover (#20266). Until then `op-core/types` and every package importing it, including
-`op-service/{eth,signer,metrics,rpc}`, build only against op-geth.
+**§15's seams are owned, and op-service's foundations build against upstream go-ethereum**
+(see §20): `op-core/{types,params,genesis,fees,eip1559,predeploys}`,
+`op-service/{log,testlog,jsonrpc,client,eth,rpc,metrics,txmgr,signer}`, `op-node/rollup` and
+`op-chain-ops/genesis` build against the upstream version op-geth is based on.
+`op-service/sources` also needs the `Header.BlockAccessListHash` backport, which upstream has
+from go-ethereum v1.17.7; later go-ethereum versions need the API-drift fixes of #23526.
 
 **Log context extensions** — fork adds `Logger.SetContext`, `WriteCtx`, `LogAttrs`, and the
 `Trace/…/ErrorContext` methods; `op-service/log`'s logfilter feature and `op-service/testlog`
@@ -669,14 +693,10 @@ latest" as one change.
 
 Two qualifications, because that standard is not always satisfiable today.
 
-**For a module blocked only by the §15 RPC hooks, the two halves are currently mutually
-exclusive.** Its build closure reaches `op-service/{rpc,metrics,client}`, which use the fork's RPC
-recorder, so a current monorepo pin *requires* op-geth. Such a module can run upstream
-go-ethereum on an older monorepo pin, or the latest monorepo pin on op-geth — not both, until the
-RPC hooks are re-homed. Prefer upstream geth and accept the older monorepo pin: the geth half is
-the one carrying security relevance, and the monorepo pin catches up in one bump afterwards.
-Revisit these when §15 lands. The log layer is not a blocker: `op-service/log` and
-`op-service/testlog` compile against upstream go-ethereum.
+**The monorepo caps the go-ethereum version.** Its upstream-buildable packages (§15) build
+against the upstream version op-geth is based on; a later go-ethereum needs the API-drift fixes
+of #23526 first. Until those land, a module bumps to op-geth's base version rather than to the
+latest go-ethereum.
 
 **An edge into `op-core/superchain` caps a consumer's monorepo version.** Any package reaching
 the bundle cannot be built by a downstream module at all (#22678), so a consumer that reaches it
@@ -700,12 +720,13 @@ Compiling every Go module in those repos against upstream go-ethereum with the r
   several private service modules.
 - **Decoupled now** — the replace drops with no other change. A small number of private service
   modules, mostly ones that only ever used geth's `log` package.
-- **Waiting on the final cutover** — everything else, which is most of them. Almost every
-  service imports `op-service/{rpc,metrics}` or another importer of `op-core/types`, which
-  builds against upstream only once the deposit edge goes at the final cutover (#20266):
+- **Coupled through the monorepo** — everything else, which is most of them. Almost every
+  service imports `op-service/{rpc,metrics}` or another importer of `op-core/types`:
   `infra/{op-signer,op-conductor-mon,op-ufm,peer-mgmt-service}`, `monitorism/op-monitorism`, and
-  most private service modules. A module that needs only `op-service/{log,testlog,jsonrpc,client}`
-  is unblocked on a monorepo pin that includes §15.
+  most private service modules. Those monorepo packages build against upstream go-ethereum
+  (§15), so the edge goes with a monorepo bump; what can remain is the module's own coupling
+  (below) and edges into the monorepo packages that still need op-geth, which the ratchet
+  allowlist names (§19).
 
 One case is worth generalising because it is a trap rather than a blocker. A module pinned to a
 years-old op-geth pseudo-version compiled fine with the replace dropped, and dependency scanning
@@ -735,9 +756,12 @@ waiting:
   op-devstack/sysgo's in-process op-geth L2 EL, so it rides §17. Its Rust binary has no Go geth
   dependency at all.
 
-Two things worth carrying forward. First, a downstream repo cannot "point at op-core" ahead of
-us: the op-core packages that hold the transition scaffolding (§2, §3, §5) do not compile against
-upstream by design, so a consumer needing OP types waits for the cutover regardless. Second,
+Two things worth carrying forward. First, a downstream repo can point at op-core ahead of the
+cutover: the op-core packages build against upstream go-ethereum, except `op-core/opgeth` and
+test support such as `op-core/params/opgethtest`. `op-core/opgeth` is reached only by the code
+that runs op-geth in-process (§5), so a module importing op-devstack or op-e2e stays on op-geth
+until §17 — and until op-devstack's `L2Network.ChainConfig()` stops returning an op-geth config
+(§13, #23405). Second,
 dropping op-geth does not by itself refresh transitively-pinned dependencies — some of the ones
 that matter arrive through **libp2p**, an inbound path independent of go-ethereum entirely, so
 moving to upstream geth leaves them where they were. That is the other half of why decoupling and
@@ -758,6 +782,7 @@ monorepo has to fix on their behalf.
 | OP `Receipt` (§3) | `op-core/types.Receipt` | **done** (#20262); wiring landed with §11 (#20264) |
 | L1-cost / operator-fee math (§4) | `op-core/fees` | **done** (#20261); op-batcher site landed with §11 |
 | `OptimismConfig` / standalone `ChainConfig` / `GethChainConfig` (§5) | `op-core/params` | **done** (#20260, #20270) |
+| op-geth-only bridging: chain config + genesis with OP fields, receipt wrapping (§3, §5, §14) | transitional `op-core/opgeth`, reachable only from in-process op-geth harnesses | **done** (#23525); deleted at the cutover |
 | Superchain registry + loaders (§6, §7) | `op-core/superchain` + `op-core/params` | **done** (#20267, #21487) |
 | eip1559 Holocene/Jovian helpers (§8) | `op-core/eip1559` | **done** for op-node; `EncodeOptimismExtraData`/`DecodeHoloceneExtraData` pending (§13) |
 | `PayloadID`, Engine-API types (§9, §10) | upstream / op-service | no change needed |
@@ -778,5 +803,5 @@ monorepo has to fix on their behalf.
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | `op-wheel/engine` fork-config reads (§18) | `opparams.ChainConfig` + `eth.HardforkConfig` | open (#23217) |
 | CI ratchet (§19) | required upstream type-check against a shrinking allowlist | **done** |
-| Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | a few modules unblocked; most wait for the final cutover (the `op-core/types` deposit edge) |
-| Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |
+| Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | `op-core/types` edge removed (#23525); per-module coupling remains |
+| Final cutover: flip replace, delete `op-core/opgeth`, differential tests + §2 scaffolding | go.mod | open (#20266) |

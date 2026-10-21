@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/opgeth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/reth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
@@ -50,7 +51,7 @@ func InitL2(ctx context.Context, cfg L2Config) (services.EthInstance, error) {
 		if cfg.SequencerHTTP != "" {
 			gethOptions = append(gethOptions, geth.WithSequencerHTTP(cfg.SequencerHTTP))
 		}
-		inst, err := geth.InitL2(cfg.Name, cfg.Genesis.GethGenesis(), cfg.JWTPath, gethOptions...)
+		inst, err := geth.InitL2(cfg.Name, opgeth.Genesis(cfg.Genesis), cfg.JWTPath, gethOptions...)
 		if err != nil {
 			return nil, err
 		}

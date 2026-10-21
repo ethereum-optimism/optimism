@@ -7,6 +7,7 @@ import (
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
+	"github.com/ethereum-optimism/optimism/op-core/opgeth"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
@@ -124,7 +125,7 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	_, err = geth.WaitForBlock(big.NewInt(1), l2Verif)
 	require.NoError(t, err)
 
-	config := sys.L2Genesis().Config.GethChainConfig()
+	config := opgeth.ChainConfig(sys.L2Genesis().Config)
 
 	sga := &stateGetterAdapter{
 		ctx:    context.Background(),

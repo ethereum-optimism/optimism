@@ -15,9 +15,10 @@ import (
 // types.Receipt verbatim for wire compatibility; values are hex-encoded on the
 // wire, hence the custom JSON methods.
 //
-// While the go.mod replace still points at op-geth, the embedded types.Receipt
-// carries identically-named fields. UnmarshalJSON populates both copies
-// consistently; when marshaling, the outer fields take precedence.
+// The outer fields are authoritative. Under op-geth, the embedded
+// types.Receipt declares some of the same fields: UnmarshalJSON decodes into
+// both, MarshalJSON lets the outer fields take precedence, and the consensus
+// decoders set only the outer ones.
 type Receipt struct {
 	types.Receipt
 	// DepositNonce was introduced in Regolith to store the actual nonce used by
