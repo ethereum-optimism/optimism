@@ -1,8 +1,9 @@
 //! A task for building a new block and importing it.
 use super::BuildTaskError;
 use crate::{
-    EngineClient, EngineForkchoiceVersion, EngineState, EngineTaskExt,
-    state::EngineSyncStateUpdate, task_queue::tasks::build::error::EngineBuildError,
+    BuildSealCoupling, EngineClient, EngineForkchoiceVersion, EngineState, EngineTaskError,
+    EngineTaskErrorSeverity, EngineTaskExt, state::EngineSyncStateUpdate,
+    task_queue::tasks::build::error::EngineBuildError,
 };
 use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
 use async_trait::async_trait;
@@ -34,7 +35,9 @@ pub struct BuildTask<EngineClient_: EngineClient> {
     pub attributes: OpAttributesWithParent,
     /// The optional sender through which [`PayloadId`] will be sent after the
     /// block build has been started.
-    pub payload_id_tx: Option<mpsc::Sender<PayloadId>>,
+    pub payload_id_tx: Option<mpsc::Sender<Result<PayloadId, BuildTaskError>>>,
+    /// Whether this build is atomic with derivation or detached sequencing.
+    pub coupling: BuildSealCoupling,
 }
 
 impl<EngineClient_: EngineClient> BuildTask<EngineClient_> {
@@ -88,6 +91,13 @@ impl<EngineClient_: EngineClient> BuildTask<EngineClient_> {
         engine_client: &EngineClient_,
         attributes_envelope: OpAttributesWithParent,
     ) -> Result<PayloadId, BuildTaskError> {
+        if self.coupling == BuildSealCoupling::Detached &&
+            attributes_envelope.parent.block_info.id() !=
+                state.sync_state.unsafe_head().block_info.id()
+        {
+            return Err(BuildTaskError::EngineBuildError(EngineBuildError::StaleBuild));
+        }
+
         // Sanity check if the head is behind the finalized head. If it is, this is a critical
         // error.
         if state.sync_state.unsafe_head().block_info.number <
@@ -129,7 +139,9 @@ impl<EngineClient_: EngineClient> BuildTask<EngineClient_> {
         }
         .map_err(|e| {
             error!(target: "engine_builder", "Forkchoice update failed: {}", e);
-            BuildTaskError::EngineBuildError(EngineBuildError::AttributesInsertionFailed(e))
+            BuildTaskError::EngineBuildError(EngineBuildError::AttributesInsertionFailed(Arc::new(
+                e,
+            )))
         })?;
 
         Self::validate_forkchoice_status(update.payload_status.status)?;
@@ -152,11 +164,11 @@ impl<EngineClient_: EngineClient> BuildTask<EngineClient_> {
 
 #[async_trait]
 impl<EngineClient_: EngineClient> EngineTaskExt for BuildTask<EngineClient_> {
-    type Output = PayloadId;
+    type Output = Option<PayloadId>;
 
     type Error = BuildTaskError;
 
-    async fn execute(&self, state: &mut EngineState) -> Result<PayloadId, BuildTaskError> {
+    async fn execute(&self, state: &mut EngineState) -> Result<Option<PayloadId>, BuildTaskError> {
         debug!(
             target: "engine_builder",
             txs = self.attributes.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),
@@ -167,7 +179,19 @@ impl<EngineClient_: EngineClient> EngineTaskExt for BuildTask<EngineClient_> {
         // Start the build by sending an FCU call with the current forkchoice and the input
         // payload attributes.
         let fcu_start_time = Instant::now();
-        let payload_id = self.start_build(state, &self.engine, self.attributes.clone()).await?;
+        let result = self.start_build(state, &self.engine, self.attributes.clone()).await;
+        if let Some(tx) = &self.payload_id_tx {
+            // A disconnected caller does not undo accepted work or stop the node.
+            let _ = tx.send(result.clone()).await;
+            if let Err(err) = &result {
+                // The caller retries detached builds on its timer. Reset and critical errors
+                // must also reach the engine actor, which owns recovery.
+                if err.severity() == EngineTaskErrorSeverity::Temporary {
+                    return Ok(None);
+                }
+            }
+        }
+        let payload_id = result?;
         let fcu_duration = fcu_start_time.elapsed();
 
         info!(
@@ -176,11 +200,6 @@ impl<EngineClient_: EngineClient> EngineTaskExt for BuildTask<EngineClient_> {
             "block build started"
         );
 
-        // If a channel was provided, send the payload ID to it.
-        if let Some(tx) = &self.payload_id_tx {
-            tx.send(payload_id).await.map_err(Box::new)?;
-        }
-
-        Ok(payload_id)
+        Ok(Some(payload_id))
     }
 }

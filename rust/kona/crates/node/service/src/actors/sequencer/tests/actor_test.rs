@@ -119,3 +119,37 @@ async fn building_resumes_once_the_gossip_queue_drains() {
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
 }
+
+#[tokio::test(start_paused = true)]
+async fn rejected_build_retries_on_timer_and_keeps_admin_responsive() {
+    use crate::EngineClientError;
+    use kona_engine::{BuildTaskError, EngineBuildError};
+    let mut actor = test_actor();
+    let (admin_tx, admin_rx) = mpsc::channel(1);
+    actor.admin_api_rx = admin_rx;
+    let mut engine = MockSequencerEngineClient::new();
+    engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
+    engine.expect_get_unsafe_head().returning(|| Ok(L2BlockInfo::default()));
+    engine.expect_start_build_block().times(1).return_once(|_| {
+        Err(EngineClientError::StartBuildError(BuildTaskError::EngineBuildError(
+            EngineBuildError::StaleBuild,
+        )))
+    });
+    actor.engine_client = engine;
+    let mut origin = MockOriginSelector::new();
+    origin.expect_next_l1_origin().times(1).return_once(|_, _| Ok(BlockInfo::default()));
+    actor.origin_selector = origin;
+    actor.attributes_builder = TestAttributesBuilder { attributes: vec![Ok(Default::default())] };
+    let mut gossip = MockUnsafePayloadGossipClient::new();
+    gossip.expect_has_capacity().return_const(true);
+    actor.unsafe_payload_gossip_client = gossip;
+    actor.step().await.unwrap();
+    assert!(actor.is_active);
+    // A retry is delayed, so it cannot spin while the engine is recovering.
+    assert!(time::timeout(Duration::from_millis(1), actor.step()).await.is_err());
+    let (tx, rx) = oneshot::channel();
+    admin_tx.send(SequencerAdminQuery::StopSequencer(tx)).await.unwrap();
+    actor.step().await.unwrap();
+    rx.await.unwrap().unwrap();
+    assert!(!actor.is_active);
+}

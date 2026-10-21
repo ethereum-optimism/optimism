@@ -103,7 +103,8 @@ pub struct BuildTask<EngineClient_: EngineClient> {
     pub attributes: OpAttributesWithParent,
     /// The optional sender through which the PayloadId will be sent
     /// after the block build has been started.
-    pub payload_id_tx: Option<mpsc::Sender<PayloadId>>,
+    pub payload_id_tx: Option<mpsc::Sender<Result<PayloadId, BuildTaskError>>>,
+    coupling: BuildSealCoupling,
 }
 ```
 

@@ -20,7 +20,9 @@ use crate::{
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
 use kona_derive::{AttributesBuilder, PipelineErrorKind};
-use kona_engine::{InsertTaskError, SealTaskError, SynchronizeTaskError};
+use kona_engine::{
+    EngineTaskError, EngineTaskErrorSeverity, InsertTaskError, SealTaskError, SynchronizeTaskError,
+};
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
@@ -490,6 +492,19 @@ where
                             return Err(SequencerActorError::EngineError(EngineClientError::SealError(err)));
                         }
                         self.next_payload_to_seal = None;
+                    }
+                    Err(SequencerActorError::EngineError(EngineClientError::StartBuildError(err)))
+                        if err.severity() != EngineTaskErrorSeverity::Critical => {
+                        warn!(target: "sequencer", ?err, "Build rejected; retrying on the next tick");
+                        self.next_payload_to_seal = None;
+                        self.build_ticker.reset();
+                        return Ok(());
+                    }
+                    Err(SequencerActorError::EngineError(EngineClientError::ResponseError(err))) => {
+                        warn!(target: "sequencer", ?err, "Build interrupted by engine recovery; retrying on the next tick");
+                        self.next_payload_to_seal = None;
+                        self.build_ticker.reset();
+                        return Ok(());
                     }
                     Err(other_err) => {
                         error!(target: "sequencer", err = ?other_err, "Unexpected error building or sealing payload");
