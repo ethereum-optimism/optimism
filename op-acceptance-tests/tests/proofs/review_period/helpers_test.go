@@ -74,7 +74,7 @@ func newPermissionedMinimal(t devtest.T, deployerOpts ...sysgo.DeployerOption) *
 // game type unchanged.
 func upgradeMidTest(t devtest.T, sys *presets.Minimal) {
 	before := sys.L1EL.BlockRefByLabel(eth.Unsafe).Number
-	sysgo.UpgradeOPChain(t, sys.L1EL.Escape(), sys.L2Chain.Escape(), gameTypes.PermissionedGameType)
+	sysgo.RerunOPCMUpgrade(t, sys.L1EL.Escape(), sys.L2Chain.Escape(), gameTypes.PermissionedGameType)
 	_, upgradeBlock := requireDelaysUnchangedAcrossLastUpgrade(t, sys.L1EL, sys.L2Chain.Escape().Deployment().SystemConfigProxyAddr(), "the OPCM upgrade")
 	t.Require().Greater(upgradeBlock, before, "the last upgrade is not the one this test ran")
 	sys.StandardBridge().VerifyRespectedGameType(gameTypes.PermissionedGameType)

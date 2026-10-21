@@ -1,7 +1,6 @@
 package sysgo
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"math/big"
 	"net/url"
@@ -14,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -28,8 +26,6 @@ import (
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/lmittmann/w3"
-	w3eth "github.com/lmittmann/w3/module/eth"
 )
 
 func setRespectedGameTypeForRuntime(
@@ -85,11 +81,6 @@ func setRespectedGameTypeForRuntime(
 	require.Equal(rcpt.Status, gethTypes.ReceiptStatusSuccessful, "set respected game type tx did not execute correctly")
 }
 
-var (
-	lastUsedOPCMFn      = w3.MustNewFunc("lastUsedOPCM()", "address")
-	respectedGameTypeFn = w3.MustNewFunc("respectedGameType()", "uint32")
-)
-
 // addGameTypesForRuntime uses OPCMv2.upgrade to configure dispute game types.
 // Game types in enabledGameTypes are enabled; the rest are disabled.
 func addGameTypesForRuntime(
@@ -108,54 +99,38 @@ func addGameTypesForRuntime(
 	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
 	require.NoError(err)
 	defer rpcClient.Close()
-	addGameTypes(t, keys, enabledGameTypes, l1ChainID, rpcClient, l2Net.ChainID(),
-		l2Net.deployment.SystemConfigProxyAddr(), l2Net.opcmImpl, superPermissionedGameType)
-}
-
-// UpgradeOPChain runs the same OPCMv2.upgrade as WithGameTypeAdded, but from a test after setup, with
-// the OPCM that last upgraded the chain. It lets a test create state before an upgrade and check it after.
-// Like WithGameTypeAdded, it disables the game types not in enabledGameTypes. Unlike it, it keeps the
-// chain's current respected game type.
-func UpgradeOPChain(t devtest.T, l1EL stack.L1ELNode, l2 stack.L2Network, enabledGameTypes ...gameTypes.GameType) {
-	require := t.Require()
-	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
-	require.NoError(err)
-	defer rpcClient.Close()
-	w3Client := w3.NewClient(rpcClient)
-
-	systemConfig := l2.Deployment().SystemConfigProxyAddr()
-	var opcm common.Address
-	require.NoError(w3Client.Call(w3eth.CallFunc(systemConfig, lastUsedOPCMFn).Returns(&opcm)), "failed to read the last used OPCM")
-	require.NotEqual(common.Address{}, opcm, "SystemConfig %s has no last used OPCM", systemConfig)
-	var respected uint32
-	portal := l2.RollupConfig().DepositContractAddress
-	require.NoError(w3Client.Call(w3eth.CallFunc(portal, respectedGameTypeFn).Returns(&respected)), "failed to read the respected game type")
-
-	addGameTypes(t, stackKeys{l2.Keys()}, enabledGameTypes, l2.L1().ChainID(), rpcClient, l2.ChainID(), systemConfig, opcm, respected)
-}
-
-// stackKeys adapts a network's keys, which can't fail, to devkeys.Keys.
-type stackKeys struct{ stack.Keys }
-
-func (k stackKeys) Secret(key devkeys.Key) (*ecdsa.PrivateKey, error) { return k.Keys.Secret(key), nil }
-
-func (k stackKeys) Address(key devkeys.Key) (common.Address, error) { return k.Keys.Address(key), nil }
-
-func addGameTypes(
-	t devtest.T,
-	keys devkeys.Keys,
-	enabledGameTypes []gameTypes.GameType,
-	l1ChainID eth.ChainID,
-	rpcClient *rpc.Client,
-	l2ChainID eth.ChainID,
-	systemConfig common.Address,
-	opcm common.Address,
-	respectedGameType uint32,
-) {
-	require := t.Require()
 	client := ethclient.NewClient(rpcClient)
 
 	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
+
+	extraInstructions := []embedded.ExtraInstruction{
+		{
+			Key:  "overrides.cfg.startingRespectedGameType",
+			Data: encodeStartingRespectedGameType(t, superPermissionedGameType),
+		},
+	}
+
+	// Download the contracts artifacts for the upgrade.
+	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
+	require.NoError(err, "failed to download artifacts")
+
+	configs := disputeGameConfigsForRuntime(t, keys, l2Net.ChainID(), enabledGameTypes)
+
+	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
+		Prank: l1PAO,
+		Opcm:  l2Net.opcmImpl,
+		UpgradeInputV2: &embedded.UpgradeInputV2{
+			SystemConfig:       l2Net.deployment.SystemConfigProxyAddr(),
+			DisputeGameConfigs: configs,
+			ExtraInstructions:  extraInstructions,
+		},
+	})
+}
+
+// disputeGameConfigsForRuntime returns the 6 dispute game configs OPCMv2 requires, in order. Game types in
+// enabledGameTypes are enabled; the rest are disabled.
+func disputeGameConfigsForRuntime(t devtest.T, keys devkeys.Keys, l2ChainID eth.ChainID, enabledGameTypes []gameTypes.GameType) []embedded.DisputeGameConfig {
+	require := t.Require()
 
 	// Operator roles are scoped to the OP chain, even though the game contracts use them on L1.
 	chainOps := devkeys.ChainOperatorKeys(l2ChainID.ToBig())
@@ -173,17 +148,6 @@ func addGameTypes(
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 	superCannonKonaPrestate := PrestateForGameType(t, gameTypes.SuperCannonKonaGameType)
 	dummyCannonPrestate := common.HexToHash(sharedchallenger.DummyPermissionedPrestate)
-	extraInstructions := []embedded.ExtraInstruction{
-		{
-			Key:  "overrides.cfg.startingRespectedGameType",
-			Data: encodeStartingRespectedGameType(t, respectedGameType),
-		},
-	}
-
-	// Download the contracts artifacts for the upgrade.
-	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
-	require.NoError(err, "failed to download artifacts")
-
 	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
 	if enabled[gameTypes.ZKDisputeGameType] {
 		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime()
@@ -241,16 +205,7 @@ func addGameTypes(
 			configs[i].InitBond = new(big.Int)
 		}
 	}
-
-	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
-		Prank: l1PAO,
-		Opcm:  opcm,
-		UpgradeInputV2: &embedded.UpgradeInputV2{
-			SystemConfig:       systemConfig,
-			DisputeGameConfigs: configs,
-			ExtraInstructions:  extraInstructions,
-		},
-	})
+	return configs
 }
 
 // ZKDisputeGameConfigForRuntime returns a ZKDisputeGameConfig for use in devstack/test environments.
