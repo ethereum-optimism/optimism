@@ -101,7 +101,7 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
             .ok_or_else(|| {
             error!(target: "block_engine", "Failed to receive payload for initiated block build");
             EngineClientError::ResponseError("response channel closed.".to_string())
-        })
+        })?.map_err(EngineClientError::StartBuildError)
     }
 
     async fn seal_and_canonicalize_block(

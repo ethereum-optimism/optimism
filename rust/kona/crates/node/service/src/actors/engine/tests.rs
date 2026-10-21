@@ -55,14 +55,16 @@ async fn reset_recovers_and_completes_original_request(
         .unwrap();
     let derivation = QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx };
     let (requests, request_rx) = mpsc::channel(8);
-    let (state_tx, _state_rx) = tokio::sync::watch::channel(EngineState::default());
+    let (state_tx, state_rx) = tokio::sync::watch::channel(EngineState::default());
     let (queue_tx, _queue_rx) = tokio::sync::watch::channel(0);
+    let (unsafe_tx, unsafe_rx) =
+        tokio::sync::watch::channel(kona_engine::test_utils::test_block_info(42));
     let mut actor = EngineActor::new(
         client,
         config,
         derivation,
         Engine::new(EngineState::default(), state_tx, queue_tx),
-        None,
+        Some(unsafe_tx),
         request_rx,
         Arc::new(NoopBlockSink),
     );
@@ -90,6 +92,13 @@ async fn reset_recovers_and_completes_original_request(
         Ok::<(), crate::EngineError>(())
     });
     time::timeout(Duration::from_secs(20), reply_rx.recv()).await.unwrap().unwrap().unwrap();
+    // These watches must be published before the reply even while reset-signal delivery is
+    // blocked by the full derivation queue.
+    assert_eq!(
+        unsafe_rx.borrow().block_info.hash,
+        state_rx.borrow().sync_state.unsafe_head().block_info.hash
+    );
+    assert_ne!(*unsafe_rx.borrow(), kona_engine::test_utils::test_block_info(42));
     assert!(matches!(
         derivation_rx.recv().await.unwrap(),
         DerivationActorRequest::ProcessL1HeadUpdateRequest(_)

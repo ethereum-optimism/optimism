@@ -45,10 +45,12 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
         engine.clone(),
         cfg.clone(),
         attributes.clone(),
-        None, // Build task doesn't send the payload yet
+        None,
+        BuildSealCoupling::Atomic, // Build task doesn't send the payload yet
     )
     .execute(state)
-    .await?;
+    .await?
+    .ok_or(BuildTaskError::EngineBuildError(crate::EngineBuildError::MissingPayloadId))?;
 
     // Execute the seal task with the payload ID from the build.
     SealTask::new(
