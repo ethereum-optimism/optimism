@@ -100,30 +100,30 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                     error!(target: "node::p2p", "The unsafe block receiver channel has closed");
                     return Err(NetworkActorError::ChannelClosed);
                 };
-                Ok(NetworkActorInput::UnsafeBlock(Box::new(block)))
+                Ok(NetworkActorInput::UnsafeBlock(block))
             }
             Some(signed) = self.publish_rx.recv(), if !self.publish_rx.is_closed() => {
-                Ok(NetworkActorInput::Publish(Box::new(signed)))
+                Ok(NetworkActorInput::Publish(signed))
             }
             event = self.handler.gossip.next() => {
                 let Some(event) = event else {
                     error!(target: "node::p2p", "The gossip swarm stream has ended");
                     return Err(NetworkActorError::ChannelClosed);
                 };
-                Ok(NetworkActorInput::GossipEvent(Box::new(event)))
+                Ok(NetworkActorInput::GossipEvent(event))
             }
             enr = self.handler.enr_receiver.recv() => {
                 let Some(enr) = enr else {
                     error!(target: "node::p2p", "The enr receiver channel has closed");
                     return Err(NetworkActorError::ChannelClosed);
                 };
-                Ok(NetworkActorInput::Dial(Box::new(enr)))
+                Ok(NetworkActorInput::Dial(enr))
             }
             _ = self.handler.peer_score_inspector.tick(), if self.handler.gossip.peer_monitoring.as_ref().is_some() => {
                 Ok(NetworkActorInput::InspectPeerScores)
             }
             Some(NetworkAdminQuery::PostUnsafePayload { payload }) = self.admin_query_rx.recv(), if !self.admin_query_rx.is_closed() => {
-                Ok(NetworkActorInput::PostUnsafePayload(Box::new(payload)))
+                Ok(NetworkActorInput::PostUnsafePayload(payload))
             }
             Some(req) = self.p2p_rpc_rx.recv(), if !self.p2p_rpc_rx.is_closed() => {
                 Ok(NetworkActorInput::P2pRpc(req))
@@ -134,7 +134,7 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
     async fn handle(&mut self, input: Self::Input) -> Result<(), Self::Error> {
         match input {
             NetworkActorInput::UnsafeBlock(block) => {
-                if self.engine_client.send_unsafe_block(*block).await.is_err() {
+                if self.engine_client.send_unsafe_block(block).await.is_err() {
                     warn!(target: "network", "Failed to forward unsafe block to engine");
                     return Err(NetworkActorError::ChannelClosed);
                 }
@@ -142,7 +142,7 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
             NetworkActorInput::Publish(signed) => {
                 // Published even if the signer rotated since signing: peers then reject the block,
                 // which is harmless.
-                let SignedPayload { payload, signature } = *signed;
+                let SignedPayload { payload, signature } = signed;
                 let timestamp = payload.timestamp();
                 let selector = |handler: &kona_gossip::BlockHandler| handler.topic(timestamp);
                 match self.handler.gossip.publish(selector, payload, signature) {
@@ -151,17 +151,17 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 }
             }
             NetworkActorInput::GossipEvent(event) => {
-                if let Some(payload) = self.handler.gossip.handle_event(*event) &&
+                if let Some(payload) = self.handler.gossip.handle_event(event) &&
                     self.unsafe_block_tx.send(payload).is_err()
                 {
                     warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
                 }
             }
-            NetworkActorInput::Dial(enr) => self.handler.gossip.dial(*enr),
+            NetworkActorInput::Dial(enr) => self.handler.gossip.dial(enr),
             NetworkActorInput::InspectPeerScores => self.handler.handle_peer_monitoring().await,
             NetworkActorInput::PostUnsafePayload(payload) => {
                 debug!(target: "node::p2p", "Broadcasting unsafe payload from admin api");
-                if self.unsafe_block_tx.send(*payload).is_err() {
+                if self.unsafe_block_tx.send(payload).is_err() {
                     warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
                 }
             }
@@ -177,17 +177,17 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
 #[derive(Debug)]
 pub enum NetworkActorInput {
     /// An unsafe block received over gossip, to forward to the engine.
-    UnsafeBlock(Box<OpExecutionPayloadEnvelope>),
+    UnsafeBlock(OpExecutionPayloadEnvelope),
     /// A signed unsafe block to publish over gossip.
-    Publish(Box<SignedPayload>),
+    Publish(SignedPayload),
     /// An event from the gossip swarm.
-    GossipEvent(Box<SwarmEvent<Event>>),
+    GossipEvent(SwarmEvent<Event>),
     /// A peer found by discovery, to dial.
-    Dial(Box<Enr>),
+    Dial(Enr),
     /// Time to inspect peer scores and ban peers below the threshold.
     InspectPeerScores,
     /// An unsafe payload posted through the admin API, to broadcast.
-    PostUnsafePayload(Box<OpExecutionPayloadEnvelope>),
+    PostUnsafePayload(OpExecutionPayloadEnvelope),
     /// A p2p RPC request.
     P2pRpc(P2pRpcRequest),
 }
