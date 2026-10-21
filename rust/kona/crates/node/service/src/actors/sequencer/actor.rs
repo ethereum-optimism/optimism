@@ -26,9 +26,13 @@ use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use std::{
     sync::Arc,
-    time::{Duration, Instant, UNIX_EPOCH},
+    time::{Duration, UNIX_EPOCH},
 };
-use tokio::{select, sync::mpsc, time::Interval};
+use tokio::{
+    select,
+    sync::mpsc,
+    time::{Instant, Interval},
+};
 
 /// The handle to a block that has been started but not sealed.
 #[derive(Debug)]

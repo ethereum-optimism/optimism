@@ -121,16 +121,17 @@ async fn building_resumes_once_the_gossip_queue_drains() {
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
 }
 
-/// After building a block, the next build tick waits until that block is due, rather than firing
-/// straight away.
+/// After building a block, the next build tick fires when the next block is due by the actor's
+/// clock, neither straight away nor after one block time.
 #[tokio::test(start_paused = true)]
-async fn next_block_is_not_built_before_it_is_due() {
+async fn next_block_is_built_when_it_is_due() {
     let mut actor = test_actor();
 
-    // The actor's clock starts at `TEST_START`, when the parent was built, so with a 2s block time
-    // the next block is due in exactly 2s.
+    // The actor's clock starts at `TEST_START`, and the parent was built 1s later, so with a 2s
+    // block time the next block is due in 3s. That differs from the ticker's own 2s period, so the
+    // test fails if the ticker ignores when the block is due.
     let mut unsafe_head = L2BlockInfo::default();
-    unsafe_head.block_info.timestamp = TEST_START;
+    unsafe_head.block_info.timestamp = TEST_START + 1;
 
     let mut engine = MockSequencerEngineClient::new();
     engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
@@ -155,14 +156,14 @@ async fn next_block_is_not_built_before_it_is_due() {
         .expect("the first tick did not fire")
         .expect("the first step failed");
 
-    let step = actor.step();
-    tokio::pin!(step);
-    assert!(
-        time::timeout(Duration::from_millis(500), &mut step).await.is_err(),
-        "the next tick fired before the next block was due"
-    );
-    time::timeout(Duration::from_millis(1_500), &mut step)
+    let start = time::Instant::now();
+    time::timeout(Duration::from_secs(10), actor.step())
         .await
-        .expect("the next tick did not fire once the next block was due")
+        .expect("the next tick did not fire")
         .expect("the next step failed");
+    assert_eq!(
+        start.elapsed(),
+        Duration::from_secs(3),
+        "the next tick did not fire when the next block was due"
+    );
 }
