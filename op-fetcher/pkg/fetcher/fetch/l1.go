@@ -30,8 +30,8 @@ type revertError struct{ error }
 
 func (e revertError) Is(target error) bool { return target == errExecutionReverted }
 
-// rpcL1State is an l1State served by an L1 JSON-RPC endpoint. It reads the block by hash,
-// so a reorg during a fetch fails the fetch instead of mixing two blocks.
+// rpcL1State is an l1State served by an L1 JSON-RPC endpoint. It reads every value at one
+// block hash, so a fetch never mixes state from two blocks.
 type rpcL1State struct {
 	client *ethclient.Client
 	block  common.Hash
