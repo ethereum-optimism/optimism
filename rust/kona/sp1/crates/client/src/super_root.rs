@@ -922,10 +922,8 @@ fn ensure_range_previous_super_root_coverage(
         });
     }
 
-    let super_root_chains = previous_super_root_proofs
-        .first()
-        .map(|proof| proof.super_root.output_roots.as_slice())
-        .unwrap_or_default();
+    // The count check leaves one proof per timestamp of the span, so at least one.
+    let super_root_chains = &previous_super_root_proofs[0].super_root.output_roots;
     for (offset, proof) in previous_super_root_proofs.iter().enumerate() {
         let transition_timestamp = span.start + offset as u64;
         let expected_timestamp = transition_timestamp
