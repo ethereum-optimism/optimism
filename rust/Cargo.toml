@@ -28,6 +28,8 @@ members = [
   "kona/sp1/crates/host",
   "kona/sp1/crates/super-range-executor",
   "kona/sp1/crates/proposer",
+  # Temporary home for the SPN PROVE wallet CLI.
+  "kona/sp1/crates/spn-wallet",
   "kona/sp1/crates/zkvm-canary",
 
   # Op-Alloy
@@ -514,6 +516,10 @@ sp1-sdk = { version = "6.8.1", default-features = false, features = [
   "network",
 ] }
 sp1-verifier = { version = "6.8.1", default-features = false, features = ["full"] }
+# spn-wallet talks to SPN through sp1-sdk's generated gRPC client, so these must stay on the
+# tonic/prost versions sp1-sdk compiles against.
+tonic = { version = "0.12.3", default-features = false }
+prost = { version = "0.13", default-features = false }
 
 # ==================== ASYNC ====================
 async-channel = "2.5"
