@@ -49,14 +49,15 @@ where
         .map(hash_super_root_proof)
         .collect::<Result<Vec<_>, _>>()?;
 
+    let super_root_chain_ids = inputs.super_root_chain_ids();
     let embedded_configs;
     let configs = match configs {
         Some(configs) => {
-            configs.validate(&inputs.chain_ids)?;
+            configs.validate(&super_root_chain_ids)?;
             configs
         }
         None => {
-            embedded_configs = ChainConfigs::from_registry(&inputs.chain_ids)?;
+            embedded_configs = ChainConfigs::from_registry(&super_root_chain_ids)?;
             &embedded_configs
         }
     };
@@ -942,6 +943,71 @@ mod tests {
         .unwrap();
 
         assert_eq!(actual, expected);
+    }
+
+    /// A range over one chain of a two-chain super root: the transitions cover that chain alone,
+    /// while the previous super roots, and so the dependency set the configs must match, cover
+    /// both.
+    #[test]
+    fn range_outputs_prove_one_chain_of_the_super_root() {
+        let chain_ids = [u64::MAX - 1, u64::MAX];
+        let mut oracle = PreimageStore::default();
+        let mut configs = rollup_configs(&chain_ids);
+        for config in configs.values_mut() {
+            config.block_time = 10;
+        }
+        let configs = ChainConfigs {
+            dependency_set: dependency_set(&chain_ids, None),
+            rollup_configs: configs,
+            l1_config: L1_CONFIGS[&1].clone(),
+        };
+        let mut output_roots = Vec::new();
+        let mut optimistic_blocks = Vec::new();
+        for (i, chain_id) in chain_ids.into_iter().enumerate() {
+            let header = Header { number: 3 + i as u64, timestamp: 100, ..Default::default() };
+            let block_hash = save_header(&mut oracle, &header);
+            let output_root = save_output_root(&mut oracle, block_hash);
+            output_roots.push(SuperOutputRoot { chain_id, output_root });
+            optimistic_blocks.push(SuperOptimisticBlock {
+                chain_id: U256::from(chain_id),
+                block_hash,
+                output_root,
+            });
+        }
+        let inputs = SuperRangeInputs {
+            span: TimestampSpan::new(101, 101).unwrap(),
+            l1_head: b256(0x11),
+            chain_ids: vec![U256::from(chain_ids[1])],
+            previous_super_root_proofs: vec![SuperRootProof::new(100, output_roots)],
+            claimed_transitions: vec![SuperRangeTransition {
+                timestamp: 101,
+                optimistic_block: optimistic_blocks[1],
+            }],
+        };
+        let oracle = Arc::new(oracle);
+
+        let outputs = block_on(build_range_outputs(
+            inputs.clone(),
+            oracle.clone(),
+            kona_sp1_client_utils::BlobStore::default(),
+            Some(&configs),
+        ))
+        .unwrap();
+        assert_eq!(
+            outputs.previous_super_roots,
+            vec![hash_super_root_proof(&inputs.previous_super_root_proofs[0]).unwrap()]
+        );
+        assert_eq!(outputs.transitions, inputs.claimed_transitions);
+
+        let one_chain_configs = chain_configs(&[chain_ids[1]]);
+        let err = block_on(build_range_outputs(
+            inputs,
+            oracle,
+            kona_sp1_client_utils::BlobStore::default(),
+            Some(&one_chain_configs),
+        ))
+        .unwrap_err();
+        assert!(err.to_string().contains("must exactly match"), "unexpected error: {err}");
     }
 
     #[test]

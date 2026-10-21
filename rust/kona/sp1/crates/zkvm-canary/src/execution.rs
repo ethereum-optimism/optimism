@@ -293,7 +293,10 @@ pub(crate) async fn execute_snapshot(
             );
         }
     };
-    let configs = match deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids) {
+    let configs = match deployment_chain_configs(
+        &range_host,
+        &synthesized.range_inputs.super_root_chain_ids(),
+    ) {
         Ok(configs) => configs,
         Err(error) => {
             return infrastructure_result(

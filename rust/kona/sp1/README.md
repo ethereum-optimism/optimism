@@ -18,9 +18,13 @@ zkVM programs that execute inside the SP1 prover:
   `receipts_root ‖ log_count ‖ log_root` (72 bytes per root), so that interop message checks can
   open a log without loading the block's receipts.
 - **`super-range`**: Unified super-root program for one or more chains, with modes for
-  proving ranges and span-shaped consolidation.
+  proving ranges and span-shaped consolidation. A range may cover all or some of the chains of
+  its previous super roots; consolidation covers all of them.
 - **`super-aggregation`**: Recursively verifies unified super-range proofs and
-  commits the public values consumed by `ZKDisputeGame`.
+  commits the public values consumed by `ZKDisputeGame`. Read in order, the range outputs must
+  prove every `(timestamp, chain)` of the claim once, timestamp-major and chain-minor, so a
+  timestamp may be proven by one output for every chain or by several outputs that each cover a
+  contiguous run of its chains, in chain-ID order.
 - **`tests/bls12-381-check`** (test-only): Differential check of `CustomCrypto`'s EIP-2537
   operations against revm's arkworks backend inside the zkVM; not part of `build-elfs`.
 
@@ -53,7 +57,9 @@ Supporting libraries for the SP1 fault proof system:
 
 The super-range guest reads chain configurations only from its compiled registry. Both range
 and consolidation reject chains without an embedded rollup config, L1 config, or matching
-dependency set. Custom chains must be embedded at build time using `KONA_CUSTOM_CONFIGS_DIR`.
+dependency set. Range mode matches the dependency set against the chains of its previous super
+roots, not the chains it proves, so a range over one chain still derives under the whole set.
+Custom chains must be embedded at build time using `KONA_CUSTOM_CONFIGS_DIR`.
 Custom registry inputs currently support only Mainnet, Sepolia, and Holesky as L1s;
 embedding other L1 configurations requires additional registry support.
 
