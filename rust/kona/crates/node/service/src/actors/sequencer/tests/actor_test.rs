@@ -3,7 +3,7 @@ use crate::{
     NodeActor, SequencerActorError, SequencerAdminQuery,
     actors::{
         MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
-        sequencer::tests::test_util::test_actor,
+        sequencer::tests::test_util::{TEST_START, test_actor},
     },
 };
 use alloy_rpc_types_engine::PayloadId;
@@ -127,10 +127,10 @@ async fn building_resumes_once_the_gossip_queue_drains() {
 async fn next_block_is_not_built_before_it_is_due() {
     let mut actor = test_actor();
 
-    // The test's time starts at 2000-01-01T00:00:00Z, when the parent was built, so with a 2s block
-    // time the next block is due in exactly 2s.
+    // The actor's clock starts at `TEST_START`, when the parent was built, so with a 2s block time
+    // the next block is due in exactly 2s.
     let mut unsafe_head = L2BlockInfo::default();
-    unsafe_head.block_info.timestamp = 946_684_800;
+    unsafe_head.block_info.timestamp = TEST_START;
 
     let mut engine = MockSequencerEngineClient::new();
     engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));

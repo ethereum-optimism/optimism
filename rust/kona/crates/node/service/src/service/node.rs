@@ -8,6 +8,7 @@ use crate::{
     QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
     QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
     RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig, SignedPayload, SignerActor,
+    SystemClock,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
     service::BufferImportedBlocks,
 };
@@ -413,6 +414,7 @@ impl RollupNode {
             delayed_origin_selector,
             self.config.clone(),
             queued_gossip_client,
+            Arc::new(SystemClock),
         ))
     }
 
