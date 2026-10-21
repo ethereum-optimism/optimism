@@ -147,6 +147,10 @@ where
         // Reset the engine.
         let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
 
+        if let Some(sender) = &self.unsafe_head_tx {
+            sender.send_replace(self.engine.state().sync_state.unsafe_head());
+        }
+
         // Derivation may be awaiting this reply with its inbound queue full of L1 updates.
         // Release those callers before awaiting delivery to that same queue. They transition
         // to AwaitingSignal before consuming the queued reset signal below.
