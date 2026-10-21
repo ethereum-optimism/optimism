@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -113,7 +112,7 @@ type continuationChain struct {
 	expected state.ChainState
 	dci      opcm.DeployOPChainInput
 	result   pipeline.OPChainDeploymentResult
-	captured []script.Broadcast
+	captured []broadcaster.Broadcast
 }
 
 func (r *continuationRunner) run() error {
@@ -677,7 +676,7 @@ func revalidateContinuationAnchor(
 }
 
 func validateContinuationBroadcast(
-	broadcasts []script.Broadcast,
+	broadcasts []broadcaster.Broadcast,
 	deployer common.Address,
 	pinnedOPCM common.Address,
 ) error {
@@ -685,8 +684,8 @@ func validateContinuationBroadcast(
 		return fmt.Errorf("expected exactly one deployment call, got %d broadcasts", len(broadcasts))
 	}
 	bcast := broadcasts[0]
-	if bcast.Type != script.BroadcastCall {
-		return fmt.Errorf("expected deployment broadcast type %s, got %s", script.BroadcastCall, bcast.Type)
+	if bcast.Type != broadcaster.BroadcastCall {
+		return fmt.Errorf("expected deployment broadcast type %s, got %s", broadcaster.BroadcastCall, bcast.Type)
 	}
 	if bcast.To != pinnedOPCM {
 		return fmt.Errorf("deployment broadcast target mismatch: expected %s, got %s", pinnedOPCM, bcast.To)

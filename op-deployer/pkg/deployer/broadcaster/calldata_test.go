@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -14,15 +13,15 @@ import (
 func TestCalldataBroadcaster(t *testing.T) {
 	bcast := new(CalldataBroadcaster)
 
-	bcasts := []script.Broadcast{
+	bcasts := []Broadcast{
 		{
-			Type:  script.BroadcastCall,
+			Type:  BroadcastCall,
 			To:    common.Address{'1'},
 			Input: []byte{'D', '1'},
 			Value: (*hexutil.U256)(new(uint256.Int).SetUint64(123)),
 		},
 		{
-			Type:  script.BroadcastCreate,
+			Type:  BroadcastCreate,
 			Input: []byte{'D', '2'},
 		},
 	}
