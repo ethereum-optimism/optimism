@@ -1,12 +1,12 @@
 //! JSON-RPC surface for the test engine, served over a Unix socket (reth-ipc, go-ethereum
 //! `rpc.DialIPC`-compatible) by the companion binary.
 //!
-//! Three namespaces mirror what `op-e2e/actions` drives against the in-process op-geth engine:
-//! `engine_*` (the versioned newPayload/forkchoiceUpdated/getPayload trio), `eth_*` (op-reth's own
-//! `eth_` API over the engine's chain, except that `eth_sendRawTransaction` parks transactions in a
-//! buffer and the `pending` nonce counts them), and `optest_*` — the sequencing hooks that replace
-//! the direct `L2EngineAPI` method calls (`includeTx`, `includeNextTx`, `remainingBlockGas`,
-//! `forcedEmpty`, `setForceEmpty`).
+//! Three namespaces serve what the `op-e2e/actions` harness drives: `engine_*` (the versioned
+//! newPayload/forkchoiceUpdated/getPayload trio), `eth_*` (op-reth's own `eth_` API over the
+//! engine's chain, except that `eth_sendRawTransaction` parks transactions in a buffer and the
+//! `pending` nonce counts them), and `optest_*` — the sequencing hooks that let a test choose a
+//! block's transactions (`includeTx`, `includeNextTx`, `remainingBlockGas`, `forcedEmpty`,
+//! `setForceEmpty`).
 //!
 //! The engine's methods take `&mut self`, so the module context is an `Arc<Mutex<TestEngine>>`; a
 //! poisoned lock is recovered rather than propagated so one failed request can't wedge the

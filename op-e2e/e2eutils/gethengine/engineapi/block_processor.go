@@ -30,7 +30,6 @@ type BlockDataProvider interface {
 	StateAt(root common.Hash) (*state.StateDB, error)
 	GetHeader(common.Hash, uint64) *types.Header
 	Engine() consensus.Engine
-	GetVMConfig() *vm.Config
 	Config() *params.ChainConfig
 	consensus.ChainHeaderReader
 }
@@ -93,13 +92,7 @@ func NewBlockProcessorFromHeader(provider BlockDataProvider, h *types.Header) (*
 		// Unfortunately this is not part of any Geth environment setup,
 		// we just have to apply it, like how the Geth block-builder worker does.
 		context := core.NewEVMBlockContext(header, provider, nil, provider.Config(), statedb)
-		// NOTE: Unlikely to be needed for the beacon block root, but we setup any precompile overrides anyways for forwards-compatibility
-		var precompileOverrides vm.PrecompileOverrides
-		if vmConfig := provider.GetVMConfig(); vmConfig != nil && vmConfig.PrecompileOverrides != nil {
-			precompileOverrides = vmConfig.PrecompileOverrides
-		}
-		vmenv := vm.NewEVM(context, statedb, provider.Config(), vm.Config{PrecompileOverrides: precompileOverrides})
-		return vmenv
+		return vm.NewEVM(context, statedb, provider.Config(), vm.Config{})
 	}
 	var vmenv *vm.EVM
 	if h.ParentBeaconRoot != nil {
