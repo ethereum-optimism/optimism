@@ -8,7 +8,10 @@ use crate::{OpProofStoragePruner, OpProofsStore};
 use crossbeam_channel::Receiver;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
-use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, TransactionVariant};
+use reth_provider::{
+    BlockHashReader, BlockReader, DatabaseProviderFactory, StageCheckpointReader,
+    TransactionVariant,
+};
 use std::{
     ops::ControlFlow,
     time::{Duration, Instant},
@@ -47,6 +50,7 @@ where
     Evm: ConfigureEvm,
     Provider: BlockHashReader
         + CanonicalInMemoryStateProvider
+        + StageCheckpointReader
         + DatabaseProviderFactory
         + BlockReader<Block = BlockTy<Evm::Primitives>>
         + Clone

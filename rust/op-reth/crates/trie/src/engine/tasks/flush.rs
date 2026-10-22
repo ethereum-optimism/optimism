@@ -3,7 +3,7 @@ use crate::{OpProofsStore, engine::CanonicalInMemoryStateProvider};
 use crossbeam_channel::Sender;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
-use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory};
+use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, StageCheckpointReader};
 
 pub(crate) struct FlushTask {
     pub(crate) reply: Sender<()>,
@@ -15,6 +15,7 @@ impl FlushTask {
         Evm: ConfigureEvm,
         Provider: BlockHashReader
             + CanonicalInMemoryStateProvider
+            + StageCheckpointReader
             + DatabaseProviderFactory
             + BlockReader<Block = BlockTy<Evm::Primitives>>
             + Clone
