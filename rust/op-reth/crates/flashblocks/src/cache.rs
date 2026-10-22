@@ -155,6 +155,7 @@ impl<T: SignedTransaction> RecoveredFlashblock<T> {
 ///
 /// Each flashblock's `diff` restates the in-progress block's 0x7D, superseding earlier values, so
 /// only the latest flashblock's one trails the streamed transactions.
+#[allow(clippy::question_mark)]
 fn block_transactions<T>(
     recovered_by_index: &BTreeMap<u64, RecoveredFlashblock<T>>,
 ) -> impl Iterator<Item = &WithEncoded<Recovered<T>>> {
