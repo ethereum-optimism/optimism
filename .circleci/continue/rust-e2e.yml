@@ -6,7 +6,7 @@ version: 2.1
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge; commands used
 # only by this file's jobs are defined below.
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.32
+  utils: ethereum-optimism/circleci-utils@1.0.33
 
 parameters:
   c-default_docker_image:
