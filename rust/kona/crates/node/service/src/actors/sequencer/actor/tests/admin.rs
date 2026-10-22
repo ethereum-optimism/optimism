@@ -32,7 +32,7 @@ async fn stalled_leader_check_times_out_without_blocking_queued_stop() {
         })
         .unwrap();
     let server = server.start(module);
-    let client = ConductorClient::new_http(url).with_timeout(Duration::from_millis(200));
+    let client = ConductorClient::new_http(url, Duration::from_millis(200)).unwrap();
     let (template, _) = test_actor_with_config(false, false, None);
     let (commands, rx) = mpsc::channel(2);
     let mut actor = SequencerActor::new(
@@ -69,7 +69,9 @@ async fn stalled_leader_check_times_out_without_blocking_queued_stop() {
         }
         time::timeout(Duration::from_secs(5), step).await.unwrap().unwrap();
     }
-    assert!(started.await.unwrap().unwrap_err().to_string().contains("timed out"));
+    assert!(
+        started.await.unwrap().unwrap_err().to_string().contains("sequencer leader check failed")
+    );
     assert!(!actor.admin_state_receiver().borrow().active);
     time::timeout(Duration::from_secs(5), actor.step()).await.unwrap().unwrap();
     assert_eq!(stopped.await.unwrap().unwrap(), head);
