@@ -1106,6 +1106,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
+    parallelism: << parameters.parallelism >>
     parameters:
       build_cache:
         description: >-
@@ -1114,6 +1115,13 @@ jobs:
           runs (develop); on PRs every new push misses and pays for the upload.
         type: boolean
         default: false
+      parallelism:
+        description: >-
+          Number of nodes to split the test files across. Each node compiles the
+          full project unless the forge build cache hits, so pair it with
+          build_cache and a job that warms the cache.
+        type: integer
+        default: 1
       test_list:
         description: List of test files to run
         type: string
@@ -1192,7 +1200,14 @@ jobs:
             TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
             MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
             mkdir -p results
-            forge test --match-path "$MATCH_PATH" --junit > results/results.xml
+            rc=0
+            forge test --match-path "$MATCH_PATH" --junit > results/results.xml || rc=$?
+            # Record each test's file so later runs can split by timings, including
+            # from runs with failing tests.
+            if [ -s results/results.xml ]; then
+              python3 ../../.circleci/scripts/forge-junit-add-file.py results/results.xml
+            fi
+            if [ "$rc" -ne 0 ]; then exit "$rc"; fi
             # Forge exits 0 when the filter matches nothing; fail if no tests ran.
             ./scripts/checks/check-junit-tests-ran.sh results/results.xml
           environment:
@@ -3118,6 +3133,8 @@ workflows:
           test_list: find test -name "*.t.sol"
           test_profile: ci
           build_cache: true
+          # The build above warms the forge build cache, so each node only runs tests.
+          parallelism: 2
           features: <<matrix.features>>
           matrix:
             parameters:
