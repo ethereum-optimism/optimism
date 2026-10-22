@@ -6,7 +6,7 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/circleci-runner-wolfi@sha256:cd90b8960652f763aa5e8d478e2e4e5553bbe90ff1d01940a07caf6f0a7e52a1
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/circleci-runner-wolfi@sha256:5998ffd3bc688988140e697da55cf929abf1a05f5540db1069e4744e5e313ba0
   c-base_image:
     type: string
     default: default
@@ -25,7 +25,7 @@ parameters:
     default: cimg/base:2026.03
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/circleci-runner-wolfi@sha256:cd90b8960652f763aa5e8d478e2e4e5553bbe90ff1d01940a07caf6f0a7e52a1
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/circleci-runner-wolfi@sha256:5998ffd3bc688988140e697da55cf929abf1a05f5540db1069e4744e5e313ba0
   base_image:
     type: string
     default: default
@@ -2015,6 +2015,9 @@ jobs:
         description: Docker resource class for this acceptance job
         type: string
         default: 2xlarge+.gen2
+      image:
+        description: "Docker image for this acceptance job. Must be the image that built the Rust binaries it consumes, so glibc matches."
+        type: string
       parallelism:
         description: Number of machines to distribute the tests across
         type: integer
@@ -2025,7 +2028,7 @@ jobs:
         type: string
         default: ""
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<parameters.image>>
     resource_class: <<parameters.resource_class>>
     parallelism: <<parameters.parallelism>>
     steps:
@@ -2033,12 +2036,19 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
-      - apt-install:
-          extra_flags: "--no-install-recommends"
-          packages: "eatmydata"
+      # eatmydata only speeds up fsync; it is skipped on images without apt (the Wolfi runner).
+      - run:
+          name: Install eatmydata
+          command: |
+            if command -v apt-get >/dev/null 2>&1; then
+              bash .circleci/scripts/apt-install.sh --no-install-recommends eatmydata
+            fi
       - run:
           name: Disable fsync for all subprocesses
-          command: echo 'export LD_PRELOAD=libeatmydata.so' >> "$BASH_ENV"
+          command: |
+            if [ -f /usr/lib/x86_64-linux-gnu/libeatmydata.so ]; then
+              echo 'export LD_PRELOAD=libeatmydata.so' >> "$BASH_ENV"
+            fi
       - attach_workspace:
           at: .
       - run:
@@ -2681,6 +2691,7 @@ workflows:
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests:
           name: memory-all-opn-op-reth-<<matrix.l1_fork>>
+          image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
             parameters:
               l1_fork: &acceptance_l1_forks
@@ -2704,6 +2715,7 @@ workflows:
       # IN-MEMORY - kona/op-reth
       - op-acceptance-tests:
           name: memory-all-kona-op-reth-<<matrix.l1_fork>>
+          image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
             parameters:
               l1_fork: *acceptance_l1_forks
