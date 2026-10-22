@@ -18,6 +18,7 @@ use op_alloy_rpc_types_engine::{
 ///
 /// This follows the Optimism specs that can be found at:
 /// <https://specs.optimism.io/protocol/exec-engine.html#engine-api>
+#[allow(clippy::double_must_use)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 pub trait OpEngineApi<N, T> {
