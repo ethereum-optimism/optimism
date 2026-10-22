@@ -3,6 +3,8 @@
 use crate::{OpEthApi, OpEthApiError, eth::memory_overlay::MemoryOverlayStateProvider};
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
+use reth_errors::RethError;
+use reth_evm::ConfigureEvm;
 use reth_optimism_flashblocks::PendingFlashBlock;
 use reth_primitives_traits::NodePrimitives;
 use reth_rpc_eth_api::{
@@ -10,11 +12,11 @@ use reth_rpc_eth_api::{
     helpers::{LoadPendingBlock, SpawnBlocking, pending_block::PendingEnvBuilder},
 };
 use reth_rpc_eth_types::{
-    EthApiError, PendingBlock, block::BlockAndReceipts, builder::config::PendingBlockKind,
-    error::FromEthApiError,
+    EthApiError, PendingBlock, PendingBlockEnv, PendingBlockEnvOrigin, block::BlockAndReceipts,
+    builder::config::PendingBlockKind, error::FromEthApiError,
 };
 use reth_storage_api::{
-    BlockReaderIdExt, StateProviderBox, StateProviderFactory, errors::ProviderResult,
+    BlockReader, BlockReaderIdExt, StateProviderBox, StateProviderFactory, errors::ProviderResult,
 };
 
 #[inline]
@@ -82,6 +84,51 @@ where
     #[inline]
     fn pending_block_kind(&self) -> PendingBlockKind {
         self.inner.eth_api.pending_block_kind()
+    }
+
+    /// UPSTREAM-MIRROR(override): reth@op-v2.7.0-1
+    /// `reth_rpc_eth_api::helpers::pending_block::LoadPendingBlock::pending_block_env_and_cfg`
+    ///
+    /// Uses the served flashblock as the actual pending block, so calls at `pending` run on it.
+    fn pending_block_env_and_cfg(&self) -> Result<PendingBlockEnv<Self::Evm>, Self::Error> {
+        let actual_pending = match self.current_pending_flashblock() {
+            Some(pending) => Some(pending.pending.into_block_and_receipts()),
+            None => self
+                .provider()
+                .pending_block_and_receipts()
+                .map_err(Self::Error::from_eth_err)?
+                .map(|pending| {
+                    let (block, output) = pending.into_parts();
+                    BlockAndReceipts { block, receipts: output.into() }
+                }),
+        };
+
+        if let Some(BlockAndReceipts { block, receipts }) = actual_pending {
+            let evm_env = self
+                .evm_config()
+                .evm_env(block.header())
+                .map_err(RethError::other)
+                .map_err(Self::Error::from_eth_err)?;
+
+            return Ok(PendingBlockEnv::new(
+                evm_env,
+                PendingBlockEnvOrigin::ActualPending(block, receipts),
+            ));
+        }
+
+        let latest = self
+            .provider()
+            .latest_header()
+            .map_err(Self::Error::from_eth_err)?
+            .ok_or(EthApiError::HeaderNotFound(BlockNumberOrTag::Latest.into()))?;
+
+        let evm_env = self
+            .evm_config()
+            .next_evm_env(&latest, &self.next_env_attributes(&latest)?)
+            .map_err(RethError::other)
+            .map_err(Self::Error::from_eth_err)?;
+
+        Ok(PendingBlockEnv::new(evm_env, PendingBlockEnvOrigin::DerivedFromLatest(latest)))
     }
 
     /// UPSTREAM-MIRROR(override): reth@op-v2.7.0-1
@@ -237,5 +284,219 @@ mod tests {
         }
         assert_eq!(state.storage(account(1), B256::from(slot)).unwrap(), Some(value));
         assert_eq!(state.basic_account(&destroyed).unwrap(), None, "destroyed account");
+    }
+
+    mod pending_call {
+        use crate::{
+            OpEthApi,
+            eth::{receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
+        };
+        use alloy_consensus::{Block, Header};
+        use alloy_eips::BlockId;
+        use alloy_genesis::{Genesis, GenesisAccount};
+        use alloy_primitives::{Address, B256, Bytes, U256, address, bytes};
+        use alloy_rpc_types_eth::{TransactionRequest, state::EvmOverrides};
+        use op_alloy_network::Optimism;
+        use reth_chain_state::ExecutedBlock;
+        use reth_chainspec::{Chain, ChainSpecProvider};
+        use reth_db::{DatabaseEnv, test_utils::TempDatabase};
+        use reth_db_common::init::init_genesis;
+        use reth_execution_types::BlockExecutionOutput;
+        use reth_network_api::noop::NoopNetwork;
+        use reth_node_api::{AnyNodeTypes, NodeTypesWithDBAdapter};
+        use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
+        use reth_optimism_evm::{OpEvmConfig, tx::OpTxEnvConverter};
+        use reth_optimism_flashblocks::{FlashblocksListeners, PendingFlashBlock};
+        use reth_optimism_payload_builder::OpPayloadTypes;
+        use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
+        use reth_optimism_txpool::OpPooledTransaction;
+        use reth_primitives_traits::{RecoveredBlock, SealedBlock, SealedHeader};
+        use reth_provider::{
+            providers::BlockchainProvider, test_utils::create_test_provider_factory_with_node_types,
+        };
+        use reth_rpc::EthApiBuilder;
+        use reth_rpc_eth_api::{RpcConverter, helpers::EthCall, node::RpcNodeCoreAdapter};
+        use reth_rpc_eth_types::PendingBlock;
+        use reth_storage_api::{BlockReaderIdExt, EmptyBodyStorage};
+        use reth_transaction_pool::noop::NoopTransactionPool;
+        use reth_trie::{ComputedTrieData, HashedPostState, KeccakKeyHasher};
+        use revm::{database::BundleState, state::AccountInfo};
+        use std::{sync::Arc, time::Instant};
+        use tokio::sync::{broadcast, watch};
+
+        const TARGET: Address = address!("0x00000000000000000000000000000000000000bb");
+        /// Returns `BALANCE(TARGET)`, `TIMESTAMP`, `NUMBER` and `PREVRANDAO`.
+        const ENV_PROBE: Address = address!("0x00000000000000000000000000000000000000cc");
+        const ENV_PROBE_CODE: Bytes = bytes!(
+            "7300000000000000000000000000000000000000bb3160005242602052436040524460605260806000f3"
+        );
+        /// Reverts unless `BALANCE(TARGET) == 2`.
+        const BALANCE_GUARD: Address = address!("0x00000000000000000000000000000000000000dd");
+        const BALANCE_GUARD_CODE: Bytes =
+            bytes!("7300000000000000000000000000000000000000bb31600214602057600080fd5b00");
+
+        type TestNode = AnyNodeTypes<
+            OpPrimitives,
+            OpChainSpec,
+            EmptyBodyStorage<OpTransactionSigned, Header>,
+            OpPayloadTypes,
+        >;
+        // Database-backed: the pending state opens through `state_with_block_appended`, which
+        // `MockEthProvider` does not support.
+        type Provider =
+            BlockchainProvider<NodeTypesWithDBAdapter<TestNode, Arc<TempDatabase<DatabaseEnv>>>>;
+        type TestEthApi = OpEthApi<
+            RpcNodeCoreAdapter<
+                Provider,
+                NoopTransactionPool<OpPooledTransaction>,
+                NoopNetwork,
+                OpEvmConfig,
+            >,
+            RpcConverter<
+                Optimism,
+                OpEvmConfig,
+                OpReceiptConverter<Provider>,
+                (),
+                OpTxInfoMapper<Provider>,
+                (),
+                (),
+                OpTxEnvConverter,
+            >,
+        >;
+
+        fn provider() -> Provider {
+            let genesis = Genesis::default().with_gas_limit(30_000_000).extend_accounts([
+                (TARGET, GenesisAccount::default().with_balance(U256::from(1))),
+                (ENV_PROBE, GenesisAccount::default().with_code(Some(ENV_PROBE_CODE))),
+                (BALANCE_GUARD, GenesisAccount::default().with_code(Some(BALANCE_GUARD_CODE))),
+            ]);
+            let chain_spec = OpChainSpecBuilder::default()
+                .chain(Chain::dev())
+                .genesis(genesis)
+                .regolith_activated()
+                .build();
+            let factory =
+                create_test_provider_factory_with_node_types::<TestNode>(Arc::new(chain_spec));
+            init_genesis(&factory).unwrap();
+            BlockchainProvider::new(factory).unwrap()
+        }
+
+        /// A flashblock on `latest` that raises the balance of [`TARGET`] to 2.
+        fn pending_flashblock(latest: &SealedHeader) -> PendingFlashBlock<OpPrimitives> {
+            let header = Header {
+                parent_hash: latest.hash(),
+                number: latest.number + 1,
+                timestamp: latest.timestamp + 2,
+                mix_hash: B256::repeat_byte(0x55),
+                gas_limit: latest.gas_limit,
+                base_fee_per_gas: latest.base_fee_per_gas,
+                ..Default::default()
+            };
+            let state = BundleState::builder(header.number..=header.number)
+                .state_original_account_info(
+                    TARGET,
+                    AccountInfo { balance: U256::from(1), ..Default::default() },
+                )
+                .state_present_account_info(
+                    TARGET,
+                    AccountInfo { balance: U256::from(2), ..Default::default() },
+                )
+                .build();
+            let hashed_state = HashedPostState::from_bundle_state::<KeccakKeyHasher>(state.state());
+            let executed = ExecutedBlock::<OpPrimitives>::new(
+                Arc::new(RecoveredBlock::new_sealed(
+                    SealedBlock::seal_slow(Block::new(header, Default::default())),
+                    Vec::new(),
+                )),
+                Arc::new(BlockExecutionOutput { state, ..Default::default() }),
+                ComputedTrieData::new(Arc::new(hashed_state.into_sorted()), Arc::default()),
+            );
+
+            PendingFlashBlock::new(
+                PendingBlock::with_executed_block(Instant::now(), executed),
+                latest.hash(),
+                0,
+                B256::ZERO,
+                false,
+            )
+        }
+
+        fn eth_api(
+            provider: Provider,
+            pending: Option<PendingFlashBlock<OpPrimitives>>,
+        ) -> TestEthApi {
+            let flashblocks = pending.map(|pending| {
+                FlashblocksListeners::new(
+                    watch::channel(Some(pending)).1,
+                    broadcast::channel(1).0,
+                    watch::channel(None).1,
+                    broadcast::channel(1).0,
+                )
+            });
+            let converter = RpcConverter::new(OpReceiptConverter::new(provider.clone()))
+                .with_mapper(OpTxInfoMapper::new(provider.clone()))
+                .with_tx_env_converter(OpTxEnvConverter);
+            let evm_config = OpEvmConfig::optimism(provider.chain_spec());
+            let eth_api = EthApiBuilder::new(
+                provider,
+                NoopTransactionPool::new(),
+                NoopNetwork::default(),
+                evm_config,
+            )
+            .with_rpc_converter(converter)
+            .build_inner();
+
+            OpEthApi::new(eth_api, None, U256::ZERO, flashblocks, false)
+        }
+
+        async fn probe_pending(eth_api: &TestEthApi) -> [U256; 4] {
+            let out = EthCall::call(
+                eth_api,
+                TransactionRequest::default().to(ENV_PROBE).into(),
+                Some(BlockId::pending()),
+                EvmOverrides::default(),
+            )
+            .await
+            .unwrap();
+            std::array::from_fn(|i| U256::from_be_slice(&out[i * 32..(i + 1) * 32]))
+        }
+
+        #[tokio::test]
+        async fn calls_at_pending_run_on_the_pending_flashblock() {
+            let provider = provider();
+            let latest = provider.latest_header().unwrap().unwrap();
+            let pending = pending_flashblock(&latest);
+            let header = pending.block().clone_sealed_header();
+            let eth_api = eth_api(provider, Some(pending));
+
+            assert_eq!(
+                probe_pending(&eth_api).await,
+                [
+                    U256::from(2),
+                    U256::from(header.timestamp),
+                    U256::from(header.number),
+                    U256::from_be_bytes(header.mix_hash.0),
+                ]
+            );
+            EthCall::estimate_gas_at(
+                &eth_api,
+                TransactionRequest::default().to(BALANCE_GUARD).into(),
+                BlockId::pending(),
+                EvmOverrides::default(),
+            )
+            .await
+            .unwrap();
+        }
+
+        #[tokio::test]
+        async fn calls_at_pending_without_flashblocks_run_on_latest() {
+            let provider = provider();
+            let latest = provider.latest_header().unwrap().unwrap();
+            let eth_api = eth_api(provider, None);
+
+            let [balance, _, number, _] = probe_pending(&eth_api).await;
+            assert_eq!(balance, U256::from(1));
+            assert_eq!(number, U256::from(latest.number + 1));
+        }
     }
 }
