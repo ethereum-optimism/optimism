@@ -1,4 +1,4 @@
-#![allow(missing_docs)]
+#![allow(missing_docs, clippy::double_must_use)]
 
 //! Various `jsonrpsee` docs
 
@@ -7,7 +7,6 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// The admin namespace endpoints
 /// https://github.com/ethereum-optimism/optimism/blob/c7ad0ebae5dca3bf8aa6f219367a95c15a15ae41/op-node/node/api.go#L28-L36
-#[allow(clippy::double_must_use)]
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "admin"))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "admin"))]
 pub trait OpAdminApi {
@@ -25,7 +24,6 @@ pub trait OpAdminApi {
 }
 
 /// Op API extension for controlling the miner.
-#[allow(clippy::double_must_use)]
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "miner"))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "miner"))]
 pub trait MinerApiExt {
