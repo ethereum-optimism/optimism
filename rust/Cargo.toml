@@ -651,6 +651,7 @@ zstd = "0.13"
 discv5 = "0.12.0"
 ipnet = "2.11.0"
 libp2p = "0.57.0"
+hickory-resolver = { version = "0.26.3", default-features = false, features = ["system-config"] }
 libp2p-stream = "0.5.0-alpha"
 libp2p-identity = "0.3.0"
 openssl = "0.10.75"
