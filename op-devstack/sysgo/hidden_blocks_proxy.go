@@ -27,6 +27,7 @@ type HiddenBlocks struct {
 	hashes map[common.Hash]struct{}
 
 	forwarded atomic.Int64
+	refused   atomic.Int64
 }
 
 func NewHiddenBlocks() *HiddenBlocks {
@@ -45,6 +46,12 @@ func (h *HiddenBlocks) Hide(hash common.Hash) {
 // proxies, so a mis-wired option cannot pass vacuously.
 func (h *HiddenBlocks) ForwardedRequests() int64 {
 	return h.forwarded.Load()
+}
+
+// RefusedRequests returns the number of requests the proxies refused because
+// they named a hidden block.
+func (h *HiddenBlocks) RefusedRequests() int64 {
+	return h.refused.Load()
 }
 
 // ZKProposerOption interposes a proxy in front of every L2 EL endpoint given to
@@ -123,6 +130,7 @@ func (h *HiddenBlocks) relay(ctx context.Context, logger log.Logger, w http.Resp
 		}
 		requests, batch := parseHiddenBlockRPCBody(msg)
 		if hash, hidden := h.hiddenHash(requests); hidden {
+			h.refused.Add(1)
 			logger.Info("Refusing a request for a hidden block", "hash", hash)
 			if client.Write(ctx, websocket.MessageText, hiddenBlockErrors(requests, batch, hash)) != nil {
 				return

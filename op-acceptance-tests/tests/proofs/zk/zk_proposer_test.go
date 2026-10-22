@@ -314,6 +314,10 @@ func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
 		presets.WithZKProposerOption(sysgo.WithZKFastFinality()),
 		presets.WithZKProposerOption(sysgo.WithZKMetrics()),
 		presets.WithZKProposerOption(hidden.ZKProposerOption()),
+		// One timestamp per chunk for games under 128 timestamps, so the denied
+		// timestamp is both one chunk's claim and another's agreed pre-state, at
+		// which the supernode reports the denied block, not the replacement.
+		presets.WithZKProposerOption(sysgo.WithZKRangeSplitCount(128)),
 		// WithZK pins Jovian at genesis; executing messages need Lagoon.
 		presets.WithDeployerOptions(sysgo.WithInteropAtGenesis()),
 	)
@@ -354,8 +358,13 @@ func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
 	for game.L2SequenceNumber() < execTimestamp {
 		game = factory.WaitForZKGameAtIndex(int64(game.FactoryIndex() + 1))
 	}
-
 	game.WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
+	if game.L2SequenceNumber() == execTimestamp {
+		// The game ends at the denied timestamp, so the next one agrees on it.
+		game = factory.WaitForZKGameAtIndex(int64(game.FactoryIndex() + 1))
+		game.WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
+	}
+
 	// One batch means the scan read the denied block's message to chain A's block;
 	// no failure means no attempt stopped on the denied block or a missed reference.
 	proposer.VerifyState(
@@ -363,6 +372,7 @@ func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
 		zkproposer.ProvingFailures(0),
 	)
 	t.Require().Positive(hidden.ForwardedRequests(), "the proposer must read the L2 ELs through the hiding proxies")
+	t.Require().Zero(hidden.RefusedRequests(), "the proposer must not ask the L2 ELs for the denied block")
 }
 
 // TestProposerBisectsSpanOverBudget proves a game whose chunks are each at least

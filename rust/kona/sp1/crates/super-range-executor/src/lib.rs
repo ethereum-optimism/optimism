@@ -229,7 +229,12 @@ pub struct SynthesizedExecution {
     /// Typed inputs for the SP1 guest's consolidation mode.
     pub consolidation_inputs: SuperConsolidationInputs,
     /// Preimages that must be available before host hinting can discover the rest of the witness.
+    /// It lacks those of `replaced_agreed_outputs`, which [`replaced_agreed_output_preimages`]
+    /// reads.
     pub preloaded_preimages: Vec<(PreimageKey, Vec<u8>)>,
+    /// The agreed outputs that the pre-span super root replaced. The supernode reports the denied
+    /// block as optimistic at that timestamp, so the response holds no preimage of these.
+    pub replaced_agreed_outputs: Vec<SuperOutputRoot>,
     /// The span-end super-root hash, used as the host post-state claim.
     pub current_super_root: B256,
     /// The pre-span super-root proof, encoded as the host agreed pre-state.
@@ -284,6 +289,11 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     let configs =
         deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
     let mut preloaded_preimages = synthesized.preloaded_preimages.clone();
+    preloaded_preimages.extend(
+        replaced_agreed_output_preimages(range_host.clone(), &synthesized.replaced_agreed_outputs)
+            .await
+            .context("failed to read the replaced agreed outputs")?,
+    );
     if !config.native_core {
         // Test guests consume Local config keys; production guests ignore these preimages.
         for (key, bytes) in [
@@ -595,6 +605,7 @@ pub fn synthesize_execution(
     }
 
     let previous_label = format!("timestamp {first_timestamp}");
+    let mut replaced_agreed_outputs = Vec::new();
     for &chain_id in &chain_ids {
         let previous_output = output_entry(&responses[0], chain_id, &previous_label)?;
         ensure_required_l1_within_head(previous_output.required_l1, l1_head_number, chain_id)?;
@@ -607,11 +618,12 @@ pub fn synthesize_execution(
             .find(|root| root.chain_id == chain_id)
             .map(|root| root.output_root)
             .ok_or_else(|| anyhow!("previous proof missing chain {chain_id}"))?;
-        ensure!(
-            previous_root == proof_root,
-            "previous optimistic output root {previous_root} for chain {chain_id} does not match previous super-root proof output {proof_root}",
-        );
-        preloaded_preimages.push((PreimageKey::new_keccak256(*previous_root), previous_preimage));
+        if previous_root == proof_root {
+            preloaded_preimages
+                .push((PreimageKey::new_keccak256(*previous_root), previous_preimage));
+        } else {
+            replaced_agreed_outputs.push(SuperOutputRoot { chain_id, output_root: proof_root });
+        }
     }
 
     let range_inputs = SuperRangeInputs {
@@ -640,6 +652,7 @@ pub fn synthesize_execution(
         range_inputs,
         consolidation_inputs,
         preloaded_preimages,
+        replaced_agreed_outputs,
         current_super_root: super_roots[timestamp_count],
         previous_super_root_proof_bytes: encode_super_root_proof(&proofs[0])?,
     })
@@ -1068,6 +1081,37 @@ pub async fn optimistic_block_receipts(
     })
     .await?;
     Ok(block)
+}
+
+/// The output-root preimages of `outputs`, the agreed outputs that the pre-span super root
+/// replaced (see [`SynthesizedExecution::replaced_agreed_outputs`]), read through `host` with
+/// kona-host's `L2OutputRoot` hint. The hint computes the output of the L2 node's canonical block
+/// at the timestamp of the host's agreed pre-state, so `host` must agree on the pre-span super
+/// root. kona-host retries the hint until the node serves the block.
+pub async fn replaced_agreed_output_preimages(
+    host: InteropHost,
+    outputs: &[SuperOutputRoot],
+) -> Result<Vec<(PreimageKey, Vec<u8>)>> {
+    if outputs.is_empty() {
+        return Ok(Vec::new());
+    }
+    let (_, preimages) = collect_witness(&[], host, |oracle, _beacon| async move {
+        let mut preimages = Vec::with_capacity(outputs.len());
+        for output in outputs {
+            HintType::L2OutputRoot
+                .with_data(&[output.output_root.as_slice(), output.chain_id.to_be_bytes().as_ref()])
+                .send(oracle.as_ref())
+                .await?;
+            let key = PreimageKey::new_keccak256(*output.output_root);
+            let preimage = oracle.get(key).await.map_err(|err| {
+                anyhow!("agreed output {} of chain {}: {err}", output.output_root, output.chain_id)
+            })?;
+            preimages.push((key, preimage));
+        }
+        Ok(preimages)
+    })
+    .await?;
+    Ok(preimages)
 }
 
 struct AbortOnDrop(tokio::task::AbortHandle);
@@ -1833,6 +1877,35 @@ mod tests {
         );
     }
 
+    /// Pins that the agreed output of a chain the pre-span super root replaced is reported for the
+    /// host to read, not preloaded from the response, whose optimistic output there is the denied
+    /// block's.
+    #[test]
+    fn synthesize_execution_reports_replaced_agreed_outputs() {
+        let mut previous = response(100, &[10, 20], 7);
+        let denied = output_entry(b256(0xfe), 7);
+        previous.optimistic_at_timestamp.insert(ChainId(U256::from(20)), denied.clone());
+        let current = response(101, &[10, 20], 8);
+
+        let synthesized = synthesize_execution(
+            TimestampSpan::new(101, 101).unwrap(),
+            b256(0xaa),
+            8,
+            &[previous.clone(), current],
+        )
+        .expect("synthesizes");
+
+        assert_eq!(
+            synthesized.replaced_agreed_outputs,
+            vec![SuperOutputRoot {
+                chain_id: 20,
+                output_root: previous.data.as_ref().unwrap().super_v1.chains[1].output,
+            }],
+        );
+        let denied_key = PreimageKey::new_keccak256(*denied.output_root);
+        assert!(synthesized.preloaded_preimages.iter().all(|(key, _)| *key != denied_key));
+    }
+
     #[test]
     fn synthesize_execution_rejects_unsorted_chain_ids() {
         let previous = response(100, &[10, 20], 7);
@@ -2031,6 +2104,7 @@ mod tests {
                 }],
             },
             preloaded_preimages: expected_preimages,
+            replaced_agreed_outputs: Vec::new(),
             current_super_root: current.data.as_ref().unwrap().super_root,
             previous_super_root_proof_bytes: encode_super_root_proof(&previous_proof).unwrap(),
         };

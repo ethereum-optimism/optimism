@@ -44,8 +44,8 @@ use kona_sp1_super_range_executor::{
     build_super_consolidation_stdin, build_super_range_stdin, collect_consolidation_witness,
     collect_range_witness, decode_super_consolidation_public_values,
     decode_super_range_public_values, deployment_chain_configs, estimate_consolidation_pgu,
-    is_witness_too_large, optimistic_block_receipts, proof_from_super_v1, synthesize_execution,
-    write_log_commitment_proofs,
+    is_witness_too_large, optimistic_block_receipts, proof_from_super_v1,
+    replaced_agreed_output_preimages, synthesize_execution, write_log_commitment_proofs,
 };
 use parking_lot::Mutex;
 use serde::Serialize;
@@ -1157,7 +1157,7 @@ impl SpanProver for GameAttempt<'_, '_> {
 async fn check_span(
     attempt: &GameAttempt<'_, '_>,
     span: ChunkSpan,
-    synthesized: SynthesizedExecution,
+    mut synthesized: SynthesizedExecution,
 ) -> Result<CheckedSpan> {
     let GameAttempt { host_inputs, game, logs, settings, .. } = *attempt;
     check_log_batches(&logs.proofs)?;
@@ -1171,6 +1171,13 @@ async fn check_span(
         timestamps.end,
         preimage_store(range_dir.as_ref()).as_deref(),
     )?;
+    synthesized.preloaded_preimages.extend(
+        replaced_agreed_output_preimages(range_host.clone(), &synthesized.replaced_agreed_outputs)
+            .await
+            .with_context(|| {
+                format!("failed to read the replaced agreed outputs of span {timestamps:?}")
+            })?,
+    );
     let configs =
         deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
     let collected = collect_range_witness(
