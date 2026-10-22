@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -289,6 +290,64 @@ func TestProposerProvesBelowHeadMessageOnTablePath(gt *testing.T) {
 	game.WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
 	// One message references one block, so exactly one batch: more means a batch was
 	// submitted again or the block was split across batches.
+	proposer.VerifyState(
+		zkproposer.LogBatchesSubmitted(1),
+		zkproposer.ProvingFailures(0),
+	)
+}
+
+// TestProposerProvesGameSpanningReplacedBlock proves a game whose span holds a
+// block of chain B that the supernode replaced for an invalid executing message.
+// The supernode keeps reporting the denied block as optimistic at its timestamp,
+// and the proposer must read it through kona-host, since the L2 node may have
+// pruned it. The message references a block of chain A below A's block at that
+// timestamp, so the scan must see the denied block's messages to batch it.
+func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithoutHonestChallenger(),
+		presets.WithoutHonestProposer(),
+		presets.WithZKProposerOption(sysgo.WithZKFastFinality()),
+		presets.WithZKProposerOption(sysgo.WithZKMetrics()),
+		// WithZK pins Jovian at genesis; executing messages need Lagoon.
+		presets.WithDeployerOptions(sysgo.WithInteropAtGenesis()),
+	)
+	rng := rand.New(rand.NewSource(1234))
+
+	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
+	aliceB := aliceA.AsEL(sys.L2ELB)
+	sys.FunderB.Fund(aliceB, eth.OneEther)
+	initMsg := aliceA.SendRandomInitMessage(rng, aliceA.DeployEventLogger(), 2, 10)
+	initBlock := bigs.Uint64Strict(initMsg.BlockNumber())
+	// The margin keeps the initiating block below A's block at B's exec timestamp if B lags.
+	sys.L2ELA.WaitForBlockNumber(initBlock + 3)
+	execMsg := aliceB.SendInvalidExecMessage(initMsg)
+	execBlock := bigs.Uint64Strict(execMsg.BlockNumber())
+	execTimestamp := sys.L2ChainB.TimestampForBlockNum(execBlock)
+	headA, err := sys.L2ChainA.Escape().RollupConfig().TargetBlockNumber(execTimestamp)
+	t.Require().NoError(err, "chain A block at the executing timestamp")
+	t.Require().Less(initBlock, headA, "the initiating block must be below chain A's block at the executing timestamp")
+
+	sys.SuperRoots.AwaitValidatedTimestamp(execTimestamp)
+	sys.L2CLB.Reached(safety.CrossSafe, execBlock, 10)
+	sys.L2ELB.AssertExecMessageNotInBlock(execMsg)
+	optimistic := sys.SuperRoots.SuperRootAtTimestamp(execTimestamp).OptimisticAtTimestamp[sys.L2ChainB.ChainID()]
+	t.Require().NotNil(optimistic.Output, "the optimistic block of chain B must have an output")
+	t.Require().Equal(execMsg.BlockHash(), optimistic.Output.BlockHash,
+		"the supernode must report the denied block as optimistic at its timestamp")
+
+	proposer := sys.StartZKProposer()
+	factory := sys.DisputeGameFactory()
+	game := factory.WaitForZKGameAtIndex(0)
+	// Proposer games chain in factory order, so the first one at or past execTimestamp contains it.
+	for game.L2SequenceNumber() < execTimestamp {
+		game = factory.WaitForZKGameAtIndex(int64(game.FactoryIndex() + 1))
+	}
+
+	game.WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
+	// One batch means the scan read the denied block's message to chain A's block;
+	// no failure means no attempt stopped on the denied block or a missed reference.
 	proposer.VerifyState(
 		zkproposer.LogBatchesSubmitted(1),
 		zkproposer.ProvingFailures(0),

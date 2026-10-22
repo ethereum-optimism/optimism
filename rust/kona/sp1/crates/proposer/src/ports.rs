@@ -268,6 +268,20 @@ pub(crate) trait L2BlockSource: Send + Sync {
     ) -> Result<Vec<OpReceiptEnvelope>>;
 }
 
+/// Optimistic blocks that the claimed super root replaced. The supernode's rewind leaves such a
+/// block non-canonical, so an L2 node may have pruned it, or never held it if it synced later.
+#[async_trait]
+pub(crate) trait ReplacedBlockSource: Send + Sync {
+    /// The header and receipts of `hash`, the optimistic block of `chain_id` whose parent is the
+    /// canonical block `parent`.
+    async fn replaced_block(
+        &self,
+        chain_id: u64,
+        parent: B256,
+        hash: B256,
+    ) -> Result<(Header, Vec<OpReceiptEnvelope>)>;
+}
+
 /// Expensive witness collection and SP1 proof execution.
 #[async_trait]
 pub(crate) trait ProofEngine: Send + Sync {

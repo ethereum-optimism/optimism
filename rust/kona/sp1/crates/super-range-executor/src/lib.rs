@@ -13,18 +13,21 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use alloy_consensus::Header;
 use alloy_primitives::{B256, Bytes, U256, keccak256};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use async_trait::async_trait;
 use jsonrpsee_core::{client::ClientT, rpc_params};
 use jsonrpsee_http_client::{HttpClient, HttpClientBuilder};
-use kona_host::{DataFormat, interop::InteropHost};
+use kona_host::DataFormat;
+pub use kona_host::interop::InteropHost;
 use kona_preimage::{
     BidirectionalChannel, DEPENDENCY_SET_KEY, HintWriter, HintWriterClient, L1_CONFIG_KEY,
     L2_ROLLUP_CONFIG_KEY, NativeChannel, OracleReader, PreimageKey, PreimageOracleClient,
     errors::PreimageOracleResult,
 };
 use kona_proof::{CachingOracle, FlushableCache, l1::OracleBlobProvider};
+use kona_proof_interop::{HintType, receipts_from_trie};
 use kona_sp1_client_utils::{
     log_commitment::{
         BlockReceipts, LogCommitmentInputs, LogOpening, VerifiedLogCommitments,
@@ -39,10 +42,12 @@ use kona_sp1_client_utils::{
     witness::{BlobData, DefaultWitnessData, WitnessData, preimage_store::PreimageStore},
 };
 use kona_sp1_ethereum_client_utils::{
-    chain_config::ChainConfigs, super_consolidation::build_consolidation_outputs,
-    super_range::build_range_outputs,
+    chain_config::ChainConfigs,
+    super_consolidation::build_consolidation_outputs,
+    super_range::{build_range_outputs, fetch_l2_header},
 };
 use kona_sp1_host_utils::witness_generation::{OnlineBlobStore, PreimageWitnessCollector};
+use op_alloy_consensus::OpReceiptEnvelope;
 use serde::Deserialize;
 use sp1_sdk::{
     Elf, Prover, ProverClient, SP1Proof, SP1ProofWithPublicValues, SP1PublicValues, SP1Stdin,
@@ -1025,6 +1030,35 @@ pub async fn collect_consolidation_witness(
         read_bytes,
         log_check_siblings,
     })
+}
+
+/// The header and receipts of `block_hash`, the optimistic block of `chain_id` built on the
+/// canonical block `parent_hash`, read through `host` the way the consolidation reads its heads.
+/// When the block is not canonical, kona-host re-derives it from L1 and re-executes it, so no L2
+/// node needs to hold it.
+pub async fn optimistic_block_receipts(
+    host: InteropHost,
+    chain_id: u64,
+    parent_hash: B256,
+    block_hash: B256,
+) -> Result<(Header, Vec<OpReceiptEnvelope>)> {
+    let (_, block) = collect_witness(&[], host, |oracle, _beacon| async move {
+        let chain = chain_id.to_be_bytes();
+        HintType::L2BlockData
+            .with_data(&[parent_hash.as_slice(), block_hash.as_slice(), chain.as_ref()])
+            .send(oracle.as_ref())
+            .await?;
+        let header = fetch_l2_header(oracle.as_ref(), block_hash, chain_id).await?;
+        HintType::L2Receipts
+            .with_data(&[block_hash.as_slice(), chain.as_ref()])
+            .send(oracle.as_ref())
+            .await?;
+        let receipts = receipts_from_trie(oracle.as_ref(), header.receipts_root)
+            .map_err(|err| anyhow!("receipts of block {block_hash}: {err}"))?;
+        Ok((header, receipts))
+    })
+    .await?;
+    Ok(block)
 }
 
 struct AbortOnDrop(tokio::task::AbortHandle);
