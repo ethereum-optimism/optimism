@@ -659,8 +659,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             if (_tx.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
         }
 
-        // Make sure that no other withdrawal is currently being finalized.
-        _assertNoReentrancy();
+        // Block reentrancy from a withdrawal's target. l2Sender holds the withdrawal's sender while the
+        // target executes. A nested finalization would change l2Sender before the outer call ends.
+        if (l2Sender != Constants.DEFAULT_L2_SENDER) {
+            revert OptimismPortal_NoReentrancy();
+        }
 
         // Make sure that the target address is safe.
         if (_isUnsafeTarget(_tx.target)) {
@@ -858,9 +861,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function removeHook() external {
         _assertOnlyProxyAdminOwner();
 
-        IBridgeHook hook = bridgeHook;
-        if (address(hook) == address(0)) revert OptimismPortal_InvalidBridgeHookState();
+        if (address(bridgeHook) == address(0)) revert OptimismPortal_InvalidBridgeHookState();
 
+        IBridgeHook hook = bridgeHook;
         bridgeHook = IBridgeHook(address(0));
         emit BridgeHookRemoved(hook);
     }
@@ -899,13 +902,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // NOTE: Chains are not supposed to enable Custom Gas Token (CGT) mode after initial deployment.
         //       Enabling CGT post-deployment is strongly discouraged and may lead to unexpected behavior.
         return systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
-    }
-
-    /// @notice Asserts that no withdrawal is currently being finalized.
-    function _assertNoReentrancy() internal view {
-        if (l2Sender != Constants.DEFAULT_L2_SENDER) {
-            revert OptimismPortal_NoReentrancy();
-        }
     }
 
     /// @notice Asserts that the contract is not paused.

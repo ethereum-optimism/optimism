@@ -3640,6 +3640,19 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice Tests that migration reverts when any chain's portal has a bridge hook.
+    /// @param _hook The bridge hook set on the second chain's portal.
+    function testFuzz_migrate_bridgeHookSet_reverts(address _hook) public {
+        vm.assume(_hook != address(0));
+        vm.mockCall(
+            address(chainContracts2.optimismPortal), abi.encodeCall(IOptimismPortal2.bridgeHook, ()), abi.encode(_hook)
+        );
+        _doMigration(
+            _getDefaultMigrateInput(),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_BridgeHookNotSupported.selector
+        );
+    }
+
     /// @notice Tests that the migration function reverts when the starting respected game type is invalid.
     /// @param _gameTypeRaw The raw game type value to test.
     function testFuzz_migrate_invalidStartingRespectedGameType_reverts(uint32 _gameTypeRaw) public {

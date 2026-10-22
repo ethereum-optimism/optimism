@@ -51,6 +51,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when attempting to migrate a CGT chain.
     error OPContractsManagerMigrator_CustomGasTokenNotSupported();
 
+    /// @notice Thrown when attempting to migrate a chain whose portal has a bridge hook.
+    error OPContractsManagerMigrator_BridgeHookNotSupported();
+
     /// @notice Thrown when the chainSystemConfigs array is empty.
     error OPContractsManagerMigrator_NoChains();
 
@@ -522,6 +525,12 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         IETHLockbox oldLockbox = IETHLockbox(payable(address(portal.ethLockbox())));
         IAnchorStateRegistry oldASR = portal.anchorStateRegistry();
         IDisputeGameFactory existingDGF = IDisputeGameFactory(payable(address(portal.disputeGameFactory())));
+
+        // Chains with a bridge hook must not be migrated. An interop set would need the same hook
+        // on every chain, and nothing enforces that yet.
+        if (address(portal.bridgeHook()) != address(0)) {
+            revert OPContractsManagerMigrator_BridgeHookNotSupported();
+        }
 
         // Check the current pause state before mutating the portal's lockbox. For chains that
         // already use a per-chain lockbox, SystemConfig.paused() keys the local pause against the
