@@ -14,9 +14,9 @@
 //! (forced transactions applied at block start, `no_tx_pool` → force-empty, the gas-limit checks in
 //! `CheckTxWithinGasLimit`).
 
-use alloy_consensus::Transaction as _;
+use alloy_consensus::{Transaction as _, transaction::SignerRecoverable};
 use alloy_eips::eip2718::Decodable2718;
-use alloy_primitives::B256;
+use alloy_primitives::{Address, B256};
 use alloy_rpc_types_engine::PayloadId;
 use op_alloy_consensus::parse_post_exec_payload_from_transactions;
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload, OpPayloadAttributes};
@@ -29,6 +29,7 @@ use reth_payload_primitives::{
     BuildNextEnv, EngineApiMessageVersion, InvalidPayloadAttributesError,
 };
 use reth_primitives_traits::SealedHeader;
+use reth_storage_api::StateProviderBox;
 
 use crate::{Error, chain::EphemeralChain};
 
@@ -50,6 +51,24 @@ pub enum IncludeTxOutcome {
     /// Force-empty is set, so the transaction was silently dropped. Mirrors `L2EngineAPI.IncludeTx`
     /// returning `(nil, nil)` when `l2ForceEmpty` is true.
     Skipped,
+}
+
+/// The outcome of an [`include_next_tx`](crate::TestEngine::include_next_tx) call — including the
+/// next parked transaction from a given sender.
+#[derive(Debug)]
+pub enum IncludeNextOutcome {
+    /// A parked transaction was found and executed into the block.
+    Included {
+        /// The included transaction's hash.
+        tx_hash: B256,
+        /// Gas the transaction consumed.
+        gas_used: u64,
+    },
+    /// Force-empty is set, so nothing was included (mirrors `ActL2IncludeTx`'s force-empty skip).
+    Skipped,
+    /// No parked transaction from the sender was valid for inclusion next (its next expected nonce
+    /// is not present in the buffer). Mirrors `firstValidTx` finding no pending transaction.
+    NoTx,
 }
 
 /// A payload being built on top of a fixed parent.
@@ -77,7 +96,8 @@ pub(crate) struct InFlightPayload {
 }
 
 impl InFlightPayload {
-    /// Open a new in-flight payload on top of `parent_hash` from the given attributes.
+    /// Open a new in-flight payload on top of `parent`, whose state is `parent_state`, from the
+    /// given attributes.
     ///
     /// Validates the attributes against `version`, the message version of the
     /// `engine_forkchoiceUpdated` method that carried them, the active forks and the parent (an
@@ -90,14 +110,13 @@ impl InFlightPayload {
     pub(crate) fn open(
         chain: &EphemeralChain,
         version: EngineApiMessageVersion,
-        parent_hash: B256,
+        parent: &SealedHeader,
+        parent_state: &StateProviderBox,
         attributes: OpPayloadAttributes,
     ) -> crate::Result<Self> {
-        let parent = chain
-            .sealed_header(parent_hash)?
-            .ok_or_else(|| Error::Execution(format!("parent block {parent_hash} is unknown")))?;
+        let parent_hash = parent.hash();
         let attributes = OpPayloadAttrs(attributes);
-        validate_attributes(&chain.chain_spec(), version, &parent, &attributes)?;
+        validate_attributes(&chain.chain_spec(), version, parent, &attributes)?;
 
         let builder_attrs = OpPayloadBuilderAttributes::<OpTransactionSigned>::try_new(
             parent_hash,
@@ -107,7 +126,7 @@ impl InFlightPayload {
         .map_err(|err| Error::InvalidPayloadAttributes(err.to_string()))?;
         let next_env = OpNextBlockEnvAttributes::build_next_env(
             &builder_attrs,
-            &parent,
+            parent,
             chain.chain_spec().as_ref(),
         )
         .map_err(|err| Error::InvalidPayloadAttributes(format!("build next block env: {err}")))?;
@@ -120,7 +139,7 @@ impl InFlightPayload {
         check_deposits_lead(&forced_txs)?;
         let post_exec_mode = post_exec_mode(
             &chain.chain_spec(),
-            &parent,
+            parent,
             next_env.timestamp,
             force_empty,
             &forced_txs,
@@ -129,7 +148,19 @@ impl InFlightPayload {
         // Assemble the forced transactions once: this validates them (a bad one errors, as in
         // op-geth's startBlock) and gives the starting cumulative gas.
         let cumulative_gas = chain
-            .assemble_block(parent_hash, next_env.clone(), post_exec_mode.clone(), &forced_txs)?
+            .assemble_block_on(
+                parent,
+                parent_state,
+                next_env.clone(),
+                post_exec_mode.clone(),
+                &forced_txs,
+            )
+            .map_err(|err| match err {
+                Error::InvalidTransaction(reason) => Error::InvalidPayloadAttributes(format!(
+                    "forced transaction cannot be applied: {reason}"
+                )),
+                err => err,
+            })?
             .gas_used;
 
         Ok(Self {
@@ -154,6 +185,17 @@ impl InFlightPayload {
     /// The parent hash this block is being built on top of.
     pub(crate) const fn parent_hash(&self) -> B256 {
         self.parent_hash
+    }
+
+    /// How many pool transactions from `from` have already been included in this block. Combined
+    /// with the sender's nonce in the parent state, this gives the nonce of the next transaction
+    /// from `from` eligible for inclusion — the parking buffer's lookup key. Mirrors
+    /// `L2EngineAPI.PendingIndices`.
+    pub(crate) fn included_count_from(&self, from: Address) -> u64 {
+        self.pool_txs
+            .iter()
+            .filter(|tx| tx.recover_signer().is_ok_and(|signer| signer == from))
+            .count() as u64
     }
 
     /// Whether force-empty is set. Mirrors `L2EngineAPI.ForcedEmpty`.
@@ -201,6 +243,9 @@ impl InFlightPayload {
 
         let tx = OpTransactionSigned::decode_2718_exact(raw)
             .map_err(|err| Error::TxDecode(err.to_string()))?;
+        if tx.is_deposit() {
+            return Err(Error::DepositNotAllowed(tx.tx_hash()));
+        }
         let tx_gas = tx.gas_limit();
         if tx_gas > self.gas_limit {
             return Err(Error::ExceedsGasLimit { tx_gas, block_gas_limit: self.gas_limit });
@@ -314,8 +359,9 @@ mod tests {
     use crate::{
         Error, TestEngine,
         testsupport::{
-            GAS_LIMIT, deposit_tx, depositor, encode, fcu, isthmus_test_engine, lagoon_test_engine,
-            payload_attrs, post_exec_tx, test_engine, user_sender, user_tx, user_tx_with_gas,
+            GAS_LIMIT, deposit_tx, depositor, encode, fcu, head_only, isthmus_test_engine,
+            lagoon_test_engine, payload_attrs, post_exec_tx, sequence, sequence_forced,
+            test_engine, user_sender, user_tx, user_tx_with_gas,
         },
     };
     use alloy_primitives::b64;
@@ -325,40 +371,7 @@ mod tests {
     };
 
     use alloy_consensus::{BlockHeader, TxReceipt, transaction::SignerRecoverable};
-    use alloy_primitives::B256;
     use reth_optimism_primitives::OpReceipt;
-
-    /// Open a payload on `parent`, include `user_txs`, seal it, import it, and advance the
-    /// forkchoice — the full sequencer flow. Returns the new head hash.
-    fn build_block(
-        engine: &mut TestEngine,
-        parent: B256,
-        timestamp: u64,
-        forced_txs: Vec<alloy_primitives::Bytes>,
-        user_txs: &[reth_optimism_primitives::OpTransactionSigned],
-    ) -> B256 {
-        let updated = engine
-            .forkchoice_updated_auto(fcu(parent), Some(payload_attrs(timestamp, forced_txs, false)))
-            .expect("fcu with attrs");
-        assert!(updated.is_valid(), "fcu(attrs) valid: {updated:?}");
-        let id = updated.payload_id.expect("payload id returned");
-
-        for tx in user_txs {
-            match engine.include_tx(None, &encode(tx)).expect("include tx") {
-                IncludeTxOutcome::Included { .. } => {}
-                IncludeTxOutcome::Skipped => panic!("tx unexpectedly skipped"),
-            }
-        }
-
-        let data = engine.get_payload(id).expect("get payload");
-        let status = engine.new_payload(data).expect("new payload");
-        assert!(status.is_valid(), "newPayload valid: {status:?}");
-        let head = status.latest_valid_hash.expect("latest valid hash");
-
-        let updated = engine.forkchoice_updated_auto(fcu(head), None).expect("fcu advance");
-        assert!(updated.is_valid(), "fcu advance valid: {updated:?}");
-        head
-    }
 
     #[test]
     fn sequencer_flow_builds_chain() {
@@ -366,15 +379,11 @@ mod tests {
         let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
 
         // Block 1: one forced deposit plus a user tx.
-        let block1 = build_block(
-            &mut engine,
-            genesis,
-            2,
-            vec![encode(&deposit_tx(depositor()))],
-            &[user_tx(0)],
-        );
+        let forced = vec![encode(&deposit_tx(depositor()))];
+        let block1 = sequence_forced(&mut engine, genesis, 2, forced, &[user_tx(0)]);
+        let block1 = block1.payload.block_hash();
         // Block 2 builds on block 1 with a second user tx (no deposit).
-        let block2 = build_block(&mut engine, block1, 4, vec![], &[user_tx(1)]);
+        let block2 = sequence(&mut engine, block1, 4, &[user_tx(1)]).payload.block_hash();
 
         // A valid chain of two blocks on top of genesis.
         let h1 = engine.block_by_number(1).unwrap().expect("block 1");
@@ -398,6 +407,39 @@ mod tests {
         assert_eq!(deposit.deposit_receipt_version, Some(1), "post-Canyon receipt version");
         assert!(!matches!(receipts[1], OpReceipt::Deposit(_)), "user tx is not a deposit");
         assert!(receipts[1].status(), "user tx succeeded");
+    }
+
+    #[test]
+    fn forkchoice_reorgs_to_alternate_fork_and_back() {
+        let mut engine = test_engine(user_sender());
+        let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
+
+        // Canonical chain genesis -> a1 -> a2 -> a3.
+        let a1 = sequence(&mut engine, genesis, 2, &[user_tx(0)]).payload.block_hash();
+        let a2 = sequence(&mut engine, a1, 4, &[user_tx(1)]).payload.block_hash();
+        let a3 = sequence(&mut engine, a2, 6, &[user_tx(2)]).payload.block_hash();
+        assert_eq!(engine.chain.latest_header().hash(), a3);
+
+        // Build a sibling of a2 on a1 (a different timestamp yields a different hash), reorging a2
+        // and a3 out — the shape of op-node's rewind / invalid-payload replacement.
+        let b2 = sequence(&mut engine, a1, 5, &[user_tx(1)]).payload.block_hash();
+        assert_ne!(b2, a2);
+        assert_eq!(engine.chain.latest_header().hash(), b2);
+        assert_eq!(engine.chain.latest_header().number, 2);
+        assert_eq!(engine.block_by_number(2).unwrap().unwrap().header.hash_slow(), b2);
+        assert!(engine.block_by_number(3).unwrap().is_none(), "a3 reorged out");
+        // The shared ancestor is untouched.
+        assert_eq!(engine.block_by_number(1).unwrap().unwrap().header.hash_slow(), a1);
+
+        // Flip back to the original tip a3: a full reorg onto the abandoned fork, re-materialized
+        // from the retained validated blocks.
+        let updated = engine.forkchoice_updated_auto(head_only(a3), None).expect("fcu back to a3");
+        assert!(updated.is_valid(), "reorg back to a3: {updated:?}");
+        assert_eq!(engine.chain.latest_header().hash(), a3);
+        assert_eq!(engine.chain.latest_header().number, 3);
+        assert_eq!(engine.block_by_number(3).unwrap().unwrap().header.hash_slow(), a3);
+        assert_eq!(engine.block_by_number(2).unwrap().unwrap().header.hash_slow(), a2);
+        assert_eq!(engine.block_by_number(1).unwrap().unwrap().header.hash_slow(), a1);
     }
 
     /// Open a build on genesis with `attrs` and return the error rejecting them.
@@ -548,6 +590,7 @@ mod tests {
         let data = engine.get_payload(id).expect("get payload");
         let block_hash = data.payload.block_hash();
         assert!(engine.new_payload(data).unwrap().is_valid());
+        assert!(engine.forkchoice_updated_auto(fcu(block_hash), None).unwrap().is_valid());
 
         let receipts = engine.receipts_by_block_hash(block_hash).unwrap().expect("receipts");
         assert_eq!(receipts.len(), 3, "deposit + two batch transactions");
@@ -590,7 +633,10 @@ mod tests {
         // The engine never produces post-exec transactions, so a block it sequences runs with
         // post-exec disabled and cannot carry one.
         let err = attributes_rejection(&mut engine, payload_attrs(2, forced(1), false));
-        assert!(matches!(&err, Error::Execution(msg) if msg.contains("SDM not active")), "{err:?}");
+        assert!(
+            matches!(&err, Error::InvalidPayloadAttributes(msg) if msg.contains("SDM not active")),
+            "{err:?}"
+        );
 
         // A derived block's post-exec transaction must be anchored to the block it is in.
         assert_attributes_rejected(&mut engine, payload_attrs(2, forced(2), true));
@@ -625,6 +671,35 @@ mod tests {
         // A basic value transfer costs the 21000 intrinsic gas.
         assert_eq!(gas_used, 21_000);
         assert_eq!(engine.remaining_block_gas(None), GAS_LIMIT - 21_000);
+    }
+
+    #[test]
+    fn include_tx_rejects_deposits() {
+        let mut engine = test_engine(user_sender());
+        let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
+        engine
+            .forkchoice_updated_auto(fcu(genesis), Some(payload_attrs(2, vec![], false)))
+            .unwrap();
+
+        let deposit = deposit_tx(depositor());
+        let err = engine.include_tx(None, &encode(&deposit)).unwrap_err();
+        assert!(
+            matches!(err, Error::DepositNotAllowed(hash) if hash == deposit.tx_hash()),
+            "{err:?}"
+        );
+        assert_eq!(engine.remaining_block_gas(None), GAS_LIMIT, "deposit included");
+    }
+
+    #[test]
+    fn send_raw_transaction_rejects_deposits() {
+        let mut engine = test_engine(user_sender());
+        let deposit = deposit_tx(depositor());
+        let err = engine.send_raw_transaction(&encode(&deposit)).unwrap_err();
+        assert!(
+            matches!(err, Error::DepositNotAllowed(hash) if hash == deposit.tx_hash()),
+            "{err:?}"
+        );
+        assert!(engine.pending.is_empty(), "deposit parked");
     }
 
     #[test]
@@ -716,9 +791,9 @@ mod tests {
 
     #[test]
     fn committed_payload_id_is_evicted() {
-        // Mirrors TestL2SequencerAPI: once a payload is committed and the head advances past its
-        // parent, re-sealing it (get_payload) must report UnknownPayloadId — op-node maps that code
-        // to BuildErrCodeUnknownPayload.
+        // Mirrors TestL2SequencerAPI: once a sealed payload is canonicalized and the head advances
+        // past its parent, re-sealing it (get_payload) must report UnknownPayloadId — op-node maps
+        // that code to BuildErrCodeUnknownPayload.
         let mut engine = test_engine(user_sender());
         let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
 
@@ -727,12 +802,19 @@ mod tests {
             .expect("fcu with attrs");
         let id = updated.payload_id.expect("payload id returned");
 
-        // Sealing before the commit succeeds.
+        // Sealing succeeds while the payload's parent is still the head: the processed payload
+        // stays non-canonical (and the build job alive) until the forkchoice update below.
         let data = engine.get_payload(id).expect("get payload before commit");
-        let status = engine.new_payload(data).expect("new payload");
+        let status = engine.new_payload(data.clone()).expect("new payload");
         assert!(status.is_valid(), "newPayload valid: {status:?}");
+        let block_hash = data.payload.block_hash();
+        let resealed = engine.get_payload(id).expect("still sealable before the head moves");
+        assert_eq!(resealed.payload.block_hash(), block_hash, "re-seal yields the same block");
 
         // The build job is gone once its parent is no longer the head.
+        let updated =
+            engine.forkchoice_updated_auto(fcu(block_hash), None).expect("fcu to sealed block");
+        assert!(updated.is_valid());
         let err = engine.get_payload(id).unwrap_err();
         assert!(
             matches!(err, Error::UnknownPayloadId(evicted) if evicted == id),
@@ -744,19 +826,161 @@ mod tests {
     fn forkchoice_away_from_parent_evicts_build() {
         let mut engine = test_engine(user_sender());
         let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
-        let block1 = build_block(&mut engine, genesis, 2, vec![], &[user_tx(0)]);
+        let block1 = sequence(&mut engine, genesis, 2, &[user_tx(0)]).payload.block_hash();
 
         let updated = engine
             .forkchoice_updated_auto(fcu(block1), Some(payload_attrs(4, vec![], false)))
             .expect("fcu with attrs");
         let id = updated.payload_id.expect("payload id returned");
 
-        // Resetting the head below the build's parent strands the build.
+        // A forkchoice naming another head strands the build, even one that leaves the canonical
+        // chain as it is.
         assert!(engine.forkchoice_updated_auto(fcu(genesis), None).unwrap().is_valid());
         let err = engine.get_payload(id).unwrap_err();
         assert!(matches!(err, Error::UnknownPayloadId(evicted) if evicted == id), "{err:?}");
         let err = engine.include_tx(None, &encode(&user_tx(1))).unwrap_err();
         assert!(matches!(err, Error::NotBuildingBlock), "{err:?}");
+    }
+
+    #[test]
+    fn parking_buffer_drains_in_nonce_order() {
+        use super::IncludeNextOutcome;
+
+        let mut engine = test_engine(user_sender());
+        let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
+        let sender = user_sender();
+
+        // Open a block so include_next_tx has an in-flight payload to target.
+        let updated = engine
+            .forkchoice_updated_auto(fcu(genesis), Some(payload_attrs(2, vec![], false)))
+            .unwrap();
+        assert!(updated.is_valid());
+
+        // Park two user txs out of nonce order — the buffer is nonce-keyed, so order is irrelevant.
+        engine.send_raw_transaction(&encode(&user_tx(1))).unwrap();
+        engine.send_raw_transaction(&encode(&user_tx(0))).unwrap();
+
+        // Pending nonce = base (0) + the contiguous parked run (0,1) = 2.
+        assert_eq!(engine.pending_nonce(sender).unwrap(), 2);
+
+        // Draining includes nonce 0 first, then nonce 1, then reports nothing left.
+        assert!(matches!(
+            engine.include_next_tx(sender).unwrap(),
+            IncludeNextOutcome::Included { .. }
+        ));
+        assert!(matches!(
+            engine.include_next_tx(sender).unwrap(),
+            IncludeNextOutcome::Included { .. }
+        ));
+        assert!(matches!(engine.include_next_tx(sender).unwrap(), IncludeNextOutcome::NoTx));
+
+        // Both parked txs were executed into the block: two 21000-gas transfers consumed 42000.
+        assert_eq!(engine.remaining_block_gas(None), GAS_LIMIT - 42_000);
+
+        // Txs included in the in-flight block still count towards the pending nonce, as in a
+        // txpool, so the next nonce handed out does not collide with them.
+        assert_eq!(engine.pending_nonce(sender).unwrap(), 2);
+
+        // Once the block is committed the parked txs are part of the state nonce.
+        let id = engine.current.expect("building");
+        let data = engine.get_payload(id).unwrap();
+        let block_hash = data.payload.block_hash();
+        assert!(engine.new_payload(data).unwrap().is_valid());
+        assert!(engine.forkchoice_updated_auto(fcu(block_hash), None).unwrap().is_valid());
+        assert_eq!(engine.pending_nonce(sender).unwrap(), 2);
+        engine.send_raw_transaction(&encode(&user_tx(2))).unwrap();
+        assert_eq!(engine.pending_nonce(sender).unwrap(), 3);
+    }
+
+    #[test]
+    fn parked_txs_below_the_committed_nonce_are_pruned() {
+        use super::IncludeNextOutcome;
+
+        let mut engine = test_engine(user_sender());
+        let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
+        let sender = user_sender();
+        engine.send_raw_transaction(&encode(&user_tx(0))).unwrap();
+        engine.send_raw_transaction(&encode(&user_tx(1))).unwrap();
+
+        engine
+            .forkchoice_updated_auto(fcu(genesis), Some(payload_attrs(2, vec![], false)))
+            .unwrap();
+        assert!(matches!(
+            engine.include_next_tx(sender).unwrap(),
+            IncludeNextOutcome::Included { .. }
+        ));
+        let data = engine.get_payload(engine.current.expect("building")).unwrap();
+        let block_hash = data.payload.block_hash();
+        assert!(engine.new_payload(data).unwrap().is_valid());
+
+        // The next build sits on the block that committed nonce 0, so including from its sender
+        // drops the parked nonce 0 and keeps nonce 1, which this build includes.
+        engine
+            .forkchoice_updated_auto(fcu(block_hash), Some(payload_attrs(4, vec![], false)))
+            .unwrap();
+        assert!(matches!(
+            engine.include_next_tx(sender).unwrap(),
+            IncludeNextOutcome::Included { .. }
+        ));
+        let parked: Vec<u64> = engine.pending[&sender].keys().copied().collect();
+        assert_eq!(parked, [1]);
+    }
+
+    #[test]
+    fn parked_tx_of_an_abandoned_build_is_not_lost() {
+        use super::IncludeNextOutcome;
+
+        let mut engine = test_engine(user_sender());
+        let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
+        let sender = user_sender();
+        engine.send_raw_transaction(&encode(&user_tx(0))).unwrap();
+
+        engine
+            .forkchoice_updated_auto(fcu(genesis), Some(payload_attrs(2, vec![], false)))
+            .unwrap();
+        assert!(matches!(
+            engine.include_next_tx(sender).unwrap(),
+            IncludeNextOutcome::Included { .. }
+        ));
+
+        // A new build on the same parent replaces the first one, which is never sealed.
+        engine
+            .forkchoice_updated_auto(fcu(genesis), Some(payload_attrs(3, vec![], false)))
+            .unwrap();
+        assert!(matches!(
+            engine.include_next_tx(sender).unwrap(),
+            IncludeNextOutcome::Included { .. }
+        ));
+    }
+
+    #[test]
+    fn include_next_tx_needs_a_block() {
+        let mut engine = test_engine(user_sender());
+        engine.send_raw_transaction(&encode(&user_tx(0))).unwrap();
+        // No in-flight payload: mirrors ErrNotBuildingBlock.
+        assert!(matches!(
+            engine.include_next_tx(user_sender()),
+            Err(crate::Error::NotBuildingBlock)
+        ));
+    }
+
+    #[test]
+    fn parked_tx_skipped_under_force_empty() {
+        use super::IncludeNextOutcome;
+        let mut engine = test_engine(user_sender());
+        let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
+        // no_tx_pool → force-empty at open.
+        let updated = engine
+            .forkchoice_updated_auto(fcu(genesis), Some(payload_attrs(2, vec![], true)))
+            .unwrap();
+        assert!(updated.is_valid());
+        engine.send_raw_transaction(&encode(&user_tx(0))).unwrap();
+        // The parked tx stays parked; inclusion is skipped, not consumed.
+        assert!(matches!(
+            engine.include_next_tx(user_sender()).unwrap(),
+            IncludeNextOutcome::Skipped
+        ));
+        assert_eq!(engine.pending_nonce(user_sender()).unwrap(), 1, "still parked");
     }
 
     #[test]

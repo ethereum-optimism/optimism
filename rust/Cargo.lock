@@ -9952,6 +9952,7 @@ dependencies = [
  "reth-consensus",
  "reth-db",
  "reth-db-common",
+ "reth-engine-tree",
  "reth-evm",
  "reth-execution-types",
  "reth-ipc",
