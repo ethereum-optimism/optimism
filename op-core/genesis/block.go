@@ -1,13 +1,15 @@
 package genesis
 
 import (
+	"bytes"
 	"fmt"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 )
@@ -33,17 +35,25 @@ func storageRoot(alloc types.GenesisAlloc, addr common.Address) common.Hash {
 	if !ok {
 		return common.Hash{}
 	}
-	db := state.NewDatabase(triedb.NewDatabase(rawdb.NewMemoryDatabase(), nil), nil)
-	statedb, err := state.New(types.EmptyRootHash, db)
-	if err != nil {
-		panic(fmt.Errorf("creating in-memory state: %w", err))
+	type leaf struct{ key, value []byte }
+	leaves := make([]leaf, 0, len(account.Storage))
+	for slot, value := range account.Storage {
+		if value == (common.Hash{}) {
+			continue // a zero value is the absence of the slot
+		}
+		enc, err := rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
+		if err != nil {
+			panic(fmt.Errorf("encoding storage slot %s of %s: %w", slot, addr, err))
+		}
+		leaves = append(leaves, leaf{crypto.Keccak256(slot[:]), enc})
 	}
-	statedb.CreateAccount(addr)
-	for key, value := range account.Storage {
-		statedb.SetState(addr, key, value)
+	// A stack trie takes its keys in ascending order.
+	slices.SortFunc(leaves, func(a, b leaf) int { return bytes.Compare(a.key, b.key) })
+	st := trie.NewStackTrie(nil)
+	for _, l := range leaves {
+		if err := st.Update(l.key, l.value); err != nil {
+			panic(fmt.Errorf("building genesis storage trie of %s: %w", addr, err))
+		}
 	}
-	if _, err := statedb.Commit(0, false, false); err != nil {
-		panic(fmt.Errorf("committing genesis storage of %s: %w", addr, err))
-	}
-	return statedb.GetStorageRoot(addr)
+	return st.Hash()
 }
