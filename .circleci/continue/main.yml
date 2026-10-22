@@ -345,6 +345,57 @@ commands:
             git submodule update --init --recursive --single-branch --force -j 8
           working_directory: packages/contracts-bedrock
 
+  restore-forge-build-cache:
+    description: >-
+      Compute the forge build cache key and restore the matching cache. Pair with
+      save-forge-build-cache after the build, passing the same profile.
+    parameters:
+      profile:
+        description: Foundry profile the build uses
+        type: string
+      build_args:
+        description: Arguments passed to `just forge-build`
+        type: string
+        default: ""
+    steps:
+      - run:
+          name: Compute forge build cache key
+          command: |
+            # Key over every input affecting forge output: all tracked package
+            # files via `git ls-files -s` (sources, config, lib/ submodule
+            # pins), mise.toml toolchain pins, and profile/args. Exact-key only
+            # (no fallback restore): a hit never serves artifacts for changed
+            # or deleted contracts; a miss is a normal clean build. The
+            # installed solc set is deliberately unkeyed — drift only makes
+            # forge recompile mismatched artifacts, never serve stale ones.
+            {
+              echo "profile=<<parameters.profile>> args=<<parameters.build_args>>"
+              sha256sum mise.toml
+              git ls-files -s -- packages/contracts-bedrock
+            } | sha256sum | cut -d' ' -f1 | tee /tmp/forge-cache-key.txt
+      - restore_cache:
+          name: Restore forge build cache
+          keys:
+            - forge-build-v1-<<parameters.profile>>-{{ checksum "/tmp/forge-cache-key.txt" }}
+
+  save-forge-build-cache:
+    description: Save the forge build cache keyed by restore-forge-build-cache.
+    parameters:
+      profile:
+        description: Foundry profile the build uses
+        type: string
+    steps:
+      - save_cache:
+          name: Save forge build cache
+          key: forge-build-v1-<<parameters.profile>>-{{ checksum "/tmp/forge-cache-key.txt" }}
+          # These paths hold for profiles that keep foundry.toml's default
+          # output dirs; a profile that redirects them (e.g. kprove's
+          # out = kout-proofs) needs this list extended.
+          paths:
+            - packages/contracts-bedrock/cache
+            - packages/contracts-bedrock/artifacts
+            - packages/contracts-bedrock/forge-artifacts
+
   # Notifies us on Slack a build fails on develop
   notify-failures-on-develop:
     description: "Notify Slack"
@@ -965,25 +1016,9 @@ jobs:
       - when:
           condition: << parameters.use_caches >>
           steps:
-            - run:
-                name: Compute forge build cache key
-                command: |
-                  # Key over every input affecting forge output: all tracked package
-                  # files via `git ls-files -s` (sources, config, lib/ submodule
-                  # pins), mise.toml toolchain pins, and profile/args. Exact-key only
-                  # (no fallback restore): a hit never serves artifacts for changed
-                  # or deleted contracts; a miss is a normal clean build. The
-                  # installed solc set is deliberately unkeyed — drift only makes
-                  # forge recompile mismatched artifacts, never serve stale ones.
-                  {
-                    echo "profile=<<parameters.profile>> args=<<parameters.build_args>>"
-                    sha256sum mise.toml
-                    git ls-files -s -- packages/contracts-bedrock
-                  } | sha256sum | cut -d' ' -f1 | tee /tmp/forge-cache-key.txt
-            - restore_cache:
-                name: Restore forge build cache
-                keys:
-                  - forge-build-v1-<<parameters.profile>>-{{ checksum "/tmp/forge-cache-key.txt" }}
+            - restore-forge-build-cache:
+                profile: <<parameters.profile>>
+                build_args: <<parameters.build_args>>
       - run:
           name: Build contracts
           command: just forge-build <<parameters.build_args>>
@@ -993,16 +1028,8 @@ jobs:
       - when:
           condition: << parameters.use_caches >>
           steps:
-            - save_cache:
-                name: Save forge build cache
-                key: forge-build-v1-<<parameters.profile>>-{{ checksum "/tmp/forge-cache-key.txt" }}
-                # These paths hold for profiles that keep foundry.toml's default
-                # output dirs; a profile that redirects them (e.g. kprove's
-                # out = kout-proofs) needs this list extended.
-                paths:
-                  - packages/contracts-bedrock/cache
-                  - packages/contracts-bedrock/artifacts
-                  - packages/contracts-bedrock/forge-artifacts
+            - save-forge-build-cache:
+                profile: <<parameters.profile>>
       # copy-contract-artifacts runs `go run ... mktar`, which needs the Go
       # module set. Restore the shared cache (warmed by prep-go-modules) so it
       # doesn't hit proxy.golang.org.
@@ -1061,6 +1088,13 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
     parameters:
+      build_cache:
+        description: >-
+          Build the full project before testing, restoring and saving the forge
+          build cache. Pays off where the package often doesn't change between
+          runs (develop); on PRs every new push misses and pays for the upload.
+        type: boolean
+        default: false
       test_list:
         description: List of test files to run
         type: string
@@ -1105,6 +1139,22 @@ jobs:
           name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
+      # Feature flags are runtime env vars (setup-features), so every matrix entry
+      # of a profile compiles the same artifacts and shares one cache entry.
+      - when:
+          condition: << parameters.build_cache >>
+          steps:
+            - restore-forge-build-cache:
+                profile: <<parameters.test_profile>>
+            - run:
+                name: Build contracts
+                command: just forge-build
+                environment:
+                  FOUNDRY_PROFILE: <<parameters.test_profile>>
+                working_directory: packages/contracts-bedrock
+                no_output_timeout: <<parameters.test_timeout>>
+            - save-forge-build-cache:
+                profile: <<parameters.test_profile>>
       - go-restore-cache:
           namespace: packages/contracts-bedrock/scripts/go-ffi
       - run:
@@ -3029,6 +3079,7 @@ workflows:
             - prep-go-modules
           test_list: find test -name "*.t.sol"
           test_profile: ci
+          build_cache: true
           features: <<matrix.features>>
           matrix:
             parameters:
