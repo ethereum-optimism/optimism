@@ -150,6 +150,7 @@ fn encode_g1(p: &G1Affine) -> [u8; G1_LENGTH] {
 
 /// EIP-2537 G2 encoding: 192 zero bytes for the identity, otherwise `x.c0 ‖ x.c1 ‖ y.c0 ‖ y.c1`
 /// big-endian.
+#[allow(clippy::chunks_exact_to_as_chunks)]
 fn encode_g2(p: &G2Affine) -> [u8; G2_LENGTH] {
     let mut out = [0u8; G2_LENGTH];
     if !bool::from(p.is_identity()) {

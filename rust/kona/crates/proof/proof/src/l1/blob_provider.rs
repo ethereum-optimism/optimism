@@ -166,6 +166,7 @@ mod test {
     use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
     #[test]
+    #[allow(clippy::chunks_exact_to_as_chunks)]
     fn test_roots_of_unity() {
         const FIELD_ELEMENTS: usize = FIELD_ELEMENTS_PER_BLOB as usize;
 
