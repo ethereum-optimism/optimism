@@ -80,7 +80,13 @@ The validator adds assertions for the new lockbox and pause configuration and ha
 * Update any monitoring that filters `Paused` and `Unpaused` events by the `OptimismPortal` address.
 * If you monitor the ETH balance of the `OptimismPortal`, monitor the `ETHLockbox` balance instead after the upgrade.
 * Chains governed by the Optimism Security Council are upgraded through Optimism Governance.
-  Other chains upgrade their L1 contracts with OPCM, as described in the [superchain-ops upgrade guide](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide).
+* OP Enterprise Fully Managed chains: Optimism handles the upgrade, and no action is required for the contract upgrade itself.
+* OP Enterprise Self Managed chains: contact your Optimism point of contact if you need support.
+* All other chains: upgrade your L1 contracts with OPCM.
+
+<Info>
+  See [Pausing the bridge](/op-stack/security/pause) for how chain-specific pause identifiers work and how to pause a chain.
+</Info>
 
 ### Node operators
 
@@ -92,9 +98,13 @@ Required component versions, if any, will be listed here when the release candid
 Ordinary L2 contracts and transactions are not affected.
 Update an integration if it does any of the following:
 
-* Reads the ETH balance of the `OptimismPortal` to measure the ETH held for a chain. After the upgrade, read the balance of the chain's `ETHLockbox`. See [Exchanges and bridges](/op-stack/security/exchanges-and-bridges).
+* Reads the ETH balance of the `OptimismPortal` to measure the ETH held for a chain. After the upgrade, read the balance of the chain's `ETHLockbox`.
 * Filters `Paused` events from the `SuperchainConfig` by the `OptimismPortal` address.
 * Tracks withdrawal proofs and should handle the new `WithdrawalProofDeleted` event.
+
+<Info>
+  See [Exchanges and bridges](/op-stack/security/exchanges-and-bridges) for guidance on monitoring chain balances and pause state.
+</Info>
 
 ### Users
 
@@ -110,6 +120,9 @@ Upgrade 21 is applied as an L1 contract upgrade, so each network is upgraded by 
 | Sepolia execution | **Monday, November 9, 2026** |
 | Governance veto period ends | **Wednesday, November 11, 2026** |
 | Mainnet execution | **Monday, November 16, 2026** |
+
+OP Enterprise Fully Managed chains follow this tentative timeline.
+OP Enterprise Self Managed chains can reach out to their Optimism point of contact if they need any support.
 
 Governed Sepolia OP Stack chains are upgraded first, followed by a seven-day soak period before mainnet execution.
 Mainnet execution depends on Optimism Governance approval and a healthy Sepolia soak, so these dates can move.
