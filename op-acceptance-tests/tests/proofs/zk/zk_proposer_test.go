@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/zkproposer"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -330,7 +331,12 @@ func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
 	t.Require().Less(initBlock, headA, "the initiating block must be below chain A's block at the executing timestamp")
 
 	sys.SuperRoots.AwaitValidatedTimestamp(execTimestamp)
-	sys.L2CLB.Reached(safety.CrossSafe, execBlock, 10)
+	// The EL exposes the replacement through an async forkchoice update, so wait on
+	// it too before reading the block's contents.
+	dsl.CheckAll(t,
+		sys.L2CLB.ReachedFn(safety.CrossSafe, execBlock, 30),
+		sys.L2ELB.ReachedFn(eth.Safe, execBlock, 30),
+	)
 	sys.L2ELB.AssertExecMessageNotInBlock(execMsg)
 	optimistic := sys.SuperRoots.SuperRootAtTimestamp(execTimestamp).OptimisticAtTimestamp[sys.L2ChainB.ChainID()]
 	t.Require().NotNil(optimistic.Output, "the optimistic block of chain B must have an output")

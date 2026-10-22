@@ -1032,6 +1032,15 @@ pub async fn collect_consolidation_witness(
     })
 }
 
+/// The header and receipts of an optimistic block.
+#[derive(Debug, Clone)]
+pub struct OptimisticBlockReceipts {
+    /// The block's header, checked against the requested hash.
+    pub header: Header,
+    /// The block's receipts, read from the header's receipts root.
+    pub receipts: Vec<OpReceiptEnvelope>,
+}
+
 /// The header and receipts of `block_hash`, the optimistic block of `chain_id` built on the
 /// canonical block `parent_hash`, read through `host` the way the consolidation reads its heads.
 /// When the block is not canonical, kona-host re-derives it from L1 and re-executes it, so no L2
@@ -1041,7 +1050,7 @@ pub async fn optimistic_block_receipts(
     chain_id: u64,
     parent_hash: B256,
     block_hash: B256,
-) -> Result<(Header, Vec<OpReceiptEnvelope>)> {
+) -> Result<OptimisticBlockReceipts> {
     let (_, block) = collect_witness(&[], host, |oracle, _beacon| async move {
         let chain = chain_id.to_be_bytes();
         HintType::L2BlockData
@@ -1055,7 +1064,7 @@ pub async fn optimistic_block_receipts(
             .await?;
         let receipts = receipts_from_trie(oracle.as_ref(), header.receipts_root)
             .map_err(|err| anyhow!("receipts of block {block_hash}: {err}"))?;
-        Ok((header, receipts))
+        Ok(OptimisticBlockReceipts { header, receipts })
     })
     .await?;
     Ok(block)

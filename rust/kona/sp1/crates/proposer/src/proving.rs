@@ -21,7 +21,6 @@ use std::{
     time::Duration,
 };
 
-use alloy_consensus::Header;
 use alloy_primitives::{Address, B256, U256, keccak256};
 use alloy_sol_types::SolValue;
 use anyhow::{Context, Result, anyhow, bail, ensure};
@@ -40,15 +39,14 @@ use kona_sp1_client_utils::{
 use kona_sp1_ethereum_client_utils::chain_config::ChainConfigs;
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use kona_sp1_super_range_executor::{
-    HostInputs, InteropHost, ScannedTimestampCost, SuperRootAtTimestampResponse,
-    SynthesizedExecution, build_interop_host, build_super_consolidation_stdin,
-    build_super_range_stdin, collect_consolidation_witness, collect_range_witness,
-    decode_super_consolidation_public_values, decode_super_range_public_values,
-    deployment_chain_configs, estimate_consolidation_pgu, is_witness_too_large,
-    optimistic_block_receipts, proof_from_super_v1, synthesize_execution,
+    HostInputs, InteropHost, OptimisticBlockReceipts, ScannedTimestampCost,
+    SuperRootAtTimestampResponse, SynthesizedExecution, build_interop_host,
+    build_super_consolidation_stdin, build_super_range_stdin, collect_consolidation_witness,
+    collect_range_witness, decode_super_consolidation_public_values,
+    decode_super_range_public_values, deployment_chain_configs, estimate_consolidation_pgu,
+    is_witness_too_large, optimistic_block_receipts, proof_from_super_v1, synthesize_execution,
     write_log_commitment_proofs,
 };
-use op_alloy_consensus::OpReceiptEnvelope;
 use parking_lot::Mutex;
 use serde::Serialize;
 use sp1_sdk::{HashableKey, SP1Proof, SP1ProofWithPublicValues, SP1Stdin};
@@ -1737,7 +1735,7 @@ impl ReplacedBlockSource for HostReplacedBlocks {
         chain_id: u64,
         parent: B256,
         hash: B256,
-    ) -> Result<(Header, Vec<OpReceiptEnvelope>)> {
+    ) -> Result<OptimisticBlockReceipts> {
         optimistic_block_receipts(self.0.clone(), chain_id, parent, hash).await
     }
 }

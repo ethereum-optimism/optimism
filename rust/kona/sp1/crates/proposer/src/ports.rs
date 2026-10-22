@@ -7,7 +7,7 @@ use alloy_eips::BlockId;
 use alloy_primitives::{Address, B256, U256};
 use anyhow::Result;
 use async_trait::async_trait;
-use kona_sp1_super_range_executor::SuperRootAtTimestampResponse;
+use kona_sp1_super_range_executor::{OptimisticBlockReceipts, SuperRootAtTimestampResponse};
 use op_alloy_consensus::OpReceiptEnvelope;
 
 use crate::{
@@ -279,7 +279,7 @@ pub(crate) trait ReplacedBlockSource: Send + Sync {
         chain_id: u64,
         parent: B256,
         hash: B256,
-    ) -> Result<(Header, Vec<OpReceiptEnvelope>)>;
+    ) -> Result<OptimisticBlockReceipts>;
 }
 
 /// Expensive witness collection and SP1 proof execution.

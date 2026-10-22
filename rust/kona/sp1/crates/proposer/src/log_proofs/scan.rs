@@ -18,7 +18,7 @@ use kona_interop::{
 };
 use kona_registry::HashMap as RegistryHashMap;
 use kona_sp1_ethereum_client_utils::chain_config::ChainConfigs;
-use kona_sp1_super_range_executor::SuperRootAtTimestampResponse;
+use kona_sp1_super_range_executor::{OptimisticBlockReceipts, SuperRootAtTimestampResponse};
 use op_alloy_consensus::OpReceiptEnvelope;
 
 use crate::ports::{L2BlockSource, ReplacedBlockSource};
@@ -188,7 +188,7 @@ async fn scan_replaced_head(
         .checked_sub(1)
         .with_context(|| format!("replaced block {hash} of chain {chain_id} has no parent"))?;
     let parent = source.header_by_number(chain_id, parent_number).await?;
-    let (header, receipts) =
+    let OptimisticBlockReceipts { header, receipts } =
         replaced_blocks.replaced_block(chain_id, parent.hash(), hash).await.with_context(|| {
             format!("failed to re-derive replaced block {hash} of chain {chain_id}")
         })?;
@@ -290,9 +290,15 @@ mod tests {
         }
     }
 
-    /// Replaced blocks by hash, each with the parent it must be asked for.
+    /// A replaced block and the parent it must be asked for.
+    struct Replaced {
+        parent: B256,
+        block: OptimisticBlockReceipts,
+    }
+
+    /// Replaced blocks by hash.
     #[derive(Default)]
-    struct FakeReplaced(BTreeMap<B256, (B256, Header, Vec<OpReceiptEnvelope>)>);
+    struct FakeReplaced(BTreeMap<B256, Replaced>);
 
     #[async_trait]
     impl ReplacedBlockSource for FakeReplaced {
@@ -301,11 +307,9 @@ mod tests {
             _chain_id: u64,
             parent: B256,
             hash: B256,
-        ) -> Result<(Header, Vec<OpReceiptEnvelope>)> {
+        ) -> Result<OptimisticBlockReceipts> {
             match self.0.get(&hash) {
-                Some((expected, header, receipts)) if *expected == parent => {
-                    Ok((header.clone(), receipts.clone()))
-                }
+                Some(replaced) if replaced.parent == parent => Ok(replaced.block.clone()),
                 _ => anyhow::bail!("unknown replaced block"),
             }
         }
@@ -488,7 +492,8 @@ mod tests {
         executing.add_executing_message(message(A, 10, 10));
         let denied_header = header(3, 12, &executing.receipts);
         let denied = denied_header.hash_slow();
-        replaced.0.insert(denied, (b2, denied_header, executing.receipts));
+        let block = OptimisticBlockReceipts { header: denied_header, receipts: executing.receipts };
+        replaced.0.insert(denied, Replaced { parent: b2, block });
         let responses = SPAN
             .iter()
             .map(|&timestamp| {
