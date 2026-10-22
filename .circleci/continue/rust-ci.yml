@@ -52,6 +52,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           init_superchain_submodule: false
@@ -77,6 +78,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache: &clippy-cache-args
           directory: <<parameters.directory>>
           features: "all"
@@ -105,6 +107,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           init_superchain_submodule: false
@@ -133,6 +136,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           init_superchain_submodule: false
@@ -154,6 +158,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           init_superchain_submodule: false
@@ -179,6 +184,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache: &no-std-cache-args
           directory: <<parameters.directory>>
           init_superchain_submodule: false
@@ -205,6 +211,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache: &docs-cache-args
           directory: <<parameters.directory>>
           features: "all"
@@ -231,6 +238,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache: &doctest-cache-args
           directory: <<parameters.directory>>
       - run:
@@ -264,6 +272,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache: &tests-cache-args
           directory: <<parameters.directory>>
           profile: <<parameters.cache_profile>>
@@ -342,6 +351,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache: &interop-diff-cache-args
           directory: rust
           profile: debug
@@ -375,6 +385,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache: &udeps-cache-args
           directory: <<parameters.directory>>
           profile: "release"
@@ -404,6 +415,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache: &hack-build-cache-args
           directory: <<parameters.directory>>
       - run:
@@ -428,6 +440,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache: &hack-cache-args
           directory: rust
           features: "all"
@@ -472,6 +485,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache:
           directory: rust
           profile: debug
@@ -527,6 +541,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - install-zstd
       - apt-install:
           packages: "clang llvm-dev libclang-dev"
@@ -578,6 +593,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache:
           needs_clang: false
           directory: rust
@@ -602,6 +618,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare:
           needs_clang: false
       - run:
@@ -624,6 +641,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache:
           directory: rust
       - run:
@@ -661,6 +679,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       - rust-prepare-and-restore-cache:
           directory: rust
       - run:
@@ -696,6 +715,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       # No sccache here: the prestates are built reproducibly in Docker
       # (just build-kona-reproducible-prestate), so the host never compiles and
       # the job doesn't need the sccache-gcs-optimism context. That context also
@@ -779,6 +799,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+          enable-mise-cache: true
       # utils/checkout-with-mise provides cargo-prove and just. rust-prepare
       # puts cargo on PATH, which check-sp1-guest-lock and cargo-prove need.
       # No sccache: the guests are built in Docker so the host never compiles,
