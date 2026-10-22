@@ -69,6 +69,8 @@ fn merge_admin_module(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kona_engine::test_utils::test_engine_client;
+    use kona_rpc::HealthzResponse;
 
     #[test]
     fn admin_module_registered_only_when_enabled() {
@@ -89,6 +91,31 @@ mod tests {
             } else {
                 assert!(methods.is_empty(), "admin methods must be disabled by default");
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn registered_endpoints_report_the_binary_version() {
+        for version in ["1.2.3", "0.0.0-dev"] {
+            let config = Arc::new(RollupConfig::default());
+            let (engine, _l1, _l2) = test_engine_client(config.clone());
+            let (_state_tx, state_rx) = watch::channel(EngineState::default());
+            let (l1_tx, _l1_rx) = mpsc::channel(1);
+            let mut rpc =
+                RollupRpc::new(version.to_owned(), config, state_rx, engine.query_client(), l1_tx)
+                    .into_rpc();
+            rpc.merge(HealthzRpc::new(version.to_owned()).into_rpc()).unwrap();
+            assert_eq!(
+                rpc.call::<_, String>("optimism_version", jsonrpsee::rpc_params![]).await.unwrap(),
+                version
+            );
+            assert_eq!(
+                rpc.call::<_, HealthzResponse>("healthz", jsonrpsee::rpc_params![])
+                    .await
+                    .unwrap()
+                    .version,
+                version
+            );
         }
     }
 }
@@ -649,32 +676,3 @@ impl RollupNode {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use kona_rpc::HealthzResponse;
-
-    #[tokio::test]
-    async fn registered_endpoints_report_the_binary_version() {
-        for version in ["1.2.3", "0.0.0-dev"] {
-            let (engine_tx, _engine_rx) = mpsc::channel(1);
-            let (l1_tx, _l1_rx) = mpsc::channel(1);
-            let engine_client = QueuedEngineRpcClient::new(engine_tx);
-            let mut rpc = RollupRpc::new(version, engine_client, l1_tx).into_rpc();
-            rpc.merge(HealthzRpc::new(version).into_rpc()).unwrap();
-            assert_eq!(
-                rpc.call::<_, String>("optimism_version", jsonrpsee::rpc_params![]).await.unwrap(),
-                version
-            );
-            assert_eq!(
-                rpc.call::<_, HealthzResponse>("healthz", jsonrpsee::rpc_params![])
-                    .await
-                    .unwrap()
-                    .version,
-                version
-            );
-        }
-    }
-}
-
