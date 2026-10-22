@@ -167,8 +167,8 @@ contract L2ERC721Bridge_FinalizeBridgeERC721_Test is L2ERC721Bridge_TestInit {
     }
 
     /// @notice Tests that `finalizeBridgeERC721` mints a token that only answers the interface ID
-    ///         of tokens built from source before op-contracts v1.8.0.
-    function test_finalizeBridgeERC721_legacyInterfaceId_succeeds() external {
+    ///         of tokens built from source between Bedrock and op-contracts v1.8.0.
+    function test_finalizeBridgeERC721_bedrockInterfaceId_succeeds() external {
         _finalizeBridgeERC721ToFixedInterfaceIdToken(0x74259ebf);
     }
 
