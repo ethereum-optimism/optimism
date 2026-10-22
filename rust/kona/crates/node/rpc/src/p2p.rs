@@ -355,13 +355,8 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_disconnect_peer(&self, peer_id: String) -> RpcResult<()> {
-        let peer_id: PeerId = match peer_id.parse() {
-            Ok(id) => id,
-            Err(err) => {
-                warn!(target: "rpc", ?err, ?peer_id, "Failed to parse peer ID");
-                return Err(ErrorObject::from(ErrorCode::InvalidParams));
-            }
-        };
+        let peer_id: PeerId =
+            peer_id.parse().map_err(|_| ErrorObject::from(ErrorCode::InvalidParams))?;
 
         self.apply_command(GossipCommand::DisconnectPeer { peer_id }).await?;
 

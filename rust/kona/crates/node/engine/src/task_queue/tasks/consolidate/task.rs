@@ -182,6 +182,13 @@ impl ConsolidateTask {
     }
 
     /// Attempts consolidation on the engine state.
+    #[tracing::instrument(
+        name = "consolidate",
+        target = "engine",
+        level = "info",
+        skip_all,
+        fields(number = self.input.l2_block_number())
+    )]
     pub async fn consolidate(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
         // Fetch the unsafe L2 block
         let block_num = self.input.l2_block_number();
@@ -192,7 +199,6 @@ impl ConsolidateTask {
                 return Err(ConsolidateTaskError::MissingUnsafeL2Block(block_num));
             }
             Err(_) => {
-                warn!(target: "engine", "Failed to fetch unsafe l2 block for consolidation");
                 return Err(ConsolidateTaskError::FailedToFetchUnsafeL2Block);
             }
         };

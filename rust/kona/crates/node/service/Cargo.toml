@@ -69,6 +69,7 @@ http-body-util.workspace = true
 metrics.workspace = true
 
 [dev-dependencies]
+tracing-subscriber = { workspace = true, features = ["fmt"] }
 metrics-exporter-prometheus.workspace = true
 alloy-json-rpc.workspace = true
 serde_json.workspace = true

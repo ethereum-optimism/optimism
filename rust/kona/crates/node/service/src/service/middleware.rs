@@ -1,4 +1,4 @@
-//! Metrics for parsed JSON-RPC calls and notifications, including batch entries.
+//! Metrics and logs for parsed JSON-RPC calls and notifications, including batch entries.
 
 use crate::Metrics;
 use jsonrpsee::{
@@ -10,14 +10,14 @@ use jsonrpsee::{
 use std::{collections::HashSet, sync::Arc, time::Instant};
 use tower::Layer;
 
-/// Records all registered methods, grouping unregistered names under `unknown`.
+/// Observes all registered methods, grouping unregistered names under `unknown`.
 #[derive(Clone, Debug)]
-pub(super) struct RpcMetricsLayer {
+pub(super) struct RpcObservabilityLayer {
     methods: Arc<HashSet<&'static str>>,
     max_response_body_size: u32,
 }
 
-impl RpcMetricsLayer {
+impl RpcObservabilityLayer {
     pub(super) fn new(
         methods: impl Iterator<Item = &'static str>,
         max_response_body_size: u32,
@@ -26,27 +26,27 @@ impl RpcMetricsLayer {
     }
 }
 
-impl<S> Layer<S> for RpcMetricsLayer {
-    type Service = RpcMetricsService<S>;
+impl<S> Layer<S> for RpcObservabilityLayer {
+    type Service = RpcObservabilityService<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        RpcMetricsService { inner, metrics: self.clone() }
+        RpcObservabilityService { inner, metrics: self.clone() }
     }
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct RpcMetricsService<S> {
+pub(super) struct RpcObservabilityService<S> {
     inner: S,
-    metrics: RpcMetricsLayer,
+    metrics: RpcObservabilityLayer,
 }
 
-impl<S> RpcMetricsService<S> {
+impl<S> RpcObservabilityService<S> {
     fn method(&self, name: &str) -> &'static str {
         self.metrics.methods.get(name).copied().unwrap_or("unknown")
     }
 }
 
-impl<S> RpcServiceT for RpcMetricsService<S>
+impl<S> RpcServiceT for RpcObservabilityService<S>
 where
     S: RpcServiceT<
             MethodResponse = MethodResponse,
@@ -63,6 +63,8 @@ where
 
     fn call<'a>(&self, req: Request<'a>) -> impl Future<Output = MethodResponse> + Send + 'a {
         let method = self.method(req.method_name());
+        let request_method = req.method_name().to_owned();
+        let id = req.id.clone();
         let inner = self.inner.clone();
         async move {
             metrics::counter!(Metrics::RPC_REQUESTS, "method" => method, "kind" => "call")
@@ -74,8 +76,29 @@ where
                     .increment(1);
                 "error"
             });
+            let duration = start.elapsed();
             metrics::histogram!(Metrics::RPC_REQUEST_DURATION, "method" => method, "result" => result)
-                .record(start.elapsed().as_secs_f64());
+                .record(duration.as_secs_f64());
+            if let Some(code) = response.as_error_code() {
+                warn!(
+                    target: "rpc",
+                    method = request_method,
+                    ?id,
+                    ?duration,
+                    result,
+                    code,
+                    "JSON-RPC request completed"
+                );
+            } else {
+                info!(
+                    target: "rpc",
+                    method = request_method,
+                    ?id,
+                    ?duration,
+                    result,
+                    "JSON-RPC request completed"
+                );
+            }
             response
         }
     }
@@ -91,6 +114,7 @@ where
             // calls, without reporting a successful method execution or a duration.
             metrics::counter!(Metrics::RPC_REQUESTS, "method" => method, "kind" => "notification")
                 .increment(1);
+            info!(target: "rpc", method = notification.method.as_ref(), "JSON-RPC notification received");
             inner.notification(notification).await
         }
     }
@@ -148,7 +172,27 @@ mod tests {
         ws_client::WsClientBuilder,
     };
     use metrics_exporter_prometheus::PrometheusBuilder;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::{
+        io,
+        sync::{
+            Mutex,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
+
+    #[derive(Clone, Default)]
+    struct LogWriter(Arc<Mutex<Vec<u8>>>);
+
+    impl io::Write for LogWriter {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
 
     fn assert_sample(rendered: &str, name: &str, labels: &[&str], expected: u64) {
         let prefix = format!("{name}{{");
@@ -163,6 +207,15 @@ mod tests {
 
     #[test]
     fn records_http_batches_websocket_calls_and_subscription_setup() {
+        let logs = LogWriter::default();
+        let writer = logs.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .without_time()
+            .with_ansi(false)
+            .with_max_level(tracing::Level::INFO)
+            .with_writer(move || writer.clone())
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
         let recorder = PrometheusBuilder::new().build_recorder();
         let metrics = recorder.handle();
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
@@ -196,7 +249,7 @@ mod tests {
                     )
                     .unwrap();
 
-                let rpc_middleware = RpcServiceBuilder::new().layer(RpcMetricsLayer::new(
+                let rpc_middleware = RpcServiceBuilder::new().layer(RpcObservabilityLayer::new(
                     module.method_names(),
                     jsonrpsee::core::TEN_MB_SIZE_BYTES,
                 ));
@@ -295,6 +348,35 @@ mod tests {
         assert!(!rendered.contains("missing_one"));
         assert!(!rendered.contains("missing_two"));
         assert!(!rendered.contains("missing_three"));
+
+        let output = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+        let calls: Vec<_> =
+            output.lines().filter(|line| line.contains("JSON-RPC request completed")).collect();
+        assert_eq!(calls.len(), 11, "{output}");
+        for (method, result, code) in [
+            ("optimism_answer", "success", None),
+            ("admin_fail", "error", Some(-32603)),
+            ("optimism_echo", "error", Some(-32602)),
+            ("missing_one", "error", Some(-32601)),
+            ("ws_subscribe", "success", None),
+            ("ws_unsubscribe", "success", None),
+        ] {
+            let log =
+                calls.iter().find(|line| line.contains(&format!("method=\"{method}\""))).unwrap();
+            assert!(log.contains(&format!("result=\"{result}\"")), "{log}");
+            assert!(log.contains("duration="), "{log}");
+            assert!(log.contains("id="), "{log}");
+            let level = if result == "error" { "WARN" } else { "INFO" };
+            assert!(log.contains(level), "{log}");
+            if let Some(code) = code {
+                assert!(log.contains(&format!("code={code}")), "{log}");
+            }
+        }
+        let notification =
+            output.lines().find(|line| line.contains("JSON-RPC notification received")).unwrap();
+        assert!(notification.contains("method=\"optimism_answer\""), "{notification}");
+        assert!(!notification.contains("duration="), "{notification}");
+        assert!(!notification.contains("result="), "{notification}");
     }
 
     #[derive(Clone)]
@@ -330,8 +412,8 @@ mod tests {
         use jsonrpsee::server::middleware::rpc::BatchEntryErr;
 
         let calls = Arc::new(AtomicUsize::new(0));
-        let service =
-            RpcMetricsLayer::new(["answer"].into_iter(), 1024).layer(TestService(calls.clone()));
+        let service = RpcObservabilityLayer::new(["answer"].into_iter(), 1024)
+            .layer(TestService(calls.clone()));
         let call = || Request::owned("answer".into(), None, Id::Number(1));
         let notification = || Notification::new("answer".into(), None);
         let response = service
@@ -356,7 +438,7 @@ mod tests {
         assert_eq!(json["error"]["code"], -32600);
 
         let limited =
-            RpcMetricsLayer::new(["answer"].into_iter(), 1).layer(TestService(calls.clone()));
+            RpcObservabilityLayer::new(["answer"].into_iter(), 1).layer(TestService(calls.clone()));
         let response = limited
             .batch(Batch::from(vec![Ok(BatchEntry::Call(call())), Ok(BatchEntry::Call(call()))]))
             .await;

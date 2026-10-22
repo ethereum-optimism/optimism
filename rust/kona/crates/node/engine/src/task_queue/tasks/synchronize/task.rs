@@ -82,6 +82,13 @@ impl EngineTaskExt for SynchronizeTask {
     type Output = ();
     type Error = SynchronizeTaskError;
 
+    #[tracing::instrument(
+        name = "synchronize",
+        target = "engine",
+        level = "info",
+        skip_all,
+        fields(state_update = ?self.state_update, forkchoice = tracing::field::Empty)
+    )]
     async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, SynchronizeTaskError> {
         // Apply the sync state update to the engine state.
         let new_sync_state = state.sync_state.apply_update(self.state_update);
@@ -113,6 +120,7 @@ impl EngineTaskExt for SynchronizeTask {
 
         // Send the forkchoice update through the input.
         let forkchoice = new_sync_state.create_forkchoice_state();
+        tracing::Span::current().record("forkchoice", tracing::field::debug(forkchoice));
 
         // Handle the forkchoice update result.
         // NOTE: it doesn't matter which version we use here, because we're not sending any
@@ -122,30 +130,18 @@ impl EngineTaskExt for SynchronizeTask {
 
         let valid_response = response.map_err(|e| {
             // Fatal forkchoice update error.
-            let error = e
-                .as_error_resp()
+            e.as_error_resp()
                 .and_then(|e| {
                     (e.code == INVALID_FORK_CHOICE_STATE_ERROR as i64)
                         .then_some(SynchronizeTaskError::InvalidForkchoiceState)
                 })
-                .unwrap_or_else(|| SynchronizeTaskError::ForkchoiceUpdateFailed(e));
-
-            debug!(target: "engine", error = ?error, "Unexpected forkchoice update error");
-
-            error
+                .unwrap_or_else(|| SynchronizeTaskError::ForkchoiceUpdateFailed(e))
         })?;
 
         self.check_forkchoice_updated_status(state, &valid_response.payload_status.status)?;
 
         // Apply the new sync state to the engine state.
         state.sync_state = new_sync_state;
-
-        debug!(
-            target: "engine",
-            forkchoice = ?forkchoice,
-            response = ?valid_response,
-            "Forkchoice updated"
-        );
 
         Ok(())
     }

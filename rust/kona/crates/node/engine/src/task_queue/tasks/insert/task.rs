@@ -53,6 +53,18 @@ impl EngineTaskExt for InsertTask {
 
     type Error = InsertTaskError;
 
+    #[tracing::instrument(
+        name = "insert",
+        target = "engine",
+        level = "info",
+        skip_all,
+        fields(
+            hash = %self.payload.block_hash(),
+            number = self.payload.block_number(),
+            l2_time = self.payload.timestamp(),
+            is_payload_safe = self.is_payload_safe,
+        )
+    )]
     async fn execute(&self, state: &mut EngineState) -> Result<L2BlockInfo, InsertTaskError> {
         // Insert the new payload.
         // Form the new unsafe block ref from the execution payload.
@@ -75,13 +87,7 @@ impl EngineTaskExt for InsertTask {
         };
 
         // Check the `engine_newPayload` response.
-        let response = match response {
-            Ok(resp) => resp,
-            Err(e) => {
-                warn!(target: "engine", "Failed to insert new payload: {e}");
-                return Err(InsertTaskError::InsertFailed(e));
-            }
-        };
+        let response = response.map_err(InsertTaskError::InsertFailed)?;
         if !self.check_new_payload_status(&response.status) {
             return Err(InsertTaskError::UnexpectedPayloadStatus(response.status));
         }
