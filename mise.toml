@@ -54,7 +54,7 @@ protoc = "35.1"
 
 # Python dependencies
 "pipx:slither-analyzer" = "0.10.2"
-"pipx:semgrep" = "1.137.0"
+"pipx:semgrep" = "1.182.1"
 "pipx:md_toc" = "9.0.0"
 
 # Foundry dependencies
