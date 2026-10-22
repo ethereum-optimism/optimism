@@ -194,7 +194,7 @@ impl SignerArgs {
         Ok(Some(RemoteSigner {
             address,
             endpoint,
-            ca_cert: self.ca_cert.clone(),
+            ca_cert: self.ca_cert,
             client_cert,
             headers,
         }))

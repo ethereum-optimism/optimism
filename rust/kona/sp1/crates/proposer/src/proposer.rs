@@ -75,7 +75,7 @@ pub(crate) struct TaskId(NonZeroU64);
 impl TaskId {
     fn allocate(next_task_id: &AtomicU64) -> Self {
         let task_id = next_task_id
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |task_id| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |task_id| {
                 if task_id == 0 { None } else { task_id.checked_add(1) }
             })
             .expect("task ID counter must be nonzero and not exhausted");
