@@ -7,13 +7,13 @@ use crate::{
 };
 use async_trait::async_trait;
 use kona_derive::{
-    ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, Signal,
-    SignalReceiver, StepResult,
+    ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, PipelineResult, ResetError,
+    ResetSignal, Signal, SignalReceiver, StepResult,
 };
 use kona_engine::FinalizeBlockId;
-use kona_protocol::OpAttributesWithParent;
+use kona_protocol::{BlockInfo, OpAttributesWithParent};
 use thiserror::Error;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
 /// The [`NodeActor`] for the derivation sub-routine.
 ///
@@ -33,6 +33,8 @@ where
 
     /// The derivation pipeline.
     pipeline: PipelineSignalReceiver,
+    /// Publishes the pipeline's origin: the L1 block that derivation has reached.
+    derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
     /// The state machine controlling when derivation can occur.
     derivation_state_machine: DerivationStateMachine,
     /// The [`L2Finalizer`] tracks derived L2 blocks awaiting finalization.
@@ -50,9 +52,11 @@ where
         engine_client: DerivationEngineClient_,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
         pipeline: PipelineSignalReceiver,
+        derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
     ) -> Self {
         Self {
             pipeline,
+            derivation_origin_tx,
             inbound_request_rx,
             engine_client,
             derivation_state_machine: DerivationStateMachine::default(),
@@ -62,17 +66,50 @@ where
 
     /// Handles a [`Signal`] received over the derivation signal receiver channel.
     async fn signal(&mut self, signal: Signal) {
-        if matches!(signal, Signal::Reset(_)) {
-            // Clear the finalization queue on reset.
-            self.finalizer.clear();
-        }
-
-        match self.pipeline.signal(signal).await {
-            Ok(_) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
+        let result = match signal {
+            Signal::Reset(reset) => self.signal_reset(reset).await,
+            Signal::Activation(activation) => self.signal_activation(activation).await,
+            Signal::FlushChannel => self.signal_flush_channel().await,
+        };
+        match result {
+            Ok(()) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
             Err(e) => {
                 error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline")
             }
         }
+        self.publish_origin();
+    }
+
+    /// Resets the pipeline and clears finalization and origin state before the reset starts.
+    async fn signal_reset(&mut self, reset: ResetSignal) -> PipelineResult<()> {
+        self.derivation_origin_tx.send_replace(None);
+        self.finalizer.clear();
+        self.pipeline.signal(Signal::Reset(reset)).await?;
+        self.derivation_origin_tx.send_replace(self.pipeline.origin());
+        Ok(())
+    }
+
+    /// Activates a hardfork while preserving the pipeline's derivation state.
+    async fn signal_activation(&mut self, activation: ActivationSignal) -> PipelineResult<()> {
+        self.pipeline.signal(Signal::Activation(activation)).await
+    }
+
+    /// Flushes the pipeline's currently active channel.
+    async fn signal_flush_channel(&mut self) -> PipelineResult<()> {
+        self.pipeline.signal(Signal::FlushChannel).await
+    }
+
+    /// Refreshes an established origin without republishing one invalidated by a reset.
+    fn publish_origin(&self) {
+        let pipeline_origin = self.pipeline.origin();
+        self.derivation_origin_tx.send_if_modified(|origin| {
+            if origin.is_some() && *origin != pipeline_origin {
+                *origin = pipeline_origin;
+                true
+            } else {
+                false
+            }
+        });
     }
 
     /// Attempts to step the derivation pipeline forward as much as possible in order to produce the
@@ -82,8 +119,11 @@ where
         // first attributes are produced. All batches at and before the safe head will be
         // dropped, so the first payload will always be the disputed one.
         loop {
-            match self.pipeline.step(self.derivation_state_machine.last_confirmed_safe_head()).await
-            {
+            let step =
+                self.pipeline.step(self.derivation_state_machine.last_confirmed_safe_head()).await;
+            // A failed step can also move the origin, as a Holocene activation does.
+            self.publish_origin();
+            match step {
                 StepResult::PreparedAttributes => { /* continue; attributes will be sent off. */ }
                 StepResult::AdvancedOrigin => {
                     let origin =
@@ -127,6 +167,8 @@ where
 
                                     kona_macros::inc!(counter, Metrics::L1_REORG_COUNT);
                                 }
+                                // Like op-node, report no origin until the reset sets a new one.
+                                self.derivation_origin_tx.send_replace(None);
                                 self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
                                     error!(target: "derivation", ?e, "Failed to send reset request");
                                     DerivationError::Sender(Box::new(e))
@@ -286,20 +328,22 @@ mod tests {
     use super::*;
     use crate::actors::derivation::engine_client::MockDerivationEngineClient;
     use alloy_primitives::B256;
-    use kona_derive::PipelineResult;
     use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
     use kona_protocol::{BlockInfo, L2BlockInfo};
     use rstest::rstest;
     use std::sync::Arc;
 
-    /// A pipeline stub whose every step reports an L1 reorg, forcing the reset branch of
-    /// [`DerivationActor::produce_next_attributes`].
+    /// A pipeline stub that returns `step_result` once, then yields. Origin advances increment
+    /// its L1 block number, and a reset moves it to the safe head's L1 origin.
     #[derive(Debug)]
-    struct ReorgingPipeline {
+    struct StubPipeline {
         rollup_config: Arc<RollupConfig>,
+        origin: BlockInfo,
+        step_result: StepResult,
+        reset_error: Option<PipelineErrorKind>,
     }
 
-    impl Iterator for ReorgingPipeline {
+    impl Iterator for StubPipeline {
         type Item = OpAttributesWithParent;
 
         fn next(&mut self) -> Option<Self::Item> {
@@ -307,30 +351,44 @@ mod tests {
         }
     }
 
-    impl kona_derive::OriginProvider for ReorgingPipeline {
+    impl kona_derive::OriginProvider for StubPipeline {
         fn origin(&self) -> Option<BlockInfo> {
-            Some(BlockInfo::default())
+            Some(self.origin)
         }
     }
 
     #[async_trait]
-    impl SignalReceiver for ReorgingPipeline {
-        async fn signal(&mut self, _: Signal) -> PipelineResult<()> {
+    impl SignalReceiver for StubPipeline {
+        async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
+            if let Signal::Reset(reset) = signal {
+                if let Some(error) = self.reset_error.take() {
+                    return Err(error);
+                }
+                self.origin = BlockInfo {
+                    number: reset.l2_safe_head.l1_origin.number,
+                    hash: reset.l2_safe_head.l1_origin.hash,
+                    ..Default::default()
+                };
+            }
             Ok(())
         }
     }
 
     #[async_trait]
-    impl Pipeline for ReorgingPipeline {
+    impl Pipeline for StubPipeline {
         fn peek(&self) -> Option<&OpAttributesWithParent> {
             None
         }
 
         async fn step(&mut self, _: L2BlockInfo) -> StepResult {
-            StepResult::StepFailed(PipelineErrorKind::Reset(ResetError::ReorgDetected(
-                B256::ZERO,
-                B256::repeat_byte(1),
-            )))
+            let result = std::mem::replace(
+                &mut self.step_result,
+                StepResult::StepFailed(PipelineError::Eof.temp()),
+            );
+            if matches!(result, StepResult::AdvancedOrigin | StepResult::OriginAdvanceErr(_)) {
+                self.origin.number += 1;
+            }
+            result
         }
 
         fn rollup_config(&self) -> &RollupConfig {
@@ -361,12 +419,30 @@ mod tests {
         let mut engine_client = MockDerivationEngineClient::new();
         engine_client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
 
+        let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
         let (request_tx, request_rx) = mpsc::channel(1);
         let mut actor = DerivationActor::new(
             engine_client,
             request_rx,
-            ReorgingPipeline { rollup_config: rollup_config.clone() },
+            StubPipeline {
+                rollup_config: rollup_config.clone(),
+                origin: BlockInfo::default(),
+                reset_error: None,
+                step_result: StepResult::StepFailed(
+                    ResetError::ReorgDetected(B256::ZERO, B256::repeat_byte(1)).reset(),
+                ),
+            },
+            derivation_origin_tx,
         );
+
+        request_tx
+            .send(DerivationActorRequest::ProcessEngineSignalRequest(Box::new(Signal::Reset(
+                kona_derive::ResetSignal { l2_safe_head: L2BlockInfo::default() },
+            ))))
+            .await
+            .unwrap();
+        actor.step().await.unwrap();
+        assert!(derivation_origin_rx.borrow().is_some());
 
         // Complete EL sync so the actor starts deriving, then let it hit the reorg.
         request_tx
@@ -376,5 +452,150 @@ mod tests {
         actor.step().await.unwrap();
 
         assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingSignal);
+        assert!(derivation_origin_rx.borrow().is_none());
+    }
+
+    /// `optimism_syncStatus` serves the published origin as `current_l1`, so it must follow the
+    /// pipeline forward, including across a Holocene activation, and back on a reset.
+    #[rstest]
+    #[case::advanced_origin(StepResult::AdvancedOrigin)]
+    #[case::holocene_activation(StepResult::OriginAdvanceErr(ResetError::HoloceneActivation.reset()))]
+    #[tokio::test]
+    async fn test_origin_is_published(#[case] step_result: StepResult) {
+        let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
+        let (request_tx, request_rx) = mpsc::channel(1);
+        let mut actor = DerivationActor::new(
+            MockDerivationEngineClient::new(),
+            request_rx,
+            StubPipeline {
+                rollup_config: Arc::new(RollupConfig::default()),
+                origin: BlockInfo::default(),
+                step_result,
+                reset_error: None,
+            },
+            derivation_origin_tx,
+        );
+
+        let mut safe_head = L2BlockInfo::default();
+        safe_head.l1_origin.number = 10;
+        safe_head.l1_origin.hash = B256::repeat_byte(10);
+        let reset = || {
+            DerivationActorRequest::ProcessEngineSignalRequest(Box::new(Signal::Reset(
+                kona_derive::ResetSignal { l2_safe_head: safe_head },
+            )))
+        };
+
+        request_tx.send(reset()).await.unwrap();
+        actor.step().await.unwrap();
+        assert_eq!(
+            derivation_origin_rx.borrow().map(|origin| origin.id()),
+            Some(safe_head.l1_origin)
+        );
+
+        request_tx
+            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(safe_head)))
+            .await
+            .unwrap();
+        actor.step().await.unwrap();
+        assert_eq!(derivation_origin_rx.borrow().unwrap().number, 11);
+
+        request_tx.send(reset()).await.unwrap();
+        actor.step().await.unwrap();
+        assert_eq!(
+            derivation_origin_rx.borrow().map(|origin| origin.id()),
+            Some(safe_head.l1_origin)
+        );
+    }
+
+    #[rstest]
+    #[case::activation(Signal::Activation(ActivationSignal::default()))]
+    #[case::flush_channel(Signal::FlushChannel)]
+    #[tokio::test]
+    async fn test_non_reset_signal_does_not_publish_uninitialized_origin(#[case] signal: Signal) {
+        let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
+        let (_request_tx, request_rx) = mpsc::channel(1);
+        let mut actor = DerivationActor::new(
+            MockDerivationEngineClient::new(),
+            request_rx,
+            StubPipeline {
+                rollup_config: Arc::new(RollupConfig::default()),
+                origin: BlockInfo::default(),
+                step_result: StepResult::AdvancedOrigin,
+                reset_error: None,
+            },
+            derivation_origin_tx,
+        );
+
+        actor.signal(signal).await;
+        assert!(derivation_origin_rx.borrow().is_none());
+        assert!(matches!(actor.produce_next_attributes().await, Err(DerivationError::Yield)));
+        assert_eq!(actor.pipeline.origin.number, 1);
+        assert!(derivation_origin_rx.borrow().is_none());
+    }
+
+    #[rstest]
+    #[case::activation(Signal::Activation(ActivationSignal::default()))]
+    #[case::flush_channel(Signal::FlushChannel)]
+    #[tokio::test]
+    async fn test_failed_reset_keeps_origin_unpublished_until_successful_reset(
+        #[case] signal: Signal,
+    ) {
+        let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
+        let (request_tx, request_rx) = mpsc::channel(1);
+        let mut actor = DerivationActor::new(
+            MockDerivationEngineClient::new(),
+            request_rx,
+            StubPipeline {
+                rollup_config: Arc::new(RollupConfig::default()),
+                origin: BlockInfo::default(),
+                reset_error: None,
+                step_result: StepResult::AdvancedOrigin,
+            },
+            derivation_origin_tx,
+        );
+
+        let mut safe_head = L2BlockInfo::default();
+        safe_head.l1_origin.number = 10;
+        safe_head.l1_origin.hash = B256::repeat_byte(10);
+        let reset = || {
+            DerivationActorRequest::ProcessEngineSignalRequest(Box::new(Signal::Reset(
+                kona_derive::ResetSignal { l2_safe_head: safe_head },
+            )))
+        };
+        request_tx.send(reset()).await.unwrap();
+        actor.step().await.unwrap();
+        assert_eq!(
+            derivation_origin_rx.borrow().map(|origin| origin.id()),
+            Some(safe_head.l1_origin)
+        );
+
+        // A reset can fail before it replaces the old origin, for example on an L2 RPC error.
+        actor.pipeline.reset_error = Some(PipelineError::Eof.temp());
+        request_tx.send(reset()).await.unwrap();
+        actor.step().await.unwrap();
+        assert_eq!(actor.pipeline.origin.id(), safe_head.l1_origin);
+        assert!(derivation_origin_rx.borrow().is_none());
+
+        // Neither a successful non-reset signal nor a step makes that origin valid again.
+        request_tx
+            .send(DerivationActorRequest::ProcessEngineSignalRequest(Box::new(signal)))
+            .await
+            .unwrap();
+        actor.step().await.unwrap();
+        assert!(derivation_origin_rx.borrow().is_none());
+        request_tx
+            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(safe_head)))
+            .await
+            .unwrap();
+        actor.step().await.unwrap();
+        assert_eq!(actor.pipeline.origin.number, 11);
+        assert!(derivation_origin_rx.borrow().is_none());
+
+        request_tx.send(reset()).await.unwrap();
+        actor.step().await.unwrap();
+        assert_eq!(
+            derivation_origin_rx.borrow().map(|origin| origin.id()),
+            Some(safe_head.l1_origin)
+        );
     }
 }

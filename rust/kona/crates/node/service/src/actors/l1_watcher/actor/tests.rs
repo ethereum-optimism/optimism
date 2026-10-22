@@ -89,6 +89,7 @@ struct ChainHandles {
     queries: Option<mpsc::Sender<L1WatcherQueries>>,
     signer: watch::Receiver<Address>,
     derivation: mpsc::Receiver<DerivationActorRequest>,
+    derivation_origin: watch::Sender<Option<BlockInfo>>,
 }
 impl ChainHandles {
     /// Waits for the next signer the watcher publishes for this chain.
@@ -116,6 +117,7 @@ impl Harness {
             let (signer_tx, signer) = watch::channel(Address::ZERO);
             let (query_tx, queries) = mpsc::channel(4);
             let (derivation_tx, derivation) = mpsc::channel(1);
+            let (derivation_origin, derivation_origin_rx) = watch::channel(None);
             configs.push(L1WatcherChain::new(
                 Arc::new(RollupConfig {
                     l2_chain_id: u64::from(index).into(),
@@ -124,9 +126,15 @@ impl Harness {
                 }),
                 QueuedL1WatcherDerivationClient { derivation_actor_request_tx: derivation_tx },
                 signer_tx,
+                derivation_origin_rx,
                 queries,
             ));
-            chains.push(ChainHandles { queries: Some(query_tx), signer, derivation });
+            chains.push(ChainHandles {
+                queries: Some(query_tx),
+                signer,
+                derivation,
+                derivation_origin,
+            });
         }
         let (heads, head_rx) = mpsc::channel(4);
         let (finalized, finalized_rx) = mpsc::channel(4);
@@ -256,6 +264,16 @@ async fn l1_state_queries_read_all_tags_without_new_heads() {
     assert_eq!(state.finalized_l1.unwrap().number, 80);
     assert_eq!(state.safe_l1.unwrap().number, 90);
     assert!(state.current_l1.is_none());
+}
+
+#[tokio::test(start_paused = true)]
+async fn l1_state_reports_derivation_origin_as_current_l1() {
+    let mut h = Harness::new(1);
+    h.send_head_and_receive(head(7), 0).await;
+    h.chains[0].derivation_origin.send_replace(Some(head(5)));
+    let (tx, rx) = oneshot::channel();
+    h.chains[0].queries.as_ref().unwrap().send(L1WatcherQueries::L1State(tx)).await.unwrap();
+    assert_eq!(rx.await.unwrap().current_l1, Some(head(5)));
 }
 
 #[tokio::test(start_paused = true)]
