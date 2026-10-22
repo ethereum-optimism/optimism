@@ -408,9 +408,9 @@ impl RollupNode {
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
         sequencer_admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
-    ) -> Option<ConfiguredSequencerActor> {
+    ) -> Result<Option<ConfiguredSequencerActor>, String> {
         if !self.mode().is_sequencer() {
-            return None;
+            return Ok(None);
         }
 
         let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
@@ -421,16 +421,20 @@ impl RollupNode {
         let delayed_origin_selector =
             L1OriginSelector::new(self.config.clone(), delayed_l1_provider);
 
-        let conductor = self.sequencer_config.conductor_rpc_url.clone().map(|url| {
-            ConductorClient::new_http(url).with_timeout(self.sequencer_config.conductor_rpc_timeout)
-        });
+        let conductor = self
+            .sequencer_config
+            .conductor_rpc_url
+            .clone()
+            .map(|url| ConductorClient::new_http(url, self.sequencer_config.conductor_rpc_timeout))
+            .transpose()
+            .map_err(|error| format!("Failed to build conductor HTTP client: {error}"))?;
 
         let sequencer_engine_client =
             QueuedSequencerEngineClient { engine_actor_request_tx, unsafe_head_rx };
 
         let queued_gossip_client = QueuedUnsafePayloadGossipClient::new(gossip_payload_tx);
 
-        Some(SequencerActor::new(
+        Ok(Some(SequencerActor::new(
             sequencer_admin_command_rx,
             self.create_attributes_builder(),
             conductor,
@@ -441,7 +445,7 @@ impl RollupNode {
             self.config.clone(),
             queued_gossip_client,
             Arc::new(SystemClock),
-        ))
+        )))
     }
 
     /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
@@ -612,7 +616,7 @@ impl RollupNode {
             unsafe_head_rx,
             l1_head_updates_rx,
             sequencer_admin_command_rx,
-        );
+        )?;
         let sequencer_admin = sequencer_actor.as_ref().map(|actor| {
             SequencerAdminHandle::new(actor.admin_state_receiver(), sequencer_admin_command_tx)
         });
