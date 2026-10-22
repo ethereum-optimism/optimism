@@ -9,7 +9,7 @@
 #              Build Cannon from local monorepo                #
 ################################################################
 
-FROM golang:1.26.10-alpine3.23 AS cannon-build
+FROM golang:1.26.4-alpine3.22 AS cannon-build
 
 # apk has no built-in download retry; loop so a transient CDN drop doesn't flake CI (~5 min budget).
 # Retrying the identical apk add does not affect the reproducible cannon/prestate output.

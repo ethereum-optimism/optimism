@@ -21,7 +21,7 @@ RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 instal
   libprotobuf-dev
 
 # Install rust
-ENV RUST_VERSION=1.95
+ENV RUST_VERSION=1.99.1
 RUN curl https://sh.rustup.rs -sSf --retry 5 --retry-all-errors --retry-delay 2 | bash -s -- -y --default-toolchain ${RUST_VERSION} --profile minimal
 ENV PATH="/root/.cargo/bin:${PATH}"
 
