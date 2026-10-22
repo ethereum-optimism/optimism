@@ -59,6 +59,11 @@ library Constants {
     uint256 internal constant L2_TO_L2_MESSAGE_EXPIRY_PERIOD = 8 days;
 
     /// @notice ERC-165 interface ID of OptimismMintableERC721 tokens built from source between
+    ///         September 2022 and Bedrock. Those tokens can't be upgraded, so this ID must be
+    ///         accepted forever.
+    bytes4 internal constant PRE_BEDROCK_OPTIMISM_MINTABLE_ERC721_INTERFACE_ID = 0xe49bc7f8;
+
+    /// @notice ERC-165 interface ID of OptimismMintableERC721 tokens built from source between
     ///         Bedrock and op-contracts v1.8.0. Those tokens can't be upgraded, so this ID must be
     ///         accepted forever. Newer tokens answer it too, so that older bridges accept them.
     bytes4 internal constant BEDROCK_OPTIMISM_MINTABLE_ERC721_INTERFACE_ID = 0x74259ebf;
