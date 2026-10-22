@@ -2,24 +2,17 @@ package fetch
 
 import (
 	"context"
-	"embed"
 	"encoding/json"
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
-	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch/script"
+	"github.com/ethereum-optimism/optimism/op-fetcher/chaininfo"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/urfave/cli/v2"
 )
-
-//go:embed forge-artifacts
-var forgeArtifacts embed.FS
 
 func FetchChainInfoCLI() func(ctx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
@@ -38,10 +31,10 @@ func FetchChainInfoCLI() func(ctx *cli.Context) error {
 
 		result, err := fetcher.FetchChainInfo(cliCtx.Context)
 		if err != nil {
-			return fmt.Errorf("failed to validate: %w", err)
+			return err
 		}
 
-		fileData := script.CreateChainConfig(result)
+		fileData := result.Config()
 		if outputFile == "" {
 			// Write to stdout when no output file is specified
 			enc := json.NewEncoder(os.Stdout)
@@ -83,35 +76,25 @@ func NewFetcher(lgr log.Logger, l1RPCURL string, systemConfigProxy, l1StandardBr
 	}, nil
 }
 
-func (f *Fetcher) FetchChainInfo(ctx context.Context) (script.FetchChainInfoOutput, error) {
-	f.lgr.Info("initializing fetcher", "systemConfigProxy", f.SystemConfigProxy)
-
-	l1RPC, err := rpc.Dial(f.L1RPCURL)
+// FetchChainInfo reads the chain's L1 contracts, roles and fault proof status at the
+// latest L1 block.
+func (f *Fetcher) FetchChainInfo(ctx context.Context) (chaininfo.Info, error) {
+	client, err := ethclient.DialContext(ctx, f.L1RPCURL)
 	if err != nil {
-		return script.FetchChainInfoOutput{}, fmt.Errorf("failed to connect to L1 RPC: %w", err)
+		return chaininfo.Info{}, fmt.Errorf("failed to connect to L1 RPC: %w", err)
 	}
+	defer client.Close()
 
-	bcaster := broadcaster.NoopBroadcaster()
-	deployerAddress := common.Address{0x01}
-	artifactsFS := &foundry.EmbedFS{
-		FS:      forgeArtifacts,
-		RootDir: "forge-artifacts",
-	}
-
-	l1Host, err := env.DefaultForkedScriptHost(
-		ctx,
-		bcaster,
-		f.lgr,
-		deployerAddress,
-		artifactsFS,
-		l1RPC,
-	)
+	l1, head, err := newRPCL1State(ctx, client, nil)
 	if err != nil {
-		return script.FetchChainInfoOutput{}, fmt.Errorf("failed to create script host: %w", err)
+		return chaininfo.Info{}, err
 	}
+	f.lgr.Info("fetching chain info", "systemConfigProxy", f.SystemConfigProxy, "l1Block", head.Number, "l1BlockHash", head.Hash())
 
-	return script.FetchChainInfo(l1Host, script.FetchChainInfoInput{
-		SystemConfigProxy:     f.SystemConfigProxy,
-		L1StandardBridgeProxy: f.L1StandardBridgeProxy,
-	})
+	out, err := fetchChainInfo(ctx, l1, f.SystemConfigProxy, f.L1StandardBridgeProxy)
+	if err != nil {
+		return chaininfo.Info{}, fmt.Errorf("failed to fetch chain info of SystemConfig %s at L1 block %v (%s): %w",
+			f.SystemConfigProxy, head.Number, head.Hash(), err)
+	}
+	return out, nil
 }
