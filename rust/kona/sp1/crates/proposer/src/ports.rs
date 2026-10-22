@@ -273,7 +273,9 @@ pub(crate) trait L2BlockSource: Send + Sync {
 #[async_trait]
 pub(crate) trait ReplacedBlockSource: Send + Sync {
     /// The header and receipts of `hash`, the optimistic block of `chain_id` whose parent is the
-    /// canonical block `parent`.
+    /// canonical block `parent`. kona-host retries a block it cannot serve until it can, so with
+    /// kona-host this waits instead of failing, as the consolidation's witness collection does for
+    /// the same block.
     async fn replaced_block(
         &self,
         chain_id: u64,

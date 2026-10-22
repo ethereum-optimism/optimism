@@ -533,8 +533,10 @@ mod tests {
         assert_eq!(scan.blocks.keys().copied().collect::<Vec<_>>(), [(A, 10)]);
     }
 
-    /// Pins an error, not a scan without the replaced head's references, when the replaced head
-    /// cannot be read.
+    /// Pins an error, not a scan without the replaced head's references, when the replaced-block
+    /// source fails. kona-host waits on a block it cannot serve rather than failing, so with it
+    /// this covers the errors it does return, such as a host that fails to start or a malformed
+    /// header or receipts trie.
     #[tokio::test]
     async fn scan_fails_when_a_replaced_head_cannot_be_read() {
         let mut l2 = FakeL2::default();
