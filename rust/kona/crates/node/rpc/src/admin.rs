@@ -28,7 +28,7 @@ pub struct SequencerState {
 #[derive(Debug)]
 pub enum SequencerAdminCommand {
     /// Start sequencing.
-    StartSequencer(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
+    StartSequencer(B256, oneshot::Sender<Result<(), SequencerAdminAPIError>>),
     /// Stop sequencing and return the current unsafe block hash.
     StopSequencer(oneshot::Sender<Result<B256, SequencerAdminAPIError>>),
     /// Set recovery mode.
@@ -63,6 +63,10 @@ impl SequencerAdminHandle {
 /// Errors that can occur when using the sequencer admin API.
 #[derive(Debug, Error)]
 pub enum SequencerAdminAPIError {
+    /// The sequencer could not safely start at the requested head.
+    #[error("{0}")]
+    StartSequencerError(String),
+
     /// Error sending request.
     #[error("Error sending request: {0}.")]
     RequestError(String),
@@ -111,9 +115,9 @@ impl AdminRpc {
             .send(command(tx))
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-        rx.await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+        rx.await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))?.map_err(|error| {
+            ErrorObject::owned(ErrorCode::InternalError.code(), error.to_string(), None::<()>)
+        })
     }
 }
 
@@ -144,8 +148,8 @@ impl AdminApiServer for AdminRpc {
         Ok(self.sequencer()?.snapshot()?.active)
     }
 
-    async fn admin_start_sequencer(&self) -> RpcResult<()> {
-        self.command(SequencerAdminCommand::StartSequencer).await
+    async fn admin_start_sequencer(&self, head: B256) -> RpcResult<()> {
+        self.command(|reply| SequencerAdminCommand::StartSequencer(head, reply)).await
     }
 
     async fn admin_stop_sequencer(&self) -> RpcResult<B256> {
@@ -189,13 +193,60 @@ mod tests {
     use jsonrpsee::core::server::MethodsError;
 
     #[tokio::test]
+    async fn start_rpc_requires_and_forwards_head_and_preserves_rejection_reason() {
+        let (_state_tx, state_rx) = watch::channel(SequencerState {
+            active: false,
+            conductor_enabled: true,
+            recovery_mode: false,
+        });
+        let (commands_tx, mut commands_rx) = mpsc::channel(1);
+        let rpc = AdminRpc::new(
+            Some(SequencerAdminHandle::new(state_rx, commands_tx)),
+            mpsc::channel(1).0,
+            mpsc::channel(1).0,
+        )
+        .into_rpc();
+        for params in [jsonrpsee::rpc_params![], jsonrpsee::rpc_params!["bad hash"]] {
+            let jsonrpsee::core::server::MethodsError::JsonRpc(error) =
+                rpc.call::<_, ()>("admin_startSequencer", params).await.unwrap_err()
+            else {
+                panic!("expected JSON-RPC parameter error");
+            };
+            assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+            assert!(matches!(commands_rx.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+        }
+        let head = B256::repeat_byte(42);
+        let (result, ()) = tokio::join!(
+            rpc.call::<_, ()>("admin_startSequencer", jsonrpsee::rpc_params![head]),
+            async {
+                let SequencerAdminCommand::StartSequencer(received, reply) =
+                    commands_rx.recv().await.unwrap()
+                else {
+                    panic!("expected sequencer start");
+                };
+                assert_eq!(received, head);
+                reply
+                    .send(Err(SequencerAdminAPIError::StartSequencerError(
+                        "sequencer is not the leader, aborting".to_owned(),
+                    )))
+                    .unwrap();
+            }
+        );
+        let jsonrpsee::core::server::MethodsError::JsonRpc(error) = result.unwrap_err() else {
+            panic!("expected JSON-RPC start error");
+        };
+        assert_eq!(error.code(), ErrorCode::InternalError.code());
+        assert!(error.message().contains("sequencer is not the leader"));
+    }
+
+    #[tokio::test]
     async fn reads_published_state_without_queueing_and_rejects_closed_publisher() {
         let initial =
             SequencerState { active: false, conductor_enabled: true, recovery_mode: false };
         let (state_tx, state_rx) = watch::channel(initial);
         let (commands_tx, _commands_rx) = mpsc::channel(1);
         let (reply, _) = oneshot::channel();
-        commands_tx.send(SequencerAdminCommand::StartSequencer(reply)).await.unwrap();
+        commands_tx.send(SequencerAdminCommand::StartSequencer(B256::ZERO, reply)).await.unwrap();
         let (payloads_tx, _) = mpsc::channel(1);
         let rpc = AdminRpc::new(
             Some(SequencerAdminHandle::new(state_rx, commands_tx)),
@@ -230,7 +281,7 @@ mod tests {
             rpc.admin_sequencer_active().await.map(|_| ()),
             rpc.admin_conductor_enabled().await.map(|_| ()),
             rpc.admin_recover_mode().await.map(|_| ()),
-            rpc.admin_start_sequencer().await,
+            rpc.admin_start_sequencer(B256::ZERO).await,
             rpc.admin_stop_sequencer().await.map(|_| ()),
             rpc.admin_set_recover_mode(true).await,
             rpc.admin_override_leader().await,
@@ -274,13 +325,13 @@ mod tests {
         });
         assert_eq!(result.unwrap_err().code(), ErrorCode::InternalError.code());
 
-        let (result, ()) = tokio::join!(rpc.admin_start_sequencer(), async {
+        let (result, ()) = tokio::join!(rpc.admin_start_sequencer(B256::ZERO), async {
             drop(commands_rx.recv().await.unwrap());
         });
         assert_eq!(result.unwrap_err().code(), ErrorCode::InternalError.code());
         drop(commands_rx);
         assert_eq!(
-            rpc.admin_start_sequencer().await.unwrap_err().code(),
+            rpc.admin_start_sequencer(B256::ZERO).await.unwrap_err().code(),
             ErrorCode::InternalError.code()
         );
     }
@@ -296,7 +347,10 @@ mod tests {
             let (commands_tx, mut commands_rx) = mpsc::channel(1);
             // Reset must bypass even a full sequencer command queue.
             let (reply, _) = oneshot::channel();
-            commands_tx.send(SequencerAdminCommand::StartSequencer(reply)).await.unwrap();
+            commands_tx
+                .send(SequencerAdminCommand::StartSequencer(B256::ZERO, reply))
+                .await
+                .unwrap();
             let sequencer = is_sequencer.then(|| SequencerAdminHandle::new(state_rx, commands_tx));
             let (engine_tx, mut engine_rx) = mpsc::channel(1);
             let rpc = AdminRpc::new(sequencer, engine_tx, mpsc::channel(1).0).into_rpc();
@@ -312,7 +366,7 @@ mod tests {
             };
             assert!(matches!(
                 commands_rx.try_recv().unwrap(),
-                SequencerAdminCommand::StartSequencer(_)
+                SequencerAdminCommand::StartSequencer(_, _)
             ));
             assert!(matches!(
                 commands_rx.try_recv(),
