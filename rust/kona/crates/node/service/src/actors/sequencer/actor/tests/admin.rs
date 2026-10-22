@@ -251,39 +251,64 @@ async fn set_recovery_mode(
 }
 
 #[rstest]
-#[case::no_conductor(false, false)]
-#[case::overridden(true, false)]
-#[case::conductor_error(true, true)]
+#[case::no_conductor(false)]
+#[case::configured(true)]
 #[tokio::test(start_paused = true)]
-async fn override_leader(#[case] configured: bool, #[case] fail: bool) {
-    let conductor = configured.then(|| {
-        let mut conductor = MockConductor::new();
-        conductor.expect_override_leader().times(1).return_once(move || {
-            if fail {
-                Err(ConductorError::Rpc(RpcError::local_usage_str("test conductor error")))
-            } else {
-                Ok(())
-            }
-        });
-        conductor
-    });
+async fn override_leader_is_local_and_idempotent(#[case] configured: bool) {
+    let conductor = configured.then(MockConductor::new);
     let (mut actor, commands) = admin_actor(true, false, conductor);
-    let result = command(&mut actor, &commands, SequencerAdminCommand::OverrideLeader).await;
-    if !configured || fail {
-        let error = result.unwrap_err();
-        assert!(matches!(error, SequencerAdminAPIError::LeaderOverrideError(_)));
-        let expected = if configured { "test conductor error" } else { "No conductor configured" };
-        assert!(error.to_string().contains(expected));
-    } else {
-        result.unwrap();
+    let state = actor.admin_state_receiver();
+    for _ in 0..2 {
+        let result = command(&mut actor, &commands, SequencerAdminCommand::OverrideLeader).await;
+        if configured {
+            result.unwrap();
+        } else {
+            let error = result.unwrap_err();
+            assert!(matches!(error, SequencerAdminAPIError::LeaderOverrideError(_)));
+            assert!(error.to_string().contains("No conductor configured"));
+        }
     }
+    assert!(actor.conductor.is_none());
+    assert_eq!(state.borrow().conductor_enabled, configured);
+    assert!(state.borrow().active);
+    assert!(!state.borrow().recovery_mode);
+}
+
+#[tokio::test(start_paused = true)]
+async fn local_override_bypasses_leadership_but_still_checks_the_start_head() {
+    let mut conductor = MockConductor::new();
+    conductor.expect_leader().times(1).return_once(|| Ok(false));
+    let (mut actor, commands) = admin_actor(false, false, Some(conductor));
+    let head = B256::repeat_byte(42);
+    actor.engine_client.expect_get_unsafe_head().times(2).returning(move || {
+        Ok(L2BlockInfo {
+            block_info: BlockInfo { hash: head, ..Default::default() },
+            ..Default::default()
+        })
+    });
+    let error =
+        command(&mut actor, &commands, |reply| SequencerAdminCommand::StartSequencer(head, reply))
+            .await
+            .unwrap_err();
+    assert!(error.to_string().contains("sequencer is not the leader"));
+    command(&mut actor, &commands, SequencerAdminCommand::OverrideLeader).await.unwrap();
+    let error = command(&mut actor, &commands, |reply| {
+        SequencerAdminCommand::StartSequencer(B256::repeat_byte(1), reply)
+    })
+    .await
+    .unwrap_err();
+    assert!(error.to_string().contains("block hash does not match"));
+    assert!(!actor.admin_state_receiver().borrow().active);
+    command(&mut actor, &commands, |reply| SequencerAdminCommand::StartSequencer(head, reply))
+        .await
+        .unwrap();
+    assert!(actor.admin_state_receiver().borrow().active);
 }
 
 #[tokio::test(start_paused = true)]
 async fn accepted_commands_run_when_response_receivers_are_dropped() {
     let mut conductor = MockConductor::new();
     conductor.expect_leader().times(1).return_once(|| Ok(true));
-    conductor.expect_override_leader().times(1).return_once(|| Ok(()));
     let (mut actor, commands_tx) = test_actor_with_config(true, false, Some(conductor));
     actor.engine_client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
     actor
