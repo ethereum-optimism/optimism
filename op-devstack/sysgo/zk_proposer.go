@@ -73,6 +73,9 @@ type zkProposerConfig struct {
 	Metrics          bool
 	LogPath          string
 	RangeGasLimit    uint64
+	// L2RPCProxy, when set, starts a proxy in front of an L2 EL endpoint and
+	// returns the URL the proposer uses instead.
+	L2RPCProxy func(p devtest.T, name string, targetURL string) string
 }
 
 // ZKProposerRuntime is the opaque handle for a running op-zk-proposer.
@@ -210,6 +213,9 @@ func startZKProposer(
 	rollupPaths := make([]string, len(l2Nets))
 	for i, l2Net := range l2Nets {
 		l2RPCs[i] = l2ELs[i].UserRPC()
+		if cfg.L2RPCProxy != nil {
+			l2RPCs[i] = cfg.L2RPCProxy(t, l2Net.ChainID().String(), l2RPCs[i])
+		}
 		rollupData, err := json.Marshal(l2Net.rollupCfg)
 		require.NoError(err, "must marshal rollup config")
 		rollupPath := filepath.Join(configDir, fmt.Sprintf("rollup-%v.json", l2Net.ChainID()))

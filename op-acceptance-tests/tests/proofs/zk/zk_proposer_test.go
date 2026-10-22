@@ -301,16 +301,19 @@ func TestProposerProvesBelowHeadMessageOnTablePath(gt *testing.T) {
 // block of chain B that the supernode replaced for an invalid executing message.
 // The supernode keeps reporting the denied block as optimistic at its timestamp,
 // and the proposer must read it through kona-host, since the L2 node may have
-// pruned it. The message references a block of chain A below A's block at that
-// timestamp, so the scan must see the denied block's messages to batch it.
+// pruned it: the proposer's ELs refuse every request for the denied block. The
+// message references a block of chain A below A's block at that timestamp, so
+// the scan must see the denied block's messages to batch it.
 func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	hidden := sysgo.NewHiddenBlocks()
 	sys := presets.NewSimpleInterop(t,
 		presets.WithZK(),
 		presets.WithoutHonestChallenger(),
 		presets.WithoutHonestProposer(),
 		presets.WithZKProposerOption(sysgo.WithZKFastFinality()),
 		presets.WithZKProposerOption(sysgo.WithZKMetrics()),
+		presets.WithZKProposerOption(hidden.ZKProposerOption()),
 		// WithZK pins Jovian at genesis; executing messages need Lagoon.
 		presets.WithDeployerOptions(sysgo.WithInteropAtGenesis()),
 	)
@@ -343,6 +346,7 @@ func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
 	t.Require().Equal(execMsg.BlockHash(), optimistic.Output.BlockHash,
 		"the supernode must report the denied block as optimistic at its timestamp")
 
+	hidden.Hide(execMsg.BlockHash())
 	proposer := sys.StartZKProposer()
 	factory := sys.DisputeGameFactory()
 	game := factory.WaitForZKGameAtIndex(0)
@@ -358,6 +362,7 @@ func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
 		zkproposer.LogBatchesSubmitted(1),
 		zkproposer.ProvingFailures(0),
 	)
+	t.Require().Positive(hidden.ForwardedRequests(), "the proposer must read the L2 ELs through the hiding proxies")
 }
 
 // TestProposerBisectsSpanOverBudget proves a game whose chunks are each at least
