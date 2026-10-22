@@ -173,6 +173,12 @@ contract L2ERC721Bridge_FinalizeBridgeERC721_Test is L2ERC721Bridge_TestInit {
     }
 
     /// @notice Tests that `finalizeBridgeERC721` mints a token that only answers the interface ID
+    ///         of tokens built from source between September 2022 and Bedrock.
+    function test_finalizeBridgeERC721_preBedrockInterfaceId_succeeds() external {
+        _finalizeBridgeERC721ToFixedInterfaceIdToken(0xe49bc7f8);
+    }
+
+    /// @notice Tests that `finalizeBridgeERC721` mints a token that only answers the interface ID
     ///         of tokens built from op-contracts v1.8.0 source onwards.
     function test_finalizeBridgeERC721_currentInterfaceId_succeeds() external {
         _finalizeBridgeERC721ToFixedInterfaceIdToken(0xaecafc23);

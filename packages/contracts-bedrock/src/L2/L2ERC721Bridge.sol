@@ -133,6 +133,7 @@ contract L2ERC721Bridge is ProxyAdminOwnedBase, ERC721Bridge, ISemver {
     /// @return True if the token answers one of the interface IDs.
     function _isOptimismMintableERC721(address _token) internal view returns (bool) {
         return ERC165Checker.supportsInterface(_token, Constants.OPTIMISM_MINTABLE_ERC721_INTERFACE_ID)
-            || ERC165Checker.supportsInterface(_token, Constants.BEDROCK_OPTIMISM_MINTABLE_ERC721_INTERFACE_ID);
+            || ERC165Checker.supportsInterface(_token, Constants.BEDROCK_OPTIMISM_MINTABLE_ERC721_INTERFACE_ID)
+            || ERC165Checker.supportsInterface(_token, Constants.PRE_BEDROCK_OPTIMISM_MINTABLE_ERC721_INTERFACE_ID);
     }
 }
