@@ -325,6 +325,20 @@ mod safe_db {
         verify(&db);
     }
 
+    #[test]
+    fn clear_removes_every_entry() {
+        let (_dir, db) = open();
+        db.safe_head_updated(l2(0x02, 0xaa, 20, 0), id(0x01, 0xaa, 100)).unwrap();
+        db.safe_head_updated(l2(0x02, 0xbb, 25, 0), id(0x01, 0xbb, 150)).unwrap();
+
+        db.clear().unwrap();
+
+        assert!(matches!(db.first_entry(), Err(SafeDbError::NotFound)));
+        assert!(matches!(db.last_entry(), Err(SafeDbError::NotFound)));
+        assert!(matches!(db.safe_head_at_l1(150), Err(SafeDbError::NotFound)));
+        assert!(matches!(db.l1_at_safe_head(20), Err(SafeDbError::L1AtSafeHeadNotFound)));
+    }
+
     fn populated_l1_at_safe_head_db() -> (TempDir, SafeDatabase) {
         let (dir, db) = open();
         db.safe_head_updated(l2(0x02, 0xaa, 500, 0), id(0x01, 0xaa, 100)).unwrap();

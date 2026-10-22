@@ -24,6 +24,7 @@ kona-derive.workspace = true
 kona-interop.workspace = true
 kona-protocol.workspace = true
 kona-providers-alloy.workspace = true
+kona-safedb.workspace = true
 kona-rpc = { workspace = true, features = ["client"] }
 kona-peers.workspace = true
 kona-macros.workspace = true
@@ -86,6 +87,8 @@ alloy-rpc-types-engine = { workspace = true, features = ["arbitrary"] }
 alloy-consensus = { workspace = true, features = ["arbitrary"] }
 op-alloy-consensus = { workspace = true, features = ["arbitrary", "k256"] }
 kona-derive = {workspace = true, features = ["test-utils"]}
+kona-safedb = { workspace = true, features = ["rocksdb"] }
+tempfile.workspace = true
 
 [features]
 default = []

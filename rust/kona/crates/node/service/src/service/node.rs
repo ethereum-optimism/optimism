@@ -32,6 +32,7 @@ use kona_rpc::{
     L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc,
     RpcBuilder, WsRPC, WsServer,
 };
+use kona_safedb::SafeDb;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{ops::Not as _, sync::Arc, time::Duration};
@@ -90,6 +91,8 @@ pub struct RollupNode {
     /// Mirrors op-node's `--interop.dependency-set`.
     /// [`StatefulAttributesBuilder`] constructor panics otherwise.
     pub(crate) dependency_set: Option<Arc<DependencySet>>,
+    /// Records the safe head reached as of each L1 block. Disabled unless configured.
+    pub(crate) safe_db: Arc<dyn SafeDb>,
 }
 
 /// A RollupNode-level derivation actor wrapper.
@@ -298,6 +301,7 @@ impl RollupNode {
                     QueuedDerivationEngineClient { engine_actor_request_tx },
                     derivation_actor_request_rx,
                     pipeline,
+                    self.safe_db.clone(),
                 ),
             )))
         }

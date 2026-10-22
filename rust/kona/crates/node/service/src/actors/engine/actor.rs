@@ -47,8 +47,8 @@ where
     derivation_client: DerivationClient,
     /// Whether the EL sync is complete. This should only ever go from false to true.
     el_sync_complete: bool,
-    /// The last safe head update sent.
-    last_safe_head_sent: L2BlockInfo,
+    /// The last local-safe head sent to the derivation actor.
+    last_local_safe_head_sent: L2BlockInfo,
     /// A channel to use to relay the current unsafe head.
     /// ## Note
     /// This is `Some` when the node is in sequencer mode, and `None` when the node is in validator
@@ -96,7 +96,7 @@ where
             derivation_client,
             el_sync_complete: false,
             engine,
-            last_safe_head_sent: L2BlockInfo::default(),
+            last_local_safe_head_sent: L2BlockInfo::default(),
             rollup: config,
             unsafe_head_tx,
             inbound_request_rx,
@@ -229,7 +229,7 @@ where
         self.el_sync_complete = true;
 
         self.derivation_client
-            .notify_sync_completed(self.engine.state().sync_state.safe_head())
+            .notify_sync_completed(self.engine.state().sync_state.local_safe_head())
             .await
             .map(|_| Ok(()))
             .map_err(|e| {
@@ -238,22 +238,24 @@ where
             })?
     }
 
-    /// Attempts to send the [`crate::DerivationActor`] the safe head if updated.
+    /// Sends the [`crate::DerivationActor`] the local-safe head if it changed since the last send.
+    ///
+    /// Derivation continues from, and records, the head that L1 data made safe. That is the
+    /// local-safe label; the safe label can lag it by cross-chain verification.
     async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), EngineError> {
-        let engine_safe_head = self.engine.state().sync_state.safe_head();
-        if engine_safe_head == self.last_safe_head_sent {
-            info!(target: "engine", safe_head = ?engine_safe_head, "Safe head unchanged");
-            // This was already sent, so do not send it.
+        let local_safe_head = self.engine.state().sync_state.local_safe_head();
+        if local_safe_head == self.last_local_safe_head_sent {
+            info!(target: "engine", safe_head = ?local_safe_head, "Local-safe head unchanged");
             return Ok(());
         }
 
-        self.derivation_client.send_new_engine_safe_head(engine_safe_head).await.map_err(|e| {
+        self.derivation_client.send_new_engine_safe_head(local_safe_head).await.map_err(|e| {
             error!(target: "engine", ?e, "Failed to send new engine safe head");
             EngineError::ChannelClosed
         })?;
 
-        info!(target: "engine", safe_head = ?engine_safe_head, "Attempted L2 Safe Head Update");
-        self.last_safe_head_sent = engine_safe_head;
+        info!(target: "engine", safe_head = ?local_safe_head, "Sent local-safe head to derivation");
+        self.last_local_safe_head_sent = local_safe_head;
 
         Ok(())
     }

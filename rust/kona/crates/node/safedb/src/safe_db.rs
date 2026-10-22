@@ -199,6 +199,19 @@ impl SafeDb for SafeDatabase {
         Err(SafeDbError::L1AtSafeHeadUnavailable)
     }
 
+    fn clear(&self) -> Result<(), SafeDbError> {
+        let guard = self.write_guard();
+        let db = guard.as_ref().ok_or(SafeDbError::Closed)?;
+        tracing::warn!("Clearing safe head db");
+        let mut batch = WriteBatch::default();
+        batch.delete_range(
+            SafeByL1BlockNum::key(0).as_slice(),
+            SafeByL1BlockNum::max_key().as_slice(),
+        );
+        db.write_opt(batch, &Self::sync_write_options())?;
+        Ok(())
+    }
+
     fn close(&self) -> Result<(), SafeDbError> {
         // C++ `DB::Close` returns a status, but the C API this binds to declares
         // `rocksdb_close` as void, so dropping the handle is the only close available and no

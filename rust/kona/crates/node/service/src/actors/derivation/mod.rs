@@ -13,6 +13,9 @@ pub use engine_client::{DerivationEngineClient, QueuedDerivationEngineClient};
 mod finalizer;
 pub(crate) use finalizer::L2Finalizer;
 
+mod safe_head_recorder;
+pub(crate) use safe_head_recorder::{SafeHeadRecorder, TruncationReason};
+
 mod request;
 pub use request::{DerivationActorRequest, DerivationClientError, DerivationClientResult};
 

@@ -47,6 +47,10 @@ impl SafeDb for DisabledDatabase {
         Err(SafeDbError::NotEnabled)
     }
 
+    fn clear(&self) -> Result<(), SafeDbError> {
+        Ok(())
+    }
+
     fn close(&self) -> Result<(), SafeDbError> {
         Ok(())
     }
