@@ -187,20 +187,7 @@ where
             <Types as PayloadTypes>::PayloadAttributes,
         >,
     ) -> Result<(), EngineObjectValidationError> {
-        validate_withdrawals_presence(
-            self.chain_spec(),
-            version,
-            payload_or_attrs.message_validation_kind(),
-            payload_or_attrs.timestamp(),
-            payload_or_attrs.withdrawals().is_some(),
-        )?;
-        validate_parent_beacon_block_root_presence(
-            self.chain_spec(),
-            version,
-            payload_or_attrs.message_validation_kind(),
-            payload_or_attrs.timestamp(),
-            payload_or_attrs.parent_beacon_block_root().is_some(),
-        )
+        validate_op_version_specific_fields(self.chain_spec(), version, payload_or_attrs)
     }
 
     fn ensure_well_formed_attributes(
@@ -210,6 +197,34 @@ where
     ) -> Result<(), EngineObjectValidationError> {
         ensure_well_formed_payload_attributes(self.chain_spec(), version, attributes)
     }
+}
+
+/// Checks that an execution payload or payload attributes sent with an engine API call of message
+/// version `version` carry withdrawals and a parent beacon block root exactly when `version` and
+/// the forks active at their timestamp require them, and that the timestamp falls in a fork
+/// `version` supports.
+///
+/// These are the checks [`OpEngineValidator`] runs on the payload of an `engine_newPayload` call,
+/// taking `version` from the method called. They read no state.
+pub fn validate_op_version_specific_fields<ChainSpec: OpHardforks>(
+    chain_spec: &ChainSpec,
+    version: EngineApiMessageVersion,
+    payload_or_attrs: PayloadOrAttributes<'_, OpExecData, OpPayloadAttrs>,
+) -> Result<(), EngineObjectValidationError> {
+    validate_withdrawals_presence(
+        chain_spec,
+        version,
+        payload_or_attrs.message_validation_kind(),
+        payload_or_attrs.timestamp(),
+        payload_or_attrs.withdrawals().is_some(),
+    )?;
+    validate_parent_beacon_block_root_presence(
+        chain_spec,
+        version,
+        payload_or_attrs.message_validation_kind(),
+        payload_or_attrs.timestamp(),
+        payload_or_attrs.parent_beacon_block_root().is_some(),
+    )
 }
 
 /// Checks that payload attributes sent with an `engine_forkchoiceUpdated` call of message version
