@@ -58,6 +58,7 @@ impl From<RpcArgs> for Option<RpcBuilder> {
             return None;
         }
         Some(RpcBuilder {
+            version: crate::version::version(),
             no_restart: args.no_restart,
             socket: SocketAddr::new(args.listen_addr, args.listen_port),
             enable_admin: args.enable_admin,

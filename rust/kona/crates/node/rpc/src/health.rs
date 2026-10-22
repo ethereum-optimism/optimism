@@ -12,11 +12,20 @@ pub struct HealthzResponse {
 
 /// The healthz rpc server.
 #[derive(Debug, Clone)]
-pub struct HealthzRpc {}
+pub struct HealthzRpc {
+    version: &'static str,
+}
+
+impl HealthzRpc {
+    /// Uses the running binary's release version.
+    pub const fn new(version: &'static str) -> Self {
+        Self { version }
+    }
+}
 
 #[async_trait]
 impl HealthzApiServer for HealthzRpc {
     async fn healthz(&self) -> RpcResult<HealthzResponse> {
-        Ok(HealthzResponse { version: env!("CARGO_PKG_VERSION").to_string() })
+        Ok(HealthzResponse { version: self.version.to_string() })
     }
 }
