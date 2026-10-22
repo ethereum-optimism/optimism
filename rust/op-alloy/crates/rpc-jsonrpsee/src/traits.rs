@@ -1,4 +1,4 @@
-#![allow(missing_docs, clippy::double_must_use)]
+#![allow(missing_docs)]
 
 //! Various `jsonrpsee` docs
 
