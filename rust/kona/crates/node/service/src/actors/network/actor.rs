@@ -155,7 +155,6 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 Ok(())
             }
             Some(payload) = self.admin_payload_rx.recv(), if !self.admin_payload_rx.is_closed() => {
-                debug!(target: "node::p2p", "Forwarding unsafe payload from admin API to engine");
                 self.engine_client.send_unsafe_block(payload).await.map_err(|_| {
                     warn!(target: "network", "Failed to forward unsafe block to engine");
                     NetworkActorError::ChannelClosed

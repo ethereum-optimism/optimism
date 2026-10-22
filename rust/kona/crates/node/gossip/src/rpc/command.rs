@@ -89,14 +89,9 @@ impl GossipCommand {
             Self::DisconnectPeer { peer_id } => {
                 if let Err(e) = gossip.swarm.disconnect_peer_id(peer_id) {
                     warn!(target: "p2p::rpc", "Failed to disconnect peer {}: {:?}", peer_id, e);
-                } else {
-                    info!(target: "p2p::rpc", "Disconnected peer {}", peer_id);
-                    if let Some(start_time) = gossip.peer_connection_start.remove(&peer_id) {
-                        metrics::histogram!(
-                            crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS
-                        )
+                } else if let Some(start_time) = gossip.peer_connection_start.remove(&peer_id) {
+                    metrics::histogram!(crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS)
                         .record(start_time.elapsed().as_secs_f64());
-                    }
                 }
             }
         }

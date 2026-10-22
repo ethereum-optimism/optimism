@@ -49,24 +49,24 @@ fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
     })
 }
 
-/// Records how long each request to the L2 execution layer takes, labeled by its JSON-RPC method,
-/// in the [`Metrics::ENGINE_METHOD_REQUEST_DURATION`] histogram. Failed requests are recorded too.
+/// Records metrics and completion logs for L2 execution-layer requests, including failures.
+/// Both observations use the same duration and JSON-RPC method.
 #[derive(Debug, Clone, Copy)]
-struct RequestDurationLayer;
+struct RequestObservabilityLayer;
 
-impl<S> Layer<S> for RequestDurationLayer {
-    type Service = RequestDuration<S>;
+impl<S> Layer<S> for RequestObservabilityLayer {
+    type Service = RequestObservability<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        RequestDuration(inner)
+        RequestObservability(inner)
     }
 }
 
-/// The transport service that a [`RequestDurationLayer`] wraps.
+/// The transport service that a [`RequestObservabilityLayer`] wraps.
 #[derive(Debug, Clone)]
-struct RequestDuration<S>(S);
+struct RequestObservability<S>(S);
 
-impl<S> Service<RequestPacket> for RequestDuration<S>
+impl<S> Service<RequestPacket> for RequestObservability<S>
 where
     S: Service<RequestPacket, Response = ResponsePacket, Error = TransportError>,
     S::Future: Send + 'static,
@@ -84,12 +84,55 @@ where
             RequestPacket::Single(request) => request.method().to_string(),
             RequestPacket::Batch(_) => "batch".to_string(),
         };
+        let (id, request_count) = match &request {
+            RequestPacket::Single(request) => (Some(request.id().clone()), 1),
+            RequestPacket::Batch(requests) => (None, requests.len()),
+        };
         let response = self.0.call(request);
         Box::pin(async move {
             let start = Instant::now();
             let response = response.await;
+            let duration = start.elapsed();
+            match &response {
+                Ok(packet) if packet.is_error() => {
+                    warn!(
+                        target: "engine_rpc",
+                        method,
+                        ?id,
+                        request_count,
+                        ?duration,
+                        result = "error",
+                        code = packet.first_error_code(),
+                        error = packet.first_error_message(),
+                        "JSON-RPC request completed"
+                    );
+                }
+                Ok(_) => {
+                    info!(
+                        target: "engine_rpc",
+                        method,
+                        ?id,
+                        request_count,
+                        ?duration,
+                        result = "success",
+                        "JSON-RPC request completed"
+                    );
+                }
+                Err(error) => {
+                    warn!(
+                        target: "engine_rpc",
+                        method,
+                        ?id,
+                        request_count,
+                        ?duration,
+                        result = "error",
+                        %error,
+                        "JSON-RPC request completed"
+                    );
+                }
+            }
             metrics::histogram!(Metrics::ENGINE_METHOD_REQUEST_DURATION, "method" => method)
-                .record(start.elapsed().as_secs_f64());
+                .record(duration.as_secs_f64());
             response
         })
     }
@@ -175,13 +218,13 @@ impl EngineClient {
         EngineQueryClient { engine: self.engine.clone(), cfg: self.cfg.clone() }
     }
 
-    /// Creates an authenticated L2 provider with request timing and a deadline.
+    /// Creates an authenticated L2 provider with request metrics, logs, and a deadline.
     pub fn rpc_client(addr: Url, jwt: JwtSecret) -> RootProvider<Optimism> {
         let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
         let service = ServiceBuilder::new().layer(AuthLayer::new(jwt)).service(hyper_client);
         let http_hyper = Http::with_client(HyperClient::with_service(service), addr);
         let rpc_client = ClientBuilder::default()
-            .layer(RequestDurationLayer)
+            .layer(RequestObservabilityLayer)
             .layer(MapFutureLayer::new(with_deadline))
             .transport(http_hyper, false);
         RootProvider::new(rpc_client)
@@ -270,18 +313,33 @@ impl EngineClientBuilder {
 }
 
 #[cfg(test)]
-mod request_duration_tests {
+mod request_observability_tests {
     use super::*;
     use alloy_json_rpc::{Id, Request, Response, ResponsePayload};
     use metrics_exporter_prometheus::PrometheusBuilder;
     use serde_json::value::RawValue;
+    use std::{io, sync::Mutex};
 
-    /// Sends one request for `method` through a [`RequestDurationLayer`] over a transport that
+    #[derive(Clone, Default)]
+    struct LogWriter(Arc<Mutex<Vec<u8>>>);
+
+    impl io::Write for LogWriter {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Sends one request for `method` through a [`RequestObservabilityLayer`] over a transport that
     /// answers with `response`.
     fn send(method: &'static str, response: Result<ResponsePacket, TransportError>) {
         let request = Request::new(method, Id::Number(1), ()).serialize().unwrap();
         let mut response = Some(response);
-        let mut service = RequestDurationLayer.layer(tower::service_fn(move |_| {
+        let mut service = RequestObservabilityLayer.layer(tower::service_fn(move |_| {
             let response = response.take().expect("the transport is called once");
             async move { response }
         }));
@@ -290,7 +348,16 @@ mod request_duration_tests {
     }
 
     #[test]
-    fn records_successful_and_failed_requests_by_method() {
+    fn records_and_logs_successful_rpc_error_and_transport_error_requests() {
+        let logs = LogWriter::default();
+        let writer = logs.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .without_time()
+            .with_ansi(false)
+            .with_max_level(tracing::Level::INFO)
+            .with_writer(move || writer.clone())
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
         let recorder = PrometheusBuilder::new().build_recorder();
         let metrics = recorder.handle();
         metrics::with_local_recorder(&recorder, || {
@@ -299,20 +366,161 @@ mod request_duration_tests {
                 Ok(ResponsePacket::Single(Response {
                     id: Id::Number(1),
                     payload: ResponsePayload::Success(
-                        RawValue::from_string("null".into()).unwrap(),
+                        RawValue::from_string(
+                            r#"{"status":"INVALID","validationError":"bad state"}"#.into(),
+                        )
+                        .unwrap(),
                     ),
                 })),
             );
             send("engine_getPayloadV3", Err(TransportErrorKind::custom_str("unreachable")));
+            send(
+                "eth_blockNumber",
+                Ok(serde_json::from_str(r#"{"jsonrpc":"2.0","id":1,"result":"0x1"}"#).unwrap()),
+            );
+            send(
+                "engine_forkchoiceUpdatedV3",
+                Ok(serde_json::from_str(
+                    r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"invalid params"}}"#,
+                ).unwrap()),
+            );
         });
 
         let rendered = metrics.render();
-        for method in ["engine_newPayloadV3", "engine_getPayloadV3"] {
+        for method in [
+            "engine_newPayloadV3",
+            "engine_getPayloadV3",
+            "engine_forkchoiceUpdatedV3",
+            "eth_blockNumber",
+        ] {
             let count = format!(
                 "{}_count{{method=\"{method}\"}} 1",
                 Metrics::ENGINE_METHOD_REQUEST_DURATION
             );
             assert!(rendered.contains(&count), "missing {count} in:\n{rendered}");
+        }
+        let output = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+        let requests: Vec<_> = output.lines().filter(|line| line.contains("engine_rpc:")).collect();
+        assert_eq!(requests.len(), 4, "{output}");
+        assert!(!output.contains("bad state"), "method-specific payloads are opaque: {output}");
+        assert!(!output.contains("payload_status="), "{output}");
+        for (method, result, detail) in [
+            ("engine_newPayloadV3", "success", "INFO"),
+            ("engine_getPayloadV3", "error", "unreachable"),
+            ("engine_forkchoiceUpdatedV3", "error", "code=-32602"),
+            ("eth_blockNumber", "success", "INFO"),
+        ] {
+            let log = requests.iter().find(|line| line.contains(method)).unwrap();
+            assert!(log.contains(&format!("result=\"{result}\"")), "{log}");
+            assert!(log.contains("duration="), "{log}");
+            assert!(log.contains("id="), "{log}");
+            let level = if result == "error" { "WARN" } else { "INFO" };
+            assert!(log.contains(level), "{log}");
+            assert!(log.contains(detail), "{log}");
+        }
+    }
+
+    #[test]
+    fn build_requests_log_once_with_task_context_at_info() {
+        use crate::{
+            BuildTask, EngineState, EngineTaskExt,
+            test_utils::{RpcMock, TestAttributesBuilder, test_block_info},
+        };
+        use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadId, PayloadStatusEnum};
+
+        let logs = LogWriter::default();
+        let writer = logs.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .without_time()
+            .with_ansi(false)
+            .with_max_level(tracing::Level::INFO)
+            .with_writer(move || writer.clone())
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
+        let parent = test_block_info(0);
+        tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(
+            async {
+                for outcome in ["valid", "transport_error", "malformed_response"] {
+                    let l1 = RpcMock::default();
+                    let l2 = RpcMock::default();
+                    let payload_id = PayloadId::new([1; 8]);
+                    match outcome {
+                        "transport_error" => {
+                            l2.expect_transport_error("engine_forkchoiceUpdatedV3")
+                        }
+                        "malformed_response" => {
+                            l2.expect("engine_forkchoiceUpdatedV3", Option::<()>::None)
+                        }
+                        _ => l2.expect(
+                            "engine_forkchoiceUpdatedV3",
+                            ForkchoiceUpdated {
+                                payload_status: PayloadStatus::from_status(
+                                    PayloadStatusEnum::Valid,
+                                ),
+                                payload_id: Some(payload_id),
+                            },
+                        ),
+                    }
+                    let provider = RootProvider::new(
+                        ClientBuilder::default()
+                            .layer(RequestObservabilityLayer)
+                            .transport(l2.clone(), true),
+                    );
+                    let mut config = RollupConfig::default();
+                    config.hardforks.ecotone_time = Some(0);
+                    let config = Arc::new(config);
+                    let engine = EngineClient::new(l1.provider(), provider, config.clone());
+                    let attributes = TestAttributesBuilder::new()
+                        .with_parent(parent)
+                        .with_timestamp(2)
+                        .with_transactions(vec![Bytes::from_static(&[0x7e])])
+                        .build();
+                    let result = BuildTask::new(Arc::new(engine), config, attributes, None)
+                        .execute(&mut EngineState::default())
+                        .await;
+                    if outcome == "valid" {
+                        assert_eq!(result.unwrap(), payload_id);
+                    } else {
+                        assert!(result.is_err());
+                    }
+                    l1.assert_finished();
+                    l2.assert_finished();
+                }
+            },
+        );
+        let output = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+        let requests: Vec<_> =
+            output.lines().filter(|line| line.contains("JSON-RPC request completed")).collect();
+        assert_eq!(requests.len(), 3, "{output}");
+        for log in &requests {
+            for field in [
+                "build",
+                "parent=",
+                "unsafe_hash=",
+                "safe_hash=",
+                "finalized_hash=",
+                "txs=1",
+                "is_deposits=true",
+                "duration=",
+                "engine_forkchoiceUpdatedV3",
+            ] {
+                assert!(log.contains(field), "missing {field}: {log}");
+            }
+            assert!(log.contains(&parent.block_info.hash.to_string()), "{log}");
+        }
+        assert!(requests[0].contains("result=\"success\""), "{}", requests[0]);
+        assert!(requests[1].contains("injected transport failure"), "{}", requests[1]);
+        assert!(requests[1].contains("WARN"), "{}", requests[1]);
+        // The transport observes the JSON-RPC envelope; typed decoding belongs to the caller.
+        assert!(requests[2].contains("result=\"success\""), "{}", requests[2]);
+        assert!(!output.contains("Failed to decode Engine RPC response"), "{output}");
+        for old_message in [
+            "block build started",
+            "Forkchoice update with attributes successful",
+            "Starting new build job",
+            "Forkchoice update failed",
+        ] {
+            assert!(!output.contains(old_message), "duplicate caller log: {output}");
         }
     }
 }

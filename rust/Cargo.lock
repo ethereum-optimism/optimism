@@ -7341,6 +7341,7 @@ dependencies = [
  "tokio",
  "tower 0.5.3",
  "tracing",
+ "tracing-subscriber",
  "url",
 ]
 
@@ -7676,6 +7677,7 @@ dependencies = [
  "tokio-util",
  "tower 0.5.3",
  "tracing",
+ "tracing-subscriber",
  "url",
 ]
 

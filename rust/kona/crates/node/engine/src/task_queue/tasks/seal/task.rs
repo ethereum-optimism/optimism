@@ -74,6 +74,16 @@ impl SealTask {
     /// - `engine_getPayloadV2` is used for payloads with a timestamp before the Ecotone fork.
     /// - `engine_getPayloadV3` is used for payloads with a timestamp after the Ecotone fork.
     /// - `engine_getPayloadV4` is used for payloads with a timestamp after the Isthmus fork.
+    #[tracing::instrument(
+        name = "get_payload",
+        target = "engine",
+        level = "info",
+        skip_all,
+        fields(
+            %payload_id,
+            l2_time = payload_attrs.attributes().payload_attributes.timestamp,
+        )
+    )]
     pub(super) async fn seal_payload(
         &self,
         cfg: &RollupConfig,
@@ -83,21 +93,14 @@ impl SealTask {
     ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
         let payload_timestamp = payload_attrs.attributes().payload_attributes.timestamp;
 
-        debug!(
-            target: "engine",
-            payload_id = payload_id.to_string(),
-            l2_time = payload_timestamp,
-            "Sealing payload"
-        );
-
         let get_payload_version = EngineGetPayloadVersion::from_cfg(cfg, payload_timestamp);
         let payload_envelope = match get_payload_version {
             EngineGetPayloadVersion::V5 => {
                 // Osaka (Karst) reuses the V4-shaped envelope; only the engine method bumps to V5.
-                let payload = engine.get_payload_v5(payload_id).await.map_err(|e| {
-                    error!(target: "engine", "Payload fetch failed: {e}");
-                    SealTaskError::GetPayloadFailed(e)
-                })?;
+                let payload = engine
+                    .get_payload_v5(payload_id)
+                    .await
+                    .map_err(SealTaskError::GetPayloadFailed)?;
 
                 OpExecutionPayloadEnvelope::V4 {
                     parent_beacon_block_root: payload.parent_beacon_block_root,
@@ -105,10 +108,10 @@ impl SealTask {
                 }
             }
             EngineGetPayloadVersion::V4 => {
-                let payload = engine.get_payload_v4(payload_id).await.map_err(|e| {
-                    error!(target: "engine", "Payload fetch failed: {e}");
-                    SealTaskError::GetPayloadFailed(e)
-                })?;
+                let payload = engine
+                    .get_payload_v4(payload_id)
+                    .await
+                    .map_err(SealTaskError::GetPayloadFailed)?;
 
                 OpExecutionPayloadEnvelope::V4 {
                     parent_beacon_block_root: payload.parent_beacon_block_root,
@@ -116,10 +119,10 @@ impl SealTask {
                 }
             }
             EngineGetPayloadVersion::V3 => {
-                let payload = engine.get_payload_v3(payload_id).await.map_err(|e| {
-                    error!(target: "engine", "Payload fetch failed: {e}");
-                    SealTaskError::GetPayloadFailed(e)
-                })?;
+                let payload = engine
+                    .get_payload_v3(payload_id)
+                    .await
+                    .map_err(SealTaskError::GetPayloadFailed)?;
 
                 OpExecutionPayloadEnvelope::V3 {
                     parent_beacon_block_root: payload.parent_beacon_block_root,
@@ -127,10 +130,10 @@ impl SealTask {
                 }
             }
             EngineGetPayloadVersion::V2 => {
-                let payload = engine.get_payload_v2(payload_id).await.map_err(|e| {
-                    error!(target: "engine", "Payload fetch failed: {e}");
-                    SealTaskError::GetPayloadFailed(e)
-                })?;
+                let payload = engine
+                    .get_payload_v2(payload_id)
+                    .await
+                    .map_err(SealTaskError::GetPayloadFailed)?;
 
                 match payload.execution_payload.into_payload() {
                     ExecutionPayload::V1(payload) => OpExecutionPayloadEnvelope::V1(payload),
@@ -180,10 +183,7 @@ impl SealTask {
                 error!(target: "engine", "Payload import failed: {e}");
                 return Err(Box::new(e).into());
             }
-            Ok(new_block_ref) => {
-                info!(target: "engine", "Successfully imported payload");
-                new_block_ref
-            }
+            Ok(new_block_ref) => new_block_ref,
         };
 
         Ok(new_block_ref)
@@ -247,14 +247,22 @@ impl EngineTaskExt for SealTask {
 
     type Error = SealTaskError;
 
-    async fn execute(&self, state: &mut EngineState) -> Result<(), SealTaskError> {
-        debug!(
-            target: "engine",
+    #[tracing::instrument(
+        name = "seal",
+        target = "engine",
+        level = "info",
+        skip_all,
+        fields(
+            payload_id = %self.payload_id,
+            parent_hash = %self.attributes.parent.block_info.hash,
+            parent_number = self.attributes.parent.block_info.number,
+            l2_time = self.attributes.attributes().payload_attributes.timestamp,
             txs = self.attributes.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),
             is_deposits = self.attributes.is_deposits_only(),
-            "Starting new seal job"
-        );
-
+            is_attributes_derived = self.is_attributes_derived,
+        )
+    )]
+    async fn execute(&self, state: &mut EngineState) -> Result<(), SealTaskError> {
         let unsafe_block_info = state.sync_state.unsafe_head().block_info;
         let parent_block_info = self.attributes.parent.block_info;
 

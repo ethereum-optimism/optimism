@@ -83,6 +83,17 @@ impl BuildTask {
     /// This is a temporary state, and the function should be called again later.
     ///
     /// Note: This is `pub(super)` to allow testing via the `tests` submodule.
+    #[tracing::instrument(
+        name = "start_build",
+        target = "engine_builder",
+        level = "info",
+        skip_all,
+        fields(
+            unsafe_hash = %attributes_envelope.parent.block_info.hash,
+            safe_hash = %state.sync_state.safe_head().block_info.hash,
+            finalized_hash = %state.sync_state.finalized_head().block_info.hash,
+        )
+    )]
     pub(super) async fn start_build(
         &self,
         state: &EngineState,
@@ -129,19 +140,10 @@ impl BuildTask {
             }
         }
         .map_err(|e| {
-            error!(target: "engine_builder", "Forkchoice update failed: {}", e);
             BuildTaskError::EngineBuildError(EngineBuildError::AttributesInsertionFailed(e))
         })?;
 
         Self::validate_forkchoice_status(update.payload_status.status)?;
-
-        debug!(
-            target: "engine_builder",
-            unsafe_hash = new_forkchoice.head_block_hash.to_string(),
-            safe_hash = new_forkchoice.safe_block_hash.to_string(),
-            finalized_hash = new_forkchoice.finalized_block_hash.to_string(),
-            "Forkchoice update with attributes successful"
-        );
 
         // Fetch the payload ID from the FCU. If no payload ID was returned, something went wrong -
         // the block building job on the EL should have been initiated.
@@ -157,22 +159,22 @@ impl EngineTaskExt for BuildTask {
 
     type Error = BuildTaskError;
 
-    async fn execute(&self, state: &mut EngineState) -> Result<PayloadId, BuildTaskError> {
-        debug!(
-            target: "engine_builder",
+    #[tracing::instrument(
+        name = "build",
+        target = "engine_builder",
+        level = "info",
+        skip_all,
+        fields(
+            parent = ?self.attributes.parent.block_info.id(),
+            l2_time = self.attributes.attributes().payload_attributes.timestamp,
             txs = self.attributes.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),
             is_deposits = self.attributes.is_deposits_only(),
-            "Starting new build job"
-        );
-
+        )
+    )]
+    async fn execute(&self, state: &mut EngineState) -> Result<PayloadId, BuildTaskError> {
         // Start the build by sending an FCU call with the current forkchoice and the input
         // payload attributes.
         let payload_id = self.start_build(state, &self.engine, self.attributes.clone()).await?;
-
-        info!(
-            target: "engine_builder",
-            "block build started"
-        );
 
         // If a channel was provided, send the payload ID to it.
         if let Some(tx) = &self.payload_id_tx {

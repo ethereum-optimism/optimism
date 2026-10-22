@@ -1,5 +1,5 @@
 //! Contains the [`RollupNode`] implementation.
-use super::middleware::RpcMetricsLayer;
+use super::middleware::RpcObservabilityLayer;
 use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
@@ -518,7 +518,7 @@ impl RollupNode {
             .timeout(Duration::from_secs(2));
         let max_response_body_size = jsonrpsee::core::TEN_MB_SIZE_BYTES;
         let rpc_middleware = RpcServiceBuilder::new()
-            .layer(RpcMetricsLayer::new(modules.method_names(), max_response_body_size));
+            .layer(RpcObservabilityLayer::new(modules.method_names(), max_response_body_size));
         let server = Server::builder()
             .set_config(
                 ServerConfig::builder().max_response_body_size(max_response_body_size).build(),

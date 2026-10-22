@@ -185,7 +185,6 @@ where
     /// Starts the sequencer in an idempotent fashion.
     fn start_sequencer(&self) {
         if self.state().active {
-            info!(target: "sequencer", "received request to start sequencer, but it is already started");
             return;
         }
 
@@ -581,6 +580,7 @@ where
                             error!(target: "sequencer", err=?err, "Critical seal task error occurred");
                             return Err(SequencerActorError::EngineError(EngineClientError::SealError(err)));
                         }
+                        warn!(target: "sequencer", %err, "Discarding failed seal job");
                         self.next_payload_to_seal = None;
                     }
                     Err(other_err) => {
