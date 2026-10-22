@@ -186,6 +186,7 @@ impl AdminApiServer for AdminRpc {
 mod tests {
     use super::*;
     use alloy_rpc_types_engine::ExecutionPayloadV1;
+    use jsonrpsee::core::server::MethodsError;
 
     #[tokio::test]
     async fn reads_published_state_without_queueing_and_rejects_closed_publisher() {
@@ -394,61 +395,28 @@ mod tests {
             ErrorCode::InternalError.code()
         );
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::SequencerAdminAPIError;
-    use alloy_rpc_types_engine::ExecutionPayloadV1;
-    use jsonrpsee::core::server::MethodsError;
-    use op_alloy_consensus::OpBlock;
-    use tokio::sync::mpsc;
 
     /// Admin payload submission must work without a sequencer.
-    #[derive(Debug)]
-    struct NoSequencer;
-
-    #[async_trait]
-    impl SequencerAdminAPIClient for NoSequencer {
-        async fn is_sequencer_active(&self) -> Result<bool, SequencerAdminAPIError> {
-            Ok(false)
-        }
-
-        async fn is_conductor_enabled(&self) -> Result<bool, SequencerAdminAPIError> {
-            unreachable!("validator has no sequencer")
-        }
-
-        async fn is_recovery_mode(&self) -> Result<bool, SequencerAdminAPIError> {
-            unreachable!("validator has no sequencer")
-        }
-
-        async fn start_sequencer(&self) -> Result<(), SequencerAdminAPIError> {
-            unreachable!("validator has no sequencer")
-        }
-
-        async fn stop_sequencer(&self) -> Result<B256, SequencerAdminAPIError> {
-            unreachable!("validator has no sequencer")
-        }
-
-        async fn set_recovery_mode(&self, _mode: bool) -> Result<(), SequencerAdminAPIError> {
-            unreachable!("validator has no sequencer")
-        }
-
-        async fn override_leader(&self) -> Result<(), SequencerAdminAPIError> {
-            unreachable!("validator has no sequencer")
-        }
-
-        async fn reset_derivation_pipeline(&self) -> Result<(), SequencerAdminAPIError> {
-            unreachable!("validator has no sequencer")
-        }
-    }
-
     #[tokio::test]
     async fn unsafe_payload_validation_precedes_admission() {
         let (sender, mut receiver) = mpsc::channel(1);
-        let rpc = AdminRpc::<NoSequencer>::new(None, sender).into_rpc();
-        let mut payload = ExecutionPayloadV1::from_block_slow(&OpBlock::default());
+        let rpc = AdminRpc::new(None, mpsc::channel(1).0, sender).into_rpc();
+        let mut payload = ExecutionPayloadV1 {
+            parent_hash: Default::default(),
+            fee_recipient: Default::default(),
+            state_root: Default::default(),
+            receipts_root: Default::default(),
+            logs_bloom: Default::default(),
+            prev_randao: Default::default(),
+            block_number: 1,
+            gas_limit: 30_000_000,
+            gas_used: 0,
+            timestamp: 1,
+            extra_data: Default::default(),
+            base_fee_per_gas: Default::default(),
+            block_hash: Default::default(),
+            transactions: vec![],
+        };
         payload.block_hash = payload.clone().into_block_raw().unwrap().header.hash_slow();
         let valid = OpExecutionPayloadEnvelope::V1(payload.clone());
         let actual_hash = payload.block_hash;
@@ -477,7 +445,6 @@ mod tests {
         rpc.call::<_, ()>("admin_postUnsafePayload", jsonrpsee::rpc_params![valid.clone()])
             .await
             .unwrap();
-        let NetworkAdminQuery::PostUnsafePayload { payload } = receiver.try_recv().unwrap();
-        assert_eq!(payload, valid);
+        assert_eq!(receiver.try_recv().unwrap(), valid);
     }
 }

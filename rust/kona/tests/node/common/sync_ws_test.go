@@ -15,25 +15,25 @@ import (
 // Every observed unsafe block must become safe without changing its contents.
 func TestSyncUnsafeBecomesSafe(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	checkBlockRangesOnPeers(t, newCommonPreset(t).L2CLKonaNodes(), safety.LocalUnsafe, safety.CrossSafe)
+	checkBlockRangesOnPeers(t, newCommonPreset(t), safety.LocalUnsafe, safety.CrossSafe)
 }
 
 // Unsafe blocks agree on this single-sequencer network without reorgs.
 func TestSyncUnsafe(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	checkBlockRangesOnPeers(t, newCommonPreset(t).L2CLKonaNodes(), safety.LocalUnsafe, safety.LocalUnsafe)
+	checkBlockRangesOnPeers(t, newCommonPreset(t), safety.LocalUnsafe, safety.LocalUnsafe)
 }
 
 // Safe blocks agree on this network with a single DA layer.
 func TestSyncSafe(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	checkBlockRangesOnPeers(t, newCommonPreset(t).L2CLKonaNodes(), safety.CrossSafe, safety.CrossSafe)
+	checkBlockRangesOnPeers(t, newCommonPreset(t), safety.CrossSafe, safety.CrossSafe)
 }
 
 // Every node finalizes multiple new blocks, and their contents agree across peers.
 func TestSyncFinalized(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	checkBlockRangesOnPeers(t, newCommonPreset(t).L2CLKonaNodes(), safety.Finalized, safety.Finalized)
+	checkBlockRangesOnPeers(t, newCommonPreset(t), safety.Finalized, safety.Finalized)
 }
 
 func syncHead(status *eth.SyncStatus, level safety.Level) eth.L2BlockRef {
@@ -51,9 +51,14 @@ func syncHead(status *eth.SyncStatus, level safety.Level) eth.L2BlockRef {
 
 // Capture a consecutive range from EVERY source before waiting on peers. Checking only one
 // latest head can miss disagreements in intermediate blocks or on another source node.
-func checkBlockRangesOnPeers(t devtest.T, nodes []dsl.L2CLNode, observed, target safety.Level) {
+func checkBlockRangesOnPeers(t devtest.T, preset *node_utils.MixedOpKonaPreset, observed, target safety.Level) {
 	t.Helper()
-	t.Require().GreaterOrEqual(len(nodes), 2, "sync agreement requires multiple nodes")
+	// The simple-kona preset has one Kona source. Include its op-node peers in
+	// the agreement checks through ordinary RPC; op-node does not expose WS here.
+	nodes := preset.L2CLKonaNodes()
+	peers := preset.L2CLNodes()
+	t.Require().GreaterOrEqual(len(nodes), 1, "sync agreement requires a Kona WebSocket source")
+	t.Require().GreaterOrEqual(len(peers), 2, "sync agreement requires multiple nodes")
 	const blockCount uint64 = 20
 	clients := make([]*sources.RollupClient, len(nodes))
 	starts := make([]uint64, len(nodes))
@@ -81,15 +86,15 @@ func checkBlockRangesOnPeers(t devtest.T, nodes []dsl.L2CLNode, observed, target
 	t.Require().Len(heads, len(nodes)*int(blockCount), "must check every block in every source range")
 
 	checks = checks[:0]
-	for i := range nodes {
-		checks = append(checks, nodes[i].ReachedFn(target, highest, 120))
+	for i := range peers {
+		checks = append(checks, peers[i].ReachedFn(target, highest, 120))
 	}
 	dsl.CheckAll(t, checks...)
-	for i := range nodes {
+	for i := range peers {
 		for _, head := range heads {
-			output, err := clients[i].OutputAtBlock(t.Ctx(), head.Number)
+			output, err := peers[i].Escape().RollupAPI().OutputAtBlock(t.Ctx(), head.Number)
 			t.Require().NoError(err)
-			t.Require().Equal(head, output.BlockRef, "block %d mismatch on %s at %s", head.Number, nodes[i].Escape().Name(), target)
+			t.Require().Equal(head, output.BlockRef, "block %d mismatch on %s at %s", head.Number, peers[i].Escape().Name(), target)
 		}
 	}
 }
