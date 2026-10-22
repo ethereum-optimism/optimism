@@ -234,6 +234,15 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         block.cloned()
     }
 
+    /// Returns the pending flashblock that is served now, without waiting for one being built.
+    ///
+    /// The state reads at `pending` and the environment of calls at `pending` both select the
+    /// flashblock here, so that they agree on it.
+    fn current_pending_flashblock(&self) -> Option<PendingFlashBlock<N::Primitives>> {
+        let rx = &self.inner.flashblocks.as_ref()?.pending_block_rx;
+        self.extract_pending_flashblock(rx.borrow().as_ref())
+    }
+
     /// Awaits a fresh flashblock if one is being built, otherwise returns current.
     async fn flashblock(&self) -> eyre::Result<Option<PendingFlashBlock<N::Primitives>>> {
         let Some(rx) = self.inner.flashblocks.as_ref().map(|f| &f.pending_block_rx) else {
@@ -256,7 +265,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         }
 
         // Fall back to current block
-        Ok(self.extract_pending_flashblock(rx.borrow().as_ref()))
+        Ok(self.current_pending_flashblock())
     }
 
     /// Returns a [`PendingFlashBlock`] that is built out of flashblocks.
