@@ -1849,6 +1849,9 @@ jobs:
 
   go-tests:
     parameters:
+      image:
+        description: "Docker image for this job. Must be the image that built the Rust binaries it runs (glibc must match)."
+        type: string
       notify:
         description: Whether to notify on failure
         type: boolean
@@ -1878,7 +1881,7 @@ jobs:
         type: integer
         default: 1
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<parameters.image>>
     # Trial one tier down; nproc-based test parallelism falls from 16 to 8 while -p=4
     # stays fixed. Monitor the 16 GiB limit after a 24.1 GiB cross-branch peak.
     resource_class: xlarge.gen2
@@ -1927,6 +1930,9 @@ jobs:
 
   go-tests-with-fault-proof-deps:
     parameters:
+      image:
+        description: "Docker image for this job. Must be the image that built the Rust binaries it runs (glibc must match)."
+        type: string
       notify:
         description: Whether to notify on failure
         type: boolean
@@ -1952,7 +1958,7 @@ jobs:
         type: string
         default: ""
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<parameters.image>>
     resource_class: <<parameters.resource_class>>
     steps:
       - utils/checkout-with-mise:
@@ -2603,6 +2609,7 @@ workflows:
       # (branch_pattern in notify-failures-on-develop).
       - go-tests:
           name: go-tests
+          image: <<pipeline.parameters.c-rust_base_image>>
           rule: "go-tests-ci"
           parallelism: 12
           no_output_timeout: 39m
@@ -2900,6 +2907,7 @@ workflows:
             - sccache-gcs-optimism
       - go-tests-with-fault-proof-deps:
           name: op-e2e-cannon-tests
+          image: <<pipeline.parameters.c-rust_base_image>>
           notify: true
           mentions: "@proofs-team"
           no_output_timeout: 90m
