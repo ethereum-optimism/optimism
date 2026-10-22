@@ -127,6 +127,9 @@ where
     async fn reset(&mut self) -> Result<(), EngineError> {
         // Reset the engine.
         let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
+        // The sequencer must observe the same reset head as RPC readers before its reset
+        // acknowledgement can release a queued start command.
+        self.publish_unsafe_head();
 
         // Derivation may be awaiting this reply with its inbound queue full of L1 updates.
         // Release those callers before awaiting delivery to that same queue. They transition
@@ -148,6 +151,16 @@ where
         self.send_derivation_actor_safe_head_if_updated().await?;
 
         Ok(())
+    }
+
+    /// Publishes the current unsafe head to the sequencer without waiting on derivation.
+    fn publish_unsafe_head(&self) {
+        if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
+            unsafe_head_tx.send_if_modified(|val| {
+                let new_head = self.engine.state().sync_state.unsafe_head();
+                (*val != new_head).then(|| *val = new_head).is_some()
+            });
+        }
     }
 
     /// Drains the inner [`Engine`] task queue and attempts to update the safe head.
@@ -262,12 +275,7 @@ where
         }
 
         // If the unsafe head has updated, propagate it to the outbound channels.
-        if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
-            unsafe_head_tx.send_if_modified(|val| {
-                let new_head = self.engine.state().sync_state.unsafe_head();
-                (*val != new_head).then(|| *val = new_head).is_some()
-            });
-        }
+        self.publish_unsafe_head();
 
         // Wait for the next processing request.
         // Retry without needing a new inbound message, while still accepting requests during

@@ -206,14 +206,45 @@ where
         });
     }
 
-    /// Starts the sequencer in an idempotent fashion.
-    fn start_sequencer(&self) {
+    /// Starts the sequencer only if leadership and the expected unsafe head agree.
+    async fn start_sequencer(&self, head: B256) -> Result<(), SequencerAdminAPIError> {
+        if let Some(conductor) = &self.conductor {
+            let leader = conductor.leader().await.map_err(|error| {
+                SequencerAdminAPIError::StartSequencerError(format!(
+                    "sequencer leader check failed: {error}"
+                ))
+            })?;
+            if !leader {
+                return Err(SequencerAdminAPIError::StartSequencerError(
+                    "sequencer is not the leader, aborting".to_string(),
+                ));
+            }
+        }
         if self.state().active {
-            return;
+            return Err(SequencerAdminAPIError::StartSequencerError(
+                "sequencer already running".to_string(),
+            ));
+        }
+        let unsafe_head = self.engine_client.get_unsafe_head().await.map_err(|error| {
+            SequencerAdminAPIError::StartSequencerError(format!(
+                "failed to read unsafe head: {error}"
+            ))
+        })?;
+        if unsafe_head.hash().is_zero() {
+            return Err(SequencerAdminAPIError::StartSequencerError(format!(
+                "no prestate, cannot determine if sequencer start at {head} is safe"
+            )));
+        }
+        if head != unsafe_head.hash() {
+            return Err(SequencerAdminAPIError::StartSequencerError(format!(
+                "block hash does not match: head {}, received {head}",
+                unsafe_head.hash()
+            )));
         }
 
         info!(target: "sequencer", "Starting sequencer");
         self.update_state(|state| state.active = true);
+        Ok(())
     }
 
     /// Stops the sequencer in an idempotent fashion.
@@ -631,9 +662,8 @@ where
             Some(command) = self.admin_command_rx.recv() => {
                 // A dropped RPC response receiver does not cancel an accepted command.
                 match command {
-                    SequencerAdminCommand::StartSequencer(tx) => {
-                        self.start_sequencer();
-                        let _ = tx.send(Ok(()));
+                    SequencerAdminCommand::StartSequencer(head, tx) => {
+                        let _ = tx.send(self.start_sequencer(head).await);
                     }
                     SequencerAdminCommand::StopSequencer(tx) => {
                         let _ = tx.send(self.stop_sequencer().await);
