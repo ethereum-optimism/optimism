@@ -1,0 +1,168 @@
+# Execute the original selector publisher against a private official registry.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [registry-images, prepare]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "true"
+      cache-epoch: v1
+  github:
+    push:
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        tag: ${{ event.git.tag }}
+        cache-warm: "false"
+        cache-epoch: v1
+      status-checks:
+        name: optimism-selector-upload-shadow
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "false"
+      cache-epoch: v1
+
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner: {cpus: 2, memory: 8gb}
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: [code, mise]
+    run: bash ops/ci/runtime/rwx-prepare.sh
+    timeout: 30m
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/runtime/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: contract-tools
+    use: [code, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      bash ops/ci/runtime/rwx-contracts-prepare.sh tools
+      bash ops/ci/runtime/apt-install.sh iproute2 openssl
+    timeout: 30m
+
+  - key: registry-images
+    use: [code, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    docker: preserve-data
+    run: python3 ops/ci/migration/selector-registry.py images .ci/selector-registry
+    timeout: 45m
+    runner: {cpus: 8, memory: 16gb}
+    outputs:
+      artifacts:
+        - key: images
+          path: .ci/selector-registry
+
+  - key: source
+    use: [code, contract-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      git submodule sync --recursive
+      for attempt in 1 2 3 4 5; do
+        if git -c protocol.file.allow=never submodule update --init --recursive --jobs 8; then break; fi
+        if [ "$attempt" = 5 ]; then exit 1; fi
+        sleep "$((2 ** attempt))"
+      done
+    timeout: 20m
+
+  - key: prepare
+    use: source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: python3 ops/ci/migration/selector-upload.py prepare .ci/selector-upload/prepare
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+    tool-cache: selector-upload-abi-v2-${{ init.cache-epoch }}
+    timeout: 40m
+    runner: {cpus: 16, memory: 32gb}
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/cache, packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/artifacts, packages/contracts-bedrock/foundry-pp]
+          system: [/root/.svm, /home/*/.svm]
+      artifacts:
+        - key: compiled
+          path: .ci/selector-upload/prepare
+
+  - key: helper-tests
+    use: [code, contract-tools, registry-images]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test*selector_upload.py'
+      python3 ops/ci/migration/selector-registry.py fixture "$REGISTRY_IMAGES/sourcify" .ci/selector-upload/fixtures
+    env:
+      REGISTRY_IMAGES: ${{ tasks.registry-images.artifacts.images }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: original-failure-fixtures
+          path: .ci/selector-upload/fixtures
+
+  - key: upload
+    use: [source, prepare, registry-images]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      python3 ops/ci/migration/selector-upload.py run .ci/selector-upload/run "$COMPILED" \
+        "$REGISTRY_IMAGES/sourcify" "$REGISTRY_IMAGES/images.json"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+      COMPILED: ${{ tasks.prepare.artifacts.compiled }}
+      REGISTRY_IMAGES: ${{ tasks.registry-images.artifacts.images }}
+    cache: false
+    timeout: 60m
+    runner: {cpus: 8, memory: 16gb}
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/selector-upload/run

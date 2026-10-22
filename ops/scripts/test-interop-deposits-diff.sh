@@ -28,25 +28,39 @@ if [[ "$repo_root" == "/" ]]; then
   exit 2
 fi
 
-go_out=$(mktemp)
-go_err=$(mktemp)
-rust_out=$(mktemp)
-rust_err=$(mktemp)
-trap 'rm -f "$go_out" "$go_err" "$rust_out" "$rust_err"' EXIT
+if [[ -n "${CI_INTEROP_REPORT_DIR:-}" ]]; then
+  mkdir -p "$CI_INTEROP_REPORT_DIR"
+  go_out="$CI_INTEROP_REPORT_DIR/interop-go.stdout"
+  go_err="$CI_INTEROP_REPORT_DIR/interop-go.stderr"
+  rust_out="$CI_INTEROP_REPORT_DIR/interop-rust.stdout"
+  rust_err="$CI_INTEROP_REPORT_DIR/interop-rust.stderr"
+else
+  go_out=$(mktemp)
+  go_err=$(mktemp)
+  rust_out=$(mktemp)
+  rust_err=$(mktemp)
+  trap 'rm -f "$go_out" "$go_err" "$rust_out" "$rust_err"' EXIT
+fi
 
 # Capture stdout into the comparison file and stderr separately. `go run` and
 # `cargo run` both print build progress to stderr (e.g. `go: downloading ...`
 # on a cold module cache), which must not pollute the diff input.
 
 echo "==> running Go dumper"
-if ! (cd "$repo_root" && go run ./op-node/cmd/interop-deposits-dump) >"$go_out" 2>"$go_err"; then
+status=0
+(cd "$repo_root" && go run ./op-node/cmd/interop-deposits-dump) >"$go_out" 2>"$go_err" || status=$?
+if [[ -n "${CI_INTEROP_REPORT_DIR:-}" ]]; then printf '%s\n' "$status" >"$CI_INTEROP_REPORT_DIR/interop-go.exit"; fi
+if [[ "$status" != 0 ]]; then
   echo "error: Go dumper failed" >&2
   cat "$go_err" >&2
   exit 2
 fi
 
 echo "==> running Rust dumper"
-if ! (cd "$repo_root/rust/kona" && cargo run --quiet -p kona-hardforks --example interop-deposits-dump) >"$rust_out" 2>"$rust_err"; then
+status=0
+(cd "$repo_root/rust/kona" && cargo run --quiet -p kona-hardforks --example interop-deposits-dump) >"$rust_out" 2>"$rust_err" || status=$?
+if [[ -n "${CI_INTEROP_REPORT_DIR:-}" ]]; then printf '%s\n' "$status" >"$CI_INTEROP_REPORT_DIR/interop-rust.exit"; fi
+if [[ "$status" != 0 ]]; then
   echo "error: Rust dumper failed" >&2
   cat "$rust_err" >&2
   exit 2

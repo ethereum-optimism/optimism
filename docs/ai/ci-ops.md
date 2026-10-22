@@ -4,6 +4,10 @@ This document provides guidance for AI agents working with CI/CD operational tas
 
 For Docker image build failures — especially flaky `apt`/`apk`/`curl` downloads from package registries and CDNs — see [docker.md](docker.md).
 
+The optional RWX pilot and migration checklist are documented in
+[rwx-migration.md](rwx-migration.md). CircleCI remains the required CI provider;
+an RWX pilot result does not replace watching the existing merge gates.
+
 ## Watching CI after a push
 
 Watch every push to a terminal state — `AGENTS.md` requires it. Most jobs run on
@@ -38,9 +42,10 @@ Notes that matter in practice:
   run on fast paths; for every other suite, look for an open flake issue instead. A rerun
   that hides a real regression costs more than the minutes it saved, and a confirmed
   flake needs an issue, not a silent retry. Reruns through the CircleCI v2 API need a
-  personal API token in `CIRCLE_TOKEN` — not the `CIRCLECI_CLI_TOKEN` the CLI reads for
-  [ci-config-review.md](ci-config-review.md)'s `circleci config validate --org-slug`, and
-  not the `CIRCLE_API_TOKEN` in `.circleci/`, which is the in-job context token. For
+  personal API token in `CIRCLE_TOKEN`, also read by CircleCI CLI 1.x for
+  [ci-config-review.md](ci-config-review.md)'s `circleci config validate --org`.
+  Older CLI 0.x uses `CIRCLECI_CLI_TOKEN` and `--org-slug`. The `CIRCLE_API_TOKEN`
+  in `.circleci/` is the in-job context token. For
   flakes in `op-acceptance-tests/`/`op-devstack/`,
   [flake-prevention.md](flake-prevention.md) catalogues the recurring causes.
 
@@ -62,6 +67,16 @@ Worked example (#21356): `go-tests-short` failed on `op-deployer` integration te
 branch that only added a new `op-core/types` package. The diff touched nothing in
 `op-deployer`; the failures were a data-dependent flake already fixed on `develop` by
 #21396. Rebasing made CI green with no change to the branch's own work.
+
+## Go module cache on Circle machines
+
+Machine and Docker images can use different `GOPATH` defaults. The shared
+`restore-go-mod-cache` helper sets `GOMODCACHE=$HOME/go/pkg/mod` through `BASH_ENV`
+so every later step reads the directory Circle actually restores and saves.
+A successful cache restore alone does not prove Go uses it: compare `go env
+GOMODCACHE` with the cached paths. The cache key includes `go.mod`, `go.sum` and
+`mise.toml` so the module producer can retain newly selected modules/toolchains
+instead of trying to overwrite an immutable older snapshot.
 
 ## Missing `op-core/superchain` bundle (`superchain-configs.zip`)
 

@@ -37,10 +37,24 @@ func runCLITests(m *testing.M) int {
 
 	// Each command needs its own process, but the suite only needs one binary.
 	cliTestBinary = filepath.Join(dir, "op-deployer")
-	cmd := exec.Command("go", "build", "-o", cliTestBinary, "../../../../cmd/op-deployer")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		fmt.Fprintf(os.Stderr, "build op-deployer: %v\n%s", err, output)
-		return 1
+	if prepared := os.Getenv("OP_DEPLOYER_TEST_BINARY"); prepared != "" {
+		// The CI compiler seals this current-source helper alongside the tests.
+		// Copy it into the same isolated directory used by ordinary local runs.
+		data, err := os.ReadFile(prepared)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "read prepared op-deployer: %v\n", err)
+			return 1
+		}
+		if err := os.WriteFile(cliTestBinary, data, 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "copy prepared op-deployer: %v\n", err)
+			return 1
+		}
+	} else {
+		cmd := exec.Command("go", "build", "-o", cliTestBinary, "../../../../cmd/op-deployer")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			fmt.Fprintf(os.Stderr, "build op-deployer: %v\n%s", err, output)
+			return 1
+		}
 	}
 	return m.Run()
 }

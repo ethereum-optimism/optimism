@@ -4,10 +4,25 @@ build:
 build-go: build
 build-all: build-contracts build-go
 
-build-contracts:
+compile-contracts:
   #!/bin/bash
-  mkdir -p ./pkg/fetcher/fetch/forge-artifacts
+  set -euo pipefail
+  # Keep compiler selection independent of other versions in a restored svm cache.
+  if ! svm which 0.8.30 >/dev/null 2>&1; then
+    for attempt in 1 2 3 4 5; do
+      if svm install 0.8.30; then break; fi
+      if [ "$attempt" = 5 ]; then exit 1; fi
+      sleep "$((2 ** attempt))"
+    done
+  fi
   cd ../packages/contracts-bedrock
   just clean
   just build-dev --deny-warnings --skip test
-  cp -r forge-artifacts/FetchChainInfo.s.sol ../../op-fetcher/pkg/fetcher/fetch/forge-artifacts
+
+# Update the embedded artifacts only when explicitly building them for development.
+# CI uses compile-contracts so its comparison sees the committed artifact bytes.
+build-contracts: compile-contracts
+  #!/bin/bash
+  set -euo pipefail
+  mkdir -p ./pkg/fetcher/fetch/forge-artifacts
+  python3 ../ops/ci/runtime/fetcher-artifacts.py --export

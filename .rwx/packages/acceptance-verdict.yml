@@ -1,0 +1,84 @@
+package:
+  parameters:
+    commit-sha:
+      required: true
+    branch:
+      required: true
+    shard-index:
+      required: true
+    shard-total:
+      required: true
+    cl-kind:
+      required: true
+    discovery:
+      default: .ci/acceptance/discovery
+    go-artifact:
+      default: .ci/go-tests/dependencies/go
+    contract-artifact:
+      default: .ci/go-tests/dependencies/contracts
+    kona-artifact:
+      default: .ci/go-tests/dependencies/kona
+    reth-artifact:
+      default: .ci/go-tests/dependencies/op-reth
+    prestate-artifact:
+      default: .ci/go-tests/dependencies/prestate
+    sp1-artifact:
+      default: .ci/go-tests/dependencies/sp1-executor
+    cache-key:
+      required: true
+    memory:
+      required: true
+tasks:
+  - key: run
+    use: package.use
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/runtime/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export CI_ACCEPTANCE_MANIFEST="$PWD/$CI_ACCEPTANCE_MANIFEST"
+      mise exec -- bash ops/ci/runtime/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      CI_BRANCH: ${{ params.branch }}
+      CIRCLE_BRANCH: ${{ params.branch }}
+      CI_SHARD_INDEX: ${{ params.shard-index }}
+      CI_SHARD_TOTAL: ${{ params.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: ${{ params.cl-kind }}
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ params.discovery }}
+      GO_ARTIFACT: ${{ params.go-artifact }}
+      CONTRACT_ARTIFACT: ${{ params.contract-artifact }}
+      KONA_ARTIFACT: ${{ params.kona-artifact }}
+      RETH_ARTIFACT: ${{ params.reth-artifact }}
+      PRESTATE_ARTIFACT: ${{ params.prestate-artifact }}
+      SP1_ARTIFACT: ${{ params.sp1-artifact }}
+    cache: false
+    tool-cache: ${{ params.cache-key }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: ${{ params.memory }}
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+    filter: ['!.ci/go-cache', '!.ci/rust-cache', '!rust/target', '!packages/contracts-bedrock/cache', '!packages/contracts-bedrock/artifacts', '!packages/contracts-bedrock/forge-artifacts', '!op-deployer/pkg/deployer/artifacts/forge-artifacts', '!.ci/go-cache/acceptance/discover']

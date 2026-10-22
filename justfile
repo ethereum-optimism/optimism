@@ -352,7 +352,31 @@ _go-tests-ci-internal go_test_flags="": build-superchain-go
   source ./ops/scripts/source-ci-archive-rpcs.sh
   export NAT_INTEROP_LOADTEST_TARGET=10
   export NAT_INTEROP_LOADTEST_TIMEOUT=30s
+  if [[ -z "{{go_test_flags}}" && "${CIRCLE_NODE_TOTAL:-1}" == 12 ]]; then
+      export CI_COMMIT_SHA="${CIRCLE_SHA1:-$(git rev-parse HEAD)}"
+      export CI_BRANCH="${CIRCLE_BRANCH:-$(git branch --show-current)}"
+      export CI_SHARD_INDEX="${CIRCLE_NODE_INDEX:-0}" CI_SHARD_TOTAL=12 CI_GO_FRESH_TESTS=true
+      export CI_GO_BUILD_CACHE="$(go env GOCACHE)" CI_GO_MODULE_CACHE="$(go env GOMODCACHE)"
+      mise exec -- bash ops/ci/runtime/go-full-tests.sh discover
+      cp .ci/go-tests/{all-packages.txt,go-list.json} tmp/testlogs/
+      cp tmp/testlogs/go-list.json tmp/testlogs/discovery.json
+      python3 ops/ci/runtime/go-suite.py record-circle --flags="{{go_test_flags}}"
+      mise exec -- bash ops/ci/runtime/go-full-tests.sh build
+      mise exec -- bash ops/ci/runtime/go-full-tests.sh run
+      cp tmp/testlogs/packages.txt "tmp/testlogs/packages-${CI_SHARD_INDEX}.txt"
+      cp tmp/testlogs/log.json "tmp/testlogs/log-${CI_SHARD_INDEX}.json"
+      exit 0
+  fi
   ALL_PACKAGES="$(just list-test-packages | tr '\n' ' ')"
+  FRESH_FLAGS=()
+  case "${CI_GO_FRESH_TESTS:-false}" in
+    1|true) FRESH_FLAGS=(-count=1) ;;
+    0|false) ;;
+    *) echo "CI_GO_FRESH_TESTS must be true/false or 1/0" >&2; exit 1 ;;
+  esac
+  printf '%s\n' $ALL_PACKAGES >tmp/testlogs/all-packages.txt
+  go list -e -tags=ci -json $ALL_PACKAGES >tmp/testlogs/discovery.json
+  python3 ops/ci/runtime/go-suite.py record-circle --flags="{{go_test_flags}}"
   if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
       NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
       NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
@@ -369,6 +393,7 @@ _go-tests-ci-internal go_test_flags="": build-superchain-go
       PARALLEL_PACKAGES=$(printf '%s\n' $ALL_PACKAGES \
           | circleci tests split --split-by=timings --timings-type=classname \
           | tr '\n' ' ')
+      printf '%s\n' $PARALLEL_PACKAGES >"tmp/testlogs/packages-$NODE_INDEX.txt"
       # An empty share for one node is a legitimate timing-bucketing outcome;
       # the packages run on the other nodes. Only an empty package list
       # (checked above) means the job would silently test nothing.
@@ -383,15 +408,16 @@ _go-tests-ci-internal go_test_flags="": build-superchain-go
           --rerun-fails=3 \
           --rerun-fails-max-failures=50 \
           --packages="$PARALLEL_PACKAGES" \
-          -- -p=4 -parallel="$PARALLEL" {{go_test_flags}} -timeout={{TEST_TIMEOUT}} -tags="ci"
+          -- -p=4 -parallel="$PARALLEL" "${FRESH_FLAGS[@]}" {{go_test_flags}} -timeout={{TEST_TIMEOUT}} -tags="ci"
   else
+      printf '%s\n' $ALL_PACKAGES >tmp/testlogs/packages-0.txt
       ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
           --junitfile=./tmp/test-results/results.xml \
           --jsonfile=./tmp/testlogs/log.json \
           --rerun-fails=3 \
           --rerun-fails-max-failures=50 \
           --packages="$ALL_PACKAGES" \
-          -- -p=4 -parallel="$PARALLEL" {{go_test_flags}} -timeout={{TEST_TIMEOUT}} -tags="ci"
+          -- -p=4 -parallel="$PARALLEL" "${FRESH_FLAGS[@]}" {{go_test_flags}} -timeout={{TEST_TIMEOUT}} -tags="ci"
   fi
 
 # Runs short Go tests with gotestsum for CI.
@@ -469,7 +495,7 @@ nut-provenance-verify fork:
 
 # Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
 _nut-prefork-state-for fork:
-  OP_E2E_GEN_PREFORK_STATE={{fork}} go test -count=1 -run TestGenerateForkState ./rust/kona/tests/proofs/
+  bash ops/ci/runtime/nut-prefork-test.sh {{fork}}
 
 # Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
 nut-prefork-state-for fork: build-contracts build-superchain-go

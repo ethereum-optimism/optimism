@@ -45,70 +45,7 @@ commands:
             - sp1-toolchain-v1-{{ arch }}-{{ checksum "mise.toml" }}
       - run:
           name: Install or link SP1 toolchain
-          command: |
-            install_sp1_toolchain() {
-              (cd rust/kona/sp1 && just install-sp1-toolchain)
-            }
-
-            mise_sp1_version="$(yq -r '.tools."github:succinctlabs/sp1".version // "<missing>"' mise.toml)"
-            root_manifest_sp1_sdk="$(yq -r '.workspace.dependencies."sp1-sdk".version // "<missing>"' rust/Cargo.toml)"
-            guest_manifest_sp1_lib="$(yq -r '.workspace.dependencies."sp1-lib".version // "<missing>"' rust/kona/sp1/programs/Cargo.toml)"
-            guest_manifest_sp1_zkvm="$(yq -r '.workspace.dependencies."sp1-zkvm".version // "<missing>"' rust/kona/sp1/programs/Cargo.toml)"
-            sp1_tag="$(cd rust/kona/sp1 && just --evaluate SP1_TAG 2>/dev/null || printf '<missing>')"
-
-            lock_data_dir="$(mktemp -d)"
-            trap 'rm -rf "$lock_data_dir"' EXIT
-            root_lock_sp1_sdk="<lockfile parse failed>"
-            if yq -p=toml -o=json '.package // []' rust/Cargo.lock > "$lock_data_dir/root.json"; then
-              if ! root_lock_sp1_sdk="$(jq -er '[.[] | select(.name == "sp1-sdk") | .version] | unique | if length == 1 then .[0] else error("expected exactly one resolved sp1-sdk version") end' "$lock_data_dir/root.json")"; then
-                root_lock_sp1_sdk="<missing or multiple versions>"
-              fi
-            fi
-
-            guest_lock_sp1_lib="<lockfile parse failed>"
-            guest_lock_sp1_zkvm="<lockfile parse failed>"
-            if yq -p=toml -o=json '.package // []' rust/kona/sp1/programs/Cargo.lock > "$lock_data_dir/guest.json"; then
-              if ! guest_lock_sp1_lib="$(jq -er '[.[] | select(.name == "sp1-lib") | .version] | unique | if length == 1 then .[0] else error("expected exactly one resolved sp1-lib version") end' "$lock_data_dir/guest.json")"; then
-                guest_lock_sp1_lib="<missing or multiple versions>"
-              fi
-              if ! guest_lock_sp1_zkvm="$(jq -er '[.[] | select(.name == "sp1-zkvm") | .version] | unique | if length == 1 then .[0] else error("expected exactly one resolved sp1-zkvm version") end' "$lock_data_dir/guest.json")"; then
-                guest_lock_sp1_zkvm="<missing or multiple versions>"
-              fi
-            fi
-
-            if [ "$root_manifest_sp1_sdk" != "$mise_sp1_version" ] || \
-              [ "$guest_manifest_sp1_lib" != "$mise_sp1_version" ] || \
-              [ "$guest_manifest_sp1_zkvm" != "$mise_sp1_version" ] || \
-              [ "$root_lock_sp1_sdk" != "$mise_sp1_version" ] || \
-              [ "$guest_lock_sp1_lib" != "$mise_sp1_version" ] || \
-              [ "$guest_lock_sp1_zkvm" != "$mise_sp1_version" ] || \
-              [ "$sp1_tag" != "v${mise_sp1_version}" ]; then
-              printf '%s\n' \
-                "ERROR: SP1 version drift; mise.toml cargo-prove is canonical." \
-                "  mise.toml cargo-prove: ${mise_sp1_version}" \
-                "  rust/Cargo.toml sp1-sdk: ${root_manifest_sp1_sdk}" \
-                "  rust/Cargo.lock resolved sp1-sdk: ${root_lock_sp1_sdk}" \
-                "  rust/kona/sp1/programs/Cargo.toml sp1-lib: ${guest_manifest_sp1_lib}" \
-                "  rust/kona/sp1/programs/Cargo.toml sp1-zkvm: ${guest_manifest_sp1_zkvm}" \
-                "  rust/kona/sp1/programs/Cargo.lock resolved sp1-lib: ${guest_lock_sp1_lib}" \
-                "  rust/kona/sp1/programs/Cargo.lock resolved sp1-zkvm: ${guest_lock_sp1_zkvm}" \
-                "  rust/kona/sp1/justfile SP1_TAG: ${sp1_tag} (expected v${mise_sp1_version})" >&2
-              exit 1
-            fi
-
-            toolchain_dir="$(find "$HOME/.sp1/toolchains" -mindepth 1 -maxdepth 1 -type d -print -quit 2>/dev/null || true)"
-            if [ -n "$toolchain_dir" ]; then
-              rustup toolchain remove succinct || true
-              if rustup toolchain link succinct "$toolchain_dir" && rustc +succinct --version >/dev/null; then
-                echo "Restored SP1 toolchain from $toolchain_dir"
-              else
-                echo "Cached SP1 toolchain is invalid; reinstalling"
-                install_sp1_toolchain
-              fi
-            else
-              install_sp1_toolchain
-            fi
-            rustc +succinct --version
+          command: python3 ops/ci/runtime/sp1-guest.py --provider circleci --phase toolchain
       - save_cache:
           name: Save SP1 toolchain cache
           key: sp1-toolchain-v1-{{ arch }}-{{ checksum "mise.toml" }}
@@ -151,7 +88,7 @@ jobs:
             echo "Running tests..."
             export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
-            cd rust/kona && just test-e2e-sysgo-run node node/common "<<parameters.devnet_config>>"
+            bash ops/ci/runtime/rust-e2e.sh circle "<<parameters.devnet_config>>"
       - when:
           condition:
             equal: [true, <<parameters.reorg_tests>>]
@@ -168,10 +105,18 @@ jobs:
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
-          path: rust/kona/tests/tmp/test-results
+          path: .ci/rust-e2e/reports
       - store_artifacts:
-          path: rust/kona/tests/tmp/testlogs
+          path: .ci/rust-e2e
           when: always
+      - when:
+          condition: <<parameters.reorg_tests>>
+          steps:
+            - store_test_results:
+                path: rust/kona/tests/tmp/test-results
+            - store_artifacts:
+                path: rust/kona/tests/tmp/testlogs
+                when: always
 
   # Kona Node Restart Tests (from node_e2e_sysgo_tests.yaml)
   rust-restart-sysgo-tests:
@@ -202,13 +147,13 @@ jobs:
             WD=$(pwd)
             export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
-            cd rust/kona && just test-e2e-sysgo-run node node/restart
+            bash ops/ci/runtime/rust-e2e.sh circle restart
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
-          path: rust/kona/tests/tmp/test-results
+          path: .ci/rust-e2e/reports
       - store_artifacts:
-          path: rust/kona/tests/tmp/testlogs
+          path: .ci/rust-e2e
           when: always
 
   # op-reth E2E Sysgo Tests
@@ -233,13 +178,13 @@ jobs:
           no_output_timeout: 60m
           command: |
             export RUST_BINARY_PATH_OP_RETH="$(pwd)/../../target/release/op-reth"
-            just test-e2e-sysgo
+            bash ../../../ops/ci/runtime/rust-e2e.sh circle op-reth
       - go-save-cache:
           namespace: op-reth-e2e
       - store_test_results:
-          path: rust/op-reth/tests/tmp/test-results
+          path: .ci/rust-e2e/reports
       - store_artifacts:
-          path: rust/op-reth/tests/tmp/testlogs
+          path: .ci/rust-e2e
           when: always
 
   # Kona Proof Action Tests (from proof.yaml)
@@ -272,13 +217,14 @@ jobs:
           command: |
             echo "Running action tests"
             export KONA_HOST_PATH=$(pwd)/../target/release/kona-host
-            just action-tests-<<parameters.kind>>-run
+            if [[ "<<parameters.kind>>" != single ]]; then echo "Unsupported shared proof kind" >&2; exit 1; fi
+            bash ../../ops/ci/runtime/rust-e2e.sh circle proof
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
-          path: rust/kona/tests/proofs/tmp/test-results
+          path: .ci/rust-e2e/reports
       - store_artifacts:
-          path: rust/kona/tests/proofs/tmp/testlogs
+          path: .ci/rust-e2e
           when: always
 
   # Build SP1 guest ELFs and persist them for future rust-e2e consumers.
@@ -289,7 +235,8 @@ jobs:
         default: ""
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: large.gen2
+    # The matched pilot includes RWX's engine RAM reserve in its headroom.
+    resource_class: << pipeline.git.branch == "codex/rwx-ci-pilot" and "xlarge.gen2" or "large.gen2" >>
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -299,15 +246,9 @@ jobs:
           init_superchain_submodule: false
       - sp1-toolchain-restore-or-install
       - run:
-          # Check the committed guest lock before build-elfs-native regenerates it in place and masks drift.
-          name: Check SP1 guest lock
-          working_directory: rust
-          command: just check-sp1-guest-lock
-      - run:
-          name: Build SP1 guest ELFs
-          working_directory: rust/kona/sp1
+          name: Build SP1 guest ELFs with complete original artifact evidence
           no_output_timeout: 40m
-          command: just build-elfs-native "<< parameters.features >>"
+          command: python3 ops/ci/runtime/sp1-guest.py --provider circleci --phase build --features "<< parameters.features >>"
       - run:
           # The Go acceptance setup (op-acceptance-tests/tests/proofs/zk,
           # loadSuperAggregationVKey) reads super-aggregation when running with
@@ -357,23 +298,14 @@ jobs:
           paths:
             - rust/kona/sp1/elf/
       - run:
-          name: Test SP1 guest programs
-          working_directory: rust
-          environment:
-            RUSTFLAGS: -Dwarnings
-          command: just test-sp1-guest
-      - run:
-          name: Lint SP1 guest programs
-          working_directory: rust
-          environment:
-            RUSTFLAGS: -Dwarnings
-          command: just lint-sp1-guest
-      - run:
-          name: Check + test the vkey crates
-          working_directory: rust
-          environment:
-            RUSTFLAGS: -Dwarnings
-          command: just check-vkey-crates
+          name: Run all original SP1 guest, lint and range-vkeys checks freshly
+          no_output_timeout: 40m
+          command: python3 ops/ci/runtime/sp1-guest.py --provider circleci --phase checks --features "<< parameters.features >>"
+      - store_test_results:
+          path: .ci/sp1-guest/run
+      - store_artifacts:
+          path: .ci/sp1-guest
+          when: always
       - rust-save-build-cache: *sp1-guest-checks-cache-args
 
   sp1-super-range-elf-smoke:
