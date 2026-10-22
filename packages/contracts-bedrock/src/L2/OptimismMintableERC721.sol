@@ -123,7 +123,7 @@ contract OptimismMintableERC721 is ERC721Enumerable, ISemver {
     /// @return True if the interface ID is supported, false otherwise.
     function supportsInterface(bytes4 _interfaceId) public view override(ERC721Enumerable) returns (bool) {
         return _interfaceId == Constants.OPTIMISM_MINTABLE_ERC721_INTERFACE_ID
-            || _interfaceId == Constants.LEGACY_OPTIMISM_MINTABLE_ERC721_INTERFACE_ID
+            || _interfaceId == Constants.BEDROCK_OPTIMISM_MINTABLE_ERC721_INTERFACE_ID
             || super.supportsInterface(_interfaceId);
     }
 
