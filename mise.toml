@@ -1,7 +1,7 @@
 [tools]
 
 # Core dependencies
-bun = "1.4.0"
+bun = "1.4.4"
 go = "1.26.5"
 golangci-lint = "2.8.0"
 gotestsum = "1.12.3"
@@ -11,7 +11,7 @@ rust = [
   { version = "nightly-2026-08-22", components = "rustfmt,clippy" },
 ]
 python = "3.12.13"
-uv = "0.5.5"
+uv = "0.13.5"
 jq = "1.7.1"
 yq = "4.44.5"
 # Used by ops/scripts/todo-checker.sh. Pinned here rather than apt-installed in
