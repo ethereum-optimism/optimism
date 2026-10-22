@@ -13,7 +13,7 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/circleci-runner-wolfi@sha256:5998ffd3bc688988140e697da55cf929abf1a05f5540db1069e4744e5e313ba0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/circleci-runner-wolfi@sha256:cd90b8960652f763aa5e8d478e2e4e5553bbe90ff1d01940a07caf6f0a7e52a1
   c-base_image:
     type: string
     default: default
