@@ -20,10 +20,7 @@ func TestSuperRootMigrationPreservesReviewPeriodDelays(gt *testing.T) {
 
 	var chains []reviewperiod.ChainDelays
 	for _, l2 := range sys.L2Networks() {
-		pre, delays := readDelaysAcrossLastUpgrade(t, sys.L1EL, l2.Escape().Deployment().SystemConfigProxyAddr())
-		for _, d := range reviewperiod.CompareDelays(pre, delays) {
-			t.Require().False(d.Changed(), "%s of chain %s changed across the migration: %d -> %d", d.Name, l2.ChainID(), d.Before, d.After)
-		}
+		delays, _ := requireDelaysUnchangedAcrossLastUpgrade(t, sys.L1EL, l2.Escape().Deployment().SystemConfigProxyAddr(), "the migration")
 		t.Require().Equal(uint64(proofMaturityDelaySeconds), delays.ProofMaturityDelaySeconds,
 			"proof maturity delay of chain %s changed across the migration", l2.ChainID())
 		t.Require().Equal(uint64(disputeGameFinalityDelaySeconds), delays.DisputeGameFinalityDelaySeconds,
