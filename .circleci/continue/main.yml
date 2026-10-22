@@ -978,8 +978,23 @@ jobs:
   contracts-bedrock-build:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large.gen2
+    resource_class: << parameters.resource_class >>
     parameters:
+      resource_class:
+        description: Resource class to build on
+        type: string
+        default: large.gen2
+      build_timeout:
+        description: No-output timeout for the forge build step
+        type: string
+        default: 10m
+      publish_artifacts:
+        description: >-
+          Copy the artifacts into op-deployer and persist them to the workspace.
+          Disable for builds that only warm the forge build cache, so their
+          artifacts don't collide in the workspace with contracts-bedrock-build's.
+        type: boolean
+        default: true
       build_args:
         description: Forge build arguments
         type: string
@@ -1025,36 +1040,40 @@ jobs:
           environment:
             FOUNDRY_PROFILE: <<parameters.profile>>
           working_directory: packages/contracts-bedrock
+          no_output_timeout: <<parameters.build_timeout>>
       - when:
           condition: << parameters.use_caches >>
           steps:
             - save-forge-build-cache:
                 profile: <<parameters.profile>>
-      # copy-contract-artifacts runs `go run ... mktar`, which needs the Go
-      # module set. Restore the shared cache (warmed by prep-go-modules) so it
-      # doesn't hit proxy.golang.org.
       - when:
-          condition: << parameters.use_caches >>
+          condition: << parameters.publish_artifacts >>
           steps:
-            - go-restore-cache:
-                namespace: contracts-bedrock-build
-      - run:
-          name: "Copy artifacts into deployer"
-          command: |
-            just copy-contract-artifacts
-          working_directory: op-deployer
-      - when:
-          condition: << parameters.use_caches >>
-          steps:
-            - go-save-cache:
-                namespace: contracts-bedrock-build
-      - persist_to_workspace:
-          root: "."
-          paths:
-            - "packages/contracts-bedrock/cache"
-            - "packages/contracts-bedrock/artifacts"
-            - "packages/contracts-bedrock/forge-artifacts"
-            - "op-deployer/pkg/deployer/artifacts/forge-artifacts"
+            # copy-contract-artifacts runs `go run ... mktar`, which needs the Go
+            # module set. Restore the shared cache (warmed by prep-go-modules) so it
+            # doesn't hit proxy.golang.org.
+            - when:
+                condition: << parameters.use_caches >>
+                steps:
+                  - go-restore-cache:
+                      namespace: contracts-bedrock-build
+            - run:
+                name: "Copy artifacts into deployer"
+                command: |
+                  just copy-contract-artifacts
+                working_directory: op-deployer
+            - when:
+                condition: << parameters.use_caches >>
+                steps:
+                  - go-save-cache:
+                      namespace: contracts-bedrock-build
+            - persist_to_workspace:
+                root: "."
+                paths:
+                  - "packages/contracts-bedrock/cache"
+                  - "packages/contracts-bedrock/artifacts"
+                  - "packages/contracts-bedrock/forge-artifacts"
+                  - "op-deployer/pkg/deployer/artifacts/forge-artifacts"
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
@@ -3073,10 +3092,29 @@ workflows:
             branches:
               ignore: develop
       # On develop, run tests with ci profile to mirror production.
+      - contracts-bedrock-build:
+          # Full ci-profile build, tests included, run once so every
+          # contracts-bedrock-tests-develop matrix entry restores it from the forge
+          # build cache instead of each compiling it on a cache miss. Its build
+          # args and profile must match the test job's build step so the cache
+          # keys match.
+          name: contracts-bedrock-build-tests-develop
+          build_args: ""
+          profile: ci
+          resource_class: 2xlarge.gen2
+          build_timeout: 25m
+          publish_artifacts: false
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          filters:
+            branches:
+              only: develop
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests-develop <<matrix.features>>
           requires:
             - prep-go-modules
+            - contracts-bedrock-build-tests-develop
           test_list: find test -name "*.t.sol"
           test_profile: ci
           build_cache: true
