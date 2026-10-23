@@ -278,6 +278,7 @@ impl RollupNode {
         &self,
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
+        derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
     ) -> Result<ConfiguredDerivationActor, String> {
         if let Some(provider) = self.derivation_delegate_provider.clone() {
             // L1 Provider for sanity checking Derivation Delegation
@@ -290,6 +291,7 @@ impl RollupNode {
                 derivation_actor_request_rx,
                 provider,
                 l1_provider,
+                derivation_origin_tx,
             ))))
         } else {
             let pipeline = self
@@ -302,6 +304,7 @@ impl RollupNode {
                     derivation_actor_request_rx,
                     pipeline,
                     self.safe_db.clone(),
+                    derivation_origin_tx,
                 ),
             )))
         }
@@ -317,6 +320,7 @@ impl RollupNode {
         &self,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
         signer_tx: watch::Sender<Address>,
+        derivation_origin_rx: watch::Receiver<Option<BlockInfo>>,
         l1_query_rx: mpsc::Receiver<L1WatcherQueries>,
         l1_head_updates_tx: watch::Sender<Option<BlockInfo>>,
     ) -> Result<impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static, String>
@@ -336,6 +340,7 @@ impl RollupNode {
             self.config.clone(),
             QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
             signer_tx,
+            derivation_origin_rx,
             l1_query_rx,
         );
 
@@ -440,7 +445,7 @@ impl RollupNode {
 
         let mut modules = RpcModule::new(());
         modules
-            .merge(HealthzApiServer::into_rpc(HealthzRpc {}))
+            .merge(HealthzApiServer::into_rpc(HealthzRpc::new(config.version)))
             .map_err(|e| format!("Failed to register healthz module: {e:?}"))?;
         modules
             .merge(P2pRpc::new(p2p_rpc_tx).into_rpc())
@@ -452,7 +457,10 @@ impl RollupNode {
             network_admin_tx,
         )?;
         modules
-            .merge(RollupRpc::new(engine_rpc_client.clone(), l1_watcher_queries_tx).into_rpc())
+            .merge(
+                RollupRpc::new(config.version, engine_rpc_client.clone(), l1_watcher_queries_tx)
+                    .into_rpc(),
+            )
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
         if config.dev_enabled() {
             modules
@@ -529,6 +537,9 @@ impl RollupNode {
         // from the value read at startup.
         let (signer_tx, signer_rx) = watch::channel(self.p2p_config.unsafe_block_signer);
         let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel::<Option<BlockInfo>>(None);
+        // The L1 block that derivation has reached, which the L1 watcher serves as `current_l1`.
+        let (derivation_origin_tx, derivation_origin_rx) =
+            watch::channel::<Option<BlockInfo>>(None);
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
         let (engine_actor, engine_rpc_actor) = self.build_engine_actors(
@@ -539,7 +550,11 @@ impl RollupNode {
         );
 
         let derivation = self
-            .build_derivation_actor(engine_actor_request_tx.clone(), derivation_actor_request_rx)
+            .build_derivation_actor(
+                engine_actor_request_tx.clone(),
+                derivation_actor_request_rx,
+                derivation_origin_tx,
+            )
             .await?;
 
         // Start the block signer before the network, so a misconfigured or unreachable remote
@@ -569,6 +584,7 @@ impl RollupNode {
         let l1_watcher = self.build_l1_watcher(
             derivation_actor_request_tx,
             signer_tx,
+            derivation_origin_rx,
             l1_query_rx,
             l1_head_updates_tx,
         )?;
@@ -631,6 +647,7 @@ fn merge_admin_module(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kona_rpc::HealthzResponse;
 
     fn admin_method_names(enable_admin: bool) -> Vec<String> {
         let mut modules = RpcModule::new(());
@@ -653,6 +670,28 @@ mod tests {
         let enabled = admin_method_names(true);
         for method in ["admin_postUnsafePayload", "admin_startSequencer", "admin_stopSequencer"] {
             assert!(enabled.iter().any(|m| m == method), "missing {method}");
+        }
+    }
+
+    #[tokio::test]
+    async fn registered_endpoints_report_the_binary_version() {
+        for version in ["1.2.3", "0.0.0-dev"] {
+            let (engine_tx, _engine_rx) = mpsc::channel(1);
+            let (l1_tx, _l1_rx) = mpsc::channel(1);
+            let engine_client = QueuedEngineRpcClient::new(engine_tx);
+            let mut rpc = RollupRpc::new(version, engine_client, l1_tx).into_rpc();
+            rpc.merge(HealthzRpc::new(version).into_rpc()).unwrap();
+            assert_eq!(
+                rpc.call::<_, String>("optimism_version", jsonrpsee::rpc_params![]).await.unwrap(),
+                version
+            );
+            assert_eq!(
+                rpc.call::<_, HealthzResponse>("healthz", jsonrpsee::rpc_params![])
+                    .await
+                    .unwrap()
+                    .version,
+                version
+            );
         }
     }
 }

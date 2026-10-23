@@ -2,7 +2,7 @@ use super::super::state::EngineState;
 use crate::{OpProofsStore, engine::CanonicalInMemoryStateProvider};
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
-use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory};
+use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, StageCheckpointReader};
 use tracing::debug;
 
 pub(crate) struct SyncToTask {
@@ -15,6 +15,7 @@ impl SyncToTask {
         Evm: ConfigureEvm,
         Provider: BlockHashReader
             + CanonicalInMemoryStateProvider
+            + StageCheckpointReader
             + DatabaseProviderFactory
             + BlockReader<Block = BlockTy<Evm::Primitives>>
             + Clone

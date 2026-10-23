@@ -23,6 +23,8 @@ use crate::{
 /// This is a server implementation of [`crate::RollupNodeApiServer`].
 #[derive(Debug)]
 pub struct RollupRpc<EngineRpcClient_> {
+    /// The running binary's release version.
+    pub version: &'static str,
     /// The channel to send [`kona_engine::EngineQueries`]s.
     pub engine_client: EngineRpcClient_,
     /// The channel to send [`crate::L1WatcherQueries`]s.
@@ -35,10 +37,11 @@ impl<EngineRpcClient_: EngineRpcClient> RollupRpc<EngineRpcClient_> {
 
     /// Constructs a new [`RollupRpc`] given a sender channel.
     pub const fn new(
+        version: &'static str,
         engine_client: EngineRpcClient_,
         l1_watcher_sender: L1WatcherQuerySender,
     ) -> Self {
-        Self { engine_client, l1_watcher_sender }
+        Self { version, engine_client, l1_watcher_sender }
     }
 
     // Important note: we zero-out the fields that can't be derived yet to follow op-node's
@@ -124,8 +127,6 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
     async fn op_version(&self) -> RpcResult<String> {
         kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_version");
 
-        const RPC_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-        return Ok(RPC_VERSION.to_string());
+        Ok(self.version.to_string())
     }
 }

@@ -245,6 +245,8 @@ func startZKProposer(
 		zkProposerEnv("PROPOSAL_SAFETY", "safe"),
 		zkProposerEnv("FETCH_INTERVAL", "2"),
 		zkProposerEnv("LOG_FORMAT", "json"),
+		// Keeps every collection's preimages and log trees on disk, so devstack runs cover DATA_DIR.
+		zkProposerEnv("DATA_DIR", t.TempDir()),
 	}
 	if cfg.ProposalInterval != nil {
 		env = append(env, zkProposerEnv("PROPOSAL_INTERVAL_SECONDS", strconv.FormatUint(uint64(*cfg.ProposalInterval/time.Second), 10)))

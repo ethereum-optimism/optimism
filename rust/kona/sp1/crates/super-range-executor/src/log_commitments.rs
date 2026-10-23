@@ -7,7 +7,9 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
+    fs, io,
     num::NonZeroUsize,
+    path::{Path, PathBuf},
     sync::{
         Arc, Mutex, MutexGuard,
         atomic::{AtomicU64, Ordering},
@@ -61,7 +63,8 @@ pub(crate) struct NativeConsolidation {
 }
 
 /// Runs the consolidation natively over `collector`, with the entries of `batches`, the public
-/// values of the batch proofs that the stdin will carry.
+/// values of the batch proofs that the stdin will carry. With `log_tree_dir`, each log tree is
+/// stored there when built and read back when the run needs it again.
 ///
 /// After a host failure, the run stops at its next asynchronous host read. A read inside a trie
 /// walk is synchronous, so a check that is already running finishes first.
@@ -70,11 +73,19 @@ pub(crate) async fn run_native_consolidation<P>(
     inputs: SuperConsolidationInputs,
     configs: Option<&ChainConfigs>,
     batches: &[Vec<u8>],
+    log_tree_dir: Option<&Path>,
 ) -> Result<NativeConsolidation>
 where
     P: CommsClient + FlushableCache + Debug + Send + Sync + Clone + 'static,
 {
-    let record = Arc::new(LogCommitmentRecord::default());
+    if let Some(dir) = log_tree_dir {
+        fs::create_dir_all(dir)
+            .with_context(|| format!("failed to create log tree directory {}", dir.display()))?;
+    }
+    let record = Arc::new(LogCommitmentRecord {
+        tree_dir: log_tree_dir.map(Path::to_path_buf),
+        ..Default::default()
+    });
     let source =
         NativeLogCommitments::new(batches, collector.preimage_oracle.clone(), record.clone())?;
     let read_bytes = Arc::new(AtomicU64::new(0));
@@ -145,6 +156,8 @@ struct LogCommitmentRecord {
     state: Mutex<RecordState>,
     /// Wakes [`run_native_consolidation`] on the first host failure.
     failure: Notify,
+    /// Where built log trees are stored, one file of leaves per receipts root.
+    tree_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Default)]
@@ -192,6 +205,23 @@ impl LogCommitmentRecord {
             served: std::mem::take(&mut state.served).into_iter().collect(),
             log_check_siblings: state.log_check_siblings,
         })
+    }
+
+    /// The stored leaves of the tree of `receipts_root`, or `None` without a tree directory or a
+    /// stored tree.
+    fn stored_leaves(&self, receipts_root: B256) -> Result<Option<Vec<B256>>> {
+        let Some(dir) = &self.tree_dir else { return Ok(None) };
+        read_leaves(&dir.join(receipts_root.to_string()))
+    }
+
+    /// Stores `leaves` as the tree of `receipts_root` when the record has a tree directory.
+    fn store_leaves(&self, receipts_root: B256, leaves: Vec<B256>) -> Result<Vec<B256>> {
+        if let Some(dir) = &self.tree_dir {
+            let path = dir.join(receipts_root.to_string());
+            fs::write(&path, leaves.concat())
+                .with_context(|| format!("failed to write log tree {}", path.display()))?;
+        }
+        Ok(leaves)
     }
 }
 
@@ -293,23 +323,49 @@ where
         if let Some(tree) = self.record.state().trees.get(&receipts_root) {
             return Ok(tree);
         }
-        kona_proof::block_on(
-            HintType::L2Receipts
-                .with_data(&[self.block_hash.as_slice(), &self.chain_id.to_be_bytes()])
-                .send(self.receipts_oracle.as_ref()),
-        )?;
-        let receipts = receipts_from_trie(self.receipts_oracle.as_ref(), receipts_root)
-            .map_err(|err| anyhow!("receipts of block {}: {err}", self.block_hash))?;
-        let tree = LogTree::new(log_leaves(&receipts));
+        let leaves = match self.record.stored_leaves(receipts_root)? {
+            Some(leaves) => leaves,
+            None => self.record.store_leaves(receipts_root, self.build_leaves()?)?,
+        };
+        let tree = LogTree::new(leaves);
         ensure!(
             tree.log_count() == self.entry.log_count && tree.root() == self.entry.log_root,
-            "receipts of block {} do not give the entry of receipts root {receipts_root}",
+            "log tree of block {} does not give the entry of receipts root {receipts_root}",
             self.block_hash,
         );
         let tree = Arc::new(tree);
         self.record.state().trees.insert(receipts_root, tree.clone());
         Ok(tree)
     }
+
+    fn build_leaves(&self) -> Result<Vec<B256>> {
+        kona_proof::block_on(
+            HintType::L2Receipts
+                .with_data(&[self.block_hash.as_slice(), &self.chain_id.to_be_bytes()])
+                .send(self.receipts_oracle.as_ref()),
+        )?;
+        let receipts = receipts_from_trie(self.receipts_oracle.as_ref(), self.entry.receipts_root)
+            .map_err(|err| anyhow!("receipts of block {}: {err}", self.block_hash))?;
+        Ok(log_leaves(&receipts))
+    }
+}
+
+/// The leaves stored at `path`, or `None` if no tree is stored there.
+fn read_leaves(path: &Path) -> Result<Option<Vec<B256>>> {
+    let bytes = match fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => {
+            return Err(err).with_context(|| format!("failed to read log tree {}", path.display()));
+        }
+    };
+    ensure!(
+        bytes.len() % B256::len_bytes() == 0,
+        "log tree {} has {} bytes",
+        path.display(),
+        bytes.len()
+    );
+    Ok(Some(bytes.chunks_exact(B256::len_bytes()).map(B256::from_slice).collect()))
 }
 
 impl<O> LogCommitment for NativeBlock<O>
@@ -566,6 +622,73 @@ mod tests {
         assert_eq!(served, expected);
         let opened: Vec<_> = openings.iter().map(|opening| opening.receipts_root).collect();
         assert_eq!(opened, [chains.below_head[0].0]);
+    }
+
+    /// Pins a stored log tree that serves a run without the block's receipts. The second run
+    /// starts with no tree in memory, as a run does after evicting one, so it reads the file.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn stored_tree_serves_a_later_run() {
+        let chains = chains();
+        let dir = tempfile::tempdir().unwrap();
+        let run = |receipts: &PreimageStore| {
+            let record = Arc::new(LogCommitmentRecord {
+                tree_dir: Some(dir.path().to_path_buf()),
+                ..Default::default()
+            });
+            let native = Arc::new(
+                NativeLogCommitments::new(
+                    &[chains.batch()],
+                    Arc::new(receipts.clone()),
+                    record.clone(),
+                )
+                .unwrap(),
+            );
+            assert!(chains.resolve(chains.withheld.clone(), native, 1));
+            record.finish().unwrap().openings
+        };
+        let built = run(&chains.full);
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), chains.below_head.len());
+        // The withheld oracle has no receipts of a block below the head, so the trees come from
+        // the directory.
+        assert_eq!(run(&chains.withheld), built);
+    }
+
+    /// Pins a failed run, not a verdict, for a stored tree that does not give its entry.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn corrupt_stored_tree_fails_the_run() {
+        let chains = chains();
+        let dir = tempfile::tempdir().unwrap();
+        for (receipts_root, receipts) in &chains.below_head {
+            let mut leaves = log_leaves(receipts);
+            leaves[0] = B256::repeat_byte(0xff);
+            std::fs::write(dir.path().join(receipts_root.to_string()), leaves.concat()).unwrap();
+        }
+        let record = Arc::new(LogCommitmentRecord {
+            tree_dir: Some(dir.path().to_path_buf()),
+            ..Default::default()
+        });
+        let native = Arc::new(
+            NativeLogCommitments::new(
+                &[chains.batch()],
+                Arc::new(chains.withheld.clone()),
+                record.clone(),
+            )
+            .unwrap(),
+        );
+        chains.resolve(chains.withheld.clone(), native, 1);
+        let err = record.finish().unwrap_err();
+        assert!(format!("{err:#}").contains("does not give the entry"), "{err:#}");
+    }
+
+    /// Pins a read error for a stored tree whose length is not a whole number of leaves.
+    #[test]
+    fn truncated_stored_tree_fails_to_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tree");
+        std::fs::write(&path, &[B256::repeat_byte(1), B256::repeat_byte(2)].concat()[..63])
+            .unwrap();
+        let err = read_leaves(&path).unwrap_err();
+        assert!(err.to_string().contains("has 63 bytes"), "{err:#}");
     }
 
     /// Pins at most [`MAX_CACHED_TREES`] trees, evicting the least recently used.

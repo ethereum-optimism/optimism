@@ -30,6 +30,7 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -175,9 +176,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 9.0.5
+    /// @custom:semver 9.0.6
     function version() public pure returns (string memory) {
-        return "9.0.5";
+        return "9.0.6";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -915,13 +916,21 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // Update the OptimismPortal.
+        // TODO(optimism-private#744): A zero bridge hook keeps the portal's current hook; the OPCM
+        // does not configure hooks yet.
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.optimismPortal),
             impls.optimismPortalImpl,
             abi.encodeCall(
                 IOptimismPortal.initialize,
-                (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox, _cfg.proofMaturityDelaySeconds)
+                (
+                    _cts.systemConfig,
+                    _cts.anchorStateRegistry,
+                    _cts.ethLockbox,
+                    _cfg.proofMaturityDelaySeconds,
+                    IBridgeHook(address(0))
+                )
             )
         );
 

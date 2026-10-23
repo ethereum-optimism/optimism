@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-review-period/reviewperiod"
@@ -11,12 +12,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // TestLoweringOneChainsProofMaturityOnlyAffectsThatChain checks that in an interop set, which shares the
 // ETHLockbox, AnchorStateRegistry and DelayedWETH, proof maturity stays per chain: lowering it on chain A
-// lets A's withdrawal finalize while B's, proven alongside it, still waits.
+// lets A's withdrawal finalize while B's, proven alongside it, waits out its own unchanged maturity.
 func TestLoweringOneChainsProofMaturityOnlyAffectsThatChain(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t,
@@ -56,6 +58,12 @@ func TestLoweringOneChainsProofMaturityOnlyAffectsThatChain(gt *testing.T) {
 	// A day later, A's withdrawal is past its new maturity and B's is still inside its two days.
 	sys.AdvanceTime(24 * time.Hour)
 	t.Require().NoError(withdrawalA.CheckFinalizable(l1User), "chain A's withdrawal is not finalizable after lowering its proof maturity")
-	t.Require().Error(withdrawalB.CheckFinalizable(l1User), "chain B's withdrawal is finalizable although only chain A's proof maturity was lowered")
+	t.Require().ErrorContains(errutil.TryAddRevertReason(withdrawalB.CheckFinalizable(l1User)),
+		hexutil.Encode(dsl.ErrorSelector("OptimismPortal_ProofNotOldEnough()")), "chain B's proof should still be too young")
 	withdrawalA.Finalize(l1User)
+
+	// Another day later, B's withdrawal is past its unchanged two days and finalizes too.
+	sys.AdvanceTime(24 * time.Hour)
+	t.Require().NoError(withdrawalB.CheckFinalizable(l1User), "chain B's withdrawal is not finalizable after its unchanged proof maturity")
+	withdrawalB.Finalize(l1User)
 }
