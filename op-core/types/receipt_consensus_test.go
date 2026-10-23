@@ -331,3 +331,19 @@ func TestReceiptsGeth(t *testing.T) {
 	view[0].CumulativeGasUsed = 123
 	require.EqualValues(t, 123, rs[0].CumulativeGasUsed)
 }
+
+func TestReceiptsUserReceipts(t *testing.T) {
+	mk := func(typ uint8) *optypes.Receipt {
+		return optypes.FromGethReceipt(&gethtypes.Receipt{Type: typ, TxHash: common.Hash{typ}})
+	}
+	rs := optypes.Receipts{
+		mk(optypes.DepositTxType),
+		mk(gethtypes.LegacyTxType),
+		mk(optypes.PostExecTxType),
+		mk(gethtypes.DynamicFeeTxType),
+	}
+	user := rs.UserReceipts()
+	require.Equal(t, optypes.Receipts{rs[1], rs[3]}, user)
+	require.Same(t, rs[1], user[0], "elements alias the receiver's")
+	require.Empty(t, optypes.Receipts{mk(optypes.DepositTxType)}.UserReceipts())
+}

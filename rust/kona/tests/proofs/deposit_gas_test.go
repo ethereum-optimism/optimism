@@ -84,11 +84,11 @@ func TestDepositGasParity(gt *testing.T) {
 
 		// Inspect the exact L2 block that contains the deposit under test.
 		testedBlockRef := env.Sequencer.L2Unsafe()
-		_, txs, err := env.Engine.SourceClient().InfoAndDepositsByHash(t.Ctx(), testedBlockRef.Hash)
-		require.NoError(t, err)
+		txs, userTxs := helpers.BlockTxs(t, env.Engine, testedBlockRef.Hash)
+		require.Empty(t, userTxs, "deposit blocks must not contain user transactions")
 		testedBlock, receipts, err := env.Engine.SourceClient().FetchReceipts(t.Ctx(), testedBlockRef.Hash)
 		require.NoError(t, err)
-		require.Len(t, receipts, len(txs), "every transaction must be a deposit with a receipt")
+		require.Len(t, receipts, len(txs), "every deposit must have a receipt")
 
 		if testCfg.Custom == l1InfoDeposit {
 			require.Len(t, txs, 1, "empty block must contain only its L1-info deposit")

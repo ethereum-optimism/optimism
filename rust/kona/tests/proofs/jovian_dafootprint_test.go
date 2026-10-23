@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
-	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -144,12 +143,7 @@ func TestJovianDAFootprint(gt *testing.T) {
 		blockDAFootprint := *blk.BlobGasUsed()
 		_, receipts, err := env.Engine.SourceClient().FetchReceipts(t.Ctx(), blk.Hash())
 		require.NoError(t, err)
-		var userReceipts []*optypes.Receipt
-		for _, r := range receipts {
-			if r.Type != optypes.DepositTxType {
-				userReceipts = append(userReceipts, r)
-			}
-		}
+		userReceipts := receipts.UserReceipts()
 		require.Len(t, userReceipts, len(userTxs), "every user tx must have a receipt")
 
 		// Compute expected DA footprint from the actual included user txs
