@@ -7,6 +7,7 @@ use enr::NodeId;
 use kona_peers::{BootNode, BootNodes, BootStore, BootStoreFile, EnrValidation, enr_to_multiaddr};
 use tokio::{
     sync::mpsc::channel,
+    task::JoinHandle,
     time::{Duration, sleep},
 };
 
@@ -148,12 +149,22 @@ impl Discv5Driver {
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
     ///
     /// Returns a [`Discv5Handler`] to communicate with the spawned task.
-    pub fn start(mut self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>) {
+    pub fn start(self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>) {
+        let (handler, enr_recv, _task) = self.spawn();
+        (handler, enr_recv)
+    }
+
+    /// Spawns a new [`Discv5`] discovery service in a new tokio task.
+    ///
+    /// Same as [`Discv5Driver::start`], but also returns the [`JoinHandle`] of the task.
+    pub(crate) fn spawn(
+        mut self,
+    ) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>, JoinHandle<()>) {
         let chain_id = self.chain_id;
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
         let (enr_sender, enr_recv) = channel::<Enr>(1024);
 
-        tokio::spawn(async move {
+        let task = tokio::spawn(async move {
             let remove = self.remove_interval.is_some();
             let remove_dur = self.remove_interval.unwrap_or(std::time::Duration::from_secs(600));
             let mut removal_interval = tokio::time::interval(remove_dur);
@@ -362,7 +373,7 @@ impl Discv5Driver {
             }
         });
 
-        (Discv5Handler::new(chain_id, req_sender), enr_recv)
+        (Discv5Handler::new(chain_id, req_sender), enr_recv, task)
     }
 }
 
@@ -393,6 +404,36 @@ mod tests {
         .expect("Failed to build discovery service");
         let (handle, _) = discovery.start();
         assert_eq!(handle.chain_id, OP_SEPOLIA_CHAIN_ID);
+    }
+
+    /// Builds a driver listening on localhost that does not contact any remote peer.
+    fn offline_driver() -> Discv5Driver {
+        // A chain ID that is not in the superchain registry has no default bootnodes.
+        const UNKNOWN_CHAIN_ID: u64 = 0xdead_beef;
+
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+        Discv5Driver::builder(
+            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 0, 0),
+            UNKNOWN_CHAIN_ID,
+            ConfigBuilder::new(socket.into()).build(),
+        )
+        .build()
+        .expect("Failed to build discovery service")
+    }
+
+    #[tokio::test]
+    async fn test_discv5_driver_stops_when_handler_and_receiver_dropped() {
+        let (handler, enr_recv, task) = offline_driver().spawn();
+        drop(handler);
+        drop(enr_recv);
+
+        tokio::time::timeout(Duration::from_secs(5), task)
+            .await
+            .expect("driver task should stop once nobody is listening")
+            .expect("driver task should not panic");
     }
 
     #[tokio::test]
