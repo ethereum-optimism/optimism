@@ -351,6 +351,7 @@ where
 }
 
 /// The leaves stored at `path`, or `None` if no tree is stored there.
+#[allow(clippy::chunks_exact_to_as_chunks)]
 fn read_leaves(path: &Path) -> Result<Option<Vec<B256>>> {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
