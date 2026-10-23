@@ -178,12 +178,7 @@ async fn main() -> Result<()> {
             plan::withdraw(amount, &quote, max_fee)?;
             let body = spn.withdraw_body(funder.address(), amount, &params, &domain).await?;
             println!("withdraw {} (fee {})", fmt_prove(amount), fmt_prove(params.fee));
-            print_spn_tx(
-                funder.address(),
-                body.nonce,
-                &params,
-                spn::tx_hash(funder.address(), &body),
-            );
+            print_spn_tx(funder.address(), body.nonce, &params);
             if !signing.broadcast {
                 preview_done();
                 return Ok(());
@@ -417,7 +412,7 @@ async fn transfer(
     };
     let body = spn.transfer_body(from, to, amount, params, domain).await.map_err(unsent)?;
     println!("transfer {} to {to} (fee {})", fmt_prove(amount), fmt_prove(params.fee));
-    print_spn_tx(from, body.nonce, params, spn::tx_hash(from, &body));
+    print_spn_tx(from, body.nonce, params);
     if !broadcast {
         return Ok(());
     }
@@ -440,9 +435,8 @@ async fn transfer(
     Ok(())
 }
 
-fn print_spn_tx(from: Address, nonce: u64, params: &TxParams, hash: B256) {
+fn print_spn_tx(from: Address, nonce: u64, params: &TxParams) {
     println!("  from {from}, nonce {nonce}, auctioneer {}", params.auctioneer);
-    println!("  tx hash {hash}");
 }
 
 fn preview_done() {

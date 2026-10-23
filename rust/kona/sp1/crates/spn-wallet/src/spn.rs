@@ -10,9 +10,8 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use alloy_primitives::{Address, B256, U256, keccak256};
-use anyhow::{Context, Result, ensure};
-use prost::Message;
+use alloy_primitives::{Address, B256, U256};
+use anyhow::{Context, Result, anyhow, ensure};
 use sp1_sdk::network::proto::{
     network::prover_network_client::ProverNetworkClient,
     types::{
@@ -25,7 +24,10 @@ use sp1_sdk::network::proto::{
         WithdrawRequestBody,
     },
 };
-use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
+use tonic::{
+    Code, Status,
+    transport::{Channel, ClientTlsConfig, Endpoint},
+};
 
 /// Default SPN mainnet RPC (`MAINNET_RPC_URL` in sp1-sdk).
 pub(crate) const MAINNET_SPN_RPC: &str = "https://rpc.mainnet.succinct.xyz";
@@ -154,15 +156,14 @@ impl Spn {
         })
     }
 
-    /// Submits a signed transfer and returns its hash, which must match the hash computed from
-    /// the body.
+    /// Submits a signed transfer and returns the tx hash SPN assigns to it. That hash is not
+    /// computable from the body: it differs from `keccak256(sender || body)`.
     pub(crate) async fn submit_transfer(
         &self,
         sender: Address,
         body: TransferRequestBody,
         signature: Vec<u8>,
     ) -> Result<B256> {
-        let local = tx_hash(sender, &body);
         let nonce = body.nonce;
         let res = self
             .client
@@ -173,20 +174,18 @@ impl Spn {
                 body: Some(body),
             })
             .await
-            .with_context(|| unconfirmed_submit("Transfer", local, sender, nonce))?
+            .map_err(|status| submit_error("Transfer", &status, sender, nonce))?
             .into_inner();
-        check_tx_hash(&res.tx_hash, local, sender, nonce)
+        accepted_hash(&res.tx_hash, "Transfer", sender, nonce)
     }
 
-    /// Submits a signed withdraw and returns its hash, which must match the hash computed from
-    /// the body.
+    /// Submits a signed withdraw and returns the tx hash SPN assigns to it.
     pub(crate) async fn submit_withdraw(
         &self,
         sender: Address,
         body: WithdrawRequestBody,
         signature: Vec<u8>,
     ) -> Result<B256> {
-        let local = tx_hash(sender, &body);
         let nonce = body.nonce;
         let res = self
             .client
@@ -197,9 +196,9 @@ impl Spn {
                 body: Some(body),
             })
             .await
-            .with_context(|| unconfirmed_submit("Withdraw", local, sender, nonce))?
+            .map_err(|status| submit_error("Withdraw", &status, sender, nonce))?
             .into_inner();
-        check_tx_hash(&res.tx_hash, local, sender, nonce)
+        accepted_hash(&res.tx_hash, "Withdraw", sender, nonce)
     }
 
     /// One page of `address`'s balance changes, newest first.
@@ -361,14 +360,6 @@ impl Spn {
     }
 }
 
-/// SPN's transaction id: `keccak256(sender || protobuf(body))` (`hash_with_signer` in
-/// succinctlabs/network).
-pub(crate) fn tx_hash(sender: Address, body: &impl Message) -> B256 {
-    let mut bytes = sender.to_vec();
-    body.encode(&mut bytes).expect("Vec<u8> grows to fit the encoding");
-    keccak256(bytes)
-}
-
 pub(crate) fn unix_now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or_default()
 }
@@ -382,27 +373,40 @@ fn is_transfer_in(log: &BalanceLog, hash: B256) -> bool {
         log.tx_hash == hash.as_slice()
 }
 
-fn unconfirmed_submit(method: &str, local: B256, sender: Address, nonce: u64) -> String {
-    format!(
-        "SPN {method} returned an error; SPN may still have accepted tx {local} (sender {sender}, \
-         nonce {nonce}). Check `spn-wallet transaction {local}` and `spn-wallet history {sender}` \
-         before sending again"
+/// SPN refused the request outright for these codes, so nothing was accepted. Any other failure
+/// (timeout, unavailable, internal) may have happened after SPN accepted it.
+const fn is_refusal(code: Code) -> bool {
+    matches!(
+        code,
+        Code::InvalidArgument |
+            Code::PermissionDenied |
+            Code::FailedPrecondition |
+            Code::Unauthenticated |
+            Code::NotFound |
+            Code::AlreadyExists |
+            Code::OutOfRange
     )
 }
 
-/// Checks the hash SPN returned for an accepted tx against the one computed from the body.
-fn check_tx_hash(returned: &[u8], local: B256, sender: Address, nonce: u64) -> Result<B256> {
-    let accepted = || {
-        format!(
-            "SPN accepted the tx (local hash {local}, sender {sender}, nonce {nonce}); check \
-             `spn-wallet history {sender}` before sending again"
+fn submit_error(method: &str, status: &Status, sender: Address, nonce: u64) -> anyhow::Error {
+    let cause = anyhow!("{:?}: {}", status.code(), status.message());
+    if is_refusal(status.code()) {
+        return cause.context(format!("SPN refused the {method} (sender {sender}, nonce {nonce})"));
+    }
+    cause.context(format!(
+        "SPN {method} failed and SPN may still have accepted it (sender {sender}, nonce {nonce}); \
+         check `spn-wallet history {sender}` before sending again"
+    ))
+}
+
+fn accepted_hash(returned: &[u8], method: &str, sender: Address, nonce: u64) -> Result<B256> {
+    B256::try_from(returned).map_err(|_| {
+        anyhow!(
+            "SPN accepted the {method} (sender {sender}, nonce {nonce}) but returned a {}-byte tx \
+             hash; check `spn-wallet history {sender}` before sending again",
+            returned.len()
         )
-    };
-    let returned = B256::try_from(returned).map_err(|_| {
-        anyhow::anyhow!("SPN returned a {}-byte tx hash; {}", returned.len(), accepted())
-    })?;
-    ensure!(returned == local, "SPN returned tx hash {returned}, which differs; {}", accepted());
-    Ok(returned)
+    })
 }
 
 fn tx_params(auctioneer: &[u8], fee: &str) -> Result<TxParams> {
@@ -439,10 +443,12 @@ mod tests {
     }
 
     #[test]
-    fn rejects_a_returned_hash_that_differs_from_the_local_one() {
-        let sender = Address::repeat_byte(0x11);
-        assert_eq!(check_tx_hash(HASH.as_slice(), HASH, sender, 0).unwrap(), HASH);
-        assert!(check_tx_hash(B256::ZERO.as_slice(), HASH, sender, 0).is_err());
-        assert!(check_tx_hash(&[1, 2, 3], HASH, sender, 0).is_err());
+    fn treats_only_definite_refusals_as_not_accepted() {
+        assert!(is_refusal(Code::PermissionDenied));
+        assert!(is_refusal(Code::InvalidArgument));
+        assert!(!is_refusal(Code::Unavailable));
+        assert!(!is_refusal(Code::DeadlineExceeded));
+        assert!(!is_refusal(Code::Internal));
+        assert!(!is_refusal(Code::Unknown));
     }
 }
