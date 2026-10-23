@@ -180,7 +180,7 @@ impl Discv5Driver {
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
     ///
     /// Same as [`Discv5Driver::start`], but also returns the [`JoinHandle`] of the task.
-    pub(crate) fn spawn(
+    fn spawn(
         mut self,
     ) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>, JoinHandle<()>) {
         let chain_id = self.chain_id;
