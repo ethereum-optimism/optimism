@@ -58,8 +58,15 @@ abstract contract ResourceMetering is Initializable {
     /// @notice EIP-1559 style gas parameters.
     ResourceParams public params;
 
+    /// @notice Gas completed in `completedBlockNum`: deposits that proceed while a bridge hook is
+    ///         set, and completions of held deposits.
+    uint64 internal completedGas;
+
+    /// @notice Block that `completedGas` counts.
+    uint64 internal completedBlockNum;
+
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
-    uint256[48] private __gap;
+    uint256[47] private __gap;
 
     /// @notice Meters access to a function based an amount of a requested resource.
     /// @param _amount Amount of the resource requested.
@@ -148,6 +155,25 @@ abstract contract ResourceMetering is Initializable {
         if (gasCost > usedGas) {
             Burn.gas(gasCost - usedGas);
         }
+    }
+
+    /// @notice Counts completed gas against the current block's limit, without charging for it.
+    /// @param _amount Amount of the resource completed.
+    function _countCompleted(uint64 _amount) internal {
+        if (completedBlockNum != block.number) {
+            completedGas = 0;
+            completedBlockNum = uint64(block.number);
+        }
+        completedGas += _amount;
+        if (completedGas > _resourceConfig().maxResourceLimit) revert OutOfGas();
+    }
+
+    /// @notice Starts counting completed gas from the gas bought so far in the current block.
+    ///         Called when a bridge hook is set on a chain without one.
+    function _startCompletedCount() internal {
+        if (completedBlockNum == block.number) return;
+        completedGas = params.prevBlockNum == block.number ? params.prevBoughtGas : 0;
+        completedBlockNum = uint64(block.number);
     }
 
     /// @notice Adds an amount of L2 gas consumed to the prev bought gas params. This is meant to be used

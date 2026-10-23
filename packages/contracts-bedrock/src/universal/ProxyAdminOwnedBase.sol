@@ -39,7 +39,13 @@ abstract contract ProxyAdminOwnedBase {
 
     /// @notice Getter for the owner of the ProxyAdmin.
     function proxyAdminOwner() public view returns (address) {
-        return proxyAdmin().owner();
+        return _ownerOf(address(proxyAdmin()));
+    }
+
+    /// @notice Returns the owner of a contract.
+    /// @param _owned Contract to read the owner of.
+    function _ownerOf(address _owned) internal view returns (address) {
+        return IProxyAdmin(_owned).owner();
     }
 
     /// @notice Getter for the ProxyAdmin contract that owns this Proxy contract.
@@ -69,7 +75,7 @@ abstract contract ProxyAdminOwnedBase {
         // Ok, now we'll try to read the AddressManager slot.
         address addressManagerAddress = Storage.getAddress(keccak256(abi.encode(address(this), uint256(1))));
         if (addressManagerAddress != address(0)) {
-            return IProxyAdmin(IAddressManager(addressManagerAddress).owner());
+            return IProxyAdmin(_ownerOf(addressManagerAddress));
         }
 
         // We should revert here, we couldn't find a non-zero owner address.
