@@ -30,7 +30,6 @@ rocksdb = { workspace = true, features = ["snappy"], optional = true }
 thiserror.workspace = true
 
 [dev-dependencies]
-assert_matches.workspace = true
 rstest.workspace = true
 tempfile.workspace = true
 

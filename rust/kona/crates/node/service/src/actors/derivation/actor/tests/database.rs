@@ -1,5 +1,4 @@
 use super::*;
-use assert_matches::assert_matches;
 use kona_derive::ResetSignal;
 use mockall::{mock, predicate::eq};
 
@@ -73,7 +72,7 @@ fn a_failed_write_is_returned_without_retry_or_finalization() {
 
     let result = actor.settle_derived_attributes(l2_block(DERIVED_HEAD));
 
-    assert_matches!(result, Err(DerivationError::SafeDbError(SafeDbError::InvalidEntry)));
+    assert!(matches!(result, Err(DerivationError::SafeDbError(SafeDbError::InvalidEntry))));
     assert!(actor.finalizer.try_finalize_next(l1_block(DERIVED_FROM_L1)).is_none());
 }
 
@@ -112,7 +111,7 @@ fn a_failed_clear_is_returned_without_retry() {
 
     let result = actor.truncate_safe_db(l2_block(RESUME_HEAD), "engine reset");
 
-    assert_matches!(result, Err(SafeDbError::InvalidEntry));
+    assert!(matches!(result, Err(SafeDbError::InvalidEntry)));
 }
 
 fn engine_reset_request() -> DerivationActorRequest {
@@ -141,7 +140,7 @@ async fn a_failed_truncation_stops_request_processing(#[case] request: Derivatio
 
     let result = actor.handle_derivation_actor_request(request).await;
 
-    assert_matches!(result, Err(DerivationError::SafeDbError(SafeDbError::InvalidEntry)));
+    assert!(matches!(result, Err(DerivationError::SafeDbError(SafeDbError::InvalidEntry))));
 }
 
 #[test]

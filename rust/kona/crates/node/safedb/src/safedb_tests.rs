@@ -5,7 +5,6 @@ mod encoding {
     use crate::{encoding::SafeByL1BlockNum, error::SafeDbError};
     use alloy_eips::BlockNumHash;
     use alloy_primitives::{B256, b256};
-    use assert_matches::assert_matches;
     use rstest::rstest;
 
     fn l1() -> BlockNumHash {
@@ -40,7 +39,7 @@ mod encoding {
     #[case::too_short_value(valid_key().to_vec(), vec![1, 2, 3, 4])]
     #[case::too_long_value(valid_key().to_vec(), too_long_value())]
     fn invalid_entries(#[case] key: Vec<u8>, #[case] val: Vec<u8>) {
-        assert_matches!(SafeByL1BlockNum::decode(&key, &val), Err(SafeDbError::InvalidEntry));
+        assert!(matches!(SafeByL1BlockNum::decode(&key, &val), Err(SafeDbError::InvalidEntry)));
     }
 
     #[test]
@@ -113,7 +112,6 @@ mod safe_db {
     use crate::{SafeDatabase, SafeDb, SafeDbError, SafeHeadRecord};
     use alloy_eips::BlockNumHash;
     use alloy_primitives::B256;
-    use assert_matches::assert_matches;
     use kona_protocol::{BlockInfo, L2BlockInfo};
     use rstest::rstest;
     use tempfile::TempDir;
@@ -162,7 +160,7 @@ mod safe_db {
         let l1b = id(0x01, 0xbb, 150);
 
         let verify = |db: &SafeDatabase| {
-            assert_matches!(db.safe_head_at_l1(l1a.number - 1), Err(SafeDbError::NotFound));
+            assert!(matches!(db.safe_head_at_l1(l1a.number - 1), Err(SafeDbError::NotFound)));
             assert_record(db.safe_head_at_l1(l1a.number).unwrap(), l1a, l2a.block_info.id());
             assert_record(db.safe_head_at_l1(l1a.number + 1).unwrap(), l1a, l2a.block_info.id());
             assert_record(db.safe_head_at_l1(l1b.number).unwrap(), l1b, l2b.block_info.id());
@@ -182,13 +180,13 @@ mod safe_db {
     #[test]
     fn safe_head_at_l1_empty_database() {
         let (_dir, db) = open();
-        assert_matches!(db.safe_head_at_l1(100), Err(SafeDbError::NotFound));
+        assert!(matches!(db.safe_head_at_l1(100), Err(SafeDbError::NotFound)));
     }
 
     #[test]
     fn first_entry_empty_database() {
         let (_dir, db) = open();
-        assert_matches!(db.first_entry(), Err(SafeDbError::NotFound));
+        assert!(matches!(db.first_entry(), Err(SafeDbError::NotFound)));
     }
 
     #[test]
@@ -226,7 +224,7 @@ mod safe_db {
     #[test]
     fn last_entry_empty_database() {
         let (_dir, db) = open();
-        assert_matches!(db.last_entry(), Err(SafeDbError::NotFound));
+        assert!(matches!(db.last_entry(), Err(SafeDbError::NotFound)));
     }
 
     #[test]
@@ -285,9 +283,9 @@ mod safe_db {
         // Reset to before all existing entries removes everything.
         db.safe_head_reset(l2b).unwrap();
 
-        assert_matches!(db.safe_head_at_l1(l1a.number), Err(SafeDbError::NotFound));
-        assert_matches!(db.safe_head_at_l1(l1b.number), Err(SafeDbError::NotFound));
-        assert_matches!(db.safe_head_at_l1(l1c.number), Err(SafeDbError::NotFound));
+        assert!(matches!(db.safe_head_at_l1(l1a.number), Err(SafeDbError::NotFound)));
+        assert!(matches!(db.safe_head_at_l1(l1b.number), Err(SafeDbError::NotFound)));
+        assert!(matches!(db.safe_head_at_l1(l1c.number), Err(SafeDbError::NotFound)));
     }
 
     #[test]
@@ -328,10 +326,10 @@ mod safe_db {
 
         db.clear().unwrap();
 
-        assert_matches!(db.first_entry(), Err(SafeDbError::NotFound));
-        assert_matches!(db.last_entry(), Err(SafeDbError::NotFound));
-        assert_matches!(db.safe_head_at_l1(150), Err(SafeDbError::NotFound));
-        assert_matches!(db.l1_at_safe_head(20), Err(SafeDbError::L1AtSafeHeadNotFound));
+        assert!(matches!(db.first_entry(), Err(SafeDbError::NotFound)));
+        assert!(matches!(db.last_entry(), Err(SafeDbError::NotFound)));
+        assert!(matches!(db.safe_head_at_l1(150), Err(SafeDbError::NotFound)));
+        assert!(matches!(db.l1_at_safe_head(20), Err(SafeDbError::L1AtSafeHeadNotFound)));
     }
 
     fn populated_l1_at_safe_head_db() -> (TempDir, SafeDatabase) {
@@ -369,7 +367,7 @@ mod safe_db {
     #[test]
     fn l1_at_safe_head_empty_database() {
         let (_dir, db) = open();
-        assert_matches!(db.l1_at_safe_head(500), Err(SafeDbError::L1AtSafeHeadNotFound));
+        assert!(matches!(db.l1_at_safe_head(500), Err(SafeDbError::L1AtSafeHeadNotFound)));
     }
 
     #[test]
@@ -377,6 +375,6 @@ mod safe_db {
         // rocksdb holds an exclusive lock on an open database directory, so a second open of the
         // same path surfaces a backend error.
         let (dir, _held) = open();
-        assert_matches!(SafeDatabase::new(dir.path()), Err(SafeDbError::Backend(_)));
+        assert!(matches!(SafeDatabase::new(dir.path()), Err(SafeDbError::Backend(_))));
     }
 }
