@@ -451,12 +451,20 @@ mod tests {
         .expect("Failed to build discovery service")
     }
 
+    /// Waits until the driver has finished startup and runs its main loop.
+    async fn wait_until_started(handler: &Discv5Handler) {
+        // Requests are only answered by the main loop.
+        tokio::time::timeout(Duration::from_secs(5), handler.peer_count())
+            .await
+            .expect("driver should finish startup")
+            .expect("driver should not stop during startup");
+    }
+
     #[tokio::test]
     async fn test_discv5_driver_stops_when_handler_and_receiver_dropped() {
         let (handler, enr_recv, task) = offline_driver().spawn();
 
-        // Requests are only answered by the main loop, so startup is done once this returns.
-        handler.peer_count().await.expect("driver should not drop the request");
+        wait_until_started(&handler).await;
         // Let the intervals fire their immediate first ticks, so the loop is idle.
         sleep(Duration::from_millis(100)).await;
 
@@ -476,11 +484,7 @@ mod tests {
     async fn test_discv5_driver_keeps_running_for_enr_receiver() {
         let (handler, _enr_recv, task) = offline_driver().spawn();
 
-        // Requests are only answered by the main loop, so startup is done once this returns.
-        tokio::time::timeout(Duration::from_secs(5), handler.peer_count())
-            .await
-            .expect("driver should answer requests")
-            .expect("driver should not drop the request");
+        wait_until_started(&handler).await;
         drop(handler);
 
         sleep(Duration::from_millis(500)).await;
