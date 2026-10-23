@@ -15,8 +15,7 @@ audit-source:
 ---
 
 <Info>
-  op-supernode is in active development.
-  This page tracks the [op-supernode/v0.2.2-rc.8](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv0.2.2-rc.8) release candidate and the procedure may evolve before the stable release.
+  This page tracks the [op-supernode/v1.0.4](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.4) release.
   For background on what op-supernode is and why it exists, see the [supernode explainer](/op-stack/interop/supernode).
 </Info>
 
@@ -33,7 +32,7 @@ You need:
 
 *   **One execution client per chain.** Each chain in the dependency set needs its own execution client with the engine API (authrpc) enabled; one execution client cannot back two chains. See the [execution client configuration guide](/node-operators/guides/configuration/execution-clients) for client options, and the [run a node from source tutorial](/node-operators/tutorials/run-node-from-source) for a full execution-client walkthrough.
 *   **L1 endpoints.** An L1 JSON-RPC endpoint with the `eth` namespace enabled and an L1 beacon-node HTTP endpoint, shared by every chain. A beacon archiver fallback is strongly recommended; see [configuring a blob archiver](/node-operators/guides/management/blobs#configuring-a-blob-archiver).
-*   **The chain IDs of every chain the supernode will host.** For chains in op-node's built-in network registry (for example `op-sepolia`, `unichain-sepolia`), the network name is enough. For any other chain, you need a rollup configuration JSON file per chain.
+*   **The chain IDs of every chain the supernode will host.** For chains in op-node's built-in network registry (for example `op-mainnet`, `unichain-mainnet`), the network name is enough. For any other chain, you need a rollup configuration JSON file per chain.
 
 ## Build op-supernode
 
@@ -45,7 +44,7 @@ The build environment is managed through [mise](https://mise.jdx.dev/), which in
     ```bash
     git clone https://github.com/ethereum-optimism/optimism.git
     cd optimism
-    git checkout op-supernode/v0.2.2-rc.8
+    git checkout op-supernode/v1.0.4
     ```
   </Step>
 
@@ -94,30 +93,30 @@ Each chain's virtual node authenticates to that chain's execution client over th
 ## Start op-supernode
 
 Start the supernode with the list of chain IDs, the shared L1 endpoints, and each chain's network identity and engine-API endpoint.
-The example below hosts OP Sepolia (chain ID `11155420`) and Unichain Sepolia (chain ID `1301`) with op-reth execution clients.
+The example below hosts OP Mainnet (chain ID `10`) and Unichain (chain ID `130`) with op-reth execution clients; for the testnet pair, use `11155420` and `1301` with networks `op-sepolia` and `unichain-sepolia`.
 Fill in the placeholders, and add or remove the per-chain `--vn.<chainID>.*` groups to match your dependency set.
 
 ```bash
 ./bin/op-supernode \
-  --chains=11155420,1301 \
+  --chains=10,130 \
   --data-dir=/var/lib/op-supernode \
   --l1=<your-l1-eth-rpc> \
   --l1.beacon=<your-l1-beacon-rpc> \
   --l1.beacon-fallbacks=<your-l1-beacon-archiver-rpc> \
   --vn.all.l2.jwt-secret=./jwt-secret.txt \
-  --vn.11155420.network=op-sepolia \
-  --vn.11155420.l2=http://op-sepolia-el:8551 \
-  --vn.11155420.l2.enginekind=reth \
-  --vn.1301.network=unichain-sepolia \
-  --vn.1301.l2=http://unichain-sepolia-el:8551 \
-  --vn.1301.l2.enginekind=reth \
+  --vn.10.network=op-mainnet \
+  --vn.10.l2=http://op-mainnet-el:8551 \
+  --vn.10.l2.enginekind=reth \
+  --vn.130.network=unichain-mainnet \
+  --vn.130.l2=http://unichain-el:8551 \
+  --vn.130.l2.enginekind=reth \
   --metrics.enabled=true
 ```
 
 A few notes on the flags:
 
 *   For a chain that is not in op-node's built-in network registry, replace `--vn.<chainID>.network` with `--vn.<chainID>.rollup.config=<path-to-rollup-config.json>`.
-*   The `--vn.<chainID>.l2.enginekind=reth` lines tell the supernode the execution client is op-reth; the default is `geth`, so drop them if you run op-geth.
+*   The `--vn.<chainID>.l2.enginekind=reth` lines tell the supernode the execution client is op-reth; `reth` is the default, so they can be omitted.
 *   P2P is enabled by default, with each virtual node's listen port chosen dynamically to avoid collisions. Set `--disable-p2p=true` when other nodes in your topology handle unsafe-head gossip; see [pair op-supernode with a Light CL fleet](/node-operators/guides/configuration/supernode#pair-op-supernode-with-a-light-cl-fleet).
 *   The JSON-RPC server listens on `0.0.0.0:8545` by default (`--rpc.addr` / `--rpc.port`). Like the op-node RPC, it is not meant to be exposed to the public internet.
 *   Every flag has an environment-variable equivalent (`OP_SUPERNODE_*`). The [configuration guide's example configuration](/node-operators/guides/configuration/supernode#example-configuration) shows the same kind of setup in environment-variable form, and the [configuration reference](/node-operators/reference/op-supernode-config) lists the exact name for every flag.
@@ -157,7 +156,7 @@ A few notes on the flags:
     ```bash
     curl -X POST -H "Content-Type: application/json" \
       --data '{"jsonrpc":"2.0","method":"optimism_syncStatus","params":[],"id":1}' \
-      http://localhost:8545/11155420/
+      http://localhost:8545/10/
     ```
 
     A chain's endpoint becomes available once its chain container has started; requests to a chain ID that is not configured return `404 Not Found`.
@@ -177,4 +176,4 @@ A few notes on the flags:
 *   Harden the deployment with the [supernode configuration guide](/node-operators/guides/configuration/supernode): beacon archiver fallbacks, execution-client retention for backfill, Light CL fleets, and HA pools behind a consensus-aware proxyd.
 *   Look up any flag in the [op-supernode configuration reference](/node-operators/reference/op-supernode-config).
 *   Read the [supernode explainer](/op-stack/interop/supernode) for what op-supernode is and why it exists.
-*   Read the [interop prep notice](/notices/interop-prep) for the node-operator action checklist for the OP Sepolia and Unichain Sepolia activation.
+*   Read the [interop prep notice](/notices/interop-prep) for the node-operator action checklist for the OP Mainnet and Unichain activation.
