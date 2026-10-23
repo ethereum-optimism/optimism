@@ -256,7 +256,7 @@ impl SynthesizedExecution {
     /// how many it read. Each timestamp's outputs are read through a host built from `inputs` on
     /// the span's L1 head, agreeing on that timestamp's super root, since kona-host's
     /// `L2OutputRoot` hint computes the output at the timestamp of its agreed pre-state (see
-    /// [`replaced_agreed_output_preimages`]). A timestamp's outputs leave `replaced_agreed_outputs`
+    /// `replaced_agreed_output_preimages`). A timestamp's outputs leave `replaced_agreed_outputs`
     /// only once read, so a failed call can be retried.
     pub async fn preload_replaced_agreed_outputs(&mut self, inputs: &HostInputs) -> Result<usize> {
         let mut read = 0;
