@@ -232,28 +232,47 @@ pub struct SynthesizedExecution {
     /// Those of `replaced_agreed_outputs` join them through
     /// [`Self::preload_replaced_agreed_outputs`].
     pub preloaded_preimages: Vec<(PreimageKey, Vec<u8>)>,
-    /// The agreed outputs that the pre-span super root replaced. The supernode reports the denied
-    /// block as optimistic at that timestamp, so the response holds no preimage of these.
-    pub replaced_agreed_outputs: Vec<SuperOutputRoot>,
+    /// The agreed outputs that the span's pre-transition super roots replaced, by timestamp.
+    replaced_agreed_outputs: Vec<ReplacedAgreedOutputs>,
     /// The span-end super-root hash, used as the host post-state claim.
     pub current_super_root: B256,
     /// The pre-span super-root proof, encoded as the host agreed pre-state.
     pub previous_super_root_proof_bytes: Vec<u8>,
 }
 
+/// The agreed outputs that one pre-transition super root of a span replaced. The supernode
+/// reports the denied block as optimistic at that timestamp, so the response holds no preimage of
+/// these, and kona-host reads them only at the timestamp of its agreed pre-state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ReplacedAgreedOutputs {
+    /// The encoded super-root proof at their timestamp.
+    agreed_pre_state: Vec<u8>,
+    /// The outputs that the proof commits in place of the optimistic ones.
+    outputs: Vec<SuperOutputRoot>,
+}
+
 impl SynthesizedExecution {
-    /// Reads the preimages of `replaced_agreed_outputs` through `host` into
-    /// `preloaded_preimages`, leaving `replaced_agreed_outputs` empty, and returns how many it
-    /// read. `host` must agree on the pre-span super root, at whose timestamp kona-host's
-    /// `L2OutputRoot` hint computes the output (see [`replaced_agreed_output_preimages`]).
-    pub async fn preload_replaced_agreed_outputs(&mut self, host: InteropHost) -> Result<usize> {
-        ensure!(
-            host.agreed_l2_pre_state.as_ref() == self.previous_super_root_proof_bytes.as_slice(),
-            "the host must agree on the pre-span super root to read its replaced outputs",
-        );
-        let outputs = std::mem::take(&mut self.replaced_agreed_outputs);
-        self.preloaded_preimages.extend(replaced_agreed_output_preimages(host, &outputs).await?);
-        Ok(outputs.len())
+    /// Reads the preimages of `replaced_agreed_outputs` into `preloaded_preimages`, leaving
+    /// `replaced_agreed_outputs` empty, and returns how many it read. Each timestamp's outputs
+    /// are read through a host built from `inputs` on the span's L1 head, agreeing on that
+    /// timestamp's super root, since kona-host's `L2OutputRoot` hint computes the output at the
+    /// timestamp of its agreed pre-state (see [`replaced_agreed_output_preimages`]).
+    pub async fn preload_replaced_agreed_outputs(&mut self, inputs: &HostInputs) -> Result<usize> {
+        let mut read = 0;
+        for replaced in std::mem::take(&mut self.replaced_agreed_outputs) {
+            let host = build_interop_host(
+                inputs,
+                self.range_inputs.l1_head,
+                &replaced.agreed_pre_state,
+                self.current_super_root,
+                self.range_inputs.span.end,
+                None,
+            )?;
+            self.preloaded_preimages
+                .extend(replaced_agreed_output_preimages(host, &replaced.outputs).await?);
+            read += replaced.outputs.len();
+        }
+        Ok(read)
     }
 }
 
@@ -305,7 +324,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     let configs =
         deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
     synthesized
-        .preload_replaced_agreed_outputs(range_host.clone())
+        .preload_replaced_agreed_outputs(&host_inputs)
         .await
         .context("failed to read the replaced agreed outputs")?;
     let mut preloaded_preimages = synthesized.preloaded_preimages.clone();
@@ -619,25 +638,35 @@ pub fn synthesize_execution(
         }
     }
 
-    let previous_label = format!("timestamp {first_timestamp}");
+    // Every pre-transition super root of the span is an agreed pre-state, whose outputs the range
+    // and the consolidation read. Where it replaced a chain's optimistic block, the response at
+    // that timestamp reports the denied block, so the agreed output is left for the host to read.
     let mut replaced_agreed_outputs = Vec::new();
-    for &chain_id in &chain_ids {
-        let previous_output = output_entry(&responses[0], chain_id, &previous_label)?;
-        ensure_required_l1_within_head(previous_output.required_l1, l1_head_number, chain_id)?;
-        let (previous_root, previous_preimage) =
-            checked_output_preimage(previous_output, chain_id, &previous_label)?;
-        let proof_root = proofs[0]
-            .super_root
-            .output_roots
-            .iter()
-            .find(|root| root.chain_id == chain_id)
-            .map(|root| root.output_root)
-            .ok_or_else(|| anyhow!("previous proof missing chain {chain_id}"))?;
-        if previous_root == proof_root {
-            preloaded_preimages
-                .push((PreimageKey::new_keccak256(*previous_root), previous_preimage));
-        } else {
-            replaced_agreed_outputs.push(SuperOutputRoot { chain_id, output_root: proof_root });
+    for (offset, (response, proof)) in responses.iter().zip(&proofs[..timestamp_count]).enumerate()
+    {
+        let label = format!("timestamp {}", first_timestamp + offset as u64);
+        let mut outputs = Vec::new();
+        for agreed in &proof.super_root.output_roots {
+            let optimistic = output_entry(response, agreed.chain_id, &label)?;
+            ensure_required_l1_within_head(
+                optimistic.required_l1,
+                l1_head_number,
+                agreed.chain_id,
+            )?;
+            let (optimistic_root, preimage) =
+                checked_output_preimage(optimistic, agreed.chain_id, &label)?;
+            if optimistic_root != agreed.output_root {
+                outputs.push(agreed.clone());
+            } else if offset == 0 {
+                // The later agreed outputs are claimed ones, preloaded above.
+                preloaded_preimages.push((PreimageKey::new_keccak256(*optimistic_root), preimage));
+            }
+        }
+        if !outputs.is_empty() {
+            replaced_agreed_outputs.push(ReplacedAgreedOutputs {
+                agreed_pre_state: encode_super_root_proof(proof)?,
+                outputs,
+            });
         }
     }
 
@@ -1093,7 +1122,7 @@ pub async fn optimistic_block_receipts(
     Ok(block)
 }
 
-/// The output-root preimages of `outputs`, the agreed outputs that the pre-span super root
+/// The output-root preimages of `outputs`, agreed outputs that a pre-transition super root
 /// replaced (see [`SynthesizedExecution::replaced_agreed_outputs`]), read through `host` with
 /// kona-host's `L2OutputRoot` hint. The hint computes the output of the L2 node's canonical block
 /// at the timestamp of the host's agreed pre-state. kona-host retries the hint until the node
@@ -1895,39 +1924,61 @@ mod tests {
         );
     }
 
-    /// Pins that the agreed output of a chain the pre-span super root replaced is reported for the
-    /// host to read, not preloaded from the response, whose optimistic output there is the denied
-    /// block's.
+    /// Pins that every agreed output that a pre-transition super root of the span replaced is
+    /// reported with that super root, for a host agreeing on it to read, and not preloaded: the
+    /// response's optimistic output there is the denied block's, and on a chain with a block at
+    /// every timestamp no claimed output is the replacement either.
     #[test]
-    fn synthesize_execution_reports_replaced_agreed_outputs() {
-        let mut previous = response(100, &[10, 20], 7);
-        let denied = output_entry(b256(0xfe), 7);
-        previous.optimistic_at_timestamp.insert(ChainId(U256::from(20)), denied.clone());
-        let current = response(101, &[10, 20], 8);
+    fn synthesize_execution_reports_replaced_agreed_outputs_by_timestamp() {
+        let mut responses: Vec<_> = (100u64..=102)
+            .map(|timestamp| {
+                response_with_block_hash(timestamp, &[10, 20], 8, |chain_id| {
+                    b256(chain_id as u8 ^ timestamp as u8)
+                })
+            })
+            .collect();
+        // Chain 20's block at the pre-span timestamp and chain 10's inside the span were denied.
+        let denied_pre_span = output_entry(b256(0xf0), 8);
+        responses[0]
+            .optimistic_at_timestamp
+            .insert(ChainId(U256::from(20)), denied_pre_span.clone());
+        responses[1]
+            .optimistic_at_timestamp
+            .insert(ChainId(U256::from(10)), output_entry(b256(0xf1), 8));
 
-        let synthesized = synthesize_execution(
-            TimestampSpan::new(101, 101).unwrap(),
-            b256(0xaa),
-            8,
-            &[previous.clone(), current],
-        )
-        .expect("synthesizes");
+        let synthesized =
+            synthesize_execution(TimestampSpan::new(101, 102).unwrap(), b256(0xaa), 8, &responses)
+                .expect("synthesizes");
 
-        assert_eq!(
-            synthesized.replaced_agreed_outputs,
-            vec![SuperOutputRoot {
-                chain_id: 20,
-                output_root: previous.data.as_ref().unwrap().super_v1.chains[1].output,
-            }],
-        );
-        let denied_key = PreimageKey::new_keccak256(*denied.output_root);
-        assert!(synthesized.preloaded_preimages.iter().all(|(key, _)| *key != denied_key));
+        let replaced = |offset: usize, chain_id: u64, index: usize| {
+            let super_v1 = &responses[offset].data.as_ref().unwrap().super_v1;
+            let proof = proof_from_super_v1(super_v1).unwrap();
+            ReplacedAgreedOutputs {
+                agreed_pre_state: encode_super_root_proof(&proof).unwrap(),
+                outputs: vec![SuperOutputRoot {
+                    chain_id,
+                    output_root: super_v1.chains[index].output,
+                }],
+            }
+        };
+        let expected = vec![replaced(0, 20, 1), replaced(1, 10, 0)];
+        assert_eq!(synthesized.replaced_agreed_outputs, expected);
+        let not_preloaded = expected
+            .iter()
+            .flat_map(|replaced| &replaced.outputs)
+            .map(|output| output.output_root)
+            .chain([denied_pre_span.output_root])
+            .map(|root| PreimageKey::new_keccak256(*root));
+        for key in not_preloaded {
+            assert!(synthesized.preloaded_preimages.iter().all(|(preloaded, _)| *preloaded != key));
+        }
     }
 
-    /// Pins that kona-host reads a replaced agreed output from the L2 node's canonical block at
-    /// the host's agreed timestamp, by number, and returns it as the requested root's preimage.
+    /// Pins that a replaced agreed output inside a span is read through kona-host from the L2
+    /// node's canonical block at its own timestamp, by number, and preloaded as the root's
+    /// preimage.
     #[tokio::test]
-    async fn replaced_agreed_output_preimages_read_the_canonical_block_through_the_host() {
+    async fn preload_replaced_agreed_outputs_reads_the_canonical_block_at_its_timestamp() {
         let rollup = &kona_registry::ROLLUP_CONFIGS[&10];
         let timestamp = rollup.genesis.l2_time + 10 * rollup.block_time;
         let number = rollup.block_number_from_timestamp(timestamp);
@@ -1976,32 +2027,38 @@ mod tests {
             })
             .await;
 
-        let agreed =
-            SuperRootProof::new(timestamp, vec![SuperOutputRoot { chain_id: 10, output_root }]);
-        let host = build_interop_host(
-            &mock_host_inputs(&server),
+        // The span's second agreed super root holds the replacement, so a host agreeing on the
+        // pre-span one would ask for the block below it, which the node does not serve.
+        let mut responses: Vec<_> = (timestamp - 1..=timestamp + 1)
+            .map(|at| {
+                response_with_block_hash(at, &[10], 8, |_| {
+                    if at == timestamp { header.hash_slow() } else { b256(at as u8) }
+                })
+            })
+            .collect();
+        responses[1]
+            .optimistic_at_timestamp
+            .insert(ChainId(U256::from(10)), output_entry(b256(0xfe), 8));
+        let mut synthesized = synthesize_execution(
+            TimestampSpan::new(timestamp, timestamp + 1).unwrap(),
             b256(0xaa),
-            &encode_super_root_proof(&agreed).unwrap(),
-            b256(0xbb),
-            // A different block than the agreed one, so only a read at the agreed timestamp hits
-            // the mocks.
-            timestamp + rollup.block_time,
-            None,
+            8,
+            &responses,
         )
         .unwrap();
+
         // kona-host retries a hint it cannot serve, so a wrong read would hang, not fail.
-        let preimages = tokio::time::timeout(
+        let read = tokio::time::timeout(
             std::time::Duration::from_secs(30),
-            replaced_agreed_output_preimages(
-                host,
-                &[SuperOutputRoot { chain_id: 10, output_root }],
-            ),
+            synthesized.preload_replaced_agreed_outputs(&mock_host_inputs(&server)),
         )
         .await
         .expect("the host must serve the agreed output")
         .unwrap();
 
-        assert_eq!(preimages, vec![(PreimageKey::new_keccak256(*output_root), preimage)]);
+        assert_eq!(read, 1);
+        let key = PreimageKey::new_keccak256(*output_root);
+        assert!(synthesized.preloaded_preimages.contains(&(key, preimage)));
         header_read.assert_async().await;
         proof_read.assert_async().await;
     }

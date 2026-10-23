@@ -1170,9 +1170,10 @@ async fn check_span(
         timestamps.end,
         preimage_store(range_dir.as_ref()).as_deref(),
     )?;
-    let read = synthesized.preload_replaced_agreed_outputs(range_host.clone()).await.with_context(
-        || format!("failed to read the replaced agreed outputs of span {timestamps:?}"),
-    )?;
+    let read =
+        synthesized.preload_replaced_agreed_outputs(host_inputs).await.with_context(|| {
+            format!("failed to read the replaced agreed outputs of span {timestamps:?}")
+        })?;
     ProposerGauge::ReplacedAgreedOutputsRead.increment(read as f64);
     let configs =
         deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;

@@ -94,8 +94,8 @@ func SpanBisectionsAtLeast(minimum int) *StateExpectation {
 }
 
 // ReplacedAgreedOutputsReadAtLeast expects at least minimum agreed outputs read
-// through kona-host because the supernode replaced the optimistic block at a
-// chunk's agreed timestamp.
+// through kona-host because the supernode replaced the optimistic block at one
+// of a chunk's agreed timestamps.
 func ReplacedAgreedOutputsReadAtLeast(minimum int) *StateExpectation {
 	return &StateExpectation{
 		description: "replaced agreed outputs read",
