@@ -65,16 +65,12 @@ A binary that does not carry the timestamp diverges from the chain at activation
 | ---------------- | ------- | ---- |
 | `op-supernode`   | [`v1.0.6`](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.6) or later | Runs OP Mainnet and Unichain (or OP Sepolia and Unichain Sepolia) as virtual nodes inside one binary and verifies cross-chain messages. Required component. See the [supernode explainer](/op-stack/interop/supernode) and [configuration guide](/node-operators/guides/configuration/supernode). |
 | `op-node`        | [`v1.19.11`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.11) or later | Runs as a [Light CL](/notices/specialized-node-topology) on every node in the fleet; safe and finalized views are inherited from the supernode. |
-| `op-reth`        | [`v2.6.1`](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.6.1) or later | Execution client. Run one per chain in the dependency set — an execution client cannot back two chains (op-node rejects a mismatched chain ID at startup), so a host serving both chains runs at least two execution-client processes. |
+| `op-reth`        | [`v2.6.1`](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.6.1) or later | Required execution client. Run one per chain in the dependency set — an execution client cannot back two chains (op-node rejects a mismatched chain ID at startup), so a host serving both chains runs at least two execution-client processes. |
 
 The Lagoon activation timestamp and the dependency set are read from the superchain-registry bundle embedded in each release.
 With `--network` on op-node and `--vn.<chainID>.network` on op-supernode no extra flag is needed, which is also why the activation releases matter: a binary built before the registry update does not know the timestamp.
 The dependency set is looked up by chain ID, so it also applies when you pass a custom rollup config; a custom rollup config must set `lagoon_time` itself.
 To override the registry's dependency set, pass `--interop.dependency-set` to op-node or `--dependency-set` to op-supernode.
-
-<Info>
-  **op-reth is the required execution client.** op-geth reached end of support on **May 31, 2026** and does not support [Karst](/op-stack/protocol/hardforks/karst) or later hardforks; see [End of Support for op-geth and op-program](/notices/archive/op-geth-deprecation).
-</Info>
 
 <Info>
   op-supernode has shipped stable releases since [v1.0.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.0) (August 2026); run [v1.0.6](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.6) or later today.
