@@ -54,22 +54,22 @@ fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
 #[derive(Debug, Clone, Copy)]
 struct RequestObservabilityLayer;
 
-impl<S> Layer<S> for RequestObservabilityLayer {
-    type Service = RequestObservability<S>;
+impl<InnerService> Layer<InnerService> for RequestObservabilityLayer {
+    type Service = RequestObservability<InnerService>;
 
-    fn layer(&self, inner: S) -> Self::Service {
+    fn layer(&self, inner: InnerService) -> Self::Service {
         RequestObservability(inner)
     }
 }
 
 /// The transport service that a [`RequestObservabilityLayer`] wraps.
 #[derive(Debug, Clone)]
-struct RequestObservability<S>(S);
+struct RequestObservability<InnerService>(InnerService);
 
-impl<S> Service<RequestPacket> for RequestObservability<S>
+impl<InnerService> Service<RequestPacket> for RequestObservability<InnerService>
 where
-    S: Service<RequestPacket, Response = ResponsePacket, Error = TransportError>,
-    S::Future: Send + 'static,
+    InnerService: Service<RequestPacket, Response = ResponsePacket, Error = TransportError>,
+    InnerService::Future: Send + 'static,
 {
     type Response = ResponsePacket;
     type Error = TransportError;

@@ -11,9 +11,17 @@ use kona_node_service::{
 use kona_registry::scr_rollup_config_by_alloy_ident;
 use kona_rpc::{OpP2PApiServer, P2pRpc, RpcBuilder};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 use url::Url;
+
+const BLOCK_CHANNEL_CAPACITY: usize = 1024;
+const GOSSIP_COMMAND_CHANNEL_CAPACITY: usize = 1024;
+const ADMIN_RPC_CHANNEL_CAPACITY: usize = 1024;
+const GOSSIP_PAYLOAD_CHANNEL_CAPACITY: usize = 256;
+const PEER_COUNT_POLL_INTERVAL: Duration = Duration::from_secs(2);
+const PEER_COUNT_QUERY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The `net` Subcommand
 ///
@@ -70,10 +78,10 @@ impl NetCommand {
         self.p2p.check_ports()?;
         let p2p_config = self.p2p.config(rollup_config, args, self.l1_eth_rpc).await?;
 
-        let (block_tx, mut block_rx) = mpsc::channel(1024);
-        let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
-        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
-        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
+        let (block_tx, mut block_rx) = mpsc::channel(BLOCK_CHANNEL_CAPACITY);
+        let (gossip_command_tx, gossip_command_rx) = mpsc::channel(GOSSIP_COMMAND_CHANNEL_CAPACITY);
+        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(ADMIN_RPC_CHANNEL_CAPACITY);
+        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(GOSSIP_PAYLOAD_CHANNEL_CAPACITY);
         // admin_rpc_tx and gossip_payload_tx are not used by this single-purpose binary — they
         // exist solely to satisfy NetworkActor::new and are held to keep the channels open.
         let _unused_senders = (admin_rpc_tx, gossip_payload_tx);
@@ -104,7 +112,7 @@ impl NetCommand {
         info!(target: "net", "Network started, receiving blocks.");
 
         // On an interval, read gossip state and query discovery for peer counts.
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
+        let mut interval = tokio::time::interval(PEER_COUNT_POLL_INTERVAL);
 
         let handle = if let Some(config) = rpc_config {
             info!(target: "net", socket = ?config.socket, "Starting RPC server");
@@ -126,7 +134,7 @@ impl NetCommand {
                     info!(target: "net", "Received unsafe payload: {:?}", payload.block_hash());
                 }
                 _ = interval.tick(), if !gossip_command_tx.is_closed() => {
-                    match tokio::time::timeout(tokio::time::Duration::from_secs(5), rpc.opp2p_peer_count()).await? {
+                    match tokio::time::timeout(PEER_COUNT_QUERY_TIMEOUT, rpc.opp2p_peer_count()).await? {
                         Ok(count) => {
                             info!(target: "net", "Peer counts: Discovery={} | Swarm={}", count.connected_discovery.unwrap_or_default(), count.connected_gossip);
                         }
