@@ -15,7 +15,7 @@ pub fn main() {
 
     let cases = rkyv::from_bytes::<Vec<BlsCase>, rkyv::rancor::Error>(&sp1_zkvm::io::read_vec())
         .expect("decode BLS cases");
-    let custom = CustomCrypto::default();
+    let custom = CustomCrypto;
 
     let mut outcomes = Vec::with_capacity(cases.len());
     for case in &cases {

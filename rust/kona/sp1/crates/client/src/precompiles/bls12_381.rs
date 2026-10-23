@@ -6,34 +6,39 @@
 //!
 //! # Banned `sp1_bls12_381` APIs (never use in this module)
 //!
-//! - `G1Affine`/`G2Affine` `::from_uncompressed{,_unchecked}`, `::from_compressed{,_unchecked}`,
-//!   `::to_uncompressed`, `::to_compressed`: `ZCash` serialization. The top 3 bits are flags, so
-//!   `0x40‖0…` decodes as the identity while all-zero is *not* the identity, all failures collapse
-//!   into one `None`, G2 coordinates are ordered c1‖c0, and the identity serializes with `0x40`.
-//!   EIP-2537 has none of this: decode with [`read_fp`] / [`read_fp2`], encode with [`encode_g1`] /
-//!   [`encode_g2`].
+//! - `G1Affine`/`G2Affine` `::from_uncompressed`, `::from_compressed{,_unchecked}`,
+//!   `::to_compressed`: `ZCash` serialization. The top 3 bits are flags, so `0x40‖0…` decodes as
+//!   the identity while all-zero is *not* the identity, all failures collapse into one `None`, G2
+//!   coordinates are ordered c1‖c0, and the identity serializes with `0x40`. EIP-2537 has none of
+//!   this: decode with [`read_fp`] / [`read_fp2`] / [`read_g1_unchecked`] / [`read_g2_unchecked`],
+//!   encode with [`encode_g1`] / [`encode_g2`].
+//! - `::from_uncompressed_unchecked` / `::to_uncompressed` outside [`read_g1_unchecked`] /
+//!   [`read_g2_unchecked`] / [`encode_g1`] / [`encode_g2`]. They are the only way to build a point
+//!   from coordinates or read its coordinates, and are safe only on non-identity points whose every
+//!   coordinate is canonical (< p < 2^381, so the flag bits are clear); the identity is handled
+//!   before them.
 //! - `Fp2::from_bytes`, `Fp6::from_bytes`, `Fp12::from_bytes`: panic on non-canonical input.
 //! - `Scalar::from_bytes`: rejects values ≥ r, but EIP-2537 scalars are arbitrary 256-bit integers;
 //!   use [`read_scalar`]. `Mul<Scalar>` is only valid on canonical `Scalar`s.
-//! - `G1Affine::from(&G1Projective)` / `G2Affine::from(&G2Projective)` directly: use
-//!   [`g1_to_affine`] / [`g2_to_affine`].
 //! - `CtOption::unwrap` on anything derived from untrusted input.
-//! - Struct-literal points with `infinity = 1` and arbitrary coordinates: the identity must come
-//!   from `G1Affine::identity()` / `G2Affine::identity()`.
 //!
 //! # zkVM hint paths and preconditions (re-audit when bumping `sp1_bls12_381`)
 //!
-//! - `Fp::invert` asserts its hint; [`g1_to_affine`] and the zkVM `mul_by_x` in `is_torsion_free` /
-//!   `clear_h` rely on that.
-//! - `Fp2::invert` returns `None` on a forged hint; never collapse that with `unwrap_or` (as
-//!   `G2Affine::from` does, hence [`g2_to_affine`]). `final_exponentiation` unwraps it through
-//!   `Fp6`/`Fp12::invert`, so [`pairing_check`] panics instead of returning a wrong result.
+//! - Every hinted operation (`Fp`/`Fp2`/`Scalar` `::invert`, `Fp`/`Fp2` `::sqrt`) ends the run with
+//!   a non-zero exit code on a forged hint: `sp1_lib::invalid_hint!` (exit code 3), or for a
+//!   non-canonical `Fp2::invert` hint a panic in `Fp2::from_bytes` (exit code 1). Deferred
+//!   `verify_sp1_proof` accepts only exit code 0, so such a run never feeds an accepted proof.
+//!   `G1Affine::from(&G1Projective)` / `G2Affine::from(&G2Projective)` (which map a `None` inverse
+//!   to the identity, so return the identity only for z = 0), the zkVM `mul_by_x` in
+//!   `is_torsion_free` / `clear_h`, and `final_exponentiation` (through `Fp6`/`Fp12::invert`) rely
+//!   on that.
 //! - G2 `map_to_curve_simple_swu` yields the off-curve (0, 0) at u = 0: call `map_to_curve` only
 //!   behind [`map_fp2_to_g2`]'s zero check.
 //! - `G1Affine::add_affine` / `double` require on-curve inputs: off-curve input gives a wrong but
 //!   provable zkVM result (the add syscall with distinct x, the double syscall), not a panic.
-//! - `Fp::sqrt` / `Fp2::sqrt` take hints (`Fp2::sqrt` returns `None` on a forged one), but no path
-//!   here reaches them: `map_to_curve` uses fixed addition chains.
+//! - `Fp::sqrt` / `Fp2::sqrt` return the lexicographically smaller root (upstream `bls12_381` does
+//!   not), but no path here reaches them: `map_to_curve` uses fixed addition chains, and the
+//!   compressed decoders are banned.
 
 use alloc::{vec, vec::Vec};
 use alloy_primitives::{U256, hex};
@@ -61,13 +66,17 @@ const MAP_FP2_TO_G2_ZERO: [u8; G2_LENGTH] = hex!(
     "04c69777a43f0bda07679d5805e63f18cf4e0e7c6112ac7f70266d199b4f76ae27c6269a3ceebdae30806e9a76aadf5c"
 );
 
+/// Returns [`PrecompileHalt::NonCanonicalFp`] unless the 48-byte big-endian `bytes` is < p. As
+/// p < 2^381, a canonical encoding has its top three bits clear.
+fn check_fp(bytes: &[u8; FP_LENGTH]) -> Result<(), PrecompileHalt> {
+    if bytes >= &FP_MODULUS_BE { Err(PrecompileHalt::NonCanonicalFp) } else { Ok(()) }
+}
+
 /// Decodes a 48-byte big-endian Fp element (no flag bits); values ≥ p are
 /// [`PrecompileHalt::NonCanonicalFp`]. The pre-check keeps non-canonical input away from the zkVM
 /// `mulmod` syscalls that `Fp::from_bytes` issues unconditionally.
 fn read_fp(bytes: &[u8; FP_LENGTH]) -> Result<Fp, PrecompileHalt> {
-    if bytes >= &FP_MODULUS_BE {
-        return Err(PrecompileHalt::NonCanonicalFp);
-    }
+    check_fp(bytes)?;
     Option::<Fp>::from(Fp::from_bytes(bytes)).ok_or(PrecompileHalt::NonCanonicalFp)
 }
 
@@ -79,11 +88,18 @@ fn read_fp2(c0: &[u8; FP_LENGTH], c1: &[u8; FP_LENGTH]) -> Result<Fp2, Precompil
 /// Decodes a G1 point without a subgroup check: `x`, then `y`, then (0, 0) is the identity,
 /// otherwise the point must satisfy y² = x³ + 4.
 fn read_g1_unchecked(x: &[u8; FP_LENGTH], y: &[u8; FP_LENGTH]) -> Result<G1Affine, PrecompileHalt> {
-    let (x, y) = (read_fp(x)?, read_fp(y)?);
-    if bool::from(x.is_zero() & y.is_zero()) {
+    [x, y].into_iter().try_for_each(check_fp)?;
+    // All-zero bytes are the only canonical encoding of 0.
+    if x.iter().chain(y).all(|&b| b == 0) {
         return Ok(G1Affine::identity());
     }
-    let p = G1Affine { x, y, infinity: 0u8.into() };
+    let mut zcash = [0u8; G1_LENGTH];
+    zcash[..FP_LENGTH].copy_from_slice(x);
+    zcash[FP_LENGTH..].copy_from_slice(y);
+    // Every coordinate is canonical and not all zero, so the `ZCash` flag bits are clear and this
+    // is the non-identity point (x, y); `None` is unreachable.
+    let p = Option::<G1Affine>::from(G1Affine::from_uncompressed_unchecked(&zcash))
+        .ok_or(PrecompileHalt::NonCanonicalFp)?;
     if !bool::from(p.is_on_curve()) {
         return Err(PrecompileHalt::Bls12381G1NotOnCurve);
     }
@@ -107,12 +123,19 @@ fn read_g2_unchecked(
     y0: &[u8; FP_LENGTH],
     y1: &[u8; FP_LENGTH],
 ) -> Result<G2Affine, PrecompileHalt> {
-    let x = read_fp2(x0, x1)?;
-    let y = read_fp2(y0, y1)?;
-    if bool::from(x.is_zero() & y.is_zero()) {
+    [x0, x1, y0, y1].into_iter().try_for_each(check_fp)?;
+    if x0.iter().chain(x1).chain(y0).chain(y1).all(|&b| b == 0) {
         return Ok(G2Affine::identity());
     }
-    let p = G2Affine { x, y, infinity: 0u8.into() };
+    // ZCash orders each Fp2 coordinate c1 ‖ c0.
+    let mut zcash = [0u8; G2_LENGTH];
+    #[allow(clippy::chunks_exact_to_as_chunks)]
+    for (chunk, coord) in zcash.chunks_exact_mut(FP_LENGTH).zip([x1, x0, y1, y0]) {
+        chunk.copy_from_slice(coord);
+    }
+    // As in `read_g1_unchecked`: the flag bits are clear and `None` is unreachable.
+    let p = Option::<G2Affine>::from(G2Affine::from_uncompressed_unchecked(&zcash))
+        .ok_or(PrecompileHalt::NonCanonicalFp)?;
     if !bool::from(p.is_on_curve()) {
         return Err(PrecompileHalt::Bls12381G2NotOnCurve);
     }
@@ -140,41 +163,27 @@ fn read_scalar(be: &[u8; SCALAR_LENGTH]) -> Scalar {
 
 /// EIP-2537 G1 encoding: 96 zero bytes for the identity, otherwise `x ‖ y` big-endian.
 fn encode_g1(p: &G1Affine) -> [u8; G1_LENGTH] {
-    let mut out = [0u8; G1_LENGTH];
-    if !bool::from(p.is_identity()) {
-        out[..FP_LENGTH].copy_from_slice(&p.x.to_bytes());
-        out[FP_LENGTH..].copy_from_slice(&p.y.to_bytes());
+    if bool::from(p.is_identity()) {
+        return [0u8; G1_LENGTH];
     }
-    out
+    // Off the identity, `ZCash` uncompressed is `x ‖ y` with no flag bit set.
+    p.to_uncompressed()
 }
 
 /// EIP-2537 G2 encoding: 192 zero bytes for the identity, otherwise `x.c0 ‖ x.c1 ‖ y.c0 ‖ y.c1`
 /// big-endian.
 #[allow(clippy::chunks_exact_to_as_chunks)]
 fn encode_g2(p: &G2Affine) -> [u8; G2_LENGTH] {
-    let mut out = [0u8; G2_LENGTH];
-    if !bool::from(p.is_identity()) {
-        for (chunk, fp) in out.chunks_exact_mut(FP_LENGTH).zip([p.x.c0, p.x.c1, p.y.c0, p.y.c1]) {
-            chunk.copy_from_slice(&fp.to_bytes());
-        }
+    if bool::from(p.is_identity()) {
+        return [0u8; G2_LENGTH];
+    }
+    // Off the identity, `ZCash` uncompressed is `x.c1 ‖ x.c0 ‖ y.c1 ‖ y.c0` with no flag bit set;
+    // swap the halves of each coordinate.
+    let mut out = p.to_uncompressed();
+    for coord in out.chunks_exact_mut(2 * FP_LENGTH) {
+        coord.rotate_left(FP_LENGTH);
     }
     out
-}
-
-/// G2 projective-to-affine that panics on a forged `Fp2::invert` hint (see module docs).
-fn g2_to_affine(p: &G2Projective) -> G2Affine {
-    let a = G2Affine::from(p);
-    assert_eq!(
-        bool::from(a.is_identity()),
-        bool::from(p.is_identity()),
-        "invalid Fp2 inverse hint"
-    );
-    a
-}
-
-/// G1 projective-to-affine; `Fp::invert` asserts its hint, so no check is needed (see module docs).
-fn g1_to_affine(p: &G1Projective) -> G1Affine {
-    G1Affine::from(p)
 }
 
 /// Pippenger bucket MSM over G2 (`sp1_bls12_381` only provides `G1Projective::msm_variable_base`),
@@ -229,7 +238,7 @@ pub(super) fn g1_add(a: G1Point, b: G1Point) -> Result<[u8; G1_LENGTH], Precompi
 pub(super) fn g2_add(a: G2Point, b: G2Point) -> Result<[u8; G2_LENGTH], PrecompileHalt> {
     let p = read_g2_unchecked(&a.0, &a.1, &a.2, &a.3)?;
     let q = read_g2_unchecked(&b.0, &b.1, &b.2, &b.3)?;
-    Ok(encode_g2(&g2_to_affine(&(G2Projective::from(&p) + q))))
+    Ok(encode_g2(&G2Affine::from(G2Projective::from(&p) + q)))
 }
 
 /// MSMs with fewer terms use per-term double-and-add, which is cheaper than the bucket method's
@@ -270,7 +279,7 @@ pub(super) fn g1_msm(
     } else {
         G1Projective::msm_variable_base(&points, &scalars)
     };
-    Ok(encode_g1(&g1_to_affine(&sum)))
+    Ok(encode_g1(&G1Affine::from(sum)))
 }
 
 /// EIP-2537 G2MSM.
@@ -287,7 +296,7 @@ pub(super) fn g2_msm(
     } else {
         g2_msm_bucket(&points, &scalars)
     };
-    Ok(encode_g2(&g2_to_affine(&sum)))
+    Ok(encode_g2(&G2Affine::from(sum)))
 }
 
 /// EIP-2537 `PAIRING_CHECK`.
@@ -324,7 +333,7 @@ pub(super) fn map_fp_to_g1(fp: &[u8; FP_LENGTH]) -> Result<[u8; G1_LENGTH], Prec
     if bool::from(q.is_identity()) {
         return Ok([0u8; G1_LENGTH]);
     }
-    Ok(encode_g1(&g1_to_affine(&q.clear_h())))
+    Ok(encode_g1(&G1Affine::from(q.clear_h())))
 }
 
 /// EIP-2537 `MAP_FP2_TO_G2`.
@@ -338,5 +347,5 @@ pub(super) fn map_fp2_to_g2(
         return Ok(MAP_FP2_TO_G2_ZERO);
     }
     // #E2'(Fp2) ≡ 1 (mod 3), so no input reaches the 3-isogeny kernel (unlike G1).
-    Ok(encode_g2(&g2_to_affine(&<G2Projective as MapToCurve>::map_to_curve(&u).clear_h())))
+    Ok(encode_g2(&G2Affine::from(<G2Projective as MapToCurve>::map_to_curve(&u).clear_h())))
 }
