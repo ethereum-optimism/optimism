@@ -48,13 +48,15 @@ Sequencer mode requires all standard node arguments plus the `--mode=Sequencer` 
 | Flag | Environment Variable | Default | Description |
 |------|---------------------|---------|-------------|
 | `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | `false` | Start sequencer in stopped state |
-| `--sequencer.max-safe-lag` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | `0` | Max L2 blocks between safe and unsafe heads |
+| `--sequencer.max-safe-lag` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | `0` | Pause new block builds when the unsafe-to-safe block gap reaches this limit; `0` disables the limit |
 | `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | `false` | Force recovery mode operation |
 | `--conductor.rpc` | `KONA_NODE_CONDUCTOR_RPC` | - | Conductor service RPC endpoint |
 | `--conductor.rpc.timeout` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | `1` | Conductor RPC timeout (seconds) |
 
 The full flag catalogue, including the standard node arguments shared with validator mode, lives in the [Kona node CLI reference](/node-operators/kona-node/configuration).
+
+For example, `--sequencer.max-safe-lag=100` pauses new builds when the unsafe head is at least 100 blocks ahead of the safe head. Building resumes automatically on the next block tick after the gap drops below 100. The sequencer remains administratively active while paused. A block already being built or committed is settled before the limit is checked for the next build. The default `0` leaves sequencing unrestricted by safe lag.
 
 ## Example Configurations
 

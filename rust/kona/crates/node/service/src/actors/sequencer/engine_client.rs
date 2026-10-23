@@ -7,6 +7,7 @@ use crate::{
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
 use derive_more::Constructor;
+use kona_engine::EngineState;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::fmt::Debug;
@@ -48,6 +49,45 @@ pub trait SequencerEngineClient: Debug + Send + Sync {
 
     /// Returns the current unsafe head [`L2BlockInfo`].
     async fn get_unsafe_head(&self) -> EngineClientResult<L2BlockInfo>;
+
+    /// Returns the current safe head after derivation and any cross-chain verification.
+    async fn get_safe_head(&self) -> EngineClientResult<L2BlockInfo>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kona_engine::EngineSyncStateUpdate;
+    use kona_protocol::BlockInfo;
+
+    #[tokio::test]
+    async fn safe_head_watch_tracks_advances_and_rewinds_without_using_local_safe() {
+        let (requests, _) = mpsc::channel(1);
+        let (_, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
+        let (state_tx, engine_state_rx) = watch::channel(EngineState::default());
+        let client = QueuedSequencerEngineClient {
+            engine_actor_request_tx: requests,
+            unsafe_head_rx,
+            engine_state_rx,
+        };
+        for number in [8, 12, 7] {
+            let safe = L2BlockInfo {
+                block_info: BlockInfo { number, ..Default::default() },
+                ..Default::default()
+            };
+            state_tx.send_modify(|state| {
+                state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+                    safe_head: Some(safe),
+                    local_safe_head: Some(L2BlockInfo {
+                        block_info: BlockInfo { number: 1000, ..Default::default() },
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                })
+            });
+            assert_eq!(client.get_safe_head().await.unwrap(), safe);
+        }
+    }
 }
 
 /// Queue-based implementation of the [`SequencerEngineClient`] trait. This handles all
@@ -58,12 +98,18 @@ pub struct QueuedSequencerEngineClient {
     pub engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
     /// A channel to receive the latest unsafe head [`L2BlockInfo`].
     pub unsafe_head_rx: watch::Receiver<L2BlockInfo>,
+    /// The engine's published state, including safe-head advances and rewinds.
+    pub engine_state_rx: watch::Receiver<EngineState>,
 }
 
 #[async_trait]
 impl SequencerEngineClient for QueuedSequencerEngineClient {
     async fn get_unsafe_head(&self) -> EngineClientResult<L2BlockInfo> {
         Ok(*self.unsafe_head_rx.borrow())
+    }
+
+    async fn get_safe_head(&self) -> EngineClientResult<L2BlockInfo> {
+        Ok(self.engine_state_rx.borrow().sync_state.safe_head())
     }
 
     async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {

@@ -42,6 +42,7 @@ async fn stalled_leader_check_times_out_without_blocking_queued_stop() {
         template.engine_client,
         false,
         false,
+        0,
         template.origin_selector,
         template.rollup_config,
         template.unsafe_payload_gossip_client,
