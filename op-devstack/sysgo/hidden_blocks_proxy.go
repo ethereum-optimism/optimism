@@ -145,8 +145,9 @@ func (h *HiddenBlocks) relay(ctx context.Context, logger log.Logger, w http.Resp
 }
 
 type hiddenBlockRPCRequest struct {
-	ID     json.RawMessage   `json:"id"`
-	Params []json.RawMessage `json:"params"`
+	ID json.RawMessage `json:"id"`
+	// Params is positional or named, so it is decoded when checked.
+	Params json.RawMessage `json:"params"`
 }
 
 // parseHiddenBlockRPCBody decodes a single or batch JSON-RPC message. A message
@@ -166,19 +167,44 @@ func parseHiddenBlockRPCBody(body []byte) (requests []hiddenBlockRPCRequest, bat
 	return []hiddenBlockRPCRequest{req}, false
 }
 
-// hiddenHash returns the first hidden hash among the requests' params. A batch
-// naming one is refused as a whole.
+// hiddenHash returns the first hidden hash among the requests' params, at any
+// depth, such as an EIP-1898 block object's or a log filter's blockHash. A
+// batch naming one is refused as a whole.
 func (h *HiddenBlocks) hiddenHash(requests []hiddenBlockRPCRequest) (common.Hash, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for _, req := range requests {
-		for _, param := range req.Params {
-			var s string
-			if json.Unmarshal(param, &s) != nil || len(s) != 2+2*common.HashLength {
-				continue
+		var params any
+		if json.Unmarshal(req.Params, &params) != nil {
+			continue
+		}
+		if hash, ok := h.findHidden(params); ok {
+			return hash, true
+		}
+	}
+	return common.Hash{}, false
+}
+
+// findHidden returns a hidden hash among the strings in value, at any depth.
+// The caller holds h.mu.
+func (h *HiddenBlocks) findHidden(value any) (common.Hash, bool) {
+	switch value := value.(type) {
+	case string:
+		if len(value) != 2+2*common.HashLength {
+			return common.Hash{}, false
+		}
+		hash := common.HexToHash(value)
+		_, ok := h.hashes[hash]
+		return hash, ok
+	case []any:
+		for _, elem := range value {
+			if hash, ok := h.findHidden(elem); ok {
+				return hash, true
 			}
-			hash := common.HexToHash(s)
-			if _, ok := h.hashes[hash]; ok {
+		}
+	case map[string]any:
+		for _, elem := range value {
+			if hash, ok := h.findHidden(elem); ok {
 				return hash, true
 			}
 		}

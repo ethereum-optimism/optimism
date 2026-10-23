@@ -404,6 +404,7 @@ func TestProposerProvesGameAgreeingOnReplacedBlock(gt *testing.T) {
 		zkproposer.ReplacedAgreedOutputsReadAtLeast(1),
 		zkproposer.ProvingFailures(0),
 	)
+	t.Require().Positive(hidden.ForwardedRequests(), "the proposer must read the L2 ELs through the hiding proxies")
 	t.Require().Zero(hidden.RefusedRequests(), "the proposer must not ask the L2 ELs for the denied block")
 }
 
