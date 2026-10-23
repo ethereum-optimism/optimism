@@ -1,5 +1,6 @@
 use super::*;
 use assert_matches::assert_matches;
+use kona_derive::ResetSignal;
 use mockall::{mock, predicate::eq};
 
 mock! {
@@ -8,7 +9,7 @@ mock! {
 
     impl SafeDb for SafeDatabase {
         fn clear(&self) -> Result<(), SafeDbError>;
-        fn close(&self) -> Result<(), SafeDbError>;
+        fn close(&self);
         fn first_entry(&self) -> Result<SafeHeadRecord, SafeDbError>;
         fn l1_at_safe_head(&self, target_l2_num: u64) -> Result<SafeHeadRecord, SafeDbError>;
         fn last_entry(&self) -> Result<SafeHeadRecord, SafeDbError>;
@@ -73,7 +74,7 @@ fn a_failed_write_is_returned_without_retry_or_finalization() {
 
     let result = actor.settle_derived_attributes(l2_block(DERIVED_HEAD));
 
-    assert_matches!(result, Err(DerivationError::SafeDb(SafeDbError::Closed)));
+    assert_matches!(result, Err(DerivationError::SafeDbError(SafeDbError::Closed)));
     assert!(actor.finalizer.try_finalize_next(l1_block(DERIVED_FROM_L1)).is_none());
 }
 
@@ -141,7 +142,7 @@ async fn a_failed_truncation_stops_request_processing(#[case] request: Derivatio
 
     let result = actor.handle_derivation_actor_request(request).await;
 
-    assert_matches!(result, Err(DerivationError::SafeDb(SafeDbError::Closed)));
+    assert_matches!(result, Err(DerivationError::SafeDbError(SafeDbError::Closed)));
 }
 
 #[test]

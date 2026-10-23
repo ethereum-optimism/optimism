@@ -7967,6 +7967,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-eips 2.5.0",
  "alloy-primitives",
+ "assert_matches",
  "kona-protocol",
  "rocksdb",
  "rstest",

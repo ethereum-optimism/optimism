@@ -63,5 +63,5 @@ pub trait SafeDb: core::fmt::Debug + Send + Sync {
     fn clear(&self) -> Result<(), SafeDbError>;
 
     /// Closes the database, releasing the underlying store.
-    fn close(&self) -> Result<(), SafeDbError>;
+    fn close(&self);
 }

@@ -8,7 +8,7 @@ use crate::{
 use async_trait::async_trait;
 use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, PipelineResult, ResetError,
-    ResetSignal, Signal, SignalReceiver, StepResult,
+    Signal, SignalReceiver, StepResult,
 };
 use kona_engine::FinalizeBlockId;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
@@ -41,7 +41,7 @@ where
     derivation_state_machine: DerivationStateMachine,
     /// The [`L2Finalizer`] tracks derived L2 blocks awaiting finalization.
     pub(crate) finalizer: L2Finalizer,
-    /// Records the safe head reached as of each L1 block.
+    /// Records the safe head reached as of each locally derived L1 block.
     safe_db: Option<Arc<dyn SafeDb>>,
     /// The attributes sent to the engine and not yet confirmed as a safe head.
     attributes_awaiting_confirmation: Option<OpAttributesWithParent>,
@@ -75,15 +75,18 @@ where
 
     /// Handles a [`Signal`] received over the derivation signal receiver channel.
     async fn signal(&mut self, signal: Signal) -> Result<(), DerivationError> {
-        if let Signal::Reset(reset) = &signal {
-            self.derivation_origin_tx.send_replace(None);
-            self.finalizer.clear();
-            self.attributes_awaiting_confirmation = None;
-            self.truncate_safe_db(reset.l2_safe_head, "engine reset")?;
-        }
-
         let result = match signal {
-            Signal::Reset(reset) => self.signal_reset(reset).await,
+            Signal::Reset(reset) => {
+                self.derivation_origin_tx.send_replace(None);
+                self.finalizer.clear();
+                self.attributes_awaiting_confirmation = None;
+                self.truncate_safe_db(reset.l2_safe_head, "engine reset")?;
+                let result = self.pipeline.signal(Signal::Reset(reset)).await;
+                if result.is_ok() {
+                    self.derivation_origin_tx.send_replace(self.pipeline.origin());
+                }
+                result
+            }
             Signal::Activation(activation) => self.signal_activation(activation).await,
             Signal::FlushChannel => self.signal_flush_channel().await,
         };
@@ -94,15 +97,6 @@ where
             }
         }
         self.publish_origin();
-        Ok(())
-    }
-
-    /// Resets the pipeline and clears finalization and origin state before the reset starts.
-    async fn signal_reset(&mut self, reset: ResetSignal) -> PipelineResult<()> {
-        self.derivation_origin_tx.send_replace(None);
-        self.finalizer.clear();
-        self.pipeline.signal(Signal::Reset(reset)).await?;
-        self.derivation_origin_tx.send_replace(self.pipeline.origin());
         Ok(())
     }
 
@@ -241,19 +235,17 @@ where
             }
             DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(safe_head) => {
                 info!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
-                let confirmed_safe_head = *safe_head;
                 self.derivation_state_machine
-                    .update(&DerivationStateUpdate::NewAttributesConfirmed(safe_head))?;
-                self.settle_derived_attributes(confirmed_safe_head)?;
+                    .update(&DerivationStateUpdate::NewAttributesConfirmed(safe_head.clone()))?;
+                self.settle_derived_attributes(*safe_head)?;
 
                 self.attempt_derivation().await?;
             }
             DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head) => {
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
-                let resume_head = *safe_head;
                 self.derivation_state_machine
-                    .update(&DerivationStateUpdate::ELSyncCompleted(safe_head))?;
-                self.truncate_safe_db(resume_head, "EL sync completion")?;
+                    .update(&DerivationStateUpdate::ELSyncCompleted(safe_head.clone()))?;
+                self.truncate_safe_db(*safe_head, "EL sync completion")?;
 
                 self.attempt_derivation().await?;
             }
@@ -412,7 +404,7 @@ pub enum DerivationError {
     /// A safe head database write failed. The actor stops rather than leave a gap that later
     /// queries would serve as an older safe head.
     #[error("safe head db write failed")]
-    SafeDb(#[from] SafeDbError),
+    SafeDbError(#[from] SafeDbError),
     /// An invalid state transition occurred.
     #[error(transparent)]
     StateTransitionError(#[from] DerivationStateTransitionError),

@@ -48,7 +48,7 @@ where
     /// Whether the EL sync is complete. This should only ever go from false to true.
     el_sync_complete: bool,
     /// The last local-safe head sent to the derivation actor.
-    last_local_safe_head_sent: L2BlockInfo,
+    last_engine_safe_head_sent: L2BlockInfo,
     /// A channel to use to relay the current unsafe head.
     /// ## Note
     /// This is `Some` when the node is in sequencer mode, and `None` when the node is in validator
@@ -96,7 +96,7 @@ where
             derivation_client,
             el_sync_complete: false,
             engine,
-            last_local_safe_head_sent: L2BlockInfo::default(),
+            last_engine_safe_head_sent: L2BlockInfo::default(),
             rollup: config,
             unsafe_head_tx,
             inbound_request_rx,
@@ -244,7 +244,7 @@ where
     /// local-safe label; the safe label can lag it by cross-chain verification.
     async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), EngineError> {
         let local_safe_head = self.engine.state().sync_state.local_safe_head();
-        if local_safe_head == self.last_local_safe_head_sent {
+        if local_safe_head == self.last_engine_safe_head_sent {
             info!(target: "engine", safe_head = ?local_safe_head, "Local-safe head unchanged");
             return Ok(());
         }
@@ -255,7 +255,7 @@ where
         })?;
 
         info!(target: "engine", safe_head = ?local_safe_head, "Sent local-safe head to derivation");
-        self.last_local_safe_head_sent = local_safe_head;
+        self.last_engine_safe_head_sent = local_safe_head;
 
         Ok(())
     }

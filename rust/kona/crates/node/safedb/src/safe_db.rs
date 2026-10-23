@@ -208,13 +208,10 @@ impl SafeDb for SafeDatabase {
         Ok(())
     }
 
-    fn close(&self) -> Result<(), SafeDbError> {
-        // C++ `DB::Close` returns a status, but the C API this binds to declares
-        // `rocksdb_close` as void, so dropping the handle is the only close available and no
-        // error can be reported. Records are already durable regardless: every write is synced
-        // to the WAL, which is replayed on open.
+    fn close(&self) {
+        tracing::debug!("Closing safe head database");
         let mut guard = self.write_guard();
         *guard = None;
-        Ok(())
+        tracing::debug!("Closed safe head database");
     }
 }
