@@ -28,7 +28,7 @@ unless a change in the diff breaks them.
 
 1. Read the guide in full, including "How CI is wired here".
 2. Determine which CI files changed.
-3. For each change, walk the repo-specific checklist (items 1–8 and 10) first, then the
+3. For each change, walk the repo-specific checklist (items 1–9) first, then the
    relevant general CircleCI / GitHub Actions section. Map every finding to the
    specific rule it violates.
 4. Confirm the author validated locally where the guide requires it (merged-config
