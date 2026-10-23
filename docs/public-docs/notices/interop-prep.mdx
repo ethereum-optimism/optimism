@@ -14,8 +14,9 @@ is_imported_content: 'false'
 ---
 
 OP Stack interop is targeted to activate on **OP Mainnet** (chain ID `10`) and **Unichain** (chain ID `130`) on **December 15, 2026**, pending governance approval, forming a two-chain interop dependency set.
+Interop ships in the [Lagoon hardfork](/op-stack/protocol/hardforks/lagoon), which also carries post-execution transactions and [sequencer-defined metering](/op-stack/features/sdm).
 The same activation lands first on **OP Sepolia** (chain ID `11155420`) and **Unichain Sepolia** (chain ID `1301`) on **December 3, 2026**; run this checklist on testnet before mainnet.
-Node operators on either chain must change their topology before the activation timestamp: each operator runs one or more [op-supernode](/op-stack/interop/supernode) instances that derive both chains and validate the cross-chain messages between them, and the rest of the fleet runs as [Light CLs](/notices/specialized-node-topology) that follow the supernode.
+Node operators on either chain must change their topology before the activation timestamp: each operator runs one or more [op-supernode](/op-stack/interop/supernode) instances that derive both chains and validate the cross-chain messages between them, and the rest of the fleet runs as [Light CLs](/notices/specialized-node-topology), consensus-layer clients that follow the supernode instead of deriving from L1 themselves.
 
 <Warning>
   **A node that has not been migrated to the [supernode-plus-Light-CL topology](/notices/specialized-node-topology) by the activation timestamp cannot verify cross-chain dependencies.**
@@ -46,9 +47,10 @@ This notice applies to anyone running OP Mainnet or Unichain nodes after the mai
 
 Every op-node in the fleet, whether a replica, an RPC node, or any other op-node deployment, must run as a Light CL pointed at an op-supernode that derives both chains.
 Each operator stands up at least one op-supernode for the dependency set and reconfigures every op-node in their fleet to follow it.
+If you run only one of the two chains today, you now run both: the supernode needs an execution client for each chain in the dependency set, so plan the second chain's execution client and its sync time into the migration.
 
 This rollout is scoped to OP Mainnet and Unichain, with OP Sepolia and Unichain Sepolia as the testnet pair.
-Other OP Stack chains will activate the same Lagoon hardfork.
+Other OP Stack chains activate the same Lagoon hardfork on their own schedule, set in their chain config in the superchain-registry, and still need the Lagoon-aware releases by their own timestamp.
 A chain with no dependencies gets a dependency set containing only itself, so there is nothing to cross-validate and those operators can keep running plain op-node.
 Other OP Stack chains move to the supernode topology only when they join an interop set.
 
@@ -56,6 +58,8 @@ Other OP Stack chains move to the supernode topology only when they join an inte
 
 Update or install the following components before the activation timestamp.
 The versions below are the current minimums for standing up the topology; the activation releases, which carry the Lagoon timestamps, will be pinned in this notice once they are cut.
+Expect two upgrades: migrate the topology on these versions now, then move every component to its activation release once it is pinned here, before your network's activation timestamp.
+A binary that does not carry the timestamp diverges from the chain at activation and must be resynced; see [Network upgrades](/op-stack/protocol/network-upgrades#activations).
 
 | Component        | Version | Role |
 | ---------------- | ------- | ---- |
@@ -69,7 +73,7 @@ The dependency set is looked up by chain ID, so it also applies when you pass a 
 To override the registry's dependency set, pass `--interop.dependency-set` to op-node or `--dependency-set` to op-supernode.
 
 <Info>
-  **op-reth is the required execution client.** op-geth reached end of support on **May 31, 2026** and does not support Karst or later hardforks; see [End of Support for op-geth and op-program](/notices/archive/op-geth-deprecation).
+  **op-reth is the required execution client.** op-geth reached end of support on **May 31, 2026** and does not support [Karst](/op-stack/protocol/hardforks/karst) or later hardforks; see [End of Support for op-geth and op-program](/notices/archive/op-geth-deprecation).
 </Info>
 
 <Info>
@@ -82,7 +86,7 @@ To override the registry's dependency set, pass `--interop.dependency-set` to op
 
 The migration has four phases.
 Complete each one on OP Sepolia and Unichain Sepolia first, then repeat it on mainnet before the mainnet activation timestamp.
-Start the execution clients first, then the supernode — the supernode drives the ELs through their sync, because an EL has no way to know what chain head to target on its own.
+Start the execution clients first, then the supernode — the supernode drives the execution clients (ELs) through their sync, because an EL has no way to know what chain head to target on its own.
 Light CLs come last, since they follow the supernode.
 Full per-flag reference for the supernode is in the [op-supernode configuration reference](/node-operators/reference/op-supernode-config); this notice walks through the mainnet setup.
 
