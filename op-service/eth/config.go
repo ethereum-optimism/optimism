@@ -5,7 +5,7 @@ import (
 )
 
 // L1ChainConfigByChainID returns the chain config for the given chain ID,
-// if it is in the set of known chain IDs (Mainnet, Sepolia, Holesky, Hoodi).
+// if it is in the set of known chain IDs (Mainnet, Sepolia, Hoodi).
 // If the chain ID is not known, it returns nil.
 func L1ChainConfigByChainID(chainID ChainID) *params.ChainConfig {
 	switch chainID {
@@ -13,8 +13,6 @@ func L1ChainConfigByChainID(chainID ChainID) *params.ChainConfig {
 		return params.MainnetChainConfig
 	case ChainIDFromBig(params.SepoliaChainConfig.ChainID):
 		return params.SepoliaChainConfig
-	case ChainIDFromBig(params.HoleskyChainConfig.ChainID):
-		return params.HoleskyChainConfig
 	case ChainIDFromBig(params.HoodiChainConfig.ChainID):
 		return params.HoodiChainConfig
 	default:
