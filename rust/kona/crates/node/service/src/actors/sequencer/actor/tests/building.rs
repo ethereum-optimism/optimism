@@ -239,7 +239,8 @@ async fn next_block_starts_earlier_by_the_seal_time(
     // The first block builds on a parent at `TEST_START`, and is sealed into the parent of the
     // second block, due at `TEST_START + 2`.
     let mut engine = mock_engine(vec![block_at(TEST_START), block_at(TEST_START + 2)]);
-    engine.expect_seal_and_canonicalize_block().times(1).return_once(|_, _| Ok(payload()));
+    engine.expect_seal_block().times(1).return_once(|_, _| Ok(payload()));
+    engine.expect_canonicalize_block().times(1).returning(|_, _| Ok(()));
     let mut actor = test_actor_with_engine(SlowSealEngine { inner: engine, seal_time });
     expect_builds(&mut actor, 2, 2);
 
