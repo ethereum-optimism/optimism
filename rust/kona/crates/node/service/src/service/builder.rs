@@ -22,7 +22,7 @@ use kona_interop::DependencySet;
 use kona_providers_alloy::OnlineBeaconClient;
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::RpcBuilder;
-use kona_safedb::{DisabledDatabase, SafeDb};
+use kona_safedb::SafeDb;
 
 /// Configuration for Derivation Delegate mode.
 #[derive(Debug, Clone)]
@@ -76,7 +76,7 @@ pub struct RollupNodeBuilder {
     pub derivation_delegate_config: Option<DerivationDelegateConfig>,
     /// The interop dependency set for this chain.
     pub dependency_set: Option<Arc<DependencySet>>,
-    /// Records the safe head reached as of each L1 block. [`DisabledDatabase`] when unset.
+    /// Records the safe head reached as of each L1 block when configured.
     pub safe_db: Option<Arc<dyn SafeDb>>,
 }
 
@@ -114,8 +114,8 @@ impl RollupNodeBuilder {
     }
 
     /// Sets the safe head database that records derivation progress per L1 block.
-    pub fn with_safe_db(self, safe_db: Arc<dyn SafeDb>) -> Self {
-        Self { safe_db: Some(safe_db), ..self }
+    pub fn with_safe_db(self, safe_db: Option<Arc<dyn SafeDb>>) -> Self {
+        Self { safe_db, ..self }
     }
 
     /// Sets the [`EngineConfig`] on the [`RollupNodeBuilder`].
@@ -207,7 +207,7 @@ impl RollupNodeBuilder {
             sequencer_config,
             derivation_delegate_provider,
             dependency_set: self.dependency_set,
-            safe_db: self.safe_db.unwrap_or_else(|| Arc::new(DisabledDatabase)),
+            safe_db: self.safe_db,
         }
     }
 }

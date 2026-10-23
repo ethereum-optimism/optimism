@@ -21,9 +21,6 @@ pub struct SafeHeadRecord {
 /// Methods are synchronous and take `&self`; implementations are `Send + Sync` so one instance
 /// can be shared behind an `Arc`.
 pub trait SafeDb: core::fmt::Debug + Send + Sync {
-    /// Reports whether this database actively records and serves derivation data.
-    fn enabled(&self) -> bool;
-
     /// Records that `safe_head` became safe as of `l1_head`.
     ///
     /// `l1_head` is the first L1 block containing all data required to derive `safe_head`.

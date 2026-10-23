@@ -92,7 +92,7 @@ pub struct RollupNode {
     /// [`StatefulAttributesBuilder`] constructor panics otherwise.
     pub(crate) dependency_set: Option<Arc<DependencySet>>,
     /// Records the safe head reached as of each L1 block. Disabled unless configured.
-    pub(crate) safe_db: Arc<dyn SafeDb>,
+    pub(crate) safe_db: Option<Arc<dyn SafeDb>>,
 }
 
 /// A RollupNode-level derivation actor wrapper.

@@ -4,7 +4,7 @@ use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
 use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
 use kona_protocol::BlockInfo;
-use kona_safedb::{DisabledDatabase, SafeDatabase, SafeHeadRecord};
+use kona_safedb::{SafeDatabase, SafeHeadRecord};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use rstest::rstest;
 use std::collections::VecDeque;
@@ -109,7 +109,7 @@ async fn test_pipeline_reset_always_resets_engine(#[case] lagoon_time: Option<u6
                 ResetError::ReorgDetected(B256::ZERO, B256::repeat_byte(1)).reset(),
             ),
         },
-        Arc::new(DisabledDatabase),
+        None,
         derivation_origin_tx,
     );
 
@@ -151,7 +151,7 @@ async fn test_origin_is_published(#[case] step_result: StepResult) {
             step_result,
             reset_error: None,
         },
-        Arc::new(DisabledDatabase),
+        None,
         derivation_origin_tx,
     );
 
@@ -196,7 +196,7 @@ async fn test_non_reset_signal_does_not_publish_uninitialized_origin(#[case] sig
             step_result: StepResult::AdvancedOrigin,
             reset_error: None,
         },
-        Arc::new(DisabledDatabase),
+        None,
         derivation_origin_tx,
     );
 
@@ -223,7 +223,7 @@ async fn test_failed_reset_keeps_origin_unpublished_until_successful_reset(#[cas
             reset_error: None,
             step_result: StepResult::AdvancedOrigin,
         },
-        Arc::new(DisabledDatabase),
+        None,
         derivation_origin_tx,
     );
 
@@ -394,7 +394,7 @@ impl RecordingActor {
             engine_client,
             request_rx,
             pipeline,
-            db.clone(),
+            Some(db.clone()),
             watch::channel(None).0,
         );
         Self { actor, db, request_tx, _dir: dir }

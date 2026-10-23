@@ -21,13 +21,11 @@ The layout carries no compatibility guarantee with any other implementation and 
 
 The crate exposes:
 
-- [`SafeDb`] — the database interface, backed by either a real store or a no-op.
-- [`DisabledDatabase`] — a no-op implementation for hosts that do not record derivation.
+- [`SafeDb`] — the database interface.
 - `SafeDatabase` — a [`rocksdb`]-backed implementation that persists records to disk, available
   behind the non-default `rocksdb` feature (off by default so that consumers needing only the
   trait avoid the rocksdb/libclang build dependency).
 
 [`SafeDb`]: crate::SafeDb
 [`SafeDb::safe_head_updated`]: crate::SafeDb::safe_head_updated
-[`DisabledDatabase`]: crate::DisabledDatabase
 [`rocksdb`]: https://docs.rs/rocksdb

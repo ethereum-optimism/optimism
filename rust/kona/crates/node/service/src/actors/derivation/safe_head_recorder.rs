@@ -29,12 +29,12 @@ pub(crate) enum TruncationReason {
 /// truncates the history to the point derivation resumes from instead of extending it.
 #[derive(Debug)]
 pub(crate) struct SafeHeadRecorder {
-    db: Arc<dyn SafeDb>,
+    db: Option<Arc<dyn SafeDb>>,
 }
 
 impl SafeHeadRecorder {
     /// Creates a recorder writing to `db`.
-    pub(crate) const fn new(db: Arc<dyn SafeDb>) -> Self {
+    pub(crate) const fn new(db: Option<Arc<dyn SafeDb>>) -> Self {
         Self { db }
     }
 
@@ -45,10 +45,9 @@ impl SafeHeadRecorder {
         safe_head: L2BlockInfo,
         derived_from: BlockNumHash,
     ) -> Result<(), SafeDbError> {
-        if !self.db.enabled() {
+        let Some(db) = &self.db else {
             return Ok(());
-        }
-        let db = self.db.clone();
+        };
         Self::write_with_retries("safe head update", || {
             db.safe_head_updated(safe_head, derived_from)
         })
@@ -74,10 +73,9 @@ impl SafeHeadRecorder {
         resume_head: L2BlockInfo,
         reason: TruncationReason,
     ) -> Result<(), SafeDbError> {
-        if !self.db.enabled() {
+        let Some(db) = &self.db else {
             return Ok(());
-        }
-        let db = self.db.clone();
+        };
         match db.last_entry() {
             Ok(tip) if tip.safe_head.number < resume_head.block_info.number => {
                 warn!(

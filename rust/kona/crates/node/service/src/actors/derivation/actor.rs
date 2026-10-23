@@ -58,7 +58,7 @@ where
         engine_client: DerivationEngineClient_,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
         pipeline: PipelineSignalReceiver,
-        safe_db: Arc<dyn SafeDb>,
+        safe_db: Option<Arc<dyn SafeDb>>,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
     ) -> Self {
         Self {

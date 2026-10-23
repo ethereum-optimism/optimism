@@ -17,7 +17,6 @@ mock! {
     impl SafeDb for SafeDatabase {
         fn clear(&self) -> Result<(), SafeDbError>;
         fn close(&self) -> Result<(), SafeDbError>;
-        fn enabled(&self) -> bool;
         fn first_entry(&self) -> Result<SafeHeadRecord, SafeDbError>;
         fn l1_at_safe_head(&self, target_l2_num: u64) -> Result<SafeHeadRecord, SafeDbError>;
         fn last_entry(&self) -> Result<SafeHeadRecord, SafeDbError>;
@@ -47,21 +46,15 @@ fn tip_record(number: u64) -> Result<SafeHeadRecord, SafeDbError> {
     Ok(SafeHeadRecord { l1: derived_from(), safe_head: l2_block(number).block_info.id() })
 }
 
-fn enabled_database() -> MockSafeDatabase {
-    let mut database = MockSafeDatabase::new();
-    database.expect_enabled().once().return_const(true);
-    database
-}
-
 #[tokio::test]
 async fn a_record_is_keyed_by_the_l1_block_the_head_was_derived_from() {
-    let mut database = enabled_database();
+    let mut database = MockSafeDatabase::new();
     database
         .expect_safe_head_updated()
         .with(eq(l2_block(RESUME_HEAD + 1)), eq(derived_from()))
         .once()
         .returning(|_, _| Ok(()));
-    let recorder = SafeHeadRecorder::new(Arc::new(database));
+    let recorder = SafeHeadRecorder::new(Some(Arc::new(database)));
 
     recorder.record(l2_block(RESUME_HEAD + 1), derived_from()).await.unwrap();
 }
@@ -75,20 +68,20 @@ async fn a_record_is_keyed_by_the_l1_block_the_head_was_derived_from() {
 async fn a_truncation_resets_when_the_tip_is_not_known_to_be_below_the_resume_head(
     #[case] tip: Result<SafeHeadRecord, SafeDbError>,
 ) {
-    let mut database = enabled_database();
+    let mut database = MockSafeDatabase::new();
     database.expect_last_entry().once().return_once(move || tip);
     database.expect_safe_head_reset().with(eq(l2_block(RESUME_HEAD))).once().returning(|_| Ok(()));
-    let recorder = SafeHeadRecorder::new(Arc::new(database));
+    let recorder = SafeHeadRecorder::new(Some(Arc::new(database)));
 
     recorder.truncate(l2_block(RESUME_HEAD), TruncationReason::EngineReset).await.unwrap();
 }
 
 #[tokio::test]
 async fn a_truncation_clears_history_when_the_tip_is_below_the_resume_head() {
-    let mut database = enabled_database();
+    let mut database = MockSafeDatabase::new();
     database.expect_last_entry().once().return_once(|| tip_record(RESUME_HEAD - 5));
     database.expect_clear().once().returning(|| Ok(()));
-    let recorder = SafeHeadRecorder::new(Arc::new(database));
+    let recorder = SafeHeadRecorder::new(Some(Arc::new(database)));
 
     recorder.truncate(l2_block(RESUME_HEAD), TruncationReason::EngineReset).await.unwrap();
 }
@@ -98,7 +91,7 @@ async fn a_truncation_clears_history_when_the_tip_is_below_the_resume_head() {
 #[case::last_retry(WRITE_RETRIES)]
 #[tokio::test(start_paused = true)]
 async fn a_failed_write_is_retried_until_it_succeeds(#[case] failed_attempts: usize) {
-    let mut database = enabled_database();
+    let mut database = MockSafeDatabase::new();
     let mut sequence = Sequence::new();
     database
         .expect_safe_head_updated()
@@ -112,20 +105,20 @@ async fn a_failed_write_is_retried_until_it_succeeds(#[case] failed_attempts: us
         .once()
         .in_sequence(&mut sequence)
         .returning(|_, _| Ok(()));
-    let recorder = SafeHeadRecorder::new(Arc::new(database));
+    let recorder = SafeHeadRecorder::new(Some(Arc::new(database)));
 
     recorder.record(l2_block(RESUME_HEAD + 1), derived_from()).await.unwrap();
 }
 
 #[tokio::test(start_paused = true)]
 async fn a_write_that_exhausts_its_retries_returns_the_database_error() {
-    let mut database = enabled_database();
+    let mut database = MockSafeDatabase::new();
     database
         .expect_safe_head_updated()
         .with(eq(l2_block(RESUME_HEAD + 1)), eq(derived_from()))
         .times(WRITE_RETRIES + 1)
         .returning(|_, _| Err(SafeDbError::Closed));
-    let recorder = SafeHeadRecorder::new(Arc::new(database));
+    let recorder = SafeHeadRecorder::new(Some(Arc::new(database)));
 
     let result = recorder.record(l2_block(RESUME_HEAD + 1), derived_from()).await;
 
@@ -134,9 +127,7 @@ async fn a_write_that_exhausts_its_retries_returns_the_database_error() {
 
 #[tokio::test]
 async fn a_disabled_database_is_never_read_or_written() {
-    let mut database = MockSafeDatabase::new();
-    database.expect_enabled().times(2).return_const(false);
-    let recorder = SafeHeadRecorder::new(Arc::new(database));
+    let recorder = SafeHeadRecorder::new(None);
 
     recorder.record(l2_block(RESUME_HEAD + 1), derived_from()).await.unwrap();
     recorder.truncate(l2_block(RESUME_HEAD), TruncationReason::ElSyncCompleted).await.unwrap();

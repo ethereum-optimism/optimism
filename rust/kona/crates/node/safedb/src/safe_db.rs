@@ -66,10 +66,6 @@ impl SafeDatabase {
 }
 
 impl SafeDb for SafeDatabase {
-    fn enabled(&self) -> bool {
-        true
-    }
-
     fn safe_head_updated(
         &self,
         safe_head: L2BlockInfo,

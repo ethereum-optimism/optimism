@@ -244,12 +244,6 @@ mod safe_db {
     }
 
     #[test]
-    fn reports_enabled() {
-        let (_dir, db) = open();
-        assert!(db.enabled());
-    }
-
-    #[test]
     fn truncate_on_safe_head_reset() {
         let (_dir, db) = open();
         let l2a = l2(0x02, 0xaa, 20, 60);
@@ -392,19 +386,5 @@ mod safe_db {
         // same path surfaces a backend error.
         let (dir, _held) = open();
         assert!(matches!(SafeDatabase::new(dir.path()), Err(SafeDbError::Backend(_))));
-    }
-}
-
-mod disabled {
-    use crate::{DisabledDatabase, SafeDb, SafeDbError};
-
-    #[test]
-    fn l1_at_safe_head_disabled() {
-        assert!(matches!(DisabledDatabase.l1_at_safe_head(500), Err(SafeDbError::NotEnabled)));
-    }
-
-    #[test]
-    fn reports_disabled() {
-        assert!(!DisabledDatabase.enabled());
     }
 }
