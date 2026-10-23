@@ -3,7 +3,7 @@
 use crate::{
     DerivationActorRequest, DerivationEngineClient, DerivationState, DerivationStateMachine,
     DerivationStateTransitionError, DerivationStateUpdate, Metrics, NodeActor,
-    actors::derivation::{L2Finalizer, SafeHeadRecorder, TruncationReason},
+    actors::derivation::L2Finalizer,
 };
 use async_trait::async_trait;
 use kona_derive::{
@@ -42,7 +42,7 @@ where
     /// The [`L2Finalizer`] tracks derived L2 blocks awaiting finalization.
     pub(crate) finalizer: L2Finalizer,
     /// Records the safe head reached as of each L1 block.
-    safe_head_recorder: SafeHeadRecorder,
+    safe_db: Option<Arc<dyn SafeDb>>,
     /// The attributes sent to the engine and not yet confirmed as a safe head.
     attributes_awaiting_confirmation: Option<OpAttributesWithParent>,
 }
@@ -68,7 +68,7 @@ where
             engine_client,
             derivation_state_machine: DerivationStateMachine::default(),
             finalizer: L2Finalizer::default(),
-            safe_head_recorder: SafeHeadRecorder::new(safe_db),
+            safe_db,
             attributes_awaiting_confirmation: None,
         }
     }
@@ -79,9 +79,7 @@ where
             self.derivation_origin_tx.send_replace(None);
             self.finalizer.clear();
             self.attributes_awaiting_confirmation = None;
-            self.safe_head_recorder
-                .truncate(reset.l2_safe_head, TruncationReason::EngineReset)
-                .await?;
+            self.truncate_safe_db(reset.l2_safe_head, "engine reset")?;
         }
 
         let result = match signal {
@@ -246,7 +244,7 @@ where
                 let confirmed_safe_head = *safe_head;
                 self.derivation_state_machine
                     .update(&DerivationStateUpdate::NewAttributesConfirmed(safe_head))?;
-                self.settle_derived_attributes(confirmed_safe_head).await?;
+                self.settle_derived_attributes(confirmed_safe_head)?;
 
                 self.attempt_derivation().await?;
             }
@@ -255,9 +253,7 @@ where
                 let resume_head = *safe_head;
                 self.derivation_state_machine
                     .update(&DerivationStateUpdate::ELSyncCompleted(safe_head))?;
-                self.safe_head_recorder
-                    .truncate(resume_head, TruncationReason::ElSyncCompleted)
-                    .await?;
+                self.truncate_safe_db(resume_head, "EL sync completion")?;
 
                 self.attempt_derivation().await?;
             }
@@ -271,10 +267,7 @@ where
     /// A head that confirms nothing pending was adopted by the engine rather than derived here,
     /// so there is nothing to record. Finalization is queued only once the record is written, so
     /// the engine's finalized head can never run ahead of the recorded history.
-    async fn settle_derived_attributes(
-        &mut self,
-        safe_head: L2BlockInfo,
-    ) -> Result<(), DerivationError> {
+    fn settle_derived_attributes(&mut self, safe_head: L2BlockInfo) -> Result<(), DerivationError> {
         let Some(attributes) = self.attributes_awaiting_confirmation.take() else {
             debug!(
                 target: "derivation",
@@ -292,10 +285,46 @@ where
             );
             return Ok(());
         }
-        if let Some(derived_from) = attributes.derived_from {
-            self.safe_head_recorder.record(safe_head, derived_from.id()).await?;
+        if let (Some(database), Some(derived_from)) = (&self.safe_db, attributes.derived_from) {
+            debug!(target: "derivation", l1_block = derived_from.number, safe_head = safe_head.block_info.number, "Recording safe head");
+            database.safe_head_updated(safe_head, derived_from.id()).inspect_err(|error| {
+                error!(target: "derivation", %error, l1_block = derived_from.number, safe_head = safe_head.block_info.number, "Failed to record safe head");
+            })?;
+            debug!(target: "derivation", l1_block = derived_from.number, safe_head = safe_head.block_info.number, "Recorded safe head");
         }
         self.finalizer.enqueue_for_finalization(&attributes);
+        Ok(())
+    }
+
+    fn truncate_safe_db(&self, resume_head: L2BlockInfo, reason: &str) -> Result<(), SafeDbError> {
+        let Some(database) = &self.safe_db else {
+            return Ok(());
+        };
+        debug!(target: "derivation", reason, resume_head = resume_head.block_info.number, "Reading safe head database tip before truncation");
+        match database.last_entry() {
+            Ok(tip) if tip.safe_head.number < resume_head.block_info.number => {
+                warn!(target: "derivation", reason, resume_head = resume_head.block_info.number, tip = tip.safe_head.number, "Safe head database tip is below the resume point; clearing history to avoid a gap");
+                database.clear().inspect_err(|error| {
+                    error!(target: "derivation", %error, reason, resume_head = resume_head.block_info.number, "Failed to clear safe head database");
+                })?;
+                info!(target: "derivation", reason, resume_head = resume_head.block_info.number, "Cleared safe head database");
+                return Ok(());
+            }
+            Ok(tip) => {
+                debug!(target: "derivation", reason, tip = tip.safe_head.number, "Read safe head database tip")
+            }
+            Err(SafeDbError::NotFound) => {
+                debug!(target: "derivation", reason, "Safe head database has no recorded history")
+            }
+            Err(error) => {
+                warn!(target: "derivation", %error, reason, resume_head = resume_head.block_info.number, "Failed to read safe head database tip before truncation")
+            }
+        }
+        info!(target: "derivation", reason, resume_head = resume_head.block_info.number, "Truncating safe head database");
+        database.safe_head_reset(resume_head).inspect_err(|error| {
+            error!(target: "derivation", %error, reason, resume_head = resume_head.block_info.number, "Failed to truncate safe head database");
+        })?;
+        info!(target: "derivation", reason, resume_head = resume_head.block_info.number, "Truncated safe head database");
         Ok(())
     }
 

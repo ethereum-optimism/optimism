@@ -536,3 +536,5 @@ async fn a_block_is_queued_for_finalization_only_once_it_is_recorded() {
     node.confirm_safe_head(DERIVED_HEAD).await;
     node.finalize_l1(DERIVED_FROM_L1).await;
 }
+
+mod database;
