@@ -19,7 +19,7 @@ const START_MAX_RETRIES: usize = 3;
 /// The number of attempts to start the [`Discv5`] event stream before giving up.
 const EVENT_STREAM_MAX_ATTEMPTS: u32 = 10;
 
-/// The delay after a failed attempt to start the [`Discv5`] event stream.
+/// The delay between attempts to start the [`Discv5`] event stream.
 const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
 
 /// The [`Discv5Driver`] drives the discovery service.
@@ -163,7 +163,7 @@ impl Discv5Driver {
     /// The task is detached and stops when:
     /// - startup fails: [`Discv5`] does not start after `START_MAX_RETRIES` retries with
     ///   exponential backoff, or its event stream does not start after `EVENT_STREAM_MAX_ATTEMPTS`
-    ///   attempts, each failure followed by `EVENT_STREAM_RETRY_DELAY`;
+    ///   attempts, `EVENT_STREAM_RETRY_DELAY` apart;
     /// - the [`Discv5`] event stream ends;
     /// - every [`Discv5Handler`] clone and the ENR receiver are dropped.
     ///
@@ -217,23 +217,22 @@ impl Discv5Driver {
                 }
             }
 
-            // Continuously attempt to start the event stream with a retry limit and shutdown
-            // signal.
-            let mut retries = 0;
+            // Attempt to start the event stream, giving up after the last attempt fails.
+            let mut attempt = 1;
             let mut event_stream = loop {
-                if retries >= EVENT_STREAM_MAX_ATTEMPTS {
-                    error!(target: "discovery", "Exceeded maximum retries for event stream startup. Aborting...");
-                    return; // Exit the task if the retry limit is reached.
-                }
                 match self.disc.event_stream().await {
                     Ok(event_stream) => {
                         break event_stream;
                     }
-                    Err(e) => {
+                    Err(e) if attempt < EVENT_STREAM_MAX_ATTEMPTS => {
                         warn!(target: "discovery", "Failed to start event stream: {:?}", e);
-                        retries += 1;
                         sleep(EVENT_STREAM_RETRY_DELAY).await;
-                        info!(target: "discovery", "Retrying event stream startup... (Attempt {}/{})", retries, EVENT_STREAM_MAX_ATTEMPTS);
+                        attempt += 1;
+                        info!(target: "discovery", "Retrying event stream startup... (Attempt {}/{})", attempt, EVENT_STREAM_MAX_ATTEMPTS);
+                    }
+                    Err(e) => {
+                        error!(target: "discovery", "Failed to start event stream after {} attempts, aborting: {:?}", attempt, e);
+                        return;
                     }
                 }
             };
