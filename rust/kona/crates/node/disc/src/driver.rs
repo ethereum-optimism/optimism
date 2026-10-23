@@ -148,7 +148,20 @@ impl Discv5Driver {
 
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
     ///
-    /// Returns a [`Discv5Handler`] to communicate with the spawned task.
+    /// Returns a [`Discv5Handler`] to communicate with the spawned task, and a receiver of the
+    /// valid ENRs it discovers.
+    ///
+    /// The task is detached and stops when:
+    /// - startup fails: [`Discv5`] does not start after 3 retries with exponential backoff, or its
+    ///   event stream does not start after 10 attempts 2 seconds apart, about 20 seconds in total;
+    /// - the [`Discv5`] event stream ends;
+    /// - every [`Discv5Handler`] clone and the ENR receiver are dropped.
+    ///
+    /// Dropping only the handler, or only the ENR receiver, keeps it running for the other.
+    ///
+    /// Requests sent during startup are answered once it completes. When the task stops, pending
+    /// requests are dropped, so their response receivers return an error, and the ENR receiver
+    /// returns `None`.
     pub fn start(self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>) {
         let (handler, enr_recv, _task) = self.spawn();
         (handler, enr_recv)
