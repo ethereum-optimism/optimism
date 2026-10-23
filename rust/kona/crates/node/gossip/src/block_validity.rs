@@ -68,6 +68,30 @@ pub enum BlockInvalidError {
     },
 }
 
+impl BlockInvalidError {
+    /// The fixed reason label used by block validation metrics.
+    const fn metric_reason(&self) -> &'static str {
+        match self {
+            Self::Timestamp { current, received } => {
+                if *received > *current + 5 {
+                    "timestamp_future"
+                } else {
+                    "timestamp_past"
+                }
+            }
+            Self::BlockHash { .. } => "invalid_hash",
+            Self::Signature => "invalid_signature",
+            Self::Signer { .. } => "invalid_signer",
+            Self::TooManyBlocks { .. } => "too_many_blocks",
+            Self::BlockSeen { .. } => "block_seen",
+            Self::InvalidBlock(_) | Self::BaseFeePerGasOverflow(_) => "invalid_block",
+            Self::BlobGasUsed => "blob_gas_used",
+            Self::ExcessBlobGas => "excess_blob_gas",
+            Self::WithdrawalsRoot => "withdrawals_root",
+        }
+    }
+}
+
 impl From<BlockInvalidError> for MessageAcceptance {
     fn from(value: BlockInvalidError) -> Self {
         // We only want to ignore blocks that we have already seen.
@@ -156,23 +180,8 @@ impl BlockHandler {
             Ok(()) => {
                 metrics::counter!(Metrics::BLOCK_VALIDATION_SUCCESS).increment(1);
             }
-            Err(_err) => {
-                let reason = match _err {
-                    BlockInvalidError::Timestamp { current, received } => {
-                        if *received > *current + 5 { "timestamp_future" } else { "timestamp_past" }
-                    }
-                    BlockInvalidError::BlockHash { .. } => "invalid_hash",
-                    BlockInvalidError::Signature => "invalid_signature",
-                    BlockInvalidError::Signer { .. } => "invalid_signer",
-                    BlockInvalidError::TooManyBlocks { .. } => "too_many_blocks",
-                    BlockInvalidError::BlockSeen { .. } => "block_seen",
-                    BlockInvalidError::InvalidBlock(_) |
-                    BlockInvalidError::BaseFeePerGasOverflow(_) => "invalid_block",
-                    BlockInvalidError::BlobGasUsed => "blob_gas_used",
-                    BlockInvalidError::ExcessBlobGas => "excess_blob_gas",
-                    BlockInvalidError::WithdrawalsRoot => "withdrawals_root",
-                };
-                metrics::counter!(Metrics::BLOCK_VALIDATION_FAILED, "reason" => reason)
+            Err(err) => {
+                metrics::counter!(Metrics::BLOCK_VALIDATION_FAILED, "reason" => err.metric_reason())
                     .increment(1);
             }
         }
