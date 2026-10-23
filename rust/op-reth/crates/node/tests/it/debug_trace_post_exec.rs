@@ -12,11 +12,11 @@
 
 use crate::lagoon;
 use alloy_consensus::{
-    Block, BlockBody, Header, Sealable, SignableTransaction, TxEip1559, TxReceipt,
+    Block, BlockBody, BlockHeader, Header, Sealable, SignableTransaction, TxEip1559, TxReceipt,
 };
 use alloy_network::eip2718::Encodable2718;
 use alloy_primitives::{Address, B256, Bytes, Signature, TxKind, U256, map::HashSet};
-use alloy_rpc_types_eth::{TransactionInput, TransactionRequest};
+use alloy_rpc_types_eth::{BlockNumberOrTag, TransactionInput, TransactionRequest};
 use alloy_rpc_types_trace::{
     common::TraceResult,
     geth::{
@@ -53,8 +53,12 @@ const TRANSFER_GAS: u64 = 21_000;
 const DEPLOY_GAS: u64 = 53_006;
 
 /// `debug_traceBlock` over a raw block that ends in a post-exec (0x7d) transaction must return
-/// one successful trace per transaction. Before the `transact_raw` short-circuit this failed for
-/// the whole block with `-32000: invalid chain ID`.
+/// one successful trace per transaction, and the refunded transaction's trace must report its
+/// canonical gas. Before the `transact_raw` short-circuit this failed for the whole block with
+/// `-32000: invalid chain ID`.
+///
+/// The refund takes the transfer below the EIP-7623 floor: the producer never refunds that far,
+/// but a verifier applies whatever refund the payload carries.
 #[tokio::test]
 async fn test_debug_trace_block_with_post_exec_tx() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
@@ -135,13 +139,14 @@ async fn test_debug_trace_block_with_post_exec_tx() -> eyre::Result<()> {
             "transaction {index} must trace successfully, got {trace:?}",
         );
     }
+    assert_eq!(default_trace_gas(&traces[1]), TRANSFER_GAS - 1, "traced gas must be canonical");
 
     Ok(())
 }
 
-/// Every RPC path that replays a single transaction of a block must agree with what the chain
-/// committed for an SDM-refunded transaction: the receipt's canonical gas and the post-settlement
-/// balances.
+/// Every RPC path that replays a block's transactions must agree with what the chain committed for
+/// an SDM-refunded transaction: the receipt's canonical gas, the post-settlement balances, and the
+/// header's state root.
 ///
 /// The block is sequenced by a Lagoon node running the fixed test policy, which refunds every
 /// regular transaction one gas, so it is a real, imported block with a 0x7d tx and a settled state.
@@ -237,6 +242,17 @@ async fn test_rpc_replay_matches_sdm_settlement() -> eyre::Result<()> {
         }
     }
 
+    // debug_traceBlockByNumber: canonical gas, and the 0x7d tx still traces.
+    let traces = DebugApiClient::<TransactionRequest>::debug_trace_block_by_number(
+        &client,
+        BlockNumberOrTag::Number(block.number()),
+        None,
+    )
+    .await?;
+    assert_eq!(traces.len(), 2, "one trace per transaction, including the post-exec tx");
+    assert_eq!(default_trace_gas(&traces[0]), canonical_gas, "debug_traceBlockByNumber gas");
+    assert!(matches!(traces[1], TraceResult::Success { .. }), "0x7d tx trace: {:?}", traces[1]);
+
     // debug_traceCall after the deployment: the replayed prefix (shared with eth_callMany and
     // debug_traceCallMany) must leave the sender with its settled balance.
     let trace = DebugApiClient::<TransactionRequest>::debug_trace_call(
@@ -259,12 +275,35 @@ async fn test_rpc_replay_matches_sdm_settlement() -> eyre::Result<()> {
         "debug_traceCall prestate after the deployment",
     );
 
-    // trace_replayTransaction: a settled state diff.
-    let state_diff = HashSet::from_iter([TraceType::StateDiff]);
-    let results =
-        TraceApiClient::<TransactionRequest>::replay_transaction(&client, tx_hash, state_diff)
+    // debug_intermediateRoots: the root after the 0x7d tx is the header's.
+    let roots =
+        DebugApiClient::<TransactionRequest>::debug_intermediate_roots(&client, block.hash(), None)
             .await?;
+    assert_eq!(roots.len(), 2, "one root per transaction");
+    assert_eq!(roots[1], block.state_root(), "debug_intermediateRoots");
+
+    // trace_replayTransaction and trace_replayBlockTransactions: settled state diffs.
+    let state_diff = HashSet::from_iter([TraceType::StateDiff]);
+    let results = TraceApiClient::<TransactionRequest>::replay_transaction(
+        &client,
+        tx_hash,
+        state_diff.clone(),
+    )
+    .await?;
     assert_state_diff_settled(results.state_diff.as_ref(), sender, &committed_balance)?;
+    let results = TraceApiClient::<TransactionRequest>::replay_block_transactions(
+        &client,
+        block.hash().into(),
+        state_diff,
+    )
+    .await?
+    .expect("block exists");
+    assert_eq!(results.len(), 2, "one replay per transaction, including the post-exec tx");
+    assert_state_diff_settled(
+        results[0].full_trace.state_diff.as_ref(),
+        sender,
+        &committed_balance,
+    )?;
 
     Ok(())
 }
@@ -288,6 +327,14 @@ fn prestate_tracer(config: PreStateConfig) -> GethDebugTracingOptions {
     GethDebugTracingOptions::default()
         .with_tracer(GethDebugTracerType::BuiltInTracer(GethDebugBuiltInTracerType::PreStateTracer))
         .with_config(GethDebugTracerConfig::from(config))
+}
+
+/// Returns the gas reported by a successful default (struct logger) trace.
+fn default_trace_gas(trace: &TraceResult<GethTrace, String>) -> u64 {
+    match trace {
+        TraceResult::Success { result: GethTrace::Default(frame), .. } => frame.gas,
+        other => panic!("unexpected trace shape: {other:?}"),
+    }
 }
 
 /// Asserts that the sender's balance changes and that every balance a parity state diff ends on is
