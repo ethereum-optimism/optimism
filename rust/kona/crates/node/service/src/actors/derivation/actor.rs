@@ -8,10 +8,12 @@ use crate::{
 use async_trait::async_trait;
 use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, PipelineResult, ResetError,
-    ResetSignal, Signal, SignalReceiver, StepResult,
+    Signal, SignalReceiver, StepResult,
 };
 use kona_engine::FinalizeBlockId;
-use kona_protocol::{BlockInfo, OpAttributesWithParent};
+use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
+use kona_safedb::{SafeDb, SafeDbError};
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::{mpsc, watch};
 
@@ -39,6 +41,10 @@ where
     derivation_state_machine: DerivationStateMachine,
     /// The [`L2Finalizer`] tracks derived L2 blocks awaiting finalization.
     pub(crate) finalizer: L2Finalizer,
+    /// Records the safe head reached as of each locally derived L1 block.
+    safe_db: Option<Arc<dyn SafeDb>>,
+    /// The attributes sent to the engine and not yet confirmed as a safe head.
+    attributes_awaiting_confirmation: Option<OpAttributesWithParent>,
 }
 
 impl<DerivationEngineClient_, PipelineSignalReceiver>
@@ -52,6 +58,7 @@ where
         engine_client: DerivationEngineClient_,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
         pipeline: PipelineSignalReceiver,
+        safe_db: Option<Arc<dyn SafeDb>>,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
     ) -> Self {
         Self {
@@ -61,13 +68,25 @@ where
             engine_client,
             derivation_state_machine: DerivationStateMachine::default(),
             finalizer: L2Finalizer::default(),
+            safe_db,
+            attributes_awaiting_confirmation: None,
         }
     }
 
     /// Handles a [`Signal`] received over the derivation signal receiver channel.
-    async fn signal(&mut self, signal: Signal) {
+    async fn signal(&mut self, signal: Signal) -> Result<(), DerivationError> {
         let result = match signal {
-            Signal::Reset(reset) => self.signal_reset(reset).await,
+            Signal::Reset(reset) => {
+                self.derivation_origin_tx.send_replace(None);
+                self.finalizer.clear();
+                self.attributes_awaiting_confirmation = None;
+                self.truncate_safe_db(reset.l2_safe_head, "engine reset")?;
+                let result = self.pipeline.signal(Signal::Reset(reset)).await;
+                if result.is_ok() {
+                    self.derivation_origin_tx.send_replace(self.pipeline.origin());
+                }
+                result
+            }
             Signal::Activation(activation) => self.signal_activation(activation).await,
             Signal::FlushChannel => self.signal_flush_channel().await,
         };
@@ -78,14 +97,6 @@ where
             }
         }
         self.publish_origin();
-    }
-
-    /// Resets the pipeline and clears finalization and origin state before the reset starts.
-    async fn signal_reset(&mut self, reset: ResetSignal) -> PipelineResult<()> {
-        self.derivation_origin_tx.send_replace(None);
-        self.finalizer.clear();
-        self.pipeline.signal(Signal::Reset(reset)).await?;
-        self.derivation_origin_tx.send_replace(self.pipeline.origin());
         Ok(())
     }
 
@@ -200,8 +211,12 @@ where
     ) -> Result<(), DerivationError> {
         match request_type {
             DerivationActorRequest::ProcessEngineSignalRequest(signal) => {
-                self.signal(*signal).await;
-                self.derivation_state_machine.update(&DerivationStateUpdate::SignalProcessed)?;
+                self.signal(*signal).await?;
+                // A channel flush leaves the outstanding engine confirmation pending.
+                if !matches!(*signal, Signal::FlushChannel) {
+                    self.derivation_state_machine
+                        .update(&DerivationStateUpdate::SignalProcessed)?;
+                }
             }
             DerivationActorRequest::ProcessFinalizedL1Block(finalized_l1_block) => {
                 // Attempt to finalize the block. If successful, notify engine.
@@ -225,19 +240,87 @@ where
             DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(safe_head) => {
                 info!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
                 self.derivation_state_machine
-                    .update(&DerivationStateUpdate::NewAttributesConfirmed(safe_head))?;
+                    .update(&DerivationStateUpdate::NewAttributesConfirmed(safe_head.clone()))?;
+                self.settle_derived_attributes(*safe_head)?;
 
                 self.attempt_derivation().await?;
             }
             DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head) => {
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
                 self.derivation_state_machine
-                    .update(&DerivationStateUpdate::ELSyncCompleted(safe_head))?;
+                    .update(&DerivationStateUpdate::ELSyncCompleted(safe_head.clone()))?;
+                self.truncate_safe_db(*safe_head, "EL sync completion")?;
 
                 self.attempt_derivation().await?;
             }
         }
 
+        Ok(())
+    }
+
+    /// Records and queues for finalization the attributes that `safe_head` confirms.
+    ///
+    /// A head that confirms nothing pending was adopted by the engine rather than derived here,
+    /// so there is nothing to record. Finalization is queued only once the record is written, so
+    /// the engine's finalized head can never run ahead of the recorded history.
+    fn settle_derived_attributes(&mut self, safe_head: L2BlockInfo) -> Result<(), DerivationError> {
+        let Some(attributes) = self.attributes_awaiting_confirmation.take() else {
+            debug!(
+                target: "derivation",
+                safe_head = safe_head.block_info.number,
+                "Safe head confirms no derived attributes"
+            );
+            return Ok(());
+        };
+        if !attributes_produce(&attributes, &safe_head) {
+            warn!(
+                target: "derivation",
+                expected = attributes.block_number(),
+                safe_head = safe_head.block_info.number,
+                "Safe head does not match the derived attributes awaiting confirmation"
+            );
+            return Ok(());
+        }
+        if let (Some(database), Some(derived_from)) = (&self.safe_db, attributes.derived_from) {
+            debug!(target: "derivation", l1_block = derived_from.number, safe_head = safe_head.block_info.number, "Recording safe head");
+            database.safe_head_updated(safe_head, derived_from.id()).inspect_err(|error| {
+                error!(target: "derivation", %error, l1_block = derived_from.number, safe_head = safe_head.block_info.number, "Failed to record safe head");
+            })?;
+            debug!(target: "derivation", l1_block = derived_from.number, safe_head = safe_head.block_info.number, "Recorded safe head");
+        }
+        self.finalizer.enqueue_for_finalization(&attributes);
+        Ok(())
+    }
+
+    fn truncate_safe_db(&self, resume_head: L2BlockInfo, reason: &str) -> Result<(), SafeDbError> {
+        let Some(database) = &self.safe_db else {
+            return Ok(());
+        };
+        debug!(target: "derivation", reason, resume_head = resume_head.block_info.number, "Reading safe head database tip before truncation");
+        match database.last_entry() {
+            Ok(tip) if tip.safe_head.number < resume_head.block_info.number => {
+                warn!(target: "derivation", reason, resume_head = resume_head.block_info.number, tip = tip.safe_head.number, "Safe head database tip is below the resume point; clearing history to avoid a gap");
+                database.clear().inspect_err(|error| {
+                    error!(target: "derivation", %error, reason, resume_head = resume_head.block_info.number, "Failed to clear safe head database");
+                })?;
+                info!(target: "derivation", reason, resume_head = resume_head.block_info.number, "Cleared safe head database");
+                return Ok(());
+            }
+            Ok(tip) => {
+                debug!(target: "derivation", reason, tip = tip.safe_head.number, "Read safe head database tip")
+            }
+            Err(SafeDbError::NotFound) => {
+                debug!(target: "derivation", reason, "Safe head database has no recorded history")
+            }
+            Err(error) => {
+                warn!(target: "derivation", %error, reason, resume_head = resume_head.block_info.number, "Failed to read safe head database tip before truncation")
+            }
+        }
+        info!(target: "derivation", reason, resume_head = resume_head.block_info.number, "Truncating safe head database");
+        database.safe_head_reset(resume_head).inspect_err(|error| {
+            error!(target: "derivation", %error, reason, resume_head = resume_head.block_info.number, "Failed to truncate safe head database");
+        })?;
+        info!(target: "derivation", reason, resume_head = resume_head.block_info.number, "Truncated safe head database");
         Ok(())
     }
 
@@ -268,9 +351,7 @@ where
         self.derivation_state_machine.update(&DerivationStateUpdate::NewAttributesDerived(
             Box::new(payload_attributes.clone()),
         ))?;
-
-        // Enqueue the payload attributes for finalization tracking.
-        self.finalizer.enqueue_for_finalization(&payload_attributes);
+        self.attributes_awaiting_confirmation = Some(payload_attributes.clone());
 
         // Send payload attributes out for processing.
         self.engine_client
@@ -280,6 +361,12 @@ where
 
         Ok(())
     }
+}
+
+/// Whether `safe_head` is the block that `attributes` build on their parent.
+fn attributes_produce(attributes: &OpAttributesWithParent, safe_head: &L2BlockInfo) -> bool {
+    attributes.block_number() == safe_head.block_info.number &&
+        attributes.parent.block_info.hash == safe_head.block_info.parent_hash
 }
 
 #[async_trait]
@@ -318,284 +405,14 @@ pub enum DerivationError {
     /// Failed to receive inbound request
     #[error("Failed to receive inbound request")]
     RequestReceiveFailed,
+    /// A safe head database write failed. The actor stops rather than leave a gap that later
+    /// queries would serve as an older safe head.
+    #[error("safe head db write failed")]
+    SafeDbError(#[from] SafeDbError),
     /// An invalid state transition occurred.
     #[error(transparent)]
     StateTransitionError(#[from] DerivationStateTransitionError),
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::actors::derivation::engine_client::MockDerivationEngineClient;
-    use alloy_primitives::B256;
-    use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
-    use kona_protocol::{BlockInfo, L2BlockInfo};
-    use rstest::rstest;
-    use std::sync::Arc;
-
-    /// A pipeline stub that returns `step_result` once, then yields. Origin advances increment
-    /// its L1 block number, and a reset moves it to the safe head's L1 origin.
-    #[derive(Debug)]
-    struct StubPipeline {
-        rollup_config: Arc<RollupConfig>,
-        origin: BlockInfo,
-        step_result: StepResult,
-        reset_error: Option<PipelineErrorKind>,
-    }
-
-    impl Iterator for StubPipeline {
-        type Item = OpAttributesWithParent;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            None
-        }
-    }
-
-    impl kona_derive::OriginProvider for StubPipeline {
-        fn origin(&self) -> Option<BlockInfo> {
-            Some(self.origin)
-        }
-    }
-
-    #[async_trait]
-    impl SignalReceiver for StubPipeline {
-        async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-            if let Signal::Reset(reset) = signal {
-                if let Some(error) = self.reset_error.take() {
-                    return Err(error);
-                }
-                self.origin = BlockInfo {
-                    number: reset.l2_safe_head.l1_origin.number,
-                    hash: reset.l2_safe_head.l1_origin.hash,
-                    ..Default::default()
-                };
-            }
-            Ok(())
-        }
-    }
-
-    #[async_trait]
-    impl Pipeline for StubPipeline {
-        fn peek(&self) -> Option<&OpAttributesWithParent> {
-            None
-        }
-
-        async fn step(&mut self, _: L2BlockInfo) -> StepResult {
-            let result = std::mem::replace(
-                &mut self.step_result,
-                StepResult::StepFailed(PipelineError::Eof.temp()),
-            );
-            if matches!(result, StepResult::AdvancedOrigin | StepResult::OriginAdvanceErr(_)) {
-                self.origin.number += 1;
-            }
-            result
-        }
-
-        fn rollup_config(&self) -> &RollupConfig {
-            &self.rollup_config
-        }
-
-        async fn system_config_by_l2_hash(
-            &mut self,
-            _: B256,
-        ) -> Result<SystemConfig, PipelineErrorKind> {
-            Ok(SystemConfig::default())
-        }
-    }
-
-    /// A pipeline-driven reset must always reach the engine actor. The engine's reset is what
-    /// sends the pipeline its [`Signal`] back; without it the actor parks in
-    /// [`DerivationState::AwaitingSignal`] forever.
-    #[rstest]
-    #[case::interop_inactive(None)]
-    #[case::interop_active(Some(0))]
-    #[tokio::test]
-    async fn test_pipeline_reset_always_resets_engine(#[case] lagoon_time: Option<u64>) {
-        let rollup_config = Arc::new(RollupConfig {
-            hardforks: HardForkConfig { lagoon_time, ..Default::default() },
-            ..Default::default()
-        });
-
-        let mut engine_client = MockDerivationEngineClient::new();
-        engine_client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
-
-        let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
-        let (request_tx, request_rx) = mpsc::channel(1);
-        let mut actor = DerivationActor::new(
-            engine_client,
-            request_rx,
-            StubPipeline {
-                rollup_config: rollup_config.clone(),
-                origin: BlockInfo::default(),
-                reset_error: None,
-                step_result: StepResult::StepFailed(
-                    ResetError::ReorgDetected(B256::ZERO, B256::repeat_byte(1)).reset(),
-                ),
-            },
-            derivation_origin_tx,
-        );
-
-        request_tx
-            .send(DerivationActorRequest::ProcessEngineSignalRequest(Box::new(Signal::Reset(
-                kona_derive::ResetSignal { l2_safe_head: L2BlockInfo::default() },
-            ))))
-            .await
-            .unwrap();
-        actor.step().await.unwrap();
-        assert!(derivation_origin_rx.borrow().is_some());
-
-        // Complete EL sync so the actor starts deriving, then let it hit the reorg.
-        request_tx
-            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::default()))
-            .await
-            .unwrap();
-        actor.step().await.unwrap();
-
-        assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingSignal);
-        assert!(derivation_origin_rx.borrow().is_none());
-    }
-
-    /// `optimism_syncStatus` serves the published origin as `current_l1`, so it must follow the
-    /// pipeline forward, including across a Holocene activation, and back on a reset.
-    #[rstest]
-    #[case::advanced_origin(StepResult::AdvancedOrigin)]
-    #[case::holocene_activation(StepResult::OriginAdvanceErr(ResetError::HoloceneActivation.reset()))]
-    #[tokio::test]
-    async fn test_origin_is_published(#[case] step_result: StepResult) {
-        let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
-        let (request_tx, request_rx) = mpsc::channel(1);
-        let mut actor = DerivationActor::new(
-            MockDerivationEngineClient::new(),
-            request_rx,
-            StubPipeline {
-                rollup_config: Arc::new(RollupConfig::default()),
-                origin: BlockInfo::default(),
-                step_result,
-                reset_error: None,
-            },
-            derivation_origin_tx,
-        );
-
-        let mut safe_head = L2BlockInfo::default();
-        safe_head.l1_origin.number = 10;
-        safe_head.l1_origin.hash = B256::repeat_byte(10);
-        let reset = || {
-            DerivationActorRequest::ProcessEngineSignalRequest(Box::new(Signal::Reset(
-                kona_derive::ResetSignal { l2_safe_head: safe_head },
-            )))
-        };
-
-        request_tx.send(reset()).await.unwrap();
-        actor.step().await.unwrap();
-        assert_eq!(
-            derivation_origin_rx.borrow().map(|origin| origin.id()),
-            Some(safe_head.l1_origin)
-        );
-
-        request_tx
-            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(safe_head)))
-            .await
-            .unwrap();
-        actor.step().await.unwrap();
-        assert_eq!(derivation_origin_rx.borrow().unwrap().number, 11);
-
-        request_tx.send(reset()).await.unwrap();
-        actor.step().await.unwrap();
-        assert_eq!(
-            derivation_origin_rx.borrow().map(|origin| origin.id()),
-            Some(safe_head.l1_origin)
-        );
-    }
-
-    #[rstest]
-    #[case::activation(Signal::Activation(ActivationSignal::default()))]
-    #[case::flush_channel(Signal::FlushChannel)]
-    #[tokio::test]
-    async fn test_non_reset_signal_does_not_publish_uninitialized_origin(#[case] signal: Signal) {
-        let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
-        let (_request_tx, request_rx) = mpsc::channel(1);
-        let mut actor = DerivationActor::new(
-            MockDerivationEngineClient::new(),
-            request_rx,
-            StubPipeline {
-                rollup_config: Arc::new(RollupConfig::default()),
-                origin: BlockInfo::default(),
-                step_result: StepResult::AdvancedOrigin,
-                reset_error: None,
-            },
-            derivation_origin_tx,
-        );
-
-        actor.signal(signal).await;
-        assert!(derivation_origin_rx.borrow().is_none());
-        assert!(matches!(actor.produce_next_attributes().await, Err(DerivationError::Yield)));
-        assert_eq!(actor.pipeline.origin.number, 1);
-        assert!(derivation_origin_rx.borrow().is_none());
-    }
-
-    #[rstest]
-    #[case::activation(Signal::Activation(ActivationSignal::default()))]
-    #[case::flush_channel(Signal::FlushChannel)]
-    #[tokio::test]
-    async fn test_failed_reset_keeps_origin_unpublished_until_successful_reset(
-        #[case] signal: Signal,
-    ) {
-        let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
-        let (request_tx, request_rx) = mpsc::channel(1);
-        let mut actor = DerivationActor::new(
-            MockDerivationEngineClient::new(),
-            request_rx,
-            StubPipeline {
-                rollup_config: Arc::new(RollupConfig::default()),
-                origin: BlockInfo::default(),
-                reset_error: None,
-                step_result: StepResult::AdvancedOrigin,
-            },
-            derivation_origin_tx,
-        );
-
-        let mut safe_head = L2BlockInfo::default();
-        safe_head.l1_origin.number = 10;
-        safe_head.l1_origin.hash = B256::repeat_byte(10);
-        let reset = || {
-            DerivationActorRequest::ProcessEngineSignalRequest(Box::new(Signal::Reset(
-                kona_derive::ResetSignal { l2_safe_head: safe_head },
-            )))
-        };
-        request_tx.send(reset()).await.unwrap();
-        actor.step().await.unwrap();
-        assert_eq!(
-            derivation_origin_rx.borrow().map(|origin| origin.id()),
-            Some(safe_head.l1_origin)
-        );
-
-        // A reset can fail before it replaces the old origin, for example on an L2 RPC error.
-        actor.pipeline.reset_error = Some(PipelineError::Eof.temp());
-        request_tx.send(reset()).await.unwrap();
-        actor.step().await.unwrap();
-        assert_eq!(actor.pipeline.origin.id(), safe_head.l1_origin);
-        assert!(derivation_origin_rx.borrow().is_none());
-
-        // Neither a successful non-reset signal nor a step makes that origin valid again.
-        request_tx
-            .send(DerivationActorRequest::ProcessEngineSignalRequest(Box::new(signal)))
-            .await
-            .unwrap();
-        actor.step().await.unwrap();
-        assert!(derivation_origin_rx.borrow().is_none());
-        request_tx
-            .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(safe_head)))
-            .await
-            .unwrap();
-        actor.step().await.unwrap();
-        assert_eq!(actor.pipeline.origin.number, 11);
-        assert!(derivation_origin_rx.borrow().is_none());
-
-        request_tx.send(reset()).await.unwrap();
-        actor.step().await.unwrap();
-        assert_eq!(
-            derivation_origin_rx.borrow().map(|origin| origin.id()),
-            Some(safe_head.l1_origin)
-        );
-    }
-}
+mod tests;

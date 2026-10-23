@@ -172,8 +172,7 @@ mod safe_db {
         db.safe_head_updated(l2b, l1b).unwrap();
         verify(&db);
 
-        // Close and reopen to confirm the data is durable.
-        db.close().unwrap();
+        drop(db);
         let reopened = SafeDatabase::new(dir.path()).unwrap();
         verify(&reopened);
     }
@@ -241,12 +240,6 @@ mod safe_db {
         db.safe_head_updated(l2a, l1a).unwrap();
 
         assert_record(db.last_entry().unwrap(), l1b, l2b.block_info.id());
-    }
-
-    #[test]
-    fn reports_enabled() {
-        let (_dir, db) = open();
-        assert!(db.enabled());
     }
 
     #[test]
@@ -325,6 +318,20 @@ mod safe_db {
         verify(&db);
     }
 
+    #[test]
+    fn clear_removes_every_entry() {
+        let (_dir, db) = open();
+        db.safe_head_updated(l2(0x02, 0xaa, 20, 0), id(0x01, 0xaa, 100)).unwrap();
+        db.safe_head_updated(l2(0x02, 0xbb, 25, 0), id(0x01, 0xbb, 150)).unwrap();
+
+        db.clear().unwrap();
+
+        assert!(matches!(db.first_entry(), Err(SafeDbError::NotFound)));
+        assert!(matches!(db.last_entry(), Err(SafeDbError::NotFound)));
+        assert!(matches!(db.safe_head_at_l1(150), Err(SafeDbError::NotFound)));
+        assert!(matches!(db.l1_at_safe_head(20), Err(SafeDbError::L1AtSafeHeadNotFound)));
+    }
+
     fn populated_l1_at_safe_head_db() -> (TempDir, SafeDatabase) {
         let (dir, db) = open();
         db.safe_head_updated(l2(0x02, 0xaa, 500, 0), id(0x01, 0xaa, 100)).unwrap();
@@ -364,33 +371,10 @@ mod safe_db {
     }
 
     #[test]
-    fn operations_after_close_report_closed() {
-        let (_dir, db) = open();
-        db.close().unwrap();
-        assert!(matches!(db.safe_head_at_l1(100), Err(SafeDbError::Closed)));
-        // Close is idempotent.
-        db.close().unwrap();
-    }
-
-    #[test]
     fn open_on_locked_path_returns_backend_error() {
         // rocksdb holds an exclusive lock on an open database directory, so a second open of the
         // same path surfaces a backend error.
         let (dir, _held) = open();
         assert!(matches!(SafeDatabase::new(dir.path()), Err(SafeDbError::Backend(_))));
-    }
-}
-
-mod disabled {
-    use crate::{DisabledDatabase, SafeDb, SafeDbError};
-
-    #[test]
-    fn l1_at_safe_head_disabled() {
-        assert!(matches!(DisabledDatabase.l1_at_safe_head(500), Err(SafeDbError::NotEnabled)));
-    }
-
-    #[test]
-    fn reports_disabled() {
-        assert!(!DisabledDatabase.enabled());
     }
 }

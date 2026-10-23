@@ -7648,6 +7648,7 @@ dependencies = [
  "kona-providers-alloy",
  "kona-providers-local",
  "kona-rpc",
+ "kona-safedb",
  "kona-sources",
  "libp2p",
  "libp2p-stream",
@@ -7661,6 +7662,7 @@ dependencies = [
  "rstest",
  "serde_json",
  "strum",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
@@ -7950,7 +7952,6 @@ dependencies = [
  "rstest",
  "tempfile",
  "thiserror 2.0.18",
- "tracing",
 ]
 
 [[package]]
