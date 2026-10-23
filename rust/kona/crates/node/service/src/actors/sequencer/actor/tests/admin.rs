@@ -77,7 +77,8 @@ async fn stop_is_published_before_a_failed_unsafe_head_read() {
     });
     let error =
         command(&mut actor, &commands, SequencerAdminCommand::StopSequencer).await.unwrap_err();
-    assert!(matches!(error, SequencerAdminAPIError::ErrorAfterSequencerWasStopped(_)));
+    assert!(matches!(error, SequencerAdminAPIError::UnsafeHeadError(_)));
+    assert!(error.to_string().contains("whoops!"));
     assert!(!state.borrow().active);
 }
 
@@ -190,7 +191,7 @@ async fn rpc_reads_published_state_after_commands() {
 #[tokio::test(start_paused = true)]
 async fn state_updates_without_rpc_subscribers() {
     let (mut actor, commands) = admin_actor(true, false, None);
-    assert_eq!(actor.state.receiver_count(), 0);
+    assert_eq!(actor.state_tx.receiver_count(), 0);
     command(&mut actor, &commands, |tx| SequencerAdminCommand::SetRecoveryMode(true, tx))
         .await
         .unwrap();

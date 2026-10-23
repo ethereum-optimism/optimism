@@ -73,6 +73,8 @@ impl OpP2PApiServer for P2pRpc {
                 "/meshsub/1.0.0".to_string(),
                 "/floodsub/1.0.0".to_string(),
             ]),
+            // Preserve the self-response values from the gossip RPC handler. Connection
+            // direction, protection, latency, and peer scores do not describe a remote peer here.
             connectedness: Connectedness::Connected,
             direction: Direction::Inbound,
             protected: false,
