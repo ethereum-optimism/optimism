@@ -169,9 +169,10 @@ impl Discv5Driver {
     ///
     /// Dropping only the handler, or only the ENR receiver, keeps it running for the other.
     ///
-    /// Requests sent during startup are answered once it completes. When the task stops, pending
-    /// requests are dropped, so their response receivers return an error, and the ENR receiver
-    /// returns `None`.
+    /// Requests sent before the handler is dropped are answered, those sent during startup once it
+    /// completes. If the task stops for another reason, pending requests are dropped, so their
+    /// response receivers return an error. When the task stops, the ENR receiver returns `None`
+    /// once drained.
     pub fn start(self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>) {
         let (handler, enr_recv, _task) = self.spawn();
         (handler, enr_recv)
@@ -180,9 +181,7 @@ impl Discv5Driver {
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
     ///
     /// Same as [`Discv5Driver::start`], but also returns the [`JoinHandle`] of the task.
-    fn spawn(
-        mut self,
-    ) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>, JoinHandle<()>) {
+    fn spawn(mut self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>, JoinHandle<()>) {
         let chain_id = self.chain_id;
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
         let (enr_sender, enr_recv) = channel::<Enr>(1024);
@@ -240,12 +239,17 @@ impl Discv5Driver {
             };
 
             // Step 4: Run the core driver loop.
+            let mut handlers_dropped = false;
             loop {
                 tokio::select! {
-                    // Once every handler is dropped, `recv` returns `None`, which doesn't
-                    // match the pattern and disables this branch. Discovery keeps running
-                    // for consumers of the ENR receiver.
-                    Some(msg) = req_recv.recv() => {
+                    msg = req_recv.recv(), if !handlers_dropped => {
+                        // `recv` returns `None` once every handler is dropped and the requests
+                        // sent before that are handled. Discovery keeps running for consumers
+                        // of the ENR receiver.
+                        let Some(msg) = msg else {
+                            handlers_dropped = true;
+                            continue;
+                        };
                         match msg {
                             HandlerRequest::Metrics(tx) => {
                                 let metrics = Discv5::metrics();
@@ -302,7 +306,7 @@ impl Discv5Driver {
                         }
                     }
                     // Nobody is left to send requests or to receive ENRs.
-                    _ = enr_sender.closed(), if req_recv.is_closed() => {
+                    _ = enr_sender.closed(), if handlers_dropped => {
                         debug!(target: "discovery", "Handler and ENR receiver dropped, stopping discovery");
                         return;
                     }
@@ -452,10 +456,19 @@ mod tests {
     #[tokio::test]
     async fn test_discv5_driver_stops_when_handler_and_receiver_dropped() {
         let (handler, enr_recv, task) = offline_driver().spawn();
+
+        // Requests are only answered by the main loop, so startup is done once this returns.
+        handler.peer_count().await.expect("driver should not drop the request");
+        // Let the intervals fire their immediate first ticks, so the loop is idle.
+        sleep(Duration::from_millis(100)).await;
+
+        // Drop the handler first, like the network actor does, while the loop is waiting.
         drop(handler);
+        sleep(Duration::from_millis(10)).await;
         drop(enr_recv);
 
-        tokio::time::timeout(Duration::from_secs(5), task)
+        // Well within the discovery interval, so the driver must not wait for the next tick.
+        tokio::time::timeout(Duration::from_secs(1), task)
             .await
             .expect("driver task should stop once nobody is listening")
             .expect("driver task should not panic");
@@ -474,6 +487,23 @@ mod tests {
 
         sleep(Duration::from_millis(500)).await;
         assert!(!task.is_finished(), "driver task should keep running for the ENR receiver");
+    }
+
+    #[tokio::test]
+    async fn test_discv5_driver_answers_requests_sent_before_handler_dropped() {
+        // `select!` picks a random branch among those ready, so a race between handling the
+        // request and stopping would only fail some of the time.
+        for _ in 0..20 {
+            let (handler, enr_recv, _task) = offline_driver().spawn();
+            let reply = handler.peer_count();
+            drop(handler);
+            drop(enr_recv);
+
+            tokio::time::timeout(Duration::from_secs(5), reply)
+                .await
+                .expect("driver should answer requests")
+                .expect("driver should not drop requests sent before the handler was dropped");
+        }
     }
 
     #[tokio::test]
