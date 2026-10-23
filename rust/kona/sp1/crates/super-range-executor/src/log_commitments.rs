@@ -37,6 +37,7 @@ use kona_sp1_ethereum_client_utils::{
 };
 use kona_sp1_host_utils::witness_generation::PreimageWitnessCollector;
 use lru::LruCache;
+use op_alloy_consensus::OpReceiptEnvelope;
 use tokio::sync::Notify;
 
 /// A block below a local safe head that the consolidation read through its receipts, because the
@@ -339,13 +340,12 @@ where
     }
 
     fn build_leaves(&self) -> Result<Vec<B256>> {
-        kona_proof::block_on(
-            HintType::L2Receipts
-                .with_data(&[self.block_hash.as_slice(), &self.chain_id.to_be_bytes()])
-                .send(self.receipts_oracle.as_ref()),
-        )?;
-        let receipts = receipts_from_trie(self.receipts_oracle.as_ref(), self.entry.receipts_root)
-            .map_err(|err| anyhow!("receipts of block {}: {err}", self.block_hash))?;
+        let receipts = kona_proof::block_on(hinted_receipts(
+            self.receipts_oracle.as_ref(),
+            self.chain_id,
+            self.block_hash,
+            self.entry.receipts_root,
+        ))?;
         Ok(log_leaves(&receipts))
     }
 }
@@ -366,6 +366,22 @@ fn read_leaves(path: &Path) -> Result<Option<Vec<B256>>> {
         bytes.len()
     );
     Ok(Some(bytes.chunks_exact(B256::len_bytes()).map(B256::from_slice).collect()))
+}
+
+/// The receipts of `block_hash` of `chain_id`, whose receipts root is `receipts_root`, read
+/// through `oracle` after hinting kona-host for them.
+pub(crate) async fn hinted_receipts<O: CommsClient>(
+    oracle: &O,
+    chain_id: u64,
+    block_hash: B256,
+    receipts_root: B256,
+) -> Result<Vec<OpReceiptEnvelope>> {
+    HintType::L2Receipts
+        .with_data(&[block_hash.as_slice(), &chain_id.to_be_bytes()])
+        .send(oracle)
+        .await?;
+    receipts_from_trie(oracle, receipts_root)
+        .map_err(|err| anyhow!("receipts of block {block_hash}: {err}"))
 }
 
 impl<O> LogCommitment for NativeBlock<O>

@@ -39,13 +39,11 @@ use kona_sp1_client_utils::{
 use kona_sp1_ethereum_client_utils::chain_config::ChainConfigs;
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use kona_sp1_super_range_executor::{
-    HostInputs, InteropHost, OptimisticBlockReceipts, ScannedTimestampCost,
-    SuperRootAtTimestampResponse, SynthesizedExecution, build_interop_host,
-    build_super_consolidation_stdin, build_super_range_stdin, collect_consolidation_witness,
-    collect_range_witness, decode_super_consolidation_public_values,
+    HostInputs, ScannedTimestampCost, SuperRootAtTimestampResponse, SynthesizedExecution,
+    build_interop_host, build_super_consolidation_stdin, build_super_range_stdin,
+    collect_consolidation_witness, collect_range_witness, decode_super_consolidation_public_values,
     decode_super_range_public_values, deployment_chain_configs, estimate_consolidation_pgu,
-    is_witness_too_large, optimistic_block_receipts, proof_from_super_v1,
-    replaced_agreed_output_preimages, synthesize_execution, write_log_commitment_proofs,
+    is_witness_too_large, proof_from_super_v1, synthesize_execution, write_log_commitment_proofs,
 };
 use parking_lot::Mutex;
 use serde::Serialize;
@@ -56,6 +54,7 @@ use tracing::Instrument;
 pub use crate::ports::GameProofInputs;
 
 use crate::{
+    adapters::HostReplacedBlocks,
     config::{LogPath, RangeSplitCount, StdinByteLimit},
     log_proofs::{
         CollectedRequest, EstimateOverBudget, LogBatch, LogBatchProver, MockLogProver,
@@ -63,7 +62,7 @@ use crate::{
         make_log_batches, request_budget, scan::scan_span, timestamp_costs,
     },
     metrics::ProposerGauge,
-    ports::{L2BlockSource, ReplacedBlockSource, SuperRootSource},
+    ports::{L2BlockSource, SuperRootSource},
     prover::{
         MOCK_PROOF_BYTES, ProofId, ProofKeys, ProofProvider, ProofTerminalState, ProofWaitError,
     },
@@ -1171,14 +1170,10 @@ async fn check_span(
         timestamps.end,
         preimage_store(range_dir.as_ref()).as_deref(),
     )?;
-    let replaced =
-        replaced_agreed_output_preimages(range_host.clone(), &synthesized.replaced_agreed_outputs)
-            .await
-            .with_context(|| {
-                format!("failed to read the replaced agreed outputs of span {timestamps:?}")
-            })?;
-    ProposerGauge::ReplacedAgreedOutputsRead.increment(replaced.len() as f64);
-    synthesized.preloaded_preimages.extend(replaced);
+    let read = synthesized.preload_replaced_agreed_outputs(range_host.clone()).await.with_context(
+        || format!("failed to read the replaced agreed outputs of span {timestamps:?}"),
+    )?;
+    ProposerGauge::ReplacedAgreedOutputsRead.increment(read as f64);
     let configs =
         deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
     let collected = collect_range_witness(
@@ -1731,21 +1726,6 @@ async fn start_game_logs<'a>(
     };
     let proofs = start_log_batches(prover, Arc::clone(&stage)).await?;
     Ok(GameLogs { stage, proofs })
-}
-
-/// Replaced heads through kona-host (see [`optimistic_block_receipts`]).
-struct HostReplacedBlocks(InteropHost);
-
-#[async_trait::async_trait]
-impl ReplacedBlockSource for HostReplacedBlocks {
-    async fn replaced_block(
-        &self,
-        chain_id: u64,
-        parent: B256,
-        hash: B256,
-    ) -> Result<OptimisticBlockReceipts> {
-        optimistic_block_receipts(self.0.clone(), chain_id, parent, hash).await
-    }
 }
 
 /// Scans the span and, on the table path, makes the batches, with the requests of `previous` (see

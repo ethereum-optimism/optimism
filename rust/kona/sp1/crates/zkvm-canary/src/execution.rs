@@ -1,6 +1,6 @@
 //! Witness collection and SP1 CPU execution for one validated snapshot.
 
-use std::{borrow::Cow, collections::BTreeMap, num::NonZeroU64};
+use std::{collections::BTreeMap, num::NonZeroU64};
 
 use anyhow::{Context, Result, bail, ensure};
 use kona_sp1_client_utils::{
@@ -13,7 +13,7 @@ use kona_sp1_client_utils::{
 use kona_sp1_super_range_executor::{
     HostInputs, SynthesizedExecution, build_interop_host, build_super_consolidation_stdin,
     build_super_range_stdin, collect_consolidation_witness, collect_range_witness,
-    deployment_chain_configs, replaced_agreed_output_preimages,
+    deployment_chain_configs,
 };
 use sp1_core_executor::{ExecutionError, SP1CoreOpts};
 use sp1_sdk::{Elf, ExecutionReport, Prover, ProverClient, SP1PublicValues};
@@ -269,7 +269,7 @@ pub struct ExecutionResult {
 /// Executes range and consolidation against a synthesized canonical snapshot.
 pub(crate) async fn execute_snapshot(
     host_inputs: &HostInputs,
-    synthesized: &SynthesizedExecution,
+    synthesized: &mut SynthesizedExecution,
     artifact: &ValidatedRangeArtifact,
     cycle_limit: NonZeroU64,
     memory_limit: NonZeroU64,
@@ -308,26 +308,17 @@ pub(crate) async fn execute_snapshot(
         }
     };
     let range_witness = tokio::time::timeout_at(deadline, async {
-        let replaced = replaced_agreed_output_preimages(
-            range_host.clone(),
-            &synthesized.replaced_agreed_outputs,
-        )
-        .await?;
-        let mut preloaded = Cow::Borrowed(synthesized.preloaded_preimages.as_slice());
-        if !replaced.is_empty() {
-            preloaded.to_mut().extend(replaced);
-        }
-        let collected = collect_range_witness(
+        synthesized.preload_replaced_agreed_outputs(range_host.clone()).await?;
+        collect_range_witness(
             range_host,
             &synthesized.range_inputs,
-            &preloaded,
+            &synthesized.preloaded_preimages,
             Some(&configs),
         )
-        .await?;
-        Ok::<_, anyhow::Error>((collected, preloaded))
+        .await
     })
     .await;
-    let ((range_witness, native_range), preloaded) = match range_witness {
+    let (range_witness, native_range) = match range_witness {
         Ok(Ok(result)) => result,
         Ok(Err(error)) => {
             return infrastructure_result(
@@ -418,7 +409,7 @@ pub(crate) async fn execute_snapshot(
         collect_consolidation_witness(
             consolidation_host,
             &synthesized.consolidation_inputs,
-            &preloaded,
+            &synthesized.preloaded_preimages,
             Some(&configs),
             // TODO(proofs-team#30): take the table path for a below-head reference.
             &[],

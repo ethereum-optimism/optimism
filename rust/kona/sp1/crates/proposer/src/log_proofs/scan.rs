@@ -104,16 +104,13 @@ pub(crate) async fn scan_span(
             let head = match heads.get(&hash) {
                 Some(head) => head.clone(),
                 None => {
-                    let head = if replaced {
-                        let number = rollup_configs
-                            .get(&chain)
-                            .with_context(|| format!("no rollup config for chain {chain}"))?
-                            .block_number_from_timestamp(data.super_v1.timestamp);
-                        scan_replaced_head(source, replaced_blocks, chain, number, hash).await?
+                    let head = Arc::new(if replaced {
+                        let timestamp = data.super_v1.timestamp;
+                        scan_replaced_head(source, replaced_blocks, configs, chain, timestamp, hash)
+                            .await?
                     } else {
                         scan_head(source, chain, hash).await?
-                    };
-                    let head = Arc::new(head);
+                    });
                     heads.insert(hash, head.clone());
                     head
                 }
@@ -176,14 +173,20 @@ async fn scan_head(source: &dyn L2BlockSource, chain_id: u64, hash: B256) -> Res
 
 /// A head that the claimed super root replaced, read the way the consolidation reads it: through
 /// kona-host, which re-derives and re-executes it on its canonical parent. The supernode reports
-/// a denied block only at its own timestamp, so it is the block at `number`.
+/// a denied block only at its own timestamp, so it is the block at `timestamp`.
 async fn scan_replaced_head(
     source: &dyn L2BlockSource,
     replaced_blocks: &dyn ReplacedBlockSource,
+    configs: &ChainConfigs,
     chain_id: u64,
-    number: u64,
+    timestamp: u64,
     hash: B256,
 ) -> Result<ScannedHead> {
+    let number = configs
+        .rollup_configs
+        .get(&chain_id)
+        .with_context(|| format!("no rollup config for chain {chain_id}"))?
+        .block_number_from_timestamp(timestamp);
     let parent_number = number
         .checked_sub(1)
         .with_context(|| format!("replaced block {hash} of chain {chain_id} has no parent"))?;
@@ -296,19 +299,19 @@ mod tests {
         block: OptimisticBlockReceipts,
     }
 
-    /// Replaced blocks by hash.
+    /// Replaced blocks by chain and hash.
     #[derive(Default)]
-    struct FakeReplaced(BTreeMap<B256, Replaced>);
+    struct FakeReplaced(BTreeMap<(u64, B256), Replaced>);
 
     #[async_trait]
     impl ReplacedBlockSource for FakeReplaced {
         async fn replaced_block(
             &self,
-            _chain_id: u64,
+            chain_id: u64,
             parent: B256,
             hash: B256,
         ) -> Result<OptimisticBlockReceipts> {
-            match self.0.get(&hash) {
+            match self.0.get(&(chain_id, hash)) {
                 Some(replaced) if replaced.parent == parent => Ok(replaced.block.clone()),
                 _ => anyhow::bail!("unknown replaced block"),
             }
@@ -493,7 +496,7 @@ mod tests {
         let denied_header = header(3, 12, &executing.receipts);
         let denied = denied_header.hash_slow();
         let block = OptimisticBlockReceipts { header: denied_header, receipts: executing.receipts };
-        replaced.0.insert(denied, Replaced { parent: b2, block });
+        replaced.0.insert((B, denied), Replaced { parent: b2, block });
         let responses = SPAN
             .iter()
             .map(|&timestamp| {

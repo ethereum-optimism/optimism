@@ -27,7 +27,7 @@ use kona_preimage::{
     errors::PreimageOracleResult,
 };
 use kona_proof::{CachingOracle, FlushableCache, l1::OracleBlobProvider};
-use kona_proof_interop::{HintType, receipts_from_trie};
+use kona_proof_interop::HintType;
 use kona_sp1_client_utils::{
     log_commitment::{
         BlockReceipts, LogCommitmentInputs, LogOpening, VerifiedLogCommitments,
@@ -64,7 +64,7 @@ mod l2;
 pub use l2::L2BlockClient;
 mod log_commitments;
 pub use log_commitments::MissingLogCommitment;
-use log_commitments::{NativeConsolidation, run_native_consolidation};
+use log_commitments::{NativeConsolidation, hinted_receipts, run_native_consolidation};
 
 #[cfg(test)]
 mod consolidation_tests;
@@ -229,8 +229,8 @@ pub struct SynthesizedExecution {
     /// Typed inputs for the SP1 guest's consolidation mode.
     pub consolidation_inputs: SuperConsolidationInputs,
     /// Preimages that must be available before host hinting can discover the rest of the witness.
-    /// It lacks those of `replaced_agreed_outputs`, which [`replaced_agreed_output_preimages`]
-    /// reads.
+    /// Those of `replaced_agreed_outputs` join them through
+    /// [`Self::preload_replaced_agreed_outputs`].
     pub preloaded_preimages: Vec<(PreimageKey, Vec<u8>)>,
     /// The agreed outputs that the pre-span super root replaced. The supernode reports the denied
     /// block as optimistic at that timestamp, so the response holds no preimage of these.
@@ -239,6 +239,22 @@ pub struct SynthesizedExecution {
     pub current_super_root: B256,
     /// The pre-span super-root proof, encoded as the host agreed pre-state.
     pub previous_super_root_proof_bytes: Vec<u8>,
+}
+
+impl SynthesizedExecution {
+    /// Reads the preimages of `replaced_agreed_outputs` through `host` into
+    /// `preloaded_preimages`, leaving `replaced_agreed_outputs` empty, and returns how many it
+    /// read. `host` must agree on the pre-span super root, at whose timestamp kona-host's
+    /// `L2OutputRoot` hint computes the output (see [`replaced_agreed_output_preimages`]).
+    pub async fn preload_replaced_agreed_outputs(&mut self, host: InteropHost) -> Result<usize> {
+        ensure!(
+            host.agreed_l2_pre_state.as_ref() == self.previous_super_root_proof_bytes.as_slice(),
+            "the host must agree on the pre-span super root to read its replaced outputs",
+        );
+        let outputs = std::mem::take(&mut self.replaced_agreed_outputs);
+        self.preloaded_preimages.extend(replaced_agreed_output_preimages(host, &outputs).await?);
+        Ok(outputs.len())
+    }
 }
 
 /// The verdict of a `mode` replay that failed with `err`. A witness over the archive limit is the
@@ -274,7 +290,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
 
     let span = TimestampSpan::new(config.end_timestamp, config.end_timestamp)
         .context("failed to build single-timestamp span")?;
-    let synthesized =
+    let mut synthesized =
         synthesize_execution(span, config.l1_head, l1_head_number, &[previous, current])
             .context("failed to synthesize super-range inputs")?;
     let host_inputs = config.host_inputs();
@@ -288,12 +304,11 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     )?;
     let configs =
         deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
+    synthesized
+        .preload_replaced_agreed_outputs(range_host.clone())
+        .await
+        .context("failed to read the replaced agreed outputs")?;
     let mut preloaded_preimages = synthesized.preloaded_preimages.clone();
-    preloaded_preimages.extend(
-        replaced_agreed_output_preimages(range_host.clone(), &synthesized.replaced_agreed_outputs)
-            .await
-            .context("failed to read the replaced agreed outputs")?,
-    );
     if !config.native_core {
         // Test guests consume Local config keys; production guests ignore these preimages.
         for (key, bytes) in [
@@ -1065,18 +1080,13 @@ pub async fn optimistic_block_receipts(
     block_hash: B256,
 ) -> Result<OptimisticBlockReceipts> {
     let (_, block) = collect_witness(&[], host, |oracle, _beacon| async move {
-        let chain = chain_id.to_be_bytes();
         HintType::L2BlockData
-            .with_data(&[parent_hash.as_slice(), block_hash.as_slice(), chain.as_ref()])
+            .with_data(&[parent_hash.as_slice(), block_hash.as_slice(), &chain_id.to_be_bytes()])
             .send(oracle.as_ref())
             .await?;
         let header = fetch_l2_header(oracle.as_ref(), block_hash, chain_id).await?;
-        HintType::L2Receipts
-            .with_data(&[block_hash.as_slice(), chain.as_ref()])
-            .send(oracle.as_ref())
-            .await?;
-        let receipts = receipts_from_trie(oracle.as_ref(), header.receipts_root)
-            .map_err(|err| anyhow!("receipts of block {block_hash}: {err}"))?;
+        let receipts =
+            hinted_receipts(oracle.as_ref(), chain_id, block_hash, header.receipts_root).await?;
         Ok(OptimisticBlockReceipts { header, receipts })
     })
     .await?;
@@ -1086,9 +1096,9 @@ pub async fn optimistic_block_receipts(
 /// The output-root preimages of `outputs`, the agreed outputs that the pre-span super root
 /// replaced (see [`SynthesizedExecution::replaced_agreed_outputs`]), read through `host` with
 /// kona-host's `L2OutputRoot` hint. The hint computes the output of the L2 node's canonical block
-/// at the timestamp of the host's agreed pre-state, so `host` must agree on the pre-span super
-/// root. kona-host retries the hint until the node serves the block.
-pub async fn replaced_agreed_output_preimages(
+/// at the timestamp of the host's agreed pre-state. kona-host retries the hint until the node
+/// serves the block.
+async fn replaced_agreed_output_preimages(
     host: InteropHost,
     outputs: &[SuperOutputRoot],
 ) -> Result<Vec<(PreimageKey, Vec<u8>)>> {
@@ -1602,6 +1612,9 @@ struct RpcBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_consensus::{Receipt, ReceiptWithBloom, proofs::ordered_trie_root_with_encoder};
+    use alloy_eips::eip2718::Encodable2718;
+    use alloy_primitives::{Address, Log};
     use httpmock::{
         HttpMockRequest, HttpMockResponse, MockServer,
         prelude::{GET, POST},
@@ -1928,37 +1941,7 @@ mod tests {
         .marshal();
         let output_root = B256::from(keccak256(&preimage));
 
-        let server = MockServer::start_async().await;
-        server
-            .mock_async(|when, then| {
-                when.method(GET).path("/eth/v1/beacon/genesis");
-                then.status(200).json_body(json!({ "data": { "genesis_time": "10" } }));
-            })
-            .await;
-        server
-            .mock_async(|when, then| {
-                when.method(GET).path("/eth/v1/config/spec");
-                then.status(200).json_body(json!({ "data": { "SECONDS_PER_SLOT": "12" } }));
-            })
-            .await;
-        // Answers with `result` under the request's JSON-RPC id, which the client checks.
-        let rpc = |result: Value| {
-            move |request: &HttpMockRequest| {
-                let id = serde_json::from_slice::<Value>(&request.body().0).unwrap()["id"].clone();
-                HttpMockResponse::builder()
-                    .status(200)
-                    .header("content-type", "application/json")
-                    .body(json!({ "jsonrpc": "2.0", "id": id, "result": result }).to_string())
-                    .build()
-            }
-        };
-        server
-            .mock_async(|when, then| {
-                when.method(POST)
-                    .json_body_includes(json!({ "method": "eth_chainId" }).to_string());
-                then.respond_with(rpc(json!("0xa")));
-            })
-            .await;
+        let server = mock_nodes().await;
         // Only the canonical block at the agreed timestamp is served, by number.
         let header_read = server
             .mock_async(|when, then| {
@@ -1966,7 +1949,7 @@ mod tests {
                     json!({ "method": "debug_getRawHeader", "params": [format!("0x{number:x}")] })
                         .to_string(),
                 );
-                then.respond_with(rpc(json!(alloy_primitives::hex::encode_prefixed(
+                then.respond_with(rpc_result(json!(alloy_primitives::hex::encode_prefixed(
                     alloy_rlp::encode(&header)
                 ))));
             })
@@ -1981,7 +1964,7 @@ mod tests {
                     })
                     .to_string(),
                 );
-                then.respond_with(rpc(json!({
+                then.respond_with(rpc_result(json!({
                     "address": message_passer,
                     "balance": "0x0",
                     "codeHash": B256::ZERO,
@@ -1996,14 +1979,7 @@ mod tests {
         let agreed =
             SuperRootProof::new(timestamp, vec![SuperOutputRoot { chain_id: 10, output_root }]);
         let host = build_interop_host(
-            &HostInputs {
-                l1_node_address: server.base_url(),
-                l1_beacon_address: server.base_url(),
-                l2_node_addresses: vec![server.base_url()],
-                rollup_config_paths: None,
-                l1_config_path: None,
-                dependency_set_path: None,
-            },
+            &mock_host_inputs(&server),
             b256(0xaa),
             &encode_super_root_proof(&agreed).unwrap(),
             b256(0xbb),
@@ -2028,6 +2004,140 @@ mod tests {
         assert_eq!(preimages, vec![(PreimageKey::new_keccak256(*output_root), preimage)]);
         header_read.assert_async().await;
         proof_read.assert_async().await;
+    }
+
+    /// Pins that kona-host serves the header and receipts of a canonical optimistic block by hash,
+    /// once it finds the block canonical above `parent`.
+    // The receipts trie walk blocks in place, which needs the multi-threaded runtime.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn optimistic_block_receipts_read_a_canonical_block_through_the_host() {
+        let log = Log::new_unchecked(Address::ZERO, vec![b256(0x33)], Bytes::from_static(b"log"));
+        let receipts = vec![OpReceiptEnvelope::Eip1559(ReceiptWithBloom {
+            receipt: Receipt { status: true.into(), cumulative_gas_used: 21_000, logs: vec![log] },
+            logs_bloom: Default::default(),
+        })];
+        let raw_receipts: Vec<Bytes> =
+            receipts.iter().map(|receipt| receipt.encoded_2718().into()).collect();
+        let parent = Header { number: 9, ..Default::default() };
+        let header = Header {
+            number: 10,
+            parent_hash: parent.hash_slow(),
+            receipts_root: ordered_trie_root_with_encoder(&raw_receipts, |receipt, out| {
+                out.extend_from_slice(receipt)
+            }),
+            ..Default::default()
+        };
+        let hash = header.hash_slow();
+        let rpc_block = |header: &Header| {
+            let mut block = serde_json::to_value(header).unwrap();
+            block["hash"] = json!(header.hash_slow());
+            block["transactions"] = json!([]);
+            block["uncles"] = json!([]);
+            block
+        };
+
+        let server = mock_nodes().await;
+        let mut reads = Vec::new();
+        for (method, param, result) in [
+            ("eth_getBlockByHash", json!(parent.hash_slow()), rpc_block(&parent)),
+            ("eth_getBlockByNumber", json!("0xa"), rpc_block(&header)),
+            (
+                "debug_getRawHeader",
+                json!(hash),
+                json!(alloy_primitives::hex::encode_prefixed(alloy_rlp::encode(&header))),
+            ),
+            ("debug_getRawReceipts", json!(hash), json!(raw_receipts)),
+        ] {
+            reads.push(
+                server
+                    .mock_async(|when, then| {
+                        when.method(POST).json_body_includes(
+                            json!({ "method": method, "params": [param] }).to_string(),
+                        );
+                        then.respond_with(rpc_result(result));
+                    })
+                    .await,
+            );
+        }
+        let agreed = SuperRootProof::new(
+            100,
+            vec![SuperOutputRoot { chain_id: 10, output_root: b256(0x44) }],
+        );
+        let host = build_interop_host(
+            &mock_host_inputs(&server),
+            b256(0xaa),
+            &encode_super_root_proof(&agreed).unwrap(),
+            b256(0xbb),
+            101,
+            None,
+        )
+        .unwrap();
+        // kona-host retries a hint it cannot serve, so a wrong read would hang, not fail.
+        let block = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            optimistic_block_receipts(host, 10, parent.hash_slow(), hash),
+        )
+        .await
+        .expect("the host must serve the block")
+        .unwrap();
+
+        assert_eq!(block.header, header);
+        assert_eq!(block.receipts, receipts);
+        for read in reads {
+            read.assert_async().await;
+        }
+    }
+
+    /// A mock chain-10 L2 node, L1 node, and beacon node that answers what kona-host reads at
+    /// startup.
+    async fn mock_nodes() -> MockServer {
+        let server = MockServer::start_async().await;
+        server
+            .mock_async(|when, then| {
+                when.method(GET).path("/eth/v1/beacon/genesis");
+                then.status(200).json_body(json!({ "data": { "genesis_time": "10" } }));
+            })
+            .await;
+        server
+            .mock_async(|when, then| {
+                when.method(GET).path("/eth/v1/config/spec");
+                then.status(200).json_body(json!({ "data": { "SECONDS_PER_SLOT": "12" } }));
+            })
+            .await;
+        server
+            .mock_async(|when, then| {
+                when.method(POST)
+                    .json_body_includes(json!({ "method": "eth_chainId" }).to_string());
+                then.respond_with(rpc_result(json!("0xa")));
+            })
+            .await;
+        server
+    }
+
+    /// Host inputs that read every node from `server`.
+    fn mock_host_inputs(server: &MockServer) -> HostInputs {
+        HostInputs {
+            l1_node_address: server.base_url(),
+            l1_beacon_address: server.base_url(),
+            l2_node_addresses: vec![server.base_url()],
+            rollup_config_paths: None,
+            l1_config_path: None,
+            dependency_set_path: None,
+        }
+    }
+
+    /// Answers with `result` under the request's JSON-RPC id, which the client checks.
+    fn rpc_result(
+        result: Value,
+    ) -> impl Fn(&HttpMockRequest) -> HttpMockResponse + Send + Sync + 'static {
+        move |request| {
+            let id = serde_json::from_slice::<Value>(&request.body().0).unwrap()["id"].clone();
+            HttpMockResponse::builder()
+                .status(200)
+                .header("content-type", "application/json")
+                .body(json!({ "jsonrpc": "2.0", "id": id, "result": result }).to_string())
+                .build()
+        }
     }
 
     #[test]
