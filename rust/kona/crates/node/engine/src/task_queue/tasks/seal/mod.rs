@@ -1,7 +1,8 @@
-//! Task and its associated types for importing a block that has been started.
+//! Task and its associated types for sealing a sequenced block and importing it.
 
 mod task;
-pub use task::{BuildSealCoupling, SealTask};
+pub use task::SealTask;
+pub(in crate::task_queue) use task::get_payload;
 
 mod error;
 pub use error::SealTaskError;
