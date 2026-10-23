@@ -134,11 +134,11 @@ mod tests {
     #[test]
     fn parses_the_op_signer_key_resource_name() {
         let parts = parse_kms_parts(
-            "projects/oplabs-dev-ent-networks-us/locations/nam6/keyRings/zk-proofs-2-0/cryptoKeys/cost-recipient/cryptoKeyVersions/1",
+            "projects/oplabs-dev-ent-networks-us/locations/us-east1/keyRings/zk-proofs-2-0/cryptoKeys/cost-recipient/cryptoKeyVersions/1",
         )
         .unwrap();
         assert_eq!(parts.ring.google_project_id, "oplabs-dev-ent-networks-us");
-        assert_eq!(parts.ring.location, "nam6");
+        assert_eq!(parts.ring.location, "us-east1");
         assert_eq!(parts.ring.name, "zk-proofs-2-0");
         assert_eq!(parts.key, "cost-recipient");
         assert_eq!(parts.version, 1);
