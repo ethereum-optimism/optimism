@@ -3380,10 +3380,10 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
     }
 }
 
-/// @title OptimismPortal2_BridgeHookPaths_Test
-/// @notice Runs each bridge hook path once: proceed, hold and complete, for deposits and
-///         withdrawals.
-contract OptimismPortal2_BridgeHookPaths_Test is OptimismPortal2_TestInit {
+/// @title OptimismPortal2_BridgeHook_TestInit
+/// @notice Reusable setup for tests of the bridge hook paths: proceed, hold and complete, for
+///         deposits and withdrawals.
+abstract contract OptimismPortal2_BridgeHook_TestInit is OptimismPortal2_TestInit {
     address internal hook = makeAddr("bridgeHook");
 
     function setUp() public override {
@@ -3397,7 +3397,7 @@ contract OptimismPortal2_BridgeHookPaths_Test is OptimismPortal2_TestInit {
 
     /// @notice Makes the hook answer every screen with `_pass`.
     function _mockScreen(bool _pass) internal {
-        vm.mockCall(hook, abi.encodeWithSelector(IBridgeHook.screen.selector), abi.encode(_pass));
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screen.selector), abi.encode(_pass));
     }
 
     /// @notice Returns the item of the first recorded log with the given held event.
@@ -3408,7 +3408,7 @@ contract OptimismPortal2_BridgeHookPaths_Test is OptimismPortal2_TestInit {
                 return (logs[i].topics[1], abi.decode(logs[i].data, (BridgeHookTypes.Item)));
             }
         }
-        revert("held event not found");
+        revert("OptimismPortal2_BridgeHook_TestInit: held event not found");
     }
 
     /// @notice Proves the default withdrawal and makes it finalizable.
@@ -3445,7 +3445,11 @@ contract OptimismPortal2_BridgeHookPaths_Test is OptimismPortal2_TestInit {
             )
         );
     }
+}
 
+/// @title OptimismPortal2_DepositTransaction_BridgeHook_Test
+/// @notice Tests `depositTransaction` while a bridge hook is set.
+contract OptimismPortal2_DepositTransaction_BridgeHook_Test is OptimismPortal2_BridgeHook_TestInit {
     /// @notice Tests that a deposit the hook passes is emitted.
     function test_depositTransaction_hookPasses_succeeds() external {
         _mockScreen(true);
@@ -3469,7 +3473,11 @@ contract OptimismPortal2_BridgeHookPaths_Test is OptimismPortal2_TestInit {
         assertEq(item.ethAmount, 1 ether);
         assertEq(hook.balance, 1 ether);
     }
+}
 
+/// @title OptimismPortal2_CompleteDepositTransaction_Test
+/// @notice Tests the `completeDepositTransaction` function.
+contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_BridgeHook_TestInit {
     /// @notice Tests that the hook can complete a held deposit.
     function test_completeDepositTransaction_held_succeeds() external {
         (bytes32 id, BridgeHookTypes.Item memory item) = _holdDeposit();
@@ -3481,7 +3489,11 @@ contract OptimismPortal2_BridgeHookPaths_Test is OptimismPortal2_TestInit {
 
         assertFalse(optimismPortal2.heldDeposits(id));
     }
+}
 
+/// @title OptimismPortal2_FinalizeWithdrawalTransaction_BridgeHook_Test
+/// @notice Tests `finalizeWithdrawalTransaction` while a bridge hook is set.
+contract OptimismPortal2_FinalizeWithdrawalTransaction_BridgeHook_Test is OptimismPortal2_BridgeHook_TestInit {
     /// @notice Tests that a withdrawal the hook passes pays its target.
     function test_finalizeWithdrawalTransaction_hookPasses_succeeds() external {
         uint256 bobBalanceBefore = bob.balance;
@@ -3503,7 +3515,11 @@ contract OptimismPortal2_BridgeHookPaths_Test is OptimismPortal2_TestInit {
         assertEq(bob.balance, bobBalanceBefore);
         assertEq(hook.balance, _defaultTx.value);
     }
+}
 
+/// @title OptimismPortal2_CompleteWithdrawalTransaction_Test
+/// @notice Tests the `completeWithdrawalTransaction` function.
+contract OptimismPortal2_CompleteWithdrawalTransaction_Test is OptimismPortal2_BridgeHook_TestInit {
     /// @notice Tests that the hook can complete a held withdrawal, paying its target.
     function test_completeWithdrawalTransaction_held_succeeds() external {
         uint256 bobBalanceBefore = bob.balance;

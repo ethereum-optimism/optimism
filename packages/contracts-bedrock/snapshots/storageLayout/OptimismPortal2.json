@@ -21,11 +21,25 @@
     "type": "struct ResourceMetering.ResourceParams"
   },
   {
-    "bytes": "1536",
-    "label": "__gap",
+    "bytes": "8",
+    "label": "completedGas",
     "offset": 0,
     "slot": "2",
-    "type": "uint256[48]"
+    "type": "uint64"
+  },
+  {
+    "bytes": "8",
+    "label": "completedBlockNum",
+    "offset": 8,
+    "slot": "2",
+    "type": "uint64"
+  },
+  {
+    "bytes": "1504",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "3",
+    "type": "uint256[47]"
   },
   {
     "bytes": "20",
@@ -159,6 +173,13 @@
     "offset": 0,
     "slot": "65",
     "type": "contract IBridgeHook"
+  },
+  {
+    "bytes": "8",
+    "label": "depositNonce",
+    "offset": 20,
+    "slot": "65",
+    "type": "uint64"
   },
   {
     "bytes": "32",

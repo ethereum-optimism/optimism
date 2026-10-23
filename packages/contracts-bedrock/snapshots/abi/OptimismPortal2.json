@@ -222,6 +222,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "depositNonce",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -958,6 +971,95 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "DepositCompleted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "enum BridgeHookTypes.Direction",
+            "name": "direction",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum BridgeHookTypes.Asset",
+            "name": "asset",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "from",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "aliased",
+            "type": "bool"
+          },
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "ethAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "l2Value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "gasLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isCreation",
+            "type": "bool"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "nonce",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct BridgeHookTypes.Item",
+        "name": "item",
+        "type": "tuple"
+      }
+    ],
+    "name": "DepositHeld",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "address",
         "name": "lockbox",
         "type": "address"
@@ -1066,6 +1168,19 @@
       {
         "indexed": true,
         "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "WithdrawalCompleted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "withdrawalHash",
         "type": "bytes32"
       },
@@ -1077,6 +1192,82 @@
       }
     ],
     "name": "WithdrawalFinalized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "enum BridgeHookTypes.Direction",
+            "name": "direction",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum BridgeHookTypes.Asset",
+            "name": "asset",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "from",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "aliased",
+            "type": "bool"
+          },
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "ethAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "l2Value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "gasLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isCreation",
+            "type": "bool"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "nonce",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct BridgeHookTypes.Item",
+        "name": "item",
+        "type": "tuple"
+      }
+    ],
+    "name": "WithdrawalHeld",
     "type": "event"
   },
   {
@@ -1170,6 +1361,11 @@
   {
     "inputs": [],
     "name": "OptimismPortal_BadTarget",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_CallFailed",
     "type": "error"
   },
   {
@@ -1274,6 +1470,16 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_NotBridgeHook",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_NotHeld",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_NotUsingInterop",
     "type": "error"
   },
@@ -1290,6 +1496,11 @@
   {
     "inputs": [],
     "name": "OptimismPortal_Unproven",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_ValueMismatch",
     "type": "error"
   },
   {
