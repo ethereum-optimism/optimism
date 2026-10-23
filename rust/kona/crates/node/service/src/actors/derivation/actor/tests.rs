@@ -538,3 +538,5 @@ async fn a_block_is_queued_for_finalization_only_once_it_is_recorded() {
 }
 
 mod database;
+
+mod safedb_tests;

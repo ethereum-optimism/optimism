@@ -212,7 +212,11 @@ where
         match request_type {
             DerivationActorRequest::ProcessEngineSignalRequest(signal) => {
                 self.signal(*signal).await?;
-                self.derivation_state_machine.update(&DerivationStateUpdate::SignalProcessed)?;
+                // A channel flush leaves the outstanding engine confirmation pending.
+                if !matches!(*signal, Signal::FlushChannel) {
+                    self.derivation_state_machine
+                        .update(&DerivationStateUpdate::SignalProcessed)?;
+                }
             }
             DerivationActorRequest::ProcessFinalizedL1Block(finalized_l1_block) => {
                 // Attempt to finalize the block. If successful, notify engine.
