@@ -1,19 +1,21 @@
 //! Ethereum mainnet side: the PROVE token and the `SuccinctVApp` bridge contract.
+//!
+//! SPN settles on Ethereum mainnet for every chain it proves, including Sepolia devnets.
 
-use alloy_network::ReceiptResponse;
-use alloy_primitives::{Address, U256, address};
+use alloy_network::{EthereumWallet, ReceiptResponse};
+use alloy_primitives::{Address, Bytes, U256, address};
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
-use alloy_signer_local::PrivateKeySigner;
-use alloy_sol_types::sol;
+use alloy_sol_types::{SolCall, sol};
+use alloy_transport_http::reqwest::Url;
 use anyhow::{Context, Result, ensure};
-use url::Url;
 
-use crate::fmt_prove;
+use crate::plan::L1Quote;
 
 /// PROVE ERC-20 (succinctlabs/network `contracts/deployments/1.json`).
 pub(crate) const PROVE: Address = address!("0x6BEF15D938d4E72056AC92Ea4bDD0D76B1C4ad29");
 /// `SuccinctVApp` proxy: SPN's L1 settlement contract that holds deposited PROVE.
 pub(crate) const VAPP: Address = address!("0x5Ad5Bc4B18f7c173DcE17A57682Cb0Dc8788951F");
+const MAINNET_CHAIN_ID: u64 = 1;
 
 sol! {
     #[sol(rpc)]
@@ -30,42 +32,50 @@ sol! {
     }
 }
 
-pub(crate) fn read_provider(url: Url) -> DynProvider {
-    ProviderBuilder::new().connect_http(url).erased()
-}
-
-pub(crate) fn signing_provider(url: Url, signer: PrivateKeySigner) -> DynProvider {
-    ProviderBuilder::new().wallet(signer).connect_http(url).erased()
+/// Connects to the L1 RPC and checks that it serves Ethereum mainnet, where PROVE and the `VApp`
+/// live. A Sepolia URL would send the approve and deposit to addresses with no code.
+pub(crate) async fn connect(url: Url, wallet: Option<EthereumWallet>) -> Result<DynProvider> {
+    let provider = match wallet {
+        Some(wallet) => ProviderBuilder::new().wallet(wallet).connect_http(url).erased(),
+        None => ProviderBuilder::new().connect_http(url).erased(),
+    };
+    let chain_id = provider.get_chain_id().await.context("L1 eth_chainId")?;
+    ensure!(
+        chain_id == MAINNET_CHAIN_ID,
+        "L1 RPC serves chain {chain_id}; PROVE and the SPN bridge live on Ethereum mainnet \
+         (chain 1), also for devnets that settle on Sepolia"
+    );
+    Ok(provider)
 }
 
 pub(crate) async fn prove_balance(provider: &DynProvider, account: Address) -> Result<U256> {
     IERC20::new(PROVE, provider).balanceOf(account).call().await.context("PROVE.balanceOf")
 }
 
-/// Approves (if needed) and deposits `amount` PROVE into the `VApp`. SPN credits `from`, the
-/// transaction sender; the contract has no way to deposit on behalf of another address.
-pub(crate) async fn deposit(provider: &DynProvider, from: Address, amount: U256) -> Result<()> {
+pub(crate) async fn quote(provider: &DynProvider, from: Address) -> Result<L1Quote> {
     let prove = IERC20::new(PROVE, provider);
     let vapp = ISuccinctVApp::new(VAPP, provider);
+    Ok(L1Quote {
+        balance: prove_balance(provider, from).await?,
+        allowance: prove.allowance(from, VAPP).call().await.context("PROVE.allowance")?,
+        min_deposit: vapp.minDepositAmount().call().await.context("VApp.minDepositAmount")?,
+    })
+}
 
-    let min = vapp.minDepositAmount().call().await.context("VApp.minDepositAmount")?;
-    ensure!(
-        amount >= min,
-        "deposit of {} is below VApp.minDepositAmount ({})",
-        fmt_prove(amount),
-        fmt_prove(min)
-    );
-    let balance = prove_balance(provider, from).await?;
-    ensure!(
-        balance >= amount,
-        "L1 PROVE balance of {from} is {}, need {}",
-        fmt_prove(balance),
-        fmt_prove(amount)
-    );
+pub(crate) fn approve_calldata(amount: U256) -> Bytes {
+    IERC20::approveCall { spender: VAPP, amount }.abi_encode().into()
+}
 
-    let allowance = prove.allowance(from, VAPP).call().await.context("PROVE.allowance")?;
-    if allowance < amount {
-        let receipt = prove
+pub(crate) fn deposit_calldata(amount: U256) -> Bytes {
+    ISuccinctVApp::depositCall { amount }.abi_encode().into()
+}
+
+/// Sends `PROVE.approve(VApp, amount)` when `approve` is set, then `VApp.deposit(amount)`, and
+/// waits for both receipts. SPN credits the transaction sender; the `VApp` cannot deposit on behalf
+/// of another address.
+pub(crate) async fn deposit(provider: &DynProvider, amount: U256, approve: bool) -> Result<()> {
+    if approve {
+        let receipt = IERC20::new(PROVE, provider)
             .approve(VAPP, amount)
             .send()
             .await
@@ -76,8 +86,7 @@ pub(crate) async fn deposit(provider: &DynProvider, from: Address, amount: U256)
         ensure!(receipt.status(), "PROVE.approve reverted: {:?}", receipt.transaction_hash());
         println!("approve: {:?}", receipt.transaction_hash());
     }
-
-    let receipt = vapp
+    let receipt = ISuccinctVApp::new(VAPP, provider)
         .deposit(amount)
         .send()
         .await
