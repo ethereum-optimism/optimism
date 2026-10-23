@@ -85,13 +85,12 @@ pub struct BuildTask {
     pub cfg: Arc<RollupConfig>,
     /// The OpAttributesWithParent to instruct the execution layer to build.
     pub attributes: OpAttributesWithParent,
-    /// The optional sender through which the PayloadId will be sent
-    /// after the block build has been started.
-    pub payload_id_tx: Option<mpsc::Sender<PayloadId>>,
+    /// Reports the payload ID or build rejection to the sequencer.
+    pub payload_id_tx: mpsc::Sender<Result<PayloadId, BuildTaskError>>,
 }
 ```
 
-Handles payload building initiation with `engine_forkchoiceUpdated`.
+Rejects sequencer builds whose parent no longer matches the unsafe head before calling `engine_forkchoiceUpdated`. Build failures reach the sequencer so it can retry with fresh attributes; invalid forkchoice errors also trigger engine recovery. Derivation calls the shared build helper directly and may build on a different parent during a reorg.
 
 #### SealTask
 
