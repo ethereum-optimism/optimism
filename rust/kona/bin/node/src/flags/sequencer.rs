@@ -21,12 +21,13 @@ pub struct SequencerArgs {
     )]
     pub stopped: bool,
 
-    /// Maximum number of L2 blocks for restricting the distance between L2 safe and unsafe.
-    /// Disabled if 0.
+    /// Maximum number of L2 blocks between safe and unsafe heads. Safe-lag enforcement is not
+    /// implemented; only 0 (disabled) is supported.
     #[arg(
         long = "sequencer.max-safe-lag",
         default_value = "0",
-        env = "KONA_NODE_SEQUENCER_MAX_SAFE_LAG"
+        env = "KONA_NODE_SEQUENCER_MAX_SAFE_LAG",
+        value_parser = Self::parse_max_safe_lag
     )]
     pub max_safe_lag: u64,
 
@@ -66,6 +67,16 @@ impl Default for SequencerArgs {
 }
 
 impl SequencerArgs {
+    fn parse_max_safe_lag(value: &str) -> anyhow::Result<u64> {
+        let lag = value.parse()?;
+        anyhow::ensure!(
+            lag == 0,
+            "safe-lag enforcement is not implemented; remove --sequencer.max-safe-lag / \
+             KONA_NODE_SEQUENCER_MAX_SAFE_LAG or set it to 0"
+        );
+        Ok(lag)
+    }
+
     /// Creates a [`SequencerConfig`] from the [`SequencerArgs`].
     pub fn config(&self) -> SequencerConfig {
         SequencerConfig {
@@ -81,6 +92,62 @@ impl SequencerArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::error::ErrorKind;
+    use rstest::rstest;
+
+    #[test]
+    fn max_safe_lag_disabled() {
+        assert_eq!(SequencerArgs::default().max_safe_lag, 0);
+        let args = SequencerArgs::parse_from(["kona-node", "--sequencer.max-safe-lag=0"]);
+        assert_eq!(args.max_safe_lag, 0);
+    }
+
+    #[rstest]
+    #[case("1")]
+    #[case("100")]
+    #[case("18446744073709551615")]
+    fn rejects_nonzero_max_safe_lag(#[case] value: &str) {
+        let error = SequencerArgs::try_parse_from(["kona-node", "--sequencer.max-safe-lag", value])
+            .unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::ValueValidation);
+        assert!(error.to_string().contains("safe-lag enforcement is not implemented"));
+        assert!(error.to_string().contains("or set it to 0"));
+    }
+
+    #[test]
+    fn max_safe_lag_from_environment() {
+        const ENV: &str = "KONA_NODE_SEQUENCER_MAX_SAFE_LAG";
+        // Parse in a child process so changing the environment cannot race other tests.
+        if std::env::var_os("KONA_TEST_SAFE_LAG_CHILD").is_some() {
+            let result = SequencerArgs::try_parse_from(["kona-node"]);
+            if std::env::var(ENV).unwrap() == "0" {
+                assert_eq!(result.unwrap().max_safe_lag, 0);
+            } else {
+                let error = result.unwrap_err();
+                assert_eq!(error.kind(), ErrorKind::ValueValidation);
+                assert!(error.to_string().contains("safe-lag enforcement is not implemented"));
+            }
+            // An explicit zero must override an unsupported environment setting.
+            assert!(
+                SequencerArgs::try_parse_from(["kona-node", "--sequencer.max-safe-lag=0"]).is_ok()
+            );
+            return;
+        }
+
+        for value in ["0", "1", "18446744073709551615"] {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "flags::sequencer::tests::max_safe_lag_from_environment",
+                    "--nocapture",
+                ])
+                .env("KONA_TEST_SAFE_LAG_CHILD", "1")
+                .env(ENV, value)
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{output:?}");
+        }
+    }
 
     #[test]
     fn configured_conductor_timeout_reaches_sequencer_config() {
