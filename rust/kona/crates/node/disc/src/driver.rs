@@ -220,9 +220,11 @@ impl Discv5Driver {
             // Step 4: Run the core driver loop.
             loop {
                 tokio::select! {
-                    msg = req_recv.recv() => {
+                    // Once every handler is dropped, `recv` returns `None`, which doesn't
+                    // match the pattern and disables this branch. Discovery keeps running
+                    // for consumers of the ENR receiver.
+                    Some(msg) = req_recv.recv() => {
                         match msg {
-                            Some(msg) => match msg {
                                 HandlerRequest::Metrics(tx) => {
                                     let metrics = Discv5::metrics();
                                     if let Err(e) = tx.send(metrics) {
@@ -275,16 +277,17 @@ impl Discv5Driver {
                                         }
                                     }
                                 },
-                            }
-                            None => {
-                                trace!(target: "discovery", "Receiver `None` peer enr");
-                            }
                         }
+                    }
+                    // Nobody is left to send requests or to receive ENRs.
+                    _ = enr_sender.closed(), if req_recv.is_closed() => {
+                        debug!(target: "discovery", "Handler and ENR receiver dropped, stopping discovery");
+                        return;
                     }
                     event = event_stream.recv() => {
                         let Some(event) = event else {
-                            trace!(target: "discovery", "Received `None` event");
-                            continue;
+                            error!(target: "discovery", "Discv5 event stream ended, stopping discovery");
+                            return;
                         };
                         match event {
                             discv5::Event::Discovered(enr) if EnrValidation::validate(&enr, chain_id).is_valid() => {
@@ -434,6 +437,21 @@ mod tests {
             .await
             .expect("driver task should stop once nobody is listening")
             .expect("driver task should not panic");
+    }
+
+    #[tokio::test]
+    async fn test_discv5_driver_keeps_running_for_enr_receiver() {
+        let (handler, _enr_recv, task) = offline_driver().spawn();
+
+        // Requests are only answered by the main loop, so startup is done once this returns.
+        tokio::time::timeout(Duration::from_secs(5), handler.peer_count())
+            .await
+            .expect("driver should answer requests")
+            .expect("driver should not drop the request");
+        drop(handler);
+
+        sleep(Duration::from_millis(500)).await;
+        assert!(!task.is_finished(), "driver task should keep running for the ENR receiver");
     }
 
     #[tokio::test]
