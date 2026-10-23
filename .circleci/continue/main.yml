@@ -1032,6 +1032,46 @@ jobs:
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
+  # Full build, tests included, for the contracts-bedrock-tests jobs that set
+  # attach_build. Kept separate from contracts-bedrock-build so the two never
+  # persist the same workspace paths into one workflow.
+  contracts-bedrock-build-tests:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: 2xlarge.gen2
+    parameters:
+      profile:
+        description: Profile to build with. Must match the test job's test_profile.
+        type: string
+        default: ci
+      build_timeout:
+        description: No-output timeout for the forge build step
+        type: string
+        default: 25m
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - install-contracts-dependencies
+      - run:
+          name: Print forge version
+          command: forge --version
+      - run:
+          name: Build contracts
+          command: just forge-build
+          environment:
+            FOUNDRY_PROFILE: <<parameters.profile>>
+          working_directory: packages/contracts-bedrock
+          no_output_timeout: <<parameters.build_timeout>>
+      - persist_to_workspace:
+          root: "."
+          paths:
+            - "packages/contracts-bedrock/cache"
+            - "packages/contracts-bedrock/artifacts"
+            - "packages/contracts-bedrock/forge-artifacts"
+      - notify-failures-on-develop:
+          mentions: "<!subteam^S07K486JEH4>"
+
   check-kontrol-build:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -1082,10 +1122,22 @@ jobs:
           "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
+      attach_build:
+        description: >-
+          Attach the build persisted by an upstream contracts-bedrock-build-tests
+          job, so forge test reuses it instead of compiling. The job must require
+          that build, and its profile must match test_profile.
+        type: boolean
+        default: false
     steps:
       - utils/checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
+      - when:
+          condition: << parameters.attach_build >>
+          steps:
+            - attach_workspace:
+                at: .
       - run:
           name: Check if test list is empty
           command: |
@@ -3124,13 +3176,26 @@ workflows:
           filters:
             branches:
               ignore: develop
-      # On develop, run tests with ci profile to mirror production.
+      # On develop, run tests with ci profile to mirror production. Build once
+      # and share it through the workspace, so the matrix entries don't each
+      # compile the same artifacts.
+      - contracts-bedrock-build-tests:
+          name: contracts-bedrock-build-tests-develop
+          profile: ci
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          filters:
+            branches:
+              only: develop
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests-develop <<matrix.features>>
           requires:
             - prep-go-modules
+            - contracts-bedrock-build-tests-develop
           test_list: find test -name "*.t.sol"
           test_profile: ci
+          attach_build: true
           features: <<matrix.features>>
           matrix:
             parameters:
