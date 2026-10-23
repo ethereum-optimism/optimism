@@ -36,9 +36,9 @@ The crate supports multiple Engine API versions with automatic version selection
 
 Version selection follows Optimism hardfork activation times (Bedrock, Canyon, Delta, Ecotone, Isthmus).
 
-## Features
+## Metrics
 
-- `metrics` - Enable Prometheus metrics collection (optional)
+Prometheus metrics instrumentation is always enabled.
 
 <!-- Hyper Links -->
 
