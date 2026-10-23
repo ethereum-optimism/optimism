@@ -1,7 +1,9 @@
 //! The executing messages of a span, read before witness collection.
 //!
 //! The scan uses the consolidation's message parser, below-head rule, and stateless checks, so it
-//! finds a superset of the blocks that the consolidation checks against log commitments.
+//! finds a superset of the blocks that the consolidation checks against log commitments. It reads
+//! a head that the claimed super root replaced through kona-host, not the L2 node, which may have
+//! pruned it.
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -16,10 +18,10 @@ use kona_interop::{
 };
 use kona_registry::HashMap as RegistryHashMap;
 use kona_sp1_ethereum_client_utils::chain_config::ChainConfigs;
-use kona_sp1_super_range_executor::SuperRootAtTimestampResponse;
+use kona_sp1_super_range_executor::{OptimisticBlockReceipts, SuperRootAtTimestampResponse};
 use op_alloy_consensus::OpReceiptEnvelope;
 
-use crate::ports::L2BlockSource;
+use crate::ports::{L2BlockSource, ReplacedBlockSource};
 
 /// A block below a local-safe head that an executing message of the span references.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,10 +62,23 @@ struct ScannedHead {
     deposit_gas: u64,
 }
 
+impl ScannedHead {
+    fn new(header: Header, receipts: &[OpReceiptEnvelope]) -> Self {
+        let deposit_gas = receipts
+            .iter()
+            .take_while(|receipt| matches!(receipt, OpReceiptEnvelope::Deposit(_)))
+            .last()
+            // Receipts give the gas after refunds, which return at most 1/5 of the gas spent.
+            .map_or(0, |receipt| receipt.cumulative_gas_used() * 5 / 4);
+        Self { messages: extract_executing_messages(receipts), deposit_gas, header }
+    }
+}
+
 /// Scans the transitions of `responses`, the verified responses for the agreed timestamp and each
 /// transition timestamp after it.
 pub(crate) async fn scan_span(
     source: &dyn L2BlockSource,
+    replaced_blocks: &dyn ReplacedBlockSource,
     responses: &[SuperRootAtTimestampResponse],
     configs: &ChainConfigs,
 ) -> Result<ScannedSpan> {
@@ -85,17 +100,24 @@ pub(crate) async fn scan_span(
             let chain = u64::try_from(chain_id.0).context("chain ID does not fit in u64")?;
             let hash =
                 optimistic.output.as_ref().context("optimistic output has no preimage")?.block_hash;
+            let replaced = claimed.get(chain_id) != Some(&optimistic.output_root);
             let head = match heads.get(&hash) {
                 Some(head) => head.clone(),
                 None => {
-                    let head = Arc::new(scan_head(source, chain, hash).await?);
+                    let head = Arc::new(if replaced {
+                        let timestamp = data.super_v1.timestamp;
+                        scan_replaced_head(source, replaced_blocks, configs, chain, timestamp, hash)
+                            .await?
+                    } else {
+                        scan_head(source, chain, hash).await?
+                    });
                     heads.insert(hash, head.clone());
                     head
                 }
             };
             scanned.chains += 1;
             scanned.messages += head.messages.len() as u64;
-            if claimed.get(chain_id) != Some(&optimistic.output_root) {
+            if replaced {
                 scanned.replaced_chains += 1;
                 scanned.replaced_deposit_gas += head.deposit_gas;
             }
@@ -146,13 +168,34 @@ pub(crate) async fn scan_span(
 async fn scan_head(source: &dyn L2BlockSource, chain_id: u64, hash: B256) -> Result<ScannedHead> {
     let header = source.header_by_hash(chain_id, hash).await?;
     let receipts = source.receipts(chain_id, hash, header.receipts_root).await?;
-    let deposit_gas = receipts
-        .iter()
-        .take_while(|receipt| matches!(receipt, OpReceiptEnvelope::Deposit(_)))
-        .last()
-        // Receipts give the gas after refunds, which return at most 1/5 of the gas spent.
-        .map_or(0, |receipt| receipt.cumulative_gas_used() * 5 / 4);
-    Ok(ScannedHead { messages: extract_executing_messages(&receipts), deposit_gas, header })
+    Ok(ScannedHead::new(header, &receipts))
+}
+
+/// A head that the claimed super root replaced, read the way the consolidation reads it: through
+/// kona-host, which re-derives and re-executes it on its canonical parent. The supernode reports
+/// a denied block only at its own timestamp, so it is the block at `timestamp`.
+async fn scan_replaced_head(
+    source: &dyn L2BlockSource,
+    replaced_blocks: &dyn ReplacedBlockSource,
+    configs: &ChainConfigs,
+    chain_id: u64,
+    timestamp: u64,
+    hash: B256,
+) -> Result<ScannedHead> {
+    let number = configs
+        .rollup_configs
+        .get(&chain_id)
+        .with_context(|| format!("no rollup config for chain {chain_id}"))?
+        .block_number_from_timestamp(timestamp);
+    let parent_number = number
+        .checked_sub(1)
+        .with_context(|| format!("replaced block {hash} of chain {chain_id} has no parent"))?;
+    let parent = source.header_by_number(chain_id, parent_number).await?;
+    let OptimisticBlockReceipts { header, receipts } =
+        replaced_blocks.replaced_block(chain_id, parent.hash(), hash).await.with_context(|| {
+            format!("failed to re-derive replaced block {hash} of chain {chain_id}")
+        })?;
+    Ok(ScannedHead::new(header, &receipts))
 }
 
 /// The `(chain, number)` of the block below a head that the run reads for `message`, with the
@@ -225,6 +268,13 @@ mod tests {
         receipts: BTreeMap<B256, Vec<OpReceiptEnvelope>>,
     }
 
+    /// The header of block `number` at `timestamp` with `receipts`.
+    fn header(number: u64, timestamp: u64, receipts: &[OpReceiptEnvelope]) -> Header {
+        let receipts_root =
+            ordered_trie_root_with_encoder(receipts, |receipt, out| receipt.encode_2718(out));
+        Header { number, timestamp, receipts_root, gas_used: number, ..Default::default() }
+    }
+
     impl FakeL2 {
         /// Adds block `number` of `chain` at `timestamp` with `receipts`, and returns its hash.
         fn block(
@@ -234,15 +284,37 @@ mod tests {
             timestamp: u64,
             receipts: Vec<OpReceiptEnvelope>,
         ) -> B256 {
-            let receipts_root =
-                ordered_trie_root_with_encoder(&receipts, |receipt, out| receipt.encode_2718(out));
-            let header =
-                Header { number, timestamp, receipts_root, gas_used: number, ..Default::default() };
+            let header = header(number, timestamp, &receipts);
             let hash = header.hash_slow();
             self.headers.insert((chain, hash), header.clone());
             self.by_number.insert((chain, number), header);
             self.receipts.insert(hash, receipts);
             hash
+        }
+    }
+
+    /// A replaced block and the parent it must be asked for.
+    struct Replaced {
+        parent: B256,
+        block: OptimisticBlockReceipts,
+    }
+
+    /// Replaced blocks by chain and hash.
+    #[derive(Default)]
+    struct FakeReplaced(BTreeMap<(u64, B256), Replaced>);
+
+    #[async_trait]
+    impl ReplacedBlockSource for FakeReplaced {
+        async fn replaced_block(
+            &self,
+            chain_id: u64,
+            parent: B256,
+            hash: B256,
+        ) -> Result<OptimisticBlockReceipts> {
+            match self.0.get(&(chain_id, hash)) {
+                Some(replaced) if replaced.parent == parent => Ok(replaced.block.clone()),
+                _ => anyhow::bail!("unknown replaced block"),
+            }
         }
     }
 
@@ -359,7 +431,7 @@ mod tests {
         let mut l2 = FakeL2::default();
         let responses =
             span(&mut l2, vec![message(A, 10, 10), message(A, 12, 12), message(A, 10, 10)]);
-        let scan = scan_span(&l2, &responses, &configs()).await.unwrap();
+        let scan = scan_span(&l2, &FakeReplaced::default(), &responses, &configs()).await.unwrap();
         let references: Vec<Vec<_>> =
             scan.timestamps.iter().map(|t| t.references.iter().copied().collect()).collect();
         let both = vec![(A, 10), (A, 12)];
@@ -399,9 +471,84 @@ mod tests {
             let responses = span(&mut l2, vec![message]);
             let mut configs = configs();
             edit(&mut configs, &mut l2);
-            let scan = scan_span(&l2, &responses, &configs).await.unwrap();
+            let scan =
+                scan_span(&l2, &FakeReplaced::default(), &responses, &configs).await.unwrap();
             assert!(scan.blocks.is_empty(), "{name}: {:?}", scan.blocks);
             assert!(scan.timestamps.iter().all(|t| t.references.is_empty()), "{name}");
         }
+    }
+
+    /// The span of `span`, except that B's block at timestamp 12 is denied: it executes a message
+    /// into A's block 10, and the claimed super root replaces it with a block without messages.
+    /// The node holds only the replacement, and `replaced` holds the denied block. Returns the
+    /// responses and the denied block's hash.
+    fn replaced_span(
+        l2: &mut FakeL2,
+        replaced: &mut FakeReplaced,
+    ) -> (Vec<SuperRootAtTimestampResponse>, B256) {
+        for number in 9..=15 {
+            l2.block(A, number, number, Vec::new());
+        }
+        let b2 = l2.block(B, 2, 8, Vec::new());
+        let replacement = l2.block(B, 3, 12, Vec::new());
+        let mut executing = ChainBuilder::default();
+        executing.add_executing_message(message(A, 10, 10));
+        let denied_header = header(3, 12, &executing.receipts);
+        let denied = denied_header.hash_slow();
+        let block = OptimisticBlockReceipts { header: denied_header, receipts: executing.receipts };
+        replaced.0.insert((B, denied), Replaced { parent: b2, block });
+        let responses = SPAN
+            .iter()
+            .map(|&timestamp| {
+                let a = l2.by_number[&(A, timestamp)].hash_slow();
+                let b = match timestamp {
+                    ..12 => b2,
+                    12 => denied,
+                    _ => replacement,
+                };
+                let mut response = response(timestamp, &[(A, a), (B, b)]);
+                if timestamp == 12 {
+                    let data = response.data.as_mut().unwrap();
+                    data.super_v1.chains[1].output = replacement;
+                }
+                response
+            })
+            .collect();
+        (responses, denied)
+    }
+
+    /// Pins a replaced head read without the node, which may have pruned it, and the references of
+    /// its messages, which the consolidation checks before it replaces the block.
+    #[tokio::test]
+    async fn scan_reads_a_replaced_head_without_the_node() {
+        let mut l2 = FakeL2::default();
+        let mut replaced = FakeReplaced::default();
+        let (responses, _) = replaced_span(&mut l2, &mut replaced);
+        let scan = scan_span(&l2, &replaced, &responses, &configs()).await.unwrap();
+        let per_timestamp = |field: fn(&ScannedTimestamp) -> u64| -> Vec<u64> {
+            scan.timestamps.iter().map(field).collect()
+        };
+        assert_eq!(per_timestamp(|t| t.replaced_chains), [1, 0, 0, 0]);
+        assert_eq!(per_timestamp(|t| t.messages), [1, 0, 0, 0]);
+        let references: Vec<Vec<_>> =
+            scan.timestamps.iter().map(|t| t.references.iter().copied().collect()).collect();
+        assert_eq!(references, [vec![(A, 10)], vec![], vec![], vec![]]);
+        assert_eq!(scan.blocks.keys().copied().collect::<Vec<_>>(), [(A, 10)]);
+    }
+
+    /// Pins an error, not a scan without the replaced head's references, when the replaced-block
+    /// source fails. kona-host waits on a block it cannot serve rather than failing, so with it
+    /// this covers the errors it does return, such as a host that fails to start or a malformed
+    /// header or receipts trie.
+    #[tokio::test]
+    async fn scan_fails_when_a_replaced_head_cannot_be_read() {
+        let mut l2 = FakeL2::default();
+        let (responses, denied) = replaced_span(&mut l2, &mut FakeReplaced::default());
+        let err = scan_span(&l2, &FakeReplaced::default(), &responses, &configs())
+            .await
+            .expect_err("a replaced head that cannot be read must fail the scan");
+        let err = format!("{err:#}");
+        assert!(err.contains("failed to re-derive replaced block"), "{err}");
+        assert!(err.contains(&denied.to_string()), "{err}");
     }
 }

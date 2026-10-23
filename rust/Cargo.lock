@@ -8153,6 +8153,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap",
+ "httpmock",
  "jsonrpsee-core",
  "jsonrpsee-http-client",
  "kona-genesis",
