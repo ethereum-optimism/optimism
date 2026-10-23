@@ -21,6 +21,7 @@ use tokio::{sync::mpsc, time::Instant};
 mod admin;
 mod building;
 mod conductor_commit_test;
+mod safe_lag;
 
 const TEST_START: u64 = 946_684_800;
 
@@ -70,6 +71,7 @@ fn test_actor_with_engine_config<E: SequencerEngineClient>(
         engine,
         active,
         recovery_mode,
+        0,
         MockOriginSelector::new(),
         Arc::new(RollupConfig { block_time: 2, ..Default::default() }),
         MockUnsafePayloadGossipClient::new(),
@@ -138,5 +140,9 @@ impl SequencerEngineClient for SlowSealEngine {
 
     async fn get_unsafe_head(&self) -> EngineClientResult<L2BlockInfo> {
         self.inner.get_unsafe_head().await
+    }
+
+    async fn get_safe_head(&self) -> EngineClientResult<L2BlockInfo> {
+        self.inner.get_safe_head().await
     }
 }

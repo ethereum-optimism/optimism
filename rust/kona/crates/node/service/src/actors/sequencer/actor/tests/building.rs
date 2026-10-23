@@ -173,7 +173,9 @@ fn expect_builds<E: SequencerEngineClient>(
 }
 
 /// Steps `actor` once and returns how much time passed on tokio's clock.
-async fn step_time<E: SequencerEngineClient + 'static>(actor: &mut TestActor<E>) -> Duration {
+pub(super) async fn step_time<E: SequencerEngineClient + 'static>(
+    actor: &mut TestActor<E>,
+) -> Duration {
     let start = time::Instant::now();
     time::timeout(Duration::from_secs(10), actor.step())
         .await
