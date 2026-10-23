@@ -1,0 +1,86 @@
+---
+title: op-reth storage v1 deprecation and migration to storage v2
+description: op-reth storage v1 is deprecated and reaches end of support on January 23, 2027. Migrate existing datadirs to storage v2.
+date: 2026-10-23
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: op-reth-storage-v1-deprecation
+personas:
+  - node-operator
+categories:
+  - infrastructure
+is_imported_content: 'false'
+audit-source:
+  - rust/op-reth/crates/node/src/node.rs
+  - rust/op-reth/crates/cli/tests/snapshots/cli.snap
+  - rust/op-reth/crates/node/src/args.rs
+---
+
+op-reth storage layout v1 (MDBX-only) is deprecated in favor of storage v2 (static files and RocksDB).
+New datadirs use storage v2 by default. Upgrading the op-reth binary does not migrate an existing v1 database.
+
+<Warning>
+  **Support for storage v1 ends on January 23, 2027.**
+  Operators with an existing storage v1 datadir must migrate to storage v2 with `op-reth db migrate-v2` before that date.
+</Warning>
+
+## What this means
+
+*   **Announcement date: October 23, 2026.** **End of life (EOL): January 23, 2027**, three months after the announcement.
+*   **Support for storage v1 ends at EOL.**
+*   **Affected:** operators running op-reth with an existing storage v1 datadir, including datadirs restored from a v1 snapshot.
+*   **Not affected:** new datadirs, which use storage v2 by default, and datadirs already on storage v2.
+*   **Separate from historical proofs.** This notice covers the execution database storage layout. It does not change the historical proofs storage version (`--proofs-history.storage-version`).
+
+## Action required
+
+### Node operators
+
+Operators using storage v1 should migrate to storage v2 using `op-reth db migrate-v2`.
+
+**Option 1: use a storage v2 snapshot.** Storage v2 snapshots are available at [snapshots.optimism.io](https://snapshots.optimism.io/). For snapshot usage, see [how to use snapshots](/op-mainnet/network-information/snapshots).
+
+**Option 2: migrate in place.** Use this when a snapshot is not an option. Run the steps below with the node stopped.
+
+<Steps>
+  <Step title="Identify your storage version">
+    Stop the node and inspect its database settings, using the same datadir and chain configuration as your node:
+
+    ```bash
+    op-reth db --datadir <datadir> --chain <chain-or-genesis-path> settings get
+    ```
+
+    `storage_v2: true` means the database already uses v2.
+    `storage_v2: false`, or `No storage settings found`, indicates v1.
+  </Step>
+
+  <Step title="Prepare backups and capacity">
+    Take a restorable snapshot of the entire datadir before starting.
+    Keep free disk space of approximately 1.4 to 2 times the current datadir size.
+    Keep the node stopped throughout the procedure.
+  </Step>
+
+  <Step title="Migrate the database">
+    ```bash
+    op-reth db --datadir <datadir> --chain <chain-or-genesis-path> migrate-v2
+    ```
+
+    <Warning>
+      The migration cannot be resumed if interrupted. Restore the backup before starting again.
+    </Warning>
+  </Step>
+
+  <Step title="Verify completion">
+    Inspect the database settings again, and the stage checkpoints with `op-reth db --datadir <datadir> --chain <chain-or-genesis-path> stage-checkpoints get`.
+    Restart the node and confirm it resumes following the chain.
+  </Step>
+</Steps>
+
+## Resources
+
+*   [`op-reth db migrate-v2` reference](/node-operators/op-reth/cli/op-reth/db/migrate-v2)
+*   [`op-reth db settings get` reference](/node-operators/op-reth/cli/op-reth/db/settings/get)
+*   [`op-reth db stage-checkpoints get` reference](/node-operators/op-reth/cli/op-reth/db/stage-checkpoints/get)
+*   [Snapshots](https://snapshots.optimism.io/)
+*   [How to use snapshots](/op-mainnet/network-information/snapshots)
