@@ -221,6 +221,25 @@ here. Treat items 1–4 as **blocking**.
    into a justfile recipe would break local runs. Same for the rest of bash 4
    (`declare -A`, `${var^^}`, `local -n`).
 
+10. **Don't assume the PR targets `develop`.** PRs also target release branches
+    (`proposal/*`). These are cut from `develop` and then drift: they keep older
+    NUT bundles, dependency pins and generated artifacts. A job that compares
+    against `develop` passes on `develop` PRs but fails on every release-branch PR
+    once `develop` moves, for reasons unrelated to the PR. Look for
+    `origin/develop`, `git show develop:<file>`, `git checkout origin/develop` or
+    `BASE_BRANCH="develop"`, both in the config and in any script a CI command runs
+    (e.g. `ops/scripts/`). Resolve the base with the `get-target-branch` command
+    and `git fetch origin "$TARGET_BRANCH"` before use, since the checkout may not
+    include other branches. Also check that:
+    - branch names are not parsed with `[^/]+`, because base branches contain
+      slashes (`proposal/op-contracts/v9.0.0`);
+    - builds with no PR (branch pushes, post-merge) compare against a deliberate
+      base. A branch compared with itself gives an empty diff, which silently
+      disables path-gated routing.
+
+    `develop`-only post-merge jobs and the `develop` default for PR-less
+    feature-branch pushes are fine.
+
 ## General best practices
 
 Repo is CircleCI-primary; GitHub Actions footprint is small but these apply there.
