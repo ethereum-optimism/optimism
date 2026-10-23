@@ -281,6 +281,8 @@ The engine provides robust error handling through:
 - **Reset errors**: Trigger derivation pipeline reset
 - **Flush errors**: Trigger derivation pipeline flush
 
+An `INVALID` payload status from `engine_forkchoiceUpdated` rejects the requested head, so Kona resets the engine and derivation instead of retrying the same forkchoice. This differs from the `-38003` invalid-payload-attributes error, which retains the Holocene deposits-only replacement path. After a reset, the engine confirms the recovered safe head to derivation even when it has not changed, allowing derivation to resume without waiting for another L1 update.
+
 ### State Consistency
 
 Tasks operate atomically on the `EngineState`, ensuring consistency even during error conditions.

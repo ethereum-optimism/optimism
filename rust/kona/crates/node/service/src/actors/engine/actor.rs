@@ -148,7 +148,13 @@ where
             }
         }
 
-        self.send_derivation_actor_safe_head_if_updated().await?;
+        // Reset puts derivation into AwaitingUpdateAfterSignal even if the head is unchanged.
+        // Always confirm the recovered head so it can resume without another L1 update.
+        self.derivation_client.send_new_engine_safe_head(l2_safe_head).await.map_err(|e| {
+            error!(target: "engine", ?e, "Failed to confirm reset safe head to derivation");
+            EngineError::ChannelClosed
+        })?;
+        self.last_engine_safe_head_sent = l2_safe_head;
 
         Ok(())
     }
