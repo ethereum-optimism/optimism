@@ -1,7 +1,6 @@
 ---
 title: op-reth storage v1 deprecation and migration to storage v2
 description: op-reth storage v1 is deprecated and reaches end of support on January 23, 2027. Migrate existing datadirs to storage v2.
-date: 2026-10-23
 diataxis: reference
 lang: en-US
 content_type: notice
@@ -22,7 +21,7 @@ New datadirs use storage v2 by default. Upgrading the op-reth binary does not mi
 
 <Warning>
   **Support for storage v1 ends on January 23, 2027.**
-  Operators with an existing storage v1 datadir must migrate to storage v2 with `op-reth db migrate-v2` before that date.
+  Operators with an existing storage v1 datadir must move to storage v2 before that date, either by restoring a storage v2 snapshot or by running `op-reth db migrate-v2`.
 </Warning>
 
 ## What this means
@@ -37,7 +36,7 @@ New datadirs use storage v2 by default. Upgrading the op-reth binary does not mi
 
 ### Node operators
 
-Operators using storage v1 should migrate to storage v2 using `op-reth db migrate-v2`.
+Operators using storage v1 should move to storage v2 before the EOL date, either by restoring a storage v2 snapshot or by migrating in place with `op-reth db migrate-v2`.
 
 **Option 1: use a storage v2 snapshot.** Storage v2 snapshots are available at [snapshots.optimism.io](https://snapshots.optimism.io/). For snapshot usage, see [how to use snapshots](/op-mainnet/network-information/snapshots).
 
