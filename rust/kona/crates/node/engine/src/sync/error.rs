@@ -9,6 +9,12 @@ use thiserror::Error;
 /// An error that can occur during the sync start process.
 #[derive(Error, Debug)]
 pub enum SyncStartError {
+    /// The EL has not validated the retained checkpoint; retry without trusting its labels.
+    #[error("Execution layer has not validated the sync-start checkpoint")]
+    CheckpointNotValidated,
+    /// A canonical chain changed during checkpoint validation; retry with a fresh view.
+    #[error("Canonical chain changed during sync-start checkpoint validation")]
+    ChainViewChanged,
     /// An rpc error occurred
     #[error("An RPC error occurred: {0}")]
     RpcError(#[from] RpcError<TransportErrorKind>),
