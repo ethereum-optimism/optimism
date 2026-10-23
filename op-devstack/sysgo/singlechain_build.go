@@ -129,7 +129,9 @@ func startL2CLForKey(
 ) L2CLNode {
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
-		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
+		cfg := konaL2CLConfig(t, clKey, l2Net.ChainID(), isSequencer, l2CLOpts)
+		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil,
+			fmt.Sprintf("KONA_NODE_SEQUENCER_MAX_SAFE_LAG=%d", cfg.SequencerMaxSafeLag))
 	default: // op-node
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,
@@ -139,6 +141,18 @@ func startL2CLForKey(
 			L2CLOptions:    l2CLOpts,
 		})
 	}
+}
+
+func konaL2CLConfig(t devtest.T, key string, chainID eth.ChainID, isSequencer bool, opts []L2CLOption) *L2CLConfig {
+	cfg := DefaultL2CLConfig()
+	cfg.IsSequencer = isSequencer
+	target := NewComponentTarget(key, chainID)
+	for _, opt := range opts {
+		if opt != nil {
+			opt.Apply(t, target, cfg)
+		}
+	}
+	return cfg
 }
 
 // startStoppedSequencerCL starts the env-selected sequencer CL in the stopped
@@ -159,24 +173,22 @@ func startStoppedSequencerCL(
 	case MixedL2CLKona:
 		baseCfg := *DefaultL2CLConfig()
 		baseCfg.IsSequencer = true
-		konaCfg := baseCfg
-		target := NewComponentTarget(key, l2Net.ChainID())
-		for _, opt := range l2CLOpts {
-			if opt != nil {
-				opt.Apply(t, target, &konaCfg)
-			}
-		}
-		// Only the conductor and safe head database settings are forwarded to kona. Fail on
-		// any other option rather than silently running a node that never saw it.
+		konaCfg := *konaL2CLConfig(t, key, l2Net.ChainID(), true, l2CLOpts)
+		// Only conductor, safe-lag, and safe head database settings are forwarded to kona.
+		// Fail on any other option rather than silently running a node that never saw it.
 		unsupported := konaCfg
 		unsupported.ConductorRPC = ""
 		unsupported.ConductorRPCTimeout = 0
+		unsupported.SequencerMaxSafeLag = 0
 		unsupported.SafeDBPath = ""
-		t.Require().Equal(baseCfg, unsupported, "L2CL options other than the conductor and safe head database settings cannot be applied to kona-node")
-		extraEnv := append([]string{"KONA_NODE_SEQUENCER_STOPPED=true"}, konaSafeDBEnv(konaCfg.SafeDBPath)...)
+		t.Require().Equal(baseCfg, unsupported, "unsupported L2CL option for kona-node")
+		extraEnv := []string{
+			"KONA_NODE_SEQUENCER_STOPPED=true",
+			fmt.Sprintf("KONA_NODE_SEQUENCER_MAX_SAFE_LAG=%d", konaCfg.SequencerMaxSafeLag),
+		}
+		extraEnv = append(extraEnv, konaSafeDBEnv(konaCfg.SafeDBPath)...)
 		if konaCfg.ConductorRPC != "" {
 			t.Require().Positive(konaCfg.ConductorRPCTimeout, "conductor RPC timeout must be positive")
-			// kona-node parses this flag but does not apply it yet (#21906).
 			t.Require().Zero(konaCfg.ConductorRPCTimeout%time.Second, "Kona conductor RPC timeout must use whole seconds")
 			extraEnv = append(extraEnv,
 				"KONA_NODE_CONDUCTOR_RPC="+konaCfg.ConductorRPC,

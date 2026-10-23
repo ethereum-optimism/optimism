@@ -15,6 +15,8 @@ pub struct SequencerConfig {
     pub sequencer_stopped: bool,
     /// Whether or not the sequencer is in recovery mode.
     pub sequencer_recovery_mode: bool,
+    /// Maximum unsafe-to-safe block distance before new builds pause. Zero disables the limit.
+    pub max_safe_lag: u64,
     /// The [`Url`] for the conductor RPC endpoint. If [`Some`], enables the conductor service.
     pub conductor_rpc_url: Option<Url>,
     /// Maximum duration of a conductor RPC.
@@ -28,6 +30,7 @@ impl Default for SequencerConfig {
         Self {
             sequencer_stopped: false,
             sequencer_recovery_mode: false,
+            max_safe_lag: 0,
             conductor_rpc_url: None,
             conductor_rpc_timeout: DEFAULT_CONDUCTOR_RPC_TIMEOUT,
             l1_conf_delay: 0,

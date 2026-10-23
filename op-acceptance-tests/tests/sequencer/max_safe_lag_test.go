@@ -22,9 +22,6 @@ import (
 // against regression.
 func TestMaxSafeLagStallAndResume(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// max-safe-lag is enforced inside op-node's Go sequencer; kona-node has its
-	// own sequencer implementation and is out of scope for this regression test.
-	sysgo.SkipOnKonaNode(t, "max-safe-lag is op-node only")
 	const maxSafeLag = uint64(20)
 	// This test does not need fault proofs; using the NoFaultProofs variant
 	// avoids requiring cannon prestate artifacts in local test runs.
@@ -77,6 +74,8 @@ func TestMaxSafeLagStallAndResume(gt *testing.T) {
 	for range stableSamples {
 		require.NoError(t, clock.SystemClock.SleepCtx(t.Ctx(), time.Duration(blockTime)*time.Second)) // nosemgrep: flake-sleep-in-test -- stall confirmation requires wall-clock spacing; no chain event to wait on
 		status := sys.L2CL.SyncStatus()
+		require.LessOrEqual(t, status.UnsafeL2.Number-status.SafeL2.Number, maxSafeLag,
+			"sequencer exceeded the configured safe-lag bound")
 		require.Equal(t, stalledUnsafe, status.UnsafeL2.Number,
 			"sequencer was expected to stay stalled but unsafe head advanced: %d -> %d",
 			stalledUnsafe, status.UnsafeL2.Number)
