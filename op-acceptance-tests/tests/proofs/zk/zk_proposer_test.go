@@ -326,8 +326,9 @@ func sendDeniedMessage(t devtest.T, sys *presets.SimpleInterop, hidden *sysgo.Hi
 	sys.FunderB.Fund(aliceB, eth.OneEther)
 	initMsg := aliceA.SendRandomInitMessage(rng, aliceA.DeployEventLogger(), 2, 10)
 	initBlock := bigs.Uint64Strict(initMsg.BlockNumber())
-	// The margin keeps the initiating block below A's block at B's exec timestamp if B lags.
-	sys.L2ELA.WaitForBlockNumber(initBlock + 3)
+	// Send once B is at A's next block's timestamp, so the executing message lands
+	// after it, where A's block is above the initiating one whatever the block times.
+	sys.L2ELB.WaitForTime(sys.L2ChainA.TimestampForBlockNum(initBlock + 1))
 	execMsg := aliceB.SendInvalidExecMessage(initMsg)
 	hidden.Hide(execMsg.BlockHash())
 	execBlock := bigs.Uint64Strict(execMsg.BlockNumber())
