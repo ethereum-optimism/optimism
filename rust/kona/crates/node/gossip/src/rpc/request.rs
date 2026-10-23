@@ -401,7 +401,7 @@ impl P2pRpcRequest {
 
                     let latency = pings.get(peer_id).map(|d| d.as_secs()).unwrap_or(0);
 
-                    let node_id = format!("{:?}", &id);
+                    let node_id = format!("{:?}", id);
                     (
                         peer_id.to_string(),
                         PeerInfo {
@@ -498,7 +498,7 @@ impl P2pRpcRequest {
 
             // Note: we need to use `Debug` impl here because the `Display` impl of
             // `NodeId` strips some part of the hex string and replaces it with "...".
-            let node_id = format!("{:?}", &enr.node_id());
+            let node_id = format!("{:?}", enr.node_id());
 
             // We need to add the local multiaddr to the list of known addresses.
             let peer_info = PeerInfo {

@@ -191,13 +191,7 @@ impl SignerArgs {
             })
             .transpose()?;
 
-        Ok(Some(RemoteSigner {
-            address,
-            endpoint,
-            ca_cert: self.ca_cert.clone(),
-            client_cert,
-            headers,
-        }))
+        Ok(Some(RemoteSigner { address, endpoint, ca_cert: self.ca_cert, client_cert, headers }))
     }
 }
 

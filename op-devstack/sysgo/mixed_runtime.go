@@ -450,8 +450,8 @@ func buildMixedOpRethNode(
 		"--datadir=" + dataDirPath,
 		"--chain=" + chainConfigPath,
 	}
-	err = exec.Command(execPath, initArgs...).Run()
-	t.Require().NoError(err, "must init op-reth node")
+	initOut, err := exec.Command(execPath, initArgs...).CombinedOutput()
+	t.Require().NoError(err, "must init op-reth node: %s", string(initOut))
 
 	if !opRethCfg.DisableProofsHistory {
 		proofHistoryDir := filepath.Join(tempDir, "proof-history")

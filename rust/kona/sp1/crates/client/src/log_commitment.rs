@@ -429,6 +429,7 @@ pub struct LogCommitmentTable(BTreeMap<B256, LogCommitmentEntry>);
 impl LogCommitmentTable {
     /// Indexes the entries of `batches`. Fails if a batch is not whole entries, or if two entries
     /// for one receipts root differ.
+    #[allow(clippy::chunks_exact_to_as_chunks)]
     pub fn from_batches(batches: &[Vec<u8>]) -> Result<Self> {
         let mut entries = BTreeMap::new();
         for batch in batches {
