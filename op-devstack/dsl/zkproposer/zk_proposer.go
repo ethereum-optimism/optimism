@@ -14,13 +14,14 @@ import (
 )
 
 const (
-	metricPollInterval         = 100 * time.Millisecond
-	stateWaitTimeout           = 10 * time.Minute
-	defenseTasksSpawnedMetric  = "op_zk_proposer_games_defense_spawned"
-	gameProvingFailuresMetric  = "op_zk_proposer_game_proving_error"
-	logBatchesSubmittedMetric  = "op_zk_proposer_log_batches_submitted"
-	spanBisectionsMetric       = "op_zk_proposer_span_bisections"
-	metricsDisabledInstruction = "ZK proposer metrics are disabled; pass presets.WithZKProposerOption(sysgo.WithZKMetrics()) when creating the preset"
+	metricPollInterval              = 100 * time.Millisecond
+	stateWaitTimeout                = 10 * time.Minute
+	defenseTasksSpawnedMetric       = "op_zk_proposer_games_defense_spawned"
+	gameProvingFailuresMetric       = "op_zk_proposer_game_proving_error"
+	logBatchesSubmittedMetric       = "op_zk_proposer_log_batches_submitted"
+	spanBisectionsMetric            = "op_zk_proposer_span_bisections"
+	replacedAgreedOutputsReadMetric = "op_zk_proposer_replaced_agreed_outputs_read"
+	metricsDisabledInstruction      = "ZK proposer metrics are disabled; pass presets.WithZKProposerOption(sysgo.WithZKMetrics()) when creating the preset"
 )
 
 // Runtime provides the process-owned metrics transport without exposing its endpoint.
@@ -88,6 +89,18 @@ func SpanBisectionsAtLeast(minimum int) *StateExpectation {
 		description: "span bisections",
 		expected:    minimum,
 		metric:      spanBisectionsMetric,
+		atLeast:     true,
+	}
+}
+
+// ReplacedAgreedOutputsReadAtLeast expects at least minimum agreed outputs read
+// through kona-host because the supernode replaced the optimistic block at a
+// chunk's agreed timestamp.
+func ReplacedAgreedOutputsReadAtLeast(minimum int) *StateExpectation {
+	return &StateExpectation{
+		description: "replaced agreed outputs read",
+		expected:    minimum,
+		metric:      replacedAgreedOutputsReadMetric,
 		atLeast:     true,
 	}
 }

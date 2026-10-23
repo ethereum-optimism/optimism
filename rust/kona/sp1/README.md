@@ -418,6 +418,10 @@ fails its game attempt. A batch that the proposer splits (see below) is not coun
 `op_zk_proposer_span_bisections` counts proving spans halved for exceeding a size,
 estimate or execution limit; log-batch splits are not counted. A steady rise means the
 chunks are too large for the limits: raise `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT`.
+`op_zk_proposer_replaced_agreed_outputs_read` counts agreed outputs read through kona-host
+because the supernode replaced the optimistic block at a chunk's agreed timestamp. It counts
+again each time the proposer checks a span starting at that timestamp, on retries and in bisected
+halves, so read it as a non-zero signal, not an exact count.
 
 `op_zk_proposer_proving_duration_seconds` records only successful runs,
 including the L1 transaction path. Use the task-stats log to investigate stuck work.

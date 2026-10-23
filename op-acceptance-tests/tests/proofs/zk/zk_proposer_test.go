@@ -297,15 +297,10 @@ func TestProposerProvesBelowHeadMessageOnTablePath(gt *testing.T) {
 	)
 }
 
-// TestProposerProvesGameSpanningReplacedBlock proves a game whose span holds a
-// block of chain B that the supernode replaced for an invalid executing message.
-// The supernode keeps reporting the denied block as optimistic at its timestamp,
-// and the proposer must read it through kona-host, since the L2 node may have
-// pruned it: the proposer's ELs refuse every request for the denied block. The
-// message references a block of chain A below A's block at that timestamp, so
-// the scan must see the denied block's messages to batch it.
-func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
-	t := devtest.ParallelT(gt)
+// newReplacedBlockSystem starts an interop system with the ZK proposer, not yet
+// running, whose L2 ELs refuse every request for a block hidden through the
+// returned HiddenBlocks.
+func newReplacedBlockSystem(t devtest.T) (*presets.SimpleInterop, *sysgo.HiddenBlocks) {
 	hidden := sysgo.NewHiddenBlocks()
 	sys := presets.NewSimpleInterop(t,
 		presets.WithZK(),
@@ -314,15 +309,18 @@ func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
 		presets.WithZKProposerOption(sysgo.WithZKFastFinality()),
 		presets.WithZKProposerOption(sysgo.WithZKMetrics()),
 		presets.WithZKProposerOption(hidden.ZKProposerOption()),
-		// One timestamp per chunk for games under 128 timestamps, so the denied
-		// timestamp is both one chunk's claim and another's agreed pre-state, at
-		// which the supernode reports the denied block, not the replacement.
-		presets.WithZKProposerOption(sysgo.WithZKRangeSplitCount(128)),
 		// WithZK pins Jovian at genesis; executing messages need Lagoon.
 		presets.WithDeployerOptions(sysgo.WithInteropAtGenesis()),
 	)
-	rng := rand.New(rand.NewSource(1234))
+	return sys, hidden
+}
 
+// sendDeniedMessage sends an invalid executing message on chain B, hides its
+// block from the proposer's ELs, waits for the supernode to replace the block,
+// and returns the block's timestamp. The message references a block of chain A
+// below A's block at that timestamp.
+func sendDeniedMessage(t devtest.T, sys *presets.SimpleInterop, hidden *sysgo.HiddenBlocks) uint64 {
+	rng := rand.New(rand.NewSource(1234))
 	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
 	aliceB := aliceA.AsEL(sys.L2ELB)
 	sys.FunderB.Fund(aliceB, eth.OneEther)
@@ -331,6 +329,7 @@ func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
 	// The margin keeps the initiating block below A's block at B's exec timestamp if B lags.
 	sys.L2ELA.WaitForBlockNumber(initBlock + 3)
 	execMsg := aliceB.SendInvalidExecMessage(initMsg)
+	hidden.Hide(execMsg.BlockHash())
 	execBlock := bigs.Uint64Strict(execMsg.BlockNumber())
 	execTimestamp := sys.L2ChainB.TimestampForBlockNum(execBlock)
 	headA, err := sys.L2ChainA.Escape().RollupConfig().TargetBlockNumber(execTimestamp)
@@ -349,8 +348,21 @@ func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
 	t.Require().NotNil(optimistic.Output, "the optimistic block of chain B must have an output")
 	t.Require().Equal(execMsg.BlockHash(), optimistic.Output.BlockHash,
 		"the supernode must report the denied block as optimistic at its timestamp")
+	return execTimestamp
+}
 
-	hidden.Hide(execMsg.BlockHash())
+// TestProposerProvesGameSpanningReplacedBlock proves a game whose span holds a
+// block of chain B that the supernode replaced for an invalid executing message.
+// The supernode keeps reporting the denied block as optimistic at its timestamp,
+// and the proposer must read it through kona-host, since the L2 node may have
+// pruned it: the proposer's ELs refuse every request for the denied block. The
+// message references a block of chain A below A's block at that timestamp, so
+// the scan must see the denied block's messages to batch it.
+func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys, hidden := newReplacedBlockSystem(t)
+	execTimestamp := sendDeniedMessage(t, sys, hidden)
+
 	proposer := sys.StartZKProposer()
 	factory := sys.DisputeGameFactory()
 	game := factory.WaitForZKGameAtIndex(0)
@@ -359,11 +371,6 @@ func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
 		game = factory.WaitForZKGameAtIndex(int64(game.FactoryIndex() + 1))
 	}
 	game.WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
-	if game.L2SequenceNumber() == execTimestamp {
-		// The game ends at the denied timestamp, so the next one agrees on it.
-		game = factory.WaitForZKGameAtIndex(int64(game.FactoryIndex() + 1))
-		game.WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
-	}
 
 	// One batch means the scan read the denied block's message to chain A's block;
 	// no failure means no attempt stopped on the denied block or a missed reference.
@@ -372,6 +379,31 @@ func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
 		zkproposer.ProvingFailures(0),
 	)
 	t.Require().Positive(hidden.ForwardedRequests(), "the proposer must read the L2 ELs through the hiding proxies")
+	t.Require().Zero(hidden.RefusedRequests(), "the proposer must not ask the L2 ELs for the denied block")
+}
+
+// TestProposerProvesGameAgreeingOnReplacedBlock proves a game whose parent claims
+// the timestamp of a block of chain B that the supernode replaced for an invalid
+// executing message. The supernode reports the denied block as optimistic at that
+// timestamp, so the game's first chunk must read its agreed output, the
+// replacement's, through kona-host. A foreign game at the denied timestamp makes
+// it the agreed timestamp of the proposer's first game, whatever its span.
+func TestProposerProvesGameAgreeingOnReplacedBlock(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys, hidden := newReplacedBlockSystem(t)
+	execTimestamp := sendDeniedMessage(t, sys, hidden)
+
+	factory := sys.DisputeGameFactory()
+	foreign := factory.StartZKGame(sys.FunderL1.NewFundedEOA(eth.OneEther), proofs.WithL2SequenceNumber(execTimestamp))
+	proposer := sys.StartZKProposer()
+	game := factory.WaitForZKGameAtIndex(int64(foreign.FactoryIndex() + 1))
+	t.Require().Equal(foreign.FactoryIndex(), game.ParentIndex(), "the proposer must build on the foreign game")
+	game.WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
+
+	proposer.VerifyState(
+		zkproposer.ReplacedAgreedOutputsReadAtLeast(1),
+		zkproposer.ProvingFailures(0),
+	)
 	t.Require().Zero(hidden.RefusedRequests(), "the proposer must not ask the L2 ELs for the denied block")
 }
 

@@ -1602,7 +1602,12 @@ struct RpcBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use httpmock::{
+        HttpMockRequest, HttpMockResponse, MockServer,
+        prelude::{GET, POST},
+    };
     use kona_preimage::errors::PreimageOracleError;
+    use serde_json::{Value, json};
 
     #[test]
     fn replay_witness_over_the_limit_is_not_a_rejected_claim() {
@@ -1904,6 +1909,125 @@ mod tests {
         );
         let denied_key = PreimageKey::new_keccak256(*denied.output_root);
         assert!(synthesized.preloaded_preimages.iter().all(|(key, _)| *key != denied_key));
+    }
+
+    /// Pins that kona-host reads a replaced agreed output from the L2 node's canonical block at
+    /// the host's agreed timestamp, by number, and returns it as the requested root's preimage.
+    #[tokio::test]
+    async fn replaced_agreed_output_preimages_read_the_canonical_block_through_the_host() {
+        let rollup = &kona_registry::ROLLUP_CONFIGS[&10];
+        let timestamp = rollup.genesis.l2_time + 10 * rollup.block_time;
+        let number = rollup.block_number_from_timestamp(timestamp);
+        let header = Header { number, timestamp, state_root: b256(0x11), ..Default::default() };
+        let storage_root = b256(0x22);
+        let preimage = OutputV0 {
+            state_root: header.state_root,
+            message_passer_storage_root: storage_root,
+            block_hash: header.hash_slow(),
+        }
+        .marshal();
+        let output_root = B256::from(keccak256(&preimage));
+
+        let server = MockServer::start_async().await;
+        server
+            .mock_async(|when, then| {
+                when.method(GET).path("/eth/v1/beacon/genesis");
+                then.status(200).json_body(json!({ "data": { "genesis_time": "10" } }));
+            })
+            .await;
+        server
+            .mock_async(|when, then| {
+                when.method(GET).path("/eth/v1/config/spec");
+                then.status(200).json_body(json!({ "data": { "SECONDS_PER_SLOT": "12" } }));
+            })
+            .await;
+        // Answers with `result` under the request's JSON-RPC id, which the client checks.
+        let rpc = |result: Value| {
+            move |request: &HttpMockRequest| {
+                let id = serde_json::from_slice::<Value>(&request.body().0).unwrap()["id"].clone();
+                HttpMockResponse::builder()
+                    .status(200)
+                    .header("content-type", "application/json")
+                    .body(json!({ "jsonrpc": "2.0", "id": id, "result": result }).to_string())
+                    .build()
+            }
+        };
+        server
+            .mock_async(|when, then| {
+                when.method(POST)
+                    .json_body_includes(json!({ "method": "eth_chainId" }).to_string());
+                then.respond_with(rpc(json!("0xa")));
+            })
+            .await;
+        // Only the canonical block at the agreed timestamp is served, by number.
+        let header_read = server
+            .mock_async(|when, then| {
+                when.method(POST).json_body_includes(
+                    json!({ "method": "debug_getRawHeader", "params": [format!("0x{number:x}")] })
+                        .to_string(),
+                );
+                then.respond_with(rpc(json!(alloy_primitives::hex::encode_prefixed(
+                    alloy_rlp::encode(&header)
+                ))));
+            })
+            .await;
+        let message_passer = "0x4200000000000000000000000000000000000016";
+        let proof_read = server
+            .mock_async(|when, then| {
+                when.method(POST).json_body_includes(
+                    json!({
+                        "method": "eth_getProof",
+                        "params": [message_passer, [], format!("0x{number:x}")],
+                    })
+                    .to_string(),
+                );
+                then.respond_with(rpc(json!({
+                    "address": message_passer,
+                    "balance": "0x0",
+                    "codeHash": B256::ZERO,
+                    "nonce": "0x0",
+                    "storageHash": storage_root,
+                    "accountProof": [],
+                    "storageProof": [],
+                })));
+            })
+            .await;
+
+        let agreed =
+            SuperRootProof::new(timestamp, vec![SuperOutputRoot { chain_id: 10, output_root }]);
+        let host = build_interop_host(
+            &HostInputs {
+                l1_node_address: server.base_url(),
+                l1_beacon_address: server.base_url(),
+                l2_node_addresses: vec![server.base_url()],
+                rollup_config_paths: None,
+                l1_config_path: None,
+                dependency_set_path: None,
+            },
+            b256(0xaa),
+            &encode_super_root_proof(&agreed).unwrap(),
+            b256(0xbb),
+            // A different block than the agreed one, so only a read at the agreed timestamp hits
+            // the mocks.
+            timestamp + rollup.block_time,
+            None,
+        )
+        .unwrap();
+        // kona-host retries a hint it cannot serve, so a wrong read would hang, not fail.
+        let preimages = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            replaced_agreed_output_preimages(
+                host,
+                &[SuperOutputRoot { chain_id: 10, output_root }],
+            ),
+        )
+        .await
+        .expect("the host must serve the agreed output")
+        .unwrap();
+
+        assert_eq!(preimages, vec![(PreimageKey::new_keccak256(*output_root), preimage)]);
+        header_read.assert_async().await;
+        proof_read.assert_async().await;
     }
 
     #[test]

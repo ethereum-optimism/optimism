@@ -1171,13 +1171,14 @@ async fn check_span(
         timestamps.end,
         preimage_store(range_dir.as_ref()).as_deref(),
     )?;
-    synthesized.preloaded_preimages.extend(
+    let replaced =
         replaced_agreed_output_preimages(range_host.clone(), &synthesized.replaced_agreed_outputs)
             .await
             .with_context(|| {
                 format!("failed to read the replaced agreed outputs of span {timestamps:?}")
-            })?,
-    );
+            })?;
+    ProposerGauge::ReplacedAgreedOutputsRead.increment(replaced.len() as f64);
+    synthesized.preloaded_preimages.extend(replaced);
     let configs =
         deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
     let collected = collect_range_witness(

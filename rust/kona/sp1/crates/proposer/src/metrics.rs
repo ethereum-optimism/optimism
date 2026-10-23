@@ -273,6 +273,13 @@ pub enum ProposerGauge {
         message = "Total number of proving spans bisected for exceeding a proving limit"
     )]
     SpanBisections,
+    /// Total number of agreed outputs read through kona-host because the chunk's pre-span super
+    /// root replaced the optimistic block at that timestamp.
+    #[strum(
+        serialize = "op_zk_proposer_replaced_agreed_outputs_read",
+        message = "Total number of replaced agreed outputs read through kona-host"
+    )]
+    ReplacedAgreedOutputsRead,
     /// Total number of games found permanently unprovable (claim data
     /// diverged or required L1 beyond the game's L1 head).
     #[strum(
