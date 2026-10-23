@@ -1,6 +1,6 @@
 ---
 title: Prepare for interop on OP Mainnet and Unichain
-description: Node operator action checklist for the Lagoon interop activation on OP Mainnet and Unichain (December 15, 2026) and OP Sepolia and Unichain Sepolia (December 3, 2026).
+description: Node operator action checklist for the Lagoon interop activation on OP Sepolia and Unichain Sepolia (December 3, 2026) and OP Mainnet and Unichain (December 15, 2026).
 diataxis: reference
 lang: en-US
 content_type: notice
@@ -13,9 +13,9 @@ categories:
 is_imported_content: 'false'
 ---
 
-OP Stack interop is targeted to activate on **OP Mainnet** (chain ID `10`) and **Unichain** (chain ID `130`) on **December 15, 2026**, pending governance approval, forming a two-chain interop dependency set.
+OP Stack interop is targeted to activate on **OP Sepolia** (chain ID `11155420`) and **Unichain Sepolia** (chain ID `1301`) on **December 3, 2026**, and on **OP Mainnet** (chain ID `10`) and **Unichain** (chain ID `130`) on **December 15, 2026**, pending governance approval.
+Each pair forms a two-chain interop dependency set; run this checklist on testnet before mainnet.
 Interop ships in the [Lagoon hardfork](/op-stack/protocol/hardforks/lagoon), which also carries post-execution transactions and [sequencer-defined metering](/op-stack/features/sdm).
-The same activation lands first on **OP Sepolia** (chain ID `11155420`) and **Unichain Sepolia** (chain ID `1301`) on **December 3, 2026**; run this checklist on testnet before mainnet.
 Node operators on either chain must change their topology before the activation timestamp: each operator runs one or more [op-supernode](/op-stack/interop/supernode) instances that derive both chains and validate the cross-chain messages between them, and the rest of the fleet runs as [Light CLs](/notices/specialized-node-topology), consensus-layer clients that follow the supernode instead of deriving from L1 themselves.
 
 <Warning>
@@ -34,7 +34,7 @@ Node operators on either chain must change their topology before the activation 
 
 ## What's changing
 
-At the activation timestamp, OP Mainnet and Unichain form a two-chain dependency set, as OP Sepolia and Unichain Sepolia do on testnet.
+At the activation timestamp, OP Sepolia and Unichain Sepolia form a two-chain dependency set on testnet, and OP Mainnet and Unichain do the same on mainnet.
 Every block on either chain can contain executing messages that reference initiating messages on the other; a block is only [safe](/op-stack/interop/explainer#block-safety-levels) once every initiating message it depends on has itself reached the same safety level.
 The work of tracking both chains and proving those dependencies moves to a new component, [op-supernode](/op-stack/interop/supernode), that runs every chain in the dependency set together as virtual nodes inside one process.
 The rest of the operator's fleet stops deriving locally and follows the supernode's safe view through op-node's [Light CL mode](/notices/specialized-node-topology).
@@ -43,7 +43,7 @@ For how cross-chain messages and block safety work under interop, see the [inter
 
 ## Who this affects
 
-This notice applies to anyone running OP Mainnet or Unichain nodes after the mainnet activation timestamp, and to anyone running OP Sepolia or Unichain Sepolia nodes after the testnet activation.
+This notice applies to anyone running OP Sepolia or Unichain Sepolia nodes after the testnet activation, and to anyone running OP Mainnet or Unichain nodes after the mainnet activation timestamp.
 
 Every op-node in the fleet, whether a replica, an RPC node, or any other op-node deployment, must run as a Light CL pointed at an op-supernode that derives both chains.
 Each operator stands up at least one op-supernode for the dependency set and reconfigures every op-node in their fleet to follow it.
@@ -94,14 +94,14 @@ The command examples in the steps are minimum viable configurations; they cover 
 Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules, resource limits) on top as your environment requires.
 
 <Info>
-  Each command block has a **Mainnet** tab and a **Sepolia** tab; pick the one for the network you are preparing.
-  Mainnet commands use Ethereum mainnet L1 and beacon endpoints; Sepolia commands use Sepolia endpoints.
+  Each command block has a **Sepolia** tab and a **Mainnet** tab; pick the one for the network you are preparing.
+  Sepolia commands use Sepolia L1 and beacon endpoints; mainnet commands use Ethereum mainnet endpoints.
   op-node and op-reth spell the same network differently; use each value exactly as shown.
 </Info>
 
 <Steps>
   <Step title="Stand up execution clients for both chains">
-  Run at least one op-reth process for OP Mainnet and at least one for Unichain.
+  Run at least one op-reth process per chain in the pair: OP Sepolia and Unichain Sepolia on testnet, OP Mainnet and Unichain on mainnet.
   Execution clients are not shared across chains.
   For each chain, plan one EL per consensus client connecting to it — one per supernode virtual node, plus one per Light CL in your fleet.
   Each execution client needs its own JWT secret file (a single file shared across both ELs is fine; see the note at the end of this step) and its own engine-API listen address.
@@ -110,24 +110,6 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   Configure each EL's history retention so the supernode can backfill initiating-message logs after restarts or downtime; the [EL retention recommendation](/node-operators/guides/configuration/supernode#configure-el-retention-for-supernode-backfill) in the supernode guide covers the retention window, the relevant op-reth pruning flags, and the extra requirements that apply if you also run op-challenger.
 
   <CodeGroup>
-  ```bash Mainnet
-  # OP Mainnet execution client
-  op-reth node \
-    --chain=op-mainnet \
-    --datadir=/var/lib/op-reth-op-mainnet \
-    --authrpc.addr=127.0.0.1 \
-    --authrpc.port=8551 \
-    --authrpc.jwtsecret=/etc/op/jwt-secret.txt
-
-  # Unichain execution client
-  op-reth node \
-    --chain=unichain \
-    --datadir=/var/lib/op-reth-unichain \
-    --authrpc.addr=127.0.0.1 \
-    --authrpc.port=8561 \
-    --authrpc.jwtsecret=/etc/op/jwt-secret.txt
-  ```
-
   ```bash Sepolia
   # OP Sepolia execution client
   op-reth node \
@@ -145,6 +127,24 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
     --authrpc.port=8561 \
     --authrpc.jwtsecret=/etc/op/jwt-secret.txt
   ```
+
+  ```bash Mainnet
+  # OP Mainnet execution client
+  op-reth node \
+    --chain=op-mainnet \
+    --datadir=/var/lib/op-reth-op-mainnet \
+    --authrpc.addr=127.0.0.1 \
+    --authrpc.port=8551 \
+    --authrpc.jwtsecret=/etc/op/jwt-secret.txt
+
+  # Unichain execution client
+  op-reth node \
+    --chain=unichain \
+    --datadir=/var/lib/op-reth-unichain \
+    --authrpc.addr=127.0.0.1 \
+    --authrpc.port=8561 \
+    --authrpc.jwtsecret=/etc/op/jwt-secret.txt
+  ```
   </CodeGroup>
 
   The examples bind the engine RPC to `127.0.0.1`. If op-reth runs in a Docker container, or on a different host from the supernode, set `--authrpc.addr=0.0.0.0` (or a specific interface IP reachable from the supernode) and restrict access at the network layer.
@@ -156,8 +156,7 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   </Step>
 
   <Step title="Stand up op-supernode for both chains">
-  Run op-supernode with both chains in `--chains` (`10,130`), `--vn.10.network=op-mainnet` and `--vn.130.network=unichain-mainnet`, a shared Ethereum mainnet L1 RPC, and a shared beacon endpoint.
-  On testnet, use `--chains=11155420,1301` with `--vn.11155420.network=op-sepolia` and `--vn.1301.network=unichain-sepolia`, and Sepolia L1 and beacon endpoints.
+  Run op-supernode with both chains in `--chains` (`11155420,1301` on testnet, `10,130` on mainnet), the matching `--vn.<chainID>.network` values (`op-sepolia` and `unichain-sepolia`, or `op-mainnet` and `unichain-mainnet`), a shared L1 RPC for that pair's L1, and a shared beacon endpoint.
   The [example configuration](/node-operators/guides/configuration/supernode#example-configuration) in the supernode guide is written for exactly this dependency set (OP Mainnet plus Unichain); use it as your starting point, and keep the engine kind set to `reth` for both chains since the fleet runs op-reth.
   Follow the guide's recommendation to configure a beacon archiver fallback from the start, so a supernode that has been offline for an extended period can still recover pruned blobs.
 
@@ -169,30 +168,6 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   This disables local derivation; the op-node becomes a Light CL and inherits its safe and finalized view from the supernode.
 
   <CodeGroup>
-  ```bash Mainnet
-  # OP Mainnet verifier / RPC op-node
-  op-node \
-    --network=op-mainnet \
-    --l1=<your-mainnet-l1-eth-rpc> \
-    --l1.beacon=<your-mainnet-l1-beacon-rpc> \
-    --l2=http://op-mainnet-reth:8551 \
-    --l2.jwt-secret=/etc/op/jwt-secret.txt \
-    --l2.follow.source=http://op-supernode:8545/10 \
-    --rpc.addr=0.0.0.0 \
-    --rpc.port=9545
-
-  # Unichain verifier / RPC op-node
-  op-node \
-    --network=unichain-mainnet \
-    --l1=<your-mainnet-l1-eth-rpc> \
-    --l1.beacon=<your-mainnet-l1-beacon-rpc> \
-    --l2=http://unichain-reth:8561 \
-    --l2.jwt-secret=/etc/op/jwt-secret.txt \
-    --l2.follow.source=http://op-supernode:8545/130 \
-    --rpc.addr=0.0.0.0 \
-    --rpc.port=9546
-  ```
-
   ```bash Sepolia
   # OP Sepolia verifier / RPC op-node
   op-node \
@@ -213,6 +188,30 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
     --l2=http://unichain-sepolia-reth:8561 \
     --l2.jwt-secret=/etc/op/jwt-secret.txt \
     --l2.follow.source=http://op-supernode:8545/1301 \
+    --rpc.addr=0.0.0.0 \
+    --rpc.port=9546
+  ```
+
+  ```bash Mainnet
+  # OP Mainnet verifier / RPC op-node
+  op-node \
+    --network=op-mainnet \
+    --l1=<your-mainnet-l1-eth-rpc> \
+    --l1.beacon=<your-mainnet-l1-beacon-rpc> \
+    --l2=http://op-mainnet-reth:8551 \
+    --l2.jwt-secret=/etc/op/jwt-secret.txt \
+    --l2.follow.source=http://op-supernode:8545/10 \
+    --rpc.addr=0.0.0.0 \
+    --rpc.port=9545
+
+  # Unichain verifier / RPC op-node
+  op-node \
+    --network=unichain-mainnet \
+    --l1=<your-mainnet-l1-eth-rpc> \
+    --l1.beacon=<your-mainnet-l1-beacon-rpc> \
+    --l2=http://unichain-reth:8561 \
+    --l2.jwt-secret=/etc/op/jwt-secret.txt \
+    --l2.follow.source=http://op-supernode:8545/130 \
     --rpc.addr=0.0.0.0 \
     --rpc.port=9546
   ```
@@ -243,18 +242,18 @@ Each chain container tags its log lines with its `chain_id`, so a healthy supern
 The most common line during catch-up is `"Advancing bq origin"` (the batch-queue is walking forward through L1):
 
 <CodeGroup>
-```text Mainnet
-t=2026-12-01T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=10  vn_id=7754 origin=0x...:26800000 originBehind=false
-t=2026-12-01T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=130 vn_id=d5ca origin=0x...:26800000 originBehind=false
-```
-
 ```text Sepolia
 t=2026-11-20T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=11155420 vn_id=7754 origin=0x...:12500000 originBehind=false
 t=2026-11-20T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=1301     vn_id=d5ca origin=0x...:12500000 originBehind=false
 ```
+
+```text Mainnet
+t=2026-12-01T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=10  vn_id=7754 origin=0x...:26800000 originBehind=false
+t=2026-12-01T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=130 vn_id=d5ca origin=0x...:26800000 originBehind=false
+```
 </CodeGroup>
 
-Both chain IDs of your pair (`10` and `130` on mainnet, `11155420` and `1301` on testnet) should appear regularly.
+Both chain IDs of your pair (`11155420` and `1301` on testnet, `10` and `130` on mainnet) should appear regularly.
 Block numbers in the sample lines are illustrative.
 If you only see one chain, the other's container failed to start or its execution client is unreachable — error-level lines tagged with the missing chain explain why.
 Once the supernode catches up and starts promoting heads, you will also see `msg="Sync progress"` lines with `l2_safe`, `l2_unsafe`, and `l2_finalized` fields tagged with the same `chain_id`.
@@ -267,22 +266,22 @@ Watch a Light CL's logs the same way and look for `"Follow Source: Process exter
 A working Light CL produces these continuously while it polls the supernode's `optimism_syncStatus`:
 
 <CodeGroup>
-```text Mainnet
-t=2026-12-01T12:00:00+0000 lvl=info msg="Safety levels" unsafe=enabled safe=http://op-supernode:8545/10
-t=2026-12-01T12:00:00+0000 lvl=info msg="Follow Upstream" eSafe=0x...:145000000 eLocalSafe=0x...:145000000 eFinalized=0x...:144999900 eCurrentL1=0x...:26800200
-t=2026-12-01T12:00:00+0000 lvl=info msg="Follow Source: Process external refs" externalSafe=0x...:145000000 externalLocalSafe=0x...:145000000 externalFinalized=0x...:144999900
-```
-
 ```text Sepolia
 t=2026-11-20T12:00:00+0000 lvl=info msg="Safety levels" unsafe=enabled safe=http://op-supernode:8545/11155420
 t=2026-11-20T12:00:00+0000 lvl=info msg="Follow Upstream" eSafe=0x...:40000000 eLocalSafe=0x...:40000000 eFinalized=0x...:39999900 eCurrentL1=0x...:12500200
 t=2026-11-20T12:00:00+0000 lvl=info msg="Follow Source: Process external refs" externalSafe=0x...:40000000 externalLocalSafe=0x...:40000000 externalFinalized=0x...:39999900
 ```
+
+```text Mainnet
+t=2026-12-01T12:00:00+0000 lvl=info msg="Safety levels" unsafe=enabled safe=http://op-supernode:8545/10
+t=2026-12-01T12:00:00+0000 lvl=info msg="Follow Upstream" eSafe=0x...:145000000 eLocalSafe=0x...:145000000 eFinalized=0x...:144999900 eCurrentL1=0x...:26800200
+t=2026-12-01T12:00:00+0000 lvl=info msg="Follow Source: Process external refs" externalSafe=0x...:145000000 externalLocalSafe=0x...:145000000 externalFinalized=0x...:144999900
+```
 </CodeGroup>
 
 The first `"Safety levels"` line is the smoke test: if `safe=` shows your supernode URL and per-chain prefix, the wiring is right; the block numbers are illustrative.
 Once the supernode is past initial sync and starts promoting safe heads, `eSafe` and `externalSafe` carry climbing block numbers.
-If the Light CL never advances past genesis (`eSafe=...:0`) for many minutes, `--l2.follow.source` is pointed at the wrong URL or namespace — recheck the per-chain prefix (`/10` for OP Mainnet, `/130` for Unichain; `/11155420` and `/1301` on testnet).
+If the Light CL never advances past genesis (`eSafe=...:0`) for many minutes, `--l2.follow.source` is pointed at the wrong URL or namespace — recheck the per-chain prefix (`/11155420` for OP Sepolia, `/1301` for Unichain Sepolia; `/10` and `/130` on mainnet).
 
 If you scrape Prometheus, the equivalent gauge on a Light CL is `op_node_default_refs_number{layer="l2",type="l2_safe"}` — one Grafana panel per Light CL plus one panel per supernode chain, side by side, makes any divergence obvious.
 
