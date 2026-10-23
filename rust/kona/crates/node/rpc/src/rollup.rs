@@ -51,10 +51,10 @@ impl RollupRpc {
     async fn sync_status(&self) -> Result<SyncStatus, oneshot::error::RecvError> {
         // Copy the state before awaiting the L1 read; no watch borrow is held across an await.
         let l2_sync_status = *self.engine_state.borrow();
-        let (sender, receiver) = oneshot::channel();
+        let (tx, rx) = oneshot::channel();
         // A failed send drops the reply sender, so the receive below also fails.
-        let _ = self.l1_watcher_sender.send(L1WatcherQueries::L1State(sender)).await;
-        let l1_sync_status = receiver.await?;
+        let _ = self.l1_watcher_sender.send(L1WatcherQueries::L1State(tx)).await;
+        let l1_sync_status = rx.await?;
 
         // Zero-out the fields that can't be derived yet to follow op-node's behaviour.
         Ok(SyncStatus {

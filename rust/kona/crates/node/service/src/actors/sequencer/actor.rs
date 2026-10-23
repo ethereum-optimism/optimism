@@ -75,7 +75,7 @@ pub struct SequencerActor<
     /// Receiver for sequencer admin commands.
     pub admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
     /// Sequencer state shared with admin RPC readers.
-    state: watch::Sender<SequencerState>,
+    state_tx: watch::Sender<SequencerState>,
     /// The attributes builder used for block building.
     pub attributes_builder: AttributesBuilder_,
     /// The optional conductor RPC client.
@@ -138,14 +138,14 @@ where
         clock: Arc<dyn Clock>,
     ) -> Self {
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
-        let (state, _) = watch::channel(SequencerState {
+        let (state_tx, _) = watch::channel(SequencerState {
             active: is_active,
             conductor_enabled: conductor.is_some(),
             recovery_mode: in_recovery_mode,
         });
         Self {
             admin_command_rx,
-            state,
+            state_tx,
             attributes_builder,
             conductor,
             engine_client,
@@ -162,17 +162,17 @@ where
 
     /// Subscribe to the sequencer's state.
     pub fn admin_state_receiver(&self) -> watch::Receiver<SequencerState> {
-        self.state.subscribe()
+        self.state_tx.subscribe()
     }
 
     /// Copy the current state so no watch borrow is held across an await.
     fn state(&self) -> SequencerState {
-        *self.state.borrow()
+        *self.state_tx.borrow()
     }
 
     /// Update and publish sequencer state together with its metrics.
     fn update_state(&self, update: impl FnOnce(&mut SequencerState)) {
-        self.state.send_modify(|state| {
+        self.state_tx.send_modify(|state| {
             update(state);
             let state_flags = [
                 ("active", state.active.to_string()),
@@ -198,12 +198,10 @@ where
         // Publish before awaiting the unsafe head: sequencing is stopped even if that read fails.
         self.update_state(|state| state.active = false);
 
-        self.engine_client.get_unsafe_head().await
-            .map(|h| h.hash())
-            .map_err(|e| {
-                error!(target: "sequencer", err=?e, "Error fetching unsafe head after stopping sequencer, which should never happen.");
-                SequencerAdminAPIError::ErrorAfterSequencerWasStopped("current unsafe hash is unavailable.".to_string())
-            })
+        self.engine_client.get_unsafe_head().await.map(|h| h.hash()).map_err(|e| {
+            error!(target: "sequencer", err=?e, "Error fetching unsafe head for stop response");
+            SequencerAdminAPIError::UnsafeHeadError(e.to_string())
+        })
     }
 
     /// Sets the recovery mode of the sequencer in an idempotent fashion.

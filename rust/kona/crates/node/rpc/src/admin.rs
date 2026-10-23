@@ -67,9 +67,9 @@ pub enum SequencerAdminAPIError {
     #[error("Error sending request: {0}.")]
     RequestError(String),
 
-    /// Sequencer stopped successfully, followed by some error.
-    #[error("Sequencer stopped successfully, followed by error: {0}.")]
-    ErrorAfterSequencerWasStopped(String),
+    /// Error retrieving the unsafe head required by the stop response.
+    #[error("Error retrieving unsafe head: {0}.")]
+    UnsafeHeadError(String),
 
     /// Error overriding leader.
     #[error("Error overriding leader: {0}.")]
@@ -100,18 +100,17 @@ impl AdminRpc {
 
     async fn command<T>(
         &self,
-        command: impl FnOnce(
-            oneshot::Sender<Result<T, SequencerAdminAPIError>>,
-        ) -> SequencerAdminCommand,
+        command: SequencerAdminCommand,
+        response: oneshot::Receiver<Result<T, SequencerAdminAPIError>>,
     ) -> RpcResult<T> {
         let sequencer = self.sequencer()?;
-        let (tx, rx) = oneshot::channel();
         sequencer
             .commands
-            .send(command(tx))
+            .send(command)
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-        rx.await
+        response
+            .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
@@ -145,11 +144,13 @@ impl AdminApiServer for AdminRpc {
     }
 
     async fn admin_start_sequencer(&self) -> RpcResult<()> {
-        self.command(SequencerAdminCommand::StartSequencer).await
+        let (tx, rx) = oneshot::channel();
+        self.command(SequencerAdminCommand::StartSequencer(tx), rx).await
     }
 
     async fn admin_stop_sequencer(&self) -> RpcResult<B256> {
-        self.command(SequencerAdminCommand::StopSequencer).await
+        let (tx, rx) = oneshot::channel();
+        self.command(SequencerAdminCommand::StopSequencer(tx), rx).await
     }
 
     async fn admin_conductor_enabled(&self) -> RpcResult<bool> {
@@ -161,11 +162,13 @@ impl AdminApiServer for AdminRpc {
     }
 
     async fn admin_set_recover_mode(&self, mode: bool) -> RpcResult<()> {
-        self.command(|tx| SequencerAdminCommand::SetRecoveryMode(mode, tx)).await
+        let (tx, rx) = oneshot::channel();
+        self.command(SequencerAdminCommand::SetRecoveryMode(mode, tx), rx).await
     }
 
     async fn admin_override_leader(&self) -> RpcResult<()> {
-        self.command(SequencerAdminCommand::OverrideLeader).await
+        let (tx, rx) = oneshot::channel();
+        self.command(SequencerAdminCommand::OverrideLeader(tx), rx).await
     }
 
     async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()> {
