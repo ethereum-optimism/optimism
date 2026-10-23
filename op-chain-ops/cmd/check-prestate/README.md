@@ -10,8 +10,9 @@ Only kona prestates (types `cannon64-kona` and `cannon64-kona-interop`) are supp
 
 ## Usage
 
-The script internally clones op-geth and runs its `sync-superchain.sh` script,
-so `git`, `jq`, `dasel`, and `zipinfo` need to be installed on your system.
+The tool clones the superchain-registry at the prestate's commit and runs
+`op-core/superchain/bundle/sync-superchain.sh` on it, so `git`, `jq`, `dasel`, and `zipinfo` need
+to be installed on your system.
 
 Given an absolute prestate hash and a list of chains (with their canonical network names), the tool can be run like the following:
 ```sh

@@ -89,7 +89,7 @@ func cloneRegistryAtCommit(dir, ref string) error {
 	return nil
 }
 
-// opCoreSyncScriptPath locates op-core/superchain/sync-superchain.sh by walking up
+// opCoreSyncScriptPath locates op-core/superchain/bundle/sync-superchain.sh by walking up
 // from the working directory until it's found. check-prestate is run from a monorepo
 // checkout (it resolves kona-client release tags via git), so the script is always an
 // ancestor of the working directory. Walking up — rather than `git rev-parse
@@ -100,7 +100,7 @@ func opCoreSyncScriptPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get working directory: %w", err)
 	}
-	rel := filepath.Join("op-core", "superchain", "sync-superchain.sh")
+	rel := filepath.Join("op-core", "superchain", "bundle", "sync-superchain.sh")
 	for {
 		candidate := filepath.Join(dir, rel)
 		if _, statErr := os.Stat(candidate); statErr == nil {

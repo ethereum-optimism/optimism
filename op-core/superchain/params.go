@@ -1,7 +1,6 @@
 package superchain
 
 import (
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -44,18 +43,4 @@ func (c *ChainConfig) OpChainConfig() *opparams.ChainConfig {
 	}
 
 	return out
-}
-
-// LoadOpChainConfig loads the OP-Stack chain config for the given L2 chain ID
-// from the embedded superchain registry.
-func LoadOpChainConfig(chainID uint64) (*opparams.ChainConfig, error) {
-	chain, err := GetChain(chainID)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get chain %d from superchain registry: %w", chainID, err)
-	}
-	chConfig, err := chain.Config()
-	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve chain %d config: %w", chainID, err)
-	}
-	return chConfig.OpChainConfig(), nil
 }

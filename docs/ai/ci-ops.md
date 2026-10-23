@@ -63,20 +63,20 @@ branch that only added a new `op-core/types` package. The diff touched nothing i
 `op-deployer`; the failures were a data-dependent flake already fixed on `develop` by
 #21396. Rebasing made CI green with no change to the branch's own work.
 
-## Missing `op-core/superchain` bundle (`superchain-configs.zip`)
+## Missing `op-core/superchain/bundle` bundle (`superchain-configs.zip`)
 
 A CI-only compile error like:
 
 ```
-op-core/superchain/chain.go:NN: pattern superchain-configs.zip: no matching files found
+op-core/superchain/bundle/bundle.go:NN: pattern superchain-configs.zip: no matching files found
 ```
 
-means the job builds Go that transitively links `op-core/superchain` without the bundle
+means the job builds Go that transitively links `op-core/superchain/bundle` without the bundle
 it `//go:embed`s. The zip is **gitignored** and built only by the `prep-superchain` job
 (or `just build-superchain-go` locally), so **every** job that compiles an
-`op-core/superchain` linker must provision it. The linker set is large — op-node and
+`op-core/superchain/bundle` linker must provision it. The linker set is large — op-node and
 several other binaries, but also `op-e2e`, `op-acceptance-tests`, `op-deployer`, and the
-`kona`/`op-reth` Go tests (`TestBundleReachability` in `op-core/superchain/deps_test.go`
+`kona`/`op-reth` Go tests (`TestBundleReachability` in `op-core/superchain/bundle/deps_test.go`
 pins the full set) — so a **Go-only** change can red-wash unrelated-looking jobs
 (`rust-e2e`) all at compile time. It passes locally and in review because the
 developer already has the zip on disk (see [go-dev.md](go-dev.md)).
@@ -92,7 +92,7 @@ Provision the bundle in the failing job:
 - **`just` recipes** that compile such Go: have the recipe run
   `just build-superchain-go` first.
 
-When adding a new `op-core/superchain` consumer, audit every CI job that compiles it.
+When adding a new `op-core/superchain/bundle` consumer, audit every CI job that compiles it.
 
 ## TODO Checker Failures
 

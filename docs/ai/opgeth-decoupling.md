@@ -72,7 +72,7 @@ All op-geth-specific code lives in `op-core/` packages (alongside the pre-existi
 | `core/types/deposit_tx.go`, `post_exec_tx.go`, `receipt_opstack.go` | `op-core/types/` | `DepositTx`, `PostExecTx`, `Receipt` + helpers |
 | `core/types/rollup_cost.go` | `op-core/fees/` | L1 cost + operator-fee math |
 | `params/config_op.go`, `params/superchain.go` | `op-core/params/` | `OptimismConfig`, standalone `ChainConfig`, loaders |
-| `superchain/` + `sync-superchain.sh` | `op-core/superchain/` | embedded registry (absorbed `op-service/superutil`) |
+| `superchain/` + `sync-superchain.sh` | `op-core/superchain/`, `op-core/superchain/bundle/` | registry types and loader; embedded registry in `bundle` (absorbed `op-service/superutil`) |
 | `consensus/misc/eip1559/eip1559_optimism.go` | `op-core/eip1559/` | Holocene/Jovian extraData helpers |
 
 ### Design principles (apply to all future op-core additions)
@@ -249,24 +249,24 @@ the ratchet (§19).
 
 ## 6. `params/superchain.go` – `LoadOPStackChainConfig` — **DONE**
 
-Moved to `op-core/superchain`: `(*superchain.ChainConfig).OpChainConfig()` plus the by-chain-ID
-loader `superchain.LoadOpChainConfig` (ex-superutil). §7 has the layering rationale.
+`(*superchain.ChainConfig).OpChainConfig()` in `op-core/superchain` builds an `op-core/params`
+chain config from a registry chain config. §7 has the layering rationale.
 
 ---
 
 ## 7. `superchain/` package — **DONE** (#20267, #21487)
 
-The registry package moved verbatim to `op-core/superchain` (embedded zip regenerated from the
-repo-root `superchain-registry` submodule by `sync-superchain.sh`; the zip is gitignored, pinned
-by a committed `.sha256`). `op-service/superutil` was deleted; all consumers import
-`op-core/superchain`.
+The registry's config types and a loader for a registry bundle live in `op-core/superchain`.
+The registry built into the monorepo lives in `op-core/superchain/bundle`: the embedded zip,
+regenerated from the repo-root `superchain-registry` submodule by `bundle/sync-superchain.sh`,
+gitignored and pinned by a committed `.sha256`. `op-service/superutil` was deleted.
 
-Layering decision worth remembering: `op-core/params` holds pure config types and must stay
-free of `op-core/superchain`, which embeds the bundle — anything in its build closure needs the
-bundle generated before it compiles, and external module consumers (the superchain-registry ops
-tooling) cannot generate it at all. The registry→`ChainConfig` conversion (`OpChainConfig`,
-`LoadOpChainConfig`) therefore lives in **`op-core/superchain`**, which imports `op-core/params`
-one-way. `TestBundleReachability` in `op-core/superchain/deps_test.go` guards the whole
+Layering decision worth remembering: only `op-core/superchain/bundle` embeds the bundle —
+anything in its build closure needs the bundle generated before it compiles, and external module
+consumers (the superchain-registry ops tooling) cannot generate it at all. `op-core/superchain`
+embeds nothing, so those consumers can import the registry types and the registry→`ChainConfig`
+conversion (`OpChainConfig`); it imports `op-core/params` one-way, and `op-core/params` holds pure
+config types. `TestBundleReachability` in `op-core/superchain/bundle/deps_test.go` guards the whole
 monorepo against reaching the bundle via a `bundleAllowed` allowlist; per-package guard
 tests (`op-service/testutils/depguard`) in `op-node/rollup`, `op-chain-ops/{genesis,script}`,
 and `op-fetcher/fetch` give a local failure signal on top.
@@ -680,12 +680,12 @@ the one carrying security relevance, and the monorepo pin catches up in one bump
 Revisit these when §15 lands. The log layer is not a blocker: `op-service/log` and
 `op-service/testlog` compile against upstream go-ethereum.
 
-**An edge into `op-core/superchain` caps a consumer's monorepo version.** Any package reaching
+**An edge into `op-core/superchain/bundle` caps a consumer's monorepo version.** Any package reaching
 the bundle cannot be built by a downstream module at all (#22678), so a consumer that reaches it
 is stuck on the last commit predating the breakage. #22700 and #22709 cleared the *accidental*
 reachers — `op-service/{apis,dial,sources,testutils,txintent}`, `op-node/rollup/...` and
 `op-service/oppprof` among them — and what remains is the explicit `bundleAllowed` list in
-`op-core/superchain/deps_test.go`. So a consumer's ceiling is now a checkable question: does its
+`op-core/superchain/bundle/deps_test.go`. So a consumer's ceiling is now a checkable question: does its
 import closure land on that list? Reaching `op-deployer`, `op-conductor`, `op-challenger` or
 op-node's non-`rollup` packages still caps it; the op-service plumbing no longer does.
 
@@ -745,9 +745,9 @@ that matter arrive through **libp2p**, an inbound path independent of go-ethereu
 moving to upstream geth leaves them where they were. That is the other half of why decoupling and
 bumping belong in the same change.
 
-Related: #22678 (`op-core/superchain` is unbuildable by downstream modules because
-`superchain-configs.zip` is gitignored) is a distinct blocker for these consumers, and one the
-monorepo has to fix on their behalf.
+Related: downstream modules can import `op-core/superchain` for the registry's types and loader;
+only `op-core/superchain/bundle`, which embeds the gitignored `superchain-configs.zip`, is
+monorepo-only (#22678).
 
 ---
 
@@ -760,7 +760,7 @@ monorepo has to fix on their behalf.
 | OP `Receipt` (§3) | `op-core/types.Receipt` | **done** (#20262); wiring landed with §11 (#20264) |
 | L1-cost / operator-fee math (§4) | `op-core/fees` | **done** (#20261); op-batcher site landed with §11 |
 | `OptimismConfig` / standalone `ChainConfig` / `GethChainConfig` (§5) | `op-core/params` | **done** (#20260, #20270) |
-| Superchain registry + loaders (§6, §7) | `op-core/superchain` + `op-core/params` | **done** (#20267, #21487) |
+| Superchain registry + loaders (§6, §7) | `op-core/superchain{,/bundle}` + `op-core/params` | **done** (#20267, #21487) |
 | eip1559 Holocene/Jovian helpers (§8) | `op-core/eip1559` | **done** for op-node; `EncodeOptimismExtraData`/`DecodeHoloceneExtraData` pending (§13) |
 | `PayloadID`, Engine-API types (§9, §10) | upstream / op-service | no change needed |
 | OP-aware eth client: class-partitioned accessors, `optypes.Receipt` returns, op-batcher + txinclude migration (§11) | `op-service/sources` / `apis.EthClient` | **done** (#20264) |
