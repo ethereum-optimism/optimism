@@ -13,9 +13,9 @@ pub use clock::{Clock, SystemClock};
 
 mod engine;
 pub use engine::{
-    BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
-    EngineConfig, EngineDerivationClient, EngineError, EngineRpcActor, EngineRpcRequest,
-    QueuedEngineDerivationClient, ResetRequest, SealRequest,
+    BuildRequest, EngineActor, EngineActorInput, EngineActorRequest, EngineClientError,
+    EngineClientResult, EngineConfig, EngineDerivationClient, EngineError, EngineRpcActor,
+    EngineRpcRequest, QueuedEngineDerivationClient, ResetRequest, SealRequest,
 };
 
 pub(crate) mod rpc;
@@ -26,17 +26,17 @@ pub use rpc::{
 
 mod derivation;
 pub use derivation::{
-    DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationClientError,
-    DerivationClientResult, DerivationDelegateClient, DerivationDelegateClientError,
-    DerivationDelegateProvider, DerivationEngineClient, DerivationError, DerivationState,
-    DerivationStateMachine, DerivationStateTransitionError, DerivationStateUpdate,
-    QueuedDerivationEngineClient,
+    DelegateDerivationActor, DelegateDerivationActorInput, DerivationActor, DerivationActorRequest,
+    DerivationClientError, DerivationClientResult, DerivationDelegateClient,
+    DerivationDelegateClientError, DerivationDelegateProvider, DerivationEngineClient,
+    DerivationError, DerivationState, DerivationStateMachine, DerivationStateTransitionError,
+    DerivationStateUpdate, QueuedDerivationEngineClient,
 };
 
 mod l1_watcher;
 pub use l1_watcher::{
-    BlockStream, L1WatcherActor, L1WatcherActorError, L1WatcherChain, L1WatcherDerivationClient,
-    QueuedL1WatcherDerivationClient,
+    BlockStream, L1WatcherActor, L1WatcherActorError, L1WatcherActorInput, L1WatcherChain,
+    L1WatcherDerivationClient, QueuedL1WatcherDerivationClient,
 };
 
 mod signer;
@@ -44,8 +44,8 @@ pub use signer::{SignedPayload, SignerActor, SignerActorError};
 
 mod network;
 pub use network::{
-    NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
-    NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
+    NetworkActor, NetworkActorError, NetworkActorInput, NetworkBuilder, NetworkBuilderError,
+    NetworkConfig, NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
     QueuedNetworkEngineClient, QueuedUnsafePayloadGossipClient, UnsafePayloadGossipClient,
     UnsafePayloadGossipClientError,
 };
@@ -55,7 +55,7 @@ mod sequencer;
 pub use sequencer::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider, L1OriginSelector,
     L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector, QueuedSequencerEngineClient,
-    SequencerActor, SequencerActorError, SequencerAdminQuery, SequencerConfig,
+    SequencerActor, SequencerActorError, SequencerActorInput, SequencerAdminQuery, SequencerConfig,
     SequencerEngineClient,
 };
 

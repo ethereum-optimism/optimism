@@ -64,9 +64,13 @@ impl SignerActor {
 #[async_trait]
 impl NodeActor for SignerActor {
     type Error = SignerActorError;
+    type Input = OpExecutionPayloadEnvelope;
 
-    async fn step(&mut self) -> Result<(), Self::Error> {
-        let payload = self.payloads.recv().await.ok_or(SignerActorError::ChannelClosed)?;
+    async fn next(&mut self) -> Result<Self::Input, Self::Error> {
+        self.payloads.recv().await.ok_or(SignerActorError::ChannelClosed)
+    }
+
+    async fn handle(&mut self, payload: Self::Input) -> Result<(), Self::Error> {
         // A remote signer rejects an address that is not its own, so a rotation seen before this
         // call fails with `InvalidAddress`. A local signer ignores the address.
         let sender = *self.unsafe_block_signer.borrow();

@@ -31,7 +31,7 @@ where
     latest_finalized: watch::Sender<Option<BlockInfo>>,
     head_stream: BlockStream,
     finalized_stream: BlockStream,
-    /// Moved into workers on the first step, so construction does not require a runtime.
+    /// Moved into workers on the first call to `next`, so construction does not require a runtime.
     chains: Vec<L1WatcherChain<Client>>,
     workers: JoinSet<ChainExit>,
 }
@@ -42,7 +42,7 @@ where
     L1Provider: Provider + Clone,
     Client: L1WatcherDerivationClient,
 {
-    /// Constructs a watcher. Workers are started by the first call to `step`.
+    /// Constructs a watcher. Workers are started by the first call to `next`.
     ///
     /// # Panics
     /// Panics when there are no chains to serve.
@@ -75,8 +75,9 @@ where
     Client: L1WatcherDerivationClient + 'static,
 {
     type Error = L1WatcherActorError<BlockInfo>;
+    type Input = L1WatcherActorInput;
 
-    async fn step(&mut self) -> Result<(), Self::Error> {
+    async fn next(&mut self) -> Result<Self::Input, Self::Error> {
         for chain in self.chains.drain(..) {
             let provider = self.l1_provider.clone();
             let head = self.latest_head.subscribe();
@@ -86,30 +87,47 @@ where
                 ChainExit { chain_id, result: chain.run(provider, head, finalized).await }
             });
         }
-        if self.workers.is_empty() {
-            return Err(L1WatcherActorError::StreamEnded);
-        }
-        tokio::select! {
-            head = self.head_stream.next() => {
-                self.latest_head.send_replace(Some(head.ok_or(L1WatcherActorError::StreamEnded)?));
+        loop {
+            if self.workers.is_empty() {
+                return Err(L1WatcherActorError::StreamEnded);
             }
-            finalized = self.finalized_stream.next() => {
-                self.latest_finalized.send_replace(Some(finalized.ok_or(L1WatcherActorError::StreamEnded)?));
-            }
-            Some(exit) = self.workers.join_next() => {
-                match exit {
-                    Ok(exit) => error!(target: "l1_watcher", chain_id = exit.chain_id, result = ?exit.result, "Chain detached from L1 watcher"),
-                    Err(err) => error!(target: "l1_watcher", ?err, "L1 chain worker failed"),
+            tokio::select! {
+                head = self.head_stream.next() => {
+                    return Ok(L1WatcherActorInput::Head(head.ok_or(L1WatcherActorError::StreamEnded)?));
                 }
-                // A dead chain cannot be revived by retrying its closed channels. Detach it;
-                // the owning chain supervisor is responsible for rebuilding that chain.
-                if self.workers.is_empty() {
-                    return Err(L1WatcherActorError::StreamEnded);
+                finalized = self.finalized_stream.next() => {
+                    return Ok(L1WatcherActorInput::Finalized(finalized.ok_or(L1WatcherActorError::StreamEnded)?));
+                }
+                Some(exit) = self.workers.join_next() => {
+                    // A dead chain cannot be revived by retrying its closed channels. Detach it;
+                    // the owning chain supervisor is responsible for rebuilding that chain.
+                    match exit {
+                        Ok(exit) => error!(target: "l1_watcher", chain_id = exit.chain_id, result = ?exit.result, "Chain detached from L1 watcher"),
+                        Err(err) => error!(target: "l1_watcher", ?err, "L1 chain worker failed"),
+                    }
                 }
             }
         }
+    }
+
+    async fn handle(&mut self, input: Self::Input) -> Result<(), Self::Error> {
+        match input {
+            L1WatcherActorInput::Head(head) => self.latest_head.send_replace(Some(head)),
+            L1WatcherActorInput::Finalized(finalized) => {
+                self.latest_finalized.send_replace(Some(finalized))
+            }
+        };
         Ok(())
     }
+}
+
+/// An input handled by the [`L1WatcherActor`].
+#[derive(Debug)]
+pub enum L1WatcherActorInput {
+    /// A new L1 head.
+    Head(BlockInfo),
+    /// A new finalized L1 block.
+    Finalized(BlockInfo),
 }
 
 #[cfg(test)]

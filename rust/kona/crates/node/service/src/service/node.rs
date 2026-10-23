@@ -1,14 +1,14 @@
 //! Contains the [`RollupNode`] implementation.
 use crate::{
-    ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
-    DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
-    EngineActorRequest, EngineConfig, EngineRpcActor, EngineRpcRequest, JsonrpseeServerLauncher,
-    L1OriginSelector, L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig,
-    NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
-    QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
-    RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig, SignedPayload, SignerActor,
-    SystemClock,
+    ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor,
+    DelegateDerivationActorInput, DerivationActor, DerivationActorRequest,
+    DerivationDelegateClient, DerivationError, EngineActor, EngineActorRequest, EngineConfig,
+    EngineRpcActor, EngineRpcRequest, JsonrpseeServerLauncher, L1OriginSelector, L1WatcherActor,
+    L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor,
+    NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedEngineRpcClient,
+    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient,
+    QueuedSequencerEngineClient, RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
+    SignedPayload, SignerActor, SystemClock,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
     service::BufferImportedBlocks,
 };
@@ -119,18 +119,36 @@ where
         QueuedDerivationEngineClient,
         DerivationDelegateClient,
         AlloyChainProvider,
-    >: NodeActor<Error = DerivationError>,
+    >: NodeActor<Error = DerivationError, Input = DelegateDerivationActorInput>,
     DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>:
-        NodeActor<Error = DerivationError>,
+        NodeActor<Error = DerivationError, Input = DerivationActorRequest>,
 {
     type Error = DerivationError;
+    type Input = ConfiguredDerivationInput;
 
-    async fn step(&mut self) -> Result<(), Self::Error> {
+    async fn next(&mut self) -> Result<Self::Input, Self::Error> {
         match self {
-            Self::Delegate(a) => a.step().await,
-            Self::Normal(a) => a.step().await,
+            Self::Delegate(a) => a.next().await.map(ConfiguredDerivationInput::Delegate),
+            Self::Normal(a) => a.next().await.map(ConfiguredDerivationInput::Normal),
         }
     }
+
+    async fn handle(&mut self, input: Self::Input) -> Result<(), Self::Error> {
+        match (self, input) {
+            (Self::Delegate(a), ConfiguredDerivationInput::Delegate(input)) => {
+                a.handle(input).await
+            }
+            (Self::Normal(a), ConfiguredDerivationInput::Normal(input)) => a.handle(input).await,
+            _ => unreachable!("the input comes from the same actor's `next`"),
+        }
+    }
+}
+
+/// An input for the [`ConfiguredDerivationActor`], tagged by the actor that produced it.
+#[derive(Debug)]
+enum ConfiguredDerivationInput {
+    Delegate(DelegateDerivationActorInput),
+    Normal(DerivationActorRequest),
 }
 
 /// Concrete type of the engine actor used by `RollupNode`.
@@ -502,8 +520,10 @@ impl RollupNode {
     /// ## Shutdown
     ///
     /// Shutdown is unordered: when any actor exits (success, error, or panic) or an OS signal is
-    /// received, the umbrella cancellation token fires and all peer actors observe it on their
-    /// next `select!`. Actors may log channel-closed errors while peers are torn down
+    /// received, the umbrella cancellation token fires. Each actor finishes handling its current
+    /// input and stops instead of waiting for the next one. The node waits for the actors to stop
+    /// for a bounded time, and a second signal aborts the remaining actors. Messages still queued
+    /// between actors are dropped. Actors may log channel-closed errors while peers are torn down
     /// concurrently; this is expected and not a sign of an unclean exit.
     pub async fn start(&self) -> Result<(), String> {
         // Single umbrella cancellation token owned by the spawn_and_wait! macro.
@@ -618,8 +638,7 @@ impl RollupNode {
                 Some(engine_actor),
                 Some(engine_rpc_actor),
             ]
-        );
-        Ok(())
+        )
     }
 }
 

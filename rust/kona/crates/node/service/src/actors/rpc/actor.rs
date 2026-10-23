@@ -10,7 +10,7 @@ use jsonrpsee::RpcModule;
 /// An actor that runs the JSON-RPC server for the rollup node.
 ///
 /// The first launch happens upstream of this actor; restarts (up to `restart_count` provided
-/// at construction) are handled inside [`Self::step`].
+/// at construction) are handled inside [`NodeActor::handle`].
 #[derive(Debug)]
 pub struct RpcActor<Launcher: RpcServerLauncher> {
     /// Launcher used to relaunch the server if it stops.
@@ -19,7 +19,7 @@ pub struct RpcActor<Launcher: RpcServerLauncher> {
     modules: RpcModule<()>,
     /// The currently-running server handle. Replaced on each successful relaunch.
     handle: Option<Launcher::Handle>,
-    /// Remaining relaunches allowed before [`Self::step`] returns
+    /// Remaining relaunches allowed before [`NodeActor::handle`] returns
     /// [`RpcActorError::ServerStopped`].
     restarts_remaining: u32,
 }
@@ -54,11 +54,17 @@ impl<Launcher: RpcServerLauncher> Drop for RpcActor<Launcher> {
 #[async_trait]
 impl<Launcher: RpcServerLauncher> NodeActor for RpcActor<Launcher> {
     type Error = RpcActorError;
+    type Input = ();
 
-    async fn step(&mut self) -> Result<(), Self::Error> {
+    /// Waits for the server to stop.
+    async fn next(&mut self) -> Result<Self::Input, Self::Error> {
         let handle = self.handle.as_ref().ok_or(RpcActorError::ServerStopped)?;
         handle.stopped().await;
+        Ok(())
+    }
 
+    /// Relaunches the stopped server, if any restarts remain.
+    async fn handle(&mut self, (): Self::Input) -> Result<(), Self::Error> {
         if self.restarts_remaining == 0 {
             return Err(RpcActorError::ServerStopped);
         }

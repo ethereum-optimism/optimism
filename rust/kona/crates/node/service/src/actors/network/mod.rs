@@ -1,7 +1,7 @@
 //! Network Actor
 
 mod actor;
-pub use actor::{NetworkActor, NetworkActorError};
+pub use actor::{NetworkActor, NetworkActorError, NetworkActorInput};
 
 mod builder;
 pub use builder::NetworkBuilder;

@@ -71,8 +71,8 @@ async fn reset_recovers_and_completes_original_request(
         .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx: reply })))
         .await
         .unwrap();
-    actor.step().await.unwrap(); // retain the reset
-    actor.step().await.unwrap(); // failed attempt, then wait for backoff
+    actor.step().await.unwrap(); // retain the reset, and fail the first attempt
+    actor.step().await.unwrap(); // wait for backoff, and fail again
     assert!(reply_rx.try_recv().is_err());
     {
         let mut data = storage.write().await;
@@ -80,7 +80,7 @@ async fn reset_recovers_and_completes_original_request(
         data.l2_read_error = None;
         data.l2_read_delay = read_delay;
     }
-    // A step performs recovery and then waits for another message; the response arrives first.
+    // The next step waits for the backoff and then performs recovery; the response arrives first.
     let mut tasks = tokio::task::JoinSet::new();
     tasks.spawn(async move {
         loop {

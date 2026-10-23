@@ -1,7 +1,7 @@
 //! The [`EngineActor`], [`EngineRpcActor`], and their components.
 
 mod actor;
-pub use actor::{EngineActor, EngineActorRequest};
+pub use actor::{EngineActor, EngineActorInput, EngineActorRequest};
 
 mod client;
 pub use client::{EngineDerivationClient, QueuedEngineDerivationClient};

@@ -84,6 +84,8 @@ async fn full_gossip_queue_pauses_building_but_admin_queries_are_answered() {
     gossip.expect_schedule_execution_payload_gossip().times(0);
     actor.unsafe_payload_gossip_client = gossip;
 
+    // The first step resets the engine.
+    time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
     // The build tick finds the queue full and returns instead of waiting for space.
     time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
 
@@ -120,8 +122,10 @@ async fn building_resumes_once_the_gossip_queue_drains() {
     gossip.expect_has_capacity().returning(move || ticks.fetch_add(1, Ordering::SeqCst) > 0);
     actor.unsafe_payload_gossip_client = gossip;
 
-    time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
-    time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
+    // The first step resets the engine, followed by the two ticks.
+    for _ in 0..3 {
+        time::timeout(Duration::from_secs(10), actor.step()).await.unwrap().unwrap();
+    }
 }
 
 /// An unsafe head built at `timestamp`.
@@ -209,7 +213,8 @@ async fn next_block_is_built_when_it_is_due(#[case] parent_timestamp: u64, #[cas
     actor.engine_client = mock_engine(vec![block_at(parent_timestamp)]);
     expect_builds(&mut actor, 1, 1);
 
-    // Reset the engine and start building on the first tick, which fires immediately.
+    // Reset the engine, then start building on the first tick, which fires immediately.
+    step_time(&mut actor).await;
     step_time(&mut actor).await;
 
     assert_eq!(step_time(&mut actor).await, wait, "the next tick fired at the wrong time");
@@ -247,7 +252,8 @@ async fn next_block_starts_earlier_by_the_seal_time(
     let mut actor = test_actor_with_engine(SlowSealEngine { inner: engine, seal_time });
     expect_builds(&mut actor, 2, 2);
 
-    // Reset the engine and start building the first block, immediately.
+    // Reset the engine, then start building the first block, immediately.
+    step_time(&mut actor).await;
     step_time(&mut actor).await;
     // When the first block is due, seal it and start building the second.
     assert_eq!(step_time(&mut actor).await, Duration::from_secs(2) + seal_time);
