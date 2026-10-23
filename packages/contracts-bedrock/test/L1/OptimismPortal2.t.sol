@@ -22,6 +22,7 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Features } from "src/libraries/Features.sol";
+import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
 import "src/dispute/lib/Types.sol";
 import { UnknownChainId } from "src/dispute/lib/Errors.sol";
 
@@ -3376,5 +3377,158 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidBridgeHookState.selector);
         vm.prank(proxyAdminOwner);
         optimismPortal2.removeHook();
+    }
+}
+
+/// @title OptimismPortal2_BridgeHook_TestInit
+/// @notice Reusable setup for tests of the bridge hook paths: proceed, hold and complete, for
+///         deposits and withdrawals.
+abstract contract OptimismPortal2_BridgeHook_TestInit is OptimismPortal2_TestInit {
+    address internal hook = makeAddr("bridgeHook");
+
+    function setUp() public override {
+        super.setUp();
+        // A bridge hook is not supported alongside a custom gas token.
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+
+        forceSetBridgeHook(hook);
+        vm.etch(hook, hex"00");
+    }
+
+    /// @notice Makes the hook answer every screen with `_pass`.
+    function _mockScreen(bool _pass) internal {
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screen.selector), abi.encode(_pass));
+    }
+
+    /// @notice Returns the item of the first recorded log with the given held event.
+    function _heldItem(bytes32 _topic) internal view returns (bytes32 id_, BridgeHookTypes.Item memory item_) {
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i; i < logs.length; i++) {
+            if (logs[i].emitter == address(optimismPortal2) && logs[i].topics[0] == _topic) {
+                return (logs[i].topics[1], abi.decode(logs[i].data, (BridgeHookTypes.Item)));
+            }
+        }
+        revert("OptimismPortal2_BridgeHook_TestInit: held event not found");
+    }
+
+    /// @notice Proves the default withdrawal and makes it finalizable.
+    function _proveAndMature() internal {
+        optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
+        game.resolveClaim(0, 0);
+        game.resolve();
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1 seconds);
+    }
+
+    /// @notice Holds a 1 ether deposit from alice and returns it.
+    function _holdDeposit() internal returns (bytes32 id_, BridgeHookTypes.Item memory item_) {
+        _mockScreen(false);
+        vm.deal(alice, 1 ether);
+        vm.recordLogs();
+        vm.prank(alice, alice);
+        optimismPortal2.depositTransaction{ value: 1 ether }(bob, 1 ether, 100_000, false, hex"");
+        return _heldItem(
+            keccak256(
+                "DepositHeld(bytes32,(uint8,uint8,address,bool,address,uint256,uint256,uint256,bool,bytes,uint256))"
+            )
+        );
+    }
+
+    /// @notice Holds the default withdrawal and returns it.
+    function _holdWithdrawal() internal returns (bytes32 id_, BridgeHookTypes.Item memory item_) {
+        _proveAndMature();
+        _mockScreen(false);
+        vm.recordLogs();
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        return _heldItem(
+            keccak256(
+                "WithdrawalHeld(bytes32,(uint8,uint8,address,bool,address,uint256,uint256,uint256,bool,bytes,uint256))"
+            )
+        );
+    }
+}
+
+/// @title OptimismPortal2_DepositTransaction_BridgeHook_Test
+/// @notice Tests `depositTransaction` while a bridge hook is set.
+contract OptimismPortal2_DepositTransaction_BridgeHook_Test is OptimismPortal2_BridgeHook_TestInit {
+    /// @notice Tests that a deposit the hook passes is emitted.
+    function test_depositTransaction_hookPasses_succeeds() external {
+        _mockScreen(true);
+        vm.deal(alice, 1 ether);
+
+        vm.expectEmit(false, false, false, false, address(optimismPortal2));
+        emit TransactionDeposited(alice, bob, 0, hex"");
+        vm.prank(alice, alice);
+        optimismPortal2.depositTransaction{ value: 1 ether }(bob, 1 ether, 100_000, false, hex"");
+
+        assertEq(optimismPortal2.depositNonce(), 1);
+        assertEq(hook.balance, 0);
+    }
+
+    /// @notice Tests that a deposit the hook holds is committed and its ETH goes to the hook.
+    function test_depositTransaction_hookHolds_succeeds() external {
+        (bytes32 id, BridgeHookTypes.Item memory item) = _holdDeposit();
+
+        assertTrue(optimismPortal2.heldDeposits(id));
+        assertEq(id, keccak256(abi.encode(item)));
+        assertEq(item.ethAmount, 1 ether);
+        assertEq(hook.balance, 1 ether);
+    }
+}
+
+/// @title OptimismPortal2_CompleteDepositTransaction_Test
+/// @notice Tests the `completeDepositTransaction` function.
+contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_BridgeHook_TestInit {
+    /// @notice Tests that the hook can complete a held deposit.
+    function test_completeDepositTransaction_held_succeeds() external {
+        (bytes32 id, BridgeHookTypes.Item memory item) = _holdDeposit();
+
+        vm.expectEmit(false, false, false, false, address(optimismPortal2));
+        emit TransactionDeposited(alice, bob, 0, hex"");
+        vm.prank(hook);
+        optimismPortal2.completeDepositTransaction{ value: item.ethAmount }(item);
+
+        assertFalse(optimismPortal2.heldDeposits(id));
+    }
+}
+
+/// @title OptimismPortal2_FinalizeWithdrawalTransaction_BridgeHook_Test
+/// @notice Tests `finalizeWithdrawalTransaction` while a bridge hook is set.
+contract OptimismPortal2_FinalizeWithdrawalTransaction_BridgeHook_Test is OptimismPortal2_BridgeHook_TestInit {
+    /// @notice Tests that a withdrawal the hook passes pays its target.
+    function test_finalizeWithdrawalTransaction_hookPasses_succeeds() external {
+        uint256 bobBalanceBefore = bob.balance;
+        _proveAndMature();
+        _mockScreen(true);
+
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        assertEq(bob.balance, bobBalanceBefore + _defaultTx.value);
+    }
+
+    /// @notice Tests that a withdrawal the hook holds is finalized and its ETH goes to the hook.
+    function test_finalizeWithdrawalTransaction_hookHolds_succeeds() external {
+        uint256 bobBalanceBefore = bob.balance;
+        (bytes32 id,) = _holdWithdrawal();
+
+        assertTrue(optimismPortal2.heldWithdrawals(id));
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+        assertEq(bob.balance, bobBalanceBefore);
+        assertEq(hook.balance, _defaultTx.value);
+    }
+}
+
+/// @title OptimismPortal2_CompleteWithdrawalTransaction_Test
+/// @notice Tests the `completeWithdrawalTransaction` function.
+contract OptimismPortal2_CompleteWithdrawalTransaction_Test is OptimismPortal2_BridgeHook_TestInit {
+    /// @notice Tests that the hook can complete a held withdrawal, paying its target.
+    function test_completeWithdrawalTransaction_held_succeeds() external {
+        uint256 bobBalanceBefore = bob.balance;
+        (bytes32 id, BridgeHookTypes.Item memory item) = _holdWithdrawal();
+
+        vm.prank(hook);
+        optimismPortal2.completeWithdrawalTransaction{ value: item.ethAmount }(item);
+
+        assertFalse(optimismPortal2.heldWithdrawals(id));
+        assertEq(bob.balance, bobBalanceBefore + _defaultTx.value);
     }
 }
