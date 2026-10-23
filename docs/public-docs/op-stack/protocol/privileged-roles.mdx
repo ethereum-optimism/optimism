@@ -76,7 +76,7 @@ The System Config Owner is an address that can be used to change the values with
 
 ### Mitigations
 
-*   System Config Owner is a 5-of-7 [multisig](https://etherscan.io/address/0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A#readProxyContract).
+*   System Config Owner is a 5-of-7 [multisig](https://etherscan.io/address/0x847B5c174615B1B7fDF770882256e2D3E95b9D92#readProxyContract).
 *   System Config Owner may eventually be operated by a [Security Council](https://gov.optimism.io/t/intro-to-optimisms-security-council/6885).
 *   System Config Owner can be replaced by the [L1 Proxy Admin](#l1-proxy-admin).
 
@@ -155,8 +155,8 @@ The Challenger is an address that can participate in and challenge `Permissioned
 
 ### Addresses
 
-*   **Optimism Governed Chains on Ethereum**: [`0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A`](https://etherscan.io/address/0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A)
-*   **Optimism Governed Chains on Sepolia**: [`0xfd1D2e729aE8eEe2E146c033bf4400fE75284301`](https://sepolia.etherscan.io/address/0xfd1D2e729aE8eEe2E146c033bf4400fE75284301)
+The challenger address is chain specific and is set in each chain's `PermissionedDisputeGame`.
+OP Mainnet, Ink, Soneium, and Unichain, and their Sepolia testnets, use the `SuperPermissionedDisputeGame` instead, which has no Challenger role.
 
 ## Guardian
 

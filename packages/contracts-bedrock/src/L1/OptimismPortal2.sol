@@ -141,6 +141,16 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:network-specific
     uint256 public proofMaturityDelaySeconds;
 
+    /// @notice Bridge hook that screens deposits and withdrawals, or the zero address if unset.
+    /// @custom:network-specific
+    IBridgeHook public bridgeHook;
+
+    /// @notice Deposits the hook is holding, keyed by item ID.
+    mapping(bytes32 => bool) public heldDeposits;
+
+    /// @notice Withdrawals the hook is holding, keyed by item ID.
+    mapping(bytes32 => bool) public heldWithdrawals;
+
     /// @notice Emitted when the Portal is migrated.
     /// @param oldLockbox The lockbox before the migration
     /// @param newLockbox The shared lockbox
@@ -155,6 +165,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Migrates the total ETH balance to the ETHLockbox.
     event ETHMigrated(address indexed lockbox, uint256 balance);
+
+    /// @notice Emitted when the bridge hook is set.
+    /// @param bridgeHook The new bridge hook.
+    event BridgeHookSet(IBridgeHook indexed bridgeHook);
+
+    /// @notice Emitted when the bridge hook is removed.
+    /// @param bridgeHook The removed bridge hook.
+    event BridgeHookRemoved(IBridgeHook indexed bridgeHook);
 
     /// @notice Emitted when the proof maturity delay is set.
     /// @param proofMaturityDelaySeconds The new proof maturity delay in seconds.
@@ -253,6 +271,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when a withdrawal has not been proven.
     error OptimismPortal_Unproven();
 
+    /// @notice Thrown when removing a bridge hook that is not set.
+    error OptimismPortal_InvalidBridgeHookState();
+
     /// @notice Thrown when ETHLockbox is set/unset incorrectly depending on the feature flag.
     error OptimismPortal_InvalidLockboxState();
 
@@ -272,9 +293,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 6.1.0
+    /// @custom:semver 7.0.0
     function version() public pure virtual returns (string memory) {
-        return "6.1.0";
+        return "7.0.0";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -288,16 +309,21 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         _disableInitializers();
     }
 
-    /// @notice Initializer.
+    /// @notice Initializer. A nonzero `_bridgeHook` replaces the current hook and emits
+    ///         BridgeHookSet on every run. Value held by a replaced hook stays with it. Upgrades
+    ///         pass the zero address to keep the current hook.
+    ///
     /// @param _systemConfig Address of the SystemConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
     /// @param _ethLockbox Address of the ETHLockbox.
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
+    /// @param _bridgeHook Bridge hook to set, or the zero address to keep the current one.
     function initialize(
         ISystemConfig _systemConfig,
         IAnchorStateRegistry _anchorStateRegistry,
         IETHLockbox _ethLockbox,
-        uint256 _proofMaturityDelaySeconds
+        uint256 _proofMaturityDelaySeconds,
+        IBridgeHook _bridgeHook
     )
         external
         reinitializer(initVersion())
@@ -310,6 +336,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         anchorStateRegistry = _anchorStateRegistry;
         if (address(_ethLockbox) != address(0)) {
             ethLockbox = _ethLockbox;
+        }
+        if (address(_bridgeHook) != address(0)) {
+            bridgeHook = _bridgeHook;
+            emit BridgeHookSet(_bridgeHook);
         }
 
         _assertValidInteropState();
@@ -629,9 +659,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             if (_tx.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
         }
 
-        // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
-        // than the default value when a withdrawal transaction is being finalized. This check is
-        // a defacto reentrancy guard.
+        // Block reentrancy from a withdrawal's target. l2Sender holds the withdrawal's sender while the
+        // target executes. A nested finalization would change l2Sender before the outer call ends.
         if (l2Sender != Constants.DEFAULT_L2_SENDER) {
             revert OptimismPortal_NoReentrancy();
         }
@@ -826,24 +855,18 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         return proofSubmitters[_withdrawalHash].length;
     }
 
-    /// @notice Returns the hook that screens deposits and withdrawal finalizations.
-    /// @return Bridge hook, or the zero address if unset.
-    function bridgeHook() external view returns (IBridgeHook) { }
+    /// @notice Removes the bridge hook. Only callable by the ProxyAdmin owner. The removed hook
+    ///         keeps the value it holds and stops being an unsafe target. Only initialize can set
+    ///         a hook again.
+    function removeHook() external {
+        _assertOnlyProxyAdminOwner();
 
-    /// @notice Sets the bridge hook. Only callable by the ProxyAdmin owner.
-    ///         A nonzero hook requires the BRIDGE_HOOK feature.
-    /// @param _hook Bridge hook, or the zero address to unset it.
-    function setBridgeHook(IBridgeHook _hook) external { }
+        if (address(bridgeHook) == address(0)) revert OptimismPortal_InvalidBridgeHookState();
 
-    /// @notice Returns whether a deposit is held.
-    /// @param _id Deposit item hash.
-    /// @return True if held.
-    function heldDeposits(bytes32 _id) external view returns (bool) { }
-
-    /// @notice Returns whether a withdrawal is held.
-    /// @param _id Withdrawal item hash.
-    /// @return True if held.
-    function heldWithdrawals(bytes32 _id) external view returns (bool) { }
+        IBridgeHook hook = bridgeHook;
+        bridgeHook = IBridgeHook(address(0));
+        emit BridgeHookRemoved(hook);
+    }
 
     /// @notice Sends a held deposit to L2 on its original terms. Only callable by the bridge hook.
     ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
@@ -854,6 +877,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
     /// @param _item Held withdrawal.
     function completeWithdrawalTransaction(BridgeHookTypes.Item calldata _item) external payable { }
+
+    /// @notice Checks if a bridge hook is set.
+    /// @return bool True if a bridge hook is set.
+    function _isUsingBridgeHook() internal view returns (bool) {
+        return address(bridgeHook) != address(0);
+    }
 
     /// @notice Checks if the ETHLockbox feature is enabled.
     /// @return bool True if the ETHLockbox feature is enabled.
@@ -909,10 +938,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         emit ProofMaturityDelaySecondsSet(_proofMaturityDelaySeconds);
     }
 
-    /// @notice Checks if a target address is unsafe.
+    /// @notice Checks if a target address is unsafe. The L1StandardBridge is always unsafe, and
+    ///         the bridge hook is unsafe while it is set.
     function _isUnsafeTarget(address _target) internal view virtual returns (bool) {
         // Prevent users from targeting an unsafe target address on a withdrawal transaction.
-        return _target == address(this) || _target == address(ethLockbox);
+        if (_target == address(this) || _target == address(ethLockbox)) return true;
+        if (_target == systemConfig.l1StandardBridge()) return true;
+        return _isUsingBridgeHook() && _target == address(bridgeHook);
     }
 
     /// @notice Getter for the resource config. Used internally by the ResourceMetering contract.

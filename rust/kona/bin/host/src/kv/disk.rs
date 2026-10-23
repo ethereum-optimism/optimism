@@ -5,7 +5,7 @@ use super::{DataFormat, FORMAT_FILENAME, KeyValueStore, MemoryKeyValueStore};
 use crate::{HostError, Result};
 use alloy_primitives::B256;
 use rocksdb::{DB, Options};
-use std::path::PathBuf;
+use std::{io, path::PathBuf};
 
 /// A simple, synchronous key-value store that stores data on disk.
 #[derive(Debug)]
@@ -15,19 +15,23 @@ pub struct DiskKeyValueStore {
 }
 
 impl DiskKeyValueStore {
-    /// Create a new [`DiskKeyValueStore`] with the given data directory.
-    pub fn new(data_directory: PathBuf) -> Self {
-        let db = DB::open(&Self::get_db_options(), data_directory.as_path())
-            .unwrap_or_else(|e| panic!("Failed to open database at {data_directory:?}: {e}"));
+    /// Opens a [`DiskKeyValueStore`] in the given data directory, creating it if missing. Fails
+    /// when `RocksDB` cannot open the directory or the format marker cannot be written.
+    pub fn new(data_directory: PathBuf) -> io::Result<Self> {
+        let db = DB::open(&Self::get_db_options(), data_directory.as_path()).map_err(|e| {
+            io::Error::other(format!(
+                "failed to open database at {}: {e}",
+                data_directory.display()
+            ))
+        })?;
 
         // Write the kvformat marker file for op-challenger compatibility.
         let format_path = data_directory.join(FORMAT_FILENAME);
         if !format_path.exists() {
-            std::fs::write(&format_path, DataFormat::Rocksdb.as_str())
-                .unwrap_or_else(|e| panic!("Failed to write kvformat marker: {e}"));
+            std::fs::write(&format_path, DataFormat::Rocksdb.as_str())?;
         }
 
-        Self { data_directory, db }
+        Ok(Self { data_directory, db })
     }
 
     /// Gets the [Options] for the underlying `RocksDB` instance.
@@ -91,7 +95,7 @@ mod test {
         #[test]
         fn convert_disk_kv_to_mem_kv(k_v in hash_map(any::<[u8; 32]>(), vec(any::<u8>(), 0..128), 1..128)) {
             let tempdir = tempfile::TempDir::new().unwrap();
-            let mut disk_kv = DiskKeyValueStore::new(tempdir.path().to_path_buf());
+            let mut disk_kv = DiskKeyValueStore::new(tempdir.path().to_path_buf()).unwrap();
             for (k, v) in &k_v {
                 disk_kv.set(k.into(), v.clone()).unwrap();
             }

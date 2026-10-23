@@ -36,11 +36,10 @@ Collect everything below before you start.
 
 **Chain identity.** The chain's per-chain addresses live in the `superchain-registry` repository under `superchain/configs/<network>/<chain-name>.toml`. Open that file and read `chain_id`, `addresses.SystemConfigProxy`, and `addresses.L1StandardBridgeProxy`.
 
-**Chain addresses and roles.** Use `op-fetcher` to derive the rest of the on-chain configuration in a single call. It runs an embedded forge script against `$L1_RPC` and resolves every per-chain proxy, role, and the current fault-proof status from `SystemConfig` and `L1StandardBridge`:
+**Chain addresses and roles.** Use `op-fetcher` to derive the rest of the on-chain configuration in a single command. It reads the L1 contracts through `$L1_RPC` and resolves every per-chain proxy, role, and the current fault-proof status from `SystemConfig` and `L1StandardBridge`:
 
 ```bash
 cd <optimism-monorepo>/op-fetcher
-just build-all
 go run ./cmd fetch \
   --l1-rpc-url "$L1_RPC" \
   --system-config "<SystemConfigProxy>" \
