@@ -21,7 +21,10 @@ use alloy_primitives::B256;
 use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
 use async_trait::async_trait;
 use kona_derive::{AttributesBuilder, PipelineErrorKind};
-use kona_engine::{CanonicalizeTaskError, InsertTaskError, SealTaskError, SynchronizeTaskError};
+use kona_engine::{
+    CanonicalizeTaskError, EngineTaskError, EngineTaskErrorSeverity, InsertTaskError,
+    SealTaskError, SynchronizeTaskError,
+};
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use kona_rpc::{SequencerAdminAPIError, SequencerAdminCommand, SequencerState};
@@ -727,6 +730,17 @@ where
                 // Start the build job for the next L2 block on top of the current unsafe head.
                 match self.build_unsealed_payload().await {
                     Ok(handle) => self.in_flight = handle.map(InFlightBlock::Building),
+                    Err(SequencerActorError::EngineError(EngineClientError::StartBuildError(err)))
+                        if err.severity() != EngineTaskErrorSeverity::Critical => {
+                        warn!(target: "sequencer", %err, "Build rejected; retrying on the next tick");
+                        self.build_ticker.reset_after(Duration::from_secs(1));
+                        return Ok(());
+                    }
+                    Err(SequencerActorError::EngineError(EngineClientError::ResponseError(err))) => {
+                        warn!(target: "sequencer", %err, "Build interrupted by engine recovery; retrying on the next tick");
+                        self.build_ticker.reset_after(Duration::from_secs(1));
+                        return Ok(());
+                    }
                     Err(err) => {
                         error!(target: "sequencer", ?err, "Unexpected error building payload");
                         return Err(err);

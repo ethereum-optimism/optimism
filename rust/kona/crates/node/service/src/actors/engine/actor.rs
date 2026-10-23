@@ -301,7 +301,7 @@ where
                     self.client.clone(),
                     self.rollup.clone(),
                     attributes,
-                    Some(result_tx),
+                    result_tx,
                 )));
                 self.engine.enqueue(task);
             }
