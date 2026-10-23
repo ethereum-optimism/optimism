@@ -225,58 +225,58 @@ impl Discv5Driver {
                     // for consumers of the ENR receiver.
                     Some(msg) = req_recv.recv() => {
                         match msg {
-                                HandlerRequest::Metrics(tx) => {
-                                    let metrics = Discv5::metrics();
-                                    if let Err(e) = tx.send(metrics) {
-                                        warn!(target: "discovery", "Failed to send metrics: {:?}", e);
-                                    }
+                            HandlerRequest::Metrics(tx) => {
+                                let metrics = Discv5::metrics();
+                                if let Err(e) = tx.send(metrics) {
+                                    warn!(target: "discovery", "Failed to send metrics: {:?}", e);
                                 }
-                                HandlerRequest::PeerCount(tx) => {
-                                    let peers = self.disc.connected_peers();
-                                    if let Err(e) = tx.send(peers) {
-                                        warn!(target: "discovery", "Failed to send peer count: {:?}", e);
-                                    }
+                            }
+                            HandlerRequest::PeerCount(tx) => {
+                                let peers = self.disc.connected_peers();
+                                if let Err(e) = tx.send(peers) {
+                                    warn!(target: "discovery", "Failed to send peer count: {:?}", e);
                                 }
-                                HandlerRequest::LocalEnr(tx) => {
-                                    let enr = self.disc.local_enr().clone();
-                                    if let Err(e) = tx.send(enr.clone()) {
-                                        warn!(target: "discovery", "Failed to send local enr: {:?}", e);
-                                    }
+                            }
+                            HandlerRequest::LocalEnr(tx) => {
+                                let enr = self.disc.local_enr().clone();
+                                if let Err(e) = tx.send(enr.clone()) {
+                                    warn!(target: "discovery", "Failed to send local enr: {:?}", e);
                                 }
-                                HandlerRequest::AddEnr(enr) => {
-                                    let _ = self.disc.add_enr(enr);
+                            }
+                            HandlerRequest::AddEnr(enr) => {
+                                let _ = self.disc.add_enr(enr);
+                            }
+                            HandlerRequest::RequestEnr{out, addr} => {
+                                let enr = self.disc.request_enr(addr).await;
+                                if let Err(e) = out.send(enr) {
+                                    warn!(target: "discovery", "Failed to send request enr: {:?}", e);
                                 }
-                                HandlerRequest::RequestEnr{out, addr} => {
-                                    let enr = self.disc.request_enr(addr).await;
-                                    if let Err(e) = out.send(enr) {
-                                        warn!(target: "discovery", "Failed to send request enr: {:?}", e);
-                                    }
+                            }
+                            HandlerRequest::TableEnrs(tx) => {
+                                let enrs = self.disc.table_entries_enr();
+                                if let Err(e) = tx.send(enrs) {
+                                    warn!(target: "discovery", "Failed to send table enrs: {:?}", e);
                                 }
-                                HandlerRequest::TableEnrs(tx) => {
-                                    let enrs = self.disc.table_entries_enr();
-                                    if let Err(e) = tx.send(enrs) {
-                                        warn!(target: "discovery", "Failed to send table enrs: {:?}", e);
-                                    }
-                                },
-                                HandlerRequest::TableInfos(tx) => {
-                                    let infos = self.disc.table_entries();
-                                    if let Err(e) = tx.send(infos) {
-                                        warn!(target: "discovery", "Failed to send table infos: {:?}", e);
-                                    }
-                                },
-                                HandlerRequest::BanAddrs{addrs_to_ban, ban_duration} => {
-                                    let enrs = self.disc.table_entries_enr();
+                            },
+                            HandlerRequest::TableInfos(tx) => {
+                                let infos = self.disc.table_entries();
+                                if let Err(e) = tx.send(infos) {
+                                    warn!(target: "discovery", "Failed to send table infos: {:?}", e);
+                                }
+                            },
+                            HandlerRequest::BanAddrs{addrs_to_ban, ban_duration} => {
+                                let enrs = self.disc.table_entries_enr();
 
-                                    for enr in enrs {
-                                        let Some(multi_addr) = enr_to_multiaddr(&enr) else {
-                                            continue;
-                                        };
+                                for enr in enrs {
+                                    let Some(multi_addr) = enr_to_multiaddr(&enr) else {
+                                        continue;
+                                    };
 
-                                        if addrs_to_ban.contains(&multi_addr) {
-                                            self.disc.ban_node(&enr.node_id(), Some(ban_duration));
-                                        }
+                                    if addrs_to_ban.contains(&multi_addr) {
+                                        self.disc.ban_node(&enr.node_id(), Some(ban_duration));
                                     }
-                                },
+                                }
+                            },
                         }
                     }
                     // Nobody is left to send requests or to receive ENRs.
