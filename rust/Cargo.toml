@@ -618,7 +618,6 @@ opentelemetry_sdk = { version = "0.32.1", features = ["logs", "trace", "rt-tokio
 # ==================== TESTING ====================
 arbitrary = { version = "1.4.2", features = ["derive"] }
 arbtest = "0.3.2"
-assert_matches = "1.5.0"
 criterion = { package = "codspeed-criterion-compat", version = "2.10" }
 httpmock = "0.8.3"
 insta = "1.46"
