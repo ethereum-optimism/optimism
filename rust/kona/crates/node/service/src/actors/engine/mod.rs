@@ -1,7 +1,7 @@
-//! The [`EngineActor`], [`EngineRpcActor`], and their components.
+//! The [`EngineActor`] and its components.
 
 mod actor;
-pub use actor::{EngineActor, EngineActorRequest};
+pub use actor::EngineActor;
 
 mod client;
 pub use client::{EngineDerivationClient, QueuedEngineDerivationClient};
@@ -12,14 +12,10 @@ pub use config::EngineConfig;
 mod error;
 pub use error::EngineError;
 
-mod request;
-pub use request::{
-    BuildRequest, EngineClientError, EngineClientResult, EngineRpcRequest, ResetRequest,
-    SealRequest,
+pub use kona_engine::{
+    BuildRequest, EngineActorRequest, EngineRequestError as EngineClientError,
+    EngineRequestResult as EngineClientResult, ResetRequest, SealRequest,
 };
-
-mod rpc_actor;
-pub use rpc_actor::EngineRpcActor;
 
 #[cfg(test)]
 mod tests;

@@ -7,8 +7,8 @@ use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum}
 use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
+use op_alloy_provider::ext::engine::OpEngineApi;
 use std::sync::Arc;
-use tokio::time::Instant;
 
 /// Internal task for execution layer forkchoice synchronization.
 ///
@@ -35,16 +35,16 @@ use tokio::time::Instant;
 /// [`FinalizeTask`]: crate::FinalizeTask
 /// [`BuildTask`]: crate::BuildTask
 #[derive(Debug, Clone, Constructor)]
-pub struct SynchronizeTask<EngineClient_: EngineClient> {
+pub struct SynchronizeTask {
     /// The engine client.
-    pub client: Arc<EngineClient_>,
+    pub client: Arc<EngineClient>,
     /// The rollup config.
     pub rollup: Arc<RollupConfig>,
     /// The sync state update to apply to the engine state.
     pub state_update: EngineSyncStateUpdate,
 }
 
-impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
+impl SynchronizeTask {
     /// Checks the response of the `engine_forkchoiceUpdated` call, and updates the sync status if
     /// necessary.
     fn check_forkchoice_updated_status(
@@ -78,10 +78,17 @@ impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
 }
 
 #[async_trait]
-impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient_> {
+impl EngineTaskExt for SynchronizeTask {
     type Output = ();
     type Error = SynchronizeTaskError;
 
+    #[tracing::instrument(
+        name = "synchronize",
+        target = "engine",
+        level = "info",
+        skip_all,
+        fields(state_update = ?self.state_update, forkchoice = tracing::field::Empty)
+    )]
     async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, SynchronizeTaskError> {
         // Apply the sync state update to the engine state.
         let new_sync_state = state.sync_state.apply_update(self.state_update);
@@ -111,10 +118,9 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
             ));
         }
 
-        let fcu_time_start = Instant::now();
-
         // Send the forkchoice update through the input.
         let forkchoice = new_sync_state.create_forkchoice_state();
+        tracing::Span::current().record("forkchoice", tracing::field::debug(forkchoice));
 
         // Handle the forkchoice update result.
         // NOTE: it doesn't matter which version we use here, because we're not sending any
@@ -124,32 +130,18 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
 
         let valid_response = response.map_err(|e| {
             // Fatal forkchoice update error.
-            let error = e
-                .as_error_resp()
+            e.as_error_resp()
                 .and_then(|e| {
                     (e.code == INVALID_FORK_CHOICE_STATE_ERROR as i64)
                         .then_some(SynchronizeTaskError::InvalidForkchoiceState)
                 })
-                .unwrap_or_else(|| SynchronizeTaskError::ForkchoiceUpdateFailed(e));
-
-            debug!(target: "engine", error = ?error, "Unexpected forkchoice update error");
-
-            error
+                .unwrap_or_else(|| SynchronizeTaskError::ForkchoiceUpdateFailed(e))
         })?;
 
         self.check_forkchoice_updated_status(state, &valid_response.payload_status.status)?;
 
         // Apply the new sync state to the engine state.
         state.sync_state = new_sync_state;
-
-        let fcu_duration = fcu_time_start.elapsed();
-        debug!(
-            target: "engine",
-            fcu_duration = ?fcu_duration,
-            forkchoice = ?forkchoice,
-            response = ?valid_response,
-            "Forkchoice updated"
-        );
 
         Ok(())
     }

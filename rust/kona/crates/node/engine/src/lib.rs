@@ -32,7 +32,6 @@
 //!   [`EngineNewPayloadVersion`], [`EngineGetPayloadVersion`]
 //! - **Attributes** - Payload attribute validation via [`AttributesMatch`]
 //! - **Kinds** - Engine client type identification via [`EngineKind`]
-//! - **Query** - Engine query interface via [`EngineQueries`]
 //! - **Metrics** - Optional Prometheus metrics collection via [`Metrics`]
 
 #[macro_use]
@@ -54,9 +53,12 @@ mod block_sink;
 pub use block_sink::{ImportedBlockSink, NoopBlockSink};
 
 mod client;
-pub use client::{
-    EngineClient, EngineClientBuilder, EngineClientError, EngineRpcClient, HyperAuthClient,
-    OpEngineClient,
+pub use client::{EngineClient, EngineClientBuilder, EngineClientError, EngineQueryClient};
+
+mod request;
+pub use request::{
+    BuildRequest, EngineActorRequest, EngineRequestError, EngineRequestResult, ResetRequest,
+    SealRequest,
 };
 
 mod versions;
@@ -67,9 +69,6 @@ pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate};
 
 mod kinds;
 pub use kinds::EngineKind;
-
-mod query;
-pub use query::{EngineQueries, EngineQueriesError, EngineQuerySender};
 
 mod metrics;
 pub use metrics::Metrics;

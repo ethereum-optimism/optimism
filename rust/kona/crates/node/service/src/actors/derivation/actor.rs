@@ -129,7 +129,7 @@ where
                     let origin =
                         self.pipeline.origin().ok_or(PipelineError::MissingOrigin.crit())?.number;
 
-                    kona_macros::set!(counter, Metrics::DERIVATION_L1_ORIGIN, origin);
+                    metrics::counter!(Metrics::DERIVATION_L1_ORIGIN).absolute(origin);
                     debug!(target: "derivation", l1_block = origin, "Advanced L1 origin");
                 }
                 StepResult::OriginAdvanceErr(e) | StepResult::StepFailed(e) => {
@@ -165,7 +165,7 @@ where
                                         "L1 reorg detected! Expected: {expected} | New: {new}"
                                     );
 
-                                    kona_macros::inc!(counter, Metrics::L1_REORG_COUNT);
+                                    metrics::counter!(Metrics::L1_REORG_COUNT).increment(1);
                                 }
                                 // Like op-node, report no origin until the reset sets a new one.
                                 self.derivation_origin_tx.send_replace(None);
@@ -180,7 +180,7 @@ where
                         }
                         PipelineErrorKind::Critical(_) => {
                             error!(target: "derivation", "Critical derivation error: {e}");
-                            kona_macros::inc!(counter, Metrics::DERIVATION_CRITICAL_ERROR);
+                            metrics::counter!(Metrics::DERIVATION_CRITICAL_ERROR).increment(1);
                             return Err(e.into());
                         }
                     }

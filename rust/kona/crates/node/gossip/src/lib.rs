@@ -10,7 +10,8 @@
 //! - [`Behaviour`]: Custom libp2p behavior combining `GossipSub`, Ping, and Identify
 //! - [`BlockHandler`]: Validates and processes incoming block payloads
 //! - [`ConnectionGater`]: Sophisticated connection management and rate limiting
-//! - [`P2pRpcRequest`]: RPC interface for network administration
+//! - [`GossipQueryHandle`]: Read-only access to published gossip state
+//! - [`GossipCommand`]: Commands for network administration
 //! - [`Metrics`]: Metrics collection for monitoring and observability
 
 #![doc(
@@ -31,8 +32,9 @@ pub use metrics::Metrics;
 
 mod rpc;
 pub use rpc::{
-    Connectedness, Direction, GossipScores, P2pRpcRequest, PeerCount, PeerDump, PeerInfo,
-    PeerScores, PeerStats, ReqRespScores, TopicScores,
+    Connectedness, Direction, GossipCommand, GossipCommandReceiver, GossipCommandSender,
+    GossipQueryHandle, GossipScores, GossipState, PeerCount, PeerDump, PeerInfo, PeerScores,
+    PeerStats, ReqRespScores, TopicScores,
 };
 
 mod behaviour;
