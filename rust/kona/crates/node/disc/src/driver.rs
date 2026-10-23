@@ -386,16 +386,15 @@ impl Discv5Driver {
                         kona_macros::record!(histogram, crate::Metrics::ENR_STORE_TIME, "store_time", "store_time", elapsed.as_secs_f64());
                         kona_macros::set!(gauge, crate::Metrics::DISCOVERY_PEER_COUNT, self.disc.connected_peers() as f64);
                     }
-                    _ = removal_interval.tick() => {
-                        if remove {
-                            let enrs = self.disc.table_entries_enr();
-                            if enrs.len() > 20 {
-                                let mut rng = rand::rng();
-                                let index = rand::Rng::random_range(&mut rng, 0..enrs.len());
-                                let enr = enrs[index].clone();
-                                debug!(target: "removal", "Removing random ENR: {:?}", enr);
-                                self.disc.remove_node(&enr.node_id());
-                            }
+                    // Only enabled when a removal interval is configured.
+                    _ = removal_interval.tick(), if remove => {
+                        let enrs = self.disc.table_entries_enr();
+                        if enrs.len() > 20 {
+                            let mut rng = rand::rng();
+                            let index = rand::Rng::random_range(&mut rng, 0..enrs.len());
+                            let enr = enrs[index].clone();
+                            debug!(target: "removal", "Removing random ENR: {:?}", enr);
+                            self.disc.remove_node(&enr.node_id());
                         }
                     }
                 }
