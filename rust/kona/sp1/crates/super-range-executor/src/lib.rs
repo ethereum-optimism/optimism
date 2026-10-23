@@ -6,6 +6,7 @@
 //! `super-range` SP1 ELF.
 
 use std::{
+    borrow::Cow,
     collections::BTreeMap,
     fmt::{self, Debug},
     path::{Path, PathBuf},
@@ -229,9 +230,8 @@ pub struct SynthesizedExecution {
     /// Typed inputs for the SP1 guest's consolidation mode.
     pub consolidation_inputs: SuperConsolidationInputs,
     /// Preimages that must be available before host hinting can discover the rest of the witness.
-    /// Those of `replaced_agreed_outputs` join them through
-    /// [`Self::preload_replaced_agreed_outputs`].
-    pub preloaded_preimages: Vec<(PreimageKey, Vec<u8>)>,
+    /// The collectors add those of `replaced_agreed_outputs`, which the host reads.
+    preloaded_preimages: Vec<(PreimageKey, Vec<u8>)>,
     /// The agreed outputs that the span's pre-transition super roots replaced, by timestamp.
     replaced_agreed_outputs: Vec<ReplacedAgreedOutputs>,
     /// The span-end super-root hash, used as the host post-state claim.
@@ -252,29 +252,94 @@ struct ReplacedAgreedOutputs {
 }
 
 impl SynthesizedExecution {
-    /// Reads the preimages of `replaced_agreed_outputs` into `preloaded_preimages` and returns
-    /// how many it read. Each timestamp's outputs are read through a host built from `inputs` on
-    /// the span's L1 head, agreeing on that timestamp's super root, since kona-host's
-    /// `L2OutputRoot` hint computes the output at the timestamp of its agreed pre-state (see
-    /// `replaced_agreed_output_preimages`). A timestamp's outputs leave `replaced_agreed_outputs`
-    /// only once read, so a failed call can be retried.
-    pub async fn preload_replaced_agreed_outputs(&mut self, inputs: &HostInputs) -> Result<usize> {
-        let mut read = 0;
-        while let Some(replaced) = self.replaced_agreed_outputs.last() {
-            let host = build_interop_host(
-                inputs,
-                self.range_inputs.l1_head,
-                &replaced.agreed_pre_state,
-                self.current_super_root,
-                self.range_inputs.span.end,
-                None,
-            )?;
-            let preimages = replaced_agreed_output_preimages(host, &replaced.outputs).await?;
-            read += replaced.outputs.len();
-            self.preloaded_preimages.extend(preimages);
-            self.replaced_agreed_outputs.pop();
+    /// Collects a range-mode witness and the natively computed range outputs through `host`,
+    /// seeded with the preloaded preimages and the agreed outputs that the span's super roots
+    /// replaced, which it reads through `host`'s L2 nodes.
+    pub async fn collect_range_witness(
+        &self,
+        host: InteropHost,
+        configs: Option<&ChainConfigs>,
+    ) -> Result<(DefaultWitnessData, SuperRangeOutputs)> {
+        let preimages = self
+            .seeded_preimages(&host)
+            .await
+            .context("failed to read the replaced agreed outputs")?;
+        collect_witness(&preimages, host, |oracle, beacon| {
+            let inputs = self.range_inputs.clone();
+            async move { build_range_outputs(inputs, oracle, beacon, configs).await }
+        })
+        .await
+    }
+
+    /// Collects a consolidation-mode witness and the natively computed consolidation outputs
+    /// through `host`, seeded with the preloaded preimages and the agreed outputs that the span's
+    /// super roots replaced, which it reads through `host`'s L2 nodes.
+    ///
+    /// `batches` are the public values of the log-commitment batch proofs that the consolidation
+    /// stdin will carry; the run takes the guest's path for them (see [`VerifiedLogCommitments`]).
+    /// With `log_tree_dir`, the run keeps the log trees it builds there, and builds each tree once.
+    pub async fn collect_consolidation_witness(
+        &self,
+        host: InteropHost,
+        configs: Option<&ChainConfigs>,
+        batches: &[Vec<u8>],
+        log_tree_dir: Option<&Path>,
+    ) -> Result<CollectedConsolidation> {
+        let preimages = self
+            .seeded_preimages(&host)
+            .await
+            .context("failed to read the replaced agreed outputs")?;
+        let (witness, native) = collect_witness(&preimages, host, |oracle, _beacon| {
+            run_native_consolidation(
+                oracle,
+                self.consolidation_inputs.clone(),
+                configs,
+                batches,
+                log_tree_dir,
+            )
+        })
+        .await?;
+        let NativeConsolidation {
+            outputs,
+            openings,
+            missing,
+            served,
+            read_bytes,
+            log_check_siblings,
+        } = native;
+        Ok(CollectedConsolidation {
+            witness,
+            outputs,
+            openings,
+            missing,
+            served,
+            read_bytes,
+            log_check_siblings,
+        })
+    }
+
+    /// The preloaded preimages with those of `replaced_agreed_outputs`. Each timestamp's outputs
+    /// are read through a clone of `host` agreeing on that timestamp's super root, since
+    /// kona-host's `L2OutputRoot` hint computes the output at the timestamp of its agreed
+    /// pre-state (see `replaced_agreed_output_preimages`). The clones keep no data directory, so
+    /// they share no store with `host`.
+    async fn seeded_preimages(
+        &self,
+        host: &InteropHost,
+    ) -> Result<Cow<'_, [(PreimageKey, Vec<u8>)]>> {
+        if self.replaced_agreed_outputs.is_empty() {
+            return Ok(Cow::Borrowed(&self.preloaded_preimages));
         }
-        Ok(read)
+        let mut preimages = self.preloaded_preimages.clone();
+        for replaced in &self.replaced_agreed_outputs {
+            let host = InteropHost {
+                agreed_l2_pre_state: Bytes::from(replaced.agreed_pre_state.clone()),
+                data_dir: None,
+                ..host.clone()
+            };
+            preimages.extend(replaced_agreed_output_preimages(host, &replaced.outputs).await?);
+        }
+        Ok(Cow::Owned(preimages))
     }
 }
 
@@ -325,11 +390,6 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     )?;
     let configs =
         deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
-    synthesized
-        .preload_replaced_agreed_outputs(&host_inputs)
-        .await
-        .context("failed to read the replaced agreed outputs")?;
-    let mut preloaded_preimages = synthesized.preloaded_preimages.clone();
     if !config.native_core {
         // Test guests consume Local config keys; production guests ignore these preimages.
         for (key, bytes) in [
@@ -337,16 +397,11 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
             (L2_ROLLUP_CONFIG_KEY, serde_json::to_vec(&configs.rollup_configs)?),
             (L1_CONFIG_KEY, serde_json::to_vec(&configs.l1_config)?),
         ] {
-            preloaded_preimages.push((PreimageKey::new_local(key.to()), bytes));
+            synthesized.preloaded_preimages.push((PreimageKey::new_local(key.to()), bytes));
         }
     }
-    let (range_witness, native_range_outputs) = collect_range_witness(
-        range_host,
-        &synthesized.range_inputs,
-        &preloaded_preimages,
-        Some(&configs),
-    )
-    .await?;
+    let (range_witness, native_range_outputs) =
+        synthesized.collect_range_witness(range_host, Some(&configs)).await?;
 
     // Witnesses were collected on the honest claim; see [`corrupt_range_claim`].
     let replay_range_inputs = if config.corrupt_claimed_root {
@@ -397,15 +452,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
             config.end_timestamp,
             None,
         )?;
-        collect_consolidation_witness(
-            host,
-            &synthesized.consolidation_inputs,
-            &preloaded_preimages,
-            Some(&configs),
-            batches,
-            None,
-        )
-        .await
+        synthesized.collect_consolidation_witness(host, Some(&configs), batches, None).await
     };
     // The table path: commit the blocks below the heads that the first run read, then recollect.
     let mut consolidation = collect(&[]).await?;
@@ -1030,20 +1077,6 @@ fn ensure_consolidation_outputs_match_inputs(
     Ok(())
 }
 
-/// Collects a range-mode witness and the natively computed range outputs.
-pub async fn collect_range_witness(
-    host: InteropHost,
-    inputs: &SuperRangeInputs,
-    preloaded_preimages: &[(PreimageKey, Vec<u8>)],
-    configs: Option<&ChainConfigs>,
-) -> Result<(DefaultWitnessData, SuperRangeOutputs)> {
-    collect_witness(preloaded_preimages, host, |oracle, beacon| {
-        let inputs = inputs.clone();
-        async move { build_range_outputs(inputs, oracle, beacon, configs).await }
-    })
-    .await
-}
-
 /// A consolidation witness with what the native run that collected it computed.
 #[derive(Debug)]
 pub struct CollectedConsolidation {
@@ -1062,36 +1095,6 @@ pub struct CollectedConsolidation {
     pub read_bytes: u64,
     /// The siblings of the openings that the run's log checks verify.
     pub log_check_siblings: u64,
-}
-
-/// Collects a consolidation-mode witness and the natively computed consolidation outputs.
-///
-/// `batches` are the public values of the log-commitment batch proofs that the consolidation
-/// stdin will carry; the run takes the guest's path for them (see [`VerifiedLogCommitments`]).
-/// With `log_tree_dir`, the run keeps the log trees it builds there, and builds each tree once.
-pub async fn collect_consolidation_witness(
-    host: InteropHost,
-    inputs: &SuperConsolidationInputs,
-    preloaded_preimages: &[(PreimageKey, Vec<u8>)],
-    configs: Option<&ChainConfigs>,
-    batches: &[Vec<u8>],
-    log_tree_dir: Option<&Path>,
-) -> Result<CollectedConsolidation> {
-    let (witness, native) = collect_witness(preloaded_preimages, host, |oracle, _beacon| {
-        run_native_consolidation(oracle, inputs.clone(), configs, batches, log_tree_dir)
-    })
-    .await?;
-    let NativeConsolidation { outputs, openings, missing, served, read_bytes, log_check_siblings } =
-        native;
-    Ok(CollectedConsolidation {
-        witness,
-        outputs,
-        openings,
-        missing,
-        served,
-        read_bytes,
-        log_check_siblings,
-    })
 }
 
 /// The header and receipts of an optimistic block.
@@ -1977,10 +1980,9 @@ mod tests {
     }
 
     /// Pins that each replaced agreed output of a span is read through kona-host from the L2
-    /// node's canonical block at its own timestamp, by number, and preloaded as the root's
-    /// preimage, and that a failed call keeps the outputs for a retry.
+    /// node's canonical block at its own timestamp, by number, and seeded as the root's preimage.
     #[tokio::test]
-    async fn preload_replaced_agreed_outputs_reads_each_canonical_block_at_its_timestamp() {
+    async fn seeded_preimages_read_each_replaced_agreed_output_at_its_timestamp() {
         let rollup = &kona_registry::ROLLUP_CONFIGS[&10];
         let first = rollup.genesis.l2_time + 10 * rollup.block_time;
         let second = first + rollup.block_time;
@@ -2005,29 +2007,35 @@ mod tests {
                 .optimistic_at_timestamp
                 .insert(ChainId(U256::from(10)), output_entry(b256(0xfe), 8));
         }
-        let mut synthesized = synthesize_execution(
+        let synthesized = synthesize_execution(
             TimestampSpan::new(first, second + 1).unwrap(),
             b256(0xaa),
             8,
             &responses,
         )
         .unwrap();
+        let host = build_interop_host(
+            &mock_host_inputs(&server),
+            synthesized.range_inputs.l1_head,
+            &synthesized.previous_super_root_proof_bytes,
+            synthesized.current_super_root,
+            second + 1,
+            None,
+        )
+        .unwrap();
 
-        let no_l2_nodes = HostInputs { l2_node_addresses: Vec::new(), ..mock_host_inputs(&server) };
-        synthesized.preload_replaced_agreed_outputs(&no_l2_nodes).await.unwrap_err();
         // kona-host retries a hint it cannot serve, so a wrong read would hang, not fail.
-        let read = tokio::time::timeout(
+        let preimages = tokio::time::timeout(
             std::time::Duration::from_secs(30),
-            synthesized.preload_replaced_agreed_outputs(&mock_host_inputs(&server)),
+            synthesized.seeded_preimages(&host),
         )
         .await
         .expect("the host must serve the agreed outputs")
         .unwrap();
 
-        assert_eq!(read, 2);
         for preimage in [first_preimage, second_preimage] {
             let key = PreimageKey::new_keccak256(*keccak256(&preimage));
-            assert!(synthesized.preloaded_preimages.contains(&(key, preimage)));
+            assert!(preimages.contains(&(key, preimage)));
         }
         for read in first_reads.iter().chain(&second_reads) {
             read.assert_async().await;

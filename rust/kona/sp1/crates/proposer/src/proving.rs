@@ -41,9 +41,9 @@ use kona_sp1_host_utils::metrics::MetricsGauge;
 use kona_sp1_super_range_executor::{
     HostInputs, ScannedTimestampCost, SuperRootAtTimestampResponse, SynthesizedExecution,
     build_interop_host, build_super_consolidation_stdin, build_super_range_stdin,
-    collect_consolidation_witness, collect_range_witness, decode_super_consolidation_public_values,
-    decode_super_range_public_values, deployment_chain_configs, estimate_consolidation_pgu,
-    is_witness_too_large, proof_from_super_v1, synthesize_execution, write_log_commitment_proofs,
+    decode_super_consolidation_public_values, decode_super_range_public_values,
+    deployment_chain_configs, estimate_consolidation_pgu, is_witness_too_large,
+    proof_from_super_v1, synthesize_execution, write_log_commitment_proofs,
 };
 use parking_lot::Mutex;
 use serde::Serialize;
@@ -1156,7 +1156,7 @@ impl SpanProver for GameAttempt<'_, '_> {
 async fn check_span(
     attempt: &GameAttempt<'_, '_>,
     span: ChunkSpan,
-    mut synthesized: SynthesizedExecution,
+    synthesized: SynthesizedExecution,
 ) -> Result<CheckedSpan> {
     let GameAttempt { host_inputs, game, logs, settings, .. } = *attempt;
     check_log_batches(&logs.proofs)?;
@@ -1170,18 +1170,9 @@ async fn check_span(
         timestamps.end,
         preimage_store(range_dir.as_ref()).as_deref(),
     )?;
-    synthesized.preload_replaced_agreed_outputs(host_inputs).await.with_context(|| {
-        format!("failed to read the replaced agreed outputs of span {timestamps:?}")
-    })?;
     let configs =
         deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
-    let collected = collect_range_witness(
-        range_host,
-        &synthesized.range_inputs,
-        &synthesized.preloaded_preimages,
-        Some(&configs),
-    )
-    .await;
+    let collected = synthesized.collect_range_witness(range_host, Some(&configs)).await;
     remove_collection_dir(range_dir).await;
     let (range_witness, range_outputs) = collected
         .with_context(|| format!("range witness collection failed for span {timestamps:?}"))?;
@@ -1218,15 +1209,9 @@ async fn check_consolidation(
     )?;
     let log_trees = dir.as_ref().map(|dir| dir.path().join(LOG_TREE_DIR));
     let entries: Vec<Vec<u8>> = batches.iter().map(|batch| batch.expected.clone()).collect();
-    let collected = collect_consolidation_witness(
-        host,
-        &synthesized.consolidation_inputs,
-        &synthesized.preloaded_preimages,
-        Some(configs),
-        &entries,
-        log_trees.as_deref(),
-    )
-    .await;
+    let collected = synthesized
+        .collect_consolidation_witness(host, Some(configs), &entries, log_trees.as_deref())
+        .await;
     remove_collection_dir(dir).await;
     let collected = collected.with_context(|| {
         format!("consolidation witness collection failed for span {timestamps:?}")
