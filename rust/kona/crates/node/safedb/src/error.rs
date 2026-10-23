@@ -9,9 +9,6 @@ pub enum SafeDbError {
     /// A stored key/value pair did not match the expected layout.
     #[error("invalid db entry")]
     InvalidEntry,
-    /// The database has been closed.
-    #[error("safe db closed")]
-    Closed,
     /// The safe-head database is not enabled on this host.
     #[error("safe head database not enabled")]
     NotEnabled,

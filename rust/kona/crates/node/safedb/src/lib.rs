@@ -15,7 +15,7 @@ mod encoding;
 mod safe_db;
 
 #[cfg(test)]
-mod tests;
+mod safedb_tests;
 
 pub use error::SafeDbError;
 pub use traits::{SafeDb, SafeHeadRecord};
