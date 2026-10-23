@@ -109,6 +109,9 @@ pub struct SequencerActor<
     /// The wall clock used to schedule blocks.
     pub clock: Arc<dyn Clock>,
 
+    /// Maximum unsafe-to-safe distance before pausing new builds; zero disables the limit.
+    max_safe_lag: u64,
+
     /// Ticker that paces block-building attempts.
     build_ticker: Interval,
     /// The block carried over from a previous tick, if any.
@@ -149,6 +152,7 @@ where
         engine_client: SequencerEngineClient_,
         is_active: bool,
         in_recovery_mode: bool,
+        max_safe_lag: u64,
         origin_selector: OriginSelector_,
         rollup_config: Arc<RollupConfig>,
         unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
@@ -170,6 +174,7 @@ where
             rollup_config,
             unsafe_payload_gossip_client,
             clock,
+            max_safe_lag,
             build_ticker,
             in_flight: None,
             last_seal_duration: Duration::from_secs(0),
@@ -318,9 +323,8 @@ where
     /// correct L1 origin block and sending them to the block engine.
     async fn build_unsealed_payload(
         &mut self,
+        unsafe_head: L2BlockInfo,
     ) -> Result<Option<UnsealedPayloadHandle>, SequencerActorError> {
-        let unsafe_head = self.engine_client.get_unsafe_head().await?;
-
         let Some(l1_origin) = self.get_next_payload_l1_origin(unsafe_head).await? else {
             // Temporary error - retry on next tick.
             return Ok(None);
@@ -682,8 +686,26 @@ where
                 }
                 self.last_seal_duration = publish_start.map_or(Duration::ZERO, |start| start.elapsed());
 
+                // Settle the previous block before checking the bound: an acknowledged conductor
+                // commit must still be canonicalized. Read the resulting head so consecutive
+                // builds cannot outrun the limit while derivation is catching up.
+                let unsafe_head = self.engine_client.get_unsafe_head().await?;
+                if self.max_safe_lag > 0 {
+                    let safe_head = self.engine_client.get_safe_head().await?;
+                    let gap = unsafe_head.block_info.number.saturating_sub(safe_head.block_info.number);
+                    if gap >= self.max_safe_lag {
+                        warn!(target: "sequencer", unsafe_number = unsafe_head.block_info.number,
+                            safe_number = safe_head.block_info.number, max_safe_lag = self.max_safe_lag,
+                            "Safe head lag reached limit; pausing new block builds");
+                        // Keep the actor active and admin commands responsive. Recheck on the
+                        // next block tick so safe-head catch-up automatically resumes building.
+                        self.build_ticker.reset_after(Duration::from_secs(self.rollup_config.block_time));
+                        return Ok(());
+                    }
+                }
+
                 // Start the build job for the next L2 block on top of the current unsafe head.
-                match self.build_unsealed_payload().await {
+                match self.build_unsealed_payload(unsafe_head).await {
                     Ok(handle) => self.in_flight = handle.map(InFlightBlock::Building),
                     Err(SequencerActorError::EngineError(EngineClientError::StartBuildError(err)))
                         if err.severity() != EngineTaskErrorSeverity::Critical => {

@@ -442,6 +442,7 @@ impl RollupNode {
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
+        engine_state_rx: watch::Receiver<EngineState>,
         l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
         sequencer_admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
     ) -> Result<Option<ConfiguredSequencerActor>, String> {
@@ -465,8 +466,11 @@ impl RollupNode {
             .transpose()
             .map_err(|error| format!("Failed to build conductor HTTP client: {error}"))?;
 
-        let sequencer_engine_client =
-            QueuedSequencerEngineClient { engine_actor_request_tx, unsafe_head_rx };
+        let sequencer_engine_client = QueuedSequencerEngineClient {
+            engine_actor_request_tx,
+            unsafe_head_rx,
+            engine_state_rx,
+        };
 
         let queued_gossip_client = QueuedUnsafePayloadGossipClient::new(gossip_payload_tx);
 
@@ -477,6 +481,7 @@ impl RollupNode {
             sequencer_engine_client,
             self.sequencer_config.sequencer_stopped.not(),
             self.sequencer_config.sequencer_recovery_mode,
+            self.sequencer_config.max_safe_lag,
             delayed_origin_selector,
             self.config.clone(),
             queued_gossip_client,
@@ -658,6 +663,7 @@ impl RollupNode {
             engine_actor_request_tx.clone(),
             gossip_payload_tx,
             unsafe_head_rx,
+            engine_state_rx.clone(),
             l1_head_updates_rx,
             sequencer_admin_command_rx,
         )?;
