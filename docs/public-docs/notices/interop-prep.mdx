@@ -94,7 +94,7 @@ The command examples in the steps are minimum viable configurations; they cover 
 Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules, resource limits) on top as your environment requires.
 
 <Info>
-  Each command block shows the mainnet pair first and the Sepolia pair second.
+  Each command block has a **Mainnet** tab and a **Sepolia** tab; pick the one for the network you are preparing.
   Mainnet commands use Ethereum mainnet L1 and beacon endpoints; Sepolia commands use Sepolia endpoints.
   op-node and op-reth spell the same network differently; use each value exactly as shown.
 </Info>
@@ -109,7 +109,8 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   The supernode then drives each EL through its initial sync via the engine API, and tolerates the common case where one chain's EL is already synced and the other isn't.
   Configure each EL's history retention so the supernode can backfill initiating-message logs after restarts or downtime; the [EL retention recommendation](/node-operators/guides/configuration/supernode#configure-el-retention-for-supernode-backfill) in the supernode guide covers the retention window, the relevant op-reth pruning flags, and the extra requirements that apply if you also run op-challenger.
 
-  ```bash
+  <CodeGroup>
+  ```bash Mainnet
   # OP Mainnet execution client
   op-reth node \
     --chain=op-mainnet \
@@ -127,7 +128,7 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
     --authrpc.jwtsecret=/etc/op/jwt-secret.txt
   ```
 
-  ```bash
+  ```bash Sepolia
   # OP Sepolia execution client
   op-reth node \
     --chain=optimism-sepolia \
@@ -144,6 +145,7 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
     --authrpc.port=8561 \
     --authrpc.jwtsecret=/etc/op/jwt-secret.txt
   ```
+  </CodeGroup>
 
   The examples bind the engine RPC to `127.0.0.1`. If op-reth runs in a Docker container, or on a different host from the supernode, set `--authrpc.addr=0.0.0.0` (or a specific interface IP reachable from the supernode) and restrict access at the network layer.
 
@@ -166,7 +168,8 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   On every op-node, set `--l2.follow.source` to your op-supernode's per-chain RPC endpoint (the `/<chainID>` path prefix).
   This disables local derivation; the op-node becomes a Light CL and inherits its safe and finalized view from the supernode.
 
-  ```bash
+  <CodeGroup>
+  ```bash Mainnet
   # OP Mainnet verifier / RPC op-node
   op-node \
     --network=op-mainnet \
@@ -190,7 +193,7 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
     --rpc.port=9546
   ```
 
-  ```bash
+  ```bash Sepolia
   # OP Sepolia verifier / RPC op-node
   op-node \
     --network=op-sepolia \
@@ -213,6 +216,7 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
     --rpc.addr=0.0.0.0 \
     --rpc.port=9546
   ```
+  </CodeGroup>
 
   `--l1` and `--l1.beacon` are still required at startup even in Light CL mode — op-node rejects the configuration without them.
   The Light CL stops issuing L1 RPC calls for derivation work itself; it still keeps L1 references open for runtime config updates and engine-API book-keeping.
@@ -238,15 +242,17 @@ Watch the supernode's logs using whatever you already use (`docker logs -f op-su
 Each chain container tags its log lines with its `chain_id`, so a healthy supernode produces interleaved derivation lines for both chains.
 The most common line during catch-up is `"Advancing bq origin"` (the batch-queue is walking forward through L1):
 
-```text
+<CodeGroup>
+```text Mainnet
 t=2026-12-01T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=10  vn_id=7754 origin=0x...:26800000 originBehind=false
 t=2026-12-01T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=130 vn_id=d5ca origin=0x...:26800000 originBehind=false
 ```
 
-```text
+```text Sepolia
 t=2026-11-20T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=11155420 vn_id=7754 origin=0x...:12500000 originBehind=false
 t=2026-11-20T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=1301     vn_id=d5ca origin=0x...:12500000 originBehind=false
 ```
+</CodeGroup>
 
 Both chain IDs of your pair (`10` and `130` on mainnet, `11155420` and `1301` on testnet) should appear regularly.
 Block numbers in the sample lines are illustrative.
@@ -260,17 +266,19 @@ If you have Prometheus scraping the supernode, the gauge `op_node_supernode_refs
 Watch a Light CL's logs the same way and look for `"Follow Source: Process external refs"` and `"Follow Upstream"` lines.
 A working Light CL produces these continuously while it polls the supernode's `optimism_syncStatus`:
 
-```text
+<CodeGroup>
+```text Mainnet
 t=2026-12-01T12:00:00+0000 lvl=info msg="Safety levels" unsafe=enabled safe=http://op-supernode:8545/10
 t=2026-12-01T12:00:00+0000 lvl=info msg="Follow Upstream" eSafe=0x...:145000000 eLocalSafe=0x...:145000000 eFinalized=0x...:144999900 eCurrentL1=0x...:26800200
 t=2026-12-01T12:00:00+0000 lvl=info msg="Follow Source: Process external refs" externalSafe=0x...:145000000 externalLocalSafe=0x...:145000000 externalFinalized=0x...:144999900
 ```
 
-```text
+```text Sepolia
 t=2026-11-20T12:00:00+0000 lvl=info msg="Safety levels" unsafe=enabled safe=http://op-supernode:8545/11155420
 t=2026-11-20T12:00:00+0000 lvl=info msg="Follow Upstream" eSafe=0x...:40000000 eLocalSafe=0x...:40000000 eFinalized=0x...:39999900 eCurrentL1=0x...:12500200
 t=2026-11-20T12:00:00+0000 lvl=info msg="Follow Source: Process external refs" externalSafe=0x...:40000000 externalLocalSafe=0x...:40000000 externalFinalized=0x...:39999900
 ```
+</CodeGroup>
 
 The first `"Safety levels"` line is the smoke test: if `safe=` shows your supernode URL and per-chain prefix, the wiring is right; the block numbers are illustrative.
 Once the supernode is past initial sync and starts promoting safe heads, `eSafe` and `externalSafe` carry climbing block numbers.
