@@ -43,6 +43,7 @@ enr.workspace = true
 openssl = { workspace = true, features = ["vendored"] }
 libp2p-identity = { workspace = true, features = ["secp256k1"] }
 libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "dns", "noise", "gossipsub", "ping", "yamux", "identify"] }
+hickory-resolver.workspace = true
 ipnet = { workspace = true, features = ["serde"] }
 
 # Misc
@@ -74,4 +75,9 @@ op-alloy-consensus = { workspace = true, features = ["arbitrary", "k256"] }
 
 [features]
 default = []
-metrics = [ "dep:metrics", "kona-disc/metrics", "libp2p/metrics" ]
+metrics = [
+	"dep:metrics",
+	"kona-disc/metrics",
+	"libp2p/metrics", 
+	"hickory-resolver/metrics"
+]

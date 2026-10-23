@@ -21,6 +21,8 @@ kona-gossip.workspace = true
 kona-engine.workspace = true
 kona-macros.workspace = true
 kona-genesis = {workspace = true, features = ["serde", "std"]}
+kona-interop.workspace = true
+kona-safedb.workspace = true
 
 # OP Alloy
 op-alloy-consensus.workspace = true
@@ -62,7 +64,11 @@ alloy-rpc-client = { workspace = true, features = ["reqwest"], optional = true }
 metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
+kona-safedb = { workspace = true, features = ["rocksdb"] }
+rstest.workspace = true
 serde_json.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 default = []

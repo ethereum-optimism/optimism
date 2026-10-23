@@ -181,6 +181,9 @@ type MixedSingleChainNodeSpec struct {
 	// override (OpRethWithBinary) or a flag a single node should receive while its peers reject it.
 	// Ignored for non-op-reth EL kinds.
 	OpRethOpts []OpRethOption
+	// EnableSafeDB gives this node's CL a safe head database in a fresh temp dir, so it records
+	// the L2 safe head reached as of each L1 block and serves it over optimism_safeHeadAtL1Block.
+	EnableSafeDB bool
 }
 
 type MixedSingleChainPresetConfig struct {
@@ -267,6 +270,11 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
 		}
 
+		safeDBPath := ""
+		if spec.EnableSafeDB {
+			safeDBPath = t.TempDirWithPrefix("safedb-" + NewComponentTarget(spec.CLKey, l2Net.ChainID()).String())
+		}
+
 		var cl L2CLNode
 		switch spec.CLKind {
 		case MixedL2CLOpNode:
@@ -275,6 +283,9 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				IsSequencer:   spec.IsSequencer,
 				NoDiscovery:   true,
 				DependencySet: depSet,
+				L2CLOptions: []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+					cfg.SafeDBPath = safeDBPath
+				})},
 			})
 		case MixedL2CLKona:
 			cl = startMixedKonaNode(
@@ -289,6 +300,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				spec.ELKey,
 				spec.IsSequencer,
 				depSet,
+				konaSafeDBEnv(safeDBPath)...,
 			)
 		default:
 			require.FailNowf("unsupported CL kind", "unsupported mixed CL kind %q", spec.CLKind)
@@ -354,6 +366,15 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		L2Batcher:     l2Batcher,
 		TestSequencer: newTestSequencerRuntime(testSequencer, cfg.TestSequencerName),
 	}
+}
+
+// konaSafeDBEnv returns the environment that points kona-node at a safe head database, or
+// nothing when the node runs without one.
+func konaSafeDBEnv(safeDBPath string) []string {
+	if safeDBPath == "" {
+		return nil
+	}
+	return []string{"KONA_NODE_SAFEDB_PATH=" + safeDBPath}
 }
 
 func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {

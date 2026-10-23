@@ -35,7 +35,7 @@ pub use dev::DevEngineRpc;
 mod jsonrpsee;
 pub use jsonrpsee::{
     AdminApiServer, DevEngineApiServer, HealthzApiServer, MinerApiExtServer, OpAdminApiServer,
-    OpP2PApiServer, RollupNodeApiServer, WsServer,
+    OpP2PApiServer, RollupNodeApiServer, SuperRootApiServer, WsServer,
 };
 
 #[cfg(feature = "client")]
@@ -43,6 +43,17 @@ pub use jsonrpsee::RollupNodeApiClient;
 
 mod rollup;
 pub use rollup::RollupRpc;
+
+#[cfg(test)]
+mod test_utils;
+
+mod safe_db_error;
+
+mod superroot;
+pub use superroot::{
+    ChainIdAndOutput, DecimalChainId, OutputV0Response, OutputWithRequiredL1,
+    SuperRootAtTimestampResponse, SuperRootResponseData, SuperRootRpc, SuperV1Response,
+};
 
 mod l1_watcher;
 pub use l1_watcher::{L1State, L1WatcherQueries, L1WatcherQuerySender};

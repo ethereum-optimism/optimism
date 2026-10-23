@@ -12,9 +12,10 @@ use crate::{
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
     service::BufferImportedBlocks,
 };
-use alloy_eips::BlockNumberOrTag;
+use alloy_eips::{BlockNumHash, BlockNumberOrTag};
 use alloy_primitives::Address;
-use alloy_provider::RootProvider;
+use alloy_provider::{Provider, RootProvider};
+use backon::{ExponentialBuilder, Retryable};
 use jsonrpsee::RpcModule;
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::{Engine, EngineState, OpEngineClient};
@@ -30,7 +31,7 @@ use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
     AdminApiServer, AdminRpc, DevEngineApiServer, DevEngineRpc, HealthzApiServer, HealthzRpc,
     L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc,
-    RpcBuilder, WsRPC, WsServer,
+    RpcBuilder, SuperRootApiServer, SuperRootRpc, WsRPC, WsServer,
 };
 use kona_safedb::SafeDb;
 use op_alloy_network::Optimism;
@@ -45,7 +46,8 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// Every lookup served from here is for the block being built on top of, which the engine recorded
 /// one step earlier. The size absorbs what lands in between — gossiped unsafe blocks keep
 /// arriving, and on a sequencer the two builders ask about different heads.
-pub(super) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
+pub(in crate::service) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
+
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
 const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
 
@@ -298,16 +300,38 @@ impl RollupNode {
                 .create_pipeline()
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
+            let l1_block_zero = self.l1_block_zero().await?;
             Ok(ConfiguredDerivationActor::Normal(Box::new(
                 DerivationActor::<_, OnlinePipeline>::new(
                     QueuedDerivationEngineClient { engine_actor_request_tx },
                     derivation_actor_request_rx,
                     pipeline,
                     self.safe_db.clone(),
+                    l1_block_zero,
                     derivation_origin_tx,
                 ),
             )))
         }
+    }
+
+    /// Fetches L1 block zero only when `SafeDB` recording is enabled.
+    async fn l1_block_zero(&self) -> Result<BlockNumHash, String> {
+        if self.safe_db.is_none() {
+            return Ok(BlockNumHash::default());
+        }
+        let provider = &self.l1_config.engine_provider;
+        debug!(target: "rollup_node", "Fetching L1 block zero for the safe head database");
+        let block = (|| async { provider.get_block_by_number(BlockNumberOrTag::Number(0)).await })
+            .retry(ExponentialBuilder::default())
+            .notify(|e, delay| {
+                warn!(target: "rollup_node", %e, ?delay, "Failed to fetch L1 block zero; retrying")
+            })
+            .await
+            .map_err(|e| format!("Failed to fetch L1 block zero for the safe head db: {e}"))?
+            .ok_or_else(|| "L1 block zero is missing".to_string())?;
+        let l1_block_zero = BlockNumHash { hash: block.header.hash, number: 0 };
+        info!(target: "rollup_node", l1_hash = %l1_block_zero.hash, "Anchoring the safe head db at L1 block zero");
+        Ok(l1_block_zero)
     }
 
     /// Builds the L1 watcher actor along with its head and finalized block streams.
@@ -458,10 +482,26 @@ impl RollupNode {
         )?;
         modules
             .merge(
-                RollupRpc::new(config.version, engine_rpc_client.clone(), l1_watcher_queries_tx)
-                    .into_rpc(),
+                RollupRpc::new(
+                    config.version,
+                    engine_rpc_client.clone(),
+                    l1_watcher_queries_tx.clone(),
+                    self.safe_db.clone(),
+                )
+                .into_rpc(),
             )
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
+        modules
+            .merge(
+                SuperRootRpc::new(
+                    engine_rpc_client.clone(),
+                    l1_watcher_queries_tx,
+                    self.config.clone(),
+                    self.safe_db.clone(),
+                )
+                .into_rpc(),
+            )
+            .map_err(|e| format!("Failed to register superroot module: {e:?}"))?;
         if config.dev_enabled() {
             modules
                 .merge(DevEngineRpc::new(engine_rpc_client.clone()).into_rpc())
@@ -630,7 +670,7 @@ impl RollupNode {
 /// Registers the admin API namespace on `modules`, but only when `enable_admin` is set.
 ///
 /// The admin API is opt-in via `--rpc.enable-admin`, matching op-node's admin namespace.
-fn merge_admin_module(
+pub(super) fn merge_admin_module(
     modules: &mut RpcModule<()>,
     enable_admin: bool,
     sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
@@ -642,56 +682,4 @@ fn merge_admin_module(
             .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use kona_rpc::HealthzResponse;
-
-    fn admin_method_names(enable_admin: bool) -> Vec<String> {
-        let mut modules = RpcModule::new(());
-        let (network_admin_tx, _rx) = mpsc::channel(1);
-        merge_admin_module(&mut modules, enable_admin, None, network_admin_tx)
-            .expect("admin module registration");
-        modules.method_names().map(ToString::to_string).collect()
-    }
-
-    #[test]
-    fn admin_module_registered_only_when_enabled() {
-        // Without `--rpc.enable-admin`, no admin methods are exposed.
-        assert!(
-            admin_method_names(false).is_empty(),
-            "admin namespace must not be registered when disabled"
-        );
-
-        // With it enabled, the sequencer-control and payload-injection methods the acceptance
-        // suite relies on are present.
-        let enabled = admin_method_names(true);
-        for method in ["admin_postUnsafePayload", "admin_startSequencer", "admin_stopSequencer"] {
-            assert!(enabled.iter().any(|m| m == method), "missing {method}");
-        }
-    }
-
-    #[tokio::test]
-    async fn registered_endpoints_report_the_binary_version() {
-        for version in ["1.2.3", "0.0.0-dev"] {
-            let (engine_tx, _engine_rx) = mpsc::channel(1);
-            let (l1_tx, _l1_rx) = mpsc::channel(1);
-            let engine_client = QueuedEngineRpcClient::new(engine_tx);
-            let mut rpc = RollupRpc::new(version, engine_client, l1_tx).into_rpc();
-            rpc.merge(HealthzRpc::new(version).into_rpc()).unwrap();
-            assert_eq!(
-                rpc.call::<_, String>("optimism_version", jsonrpsee::rpc_params![]).await.unwrap(),
-                version
-            );
-            assert_eq!(
-                rpc.call::<_, HealthzResponse>("healthz", jsonrpsee::rpc_params![])
-                    .await
-                    .unwrap()
-                    .version,
-                version
-            );
-        }
-    }
 }

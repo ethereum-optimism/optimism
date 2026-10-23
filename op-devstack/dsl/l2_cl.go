@@ -554,8 +554,16 @@ func (cl *L2CLNode) ChainBlockID(chainID eth.ChainID, number uint64) (eth.BlockI
 	return ref.ID(), nil
 }
 
+// SafeHeadAtL1Block asks the node which L2 safe head it had reached as of the given L1 block. A
+// "not found" answer is returned as safedb.ErrNotFound; any other error is returned as is.
+func (cl *L2CLNode) SafeHeadAtL1Block(l1BlockNum uint64) (*eth.SafeHeadResponse, error) {
+	ctx, cancel := context.WithTimeout(cl.ctx, DefaultTimeout)
+	defer cancel()
+	return cl.inner.RollupAPI().SafeHeadAtL1Block(ctx, l1BlockNum)
+}
+
 func (cl *L2CLNode) safeHeadAtL1Block(l1BlockNum uint64) *eth.SafeHeadResponse {
-	resp, err := cl.inner.RollupAPI().SafeHeadAtL1Block(cl.ctx, l1BlockNum)
+	resp, err := cl.SafeHeadAtL1Block(l1BlockNum)
 	if errors.Is(err, safedb.ErrNotFound) {
 		return nil
 	}
