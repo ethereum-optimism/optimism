@@ -41,7 +41,7 @@ This runbook assumes:
 
 Collect everything below before you start. Replace `<chainA>` and `<chainB>` placeholders with the actual values for each chain. Anywhere this runbook says `<X>` it means a value you must capture.
 
-**Per-chain identity, addresses, and roles.** For each chain, open the entry under `superchain/configs/<network>/<chain-name>.toml` in `superchain-registry` and read `chain_id`, `addresses.SystemConfigProxy`, and `addresses.L1StandardBridgeProxy`. Pass those two proxies to [`op-fetcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-fetcher) to resolve the rest in a single L1 call, writing the JSON to a file you can reference later:
+**Per-chain identity, addresses, and roles.** For each chain, open the entry under `superchain/configs/<network>/<chain-name>.toml` in `superchain-registry` and read `chain_id`, `addresses.SystemConfigProxy`, and `addresses.L1StandardBridgeProxy`. Pass those two proxies to [`op-fetcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-fetcher) to resolve the rest from L1, writing the JSON to a file you can reference later:
 
 ```bash
 op-fetcher fetch \

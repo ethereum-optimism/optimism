@@ -2481,6 +2481,7 @@ pub(super) fn scenario_config() -> ProposerConfig {
             min_auction_period: 1,
         },
         log_path: crate::config::LogPath::Table,
+        data_dir: None,
     }
 }
 

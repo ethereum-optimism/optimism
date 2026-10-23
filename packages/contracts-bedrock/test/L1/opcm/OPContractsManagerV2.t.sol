@@ -1019,6 +1019,21 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(uint256(vm.load(address(delayedWeth), bytes32(uint256(6)))), wethDelayBefore);
     }
 
+    /// @notice Tests that the upgrade keeps the bridge hook a chain already has, since the OPCM
+    ///         passes a zero hook to the portal's initialize.
+    function test_upgrade_bridgeHookUnchanged_succeeds() public {
+        if (systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) vm.skip(true);
+
+        // The pre-upgrade portal has no hook getter, so the hook is written straight into its storage slot.
+        address hook = makeAddr("bridgeHook");
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "bridgeHook");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(hook))));
+
+        runCurrentUpgradeV2(chainPAO);
+
+        assertEq(address(optimismPortal2.bridgeHook()), hook, "bridge hook changed");
+    }
+
     /// @notice Tests that overriding to a disabled game type reverts during upgrade.
     function test_upgrade_respectedGameTypeOverrideToDisabled_reverts() public {
         v2UpgradeInput.disputeGameConfigs[4].enabled = false;
@@ -3620,6 +3635,19 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _doMigration(
             _getDefaultMigrateInput(),
             IOPContractsManagerMigrator.OPContractsManagerMigrator_CustomGasTokenNotSupported.selector
+        );
+    }
+
+    /// @notice Tests that migration reverts when any chain's portal has a bridge hook.
+    /// @param _hook The bridge hook set on the second chain's portal.
+    function testFuzz_migrate_bridgeHookSet_reverts(address _hook) public {
+        vm.assume(_hook != address(0));
+        vm.mockCall(
+            address(chainContracts2.optimismPortal), abi.encodeCall(IOptimismPortal2.bridgeHook, ()), abi.encode(_hook)
+        );
+        _doMigration(
+            _getDefaultMigrateInput(),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_BridgeHookNotSupported.selector
         );
     }
 

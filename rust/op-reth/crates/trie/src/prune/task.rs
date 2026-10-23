@@ -1,5 +1,5 @@
 use crate::{OpProofsStore, prune::OpProofStoragePruner};
-use reth_provider::BlockHashReader;
+use reth_provider::{BlockHashReader, StageCheckpointReader};
 use reth_tasks::shutdown::GracefulShutdown;
 use tokio::{
     time,
@@ -18,7 +18,7 @@ pub struct OpProofStoragePrunerTask<S, H> {
 impl<S, H> OpProofStoragePrunerTask<S, H>
 where
     S: OpProofsStore,
-    H: BlockHashReader,
+    H: BlockHashReader + StageCheckpointReader,
 {
     /// Initialize a new [`OpProofStoragePrunerTask`]
     pub fn new(

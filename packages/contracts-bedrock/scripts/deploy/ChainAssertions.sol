@@ -292,6 +292,8 @@ library ChainAssertions {
             require(portal.l2Sender() == address(0), "CHECK-OP2-110");
             require(address(portal.ethLockbox()) == address(0), "CHECK-OP2-120");
         }
+        // TODO(optimism-private#744): No deploy path sets a bridge hook yet.
+        require(address(portal.bridgeHook()) == address(0), "CHECK-OP2-125");
         // This slot is the custom gas token _balance and this check ensures
         // that it stays unset for forwards compatibility with custom gas token.
         require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "CHECK-OP2-130");

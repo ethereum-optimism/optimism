@@ -9,6 +9,10 @@ use metrics::{Label, gauge};
 use reth_db::Database;
 use tracing::error;
 
+/// UPSTREAM-MIRROR(copy): reth@rev:8d359d0
+/// `reth_db::database_metrics::DatabaseMetrics`
+///
+/// Mirrors the implementation for `DatabaseEnv`, which hard-codes reth's own table names.
 impl reth_db::database_metrics::DatabaseMetrics for MdbxProofsStorage {
     fn report_metrics(&self) {
         for (name, value, labels) in self.gauge_metrics() {

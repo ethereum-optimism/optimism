@@ -7,7 +7,7 @@ use alloy_eips::eip1898::BlockWithParent;
 use crossbeam_channel::Sender;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
-use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory};
+use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, StageCheckpointReader};
 use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use std::{sync::Arc, time::Instant};
 use tracing::{debug, info};
@@ -24,6 +24,7 @@ impl ReorgTask {
         Evm: ConfigureEvm,
         Provider: BlockHashReader
             + CanonicalInMemoryStateProvider
+            + StageCheckpointReader
             + DatabaseProviderFactory
             + BlockReader<Block = BlockTy<Evm::Primitives>>
             + Clone
@@ -42,6 +43,7 @@ where
     Evm: ConfigureEvm,
     Provider: BlockHashReader
         + CanonicalInMemoryStateProvider
+        + StageCheckpointReader
         + DatabaseProviderFactory
         + BlockReader<Block = BlockTy<Evm::Primitives>>
         + Clone

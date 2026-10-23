@@ -929,6 +929,7 @@ mod tests {
                 range_gas_limit: 1,
                 log_gas_limit: 1,
                 max_stdin_bytes: Default::default(),
+                data_dir: None,
             },
         );
 
