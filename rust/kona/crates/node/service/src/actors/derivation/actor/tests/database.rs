@@ -9,7 +9,6 @@ mock! {
 
     impl SafeDb for SafeDatabase {
         fn clear(&self) -> Result<(), SafeDbError>;
-        fn close(&self);
         fn first_entry(&self) -> Result<SafeHeadRecord, SafeDbError>;
         fn l1_at_safe_head(&self, target_l2_num: u64) -> Result<SafeHeadRecord, SafeDbError>;
         fn last_entry(&self) -> Result<SafeHeadRecord, SafeDbError>;
@@ -82,13 +81,13 @@ fn a_failed_write_is_returned_without_retry_or_finalization() {
         .expect_safe_head_updated()
         .with(eq(l2_block(DERIVED_HEAD)), eq(l1_block(DERIVED_FROM_L1).id()))
         .once()
-        .returning(|_, _| Err(SafeDbError::Closed));
+        .returning(|_, _| Err(SafeDbError::InvalidEntry));
     let mut actor = actor_with_database(Some(Arc::new(database)));
     actor.attributes_awaiting_confirmation = Some(derived_attributes());
 
     let result = actor.settle_derived_attributes(l2_block(DERIVED_HEAD));
 
-    assert_matches!(result, Err(DerivationError::SafeDbError(SafeDbError::Closed)));
+    assert_matches!(result, Err(DerivationError::SafeDbError(SafeDbError::InvalidEntry)));
     assert!(actor.finalizer.try_finalize_next(l1_block(DERIVED_FROM_L1)).is_none());
 }
 
@@ -96,7 +95,7 @@ fn a_failed_write_is_returned_without_retry_or_finalization() {
 #[case::empty_history(Err(SafeDbError::NotFound))]
 #[case::tip_at_resume_head(tip_record(RESUME_HEAD))]
 #[case::tip_above_resume_head(tip_record(RESUME_HEAD + 10))]
-#[case::tip_read_fails(Err(SafeDbError::Closed))]
+#[case::tip_read_fails(Err(SafeDbError::InvalidEntry))]
 fn truncation_resets_when_the_tip_is_not_known_to_be_below_the_resume_head(
     #[case] tip: Result<SafeHeadRecord, SafeDbError>,
 ) {
@@ -122,12 +121,12 @@ fn truncation_clears_history_when_the_tip_is_below_the_resume_head() {
 fn a_failed_clear_is_returned_without_retry() {
     let mut database = MockSafeDatabase::new();
     database.expect_last_entry().once().return_once(|| tip_record(RESUME_HEAD - 5));
-    database.expect_clear().once().returning(|| Err(SafeDbError::Closed));
+    database.expect_clear().once().returning(|| Err(SafeDbError::InvalidEntry));
     let actor = actor_with_database(Some(Arc::new(database)));
 
     let result = actor.truncate_safe_db(l2_block(RESUME_HEAD), "engine reset");
 
-    assert_matches!(result, Err(SafeDbError::Closed));
+    assert_matches!(result, Err(SafeDbError::InvalidEntry));
 }
 
 fn engine_reset_request() -> DerivationActorRequest {
@@ -151,12 +150,12 @@ async fn a_failed_truncation_stops_request_processing(#[case] request: Derivatio
         .expect_safe_head_reset()
         .with(eq(l2_block(RESUME_HEAD)))
         .once()
-        .returning(|_| Err(SafeDbError::Closed));
+        .returning(|_| Err(SafeDbError::InvalidEntry));
     let mut actor = actor_with_database(Some(Arc::new(database)));
 
     let result = actor.handle_derivation_actor_request(request).await;
 
-    assert_matches!(result, Err(DerivationError::SafeDbError(SafeDbError::Closed)));
+    assert_matches!(result, Err(DerivationError::SafeDbError(SafeDbError::InvalidEntry)));
 }
 
 #[test]
@@ -221,10 +220,10 @@ fn a_failed_genesis_write_is_returned_without_retry() {
         .expect_safe_head_updated()
         .with(eq(l2_block(0)), eq(l1_block_zero()))
         .once()
-        .returning(|_, _| Err(SafeDbError::Closed));
+        .returning(|_, _| Err(SafeDbError::InvalidEntry));
     let actor = actor_with_database(Some(Arc::new(database)));
 
     let result = actor.truncate_safe_db(l2_block(0), "engine reset");
 
-    assert_matches!(result, Err(SafeDbError::Closed));
+    assert_matches!(result, Err(SafeDbError::InvalidEntry));
 }

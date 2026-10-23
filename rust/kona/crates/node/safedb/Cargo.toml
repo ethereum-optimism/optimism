@@ -27,7 +27,6 @@ alloy-primitives.workspace = true
 rocksdb = { workspace = true, features = ["snappy"], optional = true }
 
 # Misc
-tracing.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

@@ -174,8 +174,7 @@ mod safe_db {
         db.safe_head_updated(l2b, l1b).unwrap();
         verify(&db);
 
-        // Close and reopen to confirm the data is durable.
-        db.close();
+        drop(db);
         let reopened = SafeDatabase::new(dir.path()).unwrap();
         verify(&reopened);
     }
@@ -371,15 +370,6 @@ mod safe_db {
     fn l1_at_safe_head_empty_database() {
         let (_dir, db) = open();
         assert_matches!(db.l1_at_safe_head(500), Err(SafeDbError::L1AtSafeHeadNotFound));
-    }
-
-    #[test]
-    fn operations_after_close_report_closed() {
-        let (_dir, db) = open();
-        db.close();
-        assert_matches!(db.safe_head_at_l1(100), Err(SafeDbError::Closed));
-        // Close is idempotent.
-        db.close();
     }
 
     #[test]

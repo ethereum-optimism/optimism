@@ -21,7 +21,7 @@ The layout carries no compatibility guarantee with any other implementation and 
 
 The crate exposes:
 
-- [`SafeDb`] — the database interface.
+- [`SafeDb`] — the database trait.
 - `SafeDatabase` — a [`rocksdb`]-backed implementation that persists records to disk, available
   behind the non-default `rocksdb` feature (off by default so that consumers needing only the
   trait avoid the rocksdb/libclang build dependency).

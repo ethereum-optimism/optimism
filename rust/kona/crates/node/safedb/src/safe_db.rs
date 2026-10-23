@@ -14,12 +14,9 @@ use std::{
 };
 
 /// A safe-head database that persists records to a [`rocksdb`] store.
-///
-/// The store is held behind an [`RwLock`] so that [`SafeDatabase::close`] can drop it while
-/// ensuring no read iterator is still borrowing it.
 #[derive(Debug)]
 pub struct SafeDatabase {
-    inner: RwLock<Option<DB>>,
+    inner: RwLock<DB>,
 }
 
 impl SafeDatabase {
@@ -28,14 +25,14 @@ impl SafeDatabase {
         let mut options = Options::default();
         options.create_if_missing(true);
         let db = DB::open(&options, path)?;
-        Ok(Self { inner: RwLock::new(Some(db)) })
+        Ok(Self { inner: RwLock::new(db) })
     }
 
-    fn read_guard(&self) -> RwLockReadGuard<'_, Option<DB>> {
+    fn read_guard(&self) -> RwLockReadGuard<'_, DB> {
         self.inner.read().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn write_guard(&self) -> RwLockWriteGuard<'_, Option<DB>> {
+    fn write_guard(&self) -> RwLockWriteGuard<'_, DB> {
         self.inner.write().unwrap_or_else(PoisonError::into_inner)
     }
 
@@ -71,13 +68,7 @@ impl SafeDb for SafeDatabase {
         safe_head: L2BlockInfo,
         l1_head: BlockNumHash,
     ) -> Result<(), SafeDbError> {
-        let guard = self.write_guard();
-        let db = guard.as_ref().ok_or(SafeDbError::Closed)?;
-        tracing::info!(
-            l2_number = safe_head.block_info.number,
-            l1_number = l1_head.number,
-            "Record local safe head"
-        );
+        let db = self.write_guard();
         let mut batch = WriteBatch::default();
         batch.put(
             SafeByL1BlockNum::key(l1_head.number),
@@ -88,9 +79,7 @@ impl SafeDb for SafeDatabase {
     }
 
     fn safe_head_reset(&self, safe_head: L2BlockInfo) -> Result<(), SafeDbError> {
-        let guard = self.write_guard();
-        let db = guard.as_ref().ok_or(SafeDbError::Closed)?;
-        tracing::info!(l2_number = safe_head.block_info.number, "Resetting safe head db");
+        let db = self.write_guard();
 
         let mut iter = db.raw_iterator_opt(Self::column_read_options());
         iter.seek(SafeByL1BlockNum::key(safe_head.l1_origin.number));
@@ -127,8 +116,7 @@ impl SafeDb for SafeDatabase {
     }
 
     fn safe_head_at_l1(&self, l1_block_num: u64) -> Result<SafeHeadRecord, SafeDbError> {
-        let guard = self.read_guard();
-        let db = guard.as_ref().ok_or(SafeDbError::Closed)?;
+        let db = self.read_guard();
         let mut iter = db.raw_iterator_opt(Self::column_read_options());
         // Largest key <= l1_block_num.
         iter.seek_for_prev(SafeByL1BlockNum::key(l1_block_num));
@@ -140,8 +128,7 @@ impl SafeDb for SafeDatabase {
     }
 
     fn first_entry(&self) -> Result<SafeHeadRecord, SafeDbError> {
-        let guard = self.read_guard();
-        let db = guard.as_ref().ok_or(SafeDbError::Closed)?;
+        let db = self.read_guard();
         let mut iter = db.raw_iterator_opt(Self::column_read_options());
         iter.seek_to_first();
         if !iter.valid() {
@@ -152,8 +139,7 @@ impl SafeDb for SafeDatabase {
     }
 
     fn last_entry(&self) -> Result<SafeHeadRecord, SafeDbError> {
-        let guard = self.read_guard();
-        let db = guard.as_ref().ok_or(SafeDbError::Closed)?;
+        let db = self.read_guard();
         let mut iter = db.raw_iterator_opt(Self::column_read_options());
         iter.seek_to_last();
         if !iter.valid() {
@@ -164,8 +150,7 @@ impl SafeDb for SafeDatabase {
     }
 
     fn l1_at_safe_head(&self, target_l2_num: u64) -> Result<SafeHeadRecord, SafeDbError> {
-        let guard = self.read_guard();
-        let db = guard.as_ref().ok_or(SafeDbError::Closed)?;
+        let db = self.read_guard();
         let mut iter = db.raw_iterator_opt(Self::column_read_options());
 
         iter.seek_to_last();
@@ -196,9 +181,7 @@ impl SafeDb for SafeDatabase {
     }
 
     fn clear(&self) -> Result<(), SafeDbError> {
-        let guard = self.write_guard();
-        let db = guard.as_ref().ok_or(SafeDbError::Closed)?;
-        tracing::warn!("Clearing safe head db");
+        let db = self.write_guard();
         let mut batch = WriteBatch::default();
         batch.delete_range(
             SafeByL1BlockNum::key(0).as_slice(),
@@ -206,12 +189,5 @@ impl SafeDb for SafeDatabase {
         );
         db.write_opt(batch, &Self::sync_write_options())?;
         Ok(())
-    }
-
-    fn close(&self) {
-        tracing::debug!("Closing safe head database");
-        let mut guard = self.write_guard();
-        *guard = None;
-        tracing::debug!("Closed safe head database");
     }
 }

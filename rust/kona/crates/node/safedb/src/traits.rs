@@ -61,7 +61,4 @@ pub trait SafeDb: core::fmt::Debug + Send + Sync {
     /// For a history that can no longer be completed, no answer is better than an answer from
     /// records with a gap, which queries cannot detect.
     fn clear(&self) -> Result<(), SafeDbError>;
-
-    /// Closes the database, releasing the underlying store.
-    fn close(&self);
 }
