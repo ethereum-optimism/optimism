@@ -3,6 +3,7 @@ package zk
 import (
 	"math"
 	"math/rand"
+	"slices"
 	"testing"
 	"time"
 
@@ -345,10 +346,20 @@ func sendDeniedMessage(t devtest.T, sys *presets.SimpleInterop, hidden *sysgo.Hi
 		sys.L2ELB.ReachedFn(eth.Safe, execBlock, 30),
 	)
 	sys.L2ELB.AssertExecMessageNotInBlock(execMsg)
-	optimistic := sys.SuperRoots.SuperRootAtTimestamp(execTimestamp).OptimisticAtTimestamp[sys.L2ChainB.ChainID()]
+	atExec := sys.SuperRoots.SuperRootAtTimestamp(execTimestamp)
+	optimistic := atExec.OptimisticAtTimestamp[sys.L2ChainB.ChainID()]
 	t.Require().NotNil(optimistic.Output, "the optimistic block of chain B must have an output")
 	t.Require().Equal(execMsg.BlockHash(), optimistic.Output.BlockHash,
 		"the supernode must report the denied block as optimistic at its timestamp")
+	t.Require().NotNil(atExec.Data, "the supernode must have validated the executing timestamp")
+	superV1, ok := atExec.Data.Super.(*eth.SuperV1)
+	t.Require().True(ok, "the super root at the executing timestamp must be a SuperV1")
+	chainB := slices.IndexFunc(superV1.Chains, func(c eth.ChainIDAndOutput) bool {
+		return c.ChainID.Cmp(sys.L2ChainB.ChainID()) == 0
+	})
+	t.Require().NotEqual(-1, chainB, "the super root must commit an output for chain B")
+	t.Require().NotEqual(optimistic.OutputRoot, superV1.Chains[chainB].Output,
+		"the super root must commit the replacement's output, not the denied block's")
 	return execTimestamp
 }
 
@@ -430,14 +441,13 @@ func startProposerOnForeignGame(t devtest.T, sys *presets.SimpleInterop, parentT
 }
 
 // requireProvenReadingReplacedAgreedOutput waits for game to be proven and
-// requires that the proposer read a replaced agreed output through kona-host and
-// never asked the L2 ELs for the denied block.
+// requires that the proposer never asked the L2 ELs for the denied block. The
+// game's chunk agrees on the denied timestamp, whose super root commits the
+// replacement's output in place of the optimistic one (see sendDeniedMessage),
+// so the game proves only if the proposer read that output through kona-host.
 func requireProvenReadingReplacedAgreedOutput(t devtest.T, proposer *zkproposer.ZKProposer, game *proofs.ZKGame, hidden *sysgo.HiddenBlocks) {
 	game.WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
-	proposer.VerifyState(
-		zkproposer.ReplacedAgreedOutputsReadAtLeast(1),
-		zkproposer.ProvingFailures(0),
-	)
+	proposer.VerifyState(zkproposer.ProvingFailures(0))
 	t.Require().Positive(hidden.ForwardedRequests(), "the proposer must read the L2 ELs through the hiding proxies")
 	t.Require().Zero(hidden.RefusedRequests(), "the proposer must not ask the L2 ELs for the denied block")
 }
