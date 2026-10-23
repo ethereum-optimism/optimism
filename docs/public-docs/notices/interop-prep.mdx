@@ -90,8 +90,9 @@ The command examples in the steps are minimum viable configurations; they cover 
 Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules, resource limits) on top as your environment requires.
 
 <Info>
-  The commands use the mainnet identifiers.
-  For the testnet run, substitute the Sepolia values: chain IDs `11155420` and `1301`, op-node networks `op-sepolia` and `unichain-sepolia`, and op-reth chains `optimism-sepolia` and `unichain-sepolia`.
+  The commands use the mainnet identifiers and Ethereum mainnet L1 endpoints.
+  For the testnet run, substitute the Sepolia values: chain IDs `11155420` and `1301`, op-node networks `op-sepolia` and `unichain-sepolia`, op-reth chains `optimism-sepolia` and `unichain-sepolia`, supernode `--chains=11155420,1301` with `--vn.11155420.network=op-sepolia` and `--vn.1301.network=unichain-sepolia`, and Sepolia L1 and beacon endpoints.
+  op-node and op-reth spell the same network differently; use each value exactly as shown.
 </Info>
 
 <Steps>
@@ -131,7 +132,7 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   </Step>
 
   <Step title="Stand up op-supernode for both chains">
-  Run op-supernode with both chains in `--chains` (`10,130`), a shared L1 RPC, and a shared beacon endpoint.
+  Run op-supernode with both chains in `--chains` (`10,130`), `--vn.10.network=op-mainnet` and `--vn.130.network=unichain-mainnet`, a shared Ethereum mainnet L1 RPC, and a shared beacon endpoint.
   The [example configuration](/node-operators/guides/configuration/supernode#example-configuration) in the supernode guide is written for exactly this dependency set (OP Mainnet plus Unichain); use it as your starting point, and keep the engine kind set to `reth` for both chains since the fleet runs op-reth.
   Follow the guide's recommendation to configure a beacon archiver fallback from the start, so a supernode that has been offline for an extended period can still recover pruned blobs.
 
@@ -196,6 +197,7 @@ t=2026-12-01T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=130 vn_id
 ```
 
 Both `chain_id=10` and `chain_id=130` should appear regularly (`11155420` and `1301` on testnet).
+Block numbers in the sample lines are illustrative; Sepolia heights differ.
 If you only see one chain, the other's container failed to start or its execution client is unreachable — error-level lines tagged with the missing chain explain why.
 Once the supernode catches up and starts promoting heads, you will also see `msg="Sync progress"` lines with `l2_safe`, `l2_unsafe`, and `l2_finalized` fields tagged with the same `chain_id`.
 
@@ -212,7 +214,7 @@ t=2026-12-01T12:00:00+0000 lvl=info msg="Follow Upstream" eSafe=0x...:145000000 
 t=2026-12-01T12:00:00+0000 lvl=info msg="Follow Source: Process external refs" externalSafe=0x...:145000000 externalLocalSafe=0x...:145000000 externalFinalized=0x...:144999900
 ```
 
-The first `"Safety levels"` line is the smoke test: if `safe=` shows your supernode URL and per-chain prefix, the wiring is right.
+The first `"Safety levels"` line is the smoke test: if `safe=` shows your supernode URL and per-chain prefix, the wiring is right; the block numbers are illustrative.
 Once the supernode is past initial sync and starts promoting safe heads, `eSafe` and `externalSafe` carry climbing block numbers.
 If the Light CL never advances past genesis (`eSafe=...:0`) for many minutes, `--l2.follow.source` is pointed at the wrong URL or namespace — recheck the per-chain prefix (`/10` for OP Mainnet, `/130` for Unichain; `/11155420` and `/1301` on testnet).
 
