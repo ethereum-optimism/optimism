@@ -1,8 +1,8 @@
 //! A task for building a new block and importing it.
 use super::BuildTaskError;
 use crate::{
-    EngineClient, EngineForkchoiceVersion, EngineState, EngineTaskExt,
-    state::EngineSyncStateUpdate, task_queue::tasks::build::error::EngineBuildError,
+    EngineClient, EngineForkchoiceVersion, EngineState, EngineTaskError, EngineTaskErrorSeverity,
+    EngineTaskExt, state::EngineSyncStateUpdate, task_queue::tasks::build::error::EngineBuildError,
 };
 use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
 use async_trait::async_trait;
@@ -13,7 +13,7 @@ use op_alloy_provider::ext::engine::OpEngineApi;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-/// Task for building new blocks with automatic forkchoice synchronization.
+/// Task for starting sequencer block builds on the current unsafe head.
 ///
 /// The [`BuildTask`] only performs the `engine_forkchoiceUpdated` call within the block building
 /// workflow. It makes this call with the provided attributes to initiate block building on the
@@ -33,27 +33,35 @@ pub struct BuildTask {
     pub cfg: Arc<RollupConfig>,
     /// The [`OpAttributesWithParent`] to instruct the execution layer to build.
     pub attributes: OpAttributesWithParent,
-    /// The optional sender through which [`PayloadId`] will be sent after the
-    /// block build has been started.
-    pub payload_id_tx: Option<mpsc::Sender<PayloadId>>,
+    /// Reports the payload ID or build rejection to the sequencer.
+    pub payload_id_tx: mpsc::Sender<Result<PayloadId, BuildTaskError>>,
 }
 
 #[async_trait]
 impl EngineTaskExt for BuildTask {
-    type Output = PayloadId;
+    type Output = ();
 
     type Error = BuildTaskError;
 
-    async fn execute(&self, state: &mut EngineState) -> Result<PayloadId, BuildTaskError> {
-        let payload_id =
-            start_build(self.engine.as_ref(), &self.cfg, state, self.attributes.clone()).await?;
+    async fn execute(&self, state: &mut EngineState) -> Result<(), BuildTaskError> {
+        // Only queued sequencer builds require this guard. Derivation calls start_build
+        // directly because its reorgs may legitimately build on another parent.
+        let result = if self.attributes.parent.block_info.id() ==
+            state.sync_state.unsafe_head().block_info.id()
+        {
+            start_build(self.engine.as_ref(), &self.cfg, state, self.attributes.clone()).await
+        } else {
+            Err(BuildTaskError::StaleBuild)
+        };
 
-        // If a channel was provided, send the payload ID to it.
-        if let Some(tx) = &self.payload_id_tx {
-            tx.send(payload_id).await.map_err(Box::new)?;
+        // A disconnected caller does not undo accepted work or stop the engine.
+        let _ = self.payload_id_tx.send(result.clone()).await;
+        match result {
+            // The sequencer owns retries of rejected builds, using fresh attributes on its timer.
+            Err(err) if err.severity() == EngineTaskErrorSeverity::Temporary => Ok(()),
+            // The engine actor still owns resets and critical failures.
+            result => result.map(|_| ()),
         }
-
-        Ok(payload_id)
     }
 }
 
@@ -129,7 +137,7 @@ pub(in crate::task_queue) async fn start_build(
         }
     }
     .map_err(|e| {
-        BuildTaskError::EngineBuildError(EngineBuildError::AttributesInsertionFailed(e))
+        BuildTaskError::EngineBuildError(EngineBuildError::AttributesInsertionFailed(Arc::new(e)))
     })?;
 
     match update.payload_status.status {
