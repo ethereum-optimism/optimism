@@ -392,7 +392,8 @@ func TestProposerProvesGameAgreeingOnReplacedBlock(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys, hidden := newReplacedBlockSystem(t)
 	execTimestamp := sendDeniedMessage(t, sys, hidden)
-	proveGameAgreeingOnReplacedBlock(t, sys, hidden, execTimestamp)
+	proposer, game := startProposerOnForeignGame(t, sys, execTimestamp)
+	requireProvenReadingReplacedAgreedOutput(t, proposer, game, hidden)
 }
 
 // TestProposerProvesChunkAgreeingOnReplacedBlockInside proves a game whose single
@@ -409,32 +410,35 @@ func TestProposerProvesChunkAgreeingOnReplacedBlockInside(gt *testing.T) {
 		presets.WithL2BlockTimes(map[eth.ChainID]uint64{sysgo.DefaultL2AID: 2, sysgo.DefaultL2BID: 1}),
 		presets.WithZKProposerOption(sysgo.WithZKRangeSplitCount(1)),
 	)
-	t.Require().Equal(uint64(1), sys.L2ChainB.Escape().RollupConfig().BlockTime, "chain B must make a block every second")
 	execTimestamp := sendDeniedMessage(t, sys, hidden)
-	game := proveGameAgreeingOnReplacedBlock(t, sys, hidden, execTimestamp-1)
+	proposer, game := startProposerOnForeignGame(t, sys, execTimestamp-1)
 	t.Require().Greater(game.L2SequenceNumber(), execTimestamp,
 		"the game must claim past the denied timestamp, so its chunk agrees on it")
+	requireProvenReadingReplacedAgreedOutput(t, proposer, game, hidden)
 }
 
-// proveGameAgreeingOnReplacedBlock starts the proposer on a foreign game that
-// claims parentTimestamp, waits for the proposer's game on it to be proven, and
-// returns that game. The proposer must have read a replaced agreed output
-// through kona-host, and never asked the L2 ELs for the denied block.
-func proveGameAgreeingOnReplacedBlock(t devtest.T, sys *presets.SimpleInterop, hidden *sysgo.HiddenBlocks, parentTimestamp uint64) *proofs.ZKGame {
+// startProposerOnForeignGame starts a foreign game that claims parentTimestamp,
+// then the proposer, and returns the proposer and its game on the foreign one.
+func startProposerOnForeignGame(t devtest.T, sys *presets.SimpleInterop, parentTimestamp uint64) (*zkproposer.ZKProposer, *proofs.ZKGame) {
 	factory := sys.DisputeGameFactory()
 	foreign := factory.StartZKGame(sys.FunderL1.NewFundedEOA(eth.OneEther), proofs.WithL2SequenceNumber(parentTimestamp))
 	proposer := sys.StartZKProposer()
 	game := factory.WaitForZKGameAtIndex(int64(foreign.FactoryIndex() + 1))
 	t.Require().Equal(foreign.FactoryIndex(), game.ParentIndex(), "the proposer must build on the foreign game")
-	game.WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
+	return proposer, game
+}
 
+// requireProvenReadingReplacedAgreedOutput waits for game to be proven and
+// requires that the proposer read a replaced agreed output through kona-host and
+// never asked the L2 ELs for the denied block.
+func requireProvenReadingReplacedAgreedOutput(t devtest.T, proposer *zkproposer.ZKProposer, game *proofs.ZKGame, hidden *sysgo.HiddenBlocks) {
+	game.WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
 	proposer.VerifyState(
 		zkproposer.ReplacedAgreedOutputsReadAtLeast(1),
 		zkproposer.ProvingFailures(0),
 	)
 	t.Require().Positive(hidden.ForwardedRequests(), "the proposer must read the L2 ELs through the hiding proxies")
 	t.Require().Zero(hidden.RefusedRequests(), "the proposer must not ask the L2 ELs for the denied block")
-	return game
 }
 
 // TestProposerBisectsSpanOverBudget proves a game whose chunks are each at least

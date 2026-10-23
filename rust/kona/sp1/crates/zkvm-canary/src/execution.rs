@@ -308,7 +308,10 @@ pub(crate) async fn execute_snapshot(
         }
     };
     let range_witness = tokio::time::timeout_at(deadline, async {
-        synthesized.preload_replaced_agreed_outputs(host_inputs).await?;
+        synthesized
+            .preload_replaced_agreed_outputs(host_inputs)
+            .await
+            .context("failed to read the replaced agreed outputs")?;
         collect_range_witness(
             range_host,
             &synthesized.range_inputs,
