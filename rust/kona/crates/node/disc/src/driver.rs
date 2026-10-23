@@ -13,6 +13,15 @@ use tokio::{
 
 use crate::{Discv5Builder, Discv5Handler, HandlerRequest, LocalNode};
 
+/// The number of times to retry starting the [`Discv5`] service, with exponential backoff.
+const START_MAX_RETRIES: usize = 3;
+
+/// The number of attempts to start the [`Discv5`] event stream before giving up.
+const EVENT_STREAM_MAX_ATTEMPTS: u32 = 10;
+
+/// The delay after a failed attempt to start the [`Discv5`] event stream.
+const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
+
 /// The [`Discv5Driver`] drives the discovery service.
 ///
 /// Calling [`Discv5Driver::start`] spawns a new [`Discv5`]
@@ -88,7 +97,7 @@ impl Discv5Driver {
                 (v, res)
             }
         }
-            .retry(ExponentialBuilder::default())
+            .retry(ExponentialBuilder::default().with_max_times(START_MAX_RETRIES))
             .context(self)
             .notify(|err: &discv5::Error, dur: Duration| {
                 warn!(target: "discovery", ?err, "Failed to start discovery service [Duration: {:?}]", dur);
@@ -152,8 +161,9 @@ impl Discv5Driver {
     /// valid ENRs it discovers.
     ///
     /// The task is detached and stops when:
-    /// - startup fails: [`Discv5`] does not start after 3 retries with exponential backoff, or its
-    ///   event stream does not start after 10 attempts 2 seconds apart, about 20 seconds in total;
+    /// - startup fails: [`Discv5`] does not start after `START_MAX_RETRIES` retries with
+    ///   exponential backoff, or its event stream does not start after `EVENT_STREAM_MAX_ATTEMPTS`
+    ///   attempts, each failure followed by `EVENT_STREAM_RETRY_DELAY`;
     /// - the [`Discv5`] event stream ends;
     /// - every [`Discv5Handler`] clone and the ENR receiver are dropped.
     ///
@@ -211,9 +221,8 @@ impl Discv5Driver {
             // Continuously attempt to start the event stream with a retry limit and shutdown
             // signal.
             let mut retries = 0;
-            let max_retries = 10; // Maximum number of retries before giving up.
             let mut event_stream = loop {
-                if retries >= max_retries {
+                if retries >= EVENT_STREAM_MAX_ATTEMPTS {
                     error!(target: "discovery", "Exceeded maximum retries for event stream startup. Aborting...");
                     return; // Exit the task if the retry limit is reached.
                 }
@@ -224,8 +233,8 @@ impl Discv5Driver {
                     Err(e) => {
                         warn!(target: "discovery", "Failed to start event stream: {:?}", e);
                         retries += 1;
-                        sleep(Duration::from_secs(2)).await;
-                        info!(target: "discovery", "Retrying event stream startup... (Attempt {}/{})", retries, max_retries);
+                        sleep(EVENT_STREAM_RETRY_DELAY).await;
+                        info!(target: "discovery", "Retrying event stream startup... (Attempt {}/{})", retries, EVENT_STREAM_MAX_ATTEMPTS);
                     }
                 }
             };
