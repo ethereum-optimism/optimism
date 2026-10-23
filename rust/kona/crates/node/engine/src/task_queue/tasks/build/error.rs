@@ -54,13 +54,15 @@ pub enum BuildTaskError {
 }
 
 impl BuildTaskError {
-    /// Whether forkchoiceUpdated rejected the attributes with -38003 or INVALID.
+    /// Whether forkchoiceUpdated rejected the attributes with -38003.
+    ///
+    /// A payload-status INVALID rejects the forkchoice head, before attributes are processed.
+    /// Replacing the attributes cannot repair that head; it requires an engine reset.
     pub fn is_invalid_attributes(&self) -> bool {
         match self {
             Self::EngineBuildError(EngineBuildError::AttributesInsertionFailed(err)) => err
                 .as_error_resp()
                 .is_some_and(|resp| resp.code == i64::from(INVALID_PAYLOAD_ATTRIBUTES_ERROR)),
-            Self::EngineBuildError(EngineBuildError::InvalidPayload(_)) => true,
             _ => false,
         }
     }
@@ -72,9 +74,13 @@ impl EngineTaskError for BuildTaskError {
             Self::EngineBuildError(EngineBuildError::FinalizedAheadOfUnsafe(_, _)) => {
                 EngineTaskErrorSeverity::Critical
             }
+            // Retrying the same invalid head cannot recover. Reconcile with the EL's chain.
+            Self::EngineBuildError(
+                EngineBuildError::InvalidPayload(_) |
+                EngineBuildError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. }),
+            ) => EngineTaskErrorSeverity::Reset,
             Self::EngineBuildError(
                 EngineBuildError::AttributesInsertionFailed(_) |
-                EngineBuildError::InvalidPayload(_) |
                 EngineBuildError::UnexpectedPayloadStatus(_) |
                 EngineBuildError::MissingPayloadId |
                 EngineBuildError::EngineSyncing,

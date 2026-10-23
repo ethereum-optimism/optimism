@@ -127,6 +127,9 @@ impl Engine {
         );
         synchronize.execute(&mut self.state).await?;
 
+        // Readers must observe the recovered heads even when no later task is queued.
+        self.state_sender.send_replace(self.state);
+
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
 
         Ok(start.safe)
