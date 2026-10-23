@@ -14,12 +14,15 @@
     - node-operators/kona-node/faq/ports.mdx
 */}
 
-| Service         | Default Port | Flag/Env                                 |
-|-----------------|--------------|------------------------------------------|
-| RPC HTTP        | 9545         | `--port` / `KONA_NODE_RPC_PORT`      |
-| RPC WebSocket   | 9545         | (same as HTTP, available by default) |
-| P2P TCP         | 9222         | `--p2p.listen.tcp` / `KONA_NODE_P2P_LISTEN_TCP_PORT` |
-| P2P UDP         | 9223         | `--p2p.listen.udp` / `KONA_NODE_P2P_LISTEN_UDP_PORT` |
+| Service         | Transport | Default Port | Flag/Env                                 |
+|-----------------|-----------|--------------|------------------------------------------|
+| RPC HTTP        | TCP       | 9545         | `--port` / `KONA_NODE_RPC_PORT`      |
+| RPC WebSocket   | TCP       | 9545         | (same as HTTP, available by default) |
+| P2P TCP         | TCP       | 9222         | `--p2p.listen.tcp` / `KONA_NODE_P2P_LISTEN_TCP_PORT` |
+| P2P UDP         | UDP       | 9223         | `--p2p.listen.udp` / `KONA_NODE_P2P_LISTEN_UDP_PORT` |
+
+HTTP and WebSocket RPC share one TCP listener. WebSocket connections begin with
+an HTTP upgrade request on that same address and port.
 
 `kona-node` does not run a supervisor RPC server: the binary has no `--supervisor.*`
 flag group. Its only interop flag, `--interop.dependency-set`
