@@ -16,7 +16,7 @@ workspace = true
 [dependencies]
 # sp1
 sp1-sdk.workspace = true
-tonic = { workspace = true, features = ["tls", "tls-roots"] }
+tonic = { workspace = true, features = ["tls-ring", "tls-native-roots"] }
 prost = { workspace = true, features = ["std"] }
 rustls = { workspace = true, features = ["ring"] }
 
