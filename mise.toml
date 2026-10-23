@@ -24,7 +24,7 @@ direnv = "2.35.0"
 just = "1.46.0"
 make = "4.4.1"
 
-svm-rs = "0.5.19"
+svm-rs = "0.5.32"
 
 # Fast linker used for Rust link steps in CI (see .circleci rust-build). Linux
 # only: mold ships no macOS build, so gate on os to keep `mise install` green on
