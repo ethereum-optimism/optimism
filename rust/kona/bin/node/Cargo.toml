@@ -19,6 +19,7 @@ workspace = true
 op-version.workspace = true
 
 kona-rpc.workspace = true
+kona-safedb = { workspace = true, features = ["rocksdb"] }
 kona-peers.workspace = true
 kona-genesis = { workspace = true, features = ["tabled"] }
 kona-interop = { workspace = true, features = ["serde"] }

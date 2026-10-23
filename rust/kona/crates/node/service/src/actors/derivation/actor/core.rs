@@ -5,6 +5,7 @@ use crate::{
     DerivationStateTransitionError, DerivationStateUpdate, Metrics, NodeActor,
     actors::derivation::L2Finalizer,
 };
+use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, PipelineResult, ResetError,
@@ -34,17 +35,19 @@ where
     engine_client: DerivationEngineClient_,
 
     /// The derivation pipeline.
-    pipeline: PipelineSignalReceiver,
+    pub(super) pipeline: PipelineSignalReceiver,
     /// Publishes the pipeline's origin: the L1 block that derivation has reached.
     derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
     /// The state machine controlling when derivation can occur.
-    derivation_state_machine: DerivationStateMachine,
+    pub(super) derivation_state_machine: DerivationStateMachine,
     /// The [`L2Finalizer`] tracks derived L2 blocks awaiting finalization.
     pub(crate) finalizer: L2Finalizer,
     /// Records the safe head reached as of each locally derived L1 block.
     safe_db: Option<Arc<dyn SafeDb>>,
+    /// Genesis is safe from L1 block zero, even when the configured L1 genesis is later.
+    l1_block_zero: BlockNumHash,
     /// The attributes sent to the engine and not yet confirmed as a safe head.
-    attributes_awaiting_confirmation: Option<OpAttributesWithParent>,
+    pub(super) attributes_awaiting_confirmation: Option<OpAttributesWithParent>,
 }
 
 impl<DerivationEngineClient_, PipelineSignalReceiver>
@@ -59,6 +62,7 @@ where
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
         pipeline: PipelineSignalReceiver,
         safe_db: Option<Arc<dyn SafeDb>>,
+        l1_block_zero: BlockNumHash,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
     ) -> Self {
         Self {
@@ -69,12 +73,13 @@ where
             derivation_state_machine: DerivationStateMachine::default(),
             finalizer: L2Finalizer::default(),
             safe_db,
+            l1_block_zero,
             attributes_awaiting_confirmation: None,
         }
     }
 
     /// Handles a [`Signal`] received over the derivation signal receiver channel.
-    async fn signal(&mut self, signal: Signal) -> Result<(), DerivationError> {
+    pub(super) async fn signal(&mut self, signal: Signal) -> Result<(), DerivationError> {
         let result = match signal {
             Signal::Reset(reset) => {
                 self.derivation_origin_tx.send_replace(None);
@@ -125,7 +130,9 @@ where
 
     /// Attempts to step the derivation pipeline forward as much as possible in order to produce the
     /// next safe payload.
-    async fn produce_next_attributes(&mut self) -> Result<OpAttributesWithParent, DerivationError> {
+    pub(super) async fn produce_next_attributes(
+        &mut self,
+    ) -> Result<OpAttributesWithParent, DerivationError> {
         // As we start the safe head at the disputed block's parent, we step the pipeline until the
         // first attributes are produced. All batches at and before the safe head will be
         // dropped, so the first payload will always be the disputed one.
@@ -205,7 +212,7 @@ where
         }
     }
 
-    async fn handle_derivation_actor_request(
+    pub(super) async fn handle_derivation_actor_request(
         &mut self,
         request_type: DerivationActorRequest,
     ) -> Result<(), DerivationError> {
@@ -259,7 +266,10 @@ where
     /// A head that confirms nothing pending was adopted by the engine rather than derived here,
     /// so there is nothing to record. Finalization is queued only once the record is written, so
     /// the engine's finalized head can never run ahead of the recorded history.
-    fn settle_derived_attributes(&mut self, safe_head: L2BlockInfo) -> Result<(), DerivationError> {
+    pub(super) fn settle_derived_attributes(
+        &mut self,
+        safe_head: L2BlockInfo,
+    ) -> Result<(), DerivationError> {
         let Some(attributes) = self.attributes_awaiting_confirmation.take() else {
             debug!(
                 target: "derivation",
@@ -288,7 +298,11 @@ where
         Ok(())
     }
 
-    fn truncate_safe_db(&self, resume_head: L2BlockInfo, reason: &str) -> Result<(), SafeDbError> {
+    pub(super) fn truncate_safe_db(
+        &self,
+        resume_head: L2BlockInfo,
+        reason: &str,
+    ) -> Result<(), SafeDbError> {
         let Some(database) = &self.safe_db else {
             return Ok(());
         };
@@ -317,6 +331,13 @@ where
             error!(target: "derivation", %error, reason, resume_head = resume_head.block_info.number, "Failed to truncate safe head database");
         })?;
         info!(target: "derivation", reason, resume_head = resume_head.block_info.number, "Truncated safe head database");
+        if resume_head.block_info.id() == self.pipeline.rollup_config().genesis.l2 {
+            debug!(target: "derivation", reason, l1_block = 0, safe_head = resume_head.block_info.number, "Recording genesis safe head");
+            database.safe_head_updated(resume_head, self.l1_block_zero).inspect_err(|error| {
+                error!(target: "derivation", %error, reason, safe_head = resume_head.block_info.number, "Failed to record genesis safe head");
+            })?;
+            info!(target: "derivation", reason, safe_head = resume_head.block_info.number, "Recorded genesis safe head at L1 block zero");
+        }
         Ok(())
     }
 
@@ -409,6 +430,3 @@ pub enum DerivationError {
     #[error(transparent)]
     StateTransitionError(#[from] DerivationStateTransitionError),
 }
-
-#[cfg(test)]
-mod tests;

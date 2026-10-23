@@ -1,6 +1,8 @@
 package dsl
 
 import (
+	"time"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -40,6 +42,32 @@ func (s *TestSequencer) SequenceBlock(t devtest.T, chainID eth.ChainID, parent c
 
 	require.NoError(t, ca.New(t.Ctx(), seqtypes.BuildOpts{Parent: parent}))
 	require.NoError(t, ca.Next(t.Ctx()))
+}
+
+// BuildL1UntilSafeOriginPast sequences L1 blocks one at a time until l2EL's safe head has an L1
+// origin above startL1, and returns that safe head so a test can reorg the L1 block it was derived
+// from. The caller stops L1's own block production first, so this loop is the only L1 producer.
+func (s *TestSequencer) BuildL1UntilSafeOriginPast(t devtest.T, l1ChainID eth.ChainID, l2EL *L2ELNode, startL1 uint64) eth.L2BlockRef {
+	ca := s.Escape().ControlAPI(l1ChainID)
+	var safe eth.L2BlockRef
+	t.Require().Eventuallyf(func() bool {
+		// Next tolerates a build job left behind by a timed-out attempt, where New would report
+		// a conflict. Errors are retried rather than fatal: a transient engine stall must not
+		// end the test.
+		if err := ca.Next(t.Ctx()); err != nil {
+			t.Logger().Warn("L1 block build failed, retrying", "err", err)
+			return false
+		}
+		ref, err := l2EL.blockRefByLabel(eth.Safe)
+		if err != nil {
+			t.Logger().Warn("L2 safe head read failed, retrying", "err", err)
+			return false
+		}
+		safe = ref
+		t.Logger().Info("Built L1 block", "l2_safe", safe, "l2_safe_l1_origin", safe.L1Origin, "start_l1", startL1)
+		return safe.Number > 0 && safe.L1Origin.Number > startL1
+	}, 120*time.Second, 2*time.Second, "L2 safe head never reached an L1 origin above %d", startL1)
+	return safe
 }
 
 // AdvanceToBlockParent sequences empty blocks until the next block lands at timestamp.

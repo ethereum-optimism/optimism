@@ -11,11 +11,12 @@ use jsonrpsee::{
 use kona_engine::EngineState;
 use kona_genesis::RollupConfig;
 use kona_protocol::SyncStatus;
-use std::fmt::Debug;
+use kona_safedb::{SafeDb, SafeDbError};
+use std::{fmt::Debug, sync::Arc};
 
 use crate::{
-    EngineRpcClient, L1State, L1WatcherQueries, OutputResponse, RollupNodeApiServer,
-    SafeHeadResponse, l1_watcher::L1WatcherQuerySender,
+    EngineRpcClient, L1State, OutputResponse, RollupNodeApiServer, SafeHeadResponse,
+    l1_watcher::L1WatcherQuerySender, safe_db_error::safe_db_error,
 };
 
 /// `RollupRpc`
@@ -29,6 +30,8 @@ pub struct RollupRpc<EngineRpcClient_> {
     pub engine_client: EngineRpcClient_,
     /// The channel to send [`crate::L1WatcherQueries`]s.
     pub l1_watcher_sender: L1WatcherQuerySender,
+    /// The record of the L2 safe head reached as of each L1 block.
+    pub safe_db: Option<Arc<dyn SafeDb>>,
 }
 
 impl<EngineRpcClient_: EngineRpcClient> RollupRpc<EngineRpcClient_> {
@@ -40,8 +43,9 @@ impl<EngineRpcClient_: EngineRpcClient> RollupRpc<EngineRpcClient_> {
         version: &'static str,
         engine_client: EngineRpcClient_,
         l1_watcher_sender: L1WatcherQuerySender,
+        safe_db: Option<Arc<dyn SafeDb>>,
     ) -> Self {
-        Self { version, engine_client, l1_watcher_sender }
+        Self { engine_client, l1_watcher_sender, safe_db, version }
     }
 
     // Important note: we zero-out the fields that can't be derived yet to follow op-node's
@@ -71,46 +75,51 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
     async fn op_output_at_block(&self, block_num: BlockNumberOrTag) -> RpcResult<OutputResponse> {
         kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_outputAtBlock");
 
-        let (l1_sync_status_send, l1_sync_status_recv) = tokio::sync::oneshot::channel();
-
-        let ((l2_block_info, output_root, l2_sync_status), l1_sync_status) =
-            tokio::try_join!(self.engine_client.output_at_block(block_num), async {
-                self.l1_watcher_sender
-                    .send(L1WatcherQueries::L1State(l1_sync_status_send))
-                    .await
-                    .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-
-                l1_sync_status_recv.await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
-            })?;
+        let ((l2_block_info, output_root, l2_sync_status), l1_sync_status) = tokio::try_join!(
+            self.engine_client.output_at_block(block_num),
+            L1State::query(&self.l1_watcher_sender)
+        )?;
 
         let sync_status = Self::sync_status_from_actor_queries(l1_sync_status, l2_sync_status);
 
         Ok(OutputResponse::from_v0(output_root, sync_status, l2_block_info))
     }
 
-    /// This RPC endpoint is not supported. It is not necessary to track the safe head for every L1
-    /// block post-interop anymore so we can remove this method from the rpc interface.
     async fn op_safe_head_at_l1_block(
         &self,
-        _block_num: BlockNumberOrTag,
+        block_num: BlockNumberOrTag,
     ) -> RpcResult<SafeHeadResponse> {
         kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_safeHeadAtL1Block");
-        return Err(ErrorObject::from(ErrorCode::MethodNotFound));
+
+        // op-node takes a plain number here; `earliest` is the only tag that names one.
+        let l1_block_num = match block_num {
+            BlockNumberOrTag::Number(number) => number,
+            BlockNumberOrTag::Earliest => 0,
+            tag => {
+                return Err(ErrorObject::owned(
+                    ErrorCode::InvalidParams.code(),
+                    format!("safeHeadAtL1Block requires an L1 block number, got {tag}"),
+                    None::<()>,
+                ));
+            }
+        };
+
+        let record = self
+            .safe_db
+            .as_ref()
+            .ok_or(SafeDbError::NotEnabled)
+            .and_then(|database| database.safe_head_at_l1(l1_block_num))
+            .map_err(|e| {
+                safe_db_error(e, format_args!("failed to get safe head at l1 block {l1_block_num}"))
+            })?;
+        Ok(SafeHeadResponse { l1_block: record.l1, safe_head: record.safe_head })
     }
 
     async fn op_sync_status(&self) -> RpcResult<SyncStatus> {
         kona_macros::inc!(gauge, Self::RPC_IDENT, "method" => "op_syncStatus");
 
-        let (l1_sync_status_send, l1_sync_status_recv) = tokio::sync::oneshot::channel();
-
         let (l1_sync_status, l2_sync_status) = tokio::try_join!(
-            async {
-                self.l1_watcher_sender
-                    .send(L1WatcherQueries::L1State(l1_sync_status_send))
-                    .await
-                    .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-                l1_sync_status_recv.await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
-            },
+            L1State::query(&self.l1_watcher_sender),
             self.engine_client.get_state()
         )
         .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
