@@ -1,225 +1,100 @@
 package node
 
 import (
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 
-	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
-	"github.com/stretchr/testify/require"
 )
 
-// Check that unsafe heads eventually consolidate and become safe
-// For this test to be deterministic it should...
-// 1. Only have two L2 nodes
-// 2. Only have one DA layer node
+// Every observed unsafe block must become safe without changing its contents.
 func TestSyncUnsafeBecomesSafe(gt *testing.T) {
-	const SECS_WAIT_FOR_UNSAFE_HEAD = 10
-	// We are waiting longer for the safe head to sync because it is usually a few seconds behind the unsafe head.
-	const SECS_WAIT_FOR_SAFE_HEAD = 60
-
 	t := devtest.ParallelT(gt)
-
-	out := newCommonPreset(t)
-
-	nodes := out.L2CLKonaNodes()
-
-	// Ensure that all the nodes advance the unsafe and safe head
-	advancedFns := make([]dsl.CheckFunc, 0, len(nodes))
-	for _, node := range nodes {
-		advancedFns = append(advancedFns, node.AdvancedFn(safety.LocalSafe, 20, 80))
-		advancedFns = append(advancedFns, node.AdvancedFn(safety.LocalUnsafe, 20, 80))
-	}
-	dsl.CheckAll(t, advancedFns...)
-
-	var wg sync.WaitGroup
-	for _, node := range nodes {
-		wg.Add(1)
-		go func(node *dsl.L2CLNode) {
-			defer wg.Done()
-
-			unsafeBlocks := node_utils.GetKonaWs(t, node, "unsafe_head", time.After(SECS_WAIT_FOR_UNSAFE_HEAD*time.Second))
-
-			safeBlocks := node_utils.GetKonaWs(t, node, "safe_head", time.After(SECS_WAIT_FOR_SAFE_HEAD*time.Second))
-
-			require.GreaterOrEqual(t, len(unsafeBlocks), 1, "we didn't receive enough unsafe gossip blocks!")
-			require.GreaterOrEqual(t, len(safeBlocks), 1, "we didn't receive enough safe gossip blocks!")
-
-			safeBlockMap := make(map[uint64]eth.L2BlockRef)
-			// Create a map of safe blocks with block number as the key
-			for _, safeBlock := range safeBlocks {
-				safeBlockMap[safeBlock.Number] = safeBlock
-			}
-
-			cond := false
-
-			// Iterate over unsafe blocks and find matching safe blocks
-			for _, unsafeBlock := range unsafeBlocks {
-				if safeBlock, exists := safeBlockMap[unsafeBlock.Number]; exists {
-					require.Equal(t, unsafeBlock, safeBlock, "unsafe block %d doesn't match safe block %d", unsafeBlock.Number, safeBlock.Number)
-					cond = true
-				}
-			}
-
-			require.True(t, cond, "No matching safe block found for unsafe block")
-
-			t.Log("✓ unsafe and safe head blocks match between all nodes")
-		}(&node)
-	}
-	wg.Wait()
+	checkBlockRangesOnPeers(t, newCommonPreset(t), safety.LocalUnsafe, safety.CrossSafe)
 }
 
-// System tests that ensure that the kona-nodes are syncing the unsafe chain.
-// Note: this test should only be ran on networks that don't reorg, only have one sequencer and that only have one DA layer node.
+// Unsafe blocks agree on this single-sequencer network without reorgs.
 func TestSyncUnsafe(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-
-	out := newCommonPreset(t)
-
-	nodes := out.L2CLKonaNodes()
-
-	// Ensure that all the nodes advance the unsafe head
-	advancedFns := make([]dsl.CheckFunc, 0, len(nodes))
-	for _, node := range nodes {
-		advancedFns = append(advancedFns, node.AdvancedFn(safety.LocalUnsafe, 20, 80))
-	}
-	dsl.CheckAll(t, advancedFns...)
-
-	var wg sync.WaitGroup
-	for _, node := range nodes {
-		wg.Add(1)
-		go func(node *dsl.L2CLNode) {
-			defer wg.Done()
-
-			output := node_utils.GetKonaWs(t, node, "unsafe_head", time.After(2*time.Minute))
-
-			// For each block, we check that the block is actually in the chain of the other nodes.
-			// That should always be the case unless there is a reorg or a long sync.
-			// We shouldn't have safe heads reorgs in this very simple testnet because there is only one DA layer node.
-			for _, block := range output {
-				for _, node := range nodes {
-					otherCLNode := node.Escape().Name()
-					otherCLSyncStatus := node.ChainSyncStatus(out.L2Chain.ChainID(), safety.LocalUnsafe)
-
-					if otherCLSyncStatus.Number < block.Number {
-						t.Log("✗ peer too far behind!", otherCLNode, block.Number, otherCLSyncStatus.Number)
-						continue
-					}
-
-					expectedOutputResponse, err := node.Escape().RollupAPI().OutputAtBlock(t.Ctx(), block.Number)
-					require.NoError(t, err, "impossible to get block from node %s", otherCLNode)
-
-					// Make sure the blocks match!
-					require.Equal(t, expectedOutputResponse.BlockRef, block, "block mismatch between %s and %s", otherCLNode, node.Escape().Name())
-				}
-			}
-
-			t.Log("✓ unsafe head blocks match between all nodes")
-		}(&node)
-	}
-	wg.Wait()
+	checkBlockRangesOnPeers(t, newCommonPreset(t), safety.LocalUnsafe, safety.LocalUnsafe)
 }
 
-// System tests that ensure that the kona-nodes are syncing the safe chain.
-// Note: this test should only be ran on networks that don't reorg and that only have one DA layer node.
+// Safe blocks agree on this network with a single DA layer.
 func TestSyncSafe(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-
-	out := newCommonPreset(t)
-
-	nodes := out.L2CLKonaNodes()
-
-	// Ensure that all the nodes advance the safe head
-	advancedFns := make([]dsl.CheckFunc, 0, len(nodes))
-	for _, node := range nodes {
-		advancedFns = append(advancedFns, node.AdvancedFn(safety.LocalSafe, 20, 80))
-	}
-	dsl.CheckAll(t, advancedFns...)
-
-	var wg sync.WaitGroup
-	for _, node := range nodes {
-		wg.Add(1)
-		go func(node *dsl.L2CLNode) {
-			defer wg.Done()
-			clName := node.Escape().Name()
-
-			output := node_utils.GetKonaWs(t, node, "safe_head", time.After(2*time.Minute))
-
-			// For each block, we check that the block is actually in the chain of the other nodes.
-			// That should always be the case unless there is a reorg or a long sync.
-			// We shouldn't have safe heads reorgs in this very simple testnet because there is only one DA layer node.
-			for _, block := range output {
-				for _, node := range nodes {
-					otherCLNode := node.Escape().Name()
-					otherCLSyncStatus := node.ChainSyncStatus(out.L2Chain.ChainID(), safety.LocalSafe)
-
-					if otherCLSyncStatus.Number < block.Number {
-						t.Log("✗ peer too far behind!", otherCLNode, block.Number, otherCLSyncStatus.Number)
-						continue
-					}
-
-					expectedOutputResponse, err := node.Escape().RollupAPI().OutputAtBlock(t.Ctx(), block.Number)
-					require.NoError(t, err, "impossible to get block from node %s", otherCLNode)
-
-					// Make sure the blocks match!
-					require.Equal(t, expectedOutputResponse.BlockRef, block, "block mismatch between %s and %s", otherCLNode, clName)
-				}
-			}
-
-			t.Log("✓ safe head blocks match between all nodes")
-		}(&node)
-	}
-	wg.Wait()
+	checkBlockRangesOnPeers(t, newCommonPreset(t), safety.CrossSafe, safety.CrossSafe)
 }
 
-// System tests that ensure that the kona-nodes are syncing the finalized chain.
-// Note: this test can be ran on any sort of network, including the ones that should reorg.
+// Every node finalizes multiple new blocks, and their contents agree across peers.
 func TestSyncFinalized(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	checkBlockRangesOnPeers(t, newCommonPreset(t), safety.Finalized, safety.Finalized)
+}
 
-	out := newCommonPreset(t)
-
-	nodes := out.L2CLKonaNodes()
-
-	var wg sync.WaitGroup
-	for _, node := range nodes {
-		wg.Add(1)
-		go func(node *dsl.L2CLNode) {
-			defer wg.Done()
-			clName := node.Escape().Name()
-
-			output := node_utils.GetKonaWs(t, node, "finalized_head", time.After(4*time.Minute))
-
-			// We should check that we received at least 1 finalized block within 4 minutes!
-			require.GreaterOrEqual(t, len(output), 1, "we didn't receive enough finalized gossip blocks!")
-			t.Log("Number of finalized blocks received within 4 minutes:", len(output))
-
-			// For each block, we check that the block is actually in the chain of the other nodes.
-			for _, block := range output {
-				for _, node := range nodes {
-					otherCLNode := node.Escape().Name()
-					otherCLSyncStatus := node.ChainSyncStatus(out.L2Chain.ChainID(), safety.Finalized)
-
-					if otherCLSyncStatus.Number < block.Number {
-						t.Log("✗ peer too far behind!", otherCLNode, block.Number, otherCLSyncStatus.Number)
-						continue
-					}
-
-					expectedOutputResponse, err := node.Escape().RollupAPI().OutputAtBlock(t.Ctx(), block.Number)
-					require.NoError(t, err, "impossible to get block from node %s", otherCLNode)
-
-					// Make sure the blocks match!
-					require.Equal(t, expectedOutputResponse.BlockRef, block, "block mismatch between %s and %s", otherCLNode, clName)
-				}
-			}
-
-			t.Log("✓ finalized head blocks match between all nodes")
-		}(&node)
+func syncHead(status *eth.SyncStatus, level safety.Level) eth.L2BlockRef {
+	switch level {
+	case safety.LocalUnsafe:
+		return status.UnsafeL2
+	case safety.CrossSafe:
+		return status.SafeL2
+	case safety.Finalized:
+		return status.FinalizedL2
+	default:
+		panic("unsupported sync test safety level")
 	}
-	wg.Wait()
+}
+
+// Capture a consecutive range from EVERY source before waiting on peers. Checking only one
+// latest head can miss disagreements in intermediate blocks or on another source node.
+func checkBlockRangesOnPeers(t devtest.T, preset *node_utils.MixedOpKonaPreset, observed, target safety.Level) {
+	t.Helper()
+	// The simple-kona preset has one Kona source. Include its op-node peers in
+	// the agreement checks through ordinary RPC; op-node does not expose WS here.
+	nodes := preset.L2CLKonaNodes()
+	peers := preset.L2CLNodes()
+	t.Require().GreaterOrEqual(len(nodes), 1, "sync agreement requires a Kona WebSocket source")
+	t.Require().GreaterOrEqual(len(peers), 2, "sync agreement requires multiple nodes")
+	const blockCount uint64 = 20
+	clients := make([]*sources.RollupClient, len(nodes))
+	starts := make([]uint64, len(nodes))
+	checks := make([]dsl.CheckFunc, 0, len(nodes))
+	for i := range nodes {
+		clients[i] = node_utils.RollupWS(t, &nodes[i])
+		status, err := clients[i].SyncStatus(t.Ctx())
+		t.Require().NoError(err)
+		starts[i] = syncHead(status, observed).Number + 1
+		checks = append(checks, nodes[i].ReachedFn(observed, starts[i]+blockCount-1, 120))
+	}
+	dsl.CheckAll(t, checks...)
+
+	var heads []eth.L2BlockRef
+	var highest uint64
+	for i := range nodes {
+		for number := starts[i]; number < starts[i]+blockCount; number++ {
+			output, err := clients[i].OutputAtBlock(t.Ctx(), number)
+			t.Require().NoError(err)
+			t.Require().Equal(number, output.BlockRef.Number)
+			heads = append(heads, output.BlockRef)
+			highest = max(highest, number)
+		}
+	}
+	t.Require().Len(heads, len(nodes)*int(blockCount), "must check every block in every source range")
+
+	checks = checks[:0]
+	for i := range peers {
+		checks = append(checks, peers[i].ReachedFn(target, highest, 120))
+	}
+	dsl.CheckAll(t, checks...)
+	for i := range peers {
+		for _, head := range heads {
+			output, err := peers[i].Escape().RollupAPI().OutputAtBlock(t.Ctx(), head.Number)
+			t.Require().NoError(err)
+			t.Require().Equal(head, output.BlockRef, "block %d mismatch on %s at %s", head.Number, peers[i].Escape().Name(), target)
+		}
+	}
 }

@@ -1,14 +1,11 @@
 //! The Optimism RPC API using `jsonrpsee`
 
-use crate::{OutputResponse, SafeHeadResponse, health::HealthzResponse};
+use crate::{OutputResponse, health::HealthzResponse};
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
 use core::net::IpAddr;
 use ipnet::IpNet;
-use jsonrpsee::{
-    core::{RpcResult, SubscriptionResult},
-    proc_macros::rpc,
-};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use kona_genesis::RollupConfig;
 use kona_gossip::{PeerCount, PeerDump, PeerInfo, PeerStats};
 use kona_protocol::SyncStatus;
@@ -31,13 +28,6 @@ pub trait RollupNodeApi {
     #[method(name = "outputAtBlock")]
     async fn op_output_at_block(&self, block_number: BlockNumberOrTag)
     -> RpcResult<OutputResponse>;
-
-    /// Gets the safe head at an L1 block height.
-    #[method(name = "safeHeadAtL1Block")]
-    async fn op_safe_head_at_l1_block(
-        &self,
-        block_number: BlockNumberOrTag,
-    ) -> RpcResult<SafeHeadResponse>;
 
     /// Get the synchronization status.
     #[method(name = "syncStatus")]
@@ -127,38 +117,6 @@ pub trait OpP2PApi {
     /// Disconnects from the given peer
     #[method(name = "disconnectPeer")]
     async fn opp2p_disconnect_peer(&self, peer: String) -> RpcResult<()>;
-}
-
-/// Websockets API for the node.
-#[cfg_attr(not(feature = "client"), rpc(server, namespace = "ws"))]
-#[cfg_attr(feature = "client", rpc(server, client, namespace = "ws"))]
-#[async_trait]
-pub trait Ws {
-    /// Subscribes to the stream of finalized head updates.
-    #[subscription(name = "subscribe_finalized_head", item = kona_protocol::L2BlockInfo)]
-    async fn ws_finalized_head_updates(&self) -> SubscriptionResult;
-
-    /// Subscribes to the stream of safe head updates.
-    #[subscription(name = "subscribe_safe_head", item = kona_protocol::L2BlockInfo)]
-    async fn ws_safe_head_updates(&self) -> SubscriptionResult;
-
-    /// Subscribes to the stream of unsafe head updates.
-    #[subscription(name = "subscribe_unsafe_head", item = kona_protocol::L2BlockInfo)]
-    async fn ws_unsafe_head_updates(&self) -> SubscriptionResult;
-}
-
-/// Development RPC API for engine state introspection.
-#[cfg_attr(not(feature = "client"), rpc(server, namespace = "dev"))]
-#[cfg_attr(feature = "client", rpc(server, client, namespace = "dev"))]
-#[async_trait]
-pub trait DevEngineApi {
-    /// Subscribe to engine queue length updates.
-    #[subscription(name = "subscribe_engine_queue_size", item = usize)]
-    async fn dev_subscribe_engine_queue_length(&self) -> SubscriptionResult;
-
-    /// Get the current number of tasks in the engine queue.
-    #[method(name = "taskQueueLength")]
-    async fn dev_task_queue_length(&self) -> RpcResult<usize>;
 }
 
 /// The admin namespace for the consensus node.

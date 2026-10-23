@@ -43,9 +43,9 @@ impl L2ForkchoiceState {
     /// - The safe block may not always be available. If it is not, we fall back to the finalized
     ///   block.
     /// - The unsafe block is always assumed to be available.
-    pub async fn current<EngineClient_: EngineClient>(
+    pub async fn current(
         cfg: &RollupConfig,
-        engine_client: &EngineClient_,
+        engine_client: &EngineClient,
     ) -> Result<Self, SyncStartError> {
         let finalized = {
             let rpc_block =
@@ -84,8 +84,8 @@ impl L2ForkchoiceState {
 /// and erigon. When serving a block-by-number request, these clients will return non-standard
 /// errors for the safe and finalized heads when the chain has just started and nothing is marked as
 /// safe or finalized yet.
-async fn get_block_compat<EngineClient_: EngineClient>(
-    engine_client: &EngineClient_,
+async fn get_block_compat(
+    engine_client: &EngineClient,
     block_id: BlockId,
 ) -> TransportResult<Option<<Optimism as Network>::BlockResponse>> {
     match engine_client.get_l2_block(block_id).full().await {
