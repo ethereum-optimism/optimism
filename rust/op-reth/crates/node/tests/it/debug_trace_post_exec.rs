@@ -53,12 +53,11 @@ const TRANSFER_GAS: u64 = 21_000;
 const DEPLOY_GAS: u64 = 53_006;
 
 /// `debug_traceBlock` over a raw block that ends in a post-exec (0x7d) transaction must return
-/// one successful trace per transaction, and the refunded transaction's trace must report its
-/// canonical gas. Before the `transact_raw` short-circuit this failed for the whole block with
-/// `-32000: invalid chain ID`.
+/// one successful trace per transaction. Before the `transact_raw` short-circuit this failed for
+/// the whole block with `-32000: invalid chain ID`.
 ///
-/// The refund takes the transfer below the EIP-7623 floor: the producer never refunds that far,
-/// but a verifier applies whatever refund the payload carries.
+/// Raw blocks replay on a bare EVM so that blocks the executor would reject still trace, which
+/// leaves the refunded transaction's trace at its pre-refund gas.
 #[tokio::test]
 async fn test_debug_trace_block_with_post_exec_tx() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
@@ -139,7 +138,7 @@ async fn test_debug_trace_block_with_post_exec_tx() -> eyre::Result<()> {
             "transaction {index} must trace successfully, got {trace:?}",
         );
     }
-    assert_eq!(default_trace_gas(&traces[1]), TRANSFER_GAS - 1, "traced gas must be canonical");
+    assert_eq!(default_trace_gas(&traces[1]), TRANSFER_GAS, "raw block traces are pre-refund");
 
     Ok(())
 }
