@@ -71,25 +71,25 @@ http-body-util.workspace = true
 metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
-alloy-consensus = { workspace = true, features = ["arbitrary"] }
 alloy-json-rpc.workspace = true
-alloy-primitives = { workspace = true, features = ["k256"] }
-alloy-rpc-types-engine = { workspace = true, features = ["arbitrary"] }
-anyhow.workspace = true
+serde_json.workspace = true
+kona-engine = { workspace = true, features = ["test-utils"] }
+tokio = { workspace = true, features = ["test-util"] }
+enr.workspace = true
+rstest.workspace = true
 arbitrary.workspace = true
 assert_matches.workspace = true
-backon.workspace = true
-enr.workspace = true
-kona-derive = {workspace = true, features = ["test-utils"]}
-kona-engine = { workspace = true, features = ["test-utils"] }
-kona-safedb = { workspace = true, features = ["rocksdb"] }
-mockall.workspace = true
-op-alloy-consensus = { workspace = true, features = ["arbitrary", "k256"] }
 rand.workspace = true
-rstest.workspace = true
-serde_json.workspace = true
+anyhow.workspace = true
+backon.workspace = true
+mockall.workspace = true
+alloy-primitives = { workspace = true, features = ["k256"] }
+alloy-rpc-types-engine = { workspace = true, features = ["arbitrary"] }
+alloy-consensus = { workspace = true, features = ["arbitrary"] }
+op-alloy-consensus = { workspace = true, features = ["arbitrary", "k256"] }
+kona-derive = {workspace = true, features = ["test-utils"]}
+kona-safedb = { workspace = true, features = ["rocksdb"] }
 tempfile.workspace = true
-tokio = { workspace = true, features = ["test-util"] }
 
 [features]
 default = []
