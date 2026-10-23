@@ -323,6 +323,30 @@ func TestProposerBisectsSpanOverBudget(gt *testing.T) {
 	)
 }
 
+// TestProposerSplitsRangeByChain proves a game on two chains under a one-chain
+// range limit, so every span is bisected to single timestamps and each
+// timestamp's range is requested once per chain. No range request can cover both
+// chains, so the game proves only if the aggregation accepts the per-chain range
+// outputs in order.
+func TestProposerSplitsRangeByChain(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithoutHonestChallenger(),
+		presets.WithoutHonestProposer(),
+		presets.WithZKProposerOption(sysgo.WithZKFastFinality()),
+		presets.WithZKProposerOption(sysgo.WithZKMetrics()),
+		presets.WithZKProposerOption(sysgo.WithZKTestingMaxRangeChains(1)),
+	)
+	proposer := sys.StartZKProposer()
+	sys.DisputeGameFactory().WaitForZKGameAtIndex(0).
+		WaitForProposalStatus(proofs.ZKProposalUnchallengedAndValidProofProvided)
+	proposer.VerifyState(
+		zkproposer.RangeChainSplitsAtLeast(1),
+		zkproposer.ProvingFailures(0),
+	)
+}
+
 // zkProposerAddress derives the address the sysgo ZK proposer signs with: the
 // ProposerRole dev key for the proof chain (chain A).
 func zkProposerAddress(t devtest.T, sys *presets.SimpleInterop) common.Address {

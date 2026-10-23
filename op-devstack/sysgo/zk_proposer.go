@@ -68,11 +68,12 @@ func loadZKProgramVKey(elfDir string) (common.Hash, error) {
 }
 
 type zkProposerConfig struct {
-	ProposalInterval *time.Duration
-	FastFinality     bool
-	Metrics          bool
-	LogPath          string
-	RangeGasLimit    uint64
+	ProposalInterval      *time.Duration
+	FastFinality          bool
+	Metrics               bool
+	LogPath               string
+	RangeGasLimit         uint64
+	TestingMaxRangeChains uint64
 }
 
 // ZKProposerRuntime is the opaque handle for a running op-zk-proposer.
@@ -128,6 +129,16 @@ func WithZKLogPath(path string) ZKProposerOption {
 func WithZKRangeGasLimit(limit uint64) ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.RangeGasLimit = limit
+	}
+}
+
+// WithZKTestingMaxRangeChains sets the proposer's testing-only cap on the chains
+// of one range request: a span over it is bisected to single timestamps and each
+// timestamp's range is split by chain until every request has at most limit
+// chains. Zero keeps the proposer default, no limit.
+func WithZKTestingMaxRangeChains(limit uint64) ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.TestingMaxRangeChains = limit
 	}
 }
 
@@ -259,6 +270,9 @@ func startZKProposer(
 	}
 	if cfg.RangeGasLimit != 0 {
 		env = append(env, zkProposerEnv("RANGE_GAS_LIMIT", strconv.FormatUint(cfg.RangeGasLimit, 10)))
+	}
+	if cfg.TestingMaxRangeChains != 0 {
+		env = append(env, zkProposerEnv("TESTING_MAX_RANGE_CHAINS", strconv.FormatUint(cfg.TestingMaxRangeChains, 10)))
 	}
 	// Always pin the metrics port so inherited host configuration cannot
 	// reach every devstack proposer and collide across parallel systems.

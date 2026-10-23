@@ -273,6 +273,13 @@ pub enum ProposerGauge {
         message = "Total number of proving spans bisected for exceeding a proving limit"
     )]
     SpanBisections,
+    /// Total number of single-timestamp range requests split by chain because they exceeded a
+    /// size, chain-count or execution limit.
+    #[strum(
+        serialize = "op_zk_proposer_range_chain_splits",
+        message = "Total number of single-timestamp range requests split by chain for exceeding a proving limit"
+    )]
+    RangeChainSplits,
     /// Total number of games found permanently unprovable (claim data
     /// diverged or required L1 beyond the game's L1 head).
     #[strum(
