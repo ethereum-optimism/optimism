@@ -252,3 +252,92 @@ async fn next_block_starts_earlier_by_the_seal_time(
     // The second block is due 2s after the first, less the time the seal took.
     assert_eq!(step_time(&mut actor).await, wait, "the next tick fired at the wrong time");
 }
+
+#[rstest]
+#[case::stale_build(crate::EngineClientError::StartBuildError(
+    kona_engine::BuildTaskError::StaleBuild
+))]
+#[case::engine_recovery(crate::EngineClientError::ResponseError("reset cleared the build".into()))]
+#[case::invalid_forkchoice(crate::EngineClientError::StartBuildError(kona_engine::BuildTaskError::EngineBuildError(
+    kona_engine::EngineBuildError::AttributesInsertionFailed(Arc::new(alloy_transport::RpcError::ErrorResp(
+        alloy_json_rpc::ErrorPayload {
+            code: i64::from(alloy_rpc_types_engine::INVALID_FORK_CHOICE_STATE_ERROR),
+            message: "inconsistent forkchoice".into(), data: None,
+        }
+    )))
+)))]
+#[tokio::test(start_paused = true)]
+async fn rejected_build_retries_on_new_head_and_keeps_admin_responsive(
+    #[case] error: crate::EngineClientError,
+) {
+    let (mut actor, commands) = super::test_actor_with_config(true, false, None);
+    actor.started = true;
+    let mut old_head = block_at(TEST_START);
+    old_head.block_info.hash = alloy_primitives::B256::repeat_byte(1);
+    let mut new_head = old_head;
+    new_head.block_info.hash = alloy_primitives::B256::repeat_byte(2);
+    let mut engine = MockSequencerEngineClient::new();
+    let mut sequence = mockall::Sequence::new();
+    engine
+        .expect_get_unsafe_head()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(move || Ok(old_head));
+    engine
+        .expect_start_build_block()
+        .withf(move |attrs| attrs.parent == old_head)
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(move |_| Err(error));
+    engine
+        .expect_get_unsafe_head()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(move || Ok(new_head));
+    engine
+        .expect_start_build_block()
+        .withf(move |attrs| attrs.parent == new_head)
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| Ok(PayloadId::new([1; 8])));
+    // StopSequencer returns the current head without advancing the pending build.
+    engine
+        .expect_get_unsafe_head()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(move || Ok(new_head));
+    actor.engine_client = engine;
+    expect_builds(&mut actor, 2, 2);
+
+    assert_eq!(step_time(&mut actor).await, Duration::ZERO);
+    assert!(actor.in_flight.is_none());
+    assert!(actor.state().active);
+    assert_eq!(step_time(&mut actor).await, Duration::from_secs(1));
+    assert!(matches!(&actor.in_flight, Some(super::super::InFlightBlock::Building(handle))
+        if handle.attributes_with_parent.parent == new_head));
+
+    let (tx, rx) = oneshot::channel();
+    commands.send(SequencerAdminCommand::StopSequencer(tx)).await.unwrap();
+    assert_eq!(step_time(&mut actor).await, Duration::ZERO);
+    assert_eq!(rx.await.unwrap().unwrap(), new_head.hash());
+    assert!(!actor.state().active);
+}
+
+#[rstest]
+#[case::dead_engine(crate::EngineClientError::RequestError("engine stopped".into()))]
+#[case::critical_build(crate::EngineClientError::StartBuildError(
+    kona_engine::BuildTaskError::EngineBuildError(
+        kona_engine::EngineBuildError::FinalizedAheadOfUnsafe(1, 2)
+    )
+))]
+#[tokio::test(start_paused = true)]
+async fn terminal_build_failures_still_stop_sequencing(#[case] error: crate::EngineClientError) {
+    let mut actor = test_actor();
+    actor.started = true;
+    let mut engine = MockSequencerEngineClient::new();
+    engine.expect_get_unsafe_head().times(1).return_once(|| Ok(block_at(TEST_START)));
+    engine.expect_start_build_block().times(1).return_once(move |_| Err(error));
+    actor.engine_client = engine;
+    expect_builds(&mut actor, 1, 1);
+    assert!(actor.step().await.is_err());
+}
