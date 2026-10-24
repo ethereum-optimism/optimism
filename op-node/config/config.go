@@ -110,8 +110,24 @@ func (cfg *Config) LoadPersisted(log log.Logger) error {
 
 var ErrMissingPectraBlobSchedule = errors.New("probably missing Pectra blob schedule")
 
+// ErrSafeDBWithFollowSource is returned when the safe head database is enabled on a node that
+// follows an external L2 source. Such a node does not derive from L1, so it cannot record which
+// L1 block made a head safe, and every safedb entry it wrote would carry no L1 source.
+var ErrSafeDBWithFollowSource = errors.New("safedb.path cannot be combined with l2.follow.source: " +
+	"a follow-source node does not derive from L1 and cannot record which L1 block made a head safe")
+
+func checkSafeDBCompatible(safeDBPath string, syncCfg *sync.Config) error {
+	if safeDBPath != "" && syncCfg.FollowSourceEnabled() {
+		return ErrSafeDBWithFollowSource
+	}
+	return nil
+}
+
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
+	if err := checkSafeDBCompatible(cfg.SafeDBPath, &cfg.Sync); err != nil {
+		return err
+	}
 	if err := cfg.L1.Check(); err != nil {
 		return fmt.Errorf("l1 endpoint config error: %w", err)
 	}
