@@ -1053,7 +1053,7 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 [[package]]
 name = "crypto-bigint"
 version = "0.5.5"
-source = "git+https://github.com/sp1-patches/RustCrypto-bigint?tag=patch-0.5.5-sp1-6.2.0#ef85da866879b5929b1da071ebe92c082b0554b9"
+source = "git+https://github.com/sp1-patches/RustCrypto-bigint?tag=patch-0.5.5-sp1-6.10.0#e67beeeba9c5cb054fa2c5c83e0384442a61e985"
 dependencies = [
  "generic-array",
  "rand_core 0.6.4",
@@ -1573,7 +1573,7 @@ dependencies = [
 [[package]]
 name = "k256"
 version = "0.13.4"
-source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.2.0#41374de1febd88e67faa695a5641ae46460a8cb6"
+source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.10.0#cd63f2b5a832e15fa98cedb73df2ce89bb1a032a"
 dependencies = [
  "cfg-if",
  "ecdsa 0.16.9 (git+https://github.com/sp1-patches/signatures?tag=sp1-skip-verify-on-recovery)",
@@ -1989,9 +1989,9 @@ dependencies = [
 
 [[package]]
 name = "kzg-rs"
-version = "0.2.8"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee8b4f55c3dedcfaa8668de1dfc8469e7a32d441c28edf225ed1f566fb32977d"
+checksum = "433994161b1b86020801f5486deebcd90c1e654d5713e323ef7ef636445e9b9d"
 dependencies = [
  "ff",
  "hex",
@@ -2329,7 +2329,7 @@ dependencies = [
 [[package]]
 name = "p256"
 version = "0.13.2"
-source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-6.2.0#778543de72a8160a9ce253870da1efae6b18e6d3"
+source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-6.10.0#f074fbff1b10b270f3c5ae255443d589c97b3175"
 dependencies = [
  "ecdsa 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "elliptic-curve",
@@ -2537,7 +2537,7 @@ dependencies = [
 [[package]]
 name = "primeorder"
 version = "0.13.1"
-source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-6.2.0#778543de72a8160a9ce253870da1efae6b18e6d3"
+source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-6.10.0#f074fbff1b10b270f3c5ae255443d589c97b3175"
 dependencies = [
  "elliptic-curve",
 ]
@@ -3192,7 +3192,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.10.9"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.9-sp1-6.2.0#e48b656ebc806117554bb33c2f8687e4637e37ff"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.9-sp1-6.10.0#e48b656ebc806117554bb33c2f8687e4637e37ff"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.2.17",
@@ -3202,7 +3202,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.11.0"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.11.0-sp1-6.2.0#8993e08b9f7c47cd4a056decbf85d2d7ab3fe77c"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.11.0-sp1-6.10.0#8993e08b9f7c47cd4a056decbf85d2d7ab3fe77c"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.3.0",
@@ -3383,9 +3383,9 @@ dependencies = [
 
 [[package]]
 name = "sp1_bls12_381"
-version = "0.8.0-sp1-6.0.0"
+version = "0.8.0-sp1-6.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f23e41cd36168cc2e51e5d3e35ff0c34b204d945769a65591a76286d04b51e43"
+checksum = "9b2ad1e32db3c05d37e4385e3e48795f14d687a5797bf2eee0a7753d7eaa9661"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
@@ -3459,7 +3459,7 @@ dependencies = [
 [[package]]
 name = "substrate-bn"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.2.0-substrate-bn#b9cd95a749de1f20ac786178f9f8754f79a5ad55"
+source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.10.0-substrate-bn#ab4d0085567695967cf34c23b3090f1ae02a03d1"
 dependencies = [
  "bytemuck",
  "byteorder",

@@ -552,9 +552,9 @@ jsonrpsee-types = "0.26.0"
 c-kzg = { version = "2.1.5", default-features = false }
 enr = { version = "0.14", default-features = false, features = ["k256", "ed25519"] }
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
-kzg-rs = { version = "0.2.6", features = ["rkyv", "serde"] }
+kzg-rs = { version = "0.2.9", features = ["rkyv", "serde"] }
 # Pinned to kzg-rs's exact version. `experimental` is needed for EIP-2537 MAP_FP_TO_G1 / MAP_FP2_TO_G2.
-sp1_bls12_381 = { version = "=0.8.0-sp1-6.0.0", default-features = false, features = [
+sp1_bls12_381 = { version = "=0.8.0-sp1-6.10.0", default-features = false, features = [
   "groups",
   "pairings",
   "alloc",

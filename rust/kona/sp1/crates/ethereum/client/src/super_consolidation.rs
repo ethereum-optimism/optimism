@@ -44,7 +44,7 @@ where
 
     // Deposit-only replacement re-executes blocks through revm; install the SP1-accelerated
     // crypto provider (see `CustomCrypto`) first.
-    revm::precompile::install_crypto(CustomCrypto::default());
+    revm::precompile::install_crypto(CustomCrypto);
 
     let chain_ids = consolidation_chain_ids(&inputs)?;
     let embedded_configs;

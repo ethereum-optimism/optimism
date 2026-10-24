@@ -116,7 +116,7 @@ macro_rules! vectors {
 #[test]
 fn eip2537_vectors_pass_with_custom_crypto() {
     assert!(
-        install_crypto(CustomCrypto::default()),
+        install_crypto(CustomCrypto),
         "CustomCrypto must be the first provider installed in this process"
     );
 
