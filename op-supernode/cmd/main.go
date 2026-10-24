@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 )
 
 var (
@@ -76,14 +75,6 @@ func main() {
 		vnCfgs, err := createVirtualNodeConfigs(cliCtx, cfg, l)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create virtual node configs: %w", err)
-		}
-
-		// Populate config with an explicit CLI or env override if one is set.
-		// Otherwise the supernode will derive interop activation from the loaded rollup configs.
-		if cliCtx != nil && cliCtx.IsSet(interop.InteropActivationTimestampFlag.Name) {
-			ts := cliCtx.Uint64(interop.InteropActivationTimestampFlag.Name)
-			cfg.InteropActivationTimestamp = &ts
-			l.Info("interop activation timestamp override set", "timestamp", ts)
 		}
 
 		// Create the supernode, supplying the logger, version, and close function

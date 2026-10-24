@@ -139,7 +139,6 @@ func WithZK() Option {
 		WithZKProposerOption(sysgo.WithZKProposalInterval(DefaultZKProposalInterval)),
 		WithTimeTravelEnabled(),
 		WithDisputeGameFinalityDelaySeconds(uint64(DefaultZKFinalityDelay/time.Second)),
-		WithDeployerOptions(sysgo.WithJovianAtGenesis),
 	)
 }
 
