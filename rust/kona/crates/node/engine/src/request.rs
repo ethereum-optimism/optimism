@@ -1,6 +1,6 @@
 //! Requests sent to the node engine actor and their replies.
 
-use crate::{BuildTaskError, ConsolidateInput, FinalizeBlockId, SealTaskError};
+use crate::{BuildTaskError, ConsolidateInput, DerivedSafeHead, FinalizeBlockId, SealTaskError};
 use alloy_rpc_types_engine::PayloadId;
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -68,6 +68,31 @@ pub struct BuildRequest {
 pub struct ResetRequest {
     /// The channel on which the reset result will be sent.
     pub result_tx: mpsc::Sender<EngineRequestResult<()>>,
+    /// The reset to perform.
+    pub kind: ResetKind,
+}
+
+/// The reset a [`ResetRequest`] asks the engine for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResetKind {
+    /// Find a sync starting point with [`crate::find_starting_forkchoice`].
+    Full,
+    /// Answer an L1 reorg detected by derivation. Holds the safe heads derivation recently
+    /// produced, newest first, each with an L1 block that all of the L1 data it depends on is at
+    /// or below. The engine keeps the newest one the reorg left canonical; see
+    /// [`crate::Engine::reset_after_l1_reorg`].
+    AfterL1Reorg(Vec<DerivedSafeHead>),
+}
+
+impl ResetKind {
+    /// The reset to perform when `next` is requested while `self` is still retained: a full reset
+    /// wins, and otherwise the newer request does.
+    pub fn merge(self, next: Self) -> Self {
+        match self {
+            Self::Full => Self::Full,
+            Self::AfterL1Reorg(_) => next,
+        }
+    }
 }
 
 /// A request to seal and canonicalize a payload.
@@ -80,4 +105,23 @@ pub struct SealRequest {
     pub attributes: OpAttributesWithParent,
     /// The channel on which the result, successful or not, will be sent.
     pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ResetKind;
+    use crate::DerivedSafeHead;
+
+    #[test]
+    fn a_full_reset_wins_and_otherwise_the_newer_request_does() {
+        let older = ResetKind::AfterL1Reorg(vec![]);
+        let newer = ResetKind::AfterL1Reorg(vec![DerivedSafeHead {
+            safe_head: Default::default(),
+            derived_from: Default::default(),
+        }]);
+
+        assert_eq!(older.clone().merge(ResetKind::Full), ResetKind::Full);
+        assert_eq!(ResetKind::Full.merge(older.clone()), ResetKind::Full);
+        assert_eq!(older.merge(newer.clone()), newer);
+    }
 }

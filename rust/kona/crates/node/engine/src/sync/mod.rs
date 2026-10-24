@@ -9,6 +9,9 @@ pub use forkchoice::L2ForkchoiceState;
 mod error;
 pub use error::SyncStartError;
 
+mod reorg;
+pub use reorg::{DerivedSafeHead, find_reorg_safe_head};
+
 use tracing::info;
 
 use crate::EngineClient;

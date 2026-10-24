@@ -3,8 +3,8 @@ use crate::{DerivationActorRequest, NodeActor};
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
 use kona_engine::{
-    Engine, EngineActorRequest, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
-    test_utils::test_engine_client,
+    DerivedSafeHead, Engine, EngineActorRequest, EngineState, EngineSyncStateUpdate,
+    FinalizeBlockId, NoopBlockSink, ResetKind, ResetRequest, test_utils::test_engine_client,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -170,4 +170,93 @@ async fn derivation_is_handed_the_local_safe_head() {
         panic!("expected the sync completion second");
     };
     assert_eq!(*sent, local_safe_head);
+}
+
+/// Derivation waits after a reset for a safe head or a new L1 head. A reset after an L1 reorg
+/// usually keeps the safe head, and must still report it, or derivation stalls until L1 advances.
+#[tokio::test(start_paused = true)]
+async fn reset_after_l1_reorg_reports_an_unchanged_safe_head() {
+    let l1_hash = |number: u64| B256::repeat_byte(number as u8);
+    let safe_head = L2BlockInfo {
+        l1_origin: alloy_eips::BlockNumHash { number: 100, hash: l1_hash(100) },
+        ..l2_block(10)
+    };
+    let derived_from = alloy_eips::BlockNumHash { number: 105, hash: l1_hash(105) };
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let state = EngineState {
+        sync_state: EngineState::default().sync_state.apply_update(EngineSyncStateUpdate {
+            unsafe_head: Some(safe_head),
+            local_safe_head: Some(safe_head),
+            safe_head: Some(safe_head),
+            finalized_head: Some(safe_head),
+        }),
+        el_sync_finished: true,
+        ..Default::default()
+    };
+    let (derivation_tx, mut derivation_rx) = mpsc::channel(16);
+    let derivation = QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx };
+    let (requests, request_rx) = mpsc::channel(8);
+    let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        derivation,
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+
+    for _ in 0..2 {
+        // The reset checks the unsafe head's L1 origin, the safe head's L1 block, and the safe
+        // head on the engine's chain, and keeps it without a forkchoice update.
+        for number in [100_u64, 105] {
+            let mut block =
+                alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default();
+            block.header.hash = l1_hash(number);
+            l1.expect_params(
+                "eth_getBlockByNumber",
+                serde_json::json!([format!("{number:#x}"), false]),
+                block,
+            );
+        }
+        let mut block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
+            Default::default();
+        block.header.hash = safe_head.block_info.hash;
+        l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0xa", false]), block);
+
+        let (reply, mut reply_rx) = mpsc::channel(1);
+        let kind = ResetKind::AfterL1Reorg(vec![DerivedSafeHead { safe_head, derived_from }]);
+        requests
+            .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx: reply, kind })))
+            .await
+            .unwrap();
+        actor.step().await.unwrap(); // retain the reset
+        // Perform it. The step then waits for a request that never comes.
+        let _ = time::timeout(Duration::from_secs(1), actor.step()).await;
+        reply_rx.recv().await.unwrap().unwrap();
+        l1.assert_finished();
+        l2.assert_finished();
+
+        // Before the first reset, the actor also reports its starting safe head and EL sync.
+        let mut received = Vec::new();
+        while let Ok(request) = derivation_rx.try_recv() {
+            received.push(request);
+        }
+        let reset_at = received
+            .iter()
+            .position(|r| matches!(r, DerivationActorRequest::ProcessEngineSignalRequest(_)))
+            .unwrap_or_else(|| panic!("no reset signal in {received:?}"));
+        assert!(
+            matches!(
+                &received[reset_at..],
+                [
+                    DerivationActorRequest::ProcessEngineSignalRequest(_),
+                    DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(head),
+                ] if **head == safe_head
+            ),
+            "got {received:?}"
+        );
+    }
 }
