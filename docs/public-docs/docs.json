@@ -3632,6 +3632,7 @@
               {
                 "group": "Network Upgrades",
                 "pages": [
+                  "notices/upgrade-21",
                   "notices/interop-prep"
                 ]
               },
