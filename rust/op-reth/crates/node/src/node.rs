@@ -428,6 +428,8 @@ pub async fn launch_node(
         let verification_interval = node.args.proofs_history_verification_interval;
 
         info!(target: "reth::cli", "Using on-disk storage for proofs history");
+        // Opening migrates an older store's history layout first. That scans every history table
+        // once, inline, before the node launches, so the first start after upgrading is slower.
         let mdbx = Arc::new(
             MdbxProofsStorage::new(&path)
                 .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
