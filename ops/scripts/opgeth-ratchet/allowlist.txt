@@ -283,14 +283,6 @@ rust/kona/tests/proofs (tests) | changed signature of go-ethereum/consensus/misc
 rust/kona/tests/proofs (tests) | missing go-ethereum/consensus/misc/eip1559.EncodeHoloceneExtraData | #23405 test and DSL swaps to op-core
 rust/kona/tests/proofs (tests) | missing go-ethereum/consensus/misc/eip1559.EncodeJovianExtraData | #23405 test and DSL swaps to op-core
 rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Block.WithdrawalsRoot | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.DepositTxType | #23405 test and DSL swaps to op-core
 rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.NewIsthmusSigner | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.NewL1CostFuncFjord | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.NewRollupCostData | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Receipt.DAFootprintGasScalar | #23405 test and DSL swaps to op-core
 rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Receipt.OperatorFeeConstant | #23405 test and DSL swaps to op-core
 rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Receipt.OperatorFeeScalar | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.RollupCostData | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Transaction.IsDepositTx | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Transaction.IsSystemTx | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Transaction.RollupCostData | #23405 test and DSL swaps to op-core

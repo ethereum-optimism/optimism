@@ -67,7 +67,7 @@ func runGarbageChannelTest(gt *testing.T, testCfg *helpers.TestCfg[actionsHelper
 	includeBatchTx(env)
 
 	// Ensure that the safe head has not advanced - the channel is incomplete.
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Buffer the second half of L2 blocks in the batcher.
@@ -83,7 +83,7 @@ func runGarbageChannelTest(gt *testing.T, testCfg *helpers.TestCfg[actionsHelper
 	includeBatchTx(env)
 
 	// Ensure that the safe head has not advanced - the channel is incomplete.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Submit the correct second frame.
@@ -92,7 +92,7 @@ func runGarbageChannelTest(gt *testing.T, testCfg *helpers.TestCfg[actionsHelper
 	includeBatchTx(env)
 
 	// Ensure that the safe head has advanced - the channel is complete.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.Equal(t, uint64(NumL2Blocks), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Run FPP from genesis up to safe head

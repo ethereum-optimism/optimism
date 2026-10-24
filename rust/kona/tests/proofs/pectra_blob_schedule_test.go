@@ -120,13 +120,13 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	require.NoError(t, err)
 	t.Logf("BlobBaseFee2: %v", bbf2)
 	require.Equal(t, pragueBBF2, bbf2)
-	l2UnsafeHead := env.Engine.L2Chain().CurrentHeader()
+	l2UnsafeHead := env.Engine.LatestHeader(t)
 
 	env.BatchAndMine(t)
 	env.Sequencer.ActL1HeadSignal(t)
 	env.Sequencer.ActL2PipelineFull(t)
 
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	require.Equal(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(l2UnsafeHead), "derivation leads to the same block")
 
 	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)
