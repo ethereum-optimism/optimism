@@ -145,7 +145,7 @@ services:
       - OP_CHALLENGER_L1_BEACON=${L1_BEACON_URL}
       - OP_CHALLENGER_PRIVATE_KEY=${PRIVATE_KEY}
     command: >
-      op-challenger run-trace
+      op-challenger
       --trace-type=cannon-kona
       --cannon-kona-l2-genesis=/workspace/genesis.json
       --cannon-kona-rollup-config=/workspace/rollup.json
