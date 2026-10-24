@@ -14154,6 +14154,7 @@ name = "reth-optimism-rpc"
 version = "2.0.0"
 dependencies = [
  "alloy-consensus 2.4.2",
+ "alloy-eip7928 0.4.10",
  "alloy-eips 2.5.0",
  "alloy-genesis",
  "alloy-hardforks",
