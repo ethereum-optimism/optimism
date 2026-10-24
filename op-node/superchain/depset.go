@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	registry "github.com/ethereum-optimism/optimism/op-core/superchain"
+	"github.com/ethereum-optimism/optimism/op-core/superchain/bundle"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -19,12 +20,16 @@ func LoadDependencySet(chainID eth.ChainID) (depset.DependencySet, error) {
 	if !ok {
 		return nil, fmt.Errorf("%w: %v", registry.ErrUnknownChain, chainID)
 	}
-	depSet, err := registry.GetDepset(id)
+	chain, err := bundle.GetChain(id)
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := chain.Config()
 	if err != nil {
 		return nil, err
 	}
 	chains := make(map[eth.ChainID]*depset.StaticConfigDependency)
-	for idStr := range depSet {
+	for idStr := range cfg.Dependencies() {
 		depChainID, ok := math.ParseUint64(idStr)
 		if !ok {
 			return nil, fmt.Errorf("invalid chain ID in dependency set: %s", idStr)

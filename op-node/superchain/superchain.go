@@ -1,7 +1,7 @@
 // Package superchain loads OP-Stack rollup configs and dependency sets from the
 // superchain-registry. It is kept separate from op-node/rollup and
 // op-core/interop/depset so that the many packages depending on those types do
-// not pull in op-core/superchain, which embeds the multi-megabyte superchain
+// not pull in op-core/superchain/bundle, which embeds the multi-megabyte superchain
 // config bundle and must generate it before it compiles.
 package superchain
 
@@ -11,6 +11,7 @@ import (
 
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	registry "github.com/ethereum-optimism/optimism/op-core/superchain"
+	"github.com/ethereum-optimism/optimism/op-core/superchain/bundle"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -18,7 +19,7 @@ import (
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
 // Some chains may require a SystemConfigProvider to retrieve any values not part of the registry.
 func LoadOPStackRollupConfig(chainID uint64) (*rollup.Config, error) {
-	chain, err := registry.GetChain(chainID)
+	chain, err := bundle.GetChain(chainID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get chain %d from superchain registry: %w", chainID, err)
 	}
@@ -28,7 +29,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*rollup.Config, error) {
 		return nil, fmt.Errorf("unable to retrieve chain %d config: %w", chainID, err)
 	}
 
-	superConfig, err := registry.GetSuperchain(chain.Network)
+	superConfig, err := bundle.GetSuperchain(chain.Network)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get superchain %q from superchain registry: %w", chain.Network, err)
 	}

@@ -1,4 +1,4 @@
-package superchain
+package bundle
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/depguard"
 )
 
-// bundleAllowed lists the packages permitted to reach op-core/superchain,
+// bundleAllowed lists the packages permitted to reach op-core/superchain/bundle,
 // as exact package paths or "prefix/..." subtrees. Everything else in the
 // monorepo is guarded, so a new package is covered automatically rather than
 // having to be remembered.
@@ -17,12 +17,12 @@ import (
 // a whole component as a registry consumer.
 var bundleAllowed = []string{
 	// This package.
-	"github.com/ethereum-optimism/optimism/op-core/superchain",
+	"github.com/ethereum-optimism/optimism/op-core/superchain/bundle",
 
 	// Registry loaders (op-node/superchain, op-node/chaincfg) and the node
 	// wiring built on them. Enumerated exactly rather than as op-node/...
 	// so that op-node/rollup/... — the type surface downstream modules import
-	// most — stays guarded (op-node/rollup's own TestNoSuperchainImport pins
+	// most — stays guarded (op-node/rollup's own TestNoBundleImport pins
 	// that invariant where a regression would be introduced).
 	"github.com/ethereum-optimism/optimism/op-node",
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg",
@@ -50,9 +50,6 @@ var bundleAllowed = []string{
 	// Loads rollup configs for registry networks by name.
 	"github.com/ethereum-optimism/optimism/op-interop-filter/...",
 
-	// Builds registry bundles for arbitrary registry commits.
-	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/...",
-
 	// Deploys via op-deployer, which reads registry records.
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen",
 
@@ -76,12 +73,12 @@ var bundleAllowed = []string{
 // TestBundleReachability keeps every package outside bundleAllowed importable
 // by downstream Go modules.
 //
-// op-core/superchain embeds superchain-configs.zip, which sync-superchain.sh
+// This package embeds superchain-configs.zip, which sync-superchain.sh
 // generates and .gitignore excludes. The zip is therefore absent from the
 // published module, and any package whose build closure reaches it simply does
 // not compile outside this repo:
 //
-//	op-core/superchain/chain.go:21:12: pattern superchain-configs.zip:
+//	op-core/superchain/bundle/bundle.go:15:12: pattern superchain-configs.zip:
 //	    no matching files found
 //
 // An accidental edge into this package silently makes a whole area of the
@@ -103,5 +100,5 @@ var bundleAllowed = []string{
 func TestBundleReachability(t *testing.T) {
 	depguard.RequireNoTransitiveImportExcept(t,
 		"github.com/ethereum-optimism/optimism/...", bundleAllowed,
-		"github.com/ethereum-optimism/optimism/op-core/superchain")
+		"github.com/ethereum-optimism/optimism/op-core/superchain/bundle")
 }

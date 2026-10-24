@@ -1,11 +1,28 @@
-package superchain
+package bundle
 
 import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 )
+
+func TestGetChain(t *testing.T) {
+	t.Run("OP Mainnet found", func(t *testing.T) {
+		chain, err := GetChain(10)
+		require.NoError(t, err)
+		require.NotNil(t, chain)
+	})
+
+	// Celo mainnet skipped due to custom genesis
+	t.Run("Celo Mainnet skipped", func(t *testing.T) {
+		chain, err := GetChain(42220)
+		require.ErrorIs(t, err, superchain.ErrUnknownChain)
+		require.Nil(t, chain)
+	})
+}
 
 func TestGetSuperchain(t *testing.T) {
 	mainnet, err := GetSuperchain("mainnet")
