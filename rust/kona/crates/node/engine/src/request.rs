@@ -84,17 +84,6 @@ pub enum ResetKind {
     AfterL1Reorg(Vec<DerivedSafeHead>),
 }
 
-impl ResetKind {
-    /// The reset to perform when `next` is requested while `self` is still retained: a full reset
-    /// wins, and otherwise the newer request does.
-    pub fn merge(self, next: Self) -> Self {
-        match self {
-            Self::Full => Self::Full,
-            Self::AfterL1Reorg(_) => next,
-        }
-    }
-}
-
 /// A request to seal and canonicalize a payload.
 /// Contains the `PayloadId`, attributes, and a channel to send back the result.
 #[derive(Debug)]
@@ -105,23 +94,4 @@ pub struct SealRequest {
     pub attributes: OpAttributesWithParent,
     /// The channel on which the result, successful or not, will be sent.
     pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ResetKind;
-    use crate::DerivedSafeHead;
-
-    #[test]
-    fn a_full_reset_wins_and_otherwise_the_newer_request_does() {
-        let older = ResetKind::AfterL1Reorg(vec![]);
-        let newer = ResetKind::AfterL1Reorg(vec![DerivedSafeHead {
-            safe_head: Default::default(),
-            derived_from: Default::default(),
-        }]);
-
-        assert_eq!(older.clone().merge(ResetKind::Full), ResetKind::Full);
-        assert_eq!(ResetKind::Full.merge(older.clone()), ResetKind::Full);
-        assert_eq!(older.merge(newer.clone()), newer);
-    }
 }

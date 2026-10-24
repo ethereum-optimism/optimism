@@ -546,40 +546,40 @@ async fn el_sync_completion_floors_the_history_at_the_sequencing_window() {
     node.derive_and_confirm_one_block().await;
 }
 
-/// After a reset, the engine reports the safe head even when unchanged, and an L1 head can
-/// arrive first and set derivation going. The late report must not consume the attributes
-/// derivation sent meanwhile, or the engine's confirmation of them is lost.
+/// The engine reports its safe head only when it changes. After a reset that keeps the confirmed
+/// safe head, derivation resumes at once, deriving and recording the next block. After a reset
+/// to another head, it waits for the engine to report that head.
 #[rstest]
-#[case::attributes_awaiting_confirmation(true)]
-#[case::awaiting_l1_data(false)]
+#[case::keeps_the_confirmed_safe_head(DERIVED_HEAD, true)]
+#[case::moves_the_safe_head(RESUME_HEAD, false)]
 #[tokio::test]
-async fn a_late_report_of_the_kept_safe_head_is_ignored(#[case] derives_after_reset: bool) {
+async fn a_reset_that_keeps_the_confirmed_safe_head_resumes_derivation(
+    #[case] reset_to: u64,
+    #[case] resumes: bool,
+) {
     let mut node = RecordingActor::new(engine_client_accepting_attributes());
     node.derive_and_confirm_one_block().await;
-
-    // A reset that keeps the safe head, then an L1 head before the engine reports it.
-    node.signal(Signal::Reset(kona_derive::ResetSignal { l2_safe_head: l2_block(DERIVED_HEAD) }))
-        .await;
-    node.actor.pipeline.attributes.clear();
     let next_l1 = DERIVED_FROM_L1 + 1;
-    if derives_after_reset {
-        node.actor.pipeline.attributes.push_back(OpAttributesWithParent {
-            attributes: OpPayloadAttributes::default(),
-            parent: l2_block(DERIVED_HEAD),
-            derived_from: Some(l1_block(next_l1)),
-            is_last_in_span: true,
-        });
-    }
-    node.handle(DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::default())).await;
-    node.confirm_safe_head(DERIVED_HEAD).await;
+    node.actor.pipeline.attributes.push_back(OpAttributesWithParent {
+        attributes: OpPayloadAttributes::default(),
+        parent: l2_block(reset_to),
+        derived_from: Some(l1_block(next_l1)),
+        is_last_in_span: true,
+    });
 
-    if derives_after_reset {
+    node.signal(Signal::Reset(kona_derive::ResetSignal { l2_safe_head: l2_block(reset_to) })).await;
+
+    if resumes {
+        assert_eq!(
+            node.actor.derivation_state_machine.current_state(),
+            DerivationState::AwaitingSafeHeadConfirmation
+        );
         node.confirm_safe_head(DERIVED_HEAD + 1).await;
         assert_eq!(node.db.last_entry().unwrap(), record(next_l1, DERIVED_HEAD + 1));
     } else {
         assert_eq!(
             node.actor.derivation_state_machine.current_state(),
-            DerivationState::AwaitingL1Data
+            DerivationState::AwaitingUpdateAfterSignal
         );
     }
 }

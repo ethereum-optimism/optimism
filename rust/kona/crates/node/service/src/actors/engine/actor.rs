@@ -101,7 +101,9 @@ where
     /// Retains a reset of `kind`, combined with any reset already retained.
     fn begin_reset(&mut self, kind: ResetKind) {
         self.pending_reset = Some(match self.pending_reset.take() {
-            Some(pending) => pending.merge(kind),
+            // A pending full reset stays full; a pending reset after an L1 reorg is replaced.
+            Some(ResetKind::Full) => ResetKind::Full,
+            Some(ResetKind::AfterL1Reorg(_)) => kind,
             None => {
                 self.engine.clear();
                 self.retry_at = Instant::now();
@@ -161,10 +163,6 @@ where
             }
         }
 
-        // Send the safe head even if the reset left it unchanged, as a reset after an L1 reorg
-        // usually does. Derivation waits after a reset for a safe head or a new L1 head, and
-        // drops the L1 heads that arrived while it awaited the reset.
-        self.last_engine_safe_head_sent = L2BlockInfo::default();
         self.send_derivation_actor_safe_head_if_updated().await?;
 
         Ok(())

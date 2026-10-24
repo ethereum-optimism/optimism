@@ -465,62 +465,6 @@ mod l1_reorg_reset_tests {
         (Engine::new(state, state_tx), Arc::new(client), l1, l2, config)
     }
 
-    /// Each case scripts exactly the lookups expected, in order: the unsafe head's L1 origin,
-    /// then each recent safe head's L1 block until one is canonical, then that safe head on the
-    /// engine's chain.
-    #[rstest]
-    #[case::tip_reorg_keeps_the_safe_head(108, UNSAFE_ORIGIN, &[UNSAFE_ORIGIN, 106], Some(20))]
-    #[case::reorg_of_the_safe_heads_l1_block_keeps_the_previous_one(
-        105, UNSAFE_ORIGIN, &[UNSAFE_ORIGIN, 106, 103], Some(18)
-    )]
-    #[case::reorg_of_every_recent_safe_heads_l1_block(
-        103, UNSAFE_ORIGIN, &[UNSAFE_ORIGIN, 106, 103], None
-    )]
-    // L2 block 20's L1 block 106 is still canonical; only the unsafe head's origin was replaced.
-    #[case::reorg_of_the_unsafe_heads_l1_origin(107, 107, &[107], None)]
-    #[tokio::test]
-    async fn finds_the_newest_safe_head_derived_from_canonical_l1(
-        #[case] reorg_height: u64,
-        #[case] unsafe_origin: u64,
-        #[case] l1_lookups: &[u64],
-        #[case] kept: Option<u64>,
-    ) {
-        let (engine, client, l1, l2, _) = setup(unsafe_origin);
-        for &number in l1_lookups {
-            expect_l1(&l1, number, reorg_height);
-        }
-        if let Some(kept) = kept {
-            expect_l2(&l2, kept, l2_block(kept, 0).block_info.hash);
-        }
-
-        let safe_head =
-            find_reorg_safe_head(&client, engine.state(), &recent_safe_heads()).await.unwrap();
-
-        assert_eq!(safe_head.map(|head| head.block_info.number), kept);
-        l1.assert_finished();
-        l2.assert_finished();
-    }
-
-    /// A safe head outside the engine's local-safe and finalized heads is not kept, even if its L1
-    /// block is canonical.
-    #[rstest]
-    #[case::above_the_local_safe_head(25)]
-    #[case::below_the_finalized_head(FINALIZED - 1)]
-    #[tokio::test]
-    async fn does_not_keep_a_safe_head_outside_the_engines_safe_range(#[case] number: u64) {
-        let (engine, client, l1, l2, _) = setup(UNSAFE_ORIGIN);
-        expect_l1(&l1, UNSAFE_ORIGIN, 108);
-        expect_l1(&l1, 106, 108);
-        let candidate =
-            DerivedSafeHead { safe_head: l2_block(number, 99), derived_from: l1_id(106, 0) };
-
-        let safe_head = find_reorg_safe_head(&client, engine.state(), &[candidate]).await.unwrap();
-
-        assert_eq!(safe_head, None);
-        l1.assert_finished();
-        l2.assert_finished();
-    }
-
     /// Scripts the forkchoice update that moves the safe labels, checking the heads it sends.
     fn expect_forkchoice_update(l2: &RpcMock, head: L2BlockInfo, safe: L2BlockInfo) {
         let state = alloy_rpc_types_engine::ForkchoiceState {
@@ -535,13 +479,72 @@ mod l1_reorg_reset_tests {
         );
     }
 
-    /// A safe head no longer on the engine's chain is not kept, even if its L1 block is canonical.
+    /// The reset keeps the newest recent safe head whose L1 block is canonical. Its lookups are
+    /// scripted in order: the unsafe head's L1 origin, each recent safe head's L1 block until one
+    /// is canonical, then that safe head on the engine's chain. Only the safe labels move, with a
+    /// forkchoice update only if they do; a cross-safe head already below the kept one stays.
+    #[rstest]
+    #[case::tip_reorg_keeps_the_safe_head(108, None, 20)]
+    #[case::reorg_of_its_l1_block_keeps_the_previous_one(105, None, 18)]
+    #[case::cross_safe_below_the_kept_one_stays(105, Some(15), 18)]
     #[tokio::test]
-    async fn does_not_keep_a_safe_head_off_the_engines_chain() {
-        let (engine, client, l1, l2, _) = setup(UNSAFE_ORIGIN);
-        expect_l1(&l1, UNSAFE_ORIGIN, 108);
-        expect_l1(&l1, 106, 108);
-        expect_l2(&l2, 20, B256::repeat_byte(0xaa));
+    async fn reset_keeps_the_newest_safe_head_derived_from_canonical_l1(
+        #[case] reorg_height: u64,
+        #[case] cross_safe: Option<u64>,
+        #[case] kept: u64,
+    ) {
+        let (mut engine, client, l1, l2, config) = setup(UNSAFE_ORIGIN);
+        if let Some(cross_safe) = cross_safe {
+            engine.state.sync_state = engine.state.sync_state.apply_update(EngineSyncStateUpdate {
+                safe_head: Some(l2_block(cross_safe, 98)),
+                ..Default::default()
+            });
+        }
+        let before = engine.state().sync_state;
+        let kept = recent_safe_heads()
+            .into_iter()
+            .map(|derived| derived.safe_head)
+            .find(|head| head.block_info.number == kept)
+            .unwrap();
+        let safe_after = if cross_safe.is_some() { before.safe_head() } else { kept };
+        expect_l1(&l1, UNSAFE_ORIGIN, reorg_height);
+        expect_l1(&l1, 106, reorg_height);
+        if reorg_height <= 106 {
+            expect_l1(&l1, 103, reorg_height);
+        }
+        expect_l2(&l2, kept.block_info.number, kept.block_info.hash);
+        if kept != before.local_safe_head() {
+            expect_forkchoice_update(&l2, before.unsafe_head(), safe_after);
+        }
+
+        let safe_head =
+            engine.reset_after_l1_reorg(client, config, &recent_safe_heads()).await.unwrap();
+
+        assert_eq!(safe_head, kept);
+        let after = engine.state().sync_state;
+        assert_eq!(after.local_safe_head(), kept);
+        assert_eq!(after.safe_head(), safe_after);
+        assert_eq!(after.unsafe_head(), before.unsafe_head());
+        assert_eq!(after.finalized_head(), before.finalized_head());
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// No recent safe head survives a reorg of every one's L1 block, and none is kept once the
+    /// unsafe head's L1 origin was replaced: there L2 block 20's L1 block 106 is still canonical.
+    #[rstest]
+    #[case::reorg_of_every_recent_safe_heads_l1_block(103, UNSAFE_ORIGIN, &[UNSAFE_ORIGIN, 106, 103])]
+    #[case::reorg_of_the_unsafe_heads_l1_origin(107, 107, &[107])]
+    #[tokio::test]
+    async fn finds_no_safe_head_to_keep(
+        #[case] reorg_height: u64,
+        #[case] unsafe_origin: u64,
+        #[case] l1_lookups: &[u64],
+    ) {
+        let (engine, client, l1, l2, _) = setup(unsafe_origin);
+        for &number in l1_lookups {
+            expect_l1(&l1, number, reorg_height);
+        }
 
         let safe_head =
             find_reorg_safe_head(&client, engine.state(), &recent_safe_heads()).await.unwrap();
@@ -551,67 +554,29 @@ mod l1_reorg_reset_tests {
         l2.assert_finished();
     }
 
+    /// A safe head with a canonical L1 block is still not kept unless it is on the engine's chain,
+    /// between the finalized and local-safe heads.
+    #[rstest]
+    #[case::above_the_local_safe_head(25, None)]
+    #[case::below_the_finalized_head(FINALIZED - 1, None)]
+    #[case::off_the_engines_chain(20, Some(B256::repeat_byte(0xaa)))]
     #[tokio::test]
-    async fn tip_reorg_keeps_every_head_without_a_forkchoice_update() {
-        let (mut engine, client, l1, l2, config) = setup(UNSAFE_ORIGIN);
-        let before = engine.state().sync_state;
+    async fn does_not_keep_a_safe_head_outside_the_engines_safe_chain(
+        #[case] number: u64,
+        #[case] engine_hash: Option<B256>,
+    ) {
+        let (engine, client, l1, l2, _) = setup(UNSAFE_ORIGIN);
         expect_l1(&l1, UNSAFE_ORIGIN, 108);
         expect_l1(&l1, 106, 108);
-        expect_l2(&l2, 20, l2_block(20, 100).block_info.hash);
-
-        let safe_head =
-            engine.reset_after_l1_reorg(client, config, &recent_safe_heads()).await.unwrap();
-
-        assert_eq!(safe_head, l2_block(20, 100));
-        assert_eq!(engine.state().sync_state, before);
-        l1.assert_finished();
-        l2.assert_finished();
-    }
-
-    #[tokio::test]
-    async fn reorg_of_the_safe_heads_l1_block_rewinds_only_the_safe_heads() {
-        let (mut engine, client, l1, l2, config) = setup(UNSAFE_ORIGIN);
-        for number in [UNSAFE_ORIGIN, 106, 103] {
-            expect_l1(&l1, number, 105);
+        if let Some(hash) = engine_hash {
+            expect_l2(&l2, number, hash);
         }
-        expect_l2(&l2, 18, l2_block(18, 99).block_info.hash);
-        expect_forkchoice_update(&l2, l2_block(UNSAFE, UNSAFE_ORIGIN), l2_block(18, 99));
+        let candidate =
+            DerivedSafeHead { safe_head: l2_block(number, 99), derived_from: l1_id(106, 0) };
 
-        let safe_head =
-            engine.reset_after_l1_reorg(client, config, &recent_safe_heads()).await.unwrap();
+        let safe_head = find_reorg_safe_head(&client, engine.state(), &[candidate]).await.unwrap();
 
-        assert_eq!(safe_head, l2_block(18, 99));
-        let sync_state = engine.state().sync_state;
-        assert_eq!(sync_state.local_safe_head(), safe_head);
-        assert_eq!(sync_state.safe_head(), safe_head);
-        assert_eq!(sync_state.unsafe_head(), l2_block(UNSAFE, UNSAFE_ORIGIN));
-        assert_eq!(sync_state.finalized_head(), l2_block(FINALIZED, 90));
-        l1.assert_finished();
-        l2.assert_finished();
-    }
-
-    /// A cross-safe head already below the kept safe head stays where it is: only local-safe moves.
-    #[tokio::test]
-    async fn a_cross_safe_head_below_the_kept_one_is_left_alone() {
-        let (mut engine, client, l1, l2, config) = setup(UNSAFE_ORIGIN);
-        let cross_safe = l2_block(15, 98);
-        engine.state.sync_state = engine.state.sync_state.apply_update(EngineSyncStateUpdate {
-            unsafe_head: None,
-            local_safe_head: None,
-            safe_head: Some(cross_safe),
-            finalized_head: None,
-        });
-        for number in [UNSAFE_ORIGIN, 106, 103] {
-            expect_l1(&l1, number, 105);
-        }
-        expect_l2(&l2, 18, l2_block(18, 99).block_info.hash);
-        expect_forkchoice_update(&l2, l2_block(UNSAFE, UNSAFE_ORIGIN), cross_safe);
-
-        let safe_head =
-            engine.reset_after_l1_reorg(client, config, &recent_safe_heads()).await.unwrap();
-
-        assert_eq!(engine.state().sync_state.local_safe_head(), safe_head);
-        assert_eq!(engine.state().sync_state.safe_head(), cross_safe);
+        assert_eq!(safe_head, None);
         l1.assert_finished();
         l2.assert_finished();
     }

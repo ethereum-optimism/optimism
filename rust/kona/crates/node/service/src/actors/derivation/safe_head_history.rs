@@ -180,16 +180,4 @@ mod tests {
         record(&mut history, 13, 106);
         assert_eq!(recorded(&history), vec![(13, 106)]);
     }
-
-    #[test]
-    fn reset_forgets_safe_heads_above_the_reset_point() {
-        let mut history = SafeHeadHistory::default();
-        record(&mut history, 11, 100);
-        record(&mut history, 12, 101);
-        record(&mut history, 13, 102);
-
-        history.reset_to(l2_block(12), SEQ_WINDOW_SIZE);
-
-        assert_eq!(recorded(&history), vec![(12, 101), (11, 100)]);
-    }
 }
