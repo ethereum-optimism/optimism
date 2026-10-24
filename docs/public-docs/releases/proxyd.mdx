@@ -15,7 +15,18 @@ diataxis: reference
 
 **proxyd** is an RPC request router and proxy with method whitelisting, backend load balancing, automatic retries, and consensus state tracking across multiple backend nodes.
 
-<Update label="September 18, 2026" description="v4.32.2" tags={["Latest", "Stable"]}>
+<Update label="October 14, 2026" description="v4.34.0" tags={["Latest", "Stable"]}>
+
+## Changelog
+* 6b1209fff1a0c3d4230d417972281e9ff88523db feat(proxyd): new proxyd_http_request_by_method_duration_seconds metric (#764)
+* 0abd706a74ec40f0d92b98ff1e1afecec51b1026 feat(proxyd): tx_validation_middleware: configurable max connections per host and max idle connections (#765)
+* 5e7bd994e189b86e2dfd528537a7ada88a30312a security: Update module golang.org/x/net to v0.60.0 [SECURITY] (#762)
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.34.0)
+
+</Update>
+
+<Update label="September 18, 2026" description="v4.32.2" tags={["Stable"]}>
 
 ## Changelog
 * 5fd90249bbdd1122f29a80d7e28af7ec322b2db3 fix(proxyd): expand env vars in consensus_ha_redis.url (#744)
