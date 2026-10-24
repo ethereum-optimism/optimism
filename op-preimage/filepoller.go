@@ -16,9 +16,8 @@ type FilePoller struct {
 	pollTimeout time.Duration
 }
 
-// NewFilePoller returns a FilePoller that polls the underlying file channel for reads and writes until
-// the provided ctx is done. The poll timeout is the maximum amount of time to wait for I/O before
-// the operation is halted and the context is checked for cancellation.
+// NewFilePoller returns a FilePoller that uses pollTimeout for each I/O attempt and checks ctx for
+// cancellation when an attempt times out.
 func NewFilePoller(ctx context.Context, f FileChannel, pollTimeout time.Duration) *FilePoller {
 	return &FilePoller{File: f, ctx: ctx, pollTimeout: pollTimeout}
 }
