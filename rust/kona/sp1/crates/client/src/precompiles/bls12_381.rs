@@ -77,7 +77,7 @@ fn check_fp(bytes: &[u8; FP_LENGTH]) -> Result<(), PrecompileHalt> {
 /// `mulmod` syscalls that `Fp::from_bytes` issues unconditionally.
 fn read_fp(bytes: &[u8; FP_LENGTH]) -> Result<Fp, PrecompileHalt> {
     check_fp(bytes)?;
-    Option::<Fp>::from(Fp::from_bytes(bytes)).ok_or(PrecompileHalt::NonCanonicalFp)
+    Fp::from_bytes(bytes).into_option().ok_or(PrecompileHalt::NonCanonicalFp)
 }
 
 /// Decodes an Fp2 element from its EIP-2537 `c0`, `c1` coordinates, `c0` first.
@@ -97,8 +97,10 @@ fn read_g1_unchecked(x: &[u8; FP_LENGTH], y: &[u8; FP_LENGTH]) -> Result<G1Affin
     zcash[..FP_LENGTH].copy_from_slice(x);
     zcash[FP_LENGTH..].copy_from_slice(y);
     // Every coordinate is canonical and not all zero, so the `ZCash` flag bits are clear and this
-    // is the non-identity point (x, y); `None` is unreachable.
-    let p = Option::<G1Affine>::from(G1Affine::from_uncompressed_unchecked(&zcash))
+    // is the non-identity point (x, y). Every `None` reason implies a coordinate ≥ p, so
+    // `NonCanonicalFp` is the EIP-2537 result if it is ever reached.
+    let p = G1Affine::from_uncompressed_unchecked(&zcash)
+        .into_option()
         .ok_or(PrecompileHalt::NonCanonicalFp)?;
     if !bool::from(p.is_on_curve()) {
         return Err(PrecompileHalt::Bls12381G1NotOnCurve);
@@ -133,8 +135,9 @@ fn read_g2_unchecked(
     for (chunk, coord) in zcash.chunks_exact_mut(FP_LENGTH).zip([x1, x0, y1, y0]) {
         chunk.copy_from_slice(coord);
     }
-    // As in `read_g1_unchecked`: the flag bits are clear and `None` is unreachable.
-    let p = Option::<G2Affine>::from(G2Affine::from_uncompressed_unchecked(&zcash))
+    // As in `read_g1_unchecked`: the flag bits are clear, and a `None` implies a coordinate ≥ p.
+    let p = G2Affine::from_uncompressed_unchecked(&zcash)
+        .into_option()
         .ok_or(PrecompileHalt::NonCanonicalFp)?;
     if !bool::from(p.is_on_curve()) {
         return Err(PrecompileHalt::Bls12381G2NotOnCurve);
