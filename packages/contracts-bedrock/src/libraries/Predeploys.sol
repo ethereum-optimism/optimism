@@ -326,7 +326,7 @@ library Predeploys {
         });
         records_[5] = PredeployRecord({
             proxy: L2_ERC721_BRIDGE,
-            variants: _variants("L2ERC721Bridge", "L2ERC721Bridge.sol:L2ERC721Bridge", 2_367_000),
+            variants: _variants("L2ERC721Bridge", "L2ERC721Bridge.sol:L2ERC721Bridge", 2_380_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,

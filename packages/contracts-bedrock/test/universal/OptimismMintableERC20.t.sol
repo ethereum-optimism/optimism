@@ -115,12 +115,13 @@ contract OptimismMintableERC20_SupportsInterface_Test is OptimismMintableERC20_T
         assertEq(iface1, type(IERC165).interfaceId);
         assertTrue(L2Token.supportsInterface(iface1));
 
-        bytes4 iface2 = L2Token.l1Token.selector ^ L2Token.mint.selector ^ L2Token.burn.selector;
+        // Bridges check deployed tokens against these two IDs, so changing either one strands
+        // every existing token.
+        bytes4 iface2 = 0x1d1d8b63; // l1Token() ^ mint(address,uint256) ^ burn(address,uint256)
         assertEq(iface2, type(ILegacyMintableERC20).interfaceId);
         assertTrue(L2Token.supportsInterface(iface2));
 
-        bytes4 iface3 =
-            L2Token.remoteToken.selector ^ L2Token.bridge.selector ^ L2Token.mint.selector ^ L2Token.burn.selector;
+        bytes4 iface3 = 0xec4fc8e3; // remoteToken() ^ bridge() ^ mint(address,uint256) ^ burn(address,uint256)
         assertEq(iface3, type(IOptimismMintableERC20).interfaceId);
         assertTrue(L2Token.supportsInterface(iface3));
     }
