@@ -88,7 +88,7 @@ This situation almost always happens when op-reth's `--rollup.sequencer` (aliase
 ### Solution
 
 1.  Confirm op-reth exposes the `eth` namespace on its HTTP API (the standard set is `--http.api=eth,net,web3,debug`). If `eth` is disabled, raw transactions will be rejected before they reach the sequencer.
-2.  Inspect the CLI flags and environment variables of every component that talks to the sequencer (`op-node`, `op-reth`, `op-batcher`, `op-proposer`, scripts). The `--rollup.sequencer` flag must point to the chain's public sequencer endpoint (for example, `https://mainnet-sequencer.optimism.io`), **not** to your own `op-node`.
+2.  Inspect how your execution client is started. Only the execution client forwards `eth_sendRawTransaction` to the sequencer, and `--rollup.sequencer` is an op-reth flag: `op-node`, `op-batcher`, and `op-proposer` do not have it. If the value is built from a variable, check the environment of the service itself (the systemd unit's `Environment=` or `EnvironmentFile=`, or the container's environment) rather than your own shell. The flag must point to the chain's public sequencer endpoint (for example, `https://mainnet-sequencer.optimism.io`), **not** to your own `op-node`.
 3.  For user-deployed L2s where you run the sequencer yourself, leave `--rollup.sequencer` unset so op-reth forwards locally and never falls back to an `op-node` endpoint.
 4.  Restart the affected services after correcting the flag so they pick up the new endpoint. The error should disappear as soon as they can reach the proper sequencer RPC.
 
@@ -107,8 +107,10 @@ If startup fails after an unclean shutdown, options include:
 *   **Stage unwind** — roll back to the last consistent stage checkpoint:
 
     ```bash
-    op-reth stage unwind to-block <BLOCK_NUMBER> --datadir=<path>
+    op-reth stage unwind --datadir=<path> --chain=<chain> to-block <BLOCK_NUMBER>
     ```
+
+    `--datadir` is an option of `op-reth stage unwind`, so it goes before the `to-block` subcommand. Pass the same `--chain` value your node runs with: it defaults to `optimism` (OP Mainnet), which is the wrong chain spec for any other network. See the [`op-reth stage unwind` reference](/node-operators/op-reth/cli/op-reth/stage/unwind) for all options.
 
 *   **Full resync** — as a last resort, delete the datadir and resync from genesis or a [snapshot](https://datadirs.optimism.io/).
 
