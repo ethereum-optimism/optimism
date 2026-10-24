@@ -57,8 +57,8 @@ pub use client::{EngineClient, EngineClientBuilder, EngineClientError, EngineQue
 
 mod request;
 pub use request::{
-    BuildRequest, EngineActorRequest, EngineRequestError, EngineRequestResult, ResetRequest,
-    SealRequest,
+    BuildRequest, EngineActorRequest, EngineRequestError, EngineRequestResult, ResetKind,
+    ResetRequest, SealRequest,
 };
 
 mod versions;
@@ -74,7 +74,10 @@ mod metrics;
 pub use metrics::Metrics;
 
 mod sync;
-pub use sync::{L2ForkchoiceState, SyncStartError, find_starting_forkchoice};
+pub use sync::{
+    DerivedSafeHead, L2ForkchoiceState, SyncStartError, find_reorg_safe_head,
+    find_starting_forkchoice,
+};
 
 #[cfg(any(test, feature = "test-utils"))]
 /// Utilities that are useful when creating unit tests using structs within this library.
