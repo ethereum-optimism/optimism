@@ -552,16 +552,8 @@ func WithCustomGasToken(name, symbol string, initialLiquidity *big.Int, liquidit
 }
 
 func (wb *worldBuilder) buildL1Genesis() {
-	wb.require.NotNil(wb.output.L1DevGenesis, "must have L1 genesis outer config")
-	wb.require.NotNil(wb.output.L1StateDump, "must have L1 genesis alloc")
-
-	genesisOuter := wb.output.L1DevGenesis
-	genesisAlloc := wb.output.L1StateDump.Data.Accounts
-	genesisCfg := *genesisOuter
-	genesisCfg.StateHash = nil
-	genesisCfg.Alloc = genesisAlloc
-
-	wb.outL1Genesis = &genesisCfg
+	wb.require.NotNil(wb.output.L1DevGenesis, "must have L1 genesis")
+	wb.outL1Genesis = wb.output.L1DevGenesis
 }
 
 func (wb *worldBuilder) finalizeL2Allocs() {
