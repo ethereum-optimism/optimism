@@ -252,3 +252,30 @@ async fn next_block_starts_earlier_by_the_seal_time(
     // The second block is due 2s after the first, less the time the seal took.
     assert_eq!(step_time(&mut actor).await, wait, "the next tick fired at the wrong time");
 }
+
+#[tokio::test]
+async fn orphaned_origin_resets_engine_instead_of_retrying_at_max_drift() {
+    let mut actor = test_actor();
+    actor
+        .origin_selector
+        .expect_next_l1_origin()
+        .times(1)
+        .return_once(|_, _| Err(crate::L1OriginSelectorError::NextOriginOrphaned));
+    actor.engine_client.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
+    assert!(actor.get_next_payload_l1_origin(L2BlockInfo::default()).await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn failed_origin_prefetcher_terminates_sequencer() {
+    let mut actor = test_actor();
+    actor
+        .origin_selector
+        .expect_next_l1_origin()
+        .times(1)
+        .return_once(|_, _| Err(crate::L1OriginSelectorError::Closed));
+    actor.engine_client.expect_reset_engine_forkchoice().times(0);
+    assert!(matches!(
+        actor.get_next_payload_l1_origin(L2BlockInfo::default()).await,
+        Err(SequencerActorError::ChannelClosed)
+    ));
+}
