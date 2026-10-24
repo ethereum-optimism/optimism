@@ -227,7 +227,7 @@ impl EngineTaskExt for EngineTask {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::test_engine_client;
+    use crate::{EngineBuildError, SynchronizeTaskError, test_utils::test_engine_client};
     use alloy_consensus::Block;
     use alloy_primitives::Bytes;
     use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};
@@ -235,6 +235,30 @@ mod tests {
     use op_alloy_consensus::OpTxEnvelope;
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
     use std::{sync::Arc, time::Duration};
+
+    // Exercise the nested errors seen by the queue, including a rejected final FCU after
+    // newPayload accepted a derived block. ACCEPTED remains retryable rather than resetting.
+    #[rstest::rstest]
+    #[case::invalid(PayloadStatusEnum::Invalid { validation_error: "invalid block".into() }, EngineTaskErrorSeverity::Reset)]
+    #[case::accepted(PayloadStatusEnum::Accepted, EngineTaskErrorSeverity::Temporary)]
+    fn forkchoice_rejection_severity(
+        #[case] status: PayloadStatusEnum,
+        #[case] expected: EngineTaskErrorSeverity,
+    ) {
+        let errors = [
+            ConsolidateTaskError::BuildTaskFailed(BuildTaskError::EngineBuildError(
+                EngineBuildError::UnexpectedPayloadStatus(status.clone()),
+            )),
+            ConsolidateTaskError::SealTaskFailed(SealTaskError::PayloadInsertionFailed(Box::new(
+                InsertTaskError::ForkchoiceUpdateFailed(
+                    SynchronizeTaskError::UnexpectedPayloadStatus(status),
+                ),
+            ))),
+        ];
+        for error in errors {
+            assert_eq!(EngineTaskErrors::Consolidate(error).severity(), expected);
+        }
+    }
 
     /// Records the blocks the engine hands over after a successful import.
     #[derive(Debug, Default)]

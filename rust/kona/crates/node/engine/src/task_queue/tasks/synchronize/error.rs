@@ -26,10 +26,13 @@ impl EngineTaskError for SynchronizeTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
             Self::FinalizedAheadOfUnsafe(_, _) => EngineTaskErrorSeverity::Critical,
+            Self::InvalidForkchoiceState |
+            Self::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. }) => {
+                EngineTaskErrorSeverity::Reset
+            }
             Self::ForkchoiceUpdateFailed(_) | Self::UnexpectedPayloadStatus(_) => {
                 EngineTaskErrorSeverity::Temporary
             }
-            Self::InvalidForkchoiceState => EngineTaskErrorSeverity::Reset,
         }
     }
 }
