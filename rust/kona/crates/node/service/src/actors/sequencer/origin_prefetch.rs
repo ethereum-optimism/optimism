@@ -353,7 +353,11 @@ where
         let mut requests = self.request.clone();
         let mut heads = self.l1_head.clone();
         tokio::select! {
-            result = requests.changed() => result.map_err(|_| L1OriginSelectorError::Closed),
+            // A max-drift refresh repeats the same request to wake an idle worker. It must
+            // not restart an already-running fetch, or short L2 ticks can starve slow receipts.
+            result = requests.wait_for(|current| *current != Some(request)) => {
+                result.map(|_| ()).map_err(|_| L1OriginSelectorError::Closed)
+            },
             result = heads.changed() => result.map_err(|_| L1OriginSelectorError::Closed),
             result = self.fill(request, recheck) => {
                 if let Err(err) = result {

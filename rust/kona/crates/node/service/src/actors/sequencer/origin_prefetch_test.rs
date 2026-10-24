@@ -535,3 +535,33 @@ async fn missing_origin_resets_even_if_the_selector_remembers_it_from_before_a_r
         matches!(h.selector.next_l1_origin(h.parent, false).await, Err(L1OriginSelectorError::OriginNotFound(hash)) if hash == original.hash)
     );
 }
+
+#[tokio::test(start_paused = true)]
+async fn repeated_max_drift_requests_do_not_cancel_the_same_inflight_fetch() {
+    let mut h = Harness::new(4);
+    h.head.send_replace(Some(h.l1.at(0)));
+    h.initialize().await;
+    h.worker.l1_head.borrow_and_update();
+    h.worker.request.borrow_and_update();
+    h.worker.retry.tick().await;
+    h.parent.block_info.timestamp = 600;
+    h.head.send_replace(Some(h.l1.at(5)));
+    h.l1.receipt_latency_ms.store(3000, Ordering::SeqCst);
+    let origin = tokio::select! {
+        result = async {
+            for _ in 0..10 {
+                match h.selector.next_l1_origin(h.parent, false).await {
+                    Ok(origin) => return origin,
+                    Err(L1OriginSelectorError::Timeout) => {},
+                    Err(error) => panic!("unexpected selection error: {error}"),
+                }
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+            panic!("repeated drift waits starved background receipts preparation");
+        } => result,
+        _ = async { loop { h.worker.step().await.unwrap(); } } => unreachable!(),
+    };
+    assert_eq!(origin, h.l1.at(1));
+    // Genesis was prepared once and the slow successor was not repeatedly restarted.
+    assert_eq!(h.l1.receipts.load(Ordering::SeqCst), 2);
+}
