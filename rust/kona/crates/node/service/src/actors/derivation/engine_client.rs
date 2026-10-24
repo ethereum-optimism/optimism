@@ -1,7 +1,7 @@
-use crate::{EngineActorRequest, EngineClientError, EngineClientResult, ResetRequest};
+use crate::{EngineActorRequest, EngineClientError, EngineClientResult, ResetKind, ResetRequest};
 use async_trait::async_trait;
 use derive_more::Constructor;
-use kona_engine::{ConsolidateInput, FinalizeBlockId};
+use kona_engine::{ConsolidateInput, DerivedSafeHead, FinalizeBlockId};
 use std::fmt::Debug;
 use tokio::sync::mpsc;
 
@@ -11,6 +11,14 @@ use tokio::sync::mpsc;
 pub trait DerivationEngineClient: Debug + Send + Sync {
     /// Resets the engine's forkchoice.
     async fn reset_engine_forkchoice(&self) -> EngineClientResult<()>;
+
+    /// Resets the engine after derivation detected an L1 reorg. `recent_safe_heads` are the safe
+    /// heads derivation recently produced, newest first. The engine keeps the newest one derived
+    /// from L1 data the reorg left canonical, and falls back to a full reset otherwise.
+    async fn reset_engine_after_l1_reorg(
+        &self,
+        recent_safe_heads: Vec<DerivedSafeHead>,
+    ) -> EngineClientResult<()>;
 
     /// Sends a request to finalize the L2 block identified by the provided [`FinalizeBlockId`].
     /// Note: This does not wait for the engine to process it.
@@ -33,13 +41,12 @@ pub struct QueuedDerivationEngineClient {
     pub engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
 }
 
-#[async_trait]
-impl DerivationEngineClient for QueuedDerivationEngineClient {
-    async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
+impl QueuedDerivationEngineClient {
+    async fn reset(&self, kind: ResetKind) -> EngineClientResult<()> {
         let (result_tx, mut result_rx) = mpsc::channel(1);
 
         self.engine_actor_request_tx
-            .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx })))
+            .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx, kind })))
             .await
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
 
@@ -47,6 +54,20 @@ impl DerivationEngineClient for QueuedDerivationEngineClient {
             error!(target: "derivation_engine_client", "Failed to receive built payload");
             EngineClientError::ResponseError("response channel closed.".to_string())
         })?
+    }
+}
+
+#[async_trait]
+impl DerivationEngineClient for QueuedDerivationEngineClient {
+    async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
+        self.reset(ResetKind::Full).await
+    }
+
+    async fn reset_engine_after_l1_reorg(
+        &self,
+        recent_safe_heads: Vec<DerivedSafeHead>,
+    ) -> EngineClientResult<()> {
+        self.reset(ResetKind::AfterL1Reorg(recent_safe_heads)).await
     }
 
     async fn send_finalized_l2_block(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {

@@ -1,6 +1,6 @@
 use crate::{
     EngineClientError, EngineClientResult,
-    actors::engine::{BuildRequest, EngineActorRequest, ResetRequest, SealRequest},
+    actors::engine::{BuildRequest, EngineActorRequest, ResetKind, ResetRequest, SealRequest},
 };
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
@@ -61,7 +61,10 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
         let (result_tx, mut result_rx) = mpsc::channel(1);
 
         self.engine_actor_request_tx
-            .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx })))
+            .send(EngineActorRequest::Reset(Box::new(ResetRequest {
+                result_tx,
+                kind: ResetKind::Full,
+            })))
             .await
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
 
