@@ -15,7 +15,17 @@ diataxis: reference
 
 **proxyd** is an RPC request router and proxy with method whitelisting, backend load balancing, automatic retries, and consensus state tracking across multiple backend nodes.
 
-<Update label="September 18, 2026" description="v4.32.2" tags={["Latest", "Stable"]}>
+<Update label="October 8, 2026" description="v4.33.0" tags={["Latest", "Stable"]}>
+
+## Changelog
+* d6f9bb05b6534f283358636dc992cc66e740d515 proxyd: add metrics for tx validation middleware (#758)
+* 6f32143b5a37aefa0462f69d5298add315149737 proxyd: treat non-2xx and malformed tx validation responses as errors (#759)
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.33.0)
+
+</Update>
+
+<Update label="September 18, 2026" description="v4.32.2" tags={["Stable"]}>
 
 ## Changelog
 * 5fd90249bbdd1122f29a80d7e28af7ec322b2db3 fix(proxyd): expand env vars in consensus_ha_redis.url (#744)
