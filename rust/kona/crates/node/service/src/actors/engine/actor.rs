@@ -1,4 +1,7 @@
-use crate::{BuildRequest, EngineDerivationClient, EngineError, NodeActor, SealRequest};
+use crate::{
+    BuildRequest, EngineDerivationClient, EngineError, NodeActor, ResetKind, ResetRequest,
+    SealRequest,
+};
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
@@ -50,7 +53,7 @@ where
     /// instead of fetching it back from the execution layer.
     block_sink: Arc<dyn ImportedBlockSink>,
     /// A reset is retained until successful; RPC failure must not lose the request.
-    reset_pending: bool,
+    pending_reset: Option<ResetKind>,
     /// Callers waiting for the retained reset to finish.
     reset_waiters: Vec<mpsc::Sender<crate::EngineClientResult<()>>>,
     /// Earliest next attempt after a dependency failure.
@@ -83,7 +86,7 @@ where
             unsafe_head_tx,
             inbound_request_rx,
             block_sink,
-            reset_pending: false,
+            pending_reset: None,
             reset_waiters: Vec::new(),
             retry_at: Instant::now(),
             retry_delay: Duration::from_millis(100),
@@ -95,18 +98,24 @@ where
         self.retry_delay = (self.retry_delay * 2).min(Duration::from_secs(5));
     }
 
-    fn begin_reset(&mut self) {
-        if !self.reset_pending {
-            self.engine.clear();
-            self.reset_pending = true;
-            self.retry_at = Instant::now();
-        }
+    /// Retains a reset of `kind`, combined with any reset already retained.
+    fn begin_reset(&mut self, kind: ResetKind) {
+        self.pending_reset = Some(match self.pending_reset.take() {
+            // A pending full reset stays full; a pending reset after an L1 reorg is replaced.
+            Some(ResetKind::Full) => ResetKind::Full,
+            Some(ResetKind::AfterL1Reorg(_)) => kind,
+            None => {
+                self.engine.clear();
+                self.retry_at = Instant::now();
+                kind
+            }
+        });
     }
 
     async fn attempt_reset(&mut self) -> Result<(), EngineError> {
         match self.reset().await {
             Ok(()) => {
-                self.reset_pending = false;
+                self.pending_reset = None;
                 self.retry_delay = Duration::from_millis(100);
                 if !self.el_sync_complete && self.engine.state().el_sync_finished {
                     self.mark_el_sync_complete_and_notify_derivation_actor().await?;
@@ -124,7 +133,18 @@ where
     /// Resets the inner [`Engine`] and propagates the reset to the derivation actor.
     async fn reset(&mut self) -> Result<(), EngineError> {
         // Reset the engine.
-        let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
+        let l2_safe_head = match &self.pending_reset {
+            Some(ResetKind::AfterL1Reorg(recent_safe_heads)) => {
+                self.engine
+                    .reset_after_l1_reorg(
+                        self.client.clone(),
+                        self.rollup.clone(),
+                        recent_safe_heads,
+                    )
+                    .await?
+            }
+            _ => self.engine.reset(self.client.clone(), self.rollup.clone()).await?,
+        };
 
         // Derivation may be awaiting this reply with its inbound queue full of L1 updates.
         // Release those callers before awaiting delivery to that same queue. They transition
@@ -163,7 +183,7 @@ where
                     }
                     EngineTaskErrorSeverity::Reset => {
                         warn!(target: "engine", ?err, "Received reset request");
-                        self.begin_reset();
+                        self.begin_reset(ResetKind::Full);
                         return Ok(());
                     }
                     EngineTaskErrorSeverity::Flush => {
@@ -196,7 +216,7 @@ where
 
         if !self.el_sync_complete && self.engine.state().el_sync_finished {
             if self.engine.state().sync_state.finalized_head() == L2BlockInfo::default() {
-                self.begin_reset();
+                self.begin_reset(ResetKind::Full);
             } else {
                 self.mark_el_sync_complete_and_notify_derivation_actor().await?;
             }
@@ -252,7 +272,7 @@ where
 
     async fn step(&mut self) -> Result<(), Self::Error> {
         if Instant::now() >= self.retry_at {
-            if self.reset_pending {
+            if self.pending_reset.is_some() {
                 self.attempt_reset().await?;
             } else {
                 self.drain().await?;
@@ -276,7 +296,7 @@ where
                 request.ok_or(EngineError::ChannelClosed)?
             }
             _ = time::sleep_until(self.retry_at),
-                if self.reset_pending || !self.engine.is_empty() => return Ok(()),
+                if self.pending_reset.is_some() || !self.engine.is_empty() => return Ok(()),
         };
 
         match request {
@@ -322,8 +342,9 @@ where
             EngineActorRequest::Reset(reset_request) => {
                 warn!(target: "engine", "Received reset request");
 
-                self.begin_reset();
-                self.reset_waiters.push(reset_request.result_tx);
+                let ResetRequest { result_tx, kind } = *reset_request;
+                self.begin_reset(kind);
+                self.reset_waiters.push(result_tx);
             }
             EngineActorRequest::Seal(seal_request) => {
                 let SealRequest { payload_id, attributes, result_tx } = *seal_request;

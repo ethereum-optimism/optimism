@@ -3,7 +3,7 @@
 use crate::{
     DerivationActorRequest, DerivationEngineClient, DerivationState, DerivationStateMachine,
     DerivationStateTransitionError, DerivationStateUpdate, Metrics, NodeActor,
-    actors::derivation::L2Finalizer,
+    actors::derivation::{L2Finalizer, SafeHeadHistory},
 };
 use async_trait::async_trait;
 use kona_derive::{
@@ -45,6 +45,8 @@ where
     safe_db: Option<Arc<dyn SafeDb>>,
     /// The attributes sent to the engine and not yet confirmed as a safe head.
     attributes_awaiting_confirmation: Option<OpAttributesWithParent>,
+    /// The recent safe heads an L1 reorg may keep, with the L1 data they depend on.
+    safe_head_history: SafeHeadHistory,
 }
 
 impl<DerivationEngineClient_, PipelineSignalReceiver>
@@ -70,6 +72,7 @@ where
             finalizer: L2Finalizer::default(),
             safe_db,
             attributes_awaiting_confirmation: None,
+            safe_head_history: SafeHeadHistory::default(),
         }
     }
 
@@ -80,6 +83,7 @@ where
                 self.derivation_origin_tx.send_replace(None);
                 self.finalizer.clear();
                 self.attributes_awaiting_confirmation = None;
+                self.reset_safe_head_history(reset.l2_safe_head);
                 self.truncate_safe_db(reset.l2_safe_head, "engine reset")?;
                 let result = self.pipeline.signal(Signal::Reset(reset)).await;
                 if result.is_ok() {
@@ -98,6 +102,40 @@ where
         }
         self.publish_origin();
         Ok(())
+    }
+
+    /// Restarts the [`SafeHeadHistory`] from the safe head derivation restarts from.
+    fn reset_safe_head_history(&mut self, safe_head: L2BlockInfo) {
+        let seq_window_size = self.pipeline.rollup_config().seq_window_size;
+        self.safe_head_history.reset_to(safe_head, seq_window_size);
+    }
+
+    /// Asks the engine to reset for a pipeline [`ResetError`]. An L1 reorg lets the engine keep a
+    /// safe head the reorg left derivable, rather than rewind a full sequencing window.
+    async fn reset_engine(&self, e: &ResetError) -> Result<(), DerivationError> {
+        let reset = if let ResetError::ReorgDetected(expected, new) = e {
+            warn!(target: "derivation", "L1 reorg detected! Expected: {expected} | New: {new}");
+            metrics::counter!(Metrics::L1_REORG_COUNT).increment(1);
+
+            // The pipeline's origin has no canonical child, so it was reorged out, and so was every
+            // L1 block at or above it. Drop the safe heads that depend on one without asking the
+            // engine, whose L1 node may not have seen the reorg yet.
+            let reorged_from = self.pipeline.origin().map_or(u64::MAX, |origin| origin.number);
+            let recent_safe_heads = self
+                .safe_head_history
+                .newest_first()
+                .into_iter()
+                .filter(|derived| derived.derived_from.number < reorged_from)
+                .collect();
+            self.engine_client.reset_engine_after_l1_reorg(recent_safe_heads).await
+        } else {
+            self.engine_client.reset_engine_forkchoice().await
+        };
+
+        reset.map_err(|e| {
+            error!(target: "derivation", ?e, "Failed to send reset request");
+            DerivationError::Sender(Box::new(e))
+        })
     }
 
     /// Activates a hardfork while preserving the pipeline's derivation state.
@@ -170,20 +208,9 @@ where
                                     }))
                                     .await?;
                             } else {
-                                if let ResetError::ReorgDetected(expected, new) = e {
-                                    warn!(
-                                        target: "derivation",
-                                        "L1 reorg detected! Expected: {expected} | New: {new}"
-                                    );
-
-                                    metrics::counter!(Metrics::L1_REORG_COUNT).increment(1);
-                                }
                                 // Like op-node, report no origin until the reset sets a new one.
                                 self.derivation_origin_tx.send_replace(None);
-                                self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
-                                    error!(target: "derivation", ?e, "Failed to send reset request");
-                                    DerivationError::Sender(Box::new(e))
-                                })?;
+                                self.reset_engine(&e).await?;
                                 self.derivation_state_machine
                                     .update(&DerivationStateUpdate::SignalNeeded)?;
                                 return Err(DerivationError::Yield);
@@ -217,6 +244,22 @@ where
                     self.derivation_state_machine
                         .update(&DerivationStateUpdate::SignalProcessed)?;
                 }
+                // The engine reports its safe head only when it changes, so a reset that keeps
+                // the confirmed safe head, as one after a shallow L1 reorg usually does, gets no
+                // report. Resume from it instead of waiting for the next L1 head.
+                if let Signal::Reset(reset) = *signal &&
+                    reset.l2_safe_head ==
+                        self.derivation_state_machine.last_confirmed_safe_head() &&
+                    self.derivation_state_machine.current_state() ==
+                        DerivationState::AwaitingUpdateAfterSignal
+                {
+                    self.derivation_state_machine.update(
+                        &DerivationStateUpdate::NewAttributesConfirmed(Box::new(
+                            reset.l2_safe_head,
+                        )),
+                    )?;
+                    self.attempt_derivation().await?;
+                }
             }
             DerivationActorRequest::ProcessFinalizedL1Block(finalized_l1_block) => {
                 // Attempt to finalize the block. If successful, notify engine.
@@ -249,6 +292,7 @@ where
                 info!(target: "derivation", "Engine finished syncing, starting derivation.");
                 self.derivation_state_machine
                     .update(&DerivationStateUpdate::ELSyncCompleted(safe_head.clone()))?;
+                self.reset_safe_head_history(*safe_head);
                 self.truncate_safe_db(*safe_head, "EL sync completion")?;
 
                 self.attempt_derivation().await?;
@@ -280,6 +324,9 @@ where
                 "Safe head does not match the derived attributes awaiting confirmation"
             );
             return Ok(());
+        }
+        if let Some(derived_from) = attributes.derived_from {
+            self.safe_head_history.record(safe_head, derived_from.id());
         }
         if let (Some(database), Some(derived_from)) = (&self.safe_db, attributes.derived_from) {
             debug!(target: "derivation", l1_block = derived_from.number, safe_head = safe_head.block_info.number, "Recording safe head");
