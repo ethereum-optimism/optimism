@@ -178,11 +178,18 @@ impl L1BlockInfo {
             return U256::ZERO;
         }
 
-        // If the input is a deposit transaction or empty, the default value is zero.
-        if input.is_empty() || input.first() == Some(&0x7E) {
+        // If the input is a deposit transaction, the default value is zero.
+        if input.first() == Some(&0x7E) {
             return U256::ZERO;
         }
 
+        // The operator fee is a function of gas only, so it is charged even
+        // when the enveloped transaction is empty. That is the shape
+        // RPC-built transactions take (op-reth's `OpTxEnvConverter` sets
+        // `enveloped_tx` to empty bytes): block execution charges the fee for
+        // the gas a transaction uses, and simulation must charge it the same
+        // way, otherwise `operator_fee_refund` hands back a fee that was
+        // never charged and the simulated sender gains ETH (#23213).
         self.operator_fee_charge_inner(gas_limit, spec_id)
     }
 
@@ -667,6 +674,38 @@ mod tests {
         let jovian_fee =
             l1_block_info.operator_fee_charge(&input, U256::from(1_000u64), OpSpecId::JOVIAN);
         assert_eq!(jovian_fee, U256::from(100_000_010u64));
+    }
+
+    #[test]
+    fn test_operator_fee_charge_empty_input() {
+        let l1_block_info = L1BlockInfo {
+            operator_fee_scalar: Some(U256::from(1_000u64)),
+            operator_fee_constant: Some(U256::from(10u64)),
+            ..Default::default()
+        };
+
+        // The operator fee is gas-based, so an empty enveloped transaction —
+        // the shape RPC-built transactions take — is charged exactly like a
+        // real enveloped transaction for the same gas limit.
+        let empty_fee =
+            l1_block_info.operator_fee_charge(&[], U256::from(1_000u64), OpSpecId::ISTHMUS);
+        assert_eq!(empty_fee, U256::from(11u64));
+        assert_eq!(
+            empty_fee,
+            l1_block_info.operator_fee_charge(&[0x01u8], U256::from(1_000u64), OpSpecId::ISTHMUS)
+        );
+
+        // A deposit transaction still pays no operator fee.
+        assert_eq!(
+            l1_block_info.operator_fee_charge(&[0x7Eu8], U256::from(1_000u64), OpSpecId::ISTHMUS),
+            U256::ZERO
+        );
+
+        // And there is still no operator fee before Isthmus.
+        assert_eq!(
+            l1_block_info.operator_fee_charge(&[], U256::from(1_000u64), OpSpecId::FJORD),
+            U256::ZERO
+        );
     }
 
     #[test]
