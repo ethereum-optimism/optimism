@@ -34,9 +34,8 @@ pub struct AlloyL2ChainProvider {
     trust_rpc: bool,
     /// The rollup configuration.
     rollup_config: Arc<RollupConfig>,
-    /// The `block_by_number` LRU cache. Shares its blocks with `block_by_hash_cache`.
-    block_by_number_cache: LruCache<u64, Arc<OpBlock>>,
-    /// The `block_by_hash` LRU cache. Shares its blocks with `block_by_number_cache`.
+    /// The `block_by_hash` LRU cache. Blocks are cached by hash only: a height does not identify
+    /// a block across a reorg, so `block_by_number` always asks the RPC.
     block_by_hash_cache: LruCache<B256, Arc<OpBlock>>,
 }
 
@@ -68,7 +67,6 @@ impl AlloyL2ChainProvider {
             inner,
             trust_rpc,
             rollup_config,
-            block_by_number_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
             block_by_hash_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
         }
     }
@@ -99,8 +97,6 @@ impl AlloyL2ChainProvider {
         self.verify_block_hash(&block.header, hash)?;
 
         let block = Arc::new(block);
-        // Not also cached by number: a block found by hash carries no claim to being the
-        // canonical one at its own height.
         self.block_by_hash_cache.put(hash, Arc::clone(&block));
         Ok(block)
     }
@@ -227,10 +223,6 @@ impl BatchValidationProvider for AlloyL2ChainProvider {
     }
 
     async fn block_by_number(&mut self, number: u64) -> Result<Arc<OpBlock>, Self::Error> {
-        if let Some(block) = self.block_by_number_cache.get(&number) {
-            return Ok(Arc::clone(block));
-        }
-
         kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_REQUESTS, "method" => "l2_block_ref_by_number");
 
         let block = Arc::new(
@@ -248,7 +240,6 @@ impl BatchValidationProvider for AlloyL2ChainProvider {
         );
 
         self.block_by_hash_cache.put(block.header.hash_slow(), Arc::clone(&block));
-        self.block_by_number_cache.put(number, Arc::clone(&block));
         Ok(block)
     }
 }
@@ -290,6 +281,52 @@ mod tests {
             "result": serde_json::to_value(block).unwrap(),
         });
         (true_hash, body.to_string())
+    }
+
+    /// A JSON-RPC response serving `header` as a full block with no transactions.
+    fn block_response(header: alloy_consensus::Header) -> String {
+        let rpc_header = RpcHeader::new(header);
+        let block: <Optimism as alloy_provider::Network>::BlockResponse =
+            RpcBlock::new(rpc_header, BlockTransactions::Full(vec![]));
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "result": serde_json::to_value(block).unwrap(),
+        })
+        .to_string()
+    }
+
+    #[tokio::test]
+    async fn block_by_number_follows_a_replaced_block() {
+        // A height does not identify a block across a reorg. Once the block at a height is
+        // replaced, by-number lookups must return the replacement, as op-node's uncached
+        // PayloadByNumber does, or span-batch overlap checks compare against the stale block.
+        let old = alloy_consensus::Header { gas_limit: 1, ..Default::default() };
+        let new = alloy_consensus::Header { gas_limit: 2, ..Default::default() };
+        assert_ne!(old.hash_slow(), new.hash_slow());
+
+        let server = MockServer::start();
+        let mut old_mock = server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockByNumber");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(block_response(old.clone()));
+        });
+        let mut provider = AlloyL2ChainProvider::new(
+            RootProvider::<Optimism>::new(RpcClient::new_http(server.base_url().parse().unwrap())),
+            Arc::new(RollupConfig::default()),
+            8,
+        );
+        assert_eq!(provider.block_by_number(0).await.unwrap().header.hash_slow(), old.hash_slow());
+
+        old_mock.delete();
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockByNumber");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(block_response(new.clone()));
+        });
+        assert_eq!(provider.block_by_number(0).await.unwrap().header.hash_slow(), new.hash_slow());
     }
 
     #[tokio::test]
