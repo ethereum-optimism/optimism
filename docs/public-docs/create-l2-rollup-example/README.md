@@ -152,7 +152,7 @@ sequencer/               # op-sequencer configuration
 |---------|------|-------------|
 | op-reth | 8545 | HTTP RPC endpoint |
 | op-reth | 8546 | WebSocket RPC endpoint |
-| op-reth | 8551 | Auth RPC for op-node |
+| op-reth | 8551 | Auth RPC for op-node (Compose network only, not published on the host) |
 | op-node | 8547 | op-node RPC endpoint |
 | op-node | 9222 | P2P networking |
 
@@ -228,7 +228,7 @@ docker-compose restart op-node
 
 ### Common Issues
 
-1. **Port conflicts**: Ensure ports 8545-8551 and 9222 are available
+1. **Port conflicts**: Ensure ports 8545-8547 and 9222 are available
 2. **Insufficient ETH**: Make sure your deployment wallet has enough Sepolia ETH
 3. **Network timeouts**: Check your L1 RPC URL and network connectivity
 4. **Docker issues**: Ensure Docker daemon is running and you have sufficient resources
