@@ -54,6 +54,7 @@ derive_more = { workspace = true, features = ["display", "deref", "debug"] }
 metrics.workspace = true
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["macros", "test-util"] }
 tempfile.workspace = true
 multihash.workspace = true
 serde_json.workspace = true
