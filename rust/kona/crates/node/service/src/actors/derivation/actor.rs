@@ -244,6 +244,22 @@ where
                     self.derivation_state_machine
                         .update(&DerivationStateUpdate::SignalProcessed)?;
                 }
+                // The engine reports its safe head only when it changes, so a reset that keeps
+                // the confirmed safe head, as one after a shallow L1 reorg usually does, gets no
+                // report. Resume from it instead of waiting for the next L1 head.
+                if let Signal::Reset(reset) = *signal &&
+                    reset.l2_safe_head ==
+                        self.derivation_state_machine.last_confirmed_safe_head() &&
+                    self.derivation_state_machine.current_state() ==
+                        DerivationState::AwaitingUpdateAfterSignal
+                {
+                    self.derivation_state_machine.update(
+                        &DerivationStateUpdate::NewAttributesConfirmed(Box::new(
+                            reset.l2_safe_head,
+                        )),
+                    )?;
+                    self.attempt_derivation().await?;
+                }
             }
             DerivationActorRequest::ProcessFinalizedL1Block(finalized_l1_block) => {
                 // Attempt to finalize the block. If successful, notify engine.
@@ -266,18 +282,6 @@ where
             }
             DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(safe_head) => {
                 info!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
-                // The engine reports its safe head after every reset, even when unchanged, and an
-                // L1 head can arrive between the reset signal and that report. Unless derivation
-                // is still waiting for it, a head it has already confirmed carries nothing new: it
-                // must not consume attributes awaiting confirmation or move the state machine.
-                if safe_head.block_info.hash ==
-                    self.derivation_state_machine.last_confirmed_safe_head().block_info.hash &&
-                    self.derivation_state_machine.current_state() !=
-                        DerivationState::AwaitingUpdateAfterSignal
-                {
-                    debug!(target: "derivation", safe_head = ?*safe_head, "Ignoring an already confirmed safe head.");
-                    return Ok(());
-                }
                 self.derivation_state_machine
                     .update(&DerivationStateUpdate::NewAttributesConfirmed(safe_head.clone()))?;
                 self.settle_derived_attributes(*safe_head)?;
