@@ -4,15 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var (
@@ -24,11 +27,18 @@ type SuperRootProvider interface {
 	SuperRootAtTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error)
 }
 
+// SuperRootRollupClient provides the rollup data needed to construct a single-chain super root.
+type SuperRootRollupClient interface {
+	OutputRollupClient
+	RollupConfig(ctx context.Context) (*rollup.Config, error)
+}
+
 type SuperAgreementEnricher struct {
-	log     log.Logger
-	metrics OutputMetrics
-	clients []SuperRootProvider
-	clock   clock.Clock
+	log           log.Logger
+	metrics       OutputMetrics
+	clients       []SuperRootProvider
+	rollupClients []SuperRootRollupClient
+	clock         clock.Clock
 }
 
 func NewSuperAgreementEnricher(logger log.Logger, metrics OutputMetrics, clients []SuperRootProvider, cl clock.Clock) *SuperAgreementEnricher {
@@ -37,6 +47,18 @@ func NewSuperAgreementEnricher(logger log.Logger, metrics OutputMetrics, clients
 		metrics: metrics,
 		clients: clients,
 		clock:   cl,
+	}
+}
+
+// NewSuperAgreementEnricherWithRollupFallback creates a super-root enricher that falls back to
+// constructing single-chain super roots from rollup RPCs when no super-root RPC is configured.
+func NewSuperAgreementEnricherWithRollupFallback(logger log.Logger, metrics OutputMetrics, clients []SuperRootProvider, rollupClients []SuperRootRollupClient, cl clock.Clock) *SuperAgreementEnricher {
+	return &SuperAgreementEnricher{
+		log:           logger,
+		metrics:       metrics,
+		clients:       clients,
+		rollupClients: rollupClients,
+		clock:         cl,
 	}
 }
 
@@ -66,20 +88,31 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, _ rpcblock.Block, _
 
 func (e *SuperAgreementEnricher) enrich(ctx context.Context, game *monTypes.CommonGameData, mode superRootAgreementMode) error {
 	isZKGame := mode == zkGameAgreement
-	if len(e.clients) == 0 {
+	useRollupFallback := !isZKGame && len(e.clients) == 0 && len(e.rollupClients) > 0
+	clientCount := len(e.clients)
+	if useRollupFallback {
+		clientCount = len(e.rollupClients)
+	}
+	if clientCount == 0 {
 		return fmt.Errorf("%w but required for game type %v", ErrSuperRootRpcRequired, game.GameType)
 	}
 
 	if !isZKGame {
-		game.NodeEndpointTotalCount = len(e.clients)
+		game.NodeEndpointTotalCount = clientCount
 	}
 
-	results := make([]superRootResult, len(e.clients))
+	results := make([]superRootResult, clientCount)
 	var wg sync.WaitGroup
-	for i, client := range e.clients {
+	for i := 0; i < clientCount; i++ {
 		wg.Add(1)
-		go func(i int, client SuperRootProvider) {
+		go func(i int) {
 			defer wg.Done()
+			if useRollupFallback {
+				results[i] = e.fetchRollupSuperRoot(ctx, e.rollupClients[i], game)
+				return
+			}
+
+			client := e.clients[i]
 			response, err := client.SuperRootAtTimestamp(ctx, game.L2SequenceNumber)
 			if err != nil {
 				results[i] = superRootResult{err: err}
@@ -106,7 +139,7 @@ func (e *SuperAgreementEnricher) enrich(ctx context.Context, game *monTypes.Comm
 				superRoot: superRoot,
 				isSafe:    response.Data.VerifiedRequiredL1.Number <= game.L1HeadNum,
 			}
-		}(i, client)
+		}(i)
 	}
 	wg.Wait()
 	if isZKGame {
@@ -130,7 +163,7 @@ func (e *SuperAgreementEnricher) enrich(ctx context.Context, game *monTypes.Comm
 		safeCount = 0
 		unsafeCount = 0
 		differentRoots = false
-		game.NodeEndpointTotalCount = len(e.clients)
+		game.NodeEndpointTotalCount = clientCount
 	}
 	validResults := make([]superRootResult, 0, len(results))
 	foundResults := make([]superRootResult, 0, len(results))
@@ -177,7 +210,7 @@ func (e *SuperAgreementEnricher) enrich(ctx context.Context, game *monTypes.Comm
 
 	// If all results were errors, return an error
 	if len(validResults) == 0 {
-		if isZKGame && outOfSyncCount == len(e.clients) {
+		if isZKGame && outOfSyncCount == clientCount {
 			return fmt.Errorf("all ZK super root sources are behind game L1 head %d: %w", game.L1HeadNum, gameTypes.ErrNotInSync)
 		}
 		if isZKGame {
@@ -264,4 +297,67 @@ func (e *SuperAgreementEnricher) enrich(ctx context.Context, game *monTypes.Comm
 	game.ExpectedRootClaim = firstResult.superRoot
 	game.AgreeWithClaim = game.RootClaim == firstResult.superRoot
 	return nil
+}
+
+func (e *SuperAgreementEnricher) fetchRollupSuperRoot(ctx context.Context, client SuperRootRollupClient, game *monTypes.CommonGameData) superRootResult {
+	syncStatus, err := client.SyncStatus(ctx)
+	if err != nil {
+		return superRootResult{err: fmt.Errorf("failed to fetch sync status: %w", err)}
+	}
+	if syncStatus.CurrentL1.Number <= game.L1HeadNum {
+		e.log.Warn("Rollup node out of sync", "gameL1HeadNum", game.L1HeadNum, "nodeCurrentL1", syncStatus.CurrentL1.Number)
+		return superRootResult{outOfSync: true}
+	}
+
+	cfg, err := client.RollupConfig(ctx)
+	if err != nil {
+		return superRootResult{err: fmt.Errorf("failed to fetch rollup config: %w", err)}
+	}
+	if cfg == nil || cfg.L2ChainID == nil {
+		return superRootResult{err: errors.New("rollup config is missing L2 chain ID")}
+	}
+	chainID, err := eth.ChainIDFromString(cfg.L2ChainID.String())
+	if err != nil {
+		return superRootResult{err: fmt.Errorf("invalid L2 chain ID in rollup config: %w", err)}
+	}
+	if cfg.BlockTime == 0 {
+		return superRootResult{err: errors.New("rollup config has zero block time")}
+	}
+	blockNum, err := cfg.TargetBlockNumber(game.L2SequenceNumber)
+	if err != nil {
+		return superRootResult{err: fmt.Errorf("failed to convert super root timestamp to block number: %w", err)}
+	}
+
+	output, err := client.OutputAtBlock(ctx, blockNum)
+	if err != nil {
+		var rpcErr rpc.Error
+		if errors.As(err, &rpcErr) && strings.Contains(strings.ToLower(rpcErr.Error()), "not found") {
+			return superRootResult{notFound: true}
+		}
+		return superRootResult{err: err}
+	}
+	if output == nil {
+		return superRootResult{err: errors.New("rollup RPC returned no output")}
+	}
+
+	superRoot := common.Hash(eth.SuperRoot(eth.NewSuperV1(game.L2SequenceNumber, eth.ChainIDAndOutput{
+		ChainID: chainID,
+		Output:  output.OutputRoot,
+	})))
+	result := superRootResult{superRoot: superRoot}
+	if superRoot != game.RootClaim {
+		return result
+	}
+
+	safeHead, err := client.SafeHeadAtL1Block(ctx, game.L1HeadNum)
+	if err != nil || safeHead == nil {
+		if err == nil {
+			err = errors.New("rollup RPC returned no safe head")
+		}
+		e.log.Warn("Unable to verify proposed block was safe", "l1HeadNum", game.L1HeadNum, "l2SequenceNumber", game.L2SequenceNumber, "l2BlockNum", blockNum, "err", err)
+		result.isSafe = true
+		return result
+	}
+	result.isSafe = safeHead.SafeHead.Number >= blockNum
+	return result
 }
