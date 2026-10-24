@@ -15,7 +15,18 @@ diataxis: reference
 
 **op-node** implements the [rollup-node spec](https://specs.optimism.io/protocol/rollup-node.html), functioning as the consensus layer (CL) client of an OP Stack chain. It builds, relays, and verifies the canonical L2 chain, working alongside an execution layer client such as op-reth.
 
-<Update label="October 1, 2026" description="v1.19.8" tags={["Latest", "Stable"]}>
+<Update label="October 7, 2026" description="v1.19.9" tags={["Latest", "Stable"]}>
+
+## Overview
+
+> [!IMPORTANT]
+> This is a recommended release for sequencer operators, and an optional one for other node operators. It contains a change to how sequencers publish new blocks, which removes the block-building stalls caused by slow remote signers, and the removal of the server-side RPC metrics.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.19.9)
+
+</Update>
+
+<Update label="October 1, 2026" description="v1.19.8" tags={["Stable"]}>
 
 ## Overview
 
