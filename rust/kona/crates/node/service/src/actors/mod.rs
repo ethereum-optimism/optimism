@@ -48,6 +48,9 @@ pub use network::{
 };
 
 mod sequencer;
+pub(crate) use sequencer::{
+    OriginPrefetcher, OriginPreparation, PreparedAttributesProvider, PreparedOriginProvider,
+};
 
 pub use sequencer::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider, L1OriginSelector,
