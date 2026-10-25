@@ -19,6 +19,9 @@ contract RelayActor is StdUtils {
     uint256 public numHashes;
     bytes32[] public hashes;
     bool public reverted = false;
+    bytes public revertData;
+    uint256 public revertIndex;
+    uint256 public lastGas;
 
     IOptimismPortal2 op;
     IL1CrossDomainMessenger xdm;
@@ -62,6 +65,7 @@ contract RelayActor is StdUtils {
         // If the message should succeed, supply it `baseGas`. If not, supply enough gas for the
         // relay to record the failure from cold storage, but too little to call the target.
         uint256 gas = doFail ? bound(minGasLimit, 125_000, 135_000) : xdm.baseGas(_message, minGasLimit);
+        lastGas = gas;
 
         // Compute the cross domain message hash and store it in `hashes`.
         // The `relayMessage` function will always encode the message as a version 1
@@ -84,10 +88,14 @@ contract RelayActor is StdUtils {
         try xdm.relayMessage{ gas: gas, value: _value }(
             Encoding.encodeVersionedNonce(0, _version), sender, target, _value, minGasLimit, _message
         ) { }
-        catch {
+        catch (bytes memory err) {
             // If any of these calls revert, set `reverted` to true to fail the invariant test.
             // NOTE: This is to get around forge's invariant fuzzer ignoring reverted calls
             // to this function.
+            if (!reverted) {
+                revertData = err;
+                revertIndex = numHashes - 1;
+            }
             reverted = true;
         }
         vm.stopPrank();
@@ -148,14 +156,38 @@ contract XDM_MinGasLimits_Succeeds is XDM_MinGasLimits {
     ///                     `L1CrossDomainMessenger` to the target contract.
     function invariant_minGasLimits() external view {
         uint256 length = actor.numHashes();
+        assertFalse(
+            actor.reverted(),
+            string.concat(
+                "DIAG relay reverted at index ",
+                vm.toString(actor.revertIndex()),
+                " of ",
+                vm.toString(length),
+                " data=",
+                vm.toString(actor.revertData())
+            )
+        );
         for (uint256 i = 0; i < length; ++i) {
             bytes32 hash = actor.hashes(i);
+            string memory ctx = string.concat(
+                " index=",
+                vm.toString(i),
+                " of ",
+                vm.toString(length),
+                " hash=",
+                vm.toString(hash),
+                " failed=",
+                vm.toString(l1CrossDomainMessenger.failedMessages(hash)),
+                " lastGas=",
+                vm.toString(actor.lastGas()),
+                " l2Sender=",
+                vm.toString(optimismPortal2.l2Sender())
+            );
             // The message hash is set in the successfulMessages mapping
-            assertTrue(l1CrossDomainMessenger.successfulMessages(hash));
+            assertTrue(l1CrossDomainMessenger.successfulMessages(hash), string.concat("DIAG not successful", ctx));
             // The message hash is not set in the failedMessages mapping
-            assertFalse(l1CrossDomainMessenger.failedMessages(hash));
+            assertFalse(l1CrossDomainMessenger.failedMessages(hash), string.concat("DIAG marked failed", ctx));
         }
-        assertFalse(actor.reverted());
     }
 }
 

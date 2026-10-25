@@ -1129,6 +1129,10 @@ jobs:
           that build, and its profile must match test_profile.
         type: boolean
         default: false
+      install_deps:
+        description: Install contracts dependencies before running tests.
+        type: boolean
+        default: false
     steps:
       - utils/checkout-with-mise:
           checkout-method: full
@@ -1138,6 +1142,10 @@ jobs:
           steps:
             - attach_workspace:
                 at: .
+      - when:
+          condition: << parameters.install_deps >>
+          steps:
+            - install-contracts-dependencies
       - run:
           name: Check if test list is empty
           command: |
@@ -3187,7 +3195,7 @@ workflows:
             - slack
           filters:
             branches:
-              only: develop
+              only: [develop, maurelian/xdm-mingas-repro]
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests-develop <<matrix.features>>
           requires:
@@ -3205,7 +3213,26 @@ workflows:
             - slack
           filters:
             branches:
-              only: develop
+              only: [develop, maurelian/xdm-mingas-repro]
+      - contracts-bedrock-tests:
+          name: contracts-bedrock-tests-develop-deps <<matrix.features>>
+          requires:
+            - prep-go-modules
+            - contracts-bedrock-build-tests-develop
+          test_list: find test -name "*.t.sol"
+          test_profile: ci
+          attach_build: true
+          install_deps: true
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: *features_matrix
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          filters:
+            branches:
+              only: [develop, maurelian/xdm-mingas-repro]
       - contracts-bedrock-coverage:
           # Generate coverage reports.
           name: contracts-bedrock-coverage <<matrix.features>>
