@@ -3,8 +3,9 @@
 use super::EngineTaskExt;
 use crate::{
     DerivedSafeHead, EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTask, SynchronizeTaskError,
-    find_reorg_safe_head, find_starting_forkchoice, task_queue::EngineTaskErrors,
+    EngineTaskErrorSeverity, L2ForkchoiceState, Metrics, SyncStartError, SynchronizeTask,
+    SynchronizeTaskError, find_reorg_forkchoice, find_starting_forkchoice,
+    task_queue::EngineTaskErrors,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -132,32 +133,33 @@ impl Engine {
         Ok(start.safe)
     }
 
-    /// Resets the engine after an L1 reorg, keeping the newest of `candidates` (ordered newest
-    /// first) that [`find_reorg_safe_head`] shows was derived from L1 data the reorg left
-    /// canonical. The unsafe head is kept, and the safe heads are rewound to the kept one if they
-    /// are above it. Falls back to [`Engine::reset`] when no candidate can be kept.
+    /// Resets the engine after an L1 reorg to the forkchoice [`find_reorg_forkchoice`] keeps: the
+    /// newest of `candidates` (ordered newest first) derived from L1 data the reorg left canonical,
+    /// and the unsafe chain back to its last block with a canonical L1 origin. The safe heads are
+    /// rewound to the kept one if they are above it. Falls back to [`Engine::reset`] when no
+    /// candidate can be kept.
     pub async fn reset_after_l1_reorg(
         &mut self,
         client: Arc<EngineClient>,
         config: Arc<RollupConfig>,
         candidates: &[DerivedSafeHead],
     ) -> Result<L2BlockInfo, EngineResetError> {
-        let Some(safe_head) =
-            find_reorg_safe_head(client.as_ref(), &self.state, candidates).await?
+        let Some(L2ForkchoiceState { un_safe, safe, .. }) =
+            find_reorg_forkchoice(client.as_ref(), &self.state, candidates).await?
         else {
             return self.reset(client, config).await;
         };
 
         let sync_state = self.state.sync_state;
-        if safe_head != sync_state.local_safe_head() {
-            let above = |head: L2BlockInfo| head.block_info.number > safe_head.block_info.number;
+        if un_safe != sync_state.unsafe_head() || safe != sync_state.local_safe_head() {
+            let above = |head: L2BlockInfo| head.block_info.number > safe.block_info.number;
             let synchronize = SynchronizeTask::new(
                 client,
                 config,
                 EngineSyncStateUpdate {
-                    unsafe_head: None,
-                    local_safe_head: Some(safe_head),
-                    safe_head: above(sync_state.safe_head()).then_some(safe_head),
+                    unsafe_head: (un_safe != sync_state.unsafe_head()).then_some(un_safe),
+                    local_safe_head: Some(safe),
+                    safe_head: above(sync_state.safe_head()).then_some(safe),
                     finalized_head: None,
                 },
             );
@@ -166,7 +168,7 @@ impl Engine {
 
         metrics::counter!(Metrics::ENGINE_REORG_RESET_COUNT).increment(1);
 
-        Ok(safe_head)
+        Ok(safe)
     }
 
     /// Clears the task queue.
@@ -387,11 +389,13 @@ mod l1_reorg_reset_tests {
     use super::*;
     use crate::test_utils::{RpcMock, test_engine_client};
     use alloy_eips::BlockNumHash;
-    use alloy_primitives::B256;
+    use alloy_primitives::{Address, B256, U256};
     use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
-    use kona_protocol::BlockInfo;
+    use kona_protocol::{BlockInfo, L1BlockInfoBedrock};
     use rstest::rstest;
     use serde_json::json;
+
+    type L2RpcBlock = <op_alloy_network::Optimism as alloy_network::Network>::BlockResponse;
 
     /// L1 block `number` on `fork`: fork 0 is the chain derivation read, fork 1 replaced it from
     /// the reorg height on.
@@ -424,48 +428,13 @@ mod l1_reorg_reset_tests {
 
     /// Scripts the engine's lookup of L2 block `number`, answered with `hash`.
     fn expect_l2(l2: &RpcMock, number: u64, hash: B256) {
-        let mut block: <op_alloy_network::Optimism as alloy_network::Network>::BlockResponse =
-            Default::default();
+        let mut block = L2RpcBlock::default();
         block.header.hash = hash;
         block.header.inner.number = number;
         l2.expect_params("eth_getBlockByNumber", json!([format!("{number:#x}"), false]), block);
     }
 
-    const FINALIZED: u64 = 5;
-    const UNSAFE: u64 = 40;
-    const UNSAFE_ORIGIN: u64 = 102;
-
-    /// Derivation's recent safe heads, newest first: L2 block 20 depends on L1 data up to block
-    /// 106, and L2 block 18 on L1 data up to block 103.
-    fn recent_safe_heads() -> [DerivedSafeHead; 2] {
-        [
-            DerivedSafeHead { safe_head: l2_block(20, 100), derived_from: l1_id(106, 0) },
-            DerivedSafeHead { safe_head: l2_block(18, 99), derived_from: l1_id(103, 0) },
-        ]
-    }
-
-    /// An engine at the local safe head L2 block 20 and the unsafe head L2 block 40, whose L1
-    /// origin is `unsafe_origin`.
-    fn setup(
-        unsafe_origin: u64,
-    ) -> (Engine, Arc<EngineClient>, RpcMock, RpcMock, Arc<RollupConfig>) {
-        let mut config = RollupConfig::default();
-        config.hardforks.ecotone_time = Some(0);
-        let config = Arc::new(config);
-        let (client, l1, l2) = test_engine_client(config.clone());
-
-        let mut state = EngineState::default();
-        state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
-            unsafe_head: Some(l2_block(UNSAFE, unsafe_origin)),
-            local_safe_head: Some(l2_block(20, 100)),
-            safe_head: Some(l2_block(20, 100)),
-            finalized_head: Some(l2_block(FINALIZED, 90)),
-        });
-        let (state_tx, _) = tokio::sync::watch::channel(state);
-        (Engine::new(state, state_tx), Arc::new(client), l1, l2, config)
-    }
-
-    /// Scripts the forkchoice update that moves the safe labels, checking the heads it sends.
+    /// Scripts the forkchoice update that moves the heads, checking the heads it sends.
     fn expect_forkchoice_update(l2: &RpcMock, head: L2BlockInfo, safe: L2BlockInfo) {
         let state = alloy_rpc_types_engine::ForkchoiceState {
             head_block_hash: head.block_info.hash,
@@ -479,9 +448,50 @@ mod l1_reorg_reset_tests {
         );
     }
 
+    const FINALIZED: u64 = 5;
+    const UNSAFE: u64 = 40;
+    /// Older than every reorg in the tests that keep the unsafe head.
+    const UNSAFE_ORIGIN: u64 = 102;
+
+    /// Derivation's recent safe heads, newest first: L2 block 20 depends on L1 data up to block
+    /// 106, and L2 block 18 on L1 data up to block 103.
+    fn recent_safe_heads() -> [DerivedSafeHead; 2] {
+        [
+            DerivedSafeHead { safe_head: l2_block(20, 100), derived_from: l1_id(106, 0) },
+            DerivedSafeHead { safe_head: l2_block(18, 99), derived_from: l1_id(103, 0) },
+        ]
+    }
+
+    /// An engine with the given heads and finalized head [`FINALIZED`].
+    fn engine_at(
+        unsafe_head: L2BlockInfo,
+        safe_head: L2BlockInfo,
+    ) -> (Engine, Arc<EngineClient>, RpcMock, RpcMock, Arc<RollupConfig>) {
+        let mut config = RollupConfig::default();
+        config.hardforks.ecotone_time = Some(0);
+        let config = Arc::new(config);
+        let (client, l1, l2) = test_engine_client(config.clone());
+
+        let mut state = EngineState::default();
+        state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+            unsafe_head: Some(unsafe_head),
+            local_safe_head: Some(safe_head),
+            safe_head: Some(safe_head),
+            finalized_head: Some(l2_block(FINALIZED, 90)),
+        });
+        let (state_tx, _) = tokio::sync::watch::channel(state);
+        (Engine::new(state, state_tx), Arc::new(client), l1, l2, config)
+    }
+
+    /// An engine at the local safe head L2 block 20 and the unsafe head L2 block 40, whose L1
+    /// origin [`UNSAFE_ORIGIN`] every reorg below leaves canonical.
+    fn setup() -> (Engine, Arc<EngineClient>, RpcMock, RpcMock, Arc<RollupConfig>) {
+        engine_at(l2_block(UNSAFE, UNSAFE_ORIGIN), l2_block(20, 100))
+    }
+
     /// The reset keeps the newest recent safe head whose L1 block is canonical. Its lookups are
-    /// scripted in order: the unsafe head's L1 origin, each recent safe head's L1 block until one
-    /// is canonical, then that safe head on the engine's chain. Only the safe labels move, with a
+    /// scripted in order: each recent safe head's L1 block until one is canonical, that safe head
+    /// on the engine's chain, then the unsafe head's L1 origin. Only the safe labels move, with a
     /// forkchoice update only if they do; a cross-safe head already below the kept one stays.
     #[rstest]
     #[case::tip_reorg_keeps_the_safe_head(108, None, 20)]
@@ -493,7 +503,7 @@ mod l1_reorg_reset_tests {
         #[case] cross_safe: Option<u64>,
         #[case] kept: u64,
     ) {
-        let (mut engine, client, l1, l2, config) = setup(UNSAFE_ORIGIN);
+        let (mut engine, client, l1, l2, config) = setup();
         if let Some(cross_safe) = cross_safe {
             engine.state.sync_state = engine.state.sync_state.apply_update(EngineSyncStateUpdate {
                 safe_head: Some(l2_block(cross_safe, 98)),
@@ -507,12 +517,12 @@ mod l1_reorg_reset_tests {
             .find(|head| head.block_info.number == kept)
             .unwrap();
         let safe_after = if cross_safe.is_some() { before.safe_head() } else { kept };
-        expect_l1(&l1, UNSAFE_ORIGIN, reorg_height);
         expect_l1(&l1, 106, reorg_height);
         if reorg_height <= 106 {
             expect_l1(&l1, 103, reorg_height);
         }
         expect_l2(&l2, kept.block_info.number, kept.block_info.hash);
+        expect_l1(&l1, UNSAFE_ORIGIN, reorg_height);
         if kept != before.local_safe_head() {
             expect_forkchoice_update(&l2, before.unsafe_head(), safe_after);
         }
@@ -530,26 +540,17 @@ mod l1_reorg_reset_tests {
         l2.assert_finished();
     }
 
-    /// No recent safe head survives a reorg of every one's L1 block, and none is kept once the
-    /// unsafe head's L1 origin was replaced: there L2 block 20's L1 block 106 is still canonical.
-    #[rstest]
-    #[case::reorg_of_every_recent_safe_heads_l1_block(103, UNSAFE_ORIGIN, &[UNSAFE_ORIGIN, 106, 103])]
-    #[case::reorg_of_the_unsafe_heads_l1_origin(107, 107, &[107])]
+    /// No recent safe head survives a reorg of every one's L1 block.
     #[tokio::test]
-    async fn finds_no_safe_head_to_keep(
-        #[case] reorg_height: u64,
-        #[case] unsafe_origin: u64,
-        #[case] l1_lookups: &[u64],
-    ) {
-        let (engine, client, l1, l2, _) = setup(unsafe_origin);
-        for &number in l1_lookups {
-            expect_l1(&l1, number, reorg_height);
-        }
+    async fn finds_nothing_to_keep_when_every_recent_safe_heads_l1_block_was_replaced() {
+        let (engine, client, l1, l2, _) = setup();
+        expect_l1(&l1, 106, 103);
+        expect_l1(&l1, 103, 103);
 
-        let safe_head =
-            find_reorg_safe_head(&client, engine.state(), &recent_safe_heads()).await.unwrap();
+        let forkchoice =
+            find_reorg_forkchoice(&client, engine.state(), &recent_safe_heads()).await.unwrap();
 
-        assert_eq!(safe_head, None);
+        assert_eq!(forkchoice, None);
         l1.assert_finished();
         l2.assert_finished();
     }
@@ -565,8 +566,7 @@ mod l1_reorg_reset_tests {
         #[case] number: u64,
         #[case] engine_hash: Option<B256>,
     ) {
-        let (engine, client, l1, l2, _) = setup(UNSAFE_ORIGIN);
-        expect_l1(&l1, UNSAFE_ORIGIN, 108);
+        let (engine, client, l1, l2, _) = setup();
         expect_l1(&l1, 106, 108);
         if let Some(hash) = engine_hash {
             expect_l2(&l2, number, hash);
@@ -574,9 +574,158 @@ mod l1_reorg_reset_tests {
         let candidate =
             DerivedSafeHead { safe_head: l2_block(number, 99), derived_from: l1_id(106, 0) };
 
-        let safe_head = find_reorg_safe_head(&client, engine.state(), &[candidate]).await.unwrap();
+        let forkchoice =
+            find_reorg_forkchoice(&client, engine.state(), &[candidate]).await.unwrap();
 
-        assert_eq!(safe_head, None);
+        assert_eq!(forkchoice, None);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A real L2 chain from block 18 to block 26, so the unsafe walk can fetch and decode its
+    /// blocks. Blocks 18 to 20 have L1 origins 99, 100 and 100, blocks 21 to 24 have L1 origins
+    /// 101 to 104, and blocks 25 and the unsafe head 26 share L1 origin 105.
+    fn real_chain() -> Vec<(L2BlockInfo, L2RpcBlock)> {
+        let mut chain: Vec<(L2BlockInfo, L2RpcBlock)> = Vec::new();
+        for number in 18..=26 {
+            let origin = match number {
+                18 => 99,
+                19 | 20 => 100,
+                25 | 26 => 105,
+                n => 80 + n,
+            };
+            let info = L1BlockInfoBedrock::new(
+                origin,
+                0,
+                0,
+                l1_id(origin, 0).hash,
+                0,
+                Address::ZERO,
+                U256::ZERO,
+                U256::ZERO,
+            );
+            let deposit = op_alloy_consensus::OpTxEnvelope::Deposit(alloy_primitives::Sealed::new(
+                op_alloy_consensus::TxDeposit {
+                    input: info.encode_calldata(),
+                    ..Default::default()
+                },
+            ));
+            let header = alloy_consensus::Header {
+                number,
+                parent_hash: chain.last().map_or(B256::ZERO, |(parent, _)| parent.block_info.hash),
+                timestamp: number,
+                ..Default::default()
+            };
+            let consensus = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope> {
+                header: header.clone(),
+                body: alloy_consensus::BlockBody {
+                    transactions: vec![deposit.clone()],
+                    ..Default::default()
+                },
+            };
+            let block_info =
+                L2BlockInfo::from_block_and_genesis(&consensus, &RollupConfig::default().genesis)
+                    .unwrap();
+            let rpc = L2RpcBlock {
+                header: alloy_rpc_types_eth::Header {
+                    hash: block_info.block_info.hash,
+                    inner: header,
+                    ..Default::default()
+                },
+                transactions: alloy_rpc_types_eth::BlockTransactions::Full(vec![
+                    op_alloy_rpc_types::Transaction {
+                        inner: alloy_rpc_types_eth::Transaction {
+                            inner: alloy_consensus::transaction::Recovered::new_unchecked(
+                                deposit,
+                                Address::ZERO,
+                            ),
+                            block_hash: Some(block_info.block_info.hash),
+                            block_number: Some(number),
+                            effective_gas_price: Some(0),
+                            transaction_index: Some(0),
+                            block_timestamp: None,
+                        },
+                        deposit_nonce: None,
+                        deposit_receipt_version: None,
+                    },
+                ]),
+                ..Default::default()
+            };
+            chain.push((block_info, rpc));
+        }
+        chain
+    }
+
+    /// When the reorg replaced the unsafe head's L1 origin, the unsafe head moves back to the
+    /// highest block whose L1 origin is canonical, never below the kept safe head. Each walk step
+    /// fetches a parent by hash and checks its L1 origin, skipping an origin already found
+    /// replaced; the block just above the safe head is linked to it by its parent hash alone.
+    #[rstest]
+    #[case::tip_reorg(105, &[(20, 101), (18, 100)], 20, 24, &[101, 105, 104])]
+    #[case::deeper_reorg(103, &[(20, 101), (18, 100)], 20, 22, &[101, 105, 104, 103, 102])]
+    #[case::reorg_of_the_safe_heads_l1_data(
+        101, &[(20, 101), (18, 100)], 18, 20, &[101, 100, 105, 104, 103, 102, 101, 100]
+    )]
+    #[case::back_to_the_safe_head(101, &[(20, 100)], 20, 20, &[100, 105, 104, 103, 102, 101])]
+    #[tokio::test]
+    async fn reset_walks_the_unsafe_chain_back_to_a_canonical_l1_origin(
+        #[case] reorg_height: u64,
+        #[case] candidates: &[(u64, u64)],
+        #[case] kept: u64,
+        #[case] unsafe_after: u64,
+        #[case] l1_lookups: &[u64],
+    ) {
+        let chain = real_chain();
+        let block = |number: u64| chain.iter().find(|(info, _)| info.block_info.number == number);
+        let head = |number: u64| block(number).unwrap().0;
+        let (mut engine, client, l1, l2, config) = engine_at(head(26), head(20));
+        let candidates: Vec<_> = candidates
+            .iter()
+            .map(|&(safe_head, derived_from)| DerivedSafeHead {
+                safe_head: head(safe_head),
+                derived_from: l1_id(derived_from, 0),
+            })
+            .collect();
+        for &number in l1_lookups {
+            expect_l1(&l1, number, reorg_height);
+        }
+        expect_l2(&l2, kept, head(kept).block_info.hash);
+        for number in (unsafe_after.max(kept + 1)..26).rev() {
+            let (info, rpc) = block(number).unwrap();
+            l2.expect_params("eth_getBlockByHash", json!([info.block_info.hash, true]), rpc);
+        }
+        let safe_after = head(kept);
+        expect_forkchoice_update(&l2, head(unsafe_after), safe_after);
+
+        let safe_head = engine.reset_after_l1_reorg(client, config, &candidates).await.unwrap();
+
+        assert_eq!(safe_head, safe_after);
+        let after = engine.state().sync_state;
+        assert_eq!(after.unsafe_head(), head(unsafe_after));
+        assert_eq!(after.local_safe_head(), safe_after);
+        assert_eq!(after.safe_head(), safe_after);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// An unsafe chain that does not lead back to the kept safe head gives nothing to keep.
+    #[tokio::test]
+    async fn finds_nothing_to_keep_when_the_unsafe_chain_does_not_lead_to_the_safe_head() {
+        let chain = real_chain();
+        let head =
+            |number: u64| chain.iter().find(|(info, _)| info.block_info.number == number).unwrap();
+        let mut other_20 = head(20).0;
+        other_20.block_info.hash = B256::repeat_byte(0xaa);
+        let (engine, client, l1, l2, _) = engine_at(head(21).0, other_20);
+        expect_l1(&l1, 100, 101);
+        expect_l2(&l2, 20, other_20.block_info.hash);
+        expect_l1(&l1, 101, 101);
+
+        let candidate = DerivedSafeHead { safe_head: other_20, derived_from: l1_id(100, 0) };
+        let forkchoice =
+            find_reorg_forkchoice(&client, engine.state(), &[candidate]).await.unwrap();
+
+        assert_eq!(forkchoice, None);
         l1.assert_finished();
         l2.assert_finished();
     }
@@ -585,10 +734,9 @@ mod l1_reorg_reset_tests {
     /// the engine's finalized head.
     #[tokio::test]
     async fn falls_back_to_the_full_walk() {
-        let (mut engine, client, l1, l2, config) = setup(UNSAFE_ORIGIN);
-        for number in [UNSAFE_ORIGIN, 106, 103] {
-            expect_l1(&l1, number, 103);
-        }
+        let (mut engine, client, l1, l2, config) = setup();
+        expect_l1(&l1, 106, 103);
+        expect_l1(&l1, 103, 103);
         l2.expect_error("eth_getBlockByNumber");
 
         let err =
