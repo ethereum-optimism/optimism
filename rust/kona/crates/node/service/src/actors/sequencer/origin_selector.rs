@@ -235,6 +235,17 @@ impl DelayedL1OriginSelectorProvider {
     ) -> Self {
         Self { inner, l1_head, confirmation_depth }
     }
+
+    /// Whether a numbered origin is eligible at the latest observed L1 head.
+    fn is_confirmed(&self, number: u64) -> bool {
+        number == 0 ||
+            self.confirmation_depth == 0 ||
+            self.l1_head.borrow().is_some_and(|head| {
+                head.number
+                    .checked_sub(number)
+                    .is_some_and(|depth| depth >= self.confirmation_depth)
+            })
+    }
 }
 
 #[async_trait]
@@ -251,17 +262,7 @@ impl L1OriginSelectorProvider for DelayedL1OriginSelectorProvider {
         &self,
         number: u64,
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
-        let Some(l1_head) = *self.l1_head.borrow() else {
-            // If the L1 head is not available, do not enforce a confirmation delay.
-            return Ok(Provider::get_block_by_number(&self.inner, number.into())
-                .await?
-                .map(Into::into));
-        };
-
-        if number == 0 ||
-            self.confirmation_depth == 0 ||
-            number + self.confirmation_depth <= l1_head.number
-        {
+        if self.is_confirmed(number) {
             Ok(Provider::get_block_by_number(&self.inner, number.into()).await?.map(Into::into))
         } else {
             Ok(None)
@@ -275,6 +276,84 @@ mod test {
     use alloy_eips::NumHash;
     use rstest::rstest;
     use std::collections::HashSet;
+
+    #[rstest]
+    #[case::head_at_genesis(Some(0), 1, 1, false)]
+    #[case::unknown_positive(None, 2, 7, false)]
+    #[case::zero_depth(None, 0, 7, true)]
+    #[case::genesis(None, u64::MAX, 0, true)]
+    #[case::exact_boundary(Some(9), 2, 7, true)]
+    #[case::too_recent(Some(8), 2, 7, false)]
+    #[case::ahead_of_head(Some(6), 2, 7, false)]
+    #[case::large_eligible(Some(u64::MAX), 1, u64::MAX - 1, true)]
+    #[case::addition_would_overflow(Some(u64::MAX), 2, u64::MAX - 1, false)]
+    #[case::large_depth(Some(u64::MAX), u64::MAX, 1, false)]
+    #[tokio::test]
+    async fn numeric_origin_reads_require_the_configured_confirmations(
+        #[case] head: Option<u64>,
+        #[case] depth: u64,
+        #[case] number: u64,
+        #[case] eligible: bool,
+    ) {
+        use alloy_rpc_client::RpcClient;
+        use alloy_rpc_types_eth::{Block, BlockTransactions, Header};
+        use alloy_transport::mock::Asserter;
+
+        let block: Block = Block::new(
+            Header::new(alloy_consensus::Header { number, ..Default::default() }),
+            BlockTransactions::Hashes(vec![]),
+        );
+        let expected: BlockInfo = block.clone().into();
+        let responses = Asserter::new();
+        responses.push_success(&block);
+        let (_observations, state) =
+            watch::channel(head.map(|number| BlockInfo { number, ..Default::default() }));
+        let provider = DelayedL1OriginSelectorProvider::new(
+            RootProvider::new(RpcClient::mocked(responses.clone())),
+            state,
+            depth,
+        );
+
+        assert_eq!(
+            provider.get_block_by_number(number).await.unwrap(),
+            eligible.then_some(expected)
+        );
+        // Each real mock-transport RPC consumes one response; withheld reads consume none.
+        assert_eq!(responses.read_q().len(), usize::from(!eligible));
+    }
+
+    #[tokio::test]
+    async fn observed_head_enables_numeric_reads_without_delaying_current_origin_hash_reads() {
+        use alloy_rpc_client::RpcClient;
+        use alloy_rpc_types_eth::{Block, BlockTransactions, Header};
+        use alloy_transport::mock::Asserter;
+
+        let block: Block = Block::new(
+            Header::new(alloy_consensus::Header { number: 7, ..Default::default() }),
+            BlockTransactions::Hashes(vec![]),
+        );
+        let expected: BlockInfo = block.clone().into();
+        let responses = Asserter::new();
+        responses.push_success(&block);
+        let (observations, state) = watch::channel(None);
+        let provider = DelayedL1OriginSelectorProvider::new(
+            RootProvider::new(RpcClient::mocked(responses.clone())),
+            state,
+            2,
+        );
+
+        assert_eq!(provider.get_block_by_hash(expected.hash).await.unwrap(), Some(expected));
+        assert!(responses.read_q().is_empty());
+        responses.push_success(&block);
+        assert_eq!(provider.get_block_by_number(7).await.unwrap(), None);
+        assert_eq!(responses.read_q().len(), 1);
+        observations.send_replace(Some(BlockInfo { number: 8, ..Default::default() }));
+        assert_eq!(provider.get_block_by_number(7).await.unwrap(), None);
+        assert_eq!(responses.read_q().len(), 1);
+        observations.send_replace(Some(BlockInfo { number: 9, ..Default::default() }));
+        assert_eq!(provider.get_block_by_number(7).await.unwrap(), Some(expected));
+        assert!(responses.read_q().is_empty());
+    }
 
     /// A mock [`OriginSelectorProvider`] with a local set of [`BlockInfo`]s available.
     #[derive(Default, Debug, Clone)]
