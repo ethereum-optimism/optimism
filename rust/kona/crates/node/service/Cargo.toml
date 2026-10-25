@@ -29,6 +29,7 @@ kona-rpc = { workspace = true, features = ["client"] }
 kona-peers.workspace = true
 
 # alloy
+alloy-consensus.workspace = true
 alloy-chains.workspace = true
 alloy-signer.workspace = true
 alloy-signer-local.workspace = true

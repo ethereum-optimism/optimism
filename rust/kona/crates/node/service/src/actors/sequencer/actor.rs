@@ -476,11 +476,15 @@ where
         let l1_origin = match self.origin_selector.next_l1_origin(unsafe_head, recovery_mode).await
         {
             Ok(l1_origin) => l1_origin,
-            Err(L1OriginSelectorError::OriginNotFound(hash)) => {
+            Err(L1OriginSelectorError::Closed) => return Err(SequencerActorError::ChannelClosed),
+            Err(
+                err @ (L1OriginSelectorError::OriginNotFound(_) |
+                L1OriginSelectorError::NextOriginOrphaned),
+            ) => {
                 warn!(
                     target: "sequencer",
-                    %hash,
-                    "L1 origin block not found, resetting engine"
+                    ?err,
+                    "L1 origin is missing or orphaned, resetting engine"
                 );
                 self.engine_client.reset_engine_forkchoice().await?;
                 return Ok(None);
