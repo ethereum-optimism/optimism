@@ -10,7 +10,7 @@ mod error;
 pub use error::SyncStartError;
 
 mod reorg;
-pub use reorg::{DerivedSafeHead, find_reorg_safe_head};
+pub use reorg::{DerivedSafeHead, find_reorg_forkchoice};
 
 use tracing::info;
 

@@ -12,7 +12,7 @@ const MAX_ENTRIES: usize = 64;
 /// The safe heads derivation produced from the most recent L1 blocks, each with an L1 block that
 /// all of the L1 data it depends on is at or below. After an L1 reorg, the engine keeps the newest
 /// one whose L1 block the reorg left canonical, instead of rewinding a full sequencing window;
-/// see [`kona_engine::find_reorg_safe_head`].
+/// see [`kona_engine::find_reorg_forkchoice`].
 ///
 /// This is kept in memory whether or not the safe head database is enabled, and is bounded to
 /// the depth an L1 reorg can plausibly reach.

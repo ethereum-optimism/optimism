@@ -75,7 +75,7 @@ pub use metrics::Metrics;
 
 mod sync;
 pub use sync::{
-    DerivedSafeHead, L2ForkchoiceState, SyncStartError, find_reorg_safe_head,
+    DerivedSafeHead, L2ForkchoiceState, SyncStartError, find_reorg_forkchoice,
     find_starting_forkchoice,
 };
 
