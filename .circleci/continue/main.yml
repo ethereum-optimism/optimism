@@ -2420,8 +2420,9 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
-      # The recipe downloads every pinned forge release archive, so run it only when the
-      # forge package or the recipe changes. check-changed also matches mise.toml.
+      # The recipe downloads every pinned forge release archive, so skip it on PRs that change
+      # neither the forge package nor the recipe. check-changed also runs it on develop and when
+      # mise.toml or the CI config changes.
       - check-changed:
           patterns: op-deployer/pkg/deployer/forge,op-deployer/justfile
           no_go_deps: "true"
