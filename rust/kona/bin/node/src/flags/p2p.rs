@@ -100,7 +100,8 @@ pub struct P2PArgs {
     /// TCP port to bind `LibP2P` to. Any available system port if set to 0.
     #[arg(long = "p2p.listen.tcp", default_value = "9222", env = "KONA_NODE_P2P_LISTEN_TCP_PORT")]
     pub listen_tcp_port: u16,
-    /// UDP port to bind Discv5 to. Same as TCP port if left 0.
+    /// UDP port to bind Discv5 to. Any available system port if set to 0, which then cannot be
+    /// combined with `p2p.advertise.udp`.
     #[arg(long = "p2p.listen.udp", default_value = "9223", env = "KONA_NODE_P2P_LISTEN_UDP_PORT")]
     pub listen_udp_port: u16,
     /// Low-tide peer count. The node actively searches for new peer connections if below this
@@ -367,7 +368,8 @@ impl P2PArgs {
         let static_ip = self.advertise_ip.is_some();
 
         let advertise_tcp_port = advertised_port(self.advertise_tcp_port, self.listen_tcp_port);
-        let advertise_udp_port = advertised_port(self.advertise_udp_port, self.listen_udp_port);
+        // Discovery advertises the port it listens on for 0, see `Discv5Builder::build`.
+        let advertise_udp_port = self.advertise_udp_port.unwrap_or_default();
 
         let keypair = self.keypair().unwrap_or_else(|e| {
             let generated = Keypair::generate_secp256k1();
