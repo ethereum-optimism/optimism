@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/rpc"
-
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
@@ -48,7 +48,7 @@ printf '== Return ==\n0: bytes 0x\n'
 	key, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	privateKey := hexutil.Encode(crypto.FromECDSA(key))
-	env := &ForgeEnv{Client: client, Context: context.Background(), L1RPCUrl: newTipRPC(t, big.NewInt(1)), PrivateKey: privateKey}
+	env := &ForgeEnv{Client: client, Context: context.Background(), L1RPCUrl: newFeeRPC(t, big.NewInt(1), big.NewInt(300_000_000)), PrivateKey: privateKey}
 	require.NoError(t, SetDisputeGameImpl(env, SetDisputeGameImplInput{
 		Factory:             common.Address{'F'},
 		Impl:                common.Address{'I'},
@@ -63,6 +63,8 @@ printf '== Return ==\n0: bytes 0x\n'
 	require.Contains(t, string(args), "--broadcast")
 	require.Contains(t, string(args), "--priority-gas-price 1000000000",
 		"a suggested tip of 1 wei is raised to 1 gwei, so that the node includes the transaction")
+	require.Contains(t, string(args), "--with-gas-price 3000000000",
+		"the fee cap is twice the base fee plus the tip, so that it is not below the tip, with a base fee of at least 1 gwei")
 
 	keyJSON, err := os.ReadFile(filepath.Join(record, "keystore"))
 	require.NoError(t, err)
@@ -74,10 +76,11 @@ printf '== Return ==\n0: bytes 0x\n'
 	require.Equal(t, crypto.FromECDSA(key), crypto.FromECDSA(decrypted.PrivateKey))
 }
 
-// newTipRPC returns the URL of an RPC server that suggests tip as the priority fee.
-func newTipRPC(t *testing.T, tip *big.Int) string {
+// newFeeRPC returns the URL of an RPC server that suggests tip as the priority fee, and whose latest
+// block has baseFee.
+func newFeeRPC(t *testing.T, tip, baseFee *big.Int) string {
 	server := rpc.NewServer()
-	require.NoError(t, server.RegisterName("eth", &tipAPI{tip: tip}))
+	require.NoError(t, server.RegisterName("eth", &feeAPI{tip: tip, baseFee: baseFee}))
 	httpServer := httptest.NewServer(server)
 	t.Cleanup(func() {
 		httpServer.Close()
@@ -86,10 +89,15 @@ func newTipRPC(t *testing.T, tip *big.Int) string {
 	return httpServer.URL
 }
 
-type tipAPI struct {
-	tip *big.Int
+type feeAPI struct {
+	tip     *big.Int
+	baseFee *big.Int
 }
 
-func (a *tipAPI) MaxPriorityFeePerGas() *hexutil.Big {
+func (a *feeAPI) MaxPriorityFeePerGas() *hexutil.Big {
 	return (*hexutil.Big)(a.tip)
+}
+
+func (a *feeAPI) GetBlockByNumber(number string, fullTx bool) *types.Header {
+	return &types.Header{Number: new(big.Int), Difficulty: new(big.Int), BaseFee: a.baseFee}
 }

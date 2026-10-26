@@ -80,12 +80,12 @@ func runScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I
 			return out, err
 		}
 		defer keystore.close()
-		tip, err := priorityFee(ctx, env.L1RPCUrl)
+		tip, feeCap, err := broadcastFees(ctx, env.L1RPCUrl)
 		if err != nil {
 			return out, err
 		}
 		flags = append(flags, "--broadcast", "--keystore", keystore.path, "--password-file", keystore.passwordPath,
-			"--priority-gas-price", tip.String())
+			"--priority-gas-price", tip.String(), "--with-gas-price", feeCap.String())
 	default:
 		return out, errors.New("private key is required for Forge deployments")
 	}
@@ -93,26 +93,46 @@ func runScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I
 	return out, err
 }
 
-// minPriorityFee is the least priority fee that a broadcast offers, as txmgr's MinTipCap. forge
-// takes a percentile of the tips in recent blocks, which is a few wei on an L1 with empty blocks,
-// and geth does not include a transaction with such a tip.
+// minPriorityFee is the least priority fee that a broadcast offers, as the MinTipCap of op-deployer's
+// txmgr. forge takes a percentile of the tips in recent blocks, which is a few wei on an L1 with
+// empty blocks, and geth does not include a transaction with such a tip.
 var minPriorityFee = big.NewInt(params.GWei)
 
-// priorityFee returns the priority fee that the L1 at rpcURL suggests, but at least minPriorityFee.
-func priorityFee(ctx context.Context, rpcURL string) (*big.Int, error) {
+// minBaseFee is the least base fee that the fee cap of a broadcast allows for, as the MinBaseFee of
+// op-deployer's txmgr. forge does not bump the fee of a stuck transaction, so on an L1 with a low
+// base fee the cap keeps room for a rise.
+var minBaseFee = big.NewInt(params.GWei)
+
+// broadcastFees returns the priority fee and the fee cap of a broadcast to the L1 at rpcURL: the
+// suggested priority fee, but at least minPriorityFee, and a fee cap of twice the base fee, but at
+// least minBaseFee, plus the priority fee, as txmgr's calcGasFeeCap. forge's own fee cap is computed
+// from its own tip, so it can be below minPriorityFee.
+func broadcastFees(ctx context.Context, rpcURL string) (*big.Int, *big.Int, error) {
 	client, err := ethclient.DialContext(ctx, rpcURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to the L1: %w", err)
+		return nil, nil, fmt.Errorf("failed to connect to the L1: %w", err)
 	}
 	defer client.Close()
 	tip, err := client.SuggestGasTipCap(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read the suggested priority fee: %w", err)
+		return nil, nil, fmt.Errorf("failed to read the suggested priority fee: %w", err)
 	}
 	if tip.Cmp(minPriorityFee) < 0 {
-		return new(big.Int).Set(minPriorityFee), nil
+		tip = new(big.Int).Set(minPriorityFee)
 	}
-	return tip, nil
+	head, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read the latest L1 block: %w", err)
+	}
+	if head.BaseFee == nil {
+		return nil, nil, errors.New("the latest L1 block has no base fee")
+	}
+	baseFee := head.BaseFee
+	if baseFee.Cmp(minBaseFee) < 0 {
+		baseFee = minBaseFee
+	}
+	feeCap := new(big.Int).Add(tip, new(big.Int).Mul(baseFee, big.NewInt(2)))
+	return tip, feeCap, nil
 }
 
 // forgeKeystore holds a deployer key for one forge run, in a keystore encrypted with a random
