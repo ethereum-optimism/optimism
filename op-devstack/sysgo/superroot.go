@@ -235,7 +235,7 @@ func migrateSuperRootsWithProposal(
 	migrateCallData, err := migrateCall.Pack()
 	require.NoError(err)
 
-	_, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
+	l1PAOKey := l1ProxyAdminOwnerKey(t, keys, l1ChainID)
 
 	t.Log("Executing OPCM migration via SetCode delegatecall")
 	delegateCallWithSetCode(t, l1PAOKey, client, migration.opcmImpl, migrateCallData)

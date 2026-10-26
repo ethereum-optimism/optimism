@@ -1,14 +1,10 @@
-package embedded
+package opcm
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/lmittmann/w3"
 )
@@ -38,25 +34,10 @@ var (
 	// This is used to encode the ZK dispute game config for the upgrade input
 	zkEncoder = w3.MustNewFunc("dummy((bytes32 absolutePrestate,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))", "")
 
-	// This is used to encode the upgrade input for the upgrade input
-	upgradeInputEncoder = w3.MustNewFunc("dummy((address systemConfig,(bool enabled,uint256 initBond,uint32 gameType,bytes gameArgs)[] disputeGameConfigs,(string key,bytes data)[] extraInstructions))",
+	// upgradeFn is OPContractsManagerV2.upgrade.
+	upgradeFn = w3.MustNewFunc("upgrade((address systemConfig,(bool enabled,uint256 initBond,uint32 gameType,bytes gameArgs)[] disputeGameConfigs,(string key,bytes data)[] extraInstructions))",
 		"")
 )
-
-// ScriptInput represents the input struct that is actually passed to the script.
-// It contains the prank, opcm, and upgrade input.
-type ScriptInput struct {
-	Prank        common.Address `evm:"prank"`
-	Opcm         common.Address `evm:"opcm"`
-	UpgradeInput []byte         `evm:"upgradeInput"`
-}
-
-// UpgradeOPChainInput represents the struct that is read from the config file.
-type UpgradeOPChainInput struct {
-	Prank          common.Address  `json:"prank"`
-	Opcm           common.Address  `json:"opcm"`
-	UpgradeInputV2 *UpgradeInputV2 `json:"upgradeInput,omitempty"`
-}
 
 // UpgradeInputV2 represents the upgrade input for OPCM v2.
 type UpgradeInputV2 struct {
@@ -126,15 +107,14 @@ type EncodableDisputeGameConfig struct {
 	GameArgs []byte
 }
 
-// EncodedUpgradeInputV2 encodes the upgrade input, assumes UpgradeInputV2 is not nil
-func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
-
-	encodableConfigs := make([]EncodableDisputeGameConfig, len(u.UpgradeInputV2.DisputeGameConfigs))
+// UpgradeCalldata returns the calldata of OPContractsManagerV2.upgrade with this input.
+func (u *UpgradeInputV2) UpgradeCalldata() ([]byte, error) {
+	encodableConfigs := make([]EncodableDisputeGameConfig, len(u.DisputeGameConfigs))
 
 	// Validate and encode each game config.
 	// We iterate over the game configs in the upgrade input config and encode them into the encodable configs.
 	// We return an error if a game config is not valid.
-	for i, gameConfig := range u.UpgradeInputV2.DisputeGameConfigs {
+	for i, gameConfig := range u.DisputeGameConfigs {
 		var gameArgs []byte
 		var err error
 
@@ -220,53 +200,14 @@ func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
 
 	// Create encodable input
 	encodableInput := EncodableUpgradeInput{
-		SystemConfig:       u.UpgradeInputV2.SystemConfig,
+		SystemConfig:       u.SystemConfig,
 		DisputeGameConfigs: encodableConfigs,
-		ExtraInstructions:  u.UpgradeInputV2.ExtraInstructions,
+		ExtraInstructions:  u.ExtraInstructions,
 	}
 
-	data, err := upgradeInputEncoder.EncodeArgs(encodableInput)
+	data, err := upgradeFn.EncodeArgs(encodableInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode upgrade input: %w", err)
 	}
-
-	return data[4:], nil
+	return data, nil
 }
-
-type UpgradeOPChain struct {
-	Run func(input common.Address)
-}
-
-func Upgrade(host *script.Host, input UpgradeOPChainInput) error {
-	if input.UpgradeInputV2 == nil {
-		return fmt.Errorf("UpgradeInputV2 is required")
-	}
-
-	encodedUpgradeInput, err := input.EncodedUpgradeInputV2()
-	if err != nil {
-		return err
-	}
-
-	scriptInput := ScriptInput{
-		Prank:        input.Prank,
-		Opcm:         input.Opcm,
-		UpgradeInput: encodedUpgradeInput,
-	}
-	return opcm.RunScriptVoid[ScriptInput](host, scriptInput, "UpgradeOPChain.s.sol", "UpgradeOPChain")
-}
-
-type Upgrader struct{}
-
-func (u *Upgrader) Upgrade(host *script.Host, input json.RawMessage) error {
-	var upgradeInput UpgradeOPChainInput
-	if err := json.Unmarshal(input, &upgradeInput); err != nil {
-		return fmt.Errorf("failed to unmarshal input: %w", err)
-	}
-	return Upgrade(host, upgradeInput)
-}
-
-func (u *Upgrader) ArtifactsURL() string {
-	return artifacts.EmbeddedLocatorString
-}
-
-var DefaultUpgrader = new(Upgrader)

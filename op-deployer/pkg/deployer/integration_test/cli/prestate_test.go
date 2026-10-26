@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -113,11 +113,11 @@ func writePreparedPrestateCLIWorkdir(t *testing.T) (string, common.Hash) {
 		Proposer:          role,
 		Challenger:        role,
 	}
-	chain.DeployOverrides = map[string]any{"respectedGameType": embedded.GameTypeCannonKona}
+	chain.DeployOverrides = map[string]any{"respectedGameType": opcm.GameTypeCannonKona}
 
 	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
 	require.NoError(t, err)
-	initialGameType := uint32(embedded.GameTypeCannonKona)
+	initialGameType := uint32(opcm.GameTypeCannonKona)
 	deployed := false
 	superchainConfig := common.Address{0x02}
 	st := &state.State{
