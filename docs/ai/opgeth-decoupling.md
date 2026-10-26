@@ -557,9 +557,11 @@ Invariants:
   host's state roots on reference intents before the switch; the differential test went with the
   Go host. forge still reproduces Go-host quirks (chain ID 1337 for genesis scripts, the CREATE2
   deployer at nonce 0). Genesis-output changes happen in a separate, deliberate change (#23309).
-- **No runtime recompile.** forge runs `--offline` against a prebuilt bundle; op-deployer fails if
-  forge compiles. Recompiles break the `prepare`→`continue` bundle digest and cannot run in the
-  alpine image (no solc).
+- **No runtime recompile.** forge runs against a prebuilt bundle; op-deployer stops forge when it
+  starts to compile. Recompiles break the `prepare`→`continue` bundle digest. forge still reads the
+  bundle's sources to check its compile cache, so CI jobs that run op-deployer from the checkout need
+  the `lib/` submodules. Not `--offline`: offline, forge requires the solc versions installed even
+  when it compiles nothing.
 - **One contracts release per op-deployer release.** The forge path requires bundles with the
   `runWithBytes` entrypoints; a preflight fails fast on a mismatched bundle.
 - **forge (and anvil, for `continue`) is a runtime dependency.** Shipped in the op-deployer image;

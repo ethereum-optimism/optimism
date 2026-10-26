@@ -138,10 +138,11 @@ func (c *Client) Clean(ctx context.Context, opts ...string) error {
 // compileCacheFile is forge's compile cache, relative to the project.
 const compileCacheFile = "cache/solidity-files-cache.json"
 
-// RunScript runs a script of the project, offline and without a compile: the project must hold the
-// compiled scripts and their compile cache. The run gets its own copy of the compile cache and its
-// own broadcast directory, so concurrent runs in one project write no shared file, and the run
-// leaves nothing in the project.
+// RunScript runs a script of the project without a compile: the project must hold the sources, the
+// compiled scripts and their compile cache. The run is not --offline: offline, forge requires the
+// solc versions of the cache installed even when it compiles nothing. The run gets its own copy of
+// the compile cache and its own broadcast directory, so concurrent runs in one project write no
+// shared file, and the run leaves nothing in the project.
 func (c *Client) RunScript(ctx context.Context, script string, sig string, args []byte, opts ...string) (string, error) {
 	scratch, err := os.MkdirTemp("", "op-deployer-forge-")
 	if err != nil {
@@ -154,7 +155,7 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	}
 
 	buf := new(bytes.Buffer)
-	cliOpts := []string{"script", "--offline", "--cache-path", cacheDir}
+	cliOpts := []string{"script", "--cache-path", cacheDir}
 	cliOpts = append(cliOpts, opts...)
 	// A broadcast sends one transaction at a time, and waits for its receipt before it sends the
 	// next. forge otherwise waits forever on the receipt of a transaction that raced an in-flight one

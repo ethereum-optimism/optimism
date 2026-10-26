@@ -38,6 +38,7 @@ OP Deployer runs forge in three ways:
     deployer, without its key. `continue` then checks the simulated transactions and the resulting contracts before it
     sends the same transactions to the L1.
 
-OP Deployer never compiles the contracts. It runs forge offline against the compiled bundle, and stops with an error if
-forge would compile, because a compile could change the deployed bytecode. Each forge run uses its own copy of the
-compile cache and its own broadcast directory, so that concurrent runs on one bundle do not interfere.
+OP Deployer never compiles the contracts. It runs forge against the compiled bundle, and stops with an error if forge
+starts to compile, because a compile could change the deployed bytecode. So the runs need no solc compiler. Each forge
+run uses its own copy of the compile cache and its own broadcast directory, so that concurrent runs on one bundle do not
+interfere.
