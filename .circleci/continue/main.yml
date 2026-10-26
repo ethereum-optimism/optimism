@@ -1945,6 +1945,9 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      # op-deployer/pkg/deployer/forge's tests compile a test project with forge. Without
+      # an installed solc, forge downloads the newest matching release on every run.
+      - install-solc-compilers
       - run:
           name: Configure op-reth binary paths
           command: |
@@ -2417,6 +2420,12 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      # The recipe downloads every pinned forge release archive, so run it only when the
+      # forge package or the recipe changes. check-changed also matches mise.toml.
+      - check-changed:
+          patterns: op-deployer/pkg/deployer/forge,op-deployer/justfile
+          no_go_deps: "true"
+      - restore-go-mod-cache
       - run:
           command: just check-forge-version
           working_directory: op-deployer
@@ -2640,6 +2649,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - op-deployer-forge-version:
+          requires:
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
       - semgrep-scan:
