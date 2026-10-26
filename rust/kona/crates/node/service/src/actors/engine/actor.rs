@@ -156,9 +156,14 @@ where
     /// Publishes the current unsafe head to the sequencer without waiting on derivation.
     fn publish_unsafe_head(&self) {
         if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
-            unsafe_head_tx.send_if_modified(|val| {
+            unsafe_head_tx.send_if_modified(|current_head| {
                 let new_head = self.engine.state().sync_state.unsafe_head();
-                (*val != new_head).then(|| *val = new_head).is_some()
+                if *current_head == new_head {
+                    false
+                } else {
+                    *current_head = new_head;
+                    true
+                }
             });
         }
     }
