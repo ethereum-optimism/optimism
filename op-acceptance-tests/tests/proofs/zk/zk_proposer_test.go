@@ -429,6 +429,44 @@ func TestProposerProvesChunkAgreeingOnReplacedBlockInside(gt *testing.T) {
 	requireProvenReadingReplacedAgreedOutput(t, proposer, game, hidden)
 }
 
+// TestProposerProvesPastReplacedBlockNoop covers replacement, the following idle
+// timestamp, and the next advancing block on a two-second chain.
+func TestProposerProvesPastReplacedBlockNoop(gt *testing.T) {
+	for _, testCase := range []struct {
+		name         string
+		agreedOffset uint64
+	}{
+		{"replacement_in_span", 1},
+		{"replacement_at_agreed", 0},
+	} {
+		gt.Run(testCase.name, func(gt *testing.T) {
+			t := devtest.ParallelT(gt)
+			sys, hidden := newReplacedBlockSystem(t,
+				presets.WithL2BlockTimes(map[eth.ChainID]uint64{sysgo.DefaultL2AID: 1, sysgo.DefaultL2BID: 2}),
+				presets.WithZKProposerOption(sysgo.WithZKRangeSplitCount(1)),
+			)
+			execTimestamp := sendDeniedMessage(t, sys, hidden)
+			sys.SuperRoots.AwaitValidatedTimestamp(execTimestamp + 2)
+			atNoop := sys.SuperRoots.SuperRootAtTimestamp(execTimestamp + 1)
+			t.Require().NotNil(atNoop.Data)
+			superV1, ok := atNoop.Data.Super.(*eth.SuperV1)
+			t.Require().True(ok)
+			chainB := slices.IndexFunc(superV1.Chains, func(c eth.ChainIDAndOutput) bool {
+				return c.ChainID.Cmp(sys.L2ChainB.ChainID()) == 0
+			})
+			t.Require().NotEqual(-1, chainB)
+			t.Require().Equal(superV1.Chains[chainB].Output,
+				atNoop.OptimisticAtTimestamp[sys.L2ChainB.ChainID()].OutputRoot,
+				"the no-op optimistic output must be the canonical replacement")
+			parentTimestamp := execTimestamp - testCase.agreedOffset
+			proposer, game := startProposerOnForeignGame(t, sys, parentTimestamp)
+			t.Require().GreaterOrEqual(game.L2SequenceNumber(), execTimestamp+2,
+				"the proof must include the no-op and the next advancing block")
+			requireProvenReadingReplacedAgreedOutput(t, proposer, game, hidden)
+		})
+	}
+}
+
 // startProposerOnForeignGame starts a foreign game that claims parentTimestamp,
 // then the proposer, and returns the proposer and its game on the foreign one.
 func startProposerOnForeignGame(t devtest.T, sys *presets.SimpleInterop, parentTimestamp uint64) (*zkproposer.ZKProposer, *proofs.ZKGame) {
