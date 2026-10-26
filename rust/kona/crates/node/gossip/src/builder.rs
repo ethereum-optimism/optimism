@@ -32,7 +32,8 @@ pub enum GossipTransport {
     /// A transport built by the caller, such as an in-memory one in tests.
     ///
     /// The connection gater cannot apply IP and subnet blocks to addresses without an IP, such as
-    /// `/memory` ones. With this transport it lets them through, leaving them to the transport.
+    /// `/memory` ones. With this transport it dials them after its other checks, such as blocked
+    /// peers, leaving the rest to the transport.
     Other(TransportBuilder),
 }
 

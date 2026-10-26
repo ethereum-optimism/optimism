@@ -83,8 +83,8 @@ pub struct ConnectionGater {
     pub blocked_subnets: HashSet<IpNet>,
     /// Whether addresses without an IP or DNS name may be dialed.
     ///
-    /// IP and subnet blocks cannot apply to them, so they are only allowed for a
-    /// [`crate::GossipTransport::Other`] transport, which is responsible for them.
+    /// The checks on the peer ID still apply to them, but IP and subnet blocks cannot, so they
+    /// are only allowed for a [`crate::GossipTransport::Other`] transport.
     allow_addrs_without_ip: bool,
 }
 
@@ -216,6 +216,52 @@ impl ConnectionGater {
         }
         false
     }
+
+    /// Returns the IP address to check before dialing `addr`, either its own or the one its DNS
+    /// name resolves to.
+    ///
+    /// Returns `None` when there is no IP to check: DNS resolution failed, which libp2p handles
+    /// when it dials, or the address has no IP and a custom transport is allowed to dial it.
+    fn ip_to_check(&self, addr: &Multiaddr) -> Result<Option<IpAddr>, DialError> {
+        match Self::try_resolve_dns(addr) {
+            Some(Ok(ip)) => {
+                debug!(target: "gossip", peer=?addr, resolved_ip=?ip, "Resolved DNS multiaddr");
+                Ok(Some(ip))
+            }
+            Some(Err(())) => {
+                debug!(target: "gossip", peer=?addr, "DNS resolution failed, allowing dial");
+                Ok(None)
+            }
+            None => match Self::ip_from_addr(addr) {
+                Some(ip) => Ok(Some(ip)),
+                None if self.allow_addrs_without_ip => Ok(None),
+                None => {
+                    warn!(target: "p2p", peer=?addr, "Failed to extract IpAddr from Multiaddr");
+                    Err(DialError::InvalidIpAddress { addr: addr.clone() })
+                }
+            },
+        }
+    }
+
+    /// Checks the IP address of `addr` against the blocked addresses and subnets.
+    fn check_ip(&mut self, addr: &Multiaddr, peer_id: PeerId, ip: IpAddr) -> Result<(), DialError> {
+        // If the address is blocked, do not dial.
+        if self.blocked_addrs.contains(&ip) {
+            debug!(target: "gossip", peer=?addr, "Address is blocked, not dialing");
+            self.connectedness.insert(peer_id, Connectedness::CannotConnect);
+            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_address");
+            return Err(DialError::AddressBlocked { ip });
+        }
+
+        // If address lies in any blocked subnets, do not dial.
+        if self.check_ip_in_blocked_subnets(&ip) {
+            debug!(target: "gossip", ip=?ip, "IP address is in a blocked subnet, not dialing");
+            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_subnet");
+            return Err(DialError::SubnetBlocked { ip });
+        }
+
+        Ok(())
+    }
 }
 
 impl ConnectionGate for ConnectionGater {
@@ -253,42 +299,9 @@ impl ConnectionGate for ConnectionGater {
             return Err(DialError::PeerBlocked { peer_id });
         }
 
-        // Get IP address - either directly from multiaddr or by resolving DNS.
-        let ip_addr = match Self::try_resolve_dns(addr) {
-            Some(Ok(ip)) => {
-                debug!(target: "gossip", peer=?addr, resolved_ip=?ip, "Resolved DNS multiaddr");
-                ip
-            }
-            Some(Err(())) => {
-                // DNS resolution failed - allow the dial, libp2p will handle it.
-                debug!(target: "gossip", peer=?addr, "DNS resolution failed, allowing dial");
-                return Ok(());
-            }
-            None => match Self::ip_from_addr(addr) {
-                Some(ip) => ip,
-                // A custom transport may dial addresses without an IP, which IP and subnet blocks
-                // cannot apply to.
-                None if self.allow_addrs_without_ip => return Ok(()),
-                None => {
-                    warn!(target: "p2p", peer=?addr, "Failed to extract IpAddr from Multiaddr");
-                    return Err(DialError::InvalidIpAddress { addr: addr.clone() });
-                }
-            },
-        };
-
-        // If the address is blocked, do not dial.
-        if self.blocked_addrs.contains(&ip_addr) {
-            debug!(target: "gossip", peer=?addr, "Address is blocked, not dialing");
-            self.connectedness.insert(peer_id, Connectedness::CannotConnect);
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_address");
-            return Err(DialError::AddressBlocked { ip: ip_addr });
-        }
-
-        // If address lies in any blocked subnets, do not dial.
-        if self.check_ip_in_blocked_subnets(&ip_addr) {
-            debug!(target: "gossip", ip=?ip_addr, "IP address is in a blocked subnet, not dialing");
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_subnet");
-            return Err(DialError::SubnetBlocked { ip: ip_addr });
+        // Checks on the IP address only apply to addresses that have one.
+        if let Some(ip) = self.ip_to_check(addr)? {
+            self.check_ip(addr, peer_id, ip)?;
         }
 
         Ok(())
