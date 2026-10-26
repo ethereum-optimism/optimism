@@ -161,6 +161,7 @@ async fn local_override_retries_a_rejected_block_without_another_conductor_commi
     conductor.expect_commit_unsafe_payload().times(1).return_once(|_| {
         Err(crate::actors::ConductorError::Rpc(RpcError::local_usage_str("quorum unavailable")))
     });
+    conductor.expect_leader().times(1).return_once(|| Ok(false));
     let (mut actor, _) = test_actor_with_config(true, false, Some(conductor));
     actor.started = true;
     actor.in_flight = Some(InFlightBlock::Building(pending_handle()));
@@ -199,7 +200,7 @@ async fn local_override_retries_a_rejected_block_without_another_conductor_commi
 
     tick(&mut actor).await;
     assert!(matches!(actor.in_flight, Some(InFlightBlock::Building(_))));
-    actor.override_leader().unwrap();
+    actor.override_leader().await.unwrap();
     tick(&mut actor).await;
     assert!(actor.in_flight.is_none());
     assert!(actor.admin_state_receiver().borrow().conductor_enabled);

@@ -267,15 +267,25 @@ where
     }
 
     /// Bypasses conductor leadership checks and commits locally until node restart.
-    fn override_leader(&mut self) -> Result<(), SequencerAdminAPIError> {
+    async fn override_leader(&mut self) -> Result<(), SequencerAdminAPIError> {
         if !self.state().conductor_enabled {
             return Err(SequencerAdminAPIError::LeaderOverrideError(
                 "No conductor configured".to_string(),
             ));
         }
 
-        self.conductor = None;
-        info!(target: "sequencer", "Locally overrode conductor leadership");
+        // Record the conductor's view of leadership for operators, but never let the override
+        // depend on it: during disaster recovery the conductor is often unreachable.
+        let conductor_leader = match self.conductor.take() {
+            Some(conductor) => conductor.leader().await.map_err(|err| err.to_string()),
+            None => Err("leadership already overridden".to_string()),
+        };
+        warn!(
+            target: "sequencer",
+            local_leader = true,
+            ?conductor_leader,
+            "Locally overrode conductor leadership"
+        );
         Ok(())
     }
 
@@ -669,7 +679,7 @@ where
                         let _ = tx.send(Ok(()));
                     }
                     SequencerAdminCommand::OverrideLeader(tx) => {
-                        let _ = tx.send(self.override_leader());
+                        let _ = tx.send(self.override_leader().await);
                     }
                 }
 

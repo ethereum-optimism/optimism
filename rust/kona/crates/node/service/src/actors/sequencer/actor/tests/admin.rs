@@ -255,7 +255,15 @@ async fn set_recovery_mode(
 #[case::configured(true)]
 #[tokio::test(start_paused = true)]
 async fn override_leader_is_local_and_idempotent(#[case] configured: bool) {
-    let conductor = configured.then(MockConductor::new);
+    // The override only logs the conductor's view of leadership: an unreachable conductor must
+    // not fail it, and a repeated override must not query the conductor again.
+    let conductor = configured.then(|| {
+        let mut conductor = MockConductor::new();
+        conductor.expect_leader().times(1).return_once(|| {
+            Err(ConductorError::Rpc(RpcError::local_usage_str("conductor unavailable")))
+        });
+        conductor
+    });
     let (mut actor, commands) = admin_actor(true, false, conductor);
     let state = actor.admin_state_receiver();
     for _ in 0..2 {
@@ -277,7 +285,7 @@ async fn override_leader_is_local_and_idempotent(#[case] configured: bool) {
 #[tokio::test(start_paused = true)]
 async fn local_override_bypasses_leadership_but_still_checks_the_start_head() {
     let mut conductor = MockConductor::new();
-    conductor.expect_leader().times(1).return_once(|| Ok(false));
+    conductor.expect_leader().times(2).returning(|| Ok(false));
     let (mut actor, commands) = admin_actor(false, false, Some(conductor));
     let head = B256::repeat_byte(42);
     actor.engine_client.expect_get_unsafe_head().times(2).returning(move || {
@@ -308,7 +316,7 @@ async fn local_override_bypasses_leadership_but_still_checks_the_start_head() {
 #[tokio::test(start_paused = true)]
 async fn accepted_commands_run_when_response_receivers_are_dropped() {
     let mut conductor = MockConductor::new();
-    conductor.expect_leader().times(1).return_once(|| Ok(true));
+    conductor.expect_leader().times(2).returning(|| Ok(true));
     let (mut actor, commands_tx) = test_actor_with_config(true, false, Some(conductor));
     actor.engine_client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
     actor
