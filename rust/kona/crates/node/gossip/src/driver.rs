@@ -285,11 +285,11 @@ where
 
     /// Dials the given [`Multiaddr`].
     pub fn dial_multiaddr(&mut self, addr: Multiaddr) {
+        let peer_id = ConnectionGater::peer_id_from_addr(&addr);
+
         // Discovery hands over the ENRs of connected peers again and again. So this is checked
         // before the gate, which would refuse it as already dialing or count it as a dial.
-        if let Some(peer_id) = ConnectionGater::peer_id_from_addr(&addr) &&
-            self.swarm.is_connected(&peer_id)
-        {
+        if peer_id.is_some_and(|peer_id| self.swarm.is_connected(&peer_id)) {
             debug!(target: "gossip", peer=?addr, "Already connected to peer, not dialing");
             metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected")
                 .increment(1);
@@ -302,8 +302,8 @@ where
             return;
         }
 
-        // Extract the peer ID from the address.
-        let Some(peer_id) = ConnectionGater::peer_id_from_addr(&addr) else {
+        // `ConnectionGater` rejects an address without a peer ID, but another gate may not.
+        let Some(peer_id) = peer_id else {
             warn!(target: "gossip", peer=?addr, "Failed to extract PeerId from Multiaddr");
             return;
         };
