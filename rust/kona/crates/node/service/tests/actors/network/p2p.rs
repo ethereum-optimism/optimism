@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use crate::actors::network::mocks::builder::TestNetworkBuilder;
+use kona_rpc::OpP2PApiServer;
 
 /// Two nodes connect through discovery: the second bootstraps from the first's ENR, and its
 /// network actor dials the ENRs discovery hands it, over TCP.
@@ -53,8 +54,8 @@ async fn test_large_network_conn() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Nodes gossiping over the in-memory transport connect through `opp2p_connectPeer`, while
-/// discovery, with no bootnodes, finds nobody.
+/// Nodes gossiping over the in-memory transport connect through the `ConnectPeer` command that
+/// `opp2p_connectPeer` sends, while discovery, with no bootnodes, finds nobody.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_memory_network_conn() -> anyhow::Result<()> {
     let mut builder = TestNetworkBuilder::new().in_memory();
@@ -69,5 +70,32 @@ async fn test_memory_network_conn() -> anyhow::Result<()> {
     assert!(node_1.discovery_table().await?.is_empty());
     assert!(node_2.discovery_table().await?.is_empty());
 
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn rpc_commands_publish_state_before_returning() -> anyhow::Result<()> {
+    let network = TestNetworkBuilder::new().build(vec![]).await;
+    let rpc = &network.p2p_rpc;
+    let peer = libp2p::identity::Keypair::generate_secp256k1().public().to_peer_id().to_string();
+    let address = "192.0.2.1".parse()?;
+    let subnet = "192.0.2.0/24".parse()?;
+
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        rpc.opp2p_block_peer(peer.clone()).await?;
+        assert_eq!(rpc.opp2p_list_blocked_peers().await?, vec![peer.clone()]);
+        rpc.opp2p_block_addr(address).await?;
+        assert_eq!(rpc.opp2p_list_blocked_addrs().await?, vec![address]);
+        rpc.opp2p_block_subnet(subnet).await?;
+        assert_eq!(rpc.opp2p_list_blocked_subnets().await?, vec![subnet]);
+        rpc.opp2p_unblock_peer(peer).await?;
+        rpc.opp2p_unblock_addr(address).await?;
+        rpc.opp2p_unblock_subnet(subnet).await?;
+        assert!(rpc.opp2p_list_blocked_peers().await?.is_empty());
+        assert!(rpc.opp2p_list_blocked_addrs().await?.is_empty());
+        assert!(rpc.opp2p_list_blocked_subnets().await?.is_empty());
+        Ok::<(), anyhow::Error>(())
+    })
+    .await??;
     Ok(())
 }

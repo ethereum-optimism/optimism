@@ -28,15 +28,18 @@ impl From<BlobData> for BlobStore {
             .zip(blobs.iter().map(|b| Blob::from(b.0)))
             .collect();
 
-        match kzg_rs::KzgProof::verify_blob_kzg_proof_batch(
-            blobs,
-            value.commitments,
-            value.proofs,
-            &get_kzg_settings(),
-        ) {
-            Ok(true) => {} // Verification passed
-            Ok(false) => panic!("KZG proof verification failed: invalid proofs"),
-            Err(e) => panic!("KZG proof verification error: {e}"),
+        // Skip decoding the KZG trusted setup if there are no blobs to verify.
+        if !blobs.is_empty() {
+            match kzg_rs::KzgProof::verify_blob_kzg_proof_batch(
+                blobs,
+                value.commitments,
+                value.proofs,
+                &get_kzg_settings(),
+            ) {
+                Ok(true) => {} // Verification passed
+                Ok(false) => panic!("KZG proof verification failed: invalid proofs"),
+                Err(e) => panic!("KZG proof verification error: {e}"),
+            }
         }
 
         Self { versioned_blobs }
@@ -109,8 +112,7 @@ mod tests {
         let _ = block_on(store.get_and_validate_blobs(&BlockInfo::default(), &[hash_missing]));
     }
 
-    // `kzg_rs::verify_blob_kzg_proof_batch` short-circuits at zero blobs
-    // without checking lengths, so we must catch the mismatch locally.
+    // The local length asserts reject a mismatch before any blob is decoded or verified.
     #[test]
     #[should_panic(expected = "assertion `left == right` failed")]
     fn from_blob_data_length_mismatch_panics() {

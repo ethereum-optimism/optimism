@@ -57,6 +57,7 @@ tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 kona-sp1-client-utils = { workspace = true, features = ["log-commitment-test-utils"] }
 alloy-chains.workspace = true
 kona-genesis.workspace = true
+httpmock.workspace = true
 kona-interop = { workspace = true, features = ["test-utils"] }
 kzg-rs.workspace = true
 tempfile.workspace = true

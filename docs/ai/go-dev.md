@@ -14,16 +14,19 @@ just ./op-node/op-node
 just build-go
 ```
 
-### The `op-core/superchain` bundle
+### The embedded registry bundle (`op-core/superchain/bundle`)
 
-`op-core/superchain` `//go:embed`s `superchain-configs.zip`, which is **gitignored** (only
-its `.sha256` is committed). Any package that transitively imports it — op-node and several
-binaries, plus `op-e2e`, `op-acceptance-tests`, op-deployer, and the kona/op-reth Go
+`op-core/superchain/bundle` `//go:embed`s `superchain-configs.zip`, which is **gitignored**
+(only its `.sha256` is committed). Any package that transitively imports it — op-node and
+several binaries, plus `op-e2e`, `op-acceptance-tests`, op-deployer, and the kona/op-reth Go
 tests — won't compile until the bundle is built:
 
 ```
-op-core/superchain/chain.go:NN: pattern superchain-configs.zip: no matching files found
+op-core/superchain/bundle/bundle.go:NN: pattern superchain-configs.zip: no matching files found
 ```
+
+`op-core/superchain` itself embeds nothing: it holds the registry's config types and a loader
+for a bundle's bytes. Import `bundle` only for the registry built into the monorepo.
 
 The `just` targets handle this: `just build-go`, `just go-tests`, and `just lint-go` all
 depend on `build-superchain-go`, which builds the bundle from the superchain-registry
@@ -39,10 +42,10 @@ Because the zip is usually already on disk, a missing-bundle problem is invisibl
 and only surfaces in CI's clean checkout (see [ci-ops.md](ci-ops.md)).
 
 The set of packages allowed to reach the bundle is pinned by `TestBundleReachability`
-(`op-core/superchain/deps_test.go`): a new transitive edge into `op-core/superchain` from a
-package outside its `bundleAllowed` allowlist fails that test. Each allowlist entry is a
-package downstream Go modules cannot import, so extend the list only for genuine
-registry consumers.
+(`op-core/superchain/bundle/deps_test.go`): a new transitive edge into
+`op-core/superchain/bundle` from a package outside its `bundleAllowed` allowlist fails that
+test. Each allowlist entry is a package downstream Go modules cannot import, so extend the
+list only for genuine registry consumers.
 
 ### Running Tests
 

@@ -20,14 +20,15 @@ items in that doc are where the real bugs hide.
 
 Review only the changed CI files in the diff:
 `.circleci/config.yml`, `.circleci/continue/*`, `.circleci/scripts/*`,
-`.github/workflows/*`. Findings about untouched config are out of scope unless a
-change in the diff breaks them.
+`.github/workflows/*`, plus any script a CI command runs (e.g. `ops/scripts/`,
+`packages/*/scripts/ops/`). Findings about untouched config are out of scope
+unless a change in the diff breaks them.
 
 ## Process
 
 1. Read the guide in full, including "How CI is wired here".
 2. Determine which CI files changed.
-3. For each change, walk the repo-specific checklist (items 1–8) first, then the
+3. For each change, walk the repo-specific checklist (items 1–9) first, then the
    relevant general CircleCI / GitHub Actions section. Map every finding to the
    specific rule it violates.
 4. Confirm the author validated locally where the guide requires it (merged-config

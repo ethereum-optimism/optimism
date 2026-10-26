@@ -41,7 +41,7 @@ fn assert_agree(custom: &CustomCrypto, case: &BlsCase) {
 
 fn check_all(cases: Vec<BlsCase>) {
     assert!(!cases.is_empty());
-    let custom = CustomCrypto::default();
+    let custom = CustomCrypto;
     for case in &cases {
         assert_agree(&custom, case);
     }
@@ -194,7 +194,7 @@ fn known_answers() {
         table.push(("iso-kernel u", BlsCall::MapFpToG1(u), zeros(96)));
     }
 
-    let custom = CustomCrypto::default();
+    let custom = CustomCrypto;
     for (name, call, expect) in table {
         let outcomes = outcomes(&custom, &call);
         for (imp, got) in &outcomes {
@@ -215,7 +215,7 @@ fn torsion_points_fail_every_subgroup_check() {
     use corpus::{ZERO_G1, ZERO_G2, be32, enc_g1, enc_g2};
     use revm::precompile::PrecompileHalt::{Bls12381G1NotInSubgroup, Bls12381G2NotInSubgroup};
 
-    let custom = CustomCrypto::default();
+    let custom = CustomCrypto;
     let check = |name: &str, call: BlsCall, want: Option<PrecompileHalt>| {
         for (imp, got) in outcomes(&custom, &call) {
             match &want {

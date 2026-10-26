@@ -33,9 +33,9 @@ pub(in crate::task_queue) enum BuildAndSealError {
 /// * `cfg` - The rollup configuration
 /// * `attributes` - The derived payload attributes to build
 /// * `block_sink` - Where to hand the built block once the engine has canonicalized it
-pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
+pub(in crate::task_queue) async fn build_and_seal(
     state: &mut EngineState,
-    engine: Arc<EngineClient_>,
+    engine: Arc<EngineClient>,
     cfg: Arc<RollupConfig>,
     attributes: OpAttributesWithParent,
     block_sink: Arc<dyn ImportedBlockSink>,
@@ -79,9 +79,9 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
 ///   fails.
 /// - Nothing replaces other attributes, so this returns `None` and the task keeps its own error. A
 ///   sequencer drops its payload and builds the next one.
-pub(in crate::task_queue) async fn handle_rejected_attributes<EngineClient_: EngineClient>(
+pub(in crate::task_queue) async fn handle_rejected_attributes(
     state: &mut EngineState,
-    engine: Arc<EngineClient_>,
+    engine: Arc<EngineClient>,
     cfg: Arc<RollupConfig>,
     attributes: &OpAttributesWithParent,
     is_attributes_derived: bool,

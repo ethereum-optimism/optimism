@@ -37,7 +37,11 @@ func runDepositInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[bool]) {
 	env.Alice.L2.ActMakeTx(t)
 	env.Sequencer.ActL2StartBlock(t)
 	env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-	env.Sequencer.ActL2EndBlock(t)
+	sequencerBlock := env.Sequencer.ActL2EndBlock(t)
+	// Read the sequencer's L1 info deposit before derivation replaces block 1, so the check does
+	// not depend on the engine retaining the reorged-out block.
+	_, sequencerL1InfoTx, err := env.Engine.SourceClient().InfoAndFirstDepositByHash(t.Ctx(), sequencerBlock.Hash)
+	require.NoError(t, err)
 
 	beneficiary := common.HexToAddress("0x00000000000000000000000000000000deadbeef")
 	deposit := &optypes.DepositTx{
@@ -72,24 +76,24 @@ func runDepositInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[bool]) {
 	env.Sequencer.ActL1HeadSignal(t)
 	env.Sequencer.ActL2PipelineFull(t)
 
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	if testCfg.Custom == bareDeposit && env.Sd.RollupCfg.IsHolocene(l2SafeHead.Time) {
 		// The engine rejects the batch transaction and the block is replaced by its deposits.
 		require.Equal(t, uint64(1), bigs.Uint64Strict(l2SafeHead.Number))
-		safeBlock := env.Engine.L2Chain().GetBlockByHash(l2SafeHead.Hash())
-		require.Len(t, safeBlock.Transactions(), 1, "only the L1 info deposit remains")
-		l1InfoTx := safeBlock.Transactions()[0]
-		require.Equal(t, uint8(optypes.DepositTxType), l1InfoTx.Type())
-		require.Equal(t, predeploys.L1BlockAddr, *l1InfoTx.To())
-		sequencerBlock := env.Engine.L2Chain().GetBlockByNumber(1)
-		require.Equal(t, sequencerBlock.Transactions()[0].Hash(), l1InfoTx.Hash(), "same L1 info deposit as the sequencer's block")
+		deposits, userTxs := helpers.BlockTxs(t, env.Engine, l2SafeHead.Hash())
+		require.Empty(t, userTxs, "only the L1 info deposit remains")
+		require.Len(t, deposits, 1, "only the L1 info deposit remains")
+		l1InfoTx := deposits[0]
+		require.Equal(t, predeploys.L1BlockAddr, *l1InfoTx.To)
+		require.NotEqual(t, sequencerBlock.Hash, l2SafeHead.Hash(), "the sequencer's block is replaced")
+		require.Equal(t, sequencerL1InfoTx.Hash(), l1InfoTx.Hash(), "same L1 info deposit as the sequencer's block")
 	} else {
 		// The batch is dropped, by the gate or by the engine before Holocene, so the safe head
 		// only advances once a valid batch is submitted.
 		require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 		env.Batcher.Reset()
 		require.Equal(t, uint64(1), env.BatchMineAndSync(t).Number)
-		l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+		l2SafeHead = env.Engine.SafeHeader(t)
 	}
 
 	// The crafted deposit was never applied.

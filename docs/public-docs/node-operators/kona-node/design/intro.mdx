@@ -6,9 +6,8 @@ diataxis: explanation
 The entry-point for the `kona-node` is the [`RollupNode`][node] service,
 which encapsulates the core wiring for the node. A `RollupNode` is
 constructed through the [`RollupNodeBuilder`][builder], and its
-[`start` method][start] handles connecting all the different components
-of the node, running each in a spawned task. As such, each node
-component is considered an actor.
+[`start` method][start] handles connecting the different components
+of the node and running its actors in spawned tasks.
 
 The `RollupNode` abstracts individual actors through the
 [`NodeActor` trait][actor], a minimal interface with a single `step`
@@ -38,8 +37,8 @@ The [`RollupNode`][node] builds and starts the following actors.
   layer client (or "execution engine"). The engine actor
   turns messages from other actors into engine "tasks"
   that are executed in priority order against the EL client.
-  A companion engine RPC actor serves read-only engine
-  queries. The [engine][engine] docs expand on this.
+  Read-only engine queries are served directly by `RollupRpc`.
+  The [engine][engine] docs expand on this.
 - **L1 Watcher Actor**: Watches the L1 chain for new
   head and finalized blocks and relays them to the
   derivation actor. It also keeps the unsafe block
@@ -56,9 +55,10 @@ The [`RollupNode`][node] builds and starts the following actors.
 - **Signer Actor**: Runs alongside the sequencer actor.
   It signs each block the sequencer builds, in order,
   and passes it to the network actor to gossip.
-- **RPC Actor**: The RPC actor spins up and serves an
-  RPC server that exposes the rpc methods required by
-  the [OP Stack Specs][specs].
+- **RPC Actor**: Supervises the JSON-RPC server and handles
+  restarts. Jsonrpsee dispatches requests to the registered
+  modules, including `RollupRpc`, which serves the rollup
+  methods required by the [OP Stack Specs][specs].
 
 
 [p2p]: ./p2p

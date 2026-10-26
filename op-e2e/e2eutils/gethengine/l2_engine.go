@@ -2,6 +2,7 @@ package gethengine
 
 import (
 	"errors"
+	"math/big"
 	"os"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	geth "github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/eth/tracers"
@@ -40,6 +42,9 @@ type L2Engine struct {
 	l2Chain *core.BlockChain
 
 	EngineApi *engineapi.L2EngineAPI
+
+	ethCl    *ethclient.Client
+	sourceCl *sources.EthClient
 }
 
 func NewL2Engine(t helpers.Testing, log log.Logger, genesis *core.Genesis, jwtPath string) *L2Engine {
@@ -63,6 +68,16 @@ func NewL2Engine(t helpers.Testing, log log.Logger, genesis *core.Genesis, jwtPa
 		},
 	})
 	require.NoError(t, n.Start(), "failed to start L2 op-geth node")
+
+	eng.ethCl = ethclient.NewClient(n.Attach())
+	sourceCl, err := sources.NewEthClient(client.NewBaseRPCClient(n.Attach()), log, nil, sources.DefaultEthClientConfig(10))
+	require.NoError(t, err)
+	eng.sourceCl = sourceCl
+	// Cleanups run last-in first-out, so the clients close before the node they are attached to.
+	t.Cleanup(func() {
+		eng.sourceCl.Close()
+		eng.ethCl.Close()
+	})
 
 	return eng
 }
@@ -131,9 +146,9 @@ func (s *L2Engine) HTTPEndpoint() string {
 	return s.node.HTTPEndpoint()
 }
 
+// EthClient returns the engine's eth RPC client. The engine owns it and closes it at test cleanup.
 func (s *L2Engine) EthClient() *ethclient.Client {
-	cl := s.node.Attach()
-	return ethclient.NewClient(cl)
+	return s.ethCl
 }
 
 func (s *L2Engine) GethClient() *gethclient.Client {
@@ -143,6 +158,42 @@ func (s *L2Engine) GethClient() *gethclient.Client {
 
 func (e *L2Engine) RPCClient() client.RPC {
 	return client.NewBaseRPCClient(e.node.Attach())
+}
+
+// LatestHeader returns the current unsafe (canonical head) L2 header, read over the eth RPC.
+func (e *L2Engine) LatestHeader(t helpers.Testing) *types.Header {
+	return e.headerByLabel(t, rpc.LatestBlockNumber)
+}
+
+// SafeHeader returns the current safe L2 header, read over the eth RPC.
+func (e *L2Engine) SafeHeader(t helpers.Testing) *types.Header {
+	return e.headerByLabel(t, rpc.SafeBlockNumber)
+}
+
+func (e *L2Engine) headerByLabel(t helpers.Testing, label rpc.BlockNumber) *types.Header {
+	h, err := e.ethCl.HeaderByNumber(t.Ctx(), big.NewInt(int64(label)))
+	require.NoError(t, err, "header at %s", label)
+	return h
+}
+
+// HeaderByNumber returns the canonical L2 header at height n, read over the eth RPC.
+func (e *L2Engine) HeaderByNumber(t helpers.Testing, n uint64) *types.Header {
+	h, err := e.ethCl.HeaderByNumber(t.Ctx(), new(big.Int).SetUint64(n))
+	require.NoError(t, err, "header %d", n)
+	return h
+}
+
+// HeaderByHash returns the L2 header with the given hash, read over the eth RPC.
+func (e *L2Engine) HeaderByHash(t helpers.Testing, hash common.Hash) *types.Header {
+	h, err := e.ethCl.HeaderByHash(t.Ctx(), hash)
+	require.NoError(t, err, "header %s", hash)
+	return h
+}
+
+// SourceClient returns the engine's OP-aware eth RPC client, for reading L2 block bodies and
+// receipts. The engine owns it and closes it at test cleanup.
+func (e *L2Engine) SourceClient() *sources.EthClient {
+	return e.sourceCl
 }
 
 func (e *L2Engine) EngineClient(t helpers.Testing, cfg *rollup.Config) *sources.EngineClient {

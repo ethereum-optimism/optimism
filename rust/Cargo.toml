@@ -28,6 +28,7 @@ members = [
   "kona/sp1/crates/host",
   "kona/sp1/crates/super-range-executor",
   "kona/sp1/crates/proposer",
+  "kona/sp1/crates/spn-wallet",
   "kona/sp1/crates/zkvm-canary",
 
   # Op-Alloy
@@ -497,6 +498,7 @@ alloy-signer = { version = "2.4.2", default-features = false }
 # sp1-sdk's dynamic_signer builder method uses alloy-signer 1.x, distinct from the workspace's 2.x.
 sp1-alloy-signer = { package = "alloy-signer", version = "1.0", default-features = false }
 alloy-signer-local = { version = "2.4.2", default-features = false }
+alloy-signer-gcp = { version = "2.4.2", default-features = false }
 alloy-transport = { version = "2.4.2" }
 alloy-transport-http = { version = "2.4.2", features = [
   "reqwest-rustls-tls",
@@ -509,11 +511,15 @@ op-alloy = { version = "2.0.0", path = "op-alloy/crates/op-alloy", default-featu
 op-alloy-flz = { version = "0.13.1", default-features = false }
 
 # ==================== SP1 ====================
-sp1-core-executor = { version = "6.8.1", default-features = false }
-sp1-sdk = { version = "6.8.1", default-features = false, features = [
+sp1-core-executor = { version = "6.10.0", default-features = false }
+sp1-sdk = { version = "6.10.0", default-features = false, features = [
   "network",
 ] }
-sp1-verifier = { version = "6.8.1", default-features = false, features = ["full"] }
+sp1-verifier = { version = "6.10.0", default-features = false, features = ["full"] }
+# spn-wallet talks to SPN through sp1-sdk's generated gRPC client, so these must stay on the
+# tonic/prost versions sp1-sdk compiles against.
+tonic = { version = "0.14.6", default-features = false }
+prost = { version = "0.14", default-features = false }
 
 # ==================== ASYNC ====================
 async-channel = "2.5"
@@ -552,9 +558,9 @@ jsonrpsee-types = "0.26.0"
 c-kzg = { version = "2.1.5", default-features = false }
 enr = { version = "0.14", default-features = false, features = ["k256", "ed25519"] }
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
-kzg-rs = { version = "0.2.6", features = ["rkyv", "serde"] }
+kzg-rs = { version = "0.2.9", features = ["rkyv", "serde"] }
 # Pinned to kzg-rs's exact version. `experimental` is needed for EIP-2537 MAP_FP_TO_G1 / MAP_FP2_TO_G2.
-sp1_bls12_381 = { version = "=0.8.0-sp1-6.0.0", default-features = false, features = [
+sp1_bls12_381 = { version = "=0.8.0-sp1-6.10.0", default-features = false, features = [
   "groups",
   "pairings",
   "alloc",
@@ -620,7 +626,6 @@ opentelemetry_sdk = { version = "0.32.1", features = ["logs", "trace", "rt-tokio
 # ==================== TESTING ====================
 arbitrary = { version = "1.4.2", features = ["derive"] }
 arbtest = "0.3.2"
-assert_matches = "1.5.0"
 criterion = { package = "codspeed-criterion-compat", version = "2.10" }
 httpmock = "0.8.3"
 insta = "1.46"

@@ -57,7 +57,7 @@ They expose the operations the supernode needs to verify cross-chain messages â€
 Running every chain inside one process makes shared resources possible.
 
 *   A single **L1 RPC client** and a single **L1 beacon client** serve every chain. Cache hits on L1 blocks and blob lookups carry across chains.
-*   The **JSON-RPC surface** is namespaced per chain. `11155420/` reaches OP Sepolia's RPC; `1301/` reaches Unichain Sepolia's. Tools that expect an op-node-shaped endpoint reach a chain by addressing it through that prefix.
+*   The **JSON-RPC surface** is namespaced per chain. `10/` reaches OP Mainnet's RPC; `130/` reaches Unichain's. Tools that expect an op-node-shaped endpoint reach a chain by addressing it through that prefix.
 *   **Metrics** are namespaced per chain via the same scheme.
 *   **Data directories** are namespaced so SafeDB and P2P state for one chain cannot collide with another's.
 
@@ -154,7 +154,7 @@ graph LR
 
 ## Where to go next
 
-*   Read the [interop prep notice](/notices/interop-prep) for the node-operator action checklist for the OP Sepolia and Unichain Sepolia activation.
+*   Read the [interop prep notice](/notices/interop-prep) for the node-operator action checklist for the OP Mainnet and Unichain activation.
 *   Read the [supernode configuration guide](/node-operators/guides/configuration/supernode) for recommended settings and a starter configuration, and the [op-supernode configuration reference](/node-operators/reference/op-supernode-config) for the full flag catalogue.
 *   Read the [specialized op-node topology notice](/notices/specialized-node-topology) for the operator-facing pattern of running light op-nodes with `--l2.follow.source`, the fleet-side of the supernode-plus-light-CL topology.
 *   Read [interop reorg awareness](/op-stack/interop/reorg) for how the safety model handles equivocation and L1 reorgs.

@@ -54,7 +54,7 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	}
 
 	// Ensure the safe head is still 0.
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	require.EqualValues(t, 0, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Ask the sequencer to derive the deposit-only L2 chain.
@@ -62,7 +62,7 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Ensure the safe head advanced forcefully.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.Greater(t, bigs.Uint64Strict(l2SafeHead.Number), uint64(0),
 		"The safe head failed to progress after the sequencing window expired (expected deposit-only blocks to be derived).")
 
@@ -166,10 +166,8 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.BatchMineAndSync(t)
 	l2Safe := env.Sequencer.L2Safe()
 	require.Equal(t, l2Safe.Number, l2SafeBefore.Number+1, "safe chain did not progress with user transactions")
-	l2SafeBlock, err := env.Engine.EthClient().BlockByHash(t.Ctx(), l2Safe.Hash)
-	require.NoError(t, err)
-	// Assert safe block has at least two transactions
-	require.GreaterOrEqual(t, len(l2SafeBlock.Transactions()), 2, "safe block did not have at least two transactions")
+	_, userTxs := helpers.BlockTxs(t, env.Engine, l2Safe.Hash)
+	require.NotEmpty(t, userTxs, "safe block did not include the user transaction")
 
 	env.RunFaultProofProgram(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
@@ -207,7 +205,7 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Ensure the safe head is still 0.
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	require.EqualValues(t, 0, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Cache the next frame data before expiring the sequence window, but don't submit it yet.
@@ -239,7 +237,7 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 	env.Miner.ActL1FinalizeNext(t)
 
 	// Ensure the safe head is still 0.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.EqualValues(t, 0, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Ask the sequencer to derive the deposit-only L2 chain.
@@ -247,7 +245,7 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Ensure the safe head advanced forcefully.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.Greater(t, bigs.Uint64Strict(l2SafeHead.Number), uint64(0))
 
 	// Run the FPP on one of the auto-derived blocks.

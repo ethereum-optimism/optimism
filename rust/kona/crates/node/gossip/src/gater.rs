@@ -249,14 +249,16 @@ impl ConnectionGater {
         if self.blocked_addrs.contains(&ip) {
             debug!(target: "gossip", peer=?addr, "Address is blocked, not dialing");
             self.connectedness.insert(peer_id, Connectedness::CannotConnect);
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_address");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_address")
+                .increment(1);
             return Err(DialError::AddressBlocked { ip });
         }
 
         // If address lies in any blocked subnets, do not dial.
         if self.check_ip_in_blocked_subnets(&ip) {
             debug!(target: "gossip", ip=?ip, "IP address is in a blocked subnet, not dialing");
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_subnet");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_subnet")
+                .increment(1);
             return Err(DialError::SubnetBlocked { ip });
         }
 
@@ -269,14 +271,16 @@ impl ConnectionGate for ConnectionGater {
         // Get the peer id from the given multiaddr.
         let peer_id = Self::peer_id_from_addr(addr).ok_or_else(|| {
             warn!(target: "p2p", peer=?addr, "Failed to extract PeerId from Multiaddr");
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_multiaddr");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_multiaddr")
+                .increment(1);
             DialError::InvalidMultiaddr { addr: addr.clone() }
         })?;
 
         // Cannot dial a peer that is already being dialed.
         if self.current_dials.contains(&peer_id) {
             debug!(target: "gossip", peer=?addr, "Already dialing peer, not dialing");
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "already_dialing");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_dialing")
+                .increment(1);
             return Err(DialError::AlreadyDialing { peer_id });
         }
 
@@ -288,14 +292,15 @@ impl ConnectionGate for ConnectionGater {
         if !protected && self.dial_threshold_reached(addr) && !self.dial_period_expired(addr) {
             debug!(target: "gossip", peer=?addr, "Dial threshold reached, not dialing");
             self.connectedness.insert(peer_id, Connectedness::CannotConnect);
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "threshold_reached");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "threshold_reached")
+                .increment(1);
             return Err(DialError::ThresholdReached { addr: addr.clone() });
         }
 
         // If the peer is blocked, do not dial.
         if self.blocked_peers.contains(&peer_id) {
             debug!(target: "gossip", peer=?addr, "Peer is blocked, not dialing");
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_peer");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_peer").increment(1);
             return Err(DialError::PeerBlocked { peer_id });
         }
 

@@ -24,7 +24,8 @@
 //!
 //! ## RPC Methods
 //!
-//! The [`P2pRpcRequest`] enum defines all available RPC methods, including:
+//! The [`GossipQueryHandle`] exposes published gossip state, and [`GossipCommand`] handles
+//! network mutations. Together with discovery queries, these support:
 //! - Node identity and status queries
 //! - Peer listing and statistics
 //! - Connection management (block/unblock peers)
@@ -43,8 +44,11 @@
 //! can affect network connectivity and peer relationships. Consider implementing
 //! appropriate authentication and access controls in production deployments.
 
-mod request;
-pub use request::P2pRpcRequest;
+mod command;
+pub use command::{GossipCommand, GossipCommandReceiver, GossipCommandSender};
+
+mod state;
+pub use state::{GossipQueryHandle, GossipState};
 
 mod types;
 pub use types::{
