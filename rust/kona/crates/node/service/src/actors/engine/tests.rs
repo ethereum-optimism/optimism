@@ -4,7 +4,7 @@ use alloy_primitives::B256;
 use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
 use kona_engine::{
     Engine, EngineActorRequest, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
-    test_utils::test_engine_client,
+    test_utils::{TestChain, expect_l1_block, test_engine_client},
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -26,18 +26,16 @@ async fn admin_reset_recovers_and_completes_original_request(
     #[case] l1_failure: bool,
     #[case] read_delay: Duration,
 ) {
-    let block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
-        Default::default();
-    let mut config = RollupConfig::default();
-    config.genesis.l2.hash = block.header.inner.hash_slow();
-    let config = Arc::new(config);
+    // Finalized, safe and unsafe heads 18, 20 and 26 of a real chain, so the reset checks the
+    // unsafe head's L1 origin. The sequencing window is long enough that the safe head search
+    // stops at the finalized head.
+    let chain = TestChain::new();
+    let config = Arc::new(RollupConfig { seq_window_size: 1000, ..Default::default() });
     let (client, l1, l2) = test_engine_client(config.clone());
     let client = Arc::new(client);
     if l1_failure {
-        for tag in ["finalized", "safe", "latest"] {
-            l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
-        }
-        l1.expect_error("eth_getBlockByHash");
+        chain.expect_heads(&l2, 18, 20, 26);
+        l1.expect_error("eth_getBlockByNumber");
     } else {
         l2.expect_error("eth_getBlockByNumber");
     }
@@ -65,13 +63,13 @@ async fn admin_reset_recovers_and_completes_original_request(
     actor.step().await.unwrap(); // retain the reset
     actor.step().await.unwrap(); // failed attempt, then wait for backoff
     assert!(!reset.is_finished());
-    for _ in 0..3 {
-        l2.expect_with_delay("eth_getBlockByNumber", &block, read_delay);
+    for number in [18, 20, 26] {
+        l2.expect_with_delay("eth_getBlockByNumber", chain.rpc(number), read_delay);
     }
-    l1.expect(
-        "eth_getBlockByHash",
-        alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
-    );
+    expect_l1_block(&l1, 105, 106);
+    for number in (18..26).rev() {
+        chain.expect_by_hash(&l2, number);
+    }
     l2.expect(
         "engine_forkchoiceUpdatedV3",
         ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),

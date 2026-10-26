@@ -22,6 +22,7 @@
 //!
 //! [`find_starting_forkchoice`]: crate::find_starting_forkchoice
 
+use super::unsafe_head::{find_canonical_unsafe_head, is_canonical_l1};
 use crate::{EngineClient, EngineState, EngineSyncState, L2ForkchoiceState, SyncStartError};
 use alloy_eips::{BlockId, BlockNumHash};
 use kona_protocol::L2BlockInfo;
@@ -53,11 +54,20 @@ pub async fn find_reorg_forkchoice(
     let Some(safe) = find_reorg_safe_head(engine_client, &sync_state, candidates).await? else {
         return Ok(None);
     };
-    let Some(un_safe) =
-        find_reorg_unsafe_head(engine_client, sync_state.unsafe_head(), safe).await?
-    else {
-        return Ok(None);
-    };
+    let un_safe =
+        match find_canonical_unsafe_head(engine_client, sync_state.unsafe_head(), safe).await {
+            Ok(un_safe) => un_safe,
+            // An unsafe chain that misses a block or does not lead to the kept safe head is left to
+            // the full reset.
+            Err(
+                SyncStartError::BlockNotFound(_) |
+                SyncStartError::UnsafeChainMismatch { .. } |
+                SyncStartError::UnsafeHeadBelowFloor { .. },
+            ) => {
+                return Ok(None);
+            }
+            Err(err) => return Err(err),
+        };
 
     info!(
         target: "sync_start",
@@ -95,47 +105,4 @@ async fn find_reorg_safe_head(
     }
 
     Ok(None)
-}
-
-/// Walks back from `unsafe_head` to the highest block whose L1 origin is canonical, stopping at
-/// `safe_head`. `None` if the walk does not lead to `safe_head`.
-async fn find_reorg_unsafe_head(
-    engine_client: &EngineClient,
-    mut unsafe_head: L2BlockInfo,
-    safe_head: L2BlockInfo,
-) -> Result<Option<L2BlockInfo>, SyncStartError> {
-    let genesis = &engine_client.cfg().genesis;
-    // Consecutive blocks mostly share an L1 origin; check each replaced one only once.
-    let mut replaced_origin = None;
-    while unsafe_head.block_info.number > safe_head.block_info.number {
-        if replaced_origin != Some(unsafe_head.l1_origin) {
-            if is_canonical_l1(engine_client, unsafe_head.l1_origin).await? {
-                return Ok(Some(unsafe_head));
-            }
-            replaced_origin = Some(unsafe_head.l1_origin);
-        }
-
-        let parent_hash = unsafe_head.block_info.parent_hash;
-        if unsafe_head.block_info.number == safe_head.block_info.number + 1 {
-            return Ok((parent_hash == safe_head.block_info.hash).then_some(safe_head));
-        }
-        let Some(parent) = engine_client.get_l2_block(parent_hash.into()).full().await? else {
-            return Ok(None);
-        };
-        unsafe_head = L2BlockInfo::from_block_and_genesis(&parent.into_consensus(), genesis)?;
-    }
-
-    Ok((unsafe_head == safe_head).then_some(unsafe_head))
-}
-
-/// Whether `block` is the canonical L1 block at its height. A block the L1 node does not have at
-/// that height yet is not known to be canonical.
-async fn is_canonical_l1(
-    engine_client: &EngineClient,
-    block: BlockNumHash,
-) -> Result<bool, SyncStartError> {
-    Ok(engine_client
-        .get_l1_block(BlockId::number(block.number))
-        .await?
-        .is_some_and(|canonical| canonical.header.hash == block.hash))
 }

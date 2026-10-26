@@ -387,21 +387,14 @@ mod recovery_tests {
 #[cfg(test)]
 mod l1_reorg_reset_tests {
     use super::*;
-    use crate::test_utils::{RpcMock, test_engine_client};
-    use alloy_eips::BlockNumHash;
-    use alloy_primitives::{Address, B256, U256};
+    use crate::test_utils::{
+        L2RpcBlock, RpcMock, TestChain, expect_l1_block, test_engine_client, test_l1_block,
+    };
+    use alloy_primitives::B256;
     use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
-    use kona_protocol::{BlockInfo, L1BlockInfoBedrock};
+    use kona_protocol::BlockInfo;
     use rstest::rstest;
     use serde_json::json;
-
-    type L2RpcBlock = <op_alloy_network::Optimism as alloy_network::Network>::BlockResponse;
-
-    /// L1 block `number` on `fork`: fork 0 is the chain derivation read, fork 1 replaced it from
-    /// the reorg height on.
-    fn l1_id(number: u64, fork: u8) -> BlockNumHash {
-        BlockNumHash { number, hash: B256::left_padding_from(&[fork, number as u8]) }
-    }
 
     fn l2_block(number: u64, l1_origin: u64) -> L2BlockInfo {
         let hash = |n: u64| B256::left_padding_from(&[0xee, n as u8]);
@@ -412,18 +405,9 @@ mod l1_reorg_reset_tests {
                 parent_hash: hash(number - 1),
                 timestamp: number,
             },
-            l1_origin: l1_id(l1_origin, 0),
+            l1_origin: test_l1_block(l1_origin, 0),
             seq_num: 0,
         }
-    }
-
-    /// Scripts the L1 lookup of block `number`, answered from the chain reorged at
-    /// `reorg_height`.
-    fn expect_l1(l1: &RpcMock, number: u64, reorg_height: u64) {
-        let mut block = alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default();
-        block.header.hash = l1_id(number, u8::from(number >= reorg_height)).hash;
-        block.header.inner.number = number;
-        l1.expect_params("eth_getBlockByNumber", json!([format!("{number:#x}"), false]), block);
     }
 
     /// Scripts the engine's lookup of L2 block `number`, answered with `hash`.
@@ -457,8 +441,8 @@ mod l1_reorg_reset_tests {
     /// 106, and L2 block 18 on L1 data up to block 103.
     fn recent_safe_heads() -> [DerivedSafeHead; 2] {
         [
-            DerivedSafeHead { safe_head: l2_block(20, 100), derived_from: l1_id(106, 0) },
-            DerivedSafeHead { safe_head: l2_block(18, 99), derived_from: l1_id(103, 0) },
+            DerivedSafeHead { safe_head: l2_block(20, 100), derived_from: test_l1_block(106, 0) },
+            DerivedSafeHead { safe_head: l2_block(18, 99), derived_from: test_l1_block(103, 0) },
         ]
     }
 
@@ -517,12 +501,12 @@ mod l1_reorg_reset_tests {
             .find(|head| head.block_info.number == kept)
             .unwrap();
         let safe_after = if cross_safe.is_some() { before.safe_head() } else { kept };
-        expect_l1(&l1, 106, reorg_height);
+        expect_l1_block(&l1, 106, reorg_height);
         if reorg_height <= 106 {
-            expect_l1(&l1, 103, reorg_height);
+            expect_l1_block(&l1, 103, reorg_height);
         }
         expect_l2(&l2, kept.block_info.number, kept.block_info.hash);
-        expect_l1(&l1, UNSAFE_ORIGIN, reorg_height);
+        expect_l1_block(&l1, UNSAFE_ORIGIN, reorg_height);
         if kept != before.local_safe_head() {
             expect_forkchoice_update(&l2, before.unsafe_head(), safe_after);
         }
@@ -544,8 +528,8 @@ mod l1_reorg_reset_tests {
     #[tokio::test]
     async fn finds_nothing_to_keep_when_every_recent_safe_heads_l1_block_was_replaced() {
         let (engine, client, l1, l2, _) = setup();
-        expect_l1(&l1, 106, 103);
-        expect_l1(&l1, 103, 103);
+        expect_l1_block(&l1, 106, 103);
+        expect_l1_block(&l1, 103, 103);
 
         let forkchoice =
             find_reorg_forkchoice(&client, engine.state(), &recent_safe_heads()).await.unwrap();
@@ -567,12 +551,14 @@ mod l1_reorg_reset_tests {
         #[case] engine_hash: Option<B256>,
     ) {
         let (engine, client, l1, l2, _) = setup();
-        expect_l1(&l1, 106, 108);
+        expect_l1_block(&l1, 106, 108);
         if let Some(hash) = engine_hash {
             expect_l2(&l2, number, hash);
         }
-        let candidate =
-            DerivedSafeHead { safe_head: l2_block(number, 99), derived_from: l1_id(106, 0) };
+        let candidate = DerivedSafeHead {
+            safe_head: l2_block(number, 99),
+            derived_from: test_l1_block(106, 0),
+        };
 
         let forkchoice =
             find_reorg_forkchoice(&client, engine.state(), &[candidate]).await.unwrap();
@@ -580,80 +566,6 @@ mod l1_reorg_reset_tests {
         assert_eq!(forkchoice, None);
         l1.assert_finished();
         l2.assert_finished();
-    }
-
-    /// A real L2 chain from block 18 to block 26, so the unsafe walk can fetch and decode its
-    /// blocks. Blocks 18 to 20 have L1 origins 99, 100 and 100, blocks 21 to 24 have L1 origins
-    /// 101 to 104, and blocks 25 and the unsafe head 26 share L1 origin 105.
-    fn real_chain() -> Vec<(L2BlockInfo, L2RpcBlock)> {
-        let mut chain: Vec<(L2BlockInfo, L2RpcBlock)> = Vec::new();
-        for number in 18..=26 {
-            let origin = match number {
-                18 => 99,
-                19 | 20 => 100,
-                25 | 26 => 105,
-                n => 80 + n,
-            };
-            let info = L1BlockInfoBedrock::new(
-                origin,
-                0,
-                0,
-                l1_id(origin, 0).hash,
-                0,
-                Address::ZERO,
-                U256::ZERO,
-                U256::ZERO,
-            );
-            let deposit = op_alloy_consensus::OpTxEnvelope::Deposit(alloy_primitives::Sealed::new(
-                op_alloy_consensus::TxDeposit {
-                    input: info.encode_calldata(),
-                    ..Default::default()
-                },
-            ));
-            let header = alloy_consensus::Header {
-                number,
-                parent_hash: chain.last().map_or(B256::ZERO, |(parent, _)| parent.block_info.hash),
-                timestamp: number,
-                ..Default::default()
-            };
-            let consensus = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope> {
-                header: header.clone(),
-                body: alloy_consensus::BlockBody {
-                    transactions: vec![deposit.clone()],
-                    ..Default::default()
-                },
-            };
-            let block_info =
-                L2BlockInfo::from_block_and_genesis(&consensus, &RollupConfig::default().genesis)
-                    .unwrap();
-            let rpc = L2RpcBlock {
-                header: alloy_rpc_types_eth::Header {
-                    hash: block_info.block_info.hash,
-                    inner: header,
-                    ..Default::default()
-                },
-                transactions: alloy_rpc_types_eth::BlockTransactions::Full(vec![
-                    op_alloy_rpc_types::Transaction {
-                        inner: alloy_rpc_types_eth::Transaction {
-                            inner: alloy_consensus::transaction::Recovered::new_unchecked(
-                                deposit,
-                                Address::ZERO,
-                            ),
-                            block_hash: Some(block_info.block_info.hash),
-                            block_number: Some(number),
-                            effective_gas_price: Some(0),
-                            transaction_index: Some(0),
-                            block_timestamp: None,
-                        },
-                        deposit_nonce: None,
-                        deposit_receipt_version: None,
-                    },
-                ]),
-                ..Default::default()
-            };
-            chain.push((block_info, rpc));
-        }
-        chain
     }
 
     /// When the reorg replaced the unsafe head's L1 origin, the unsafe head moves back to the
@@ -675,24 +587,22 @@ mod l1_reorg_reset_tests {
         #[case] unsafe_after: u64,
         #[case] l1_lookups: &[u64],
     ) {
-        let chain = real_chain();
-        let block = |number: u64| chain.iter().find(|(info, _)| info.block_info.number == number);
-        let head = |number: u64| block(number).unwrap().0;
+        let chain = TestChain::new();
+        let head = |number: u64| chain.info(number);
         let (mut engine, client, l1, l2, config) = engine_at(head(26), head(20));
         let candidates: Vec<_> = candidates
             .iter()
             .map(|&(safe_head, derived_from)| DerivedSafeHead {
                 safe_head: head(safe_head),
-                derived_from: l1_id(derived_from, 0),
+                derived_from: test_l1_block(derived_from, 0),
             })
             .collect();
         for &number in l1_lookups {
-            expect_l1(&l1, number, reorg_height);
+            expect_l1_block(&l1, number, reorg_height);
         }
         expect_l2(&l2, kept, head(kept).block_info.hash);
         for number in (unsafe_after.max(kept + 1)..26).rev() {
-            let (info, rpc) = block(number).unwrap();
-            l2.expect_params("eth_getBlockByHash", json!([info.block_info.hash, true]), rpc);
+            chain.expect_by_hash(&l2, number);
         }
         let safe_after = head(kept);
         expect_forkchoice_update(&l2, head(unsafe_after), safe_after);
@@ -711,17 +621,16 @@ mod l1_reorg_reset_tests {
     /// An unsafe chain that does not lead back to the kept safe head gives nothing to keep.
     #[tokio::test]
     async fn finds_nothing_to_keep_when_the_unsafe_chain_does_not_lead_to_the_safe_head() {
-        let chain = real_chain();
-        let head =
-            |number: u64| chain.iter().find(|(info, _)| info.block_info.number == number).unwrap();
-        let mut other_20 = head(20).0;
+        let chain = TestChain::new();
+        let mut other_20 = chain.info(20);
         other_20.block_info.hash = B256::repeat_byte(0xaa);
-        let (engine, client, l1, l2, _) = engine_at(head(21).0, other_20);
-        expect_l1(&l1, 100, 101);
+        let (engine, client, l1, l2, _) = engine_at(chain.info(21), other_20);
+        expect_l1_block(&l1, 100, 101);
         expect_l2(&l2, 20, other_20.block_info.hash);
-        expect_l1(&l1, 101, 101);
+        expect_l1_block(&l1, 101, 101);
 
-        let candidate = DerivedSafeHead { safe_head: other_20, derived_from: l1_id(100, 0) };
+        let candidate =
+            DerivedSafeHead { safe_head: other_20, derived_from: test_l1_block(100, 0) };
         let forkchoice =
             find_reorg_forkchoice(&client, engine.state(), &[candidate]).await.unwrap();
 
@@ -735,8 +644,8 @@ mod l1_reorg_reset_tests {
     #[tokio::test]
     async fn falls_back_to_the_full_walk() {
         let (mut engine, client, l1, l2, config) = setup();
-        expect_l1(&l1, 106, 103);
-        expect_l1(&l1, 103, 103);
+        expect_l1_block(&l1, 106, 103);
+        expect_l1_block(&l1, 103, 103);
         l2.expect_error("eth_getBlockByNumber");
 
         let err =
