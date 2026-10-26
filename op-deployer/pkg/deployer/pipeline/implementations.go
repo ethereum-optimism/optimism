@@ -262,14 +262,16 @@ func CheckMockSP1Verifier(l1ChainID uint64) error {
 	return nil
 }
 
-// deployMockSP1Verifier deploys MockSP1Verifier: into the genesis, or to the live L1 with forge's
-// deployer or the broadcaster of the L1 script host.
+// deployMockSP1Verifier deploys MockSP1Verifier: into the genesis state of forge or the L1 script
+// host, or to the live L1 with forge's deployer or the broadcaster of the L1 script host.
 func deployMockSP1Verifier(env *Env) (common.Address, error) {
 	if !env.IsGenesis {
 		env.Logger.Warn("deploying the accept-all mock SP1 verifier to a live L1; development use only")
 		if env.Forge != nil {
 			return opcm.DeployMockSP1VerifierLive(env.Forge)
 		}
+	} else if env.Forge != nil {
+		return opcm.DeployMockSP1VerifierGenesis(env.Forge)
 	}
 	host := env.L1ScriptHost
 	if host == nil {

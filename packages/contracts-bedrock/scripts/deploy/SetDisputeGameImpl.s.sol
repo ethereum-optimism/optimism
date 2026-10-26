@@ -6,6 +6,7 @@ import { Script } from "forge-std/Script.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 import { GameType } from "src/dispute/lib/Types.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 
@@ -70,7 +71,9 @@ contract SetDisputeGameImpl is Script {
     }
 
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        DeployState.load();
         run(abi.decode(_input, (Input)));
+        DeployState.dump(msg.sender);
         return "";
     }
 

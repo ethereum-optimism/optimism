@@ -196,6 +196,36 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 	return nil
 }
 
+// ApplyL1DevGenesis deploys the superchain and the implementations into a new L1 dev genesis, with
+// no chains. Unlike a genesis-target ApplyPipeline, it adds the preinstalls before the deployments,
+// so that the deployer keeps its nonce and can deploy chains on the running L1 later.
+func ApplyL1DevGenesis(ctx context.Context, opts ApplyPipelineOpts) error {
+	opts.DeploymentTarget = DeploymentTargetGenesis
+	intent := opts.Intent
+	st := opts.State
+	if err := pipeline.ValidateInputs(intent, st); err != nil {
+		return err
+	}
+	bundle, err := artifacts.DownloadBundle(ctx, intent.L1ContractsLocator, intent.L2ContractsLocator, ioutil.NoopProgressor(), opts.CacheDir)
+	if err != nil {
+		return err
+	}
+	pEnv, err := newPipelineEnv(ctx, opts, bundle)
+	if err != nil {
+		return err
+	}
+	for _, stage := range []func(*pipeline.Env, *state.Intent, *state.State) error{
+		pipeline.InitGenesisStrategy, pipeline.PreinstallL1DevGenesis,
+		pipeline.DeploySuperchain, pipeline.DeployImplementations,
+		pipeline.PrefundL1DevGenesis, pipeline.SealL1DevGenesis,
+	} {
+		if err := stage(pEnv, intent, st); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type pipelineStage struct {
 	name  string
 	apply func() error
@@ -210,8 +240,7 @@ type ApplyPipelineOpts struct {
 	Logger             log.Logger
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
-	// UseScriptHost runs the scripts on the Go script host instead of forge. A genesis deployment
-	// always runs the L1 scripts on the Go script host.
+	// UseScriptHost runs the scripts on the Go script host instead of forge.
 	UseScriptHost bool
 	// DeployMockSP1Verifier is a test-only opt-in for development environments.
 	DeployMockSP1Verifier bool
@@ -420,8 +449,7 @@ func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifact
 	// The L2 genesis deploys nothing to a chain, so where its contracts may exceed the code size
 	// limit, it may also run a build made with another profile, such as a lite build.
 	pEnv.L2Forge.AnyCacheProfile = pEnv.AllowUnoptimizedContracts
-	// A genesis deployment runs the L1 scripts on the Go script host.
-	if isGenesis {
+	if opts.UseScriptHost {
 		return pEnv, useScriptHost(ctx, pEnv, opts, bundle, l1RPC)
 	}
 
@@ -437,6 +465,9 @@ func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifact
 		PrivateKey:           privateKey,
 		Logger:               opts.Logger,
 		ReceiptQueryInterval: opts.ReceiptQueryInterval,
+	}
+	if isGenesis {
+		pEnv.Forge.Genesis = opcm.NewGenesisState(deployer, true)
 	}
 	return pEnv, nil
 }

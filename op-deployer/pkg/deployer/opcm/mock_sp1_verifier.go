@@ -41,6 +41,23 @@ func DeployMockSP1Verifier(host *script.Host, deployer common.Address) (common.A
 	return verifier, initCode, nil
 }
 
+// DeployMockSP1VerifierGenesis puts the accept-all MockSP1Verifier into the genesis state of env, at
+// the next CREATE address of its sender, and returns its address.
+func DeployMockSP1VerifierGenesis(env *ForgeEnv) (common.Address, error) {
+	if env.Genesis == nil {
+		return common.Address{}, errors.New("cannot deploy genesis MockSP1Verifier without the genesis state")
+	}
+	if env.Artifacts == nil {
+		return common.Address{}, errors.New("cannot deploy MockSP1Verifier without the contract artifacts")
+	}
+	artifact, err := (&foundry.ArtifactsFS{FS: env.Artifacts}).ReadArtifact(MockSP1VerifierArtifact, MockSP1VerifierContract)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to read MockSP1Verifier artifact: %w", err)
+	}
+	// The verifier has no constructor and no immutables, so its runtime code is its genesis code.
+	return env.Genesis.Create(artifact.DeployedBytecode.Object), nil
+}
+
 // DeployMockSP1VerifierLive sends a deployment of the accept-all MockSP1Verifier from the deployer
 // of env to its live L1, and returns its address. Later scripts of env fork at or after its block.
 func DeployMockSP1VerifierLive(env *ForgeEnv) (common.Address, error) {
