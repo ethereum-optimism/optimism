@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -59,7 +60,9 @@ func buildPreparedWorkdir(t *testing.T) (string, common.Hash) {
 		Time:   hexutil.Uint64(uint64(genesisTime) - 100),
 	}, genesisTime)
 
-	pEnv := &pipeline.Env{Logger: lgr, Deployer: deployerAddr}
+	l2Forge, err := opcm.NewForgeClient(afacts, "", opcm.L2ForgeScripts)
+	require.NoError(t, err)
+	pEnv := &pipeline.Env{Logger: lgr, Deployer: deployerAddr, L2Forge: l2Forge}
 	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	depSet, err := pipeline.BuildInteropDepSet(intent.Chains)
 	require.NoError(t, err)

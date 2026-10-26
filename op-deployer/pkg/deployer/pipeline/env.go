@@ -7,9 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -25,26 +23,22 @@ import (
 )
 
 type Env struct {
-	StateWriter  StateWriter
-	L1ScriptHost *script.Host
-	L1Client     *ethclient.Client
-	Broadcaster  broadcaster.Broadcaster
-	Deployer     common.Address
-	Logger       log.Logger
-	Scripts      *opcm.Scripts
-	// Forge runs the deploy scripts. When it is nil, the scripts run on L1ScriptHost.
+	StateWriter StateWriter
+	L1Client    *ethclient.Client
+	Deployer    common.Address
+	Logger      log.Logger
+	// Forge runs the deploy scripts.
 	Forge *opcm.ForgeEnv
 	// L1Artifacts holds the L1 contract artifacts.
 	L1Artifacts *foundry.ArtifactsFS
-	// L2Forge runs the L2 genesis script in the L2 contracts. When it is nil, the script runs on a
-	// script host.
+	// L2Forge runs the L2 genesis script in the L2 contracts.
 	L2Forge *forge.Client
 	// IsGenesis identifies deployments that build genesis allocations instead of targeting a running chain.
 	IsGenesis bool
 	// DeployMockSP1Verifier explicitly opts development environments into an accept-all raw verifier.
 	DeployMockSP1Verifier bool
 	// AllowUnoptimizedContracts permits contract artifacts that exceed the EIP-170 code-size limit.
-	// It is only enabled for genesis-mode deployments, which execute scripts against an in-memory host.
+	// It is only enabled for genesis-mode deployments.
 	AllowUnoptimizedContracts bool
 	Context                   context.Context
 }
