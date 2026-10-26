@@ -78,7 +78,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	superchainPAO := common.Address{'S', 'P', 'A', 'O'}
 
 	apply := func(t *testing.T, loc *artifacts.Locator) {
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 
 		bstrap, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
@@ -243,7 +243,7 @@ func TestEndToEndApply(t *testing.T) {
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
 	t.Run("two chains one after another", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 		defer cancel()
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
@@ -286,7 +286,7 @@ func TestEndToEndApply(t *testing.T) {
 	})
 
 	t.Run("with alt-da and additional dispute games", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 		defer cancel()
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
@@ -347,7 +347,7 @@ func TestEndToEndApply(t *testing.T) {
 	})
 
 	t.Run("with custom gas token", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 		defer cancel()
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)

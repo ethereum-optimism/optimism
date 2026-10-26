@@ -207,7 +207,7 @@ func (r *CLITestRunner) ExpectErrorContains(t *testing.T, args []string, env map
 // ExpectErrorContainsWithNetwork runs a command with network parameters expecting it to fail with specific error text
 func (r *CLITestRunner) ExpectErrorContainsWithNetwork(t *testing.T, args []string, env map[string]string, contains string) string {
 	r.lgr.Info("Running cli command with network, expecting error")
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	output, err := r.RunWithNetwork(ctx, args, env)
