@@ -4,13 +4,8 @@ use alloy_primitives::Address;
 use kona_genesis::RollupConfig;
 use kona_peers::{PeerMonitoring, PeerScoreLevel};
 use libp2p::{
-    Multiaddr, StreamProtocol, SwarmBuilder,
-    dns::{ResolverConfig, ResolverOpts},
-    gossipsub::Config,
-    identity::Keypair,
-    noise::Config as NoiseConfig,
-    tcp::Config as TcpConfig,
-    yamux::Config as YamuxConfig,
+    Multiaddr, StreamProtocol, SwarmBuilder, gossipsub::Config, identity::Keypair,
+    noise::Config as NoiseConfig, tcp::Config as TcpConfig, yamux::Config as YamuxConfig,
 };
 use std::time::Duration;
 use tokio::sync::watch;
@@ -197,9 +192,8 @@ impl GossipDriverBuilder {
             .map_err(|_| GossipDriverBuilderError::SyncReqRespAlreadyAccepted)?;
 
         // Build the swarm with DNS+TCP transport.
-        // Note: with_dns_config() must be called after with_tcp() to wrap TCP with DNS resolution.
+        // Note: with_dns() must be called after with_tcp() to wrap TCP with DNS resolution.
         debug!(target: "gossip", "Building Swarm with Peer ID: {}", keypair.public().to_peer_id());
-        let (dns_config, dns_opts) = dns_resolver_config();
         let swarm = SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
             .with_tcp(
@@ -211,7 +205,8 @@ impl GossipDriverBuilder {
                 YamuxConfig::default,
             )
             .map_err(|_| GossipDriverBuilderError::TcpError)?
-            .with_dns_config(dns_config, dns_opts)
+            .with_dns()
+            .map_err(|_| GossipDriverBuilderError::TcpError)?
             .with_behaviour(|_| behaviour)
             .map_err(|_| GossipDriverBuilderError::WithBehaviourError)?
             .with_swarm_config(|c| c.with_idle_connection_timeout(timeout))
@@ -221,25 +216,5 @@ impl GossipDriverBuilder {
         let gate = crate::ConnectionGater::new(gater_config);
 
         Ok(GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate))
-    }
-}
-
-/// The resolver configuration used to resolve peer addresses: the system's when it can be read,
-/// otherwise the library defaults.
-///
-/// macOS writes a scoped link-local nameserver such as `fe80::1%en0` into `/etc/resolv.conf`
-/// when a router advertises one, and the resolver cannot parse that line. Peer address
-/// resolution is not worth refusing to start over, so the node logs the cause and falls back.
-fn dns_resolver_config() -> (ResolverConfig, ResolverOpts) {
-    match hickory_resolver::system_conf::read_system_conf() {
-        Ok(config) => config,
-        Err(e) => {
-            warn!(
-                target: "gossip",
-                %e,
-                "Unable to read the system DNS configuration; resolving peer addresses with the default resolvers"
-            );
-            (ResolverConfig::default(), ResolverOpts::default())
-        }
     }
 }
