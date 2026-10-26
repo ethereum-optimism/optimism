@@ -32,7 +32,7 @@ func (h holoceneExpectations) RequireExpectedProgressAndLogs(t actionsHelpers.St
 	}
 
 	require.Equal(t, exp.safeHead, actualSafeHead.Number, "safe head: wrong number")
-	expectedHash := engine.L2Chain().GetHeaderByNumber(exp.safeHead).Hash()
+	expectedHash := engine.HeaderByNumber(t, exp.safeHead).Hash()
 	require.Equal(t, expectedHash, actualSafeHead.Hash, "safe head: wrong hash")
 
 	for _, l := range exp.logs {

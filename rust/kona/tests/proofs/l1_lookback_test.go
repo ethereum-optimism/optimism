@@ -41,7 +41,7 @@ func runL1LookbackTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Ensure that the safe head has advanced to `NumL2Blocks`.
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	require.EqualValues(t, numL2Blocks, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Run the FPP on the configured L2 block.
@@ -60,7 +60,7 @@ func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[any
 	env.Alice.L2.ActMakeTx(t)
 	env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
 	env.Sequencer.ActL2EndBlock(t)
-	l2BlockBeforeDerive := env.Engine.L2Chain().CurrentBlock()
+	l2BlockBeforeDerive := env.Engine.LatestHeader(t)
 
 	// Buffer the L2 block in the batcher.
 	env.Batcher.ActL2BatchBuffer(t)
@@ -114,11 +114,11 @@ func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[any
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Ensure that the correct block was derived.
-	l2BlockAfterDerive := env.Engine.L2Chain().GetBlockByNumber(1)
+	l2BlockAfterDerive := env.Engine.HeaderByNumber(t, 1)
 	require.EqualValues(t, l2BlockAfterDerive.Hash(), l2BlockBeforeDerive.Hash())
 
 	// Ensure that the safe head has advanced to `NumL2Blocks`.
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	require.EqualValues(t, numL2Blocks, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Run the FPP on the configured L2 block.

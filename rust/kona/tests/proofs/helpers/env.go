@@ -169,13 +169,6 @@ func WithL1Head(head common.Hash) FixtureInputParam {
 	}
 }
 
-// WithL2RPCTracker sets the L2RPCTracker to observe L2 JSON-RPC calls made by the program host.
-func WithL2RPCTracker(tracker *L2RPCTracker) FixtureInputParam {
-	return func(f *FixtureInputs) {
-		f.L2RPCTracker = tracker
-	}
-}
-
 // WithCorruptClaim instructs the SP1 super-range executor to corrupt the claim the guest sees,
 // after witness collection has run on the honest one, so the guest rejects it. Used for the
 // invalid-claim (soundness) test path. Has no effect on the native fault-proof program. Not
