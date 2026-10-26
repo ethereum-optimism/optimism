@@ -53,9 +53,6 @@ var bundleAllowed = []string{
 	// Builds registry bundles for arbitrary registry commits.
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/...",
 
-	// Deploys via op-deployer, which reads registry records.
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen",
-
 	// Chain-selection flags: the --network help text lists the available
 	// networks, so the package is inherently about the registry.
 	"github.com/ethereum-optimism/optimism/op-service/flags",

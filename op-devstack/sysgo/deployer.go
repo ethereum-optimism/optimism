@@ -21,7 +21,6 @@ import (
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
@@ -228,8 +227,6 @@ type worldBuilder struct {
 	outL2Genesis    map[eth.ChainID]*opgenesis.Genesis
 	outL2RollupCfg  map[eth.ChainID]*rollup.Config
 	outL2Deployment map[eth.ChainID]*L2Deployment
-
-	outFullCfgSet config.FullConfigSetMerged
 
 	outSuperchainDeployment *SuperchainDeployment
 }
@@ -644,20 +641,6 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 	}
 }
 
-func (wb *worldBuilder) buildFullConfigSet() {
-	// If no chain has interop active, the dep set will be nil here,
-	// so we should skip building the full config set.
-	if wb.output.InteropDepSet == nil {
-		return
-	}
-
-	rollupConfigSet := config.StaticRollupConfigSetFromRollupConfigMap(wb.outL2RollupCfg,
-		config.StaticTimestamp(wb.outL1Genesis.Timestamp))
-	fullCfgSet, err := config.NewFullConfigSetMerged(rollupConfigSet, wb.output.InteropDepSet)
-	wb.require.NoError(err)
-	wb.outFullCfgSet = fullCfgSet
-}
-
 func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1Network {
 	deployerKey, err := wb.keys.Secret(devkeys.DeployerRole.Key(big.NewInt(0)))
 	wb.require.NoError(err, "need deployer key")
@@ -712,7 +695,6 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 	}
 	wb.buildL2Genesis()
 	wb.buildL2DeploymentOutputs()
-	wb.buildFullConfigSet()
 	return l1Net
 }
 

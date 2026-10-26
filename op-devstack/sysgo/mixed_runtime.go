@@ -242,9 +242,9 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		return l1EL, l1CL
 	}
 	if cfg.InteropAtGenesis {
-		_, l1Net, l2Net, depSet, _ = buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
+		_, l1Net, l2Net, depSet = buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
 	} else {
-		_, l1Net, l2Net, _, _ = buildSingleChainWorld(t, keys, false, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
+		_, l1Net, l2Net, _ = buildSingleChainWorld(t, keys, false, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
 	}
 
 	metricsRegistrar := mixedNoopMetricsRegistrar{}

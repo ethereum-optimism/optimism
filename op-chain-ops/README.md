@@ -15,7 +15,6 @@ Packages:
 - `foundry`: utils to read foundry artifacts.
 - `genesis`: OP Stack genesis-configs generation, pre OPCM.
 - `interopbridge`: shared cross-chain ETH bridge used by the Interop test tools (check-lagoon, interop-smoke).
-- `interopgen`: interop test-chain genesis config generation.
 - `interopsmoke`: interop smoke tests against live chain RPCs (bridging, executing-message validation).
 - `pkg/sdm`: shared SDM workload, PostExec validation, receipt, replay, and verifier-conformance helpers.
 - `script`: foundry-like solidity scripting environment in Go.
@@ -49,9 +48,6 @@ This includes `op-deployer`, OP-Contracts-Manager (OPCM), upgrade-check scripts,
 
 - Upgrade checking scripts should become more extensible, and maybe be bundled in a single check-script CLI tool.
 - Serve chain inspection/processing building-blocks for test setups and tooling like op-deployer.
-- `interopgen` is meant to be temporary, and consolidate with `op-deployer`.
-  This change depends largely on the future of `op-e2e`,
-  where system tests may be replaced in favor of tests set up by `op-e2e`.
 - `script` is a Go version of `forge` script, with hooks and customization options,
   for better integration into tooling such as `op-deployer`.
   This package should evolve to serve testing and `op-deployer` as best as possible,
