@@ -12,11 +12,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
 var (
@@ -56,22 +54,15 @@ func setInteropZKDisputeGameViaUpgrade(
 	proposer, err := keys.Address(l2Ops(devkeys.ProposerRole))
 	require.NoError(err, "must have configured proposer")
 
-	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
+	_, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
-	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
-	require.NoError(err, "failed to download artifacts")
-
-	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
-		Prank: l1PAO,
-		Opcm:  migration.opcmImpl,
-		UpgradeInputV2: &embedded.UpgradeInputV2{
-			SystemConfig:       sortedChainSystemConfigs(migration)[0],
-			DisputeGameConfigs: buildZKUpgradeGameConfigs(programVKey, cfg, proposer),
-			ExtraInstructions: []embedded.ExtraInstruction{
-				{
-					Key:  "overrides.cfg.startingRespectedGameType",
-					Data: encodeStartingRespectedGameType(t, uint32(gameTypes.ZKDisputeGameType)),
-				},
+	executeOPCMUpgrade(t, client, l1PAOKey, migration.opcmImpl, opcm.UpgradeInputV2{
+		SystemConfig:       sortedChainSystemConfigs(migration)[0],
+		DisputeGameConfigs: buildZKUpgradeGameConfigs(programVKey, cfg, proposer),
+		ExtraInstructions: []opcm.ExtraInstruction{
+			{
+				Key:  "overrides.cfg.startingRespectedGameType",
+				Data: encodeStartingRespectedGameType(t, uint32(gameTypes.ZKDisputeGameType)),
 			},
 		},
 	})
@@ -86,21 +77,21 @@ func buildZKUpgradeGameConfigs(
 	programVKey common.Hash,
 	cfg ZKDisputeGameConfig,
 	proposer common.Address,
-) []embedded.DisputeGameConfig {
-	return []embedded.DisputeGameConfig{
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannon},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypePermissionedCannon},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannonKona},
+) []opcm.DisputeGameConfig {
+	return []opcm.DisputeGameConfig{
+		{Enabled: false, InitBond: new(big.Int), GameType: opcm.GameTypeCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: opcm.GameTypePermissionedCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: opcm.GameTypeCannonKona},
 		{
-			Enabled: true, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermissioned,
-			SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
+			Enabled: true, InitBond: new(big.Int), GameType: opcm.GameTypeSuperPermissioned,
+			SuperPermissionedDisputeGameConfig: &opcm.SuperPermissionedDisputeGameConfig{
 				Proposer: proposer,
 			},
 		},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
+		{Enabled: false, InitBond: new(big.Int), GameType: opcm.GameTypeSuperCannonKona},
 		{
-			Enabled: true, InitBond: new(big.Int).Set(defaultInitBond), GameType: embedded.GameTypeZKDisputeGame,
-			ZKDisputeGameConfig: &embedded.ZKDisputeGameConfig{
+			Enabled: true, InitBond: new(big.Int).Set(defaultInitBond), GameType: opcm.GameTypeZKDisputeGame,
+			ZKDisputeGameConfig: &opcm.ZKDisputeGameConfig{
 				AbsolutePrestate:     programVKey,
 				MaxChallengeDuration: uint64(cfg.MaxChallengeDuration / time.Second),
 				MaxProveDuration:     uint64(cfg.MaxProveDuration / time.Second),

@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -23,22 +22,22 @@ func TestCLIPCDJourney(t *testing.T) {
 	rows := []struct {
 		name                       string
 		chainIDs                   []common.Hash
-		respectedGameType          embedded.GameType
-		fallbackGameType           embedded.GameType
+		respectedGameType          opcm.GameType
+		fallbackGameType           opcm.GameType
 		expectedContinueNonceDelta uint64
 	}{
 		{
 			name:                       "singleton-super-root",
 			chainIDs:                   []common.Hash{uint256.NewInt(1).Bytes32()},
-			respectedGameType:          embedded.GameTypeSuperCannonKona,
-			fallbackGameType:           embedded.GameTypeSuperPermissioned,
+			respectedGameType:          opcm.GameTypeSuperCannonKona,
+			fallbackGameType:           opcm.GameTypeSuperPermissioned,
 			expectedContinueNonceDelta: 1,
 		},
 		{
 			name:                       "two-chain-shared-super-root",
 			chainIDs:                   []common.Hash{uint256.NewInt(1).Bytes32(), uint256.NewInt(2).Bytes32()},
-			respectedGameType:          embedded.GameTypeSuperCannonKona,
-			fallbackGameType:           embedded.GameTypeSuperPermissioned,
+			respectedGameType:          opcm.GameTypeSuperCannonKona,
+			fallbackGameType:           opcm.GameTypeSuperPermissioned,
 			expectedContinueNonceDelta: 2,
 		},
 	}

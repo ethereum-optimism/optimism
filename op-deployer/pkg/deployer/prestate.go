@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
@@ -72,7 +71,7 @@ var selectedPrestateRole = prestateRole{
 
 type prestateAssignment struct {
 	ChainID  common.Hash
-	GameType embedded.GameType
+	GameType opcm.GameType
 	Selected common.Hash
 }
 
@@ -131,7 +130,7 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		if err != nil {
 			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
 		}
-		gameType := embedded.GameType(preparedGameType)
+		gameType := opcm.GameType(preparedGameType)
 		initialGameTypes = append(initialGameTypes, preparedGameType)
 
 		assignment := prestateAssignment{ChainID: chain.ID, GameType: gameType}
@@ -178,7 +177,7 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	}
 	for _, assignment := range assignments {
 		switch assignment.GameType {
-		case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
+		case opcm.GameTypeCannonKona, opcm.GameTypeSuperCannonKona:
 			cfg.Logger.Info("committed deployment prestate", "chainID", assignment.ChainID.Hex(), "selected", assignment.Selected.Hex())
 		}
 	}
@@ -197,11 +196,11 @@ func rejectObsoleteFallbackOverrides(intent *state.Intent) error {
 	return nil
 }
 
-func gameTypeName(gameType embedded.GameType) string {
+func gameTypeName(gameType opcm.GameType) string {
 	switch gameType {
-	case embedded.GameTypeCannonKona:
+	case opcm.GameTypeCannonKona:
 		return "CANNON_KONA"
-	case embedded.GameTypeSuperCannonKona:
+	case opcm.GameTypeSuperCannonKona:
 		return "SUPER_CANNON_KONA"
 	default:
 		return fmt.Sprintf("%d", gameType)
@@ -215,7 +214,7 @@ type resolvedPrestate struct {
 	hash   common.Hash
 }
 
-func validatePermissionlessPrestateCandidate(chainID common.Hash, gameType embedded.GameType, candidate resolvedPrestate) error {
+func validatePermissionlessPrestateCandidate(chainID common.Hash, gameType opcm.GameType, candidate resolvedPrestate) error {
 	if candidate.hash != opcm.PermissionedCannonFallbackPrestatePlaceholder {
 		return nil
 	}

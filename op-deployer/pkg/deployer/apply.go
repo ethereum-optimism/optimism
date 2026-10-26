@@ -276,20 +276,6 @@ func ApplyPipeline(
 		if err != nil {
 			return fmt.Errorf("failed to initialize L1 host: %w", err)
 		}
-	case DeploymentTargetCalldata, DeploymentTargetNoop:
-		l1RPC, err = rpc.Dial(opts.L1RPCUrl)
-		if err != nil {
-			return fmt.Errorf("failed to connect to L1 RPC: %w", err)
-		}
-
-		l1Client = ethclient.NewClient(l1RPC)
-
-		bcaster = new(broadcaster.CalldataBroadcaster)
-
-		l1Host, err = env.DefaultForkedScriptHost(ctx, bcaster, opts.Logger, deployer, bundle.L1, l1RPC)
-		if err != nil {
-			return fmt.Errorf("failed to initialize L1 host: %w", err)
-		}
 	case DeploymentTargetGenesis:
 		bcaster = broadcaster.NoopBroadcaster()
 		l1Host, err = env.DefaultScriptHost(
@@ -460,14 +446,6 @@ func ApplyPipeline(
 		}
 		if err := pEnv.StateWriter.WriteState(st); err != nil {
 			return fmt.Errorf("failed to write state: %w", err)
-		}
-	}
-
-	if opts.DeploymentTarget == DeploymentTargetCalldata {
-		cdCaster := pEnv.Broadcaster.(*broadcaster.CalldataBroadcaster)
-		st.DeploymentCalldata, err = cdCaster.Dump()
-		if err != nil {
-			return fmt.Errorf("failed to dump calldata: %w", err)
 		}
 	}
 

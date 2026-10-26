@@ -7,8 +7,8 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	txintentbindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -45,8 +45,8 @@ type pcdLiveChainExpectation struct {
 	portal                        common.Address
 	disputeGameFactory            common.Address
 	anchorStateRegistry           common.Address
-	respectedGameType             embedded.GameType
-	fallbackGameType              embedded.GameType
+	respectedGameType             opcm.GameType
+	fallbackGameType              opcm.GameType
 	respectedGameImplementation   common.Address
 	fallbackGameImplementation    common.Address
 	respectedGameAbsolutePrestate common.Hash

@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
@@ -73,10 +72,6 @@ type State struct {
 	// The allocs are included in L1StateDump.
 	// The stateHash can be used for consistency checks and faster block-hash computation.
 	L1DevGenesis *core.Genesis `json:"-"`
-
-	// DeploymentCalldata contains the calldata of each transaction in the deployment. This is only
-	// populated if apply is called with --deployment-target=calldata.
-	DeploymentCalldata []broadcaster.CalldataDump
 }
 
 func (s *State) WriteToFile(path string) error {
