@@ -32,6 +32,9 @@ var (
 		{"DeployAlphabetVM.s.sol", "DeployAlphabetVM"},
 		{"SetDisputeGameImpl.s.sol", "SetDisputeGameImpl"},
 	}
+
+	// L2ForgeScripts are the scripts that build the L2 genesis.
+	L2ForgeScripts = []ForgeScript{{"L2Genesis.s.sol", "L2Genesis"}}
 )
 
 // NewForgeClient returns a forge client for a contracts bundle. It checks that the scripts have the
@@ -52,9 +55,10 @@ func NewForgeClient(artifactsFS foundry.StatDirFs, cacheDir string, scripts []Fo
 	if _, err := os.Stat(filepath.Join(client.Wd, "foundry.toml")); err != nil {
 		return nil, fmt.Errorf("the contracts bundle is not a forge project: %w", err)
 	}
-	// The scripts read the artifacts.
+	// The scripts read the artifacts, and keep the state of a genesis deployment in genesisStateDir.
 	client.FsPermissions = []forge.FsPermission{
 		{Access: "read", Path: "./forge-artifacts/"},
+		{Access: "read-write", Path: "./" + genesisStateDir + "/"},
 	}
 	return client, nil
 }
