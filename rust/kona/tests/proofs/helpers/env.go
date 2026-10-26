@@ -109,7 +109,7 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	}
 	l2UserEnv := &helpers.BasicUserEnv[*helpers.L2Bindings]{
 		EthCl:          l2EthCl,
-		Signer:         types.LatestSigner(sd.L2Cfg.Config),
+		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       helpers.NewL2Bindings(t, l2EthCl, engine.GethClient()),
 	}

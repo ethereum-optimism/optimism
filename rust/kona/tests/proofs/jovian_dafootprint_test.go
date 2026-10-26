@@ -74,7 +74,7 @@ func TestJovianDAFootprint(gt *testing.T) {
 
 		l2Cl := env.Engine.EthClient()
 		chainID := rollupCfg.L2ChainID
-		signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+		signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
 
 		// Deterministic nonces from pending state
 		nonce, err := l2Cl.PendingNonceAt(t.Ctx(), env.Dp.Addresses.Alice)

@@ -33,10 +33,11 @@ func TestL2EngineAPI(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L2Cfg.ToBlock()
+	gethCfg := sd.L2Cfg.Config.GethChainConfig()
 	consensus := beacon.New(ethash.NewFaker())
 	db := rawdb.NewMemoryDatabase()
 	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
-	sd.L2Cfg.MustCommit(db, tdb)
+	sd.L2Cfg.GethGenesis().MustCommit(db, tdb)
 
 	engine := NewL2Engine(t, log, sd.L2Cfg)
 
@@ -44,9 +45,9 @@ func TestL2EngineAPI(gt *testing.T) {
 	require.NoError(t, err)
 
 	// build an empty block
-	chainA, _ := core.GenerateChain(sd.L2Cfg.Config, genesisBlock, consensus, db, 1, func(n int, gen *core.BlockGen) {
+	chainA, _ := core.GenerateChain(gethCfg, genesisBlock, consensus, db, 1, func(n int, gen *core.BlockGen) {
 		gen.SetCoinbase(common.Address{'A'})
-		if sd.L2Cfg.Config.IsCancun(gen.Number(), gen.Timestamp()) {
+		if gethCfg.IsCancun(gen.Number(), gen.Timestamp()) {
 			root := crypto.Keccak256Hash([]byte("A"), binary.BigEndian.AppendUint64(nil, uint64(n)))
 			gen.SetParentBeaconRoot(root)
 		}
@@ -73,9 +74,9 @@ func TestL2EngineAPI(gt *testing.T) {
 	require.Equal(t, payloadA.ExecutionPayload.BlockHash, engine.LatestHeader(t).Hash(), "now payload A is canonical")
 
 	// build an alternative block
-	chainB, _ := core.GenerateChain(sd.L2Cfg.Config, genesisBlock, consensus, db, 1, func(n int, gen *core.BlockGen) {
+	chainB, _ := core.GenerateChain(gethCfg, genesisBlock, consensus, db, 1, func(n int, gen *core.BlockGen) {
 		gen.SetCoinbase(common.Address{'B'})
-		if sd.L2Cfg.Config.IsCancun(gen.Number(), gen.Timestamp()) {
+		if gethCfg.IsCancun(gen.Number(), gen.Timestamp()) {
 			root := crypto.Keccak256Hash([]byte("A"), binary.BigEndian.AppendUint64(nil, uint64(n)))
 			gen.SetParentBeaconRoot(root)
 		}
@@ -108,9 +109,6 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L2Cfg.ToBlock()
-	db := rawdb.NewMemoryDatabase()
-	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
-	sd.L2Cfg.MustCommit(db, tdb)
 
 	engine := NewL2Engine(t, log, sd.L2Cfg)
 	t.Cleanup(func() {
@@ -118,7 +116,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 	})
 
 	cl := engine.EthClient()
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 
 	// send a tx to the miner
 	tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{

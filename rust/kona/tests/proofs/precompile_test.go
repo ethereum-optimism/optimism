@@ -60,7 +60,7 @@ func runPrecompileTest(gt *testing.T, testCfg *helpers.TestCfg[PrecompileTestFix
 
 	receipt := env.Alice.L2.LastTxReceipt(t)
 	receiptBlockTime := env.Engine.HeaderByHash(t, receipt.BlockHash).Time
-	rules := env.Sd.L2Cfg.Config.Rules(receipt.BlockNumber, true, receiptBlockTime)
+	rules := env.Sd.L2Cfg.Config.GethChainConfig().Rules(receipt.BlockNumber, true, receiptBlockTime)
 	expectedResult := make([]byte, 0)
 	precompile, ok := vm.ActivePrecompiledContracts(rules)[testCase.Address]
 	if ok {

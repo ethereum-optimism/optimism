@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/testengine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -44,9 +44,8 @@ var resolveEngineBinary = sync.OnceValues(func() (string, error) {
 
 // NewL2Engine spawns a fresh op-reth-test-engine subprocess over the given genesis and returns the
 // L2Engine handle driving it. The engine is ephemeral: it keeps no state across processes. Genesis
-// is marshalled to a temp file in exactly the op-geth core.Genesis JSON the binary parses
-// (OpChainSpec::from_genesis).
-func NewL2Engine(t Testing, logger log.Logger, genesis *core.Genesis) *L2Engine {
+// is marshalled to a temp file in the L2 genesis JSON the binary parses (OpChainSpec::from_genesis).
+func NewL2Engine(t Testing, logger log.Logger, genesis *opgenesis.Genesis) *L2Engine {
 	binPath, err := resolveEngineBinary()
 	require.NoError(t, err, "resolve op-reth-test-engine binary")
 

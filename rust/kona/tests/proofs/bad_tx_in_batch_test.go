@@ -44,7 +44,7 @@ func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[int64]) {
 		} else if testCfg.Custom == NotEnoughBalance {
 			pkey, err := crypto.GenerateKey()
 			require.NoError(t, err)
-			signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+			signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
 
 			txCopy, err := types.SignTx(txs[1], signer, pkey)
 			require.NoError(t, err)
@@ -128,7 +128,7 @@ func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.
 		} else if testCfg.Custom == NotEnoughBalance {
 			pkey, err := crypto.GenerateKey()
 			require.NoError(t, err)
-			signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+			signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
 
 			txCopy, err := types.SignTx(txs[1], signer, pkey)
 			require.NoError(t, err)

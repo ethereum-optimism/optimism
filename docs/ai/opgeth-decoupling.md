@@ -432,9 +432,9 @@ is rejected. `Genesis.ToBlock()` computes the genesis block on upstream go-ether
 adds — from Isthmus the header's `WithdrawalsHash` is the storage root of the
 `L2ToL1MessagePasser` predeploy (upstream `state`/`triedb`) instead of the empty hash.
 `GethGenesis()` bridges to `core.Genesis` for code that commits genesis state with go-ethereum:
-the in-process op-geth ELs of op-e2e and op-devstack (§17) and op-e2e's action-test
-`SetupData.L2Cfg`. op-devstack's `L2Network.ChainConfig()` still returns the go-ethereum config
-`GethChainConfig()` derives (§13).
+the in-process op-geth ELs of op-e2e and op-devstack (§17). op-e2e's action-test
+`SetupData.L2Cfg` is the `Genesis` itself. op-devstack's `L2Network.ChainConfig()` still
+returns the go-ethereum config `GethChainConfig()` derives (§13).
 
 `opparams.ChainConfig`'s JSON codec writes the go-ethereum config `GethChainConfig()` derives,
 embedded, with the OP fields declared directly: `encoding/json` lets a direct field dominate a
