@@ -10,12 +10,19 @@ use alloy_primitives::Address;
 use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
+use kona_gossip::GossipTransport;
 use kona_node_service::{
     EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, SignerActor,
 };
 use kona_peers::BootNode;
 use kona_sources::BlockSignerHandler;
-use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
+use libp2p::{
+    Multiaddr, Transport,
+    core::{transport::MemoryTransport, upgrade::Version},
+    identity::Keypair,
+    multiaddr::Protocol,
+    noise, yamux,
+};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rand::RngCore;
 use tokio::sync::{mpsc, watch};
@@ -30,6 +37,8 @@ pub(crate) struct TestNetworkBuilder {
     unsafe_block_signer: Address,
     /// The keypair for the next node built, if it must not be random.
     custom_keypair: Option<Keypair>,
+    /// Whether nodes gossip over the in-memory transport instead of TCP.
+    in_memory: bool,
 }
 
 impl TestNetworkBuilder {
@@ -40,7 +49,19 @@ impl TestNetworkBuilder {
     pub(crate) fn new() -> Self {
         let chain_id = rand::rng().next_u64();
 
-        Self { chain_id, unsafe_block_signer: Address::ZERO, custom_keypair: None }
+        Self {
+            chain_id,
+            unsafe_block_signer: Address::ZERO,
+            custom_keypair: None,
+            in_memory: false,
+        }
+    }
+
+    /// Makes the nodes built from now on gossip over the in-memory transport, listening on a free
+    /// `/memory` port. Discovery still uses UDP on localhost.
+    pub(crate) const fn in_memory(mut self) -> Self {
+        self.in_memory = true;
+        self
     }
 
     /// Sets a sequencer keypair for the network.
@@ -91,11 +112,14 @@ impl TestNetworkBuilder {
             })
             .build();
 
-        let mut gossip_multiaddr = Multiaddr::from(node_addr);
-        gossip_multiaddr.push(Protocol::Tcp(0));
+        let gossip_multiaddr = if self.in_memory {
+            Multiaddr::empty().with(Protocol::Memory(0))
+        } else {
+            Multiaddr::from(node_addr).with(Protocol::Tcp(0))
+        };
 
         // Create a new network actor. No external connections
-        let builder = NetworkBuilder::new(
+        let mut builder = NetworkBuilder::new(
             // Create a new rollup config. We don't need to specify any of the fields.
             self.rollup_config(),
             self.unsafe_block_signer,
@@ -105,6 +129,10 @@ impl TestNetworkBuilder {
             discovery_config,
         )
         .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into());
+        if self.in_memory {
+            // A `/memory` address has no IP or TCP port to put in the ENR.
+            builder = builder.with_enr_update(false).with_gossip_transport(memory_transport());
+        }
 
         let handler = builder.build().expect("build network").start().await.expect("start network");
 
@@ -168,4 +196,16 @@ impl NetworkEngineClient for ForwardingNetworkEngineClient {
             .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
         Ok(())
     }
+}
+
+/// An in-process transport with the upgrades `with_tcp` applies: lazy protocol negotiation, Noise,
+/// then Yamux.
+fn memory_transport() -> GossipTransport {
+    GossipTransport::Other(Box::new(|keypair| {
+        Ok(MemoryTransport::default()
+            .upgrade(Version::V1Lazy)
+            .authenticate(noise::Config::new(keypair)?)
+            .multiplex(yamux::Config::default())
+            .boxed())
+    }))
 }

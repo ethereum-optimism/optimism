@@ -7,6 +7,7 @@ use discv5::Enr;
 use kona_gossip::{P2pRpcRequest, PeerDump, PeerInfo};
 use kona_node_service::NetworkActorError;
 use kona_rpc::NetworkAdminQuery;
+use libp2p::Multiaddr;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use tokio::{
     sync::{mpsc, oneshot},
@@ -46,6 +47,10 @@ pub(crate) enum TestNetworkError {
     PeerInfoMissingEnr,
     #[error("Invalid ENR: {0}")]
     InvalidEnr(String),
+    #[error("Peer info missing listen address")]
+    PeerInfoMissingAddress,
+    #[error("Invalid multiaddr: {0}")]
+    InvalidMultiaddr(String),
     /// The other node is not among this node's connected peers yet.
     #[error("Peer not connected")]
     PeerNotConnected,
@@ -100,6 +105,35 @@ impl TestNetwork {
             .when(|e| matches!(e, TestNetworkError::PeerNotConnected))
             .notify(|e, duration| tracing::info!(target: "network", "Retrying connection. Error: {e:?}, duration: {duration:?}"))
             .await
+    }
+
+    /// Returns the first address this node listens on, ending in its `/p2p/<peer id>`.
+    pub(super) async fn listen_addr(&self) -> Result<Multiaddr, TestNetworkError> {
+        let info = self.peer_info().await?;
+        let addr = info.addresses.first().ok_or(TestNetworkError::PeerInfoMissingAddress)?;
+        addr.parse().map_err(|e: libp2p::multiaddr::Error| {
+            TestNetworkError::InvalidMultiaddr(e.to_string())
+        })
+    }
+
+    /// Asks this node to dial `other` at its listen address, the request `opp2p_connectPeer` sends.
+    /// Use [`Self::is_connected_to_with_retries`] to wait for the connection.
+    pub(super) async fn connect_to(&self, other: &Self) -> Result<(), TestNetworkError> {
+        let address = other.listen_addr().await?;
+        self.p2p_rpc_tx
+            .send(P2pRpcRequest::ConnectPeer { address })
+            .await
+            .map_err(|_| TestNetworkError::P2pReceiverClosed)
+    }
+
+    /// Returns the ENRs in this node's discovery table, as `opp2p_discoveryTable` does.
+    pub(super) async fn discovery_table(&self) -> Result<Vec<String>, TestNetworkError> {
+        let (table_tx, table_rx) = oneshot::channel();
+        self.p2p_rpc_tx
+            .send(P2pRpcRequest::DiscoveryTable(table_tx))
+            .await
+            .map_err(|_| TestNetworkError::P2pReceiverClosed)?;
+        Ok(table_rx.await?)
     }
 
     /// Returns this node's own ENR.

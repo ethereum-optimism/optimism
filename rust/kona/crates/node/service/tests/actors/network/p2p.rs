@@ -42,3 +42,24 @@ async fn test_large_network_conn() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+/// Nodes gossiping over the in-memory transport connect through `opp2p_connectPeer`, while
+/// discovery, with no bootnodes, finds nobody.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_memory_network_conn() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().in_memory();
+    let node_1 = builder.build(vec![]).await;
+    let node_2 = builder.build(vec![]).await;
+
+    // TODO: This test fails for now. The connection gater rejects addresses without an IP or DNS
+    // name (`DialError::InvalidIpAddress`), so `dial_multiaddr` never dials the `/memory` address.
+    node_2.connect_to(&node_1).await?;
+
+    node_2.is_connected_to_with_retries(&node_1).await?;
+    node_1.is_connected_to_with_retries(&node_2).await?;
+
+    assert!(node_1.discovery_table().await?.is_empty());
+    assert!(node_2.discovery_table().await?.is_empty());
+
+    Ok(())
+}
