@@ -225,8 +225,10 @@ RUN <<-EOF
     done
 EOF
 # Compile contracts, warm the script cache and create artifacts tarball (mirrors `just build-no-tests`)
-RUN cd packages/contracts-bedrock && forge build --skip "/**/test/**" && forge build scripts && \
+WORKDIR /app/packages/contracts-bedrock
+RUN forge build --skip "/**/test/**" && forge build scripts && \
   (forge script scripts/deploy/Deploy.s.sol --skip "/**/test/**" --sig "idonotexist()" --skip-simulation >/dev/null 2>&1 || true)
+WORKDIR /app
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   go run ./op-deployer/pkg/deployer/artifacts/cmd/mktar \
     -base ./packages/contracts-bedrock \

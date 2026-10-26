@@ -283,10 +283,10 @@ func copyCompileCache(src string, dstDir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read the compile cache of the forge project: %w", err)
 	}
-	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+	if err := os.MkdirAll(dstDir, 0o700); err != nil {
 		return fmt.Errorf("failed to create the compile cache directory: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(dstDir, filepath.Base(src)), data, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dstDir, filepath.Base(src)), data, 0o600); err != nil {
 		return fmt.Errorf("failed to copy the compile cache: %w", err)
 	}
 	return nil

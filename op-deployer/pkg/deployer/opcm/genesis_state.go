@@ -94,7 +94,7 @@ func (g *GenesisState) account(addr common.Address) types.Account {
 // When the script writes, the state that it leaves replaces this state.
 func (g *GenesisState) run(client *forge.Client, writes bool, fn func(client *forge.Client, flags []string) error) error {
 	parent := filepath.Join(client.Wd, genesisStateDir)
-	if err := os.MkdirAll(parent, 0o755); err != nil {
+	if err := os.MkdirAll(parent, 0o700); err != nil {
 		return fmt.Errorf("failed to create the genesis state directory: %w", err)
 	}
 	dir, err := os.MkdirTemp(parent, "run-")

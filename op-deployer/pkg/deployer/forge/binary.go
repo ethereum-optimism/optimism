@@ -231,7 +231,7 @@ func (b *StandardBin) Ensure(ctx context.Context) error {
 	}
 
 	// 4) Download expected version for this OS/arch and verify checksum
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
 		return fmt.Errorf("could not create forge cache directory %s: %w", binDir, err)
 	}
 	if err := b.downloadBinary(ctx, binDir); err != nil {
@@ -278,7 +278,7 @@ func (b *StandardBin) downloadBinary(ctx context.Context, dest string) error {
 		if err := ioutil.SafeRename(path.Join(tmpDir, tool), path.Join(dest, tool)); err != nil {
 			return fmt.Errorf("failed to move %s binary: %w", tool, err)
 		}
-		if err := os.Chmod(path.Join(dest, tool), 0o755); err != nil {
+		if err := os.Chmod(path.Join(dest, tool), 0o700); err != nil {
 			return fmt.Errorf("failed to set executable bit of %s: %w", tool, err)
 		}
 	}
