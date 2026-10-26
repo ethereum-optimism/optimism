@@ -94,6 +94,22 @@ contract SetDisputeGameImpl_Test is Test {
         script.run(_input(anchorStateRegistry));
     }
 
+    function test_run_factoryNotSet_reverts() public {
+        SetDisputeGameImpl.Input memory input = _input(anchorStateRegistry);
+        input.factory = IDisputeGameFactory(address(0));
+
+        vm.expectRevert("SetDisputeGameImpl: factory not set");
+        script.run(input);
+    }
+
+    function test_run_implNotSet_reverts() public {
+        SetDisputeGameImpl.Input memory input = _input(anchorStateRegistry);
+        input.impl = IFaultDisputeGame(address(0));
+
+        vm.expectRevert("SetDisputeGameImpl: impl not set");
+        script.run(input);
+    }
+
     function test_run_whenImplAlreadySet_reverts() public {
         SetDisputeGameImpl.Input memory input = _input(anchorStateRegistry);
 
