@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 // Scripts
 import { Vm } from "forge-std/Vm.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 /// @title DeployState
 /// @notice Carries the L1 state of a genesis deployment from one offline forge script run to the next.
@@ -14,7 +15,7 @@ library DeployState {
 
     /// @notice Loads the allocs from the file that OP_DEPLOYER_STATE_IN names, if it is set.
     function load() internal {
-        string memory path = vm.envOr("OP_DEPLOYER_STATE_IN", string(""));
+        string memory path = Config.opDeployerStateIn();
         if (bytes(path).length > 0) vm.loadAllocs(path);
     }
 
@@ -23,12 +24,12 @@ library DeployState {
     ///         OP_DEPLOYER_SENDER_OUT names.
     /// @param _sender The script sender.
     function dump(address _sender) internal {
-        string memory path = vm.envOr("OP_DEPLOYER_STATE_OUT", string(""));
+        string memory path = Config.opDeployerStateOut();
         if (bytes(path).length == 0) return;
         vm.dumpState(path);
         // Decimal strings, because forge writes a uint as a JSON number only when it fits in 64 bits.
         vm.serializeString("sender", "nonce", vm.toString(vm.getNonce(_sender)));
         string memory sender = vm.serializeString("sender", "balance", vm.toString(_sender.balance));
-        vm.writeJson(sender, vm.envString("OP_DEPLOYER_SENDER_OUT"));
+        vm.writeJson(sender, Config.opDeployerSenderOut());
     }
 }
