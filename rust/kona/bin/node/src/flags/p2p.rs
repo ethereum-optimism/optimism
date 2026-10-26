@@ -53,6 +53,11 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
     }
 }
 
+/// Returns the port to advertise: `advertise` if set to a non-zero port, `listen` otherwise.
+fn advertised_port(advertise: Option<u16>, listen: u16) -> u16 {
+    advertise.filter(|&port| port != 0).unwrap_or(listen)
+}
+
 /// P2P CLI Flags
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 pub struct P2PArgs {
@@ -361,16 +366,8 @@ impl P2PArgs {
         // If the advertise ip is set, we will disable the dynamic ENR updates.
         let static_ip = self.advertise_ip.is_some();
 
-        // If the advertise tcp port is null, use the listen tcp port
-        let advertise_tcp_port = match self.advertise_tcp_port {
-            None => self.listen_tcp_port,
-            Some(port) => port,
-        };
-
-        let advertise_udp_port = match self.advertise_udp_port {
-            None => self.listen_udp_port,
-            Some(port) => port,
-        };
+        let advertise_tcp_port = advertised_port(self.advertise_tcp_port, self.listen_tcp_port);
+        let advertise_udp_port = advertised_port(self.advertise_udp_port, self.listen_udp_port);
 
         let keypair = self.keypair().unwrap_or_else(|e| {
             let generated = Keypair::generate_secp256k1();
@@ -591,6 +588,13 @@ mod tests {
     fn test_p2p_args_listen_tcp_port() {
         let args = MockCommand::parse_from(["test", "--p2p.listen.tcp", "1234"]);
         assert_eq!(args.p2p.listen_tcp_port, 1234);
+    }
+
+    #[test]
+    fn test_advertised_port_falls_back_to_listen_port() {
+        assert_eq!(advertised_port(None, 9223), 9223);
+        assert_eq!(advertised_port(Some(0), 9223), 9223);
+        assert_eq!(advertised_port(Some(30303), 9223), 30303);
     }
 
     #[test]
