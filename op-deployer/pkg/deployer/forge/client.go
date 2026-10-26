@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -89,15 +90,16 @@ func NewStandardClient(workdir string, binOpts ...StandardBinOpt) (*Client, erro
 	}
 
 	forgeClient.Wd = forgeWd
-	fmt.Printf("Forge client working directory: %s\n", forgeClient.Wd)
 
 	return forgeClient, nil
 }
 
+// NewClient returns a client that runs binary. The output of forge goes to stderr, because a
+// command of op-deployer can write its result to stdout.
 func NewClient(binary Binary) *Client {
 	return &Client{
 		Binary: binary,
-		Stdout: os.Stdout,
+		Stdout: os.Stderr,
 		Stderr: os.Stderr,
 	}
 }
@@ -162,15 +164,51 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	}
 	cliOpts = append(cliOpts, "--sig", sig, script, "0x"+hex.EncodeToString(args))
 	run := c.WithEnv("FOUNDRY_BROADCAST=" + filepath.Join(scratch, "broadcast"))
+	// forge compiles before it runs the script, so stopping it when the compile starts also stops it
+	// before any broadcast.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	watcher := &compileWatcher{cancel: cancel}
+	compileErr := fmt.Errorf("forge compiled the project in %s; its compile cache must be up to date", c.Wd)
 	// forge prints the revert reason of a failed script to stderr.
 	errBuf := new(bytes.Buffer)
-	if err := run.execCmd(ctx, buf, errBuf, cliOpts...); err != nil {
+	err = run.execCmd(ctx, io.MultiWriter(buf, watcher), errBuf, cliOpts...)
+	if watcher.compiled.Load() {
+		return "", compileErr
+	}
+	if err != nil {
 		return "", fmt.Errorf("failed to execute forge script: %w\n%s", err, strings.TrimSpace(errBuf.String()))
 	}
 	if strings.Contains(buf.String(), "Compiler run successful") {
-		return "", fmt.Errorf("forge compiled the project in %s; its compile cache must be up to date", c.Wd)
+		return "", compileErr
 	}
 	return buf.String(), nil
+}
+
+// compileStart is what forge prints when it starts to compile.
+var compileStart = []byte("Compiling ")
+
+// compileWatcher reads the output of forge and calls cancel when forge starts to compile.
+type compileWatcher struct {
+	cancel   context.CancelFunc
+	compiled atomic.Bool
+	// tail holds the end of the previous write, so that a match can span two writes.
+	tail []byte
+}
+
+func (w *compileWatcher) Write(p []byte) (int, error) {
+	if w.compiled.Load() {
+		return len(p), nil
+	}
+	data := append(w.tail, p...)
+	if bytes.Contains(data, compileStart) {
+		w.compiled.Store(true)
+		w.cancel()
+		return len(p), nil
+	}
+	keep := min(len(data), len(compileStart)-1)
+	w.tail = append(w.tail[:0], data[len(data)-keep:]...)
+	return len(p), nil
 }
 
 func copyCompileCache(src string, dstDir string) error {
@@ -224,11 +262,18 @@ func (c *Client) execCmd(ctx context.Context, stdout io.Writer, stderr io.Writer
 	cmd.Stdout = mwStdout
 	cmd.Stderr = mwStderr
 	cmd.Dir = c.Wd
-	cmd.Env = append(cmd.Environ(), c.Env...)
+	cmd.Env = append(slices.DeleteFunc(cmd.Environ(), isForgeConfig), c.Env...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to run forge command: %w", err)
 	}
 	return nil
+}
+
+// isForgeConfig reports whether an environment variable configures forge. forge reads its
+// configuration from FOUNDRY_*, DAPP_* and ETH_* variables, which could make a run compile, or run
+// against another chain than the one op-deployer selects, so forge does not inherit them.
+func isForgeConfig(kv string) bool {
+	return strings.HasPrefix(kv, "FOUNDRY_") || strings.HasPrefix(kv, "DAPP_") || strings.HasPrefix(kv, "ETH_")
 }
 
 type ScriptCallEncoder[I any] interface {

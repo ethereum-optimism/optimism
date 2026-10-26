@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"os/exec"
@@ -118,6 +119,12 @@ func (r *CLITestRunner) GetPrivateKey() string {
 
 // Run executes a CLI command and returns the output
 func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]string) (string, error) {
+	output, err := r.command(ctx, args, env).CombinedOutput()
+	return string(output), err
+}
+
+// command returns the command that runs the CLI with args and env.
+func (r *CLITestRunner) command(ctx context.Context, args []string, env map[string]string) *exec.Cmd {
 	if len(args) > 0 && args[0] == "op-deployer" {
 		args = args[1:]
 	}
@@ -134,8 +141,7 @@ func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]s
 	for key, value := range env {
 		cmd.Env = append(cmd.Env, key+"="+value)
 	}
-	output, err := cmd.CombinedOutput()
-	return string(output), err
+	return cmd
 }
 
 // RunWithNetwork executes a CLI command with network parameters if available
@@ -170,6 +176,20 @@ func (r *CLITestRunner) ExpectSuccessWithNetwork(t *testing.T, args []string, en
 	output, err := r.RunWithNetwork(ctx, args, env)
 	require.NoError(t, err, "Command failed: %s", output)
 	return output
+}
+
+// ExpectStdoutWithNetwork runs a command with network parameters, expects it to succeed, and
+// returns only its standard output.
+func (r *CLITestRunner) ExpectStdoutWithNetwork(t *testing.T, args []string, env map[string]string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	args = append(args, "--l1-rpc-url", r.l1RPC, "--private-key", r.privateKeyHex)
+	cmd := r.command(ctx, args, env)
+	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
+	cmd.Stdout, cmd.Stderr = stdout, stderr
+	require.NoError(t, cmd.Run(), "Command failed: %s", stderr)
+	return stdout.String()
 }
 
 // ExpectErrorContains runs a command expecting it to fail with specific error text

@@ -211,6 +211,21 @@ func TestClient_SlowBroadcast(t *testing.T) {
 	}
 }
 
+// TestClient_RunScriptStopsOnCompile checks that a run stops when forge starts to compile, before
+// the script can broadcast.
+func TestClient_RunScriptStopsOnCompile(t *testing.T) {
+	broadcast := filepath.Join(t.TempDir(), "broadcast")
+	cl := NewClient(stubBinary(t, "echo 'Compiling 1 files with Solc 0.8.15'\nsleep 5\ntouch "+broadcast))
+	cl.Wd = stubProject(t)
+	cl.Stdout = io.Discard
+
+	start := time.Now()
+	_, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil, "--broadcast")
+	require.ErrorContains(t, err, "forge compiled the project")
+	require.Less(t, time.Since(start), 4*time.Second, "the run must stop when the compile starts")
+	require.NoFileExists(t, broadcast)
+}
+
 func TestClient_RunScriptErrorHasReason(t *testing.T) {
 	cl := NewClient(stubBinary(t, `echo "Error: script failed: boom" >&2; exit 1`))
 	cl.Wd = stubProject(t)
@@ -218,6 +233,23 @@ func TestClient_RunScriptErrorHasReason(t *testing.T) {
 
 	_, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
 	require.ErrorContains(t, err, "Error: script failed: boom")
+}
+
+// TestClient_IgnoresForgeConfigInEnv checks that forge does not read its configuration from the
+// environment of op-deployer, which could make it compile or fork a live chain.
+func TestClient_IgnoresForgeConfigInEnv(t *testing.T) {
+	t.Setenv("FOUNDRY_OPTIMIZER_RUNS", "1")
+	t.Setenv("DAPP_LIBRARIES", "x")
+	t.Setenv("ETH_RPC_URL", "http://127.0.0.1:1")
+	t.Setenv("OP_DEPLOYER_TEST_KEEP", "1")
+	// The stub prints only the variables under test, so that a failure does not log the environment.
+	cl := NewClient(stubBinary(t, `echo "runs=$FOUNDRY_OPTIMIZER_RUNS libs=$DAPP_LIBRARIES rpc=$ETH_RPC_URL keep=$OP_DEPLOYER_TEST_KEEP broadcast=${FOUNDRY_BROADCAST:+set}"`))
+	cl.Wd = stubProject(t)
+	cl.Stdout = io.Discard
+
+	out, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	require.NoError(t, err)
+	require.Equal(t, "runs= libs= rpc= keep=1 broadcast=set\n", out, "the client's own variables reach forge")
 }
 
 func TestClient_WithEnv(t *testing.T) {

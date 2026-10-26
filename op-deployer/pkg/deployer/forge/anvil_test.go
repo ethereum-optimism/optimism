@@ -58,3 +58,17 @@ func TestStartFork(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, bigs.Uint64Strict(balance), "the fork must not change the source chain")
 }
+
+// TestStartFork_ReportsAnvilError checks that StartFork returns the error of an anvil that exits,
+// at once and not after the start timeout.
+func TestStartFork_ReportsAnvilError(t *testing.T) {
+	anvilPath, err := exec.LookPath("anvil")
+	require.NoError(t, err)
+
+	start := time.Now()
+	_, err = StartFork(context.Background(), StaticBinary(anvilPath), "http://127.0.0.1:1", 0)
+	require.Error(t, err)
+	require.Less(t, time.Since(start), 30*time.Second)
+	require.ErrorContains(t, err, "anvil exited")
+	require.ErrorContains(t, err, "Error:", "the error includes the output of anvil")
+}

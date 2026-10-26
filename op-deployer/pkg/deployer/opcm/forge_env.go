@@ -2,9 +2,18 @@ package opcm
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
+	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/google/uuid"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 )
@@ -63,10 +72,57 @@ func runScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I
 	case env.UnlockedSender != (common.Address{}):
 		flags = append(flags, "--broadcast", "--unlocked", "--sender", env.UnlockedSender.Hex())
 	case env.PrivateKey != "":
-		flags = append(flags, "--broadcast", "--private-key", env.PrivateKey)
+		keyFlags, cleanup, err := keystoreFlags(env.PrivateKey)
+		if err != nil {
+			return out, err
+		}
+		defer cleanup()
+		flags = append(flags, "--broadcast")
+		flags = append(flags, keyFlags...)
 	default:
 		return out, errors.New("private key is required for Forge deployments")
 	}
 	out, err := newCaller(env.Client)(ctx, input, flags...)
 	return out, err
+}
+
+// keystoreFlags writes privateKey to an encrypted keystore that only the user can read, and returns
+// the forge flags that use it and a function that removes it. Other users of the host can read the
+// command line of forge, so the key does not go there.
+func keystoreFlags(privateKey string) ([]string, func(), error) {
+	key, err := crypto.HexToECDSA(strings.TrimPrefix(privateKey, "0x"))
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid private key: %w", err)
+	}
+	password := make([]byte, 32)
+	if _, err := rand.Read(password); err != nil {
+		return nil, nil, fmt.Errorf("failed to generate the keystore password: %w", err)
+	}
+	passwordHex := hex.EncodeToString(password)
+	keyJSON, err := keystore.EncryptKey(&keystore.Key{
+		Id:         uuid.New(),
+		Address:    crypto.PubkeyToAddress(key.PublicKey),
+		PrivateKey: key,
+	}, passwordHex, keystore.LightScryptN, keystore.LightScryptP)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to encrypt the deployer key: %w", err)
+	}
+
+	// MkdirTemp makes the directory readable only by the user.
+	dir, err := os.MkdirTemp("", "op-deployer-key-")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create the keystore directory: %w", err)
+	}
+	cleanup := func() { _ = os.RemoveAll(dir) }
+	keyPath := filepath.Join(dir, "key.json")
+	passwordPath := filepath.Join(dir, "password")
+	if err := os.WriteFile(keyPath, keyJSON, 0o600); err != nil {
+		cleanup()
+		return nil, nil, fmt.Errorf("failed to write the keystore: %w", err)
+	}
+	if err := os.WriteFile(passwordPath, []byte(passwordHex), 0o600); err != nil {
+		cleanup()
+		return nil, nil, fmt.Errorf("failed to write the keystore password: %w", err)
+	}
+	return []string{"--keystore", keyPath, "--password-file", passwordPath}, cleanup, nil
 }

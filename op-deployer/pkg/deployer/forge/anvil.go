@@ -2,6 +2,7 @@ package forge
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -49,6 +50,8 @@ func StartFork(ctx context.Context, anvil Binary, rpcURL string, blockNumber uin
 		"--no-storage-caching",
 	)
 	cmd.Env = append(os.Environ(), "FOUNDRY_HOME="+foundryHome)
+	stderr := new(tailBuffer)
+	cmd.Stderr = stderr
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		_ = os.RemoveAll(foundryHome)
@@ -61,7 +64,9 @@ func StartFork(ctx context.Context, anvil Binary, rpcURL string, blockNumber uin
 	fork := &Fork{cmd: cmd, foundryHome: foundryHome}
 
 	listening := make(chan string, 1)
+	exited := make(chan struct{})
 	go func() {
+		defer close(exited)
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			if m := anvilListeningRegexp.FindStringSubmatch(scanner.Text()); m != nil {
@@ -79,6 +84,10 @@ func StartFork(ctx context.Context, anvil Binary, rpcURL string, blockNumber uin
 	case addr := <-listening:
 		fork.rpcURL = "http://" + addr
 		return fork, nil
+	case <-exited:
+		// Stop waits for anvil, so the whole of its error output is in stderr after it.
+		_ = fork.Stop()
+		return nil, fmt.Errorf("anvil exited before it forked the chain: %s", bytes.TrimSpace(stderr.buf))
 	case <-timer.C:
 		_ = fork.Stop()
 		return nil, errors.New("anvil did not fork the chain in time")
@@ -101,4 +110,20 @@ func (f *Fork) Stop() error {
 	}
 	_ = f.cmd.Wait()
 	return nil
+}
+
+// anvilStderrLimit is how much of the end of its error output anvil keeps for an error message.
+const anvilStderrLimit = 4096
+
+// tailBuffer keeps the last anvilStderrLimit bytes written to it.
+type tailBuffer struct {
+	buf []byte
+}
+
+func (b *tailBuffer) Write(p []byte) (int, error) {
+	b.buf = append(b.buf, p...)
+	if over := len(b.buf) - anvilStderrLimit; over > 0 {
+		b.buf = b.buf[over:]
+	}
+	return len(p), nil
 }
