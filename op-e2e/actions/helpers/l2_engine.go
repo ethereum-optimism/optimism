@@ -99,6 +99,12 @@ func (e *L2Engine) RPCClient() client.RPC {
 	}
 }
 
+// RPCEndpoint returns the engine's IPC endpoint, the path of its Unix socket, for processes that
+// read the L2 chain from the engine themselves, such as kona-host.
+func (e *L2Engine) RPCEndpoint() string {
+	return e.client.SocketPath()
+}
+
 // LatestHeader returns the current unsafe (canonical head) L2 header, read over the eth RPC.
 func (e *L2Engine) LatestHeader(t Testing) *types.Header {
 	return e.headerByLabel(t, rpc.LatestBlockNumber)

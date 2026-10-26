@@ -1,5 +1,5 @@
-//! Unix-socket JSON-RPC server exposing one [`TestEngine`] over the `engine_*`, `eth_*`, and
-//! `optest_*` namespaces (reth-ipc, go-ethereum `rpc.DialIPC`-compatible).
+//! Unix-socket JSON-RPC server exposing one [`TestEngine`] over the `engine_*`, `eth_*`,
+//! `debug_*`, and `optest_*` namespaces (reth-ipc, go-ethereum `rpc.DialIPC`-compatible).
 //!
 //! The engine is configured entirely from its genesis (the op-geth `core.Genesis` JSON that the Go
 //! action tests already build): the fork schedule, chain id, and predeploy state all come from

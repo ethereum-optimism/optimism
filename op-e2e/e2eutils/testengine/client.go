@@ -37,6 +37,12 @@ func (c *Client) RPC() *rpc.Client {
 	return c.rpc
 }
 
+// SocketPath returns the path of the engine's Unix socket, for processes that dial the engine
+// themselves, such as kona-host. It is valid until Close.
+func (c *Client) SocketPath() string {
+	return c.proc.Path()
+}
+
 // Close stops the engine process. It is idempotent.
 func (c *Client) Close() {
 	c.proc.Close()

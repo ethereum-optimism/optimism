@@ -37,6 +37,7 @@ const (
 // Proc is a handle to a spawned child process and its dialed IPC client.
 type Proc struct {
 	client *rpc.Client
+	sock   string
 	tmpDir string
 	cmd    *exec.Cmd
 	stderr *lineWriter
@@ -77,7 +78,7 @@ func Spawn(binPath string, socketArg string, args []string, logw io.Writer) (*Pr
 		return nil, fmt.Errorf("start %s: %w", binPath, err)
 	}
 
-	p := &Proc{cmd: cmd, tmpDir: tmpDir, stderr: stderr, exited: make(chan struct{})}
+	p := &Proc{cmd: cmd, sock: sock, tmpDir: tmpDir, stderr: stderr, exited: make(chan struct{})}
 	go func() {
 		p.waitErr = cmd.Wait()
 		stderr.flush()
@@ -172,6 +173,12 @@ func (l *lineWriter) tailReport() string {
 // Client returns the dialed go-ethereum IPC client. Valid until Close.
 func (p *Proc) Client() *rpc.Client {
 	return p.client
+}
+
+// Path returns the path of the Unix socket the child serves JSON-RPC on, for dialing the child
+// again, e.g. from another process. Valid until Close.
+func (p *Proc) Path() string {
+	return p.sock
 }
 
 // Close kills the child, waits for it to exit, and removes the temp dir holding the socket and the

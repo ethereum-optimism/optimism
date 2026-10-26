@@ -6,11 +6,14 @@
 //! engine's chain, except that `eth_sendRawTransaction` parks transactions in a buffer and the
 //! `pending` nonce counts them), and `optest_*` — the sequencing hooks that let a test choose a
 //! block's transactions (`includeTx`, `includeNextTx`, `remainingBlockGas`, `forcedEmpty`,
-//! `setForceEmpty`).
+//! `setForceEmpty`) and a state dump (`dumpAccounts`). `debug_*` serves what kona-host reads from
+//! an L2 node, as production op-reth serves it: reth's `debug_` API (`getRawHeader`,
+//! `getRawReceipts`, `dbGet`) and op-reth's `debug_executePayload`.
 //!
 //! The engine's methods take `&mut self`, so the module context is an `Arc<Mutex<TestEngine>>`; a
 //! poisoned lock is recovered rather than propagated so one failed request can't wedge the
-//! process. The `eth_` reads query the chain's provider directly, without the engine lock.
+//! process. The `eth_` and `debug_` reads query the chain's provider directly, without the engine
+//! lock.
 
 use std::sync::{Arc, Mutex};
 
@@ -28,16 +31,20 @@ use op_alloy_rpc_types_engine::{
 use reth_network_api::noop::NoopNetwork;
 use reth_optimism_evm::{OpEvmConfig, OpRethReceiptBuilder, tx::OpTxEnvConverter};
 use reth_optimism_node::engine::validate_op_version_specific_fields;
-use reth_optimism_payload_builder::OpExecData;
+use reth_optimism_payload_builder::{OpExecData, OpPayloadBuilder, OpPayloadBuilderAttributes};
+use reth_optimism_primitives::OpTransactionSigned;
 use reth_optimism_rpc::{
     OpEthApi,
     eth::{receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
+    witness::{DebugExecutionWitnessApiServer, OpDebugWitnessApi},
 };
 use reth_optimism_txpool::OpPooledTransaction;
 use reth_payload_primitives::{EngineApiMessageVersion, PayloadOrAttributes};
-use reth_rpc::EthApiBuilder;
+use reth_rpc::{DebugApi, EthApiBuilder};
+use reth_rpc_api::DebugApiServer;
 use reth_rpc_engine_api::EngineApiError;
 use reth_rpc_eth_api::{EthApiServer, RpcConverter, node::RpcNodeCoreAdapter};
+use reth_tasks::Runtime;
 use reth_transaction_pool::noop::NoopTransactionPool;
 use serde_json::{Value, json};
 
@@ -175,12 +182,16 @@ type EthConverter = RpcConverter<
     OpTxEnvConverter,
 >;
 
-/// op-reth's `eth_` API over `chain`'s provider, with no transaction pool or network behind it.
+/// op-reth's `eth_` API over the engine's chain.
+type EthApi = OpEthApi<EthNodeCore, EthConverter>;
+
+/// op-reth's `eth_` API over `chain`'s provider, with no transaction pool or network behind it,
+/// spawning its tasks on `runtime`.
 ///
 /// The proof window is unbounded: op-node verifies withdrawal proofs against the state of past
 /// blocks, which reth's default window of zero blocks would reject. `eth_chainId` reads the network
 /// handle, so the noop network carries the chain's id.
-fn op_eth_api(chain: &EphemeralChain) -> OpEthApi<EthNodeCore, EthConverter> {
+fn op_eth_api(chain: &EphemeralChain, runtime: Runtime) -> EthApi {
     let provider = chain.provider().clone();
     let evm_config = OpEvmConfig::new(chain.chain_spec(), OpRethReceiptBuilder::default());
     let converter = RpcConverter::new(OpReceiptConverter::new(provider.clone()))
@@ -194,16 +205,50 @@ fn op_eth_api(chain: &EphemeralChain) -> OpEthApi<EthNodeCore, EthConverter> {
     )
     .with_rpc_converter(converter)
     .eth_proof_window(u64::MAX)
+    .task_spawner(runtime)
     .build_inner();
     OpEthApi::new(inner, None, U256::ZERO, None, false)
 }
 
-/// Build the JSON-RPC module serving `engine_*`, `eth_*`, and `optest_*` over `engine`.
+/// The `debug_` methods kona-host reads from an L2 node, spawning their work on `runtime`:
+/// reth's `debug_` API over `eth_api`, and op-reth's `debug_executePayload`, which builds a
+/// payload on `chain` with no transaction pool and returns its execution witness. The production
+/// node wires both the same way.
+fn debug_api(chain: &EphemeralChain, eth_api: EthApi, runtime: Runtime) -> jsonrpsee::Methods {
+    let debug =
+        DebugApi::new(eth_api, runtime.blocking_guard(), &runtime, futures::stream::empty());
+
+    let provider = chain.provider().clone();
+    let evm_config = OpEvmConfig::new(chain.chain_spec(), OpRethReceiptBuilder::default());
+    let builder = OpPayloadBuilder::new(
+        NoopTransactionPool::<OpPooledTransaction>::new(),
+        provider.clone(),
+        evm_config.clone(),
+    );
+    let witness =
+        OpDebugWitnessApi::<_, _, _, OpPayloadBuilderAttributes<OpTransactionSigned>>::new(
+            provider, runtime, builder, evm_config,
+        );
+
+    let mut methods = DebugApiServer::into_rpc(debug);
+    methods
+        .merge(DebugExecutionWitnessApiServer::into_rpc(witness))
+        .expect("debug_executePayload is not part of reth's debug_ API");
+    methods.into()
+}
+
+/// Build the JSON-RPC module serving `engine_*`, `eth_*`, `debug_*`, and `optest_*` over `engine`.
 ///
-/// Must be called inside a tokio runtime: op-reth's `eth_` API spawns its block cache and its
-/// fee-history task on the current one.
+/// Call it inside a tokio runtime: the `eth_` and `debug_` APIs spawn their tasks through a reth
+/// task runtime that reuses its handle, with the small thread pools of reth's test runtime.
 pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
-    let eth_api = op_eth_api(&lock(&engine).chain);
+    let runtime = Runtime::test();
+    let (eth_api, debug) = {
+        let engine = lock(&engine);
+        let eth_api = op_eth_api(&engine.chain, runtime.clone());
+        let debug = debug_api(&engine.chain, eth_api.clone(), runtime);
+        (eth_api, debug)
+    };
     let mut m = RpcModule::new(engine);
 
     // --- engine_ ---
@@ -316,6 +361,23 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
     })
     .expect("register method");
 
+    // `optest_dumpAccounts(blockHash, addresses)`: the state of the listed accounts at a block, as
+    // a go-ethereum `types.GenesisAlloc` decodes it: an object keyed by address whose values are
+    // `{"nonce", "balance", "code", "storage": {slot: value}}` (hex quantities and bytes, full
+    // 32-byte slots and values). An account that does not exist is absent, `code` is absent for
+    // an account without code and `storage` when it holds no non-zero slot. An unknown block is
+    // an error. See `EphemeralChain::dump_accounts`.
+    m.register_method("optest_dumpAccounts", |params, ctx, _| {
+        let (hash, addresses): (B256, Vec<Address>) = params.parse().map_err(rpc_err)?;
+        let dump = lock(ctx)
+            .chain
+            .dump_accounts(hash, &addresses)
+            .map_err(rpc_err)?
+            .ok_or_else(|| rpc_err(format!("unknown block {hash}")))?;
+        serde_json::to_value(dump).map_err(rpc_err)
+    })
+    .expect("register method");
+
     // --- eth_ ---
 
     // A raw transaction is parked in the engine's pending buffer (no auto-inclusion); the Go tests'
@@ -348,6 +410,7 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
         eth.remove_method(method);
     }
     m.merge(eth).expect("eth_ methods do not clash with the engine's own");
+    m.merge(debug).expect("debug_ methods do not clash with the engine's own");
 
     m
 }
@@ -356,13 +419,18 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
 mod tests {
     use super::*;
     use crate::testsupport::{
-        deposit_tx, depositor, ecotone_test_engine, encode, fcu, next_env, payload_attrs,
-        payload_of, test_engine, test_engine_with_accounts, user_sender, user_tx,
+        FUNDED_BALANCE, deposit_tx, depositor, ecotone_test_engine, encode, fcu, next_env,
+        payload_attrs, payload_of, sequence_forced, test_engine, test_engine_with_accounts,
+        user_sender, user_tx,
     };
+    use alloy_consensus::{Header, proofs::ordered_trie_root_encoded};
     use alloy_genesis::GenesisAccount;
-    use alloy_primitives::{address, bytes};
+    use alloy_primitives::{TxKind, address, bytes, keccak256};
+    use alloy_rlp::Decodable;
     use jsonrpsee::core::server::MethodsError;
+    use op_alloy_consensus::TxDeposit;
     use reth_optimism_evm::PostExecMode;
+    use std::collections::BTreeMap;
 
     /// An engine whose head is block 1, holding a single deposit.
     fn engine_with_deposit() -> (SharedEngine, B256) {
@@ -395,6 +463,148 @@ mod tests {
 
         let block: Value = module.call("eth_getBlockByHash", (block_hash, true)).await.unwrap();
         assert_deposit_fields(&block["transactions"][0]);
+    }
+
+    #[tokio::test]
+    async fn raw_header_and_receipts_round_trip() {
+        let (engine, block_hash) = engine_with_deposit();
+        let module = build_module(engine);
+
+        let raw: Bytes = module.call("debug_getRawHeader", [block_hash]).await.expect("by hash");
+        let header = Header::decode(&mut raw.as_ref()).expect("decode header");
+        assert_eq!(header.hash_slow(), block_hash);
+        let by_number: Bytes = module.call("debug_getRawHeader", ["0x1"]).await.expect("by number");
+        assert_eq!(by_number, raw);
+
+        let receipts: Vec<Bytes> =
+            module.call("debug_getRawReceipts", [block_hash]).await.expect("receipts");
+        assert_eq!(receipts.len(), 1);
+        assert_eq!(ordered_trie_root_encoded(&receipts), header.receipts_root);
+    }
+
+    /// A predeploy address (`GasPriceOracle`'s) holding [`store_code`].
+    const PREDEPLOY: Address = address!("0x420000000000000000000000000000000000000F");
+
+    /// Sets slot 1 to `0x2a` and clears slot 0:
+    /// `PUSH1 0x2a PUSH1 1 SSTORE PUSH1 0 PUSH1 0 SSTORE STOP`.
+    fn store_code() -> Bytes {
+        bytes!("0x602a600155600060005500")
+    }
+
+    fn word(value: u64) -> B256 {
+        B256::from(U256::from(value))
+    }
+
+    /// An engine whose genesis puts [`store_code`] at [`PREDEPLOY`], with slots 0 and 2 set.
+    fn engine_with_predeploy() -> TestEngine {
+        let storage = BTreeMap::from([(word(0), word(7)), (word(2), word(9))]);
+        test_engine_with_accounts(
+            user_sender(),
+            [(
+                PREDEPLOY,
+                GenesisAccount {
+                    nonce: Some(1),
+                    code: Some(store_code()),
+                    storage: Some(storage),
+                    ..Default::default()
+                },
+            )],
+        )
+    }
+
+    /// A deposit to `to` with `input`; `source` tells deposits apart.
+    fn deposit(source: u8, to: TxKind, input: Bytes) -> Bytes {
+        let deposit = TxDeposit {
+            source_hash: B256::repeat_byte(source),
+            from: depositor(),
+            to,
+            gas_limit: 100_000,
+            input,
+            ..Default::default()
+        };
+        encode(&deposit.into())
+    }
+
+    /// A deposit calling [`PREDEPLOY`].
+    fn call_predeploy(source: u8) -> Bytes {
+        deposit(source, TxKind::Call(PREDEPLOY), Bytes::new())
+    }
+
+    /// The code [`DEPLOY_INITCODE`] deploys.
+    const DEPLOYED_CODE: Bytes = bytes!("0xdeadbe");
+
+    /// Returns [`DEPLOYED_CODE`]: `PUSH3 0xdeadbe PUSH1 0 MSTORE PUSH1 3 PUSH1 29 RETURN`.
+    const DEPLOY_INITCODE: Bytes = bytes!("0x62deadbe6000526003601df3");
+
+    #[tokio::test]
+    async fn execute_payload_witnesses_the_parent_state_and_touched_code() {
+        let mut engine = engine_with_predeploy();
+        let genesis = engine.chain.genesis_hash();
+        let forced = vec![call_predeploy(1), deposit(3, TxKind::Create, DEPLOY_INITCODE)];
+        let parent = sequence_forced(&mut engine, genesis, 2, forced, &[]).payload.block_hash();
+        let parent_root = engine.chain.sealed_header(parent).unwrap().expect("parent").state_root;
+        let module = build_module(Arc::new(Mutex::new(engine)));
+
+        let attrs = payload_attrs(4, vec![call_predeploy(2)], true);
+        let witness: Value =
+            module.call("debug_executePayload", (parent, attrs)).await.expect("witness");
+        let state: Vec<Bytes> = serde_json::from_value(witness["state"].clone()).unwrap();
+        assert!(state.iter().any(|node| keccak256(node) == parent_root), "parent state root");
+        let codes: Vec<Bytes> = serde_json::from_value(witness["codes"].clone()).unwrap();
+        assert!(codes.contains(&store_code()), "touched code");
+
+        // kona-host fetches code by its hash, in the `0x63 || codeHash` key form.
+        let key: Bytes = [&[0x63], keccak256(store_code()).as_slice()].concat().into();
+        let code: Bytes = module.call("debug_dbGet", [key]).await.expect("code");
+        assert_eq!(code, store_code());
+        // Code deployed in a block that is not persisted is served as well.
+        let key: Bytes = [&[0x63], keccak256(&DEPLOYED_CODE).as_slice()].concat().into();
+        let code: Bytes = module.call("debug_dbGet", [key]).await.expect("deployed code");
+        assert_eq!(code, DEPLOYED_CODE);
+    }
+
+    #[tokio::test]
+    async fn dump_accounts_reflects_storage_changes() {
+        let mut engine = engine_with_predeploy();
+        let genesis = engine.chain.genesis_hash();
+        let block = sequence_forced(&mut engine, genesis, 2, vec![call_predeploy(1)], &[])
+            .payload
+            .block_hash();
+        // The dumped block does not touch the predeploy; its parent wrote the storage.
+        let child = sequence_forced(&mut engine, block, 4, vec![], &[]).payload.block_hash();
+        let module = build_module(Arc::new(Mutex::new(engine)));
+        let missing = Address::with_last_byte(0x77);
+
+        let dump: BTreeMap<Address, GenesisAccount> = module
+            .call("optest_dumpAccounts", (child, [PREDEPLOY, user_sender(), missing]))
+            .await
+            .expect("dump");
+        let predeploy = &dump[&PREDEPLOY];
+        assert_eq!(
+            predeploy.storage,
+            Some(BTreeMap::from([(word(1), word(0x2a)), (word(2), word(9))]))
+        );
+        assert_eq!(predeploy.code, Some(store_code()));
+        assert_eq!(predeploy.nonce, Some(1));
+        let sender = &dump[&user_sender()];
+        assert_eq!(sender.balance, FUNDED_BALANCE);
+        assert_eq!((&sender.code, &sender.storage), (&None, &None));
+        assert!(!dump.contains_key(&missing), "absent account");
+
+        let at_genesis: BTreeMap<Address, GenesisAccount> = module
+            .call("optest_dumpAccounts", (genesis, [PREDEPLOY]))
+            .await
+            .expect("dump at genesis");
+        assert_eq!(
+            at_genesis[&PREDEPLOY].storage,
+            Some(BTreeMap::from([(word(0), word(7)), (word(2), word(9))]))
+        );
+
+        let unknown = B256::repeat_byte(0xab);
+        assert!(
+            module.call::<_, Value>("optest_dumpAccounts", (unknown, [PREDEPLOY])).await.is_err(),
+            "unknown block"
+        );
     }
 
     #[tokio::test]
