@@ -94,13 +94,23 @@ impl TestNetwork {
         Ok(())
     }
 
-    /// Like `is_connected_to`, but retries a couple of times until the connection is established.
+    /// Like `is_connected_to`, but retries until the connection is established, for up to 30
+    /// seconds.
+    ///
+    /// It starts polling every 10ms, so in-memory nodes connect without waiting, and backs off to
+    /// once a second for nodes that find each other through discovery.
     pub(super) async fn is_connected_to_with_retries(
         &self,
         other: &Self,
     ) -> Result<(), TestNetworkError> {
+        let backoff = ExponentialBuilder::default()
+            .with_min_delay(Duration::from_millis(10))
+            .with_max_delay(Duration::from_secs(1))
+            .without_max_times()
+            .with_total_delay(Some(Duration::from_secs(30)));
+
         (async || self.is_connected_to(other).await)
-            .retry(ExponentialBuilder::default().with_total_delay(Some(Duration::from_secs(360))))
+            .retry(backoff)
             // When to retry
             .when(|e| matches!(e, TestNetworkError::PeerNotConnected))
             .notify(|e, duration| tracing::info!(target: "network", "Retrying connection. Error: {e:?}, duration: {duration:?}"))
