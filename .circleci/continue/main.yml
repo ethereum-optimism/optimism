@@ -1095,6 +1095,9 @@ jobs:
       - run:
           name: Run Kontrol build
           command: just kontrol-summary-full
+          environment:
+            # Reuse the attached build's compile cache, which forge ignores when denying warnings.
+            FOUNDRY_DENY: never
           working_directory: packages/contracts-bedrock
       - run:
           name: Build Kontrol summary files
@@ -1183,6 +1186,9 @@ jobs:
             export TEST_FILES
             JUNIT_TEST_DIR=results just test
           environment:
+            # Forge ignores its compile cache when denying warnings. contracts-bedrock-checks-fast
+            # enforces warnings; this run reuses an attached build and leaves a cache for the rerun.
+            FOUNDRY_DENY: never
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: <<parameters.test_timeout>>
@@ -1190,6 +1196,7 @@ jobs:
           name: Print failed test traces
           command: just test-rerun
           environment:
+            FOUNDRY_DENY: never
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
           when: on_fail
@@ -1561,6 +1568,9 @@ jobs:
             mkdir -p results
             JUNIT_TEST_PATH=results/results.xml just test-l2-fork-upgrade
           environment:
+            # Reuse the NUT bundle check's compile cache, which forge ignores when denying
+            # warnings. contracts-bedrock-checks-fast enforces warnings.
+            FOUNDRY_DENY: never
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: 20m
@@ -1569,6 +1579,7 @@ jobs:
           command: |
             just test-l2-fork-upgrade-rerun | tee failed-test-traces-l2-fork.log
           environment:
+            FOUNDRY_DENY: never
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
           when: on_fail
@@ -2633,7 +2644,7 @@ workflows:
       - contracts-bedrock-build:
           name: contracts-bedrock-build
           # Build with just core + script contracts.
-          build_args: --deny-warnings --skip test
+          build_args: --skip test
           requires:
             - prep-go-modules
           context:
@@ -3014,7 +3025,7 @@ workflows:
             - slack
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
-          build_args: --deny-warnings --skip test
+          build_args: --skip test
           requires:
             - prep-go-modules
           context:
@@ -3059,7 +3070,7 @@ workflows:
     when: << pipeline.parameters.c-run_scheduled_cannon_full_tests >>
     jobs:
       - contracts-bedrock-build:
-          build_args: --deny-warnings --skip test
+          build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
       - cannon-go-lint-and-test:
