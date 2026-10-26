@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
@@ -33,6 +34,8 @@ type Env struct {
 	Scripts      *opcm.Scripts
 	// Forge runs the deploy scripts. When it is nil, the scripts run on L1ScriptHost.
 	Forge *opcm.ForgeEnv
+	// L1Artifacts holds the L1 contract artifacts.
+	L1Artifacts *foundry.ArtifactsFS
 	// L2Forge runs the L2 genesis script in the L2 contracts. When it is nil, the script runs on a
 	// script host.
 	L2Forge *forge.Client
