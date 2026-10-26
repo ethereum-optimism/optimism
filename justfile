@@ -49,14 +49,14 @@ update-superchain-registry-submodule ref="":
     git add superchain-registry
   fi
 
-# Builds op-core/superchain/superchain-configs.zip (gitignored) from the
+# Builds op-core/superchain/bundle/superchain-configs.zip (gitignored) from the
 # superchain-registry submodule. Lightweight; this is the recipe the Go build/test
 # targets depend on. Verify mode: skips work if the existing zip already matches the
 # committed .sha256, otherwise regenerates and asserts it still matches (failing on drift).
 build-superchain-go: update-superchain-registry-submodule
-  bash op-core/superchain/sync-superchain.sh
+  bash op-core/superchain/bundle/sync-superchain.sh
 
-# Regenerates op-core/superchain/superchain-configs.zip AND rewrites its committed
+# Regenerates op-core/superchain/bundle/superchain-configs.zip AND rewrites its committed
 # .sha256 from the submodule — build-superchain-go in refresh mode. Sibling of
 # sync-superchain-rust; both are run by sync-superchain when bumping the registry.
 sync-superchain-go:
