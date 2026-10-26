@@ -22,6 +22,21 @@ contract RelayActor is StdUtils {
     bytes public revertData;
     uint256 public revertIndex;
     uint256 public lastGas;
+    Diag public diag;
+
+    struct Diag {
+        uint256 version;
+        uint256 value;
+        uint256 msgLen;
+        uint256 minGasLimit;
+        uint256 gas;
+        uint256 gasBefore;
+        uint256 gasAfter;
+        uint256 idBalance;
+        address origin;
+        uint256 blockNumber;
+        uint256 timestamp;
+    }
 
     IOptimismPortal2 op;
     IL1CrossDomainMessenger xdm;
@@ -85,6 +100,8 @@ contract RelayActor is StdUtils {
         if (!doFail) {
             vm.expectCallMinGas(address(0x04), _value, minGasLimit, _message);
         }
+        diag.idBalance = address(0x04).balance;
+        diag.gasBefore = gasleft();
         try xdm.relayMessage{ gas: gas, value: _value }(
             Encoding.encodeVersionedNonce(0, _version), sender, target, _value, minGasLimit, _message
         ) { }
@@ -93,12 +110,55 @@ contract RelayActor is StdUtils {
             // NOTE: This is to get around forge's invariant fuzzer ignoring reverted calls
             // to this function.
             if (!reverted) {
+                diag.gasAfter = gasleft();
                 revertData = err;
                 revertIndex = numHashes - 1;
+                diag.version = _version;
+                diag.value = _value;
+                diag.msgLen = _message.length;
+                diag.minGasLimit = minGasLimit;
+                diag.gas = gas;
+                diag.origin = tx.origin;
+                diag.blockNumber = block.number;
+                diag.timestamp = block.timestamp;
             }
             reverted = true;
         }
         vm.stopPrank();
+    }
+
+    function revertCtx() external view returns (string memory) {
+        Diag memory d = diag;
+        return string.concat(
+            string.concat(
+                " version=",
+                vm.toString(d.version),
+                " value=",
+                vm.toString(d.value),
+                " msgLen=",
+                vm.toString(d.msgLen),
+                " minGasLimit=",
+                vm.toString(d.minGasLimit),
+                " gas=",
+                vm.toString(d.gas),
+                " gasUsed=",
+                vm.toString(d.gasBefore - d.gasAfter)
+            ),
+            string.concat(
+                " idBalance=",
+                vm.toString(d.idBalance),
+                " idCodeLen=",
+                vm.toString(address(0x04).code.length),
+                " xdmBalance=",
+                vm.toString(address(xdm).balance),
+                " origin=",
+                vm.toString(d.origin),
+                " block=",
+                vm.toString(d.blockNumber),
+                " ts=",
+                vm.toString(d.timestamp)
+            )
+        );
     }
 }
 
@@ -164,7 +224,8 @@ contract XDM_MinGasLimits_Succeeds is XDM_MinGasLimits {
                 " of ",
                 vm.toString(length),
                 " data=",
-                vm.toString(actor.revertData())
+                vm.toString(actor.revertData()),
+                actor.revertCtx()
             )
         );
         for (uint256 i = 0; i < length; ++i) {
