@@ -113,9 +113,11 @@ cd rust
 mise x -- cargo build --release --bin kona-host
 mise x -- just build-op-reth-test-engine
 
-# run, pointing KONA_HOST_PATH at the host binary
+# run, pointing the harness at both binaries (without RUST_BINARY_PATH_OP_RETH_TEST_ENGINE it
+# falls back to the most recently built engine under rust/target)
 cd kona/tests/proofs
 KONA_HOST_PATH="$(git rev-parse --show-toplevel)/rust/target/release/kona-host" \
+RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="$(git rev-parse --show-toplevel)/rust/target/release/op-reth-test-engine" \
   go test -run TestActivationBlockNUTBundle -count=1 .
 ```
 
