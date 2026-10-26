@@ -57,6 +57,11 @@ func NewForgeClient(artifactsFS foundry.StatDirFs, cacheDir string, scripts []Fo
 	if _, err := os.Stat(filepath.Join(client.Wd, "foundry.toml")); err != nil {
 		return nil, fmt.Errorf("the contracts bundle is not a forge project: %w", err)
 	}
+	// The scripts read the artifacts, and keep the state of a genesis deployment in genesisStateDir.
+	client.FsPermissions = []forge.FsPermission{
+		{Access: "read", Path: "./forge-artifacts/"},
+		{Access: "read-write", Path: "./" + genesisStateDir + "/"},
+	}
 	return client, nil
 }
 

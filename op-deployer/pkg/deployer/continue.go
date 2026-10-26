@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/holiman/uint256"
 	"github.com/urfave/cli/v2"
 )
 
@@ -705,6 +706,10 @@ func validateContinuationBroadcast(
 	}
 	if bcast.From != deployer {
 		return fmt.Errorf("deployment broadcast sender mismatch: expected %s, got %s", deployer, bcast.From)
+	}
+	// OPCM.deploy is not payable.
+	if bcast.Value != nil && !(*uint256.Int)(bcast.Value).IsZero() {
+		return fmt.Errorf("deployment broadcast has value %s", (*uint256.Int)(bcast.Value))
 	}
 	return nil
 }

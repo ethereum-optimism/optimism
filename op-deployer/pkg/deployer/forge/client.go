@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +16,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/BurntSushi/toml"
 )
 
 // waitDelay bounds how long execCmd waits for the output pipes to close after
@@ -37,6 +41,9 @@ type Client struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Wd     string
+	// FsPermissions, when not nil, replaces the file access that the config of the project gives
+	// scripts.
+	FsPermissions []FsPermission
 	// Timeout bounds each forge invocation. Zero means no limit.
 	Timeout time.Duration
 	// Env holds environment variables, in KEY=VALUE form, that each forge command gets in
@@ -135,6 +142,12 @@ func (c *Client) Clean(ctx context.Context, opts ...string) error {
 	return c.execCmd(ctx, io.Discard, io.Discard, append([]string{"clean"}, opts...)...)
 }
 
+// FsPermission is one entry of the fs_permissions of a forge config.
+type FsPermission struct {
+	Access string `toml:"access"`
+	Path   string `toml:"path"`
+}
+
 // compileCacheFile is forge's compile cache, relative to the project.
 const compileCacheFile = "cache/solidity-files-cache.json"
 
@@ -154,8 +167,17 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 		return "", err
 	}
 
+	root, err := filepath.Abs(c.Wd)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve the forge project: %w", err)
+	}
+	configPath, err := c.sandboxConfig(root, scratch)
+	if err != nil {
+		return "", err
+	}
+
 	buf := new(bytes.Buffer)
-	cliOpts := []string{"script", "--cache-path", cacheDir}
+	cliOpts := []string{"script", "--root", root, "--config-path", configPath, "--cache-path", cacheDir}
 	cliOpts = append(cliOpts, opts...)
 	// A broadcast sends one transaction at a time, and waits for its receipt before it sends the
 	// next. forge otherwise waits forever on the receipt of a transaction that raced an in-flight one
@@ -164,6 +186,11 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 		cliOpts = append(cliOpts, "--slow")
 	}
 	cliOpts = append(cliOpts, "--sig", sig, script, "0x"+hex.EncodeToString(args))
+	release, err := runSlots.acquire(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer release()
 	run := c.WithEnv("FOUNDRY_BROADCAST=" + filepath.Join(scratch, "broadcast"))
 	// forge compiles before it runs the script, so stopping it when the compile starts also stops it
 	// before any broadcast.
@@ -210,6 +237,45 @@ func (w *compileWatcher) Write(p []byte) (int, error) {
 	keep := min(len(data), len(compileStart)-1)
 	w.tail = append(w.tail[:0], data[len(data)-keep:]...)
 	return len(p), nil
+}
+
+// sandboxConfig writes a copy of the config of the project at root into dir, and returns its path.
+// In the copy, scripts cannot run commands (ffi), and they get only FsPermissions when it is set. A
+// contracts bundle is a forge project, so its own config could let a script run commands or read the
+// files of the user. The copy sets root, because forge otherwise takes the project root from the
+// directory of the config and recompiles; forge warns that root is an unknown key, but uses it.
+// op-deployer runs the default profile: forge does not inherit FOUNDRY_PROFILE.
+func (c *Client) sandboxConfig(root string, dir string) (string, error) {
+	config := make(map[string]any)
+	if _, err := toml.DecodeFile(filepath.Join(root, "foundry.toml"), &config); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return "", fmt.Errorf("failed to read the forge config of the project: %w", err)
+	}
+	profiles, ok := config["profile"].(map[string]any)
+	if !ok {
+		profiles = make(map[string]any)
+		config["profile"] = profiles
+	}
+	profile, ok := profiles["default"].(map[string]any)
+	if !ok {
+		profile = make(map[string]any)
+		profiles["default"] = profile
+	}
+	profile["root"] = root
+	profile["ffi"] = false
+	if c.FsPermissions != nil {
+		profile["fs_permissions"] = c.FsPermissions
+	}
+
+	path := filepath.Join(dir, "foundry.toml")
+	f, err := os.Create(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to create the forge config: %w", err)
+	}
+	defer f.Close()
+	if err := toml.NewEncoder(f).Encode(config); err != nil {
+		return "", fmt.Errorf("failed to write the forge config: %w", err)
+	}
+	return path, nil
 }
 
 func copyCompileCache(src string, dstDir string) error {
@@ -263,18 +329,33 @@ func (c *Client) execCmd(ctx context.Context, stdout io.Writer, stderr io.Writer
 	cmd.Stdout = mwStdout
 	cmd.Stderr = mwStderr
 	cmd.Dir = c.Wd
-	cmd.Env = append(slices.DeleteFunc(cmd.Environ(), isForgeConfig), c.Env...)
+	cmd.Env = append(inheritedEnv(), c.Env...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to run forge command: %w", err)
 	}
 	return nil
 }
 
-// isForgeConfig reports whether an environment variable configures forge. forge reads its
-// configuration from FOUNDRY_*, DAPP_* and ETH_* variables, which could make a run compile, or run
-// against another chain than the one op-deployer selects, so forge does not inherit them.
-func isForgeConfig(kv string) bool {
-	return strings.HasPrefix(kv, "FOUNDRY_") || strings.HasPrefix(kv, "DAPP_") || strings.HasPrefix(kv, "ETH_")
+// inheritedEnvNames are the variables of the environment of op-deployer that forge and anvil
+// inherit: what they need to run and to reach the network. A script can read the environment, which
+// can hold secrets, and FOUNDRY_*, DAPP_* and ETH_* variables configure forge, which could make a run
+// compile or run against another chain.
+var inheritedEnvNames = []string{
+	"PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL", "LC_CTYPE", "TZ",
+	"XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "SSL_CERT_FILE", "SSL_CERT_DIR",
+	"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy",
+}
+
+// inheritedEnv returns the inheritedEnvNames variables of the environment of op-deployer.
+func inheritedEnv() []string {
+	var env []string
+	for _, kv := range os.Environ() {
+		name, _, _ := strings.Cut(kv, "=")
+		if slices.Contains(inheritedEnvNames, name) {
+			env = append(env, kv)
+		}
+	}
+	return env
 }
 
 type ScriptCallEncoder[I any] interface {

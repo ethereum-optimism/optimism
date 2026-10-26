@@ -27,3 +27,8 @@ OP Deployer runs the deploy scripts of the artifacts with forge, and it never co
 from the contracts release of the same OP Deployer release, compiled with their compile cache. OP Deployer stops with an
 error if a script has no `runWithBytes` entrypoint, or if forge would have to compile. The default locator, `embedded`,
 uses the artifacts that OP Deployer was built with.
+
+A contracts bundle is code that runs on your machine and decides what OP Deployer deploys with your key. OP Deployer
+runs its scripts without the FFI cheatcode, with file access only to the artifacts and to its own state directory, and
+with only the environment variables that forge needs. Use only bundles that you trust: `embedded`, a `tag://` locator,
+whose checksum OP Deployer verifies, or a bundle that you built.

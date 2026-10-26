@@ -72,13 +72,12 @@ func runScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I
 	case env.UnlockedSender != (common.Address{}):
 		flags = append(flags, "--broadcast", "--unlocked", "--sender", env.UnlockedSender.Hex())
 	case env.PrivateKey != "":
-		keyFlags, cleanup, err := keystoreFlags(env.PrivateKey)
+		keystore, err := newForgeKeystore(env.PrivateKey)
 		if err != nil {
 			return out, err
 		}
-		defer cleanup()
-		flags = append(flags, "--broadcast")
-		flags = append(flags, keyFlags...)
+		defer keystore.close()
+		flags = append(flags, "--broadcast", "--keystore", keystore.path, "--password-file", keystore.passwordPath)
 	default:
 		return out, errors.New("private key is required for Forge deployments")
 	}
@@ -86,43 +85,55 @@ func runScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I
 	return out, err
 }
 
-// keystoreFlags writes privateKey to an encrypted keystore that only the user can read, and returns
-// the forge flags that use it and a function that removes it. Other users of the host can read the
-// command line of forge, so the key does not go there.
-func keystoreFlags(privateKey string) ([]string, func(), error) {
+// forgeKeystore holds a deployer key for one forge run, in a keystore encrypted with a random
+// password, in a directory that only the user can read. So the key is never on the command line of
+// forge, which other users of the host can read.
+type forgeKeystore struct {
+	dir          string
+	path         string
+	passwordPath string
+}
+
+func newForgeKeystore(privateKey string) (*forgeKeystore, error) {
 	key, err := crypto.HexToECDSA(strings.TrimPrefix(privateKey, "0x"))
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid private key: %w", err)
+		return nil, fmt.Errorf("invalid private key: %w", err)
 	}
-	password := make([]byte, 32)
-	if _, err := rand.Read(password); err != nil {
-		return nil, nil, fmt.Errorf("failed to generate the keystore password: %w", err)
+	passwordBytes := make([]byte, 32)
+	if _, err := rand.Read(passwordBytes); err != nil {
+		return nil, fmt.Errorf("failed to generate the keystore password: %w", err)
 	}
-	passwordHex := hex.EncodeToString(password)
+	password := hex.EncodeToString(passwordBytes)
 	keyJSON, err := keystore.EncryptKey(&keystore.Key{
 		Id:         uuid.New(),
 		Address:    crypto.PubkeyToAddress(key.PublicKey),
 		PrivateKey: key,
-	}, passwordHex, keystore.LightScryptN, keystore.LightScryptP)
+	}, password, keystore.LightScryptN, keystore.LightScryptP)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to encrypt the deployer key: %w", err)
+		return nil, fmt.Errorf("failed to encrypt the deployer key: %w", err)
 	}
 
 	// MkdirTemp makes the directory readable only by the user.
 	dir, err := os.MkdirTemp("", "op-deployer-key-")
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create the keystore directory: %w", err)
+		return nil, fmt.Errorf("failed to create the keystore directory: %w", err)
 	}
-	cleanup := func() { _ = os.RemoveAll(dir) }
-	keyPath := filepath.Join(dir, "key.json")
-	passwordPath := filepath.Join(dir, "password")
-	if err := os.WriteFile(keyPath, keyJSON, 0o600); err != nil {
-		cleanup()
-		return nil, nil, fmt.Errorf("failed to write the keystore: %w", err)
+	ks := &forgeKeystore{
+		dir:          dir,
+		path:         filepath.Join(dir, "key.json"),
+		passwordPath: filepath.Join(dir, "password"),
 	}
-	if err := os.WriteFile(passwordPath, []byte(passwordHex), 0o600); err != nil {
-		cleanup()
-		return nil, nil, fmt.Errorf("failed to write the keystore password: %w", err)
+	if err := os.WriteFile(ks.path, keyJSON, 0o600); err != nil {
+		ks.close()
+		return nil, fmt.Errorf("failed to write the keystore: %w", err)
 	}
-	return []string{"--keystore", keyPath, "--password-file", passwordPath}, cleanup, nil
+	if err := os.WriteFile(ks.passwordPath, []byte(password), 0o600); err != nil {
+		ks.close()
+		return nil, fmt.Errorf("failed to write the keystore password: %w", err)
+	}
+	return ks, nil
+}
+
+func (ks *forgeKeystore) close() {
+	_ = os.RemoveAll(ks.dir)
 }

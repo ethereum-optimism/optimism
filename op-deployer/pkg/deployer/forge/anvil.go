@@ -42,14 +42,17 @@ func StartFork(ctx context.Context, anvil Binary, rpcURL string, blockNumber uin
 	if err != nil {
 		return nil, fmt.Errorf("failed to create anvil home: %w", err)
 	}
+	// Any account can send on the fork, so it listens only on loopback, without CORS for web pages.
 	cmd := exec.Command(anvil.Path(),
 		"--fork-url", rpcURL,
 		"--fork-block-number", strconv.FormatUint(blockNumber, 10),
+		"--host", "127.0.0.1",
 		"--port", "0",
+		"--no-cors",
 		"--auto-impersonate",
 		"--no-storage-caching",
 	)
-	cmd.Env = append(os.Environ(), "FOUNDRY_HOME="+foundryHome)
+	cmd.Env = append(inheritedEnv(), "FOUNDRY_HOME="+foundryHome)
 	stderr := new(tailBuffer)
 	cmd.Stderr = stderr
 	stdout, err := cmd.StdoutPipe()
