@@ -1,6 +1,6 @@
 //! Shared steps for building, sealing, and importing blocks.
 
-use super::{BuildTaskError, SealTaskError, get_payload, insert_payload, start_build};
+use super::{EngineBuildError, SealTaskError, get_payload, insert_payload, start_build};
 use crate::{EngineClient, EngineState, ImportedBlockSink, InsertTaskError};
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
@@ -11,7 +11,7 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 pub(in crate::task_queue) enum BuildAndImportError {
     /// An error occurred during the build phase.
     #[error(transparent)]
-    Build(#[from] BuildTaskError),
+    Build(#[from] EngineBuildError),
     /// An error occurred while sealing or importing the block.
     #[error(transparent)]
     Seal(#[from] SealTaskError),
@@ -32,16 +32,8 @@ pub(in crate::task_queue) async fn build_and_import(
     let payload_id = match start_build(engine, cfg, state, attributes.clone()).await {
         Err(err) if err.is_invalid_attributes() => {
             warn!(target: "engine", %err, "Derived attributes rejected at forkchoiceUpdated");
-            return Err(handle_rejected_attributes(
-                engine,
-                cfg,
-                state,
-                &attributes,
-                true,
-                block_sink,
-            )
-            .await
-            .map_or(BuildAndImportError::Build(err), BuildAndImportError::Seal));
+            handle_rejected_attributes(engine, cfg, state, &attributes, true, block_sink).await?;
+            return Err(err.into());
         }
         result => result?,
     };
@@ -90,16 +82,9 @@ pub(in crate::task_queue) async fn insert_payload_with_holocene_fallback(
     match insert_payload(engine, cfg, state, payload, is_payload_safe, block_sink).await {
         Err(err @ InsertTaskError::UnexpectedPayloadStatus(_)) => {
             warn!(target: "engine", %err, "Payload rejected at newPayload");
-            Err(handle_rejected_attributes(
-                engine,
-                cfg,
-                state,
-                attributes,
-                is_payload_safe,
-                block_sink,
-            )
-            .await
-            .unwrap_or_else(|| SealTaskError::PayloadInsertionFailed(Box::new(err))))
+            handle_rejected_attributes(engine, cfg, state, attributes, is_payload_safe, block_sink)
+                .await?;
+            Err(SealTaskError::PayloadInsertionFailed(Box::new(err)))
         }
         Err(e) => {
             error!(target: "engine", "Payload import failed: {e}");
@@ -111,6 +96,9 @@ pub(in crate::task_queue) async fn insert_payload_with_holocene_fallback(
 
 /// Applies the deposits-only and Holocene recovery rules to rejected attributes.
 /// Sequenced payloads keep their rejection; only derived payloads receive a replacement.
+/// Returns `Ok(())` when no recovery rule applies and the caller should keep its original error.
+/// A successful replacement still returns [`SealTaskError::HoloceneInvalidFlush`] to flush the
+/// current derivation channel.
 async fn handle_rejected_attributes(
     engine: &EngineClient,
     cfg: &RollupConfig,
@@ -118,18 +106,18 @@ async fn handle_rejected_attributes(
     attributes: &OpAttributesWithParent,
     is_attributes_derived: bool,
     block_sink: &dyn ImportedBlockSink,
-) -> Option<SealTaskError> {
+) -> Result<(), SealTaskError> {
     if attributes.is_deposits_only() {
         error!(target: "engine", "Critical: the engine rejected deposits-only attributes");
-        return Some(SealTaskError::DepositOnlyPayloadFailed);
+        return Err(SealTaskError::DepositOnlyPayloadFailed);
     }
     if !is_attributes_derived ||
         !cfg.is_holocene_active(attributes.attributes().payload_attributes.timestamp)
     {
-        return None;
+        return Ok(());
     }
     warn!(target: "engine", "Replacing rejected derived attributes with deposits only");
-    Some(
+    Err(
         match build_seal_and_insert(
             engine,
             cfg,
@@ -178,7 +166,7 @@ async fn build_seal_and_insert(
 mod tests {
     use super::*;
     use crate::{
-        NoopBlockSink,
+        EngineTaskError, EngineTaskErrorSeverity, NoopBlockSink,
         test_utils::{
             TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
         },
@@ -221,6 +209,89 @@ mod tests {
             matches!(result, Err(BuildAndImportError::Seal(SealTaskError::GetPayloadFailed(_)))),
             "{result:?}"
         );
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// Recovery must import the replacement and request a channel flush at either rejection point.
+    #[rstest]
+    #[tokio::test]
+    async fn successful_replacement_still_flushes(#[values(true, false)] rejected_at_build: bool) {
+        let mut block = Block::<OpTxEnvelope>::default();
+        block.header.base_fee_per_gas = Some(0);
+        block.header.withdrawals_root = Some(alloy_consensus::EMPTY_ROOT_HASH);
+        block.header.parent_beacon_block_root = Some(Default::default());
+        block.header.blob_gas_used = Some(0);
+        block.header.excess_blob_gas = Some(0);
+        let payload = OpExecutionPayloadEnvelope::V3 {
+            payload: ExecutionPayloadV3::from_block_slow(&block),
+            parent_beacon_block_root: Default::default(),
+        };
+        let attributes = TestAttributesBuilder::new()
+            .with_transactions(vec![Bytes::from(vec![OpTxType::Legacy as u8, 0xaa])])
+            .build();
+        let mut cfg = RollupConfig::default();
+        cfg.hardforks.holocene_time = Some(0);
+        // Pin the synthetic replacement to genesis so decoding needs no L1-info transaction.
+        cfg.genesis.l2 =
+            alloy_eips::BlockNumHash::new(payload.block_number(), payload.block_hash());
+        let (engine, l1, l2) = test_engine_client(Arc::new(cfg.clone()));
+        if rejected_at_build {
+            l2.expect_error_code("engine_forkchoiceUpdatedV3", -38003);
+        } else {
+            l2.expect(
+                "engine_newPayloadV3",
+                PayloadStatus::from_status(PayloadStatusEnum::Invalid {
+                    validation_error: "invalid".into(),
+                }),
+            );
+        }
+        let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            ForkchoiceUpdated { payload_status: valid(), payload_id: Some(PayloadId::new([1; 8])) },
+        );
+        l2.expect(
+            "engine_getPayloadV3",
+            OpExecutionPayloadEnvelopeV3 {
+                execution_payload: ExecutionPayloadV3::from_block_slow(&block),
+                block_value: Default::default(),
+                blobs_bundle: Default::default(),
+                should_override_builder: false,
+                parent_beacon_block_root: Default::default(),
+            },
+        );
+        l2.expect("engine_newPayloadV3", valid());
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            ForkchoiceUpdated { payload_status: valid(), payload_id: None },
+        );
+        let mut state = EngineState::default();
+
+        let err = if rejected_at_build {
+            match build_and_import(&engine, &cfg, &mut state, attributes, &NoopBlockSink).await {
+                Err(BuildAndImportError::Seal(err)) => err,
+                other => panic!("expected a seal error after recovery, got {other:?}"),
+            }
+        } else {
+            insert_payload_with_holocene_fallback(
+                &engine,
+                &cfg,
+                &mut state,
+                &attributes,
+                payload.clone(),
+                true,
+                &NoopBlockSink,
+            )
+            .await
+            .expect_err("successful recovery must request a flush")
+        };
+
+        assert!(matches!(err, SealTaskError::HoloceneInvalidFlush), "{err:?}");
+        assert_eq!(err.severity(), EngineTaskErrorSeverity::Flush);
+        assert_eq!(state.sync_state.unsafe_head().block_info.hash, payload.block_hash());
+        assert_eq!(state.sync_state.safe_head(), state.sync_state.unsafe_head());
+        assert_eq!(state.sync_state.local_safe_head(), state.sync_state.unsafe_head());
         l1.assert_finished();
         l2.assert_finished();
     }

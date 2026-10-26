@@ -29,7 +29,7 @@ pub enum ConsolidateTaskError {
 impl From<BuildAndImportError> for ConsolidateTaskError {
     fn from(err: BuildAndImportError) -> Self {
         match err {
-            BuildAndImportError::Build(e) => Self::BuildTaskFailed(e),
+            BuildAndImportError::Build(e) => Self::BuildTaskFailed(e.into()),
             BuildAndImportError::Seal(e) => Self::SealTaskFailed(e),
         }
     }

@@ -174,47 +174,63 @@ pub(in crate::task_queue) async fn get_payload(
     payload_id: PayloadId,
     payload_timestamp: u64,
 ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
-    let get_payload_version = EngineGetPayloadVersion::from_cfg(cfg, payload_timestamp);
-    let payload_envelope = match get_payload_version {
-        EngineGetPayloadVersion::V5 => {
-            // Osaka (Karst) reuses the V4-shaped envelope; only the engine method bumps to V5.
-            let payload =
-                engine.get_payload_v5(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
+    match EngineGetPayloadVersion::from_cfg(cfg, payload_timestamp) {
+        EngineGetPayloadVersion::V5 => get_payload_v5(engine, payload_id).await,
+        EngineGetPayloadVersion::V4 => get_payload_v4(engine, payload_id).await,
+        EngineGetPayloadVersion::V3 => get_payload_v3(engine, payload_id).await,
+        EngineGetPayloadVersion::V2 => get_payload_v2(engine, payload_id).await,
+    }
+}
 
-            OpExecutionPayloadEnvelope::V4 {
-                parent_beacon_block_root: payload.parent_beacon_block_root,
-                payload: payload.execution_payload,
-            }
-        }
-        EngineGetPayloadVersion::V4 => {
-            let payload =
-                engine.get_payload_v4(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
+/// Fetches a Karst payload using V5 and retains its V4-shaped envelope.
+async fn get_payload_v5(
+    engine: &EngineClient,
+    payload_id: PayloadId,
+) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
+    let payload =
+        engine.get_payload_v5(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
+    Ok(OpExecutionPayloadEnvelope::V4 {
+        parent_beacon_block_root: payload.parent_beacon_block_root,
+        payload: payload.execution_payload,
+    })
+}
 
-            OpExecutionPayloadEnvelope::V4 {
-                parent_beacon_block_root: payload.parent_beacon_block_root,
-                payload: payload.execution_payload,
-            }
-        }
-        EngineGetPayloadVersion::V3 => {
-            let payload =
-                engine.get_payload_v3(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
+/// Fetches an Isthmus payload using V4.
+async fn get_payload_v4(
+    engine: &EngineClient,
+    payload_id: PayloadId,
+) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
+    let payload =
+        engine.get_payload_v4(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
+    Ok(OpExecutionPayloadEnvelope::V4 {
+        parent_beacon_block_root: payload.parent_beacon_block_root,
+        payload: payload.execution_payload,
+    })
+}
 
-            OpExecutionPayloadEnvelope::V3 {
-                parent_beacon_block_root: payload.parent_beacon_block_root,
-                payload: payload.execution_payload,
-            }
-        }
-        EngineGetPayloadVersion::V2 => {
-            let payload =
-                engine.get_payload_v2(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
+/// Fetches an Ecotone payload using V3.
+async fn get_payload_v3(
+    engine: &EngineClient,
+    payload_id: PayloadId,
+) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
+    let payload =
+        engine.get_payload_v3(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
+    Ok(OpExecutionPayloadEnvelope::V3 {
+        parent_beacon_block_root: payload.parent_beacon_block_root,
+        payload: payload.execution_payload,
+    })
+}
 
-            match payload.execution_payload.into_payload() {
-                ExecutionPayload::V1(payload) => OpExecutionPayloadEnvelope::V1(payload),
-                ExecutionPayload::V2(payload) => OpExecutionPayloadEnvelope::V2(payload),
-                _ => unreachable!("the response should be a V1 or V2 payload"),
-            }
-        }
-    };
-
-    Ok(payload_envelope)
+/// Fetches a pre-Ecotone payload using V2, which can return a V1 or V2 payload.
+async fn get_payload_v2(
+    engine: &EngineClient,
+    payload_id: PayloadId,
+) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
+    let payload =
+        engine.get_payload_v2(payload_id).await.map_err(SealTaskError::GetPayloadFailed)?;
+    Ok(match payload.execution_payload.into_payload() {
+        ExecutionPayload::V1(payload) => OpExecutionPayloadEnvelope::V1(payload),
+        ExecutionPayload::V2(payload) => OpExecutionPayloadEnvelope::V2(payload),
+        _ => unreachable!("the response should be a V1 or V2 payload"),
+    })
 }

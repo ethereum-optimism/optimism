@@ -64,13 +64,13 @@ impl EngineTaskExt for BuildTask {
 /// If the build is successful, the [`PayloadId`] is returned for sealing.
 ///
 /// ### Failure (`INVALID`)
-/// If the forkchoice update fails, the [`BuildTaskError`].
+/// If the forkchoice update fails, an [`EngineBuildError`] is returned.
 ///
 /// ### Syncing (`SYNCING`)
-/// If the EL is syncing, a temporary [`BuildTaskError`] is returned, and the build should be
+/// If the EL is syncing, [`EngineBuildError::EngineSyncing`] is returned, and the build should be
 /// attempted again later.
 ///
-/// Any other status is unexpected and returned as a [`BuildTaskError`].
+/// Any other status is unexpected and returned as an [`EngineBuildError`].
 #[tracing::instrument(
     name = "build",
     target = "engine_builder",
@@ -91,15 +91,15 @@ pub(in crate::task_queue) async fn start_build(
     cfg: &RollupConfig,
     state: &EngineState,
     attributes_envelope: OpAttributesWithParent,
-) -> Result<PayloadId, BuildTaskError> {
+) -> Result<PayloadId, EngineBuildError> {
     // Sanity check if the head is behind the finalized head. If it is, this is a critical error.
     if state.sync_state.unsafe_head().block_info.number <
         state.sync_state.finalized_head().block_info.number
     {
-        return Err(BuildTaskError::EngineBuildError(EngineBuildError::FinalizedAheadOfUnsafe(
+        return Err(EngineBuildError::FinalizedAheadOfUnsafe(
             state.sync_state.unsafe_head().block_info.number,
             state.sync_state.finalized_head().block_info.number,
-        )));
+        ));
     }
 
     // When inserting a payload, we advertise the parent's unsafe head as the current unsafe head
@@ -128,35 +128,27 @@ pub(in crate::task_queue) async fn start_build(
                 .await
         }
     }
-    .map_err(|e| {
-        BuildTaskError::EngineBuildError(EngineBuildError::AttributesInsertionFailed(e))
-    })?;
+    .map_err(EngineBuildError::AttributesInsertionFailed)?;
 
     match update.payload_status.status {
         PayloadStatusEnum::Valid => {}
         PayloadStatusEnum::Invalid { validation_error } => {
             error!(target: "engine_builder", "Forkchoice update failed: {}", validation_error);
-            return Err(BuildTaskError::EngineBuildError(EngineBuildError::InvalidPayload(
-                validation_error,
-            )));
+            return Err(EngineBuildError::InvalidPayload(validation_error));
         }
         PayloadStatusEnum::Syncing => {
             warn!(target: "engine_builder", "Forkchoice update failed temporarily: EL is syncing");
-            return Err(BuildTaskError::EngineBuildError(EngineBuildError::EngineSyncing));
+            return Err(EngineBuildError::EngineSyncing);
         }
         // Other codes are never returned by `engine_forkchoiceUpdate`.
         status @ PayloadStatusEnum::Accepted => {
-            return Err(BuildTaskError::EngineBuildError(
-                EngineBuildError::UnexpectedPayloadStatus(status),
-            ));
+            return Err(EngineBuildError::UnexpectedPayloadStatus(status));
         }
     }
 
     // Fetch the payload ID from the FCU. If no payload ID was returned, something went wrong - the
     // block building job on the EL should have been initiated.
-    let payload_id = update
-        .payload_id
-        .ok_or(BuildTaskError::EngineBuildError(EngineBuildError::MissingPayloadId))?;
+    let payload_id = update.payload_id.ok_or(EngineBuildError::MissingPayloadId)?;
 
     Ok(payload_id)
 }
