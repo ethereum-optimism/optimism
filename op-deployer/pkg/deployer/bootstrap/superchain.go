@@ -9,12 +9,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -22,8 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
 
@@ -33,8 +28,6 @@ type SuperchainConfig struct {
 	Logger           log.Logger
 	ArtifactsLocator *artifacts.Locator
 	CacheDir         string
-	// UseScriptHost runs the script on the Go script host instead of forge.
-	UseScriptHost bool
 
 	privateKeyECDSA *ecdsa.PrivateKey
 
@@ -101,7 +94,6 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 		Logger:                    l,
 		ArtifactsLocator:          artifactsLocator,
 		CacheDir:                  cacheDir,
-		UseScriptHost:             !cliCtx.Bool(deployer.UseForgeFlagName),
 		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
 		Guardian:                  guardian,
 		Paused:                    paused,
@@ -181,79 +173,21 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 		Paused:                    cfg.Paused,
 	}
 
-	if !cfg.UseScriptHost {
-		lgr.Info("using Forge for DeploySuperchain")
-		forgeClient, err := opcm.NewForgeClient(artifactsFS, cfg.CacheDir, []opcm.ForgeScript{opcm.DeploySuperchainForgeScript})
-		if err != nil {
-			return dso, fmt.Errorf("failed to create forge client: %w", err)
-		}
+	forgeClient, err := opcm.NewForgeClient(artifactsFS, cfg.CacheDir, []opcm.ForgeScript{opcm.DeploySuperchainForgeScript})
+	if err != nil {
+		return dso, fmt.Errorf("failed to create forge client: %w", err)
+	}
 
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     forgeClient,
-			Context:    ctx,
-			L1RPCUrl:   cfg.L1RPCUrl,
-			PrivateKey: cfg.PrivateKey,
-			Logger:     lgr,
-		}
-		dso, err = opcm.DeploySuperchainViaForge(forgeEnv, input)
-		if err != nil {
-			return dso, err
-		}
-	} else {
-		l1Client, err := ethclient.Dial(cfg.L1RPCUrl)
-		if err != nil {
-			return dso, fmt.Errorf("failed to connect to L1 RPC: %w", err)
-		}
-
-		chainID, err := l1Client.ChainID(ctx)
-		if err != nil {
-			return dso, fmt.Errorf("failed to get chain ID: %w", err)
-		}
-
-		signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(cfg.privateKeyECDSA, chainID))
-		chainDeployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
-
-		bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-			Logger:  lgr,
-			ChainID: chainID,
-			Client:  l1Client,
-			Signer:  signer,
-			From:    chainDeployer,
-		})
-		if err != nil {
-			return dso, fmt.Errorf("failed to create broadcaster: %w", err)
-		}
-
-		l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
-		if err != nil {
-			return dso, fmt.Errorf("failed to connect to L1 RPC: %w", err)
-		}
-
-		l1Host, err := env.DefaultForkedScriptHost(
-			ctx,
-			bcaster,
-			lgr,
-			chainDeployer,
-			artifactsFS,
-			l1RPC,
-		)
-		if err != nil {
-			return dso, fmt.Errorf("failed to create script host: %w", err)
-		}
-
-		opcmScripts, err := opcm.NewScripts(l1Host)
-		if err != nil {
-			return dso, fmt.Errorf("failed to load OPCM scripts: %w", err)
-		}
-
-		dso, err = opcmScripts.DeploySuperchain.Run(input)
-		if err != nil {
-			return dso, fmt.Errorf("error deploying superchain: %w", err)
-		}
-
-		if _, err := bcaster.Broadcast(ctx); err != nil {
-			return dso, fmt.Errorf("failed to broadcast: %w", err)
-		}
+	forgeEnv := &opcm.ForgeEnv{
+		Client:     forgeClient,
+		Context:    ctx,
+		L1RPCUrl:   cfg.L1RPCUrl,
+		PrivateKey: cfg.PrivateKey,
+		Logger:     lgr,
+	}
+	dso, err = opcm.DeploySuperchain(forgeEnv, input)
+	if err != nil {
+		return dso, err
 	}
 
 	lgr.Info("deployed superchain configuration")

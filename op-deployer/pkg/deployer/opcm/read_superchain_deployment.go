@@ -3,7 +3,6 @@ package opcm
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -20,12 +19,6 @@ type ReadSuperchainDeploymentOutput struct {
 	SuperchainProxyAdminOwner common.Address `abi:"superchainProxyAdminOwner"`
 }
 
-type ReadSuperchainDeploymentScript script.DeployScriptWithOutput[ReadSuperchainDeploymentInput, ReadSuperchainDeploymentOutput]
-
-func NewReadSuperchainDeploymentScript(host *script.Host) (ReadSuperchainDeploymentScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[ReadSuperchainDeploymentInput, ReadSuperchainDeploymentOutput](host, "ReadSuperchainDeployment.s.sol", "ReadSuperchainDeployment")
-}
-
 func NewReadSuperchainDeploymentForgeCaller(client *forge.Client) forge.ScriptCaller[ReadSuperchainDeploymentInput, ReadSuperchainDeploymentOutput] {
 	return forge.NewScriptCaller(
 		client,
@@ -36,8 +29,8 @@ func NewReadSuperchainDeploymentForgeCaller(client *forge.Client) forge.ScriptCa
 	)
 }
 
-// ReadSuperchainDeploymentViaForge reads superchain deployment addresses using Forge
-func ReadSuperchainDeploymentViaForge(env *ForgeEnv, input ReadSuperchainDeploymentInput) (ReadSuperchainDeploymentOutput, error) {
+// ReadSuperchainDeployment reads superchain deployment addresses using Forge
+func ReadSuperchainDeployment(env *ForgeEnv, input ReadSuperchainDeploymentInput) (ReadSuperchainDeploymentOutput, error) {
 	output, err := readScript(env, NewReadSuperchainDeploymentForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to run ReadSuperchainDeployment with Forge: %w", err)

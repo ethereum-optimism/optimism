@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 
-	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
@@ -89,7 +88,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 }
 
 func (t *KeyedBroadcaster) Hook(bcast Broadcast) {
-	if bcast.Type != BroadcastCreate2 && bcast.From != t.mgr.From() {
+	if bcast.From != t.mgr.From() {
 		panic(fmt.Sprintf("invalid from for broadcast:%v, expected:%v", bcast.From, t.mgr.From()))
 	}
 	t.mtx.Lock()
@@ -174,16 +173,6 @@ func asTxCandidate(bcast Broadcast) txmgr.TxCandidate {
 		candidate = txmgr.TxCandidate{
 			TxData: bcast.Input,
 			To:     nil,
-			Value:  value,
-		}
-	case BroadcastCreate2:
-		txData := make([]byte, len(bcast.Salt)+len(bcast.Input))
-		copy(txData, bcast.Salt[:])
-		copy(txData[len(bcast.Salt):], bcast.Input)
-
-		candidate = txmgr.TxCandidate{
-			TxData: txData,
-			To:     &predeploys.DeterministicDeploymentProxyAddr,
 			Value:  value,
 		}
 	default:

@@ -1,8 +1,6 @@
 package pipeline
 
 import (
-	"fmt"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -27,17 +25,9 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 	var dso opcm.DeploySuperchainOutput
 	var err error
 
-	if env.Forge != nil {
-		lgr.Info("using Forge for DeploySuperchain")
-		dso, err = opcm.DeploySuperchainViaForge(env.Forge, input)
-		if err != nil {
-			return err
-		}
-	} else {
-		dso, err = env.Scripts.DeploySuperchain.Run(input)
-		if err != nil {
-			return fmt.Errorf("failed to deploy superchain: %w", err)
-		}
+	dso, err = opcm.DeploySuperchain(env.Forge, input)
+	if err != nil {
+		return err
 	}
 
 	st.SuperchainDeployment = &addresses.SuperchainContracts{
