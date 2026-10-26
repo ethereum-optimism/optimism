@@ -23,13 +23,13 @@ import (
 // official release channel, and that their checksums are correct.
 //
 // It downloads every pinned release archive from GitHub, so it only runs when
-// OP_DEPLOYER_TEST_FORGE_RELEASES is set. `just check-forge-version` sets it,
-// and CI's op-deployer-forge-version job runs that recipe when this package or
-// mise.toml changes.
+// OP_DEPLOYER_TEST_FORGE_RELEASES is set (see `just check-forge-version`).
 func TestStandardBinary_ForgeBins(t *testing.T) {
 	if os.Getenv("OP_DEPLOYER_TEST_FORGE_RELEASES") == "" {
 		t.Skip("OP_DEPLOYER_TEST_FORGE_RELEASES not set")
 	}
+
+	require.NotEmpty(t, checksums, "version.json pins no forge release checksums")
 
 	// Clear out the PATH env var so it forces a download.
 	t.Setenv("PATH", "")
