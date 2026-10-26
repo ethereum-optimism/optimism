@@ -130,12 +130,14 @@ func TestQueryProposalOutputSuperRootGames(t *testing.T) {
 	}
 	// rootMatch nil means the record carries no verdict.
 	cases := []struct {
-		name       string
-		currentL1  uint64
-		data       *eth.SuperRootResponseData
-		superRoot  string
-		rootMatch  *bool
-		nodeSynced bool
+		name        string
+		claim       common.Hash // zero means proposed
+		currentL1   uint64
+		data        *eth.SuperRootResponseData
+		superRoot   string
+		rootMatch   *bool
+		zkRootMatch *bool // overrides rootMatch for ZK games when set
+		nodeSynced  bool
 	}{
 		{name: "match", currentL1: l1HeadNum + 1, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(proposed), VerifiedRequiredL1: eth.BlockID{Number: l1HeadNum}}, superRoot: proposed.Hex(), rootMatch: ptr.New(true), nodeSynced: true},
 		{name: "mismatch", currentL1: l1HeadNum + 1, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(other)}, superRoot: other.Hex(), rootMatch: ptr.New(false), nodeSynced: true},
@@ -144,14 +146,24 @@ func TestQueryProposalOutputSuperRootGames(t *testing.T) {
 		{name: "node at l1 head with nil data", currentL1: l1HeadNum, data: nil, nodeSynced: false},
 		// A root that is not derivable by l1Head is the invalid transition for every super-root game type.
 		{name: "verified after l1 head", currentL1: l1HeadNum + 10, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(proposed), VerifiedRequiredL1: eth.BlockID{Number: l1HeadNum + 1}}, superRoot: eth.InvalidTransitionHash.Hex(), rootMatch: ptr.New(false), nodeSynced: true},
+		// Fault games accept the invalid transition hash; no ZK proof can prove it.
+		{name: "invalid transition proposed when not derivable", claim: eth.InvalidTransitionHash, currentL1: l1HeadNum + 10, data: &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(proposed), VerifiedRequiredL1: eth.BlockID{Number: l1HeadNum + 1}}, superRoot: eth.InvalidTransitionHash.Hex(), rootMatch: ptr.New(true), zkRootMatch: ptr.New(false), nodeSynced: true},
 	}
 	for _, kind := range gameKinds {
 		for _, tc := range cases {
 			t.Run(fmt.Sprintf("%v/%v", kind.gameType, tc.name), func(t *testing.T) {
+				claim := proposed
+				if tc.claim != (common.Hash{}) {
+					claim = tc.claim
+				}
+				rootMatch := tc.rootMatch
+				if kind.gameType == gameTypes.ZKDisputeGameType && tc.zkRootMatch != nil {
+					rootMatch = tc.zkRootMatch
+				}
 				stubRPC := batchingTest.NewAbiBasedRpc(t, gameAddr, kind.abi)
 				stubRPC.SetResponse(gameAddr, "l1Head", rpcblock.Latest, nil, []interface{}{l1Head})
 				stubRPC.SetResponse(gameAddr, "l2SequenceNumber", rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(timestamp)})
-				stubRPC.SetResponse(gameAddr, "rootClaim", rpcblock.Latest, nil, []interface{}{proposed})
+				stubRPC.SetResponse(gameAddr, "rootClaim", rpcblock.Latest, nil, []interface{}{claim})
 				stubRPC.SetResponse(gameAddr, "status", rpcblock.Latest, nil, []interface{}{uint8(gameTypes.GameStatusInProgress)})
 				caller := batching.NewMultiCaller(stubRPC, batching.DefaultBatchSize)
 				superRoots := stubSuperRoots{
@@ -167,10 +179,10 @@ func TestQueryProposalOutputSuperRootGames(t *testing.T) {
 					Index:        &index,
 					Game:         gameAddr.Hex(),
 					Status:       gameTypes.GameStatusInProgress.String(),
-					ProposedRoot: proposed.Hex(),
+					ProposedRoot: claim.Hex(),
 					Timestamp:    &timestamp,
 					SuperRoot:    tc.superRoot,
-					RootMatch:    tc.rootMatch,
+					RootMatch:    rootMatch,
 					L1Head:       l1Head.Hex(),
 					L1HeadNumber: l1HeadNum,
 					NodeSynced:   &tc.nodeSynced,
