@@ -4,18 +4,20 @@
 commands:
   # op-deployer runs the deploy scripts with forge from packages/contracts-bedrock, and forge
   # reads every source file, lib/ included, to check the compile cache of the prebuilt artifacts.
-  # Jobs that run op-deployer from the checkout (op-e2e, sysgo, kona proof tests) need the
-  # contracts submodules next to the artifacts that they attach from contracts-bedrock-build.
+  # Jobs that run op-deployer from the checkout through a file:// locator (op-e2e, sysgo, kona
+  # proof tests) need the contracts submodules next to the artifacts that they attach from
+  # contracts-bedrock-build. The embedded bundle holds its own lib/ and needs no checkout. The
+  # sources come from the top-level submodules only, so there is no --recursive.
   checkout-contracts-lib:
     steps:
       - run:
           name: Check out the contracts-bedrock lib submodules
           command: |
-            n=0
-            until git submodule update --init --recursive --single-branch --force -j 8 -- packages/contracts-bedrock/lib; do
-              n=$((n+1))
-              [ "$n" -ge 3 ] && exit 1
-              echo "submodule update retry $n/3 in 5s" >&2
+            attempt=1
+            until git submodule update --init --single-branch --force -j 8 -- packages/contracts-bedrock/lib; do
+              [ "$attempt" -ge 3 ] && exit 1
+              attempt=$((attempt+1))
+              echo "submodule update failed; attempt $attempt/3 in 5s" >&2
               sleep 5
             done
 
