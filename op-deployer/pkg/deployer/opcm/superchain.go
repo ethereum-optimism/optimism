@@ -3,7 +3,6 @@ package opcm
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -23,13 +22,6 @@ type DeploySuperchainOutput struct {
 	SuperchainProxyAdmin  common.Address `json:"proxyAdminAddress"`
 }
 
-type DeploySuperchainScript script.DeployScriptWithOutput[DeploySuperchainInput, DeploySuperchainOutput]
-
-// NewDeploySuperchainScript loads and validates the DeploySuperchain script contract
-func NewDeploySuperchainScript(host *script.Host) (DeploySuperchainScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeploySuperchainInput, DeploySuperchainOutput](host, "DeploySuperchain.s.sol", "DeploySuperchain")
-}
-
 func NewDeploySuperchainForgeCaller(client *forge.Client) forge.ScriptCaller[DeploySuperchainInput, DeploySuperchainOutput] {
 	return forge.NewScriptCaller(
 		client,
@@ -40,8 +32,8 @@ func NewDeploySuperchainForgeCaller(client *forge.Client) forge.ScriptCaller[Dep
 	)
 }
 
-// DeploySuperchainViaForge deploys superchain contracts using Forge
-func DeploySuperchainViaForge(env *ForgeEnv, input DeploySuperchainInput) (DeploySuperchainOutput, error) {
+// DeploySuperchain deploys superchain contracts using Forge
+func DeploySuperchain(env *ForgeEnv, input DeploySuperchainInput) (DeploySuperchainOutput, error) {
 	output, err := broadcastScript(env, NewDeploySuperchainForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy superchain with Forge: %w", err)

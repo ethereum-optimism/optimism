@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
@@ -105,7 +105,7 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 		return fmt.Errorf("l1 chain ID mismatch: got %d, expected %d", l1ChainID, intent.L1ChainID)
 	}
 
-	deployerCode, err := env.L1Client.CodeAt(ctx, script.DeterministicDeployerAddress, nil)
+	deployerCode, err := env.L1Client.CodeAt(ctx, predeploys.DeterministicDeploymentProxyAddr, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get deployer code: %w", err)
 	}

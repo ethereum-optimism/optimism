@@ -31,7 +31,6 @@ const (
 	ContractNameFlagName      = flags.ContractNameFlagName
 	VerifierTypeFlagName      = flags.VerifierTypeFlagName
 	VerifierUrlFlagName       = flags.VerifierUrlFlagName
-	UseForgeFlagName          = flags.UseForgeFlagName
 	GenesisTimeOffsetFlagName = flags.GenesisTimeOffsetFlagName
 
 	ReceiptQueryIntervalFlagName  = flags.ReceiptQueryIntervalFlagName
@@ -141,12 +140,6 @@ var (
 		EnvVars: PrefixEnvVar("NO_VERIFY"),
 		Value:   false,
 	}
-	UseForgeFlag = &cli.BoolFlag{
-		Name:    UseForgeFlagName,
-		Usage:   "run the deployment scripts with forge; false runs them on the Go script host, which a later release removes",
-		EnvVars: PrefixEnvVar("USE_FORGE"),
-		Value:   true,
-	}
 	ReceiptQueryIntervalFlag = &cli.DurationFlag{
 		Name:    ReceiptQueryIntervalFlagName,
 		Usage:   "for tests: how often to poll for each broadcast's receipt, from 50ms to 1s; 0 uses the default of 1s",
@@ -202,7 +195,6 @@ var ApplyFlags = []cli.Flag{
 	VerifierAPIKeyFlag,
 	VerifierFlag,
 	VerifierUrlFlag,
-	UseForgeFlag,
 	ReceiptQueryIntervalFlag,
 	DeployMockSP1VerifierFlag,
 }

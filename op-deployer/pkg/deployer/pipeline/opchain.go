@@ -103,19 +103,9 @@ func ExecuteOPChainDeployment(
 		}
 	}
 
-	var dco opcm.DeployOPChainOutput
-	var err error
-	if env.Forge != nil {
-		lgr.Info("using Forge for DeployOPChain")
-		dco, err = opcm.DeployOPChainViaForge(env.Forge, dci)
-		if err != nil {
-			return result, err
-		}
-	} else {
-		dco, err = env.Scripts.DeployOPChain.Run(dci)
-		if err != nil {
-			return result, fmt.Errorf("error deploying OP chain: %w", err)
-		}
+	dco, err := opcm.DeployOPChain(env.Forge, dci)
+	if err != nil {
+		return result, err
 	}
 
 	return ReconcileOPChainDeployment(chainID, OpChainContractsFromDeployOutput(dco), impls), nil
