@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -67,4 +68,13 @@ func SealL1DevGenesis(env *Env, intent *state.Intent, st *state.State) error {
 	st.L1DevGenesis = genesisTemplate
 	lgr.Info("Sealed L1 dev genesis", "blockHash", l1GenesisBlock.Hash(), "stateRoot", h)
 	return nil
+}
+
+// L1DevGenesisWithAlloc returns the sealed L1 dev genesis of st with its alloc, for a node that
+// starts from it.
+func L1DevGenesisWithAlloc(st *state.State) *core.Genesis {
+	genesis := *st.L1DevGenesis
+	genesis.StateHash = nil
+	genesis.Alloc = st.L1StateDump.Data.Accounts
+	return &genesis
 }

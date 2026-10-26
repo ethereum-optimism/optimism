@@ -110,7 +110,6 @@ op-devstack/dsl | missing go-ethereum/core/types.Receipt.OperatorFeeConstant | #
 op-devstack/dsl | missing go-ethereum/core/types.Receipt.OperatorFeeScalar | #23405 test and DSL swaps to op-core
 op-devstack/dsl | missing go-ethereum/core/types.RollupCostData | #23405 test and DSL swaps to op-core
 op-devstack/dsl | missing go-ethereum/core/types.Transaction.RollupCostData | #23405 test and DSL swaps to op-core
-op-devstack/sysgo | missing go-ethereum/core.Genesis.StateHash | #23217 genesis readers
 op-devstack/sysgo | missing go-ethereum/core/types.CustodyBitmap | upstream backport, in go-ethereum v1.17.7
 op-devstack/sysgo | missing go-ethereum/eth/ethconfig.Config.InteropMempoolFiltering | #21744 in-process op-geth L2 EL
 op-devstack/sysgo | missing go-ethereum/eth/ethconfig.Config.InteropMessageRPC | #21744 in-process op-geth L2 EL

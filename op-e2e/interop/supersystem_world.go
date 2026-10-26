@@ -87,11 +87,8 @@ func (s *interopE2ESystem) prepareWorld(w WorldConfig) {
 	})
 	require.NoError(s.t, err, "failed to deploy the world")
 
-	l1Genesis := *st.L1DevGenesis
-	l1Genesis.StateHash = nil
-	l1Genesis.Alloc = st.L1StateDump.Data.Accounts
 	s.deployment = st
-	s.l1Genesis = &l1Genesis
+	s.l1Genesis = pipeline.L1DevGenesisWithAlloc(st)
 }
 
 // worldIntent returns the intent for the chains of w. The intent does not set the L1 genesis
