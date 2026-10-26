@@ -15,6 +15,14 @@ interface IChainConfig is ISemver {
     ///         settlement chain on a private chain.
     function settlementChainId() external view returns (uint256 id_);
 
+    /// @notice Returns true if this chain is a settlement chain.
+    /// @return isSettlementChain_ True if the settlement chain ID is this chain's own chain ID.
+    function isSettlementChain() external view returns (bool isSettlementChain_);
+
+    /// @notice Returns true if this chain is a private chain.
+    /// @return isPrivateChain_ True if the settlement chain ID is set and is another chain's ID.
+    function isPrivateChain() external view returns (bool isPrivateChain_);
+
     /// @notice Constructor placeholder for the interface.
     function __constructor__() external;
 }

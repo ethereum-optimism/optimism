@@ -29,7 +29,20 @@ contract ChainConfig is ISemver {
     /// @notice Returns the settlement chain ID of this chain.
     /// @return id_ 0 on a public chain, the chain's own ID on a settlement chain, and the ID of its
     ///         settlement chain on a private chain.
-    function settlementChainId() external view returns (uint256 id_) {
+    function settlementChainId() public view returns (uint256 id_) {
         id_ = Storage.getUint(SETTLEMENT_CHAIN_ID_SLOT);
+    }
+
+    /// @notice Returns true if this chain is a settlement chain.
+    /// @return isSettlementChain_ True if the settlement chain ID is this chain's own chain ID.
+    function isSettlementChain() external view returns (bool isSettlementChain_) {
+        isSettlementChain_ = settlementChainId() == block.chainid;
+    }
+
+    /// @notice Returns true if this chain is a private chain.
+    /// @return isPrivateChain_ True if the settlement chain ID is set and is another chain's ID.
+    function isPrivateChain() external view returns (bool isPrivateChain_) {
+        uint256 id = settlementChainId();
+        isPrivateChain_ = id != 0 && id != block.chainid;
     }
 }

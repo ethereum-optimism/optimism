@@ -44,8 +44,8 @@
     "sourceCodeHash": "0x839df6606839f051b93cc11dde360f114d5f91ab5f865fb9eb86ccd1aef4b187"
   },
   "src/L2/ChainConfig.sol:ChainConfig": {
-    "initCodeHash": "0x0fd0c7e75c8cf14671be87fe2309a2ef1a43392ff19fd04ba1ddd407c51540b7",
-    "sourceCodeHash": "0x3a3dff9df9c59ff7e53295b4d9af6094418f0810ee5f4138be779854ec3f1cb1"
+    "initCodeHash": "0x3249928d39650d9c3760a5ac94f50174689813dcb656dbe294053b9082791a27",
+    "sourceCodeHash": "0xde15b24466e6275c91a411b98c267bf8e2fa984f2c10640bb4ead2686ee35169"
   },
   "src/L2/ConditionalDeployer.sol:ConditionalDeployer": {
     "initCodeHash": "0x580996fd149ac478b9363399eab8ba479ed55a324a215ea8e4841f9e9f033ac5",

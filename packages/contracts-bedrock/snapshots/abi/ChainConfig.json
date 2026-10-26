@@ -14,6 +14,32 @@
   },
   {
     "inputs": [],
+    "name": "isPrivateChain",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "isPrivateChain_",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isSettlementChain",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "isSettlementChain_",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "settlementChainId",
     "outputs": [
       {
