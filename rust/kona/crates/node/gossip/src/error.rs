@@ -57,6 +57,9 @@ pub enum GossipDriverBuilderError {
     /// An error when setting up DNS resolution on the transport.
     #[error("error setting up DNS resolution")]
     DnsError(#[source] std::io::Error),
+    /// An error when building a [`crate::GossipTransport::Other`] transport.
+    #[error("error building the transport")]
+    OtherTransportError(#[source] libp2p::TransportBuilderError),
     /// An error when building the gossip behaviour.
     #[error("error building gossip behaviour")]
     BehaviourError(#[from] BehaviourError),
