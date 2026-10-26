@@ -31,6 +31,7 @@ var (
 		{"DeployMIPS.s.sol", "DeployMIPS"},
 		{"DeployAlphabetVM.s.sol", "DeployAlphabetVM"},
 		{"SetDisputeGameImpl.s.sol", "SetDisputeGameImpl"},
+		{"SetPreinstalls.s.sol", "SetPreinstalls"},
 	}
 
 	// L2ForgeScripts are the scripts that build the L2 genesis.
