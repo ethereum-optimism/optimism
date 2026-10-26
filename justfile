@@ -11,11 +11,10 @@ TEST_TIMEOUT := env('TEST_TIMEOUT', '10m')
 #   op-acceptance-tests             dedicated acceptance-test job (needs a running devnet)
 #   cannon                          dedicated cannon job (slow MIPS emulation tests)
 #   rust                            rust-e2e pipeline (needs prebuilt Rust binaries)
-#   op-deployer/pkg/deployer/forge  fails when forge is on PATH (ethereum-optimism/optimism#21200)
 #   op-e2e/actions                  dedicated go-actions-tests job (its own resource class
 #                                   and timeout; running them here too would run them twice)
 # See the list-test-packages recipe, which expands `go list ./...` minus these.
-EXCLUDED_TEST_PKGS := "op-acceptance-tests cannon rust op-deployer/pkg/deployer/forge op-e2e/actions"
+EXCLUDED_TEST_PKGS := "op-acceptance-tests cannon rust op-e2e/actions"
 
 # Fault-proof packages run in the default go-tests job and again in a dedicated
 # job with Cannon enabled, so they keep a separate list.
