@@ -6,7 +6,7 @@ use crate::{
         Clock, SequencerEngineClient,
         engine::EngineClientError,
         sequencer::{
-            conductor::Conductor,
+            conductor::{Conductor, ConductorError},
             error::SequencerActorError,
             metrics::{
                 update_attributes_build_duration_metrics, update_block_build_duration_metrics,
@@ -48,13 +48,24 @@ struct UnsealedPayloadHandle {
 /// A sequenced block that has been sealed and committed to the conductor, if one is configured,
 /// but not yet canonicalized and gossiped.
 #[derive(Debug)]
-struct CommittedBlock {
+struct ConductorCommittedBlock {
     /// The committed payload. Retries must canonicalize this exact envelope.
     pub envelope: OpExecutionPayloadEnvelope,
     /// The unsafe head on which the block was built.
     pub parent: L2BlockInfo,
     /// The number of transactions in the block.
     pub tx_count: u64,
+}
+
+impl ConductorCommittedBlock {
+    /// Pairs a committed `envelope` with the build job that produced it.
+    fn new(envelope: OpExecutionPayloadEnvelope, handle: &UnsealedPayloadHandle) -> Self {
+        Self {
+            envelope,
+            parent: handle.attributes_with_parent.parent,
+            tx_count: handle.attributes_with_parent.count_transactions(),
+        }
+    }
 }
 
 /// The block the sequencer is working on between ticks.
@@ -65,7 +76,7 @@ enum InFlightBlock {
     /// Built but not yet sealed. Commit failures retry the seal with this payload ID.
     Building(UnsealedPayloadHandle),
     /// Sealed and committed. Retries must canonicalize this exact envelope.
-    Committed(CommittedBlock),
+    Committed(ConductorCommittedBlock),
 }
 
 /// The [`SequencerActor`] is responsible for building L2 blocks on top of the current unsafe head
@@ -241,47 +252,133 @@ where
         Ok(())
     }
 
-    /// Seals the provided [`UnsealedPayloadHandle`] and commits the resulting payload to the
-    /// conductor, if one is configured.
-    async fn seal_and_commit(
+    /// Seals the provided [`UnsealedPayloadHandle`], fetching its payload without importing it.
+    async fn seal(
         &self,
         handle: &UnsealedPayloadHandle,
-    ) -> Result<CommittedBlock, SequencerActorError> {
+    ) -> Result<OpExecutionPayloadEnvelope, EngineClientError> {
         let seal_request_start = Instant::now();
         let envelope = self
             .engine_client
             .seal_block(handle.payload_id, handle.attributes_with_parent.clone())
             .await?;
         update_seal_duration_metrics(seal_request_start.elapsed());
-
-        if let Some(conductor) = &self.conductor {
-            let commitment_start = Instant::now();
-            let result = conductor.commit_unsafe_payload(&envelope).await;
-            update_conductor_commitment_duration_metrics(commitment_start.elapsed());
-            // Retain the build job, not this uncommitted envelope. Like op-node, retry
-            // getPayload with the same payload ID on the next attempt.
-            result?;
-        }
-
-        Ok(CommittedBlock {
-            envelope,
-            parent: handle.attributes_with_parent.parent,
-            tx_count: handle.attributes_with_parent.count_transactions(),
-        })
+        Ok(envelope)
     }
 
-    /// Canonicalizes the provided [`CommittedBlock`] and schedules it for gossip.
-    async fn canonicalize_and_gossip(
+    /// Commits a sealed payload to the conductor, if one is configured.
+    async fn commit_to_conductor(
         &self,
-        block: &CommittedBlock,
-    ) -> Result<(), SequencerActorError> {
-        self.engine_client.canonicalize_block(block.envelope.clone(), block.parent).await?;
-        update_total_transactions_sequenced(block.tx_count);
+        envelope: &OpExecutionPayloadEnvelope,
+    ) -> Result<(), ConductorError> {
+        let Some(conductor) = &self.conductor else {
+            return Ok(());
+        };
+        let conductor_commitment_start = Instant::now();
+        let result = conductor.commit_unsafe_payload(envelope).await;
+        update_conductor_commitment_duration_metrics(conductor_commitment_start.elapsed());
+        result
+    }
 
-        self.unsafe_payload_gossip_client
-            .schedule_execution_payload_gossip(block.envelope.clone())
-            .await
-            .map_err(Into::into)
+    /// Handles a failed seal of the in-flight build job. A stale or expired job is dropped so that
+    /// the next tick rebuilds; any other failure is fatal.
+    fn handle_seal_error(&mut self, err: EngineClientError) -> Result<(), SequencerActorError> {
+        let EngineClientError::SealError(seal_err) = &err else {
+            error!(target: "sequencer", ?err, "Unexpected error sealing payload");
+            return Err(err.into());
+        };
+        match seal_err {
+            // The build is stale, or the EL may have expired or discarded its payload ID. Drop it
+            // and rebuild on the next tick.
+            SealTaskError::UnsafeHeadChangedSinceBuild | SealTaskError::GetPayloadFailed(_) => {
+                warn!(target: "sequencer", %seal_err, "Discarding failed seal job");
+                self.build_ticker.reset_immediately();
+                Ok(())
+            }
+            // Only produced when sealing also imports the payload, or within the engine itself.
+            SealTaskError::PayloadInsertionFailed(_) |
+            SealTaskError::DepositOnlyPayloadFailed |
+            SealTaskError::DepositOnlyPayloadReattemptFailed |
+            SealTaskError::HoloceneInvalidFlush |
+            SealTaskError::MpscSend(_) |
+            SealTaskError::ClockWentBackwards => {
+                error!(target: "sequencer", ?err, "Critical seal task error occurred");
+                Err(err.into())
+            }
+        }
+    }
+
+    /// Handles a failed conductor commit of a sealed payload. Like op-node, the build job is
+    /// retained rather than the uncommitted envelope, so the retry fetches the payload again with
+    /// the same payload ID before committing, canonicalizing, or gossiping anything.
+    fn handle_conductor_error(&mut self, err: ConductorError, handle: UnsealedPayloadHandle) {
+        warn!(target: "sequencer", ?err, "Conductor commit failed; retrying the build job before canonicalization or gossip");
+        self.in_flight = Some(InFlightBlock::Building(handle));
+        self.build_ticker.reset_after(Duration::from_secs(1));
+    }
+
+    /// Handles a failed canonicalization of a committed block. A temporary insertion failure
+    /// retains the block so that the retry imports the exact committed envelope; a stale or
+    /// invalid block is dropped so that the next tick rebuilds; an invalid forkchoice state resets
+    /// the engine before rebuilding; any other failure is fatal.
+    async fn handle_canonicalize_error(
+        &mut self,
+        err: EngineClientError,
+        block: ConductorCommittedBlock,
+    ) -> Result<(), SequencerActorError> {
+        let EngineClientError::CanonicalizeError(canonicalize_err) = &err else {
+            error!(target: "sequencer", ?err, "Unexpected error canonicalizing payload");
+            return Err(err.into());
+        };
+        match canonicalize_err {
+            // The block no longer extends the unsafe head. Drop it and rebuild on the next tick.
+            CanonicalizeTaskError::UnsafeHeadChangedSinceBuild => {
+                self.build_ticker.reset_immediately();
+                Ok(())
+            }
+            CanonicalizeTaskError::PayloadInsertionFailed(insert_err)
+                if is_insert_task_err_fatal(insert_err) =>
+            {
+                error!(target: "sequencer", ?err, "Critical canonicalization error occurred");
+                Err(err.into())
+            }
+            // Canonicalization errors are relayed to us, so the engine queue cannot initiate this
+            // reset. Discard the committed block and wait for the reset before rebuilding on the
+            // engine's new unsafe head.
+            CanonicalizeTaskError::PayloadInsertionFailed(insert_err)
+                if matches!(
+                    **insert_err,
+                    InsertTaskError::ForkchoiceUpdateFailed(
+                        SynchronizeTaskError::InvalidForkchoiceState
+                    )
+                ) =>
+            {
+                warn!(target: "sequencer", ?err, "Invalid forkchoice during canonicalization; resetting engine");
+                self.engine_client.reset_engine_forkchoice().await?;
+                self.build_ticker.reset_after(Duration::from_secs(1));
+                Ok(())
+            }
+            // The engine rejected the block. Drop it and rebuild on the next tick.
+            CanonicalizeTaskError::PayloadInsertionFailed(insert_err)
+                if matches!(
+                    **insert_err,
+                    InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. })
+                ) =>
+            {
+                self.build_ticker.reset_immediately();
+                Ok(())
+            }
+            // Retry temporary insertion failures with the exact committed envelope.
+            CanonicalizeTaskError::PayloadInsertionFailed(_) => {
+                self.in_flight = Some(InFlightBlock::Committed(block));
+                self.build_ticker.reset_after(Duration::from_secs(1));
+                Ok(())
+            }
+            CanonicalizeTaskError::MpscSend(_) => {
+                error!(target: "sequencer", ?err, "Critical canonicalization error occurred");
+                Err(err.into())
+            }
+        }
     }
 
     /// Starts building an L2 block by creating and populating payload attributes referencing the
@@ -566,89 +663,27 @@ where
                 let committed = match self.in_flight.take() {
                     None => None,
                     Some(InFlightBlock::Committed(block)) => Some(block),
-                    Some(InFlightBlock::Building(handle)) => match self.seal_and_commit(&handle).await {
-                        Ok(block) => Some(block),
-                        Err(SequencerActorError::ConductorCommit(err)) => {
-                            warn!(target: "sequencer", ?err, "Conductor commit failed; retrying the build job before canonicalization or gossip");
-                            self.in_flight = Some(InFlightBlock::Building(handle));
-                            self.build_ticker.reset_after(Duration::from_secs(1));
+                    Some(InFlightBlock::Building(handle)) => {
+                        let envelope = match self.seal(&handle).await {
+                            Ok(envelope) => envelope,
+                            Err(err) => return self.handle_seal_error(err),
+                        };
+                        if let Err(err) = self.commit_to_conductor(&envelope).await {
+                            self.handle_conductor_error(err, handle);
                             return Ok(());
                         }
-                        Err(SequencerActorError::EngineError(EngineClientError::SealError(err))) => match err {
-                            // The build is stale, or the EL may have expired or discarded its
-                            // payload ID. Drop it and rebuild on the next tick.
-                            SealTaskError::UnsafeHeadChangedSinceBuild | SealTaskError::GetPayloadFailed(_) => {
-                                warn!(target: "sequencer", %err, "Discarding failed seal job");
-                                self.build_ticker.reset_immediately();
-                                return Ok(());
-                            }
-                            // Only produced when sealing also imports the payload, or within the
-                            // engine itself.
-                            SealTaskError::PayloadInsertionFailed(_) |
-                            SealTaskError::DepositOnlyPayloadFailed |
-                            SealTaskError::DepositOnlyPayloadReattemptFailed |
-                            SealTaskError::HoloceneInvalidFlush |
-                            SealTaskError::MpscSend(_) |
-                            SealTaskError::ClockWentBackwards => {
-                                error!(target: "sequencer", ?err, "Critical seal task error occurred");
-                                return Err(SequencerActorError::EngineError(EngineClientError::SealError(err)));
-                            }
-                        },
-                        Err(err) => {
-                            error!(target: "sequencer", ?err, "Unexpected error sealing payload");
-                            return Err(err);
-                        }
-                    },
+                        Some(ConductorCommittedBlock::new(envelope, &handle))
+                    }
                 };
                 if let Some(block) = committed {
-                    match self.canonicalize_and_gossip(&block).await {
-                        Ok(()) => {}
-                        Err(SequencerActorError::EngineError(EngineClientError::CanonicalizeError(err))) => match &err {
-                            // The block no longer extends the unsafe head. Drop it and rebuild on
-                            // the next tick.
-                            CanonicalizeTaskError::UnsafeHeadChangedSinceBuild => {
-                                self.build_ticker.reset_immediately();
-                                return Ok(());
-                            }
-                            CanonicalizeTaskError::PayloadInsertionFailed(insert_err) if is_insert_task_err_fatal(insert_err) => {
-                                error!(target: "sequencer", ?err, "Critical canonicalization error occurred");
-                                return Err(SequencerActorError::EngineError(EngineClientError::CanonicalizeError(err)));
-                            }
-                            // Canonicalization errors are relayed to us, so the engine queue
-                            // cannot initiate this reset. Discard the committed block and wait
-                            // for the reset before rebuilding on the engine's new unsafe head.
-                            CanonicalizeTaskError::PayloadInsertionFailed(insert_err) if matches!(
-                                **insert_err,
-                                InsertTaskError::ForkchoiceUpdateFailed(SynchronizeTaskError::InvalidForkchoiceState)
-                            ) => {
-                                warn!(target: "sequencer", ?err, "Invalid forkchoice during canonicalization; resetting engine");
-                                self.engine_client.reset_engine_forkchoice().await?;
-                                self.build_ticker.reset_after(Duration::from_secs(1));
-                                return Ok(());
-                            }
-                            // The engine rejected the block. Drop it and rebuild on the next tick.
-                            CanonicalizeTaskError::PayloadInsertionFailed(insert_err) if matches!(
-                                **insert_err,
-                                InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. })
-                            ) => {
-                                self.build_ticker.reset_immediately();
-                                return Ok(());
-                            }
-                            // Retry temporary insertion failures with the exact committed envelope.
-                            CanonicalizeTaskError::PayloadInsertionFailed(_) => {
-                                self.in_flight = Some(InFlightBlock::Committed(block));
-                                self.build_ticker.reset_after(Duration::from_secs(1));
-                                return Ok(());
-                            }
-                            CanonicalizeTaskError::MpscSend(_) => {
-                                error!(target: "sequencer", ?err, "Critical canonicalization error occurred");
-                                return Err(SequencerActorError::EngineError(EngineClientError::CanonicalizeError(err)));
-                            }
-                        },
-                        Err(err) => {
-                            error!(target: "sequencer", ?err, "Unexpected error canonicalizing or gossiping payload");
-                            return Err(err);
-                        }
+                    if let Err(err) = self.engine_client.canonicalize_block(block.envelope.clone(), block.parent).await {
+                        return self.handle_canonicalize_error(err, block).await;
+                    }
+                    update_total_transactions_sequenced(block.tx_count);
+
+                    if let Err(err) = self.unsafe_payload_gossip_client.schedule_execution_payload_gossip(block.envelope).await {
+                        error!(target: "sequencer", ?err, "Unexpected error scheduling payload gossip");
+                        return Err(err.into());
                     }
                 }
                 self.last_seal_duration = publish_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -685,7 +720,8 @@ where
 // `SequencerActor` may have different interpretations of severity, and it is not clear when making
 // a change in that area of the codebase that it will affect this area. When a new task error is
 // added, this approach guarantees compilation will fail until it is handled here. Seal and
-// canonicalization errors are matched exhaustively where they occur in `step`.
+// canonicalization errors are matched exhaustively in `handle_seal_error` and
+// `handle_canonicalize_error`.
 const fn is_insert_task_err_fatal(err: &InsertTaskError) -> bool {
     match err {
         InsertTaskError::ForkchoiceUpdateFailed(synchronize_error) => match synchronize_error {

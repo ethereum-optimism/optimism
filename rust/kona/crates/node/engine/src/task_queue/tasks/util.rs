@@ -1,6 +1,6 @@
 //! Shared steps for building, sealing, and importing blocks.
 
-use super::{BuildTaskError, SealTaskError, get_payload, insert_payload, start_build};
+use super::{EngineBuildError, SealTaskError, get_payload, insert_payload, start_build};
 use crate::{EngineClient, EngineState, ImportedBlockSink, InsertTaskError};
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
@@ -11,7 +11,7 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 pub(in crate::task_queue) enum BuildAndImportError {
     /// An error occurred during the build phase.
     #[error(transparent)]
-    Build(#[from] BuildTaskError),
+    Build(#[from] EngineBuildError),
     /// An error occurred while sealing or importing the block.
     #[error(transparent)]
     Seal(#[from] SealTaskError),

@@ -221,7 +221,7 @@ async fn canonicalization_retry_keeps_the_committed_payload() {
 async fn stale_or_invalid_committed_payload_is_dropped(#[case] stale: bool) {
     let mut actor = test_actor();
     actor.started = true;
-    actor.in_flight = Some(InFlightBlock::Committed(CommittedBlock {
+    actor.in_flight = Some(InFlightBlock::Committed(ConductorCommittedBlock {
         envelope: sealed_payload(2),
         parent: L2BlockInfo::default(),
         tx_count: 0,
@@ -301,7 +301,7 @@ async fn failed_payload_fetch_drops_the_expired_build_job() {
 async fn invalid_forkchoice_resets_before_rebuilding(#[case] reset_succeeds: bool) {
     let mut actor = test_actor();
     actor.started = true;
-    actor.in_flight = Some(InFlightBlock::Committed(CommittedBlock {
+    actor.in_flight = Some(InFlightBlock::Committed(ConductorCommittedBlock {
         envelope: sealed_payload(2),
         parent: L2BlockInfo::default(),
         tx_count: 0,

@@ -24,7 +24,7 @@ pub enum CanonicalizeTaskError {
     PayloadInsertionFailed(#[from] Box<InsertTaskError>),
     /// Error sending the canonicalization result.
     #[error(transparent)]
-    MpscSend(#[from] Box<mpsc::error::SendError<Result<OpExecutionPayloadEnvelope, Self>>>),
+    MpscSend(#[from] Box<mpsc::error::SendError<Result<(), Self>>>),
 }
 
 impl EngineTaskError for CanonicalizeTaskError {
@@ -57,7 +57,7 @@ pub struct CanonicalizeTask {
     /// The unsafe head on which the build started.
     pub parent: L2BlockInfo,
     /// The response channel. Errors are handled by the sequencer, which owns retry policy.
-    pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, CanonicalizeTaskError>>,
+    pub result_tx: mpsc::Sender<Result<(), CanonicalizeTaskError>>,
     /// Publish the new unsafe head before acknowledging canonicalization to the sequencer.
     pub unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
     /// Where to hand the block after canonicalization.
@@ -85,7 +85,7 @@ impl EngineTaskExt for CanonicalizeTask {
                 self.block_sink.as_ref(),
             )
             .await
-            .map(|_| self.payload.clone())
+            .map(|_| ())
             .map_err(|err| CanonicalizeTaskError::PayloadInsertionFailed(Box::new(err)))
         };
         if result.is_ok() &&

@@ -98,5 +98,5 @@ pub struct CanonicalizeRequest {
     /// The unsafe head on which the build started.
     pub parent: kona_protocol::L2BlockInfo,
     /// The response, including any import error, is relayed to the sequencer.
-    pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, CanonicalizeTaskError>>,
+    pub result_tx: mpsc::Sender<Result<(), CanonicalizeTaskError>>,
 }
