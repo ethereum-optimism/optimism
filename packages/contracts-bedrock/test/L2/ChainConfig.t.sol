@@ -32,7 +32,7 @@ abstract contract ChainConfig_TestInit is Test {
 contract ChainConfig_Version_Test is ChainConfig_TestInit {
     /// @notice Tests that the version is 1.0.0.
     function test_version_succeeds() external view {
-        assertEq(chainConfig.version(), "1.0.0");
+        assertEq(chainConfig.version(), "1.0.1");
     }
 }
 

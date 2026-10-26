@@ -19,12 +19,13 @@ Active flags:
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `ZKDisputeGame` | ZK dispute game system |
 | `BridgeHook` | Bridge hook configuration on OptimismPortal2, currently planned only for the compliance module |
+| `OPPrivate` | The OP Private `ChainConfig` predeploy in L2 genesis, holding the chain's settlement chain ID (op-deployer chain override `settlementChainId`) |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade — **enabled by default** |
 
 
 The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `SuperRootGamesMigration`, which is enabled by default on both the Go and Solidity sides. The bitmap no longer acts as a circuit breaker for it; removal is tracked in #21662.
 
-**Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` all need updating; there is no compile-time link between them.
+**Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` (plus each new matrix job, by name, in the `required-contracts-ci` gate's `requires`) all need updating; there is no compile-time link between them.
 
 ## B. Inputs — where operators supply the bitmap
 
@@ -70,8 +71,9 @@ A separate, **test-only** assembler exists for Foundry tests and fork scripts. I
 - `DEV_FEATURE__OPTIMISM_PORTAL_INTEROP`
 - `DEV_FEATURE__ZK_DISPUTE_GAME`
 - `DEV_FEATURE__BRIDGE_HOOK`
+- `DEV_FEATURE__OP_PRIVATE`
 
-Interop, ZK and bridge hook are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
+Interop, ZK, bridge hook and OP Private are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
 
 - `test/setup/FeatureFlags.sol` — `resolveFeaturesFromEnv()` OR-s each enabled flag into `devFeatureBitmap`
 - `test/setup/ForkL1Live.s.sol` — branches on individual `Config.devFeature*` returns

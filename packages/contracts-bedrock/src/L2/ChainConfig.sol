@@ -15,7 +15,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         - the chain ID of its settlement chain on a private chain.
 ///         Genesis writes the value into a fixed storage slot. There is no setter.
 /// @custom:proxied true
-/// @custom:predeploy 0x4200000000000000000000000000000000000034
+/// @custom:predeploy 0x4200000000000000000000000000000000000031
 contract ChainConfig is ISemver {
     /// @notice Storage slot of the settlement chain ID, written in genesis:
     ///         bytes32(uint256(keccak256("chainconfig.settlementchainid")) - 1).
@@ -23,8 +23,8 @@ contract ChainConfig is ISemver {
         0x519bd363f00ade2be7cab3da84f88ba43e7e22819543246b4a737af4e3553f4f;
 
     /// @notice The semantic version of the ChainConfig contract.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice Returns the settlement chain ID of this chain.
     /// @return id_ 0 on a public chain, the chain's own ID on a settlement chain, and the ID of its

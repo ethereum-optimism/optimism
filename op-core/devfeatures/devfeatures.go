@@ -34,6 +34,9 @@ var (
 
 	// BridgeHookFlag enables bridge hook configuration on OptimismPortal2.
 	BridgeHookFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000100000000")
+
+	// OPPrivateFlag enables OP Private.
+	OPPrivateFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000001000000000")
 )
 
 // IsDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.
