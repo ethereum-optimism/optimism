@@ -30,34 +30,7 @@ pub(crate) fn query_client(
 ) -> kona_engine::EngineQueryClient {
     let (engine, _, transport) = kona_engine::test_utils::test_engine_client(config);
     if let Some(output) = output {
-        let mut block = alloy_rpc_types_eth::Block::<op_alloy_rpc_types::Transaction>::default();
-        block.header.inner.number = output.block.block_info.number;
-        block.header.inner.parent_hash = output.block.block_info.parent_hash;
-        block.header.inner.timestamp = output.block.block_info.timestamp;
-        block.header.inner.state_root = output.output.state_root;
-        block.header.hash = block.header.inner.hash_slow();
-        let deposit = op_alloy_consensus::OpTxEnvelope::Deposit(alloy_primitives::Sealed::new(
-            op_alloy_consensus::TxDeposit {
-                input: kona_protocol::L1BlockInfoBedrock::default().encode_calldata(),
-                ..Default::default()
-            },
-        ));
-        block.transactions =
-            alloy_rpc_types_eth::BlockTransactions::Full(vec![op_alloy_rpc_types::Transaction {
-                inner: alloy_rpc_types_eth::Transaction {
-                    block_hash: None,
-                    block_number: Some(output.block.block_info.number),
-                    block_timestamp: None,
-                    effective_gas_price: Some(1),
-                    inner: alloy_consensus::transaction::Recovered::new_unchecked(
-                        deposit,
-                        Default::default(),
-                    ),
-                    transaction_index: Some(0),
-                },
-                deposit_nonce: None,
-                deposit_receipt_version: None,
-            }]);
+        let block = rpc_block(output);
         transport.expect_params(
             "eth_getBlockByNumber",
             serde_json::json!([format!("0x{:x}", output.block.block_info.number), true]),
@@ -72,6 +45,40 @@ pub(crate) fn query_client(
         );
     }
     engine.query_client()
+}
+
+pub(crate) fn rpc_block(
+    output: BlockOutput,
+) -> alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction> {
+    let mut block = alloy_rpc_types_eth::Block::<op_alloy_rpc_types::Transaction>::default();
+    block.header.inner.number = output.block.block_info.number;
+    block.header.inner.parent_hash = output.block.block_info.parent_hash;
+    block.header.inner.timestamp = output.block.block_info.timestamp;
+    block.header.inner.state_root = output.output.state_root;
+    block.header.hash = block.header.inner.hash_slow();
+    let deposit = op_alloy_consensus::OpTxEnvelope::Deposit(alloy_primitives::Sealed::new(
+        op_alloy_consensus::TxDeposit {
+            input: kona_protocol::L1BlockInfoBedrock::default().encode_calldata(),
+            ..Default::default()
+        },
+    ));
+    block.transactions =
+        alloy_rpc_types_eth::BlockTransactions::Full(vec![op_alloy_rpc_types::Transaction {
+            inner: alloy_rpc_types_eth::Transaction {
+                block_hash: None,
+                block_number: Some(output.block.block_info.number),
+                block_timestamp: None,
+                effective_gas_price: Some(1),
+                inner: alloy_consensus::transaction::Recovered::new_unchecked(
+                    deposit,
+                    Default::default(),
+                ),
+                transaction_index: Some(0),
+            },
+            deposit_nonce: None,
+            deposit_receipt_version: None,
+        }]);
+    block
 }
 
 /// A query sender whose L1 watcher reports `current_l1` and nothing else, for as long as the

@@ -287,3 +287,5 @@ async fn an_unavailable_l1_watcher_returns_an_internal_error() {
 
     assert_eq!(error.code(), ErrorCode::InternalError.code());
 }
+
+mod reorg_tests;
