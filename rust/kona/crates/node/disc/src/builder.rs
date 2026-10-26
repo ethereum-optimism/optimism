@@ -3,10 +3,7 @@
 use discv5::{Config, Discv5, Enr, ListenConfig};
 use enr::k256;
 use kona_peers::{BootNodes, BootStoreFile, OpStackEnr};
-use std::{
-    net::{IpAddr, SocketAddr},
-    sync::Arc,
-};
+use std::{net::IpAddr, sync::Arc};
 use tokio::time::Duration;
 
 use crate::{Discv5BuilderError, Discv5Driver};
@@ -72,28 +69,51 @@ impl LocalNode {
     }
 }
 
-/// Returns the UDP port to advertise in the ENR, binding the listen socket if needed.
+/// Binds a free UDP port for discovery to listen on, if its listen port is 0.
 ///
-/// The advertised port is the one `local_node` has, if it is not 0, and otherwise the port
-/// discovery listens on. discv5 binds its socket itself and never reports the port it gets, so a
-/// listen port of 0 is bound here instead, and the socket is passed to discv5 in
-/// [`ListenConfig::FromSockets`]. A port picked that way cannot match an advertised port set in
-/// advance.
+/// discv5 binds its socket itself and never reports the port it gets, so the port could not be
+/// advertised. The socket bound here is passed to discv5 in [`ListenConfig::FromSockets`]
+/// instead. A port picked that way cannot match an advertised port set in advance.
 ///
 /// Binding a socket needs a Tokio runtime, so a listen port of 0 can only be built inside one.
-fn advertised_udp_port(
+fn bind_free_listen_port(
     config: &mut Config,
     local_node: &LocalNode,
-) -> Result<u16, Discv5BuilderError> {
-    if let ListenConfig::Ipv4 { port: 0, .. } | ListenConfig::Ipv6 { port: 0, .. } =
-        config.listen_config
-    {
-        if local_node.udp_port != 0 {
-            return Err(Discv5BuilderError::AdvertisedUdpPortWithoutFixedListenPort);
-        }
-        config.listen_config = bind_free_port(&config.listen_config)?;
+) -> Result<(), Discv5BuilderError> {
+    let ip = match config.listen_config {
+        ListenConfig::Ipv4 { ip, port: 0 } => IpAddr::V4(ip),
+        ListenConfig::Ipv6 { ip, port: 0 } => IpAddr::V6(ip),
+        _ => return Ok(()),
+    };
+    if local_node.udp_port != 0 {
+        return Err(Discv5BuilderError::AdvertisedUdpPortWithoutFixedListenPort);
     }
+    config.listen_config = bind_free_port(ip)?;
+    Ok(())
+}
 
+/// Binds a UDP socket to a free port at `ip`, and returns the listen config that passes it to
+/// discv5.
+fn bind_free_port(ip: IpAddr) -> Result<ListenConfig, Discv5BuilderError> {
+    // `from_std` registers the socket with the runtime's reactor, and panics outside a runtime.
+    tokio::runtime::Handle::try_current()
+        .map_err(std::io::Error::other)
+        .map_err(Discv5BuilderError::BindFailed)?;
+    let socket = std::net::UdpSocket::bind((ip, 0))
+        .and_then(|socket| socket.set_nonblocking(true).map(|()| socket))
+        .and_then(tokio::net::UdpSocket::from_std)
+        .map_err(Discv5BuilderError::BindFailed)?;
+    let socket = Some(Arc::new(socket));
+    Ok(if ip.is_ipv4() {
+        ListenConfig::FromSockets { ipv4: socket, ipv6: None }
+    } else {
+        ListenConfig::FromSockets { ipv4: None, ipv6: socket }
+    })
+}
+
+/// Returns the UDP port to advertise in the ENR: the one `local_node` has, if it is not 0, and
+/// otherwise the port discovery listens on.
+fn advertised_udp_port(config: &Config, local_node: &LocalNode) -> Result<u16, Discv5BuilderError> {
     if local_node.udp_port != 0 {
         return Ok(local_node.udp_port);
     }
@@ -124,30 +144,6 @@ fn advertised_udp_port(
         return Err(Discv5BuilderError::UdpPortZero);
     }
     Ok(listen_port)
-}
-
-/// Binds a free UDP port at the address of a single-stack listen config, and returns a config with
-/// the bound socket.
-fn bind_free_port(listen_config: &ListenConfig) -> Result<ListenConfig, Discv5BuilderError> {
-    let addr = match listen_config {
-        ListenConfig::Ipv4 { ip, .. } => SocketAddr::new(IpAddr::V4(*ip), 0),
-        ListenConfig::Ipv6 { ip, .. } => SocketAddr::new(IpAddr::V6(*ip), 0),
-        _ => unreachable!("only single-stack configs are bound"),
-    };
-    // `from_std` registers the socket with the runtime's reactor, and panics outside a runtime.
-    tokio::runtime::Handle::try_current()
-        .map_err(std::io::Error::other)
-        .map_err(Discv5BuilderError::BindFailed)?;
-    let socket = std::net::UdpSocket::bind(addr)
-        .and_then(|socket| socket.set_nonblocking(true).map(|()| socket))
-        .and_then(tokio::net::UdpSocket::from_std)
-        .map_err(Discv5BuilderError::BindFailed)?;
-    let socket = Some(Arc::new(socket));
-    Ok(if addr.is_ipv4() {
-        ListenConfig::FromSockets { ipv4: socket, ipv6: None }
-    } else {
-        ListenConfig::FromSockets { ipv4: None, ipv6: socket }
-    })
 }
 
 /// Discovery service builder.
@@ -252,7 +248,8 @@ impl Discv5Builder {
         let mut local_node = self.local_node;
         let key = local_node.signing_key.clone();
 
-        local_node.udp_port = advertised_udp_port(&mut config, &local_node)?;
+        bind_free_listen_port(&mut config, &local_node)?;
+        local_node.udp_port = advertised_udp_port(&config, &local_node)?;
         let enr = local_node.build_enr(chain_id).map_err(Discv5BuilderError::EnrBuildFailed)?;
 
         let interval = self.interval.unwrap_or(Duration::from_secs(5));
