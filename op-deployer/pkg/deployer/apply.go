@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 
@@ -279,7 +278,6 @@ type ApplyPipelineOpts struct {
 	// artifacts build an L2 genesis. A genesis deployment always allows them.
 	AllowUnoptimizedContracts bool
 	Workdir                   string
-	ReceiptQueryInterval      time.Duration
 }
 
 func ApplyPipeline(

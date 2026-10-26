@@ -648,7 +648,6 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 		DeployerPrivateKey: deployerKey, Intent: intent, State: st,
 		Logger: wb.logger, StateWriter: wb, DeployMockSP1Verifier: true,
 		AllowUnoptimizedContracts: true,
-		ReceiptQueryInterval:      100 * time.Millisecond,
 	}
 	for _, opt := range wb.deployerPipelineOptions {
 		opt(wb, intent, &opts)
