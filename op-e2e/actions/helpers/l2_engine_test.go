@@ -1,7 +1,6 @@
 package helpers
 
 import (
-	"encoding/binary"
 	"errors"
 	"math/big"
 	"testing"
@@ -9,17 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/beacon"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/triedb"
-	"github.com/ethereum/go-ethereum/triedb/hashdb"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -27,34 +20,63 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
+// payloadAttrs returns the attributes of a block built two seconds after a parent at parentTime,
+// with no forced transactions.
+func payloadAttrs(cfg *rollup.Config, parentTime uint64, feeRecipient common.Address, noTxPool bool) *eth.PayloadAttributes {
+	nextBlockTime := parentTime + 2
+
+	var w *types.Withdrawals
+	if cfg.IsCanyon(nextBlockTime) {
+		w = &types.Withdrawals{}
+	}
+
+	var parentBeaconBlockRoot *common.Hash
+	if cfg.IsEcotone(nextBlockTime) {
+		parentBeaconBlockRoot = &common.Hash{}
+	}
+
+	return &eth.PayloadAttributes{
+		Timestamp:             eth.Uint64Quantity(nextBlockTime),
+		PrevRandao:            eth.Bytes32{},
+		SuggestedFeeRecipient: feeRecipient,
+		NoTxPool:              noTxPool,
+		GasLimit:              (*eth.Uint64Quantity)(&cfg.Genesis.SystemConfig.GasLimit),
+		Withdrawals:           w,
+		ParentBeaconBlockRoot: parentBeaconBlockRoot,
+	}
+}
+
 func TestL2EngineAPI(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L2Cfg.ToBlock()
-	gethCfg := sd.L2Cfg.Config.GethChainConfig()
-	consensus := beacon.New(ethash.NewFaker())
-	db := rawdb.NewMemoryDatabase()
-	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
-	sd.L2Cfg.GethGenesis().MustCommit(db, tdb)
 
 	engine := NewL2Engine(t, log, sd.L2Cfg)
 
 	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	// build an empty block
-	chainA, _ := core.GenerateChain(gethCfg, genesisBlock, consensus, db, 1, func(n int, gen *core.BlockGen) {
-		gen.SetCoinbase(common.Address{'A'})
-		if gethCfg.IsCancun(gen.Number(), gen.Timestamp()) {
-			root := crypto.Keccak256Hash([]byte("A"), binary.BigEndian.AppendUint64(nil, uint64(n)))
-			gen.SetParentBeaconRoot(root)
-		}
-	})
-
-	payloadA, err := eth.BlockAsPayloadEnv(chainA[0], sd.L2Cfg.Config)
-	require.NoError(t, err)
+	// build two empty sibling blocks on genesis, differing in their fee recipient
+	buildOnGenesis := func(feeRecipient common.Address) *eth.ExecutionPayloadEnvelope {
+		attrs := payloadAttrs(sd.RollupCfg, genesisBlock.Time(), feeRecipient, true)
+		fcRes, err := l2Cl.ForkchoiceUpdate(t.Ctx(), &eth.ForkchoiceState{
+			HeadBlockHash:      genesisBlock.Hash(),
+			SafeBlockHash:      genesisBlock.Hash(),
+			FinalizedBlockHash: genesisBlock.Hash(),
+		}, attrs)
+		require.NoError(t, err)
+		require.Equal(t, eth.ExecutionValid, fcRes.PayloadStatus.Status)
+		require.NotNil(t, fcRes.PayloadID, "building a block now")
+		envelope, err := l2Cl.GetPayload(t.Ctx(), eth.PayloadInfo{ID: *fcRes.PayloadID, Timestamp: uint64(attrs.Timestamp)})
+		require.NoError(t, err)
+		return envelope
+	}
+	payloadA := buildOnGenesis(common.Address{'A'})
+	payloadB := buildOnGenesis(common.Address{'B'})
+	require.NotEqual(t, payloadA.ExecutionPayload.BlockHash, payloadB.ExecutionPayload.BlockHash)
+	require.Equal(t, genesisBlock.Hash(), engine.LatestHeader(t).Hash(), "built payloads are not canonical")
 
 	// apply the payload
 	status, err := l2Cl.NewPayload(t.Ctx(), payloadA.ExecutionPayload, payloadA.ParentBeaconBlockRoot)
@@ -72,18 +94,6 @@ func TestL2EngineAPI(gt *testing.T) {
 
 	require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
 	require.Equal(t, payloadA.ExecutionPayload.BlockHash, engine.LatestHeader(t).Hash(), "now payload A is canonical")
-
-	// build an alternative block
-	chainB, _ := core.GenerateChain(gethCfg, genesisBlock, consensus, db, 1, func(n int, gen *core.BlockGen) {
-		gen.SetCoinbase(common.Address{'B'})
-		if gethCfg.IsCancun(gen.Number(), gen.Timestamp()) {
-			root := crypto.Keccak256Hash([]byte("A"), binary.BigEndian.AppendUint64(nil, uint64(n)))
-			gen.SetParentBeaconRoot(root)
-		}
-	})
-
-	payloadB, err := eth.BlockAsPayloadEnv(chainB[0], sd.L2Cfg.Config)
-	require.NoError(t, err)
 
 	// apply the payload
 	status, err = l2Cl.NewPayload(t.Ctx(), payloadB.ExecutionPayload, payloadB.ParentBeaconBlockRoot)
@@ -135,33 +145,14 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 		l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 		require.NoError(t, err)
 
-		nextBlockTime := eth.Uint64Quantity(parent.Time) + 2
-
-		var w *types.Withdrawals
-		if sd.RollupCfg.IsCanyon(uint64(nextBlockTime)) {
-			w = &types.Withdrawals{}
-		}
-
-		var parentBeaconBlockRoot *common.Hash
-		if sd.RollupCfg.IsEcotone(uint64(nextBlockTime)) {
-			parentBeaconBlockRoot = &common.Hash{}
-		}
+		attrs := payloadAttrs(sd.RollupCfg, parent.Time, common.Address{'C'}, false)
 
 		// Now let's ask the engine to build a block
 		fcRes, err := l2Cl.ForkchoiceUpdate(t.Ctx(), &eth.ForkchoiceState{
 			HeadBlockHash:      parent.Hash(),
 			SafeBlockHash:      genesisBlock.Hash(),
 			FinalizedBlockHash: genesisBlock.Hash(),
-		}, &eth.PayloadAttributes{
-			Timestamp:             nextBlockTime,
-			PrevRandao:            eth.Bytes32{},
-			SuggestedFeeRecipient: common.Address{'C'},
-			Transactions:          nil,
-			NoTxPool:              false,
-			GasLimit:              (*eth.Uint64Quantity)(&sd.RollupCfg.Genesis.SystemConfig.GasLimit),
-			Withdrawals:           w,
-			ParentBeaconBlockRoot: parentBeaconBlockRoot,
-		})
+		}, attrs)
 		require.NoError(t, err)
 		require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
 		require.NotNil(t, fcRes.PayloadID, "building a block now")
@@ -170,7 +161,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 		}
 
-		envelope, err := l2Cl.GetPayload(t.Ctx(), eth.PayloadInfo{ID: *fcRes.PayloadID, Timestamp: uint64(nextBlockTime)})
+		envelope, err := l2Cl.GetPayload(t.Ctx(), eth.PayloadInfo{ID: *fcRes.PayloadID, Timestamp: uint64(attrs.Timestamp)})
 		payload := envelope.ExecutionPayload
 		require.NoError(t, err)
 		require.Equal(t, parent.Hash(), payload.ParentHash, "block builds on parent block")
