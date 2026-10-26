@@ -170,13 +170,8 @@ func PopulateSuperchainState(env *Env, opcmAddr common.Address, superchainConfig
 	var out opcm.ReadSuperchainDeploymentOutput
 	var err error
 
-	if env.UseForge {
-		forgeEnv := &opcm.ForgeEnv{
-			Client:   env.ForgeClient,
-			Context:  env.Context,
-			L1RPCUrl: env.L1RPCUrl,
-		}
-		out, err = opcm.ReadSuperchainDeploymentViaForge(forgeEnv, input)
+	if env.Forge != nil {
+		out, err = opcm.ReadSuperchainDeploymentViaForge(env.Forge, input)
 		if err != nil {
 			return nil, nil, err
 		}

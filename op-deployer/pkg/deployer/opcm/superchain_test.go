@@ -45,13 +45,12 @@ func TestNewDeploySuperchainScriptForge(t *testing.T) {
 	forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 	deploySuperchain := NewDeploySuperchainForgeCaller(forgeClient)
-	output, recompiled, err := deploySuperchain(context.Background(), DeploySuperchainInput{
+	output, err := deploySuperchain(context.Background(), DeploySuperchainInput{
 		Guardian:                  common.BigToAddress(big.NewInt(1)),
 		SuperchainProxyAdminOwner: common.BigToAddress(big.NewInt(3)),
 		Paused:                    true,
 	})
 
 	require.NoError(t, err)
-	require.False(t, recompiled)
 	require.NotNil(t, output)
 }

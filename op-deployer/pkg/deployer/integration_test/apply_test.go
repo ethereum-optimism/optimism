@@ -83,7 +83,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	superchainPAO := common.Address{'S', 'P', 'A', 'O'}
 
 	apply := func(t *testing.T, loc *artifacts.Locator) {
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 
 		bstrap, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
@@ -248,7 +248,7 @@ func TestEndToEndApply(t *testing.T) {
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
 	t.Run("two chains one after another", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 		defer cancel()
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
@@ -292,8 +292,70 @@ func TestEndToEndApply(t *testing.T) {
 		validateOPChainDeployment(t, cg, st, intent, false)
 	})
 
+	t.Run("with alt-da and additional dispute games", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+		defer cancel()
+
+		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
+		// The deployer registers the games, so it must own the factory and be the guardian.
+		deployerAddr := crypto.PubkeyToAddress(pk.PublicKey)
+		intent.Chains[0].Roles.L1ProxyAdminOwner = deployerAddr
+		intent.SuperchainRoles.SuperchainGuardian = deployerAddr
+		intent.GlobalDeployOverrides = map[string]any{"preimageOracleChallengePeriod": 1}
+		intent.Chains[0].DangerousAltDAConfig = genesis.AltDADeployConfig{
+			UseAltDA:                   true,
+			DACommitmentType:           altda.KeccakCommitmentString,
+			DAChallengeWindow:          10,
+			DAResolveWindow:            10,
+			DABondSize:                 100,
+			DAResolverRefundPercentage: 50,
+		}
+		gameParams := state.ChainProofParams{
+			DisputeAbsolutePrestate:                 standard.DisputeAbsolutePrestate,
+			DisputeMaxGameDepth:                     50,
+			DisputeSplitDepth:                       14,
+			DisputeClockExtension:                   1,
+			DisputeMaxClockDuration:                 10,
+			DangerouslyAllowCustomDisputeParameters: true,
+		}
+		alphabet, cannon := gameParams, gameParams
+		alphabet.DisputeGameType = 255
+		cannon.DisputeGameType = 254
+		intent.Chains[0].AdditionalDisputeGames = []state.AdditionalDisputeGame{
+			{ChainProofParams: alphabet, VMType: state.VMTypeAlphabet, MakeRespected: true},
+			{ChainProofParams: cannon, VMType: state.VMTypeCannon},
+		}
+
+		require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
+			DeploymentTarget:     deployer.DeploymentTargetLive,
+			L1RPCUrl:             l1RPC,
+			DeployerPrivateKey:   pk,
+			Intent:               intent,
+			State:                st,
+			Logger:               lgr,
+			StateWriter:          pipeline.NoopStateWriter(),
+			CacheDir:             testCacheDir,
+			ReceiptQueryInterval: testReceiptQueryInterval,
+		}))
+
+		chainState := st.Chains[0]
+		require.NotEmpty(t, chainState.AltDAChallengeProxy)
+		require.NotEmpty(t, chainState.AltDAChallengeImpl)
+		require.Len(t, chainState.AdditionalDisputeGames, 2)
+		gameImpls := w3.MustNewFunc("gameImpls(uint32)", "address")
+		for _, game := range chainState.AdditionalDisputeGames {
+			calldata, err := gameImpls.EncodeArgs(game.GameType)
+			require.NoError(t, err)
+			ret, err := l1Client.CallContract(ctx, ethereum.CallMsg{To: &chainState.DisputeGameFactoryProxy, Data: calldata}, nil)
+			require.NoError(t, err)
+			var impl common.Address
+			require.NoError(t, gameImpls.DecodeReturns(ret, &impl))
+			require.Equal(t, game.GameAddress, impl, "game type %d is not registered on L1", game.GameType)
+		}
+	})
+
 	t.Run("with custom gas token", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 		defer cancel()
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)

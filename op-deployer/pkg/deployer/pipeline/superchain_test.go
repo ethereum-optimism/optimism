@@ -65,13 +65,10 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 	pEnv := &Env{
 		Logger:      lgr,
 		Scripts:     opcmScripts,
-		ForgeClient: forgeClient,
-		UseForge:    true,
+		Forge:       &opcm.ForgeEnv{Client: forgeClient, Context: ctx, L1RPCUrl: l1RPCUrl, PrivateKey: privateKey},
 		Context:     ctx,
 		Broadcaster: broadcaster.NoopBroadcaster(),
 		StateWriter: NoopStateWriter(),
-		L1RPCUrl:    l1RPCUrl,
-		PrivateKey:  privateKey,
 	}
 
 	err = DeploySuperchain(pEnv, intent, st)
@@ -133,13 +130,10 @@ func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 	pEnv := &Env{
 		Logger:      lgr,
 		Scripts:     opcmScripts,
-		ForgeClient: forgeClient,
-		UseForge:    true,
+		Forge:       &opcm.ForgeEnv{Client: forgeClient, Context: ctx, L1RPCUrl: l1RPCUrl, PrivateKey: privateKey},
 		Context:     ctx,
 		Broadcaster: broadcaster.NoopBroadcaster(),
 		StateWriter: NoopStateWriter(),
-		L1RPCUrl:    l1RPCUrl,
-		PrivateKey:  privateKey,
 	}
 
 	err = DeploySuperchain(pEnv, intent, st)
@@ -170,9 +164,8 @@ func TestDeploySuperchain_WithForge_ManualCall(t *testing.T) {
 		Paused:                    false,
 	}
 
-	output, recompiled, err := deploySuperchain(ctx, input)
+	output, err := deploySuperchain(ctx, input)
 	require.NoError(t, err)
-	require.False(t, recompiled, "script should not be recompiled")
 	require.NotNil(t, output)
 
 	require.NotEqual(t, common.Address{}, output.SuperchainProxyAdmin)

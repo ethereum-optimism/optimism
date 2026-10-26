@@ -224,8 +224,14 @@ RUN <<-EOF
       done
     done
 EOF
-# Compile contracts and create artifacts tarball
-RUN cd packages/contracts-bedrock && forge build --skip "/**/test/**"
+# Compile contracts, warm the script cache and create artifacts tarball (mirrors `just build-no-tests`)
+WORKDIR /app/packages/contracts-bedrock
+# The script-cache check of `just forge-build`: op-deployer never compiles.
+RUN forge build --skip "/**/test/**" && forge build scripts && \
+  (forge script scripts/deploy/Deploy.s.sol --skip "/**/test/**" --sig "idonotexist()" --skip-simulation >/dev/null 2>&1 || true) && \
+  out=$(forge script scripts/deploy/Deploy.s.sol --skip "/**/test/**" --sig "idonotexist()" --skip-simulation 2>&1 || true) && \
+  case "$out" in *"No files changed, compilation skipped"*) ;; *) echo "$out" >&2; echo "the forge script cache is not warm" >&2; exit 1;; esac
+WORKDIR /app
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   go run ./op-deployer/pkg/deployer/artifacts/cmd/mktar \
     -base ./packages/contracts-bedrock \
@@ -364,7 +370,6 @@ FROM dhi.io/alpine-base:3.23 AS op-deployer-target
 USER 0
 COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/
 COPY --from=op-deployer-builder /app/op-deployer/bin/op-deployer /usr/local/bin/
-ENV FORGE_ENV=alpine
 CMD ["op-deployer"]
 
 FROM $TARGET_BASE_IMAGE AS op-dripper-target

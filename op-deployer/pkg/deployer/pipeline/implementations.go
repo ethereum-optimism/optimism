@@ -143,15 +143,9 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		lgr.Info("using SP1 verifier", "address", input.SP1Verifier)
 	}
 
-	if env.UseForge {
+	if env.Forge != nil {
 		lgr.Info("using Forge for DeployImplementations")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     env.ForgeClient,
-			Context:    env.Context,
-			L1RPCUrl:   env.L1RPCUrl,
-			PrivateKey: env.PrivateKey,
-		}
-		dio, err = opcm.DeployImplementationsViaForge(forgeEnv, input)
+		dio, err = opcm.DeployImplementationsViaForge(env.Forge, input)
 		if err != nil {
 			return err
 		}

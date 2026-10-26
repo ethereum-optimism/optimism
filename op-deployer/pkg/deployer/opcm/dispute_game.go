@@ -50,13 +50,7 @@ func NewDeployDisputeGameForgeCaller(client *forge.Client) forge.ScriptCaller[De
 
 // DeployDisputeGameViaForge deploys dispute game contracts using Forge
 func DeployDisputeGameViaForge(env *ForgeEnv, input DeployDisputeGameInput) (DeployDisputeGameOutput, error) {
-	var output DeployDisputeGameOutput
-	if err := env.validate(true); err != nil {
-		return output, err
-	}
-	forgeCaller := NewDeployDisputeGameForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOpts()...)
+	output, err := broadcastScript(env, NewDeployDisputeGameForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy dispute game with Forge: %w", err)
 	}
