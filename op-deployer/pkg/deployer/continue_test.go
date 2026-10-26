@@ -22,8 +22,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
@@ -91,7 +93,6 @@ func TestContinueFlagsExcludeDeploymentSelectors(t *testing.T) {
 			flagNames[name] = true
 		}
 	}
-	require.False(t, flagNames[UseForgeFlagName])
 	require.False(t, flagNames[DeploymentTargetFlag.Name])
 	require.False(t, flagNames[GenesisTimeOffsetFlagName])
 	require.Equal(t, map[string]bool{
@@ -271,6 +272,7 @@ func TestValidateContinuationBroadcast(t *testing.T) {
 		{name: "type", broadcasts: []broadcaster.Broadcast{{Type: broadcaster.BroadcastCreate, From: deployer, To: opcmAddress}}, wantErr: "broadcast type"},
 		{name: "target", broadcasts: []broadcaster.Broadcast{{Type: broadcaster.BroadcastCall, From: deployer, To: common.Address{0x03}}}, wantErr: "target mismatch"},
 		{name: "sender", broadcasts: []broadcaster.Broadcast{{Type: broadcaster.BroadcastCall, From: common.Address{0x04}, To: opcmAddress}}, wantErr: "sender mismatch"},
+		{name: "value", broadcasts: []broadcaster.Broadcast{{Type: broadcaster.BroadcastCall, From: deployer, To: opcmAddress, Value: (*hexutil.U256)(uint256.NewInt(1))}}, wantErr: "value"},
 	}
 
 	for _, tt := range tests {
