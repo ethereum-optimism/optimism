@@ -116,9 +116,9 @@ impl ConnectionGater {
         let Some(dialed) = self.dialed_peers.get(addr) else {
             return false;
         };
-        // If the peer has been dialed and the threshold is not set, the threshold is reached.
+        // Without a threshold, a peer can be redialed any number of times.
         let Some(redialing) = self.config.peer_redialing else {
-            return true;
+            return false;
         };
         // If the threshold is set to `0`, redial indefinitely.
         if redialing == 0 {
@@ -434,6 +434,41 @@ fn test_check_ip_in_blocked_subnets_ipv4() {
     assert!(!gater.check_ip_in_blocked_subnets(&IpAddr::from_str("192.168.2.1").unwrap()));
     assert!(!gater.check_ip_in_blocked_subnets(&IpAddr::from_str("172.17.0.1").unwrap()));
     assert!(!gater.check_ip_in_blocked_subnets(&IpAddr::from_str("8.8.8.8").unwrap()));
+}
+
+#[test]
+fn test_dial_threshold() {
+    use crate::{ConnectionGate, DialError};
+    use std::str::FromStr;
+
+    let addr = Multiaddr::from_str(
+        "/ip4/127.0.0.1/tcp/8080/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp",
+    )
+    .unwrap();
+    let peer_id = ConnectionGater::peer_id_from_addr(&addr).unwrap();
+    let dial = |gater: &mut ConnectionGater| {
+        let result = gater.can_dial(&addr);
+        if result.is_ok() {
+            gater.dialing(&addr);
+            gater.dialed(&addr);
+            // As when the dial fails.
+            gater.remove_dial(&peer_id);
+        }
+        result
+    };
+
+    // Without a threshold, a peer can be redialed any number of times.
+    let mut gater = ConnectionGater::new(GaterConfig::default());
+    for _ in 0..10 {
+        assert!(dial(&mut gater).is_ok());
+    }
+
+    // With a threshold, dials are refused once it is reached.
+    let mut gater =
+        ConnectionGater::new(GaterConfig { peer_redialing: Some(2), ..GaterConfig::default() });
+    assert!(dial(&mut gater).is_ok());
+    assert!(dial(&mut gater).is_ok());
+    assert!(matches!(dial(&mut gater), Err(DialError::ThresholdReached { .. })));
 }
 
 #[test]
