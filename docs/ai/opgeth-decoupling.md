@@ -520,12 +520,12 @@ preserving the conservative maximum across both rule sets.
 
 ## 16. `op-chain-ops/script` + op-deployer — forge as the only script engine — **DONE** (#23300)
 
-`op-chain-ops/script` is the Foundry-style in-process forge-script executor; op-deployer runs its
-deployment/genesis scripts through it. Semantically it is **plain L1 EVM** — its chain config
-activates only Ethereum forks (the OP fork fields are explicitly nil) — so by §"scope" rules it
-*could* be fate 1. But its cheatcode mechanism runs on fork-only EVM hooks that upstream has no
+`op-chain-ops/script` was the Foundry-style in-process forge-script executor; op-deployer ran its
+deployment/genesis scripts through it. Semantically it was **plain L1 EVM** — its chain config
+activated only Ethereum forks (the OP fork fields were explicitly nil) — so by §"scope" rules it
+*could* have been fate 1. But its cheatcode mechanism ran on fork-only EVM hooks that upstream has no
 equivalent for: `vm.Config.PrecompileOverrides` (cheatcode precompiles), `vm.Config.CallerOverride`
-(pranks) and `vm.Config.NoMaxCodeSize`. (`script/forking.ForkDB` also needs the exported
+(pranks) and `vm.Config.NoMaxCodeSize`. (`script/forking.ForkDB` also needed the exported
 `state.StateUpdate`, but that is an upstream backport: later go-ethereum releases export it.)
 "Swap to op-core" does not exist here.
 
