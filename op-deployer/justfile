@@ -61,6 +61,24 @@ check-forge-version:
 
   echo -e "\n✓ forge versions match: $mise_version"
 
+  echo -e "\nVerifying the pinned forge release archives and checksums..."
+  log=$(mktemp)
+  trap 'rm -f "$log"' EXIT
+  # The archives come from the GitHub CDN, so retry a transient download failure.
+  n=0
+  until OP_DEPLOYER_TEST_FORGE_RELEASES=1 go test -count=1 -timeout=15m -v -run '^TestStandardBinary_ForgeBins$' ./pkg/deployer/forge/ | tee "$log"; do
+    n=$((n+1))
+    if [ "$n" -ge 3 ]; then
+      echo "ERROR: forge release archive verification failed after $n attempts" >&2
+      exit 1
+    fi
+    backoff=$((10 * 2 ** (n - 1)))
+    echo "forge release archive verification failed (attempt $n); retrying in ${backoff}s..." >&2
+    sleep "$backoff"
+  done
+  # go test also exits 0 when -run matches nothing or the test skips.
+  grep -q '^--- PASS: TestStandardBinary_ForgeBins ' "$log" || { echo "ERROR: TestStandardBinary_ForgeBins did not run" >&2; exit 1; }
+
 # ======================================
 # Deployment and Verification Utilities
 #
