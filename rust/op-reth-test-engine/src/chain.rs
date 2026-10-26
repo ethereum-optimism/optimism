@@ -1,11 +1,14 @@
 //! Ephemeral, genesis-initialized OP chain backed by a temp-dir reth provider.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    sync::Arc,
+};
 
 use alloy_consensus::{BlockHeader as _, Header, transaction::SignerRecoverable};
 use alloy_eips::{BlockHashOrNumber, BlockNumHash};
-use alloy_genesis::Genesis;
-use alloy_primitives::B256;
+use alloy_genesis::{Genesis, GenesisAccount};
+use alloy_primitives::{Address, B256};
 use op_revm::constants::L1_BLOCK_CONTRACT;
 use reth_chain_state::{ExecutedBlock, MemoryOverlayStateProvider, NewCanonicalChain};
 use reth_db::{DatabaseEnv, test_utils::TempDatabase};
@@ -26,8 +29,8 @@ use reth_provider::{
 };
 use reth_revm::{database::StateProviderDatabase, db::State};
 use reth_storage_api::{
-    BlockHashReader, BlockReader, HeaderProvider, ReceiptProvider, StateProviderBox,
-    StateProviderFactory,
+    AccountReader as _, BlockHashReader, BlockReader, HeaderProvider, ReceiptProvider,
+    StateProvider as _, StateProviderBox, StateProviderFactory,
 };
 use reth_storage_overlay::OverlayManager;
 
@@ -456,6 +459,85 @@ impl EphemeralChain {
     /// Fetch the receipts of a block by hash, or `None` if unknown.
     pub fn receipts_by_block_hash(&self, hash: B256) -> crate::Result<Option<Vec<OpReceipt>>> {
         Ok(self.provider.receipts_by_block(BlockHashOrNumber::Hash(hash))?)
+    }
+
+    /// The accounts among `addresses` that exist in the state of block `hash`, with their nonce,
+    /// balance, code and non-zero storage slots, or `None` if the block is unknown. `hash` may be
+    /// any recorded block, canonical or not.
+    ///
+    /// A state provider reads slots but cannot list them, so the slots read are the ones genesis
+    /// allocates and the ones the blocks from genesis up to `hash` wrote, which cover every slot
+    /// that can be non-zero at `hash`. Reading them through the block's state honors later
+    /// overwrites, zeroings and storage wipes. Code is left out for an account without any.
+    pub fn dump_accounts(
+        &self,
+        hash: B256,
+        addresses: &[Address],
+    ) -> crate::Result<Option<BTreeMap<Address, GenesisAccount>>> {
+        let Some((_, state)) = self.block_state(hash)? else {
+            return Ok(None);
+        };
+
+        let blocks = match self.blocks.blocks_by_hash(hash) {
+            // Nothing past genesis is persisted, so the recorded blocks reach back to genesis; an
+            // anchor elsewhere would leave the slots written below it unlisted.
+            Some((anchor, _)) if anchor != self.genesis_hash => {
+                return Err(Error::Execution(format!(
+                    "recorded ancestry of {hash} ends at {anchor}, not at genesis"
+                )));
+            }
+            Some((_, blocks)) => blocks,
+            None => Vec::new(),
+        };
+
+        let mut dump = BTreeMap::new();
+        for &address in addresses {
+            let Some(account) = state.basic_account(&address)? else {
+                continue;
+            };
+            let code = account
+                .bytecode_hash
+                .map(|code_hash| {
+                    state.bytecode_by_hash(&code_hash)?.ok_or_else(|| {
+                        Error::Execution(format!("no code {code_hash} for account {address}"))
+                    })
+                })
+                .transpose()?
+                .map(|code| code.original_bytes())
+                .filter(|code| !code.is_empty());
+
+            let genesis_slots = self
+                .chain_spec
+                .genesis()
+                .alloc
+                .get(&address)
+                .and_then(|account| account.storage.as_ref())
+                .into_iter()
+                .flat_map(|storage| storage.keys().copied());
+            let written_slots = blocks
+                .iter()
+                .filter_map(|block| block.execution_output.state.account(&address))
+                .flat_map(|account| account.storage.keys().map(|&slot| B256::from(slot)));
+            let mut storage = BTreeMap::new();
+            for slot in genesis_slots.chain(written_slots).collect::<BTreeSet<_>>() {
+                if let Some(value) = state.storage(address, slot)?.filter(|value| !value.is_zero())
+                {
+                    storage.insert(slot, B256::from(value));
+                }
+            }
+
+            dump.insert(
+                address,
+                GenesisAccount {
+                    nonce: Some(account.nonce),
+                    balance: account.balance,
+                    code,
+                    storage: (!storage.is_empty()).then_some(storage),
+                    ..Default::default()
+                },
+            );
+        }
+        Ok(Some(dump))
     }
 }
 
