@@ -181,9 +181,12 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	cliOpts = append(cliOpts, opts...)
 	// A broadcast sends one transaction at a time, and waits for its receipt before it sends the
 	// next. forge otherwise waits forever on the receipt of a transaction that raced an in-flight one
-	// out of the node's pool.
+	// out of the node's pool. As txmgr does, the gas limit of each transaction is the estimate of the
+	// node just before forge sends it: forge's own simulation does not know every fork of the L1
+	// (it underestimated a Glamsterdam L1), and the 30% that forge adds by default lifts the OPCM
+	// deployment over the per-transaction gas cap of Osaka (EIP-7825).
 	if slices.Contains(opts, "--broadcast") {
-		cliOpts = append(cliOpts, "--slow")
+		cliOpts = append(cliOpts, "--slow", "--skip-simulation", "--gas-estimate-multiplier", "100")
 	}
 	cliOpts = append(cliOpts, "--sig", sig, script, "0x"+hex.EncodeToString(args))
 	release, err := runSlots.acquire(ctx)

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/google/uuid"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
@@ -77,12 +80,39 @@ func runScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I
 			return out, err
 		}
 		defer keystore.close()
-		flags = append(flags, "--broadcast", "--keystore", keystore.path, "--password-file", keystore.passwordPath)
+		tip, err := priorityFee(ctx, env.L1RPCUrl)
+		if err != nil {
+			return out, err
+		}
+		flags = append(flags, "--broadcast", "--keystore", keystore.path, "--password-file", keystore.passwordPath,
+			"--priority-gas-price", tip.String())
 	default:
 		return out, errors.New("private key is required for Forge deployments")
 	}
 	out, err := newCaller(env.Client)(ctx, input, flags...)
 	return out, err
+}
+
+// minPriorityFee is the least priority fee that a broadcast offers, as txmgr's MinTipCap. forge
+// takes a percentile of the tips in recent blocks, which is a few wei on an L1 with empty blocks,
+// and geth does not include a transaction with such a tip.
+var minPriorityFee = big.NewInt(params.GWei)
+
+// priorityFee returns the priority fee that the L1 at rpcURL suggests, but at least minPriorityFee.
+func priorityFee(ctx context.Context, rpcURL string) (*big.Int, error) {
+	client, err := ethclient.DialContext(ctx, rpcURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to the L1: %w", err)
+	}
+	defer client.Close()
+	tip, err := client.SuggestGasTipCap(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the suggested priority fee: %w", err)
+	}
+	if tip.Cmp(minPriorityFee) < 0 {
+		return new(big.Int).Set(minPriorityFee), nil
+	}
+	return tip, nil
 }
 
 // forgeKeystore holds a deployer key for one forge run, in a keystore encrypted with a random

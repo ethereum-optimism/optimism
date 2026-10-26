@@ -208,6 +208,8 @@ func TestClient_SlowBroadcast(t *testing.T) {
 			out, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil, tt.opts...)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantSlow, strings.Contains(out, "--slow"))
+			require.Equal(t, tt.wantSlow, strings.Contains(out, "--skip-simulation --gas-estimate-multiplier 100"),
+				"a broadcast uses the node's gas estimate of each transaction, as txmgr does")
 		})
 	}
 }

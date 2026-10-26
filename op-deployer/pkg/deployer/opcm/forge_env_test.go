@@ -3,10 +3,14 @@ package opcm
 import (
 	"context"
 	"fmt"
+	"math/big"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
@@ -44,7 +48,7 @@ printf '== Return ==\n0: bytes 0x\n'
 	key, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	privateKey := hexutil.Encode(crypto.FromECDSA(key))
-	env := &ForgeEnv{Client: client, Context: context.Background(), L1RPCUrl: "http://127.0.0.1:1", PrivateKey: privateKey}
+	env := &ForgeEnv{Client: client, Context: context.Background(), L1RPCUrl: newTipRPC(t, big.NewInt(1)), PrivateKey: privateKey}
 	require.NoError(t, SetDisputeGameImpl(env, SetDisputeGameImplInput{
 		Factory:             common.Address{'F'},
 		Impl:                common.Address{'I'},
@@ -57,6 +61,8 @@ printf '== Return ==\n0: bytes 0x\n'
 	require.NoError(t, err)
 	require.NotContains(t, string(args), strings.TrimPrefix(privateKey, "0x"))
 	require.Contains(t, string(args), "--broadcast")
+	require.Contains(t, string(args), "--priority-gas-price 1000000000",
+		"a suggested tip of 1 wei is raised to 1 gwei, so that the node includes the transaction")
 
 	keyJSON, err := os.ReadFile(filepath.Join(record, "keystore"))
 	require.NoError(t, err)
@@ -66,4 +72,24 @@ printf '== Return ==\n0: bytes 0x\n'
 	require.NoError(t, err)
 	require.Equal(t, crypto.PubkeyToAddress(key.PublicKey), decrypted.Address)
 	require.Equal(t, crypto.FromECDSA(key), crypto.FromECDSA(decrypted.PrivateKey))
+}
+
+// newTipRPC returns the URL of an RPC server that suggests tip as the priority fee.
+func newTipRPC(t *testing.T, tip *big.Int) string {
+	server := rpc.NewServer()
+	require.NoError(t, server.RegisterName("eth", &tipAPI{tip: tip}))
+	httpServer := httptest.NewServer(server)
+	t.Cleanup(func() {
+		httpServer.Close()
+		server.Stop()
+	})
+	return httpServer.URL
+}
+
+type tipAPI struct {
+	tip *big.Int
+}
+
+func (a *tipAPI) MaxPriorityFeePerGas() *hexutil.Big {
+	return (*hexutil.Big)(a.tip)
 }
