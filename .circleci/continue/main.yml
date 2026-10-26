@@ -1177,8 +1177,15 @@ jobs:
       - setup-features:
           features: <<parameters.features>>
       - run:
+          name: Pick fuzz seed
+          command: |
+            SEED="0x$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+            echo "FOUNDRY_FUZZ_SEED=$SEED"
+            echo "export FOUNDRY_FUZZ_SEED=$SEED" >> "$BASH_ENV"
+      - run:
           name: Run tests
           command: |
+            echo "FOUNDRY_FUZZ_SEED=$FOUNDRY_FUZZ_SEED"
             TEST_FILES=$(<<parameters.test_list>>)
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
             TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
