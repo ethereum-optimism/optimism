@@ -68,26 +68,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 
 	lgr.Info("generating L2 genesis", "id", chainID.Hex())
 
-	hostOpts := []script.HostOption{}
-	if pEnv.AllowUnoptimizedContracts {
-		hostOpts = append(hostOpts, script.WithNoMaxCodeSize())
-	}
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		pEnv.Logger,
-		pEnv.Deployer,
-		bundle.L2,
-		hostOpts...,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create L2 script host: %w", err)
-	}
-
-	script, err := opcm.NewL2GenesisScript(host)
-	if err != nil {
-		return fmt.Errorf("failed to create L2Genesis script: %w", err)
-	}
-
 	overrides, schedule, err := calculateL2GenesisOverrides(intent, thisIntent)
 	if err != nil {
 		return fmt.Errorf("failed to calculate L2 genesis overrides: %w", err)
@@ -105,7 +85,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 		return err
 	}
 
-	if err := script.Run(opcm.L2GenesisInput{
+	input := opcm.L2GenesisInput{
 		L1ChainID:                                new(big.Int).SetUint64(intent.L1ChainID),
 		L2ChainID:                                chainID.Big(),
 		L1CrossDomainMessengerProxy:              thisChainState.L1CrossDomainMessengerProxy,
@@ -137,15 +117,16 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 		DevFeatureBitmap:           devFeatureBitmap,
 		UseInterop:                 intent.UseInterop,
 		L2ToL2MessageExpiryPeriod:  new(big.Int).SetUint64(overrides.L2ToL2MessageExpiryPeriod),
-	}); err != nil {
-		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
 
-	host.Wipe(pEnv.Deployer)
-
-	dump, err := host.StateDump()
+	var dump *foundry.ForgeAllocs
+	if pEnv.L2Forge != nil {
+		dump, err = opcm.L2GenesisViaForge(pEnv.Context, pEnv.L2Forge, pEnv.Deployer, pEnv.AllowUnoptimizedContracts, input)
+	} else {
+		dump, err = l2GenesisOnScriptHost(pEnv, bundle, input)
+	}
 	if err != nil {
-		return fmt.Errorf("failed to dump state: %w", err)
+		return err
 	}
 
 	if err := genesis.CheckL2GenesisAllocs(dump, genesis.CheckL2AllocsOpts{
@@ -162,6 +143,39 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 	}
 
 	return nil
+}
+
+func l2GenesisOnScriptHost(pEnv *Env, bundle artifacts.Bundle, input opcm.L2GenesisInput) (*foundry.ForgeAllocs, error) {
+	hostOpts := []script.HostOption{}
+	if pEnv.AllowUnoptimizedContracts {
+		hostOpts = append(hostOpts, script.WithNoMaxCodeSize())
+	}
+	host, err := env.DefaultScriptHost(
+		broadcaster.NoopBroadcaster(),
+		pEnv.Logger,
+		pEnv.Deployer,
+		bundle.L2,
+		hostOpts...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create L2 script host: %w", err)
+	}
+
+	script, err := opcm.NewL2GenesisScript(host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create L2Genesis script: %w", err)
+	}
+	if err := script.Run(input); err != nil {
+		return nil, fmt.Errorf("failed to call L2Genesis script: %w", err)
+	}
+
+	host.Wipe(pEnv.Deployer)
+
+	dump, err := host.StateDump()
+	if err != nil {
+		return nil, fmt.Errorf("failed to dump state: %w", err)
+	}
+	return dump, nil
 }
 
 func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIntent) (l2GenesisOverrides, *genesis.UpgradeScheduleDeployConfig, error) {

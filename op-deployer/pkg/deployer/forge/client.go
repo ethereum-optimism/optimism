@@ -23,7 +23,7 @@ var waitDelay = 30 * time.Second
 
 var (
 	versionRegexp = regexp.MustCompile(`(?i)forge version: (.*)\ncommit sha: ([a-f0-9]+)\n`)
-	sigilRegexp   = regexp.MustCompile(`(?i)== Return ==\n0: bytes 0x([a-f0-9]+)\n`)
+	sigilRegexp   = regexp.MustCompile(`(?i)== Return ==\n0: bytes 0x([a-f0-9]*)\n`)
 )
 
 type VersionInfo struct {
@@ -42,6 +42,9 @@ type Client struct {
 	// sequentially so forge never waits on a receipt for a transaction that
 	// raced an in-flight one out of the node's pool.
 	SlowBroadcast bool
+	// Env holds environment variables, in KEY=VALUE form, that each forge command gets in
+	// addition to the environment of this process.
+	Env []string
 }
 
 func NewStandardClient(workdir string) (*Client, error) {
@@ -101,6 +104,13 @@ func NewClient(binary Binary) *Client {
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
+}
+
+// WithEnv returns a copy of the client that also sets the given KEY=VALUE environment variables.
+func (c *Client) WithEnv(env ...string) *Client {
+	cp := *c
+	cp.Env = append(slices.Clone(c.Env), env...)
+	return &cp
 }
 
 func (c *Client) Version(ctx context.Context) (VersionInfo, error) {
@@ -178,6 +188,7 @@ func (c *Client) execCmd(ctx context.Context, stdout io.Writer, stderr io.Writer
 	cmd.Stdout = mwStdout
 	cmd.Stderr = mwStderr
 	cmd.Dir = c.Wd
+	cmd.Env = append(cmd.Environ(), c.Env...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to run forge command: %w", err)
 	}

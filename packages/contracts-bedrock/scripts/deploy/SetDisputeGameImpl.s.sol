@@ -6,6 +6,7 @@ import { Script } from "forge-std/Script.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 import { GameType } from "src/dispute/lib/Types.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 
@@ -61,41 +62,65 @@ contract SetDisputeGameImplInput is BaseDeployIO {
 }
 
 contract SetDisputeGameImpl is Script {
+    struct Input {
+        IDisputeGameFactory factory;
+        IFaultDisputeGame impl;
+        IAnchorStateRegistry anchorStateRegistry;
+        uint32 gameType;
+        bytes gameArgs;
+    }
+
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        DeployState.load();
+        run(abi.decode(_input, (Input)));
+        DeployState.dump(msg.sender);
+        return "";
+    }
+
     function run(SetDisputeGameImplInput _input) public {
-        IDisputeGameFactory factory = _input.factory();
-        GameType gameType = GameType.wrap(_input.gameType());
-        require(address(factory.gameImpls(gameType)) == address(0), "SDGI-10");
+        run(
+            Input({
+                factory: _input.factory(),
+                impl: _input.impl(),
+                anchorStateRegistry: _input.anchorStateRegistry(),
+                gameType: _input.gameType(),
+                gameArgs: _input.gameArgs()
+            })
+        );
+    }
 
-        IFaultDisputeGame impl = _input.impl();
-        IAnchorStateRegistry anchorStateRegistry = _input.anchorStateRegistry();
-        bytes memory gameArgs = _input.gameArgs();
+    function run(Input memory _input) public {
+        require(address(_input.factory) != address(0), "SetDisputeGameImpl: factory not set");
+        require(address(_input.impl) != address(0), "SetDisputeGameImpl: impl not set");
 
-        if (gameArgs.length > 0) {
+        GameType gameType = GameType.wrap(_input.gameType);
+        require(address(_input.factory.gameImpls(gameType)) == address(0), "SDGI-10");
+
+        if (_input.gameArgs.length > 0) {
             vm.broadcast(msg.sender);
-            factory.setImplementation(gameType, impl, gameArgs);
+            _input.factory.setImplementation(gameType, _input.impl, _input.gameArgs);
         } else {
             vm.broadcast(msg.sender);
-            factory.setImplementation(gameType, impl);
+            _input.factory.setImplementation(gameType, _input.impl);
         }
 
-        if (address(anchorStateRegistry) != address(0)) {
-            require(address(anchorStateRegistry.disputeGameFactory()) == address(factory), "SDGI-20");
+        if (address(_input.anchorStateRegistry) != address(0)) {
+            require(address(_input.anchorStateRegistry.disputeGameFactory()) == address(_input.factory), "SDGI-20");
             vm.broadcast(msg.sender);
-            anchorStateRegistry.setRespectedGameType(gameType);
+            _input.anchorStateRegistry.setRespectedGameType(gameType);
         }
 
         assertValid(_input);
     }
 
-    function assertValid(SetDisputeGameImplInput _input) public view {
-        GameType gameType = GameType.wrap(_input.gameType());
-        require(address(_input.factory().gameImpls(gameType)) == address(_input.impl()), "SDGI-30");
+    function assertValid(Input memory _input) public view {
+        GameType gameType = GameType.wrap(_input.gameType);
+        require(address(_input.factory.gameImpls(gameType)) == address(_input.impl), "SDGI-30");
 
-        if (address(_input.anchorStateRegistry()) != address(0)) {
-            require(address(_input.anchorStateRegistry().disputeGameFactory()) == address(_input.factory()), "SDGI-40");
+        if (address(_input.anchorStateRegistry) != address(0)) {
+            require(address(_input.anchorStateRegistry.disputeGameFactory()) == address(_input.factory), "SDGI-40");
             require(
-                GameType.unwrap(_input.anchorStateRegistry().respectedGameType()) == GameType.unwrap(gameType),
-                "SDGI-50"
+                GameType.unwrap(_input.anchorStateRegistry.respectedGameType()) == GameType.unwrap(gameType), "SDGI-50"
             );
         }
     }

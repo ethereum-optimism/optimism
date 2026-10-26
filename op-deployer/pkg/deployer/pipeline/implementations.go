@@ -143,15 +143,9 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		lgr.Info("using SP1 verifier", "address", input.SP1Verifier)
 	}
 
-	if env.UseForge {
+	if env.Forge != nil {
 		lgr.Info("using Forge for DeployImplementations")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     env.ForgeClient,
-			Context:    env.Context,
-			L1RPCUrl:   env.L1RPCUrl,
-			PrivateKey: env.PrivateKey,
-		}
-		dio, err = opcm.DeployImplementationsViaForge(forgeEnv, input)
+		dio, err = opcm.DeployImplementationsViaForge(env.Forge, input)
 		if err != nil {
 			return err
 		}
@@ -261,6 +255,17 @@ func readReusedSP1Verifier(env *Env, adapter common.Address) (common.Address, er
 }
 
 func deployGenesisMockSP1Verifier(env *Env) (common.Address, error) {
+	if env.Forge != nil {
+		if env.Forge.Genesis == nil {
+			return common.Address{}, fmt.Errorf("cannot deploy genesis MockSP1Verifier without the genesis state")
+		}
+		artifact, err := env.L1Artifacts.ReadArtifact(genesisMockSP1VerifierArtifact, genesisMockSP1VerifierContract)
+		if err != nil {
+			return common.Address{}, fmt.Errorf("failed to read genesis MockSP1Verifier artifact: %w", err)
+		}
+		// The verifier has no constructor and no immutables, so its runtime code is its genesis code.
+		return env.Forge.Genesis.Create(artifact.DeployedBytecode.Object), nil
+	}
 	if env.L1ScriptHost == nil {
 		return common.Address{}, fmt.Errorf("cannot deploy genesis MockSP1Verifier without an L1 script host")
 	}

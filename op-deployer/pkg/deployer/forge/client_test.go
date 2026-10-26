@@ -185,6 +185,21 @@ func TestClient_SlowBroadcast(t *testing.T) {
 	}
 }
 
+func TestClient_WithEnv(t *testing.T) {
+	base := NewClient(stubBinary(t, `echo "A=$OP_DEPLOYER_TEST_A B=$OP_DEPLOYER_TEST_B"`))
+	base.Stdout = io.Discard
+	base = base.WithEnv("OP_DEPLOYER_TEST_A=1")
+	withB := base.WithEnv("OP_DEPLOYER_TEST_B=2")
+
+	out, err := withB.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	require.NoError(t, err)
+	require.Equal(t, "A=1 B=2\n", out)
+
+	out, err = base.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	require.NoError(t, err)
+	require.Equal(t, "A=1 B=\n", out, "WithEnv must not change the client it copies")
+}
+
 func copyDir(src, dst string) error {
 	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

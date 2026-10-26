@@ -5,11 +5,21 @@ import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 
 /// @title SetPreinstalls
 /// @notice Sets all preinstalls in the VM state. There is no default "run()" entrypoint,
-/// as this is used in L2Genesis.s.sol, and standalone in the Go test setup for L1 state.
+/// as this is used in L2Genesis.s.sol, and by op-deployer for the L1 dev genesis.
 contract SetPreinstalls is Script {
+    /// @notice Sets the preinstalls on the state of a genesis deployment. It takes no input and
+    ///         returns nothing, and has the signature of the other op-deployer script entrypoints.
+    function runWithBytes(bytes memory) public returns (bytes memory) {
+        DeployState.load();
+        setPreinstalls();
+        DeployState.dump(msg.sender);
+        return "";
+    }
+
     /// @notice Sets all the preinstalls.
     ///         Warning: the creator-accounts of the preinstall contracts have 0 nonce values.
     ///         When performing a regular user-initiated contract-creation of a preinstall,

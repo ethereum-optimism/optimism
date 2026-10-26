@@ -5,6 +5,7 @@ import { Script } from "forge-std/Script.sol";
 
 import { Constants } from "src/libraries/Constants.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { Constants as ScriptConstants } from "scripts/libraries/Constants.sol";
@@ -63,8 +64,10 @@ contract DeployOPChain is Script {
     /// @return output_ The output of the script.
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
         require(_input.length > 0, "DeployOPChain: input cannot be empty");
+        DeployState.load();
         Types.DeployOPChainInput memory input = abi.decode(_input, (Types.DeployOPChainInput));
         Output memory output_ = run(input);
+        DeployState.dump(msg.sender);
         return abi.encode(output_);
     }
 

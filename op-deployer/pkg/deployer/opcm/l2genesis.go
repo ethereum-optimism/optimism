@@ -1,9 +1,13 @@
 package opcm
 
 import (
+	"context"
+	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -44,4 +48,33 @@ type L2GenesisScript script.DeployScriptWithoutOutput[L2GenesisInput]
 
 func NewL2GenesisScript(host *script.Host) (L2GenesisScript, error) {
 	return script.NewDeployScriptWithoutOutputFromFile[L2GenesisInput](host, "L2Genesis.s.sol", "L2Genesis")
+}
+
+func NewL2GenesisForgeCaller(client *forge.Client) forge.ScriptCaller[L2GenesisInput, forge.None] {
+	return forge.NewScriptCaller(
+		client,
+		"scripts/L2Genesis.s.sol:L2Genesis",
+		"runWithBytes(bytes)",
+		&forge.BytesScriptEncoder[L2GenesisInput]{TypeName: "L2GenesisInput"},
+		forge.NoneDecoder{},
+	)
+}
+
+// L2GenesisViaForge generates the L2 genesis allocs using Forge. client runs in the L2 contracts.
+func L2GenesisViaForge(
+	ctx context.Context,
+	client *forge.Client,
+	deployer common.Address,
+	noCodeSizeLimit bool,
+	input L2GenesisInput,
+) (*foundry.ForgeAllocs, error) {
+	genesis := NewGenesisState(deployer, noCodeSizeLimit)
+	env := &ForgeEnv{Client: client, Context: ctx, Genesis: genesis}
+	if _, err := broadcastScript(env, NewL2GenesisForgeCaller, input); err != nil {
+		return nil, fmt.Errorf("failed to generate the L2 genesis with Forge: %w", err)
+	}
+	// The script sends nothing from the deployer, and the deployer gets no L2 genesis account, also
+	// when it is a dev account that the script funds.
+	genesis.Wipe(deployer)
+	return genesis.Allocs, nil
 }

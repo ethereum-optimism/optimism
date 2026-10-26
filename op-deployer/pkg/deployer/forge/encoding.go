@@ -205,6 +205,26 @@ func (e *BytesScriptEncoder[T]) Encode(input T) ([]byte, error) {
 	return args.Pack(input)
 }
 
+// None is the input of a script that takes none, or the output of a script that returns empty bytes.
+type None struct{}
+
+// NoneEncoder encodes the empty input of a script that takes none.
+type NoneEncoder struct{}
+
+func (NoneEncoder) Encode(None) ([]byte, error) {
+	return nil, nil
+}
+
+// NoneDecoder decodes the empty return value of a script that has no output.
+type NoneDecoder struct{}
+
+func (NoneDecoder) Decode(rawOutput []byte) (None, error) {
+	if len(rawOutput) != 0 {
+		return None{}, fmt.Errorf("expected no script output, got %d bytes", len(rawOutput))
+	}
+	return None{}, nil
+}
+
 type BytesScriptDecoder[T any] struct {
 	TypeName string // e.g., "DeploySuperchainOutput"
 }

@@ -65,13 +65,10 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 	pEnv := &Env{
 		Logger:      lgr,
 		Scripts:     opcmScripts,
-		ForgeClient: forgeClient,
-		UseForge:    true,
+		Forge:       &opcm.ForgeEnv{Client: forgeClient, Context: ctx, L1RPCUrl: l1RPCUrl, PrivateKey: privateKey},
 		Context:     ctx,
 		Broadcaster: broadcaster.NoopBroadcaster(),
 		StateWriter: NoopStateWriter(),
-		L1RPCUrl:    l1RPCUrl,
-		PrivateKey:  privateKey,
 	}
 
 	err = DeploySuperchain(pEnv, intent, st)
@@ -133,13 +130,10 @@ func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 	pEnv := &Env{
 		Logger:      lgr,
 		Scripts:     opcmScripts,
-		ForgeClient: forgeClient,
-		UseForge:    true,
+		Forge:       &opcm.ForgeEnv{Client: forgeClient, Context: ctx, L1RPCUrl: l1RPCUrl, PrivateKey: privateKey},
 		Context:     ctx,
 		Broadcaster: broadcaster.NoopBroadcaster(),
 		StateWriter: NoopStateWriter(),
-		L1RPCUrl:    l1RPCUrl,
-		PrivateKey:  privateKey,
 	}
 
 	err = DeploySuperchain(pEnv, intent, st)

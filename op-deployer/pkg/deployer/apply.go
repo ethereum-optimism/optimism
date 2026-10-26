@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
@@ -272,45 +273,61 @@ func ApplyPipeline(
 			return fmt.Errorf("failed to create broadcaster: %w", err)
 		}
 
-		l1Host, err = env.DefaultForkedScriptHost(ctx, bcaster, opts.Logger, deployer, bundle.L1, l1RPC)
-		if err != nil {
-			return fmt.Errorf("failed to initialize L1 host: %w", err)
+		if !opts.UseForge {
+			l1Host, err = env.DefaultForkedScriptHost(ctx, bcaster, opts.Logger, deployer, bundle.L1, l1RPC)
+			if err != nil {
+				return fmt.Errorf("failed to initialize L1 host: %w", err)
+			}
 		}
 	case DeploymentTargetGenesis:
 		bcaster = broadcaster.NoopBroadcaster()
-		l1Host, err = env.DefaultScriptHost(
-			bcaster,
-			opts.Logger,
-			deployer,
-			bundle.L1,
-			script.WithNoMaxCodeSize(), // Allow unoptimized contracts from the forge lite profile in genesis deployments
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create L1 script host: %w", err)
+		if !opts.UseForge {
+			l1Host, err = env.DefaultScriptHost(
+				bcaster,
+				opts.Logger,
+				deployer,
+				bundle.L1,
+				script.WithNoMaxCodeSize(), // Allow unoptimized contracts from the forge lite profile in genesis deployments
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create L1 script host: %w", err)
+			}
 		}
 	default:
 		return fmt.Errorf("invalid deployment target: '%s'", opts.DeploymentTarget)
 	}
 
-	// Now that we have the host, we can load the deployment scripts
-	//
-	// This step will error out if the ABIs don't match the Go types
-	opcmScripts, err := opcm.NewScripts(l1Host)
-	if err != nil {
-		return fmt.Errorf("failed to load OPCM script: %w", err)
-	}
-
-	// Initialize Forge client if UseForge flag is enabled
-	var forgeClient *forge.Client
+	var opcmScripts *opcm.Scripts
+	var forgeEnv *opcm.ForgeEnv
+	var l2Forge *forge.Client
 	if opts.UseForge {
 		// Forge needs to run from the artifacts directory where foundry.toml is located
 		// The workdir is for storing state, not for running forge commands
 		artifactsPath := fmt.Sprintf("%v", bundle.L1)
-		forgeClient, err = forge.NewStandardClient(artifactsPath)
+		forgeClient, err := forge.NewStandardClient(artifactsPath)
 		if err != nil {
 			return fmt.Errorf("failed to create Forge client: %w", err)
 		}
 		forgeClient.SlowBroadcast = opts.ForgeSlowBroadcast
+		forgeEnv = &opcm.ForgeEnv{
+			Client:     forgeClient,
+			Context:    ctx,
+			L1RPCUrl:   opts.L1RPCUrl,
+			PrivateKey: opts.PrivateKey,
+		}
+		if opts.DeploymentTarget == DeploymentTargetGenesis {
+			forgeEnv.Genesis = opcm.NewGenesisState(deployer, true)
+		}
+		l2Forge, err = forge.NewStandardClient(fmt.Sprintf("%v", bundle.L2))
+		if err != nil {
+			return fmt.Errorf("failed to create L2 Forge client: %w", err)
+		}
+	} else {
+		// This step will error out if the ABIs don't match the Go types
+		opcmScripts, err = opcm.NewScripts(l1Host)
+		if err != nil {
+			return fmt.Errorf("failed to load OPCM script: %w", err)
+		}
 	}
 
 	pEnv := &pipeline.Env{
@@ -321,13 +338,12 @@ func ApplyPipeline(
 		Broadcaster:               bcaster,
 		Deployer:                  deployer,
 		Scripts:                   opcmScripts,
-		ForgeClient:               forgeClient,
-		UseForge:                  opts.UseForge,
+		Forge:                     forgeEnv,
+		L1Artifacts:               &foundry.ArtifactsFS{FS: bundle.L1},
+		L2Forge:                   l2Forge,
 		IsGenesis:                 opts.DeploymentTarget == DeploymentTargetGenesis,
 		DeployMockSP1Verifier:     opts.DeployMockSP1Verifier,
 		AllowUnoptimizedContracts: opts.DeploymentTarget == DeploymentTargetGenesis || opts.AllowUnoptimizedContracts,
-		L1RPCUrl:                  opts.L1RPCUrl,
-		PrivateKey:                opts.PrivateKey,
 		Context:                   ctx,
 	}
 
