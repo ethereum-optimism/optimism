@@ -43,6 +43,10 @@
     "initCodeHash": "0x18650c65fa6f23fefc6f0c5fff605f12be99fce0bfbcbc0644403138e4c8bb12",
     "sourceCodeHash": "0x839df6606839f051b93cc11dde360f114d5f91ab5f865fb9eb86ccd1aef4b187"
   },
+  "src/L2/ChainConfig.sol:ChainConfig": {
+    "initCodeHash": "0x4d46e51a9aa1b633da929b5d3d986ba3dd5a83b3ef5a0c6d43d8f314598f2f84",
+    "sourceCodeHash": "0x2aee974fbd2367a690a65d8cb17ec9d0729654f1352099e69269735364c377dd"
+  },
   "src/L2/ConditionalDeployer.sol:ConditionalDeployer": {
     "initCodeHash": "0x580996fd149ac478b9363399eab8ba479ed55a324a215ea8e4841f9e9f033ac5",
     "sourceCodeHash": "0x7c83a95f65cfd963af0caf90579e8f8544e3f883a48bc803720ec251c72aeffe"
