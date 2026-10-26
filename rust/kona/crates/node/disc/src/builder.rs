@@ -3,7 +3,11 @@
 use discv5::{Config, Discv5, Enr, ListenConfig};
 use enr::k256;
 use kona_peers::{BootNodes, BootStoreFile, OpStackEnr};
-use std::{net::IpAddr, sync::Arc};
+use socket2::{Domain, Protocol, Socket, Type};
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
 use tokio::time::Duration;
 
 use crate::{Discv5BuilderError, Discv5Driver};
@@ -92,17 +96,27 @@ fn bind_free_listen_port(
     Ok(())
 }
 
-/// Binds a UDP socket to a free port at `ip`, and returns the listen config that passes it to
-/// discv5.
+/// Binds a UDP socket to a free port at `ip` the way discv5 binds its own, and returns the listen
+/// config that passes it to discv5.
 fn bind_free_port(ip: IpAddr) -> Result<ListenConfig, Discv5BuilderError> {
     // `from_std` registers the socket with the runtime's reactor, and panics outside a runtime.
     tokio::runtime::Handle::try_current()
         .map_err(std::io::Error::other)
         .map_err(Discv5BuilderError::BindFailed)?;
-    let socket = std::net::UdpSocket::bind((ip, 0))
-        .and_then(|socket| socket.set_nonblocking(true).map(|()| socket))
-        .and_then(tokio::net::UdpSocket::from_std)
-        .map_err(Discv5BuilderError::BindFailed)?;
+    let socket = match ip {
+        IpAddr::V4(_) => std::net::UdpSocket::bind((ip, 0)),
+        // Like discv5, keep an IPv6 socket from also receiving IPv4.
+        IpAddr::V6(_) => {
+            Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP)).and_then(|socket| {
+                socket.set_only_v6(true)?;
+                socket.bind(&SocketAddr::new(ip, 0).into())?;
+                Ok(socket.into())
+            })
+        }
+    }
+    .and_then(|socket| socket.set_nonblocking(true).map(|()| socket))
+    .and_then(tokio::net::UdpSocket::from_std)
+    .map_err(Discv5BuilderError::BindFailed)?;
     let socket = Some(Arc::new(socket));
     Ok(if ip.is_ipv4() {
         ListenConfig::FromSockets { ipv4: socket, ipv6: None }
@@ -345,6 +359,24 @@ mod tests {
             ConfigBuilder::new(ListenConfig::Ipv4 { ip: Ipv4Addr::LOCALHOST, port: 0 }).build(),
         );
         assert!(matches!(builder.build(), Err(Discv5BuilderError::BindFailed(_))));
+    }
+
+    /// A free IPv6 port is bound the way discv5 binds its own IPv6 socket, which receives only
+    /// IPv6. Skipped where IPv6 is not available.
+    #[tokio::test]
+    async fn test_bind_free_port_ipv6_only() {
+        let config = match bind_free_port(IpAddr::V6(std::net::Ipv6Addr::LOCALHOST)) {
+            Ok(config) => config,
+            Err(err) => {
+                eprintln!("skipping, cannot bind IPv6: {err}");
+                return;
+            }
+        };
+        let ListenConfig::FromSockets { ipv4: None, ipv6: Some(socket) } = config else {
+            panic!("expected a bound IPv6 socket");
+        };
+        assert_ne!(socket.local_addr().unwrap().port(), 0);
+        assert!(socket2::SockRef::from(&*socket).only_v6().unwrap());
     }
 
     #[test]
