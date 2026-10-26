@@ -1687,15 +1687,15 @@ contract L1CrossDomainMessenger_SyncETHLiquidityPause_Test is L1CrossDomainMesse
                 (
                     Predeploys.L2_CROSS_DOMAIN_MESSENGER,
                     0,
-                    l1CrossDomainMessenger.baseGas(setPaused, 100_000),
+                    l1CrossDomainMessenger.baseGas(setPaused, 200_000),
                     false,
                     Encoding.encodeCrossDomainMessage(
-                        nonce, address(l1CrossDomainMessenger), Predeploys.ETH_LIQUIDITY, 0, 100_000, setPaused
+                        nonce, address(l1CrossDomainMessenger), Predeploys.ETH_LIQUIDITY, 0, 200_000, setPaused
                     )
                 )
             )
         );
         vm.expectEmit(address(l1CrossDomainMessenger));
-        emit SentMessage(Predeploys.ETH_LIQUIDITY, address(l1CrossDomainMessenger), setPaused, nonce, 100_000);
+        emit SentMessage(Predeploys.ETH_LIQUIDITY, address(l1CrossDomainMessenger), setPaused, nonce, 200_000);
     }
 }

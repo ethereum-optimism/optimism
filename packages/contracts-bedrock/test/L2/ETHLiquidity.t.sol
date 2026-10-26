@@ -38,7 +38,7 @@ abstract contract ETHLiquidity_TestInit is CommonTest {
     event PausedSet(bool paused, uint256 messageNonce);
 
     /// @notice Gas limit the L1CrossDomainMessenger gives `setPaused` on L2.
-    uint32 internal constant SET_PAUSED_GAS_LIMIT = 100_000;
+    uint32 internal constant SET_PAUSED_GAS_LIMIT = 200_000;
 
     /// @notice The starting balance of the ETHLiquidity contract.
     uint256 public constant STARTING_LIQUIDITY_BALANCE = type(uint248).max;

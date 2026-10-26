@@ -29,7 +29,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     uint32 internal constant EXPIRE_MESSAGE_GAS_LIMIT = 100_000;
 
     /// @notice Gas limit for ETHLiquidity.setPaused on L2.
-    uint32 internal constant SET_ETH_LIQUIDITY_PAUSED_GAS_LIMIT = 100_000;
+    uint32 internal constant SET_ETH_LIQUIDITY_PAUSED_GAS_LIMIT = 200_000;
 
     /// @notice Thrown when `relayUndeliveredMessage` or `syncETHLiquidityPause` is called on a
     ///         chain that does not run interop.
