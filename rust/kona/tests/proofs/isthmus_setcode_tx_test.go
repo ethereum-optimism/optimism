@@ -50,10 +50,12 @@ func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	alloc := *actionsHelpers.DefaultAlloc
 	alloc.L2Alloc = make(map[common.Address]types.Account)
 	alloc.L2Alloc[aa] = types.Account{
-		Code: store42Program.Bytes(),
+		Code:    store42Program.Bytes(),
+		Balance: new(big.Int),
 	}
 	alloc.L2Alloc[bb] = types.Account{
-		Code: callBobProgram.Bytes(),
+		Code:    callBobProgram.Bytes(),
+		Balance: new(big.Int),
 	}
 
 	testCfg.Allocs = &alloc
@@ -105,7 +107,7 @@ func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	err = cl.SendTransaction(t.Ctx(), tx)
 	require.NoError(gt, err, "failed to send set code tx")
 
-	_, err = env.Engine.EngineApi.IncludeTx(tx, env.Alice.Address())
+	err = env.Engine.IncludeTxErr(t, tx, env.Alice.Address())
 	require.NoError(t, err, "failed to include set code tx")
 
 	env.Sequencer.ActL2EndBlock(t)
@@ -224,10 +226,12 @@ func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *help
 	alloc := *actionsHelpers.DefaultAlloc
 	alloc.L2Alloc = make(map[common.Address]types.Account)
 	alloc.L2Alloc[aa] = types.Account{
-		Code: store42Program.Bytes(),
+		Code:    store42Program.Bytes(),
+		Balance: new(big.Int),
 	}
 	alloc.L2Alloc[bb] = types.Account{
-		Code: callBobProgram.Bytes(),
+		Code:    callBobProgram.Bytes(),
+		Balance: new(big.Int),
 	}
 
 	testCfg.Allocs = &alloc

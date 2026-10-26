@@ -92,7 +92,7 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	require.NotEmpty(t, expectedTxs, "bundle for %s must contain at least one upgrade tx", fork)
 
 	engine := env.Engine
-	_, txs, err := engine.SourceClient().InfoAndDepositsByHash(t.Ctx(), actHeader.Hash())
+	_, txs, err := engine.SourceClient(t, 10).InfoAndDepositsByHash(t.Ctx(), actHeader.Hash())
 	require.NoError(t, err)
 	// Index 0 is the L1 info deposit; indices 1.. are the NUT upgrade deposits.
 	require.Len(t, txs, 1+len(expectedTxs),
@@ -128,7 +128,7 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	// Every tx in the activation block — the L1 info deposit and all NUT upgrade
 	// deposits — must execute successfully. A reverted upgrade tx would leave the
 	// chain in a broken fork-activation state.
-	_, receipts, err := engine.SourceClient().FetchReceipts(t.Ctx(), actHeader.Hash())
+	_, receipts, err := engine.SourceClient(t, 10).FetchReceipts(t.Ctx(), actHeader.Hash())
 	require.NoError(t, err)
 	require.Len(t, receipts, len(txs), "receipt count must match deposit count")
 	for i, r := range receipts {
@@ -168,7 +168,7 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	require.NoError(t, err, "read upgrade gas for %s", fork)
 	env.Sequencer.ActL2EmptyBlock(t)
 	postActivation := engine.LatestHeader(t)
-	preActivation := engine.HeaderByNumber(t, bigs.Uint64Strict(actHeader.Number)-1)
+	preActivation := engine.BlockByNumber(t, bigs.Uint64Strict(actHeader.Number)-1).Header()
 	require.Equal(t, preActivation.GasLimit+upgradeGas, actHeader.GasLimit,
 		"activation block gas limit must be the pre-activation limit plus the one-time upgrade gas")
 	require.Equal(t, preActivation.GasLimit, postActivation.GasLimit,
@@ -207,7 +207,7 @@ func testKarstActivationKeepUpgradeGas(gt *testing.T, testCfg *helpers.TestCfg[f
 	require.NoError(t, err)
 
 	engine := env.Engine
-	preActivation := engine.HeaderByNumber(t, bigs.Uint64Strict(actHeader.Number)-1)
+	preActivation := engine.BlockByNumber(t, bigs.Uint64Strict(actHeader.Number)-1).Header()
 	require.Equal(t, preActivation.GasLimit+karstGas, actHeader.GasLimit,
 		"activation block gas limit must be the pre-activation limit plus the Karst upgrade gas")
 

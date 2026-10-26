@@ -80,7 +80,7 @@ func TestIsthmusExcludedPredeploys(gt *testing.T) {
 	err = ethCl.SendTransaction(t.Ctx(), tx)
 	require.NoError(gt, err, "failed to send withdrawal request tx")
 
-	_, err = engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
+	err = engine.IncludeTxErr(t, tx, dp.Addresses.Alice)
 	require.NoError(gt, err, "failed to include tx")
 
 	ret, err = ethCl.CallContract(context.Background(), ethereum.CallMsg{
@@ -107,7 +107,7 @@ func TestIsthmusExcludedPredeploys(gt *testing.T) {
 	err = ethCl.SendTransaction(t.Ctx(), tx)
 	require.NoError(gt, err, "failed to send consolidation queue request tx")
 
-	_, err = engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
+	err = engine.IncludeTxErr(t, tx, dp.Addresses.Alice)
 	require.NoError(gt, err, "failed to include tx")
 
 	sequencer.ActL2EndBlock(t)

@@ -3,6 +3,7 @@ package proofs
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -22,10 +23,7 @@ import (
 )
 
 // genPreForkStateEnv names the fork whose pre-fork state artifact to (re)generate,
-// e.g. OP_E2E_GEN_PREFORK_STATE=karst. It gates TestGenerateForkState, and the engine
-// records trie-key preimages whenever it is set (see
-// op-e2e/actions/helpers/l2_engine.go) so the post-activation state can be
-// enumerated and dumped.
+// e.g. OP_E2E_GEN_PREFORK_STATE=karst. It gates TestGenerateForkState.
 //
 // Generate one fork at a time, committing each before the next: the loader embeds
 // states at COMPILE time, so <prev>_state.json must be on disk (and the test
@@ -62,16 +60,10 @@ func generateForkState(gt *testing.T, testCfg *helpers.TestCfg[forks.Name]) {
 }
 
 // writePreForkState dumps the post-activation predeploy-scoped state to
-// op-core/nuts/state/<fork>_state.json. It requires the engine to have recorded
-// trie-key preimages (enabled by genPreForkStateEnv) so the state can be enumerated.
+// op-core/nuts/state/<fork>_state.json.
 func writePreForkState(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, fork forks.Name, actHeader *types.Header) {
-	stateDB, err := env.Engine.L2Chain().StateAt(actHeader.Root)
-	require.NoError(t, err, "open state at %s activation block", fork)
-	var full foundry.ForgeAllocs
-	full.FromState(stateDB)
-	scoped := predeployScoped(&full)
-	require.NotEmptyf(t, scoped.Accounts,
-		"dumped state is empty — are trie-key preimages enabled? (set %s)", genPreForkStateEnv)
+	scoped := predeployScoped(dumpPredeployState(t, env.Engine, actHeader.Hash()))
+	require.NotEmptyf(t, scoped.Accounts, "dumped state at the %s activation block is empty", fork)
 	canonicalizeL1Block(scoped)
 
 	root, err := opservice.FindMonorepoRoot(".")
@@ -101,6 +93,25 @@ func canonicalizeL1Block(allocs *foundry.ForgeAllocs) {
 			delete(l1b.Storage, slot)
 		}
 	}
+}
+
+// dumpPredeployState returns the state at the given L2 block of every account predeployScoped can
+// keep: the predeploys and preinstalls, then the implementations their EIP-1967 slots point at.
+func dumpPredeployState(t actionsHelpers.Testing, engine *actionsHelpers.L2Engine, blockHash common.Hash) *foundry.ForgeAllocs {
+	addrs := make([]common.Address, 0, len(predeploys.Predeploys))
+	for _, p := range predeploys.Predeploys {
+		addrs = append(addrs, p.Address)
+	}
+	accounts := engine.DumpAccounts(t, blockHash, addrs)
+
+	var impls []common.Address
+	for _, acct := range accounts {
+		if impl := common.BytesToAddress(acct.Storage[genesis.ImplementationSlot].Bytes()); impl != (common.Address{}) {
+			impls = append(impls, impl)
+		}
+	}
+	maps.Copy(accounts, engine.DumpAccounts(t, blockHash, impls))
+	return &foundry.ForgeAllocs{Accounts: accounts}
 }
 
 func TestPredeployScopedRetainsKarstPredeploysAndImplementations(t *testing.T) {

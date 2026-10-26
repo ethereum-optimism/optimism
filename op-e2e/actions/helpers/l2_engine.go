@@ -133,6 +133,21 @@ func (e *L2Engine) BlockByNumber(t Testing, n uint64) *types.Block {
 	return b
 }
 
+// HeaderByHash returns the L2 header with the given hash over the eth RPC.
+func (e *L2Engine) HeaderByHash(t Testing, hash common.Hash) *types.Header {
+	h, err := e.EthClient().HeaderByHash(t.Ctx(), hash)
+	require.NoError(t, err, "header %s", hash)
+	return h
+}
+
+// DumpAccounts returns the state of the given accounts at the L2 block with the given hash
+// (optest_dumpAccounts). Accounts that do not exist at that block are absent from the result.
+func (e *L2Engine) DumpAccounts(t Testing, blockHash common.Hash, addrs []common.Address) types.GenesisAlloc {
+	alloc, err := e.client.DumpAccounts(t.Ctx(), blockHash, addrs)
+	require.NoError(t, err, "dump accounts at %s", blockHash)
+	return alloc
+}
+
 // GenesisBlock returns the L2 genesis block.
 func (e *L2Engine) GenesisBlock(t Testing) *types.Block {
 	return e.BlockByNumber(t, 0)
@@ -197,6 +212,20 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 		if e.ForcedEmpty(t) {
 			e.log.Info("Skipping including a transaction because forced-empty is set")
 			return
+		}
+		e.includeNextTx(t, from)
+	}
+}
+
+// ActL2IncludeTxIgnoreForcedEmpty includes the next transaction from the given address in the
+// block that is being built, even if the block is forced to stay empty. The force-empty flag is
+// restored afterwards.
+func (e *L2Engine) ActL2IncludeTxIgnoreForcedEmpty(from common.Address) Action {
+	return func(t Testing) {
+		if e.ForcedEmpty(t) {
+			e.log.Info("Ignoring forced-empty to include a transaction")
+			require.NoError(t, e.client.SetForceEmpty(t.Ctx(), false))
+			defer func() { require.NoError(t, e.client.SetForceEmpty(t.Ctx(), true)) }()
 		}
 		e.includeNextTx(t, from)
 	}

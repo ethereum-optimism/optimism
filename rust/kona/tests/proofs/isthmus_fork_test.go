@@ -81,7 +81,7 @@ func testIsthmusActivationAtGenesis(gt *testing.T, testCfg *helpers.TestCfg[any]
 	require.Equal(t, types.EmptyRequestsHash, *block.RequestsHash, "isthmus block must have requests hash")
 
 	// Check genesis config type can convert to a valid block
-	genesisHeader := env.Engine.HeaderByNumber(t, 0)
+	genesisHeader := env.Engine.BlockByNumber(t, 0).Header()
 	reproduced := env.Sd.L2Cfg.ToBlock()
 	require.Equal(t, genesisHeader.WithdrawalsHash, reproduced.WithdrawalsRoot(), "genesis.ToBlock withdrawals-hash must match as expected")
 	require.Equal(t, genesisHeader.Hash(), reproduced.Hash(), "genesis.ToBlock block hash must match")
@@ -357,14 +357,14 @@ func testIsthmusNetworkUpgradeTransactions(gt *testing.T, testCfg *helpers.TestC
 	latestHeader := engine.LatestHeader(t)
 	require.Equal(t, sequencer.L2Unsafe().Number, bigs.Uint64Strict(latestHeader.Number))
 
-	_, transactions, err := engine.SourceClient().InfoAndDepositsByHash(t.Ctx(), latestHeader.Hash())
+	_, transactions, err := engine.SourceClient(t, 10).InfoAndDepositsByHash(t.Ctx(), latestHeader.Hash())
 	require.NoError(t, err)
 
 	// L1Block: 1 set-L1-info + 1 deploy
 	// See [derive.IsthmusNetworkUpgradeTransactions]
 	require.Equal(t, 9, len(transactions))
 
-	_, receipts, err := engine.SourceClient().FetchReceipts(t.Ctx(), latestHeader.Hash())
+	_, receipts, err := engine.SourceClient(t, 10).FetchReceipts(t.Ctx(), latestHeader.Hash())
 	require.NoError(t, err)
 	require.Len(t, receipts, len(transactions), "upgrade block must contain only deposits")
 

@@ -2,7 +2,6 @@ package proofs
 
 import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/gethengine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/stretchr/testify/require"
@@ -21,7 +20,7 @@ type holoceneExpectations struct {
 	preHolocene, holocene expectations
 }
 
-func (h holoceneExpectations) RequireExpectedProgressAndLogs(t actionsHelpers.StatefulTesting, actualSafeHead eth.L2BlockRef, isHolocene bool, engine *gethengine.L2Engine, logs *testlog.CapturingHandler) {
+func (h holoceneExpectations) RequireExpectedProgressAndLogs(t actionsHelpers.StatefulTesting, actualSafeHead eth.L2BlockRef, isHolocene bool, engine *actionsHelpers.L2Engine, logs *testlog.CapturingHandler) {
 	t.Helper()
 
 	var exp expectations
@@ -32,7 +31,7 @@ func (h holoceneExpectations) RequireExpectedProgressAndLogs(t actionsHelpers.St
 	}
 
 	require.Equal(t, exp.safeHead, actualSafeHead.Number, "safe head: wrong number")
-	expectedHash := engine.HeaderByNumber(t, exp.safeHead).Hash()
+	expectedHash := engine.BlockByNumber(t, exp.safeHead).Hash()
 	require.Equal(t, expectedHash, actualSafeHead.Hash, "safe head: wrong hash")
 
 	for _, l := range exp.logs {
