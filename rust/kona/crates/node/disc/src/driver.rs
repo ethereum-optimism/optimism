@@ -460,6 +460,8 @@ mod tests {
             .expect("driver should not stop during startup");
     }
 
+    /// [`Discv5Driver::start`]: the task stops when every [`Discv5Handler`] clone and the ENR
+    /// receiver are dropped, without waiting for the next discovery tick.
     #[tokio::test]
     async fn test_discv5_driver_stops_when_handler_and_receiver_dropped() {
         let (handler, enr_recv, task) = offline_driver().spawn();
@@ -480,6 +482,8 @@ mod tests {
             .expect("driver task should not panic");
     }
 
+    /// [`Discv5Driver::start`]: dropping only the handler keeps the task running for the ENR
+    /// receiver.
     #[tokio::test]
     async fn test_discv5_driver_keeps_running_for_enr_receiver() {
         let (handler, _enr_recv, task) = offline_driver().spawn();
@@ -491,6 +495,26 @@ mod tests {
         assert!(!task.is_finished(), "driver task should keep running for the ENR receiver");
     }
 
+    /// [`Discv5Driver::start`]: dropping only the ENR receiver keeps the task running for the
+    /// handler, which still gets answers.
+    #[tokio::test]
+    async fn test_discv5_driver_keeps_running_for_handler() {
+        let (handler, enr_recv, task) = offline_driver().spawn();
+
+        wait_until_started(&handler).await;
+        drop(enr_recv);
+
+        sleep(Duration::from_millis(500)).await;
+        assert!(!task.is_finished(), "driver task should keep running for the handler");
+        tokio::time::timeout(Duration::from_secs(5), handler.peer_count())
+            .await
+            .expect("driver should answer requests")
+            .expect("driver should not stop while the handler is alive");
+    }
+
+    /// [`Discv5Driver::start`]: requests sent before the handler is dropped are answered, and
+    /// those sent during startup once it completes. Here the request is sent during startup and
+    /// both ends are dropped before it completes.
     #[tokio::test]
     async fn test_discv5_driver_answers_requests_sent_before_handler_dropped() {
         // `select!` picks a random branch among those ready, so a race between handling the
