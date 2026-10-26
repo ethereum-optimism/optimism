@@ -164,6 +164,7 @@ contract XDM_MinGasLimits_Succeeds is XDM_MinGasLimits {
     ///                   - The inner min gas limit is for the call from the
     ///                     `L1CrossDomainMessenger` to the target contract.
     function invariant_minGasLimits() external view {
+        assertFalse(actor.reverted(), actor.revertCtx());
         uint256 length = actor.numHashes();
         for (uint256 i = 0; i < length; ++i) {
             bytes32 hash = actor.hashes(i);
@@ -172,7 +173,6 @@ contract XDM_MinGasLimits_Succeeds is XDM_MinGasLimits {
             // The message hash is not set in the failedMessages mapping
             assertFalse(l1CrossDomainMessenger.failedMessages(hash));
         }
-        assertFalse(actor.reverted(), actor.revertCtx());
     }
 }
 
