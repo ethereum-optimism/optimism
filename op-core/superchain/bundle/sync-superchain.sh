@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Syncs the superchain-registry configs into op-core/superchain/superchain-configs.zip.
+# Syncs the superchain-registry configs into op-core/superchain/bundle/superchain-configs.zip.
 #
 # Reads from the superchain-registry git submodule at the repo root — the single
 # canonical commit pin. The resulting zip is gitignored; the committed
@@ -26,9 +26,9 @@
 set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-# Repo root via git, falling back to the known layout (<root>/op-core/superchain)
+# Repo root via git, falling back to the known layout (<root>/op-core/superchain/bundle)
 # for environments without a .git dir, e.g. inside a Docker build.
-REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd "$SCRIPT_DIR/../.." && pwd))
+REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd "$SCRIPT_DIR/../../.." && pwd))
 SR_DIR="${SUPERCHAIN_REGISTRY_DIR:-$REPO_ROOT/superchain-registry}"
 ZIP="${SUPERCHAIN_CONFIGS_OUT:-$SCRIPT_DIR/superchain-configs.zip}"
 SHA_FILE="$SCRIPT_DIR/superchain-configs.zip.sha256"

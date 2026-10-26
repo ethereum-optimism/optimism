@@ -28,6 +28,7 @@ members = [
   "kona/sp1/crates/host",
   "kona/sp1/crates/super-range-executor",
   "kona/sp1/crates/proposer",
+  "kona/sp1/crates/spn-wallet",
   "kona/sp1/crates/zkvm-canary",
 
   # Op-Alloy
@@ -497,6 +498,7 @@ alloy-signer = { version = "2.4.2", default-features = false }
 # sp1-sdk's dynamic_signer builder method uses alloy-signer 1.x, distinct from the workspace's 2.x.
 sp1-alloy-signer = { package = "alloy-signer", version = "1.0", default-features = false }
 alloy-signer-local = { version = "2.4.2", default-features = false }
+alloy-signer-gcp = { version = "2.4.2", default-features = false }
 alloy-transport = { version = "2.4.2" }
 alloy-transport-http = { version = "2.4.2", features = [
   "reqwest-rustls-tls",
@@ -514,6 +516,10 @@ sp1-sdk = { version = "6.10.0", default-features = false, features = [
   "network",
 ] }
 sp1-verifier = { version = "6.10.0", default-features = false, features = ["full"] }
+# spn-wallet talks to SPN through sp1-sdk's generated gRPC client, so these must stay on the
+# tonic/prost versions sp1-sdk compiles against.
+tonic = { version = "0.14.6", default-features = false }
+prost = { version = "0.14", default-features = false }
 
 # ==================== ASYNC ====================
 async-channel = "2.5"

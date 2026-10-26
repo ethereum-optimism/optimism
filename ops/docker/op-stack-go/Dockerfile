@@ -79,12 +79,12 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 # NOTE: the Dockerfile.dockerignore file effectively describes all dependencies
 COPY . /app
 
-# Most op-stack-go services embed op-core/superchain/superchain-configs.zip via
+# Most op-stack-go services embed op-core/superchain/bundle/superchain-configs.zip via
 # //go:embed. It's gitignored and regenerated from the superchain-registry
 # submodule, whose data is copied into the build context (see Dockerfile.dockerignore).
 # Build it here in the shared builder stage — git-free, verifying against the
 # committed .sha256 — so every Go build stage below links it.
-RUN bash op-core/superchain/sync-superchain.sh
+RUN bash op-core/superchain/bundle/sync-superchain.sh
 
 # We avoid copying the full .git dir into the build for just some metadata.
 # Instead, specify:

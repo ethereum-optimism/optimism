@@ -158,7 +158,7 @@ func (e *SuperAgreementEnricher) enrich(ctx context.Context, game *monTypes.Comm
 		} else {
 			foundResults = append(foundResults, result)
 			// Track safety counts only for found results where the super root matches the game's root claim
-			if !isZKGame && result.superRoot == game.RootClaim {
+			if result.superRoot == game.RootClaim {
 				if result.isSafe {
 					safeCount++
 				} else {
@@ -230,11 +230,6 @@ func (e *SuperAgreementEnricher) enrich(ctx context.Context, game *monTypes.Comm
 		}
 		game.AgreeWithClaim = false
 		game.ExpectedRootClaim = firstResult.superRoot
-		return nil
-	}
-	if isZKGame {
-		game.ExpectedRootClaim = firstResult.superRoot
-		game.AgreeWithClaim = game.RootClaim == firstResult.superRoot
 		return nil
 	}
 

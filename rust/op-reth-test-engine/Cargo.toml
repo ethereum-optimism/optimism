@@ -43,10 +43,12 @@ reth-trie.workspace = true
 reth-storage-overlay.workspace = true
 reth-primitives-traits.workspace = true
 reth-rpc.workspace = true
+reth-rpc-api.workspace = true
 reth-rpc-eth-api.workspace = true
 reth-rpc-engine-api.workspace = true
 reth-transaction-pool.workspace = true
 reth-network-api.workspace = true
+reth-tasks.workspace = true
 
 # ethereum / alloy / op-alloy
 alloy-genesis.workspace = true
@@ -61,6 +63,7 @@ op-revm.workspace = true
 
 # rpc / transport / cli (used by the library RPC module and the binary)
 jsonrpsee.workspace = true
+futures.workspace = true
 reth-ipc.workspace = true
 tokio = { workspace = true, features = [
   "rt-multi-thread",
@@ -85,3 +88,4 @@ reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] 
 reth-chainspec.workspace = true
 alloy-network.workspace = true
 alloy-signer-local.workspace = true
+alloy-rlp.workspace = true

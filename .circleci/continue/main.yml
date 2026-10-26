@@ -1778,7 +1778,7 @@ jobs:
       - go-save-cache:
           namespace: opgeth-ratchet
 
-  # Builds op-core/superchain/superchain-configs.zip from the pinned commit and
+  # Builds op-core/superchain/bundle/superchain-configs.zip from the pinned commit and
   # makes it available to downstream Go-build jobs via persist_to_workspace.
   # The zip itself is gitignored; this is the only job that persists it to the
   # workspace. Jobs that don't attach the workspace (the rust-e2e Go tests,
@@ -1805,15 +1805,15 @@ jobs:
           # Catches non-deterministic builds and stale .sha256 commits: if the
           # rebuilt zip differs from what was approved in review, the .sha256
           # file written by sync-superchain.sh will diverge from the committed
-          # one and this fails. The init.go runtime check (SHA256 of the embedded
+          # one and this fails. The bundle package's runtime check (SHA256 of the embedded
           # zip against the committed .sha256) runs as part of go-tests
           # downstream — no need to repeat it here.
           name: verify rebuilt bundle matches committed .sha256
-          command: git diff --exit-code op-core/superchain/superchain-configs.zip.sha256
+          command: git diff --exit-code op-core/superchain/bundle/superchain-configs.zip.sha256
       - persist_to_workspace:
           root: .
           paths:
-            - op-core/superchain/superchain-configs.zip
+            - op-core/superchain/bundle/superchain-configs.zip
 
   # Downloads the Go module set once and saves the shared module cache so the
   # many downstream Go jobs restore it instead of each hitting proxy.golang.org.
@@ -1992,7 +1992,8 @@ jobs:
   # Runs the op-e2e action tests against the out-of-process op-reth-test-engine
   # execution layer, their only EL. go-tests excludes the packages so the suite
   # runs once, here, on a resource class and timeout of its own.
-  # The engine binary comes prebuilt from the rust-op-reth-binary workspace;
+  # The engine binary comes prebuilt from the rust-op-reth-binary workspace, so
+  # the job runs on the image that built it (glibc must match);
   # REQUIRE_RUST_ENGINE turns a missing binary into a hard failure so a
   # provisioning bug cannot silently skip the action tests.
   go-actions-tests:
@@ -2014,7 +2015,7 @@ jobs:
         type: string
         default: 30m
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:

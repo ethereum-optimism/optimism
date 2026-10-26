@@ -184,6 +184,18 @@ func TestSpawnPollsUntilReady(t *testing.T) {
 	require.Equal(t, "ready", out)
 }
 
+// TestPathServesAnotherClient dials the child a second time through Path, as another process
+// would.
+func TestPathServesAnotherClient(t *testing.T) {
+	p := spawnHelper(t, nil)
+	cl, err := rpc.DialIPC(callCtx(t), p.Path())
+	require.NoError(t, err)
+	t.Cleanup(cl.Close)
+	var out string
+	require.NoError(t, cl.CallContext(callCtx(t), &out, "test_echo", "second"))
+	require.Equal(t, "second", out)
+}
+
 // TestSpawnWaitsForItsOwnSocket spawns a child that serves, but on a path other than the one Spawn
 // passed. Spawn must not become ready on it; once the child is proven to serve, it is made to exit,
 // which ends Spawn without depending on the ready timeout.
