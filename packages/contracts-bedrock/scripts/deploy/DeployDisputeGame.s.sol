@@ -6,6 +6,7 @@ import { Script } from "forge-std/Script.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 
 // Libraries
 import { GameType, Duration } from "src/dispute/lib/Types.sol";
@@ -55,8 +56,10 @@ contract DeployDisputeGame is Script {
     }
 
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        DeployState.load();
         Input memory input = abi.decode(_input, (Input));
         Output memory output = run(input);
+        DeployState.dump(msg.sender);
         return abi.encode(output);
     }
 
