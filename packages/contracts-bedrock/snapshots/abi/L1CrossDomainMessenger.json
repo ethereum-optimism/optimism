@@ -438,6 +438,13 @@
   },
   {
     "inputs": [],
+    "name": "syncETHLiquidityPause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "systemConfig",
     "outputs": [
       {

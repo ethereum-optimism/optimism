@@ -62,5 +62,5 @@ crytic-export
 
 # Locally-built superchain bundles, generated from the superchain-registry submodule.
 # The binary archives are gitignored; only their .sha256 (and generated text) are committed.
-op-core/superchain/superchain-configs.zip
+op-core/**/superchain-configs.zip
 rust/op-reth/crates/chainspec/res/superchain-configs.tar

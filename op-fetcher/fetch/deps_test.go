@@ -8,7 +8,7 @@ import (
 
 // TestImportClosure keeps op-fetcher's library packages light, because the
 // superchain-registry's ops tooling consumes them as a Go module dependency:
-//   - op-core is off limits: op-core/superchain embeds the generated, gitignored superchain
+//   - op-core is off limits: op-core/superchain/bundle embeds the generated, gitignored superchain
 //     config bundle, which is absent from a clean module download, and the OP types in
 //     op-core still need op-geth.
 //   - op-deployer and the op-chain-ops script host need op-geth, and a fetch needs no EVM of

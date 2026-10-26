@@ -1055,6 +1055,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-signer-gcp"
+version = "2.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb83214b1e09902a70d7417ea82ab893f6b55f1d31987b4a4ba8514e0292f500"
+dependencies = [
+ "alloy-consensus 2.4.2",
+ "alloy-network 2.4.2",
+ "alloy-primitives",
+ "alloy-signer 2.5.0",
+ "async-trait",
+ "gcloud-sdk",
+ "k256 0.13.4",
+ "spki 0.7.3",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "alloy-signer-local"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5542,6 +5560,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d758ba1b47b00caf47f24925c0074ecb20d6dfcffe7f6d53395c0465674841a"
 
 [[package]]
+name = "gcloud-sdk"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b5b58d8683fa308be9bc58caece4972315a0b2547f9da16962511f0915d5b53"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "chrono",
+ "futures",
+ "hyper",
+ "jsonwebtoken",
+ "once_cell",
+ "prost",
+ "prost-types",
+ "reqwest 0.13.2",
+ "secret-vault-value",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tonic",
+ "tonic-prost",
+ "tower",
+ "tower-layer",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "gecko_profile"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9913,9 +9959,11 @@ dependencies = [
  "alloy-genesis",
  "alloy-network 2.4.2",
  "alloy-primitives",
+ "alloy-rlp",
  "alloy-rpc-types-engine",
  "alloy-signer-local 2.4.2",
  "clap",
+ "futures",
  "jsonrpsee",
  "op-alloy-consensus",
  "op-alloy-network",
@@ -9945,10 +9993,12 @@ dependencies = [
  "reth-provider",
  "reth-revm",
  "reth-rpc",
+ "reth-rpc-api",
  "reth-rpc-engine-api",
  "reth-rpc-eth-api",
  "reth-storage-api",
  "reth-storage-overlay",
+ "reth-tasks",
  "reth-transaction-pool",
  "reth-trie",
  "serde",
@@ -11870,6 +11920,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-util",
+ "h2",
  "http 1.4.0",
  "http-body 1.0.1",
  "http-body-util",
@@ -11878,6 +11929,7 @@ dependencies = [
  "hyper-util",
  "js-sys",
  "log",
+ "mime_guess",
  "percent-encoding",
  "pin-project-lite",
  "quinn",
@@ -16225,6 +16277,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "secret-vault-value"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71088b22175e1f34283b9f74bd20033dae4f5a81fad327ee3dbc01cc78c10d60"
+dependencies = [
+ "serde",
+ "serde_json",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
 name = "security-framework"
 version = "3.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -17801,6 +17865,30 @@ checksum = "1d9efca8738c78ee9484207732f728b1ef517bbb1833d6fc0879ca898a522f6f"
 dependencies = [
  "base64ct",
  "der 0.8.2",
+]
+
+[[package]]
+name = "spn-wallet"
+version = "0.1.0"
+dependencies = [
+ "alloy-contract",
+ "alloy-network 2.4.2",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-signer 2.5.0",
+ "alloy-signer-gcp",
+ "alloy-signer-local 2.4.2",
+ "alloy-sol-types",
+ "alloy-transport-http",
+ "anyhow",
+ "clap",
+ "humantime",
+ "prost",
+ "rustls",
+ "sp1-sdk",
+ "thiserror 2.0.18",
+ "tokio",
+ "tonic",
 ]
 
 [[package]]

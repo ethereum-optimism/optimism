@@ -69,6 +69,7 @@ pub(super) enum L1ReadBoundary {
     GameClaim,
     GameIdentity,
     GameValidity,
+    GameL1HeadNumber,
     GameLifecycle,
     ParentGameStatus,
     BondState,
@@ -1642,6 +1643,12 @@ impl L1View for FakeL1View {
             status: game.status,
             absolute_prestate: game.absolute_prestate,
         })
+    }
+
+    async fn game_l1_head_number(&self, game: Address, block: BlockId) -> Result<u64> {
+        let GameReadResult { state, .. } =
+            self.state_for_game(L1ReadBoundary::GameL1HeadNumber, game, block)?;
+        Ok(state.game(game)?.proof_inputs.l1_head_number)
     }
 
     async fn game_lifecycle(

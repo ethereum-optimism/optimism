@@ -21,6 +21,7 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger, IProxyAdminOwnedBase
     function version() external view returns (string memory);
     function superchainConfig() external view returns (ISuperchainConfig);
     function relayUndeliveredMessage(bytes32 _messageHash, uint256 _undeliveredAt) external;
+    function syncETHLiquidityPause() external;
 
     function __constructor__() external;
 }
