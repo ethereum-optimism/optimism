@@ -272,7 +272,7 @@ impl AttemptStages for InProcessStages {
             "selected snapshot does not match the loaded range artifact"
         );
         let mut synthesized = snapshot.synthesize_execution()?;
-        Ok(execute_snapshot(
+        Ok(Box::pin(execute_snapshot(
             snapshot.host_inputs(),
             &mut synthesized,
             &self.artifact,
@@ -280,7 +280,7 @@ impl AttemptStages for InProcessStages {
             self.memory_limit,
             deadline,
             execution_activity,
-        )
+        ))
         .await)
     }
 }

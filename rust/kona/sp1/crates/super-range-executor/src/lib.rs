@@ -230,9 +230,10 @@ pub struct SynthesizedExecution {
     /// Typed inputs for the SP1 guest's consolidation mode.
     pub consolidation_inputs: SuperConsolidationInputs,
     /// Preimages that must be available before host hinting can discover the rest of the witness.
-    /// The collectors add those of `replaced_agreed_outputs`, which the host reads.
+    /// The first collection caches resolved replacement preimages here and clears
+    /// `replaced_agreed_outputs`.
     preloaded_preimages: Vec<(PreimageKey, Vec<u8>)>,
-    /// The agreed outputs that the span's pre-transition super roots replaced, by timestamp.
+    /// Replaced agreed outputs awaiting first collection, grouped by timestamp.
     replaced_agreed_outputs: Vec<ReplacedAgreedOutputs>,
     /// The span-end super-root hash, used as the host post-state claim.
     pub current_super_root: B256,
@@ -255,6 +256,8 @@ impl SynthesizedExecution {
     /// Collects a range-mode witness and the natively computed range outputs through `host`,
     /// seeded with the preloaded preimages and the agreed outputs that the span's super roots
     /// replaced, which it reads through `host`'s L2 nodes.
+    /// Before the first collection, updates `range_inputs` and `consolidation_inputs` to retain
+    /// agreed blocks on no-op transitions; build stdin after collecting.
     pub async fn collect_range_witness(
         &mut self,
         host: InteropHost,
@@ -271,6 +274,8 @@ impl SynthesizedExecution {
     /// Collects a consolidation-mode witness and the natively computed consolidation outputs
     /// through `host`, seeded with the preloaded preimages and the agreed outputs that the span's
     /// super roots replaced, which it reads through `host`'s L2 nodes.
+    /// Before the first collection, updates `range_inputs` and `consolidation_inputs` to retain
+    /// agreed blocks on no-op transitions; build stdin after collecting.
     ///
     /// `batches` are the public values of the log-commitment batch proofs that the consolidation
     /// stdin will carry; the run takes the guest's path for them (see [`VerifiedLogCommitments`]).
@@ -1979,6 +1984,42 @@ mod tests {
             synthesized.consolidation_inputs.transitions[0].optimistic_blocks,
             vec![retained]
         );
+        let mut in_span_responses = vec![response(timestamp - 1, &[10], 8)];
+        in_span_responses.extend(responses);
+        let mut in_span = synthesize_execution(
+            TimestampSpan::new(timestamp, timestamp + 1).unwrap(),
+            b256(0xaa),
+            8,
+            &in_span_responses,
+        )
+        .unwrap();
+        in_span.prepare_inputs(&host).await.unwrap();
+        let expected = vec![
+            SuperOptimisticBlock {
+                chain_id: U256::from(10),
+                block_hash: original_hash,
+                output_root: output_entry(original_hash, 8).output_root,
+            },
+            retained,
+        ];
+        assert_eq!(
+            in_span
+                .range_inputs
+                .claimed_transitions
+                .iter()
+                .map(|transition| transition.optimistic_block)
+                .collect::<Vec<_>>(),
+            expected,
+        );
+        assert_eq!(
+            in_span
+                .consolidation_inputs
+                .transitions
+                .iter()
+                .flat_map(|transition| transition.optimistic_blocks.iter().copied())
+                .collect::<Vec<_>>(),
+            expected,
+        );
         let collected = synthesized
             .collect_consolidation_witness(host, Some(&configs), &[], None)
             .await
@@ -1998,7 +2039,7 @@ mod tests {
         assert_eq!(consolidation.transitions[0].optimistic_blocks, vec![retained]);
         assert_eq!(consolidation.transitions[0].super_root, synthesized.current_super_root);
         for read in reads {
-            read.assert_async().await;
+            read.assert_calls_async(2).await;
         }
     }
 
