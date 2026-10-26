@@ -23,6 +23,7 @@ contract RelayActor is StdUtils {
     uint256 public revertIndex;
     uint256 public lastGas;
     Diag public diag;
+    string public accessTrace;
 
     struct Diag {
         uint256 version;
@@ -102,10 +103,14 @@ contract RelayActor is StdUtils {
         }
         diag.idBalance = address(0x04).balance;
         diag.gasBefore = gasleft();
+        vm.startStateDiffRecording();
         try xdm.relayMessage{ gas: gas, value: _value }(
             Encoding.encodeVersionedNonce(0, _version), sender, target, _value, minGasLimit, _message
-        ) { }
-        catch (bytes memory err) {
+        ) {
+            vm.stopAndReturnStateDiff();
+        } catch (bytes memory err) {
+            Vm.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
+            if (!reverted) _recordAccesses(accesses);
             // If any of these calls revert, set `reverted` to true to fail the invariant test.
             // NOTE: This is to get around forge's invariant fuzzer ignoring reverted calls
             // to this function.
@@ -125,6 +130,23 @@ contract RelayActor is StdUtils {
             reverted = true;
         }
         vm.stopPrank();
+    }
+
+    function _recordAccesses(Vm.AccountAccess[] memory _accesses) internal {
+        string memory out;
+        for (uint256 i = 0; i < _accesses.length; i++) {
+            Vm.AccountAccess memory a = _accesses[i];
+            bytes4 selector;
+            if (a.data.length >= 4) selector = bytes4(a.data);
+            out = string.concat(
+                out,
+                string.concat(" |d", vm.toString(uint256(a.depth)), "k", vm.toString(uint256(a.kind)), " "),
+                string.concat(vm.toString(a.account), " ", vm.toString(abi.encodePacked(selector))),
+                string.concat(" init=", vm.toString(a.initialized), " code=", vm.toString(a.account.code.length)),
+                string.concat(" sl=", vm.toString(a.storageAccesses.length))
+            );
+        }
+        accessTrace = out;
     }
 
     function revertCtx() external view returns (string memory) {
@@ -156,8 +178,11 @@ contract RelayActor is StdUtils {
                 " block=",
                 vm.toString(d.blockNumber),
                 " ts=",
-                vm.toString(d.timestamp)
-            )
+                vm.toString(d.timestamp),
+                " gasBefore=",
+                vm.toString(d.gasBefore)
+            ),
+            accessTrace
         );
     }
 }
