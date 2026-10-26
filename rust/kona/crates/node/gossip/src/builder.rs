@@ -7,7 +7,7 @@ use libp2p::{
     Multiaddr, StreamProtocol, SwarmBuilder, gossipsub::Config, identity::Keypair,
     noise::Config as NoiseConfig, tcp::Config as TcpConfig, yamux::Config as YamuxConfig,
 };
-use std::time::Duration;
+use std::{convert::Infallible, time::Duration};
 use tokio::sync::watch;
 
 use crate::{Behaviour, BlockHandler, GaterConfig, GossipDriver, GossipDriverBuilderError};
@@ -186,10 +186,10 @@ impl GossipDriverBuilder {
 
         let protocol = format!("/opstack/req/payload_by_number/{l2_chain_id}/0/");
         let sync_protocol_name = StreamProtocol::try_from_owned(protocol)
-            .map_err(|_| GossipDriverBuilderError::SetupSyncReqRespError)?;
+            .map_err(GossipDriverBuilderError::SetupSyncReqRespError)?;
         let sync_protocol = sync_handler
             .accept(sync_protocol_name)
-            .map_err(|_| GossipDriverBuilderError::SyncReqRespAlreadyAccepted)?;
+            .map_err(GossipDriverBuilderError::SyncReqRespAlreadyAccepted)?;
 
         // Build the swarm with DNS+TCP transport.
         // Note: with_dns() must be called after with_tcp() to wrap TCP with DNS resolution.
@@ -204,11 +204,11 @@ impl GossipDriverBuilder {
                 },
                 YamuxConfig::default,
             )
-            .map_err(|_| GossipDriverBuilderError::TcpError)?
+            .map_err(GossipDriverBuilderError::TcpError)?
             .with_dns()
-            .map_err(|_| GossipDriverBuilderError::TcpError)?
+            .map_err(GossipDriverBuilderError::DnsError)?
             .with_behaviour(|_| behaviour)
-            .map_err(|_| GossipDriverBuilderError::WithBehaviourError)?
+            .unwrap_or_else(|never: Infallible| match never {})
             .with_swarm_config(|c| c.with_idle_connection_timeout(timeout))
             .build();
 
