@@ -47,6 +47,8 @@ Supporting libraries for the SP1 fault proof system:
 - **`proposer`**: The `op-zk-proposer` service: creates super-root ZK dispute games,
   defends challenged ones with SP1 super-aggregation proofs, resolves finished games, and
   claims bonds (see the Proposer section below)
+- **`spn-wallet`**: Operator CLI that funds and inspects PROVE accounts on the Succinct Prover
+  Network, such as the proposer's SPN requester (see Funding the SPN requester below)
 - **`super-range-executor`**: Witness synthesis and execution engine for the super-root
   programs; used as a library by the proposer and as the `kona-sp1-super-range-executor`
   validity-checker binary in acceptance tests
@@ -431,6 +433,39 @@ Its `bump_failed` reason counts fee bumps that failed, for example when
 `op_zk_proposer_tx_send_duration_seconds` is the duration of the latest send that
 got a receipt, and `op_zk_proposer_tx_fees_gwei_total` totals
 `gas_used * effective_gas_price` over those sends, in whole gwei.
+
+#### Funding the SPN requester
+
+The proposer pays for proofs from its SPN requester's PROVE balance (`prove_balance`).
+With op-signer, the requester is a KMS key that can sign only SPN messages, so it cannot
+deposit for itself. Another account funds it with `spn-wallet`, and the recipient
+signs nothing. Find the requester address in the `address` label of
+`op_zk_proposer_spn_requester_info`, or as the `fromAddress` of the `*-spn-requester.*`
+entry in op-signer's ConfigMap.
+
+```bash
+cd rust
+# From PROVE the funder already holds on SPN:
+PRIVATE_KEY=<funder key> cargo run -p spn-wallet -- fund --to <requester> --amount 100 --max-fee 1
+# From PROVE on Ethereum mainnet (deposits amount + fee into the funder's SPN account first):
+cargo run -p spn-wallet -- fund --to <requester> --amount 100 --max-fee 1 --from-l1 \
+  --l1-rpc <mainnet RPC> --kms-key projects/P/locations/L/keyRings/R/cryptoKeys/K/cryptoKeyVersions/V
+# Check the credit:
+cargo run -p spn-wallet -- history <requester>
+```
+
+- Every write command prints what it would send and signs nothing. Add `--broadcast`
+  to sign and send; `--max-fee` (in PROVE) is then required, and the command stops if
+  SPN quotes a higher fee. SPN charges 1 PROVE per transfer and per withdraw today.
+- The PROVE side is always Ethereum mainnet, also for chains that settle on Sepolia:
+  `--l1-rpc` must serve chain 1. The VApp's minimum deposit is 0.01 PROVE.
+- Sign with `PRIVATE_KEY` or with a GCP Cloud KMS key via `--kms-key` (or `KMS_KEY`), in
+  the format of op-signer's `key:`. KMS signing calls Cloud KMS directly with Application
+  Default Credentials (`gcloud auth application-default login`). It needs
+  `cloudkms.cryptoKeyVersions.viewPublicKey` on the key, plus `useToSign` to broadcast.
+- `fund` reports success once the recipient's balance history shows the TRANSFER_IN.
+  `requests <requester>`, `request <id> --bids` and `transaction <hash>` inspect SPN
+  state without a key.
 
 ### Environment
 
