@@ -49,6 +49,8 @@ build-source:
 # Builds source contracts and scripts, skipping tests.
 build-no-tests:
   forge build --skip "/**/test/**"
+  @# op-deployer runs the scripts and never compiles, so compile them with their test/mocks imports.
+  forge build scripts
 
 # Builds the contracts.
 build *ARGS: lint-fix-no-fail

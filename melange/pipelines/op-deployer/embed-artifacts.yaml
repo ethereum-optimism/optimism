@@ -36,7 +36,7 @@ pipeline:
       fi
       "$forge_bin" --version
       # Compile contracts-bedrock (mirrors `just build-no-tests`).
-      ( cd "${{inputs.contracts-dir}}" && "$forge_bin" build --skip "/**/test/**" )
+      ( cd "${{inputs.contracts-dir}}" && "$forge_bin" build --skip "/**/test/**" && "$forge_bin" build scripts )
       # Pack the compiled artifacts into the embedded tarball (mirrors
       # `just copy-contract-artifacts`).
       go run "${{inputs.mktar-pkg}}" \

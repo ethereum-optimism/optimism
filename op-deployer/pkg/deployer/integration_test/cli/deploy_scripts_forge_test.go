@@ -72,7 +72,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var superchainOutput opcm.DeploySuperchainOutput
@@ -90,7 +89,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var implsOutput opcm.DeployImplementationsOutput
@@ -130,7 +128,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var superchainOutput opcm.DeploySuperchainOutput
@@ -148,7 +145,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var implsOutput opcm.DeployImplementationsOutput
@@ -187,7 +183,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var superchainOutput opcm.DeploySuperchainOutput
@@ -205,7 +200,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var implsOutput opcm.DeployImplementationsOutput
@@ -257,7 +251,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var superchainOutput opcm.DeploySuperchainOutput

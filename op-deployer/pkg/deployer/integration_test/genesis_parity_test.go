@@ -139,8 +139,8 @@ func TestGenesisForgeMatchesGoHost(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			goHost := applyGenesis(t, false, tt.mutate)
-			forge := applyGenesis(t, true, tt.mutate)
+			goHost := applyGenesis(t, true, tt.mutate)
+			forge := applyGenesis(t, false, tt.mutate)
 			requireEqualAllocs(t, goHost.L1StateDump.Data.Accounts, forge.L1StateDump.Data.Accounts)
 			require.Equal(t, goHost.L1DevGenesis.ToBlock().Root(), forge.L1DevGenesis.ToBlock().Root())
 			require.Len(t, forge.Chains, len(goHost.Chains))
@@ -156,10 +156,32 @@ func TestGenesisForgeMatchesGoHost(t *testing.T) {
 	}
 }
 
-func applyGenesis(t *testing.T, useForge bool, mutate func(*testing.T, *state.Intent, *deployer.ApplyPipelineOpts)) *state.State {
+// TestL1DevGenesisForgeMatchesGoHost does the same for the L1 dev genesis that sysgo builds.
+func TestL1DevGenesisForgeMatchesGoHost(t *testing.T) {
+	applyL1DevGenesis := func(useScriptHost bool) *state.State {
+		opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
+		deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
+		intent.L1DevGenesisParams = &state.L1DevGenesisParams{
+			BlockParams: state.L1DevGenesisBlockParams{Timestamp: 1000},
+			Prefund:     map[common.Address]*hexutil.U256{deployerAddr: (*hexutil.U256)(uint256.NewInt(1e18))},
+		}
+		intent.GlobalDeployOverrides = map[string]any{"devFeatureBitmap": devfeatures.ZKDisputeGameFlag}
+		opts.UseScriptHost = useScriptHost
+		opts.DeployMockSP1Verifier = true
+		opts.AllowUnoptimizedContracts = true
+		require.NoError(t, deployer.ApplyL1DevGenesis(context.Background(), opts))
+		return st
+	}
+	goHost := applyL1DevGenesis(true)
+	forge := applyL1DevGenesis(false)
+	requireEqualAllocs(t, goHost.L1StateDump.Data.Accounts, forge.L1StateDump.Data.Accounts)
+	require.Equal(t, goHost.L1DevGenesis.ToBlock().Root(), forge.L1DevGenesis.ToBlock().Root())
+}
+
+func applyGenesis(t *testing.T, useScriptHost bool, mutate func(*testing.T, *state.Intent, *deployer.ApplyPipelineOpts)) *state.State {
 	opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
 	intent.L1DevGenesisParams = &state.L1DevGenesisParams{BlockParams: state.L1DevGenesisBlockParams{Timestamp: 1000}}
-	opts.UseForge = useForge
+	opts.UseScriptHost = useScriptHost
 	// A fixed salt, so that both runs deploy the chain contracts to the same addresses.
 	st.Create2Salt = common.Hash{0x5a}
 	if mutate != nil {

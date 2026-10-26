@@ -229,7 +229,7 @@ func TestCLIApplyMissingIntent(t *testing.T) {
 
 	runner.ExpectErrorContains(t, []string{
 		"apply",
-		"--deployment-target", "noop",
+		"--deployment-target", "genesis",
 		"--workdir", workDir,
 	}, nil, "failed to read intent file")
 }
@@ -249,7 +249,7 @@ func TestCLIApplyMissingState(t *testing.T) {
 
 	runner.ExpectErrorContains(t, []string{
 		"apply",
-		"--deployment-target", "noop",
+		"--deployment-target", "genesis",
 		"--workdir", workDir,
 	}, nil, "failed to read state file")
 }

@@ -38,17 +38,13 @@ type Client struct {
 	Wd     string
 	// Timeout bounds each forge invocation. Zero means no limit.
 	Timeout time.Duration
-	// SlowBroadcast adds --slow to broadcast script runs, sending transactions
-	// sequentially so forge never waits on a receipt for a transaction that
-	// raced an in-flight one out of the node's pool.
-	SlowBroadcast bool
 	// Env holds environment variables, in KEY=VALUE form, that each forge command gets in
 	// addition to the environment of this process.
 	Env []string
 }
 
-func NewStandardClient(workdir string) (*Client, error) {
-	forgeBinary, err := NewStandardBinary()
+func NewStandardClient(workdir string, binOpts ...StandardBinOpt) (*Client, error) {
+	forgeBinary, err := NewStandardBinary(binOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize forge binary: %w", err)
 	}
@@ -137,18 +133,56 @@ func (c *Client) Clean(ctx context.Context, opts ...string) error {
 	return c.execCmd(ctx, io.Discard, io.Discard, append([]string{"clean"}, opts...)...)
 }
 
+// compileCacheFile is forge's compile cache, relative to the project.
+const compileCacheFile = "cache/solidity-files-cache.json"
+
+// RunScript runs a script of the project, offline and without a compile: the project must hold the
+// compiled scripts and their compile cache. The run gets its own copy of the compile cache and its
+// own broadcast directory, so concurrent runs in one project write no shared file, and the run
+// leaves nothing in the project.
 func (c *Client) RunScript(ctx context.Context, script string, sig string, args []byte, opts ...string) (string, error) {
+	scratch, err := os.MkdirTemp("", "op-deployer-forge-")
+	if err != nil {
+		return "", fmt.Errorf("failed to create forge scratch directory: %w", err)
+	}
+	defer os.RemoveAll(scratch)
+	cacheDir := filepath.Join(scratch, "cache")
+	if err := copyCompileCache(filepath.Join(c.Wd, compileCacheFile), cacheDir); err != nil {
+		return "", err
+	}
+
 	buf := new(bytes.Buffer)
-	cliOpts := []string{"script"}
+	cliOpts := []string{"script", "--offline", "--cache-path", cacheDir}
 	cliOpts = append(cliOpts, opts...)
-	if c.SlowBroadcast && slices.Contains(opts, "--broadcast") {
+	// A broadcast sends one transaction at a time, and waits for its receipt before it sends the
+	// next. forge otherwise waits forever on the receipt of a transaction that raced an in-flight one
+	// out of the node's pool.
+	if slices.Contains(opts, "--broadcast") {
 		cliOpts = append(cliOpts, "--slow")
 	}
 	cliOpts = append(cliOpts, "--sig", sig, script, "0x"+hex.EncodeToString(args))
-	if err := c.execCmd(ctx, buf, io.Discard, cliOpts...); err != nil {
+	run := c.WithEnv("FOUNDRY_BROADCAST=" + filepath.Join(scratch, "broadcast"))
+	if err := run.execCmd(ctx, buf, io.Discard, cliOpts...); err != nil {
 		return "", fmt.Errorf("failed to execute forge script: %w", err)
 	}
+	if strings.Contains(buf.String(), "Compiler run successful") {
+		return "", fmt.Errorf("forge compiled the project in %s; its compile cache must be up to date", c.Wd)
+	}
 	return buf.String(), nil
+}
+
+func copyCompileCache(src string, dstDir string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return fmt.Errorf("failed to read the compile cache of the forge project: %w", err)
+	}
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create the compile cache directory: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dstDir, filepath.Base(src)), data, 0o644); err != nil {
+		return fmt.Errorf("failed to copy the compile cache: %w", err)
+	}
+	return nil
 }
 
 func (c *Client) VerifyContract(ctx context.Context, opts ...string) (string, error) {
@@ -203,36 +237,32 @@ type ScriptCallDecoder[O any] interface {
 	Decode(raw []byte) (O, error)
 }
 
-// ScriptCaller is a function that calls a forge script
-// Ouputs:
-// - Return value of the script (decoded into go type)
-// - Bool indicating if the script was recompiled (mostly used for testing)
-// - Error if the script fails to run
-type ScriptCaller[I any, O any] func(ctx context.Context, input I, opts ...string) (O, bool, error)
+// ScriptCaller calls a forge script and returns its decoded return value.
+type ScriptCaller[I any, O any] func(ctx context.Context, input I, opts ...string) (O, error)
 
 func NewScriptCaller[I any, O any](client *Client, script string, sig string, encoder ScriptCallEncoder[I], decoder ScriptCallDecoder[O]) ScriptCaller[I, O] {
-	return func(ctx context.Context, input I, opts ...string) (O, bool, error) {
+	return func(ctx context.Context, input I, opts ...string) (O, error) {
 		var out O
 		encArgs, err := encoder.Encode(input)
 		if err != nil {
-			return out, false, fmt.Errorf("failed to encode forge args: %w", err)
+			return out, fmt.Errorf("failed to encode forge args: %w", err)
 		}
 		rawOut, err := client.RunScript(ctx, script, sig, encArgs, opts...)
 		if err != nil {
-			return out, false, fmt.Errorf("failed to run forge script: %w", err)
+			return out, fmt.Errorf("failed to run forge script: %w", err)
 		}
 		sigilMatches := sigilRegexp.FindAllStringSubmatch(rawOut, -1)
 		if len(sigilMatches) != 1 || len(sigilMatches[0]) != 2 {
-			return out, false, fmt.Errorf("failed to find forge return value in output:\n%s", rawOut)
+			return out, fmt.Errorf("failed to find forge return value in output:\n%s", rawOut)
 		}
 		decoded, err := hex.DecodeString(sigilMatches[0][1])
 		if err != nil {
-			return out, false, fmt.Errorf("failed to decode forge return value %s: %w", sigilMatches[0][1], err)
+			return out, fmt.Errorf("failed to decode forge return value %s: %w", sigilMatches[0][1], err)
 		}
 		out, err = decoder.Decode(decoded)
 		if err != nil {
-			return out, false, fmt.Errorf("failed to decode forge output: %w", err)
+			return out, fmt.Errorf("failed to decode forge output: %w", err)
 		}
-		return out, strings.Contains(rawOut, "Compiler run successful!"), nil
+		return out, nil
 	}
 }

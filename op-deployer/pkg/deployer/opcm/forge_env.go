@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 )
 
@@ -14,6 +16,9 @@ type ForgeEnv struct {
 	Context    context.Context
 	L1RPCUrl   string
 	PrivateKey string
+	// UnlockedSender, when set, sends the transactions from this account of the RPC node, which
+	// must be unlocked, as on an anvil fork. PrivateKey is then not used.
+	UnlockedSender common.Address
 	// Genesis is the L1 state of a genesis deployment. When it is set, the scripts run on it offline.
 	Genesis *GenesisState
 }
@@ -43,7 +48,7 @@ func runScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I
 	if env.Genesis != nil {
 		err := env.Genesis.run(env.Client, broadcast, func(client *forge.Client, flags []string) error {
 			var err error
-			out, _, err = newCaller(client)(ctx, input, flags...)
+			out, err = newCaller(client)(ctx, input, flags...)
 			return err
 		})
 		return out, err
@@ -53,12 +58,15 @@ func runScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I
 		return out, errors.New("L1 RPC URL is required for Forge deployments")
 	}
 	flags := []string{"--rpc-url", env.L1RPCUrl}
-	if broadcast {
-		if env.PrivateKey == "" {
-			return out, errors.New("private key is required for Forge deployments")
-		}
+	switch {
+	case !broadcast:
+	case env.UnlockedSender != (common.Address{}):
+		flags = append(flags, "--broadcast", "--unlocked", "--sender", env.UnlockedSender.Hex())
+	case env.PrivateKey != "":
 		flags = append(flags, "--broadcast", "--private-key", env.PrivateKey)
+	default:
+		return out, errors.New("private key is required for Forge deployments")
 	}
-	out, _, err := newCaller(env.Client)(ctx, input, flags...)
+	out, err := newCaller(env.Client)(ctx, input, flags...)
 	return out, err
 }

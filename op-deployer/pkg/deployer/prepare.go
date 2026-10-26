@@ -7,12 +7,10 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -193,20 +191,16 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 	st.ImplementationsDeployment = impls
 
-	l1Host, err := env.DefaultForkedScriptHost(
-		ctx,
-		broadcaster.NoopBroadcaster(),
-		cfg.Logger,
-		deployer,
-		bundle.L1,
-		l1RPC,
-	)
+	forgeClient, err := opcm.NewForgeClient(bundle.L1, cfg.CacheDir, prepareForgeScripts)
 	if err != nil {
-		return fmt.Errorf("failed to create forked L1 script host: %w", err)
+		return err
 	}
-
 	superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
-		&pipeline.Env{Logger: cfg.Logger, L1ScriptHost: l1Host},
+		&pipeline.Env{
+			Logger:  cfg.Logger,
+			Forge:   &opcm.ForgeEnv{Client: forgeClient, Context: ctx, L1RPCUrl: cfg.L1RPCUrl},
+			Context: ctx,
+		},
 		opcmAddr,
 		*intent.SuperchainConfigProxy,
 	)
@@ -216,9 +210,18 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	st.SuperchainDeployment = superDeployment
 	st.SuperchainRoles = superRoles
 
-	deployScript, err := opcm.NewDeployOPChainScript(l1Host)
+	// Predict the addresses by deploying the chains on a fork of L1, one after another.
+	fork, err := startL1Fork(ctx, l1Client, cfg.L1RPCUrl, deployer, forgeClient, cfg.CacheDir)
 	if err != nil {
-		return fmt.Errorf("failed to load DeployOPChain script: %w", err)
+		return fmt.Errorf("failed to fork L1 for the address prediction: %w", err)
+	}
+	defer func() {
+		if err := fork.stop(); err != nil {
+			cfg.Logger.Warn("failed to stop the L1 fork", "err", err)
+		}
+	}()
+	predict := func(dci opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		return opcm.DeployOPChainViaForge(fork.forge, dci)
 	}
 
 	// Fetch safe block once, so all unpinned chains without an override share one anchor.
@@ -232,7 +235,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return selectAnchorBlock(ctx, l1RPC, safe, overrideHash)
 	}
 
-	if err := prepareChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor, safe, cfg.GenesisTimeOffset); err != nil {
+	if err := prepareChains(cfg.Logger, intent, st, predict, selectAnchor, safe, cfg.GenesisTimeOffset); err != nil {
 		return err
 	}
 	st.PreparedDeployment, err = pipeline.NewPreparedDeployment(intent, st, deployer, opcmAddr, bundle)
@@ -241,8 +244,12 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 
 	// Build L2 genesis from the addresses and genesis time just committed.
+	l2Forge, err := opcm.NewForgeClient(bundle.L2, cfg.CacheDir, opcm.L2ForgeScripts)
+	if err != nil {
+		return fmt.Errorf("failed to create L2 Forge client: %w", err)
+	}
 	genesisEnv := &pipeline.Env{
-		Logger: cfg.Logger, Deployer: deployer,
+		Logger: cfg.Logger, Deployer: deployer, Context: ctx, L2Forge: l2Forge,
 		AllowUnoptimizedContracts: cfg.AllowUnoptimizedContracts,
 	}
 	if err := generateGenesisForChains(genesisEnv, intent, bundle, st); err != nil {
@@ -262,6 +269,12 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 }
 
 // Validate the dependency set before mutating chain state.
+// prepareForgeScripts are the scripts that prepare runs.
+var prepareForgeScripts = []opcm.ForgeScript{
+	{File: "ReadSuperchainDeployment.s.sol", Contract: "ReadSuperchainDeployment"},
+	{File: "DeployOPChain.s.sol", Contract: "DeployOPChain"},
+}
+
 func prepareChains(
 	lgr log.Logger,
 	intent *state.Intent,

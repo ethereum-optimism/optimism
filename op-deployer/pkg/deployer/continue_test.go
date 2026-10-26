@@ -91,7 +91,6 @@ func TestContinueFlagsExcludeDeploymentSelectors(t *testing.T) {
 			flagNames[name] = true
 		}
 	}
-	require.False(t, flagNames[UseForgeFlagName])
 	require.False(t, flagNames[DeploymentTargetFlag.Name])
 	require.False(t, flagNames[GenesisTimeOffsetFlagName])
 	require.Equal(t, map[string]bool{

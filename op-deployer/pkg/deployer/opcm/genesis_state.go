@@ -118,7 +118,6 @@ func (g *GenesisState) run(client *forge.Client, writes bool, fn func(client *fo
 		env = append(env, "OP_DEPLOYER_STATE_OUT="+stateOut, "OP_DEPLOYER_SENDER_OUT="+senderOut)
 	}
 	flags := []string{
-		"--offline",
 		"--sender", g.Sender.Hex(),
 		"--chain", strconv.Itoa(genesisChainID),
 		"--block-number", "0",

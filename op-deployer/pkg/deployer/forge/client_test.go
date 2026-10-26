@@ -40,7 +40,8 @@ func TestMinimalSources(t *testing.T) {
 	require.NoError(t, copyDir("testdata/testproject/script", path.Join(tmpDir, "script")))
 	require.NoError(t, copyDir("testdata/testproject/foundry.toml", path.Join(tmpDir, "foundry.toml")))
 
-	// Then see if we can successfully run a script
+	// Then see if we can successfully run a script. It must not recompile, since we included the
+	// cache.
 	cl.Wd = tmpDir
 	caller := NewScriptCaller(
 		cl,
@@ -49,22 +50,21 @@ func TestMinimalSources(t *testing.T) {
 		&BytesScriptEncoder[ioStruct]{TypeName: "ioStruct"},
 		&BytesScriptDecoder[ioStruct]{TypeName: "ioStruct"},
 	)
-	// It should not recompile since we included the cache.
 	in := ioStruct{
 		ID:    1,
 		Data:  []byte{0x01, 0x02, 0x03, 0x04},
 		Slice: []uint32{0x01, 0x02, 0x03, 0x04},
 		Array: [3]uint64{0x01, 0x02, 0x03},
 	}
-	out, changed, err := caller(ctx, in)
+	out, err := caller(ctx, in)
 	require.NoError(t, err)
-	require.False(t, changed)
 	require.EqualValues(t, ioStruct{
 		ID:    2,
 		Data:  in.Data,
 		Slice: in.Slice,
 		Array: in.Array,
 	}, out)
+	require.NoDirExists(t, path.Join(tmpDir, "broadcast"), "the run must leave nothing in the project")
 }
 
 // TestClient_Smoke smoke tests the Client by running the Version command on it.
@@ -111,24 +111,52 @@ func TestScriptCaller(t *testing.T) {
 		Slice: []uint32{0x01, 0x02, 0x03, 0x04},
 		Array: [3]uint64{0x01, 0x02, 0x03},
 	}
-	out, recompiled, err := caller(context.Background(), in)
+	_, err := caller(ctx, in)
+	require.ErrorContains(t, err, "compile cache", "a cleaned project has no compile cache")
+
+	require.NoError(t, cl.Build(ctx))
+	out, err := caller(ctx, in)
 	require.NoError(t, err)
-	require.True(t, recompiled)
 	require.EqualValues(t, ioStruct{
 		ID:    2,
 		Data:  in.Data,
 		Slice: in.Slice,
 		Array: in.Array,
 	}, out)
-	out, recompiled, err = caller(context.Background(), in)
-	require.NoError(t, err)
-	require.False(t, recompiled)
-	require.EqualValues(t, ioStruct{
-		ID:    2,
-		Data:  in.Data,
-		Slice: in.Slice,
-		Array: in.Array,
-	}, out)
+}
+
+func TestScriptCaller_RejectsCompile(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// A project whose compile cache does not match its sources makes forge compile.
+	tmpDir := t.TempDir()
+	cl := NewClient(PathBinary())
+	cl.Wd = projDir(t)
+	require.NoError(t, cl.Build(ctx))
+	require.NoError(t, copyDir("testdata/testproject/script", path.Join(tmpDir, "script")))
+	require.NoError(t, copyDir("testdata/testproject/foundry.toml", path.Join(tmpDir, "foundry.toml")))
+	require.NoError(t, copyDir("testdata/testproject/cache", path.Join(tmpDir, "cache")))
+	cl.Wd = tmpDir
+
+	caller := NewScriptCaller(
+		cl,
+		"script/Test.s.sol:TestScript",
+		"runWithBytes(bytes)",
+		&BytesScriptEncoder[ioStruct]{TypeName: "ioStruct"},
+		&BytesScriptDecoder[ioStruct]{TypeName: "ioStruct"},
+	)
+	_, err := caller(ctx, ioStruct{ID: 1})
+	require.ErrorContains(t, err, "forge compiled the project")
+}
+
+// stubProject returns a project directory with a compile cache, for script runs with a stub forge.
+func stubProject(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "cache"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, compileCacheFile), []byte("{}"), 0o644))
+	return dir
 }
 
 // stubBinary writes an executable shell script and returns it as a Binary.
@@ -163,20 +191,18 @@ func TestClient_TimeoutUnblocksHungCommand(t *testing.T) {
 func TestClient_SlowBroadcast(t *testing.T) {
 	tests := []struct {
 		name     string
-		slow     bool
 		opts     []string
 		wantSlow bool
 	}{
-		{name: "broadcast with slow", slow: true, opts: []string{"--broadcast"}, wantSlow: true},
-		{name: "read-only with slow", slow: true, opts: nil, wantSlow: false},
-		{name: "broadcast without slow", slow: false, opts: []string{"--broadcast"}, wantSlow: false},
+		{name: "broadcast", opts: []string{"--broadcast"}, wantSlow: true},
+		{name: "read-only", opts: nil, wantSlow: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cl := NewClient(stubBinary(t, `echo "$@"`))
+			cl.Wd = stubProject(t)
 			cl.Stdout = io.Discard
-			cl.SlowBroadcast = tt.slow
 
 			out, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil, tt.opts...)
 			require.NoError(t, err)
@@ -187,6 +213,7 @@ func TestClient_SlowBroadcast(t *testing.T) {
 
 func TestClient_WithEnv(t *testing.T) {
 	base := NewClient(stubBinary(t, `echo "A=$OP_DEPLOYER_TEST_A B=$OP_DEPLOYER_TEST_B"`))
+	base.Wd = stubProject(t)
 	base.Stdout = io.Discard
 	base = base.WithEnv("OP_DEPLOYER_TEST_A=1")
 	withB := base.WithEnv("OP_DEPLOYER_TEST_B=2")
