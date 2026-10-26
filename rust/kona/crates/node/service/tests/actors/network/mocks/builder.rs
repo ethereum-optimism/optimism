@@ -38,6 +38,12 @@ pub(crate) struct TestNetworkBuilder {
     /// The keypair for the next node built, if it must not be random.
     custom_keypair: Option<Keypair>,
     /// Whether nodes gossip over the in-memory transport instead of TCP.
+    ///
+    /// Discovery still runs over UDP on localhost, but it cannot connect in-memory nodes: their
+    /// ENRs only advertise IP and TCP, which the memory transport cannot dial, and nodes connected
+    /// directly over gossip are never added to each other's discovery tables. So build in-memory
+    /// nodes without bootnodes and connect them explicitly. That makes them fast to test manually
+    /// configured networks with, where discovery finds nobody.
     in_memory: bool,
 }
 
@@ -58,7 +64,7 @@ impl TestNetworkBuilder {
     }
 
     /// Makes the nodes built from now on gossip over the in-memory transport, listening on a free
-    /// `/memory` port. Discovery still uses UDP on localhost.
+    /// `/memory` port. See the `in_memory` field for how this interacts with discovery.
     pub(crate) const fn in_memory(mut self) -> Self {
         self.in_memory = true;
         self
