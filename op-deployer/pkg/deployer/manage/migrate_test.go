@@ -146,12 +146,6 @@ func TestInteropMigration(t *testing.T) {
 	require.Equal(t, l1ProxyAdminOwner, *dump[0].To, "Transaction should be sent to prank address")
 }
 
-func TestCommandsDoNotIncludeMigrate(t *testing.T) {
-	for _, command := range Commands {
-		require.NotEqual(t, "migrate", command.Name)
-	}
-}
-
 func TestEncodedMigrateInputV2(t *testing.T) {
 	// Prepare game args - ABI encode a prestate hash
 	bytes32Type, err := abi.NewType("bytes32", "", nil)

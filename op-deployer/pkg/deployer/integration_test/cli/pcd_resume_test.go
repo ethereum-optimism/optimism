@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -356,7 +356,7 @@ func newPCDResumeJourney(t *testing.T, boundary pcdResumeBoundary, prestate comm
 	t.Helper()
 	journey := newPCDJourneyFixture(t, []common.Hash{uint256.NewInt(1).Bytes32()})
 	journey.bootstrapOPCM()
-	journey.runInit(embedded.GameTypeSuperCannonKona)
+	journey.runInit(opcm.GameTypeSuperCannonKona)
 	if boundary >= pcdAfterPrepare {
 		journey.runPrepare()
 	}
@@ -502,8 +502,8 @@ func requirePCDSingletonCompletion(
 			portal:                        preparedChain.OptimismPortalProxy,
 			disputeGameFactory:            preparedChain.DisputeGameFactoryProxy,
 			anchorStateRegistry:           preparedChain.AnchorStateRegistryProxy,
-			respectedGameType:             embedded.GameTypeSuperCannonKona,
-			fallbackGameType:              embedded.GameTypeSuperPermissioned,
+			respectedGameType:             opcm.GameTypeSuperCannonKona,
+			fallbackGameType:              opcm.GameTypeSuperPermissioned,
 			respectedGameImplementation:   preparedChain.FaultDisputeGameImpl,
 			fallbackGameImplementation:    preparedChain.PermissionedDisputeGameImpl,
 			respectedGameAbsolutePrestate: prestate,

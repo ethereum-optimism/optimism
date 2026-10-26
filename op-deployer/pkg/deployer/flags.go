@@ -89,7 +89,7 @@ var (
 	}
 	DeploymentTargetFlag = &cli.StringFlag{
 		Name:    "deployment-target",
-		Usage:   fmt.Sprintf("Where to deploy L1 contracts. Options: %s, %s, %s, %s", DeploymentTargetLive, DeploymentTargetGenesis, DeploymentTargetCalldata, DeploymentTargetNoop),
+		Usage:   fmt.Sprintf("Where to deploy L1 contracts. Options: %s, %s", DeploymentTargetLive, DeploymentTargetGenesis),
 		EnvVars: PrefixEnvVar("DEPLOYMENT_TARGET"),
 		Value:   string(DeploymentTargetLive),
 	}

@@ -12,11 +12,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -165,7 +165,7 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 	intent.SuperchainRoles = nil
 	intent.OPCMAddress = &impls.OpcmV2
 	intent.SuperchainConfigProxy = &bstrap.SuperchainConfigProxy
-	intent.Chains[0].DeployOverrides = map[string]any{"respectedGameType": embedded.GameTypeSuperCannonKona}
+	intent.Chains[0].DeployOverrides = map[string]any{"respectedGameType": opcm.GameTypeSuperCannonKona}
 	preparedWorkdir := t.TempDir()
 	require.NoError(t, intent.WriteToFile(filepath.Join(preparedWorkdir, "intent.toml")))
 	require.NoError(t, pipeline.WriteState(preparedWorkdir, st))
