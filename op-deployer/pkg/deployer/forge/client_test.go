@@ -41,8 +41,7 @@ func TestMinimalSources(t *testing.T) {
 	require.NoError(t, copyDir("testdata/testproject/script", path.Join(tmpDir, "script")))
 	require.NoError(t, copyDir("testdata/testproject/foundry.toml", path.Join(tmpDir, "foundry.toml")))
 
-	// Then see if we can successfully run a script. It must not recompile, since we included the
-	// cache.
+	// The run must not recompile, since the cache is included.
 	cl.Wd = tmpDir
 	caller := NewScriptCaller(
 		cl,
@@ -130,7 +129,7 @@ func TestScriptCaller_RejectsCompile(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// A project whose compile cache does not match its sources makes forge compile.
+	// A compile cache that does not match the sources makes forge compile.
 	tmpDir := t.TempDir()
 	cl := NewClient(PathBinary())
 	cl.Wd = projDir(t)
@@ -151,7 +150,7 @@ func TestScriptCaller_RejectsCompile(t *testing.T) {
 	require.ErrorContains(t, err, "forge compiled the project")
 }
 
-// stubProject returns a project directory with a compile cache, for script runs with a stub forge.
+// stubProject returns a project with a compile cache, for runs with a stub forge.
 func stubProject(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -214,9 +213,16 @@ func TestClient_SlowBroadcast(t *testing.T) {
 	}
 }
 
-// TestClient_RunScriptStopsOnCompile checks that a run stops when forge starts to compile, before
-// the script can broadcast.
+// TestClient_RunScriptStopsOnCompile checks that a run stops at the compile, before any broadcast.
 func TestClient_RunScriptStopsOnCompile(t *testing.T) {
+	// The stub's sleep can start before the kill and hold the output pipe; do not wait for it.
+	oldDelay := waitDelay
+	waitDelay = 100 * time.Millisecond
+	t.Cleanup(func() { waitDelay = oldDelay })
+	// A private slot pool, so that forge runs of other tests on the host do not count in the time.
+	oldSlots := runSlots
+	runSlots = &slotPool{dir: t.TempDir(), size: 1}
+	t.Cleanup(func() { runSlots = oldSlots })
 	broadcast := filepath.Join(t.TempDir(), "broadcast")
 	cl := NewClient(stubBinary(t, "echo 'Compiling 1 files with Solc 0.8.15'\nsleep 5\ntouch "+broadcast))
 	cl.Wd = stubProject(t)
@@ -229,8 +235,7 @@ func TestClient_RunScriptStopsOnCompile(t *testing.T) {
 	require.NoFileExists(t, broadcast)
 }
 
-// TestClient_LimitsConcurrentRuns checks that forge runs wait for a free slot, so that test suites
-// that start many pipelines in parallel do not run out of memory.
+// TestClient_LimitsConcurrentRuns checks that forge runs wait for a free slot.
 func TestClient_LimitsConcurrentRuns(t *testing.T) {
 	oldSlots := runSlots
 	runSlots = &slotPool{dir: t.TempDir(), size: 1}
@@ -289,8 +294,7 @@ contract Sandbox {
 `
 
 // TestClient_SandboxesScripts checks that a script can neither run commands nor read files outside
-// FsPermissions, even when the config of the project allows it. A contracts bundle is a forge
-// project, so its config is not trusted.
+// FsPermissions, whatever the project config allows.
 func TestClient_SandboxesScripts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -309,6 +313,16 @@ fs_permissions = [{ access = "read", path = "/" }]
 	cl.Stdout = io.Discard
 	cl.Stderr = io.Discard
 	require.NoError(t, cl.Build(ctx))
+	entries := func() []string {
+		des, err := os.ReadDir(dir)
+		require.NoError(t, err)
+		var names []string
+		for _, de := range des {
+			names = append(names, de.Name())
+		}
+		return names
+	}
+	before := entries()
 
 	_, err := cl.RunScript(ctx, "script/Sandbox.s.sol:Sandbox", "runFfi(bytes)", nil)
 	require.Error(t, err)
@@ -321,16 +335,11 @@ fs_permissions = [{ access = "read", path = "/" }]
 	require.NotContains(t, err.Error(), "forge compiled")
 	require.Contains(t, err.Error(), "not allowed")
 
-	entries, err := os.ReadDir(dir)
-	require.NoError(t, err)
-	for _, entry := range entries {
-		require.NotContains(t, entry.Name(), "op-deployer", "the run must remove its config")
-	}
+	require.Equal(t, before, entries(), "the runs must leave nothing in the project")
 }
 
-// TestClient_ForgeEnvironment checks that forge inherits only the variables it needs from the
-// environment of op-deployer. A script can read the environment, and FOUNDRY_*, DAPP_* and ETH_*
-// variables configure forge, which could make a run compile or run against another chain.
+// TestClient_ForgeEnvironment checks that script runs inherit only the variables they need: a script
+// can read the environment, and FOUNDRY_*, DAPP_* and ETH_* variables configure forge.
 func TestClient_ForgeEnvironment(t *testing.T) {
 	t.Setenv("FOUNDRY_OPTIMIZER_RUNS", "1")
 	t.Setenv("DAPP_LIBRARIES", "x")
@@ -345,6 +354,32 @@ func TestClient_ForgeEnvironment(t *testing.T) {
 	out, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
 	require.NoError(t, err)
 	require.Equal(t, "runs= libs= rpc= key= proxy=http://proxy home=set broadcast=set\n", out, "the client's own variables reach forge")
+}
+
+// TestClient_BuildEnvironment checks that a build gets inheritedEnv too: a FOUNDRY_* setting would
+// make the build differ from the one that a script run checks against.
+func TestClient_BuildEnvironment(t *testing.T) {
+	t.Setenv("FOUNDRY_EVM_VERSION", "paris")
+	out := new(bytes.Buffer)
+	cl := NewClient(stubBinary(t, `echo "evm=$FOUNDRY_EVM_VERSION"`))
+	cl.Wd = stubProject(t)
+	cl.Stdout = out
+
+	require.NoError(t, cl.Build(context.Background()))
+	require.Equal(t, "evm=\n", out.String())
+}
+
+// TestClient_VerifyContractEnvironment checks that verify-contract gets the full environment: forge
+// reads its API key from ETHERSCAN_API_KEY.
+func TestClient_VerifyContractEnvironment(t *testing.T) {
+	t.Setenv("ETHERSCAN_API_KEY", "secret")
+	cl := NewClient(stubBinary(t, `echo "key=${ETHERSCAN_API_KEY:+set}"`))
+	cl.Wd = stubProject(t)
+	cl.Stdout = io.Discard
+
+	out, err := cl.VerifyContract(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "key=set\n", out)
 }
 
 func TestClient_WithEnv(t *testing.T) {

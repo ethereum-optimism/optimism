@@ -23,7 +23,7 @@ forge-build *ARGS:
   @# Forge build compiles only the src/ graph; the scripts/ graph is compiled by `forge script`.
   @# On the first invocation, `forge script` may compile a small set of dependencies.
   @# To avoid paying this cost in every CI test, we pre‑warm the script cache once here. op-deployer
-  @# runs the scripts offline and fails if forge compiles, so its contracts bundles need this step.
+  @# never compiles, so its bundles need this step.
   @#
   @# Notes:
   @# - A single `forge script <any script> --skip-simulation` is sufficient to compile the script
@@ -38,6 +38,9 @@ forge-build *ARGS:
     --sig "idonotexist()" \
     --skip-simulation \
     2>/dev/null || true
+  @# The warm-up always fails (no such function), so check that a second run compiles nothing.
+  @out=$(forge script "scripts/deploy/Deploy.s.sol" --skip "/**/test/**" --sig "idonotexist()" --skip-simulation 2>&1 || true); \
+    case "$out" in *"No files changed, compilation skipped"*) ;; *) echo "$out" >&2; echo "the forge script cache is not warm" >&2; exit 1;; esac
 
 # Developer build command (faster).
 forge-build-dev *ARGS:
@@ -49,8 +52,8 @@ build-source:
 
 # Builds source contracts and scripts, skipping tests.
 build-no-tests:
-  @# op-deployer runs the scripts and never compiles. The skip leaves out the test/mocks that the
-  @# scripts import, so compile the scripts too; forge-build then warms the script cache.
+  @# The skip leaves out the test/mocks that the scripts import, so compile the scripts too, and
+  @# warm the script cache: op-deployer never compiles.
   forge build --skip "/**/test/**"
   forge build scripts
   just forge-build --skip "/**/test/**"

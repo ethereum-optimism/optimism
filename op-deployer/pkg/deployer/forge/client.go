@@ -20,7 +20,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// waitDelay bounds how long execCmd waits for the output pipes to close after
+// waitDelay bounds how long execWithEnv waits for the output pipes to close after
 // forge exits or its context is canceled, so a killed forge whose children
 // still hold the pipes cannot block Wait forever. Variable to allow tests to
 // shorten it.
@@ -41,13 +41,11 @@ type Client struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Wd     string
-	// FsPermissions, when not nil, replaces the file access that the config of the project gives
-	// scripts.
+	// FsPermissions, when not nil, replaces the fs_permissions of the project config.
 	FsPermissions []FsPermission
 	// Timeout bounds each forge invocation. Zero means no limit.
 	Timeout time.Duration
-	// Env holds environment variables, in KEY=VALUE form, that each forge command gets in
-	// addition to the environment of this process.
+	// Env holds KEY=VALUE variables for each forge command, on top of the inherited environment.
 	Env []string
 }
 
@@ -101,8 +99,7 @@ func NewStandardClient(workdir string, binOpts ...StandardBinOpt) (*Client, erro
 	return forgeClient, nil
 }
 
-// NewClient returns a client that runs binary. The output of forge goes to stderr, because a
-// command of op-deployer can write its result to stdout.
+// NewClient returns a client for binary. forge output goes to stderr; stdout is for results.
 func NewClient(binary Binary) *Client {
 	return &Client{
 		Binary: binary,
@@ -111,7 +108,7 @@ func NewClient(binary Binary) *Client {
 	}
 }
 
-// WithEnv returns a copy of the client that also sets the given KEY=VALUE environment variables.
+// WithEnv returns a copy of the client with the given KEY=VALUE variables added.
 func (c *Client) WithEnv(env ...string) *Client {
 	cp := *c
 	cp.Env = append(slices.Clone(c.Env), env...)
@@ -151,11 +148,9 @@ type FsPermission struct {
 // compileCacheFile is forge's compile cache, relative to the project.
 const compileCacheFile = "cache/solidity-files-cache.json"
 
-// RunScript runs a script of the project without a compile: the project must hold the sources, the
-// compiled scripts and their compile cache. The run is not --offline: offline, forge requires the
-// solc versions of the cache installed even when it compiles nothing. The run gets its own copy of
-// the compile cache and its own broadcast directory, so concurrent runs in one project write no
-// shared file, and the run leaves nothing in the project.
+// RunScript runs a prebuilt script without a compile. Not --offline: offline, forge requires the solc
+// versions of the cache installed even when it compiles nothing. Each run gets its own copy of the
+// compile cache and its own broadcast directory, so concurrent runs write no shared file.
 func (c *Client) RunScript(ctx context.Context, script string, sig string, args []byte, opts ...string) (string, error) {
 	scratch, err := os.MkdirTemp("", "op-deployer-forge-")
 	if err != nil {
@@ -179,12 +174,10 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	buf := new(bytes.Buffer)
 	cliOpts := []string{"script", "--root", root, "--config-path", configPath, "--cache-path", cacheDir}
 	cliOpts = append(cliOpts, opts...)
-	// A broadcast sends one transaction at a time, and waits for its receipt before it sends the
-	// next. forge otherwise waits forever on the receipt of a transaction that raced an in-flight one
-	// out of the node's pool. As txmgr does, the gas limit of each transaction is the estimate of the
-	// node just before forge sends it: forge's own simulation does not know every fork of the L1
-	// (it underestimated a Glamsterdam L1), and the 30% that forge adds by default lifts the OPCM
-	// deployment over the per-transaction gas cap of Osaka (EIP-7825).
+	// --slow: forge otherwise waits forever on a receipt when the node drops one of several transactions
+	// sent at once. The node's gas estimate, as with txmgr: forge's own simulation does not know every
+	// L1 fork (it underestimated a Glamsterdam L1), and its default +30% lifts the OPCM deployment over
+	// the Osaka per-transaction gas cap (EIP-7825).
 	if slices.Contains(opts, "--broadcast") {
 		cliOpts = append(cliOpts, "--slow", "--skip-simulation", "--gas-estimate-multiplier", "100")
 	}
@@ -195,8 +188,7 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	}
 	defer release()
 	run := c.WithEnv("FOUNDRY_BROADCAST=" + filepath.Join(scratch, "broadcast"))
-	// forge compiles before it runs the script, so stopping it when the compile starts also stops it
-	// before any broadcast.
+	// forge compiles before it runs the script, so a stop at the compile precedes any broadcast.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	watcher := &compileWatcher{cancel: cancel}
@@ -219,11 +211,11 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 // compileStart is what forge prints when it starts to compile.
 var compileStart = []byte("Compiling ")
 
-// compileWatcher reads the output of forge and calls cancel when forge starts to compile.
+// compileWatcher calls cancel when forge starts to compile.
 type compileWatcher struct {
 	cancel   context.CancelFunc
 	compiled atomic.Bool
-	// tail holds the end of the previous write, so that a match can span two writes.
+	// tail lets a match span two writes.
 	tail []byte
 }
 
@@ -242,12 +234,10 @@ func (w *compileWatcher) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// sandboxConfig writes a copy of the config of the project at root into dir, and returns its path.
-// In the copy, scripts cannot run commands (ffi), and they get only FsPermissions when it is set. A
-// contracts bundle is a forge project, so its own config could let a script run commands or read the
-// files of the user. The copy sets root, because forge otherwise takes the project root from the
-// directory of the config and recompiles; forge warns that root is an unknown key, but uses it.
-// op-deployer runs the default profile: forge does not inherit FOUNDRY_PROFILE.
+// sandboxConfig writes a copy of the project config into dir, with ffi off and FsPermissions when
+// set: a contracts bundle is a forge project, so its config is not trusted. The copy sets root,
+// because forge otherwise takes the root from the config's directory and recompiles; forge warns
+// that root is unknown, but uses it. forge runs the default profile, not FOUNDRY_PROFILE.
 func (c *Client) sandboxConfig(root string, dir string) (string, error) {
 	config := make(map[string]any)
 	if _, err := toml.DecodeFile(filepath.Join(root, "foundry.toml"), &config); err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -299,13 +289,19 @@ func (c *Client) VerifyContract(ctx context.Context, opts ...string) (string, er
 	buf := new(bytes.Buffer)
 	cliOpts := []string{"verify-contract"}
 	cliOpts = append(cliOpts, opts...)
-	if err := c.execCmd(ctx, buf, buf, cliOpts...); err != nil {
+	// forge reads the verifier API key, such as ETHERSCAN_API_KEY, from its environment.
+	if err := c.execWithEnv(ctx, os.Environ(), buf, buf, cliOpts...); err != nil {
 		return buf.String(), fmt.Errorf("failed to verify contract: %w", err)
 	}
 	return buf.String(), nil
 }
 
 func (c *Client) execCmd(ctx context.Context, stdout io.Writer, stderr io.Writer, args ...string) error {
+	return c.execWithEnv(ctx, inheritedEnv(), stdout, stderr, args...)
+}
+
+// execWithEnv runs forge with env and c.Env.
+func (c *Client) execWithEnv(ctx context.Context, env []string, stdout io.Writer, stderr io.Writer, args ...string) error {
 	if c.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, c.Timeout)
@@ -332,24 +328,23 @@ func (c *Client) execCmd(ctx context.Context, stdout io.Writer, stderr io.Writer
 	cmd.Stdout = mwStdout
 	cmd.Stderr = mwStderr
 	cmd.Dir = c.Wd
-	cmd.Env = append(inheritedEnv(), c.Env...)
+	cmd.Env = append(env, c.Env...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to run forge command: %w", err)
 	}
 	return nil
 }
 
-// inheritedEnvNames are the variables of the environment of op-deployer that forge and anvil
-// inherit: what they need to run and to reach the network. A script can read the environment, which
-// can hold secrets, and FOUNDRY_*, DAPP_* and ETH_* variables configure forge, which could make a run
-// compile or run against another chain.
+// inheritedEnvNames are the variables that forge (except verify-contract) and anvil inherit: what
+// they need to run and to reach the network. A script can read the environment, and FOUNDRY_*,
+// DAPP_* and ETH_* variables could make a run compile or target another chain.
 var inheritedEnvNames = []string{
 	"PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL", "LC_CTYPE", "TZ",
 	"XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "SSL_CERT_FILE", "SSL_CERT_DIR",
 	"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy",
 }
 
-// inheritedEnv returns the inheritedEnvNames variables of the environment of op-deployer.
+// inheritedEnv returns the inheritedEnvNames variables of this process.
 func inheritedEnv() []string {
 	var env []string
 	for _, kv := range os.Environ() {

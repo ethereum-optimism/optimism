@@ -100,12 +100,9 @@ type continuationRunner struct {
 	l1Client   *ethclient.Client
 	deployer   common.Address
 	pinnedOPCM common.Address
-	artifacts  artifacts.Bundle
 
 	expectedNonce uint64
 	forgeClient   *forge.Client
-	// fork simulates the pending deployments, one after another.
-	fork *l1Fork
 }
 
 type continuationChain struct {
@@ -170,7 +167,6 @@ func (r *continuationRunner) run() error {
 	r.state = st
 	r.l1RPC = l1RPC
 	r.l1Client = l1Client
-	r.artifacts = bundle
 
 	if err := validateL1ChainID(r.ctx, l1RPC, st.PreparedDeployment.Intent); err != nil {
 		return err
@@ -392,8 +388,7 @@ func (r *continuationRunner) reconcileLiveChain(
 	return nil
 }
 
-// preflightAll simulates and validates every pending deployment on one fork of the L1 head, so that
-// each simulation sees the deployments before it.
+// preflightAll simulates all pending deployments on one L1 fork, so each sees the ones before it.
 func (r *continuationRunner) preflightAll(pending []continuationChain) error {
 	if len(pending) == 0 {
 		return nil
@@ -402,33 +397,32 @@ func (r *continuationRunner) preflightAll(pending []continuationChain) error {
 	if err != nil {
 		return fmt.Errorf("failed to start the continuation preflight: %w", err)
 	}
-	r.fork = fork
 	defer func() {
 		if err := fork.stop(); err != nil {
 			r.cfg.Logger.Warn("failed to stop the L1 fork", "err", err)
 		}
 	}()
 	for i := range pending {
-		if err := r.preflight(&pending[i]); err != nil {
+		if err := r.preflight(fork, &pending[i]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (r *continuationRunner) preflight(chain *continuationChain) error {
+func (r *continuationRunner) preflight(fork *l1Fork, chain *continuationChain) error {
 	env := &pipeline.Env{
 		StateWriter: pipeline.NoopStateWriter(),
 		Deployer:    r.deployer,
 		Logger:      r.cfg.Logger,
-		Forge:       r.fork.forge,
+		Forge:       fork.forge,
 		Context:     r.ctx,
 	}
 	result, err := pipeline.ExecuteOPChainDeployment(env, r.state, chain.id, chain.dci)
 	if err != nil {
 		return fmt.Errorf("continuation preflight failed for chain %s: %w", chain.id.Hex(), err)
 	}
-	captured, err := r.fork.transactions(r.ctx)
+	captured, err := fork.transactions(r.ctx)
 	if err != nil {
 		return fmt.Errorf("continuation preflight failed for chain %s: %w", chain.id.Hex(), err)
 	}
@@ -437,7 +431,7 @@ func (r *continuationRunner) preflight(chain *continuationChain) error {
 	}
 	if err := verifyContinuationDeployment(
 		r.ctx,
-		r.fork.client,
+		fork.client,
 		result.Contracts(),
 		&chain.expected,
 		chain.dci,
@@ -449,7 +443,7 @@ func (r *continuationRunner) preflight(chain *continuationChain) error {
 	return nil
 }
 
-// continuationForgeScripts are the scripts that the continuation preflight runs.
+// continuationForgeScripts are the scripts that the continue preflight runs.
 var continuationForgeScripts = []opcm.ForgeScript{
 	{File: "DeployOPChain.s.sol", Contract: "DeployOPChain"},
 	{File: "ReadImplementationAddresses.s.sol", Contract: "ReadImplementationAddresses"},
