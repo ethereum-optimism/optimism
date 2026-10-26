@@ -43,7 +43,7 @@ func TestSetDisputeGameImpl(t *testing.T) {
 	_, afs := testutil.LocalArtifacts(t)
 	client, err := NewForgeClient(afs, "", L1ForgeScripts)
 	require.NoError(t, err)
-	// OP Sepolia DGF owner, a Safe that holds no ETH to pay for gas on the fork.
+	// OP Sepolia DGF owner, a Safe with no ETH for gas.
 	owner := common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2")
 	forkClient, err := ethclient.DialContext(ctx, fork.RPCURL())
 	require.NoError(t, err)

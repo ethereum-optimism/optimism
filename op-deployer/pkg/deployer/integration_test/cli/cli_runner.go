@@ -123,7 +123,7 @@ func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]s
 	return string(output), err
 }
 
-// command returns the command that runs the CLI with args and env.
+// command builds the CLI command.
 func (r *CLITestRunner) command(ctx context.Context, args []string, env map[string]string) *exec.Cmd {
 	if len(args) > 0 && args[0] == "op-deployer" {
 		args = args[1:]
@@ -178,8 +178,7 @@ func (r *CLITestRunner) ExpectSuccessWithNetwork(t *testing.T, args []string, en
 	return output
 }
 
-// ExpectStdoutWithNetwork runs a command with network parameters, expects it to succeed, and
-// returns only its standard output.
+// ExpectStdoutWithNetwork is ExpectSuccessWithNetwork, but returns only stdout.
 func (r *CLITestRunner) ExpectStdoutWithNetwork(t *testing.T, args []string, env map[string]string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()

@@ -186,7 +186,7 @@ func shouldExclude(rel string, d os.DirEntry) bool {
 	if strings.HasPrefix(rel, "snapshots/") || rel == "snapshots" {
 		return true
 	}
-	// op-deployer keeps the genesis state files of its script runs there.
+	// op-deployer writes its genesis state files there.
 	if strings.HasPrefix(rel, ".op-deployer/") || rel == ".op-deployer" {
 		return true
 	}

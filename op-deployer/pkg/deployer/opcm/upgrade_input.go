@@ -34,7 +34,7 @@ var (
 	// This is used to encode the ZK dispute game config for the upgrade input
 	zkEncoder = w3.MustNewFunc("dummy((bytes32 absolutePrestate,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))", "")
 
-	// OPContractsManagerV2.upgrade, which takes the upgrade input
+	// upgradeFn is OPContractsManagerV2.upgrade.
 	upgradeFn = w3.MustNewFunc("upgrade((address systemConfig,(bool enabled,uint256 initBond,uint32 gameType,bytes gameArgs)[] disputeGameConfigs,(string key,bytes data)[] extraInstructions))",
 		"")
 )

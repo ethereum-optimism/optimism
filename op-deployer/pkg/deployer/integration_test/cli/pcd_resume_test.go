@@ -272,8 +272,8 @@ func TestCLIPCDResume(t *testing.T) {
 		latest, err := journey.l1Client.HeaderByNumber(t.Context(), nil)
 		require.NoError(t, err)
 		liveValidationBlock := new(big.Int).Add(latest.Number, big.NewInt(1))
-		// The deployment lands at N+1, where this validator rejects it. The preflight simulation also
-		// runs at N+1, but on an anvil fork that mines with another coinbase, so it passes.
+		// The deployment lands at N+1, where this validator rejects it. The preflight also runs at N+1,
+		// but on an anvil fork with another coinbase, so it passes.
 		require.NoError(t, journey.l1Client.Client().Call(nil, "anvil_setCoinbase", pcdLiveCoinbase))
 		setPCDAnvilCode(t, journey.l1Client, validator, pcdConditionalValidatorCode(liveValidationBlock))
 
@@ -552,8 +552,7 @@ func pcdValidatorResultCode(result string) []byte {
 	return append(code, byte(vm.PUSH1), returnSize, byte(vm.PUSH1), 0, byte(vm.RETURN))
 }
 
-// pcdLiveCoinbase follows liveCoinbase in
-// op-deployer/pkg/deployer/integration_test/continue_test.go.
+// pcdLiveCoinbase follows liveCoinbase in integration_test/continue_test.go.
 var pcdLiveCoinbase = common.Address{0x1c, 0x0b}
 
 // pcdConditionalValidatorCode follows conditionalValidatorCode in

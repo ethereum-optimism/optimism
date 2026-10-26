@@ -11,8 +11,7 @@ import { DeployState } from "scripts/libraries/DeployState.sol";
 /// @notice Sets all preinstalls in the VM state. There is no default "run()" entrypoint,
 /// as this is used in L2Genesis.s.sol, and by op-deployer for the L1 dev genesis.
 contract SetPreinstalls is Script {
-    /// @notice Sets the preinstalls on the state of a genesis deployment. It takes no input and
-    ///         returns nothing, and has the signature of the other op-deployer script entrypoints.
+    /// @notice Entrypoint of op-deployer: loads the genesis state, sets the preinstalls, dumps it.
     function runWithBytes(bytes memory) public returns (bytes memory) {
         DeployState.load();
         setPreinstalls();

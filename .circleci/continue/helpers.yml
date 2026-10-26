@@ -2,12 +2,9 @@
 # .circleci/scripts/merge-configs.sh). Defining them here once avoids
 # duplicating the definitions across main.yml and rust-e2e.yml.
 commands:
-  # op-deployer runs the deploy scripts with forge from packages/contracts-bedrock, and forge
-  # reads every source file, lib/ included, to check the compile cache of the prebuilt artifacts.
-  # Jobs that run op-deployer from the checkout through a file:// locator (op-e2e, sysgo, kona
-  # proof tests) need the contracts submodules next to the artifacts that they attach from
-  # contracts-bedrock-build. The embedded bundle holds its own lib/ and needs no checkout. The
-  # sources come from the top-level submodules only, so there is no --recursive.
+  # forge reads every source, lib/ included, to check the compile cache of the prebuilt artifacts.
+  # Jobs that run op-deployer from the checkout (op-e2e, sysgo, kona proof tests) need these
+  # submodules; the embedded bundle has its own lib/. Top-level submodules only, so no --recursive.
   checkout-contracts-lib:
     steps:
       - run:

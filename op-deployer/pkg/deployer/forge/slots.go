@@ -10,21 +10,20 @@ import (
 	"time"
 )
 
-// slotPool limits the forge runs on the host, across processes. A forge script loads every artifact
-// of the project, about 1.3 GB for contracts-bedrock, and test suites run many pipelines at once in
-// many processes. A slot is a lock on a file in dir, which the system frees when its holder exits.
+// slotPool limits forge runs host-wide: a script loads every artifact, about 1.3 GB for
+// contracts-bedrock. A slot is a file lock, freed by the system when its holder exits.
 type slotPool struct {
 	dir  string
 	size int
 }
 
-// runSlots allows one forge run per two CPUs of this process.
+// runSlots allows one forge run per two CPUs.
 var runSlots = &slotPool{
 	dir:  filepath.Join(os.TempDir(), fmt.Sprintf("op-deployer-forge-slots-%d", os.Getuid())),
 	size: max(1, runtime.GOMAXPROCS(0)/2),
 }
 
-// acquire waits for a free slot, and returns the function that frees it.
+// acquire waits for a free slot and returns its release function.
 func (p *slotPool) acquire(ctx context.Context) (func(), error) {
 	if err := os.MkdirAll(p.dir, 0o700); err != nil {
 		return nil, fmt.Errorf("failed to create the forge slot directory: %w", err)

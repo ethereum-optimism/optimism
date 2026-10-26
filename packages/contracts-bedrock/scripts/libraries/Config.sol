@@ -312,20 +312,17 @@ library Config {
         return vm.envString("NUT_BUNDLE_PATH");
     }
 
-    /// @notice Returns the file of the genesis state that an op-deployer script run loads, or an
-    ///         empty string outside a genesis deployment.
+    /// @notice Returns the genesis state file that an op-deployer script run loads, or "".
     function opDeployerStateIn() internal view returns (string memory) {
         return vm.envOr("OP_DEPLOYER_STATE_IN", string(""));
     }
 
-    /// @notice Returns the file to which an op-deployer script run dumps the genesis state, or an
-    ///         empty string when the run does not dump it.
+    /// @notice Returns the file to which an op-deployer script run dumps the genesis state, or "".
     function opDeployerStateOut() internal view returns (string memory) {
         return vm.envOr("OP_DEPLOYER_STATE_OUT", string(""));
     }
 
-    /// @notice Returns the file to which an op-deployer script run writes the nonce and balance of
-    ///         the script sender.
+    /// @notice Returns the file to which an op-deployer run writes the sender's nonce and balance.
     function opDeployerSenderOut() internal view returns (string memory) {
         return vm.envString("OP_DEPLOYER_SENDER_OUT");
     }

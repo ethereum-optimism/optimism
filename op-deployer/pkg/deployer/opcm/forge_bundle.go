@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 )
 
-// ForgeScript names a script that op-deployer runs with forge, by its artifact.
+// ForgeScript names a script by its artifact.
 type ForgeScript struct {
 	File     string
 	Contract string
@@ -38,10 +38,9 @@ var (
 	L2ForgeScripts = []ForgeScript{{"L2Genesis.s.sol", "L2Genesis"}}
 )
 
-// NewForgeClient returns a forge client for a contracts bundle. It first checks that the bundle is
-// a forge project with the runWithBytes entrypoints of the given scripts, which the bundle of an
-// older contracts release can lack. When the pinned forge version is not on PATH, it downloads it
-// to cacheDir, or to the default cache directory if cacheDir is empty.
+// NewForgeClient returns a forge client for a contracts bundle. It checks that the scripts have the
+// runWithBytes entrypoints, which an older contracts release lacks. forge is downloaded to cacheDir
+// (or the default cache directory) when the pinned version is not on PATH.
 func NewForgeClient(artifactsFS foundry.StatDirFs, cacheDir string, scripts []ForgeScript) (*forge.Client, error) {
 	if err := CheckForgeScripts(artifactsFS, scripts); err != nil {
 		return nil, err
@@ -65,7 +64,7 @@ func NewForgeClient(artifactsFS foundry.StatDirFs, cacheDir string, scripts []Fo
 	return client, nil
 }
 
-// CheckForgeScripts checks that the artifacts have the runWithBytes entrypoint of each script.
+// CheckForgeScripts checks that each script has a runWithBytes entrypoint.
 func CheckForgeScripts(artifactsFS foundry.StatDirFs, scripts []ForgeScript) error {
 	afs := &foundry.ArtifactsFS{FS: artifactsFS}
 	for _, script := range scripts {

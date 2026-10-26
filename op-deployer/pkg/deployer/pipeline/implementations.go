@@ -113,9 +113,9 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	return nil
 }
 
-// implementationsInput returns the input of the DeployImplementations script, or nil when the
-// implementations are already deployed. It selects the SP1 verifier, and checks the verifier of
-// reused implementations. A zero verifier with ZK dispute games enabled selects a genesis mock.
+// implementationsInput returns the DeployImplementations input, or nil when the implementations
+// are already deployed. It selects the SP1 verifier and checks the one of reused implementations;
+// zero with ZK games enabled means a genesis mock.
 func implementationsInput(env *Env, intent *state.Intent, st *state.State) (*opcm.DeployImplementationsInput, error) {
 	if env.DeployMockSP1Verifier && !env.IsGenesis {
 		return nil, fmt.Errorf("mock SP1 verifier deployment is only supported for genesis")

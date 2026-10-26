@@ -171,8 +171,8 @@ func (p *RetryProxy) doProxyReq(ctx context.Context, body []byte) (*http.Respons
 		return nil, err
 	}
 	status := res.StatusCode
-	// A client error, other than a rate limit, does not go away on a retry, so the client gets it at
-	// once. A node such as proxyd answers 403 for a method that it does not serve.
+	// A client error other than a rate limit does not go away on a retry; proxyd answers 403 for a
+	// method that it does not serve.
 	clientErr := status >= 400 && status < 500 && status != http.StatusTooManyRequests
 	if status != http.StatusOK && !clientErr {
 		res.Body.Close()

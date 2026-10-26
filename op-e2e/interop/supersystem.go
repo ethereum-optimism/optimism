@@ -87,7 +87,7 @@ type SuperSystemConfig struct {
 	L2ELKind services.ELKind
 }
 
-// NewSuperSystem creates a new SuperSystem with the chains of world. It creates an interopE2ESystem.
+// NewSuperSystem creates a SuperSystem with the chains of world.
 func NewSuperSystem(t *testing.T, world WorldConfig, config SuperSystemConfig) SuperSystem {
 	if config.L2ELKind == "" {
 		config.L2ELKind = services.DefaultELKind()
@@ -184,7 +184,6 @@ func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstan
 }
 
 // newOperatorKeysForL2 creates the operator keys for an L2 chain
-// it makes a key for each operator role [SequencerP2PRole, ProposerRole, BatcherRole]
 func (s *interopE2ESystem) newOperatorKeysForL2(chainID *big.Int) map[devkeys.ChainOperatorRole]ecdsa.PrivateKey {
 	operatorKeys := map[devkeys.ChainOperatorRole]ecdsa.PrivateKey{}
 	for _, role := range []devkeys.ChainOperatorRole{devkeys.SequencerP2PRole, devkeys.ProposerRole, devkeys.BatcherRole} {
@@ -203,8 +202,8 @@ func (s *interopE2ESystem) L2Genesis(network string) *opgenesis.Genesis {
 	return s.l2s[network].genesis
 }
 
-// prepareSupernode boots an op-supernode that owns one virtual op-node per L2 chain, and returns
-// its RPC URL. The L2 ELs must already be running so their engine RPC endpoints can be wired in.
+// prepareSupernode boots an op-supernode with one virtual op-node per L2 chain and returns its RPC
+// URL. The L2 ELs must already run: the supernode needs their engine endpoints.
 func (s *interopE2ESystem) prepareSupernode() string {
 	logger := testlog.Logger(s.t, log.LevelDebug).New("role", "supernode")
 

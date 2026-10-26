@@ -18,10 +18,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
-// DelegateCallWithSetCode runs a delegatecall to target with data in the context of the EOA of
-// privateKey. The EOA delegates its code to a new DelegateCallProxy with an EIP-7702 SetCode
-// transaction, which calls executeDelegateCall on the EOA itself. Thus the EOA can act as the owner
-// of contracts without a transfer of ownership to a temporary proxy.
+// DelegateCallWithSetCode delegatecalls target with data in the context of the EOA of privateKey:
+// an EIP-7702 SetCode transaction delegates the EOA to a DelegateCallProxy, so the EOA can act as
+// an owner without a transfer of ownership.
 func DelegateCallWithSetCode(ctx context.Context, client *ethclient.Client, privateKey *ecdsa.PrivateKey, target common.Address, data []byte) error {
 	sender := crypto.PubkeyToAddress(privateKey.PublicKey)
 	proxyAddr, err := deployDelegateCallProxy(ctx, client, privateKey, sender)
@@ -47,8 +46,7 @@ func DelegateCallWithSetCode(ctx context.Context, client *ethclient.Client, priv
 		txplan.WithTo(&sender),
 		txplan.WithAuthorizationTo(proxyAddr),
 		txplan.WithData(calldata),
-		// Fixed gas limit because eth_estimateGas doesn't handle EIP-7702 authorizations.
-		// Use the EIP-7825 max transaction gas limit to give the call maximum room.
+		// eth_estimateGas does not handle EIP-7702 authorizations, so use the EIP-7825 maximum.
 		txplan.WithGasLimit(params.MaxTxGas),
 		txplan.WithRetrySubmission(client, 5, retry.Exponential()),
 		txplan.WithRetryInclusion(txplan.FromGethReceipts(client), 10, retry.Exponential()),
@@ -63,7 +61,7 @@ func DelegateCallWithSetCode(ctx context.Context, client *ethclient.Client, priv
 	return nil
 }
 
-// deployDelegateCallProxy deploys the DelegateCallProxy that the EOA delegates its code to.
+// deployDelegateCallProxy deploys the proxy that the EOA delegates to.
 func deployDelegateCallProxy(ctx context.Context, client *ethclient.Client, privateKey *ecdsa.PrivateKey, owner common.Address) (common.Address, error) {
 	chainID, err := client.ChainID(ctx)
 	if err != nil {
@@ -78,7 +76,6 @@ func deployDelegateCallProxy(ctx context.Context, client *ethclient.Client, priv
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to deploy DelegateCallProxy: %w", err)
 	}
-	// Make sure the transaction actually got included rather than just being sent
 	if _, err := wait.ForReceiptOK(ctx, client, tx.Hash()); err != nil {
 		return common.Address{}, fmt.Errorf("DelegateCallProxy deployment tx was not included successfully: %w", err)
 	}

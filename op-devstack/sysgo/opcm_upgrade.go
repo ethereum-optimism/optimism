@@ -68,8 +68,7 @@ func l1ProxyAdminOwnerKey(t devtest.T, keys devkeys.Keys, l1ChainID eth.ChainID)
 	return key
 }
 
-// executeOPCMUpgrade calls OPContractsManagerV2.upgrade(input) on L1 as a SetCode delegatecall from
-// l1PAOKey, the L1 proxy-admin owner that the upgrade requires as caller.
+// executeOPCMUpgrade delegatecalls OPContractsManagerV2.upgrade from l1PAOKey through SetCode.
 func executeOPCMUpgrade(
 	t devtest.T,
 	client *ethclient.Client,

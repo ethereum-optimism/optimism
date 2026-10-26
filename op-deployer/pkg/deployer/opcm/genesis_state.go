@@ -18,25 +18,22 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
-// genesisStateDir holds the state files of the script runs, relative to the forge project. The
-// project's foundry.toml must give forge read-write access to it.
+// genesisStateDir holds the state files of the script runs, relative to the project; the sandbox
+// config gives forge read-write access to it.
 const genesisStateDir = ".op-deployer"
 
-// genesisChainID is the chain ID that the scripts of a genesis deployment see. It is not the L1
-// chain ID, to keep the L1 dev genesis that earlier op-deployer releases made: the Permit2 preinstall
-// depends on it.
+// genesisChainID is the chain ID that genesis scripts see. Not the L1 chain ID: the Permit2
+// preinstall depends on it, and earlier releases made the L1 dev genesis with 1337.
 const genesisChainID = 1337
 
-// GenesisState is the L1 state of a genesis deployment. op-deployer runs each deploy script offline,
-// in its own forge process. The script loads this state, and the state that it leaves replaces this
-// state.
+// GenesisState is the L1 state of a genesis deployment. Each script runs offline in its own forge
+// process: it loads this state, and the state it leaves replaces it.
 type GenesisState struct {
 	// Allocs holds the L1 accounts, the sender included.
 	Allocs *foundry.ForgeAllocs
 	// Sender sends the transactions of the scripts.
 	Sender common.Address
-	// NoCodeSizeLimit lets the scripts deploy contracts larger than the EIP-170 limit, such as the
-	// unoptimized contracts of the lite profile.
+	// NoCodeSizeLimit admits contracts over the EIP-170 limit, such as the lite profile's.
 	NoCodeSizeLimit bool
 }
 
@@ -44,9 +41,8 @@ type GenesisState struct {
 func NewGenesisState(sender common.Address, noCodeSizeLimit bool) *GenesisState {
 	return &GenesisState{
 		Allocs: &foundry.ForgeAllocs{Accounts: types.GenesisAlloc{
-			// forge keeps its own deployer code at this address, because the account has no code. The
-			// nonce starts at zero, not at the one of a deployed contract, to keep the L1 dev genesis
-			// that earlier op-deployer releases made.
+			// No code, so forge keeps its own CREATE2 deployer here. Nonce 0, not a contract's 1, keeps
+			// the L1 dev genesis of earlier releases.
 			predeploys.DeterministicDeploymentProxyAddr: {Balance: new(big.Int)},
 		}},
 		Sender:          sender,
@@ -71,8 +67,8 @@ func (g *GenesisState) Wipe(addr common.Address) {
 	g.normalize()
 }
 
-// Create puts a contract with the given runtime code at the next CREATE address of the sender, as a
-// deployment from the sender does. The contract must have no constructor logic and no immutables.
+// Create puts code at the sender's next CREATE address, as a deployment from the sender does. The
+// code must need no constructor and have no immutables.
 func (g *GenesisState) Create(code []byte) common.Address {
 	sender := g.account(g.Sender)
 	addr := crypto.CreateAddress(g.Sender, sender.Nonce)
@@ -90,8 +86,7 @@ func (g *GenesisState) account(addr common.Address) types.Account {
 	return acc
 }
 
-// run runs one forge script on the state. fn runs the script with the given client and flags.
-// When the script writes, the state that it leaves replaces this state.
+// run runs one script on the state through fn. With writes, the state it leaves replaces this one.
 func (g *GenesisState) run(client *forge.Client, writes bool, fn func(client *forge.Client, flags []string) error) error {
 	parent := filepath.Join(client.Wd, genesisStateDir)
 	if err := os.MkdirAll(parent, 0o700); err != nil {
@@ -106,8 +101,8 @@ func (g *GenesisState) run(client *forge.Client, writes bool, fn func(client *fo
 	stateIn := filepath.Join(dir, "in.json")
 	stateOut := filepath.Join(dir, "out.json")
 	senderOut := filepath.Join(dir, "sender.json")
-	// forge deploys the script contract from the sender, so the state always sets the sender, to
-	// undo the nonce that the script deployment used.
+	// forge deploys the script contract from the sender, so the state always holds the sender, to
+	// reset its nonce.
 	in := g.Allocs.Copy()
 	in.Accounts[g.Sender] = g.account(g.Sender)
 	if err := jsonutil.WriteJSON(in, ioutil.ToBasicFile(stateIn, 0o644)); err != nil {
@@ -159,7 +154,7 @@ func (g *GenesisState) run(client *forge.Client, writes bool, fn func(client *fo
 	return nil
 }
 
-// normalize removes what the EVM state does not keep: zero storage slots and empty accounts.
+// normalize drops zero storage slots and empty accounts, as the EVM does.
 func (g *GenesisState) normalize() {
 	for addr, acc := range g.Allocs.Accounts {
 		for slot, value := range acc.Storage {

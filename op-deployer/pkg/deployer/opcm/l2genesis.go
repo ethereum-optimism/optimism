@@ -66,7 +66,7 @@ func L2Genesis(
 	if _, err := broadcastScript(env, NewL2GenesisForgeCaller, input); err != nil {
 		return nil, fmt.Errorf("failed to generate the L2 genesis with Forge: %w", err)
 	}
-	// The script sends nothing from the deployer, and the deployer gets no L2 genesis account, also
+	// The script sends nothing from the deployer, so the deployer gets no L2 genesis account, even
 	// when it is a dev account that the script funds.
 	genesis.Wipe(deployer)
 	return genesis.Allocs, nil

@@ -37,11 +37,11 @@ type WorldConfig struct {
 	ContractArtifacts string
 }
 
-// devUserCount is the number of prefunded user accounts on each chain.
+// devUserCount is the number of prefunded users per chain.
 const devUserCount = 20
 
 var (
-	// devAccountFunds is the balance of each prefunded dev account.
+	// devAccountFunds is the balance of each prefunded account.
 	devAccountFunds = new(uint256.Int).Mul(uint256.NewInt(10_000_000), uint256.NewInt(params.Ether))
 
 	// konaAbsolutePrestate is the absolute prestate of the SUPER_CANNON_KONA game.
@@ -72,7 +72,7 @@ type disputeGameConfig struct {
 	GameArgs []byte
 }
 
-// prepareWorld deploys the superchain and the L2 chains into the L1 genesis with op-deployer.
+// prepareWorld deploys the superchain and the L2 chains into the L1 genesis.
 func (s *interopE2ESystem) prepareWorld(w WorldConfig) {
 	deployerKey, err := s.hdWallet.Secret(devkeys.SuperchainDeployerKey.Key(new(big.Int).SetUint64(w.L1ChainID)))
 	require.NoError(s.t, err)
@@ -91,8 +91,8 @@ func (s *interopE2ESystem) prepareWorld(w WorldConfig) {
 	s.l1Genesis = st.L1DevGenesis
 }
 
-// worldIntent returns the intent for the chains of w. The intent does not set the L1 genesis
-// timestamp, so op-deployer uses the time at which the deployment completes.
+// worldIntent returns the intent for w. Without an L1 genesis timestamp, op-deployer uses the time
+// at which the deployment completes.
 func (s *interopE2ESystem) worldIntent(w WorldConfig) *state.Intent {
 	artifactsDir, err := filepath.Abs(w.ContractArtifacts)
 	require.NoError(s.t, err)
@@ -133,13 +133,13 @@ func (s *interopE2ESystem) worldIntent(w WorldConfig) *state.Intent {
 
 	keyAddr := intentbuilder.KeyToAddrProvider(s.t, s.hdWallet)
 	l1Addr := intentbuilder.RoleToAddrProvider(s.t, s.hdWallet, l1ID)
-	// The migration runs as the ProxyAdmin owner of every chain, so one key owns all of them.
+	// One key owns every chain: the migration runs as their ProxyAdmin owner.
 	proxyAdminOwner := l1Addr(devkeys.SuperchainProxyAdminOwner)
 	_, superCfg := builder.WithSuperchain()
 	superCfg.WithProxyAdminOwner(proxyAdminOwner).
 		WithGuardian(l1Addr(devkeys.SuperchainConfigGuardianKey)).
 		WithChallenger(l1Addr(devkeys.ChallengerRole))
-	// The deployer is not prefunded: op-deployer wipes it from the genesis after the deployment.
+	// Not the deployer: op-deployer wipes it from the genesis.
 	for _, role := range []devkeys.Role{
 		devkeys.SuperchainProxyAdminOwner,
 		devkeys.SuperchainConfigGuardianKey,
@@ -182,9 +182,8 @@ func (s *interopE2ESystem) worldIntent(w WorldConfig) *state.Intent {
 	return intent
 }
 
-// migrateToInterop moves the chains to one dispute game factory that plays SUPER_CANNON_KONA games,
-// and returns that factory. The ProxyAdmin owner runs OPContractsManagerV2.migrate on the L1
-// through an EIP-7702 delegation.
+// migrateToInterop moves the chains to one dispute game factory for SUPER_CANNON_KONA games and
+// returns it. The ProxyAdmin owner runs OPContractsManagerV2.migrate through an EIP-7702 delegation.
 func (s *interopE2ESystem) migrateToInterop() common.Address {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()

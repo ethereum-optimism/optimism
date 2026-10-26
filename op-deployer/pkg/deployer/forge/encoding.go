@@ -205,17 +205,17 @@ func (e *BytesScriptEncoder[T]) Encode(input T) ([]byte, error) {
 	return args.Pack(input)
 }
 
-// None is the input of a script that takes none, or the output of a script that returns empty bytes.
+// None is the empty input or output of a script.
 type None struct{}
 
-// NoneEncoder encodes the empty input of a script that takes none.
+// NoneEncoder encodes None as no input.
 type NoneEncoder struct{}
 
 func (NoneEncoder) Encode(None) ([]byte, error) {
 	return nil, nil
 }
 
-// NoneDecoder decodes the empty return value of a script that has no output.
+// NoneDecoder decodes an empty return value.
 type NoneDecoder struct{}
 
 func (NoneDecoder) Decode(rawOutput []byte) (None, error) {

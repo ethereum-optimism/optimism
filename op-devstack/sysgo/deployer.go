@@ -668,8 +668,7 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 		genesis: wb.outL1Genesis, blockTime: 6,
 	}
 	l1EL, l1CL := startL1(l1Net)
-	// geth rejects receipt queries until its first transaction indexing pass is done, and forge
-	// gives up on a receipt after a few quick retries.
+	// geth rejects receipt queries until its first indexing pass; forge gives up after a few retries.
 	l1Client, err := ethclient.DialContext(wb.p.Ctx(), l1EL.UserRPC())
 	wb.require.NoError(err)
 	wb.require.NoError(geth.WaitUntilTransactionNotFound(l1Client, common.Hash{}, 30*time.Second))

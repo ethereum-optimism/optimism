@@ -170,8 +170,7 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 	})
 }
 
-// newSP1PlonkAdapterClient returns an L1 client on which each call returns verifier, as
-// SP1PlonkAdapter.sp1Verifier() does.
+// newSP1PlonkAdapterClient returns an L1 client whose every call returns verifier.
 func newSP1PlonkAdapterClient(t *testing.T, verifier common.Address) *ethclient.Client {
 	srv := rpc.NewServer()
 	require.NoError(t, srv.RegisterName("eth", &sp1PlonkAdapterAPI{verifier: verifier}))

@@ -212,7 +212,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	st.SuperchainDeployment = superDeployment
 	st.SuperchainRoles = superRoles
 
-	// Predict the addresses by deploying the chains on a fork of L1, one after another.
+	// Predict the addresses by deploying the chains, in order, on an L1 fork.
 	fork, err := startPredictionFork(ctx, l1Client, cfg.L1RPCUrl, deployer, forgeClient, cfg.CacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to fork L1 for the address prediction: %w", err)
@@ -276,8 +276,7 @@ var prepareForgeScripts = []opcm.ForgeScript{
 	{File: "DeployOPChain.s.sol", Contract: "DeployOPChain"},
 }
 
-// startPredictionFork starts the L1 fork on which prepare predicts the chain addresses. The
-// deployer can hold no ETH before continue, so the fork funds it.
+// startPredictionFork starts the prediction fork and funds the deployer, which may hold no ETH yet.
 func startPredictionFork(
 	ctx context.Context,
 	l1Client *ethclient.Client,

@@ -10,8 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 )
 
-// newTestGenesisEnv returns an env that runs the scripts of the local contracts offline, on an
-// empty genesis state.
+// newTestGenesisEnv returns an env that runs the local scripts offline on an empty genesis state.
 func newTestGenesisEnv(t *testing.T) *ForgeEnv {
 	t.Helper()
 	_, afs := testutil.LocalArtifacts(t)

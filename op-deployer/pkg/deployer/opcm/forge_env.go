@@ -21,29 +21,26 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 )
 
-// ForgeEnv runs the deploy scripts with forge, either against a live L1 or offline on the L1 state
-// of a genesis deployment.
+// ForgeEnv runs the deploy scripts with forge, against a live L1 or offline on a GenesisState.
 type ForgeEnv struct {
 	Client     *forge.Client
 	Context    context.Context
 	L1RPCUrl   string
 	PrivateKey string
-	// UnlockedSender, when set, sends the transactions from this account of the RPC node, which
-	// must be unlocked, as on an anvil fork. PrivateKey is then not used.
+	// UnlockedSender, when set, sends from this unlocked node account instead of PrivateKey.
 	UnlockedSender common.Address
-	// Genesis is the L1 state of a genesis deployment. When it is set, the scripts run on it offline.
+	// Genesis, when set, is the offline L1 state that the scripts run on.
 	Genesis *GenesisState
 }
 
 type newScriptCaller[I, O any] func(*forge.Client) forge.ScriptCaller[I, O]
 
-// broadcastScript runs a script that sends transactions. Against a live L1, forge broadcasts them. On
-// the state of a genesis deployment, the state that the script leaves replaces it.
+// broadcastScript runs a script that sends transactions, on the live L1 or on the genesis state.
 func broadcastScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I) (O, error) {
 	return runScript(env, newCaller, input, true)
 }
 
-// readScript runs a script that only reads the L1 state.
+// readScript runs a script that only reads.
 func readScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I) (O, error) {
 	return runScript(env, newCaller, input, false)
 }
@@ -93,20 +90,17 @@ func runScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I
 	return out, err
 }
 
-// minPriorityFee is the least priority fee that a broadcast offers, as the MinTipCap of op-deployer's
-// txmgr. forge takes a percentile of the tips in recent blocks, which is a few wei on an L1 with
-// empty blocks, and geth does not include a transaction with such a tip.
+// minPriorityFee is the tip floor, as txmgr's MinTipCap: forge's tip percentile is a few wei on an
+// L1 with empty blocks, and geth does not include such a transaction.
 var minPriorityFee = big.NewInt(params.GWei)
 
-// minBaseFee is the least base fee that the fee cap of a broadcast allows for, as the MinBaseFee of
-// op-deployer's txmgr. forge does not bump the fee of a stuck transaction, so on an L1 with a low
-// base fee the cap keeps room for a rise.
+// minBaseFee is the base fee floor of the fee cap, as txmgr's MinBaseFee: forge does not bump a
+// stuck transaction, so the cap keeps room for a rise.
 var minBaseFee = big.NewInt(params.GWei)
 
-// broadcastFees returns the priority fee and the fee cap of a broadcast to the L1 at rpcURL: the
-// suggested priority fee, but at least minPriorityFee, and a fee cap of twice the base fee, but at
-// least minBaseFee, plus the priority fee, as txmgr's calcGasFeeCap. forge's own fee cap is computed
-// from its own tip, so it can be below minPriorityFee.
+// broadcastFees returns the priority fee, at least minPriorityFee, and the fee cap, twice the base
+// fee (at least minBaseFee) plus the priority fee, as txmgr's calcGasFeeCap. forge's own fee cap
+// can be below minPriorityFee.
 func broadcastFees(ctx context.Context, rpcURL string) (*big.Int, *big.Int, error) {
 	client, err := ethclient.DialContext(ctx, rpcURL)
 	if err != nil {
@@ -135,9 +129,9 @@ func broadcastFees(ctx context.Context, rpcURL string) (*big.Int, *big.Int, erro
 	return tip, feeCap, nil
 }
 
-// forgeKeystore holds a deployer key for one forge run, in a keystore encrypted with a random
-// password, in a directory that only the user can read. So the key is never on the command line of
-// forge, which other users of the host can read.
+// forgeKeystore holds the deployer key for one run, in a keystore with a random password in a
+// directory only the user can read, so the key is never on forge's command line, which other users
+// of the host can read.
 type forgeKeystore struct {
 	dir          string
 	path         string

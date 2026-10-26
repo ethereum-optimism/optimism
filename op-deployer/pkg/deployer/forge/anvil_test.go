@@ -38,7 +38,7 @@ func TestStartFork(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, devnet.DefaultChainID, bigs.Uint64Strict(chainID))
 
-	// The fork sends from a funded account of the source chain without its key.
+	// A funded source account sends on the fork without its key.
 	from := common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 	to := common.Address{0x0f}
 	var txHash common.Hash
@@ -59,8 +59,7 @@ func TestStartFork(t *testing.T) {
 	require.Zero(t, bigs.Uint64Strict(balance), "the fork must not change the source chain")
 }
 
-// TestStartFork_ReportsAnvilError checks that StartFork returns the error of an anvil that exits,
-// at once and not after the start timeout.
+// TestStartFork_ReportsAnvilError checks that an anvil exit fails StartFork at once, with its output.
 func TestStartFork_ReportsAnvilError(t *testing.T) {
 	anvilPath, err := exec.LookPath("anvil")
 	require.NoError(t, err)

@@ -21,14 +21,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 )
 
-// TestBroadcastKeepsPrivateKeyOffArgv checks that a broadcast gives forge the deployer key in a
-// keystore, because other users of the host can read the command line of forge.
+// TestBroadcastKeepsPrivateKeyOffArgv checks that the deployer key stays off forge's command line.
 func TestBroadcastKeepsPrivateKeyOffArgv(t *testing.T) {
 	project := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(project, "cache"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(project, "cache", "solidity-files-cache.json"), []byte("{}"), 0o644))
 
-	// The stub forge records its arguments and copies the keystore and password files it gets.
+	// The stub forge records its arguments and copies the keystore and password files.
 	record := t.TempDir()
 	stub := filepath.Join(t.TempDir(), "forge")
 	require.NoError(t, os.WriteFile(stub, []byte(fmt.Sprintf(`#!/bin/sh
@@ -76,8 +75,7 @@ printf '== Return ==\n0: bytes 0x\n'
 	require.Equal(t, crypto.FromECDSA(key), crypto.FromECDSA(decrypted.PrivateKey))
 }
 
-// newFeeRPC returns the URL of an RPC server that suggests tip as the priority fee, and whose latest
-// block has baseFee.
+// newFeeRPC returns the URL of an RPC server that suggests tip and whose latest block has baseFee.
 func newFeeRPC(t *testing.T, tip, baseFee *big.Int) string {
 	server := rpc.NewServer()
 	require.NoError(t, server.RegisterName("eth", &feeAPI{tip: tip, baseFee: baseFee}))

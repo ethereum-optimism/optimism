@@ -25,8 +25,7 @@ func TestDeploySuperchain(t *testing.T) {
 	requireCode(t, env, output.SuperchainProxyAdmin)
 }
 
-// TestDeploySuperchain_EmbeddedBundle runs DeploySuperchain from the contracts bundle that
-// op-deployer embeds.
+// TestDeploySuperchain_EmbeddedBundle runs DeploySuperchain from the embedded contracts bundle.
 func TestDeploySuperchain_EmbeddedBundle(t *testing.T) {
 	tmpDir := t.TempDir()
 

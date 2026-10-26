@@ -265,7 +265,7 @@ func TestBatcherAutoDA(t *testing.T) {
 	cfg.DisableBatcher = true // disable batcher because we start it manually later
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
-	// The deadline starts after the setup, which can build the genesis allocs of the test package.
+	// The deadline starts after the setup, which may build the package's genesis allocs.
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	log := testlog.Logger(t, log.LevelInfo)

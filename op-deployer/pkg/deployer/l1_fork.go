@@ -17,12 +17,11 @@ import (
 )
 
 // l1Fork simulates deployments on an ephemeral anvil fork of the L1 head. forge sends from the
-// unlocked deployer, so a simulation needs no private key, and each simulated deployment stays on
-// the fork for the next one.
+// unlocked deployer, so no key is needed, and each deployment stays on the fork for the next.
 type l1Fork struct {
 	fork   *forge.Fork
 	client *ethclient.Client
-	// forge runs scripts on the fork.
+	// forge runs the scripts on the fork.
 	forge *opcm.ForgeEnv
 	// block is the last block whose transactions are already returned.
 	block uint64

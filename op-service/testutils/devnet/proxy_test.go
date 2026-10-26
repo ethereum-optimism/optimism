@@ -15,8 +15,8 @@ import (
 )
 
 func TestRetryProxy(t *testing.T) {
-	// proxy returns the status and body that the proxy answers to one request, and the number of
-	// upstream calls. The upstream answers with the given statuses, one per call.
+	// proxy sends one request through a proxy whose upstream answers statuses, one per call, and
+	// returns the status, body and upstream call count.
 	proxy := func(t *testing.T, statuses ...int) (int, string, int32) {
 		var calls atomic.Int32
 		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,8 +52,7 @@ func TestRetryProxy(t *testing.T) {
 	})
 
 	t.Run("forwards a client error without retries", func(t *testing.T) {
-		// A node that does not serve a method, such as proxyd, answers 403. The client must get it at
-		// once, as it does from the node itself.
+		// proxyd answers 403 for a method that it does not serve; the client must get it at once.
 		status, body, calls := proxy(t, http.StatusForbidden, http.StatusOK)
 		require.Equal(t, http.StatusForbidden, status)
 		require.Equal(t, http.StatusText(http.StatusForbidden), body)

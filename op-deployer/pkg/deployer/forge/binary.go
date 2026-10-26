@@ -47,8 +47,7 @@ func init() {
 // maxDownloadSize bounds downloads while accommodating the supported Foundry release archives.
 const maxDownloadSize = 150 * 1024 * 1024
 
-// getOS returns the OS name of the forge release archive for this system. Linux systems with musl
-// libc, such as Alpine, need the alpine archive. FORGE_ENV=alpine forces it.
+// getOS returns the OS of the forge release archive: alpine on musl libc, or with FORGE_ENV=alpine.
 func getOS() string {
 	if os.Getenv("FORGE_ENV") == "alpine" || (runtime.GOOS == "linux" && isMusl()) {
 		return "alpine"
@@ -56,7 +55,7 @@ func getOS() string {
 	return runtime.GOOS
 }
 
-// isMusl reports whether the system uses musl libc, whose dynamic loader is /lib/ld-musl-<arch>.so.1.
+// isMusl reports whether the system has the musl dynamic loader.
 func isMusl() bool {
 	loaders, err := filepath.Glob("/lib/ld-musl-*.so.1")
 	return err == nil && len(loaders) > 0
@@ -108,7 +107,7 @@ func (b *PathBin) Path() string {
 	return b.path
 }
 
-// foundryTools are the tools of the foundry release archive that op-deployer runs.
+// foundryTools are the tools that op-deployer runs from the foundry archive.
 var foundryTools = []string{"forge", "anvil"}
 
 // StandardBin forces the use of the standard version of a foundry tool, forge by default, by
@@ -273,7 +272,7 @@ func (b *StandardBin) downloadBinary(ctx context.Context, dest string) error {
 	if err := ioutil.Untar(tmpDir, tr); err != nil {
 		return fmt.Errorf("failed to untar: %w", err)
 	}
-	// Install every tool of the archive, so that the other tools need no download of their own.
+	// Install every tool, so that no tool needs a download of its own.
 	for _, tool := range foundryTools {
 		if err := ioutil.SafeRename(path.Join(tmpDir, tool), path.Join(dest, tool)); err != nil {
 			return fmt.Errorf("failed to move %s binary: %w", tool, err)

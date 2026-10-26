@@ -128,7 +128,7 @@ contract L2Genesis is Script {
         0x9DCCe783B6464611f38631e6C851bf441907c710 // 29
     ];
 
-    /// @notice Generates the L2 genesis state from ABI-encoded input, and dumps it for op-deployer.
+    /// @notice Entrypoint of op-deployer: runs on ABI-encoded input and dumps the state.
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
         run(abi.decode(_input, (Input)));
         DeployState.dump(msg.sender);

@@ -14,25 +14,24 @@ import (
 	"time"
 )
 
-// anvilStartTimeout bounds the time that anvil takes to fork the chain and serve its RPC.
+// anvilStartTimeout bounds the time until anvil serves its RPC.
 const anvilStartTimeout = time.Minute
 
 var anvilListeningRegexp = regexp.MustCompile(`Listening on (\S+)`)
 
-// Fork is an ephemeral anvil fork of a chain. Every account is unlocked, so that a forge script can
-// send from an account with --unlocked, without its private key.
+// Fork is an ephemeral anvil fork. Every account is unlocked, so forge can send with --unlocked.
 type Fork struct {
 	cmd         *exec.Cmd
 	rpcURL      string
 	foundryHome string
 }
 
-// NewAnvilBinary returns the standard version of anvil, which the forge release archive includes.
+// NewAnvilBinary returns the standard version of anvil.
 func NewAnvilBinary(opts ...StandardBinOpt) (*StandardBin, error) {
 	return NewStandardBinary(append([]StandardBinOpt{WithTool("anvil")}, opts...)...)
 }
 
-// StartFork starts anvil on a free local port, as a fork of the chain at rpcURL at blockNumber.
+// StartFork starts anvil on a free loopback port as a fork of rpcURL at blockNumber.
 func StartFork(ctx context.Context, anvil Binary, rpcURL string, blockNumber uint64) (*Fork, error) {
 	if err := anvil.Ensure(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ensure anvil: %w", err)
@@ -42,7 +41,7 @@ func StartFork(ctx context.Context, anvil Binary, rpcURL string, blockNumber uin
 	if err != nil {
 		return nil, fmt.Errorf("failed to create anvil home: %w", err)
 	}
-	// Any account can send on the fork, so it listens only on loopback, without CORS for web pages.
+	// Any account can send on the fork, so it listens on loopback only, without CORS.
 	cmd := exec.Command(anvil.Path(),
 		"--fork-url", rpcURL,
 		"--fork-block-number", strconv.FormatUint(blockNumber, 10),
@@ -77,7 +76,7 @@ func StartFork(ctx context.Context, anvil Binary, rpcURL string, blockNumber uin
 				break
 			}
 		}
-		// Keep reading, so that anvil never blocks on a full pipe.
+		// Drain stdout, or anvil blocks on a full pipe.
 		_, _ = io.Copy(io.Discard, stdout)
 	}()
 
@@ -88,7 +87,7 @@ func StartFork(ctx context.Context, anvil Binary, rpcURL string, blockNumber uin
 		fork.rpcURL = "http://" + addr
 		return fork, nil
 	case <-exited:
-		// Stop waits for anvil, so the whole of its error output is in stderr after it.
+		// Stop waits for anvil, so stderr is complete after it.
 		_ = fork.Stop()
 		return nil, fmt.Errorf("anvil exited before it forked the chain: %s", bytes.TrimSpace(stderr.buf))
 	case <-timer.C:
@@ -115,7 +114,7 @@ func (f *Fork) Stop() error {
 	return nil
 }
 
-// anvilStderrLimit is how much of the end of its error output anvil keeps for an error message.
+// anvilStderrLimit bounds the anvil stderr kept for error messages.
 const anvilStderrLimit = 4096
 
 // tailBuffer keeps the last anvilStderrLimit bytes written to it.

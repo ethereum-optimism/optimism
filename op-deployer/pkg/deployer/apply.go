@@ -175,9 +175,8 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 	return nil
 }
 
-// ApplyL1DevGenesis deploys the superchain and the implementations into a new L1 dev genesis, with
-// no chains. Unlike a genesis-target ApplyPipeline, it adds the preinstalls before the deployments,
-// so that the deployer keeps its nonce and can deploy chains on the running L1 later.
+// ApplyL1DevGenesis deploys the superchain and implementations into a new L1 dev genesis, with no
+// chains. Preinstalls go in first, so the deployer keeps its nonce for later deploys on the live L1.
 func ApplyL1DevGenesis(ctx context.Context, opts ApplyPipelineOpts) error {
 	opts.DeploymentTarget = DeploymentTargetGenesis
 	intent := opts.Intent
@@ -205,8 +204,7 @@ func ApplyL1DevGenesis(ctx context.Context, opts ApplyPipelineOpts) error {
 	return nil
 }
 
-// newPipelineEnv connects the pipeline to the deployment target and to the engine that runs the
-// scripts.
+// newPipelineEnv returns the pipeline env for the deployment target.
 func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifacts.Bundle) (*pipeline.Env, error) {
 	deployer := standard.PlaceholderAddress
 	var privateKey string

@@ -95,7 +95,7 @@ func DefaultPrivkey(t *testing.T) (string, *ecdsa.PrivateKey, *devkeys.MnemonicD
 	return pkHex, pk, dk
 }
 
-// LoadAllocs writes the accounts of allocs into the state of an anvil node.
+// LoadAllocs writes allocs into the state of an anvil node.
 func LoadAllocs(t *testing.T, rpcClient *rpc.Client, allocs *foundry.ForgeAllocs) {
 	t.Helper()
 	for addr, acc := range allocs.Accounts {

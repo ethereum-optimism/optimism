@@ -227,8 +227,7 @@ func TestPopulateSuperchainState(t *testing.T) {
 		require.NoError(t, retryProxy.Stop())
 	})
 
-	// The latest block on Sepolia as of 04/30/2025, so that config drift on Sepolia does not fail
-	// this test.
+	// The latest Sepolia block as of 04/30/2025, so that config drift does not fail this test.
 	ctx := context.Background()
 	env := &Env{
 		Forge:   newTestForge(t, ctx, forkL1(t, ctx, retryProxy.Endpoint(), 8227159)),
@@ -302,8 +301,7 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 		require.NoError(t, retryProxy.Stop())
 	})
 
-	// The latest block on Sepolia as of 04/30/2025, so that config drift on Sepolia does not fail
-	// this test.
+	// The latest Sepolia block as of 04/30/2025, so that config drift does not fail this test.
 	ctx := context.Background()
 	env := &Env{
 		Forge:   newTestForge(t, ctx, forkL1(t, ctx, retryProxy.Endpoint(), 8227159)),

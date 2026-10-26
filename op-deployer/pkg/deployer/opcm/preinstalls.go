@@ -18,7 +18,7 @@ var requestQueues = types.GenesisAlloc{
 	params.BuilderExitAddress:        {Code: params.BuilderExitCode},
 }
 
-// requestQueueAccount puts the queue code on the account, and keeps its balance, storage and nonce.
+// requestQueueAccount puts the queue code on the account and keeps the rest.
 func requestQueueAccount(account types.Account, queue types.Account) types.Account {
 	account.Code = queue.Code
 	if account.Nonce == 0 {
@@ -37,8 +37,7 @@ func NewSetPreinstallsForgeCaller(client *forge.Client) forge.ScriptCaller[forge
 	)
 }
 
-// InsertL1Preinstalls inserts the shared preinstalls plus the L1-only request queues in the
-// state of a genesis deployment, using Forge.
+// InsertL1Preinstalls adds the shared preinstalls and the L1-only request queues to env.Genesis.
 func InsertL1Preinstalls(env *ForgeEnv) error {
 	if env.Genesis == nil {
 		return errors.New("L1 preinstalls need the state of a genesis deployment")

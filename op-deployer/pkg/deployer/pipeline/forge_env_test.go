@@ -15,8 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// newTestForge returns a forge env that runs the scripts of the local contracts against the L1 at
-// l1RPCURL.
+// newTestForge returns a forge env that runs the local scripts against l1RPCURL.
 func newTestForge(t *testing.T, ctx context.Context, l1RPCURL string) *opcm.ForgeEnv {
 	t.Helper()
 	_, afs := testutil.LocalArtifacts(t)
@@ -25,8 +24,7 @@ func newTestForge(t *testing.T, ctx context.Context, l1RPCURL string) *opcm.Forg
 	return &opcm.ForgeEnv{Client: client, Context: ctx, L1RPCUrl: l1RPCURL}
 }
 
-// newTestGenesisEnv returns an env that runs the scripts of the local contracts offline, on an
-// empty genesis state.
+// newTestGenesisEnv returns an env that runs the local scripts offline on an empty genesis state.
 func newTestGenesisEnv(t *testing.T, deployer common.Address) *Env {
 	t.Helper()
 	_, afs := testutil.LocalArtifacts(t)
@@ -48,8 +46,7 @@ func newTestGenesisEnv(t *testing.T, deployer common.Address) *Env {
 	}
 }
 
-// forkL1 starts an anvil fork of the L1 at l1RPCURL at blockNumber, and returns the RPC URL of the
-// fork.
+// forkL1 starts an anvil fork of l1RPCURL at blockNumber and returns its RPC URL.
 func forkL1(t *testing.T, ctx context.Context, l1RPCURL string, blockNumber uint64) string {
 	t.Helper()
 	anvil, err := forge.NewAnvilBinary()

@@ -524,8 +524,8 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 		{
 			name:     "L2_CHAIN_ID_1337",
 			gameType: opcm.GameTypeSuperCannonKona,
-			// A genesis deployment runs the scripts with chain ID 1337. The prediction runs on a
-			// fork of the L1, so it sees the L1 chain ID, and 1337 is a valid L2 chain ID.
+			// The prediction runs on an L1 fork, so it sees the L1 chain ID, not the 1337 of genesis
+			// runs, and 1337 is a valid L2 chain ID.
 			chainID: common.HexToHash("0x0539"),
 			salt:    common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901236"),
 		},
@@ -598,8 +598,7 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 			})
 			require.Equal(t, out, outDifferentRoot)
 
-			// A read of the superchain deployment on the fork before the prediction must not
-			// change the predicted addresses.
+			// A superchain read on the fork before the prediction must not change the predicted addresses.
 			outAfterSuperchainRead := runPrediction(func(fork *l1Fork) {
 				superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
 					&pipeline.Env{Logger: lgr, Forge: fork.forge},
