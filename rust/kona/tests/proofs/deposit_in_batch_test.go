@@ -38,8 +38,8 @@ func runDepositInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[bool]) {
 	env.Sequencer.ActL2StartBlock(t)
 	env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
 	sequencerBlock := env.Sequencer.ActL2EndBlock(t)
-	// Read the sequencer's L1 info deposit now: derivation may replace block 1, and the engine
-	// need not serve a reorged-out block afterwards.
+	// Read the sequencer's L1 info deposit before derivation replaces block 1, so the check does
+	// not depend on the engine retaining the reorged-out block.
 	_, sequencerL1InfoTx, err := env.Engine.SourceClient().InfoAndFirstDepositByHash(t.Ctx(), sequencerBlock.Hash)
 	require.NoError(t, err)
 
