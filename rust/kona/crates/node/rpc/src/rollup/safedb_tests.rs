@@ -21,7 +21,7 @@ fn rpc(safe_db: Option<Arc<dyn SafeDb>>) -> RollupRpc {
         "test-version".into(),
         config.clone(),
         state,
-        query_client(config, None),
+        query_client(config),
         l1_watcher_at(None),
         safe_db,
     )

@@ -3,7 +3,8 @@ use crate::{
     ChainIdAndOutput, DecimalChainId, OutputV0Response, SuperRootApiServer,
     SuperRootAtTimestampResponse,
     test_utils::{
-        BlockOutput, GENESIS_TIME, l1_block, l1_watcher_at, l2_block, query_client, timestamp_of,
+        BlockOutput, GENESIS_TIME, l1_block, l1_watcher_at, l2_block, query_client,
+        recorded_query_client, timestamp_of,
     },
 };
 use alloy_eips::BlockNumHash;
@@ -13,7 +14,7 @@ use kona_engine::{EngineState, EngineSyncStateUpdate};
 use kona_genesis::RollupConfig;
 use kona_interop::{OutputRootWithChain, SuperRoot};
 use kona_protocol::OutputRoot;
-use kona_safedb::{SafeDatabase, SafeDb};
+use kona_safedb::{SafeDatabase, SafeDb, SafeHeadRecord};
 use rstest::rstest;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -69,9 +70,17 @@ fn rpc(safe_db: Option<Arc<dyn SafeDb>>, timestamp: u64) -> SuperRootRpc {
     let number = config.block_number_from_timestamp(timestamp.max(GENESIS_TIME));
     let block_output = (timestamp >= GENESIS_TIME && number <= LOCAL_SAFE)
         .then(|| BlockOutput { block: l2_block(number), output: output(number) });
+    let record = if number == 0 {
+        Some(SafeHeadRecord {
+            l1: BlockNumHash { hash: B256::ZERO, number: 0 },
+            safe_head: config.genesis.l2,
+        })
+    } else {
+        safe_db.as_ref().and_then(|database| database.l1_at_safe_head(number).ok())
+    };
     let (_, state) = tokio::sync::watch::channel(engine_state());
     SuperRootRpc::new(
-        query_client(config.clone(), block_output),
+        recorded_query_client(config.clone(), block_output, record),
         state,
         l1_watcher_at(Some(l1_block(CURRENT_L1))),
         config,
@@ -160,16 +169,20 @@ async fn a_block_beyond_local_safe_is_omitted() {
 /// The engine can reset between the two reads: the local-safe head then names a different
 /// block at the same height, and the output just fetched belongs to neither record.
 #[tokio::test]
-async fn a_local_safe_head_replaced_between_reads_is_omitted() {
+async fn a_local_safe_head_replaced_between_reads_is_rejected() {
     let (_dir, db) = recorded();
     let mut replacement = l2_block(LOCAL_SAFE);
     replacement.block_info.parent_hash = B256::repeat_byte(0xee);
     let config = rollup_config();
     let (_, state) = tokio::sync::watch::channel(engine_state());
     let rpc = SuperRootRpc::new(
-        query_client(
+        recorded_query_client(
             config.clone(),
             Some(BlockOutput { block: replacement, output: output(LOCAL_SAFE) }),
+            Some(SafeHeadRecord {
+                l1: l1_block(120).id(),
+                safe_head: l2_block(LOCAL_SAFE).block_info.id(),
+            }),
         ),
         state,
         l1_watcher_at(Some(l1_block(CURRENT_L1))),
@@ -177,9 +190,10 @@ async fn a_local_safe_head_replaced_between_reads_is_omitted() {
         db,
     );
 
-    let response = rpc.superroot_at_timestamp(U64::from(timestamp_of(LOCAL_SAFE))).await.unwrap();
+    let error = rpc.superroot_at_timestamp(U64::from(timestamp_of(LOCAL_SAFE))).await.unwrap_err();
 
-    assert!(response.data.is_none());
+    assert_eq!(error.code(), -32000);
+    assert!(error.message().contains("changed"));
 }
 
 #[tokio::test]
@@ -256,6 +270,7 @@ async fn progress_beyond_local_safe_needs_no_database() {
 
 #[tokio::test]
 async fn an_output_read_failure_returns_an_internal_error() {
+    let (_directory, database) = recorded();
     let config = rollup_config();
     let (engine, l1, l2) = kona_engine::test_utils::test_engine_client(config.clone());
     l2.expect_error("eth_getBlockByNumber");
@@ -265,7 +280,7 @@ async fn an_output_read_failure_returns_an_internal_error() {
         state,
         l1_watcher_at(Some(l1_block(CURRENT_L1))),
         config,
-        None,
+        database,
     );
 
     let error = rpc.superroot_at_timestamp(U64::from(timestamp_of(3))).await.unwrap_err();
@@ -281,7 +296,7 @@ async fn an_unavailable_l1_watcher_returns_an_internal_error() {
     let (_, state) = tokio::sync::watch::channel(engine_state());
     let (sender, receiver) = tokio::sync::mpsc::channel(1);
     drop(receiver);
-    let rpc = SuperRootRpc::new(query_client(config.clone(), None), state, sender, config, None);
+    let rpc = SuperRootRpc::new(query_client(config.clone()), state, sender, config, None);
 
     let error = rpc.superroot_at_timestamp(U64::from(timestamp_of(3))).await.unwrap_err();
 

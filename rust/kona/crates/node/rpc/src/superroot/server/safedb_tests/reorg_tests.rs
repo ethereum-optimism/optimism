@@ -48,8 +48,11 @@ impl ExecutionState {
             Mutation::None | Mutation::ReorgBeforeQuery => {}
         }
         self.mutation = Mutation::None;
-        let block = if let Some(hash) = block_id.get("blockHash") {
-            &self.blocks[&serde_json::from_value::<B256>(hash.clone()).unwrap()]
+        let hash = block_id.get("blockHash").cloned().or_else(|| {
+            block_id.as_str().filter(|value| value.len() == 66).map(|_| block_id.clone())
+        });
+        let block = if let Some(hash) = hash {
+            &self.blocks[&serde_json::from_value::<B256>(hash).unwrap()]
         } else {
             let number = serde_json::from_value::<U64>(block_id).unwrap().to::<u64>();
             &self.canonical[&number]

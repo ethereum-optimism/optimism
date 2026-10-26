@@ -5,7 +5,7 @@ use crate::{
     SuperRootAtTimestampResponse, SuperRootResponseData, SuperV1Response,
     l1_watcher::L1WatcherQuerySender, safe_db_error::safe_db_error,
 };
-use alloy_eips::{BlockNumHash, BlockNumberOrTag};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, U64};
 use async_trait::async_trait;
 use jsonrpsee::{
@@ -15,8 +15,11 @@ use jsonrpsee::{
 use kona_engine::{EngineQueryClient, EngineState, EngineSyncState};
 use kona_genesis::RollupConfig;
 use kona_interop::{OutputRootWithChain, SuperRoot};
-use kona_safedb::{SafeDb, SafeDbError};
+use kona_protocol::OutputRoot;
+use kona_safedb::{SafeDb, SafeDbError, SafeHeadRecord};
 use std::{collections::BTreeMap, sync::Arc};
+
+const MAX_HISTORY_READ_ATTEMPTS: usize = 3;
 
 /// The server for [`SuperRootApiServer`].
 #[derive(Debug)]
@@ -67,29 +70,70 @@ impl SuperRootRpc {
         }
     }
 
-    /// The L1 block that first made `block` safe. The L2 genesis block needs no L1 data, so it
-    /// is reported as safe from L1 block zero rather than from the configured genesis L1 block,
-    /// since the chain's contracts may predate it.
-    fn required_l1(&self, block: BlockNumHash) -> RpcResult<BlockNumHash> {
-        if block == self.rollup_config.genesis.l2 {
-            return Ok(BlockNumHash { hash: B256::ZERO, number: 0 });
+    fn safe_head_record(&self, block_number: u64) -> RpcResult<SafeHeadRecord> {
+        if block_number == self.rollup_config.genesis.l2.number {
+            return Ok(SafeHeadRecord {
+                l1: BlockNumHash { hash: B256::ZERO, number: 0 },
+                safe_head: self.rollup_config.genesis.l2,
+            });
         }
-        let record = self
-            .safe_db
+        self.safe_db
             .as_ref()
             .ok_or(SafeDbError::NotEnabled)
-            .and_then(|database| database.l1_at_safe_head(block.number))
-            .map_err(|e| safe_db_error(e, format_args!("l1AtSafeHead@{}", block.number)))?;
-        Ok(record.l1)
+            .and_then(|database| database.l1_at_safe_head(block_number))
+            .map_err(|error| safe_db_error(error, format_args!("l1AtSafeHead@{block_number}")))
     }
-}
 
-/// Whether `block` is local-safe in `sync`: at or below the local-safe head, and when it is the
-/// head itself, the very block the head names. A reset between two reads can otherwise pair the
-/// output of a replacement block with the record of the block it replaced.
-fn is_local_safe(sync: &EngineSyncState, block: BlockNumHash) -> bool {
-    let local_safe = sync.local_safe_head().block_info;
-    block.number < local_safe.number || block == local_safe.id()
+    async fn verified_output(
+        &self,
+        block_number: u64,
+    ) -> RpcResult<Option<(OutputRoot, BlockNumHash, EngineSyncState)>> {
+        for attempt in 1..=MAX_HISTORY_READ_ATTEMPTS {
+            let sync = self.engine_state.borrow().sync_state;
+            if block_number > sync.local_safe_head().block_info.number {
+                return Ok(None);
+            }
+            let record = self.safe_head_record(block_number)?;
+            if record.safe_head.number > sync.local_safe_head().block_info.number {
+                tracing::warn!(attempt, block_number, recorded_head = ?record.safe_head, "Recorded history is ahead of the local-safe head; retrying");
+                continue;
+            }
+            let output = self
+                .engine_client
+                .output_at_ancestor(block_number, record.safe_head)
+                .await
+                .map_err(|error| {
+                    tracing::error!(block_number, ?error, "Failed to read output for super root");
+                    ErrorObject::from(ErrorCode::InternalError)
+                })?;
+            let current_sync = self.engine_state.borrow().sync_state;
+            let history_unchanged = self.safe_head_record(block_number)? == record;
+            let safe_head_unchanged = current_sync.local_safe_head() == sync.local_safe_head();
+            if let Some((block, output)) = output {
+                let within_safe_head = block.block_info.number <
+                    sync.local_safe_head().block_info.number ||
+                    block.block_info.id() == sync.local_safe_head().block_info.id();
+                if history_unchanged &&
+                    safe_head_unchanged &&
+                    within_safe_head &&
+                    block.block_info.number == block_number
+                {
+                    return Ok(Some((output, record.l1, current_sync)));
+                }
+            }
+            tracing::warn!(
+                attempt,
+                block_number,
+                "Safe head history changed during super-root query; retrying"
+            );
+        }
+        tracing::error!(
+            attempts = MAX_HISTORY_READ_ATTEMPTS,
+            block_number,
+            "Unable to read consistent safe head history"
+        );
+        Err(ErrorObject::owned(-32000, "safe head history changed during query; retry", None::<()>))
+    }
 }
 
 #[async_trait]
@@ -113,30 +157,9 @@ impl SuperRootApiServer for SuperRootRpc {
         let block_number = config.block_number_from_timestamp(timestamp);
 
         let current_l1 = self.current_l1().await?;
-        let engine_state = *self.engine_state.borrow();
-        if block_number > engine_state.sync_state.local_safe_head().block_info.number {
-            return Ok(self.progress_only(current_l1, &engine_state.sync_state));
-        }
-
-        let (block, output) = self
-            .engine_client
-            .output_at_block(BlockNumberOrTag::Number(block_number))
-            .await
-            .map_err(|error| {
-                tracing::error!(
-                    block_number,
-                    ?error,
-                    timestamp,
-                    "Failed to read output for super root"
-                );
-                ErrorObject::from(ErrorCode::InternalError)
-            })?;
-        let sync = self.engine_state.borrow().sync_state;
-        if !is_local_safe(&sync, block.block_info.id()) {
-            return Ok(self.progress_only(current_l1, &sync));
-        }
-
-        let required_l1 = self.required_l1(block.block_info.id())?;
+        let Some((output, required_l1, sync)) = self.verified_output(block_number).await? else {
+            return Ok(self.progress_only(current_l1, &self.engine_state.borrow().sync_state));
+        };
         let output_root = output.hash();
         let chain_id = self.chain_id();
         let super_root =

@@ -24,27 +24,76 @@ pub(crate) struct BlockOutput {
     pub(crate) output: OutputRoot,
 }
 
-pub(crate) fn query_client(
+pub(crate) fn query_client(config: Arc<RollupConfig>) -> kona_engine::EngineQueryClient {
+    kona_engine::test_utils::test_engine_client(config).0.query_client()
+}
+
+pub(crate) fn recorded_query_client(
     config: Arc<RollupConfig>,
     output: Option<BlockOutput>,
+    record: Option<kona_safedb::SafeHeadRecord>,
 ) -> kona_engine::EngineQueryClient {
     let (engine, _, transport) = kona_engine::test_utils::test_engine_client(config);
-    if let Some(output) = output {
+    if let (Some(output), Some(record)) = (output, record) {
         let block = rpc_block(output);
-        transport.expect_params(
-            "eth_getBlockByNumber",
-            serde_json::json!([format!("0x{:x}", output.block.block_info.number), true]),
-            block,
-        );
-        transport.expect(
-            "eth_getProof",
-            alloy_rpc_types_eth::EIP1186AccountProofResponse {
-                storage_hash: output.output.bridge_storage_root,
-                ..Default::default()
-            },
-        );
+        let anchor = if record.safe_head.number == output.block.block_info.number {
+            block.clone()
+        } else {
+            fixture_rpc_block(record.safe_head.number)
+        };
+        let attempts = if anchor.header.hash == record.safe_head.hash { 1 } else { 3 };
+        for _ in 0..attempts {
+            transport.expect_params(
+                "eth_getBlockByNumber",
+                serde_json::json!([format!("0x{:x}", record.safe_head.number), false]),
+                &anchor,
+            );
+        }
+        if anchor.header.hash == record.safe_head.hash {
+            for number in (output.block.block_info.number..record.safe_head.number).rev() {
+                let parent = fixture_rpc_block(number);
+                transport.expect_params(
+                    "eth_getBlockByHash",
+                    serde_json::json!([parent.header.hash, false]),
+                    parent,
+                );
+            }
+            transport.expect_params(
+                "eth_getBlockByHash",
+                serde_json::json!([block.header.hash, true]),
+                &block,
+            );
+            transport.expect_params(
+                "eth_getProof",
+                serde_json::json!([
+                    kona_protocol::Predeploys::L2_TO_L1_MESSAGE_PASSER,
+                    [],
+                    block.header.hash
+                ]),
+                alloy_rpc_types_eth::EIP1186AccountProofResponse {
+                    storage_hash: output.output.bridge_storage_root,
+                    ..Default::default()
+                },
+            );
+            transport.expect_params(
+                "eth_getBlockByNumber",
+                serde_json::json!([format!("0x{:x}", record.safe_head.number), false]),
+                anchor,
+            );
+        }
     }
     engine.query_client()
+}
+
+fn fixture_rpc_block(number: u64) -> alloy_rpc_types_eth::Block<op_alloy_rpc_types::Transaction> {
+    rpc_block(BlockOutput {
+        block: l2_block(number),
+        output: OutputRoot {
+            block_hash: l2_block(number).block_info.hash,
+            bridge_storage_root: B256::with_last_byte(0x60 + number as u8),
+            state_root: B256::with_last_byte(0x40 + number as u8),
+        },
+    })
 }
 
 pub(crate) fn rpc_block(
@@ -112,19 +161,23 @@ pub(crate) fn l1_block(number: u64) -> BlockInfo {
 }
 
 pub(crate) fn l2_block(number: u64) -> L2BlockInfo {
-    L2BlockInfo {
-        block_info: BlockInfo {
-            hash: alloy_consensus::Header {
-                number,
-                state_root: B256::with_last_byte(0x40 + number as u8),
-                timestamp: timestamp_of(number),
-                ..Default::default()
-            }
-            .hash_slow(),
-            number,
-            parent_hash: B256::ZERO,
-            timestamp: timestamp_of(number),
-        },
-        ..Default::default()
+    let mut parent_hash = B256::ZERO;
+    let mut block_info = BlockInfo::default();
+    for height in 0..=number {
+        let header = alloy_consensus::Header {
+            number: height,
+            parent_hash,
+            state_root: B256::with_last_byte(0x40 + height as u8),
+            timestamp: timestamp_of(height),
+            ..Default::default()
+        };
+        block_info = BlockInfo {
+            hash: header.hash_slow(),
+            number: height,
+            parent_hash,
+            timestamp: timestamp_of(height),
+        };
+        parent_hash = block_info.hash;
     }
+    L2BlockInfo { block_info, ..Default::default() }
 }
