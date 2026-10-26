@@ -54,7 +54,7 @@ func setInteropZKDisputeGameViaUpgrade(
 	proposer, err := keys.Address(l2Ops(devkeys.ProposerRole))
 	require.NoError(err, "must have configured proposer")
 
-	_, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
+	l1PAOKey := l1ProxyAdminOwnerKey(t, keys, l1ChainID)
 
 	executeOPCMUpgrade(t, client, l1PAOKey, migration.opcmImpl, opcm.UpgradeInputV2{
 		SystemConfig:       sortedChainSystemConfigs(migration)[0],

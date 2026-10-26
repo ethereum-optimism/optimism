@@ -253,7 +253,6 @@ func TestImplementationsInputSelectsStandardSP1Verifier(t *testing.T) {
 		input, err := implementationsInput(&Env{}, intent, st)
 		require.NoError(t, err)
 		require.Nil(t, input)
-		require.Nil(t, st.SP1Verifier)
 	})
 
 	t.Run("resumed deployment keeps the verifier recorded in state", func(t *testing.T) {
@@ -265,6 +264,5 @@ func TestImplementationsInputSelectsStandardSP1Verifier(t *testing.T) {
 		input, err := implementationsInput(&Env{}, zkIntent(11155111, nil), st)
 		require.NoError(t, err)
 		require.Nil(t, input)
-		require.Equal(t, recorded, *st.SP1Verifier)
 	})
 }

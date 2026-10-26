@@ -43,7 +43,7 @@ func RerunOPCMUpgrade(t devtest.T, l1EL stack.L1ELNode, l2 stack.L2Network, enab
 	require.NoError(w3Client.Call(w3eth.CallFunc(portal, respectedGameTypeFn).Returns(&respected)), "failed to read the respected game type")
 
 	keys := stackKeys{l2.Keys()}
-	_, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l2.L1().ChainID())
+	l1PAOKey := l1ProxyAdminOwnerKey(t, keys, l2.L1().ChainID())
 	executeOPCMUpgrade(t, ethclient.NewClient(rpcClient), l1PAOKey, lastUsedOPCM, opcm.UpgradeInputV2{
 		SystemConfig:       systemConfig,
 		DisputeGameConfigs: disputeGameConfigsForRuntime(t, keys, l2.ChainID(), enabledGameTypes),
@@ -60,15 +60,12 @@ func (k stackKeys) Secret(key devkeys.Key) (*ecdsa.PrivateKey, error) { return k
 
 func (k stackKeys) Address(key devkeys.Key) (common.Address, error) { return k.Keys.Address(key), nil }
 
-// resolveL1ProxyAdminOwner returns the L1 proxy-admin owner address and key.
-func resolveL1ProxyAdminOwner(t devtest.T, keys devkeys.Keys, l1ChainID eth.ChainID) (common.Address, *ecdsa.PrivateKey) {
-	require := t.Require()
+// l1ProxyAdminOwnerKey returns the key of the L1 proxy-admin owner.
+func l1ProxyAdminOwnerKey(t devtest.T, keys devkeys.Keys, l1ChainID eth.ChainID) *ecdsa.PrivateKey {
 	role := devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole)
-	addr, err := keys.Address(role)
-	require.NoError(err, "failed to resolve L1 proxy-admin owner address")
 	key, err := keys.Secret(role)
-	require.NoError(err, "failed to resolve L1 proxy-admin owner key")
-	return addr, key
+	t.Require().NoError(err, "failed to resolve L1 proxy-admin owner key")
+	return key
 }
 
 // executeOPCMUpgrade calls OPContractsManagerV2.upgrade(input) on L1 as a SetCode delegatecall from

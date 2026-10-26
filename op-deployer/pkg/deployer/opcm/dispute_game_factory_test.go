@@ -2,13 +2,16 @@ package opcm
 
 import (
 	"context"
+	"math/big"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
@@ -40,12 +43,17 @@ func TestSetDisputeGameImpl(t *testing.T) {
 	_, afs := testutil.LocalArtifacts(t)
 	client, err := NewForgeClient(afs, "", L1ForgeScripts)
 	require.NoError(t, err)
+	// OP Sepolia DGF owner, a Safe that holds no ETH to pay for gas on the fork.
+	owner := common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2")
+	forkClient, err := ethclient.DialContext(ctx, fork.RPCURL())
+	require.NoError(t, err)
+	defer forkClient.Close()
+	require.NoError(t, forkClient.Client().CallContext(ctx, nil, "anvil_setBalance", owner, (*hexutil.Big)(big.NewInt(params.Ether))))
 	env := &ForgeEnv{
-		Client:   client,
-		Context:  ctx,
-		L1RPCUrl: fork.RPCURL(),
-		// OP Sepolia DGF owner
-		UnlockedSender: common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2"),
+		Client:         client,
+		Context:        ctx,
+		L1RPCUrl:       fork.RPCURL(),
+		UnlockedSender: owner,
 	}
 
 	// Use OP Sepolia's dispute game factory
@@ -70,4 +78,10 @@ func TestSetDisputeGameImpl(t *testing.T) {
 		GameArgs:            gameArgs,
 	}
 	require.NoError(t, SetDisputeGameImpl(env, input))
+
+	forkFactory, err := opbindings.NewDisputeGameFactory(factoryAddr, forkClient)
+	require.NoError(t, err)
+	impl, err := forkFactory.GameImpls(&bind.CallOpts{Context: ctx}, input.GameType)
+	require.NoError(t, err)
+	require.Equal(t, input.Impl, impl)
 }

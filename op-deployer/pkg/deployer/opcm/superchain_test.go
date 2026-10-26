@@ -25,7 +25,9 @@ func TestDeploySuperchain(t *testing.T) {
 	requireCode(t, env, output.SuperchainProxyAdmin)
 }
 
-func TestNewDeploySuperchainScriptForge(t *testing.T) {
+// TestDeploySuperchain_EmbeddedBundle runs DeploySuperchain from the contracts bundle that
+// op-deployer embeds.
+func TestDeploySuperchain_EmbeddedBundle(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)

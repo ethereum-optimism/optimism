@@ -100,7 +100,7 @@ func addGameTypesForRuntime(
 	defer rpcClient.Close()
 	client := ethclient.NewClient(rpcClient)
 
-	_, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
+	l1PAOKey := l1ProxyAdminOwnerKey(t, keys, l1ChainID)
 
 	extraInstructions := []opcm.ExtraInstruction{
 		{

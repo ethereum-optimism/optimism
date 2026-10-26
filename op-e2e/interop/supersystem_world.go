@@ -139,8 +139,8 @@ func (s *interopE2ESystem) worldIntent(w WorldConfig) *state.Intent {
 	superCfg.WithProxyAdminOwner(proxyAdminOwner).
 		WithGuardian(l1Addr(devkeys.SuperchainConfigGuardianKey)).
 		WithChallenger(l1Addr(devkeys.ChallengerRole))
+	// The deployer is not prefunded: op-deployer wipes it from the genesis after the deployment.
 	for _, role := range []devkeys.Role{
-		devkeys.SuperchainDeployerKey,
 		devkeys.SuperchainProxyAdminOwner,
 		devkeys.SuperchainConfigGuardianKey,
 		devkeys.ChallengerRole,
