@@ -43,13 +43,7 @@ func NewDeployAltDAForgeCaller(client *forge.Client) forge.ScriptCaller[DeployAl
 
 // DeployAltDAViaForge deploys AltDA contracts using Forge
 func DeployAltDAViaForge(env *ForgeEnv, input DeployAltDAInput) (DeployAltDAOutput, error) {
-	var output DeployAltDAOutput
-	if err := env.validate(true); err != nil {
-		return output, err
-	}
-	forgeCaller := NewDeployAltDAForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOpts()...)
+	output, err := broadcastScript(env, NewDeployAltDAForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy alt-da contracts with Forge: %w", err)
 	}

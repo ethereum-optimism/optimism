@@ -2,6 +2,22 @@
 # .circleci/scripts/merge-configs.sh). Defining them here once avoids
 # duplicating the definitions across main.yml and rust-e2e.yml.
 commands:
+  # forge reads every source, lib/ included, to check the compile cache of the prebuilt artifacts.
+  # Jobs that run op-deployer from the checkout (op-e2e, sysgo, kona proof tests) need these
+  # submodules; the embedded bundle has its own lib/. Top-level submodules only, so no --recursive.
+  checkout-contracts-lib:
+    steps:
+      - run:
+          name: Check out the contracts-bedrock lib submodules
+          command: |
+            attempt=1
+            until git submodule update --init --single-branch --force -j 8 -- packages/contracts-bedrock/lib; do
+              [ "$attempt" -ge 3 ] && exit 1
+              attempt=$((attempt+1))
+              echo "submodule update failed; attempt $attempt/3 in 5s" >&2
+              sleep 5
+            done
+
   # Shared Go module cache. There is a single Go module in the repo, so the
   # downloaded module set is identical for every job at a given go.sum. It is
   # populated once by the prep-go-modules job and restored read-only everywhere

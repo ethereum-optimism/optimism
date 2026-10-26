@@ -61,6 +61,21 @@ func TestCLIBootstrap(t *testing.T) {
 		require.NoError(t, addresses.CheckNoZeroAddresses(superchainOutput))
 	})
 
+	t.Run("bootstrap superchain keeps forge output off stdout", func(t *testing.T) {
+		runner := NewCLITestRunnerWithNetwork(t)
+		stdout := runner.ExpectStdoutWithNetwork(t, []string{
+			"bootstrap", "superchain",
+			"--outfile", "-",
+			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
+			"--guardian", guardian.Hex(),
+		}, nil)
+
+		// op-deployer writes the result to stdout; forge's output goes to stderr.
+		require.Contains(t, stdout, `"superchainConfigProxyAddress"`)
+		require.NotContains(t, stdout, "== Return ==")
+		require.NotContains(t, stdout, "Forge client working directory")
+	})
+
 	t.Run("bootstrap superchain paused", func(t *testing.T) {
 		runner := NewCLITestRunnerWithNetwork(t)
 		workDir := runner.GetWorkDir()
