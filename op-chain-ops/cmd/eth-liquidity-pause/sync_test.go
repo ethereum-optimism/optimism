@@ -94,7 +94,7 @@ func messengerCode(t *testing.T, addr common.Address, paused bool, nonce *big.In
 	data, err := abi.Arguments{
 		{Type: mustABIType("address")}, {Type: mustABIType("bytes")},
 		{Type: uint256Type}, {Type: uint256Type},
-	}.Pack(addr, message, nonce, big.NewInt(100_000))
+	}.Pack(addr, message, nonce, big.NewInt(200_000))
 	require.NoError(t, err)
 	return contractCode(map[string]method{
 		"paused()": {ret: word(paused)},
