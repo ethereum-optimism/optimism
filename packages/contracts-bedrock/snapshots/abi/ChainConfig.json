@@ -1,7 +1,7 @@
 [
   {
     "inputs": [],
-    "name": "PROJECTION_CHAIN_ID_SLOT",
+    "name": "SETTLEMENT_CHAIN_ID_SLOT",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -14,7 +14,7 @@
   },
   {
     "inputs": [],
-    "name": "projectionChainId",
+    "name": "settlementChainId",
     "outputs": [
       {
         "internalType": "uint256",

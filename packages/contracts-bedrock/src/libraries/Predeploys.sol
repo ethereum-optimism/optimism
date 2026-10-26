@@ -117,7 +117,7 @@ library Predeploys {
     /// @notice Address of the UndeliveredMessageExporter predeploy.
     address internal constant UNDELIVERED_MESSAGE_EXPORTER = 0x4200000000000000000000000000000000000030;
 
-    /// @notice Address of the ChainConfig predeploy, which holds the chain's OP Private projection
+    /// @notice Address of the ChainConfig predeploy, which holds the chain's OP Private settlement
     ///         chain ID.
     address internal constant CHAIN_CONFIG = 0x4200000000000000000000000000000000000034;
 

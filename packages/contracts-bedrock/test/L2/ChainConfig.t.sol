@@ -31,24 +31,24 @@ contract ChainConfig_Version_Test is ChainConfig_TestInit {
     }
 }
 
-/// @title ChainConfig_ProjectionChainId_Test
-/// @notice Tests the `projectionChainId` function of the `ChainConfig` contract.
-contract ChainConfig_ProjectionChainId_Test is ChainConfig_TestInit {
-    /// @notice Tests that the projection chain ID is 0 when genesis wrote none.
-    function test_projectionChainId_unset_succeeds() external view {
-        assertEq(chainConfig.projectionChainId(), 0);
+/// @title ChainConfig_SettlementChainId_Test
+/// @notice Tests the `settlementChainId` function of the `ChainConfig` contract.
+contract ChainConfig_SettlementChainId_Test is ChainConfig_TestInit {
+    /// @notice Tests that the settlement chain ID is 0 when genesis wrote none.
+    function test_settlementChainId_unset_succeeds() external view {
+        assertEq(chainConfig.settlementChainId(), 0);
     }
 
-    /// @notice Tests that the projection chain ID is the value genesis wrote into its slot.
-    function testFuzz_projectionChainId_writtenInGenesis_succeeds(uint256 _id) external {
-        vm.store(Predeploys.CHAIN_CONFIG, chainConfig.PROJECTION_CHAIN_ID_SLOT(), bytes32(_id));
-        assertEq(chainConfig.projectionChainId(), _id);
+    /// @notice Tests that the settlement chain ID is the value genesis wrote into its slot.
+    function testFuzz_settlementChainId_writtenInGenesis_succeeds(uint256 _id) external {
+        vm.store(Predeploys.CHAIN_CONFIG, chainConfig.SETTLEMENT_CHAIN_ID_SLOT(), bytes32(_id));
+        assertEq(chainConfig.settlementChainId(), _id);
     }
 
     /// @notice Tests that the storage slot is the documented one.
-    function test_projectionChainId_slotMatchesDerivation_succeeds() external view {
+    function test_settlementChainId_slotMatchesDerivation_succeeds() external view {
         assertEq(
-            chainConfig.PROJECTION_CHAIN_ID_SLOT(), bytes32(uint256(keccak256("chainconfig.projectionchainid")) - 1)
+            chainConfig.SETTLEMENT_CHAIN_ID_SLOT(), bytes32(uint256(keccak256("chainconfig.settlementchainid")) - 1)
         );
     }
 }
