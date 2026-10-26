@@ -30,6 +30,9 @@ pub enum GossipTransport {
     #[default]
     Tcp,
     /// A transport built by the caller, such as an in-memory one in tests.
+    ///
+    /// The connection gater cannot apply IP and subnet blocks to addresses without an IP, such as
+    /// `/memory` ones. With this transport it lets them through, leaving them to the transport.
     Other(TransportBuilder),
 }
 
@@ -231,6 +234,7 @@ impl GossipDriverBuilder {
             .map_err(GossipDriverBuilderError::SyncReqRespAlreadyAccepted)?;
 
         debug!(target: "gossip", "Building Swarm with Peer ID: {}", keypair.public().to_peer_id());
+        let custom_transport = matches!(self.transport, GossipTransport::Other(_));
         let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
         let swarm = match self.transport {
             // Note: with_dns() must be called after with_tcp() to wrap TCP with DNS resolution.
@@ -260,7 +264,10 @@ impl GossipDriverBuilder {
         };
 
         let gater_config = self.gater_config.take().unwrap_or_default();
-        let gate = crate::ConnectionGater::new(gater_config);
+        let mut gate = crate::ConnectionGater::new(gater_config);
+        if custom_transport {
+            gate = gate.allowing_addrs_without_ip();
+        }
 
         Ok(GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate))
     }

@@ -81,6 +81,11 @@ pub struct ConnectionGater {
     pub blocked_addrs: HashSet<IpAddr>,
     /// A set of blocked subnets that cannot be connected to.
     pub blocked_subnets: HashSet<IpNet>,
+    /// Whether addresses without an IP or DNS name may be dialed.
+    ///
+    /// IP and subnet blocks cannot apply to them, so they are only allowed for a
+    /// [`crate::GossipTransport::Other`] transport, which is responsible for them.
+    allow_addrs_without_ip: bool,
 }
 
 impl ConnectionGater {
@@ -95,7 +100,14 @@ impl ConnectionGater {
             blocked_peers: HashSet::new(),
             blocked_addrs: HashSet::new(),
             blocked_subnets: HashSet::new(),
+            allow_addrs_without_ip: false,
         }
+    }
+
+    /// Allows dialing addresses without an IP or DNS name, such as `/memory` ones.
+    pub(crate) const fn allowing_addrs_without_ip(mut self) -> Self {
+        self.allow_addrs_without_ip = true;
+        self
     }
 
     /// Returns if the given [`Multiaddr`] has been dialed the maximum number of times.
@@ -252,10 +264,16 @@ impl ConnectionGate for ConnectionGater {
                 debug!(target: "gossip", peer=?addr, "DNS resolution failed, allowing dial");
                 return Ok(());
             }
-            None => Self::ip_from_addr(addr).ok_or_else(|| {
-                warn!(target: "p2p", peer=?addr, "Failed to extract IpAddr from Multiaddr");
-                DialError::InvalidIpAddress { addr: addr.clone() }
-            })?,
+            None => match Self::ip_from_addr(addr) {
+                Some(ip) => ip,
+                // A custom transport may dial addresses without an IP, which IP and subnet blocks
+                // cannot apply to.
+                None if self.allow_addrs_without_ip => return Ok(()),
+                None => {
+                    warn!(target: "p2p", peer=?addr, "Failed to extract IpAddr from Multiaddr");
+                    return Err(DialError::InvalidIpAddress { addr: addr.clone() });
+                }
+            },
         };
 
         // If the address is blocked, do not dial.
@@ -432,6 +450,32 @@ fn test_dial_error_handling() {
     // Second dial should fail with AlreadyDialing
     let result = gater.can_dial(&valid_addr);
     assert!(matches!(result, Err(DialError::AlreadyDialing { .. })));
+}
+
+#[test]
+fn test_memory_multiaddr_can_dial() {
+    use crate::{ConnectionGate, DialError};
+    use std::str::FromStr;
+
+    let addr = Multiaddr::from_str(
+        "/memory/1234/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp",
+    )
+    .unwrap();
+
+    // By default, an address without an IP or DNS name is rejected.
+    let mut gater = ConnectionGater::new(GaterConfig::default());
+    assert!(matches!(gater.can_dial(&addr), Err(DialError::InvalidIpAddress { .. })));
+
+    // For a custom transport, there is no IP to check, so even a block on every IPv4 address
+    // does not apply.
+    let mut gater = ConnectionGater::new(GaterConfig::default()).allowing_addrs_without_ip();
+    gater.block_subnet("0.0.0.0/0".parse::<IpNet>().unwrap());
+    assert!(gater.can_dial(&addr).is_ok());
+
+    // The checks on the peer ID still apply.
+    let peer_id = ConnectionGater::peer_id_from_addr(&addr).unwrap();
+    gater.block_peer(&peer_id);
+    assert!(matches!(gater.can_dial(&addr), Err(DialError::PeerBlocked { .. })));
 }
 
 #[test]

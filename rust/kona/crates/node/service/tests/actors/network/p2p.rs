@@ -51,8 +51,6 @@ async fn test_memory_network_conn() -> anyhow::Result<()> {
     let node_1 = builder.build(vec![]).await;
     let node_2 = builder.build(vec![]).await;
 
-    // TODO: This test fails for now. The connection gater rejects addresses without an IP or DNS
-    // name (`DialError::InvalidIpAddress`), so `dial_multiaddr` never dials the `/memory` address.
     node_2.connect_to(&node_1).await?;
 
     node_2.is_connected_to_with_retries(&node_1).await?;
