@@ -61,10 +61,10 @@ async fn test_sequencer_memory_network_conn() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Test that the network can properly propagate blocks to all connected peers.
+/// Blocks gossiped by the sequencer reach every validator of a network set up as a line.
 ///
-/// We are setting up a linear network topology, and we check that the block propagates to every
-/// node of the network.
+/// Each validator only bootstraps from the node before it. The block reaches the far end of the
+/// line either over connections discovery adds, or by validators relaying it.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_network_propagation() -> anyhow::Result<()> {
     const VALIDATORS: usize = 10;
@@ -72,20 +72,22 @@ async fn test_sequencer_network_propagation() -> anyhow::Result<()> {
     let mut builder = TestNetworkBuilder::new().set_sequencer();
 
     let sequencer = builder.build(vec![]).await;
-    let mut previous_enrs = vec![sequencer.peer_enr().await?];
+    let mut previous_enr = sequencer.peer_enr().await?;
 
     let mut validators = Vec::new();
 
     for _ in 0..VALIDATORS {
-        let validator = builder.build(previous_enrs.clone()).await;
+        let validator = builder.build(vec![previous_enr]).await;
 
-        previous_enrs.push(validator.peer_enr().await?);
+        previous_enr = validator.peer_enr().await?;
         validators.push(validator);
     }
 
-    // Check that all validators are connected to the sequencer.
+    // Check that each validator is connected to the node before it, so the line is complete.
+    let mut previous = &sequencer;
     for validator in &validators {
-        validator.is_connected_to_with_retries(&sequencer).await?;
+        validator.is_connected_to_with_retries(previous).await?;
+        previous = validator;
     }
 
     // Send a block to the sequencer.
@@ -97,8 +99,9 @@ async fn test_sequencer_network_propagation() -> anyhow::Result<()> {
 
     // Check that the block propagates to all validators.
     for validator in &mut validators {
-        let block =
-            validator.blocks_rx.recv().await.ok_or_else(|| anyhow::anyhow!("No block received"))?;
+        let block = tokio::time::timeout(Duration::from_secs(10), validator.blocks_rx.recv())
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("No block received"))?;
 
         assert_eq!(block, envelope);
     }

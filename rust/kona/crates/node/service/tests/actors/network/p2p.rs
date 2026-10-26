@@ -1,5 +1,9 @@
+use std::time::Duration;
+
 use crate::actors::network::mocks::builder::TestNetworkBuilder;
 
+/// Two nodes connect through discovery: the second bootstraps from the first's ENR, and its
+/// network actor dials the ENRs discovery hands it, over TCP.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_p2p_network_conn() -> anyhow::Result<()> {
     let mut builder = TestNetworkBuilder::new();
@@ -15,19 +19,25 @@ async fn test_p2p_network_conn() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Nodes that all bootstrap from the first one end up connected to each other through discovery.
+///
+/// A node dials its bootnodes directly, so only the connections to the first node come from
+/// bootstrapping. The others need each node to discover the rest through the first node's
+/// discovery table. That gives a full mesh because a node dials every peer discovery finds, with
+/// no lower or upper limit on its connections.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_large_network_conn() -> anyhow::Result<()> {
     const NODES: usize = 10;
 
-    let mut builder = TestNetworkBuilder::new();
+    // Nodes built after an earlier node's lookup only find each other at a later lookup.
+    let mut builder = TestNetworkBuilder::new().with_discovery_interval(Duration::from_millis(100));
 
-    let (mut nodes, mut bootnodes) = (vec![], vec![]);
+    let bootnode = builder.build(vec![]).await;
+    let bootnode_enr = bootnode.peer_enr().await?;
 
-    for _ in 0..NODES {
-        let node = builder.build(bootnodes.clone()).await;
-        let enr = node.peer_enr().await?;
-        nodes.push(node);
-        bootnodes.push(enr);
+    let mut nodes = vec![bootnode];
+    for _ in 1..NODES {
+        nodes.push(builder.build(vec![bootnode_enr.clone()]).await);
     }
 
     for node in &nodes {

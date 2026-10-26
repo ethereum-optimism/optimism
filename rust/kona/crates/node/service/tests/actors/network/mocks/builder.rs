@@ -1,4 +1,7 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::{
+    net::{IpAddr, Ipv4Addr},
+    time::Duration,
+};
 
 use alloy_chains::Chain;
 use alloy_signer::k256;
@@ -45,6 +48,8 @@ pub(crate) struct TestNetworkBuilder {
     /// nodes without bootnodes and connect them explicitly. That makes them fast to test manually
     /// configured networks with, where discovery finds nobody.
     in_memory: bool,
+    /// How often nodes look up random nodes, if not the default.
+    discovery_interval: Option<Duration>,
 }
 
 impl TestNetworkBuilder {
@@ -60,6 +65,7 @@ impl TestNetworkBuilder {
             unsafe_block_signer: Address::ZERO,
             custom_keypair: None,
             in_memory: false,
+            discovery_interval: None,
         }
     }
 
@@ -67,6 +73,15 @@ impl TestNetworkBuilder {
     /// `/memory` port. See the `in_memory` field for how this interacts with discovery.
     pub(crate) const fn in_memory(mut self) -> Self {
         self.in_memory = true;
+        self
+    }
+
+    /// Makes the nodes built from now on look up random nodes every `interval`, instead of the
+    /// default 5s.
+    ///
+    /// Only for tests that wait on discovery to connect nodes: frequent lookups flood debug logs.
+    pub(crate) const fn with_discovery_interval(mut self, interval: Duration) -> Self {
+        self.discovery_interval = Some(interval);
         self
     }
 
@@ -135,6 +150,9 @@ impl TestNetworkBuilder {
             discovery_config,
         )
         .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into());
+        if let Some(interval) = self.discovery_interval {
+            builder = builder.with_discovery_interval(interval);
+        }
         if self.in_memory {
             // A `/memory` address has no IP or TCP port to put in the ENR.
             builder = builder.with_enr_update(false).with_gossip_transport(memory_transport());
