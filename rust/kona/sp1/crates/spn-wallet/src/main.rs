@@ -420,18 +420,25 @@ async fn transfer(
     let submitted_at = spn::unix_now();
     let hash = spn.submit_transfer(from, body, signature).await?;
     println!("transfer submitted: {hash}");
-    if !spn.wait_for_transfer_in(to, hash, submitted_at, TRANSFER_TIMEOUT).await? {
+    let landed = spn
+        .wait_for_transfer_in(to, hash, submitted_at, TRANSFER_TIMEOUT)
+        .await
+        .with_context(|| {
+            format!(
+                "transfer {hash} was submitted; check `spn-wallet history {to}` before sending \
+                 again"
+            )
+        })?;
+    if !landed {
         bail!(
             "transfer {hash} was submitted but {to} has no TRANSFER_IN for it after {}m; check \
              `spn-wallet transaction {hash}` and `spn-wallet history {to}`",
             TRANSFER_TIMEOUT.as_secs() / 60
         );
     }
-    println!(
-        "{to} received {}; SPN balance: {}",
-        fmt_prove(amount),
-        fmt_prove(spn.balance(to).await?)
-    );
+    // The transfer has landed; a failed balance read must not turn that into an error.
+    let balance = spn.balance(to).await.map_or_else(|_| "?".to_string(), fmt_prove);
+    println!("{to} received {}; SPN balance: {balance}", fmt_prove(amount));
     Ok(())
 }
 
