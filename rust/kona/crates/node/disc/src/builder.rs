@@ -1,9 +1,12 @@
 //! Contains a builder for the discovery service.
 
-use discv5::{Config, Discv5, Enr};
+use discv5::{Config, Discv5, Enr, ListenConfig};
 use enr::k256;
 use kona_peers::{BootNodes, BootStoreFile, OpStackEnr};
-use std::net::IpAddr;
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
 use tokio::time::Duration;
 
 use crate::{Discv5BuilderError, Discv5Driver};
@@ -67,6 +70,84 @@ impl LocalNode {
 
         enr_builder.build(&self.signing_key.into())
     }
+}
+
+/// Returns the UDP port to advertise in the ENR, binding the listen socket if needed.
+///
+/// The advertised port is the one `local_node` has, if it is not 0, and otherwise the port
+/// discovery listens on. discv5 binds its socket itself and never reports the port it gets, so a
+/// listen port of 0 is bound here instead, and the socket is passed to discv5 in
+/// [`ListenConfig::FromSockets`]. A port picked that way cannot match an advertised port set in
+/// advance.
+///
+/// Binding a socket needs a Tokio runtime, so a listen port of 0 can only be built inside one.
+fn advertised_udp_port(
+    config: &mut Config,
+    local_node: &LocalNode,
+) -> Result<u16, Discv5BuilderError> {
+    if let ListenConfig::Ipv4 { port: 0, .. } | ListenConfig::Ipv6 { port: 0, .. } =
+        config.listen_config
+    {
+        if local_node.udp_port != 0 {
+            return Err(Discv5BuilderError::AdvertisedUdpPortWithoutFixedListenPort);
+        }
+        config.listen_config = bind_free_port(&config.listen_config)?;
+    }
+
+    if local_node.udp_port != 0 {
+        return Ok(local_node.udp_port);
+    }
+    let listen_port = match &config.listen_config {
+        ListenConfig::Ipv4 { port, .. } | ListenConfig::Ipv6 { port, .. } => *port,
+        ListenConfig::DualStack { ipv4_port, ipv6_port, .. } => {
+            if local_node.ip.is_ipv4() {
+                *ipv4_port
+            } else {
+                *ipv6_port
+            }
+        }
+        ListenConfig::FromSockets { ipv4, ipv6 } => {
+            let socket = if local_node.ip.is_ipv4() {
+                ipv4.as_ref().or(ipv6.as_ref())
+            } else {
+                ipv6.as_ref().or(ipv4.as_ref())
+            };
+            socket
+                .map(|socket| socket.local_addr().map(|addr| addr.port()))
+                .transpose()
+                .map_err(Discv5BuilderError::BindFailed)?
+                .unwrap_or(0)
+        }
+    };
+    // Only a dual-stack listen port of 0 is left unbound.
+    if listen_port == 0 {
+        return Err(Discv5BuilderError::UdpPortZero);
+    }
+    Ok(listen_port)
+}
+
+/// Binds a free UDP port at the address of a single-stack listen config, and returns a config with
+/// the bound socket.
+fn bind_free_port(listen_config: &ListenConfig) -> Result<ListenConfig, Discv5BuilderError> {
+    let addr = match listen_config {
+        ListenConfig::Ipv4 { ip, .. } => SocketAddr::new(IpAddr::V4(*ip), 0),
+        ListenConfig::Ipv6 { ip, .. } => SocketAddr::new(IpAddr::V6(*ip), 0),
+        _ => unreachable!("only single-stack configs are bound"),
+    };
+    // `from_std` registers the socket with the runtime's reactor, and panics outside a runtime.
+    tokio::runtime::Handle::try_current()
+        .map_err(std::io::Error::other)
+        .map_err(Discv5BuilderError::BindFailed)?;
+    let socket = std::net::UdpSocket::bind(addr)
+        .and_then(|socket| socket.set_nonblocking(true).map(|()| socket))
+        .and_then(tokio::net::UdpSocket::from_std)
+        .map_err(Discv5BuilderError::BindFailed)?;
+    let socket = Some(Arc::new(socket));
+    Ok(if addr.is_ipv4() {
+        ListenConfig::FromSockets { ipv4: socket, ipv6: None }
+    } else {
+        ListenConfig::FromSockets { ipv4: None, ipv6: socket }
+    })
 }
 
 /// Discovery service builder.
@@ -166,12 +247,13 @@ impl Discv5Builder {
     pub fn build(self) -> Result<Discv5Driver, Discv5BuilderError> {
         let chain_id = self.chain_id;
 
-        let config = self.discovery_config;
+        let mut config = self.discovery_config;
 
-        let local_node = self.local_node;
+        let mut local_node = self.local_node;
         let key = local_node.signing_key.clone();
 
-        let enr = local_node.build_enr(chain_id).map_err(|_| Discv5BuilderError::EnrBuildFailed)?;
+        local_node.udp_port = advertised_udp_port(&mut config, &local_node)?;
+        let enr = local_node.build_enr(chain_id).map_err(Discv5BuilderError::EnrBuildFailed)?;
 
         let interval = self.interval.unwrap_or(Duration::from_secs(5));
         let disc = Discv5::new(enr, key.into(), config)
@@ -189,7 +271,7 @@ impl Discv5Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use discv5::{ConfigBuilder, ListenConfig};
+    use discv5::ConfigBuilder;
     use enr::CombinedKey;
     use kona_peers::EnrValidation;
     use std::net::{IpAddr, Ipv4Addr};
@@ -214,5 +296,76 @@ mod tests {
         let driver = builder.build().unwrap();
         let enr = driver.disc.local_enr();
         assert!(EnrValidation::validate(&enr, 10).is_valid());
+    }
+
+    #[test]
+    fn test_advertised_udp_port_falls_back_to_listen_port() {
+        let CombinedKey::Secp256k1(k256_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+
+        let addr = LocalNode::new(k256_key, IpAddr::V4(Ipv4Addr::UNSPECIFIED), 9099, 0);
+        let builder = Discv5Builder::new(
+            addr,
+            10,
+            ConfigBuilder::new(ListenConfig::Ipv4 { ip: Ipv4Addr::UNSPECIFIED, port: 9099 })
+                .build(),
+        );
+        let driver = builder.build().unwrap();
+        assert_eq!(driver.disc.local_enr().udp4(), Some(9099));
+    }
+
+    #[tokio::test]
+    async fn test_listen_udp_port_zero_binds_and_advertises_a_free_port() {
+        let CombinedKey::Secp256k1(k256_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+
+        let addr = LocalNode::new(k256_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 9099, 0);
+        let builder = Discv5Builder::new(
+            addr,
+            10,
+            ConfigBuilder::new(ListenConfig::Ipv4 { ip: Ipv4Addr::LOCALHOST, port: 0 }).build(),
+        );
+        let driver = builder.build().unwrap();
+
+        let port = driver.disc.local_enr().udp4().expect("ENR has a UDP port");
+        assert_ne!(port, 0);
+        // The advertised port is the one bound for discovery, so it cannot be bound again.
+        assert!(std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, port)).is_err());
+    }
+
+    #[test]
+    fn test_listen_udp_port_zero_needs_a_runtime() {
+        let CombinedKey::Secp256k1(k256_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+
+        let addr = LocalNode::new(k256_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 9099, 0);
+        let builder = Discv5Builder::new(
+            addr,
+            10,
+            ConfigBuilder::new(ListenConfig::Ipv4 { ip: Ipv4Addr::LOCALHOST, port: 0 }).build(),
+        );
+        assert!(matches!(builder.build(), Err(Discv5BuilderError::BindFailed(_))));
+    }
+
+    #[test]
+    fn test_rejects_advertised_udp_port_without_fixed_listen_port() {
+        let CombinedKey::Secp256k1(k256_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+
+        // The port bound for a listen port of 0 cannot match an advertised port set in advance.
+        let addr = LocalNode::new(k256_key, IpAddr::V4(Ipv4Addr::UNSPECIFIED), 9099, 9099);
+        let builder = Discv5Builder::new(
+            addr,
+            10,
+            ConfigBuilder::new(ListenConfig::Ipv4 { ip: Ipv4Addr::UNSPECIFIED, port: 0 }).build(),
+        );
+        assert!(matches!(
+            builder.build(),
+            Err(Discv5BuilderError::AdvertisedUdpPortWithoutFixedListenPort)
+        ));
     }
 }

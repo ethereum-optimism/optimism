@@ -30,7 +30,7 @@ enr.workspace = true
 libp2p.workspace = true
 
 # Misc
-tokio.workspace = true
+tokio = { workspace = true, features = ["net", "rt"] }
 tracing.workspace = true
 thiserror.workspace = true
 derive_more.workspace = true
