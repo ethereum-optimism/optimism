@@ -62,11 +62,33 @@ pub struct GossipDriver<G: ConnectionGate> {
     pub connection_gate: G,
     /// Tracks ping times for peers.
     pub ping: Arc<Mutex<HashMap<PeerId, Duration>>>,
-    /// The open connections to each peer, with the peer that dialed each one.
+    /// The open connections to each peer, used to close duplicate connections.
+    pub(crate) connections: HashMap<PeerId, HashMap<ConnectionId, PeerConnection>>,
+    /// How long a duplicate connection stays open before it is closed.
     ///
-    /// Used to close duplicate connections, keeping the one dialed by the peer with the smaller
-    /// [`PeerId`].
-    pub connections: HashMap<PeerId, HashMap<ConnectionId, PeerId>>,
+    /// gossipsub sends its subscriptions to a peer only once, on the first connection, through a
+    /// queue that all connections to the peer share (`on_connection_established` in
+    /// libp2p-gossipsub). Closing a connection while it still carries them loses them, and the
+    /// peers then never mesh. Waiting gives them time to arrive.
+    pub(crate) duplicate_connection_grace: Duration,
+    /// When the next duplicate connection may be closed, if there is one.
+    ///
+    /// Set when a duplicate connection is established, and after each check to the earliest
+    /// duplicate still in its grace period. `None` until the next duplicate is established.
+    next_duplicate_check: Option<tokio::time::Instant>,
+}
+
+/// How long a duplicate connection stays open by default, see
+/// [`GossipDriver::duplicate_connection_grace`].
+const DUPLICATE_CONNECTION_GRACE: Duration = Duration::from_secs(10);
+
+/// An open connection to a peer.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PeerConnection {
+    /// The peer that dialed the connection, this node or the other one.
+    dialer: PeerId,
+    /// When the connection was established.
+    established: tokio::time::Instant,
 }
 
 impl<G> GossipDriver<G>
@@ -104,6 +126,8 @@ where
             connection_gate: gate,
             ping: Arc::new(Mutex::new(Default::default())),
             connections: Default::default(),
+            duplicate_connection_grace: DUPLICATE_CONNECTION_GRACE,
+            next_duplicate_check: None,
         }
     }
 
@@ -225,8 +249,18 @@ where
     }
 
     /// Attempts to select the next event from the Swarm.
+    ///
+    /// When duplicate connections may be closed, it returns [`Event::DuplicateConnectionsDue`]
+    /// instead, for [`Self::handle_event`] to close them.
     pub async fn next(&mut self) -> Option<SwarmEvent<Event>> {
-        self.swarm.next().await
+        let check = self.next_duplicate_check;
+        let deadline = check.unwrap_or_else(tokio::time::Instant::now);
+        tokio::select! {
+            event = self.swarm.next() => event,
+            () = tokio::time::sleep_until(deadline), if check.is_some() => {
+                Some(SwarmEvent::Behaviour(Event::DuplicateConnectionsDue))
+            }
+        }
     }
 
     /// Returns the number of connected peers.
@@ -298,7 +332,8 @@ where
         }
     }
 
-    /// Closes duplicate connections to `peer_id`, so that both peers keep the same one.
+    /// Closes duplicate connections whose grace period has passed, so that both peers keep the
+    /// same one, and schedules the next check for those still in theirs.
     ///
     /// Two peers that dial each other at the same time, or one that dials while the other is
     /// already connected, get two connections. Both peers close the connection dialed by the one
@@ -306,28 +341,56 @@ where
     /// depends on what both peers see, so they close the same connection and keep the other.
     /// Connections dialed by the same peer are left open: there is no choice between those that
     /// both peers would agree on.
-    fn close_duplicate_connections(&mut self, peer_id: PeerId) {
-        let preferred_dialer = (*self.local_peer_id()).min(peer_id);
-        let Some(connections) = self.connections.get(&peer_id) else {
-            return;
-        };
-        if !connections.values().any(|dialer| *dialer == preferred_dialer) {
-            return;
+    ///
+    /// A peer's duplicates are closed once its youngest connection has been open for
+    /// [`Self::duplicate_connection_grace`].
+    fn close_duplicate_connections(&mut self) {
+        self.next_duplicate_check = None;
+        let local_peer_id = *self.local_peer_id();
+        let now = tokio::time::Instant::now();
+        let mut pending = Vec::new();
+        let mut duplicates = Vec::new();
+        for (peer_id, connections) in &self.connections {
+            let preferred_dialer = local_peer_id.min(*peer_id);
+            if connections.len() < 2 ||
+                !connections.values().any(|connection| connection.dialer == preferred_dialer)
+            {
+                continue;
+            }
+            let youngest = connections.values().map(|connection| connection.established).max();
+            let Some(closable_at) = youngest.map(|at| at + self.duplicate_connection_grace) else {
+                continue;
+            };
+            if closable_at > now {
+                pending.push(closable_at);
+                continue;
+            }
+            duplicates.extend(
+                connections
+                    .iter()
+                    .filter(|(_, connection)| connection.dialer != preferred_dialer)
+                    .map(|(connection_id, _)| (*peer_id, *connection_id)),
+            );
         }
-        let duplicates: Vec<ConnectionId> = connections
-            .iter()
-            .filter(|(_, dialer)| **dialer != preferred_dialer)
-            .map(|(connection_id, _)| *connection_id)
-            .collect();
-        for connection_id in duplicates {
+        for (peer_id, connection_id) in duplicates {
             debug!(target: "gossip", ?peer_id, ?connection_id, "Closing duplicate connection");
             self.swarm.close_connection(connection_id);
         }
+        for at in pending {
+            self.update_next_duplicate_check(at);
+        }
+    }
+
+    /// Moves the next duplicate connection check to `at`, if that is earlier.
+    fn update_next_duplicate_check(&mut self, at: tokio::time::Instant) {
+        self.next_duplicate_check =
+            Some(self.next_duplicate_check.map_or(at, |check| check.min(at)));
     }
 
     fn handle_gossip_event(&mut self, event: Event) -> Option<OpExecutionPayloadEnvelope> {
         match event {
             Event::Gossipsub(e) => return self.handle_gossipsub_event(*e),
+            Event::DuplicateConnectionsDue => self.close_duplicate_connections(),
             Event::Ping(libp2p::ping::Event { peer, result, .. }) => {
                 trace!(target: "gossip", ?peer, ?result, "Ping received");
 
@@ -436,9 +499,13 @@ where
                 ..
             } => {
                 let dialer = if endpoint.is_dialer() { *self.local_peer_id() } else { peer_id };
-                self.connections.entry(peer_id).or_default().insert(connection_id, dialer);
+                let connection =
+                    PeerConnection { dialer, established: tokio::time::Instant::now() };
+                self.connections.entry(peer_id).or_default().insert(connection_id, connection);
                 if num_established.get() > 1 {
-                    self.close_duplicate_connections(peer_id);
+                    self.update_next_duplicate_check(
+                        connection.established + self.duplicate_connection_grace,
+                    );
                 }
 
                 let peer_count = self.swarm.connected_peers().count();
@@ -530,56 +597,144 @@ mod tests {
         ConnectionGater, GossipDriver,
         builder::tests::{memory_driver, poll_until_connected},
     };
-    use libp2p::{Multiaddr, multiaddr::Protocol};
+    use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
     use std::time::Duration;
 
-    /// Polls both drivers' swarms for `duration`.
-    async fn poll_for(
+    /// Polls both drivers' swarms until `done` holds for them, for at most 10 seconds.
+    async fn poll_until(
         driver_1: &mut GossipDriver<ConnectionGater>,
         driver_2: &mut GossipDriver<ConnectionGater>,
-        duration: Duration,
+        done: impl Fn(&GossipDriver<ConnectionGater>, &GossipDriver<ConnectionGater>) -> bool,
     ) {
         let poll = async {
-            loop {
+            while !done(driver_1, driver_2) {
                 tokio::select! {
                     Some(event) = driver_1.next() => { driver_1.handle_event(event); }
                     Some(event) = driver_2.next() => { driver_2.handle_event(event); }
                 }
             }
         };
-        _ = tokio::time::timeout(duration, poll).await;
+        tokio::time::timeout(Duration::from_secs(10), poll).await.expect("condition reached");
+    }
+
+    /// Returns the number of connections the driver has open.
+    fn num_connections(driver: &GossipDriver<ConnectionGater>) -> u32 {
+        driver.swarm.network_info().connection_counters().num_established()
+    }
+
+    /// Returns whether the driver knows that `peer` is subscribed to some topic.
+    fn knows_subscriptions(driver: &GossipDriver<ConnectionGater>, peer: PeerId) -> bool {
+        driver
+            .swarm
+            .behaviour()
+            .gossipsub
+            .all_peers()
+            .any(|(id, topics)| *id == peer && !topics.is_empty())
+    }
+
+    /// Starts both drivers and has them dial each other at the same time, returning their peer IDs.
+    async fn cross_dial(
+        driver_1: &mut GossipDriver<ConnectionGater>,
+        driver_2: &mut GossipDriver<ConnectionGater>,
+    ) -> (PeerId, PeerId) {
+        let peer_1 = *driver_1.local_peer_id();
+        let peer_2 = *driver_2.local_peer_id();
+        let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
+        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        driver_1.dial_multiaddr(addr_2);
+        driver_2.dial_multiaddr(addr_1);
+        (peer_1, peer_2)
+    }
+
+    /// Two peers that dial each other at the same time end up with one connection, the one dialed
+    /// by the peer with the smaller ID, and each knows the other's subscriptions.
+    #[tokio::test]
+    async fn test_crossing_dials_keep_one_connection() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+        driver_1.duplicate_connection_grace = Duration::from_millis(100);
+        driver_2.duplicate_connection_grace = Duration::from_millis(100);
+
+        let (peer_1, peer_2) = cross_dial(&mut driver_1, &mut driver_2).await;
+        poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
+            num_connections(driver_1) == 1 &&
+                num_connections(driver_2) == 1 &&
+                knows_subscriptions(driver_1, peer_2) &&
+                knows_subscriptions(driver_2, peer_1)
+        })
+        .await;
+
+        let preferred_dialer = peer_1.min(peer_2);
+        for (driver, peer) in [(&driver_1, peer_2), (&driver_2, peer_1)] {
+            let dialers: Vec<_> =
+                driver.connections[&peer].values().map(|connection| connection.dialer).collect();
+            assert_eq!(dialers, vec![preferred_dialer]);
+        }
+    }
+
+    /// A duplicate connection stays open for its grace period, so that gossipsub's subscriptions,
+    /// which it sends only on the first connection, are not lost with it.
+    #[tokio::test]
+    async fn test_duplicate_connection_stays_open_during_grace() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+        driver_1.duplicate_connection_grace = Duration::from_secs(60);
+        driver_2.duplicate_connection_grace = Duration::from_secs(60);
+
+        cross_dial(&mut driver_1, &mut driver_2).await;
+        poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
+            num_connections(driver_1) == 2 && num_connections(driver_2) == 2
+        })
+        .await;
+
+        // Well within the grace period, nothing is closed.
+        let _ = tokio::time::timeout(Duration::from_millis(200), async {
+            loop {
+                tokio::select! {
+                    Some(event) = driver_1.next() => { driver_1.handle_event(event); }
+                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
+                }
+            }
+        })
+        .await;
+        assert_eq!(num_connections(&driver_1), 2);
+        assert_eq!(num_connections(&driver_2), 2);
+    }
+
+    /// Builds a gossip driver on TCP, listening on a free port on localhost once started.
+    fn tcp_driver() -> GossipDriver<ConnectionGater> {
+        let mut driver = crate::GossipDriverBuilder::new(
+            kona_genesis::RollupConfig::default(),
+            alloy_primitives::Address::ZERO,
+            "/ip4/127.0.0.1/tcp/0".parse().expect("valid multiaddr"),
+            libp2p::identity::Keypair::generate_secp256k1(),
+        )
+        .build()
+        .expect("build gossip driver");
+        driver.duplicate_connection_grace = Duration::from_millis(100);
+        driver
+    }
+
+    /// Peers dialing each other over TCP at the same time connect. Dialing from the listen port,
+    /// both dials would share one TCP connection and fail the handshake, which happens to about
+    /// one crossing in five, so ten crossings catch it most of the time.
+    #[tokio::test]
+    async fn test_tcp_crossing_dials_connect() {
+        for _ in 0..10 {
+            let mut driver_1 = tcp_driver();
+            let mut driver_2 = tcp_driver();
+            cross_dial(&mut driver_1, &mut driver_2).await;
+            poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
+                num_connections(driver_1) == 1 && num_connections(driver_2) == 1
+            })
+            .await;
+        }
     }
 
     /// Dials `addr` a few times, as discovery does whenever it sees the peer again.
     fn redial(driver: &mut GossipDriver<ConnectionGater>, addr: &Multiaddr) {
         for _ in 0..3 {
             driver.dial_multiaddr(addr.clone());
-        }
-    }
-
-    /// Two peers that dial each other at the same time both keep only the connection dialed by
-    /// the peer with the smaller ID.
-    #[tokio::test]
-    async fn test_crossing_dials_keep_one_connection() {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
-
-        let peer_1 = *driver_1.local_peer_id();
-        let peer_2 = *driver_2.local_peer_id();
-        let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
-        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
-
-        driver_1.dial_multiaddr(addr_2);
-        driver_2.dial_multiaddr(addr_1);
-
-        // Long enough for both connections to be established, and the duplicate closed.
-        poll_for(&mut driver_1, &mut driver_2, Duration::from_millis(500)).await;
-
-        let preferred_dialer = peer_1.min(peer_2);
-        for (driver, peer) in [(&driver_1, peer_2), (&driver_2, peer_1)] {
-            assert_eq!(driver.swarm.network_info().connection_counters().num_established(), 1);
-            let dialers: Vec<_> = driver.connections[&peer].values().copied().collect();
-            assert_eq!(dialers, vec![preferred_dialer]);
         }
     }
 

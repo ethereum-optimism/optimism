@@ -44,7 +44,7 @@ ipnet = { workspace = true, features = ["serde"] }
 
 # Misc
 serde.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 thiserror.workspace = true
 serde_repr.workspace = true
