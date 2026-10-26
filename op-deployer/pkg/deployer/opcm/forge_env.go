@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 )
@@ -18,6 +20,9 @@ type ForgeEnv struct {
 	PrivateKey           string
 	Logger               log.Logger
 	ReceiptQueryInterval time.Duration
+	// UnlockedSender, when set, makes forge itself send from this unlocked node account, such as
+	// one of an anvil fork, instead of txmgr sending with PrivateKey.
+	UnlockedSender common.Address
 	// Genesis, when set, is the offline L1 state that the scripts run on.
 	Genesis *GenesisState
 }
@@ -58,6 +63,9 @@ func runScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I
 	}
 	if !broadcast {
 		return newCaller(env.Client)(ctx, input, "--rpc-url", env.L1RPCUrl)
+	}
+	if env.UnlockedSender != (common.Address{}) {
+		return newCaller(env.Client)(ctx, input, "--rpc-url", env.L1RPCUrl, "--broadcast", "--unlocked", "--sender", env.UnlockedSender.Hex())
 	}
 	return broadcastLiveScript(ctx, env, newCaller, input)
 }

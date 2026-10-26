@@ -534,6 +534,8 @@ func newContinuationEnvWithIntentMutator(
 	t.Cleanup(cancel)
 	lgr, logs := testlog.CaptureLogger(t, slog.LevelWarn)
 	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
+	// The preflight runs on an anvil fork, which mines with another coinbase.
+	require.NoError(t, l1Client.Client().Call(nil, "anvil_setCoinbase", liveCoinbase))
 	privateKey, key, dk := shared.DefaultPrivkey(t)
 	l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
 	loc, _ := testutil.LocalArtifacts(t)
@@ -702,10 +704,17 @@ func validatorResultCode(result string) []byte {
 	return append(code, byte(vm.PUSH1), returnSize, byte(vm.PUSH1), 0, byte(vm.RETURN))
 }
 
+// liveCoinbase is the coinbase of the test L1; the preflight fork mines with another one, so a
+// validator that checks it fails on L1 only.
+var liveCoinbase = common.Address{0x1c, 0x0b}
+
+// conditionalValidatorCode returns validator code that fails only on L1 at liveValidationBlock.
 func conditionalValidatorCode(liveValidationBlock *big.Int) []byte {
 	code := []byte{byte(vm.NUMBER), byte(vm.PUSH32)}
 	code = append(code, common.LeftPadBytes(liveValidationBlock.Bytes(), 32)...)
-	code = append(code, byte(vm.EQ), byte(vm.PUSH1), 0, byte(vm.JUMPI))
+	code = append(code, byte(vm.EQ), byte(vm.COINBASE), byte(vm.PUSH20))
+	code = append(code, liveCoinbase.Bytes()...)
+	code = append(code, byte(vm.EQ), byte(vm.AND), byte(vm.PUSH1), 0, byte(vm.JUMPI))
 	jumpDestinationIndex := len(code) - 2
 	code = append(code, validatorResultCode(validValidatorResult)...)
 	code[jumpDestinationIndex] = byte(len(code))
