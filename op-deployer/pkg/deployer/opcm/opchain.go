@@ -114,13 +114,7 @@ func NewDeployOPChainForgeCaller(client *forge.Client) forge.ScriptCaller[Deploy
 
 // DeployOPChainViaForge deploys OP Chain contracts using Forge
 func DeployOPChainViaForge(env *ForgeEnv, input DeployOPChainInput) (DeployOPChainOutput, error) {
-	var output DeployOPChainOutput
-	if err := env.validate(true); err != nil {
-		return output, err
-	}
-	forgeCaller := NewDeployOPChainForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOpts()...)
+	output, err := broadcastScript(env, NewDeployOPChainForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy OP Chain with Forge: %w", err)
 	}
