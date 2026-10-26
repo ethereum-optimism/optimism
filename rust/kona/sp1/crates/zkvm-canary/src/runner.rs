@@ -271,10 +271,10 @@ impl AttemptStages for InProcessStages {
             snapshot.artifact_identity() == self.artifact.identity(),
             "selected snapshot does not match the loaded range artifact"
         );
-        let synthesized = snapshot.synthesize_execution()?;
+        let mut synthesized = snapshot.synthesize_execution()?;
         Ok(execute_snapshot(
             snapshot.host_inputs(),
-            &synthesized,
+            &mut synthesized,
             &self.artifact,
             self.cycle_limit,
             self.memory_limit,

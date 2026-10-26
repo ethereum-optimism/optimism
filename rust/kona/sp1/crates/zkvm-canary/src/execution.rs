@@ -268,7 +268,7 @@ pub struct ExecutionResult {
 /// Executes range and consolidation against a synthesized canonical snapshot.
 pub(crate) async fn execute_snapshot(
     host_inputs: &HostInputs,
-    synthesized: &SynthesizedExecution,
+    synthesized: &mut SynthesizedExecution,
     artifact: &ValidatedRangeArtifact,
     cycle_limit: NonZeroU64,
     memory_limit: NonZeroU64,

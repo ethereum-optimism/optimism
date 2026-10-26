@@ -45,7 +45,7 @@ use kona_sp1_client_utils::{
 use kona_sp1_ethereum_client_utils::{
     chain_config::ChainConfigs,
     super_consolidation::build_consolidation_outputs,
-    super_range::{build_range_outputs, fetch_l2_header},
+    super_range::{build_range_outputs, fetch_l2_header, fetch_output_block_hash},
 };
 use kona_sp1_host_utils::witness_generation::{OnlineBlobStore, PreimageWitnessCollector};
 use op_alloy_consensus::OpReceiptEnvelope;
@@ -256,15 +256,12 @@ impl SynthesizedExecution {
     /// seeded with the preloaded preimages and the agreed outputs that the span's super roots
     /// replaced, which it reads through `host`'s L2 nodes.
     pub async fn collect_range_witness(
-        &self,
+        &mut self,
         host: InteropHost,
         configs: Option<&ChainConfigs>,
     ) -> Result<(DefaultWitnessData, SuperRangeOutputs)> {
-        let preimages = self
-            .seeded_preimages(&host)
-            .await
-            .context("failed to read the replaced agreed outputs")?;
-        collect_witness(&preimages, host, |oracle, beacon| {
+        self.prepare_inputs(&host).await?;
+        collect_witness(&self.preloaded_preimages, host, |oracle, beacon| {
             let inputs = self.range_inputs.clone();
             async move { build_range_outputs(inputs, oracle, beacon, configs).await }
         })
@@ -279,26 +276,24 @@ impl SynthesizedExecution {
     /// stdin will carry; the run takes the guest's path for them (see [`VerifiedLogCommitments`]).
     /// With `log_tree_dir`, the run keeps the log trees it builds there, and builds each tree once.
     pub async fn collect_consolidation_witness(
-        &self,
+        &mut self,
         host: InteropHost,
         configs: Option<&ChainConfigs>,
         batches: &[Vec<u8>],
         log_tree_dir: Option<&Path>,
     ) -> Result<CollectedConsolidation> {
-        let preimages = self
-            .seeded_preimages(&host)
-            .await
-            .context("failed to read the replaced agreed outputs")?;
-        let (witness, native) = collect_witness(&preimages, host, |oracle, _beacon| {
-            run_native_consolidation(
-                oracle,
-                self.consolidation_inputs.clone(),
-                configs,
-                batches,
-                log_tree_dir,
-            )
-        })
-        .await?;
+        self.prepare_inputs(&host).await?;
+        let (witness, native) =
+            collect_witness(&self.preloaded_preimages, host, |oracle, _beacon| {
+                run_native_consolidation(
+                    oracle,
+                    self.consolidation_inputs.clone(),
+                    configs,
+                    batches,
+                    log_tree_dir,
+                )
+            })
+            .await?;
         let NativeConsolidation {
             outputs,
             openings,
@@ -316,6 +311,55 @@ impl SynthesizedExecution {
             read_bytes,
             log_check_siblings,
         })
+    }
+
+    /// Resolves replaced agreed outputs and retains them on non-advancing transitions.
+    async fn prepare_inputs(&mut self, host: &InteropHost) -> Result<()> {
+        if self.replaced_agreed_outputs.is_empty() {
+            return Ok(());
+        }
+        let preimages = self
+            .seeded_preimages(host)
+            .await
+            .context("failed to read the replaced agreed outputs")?
+            .into_owned();
+        let mut store = PreimageStore::default();
+        for (key, value) in &preimages {
+            store.save_preimage(*key, value.clone())?;
+        }
+        let chain_count = self.range_inputs.chain_ids.len();
+        for ((range, consolidation), previous) in self
+            .range_inputs
+            .claimed_transitions
+            .chunks_exact_mut(chain_count)
+            .zip(&mut self.consolidation_inputs.transitions)
+            .zip(&self.range_inputs.previous_super_root_proofs)
+        {
+            for (index, (agreed, claimed)) in previous
+                .super_root
+                .output_roots
+                .iter()
+                .zip(&consolidation.claimed_super_root_proof.super_root.output_roots)
+                .enumerate()
+            {
+                if agreed.output_root != claimed.output_root ||
+                    range[index].optimistic_block.output_root == agreed.output_root
+                {
+                    continue;
+                }
+                // An unchanged verified output retains the agreed block, even after replacement.
+                let retained = SuperOptimisticBlock {
+                    chain_id: range[index].optimistic_block.chain_id,
+                    block_hash: fetch_output_block_hash(&store, agreed.output_root).await?,
+                    output_root: agreed.output_root,
+                };
+                range[index].optimistic_block = retained;
+                consolidation.optimistic_blocks[index] = retained;
+            }
+        }
+        self.preloaded_preimages = preimages;
+        self.replaced_agreed_outputs.clear();
+        Ok(())
     }
 
     /// The preloaded preimages with those of `replaced_agreed_outputs`. Each timestamp's outputs
@@ -443,7 +487,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
 
     ensure_range_outputs_match_inputs(&replayed_range_outputs, &synthesized.range_inputs)?;
 
-    let collect = async |batches: &[Vec<u8>]| {
+    let mut collect = async |batches: &[Vec<u8>]| {
         let host = build_interop_host(
             &host_inputs,
             config.l1_head,
@@ -1860,6 +1904,104 @@ mod tests {
         assert!(err.to_string().contains("no embedded dependency set"), "unexpected error: {err}");
     }
 
+    #[tokio::test(flavor = "multi_thread")]
+    async fn replaced_two_second_head_is_retained_during_noop_replay() {
+        let configs = ChainConfigs::from_registry(&[U256::from(10)]).unwrap();
+        let rollup = &configs.rollup_configs[&10];
+        assert_eq!(rollup.block_time, 2);
+        let timestamp = rollup.genesis.l2_time + 20;
+        let server = mock_nodes().await;
+        let (replacement_hash, replacement_preimage, reads) =
+            mock_canonical_output(&server, timestamp).await;
+        let replacement = Header {
+            number: rollup.block_number_from_timestamp(timestamp),
+            timestamp,
+            state_root: b256(0x11),
+            receipts_root: alloy_consensus::EMPTY_ROOT_HASH,
+            ..Default::default()
+        };
+        assert_eq!(replacement.hash_slow(), replacement_hash);
+        let original = Header { extra_data: Bytes::from_static(b"invalid"), ..replacement.clone() };
+        let original_hash = original.hash_slow();
+        let mut responses = [timestamp, timestamp + 1]
+            .map(|at| response_with_block_hash(at, &[10], 8, |_| replacement_hash));
+        for response in &mut responses {
+            response
+                .optimistic_at_timestamp
+                .insert(ChainId(U256::from(10)), output_entry(original_hash, 8));
+        }
+        let mut synthesized = synthesize_execution(
+            TimestampSpan::new(timestamp + 1, timestamp + 1).unwrap(),
+            b256(0xaa),
+            8,
+            &responses,
+        )
+        .unwrap();
+        let host = build_interop_host(
+            &mock_host_inputs(&server),
+            synthesized.range_inputs.l1_head,
+            &synthesized.previous_super_root_proof_bytes,
+            synthesized.current_super_root,
+            timestamp + 1,
+            None,
+        )
+        .unwrap();
+        for header in [&original, &replacement] {
+            synthesized
+                .preloaded_preimages
+                .push((PreimageKey::new_keccak256(*header.hash_slow()), alloy_rlp::encode(header)));
+        }
+        synthesized
+            .preloaded_preimages
+            .push((PreimageKey::new_keccak256(*alloy_consensus::EMPTY_ROOT_HASH), vec![0x80]));
+        let (witness, discovered) = synthesized
+            .collect_range_witness(host.clone(), Some(&configs))
+            .await
+            .expect("native witness collection must retain the replacement");
+        let range = replay_range(
+            true,
+            false,
+            &synthesized.range_inputs,
+            witness.clone(),
+            None,
+            Some(&configs),
+        )
+        .await
+        .expect("the no-op after replacement must replay");
+        let retained = SuperOptimisticBlock {
+            chain_id: U256::from(10),
+            block_hash: replacement_hash,
+            output_root: keccak256(&replacement_preimage),
+        };
+        assert_eq!(range, discovered);
+        assert_eq!(range.transitions[0].optimistic_block, retained);
+        assert_eq!(
+            synthesized.consolidation_inputs.transitions[0].optimistic_blocks,
+            vec![retained]
+        );
+        let collected = synthesized
+            .collect_consolidation_witness(host, Some(&configs), &[], None)
+            .await
+            .expect("native consolidation collection must retain the replacement");
+        let consolidation = replay_consolidation(
+            true,
+            false,
+            &synthesized.consolidation_inputs,
+            collected.witness,
+            &Default::default(),
+            None,
+            Some(&configs),
+        )
+        .await
+        .expect("consolidation must retain the replacement too");
+        assert_eq!(consolidation, collected.outputs);
+        assert_eq!(consolidation.transitions[0].optimistic_blocks, vec![retained]);
+        assert_eq!(consolidation.transitions[0].super_root, synthesized.current_super_root);
+        for read in reads {
+            read.assert_async().await;
+        }
+    }
+
     #[test]
     fn synthesize_execution_orders_chains_and_preloads_outputs() {
         let previous = response(100, &[10, 20], 7);
@@ -2050,7 +2192,13 @@ mod tests {
         timestamp: u64,
     ) -> (B256, Vec<u8>, [httpmock::Mock<'_>; 2]) {
         let number = kona_registry::ROLLUP_CONFIGS[&10].block_number_from_timestamp(timestamp);
-        let header = Header { number, timestamp, state_root: b256(0x11), ..Default::default() };
+        let header = Header {
+            number,
+            timestamp,
+            state_root: b256(0x11),
+            receipts_root: alloy_consensus::EMPTY_ROOT_HASH,
+            ..Default::default()
+        };
         let storage_root = b256(0x22);
         let header_read = server
             .mock_async(|when, then| {

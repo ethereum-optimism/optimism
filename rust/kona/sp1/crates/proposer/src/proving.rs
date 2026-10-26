@@ -1156,7 +1156,7 @@ impl SpanProver for GameAttempt<'_, '_> {
 async fn check_span(
     attempt: &GameAttempt<'_, '_>,
     span: ChunkSpan,
-    synthesized: SynthesizedExecution,
+    mut synthesized: SynthesizedExecution,
 ) -> Result<CheckedSpan> {
     let GameAttempt { host_inputs, game, logs, settings, .. } = *attempt;
     check_log_batches(&logs.proofs)?;
@@ -1180,7 +1180,7 @@ async fn check_span(
     let range_stdin_bytes = ensure_stdin_fits("range", &range_stdin, settings.max_stdin_bytes)?;
     tracing::info!(range_stdin_bytes, "Checked the range request");
     let consolidation =
-        check_consolidation(attempt, span, &synthesized, &configs, &logs.stage.leaf_batches())
+        check_consolidation(attempt, span, &mut synthesized, &configs, &logs.stage.leaf_batches())
             .await?;
     Ok(CheckedSpan { span, synthesized, configs, range_stdin, range_outputs, consolidation })
 }
@@ -1192,7 +1192,7 @@ async fn check_span(
 async fn check_consolidation(
     attempt: &GameAttempt<'_, '_>,
     span: ChunkSpan,
-    synthesized: &SynthesizedExecution,
+    synthesized: &mut SynthesizedExecution,
     configs: &ChainConfigs,
     batches: &[Arc<LogBatch>],
 ) -> Result<CheckedConsolidation> {
@@ -1305,8 +1305,14 @@ async fn prove_checked_span(
     node: &ChunkProgress,
 ) -> Result<SpanResult> {
     let GameAttempt { provider, keys, logs, settings, .. } = *attempt;
-    let CheckedSpan { span, synthesized, configs, range_stdin, range_outputs, mut consolidation } =
-        checked;
+    let CheckedSpan {
+        span,
+        mut synthesized,
+        configs,
+        range_stdin,
+        range_outputs,
+        mut consolidation,
+    } = checked;
     let keys = match (provider, keys) {
         (ProofProvider::Mock(_), _) => {
             return Ok(SpanResult {
@@ -1325,7 +1331,7 @@ async fn prove_checked_span(
         let proven = logs.proofs.clone().await.map_err(|err| batch_failure(&err))?;
         let (proven_consolidation, proofs) =
             with_batch_proofs(consolidation, &proven, async |leaves| {
-                check_consolidation(attempt, span, &synthesized, &configs, &leaves).await
+                check_consolidation(attempt, span, &mut synthesized, &configs, &leaves).await
             })
             .await?;
         consolidation = proven_consolidation;
