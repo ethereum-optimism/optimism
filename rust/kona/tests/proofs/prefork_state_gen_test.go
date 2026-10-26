@@ -104,7 +104,7 @@ func dumpPredeployState(t actionsHelpers.Testing, engine *actionsHelpers.L2Engin
 	}
 	accounts := engine.DumpAccounts(t, blockHash, addrs)
 
-	var impls []common.Address
+	impls := make([]common.Address, 0, len(accounts))
 	for _, acct := range accounts {
 		if impl := common.BytesToAddress(acct.Storage[genesis.ImplementationSlot].Bytes()); impl != (common.Address{}) {
 			impls = append(impls, impl)

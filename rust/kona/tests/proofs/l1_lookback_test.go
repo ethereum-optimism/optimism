@@ -114,7 +114,7 @@ func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[any
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Ensure that the correct block was derived.
-	l2BlockAfterDerive := env.Engine.BlockByNumber(t, 1).Header()
+	l2BlockAfterDerive := env.Engine.HeaderByNumber(t, 1)
 	require.EqualValues(t, l2BlockAfterDerive.Hash(), l2BlockBeforeDerive.Hash())
 
 	// Ensure that the safe head has advanced to `NumL2Blocks`.

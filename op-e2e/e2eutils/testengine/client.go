@@ -149,6 +149,9 @@ func (c *Client) IncludeNextTx(ctx context.Context, from common.Address) (*Inclu
 // (optest_dumpAccounts): nonce, balance, code and non-zero storage. Accounts that do not exist at
 // that block are absent from the result.
 func (c *Client) DumpAccounts(ctx context.Context, blockHash common.Hash, addrs []common.Address) (types.GenesisAlloc, error) {
+	if addrs == nil {
+		addrs = []common.Address{} // the engine rejects a null address list
+	}
 	var alloc types.GenesisAlloc
 	if err := c.rpc.CallContext(ctx, &alloc, "optest_dumpAccounts", blockHash, addrs); err != nil {
 		return nil, err

@@ -71,6 +71,8 @@ func runOracleServer(t require.TestingT, logger log.Logger, component string, ar
 	}
 	cmd := exec.CommandContext(ctx, exePath, args[1:]...)
 	cmd.Dir = dir
+	// Bounds Wait after a kill: a grandchild holding the output pipes would otherwise block it.
+	cmd.WaitDelay = 10 * time.Second
 	cmd.Env = append(os.Environ(), "KONA_LOG_STDOUT_FORMAT=json", "NO_COLOR=1")
 
 	logOut := logpipe.ToLoggerWithMinLevel(logger.New("component", component, "src", "stdout"), log.LevelWarn)
@@ -84,7 +86,10 @@ func runOracleServer(t require.TestingT, logger log.Logger, component string, ar
 
 	var exitErr *exec.ExitError
 	runErr := cmd.Run()
-	require.NoError(t, ctx.Err(), "%s did not finish (timeout %s)", component, timeout)
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		require.FailNowf(t, "timeout", "%s did not finish within %s", component, timeout)
+	}
+	require.NoError(t, ctx.Err(), "%s run cancelled", component)
 	if errors.As(runErr, &exitErr) && exitErr.ExitCode() == 1 {
 		return false
 	}

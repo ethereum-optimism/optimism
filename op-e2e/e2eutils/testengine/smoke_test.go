@@ -37,6 +37,24 @@ func requireEngine(t *testing.T) string {
 	return path
 }
 
+// spawnEngine starts the engine over a chainfixture genesis holding alloc. The engine is closed at
+// test cleanup, and its stderr is logged if the test failed.
+func spawnEngine(t *testing.T, alloc types.GenesisAlloc) *testengine.Client {
+	t.Helper()
+	var logs bytes.Buffer
+	engine, err := testengine.Spawn(requireEngine(t), chainfixture.WriteGenesis(t, alloc), &logs)
+	if err != nil {
+		t.Fatalf("spawn engine: %v\n%s", err, logs.String())
+	}
+	t.Cleanup(func() {
+		engine.Close()
+		if t.Failed() {
+			t.Logf("engine stderr:\n%s", logs.String())
+		}
+	})
+	return engine
+}
+
 // TestEngineSmoke builds one block over the Unix socket — forkchoiceUpdated with attributes (a
 // forced deposit) → optest_includeTx (a user tx) → getPayload → newPayload → forkchoiceUpdated —
 // and reads it back by number and as the latest and safe block. It is the end-to-end gate for the
@@ -46,21 +64,9 @@ func TestEngineSmoke(t *testing.T) {
 	require.NoError(t, err)
 	funded := crypto.PubkeyToAddress(key.PublicKey)
 
-	genesisPath := chainfixture.WriteGenesis(t, types.GenesisAlloc{
+	engine := spawnEngine(t, types.GenesisAlloc{
 		funded: {Balance: new(big.Int).SetUint64(1_000_000_000_000_000_000)},
 	})
-
-	var logs bytes.Buffer
-	engine, err := testengine.Spawn(requireEngine(t), genesisPath, &logs)
-	if err != nil {
-		t.Fatalf("spawn engine: %v\n%s", err, logs.String())
-	}
-	defer func() {
-		engine.Close()
-		if t.Failed() {
-			t.Logf("engine stderr:\n%s", logs.String())
-		}
-	}()
 
 	genesis := chainfixture.BlockHash(t, engine, rpc.EarliestBlockNumber)
 	block := chainfixture.BuildBlock(t, engine, genesis, 2,
@@ -87,28 +93,16 @@ func TestEngineDumpAccounts(t *testing.T) {
 		Storage: map[common.Hash]common.Hash{{0x01}: {0x02}},
 	}
 
-	genesisPath := chainfixture.WriteGenesis(t, types.GenesisAlloc{
+	engine := spawnEngine(t, types.GenesisAlloc{
 		funded:   {Balance: new(big.Int).SetUint64(1_000_000_000_000_000_000)},
 		contract: contractAccount,
 	})
-
-	var logs bytes.Buffer
-	engine, err := testengine.Spawn(requireEngine(t), genesisPath, &logs)
-	if err != nil {
-		t.Fatalf("spawn engine: %v\n%s", err, logs.String())
-	}
-	defer func() {
-		engine.Close()
-		if t.Failed() {
-			t.Logf("engine stderr:\n%s", logs.String())
-		}
-	}()
 
 	genesis := chainfixture.BlockHash(t, engine, rpc.EarliestBlockNumber)
 	block := chainfixture.BuildBlock(t, engine, genesis, 2,
 		[]hexutil.Bytes{chainfixture.DepositTx(1)}, chainfixture.SignTx(t, key, 0))
 
-	ctx := context.Background()
+	ctx := t.Context()
 	dump, err := engine.DumpAccounts(ctx, block, []common.Address{funded, contract, missing})
 	require.NoError(t, err)
 	require.Equal(t, contractAccount, dump[contract])

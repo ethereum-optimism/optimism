@@ -293,13 +293,16 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 			receipt = env.Alice.L2.LastTxReceipt(t)
 		}
 
-		if testCfg.Custom == DepositTx || testCfg.Custom == IsthmusTransitionBlock {
-			// The engine reports a block's non-zero operator fee parameters on its deposit receipts
-			// too, so only the transition block's receipt, whose parameters are zero, lacks them.
-			if testCfg.Custom == IsthmusTransitionBlock {
-				require.Nil(t, receipt.OperatorFeeScalar)
-				require.Nil(t, receipt.OperatorFeeConstant)
-			}
+		if testCfg.Custom == IsthmusTransitionBlock {
+			require.Nil(t, receipt.OperatorFeeScalar)
+			require.Nil(t, receipt.OperatorFeeConstant)
+
+			// Nothing should has been sent to operator fee vault
+			require.Equal(t, operatorFeeVaultInitialBalance, operatorFeeVaultFinalBalance)
+		} else if testCfg.Custom == DepositTx {
+			// op-reth reports the block's operator fee parameters on deposit receipts too.
+			require.Equal(t, testOperatorFeeScalar, uint32(*receipt.OperatorFeeScalar))
+			require.Equal(t, testOperatorFeeConstant, *receipt.OperatorFeeConstant)
 
 			// Nothing should has been sent to operator fee vault
 			require.Equal(t, operatorFeeVaultInitialBalance, operatorFeeVaultFinalBalance)

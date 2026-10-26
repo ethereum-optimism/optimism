@@ -168,7 +168,7 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	require.NoError(t, err, "read upgrade gas for %s", fork)
 	env.Sequencer.ActL2EmptyBlock(t)
 	postActivation := engine.LatestHeader(t)
-	preActivation := engine.BlockByNumber(t, bigs.Uint64Strict(actHeader.Number)-1).Header()
+	preActivation := engine.HeaderByNumber(t, bigs.Uint64Strict(actHeader.Number)-1)
 	require.Equal(t, preActivation.GasLimit+upgradeGas, actHeader.GasLimit,
 		"activation block gas limit must be the pre-activation limit plus the one-time upgrade gas")
 	require.Equal(t, preActivation.GasLimit, postActivation.GasLimit,
@@ -207,7 +207,7 @@ func testKarstActivationKeepUpgradeGas(gt *testing.T, testCfg *helpers.TestCfg[f
 	require.NoError(t, err)
 
 	engine := env.Engine
-	preActivation := engine.BlockByNumber(t, bigs.Uint64Strict(actHeader.Number)-1).Header()
+	preActivation := engine.HeaderByNumber(t, bigs.Uint64Strict(actHeader.Number)-1)
 	require.Equal(t, preActivation.GasLimit+karstGas, actHeader.GasLimit,
 		"activation block gas limit must be the pre-activation limit plus the Karst upgrade gas")
 

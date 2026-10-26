@@ -65,7 +65,7 @@ func TestSpanBatchOverlapContent(gt *testing.T) {
 		}
 		// The canonical block 3, captured before derivation can reorg the engine: the safe head
 		// must end up here, not on the equivocating lineage's 3*.
-		canonicalHash3 := env.Engine.BlockByNumber(t, 3).Hash()
+		canonicalHash3 := env.Engine.HeaderByNumber(t, 3).Hash()
 
 		craftSpanChannel := func(blocks []int64, modifier actionsHelpers.BlockModifier) []byte {
 			env.Batcher.ActCreateChannel(t, true)

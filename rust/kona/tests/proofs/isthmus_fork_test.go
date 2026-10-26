@@ -81,7 +81,7 @@ func testIsthmusActivationAtGenesis(gt *testing.T, testCfg *helpers.TestCfg[any]
 	require.Equal(t, types.EmptyRequestsHash, *block.RequestsHash, "isthmus block must have requests hash")
 
 	// Check genesis config type can convert to a valid block
-	genesisHeader := env.Engine.BlockByNumber(t, 0).Header()
+	genesisHeader := env.Engine.HeaderByNumber(t, 0)
 	reproduced := env.Sd.L2Cfg.ToBlock()
 	require.Equal(t, genesisHeader.WithdrawalsHash, reproduced.WithdrawalsRoot(), "genesis.ToBlock withdrawals-hash must match as expected")
 	require.Equal(t, genesisHeader.Hash(), reproduced.Hash(), "genesis.ToBlock block hash must match")

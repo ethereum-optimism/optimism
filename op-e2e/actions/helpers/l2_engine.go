@@ -140,6 +140,13 @@ func (e *L2Engine) HeaderByHash(t Testing, hash common.Hash) *types.Header {
 	return h
 }
 
+// HeaderByNumber returns the canonical L2 header at height n over the eth RPC.
+func (e *L2Engine) HeaderByNumber(t Testing, n uint64) *types.Header {
+	h, err := e.EthClient().HeaderByNumber(t.Ctx(), new(big.Int).SetUint64(n))
+	require.NoError(t, err, "header %d", n)
+	return h
+}
+
 // DumpAccounts returns the state of the given accounts at the L2 block with the given hash
 // (optest_dumpAccounts). Accounts that do not exist at that block are absent from the result.
 func (e *L2Engine) DumpAccounts(t Testing, blockHash common.Hash, addrs []common.Address) types.GenesisAlloc {
