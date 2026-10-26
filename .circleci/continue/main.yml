@@ -1129,10 +1129,10 @@ jobs:
           that build, and its profile must match test_profile.
         type: boolean
         default: false
-      install_deps:
-        description: Install contracts dependencies before running tests.
-        type: boolean
-        default: false
+      invariant_workers:
+        description: FOUNDRY_INVARIANT_WORKERS for forge test; empty keeps the profile's value.
+        type: string
+        default: ""
     steps:
       - utils/checkout-with-mise:
           checkout-method: full
@@ -1142,10 +1142,6 @@ jobs:
           steps:
             - attach_workspace:
                 at: .
-      - when:
-          condition: << parameters.install_deps >>
-          steps:
-            - install-contracts-dependencies
       - run:
           name: Check if test list is empty
           command: |
@@ -1186,6 +1182,10 @@ jobs:
           name: Run tests
           command: |
             echo "FOUNDRY_FUZZ_SEED=$FOUNDRY_FUZZ_SEED"
+            if [ -n "<<parameters.invariant_workers>>" ]; then
+              export FOUNDRY_INVARIANT_WORKERS=<<parameters.invariant_workers>>
+            fi
+            echo "FOUNDRY_INVARIANT_WORKERS=${FOUNDRY_INVARIANT_WORKERS:-}"
             TEST_FILES=$(<<parameters.test_list>>)
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
             TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
@@ -3222,14 +3222,14 @@ workflows:
             branches:
               only: [develop, maurelian/xdm-mingas-repro]
       - contracts-bedrock-tests:
-          name: contracts-bedrock-tests-develop-deps <<matrix.features>>
+          name: contracts-bedrock-tests-develop-w1 <<matrix.features>>
           requires:
             - prep-go-modules
             - contracts-bedrock-build-tests-develop
           test_list: find test -name "*.t.sol"
           test_profile: ci
           attach_build: true
-          install_deps: true
+          invariant_workers: "1"
           features: <<matrix.features>>
           matrix:
             parameters:
