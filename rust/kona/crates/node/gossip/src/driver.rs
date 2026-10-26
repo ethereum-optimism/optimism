@@ -9,7 +9,7 @@ use kona_peers::{EnrValidation, PeerMonitoring, enr_to_multiaddr};
 use libp2p::{
     Multiaddr, PeerId, Swarm, TransportError,
     gossipsub::{IdentTopic, MessageId},
-    swarm::SwarmEvent,
+    swarm::{ConnectionId, SwarmEvent, dial_opts::DialOpts},
 };
 use libp2p_identity::Keypair;
 use libp2p_stream::IncomingStreams;
@@ -62,6 +62,11 @@ pub struct GossipDriver<G: ConnectionGate> {
     pub connection_gate: G,
     /// Tracks ping times for peers.
     pub ping: Arc<Mutex<HashMap<PeerId, Duration>>>,
+    /// The open connections to each peer, with the peer that dialed each one.
+    ///
+    /// Used to close duplicate connections, keeping the one dialed by the peer with the smaller
+    /// [`PeerId`].
+    pub connections: HashMap<PeerId, HashMap<ConnectionId, PeerId>>,
 }
 
 impl<G> GossipDriver<G>
@@ -98,6 +103,7 @@ where
             sync_protocol: Some(sync_protocol),
             connection_gate: gate,
             ping: Arc::new(Mutex::new(Default::default())),
+            connections: Default::default(),
         }
     }
 
@@ -271,8 +277,12 @@ where
         // Note: libp2p-dns will automatically resolve DNS multiaddrs at the transport layer.
         self.connection_gate.dialing(&addr);
 
-        // Dial
-        match self.swarm.dial(addr.clone()) {
+        // Dial from a new port. From the listen port, two peers dialing each other at the same
+        // time would share one TCP connection, which fails the handshake, and on macOS could not
+        // redial until it leaves `TIME_WAIT`. With new ports, each dial gets its own connection,
+        // and the duplicate is closed once both are established.
+        let opts = DialOpts::unknown_peer_id().address(addr.clone()).allocate_new_port().build();
+        match self.swarm.dial(opts) {
             Ok(_) => {
                 trace!(target: "gossip", peer=?addr, "Dialed peer");
                 self.connection_gate.dialed(&addr);
@@ -283,6 +293,33 @@ where
                 self.connection_gate.remove_dial(&peer_id);
                 kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "connection_error");
             }
+        }
+    }
+
+    /// Closes duplicate connections to `peer_id`, so that both peers keep the same one.
+    ///
+    /// Two peers that dial each other at the same time, or one that dials while the other is
+    /// already connected, get two connections. Both peers close the connection dialed by the one
+    /// with the larger [`PeerId`], once a connection dialed by the smaller one exists. That only
+    /// depends on what both peers see, so they close the same connection and keep the other.
+    /// Connections dialed by the same peer are left open: there is no choice between those that
+    /// both peers would agree on.
+    fn close_duplicate_connections(&mut self, peer_id: PeerId) {
+        let preferred_dialer = (*self.local_peer_id()).min(peer_id);
+        let Some(connections) = self.connections.get(&peer_id) else {
+            return;
+        };
+        if !connections.values().any(|dialer| *dialer == preferred_dialer) {
+            return;
+        }
+        let duplicates: Vec<ConnectionId> = connections
+            .iter()
+            .filter(|(_, dialer)| **dialer != preferred_dialer)
+            .map(|(connection_id, _)| *connection_id)
+            .collect();
+        for connection_id in duplicates {
+            debug!(target: "gossip", ?peer_id, ?connection_id, "Closing duplicate connection");
+            self.swarm.close_connection(connection_id);
         }
     }
 
@@ -391,13 +428,25 @@ where
             SwarmEvent::Behaviour(behavior_event) => {
                 return self.handle_gossip_event(behavior_event);
             }
-            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+            SwarmEvent::ConnectionEstablished {
+                peer_id,
+                connection_id,
+                endpoint,
+                num_established,
+                ..
+            } => {
+                let dialer = if endpoint.is_dialer() { *self.local_peer_id() } else { peer_id };
+                self.connections.entry(peer_id).or_default().insert(connection_id, dialer);
+                if num_established.get() > 1 {
+                    self.close_duplicate_connections(peer_id);
+                }
+
                 let peer_count = self.swarm.connected_peers().count();
                 info!(target: "gossip", "Connection established: {:?} | Peer Count: {}", peer_id, peer_count);
                 kona_macros::inc!(gauge, crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "connected");
                 kona_macros::set!(gauge, crate::Metrics::GOSSIP_PEER_COUNT, peer_count as f64);
 
-                self.peer_connection_start.insert(peer_id, Instant::now());
+                self.peer_connection_start.entry(peer_id).or_insert_with(Instant::now);
             }
             SwarmEvent::OutgoingConnectionError { peer_id: _peer_id, error, .. } => {
                 debug!(target: "gossip", "Outgoing connection error: {:?}", error);
@@ -419,10 +468,25 @@ where
                     "type" => "incoming_error"
                 );
             }
-            SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
+            SwarmEvent::ConnectionClosed {
+                peer_id, connection_id, num_established, cause, ..
+            } => {
+                if let Some(connections) = self.connections.get_mut(&peer_id) {
+                    connections.remove(&connection_id);
+                    if connections.is_empty() {
+                        self.connections.remove(&peer_id);
+                    }
+                }
+                kona_macros::inc!(gauge, crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "closed");
+
+                // The peer is still connected, for example after closing a duplicate connection.
+                if num_established > 0 {
+                    debug!(target: "gossip", ?peer_id, ?cause, num_established, "Connection closed, peer still connected");
+                    return None;
+                }
+
                 let peer_count = self.swarm.connected_peers().count();
                 warn!(target: "gossip", ?peer_id, ?cause, peer_count, "Connection closed");
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "closed");
                 kona_macros::set!(gauge, crate::Metrics::GOSSIP_PEER_COUNT, peer_count as f64);
 
                 // Record the total connection duration.
@@ -474,11 +538,55 @@ mod tests {
         builder::tests::{memory_driver, poll_until_connected},
     };
     use libp2p::{Multiaddr, multiaddr::Protocol};
+    use std::time::Duration;
+
+    /// Polls both drivers' swarms for `duration`.
+    async fn poll_for(
+        driver_1: &mut GossipDriver<ConnectionGater>,
+        driver_2: &mut GossipDriver<ConnectionGater>,
+        duration: Duration,
+    ) {
+        let poll = async {
+            loop {
+                tokio::select! {
+                    Some(event) = driver_1.next() => { driver_1.handle_event(event); }
+                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
+                }
+            }
+        };
+        _ = tokio::time::timeout(duration, poll).await;
+    }
 
     /// Dials `addr` a few times, as discovery does whenever it sees the peer again.
     fn redial(driver: &mut GossipDriver<ConnectionGater>, addr: &Multiaddr) {
         for _ in 0..3 {
             driver.dial_multiaddr(addr.clone());
+        }
+    }
+
+    /// Two peers that dial each other at the same time both keep only the connection dialed by
+    /// the peer with the smaller ID.
+    #[tokio::test]
+    async fn test_crossing_dials_keep_one_connection() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+
+        let peer_1 = *driver_1.local_peer_id();
+        let peer_2 = *driver_2.local_peer_id();
+        let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
+        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+
+        driver_1.dial_multiaddr(addr_2);
+        driver_2.dial_multiaddr(addr_1);
+
+        // Long enough for both connections to be established, and the duplicate closed.
+        poll_for(&mut driver_1, &mut driver_2, Duration::from_millis(500)).await;
+
+        let preferred_dialer = peer_1.min(peer_2);
+        for (driver, peer) in [(&driver_1, peer_2), (&driver_2, peer_1)] {
+            assert_eq!(driver.swarm.network_info().connection_counters().num_established(), 1);
+            let dialers: Vec<_> = driver.connections[&peer].values().copied().collect();
+            assert_eq!(dialers, vec![preferred_dialer]);
         }
     }
 
