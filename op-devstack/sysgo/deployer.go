@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -670,6 +671,12 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 		genesis: wb.outL1Genesis, blockTime: 6,
 	}
 	l1EL, l1CL := startL1(l1Net)
+	// geth rejects receipt queries until its first transaction indexing pass is done, and forge
+	// gives up on a receipt after a few quick retries.
+	l1Client, err := ethclient.DialContext(wb.p.Ctx(), l1EL.UserRPC())
+	wb.require.NoError(err)
+	wb.require.NoError(geth.WaitUntilTransactionNotFound(l1Client, common.Hash{}, 30*time.Second))
+	l1Client.Close()
 	intent.OPCMAddress = &st.ImplementationsDeployment.OpcmV2Impl
 	intent.SuperchainConfigProxy = &st.SuperchainDeployment.SuperchainConfigProxy
 	intent.SuperchainRoles = nil
