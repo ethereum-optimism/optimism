@@ -144,7 +144,7 @@ func (p *RetryProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(h, res.Header.Get(h))
 	}
 
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(res.StatusCode)
 	if _, err := io.Copy(w, bytes.NewReader(resBody)); err != nil {
 		p.lgr.Error("failed to copy response", "err", err)
 		http.Error(w, "failed to copy response", http.StatusInternalServerError)
@@ -171,7 +171,11 @@ func (p *RetryProxy) doProxyReq(ctx context.Context, body []byte) (*http.Respons
 		return nil, err
 	}
 	status := res.StatusCode
-	if status != 200 {
+	// A client error, other than a rate limit, does not go away on a retry, so the client gets it at
+	// once. A node such as proxyd answers 403 for a method that it does not serve.
+	clientErr := status >= 400 && status < 500 && status != http.StatusTooManyRequests
+	if status != http.StatusOK && !clientErr {
+		res.Body.Close()
 		p.lgr.Warn("unexpected status code", "status", status)
 		return nil, fmt.Errorf("unexpected status code: %d", status)
 	}
