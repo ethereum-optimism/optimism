@@ -12,7 +12,7 @@ use libp2p::{
     tcp::Config as TcpConfig,
     yamux::Config as YamuxConfig,
 };
-use std::{convert::Infallible, error::Error, fmt, time::Duration};
+use std::{convert::Infallible, error::Error, time::Duration};
 use tokio::sync::watch;
 
 use crate::{Behaviour, BlockHandler, GaterConfig, GossipDriver, GossipDriverBuilderError};
@@ -24,7 +24,7 @@ pub type TransportBuilder = Box<
 >;
 
 /// The transport the gossip swarm listens and dials on.
-#[derive(Default)]
+#[derive(Default, derive_more::Debug)]
 pub enum GossipTransport {
     /// TCP, with DNS resolution of `/dns`, `/dns4` and `/dns6` addresses.
     #[default]
@@ -34,16 +34,7 @@ pub enum GossipTransport {
     /// The connection gater cannot apply IP and subnet blocks to addresses without an IP, such as
     /// `/memory` ones. With this transport it dials them after its other checks, such as blocked
     /// peers, leaving the rest to the transport.
-    Other(TransportBuilder),
-}
-
-impl fmt::Debug for GossipTransport {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Tcp => f.write_str("Tcp"),
-            Self::Other(_) => f.write_str("Other(..)"),
-        }
-    }
+    Other(#[debug(skip)] TransportBuilder),
 }
 
 /// A builder for the [`GossipDriver`].
