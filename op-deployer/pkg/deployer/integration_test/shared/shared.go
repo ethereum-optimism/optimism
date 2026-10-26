@@ -7,16 +7,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -109,19 +106,4 @@ func (h *HostCaller) Call(to common.Address, data []byte) ([]byte, error) {
 		uint256.NewInt(0),
 	)
 	return result, err
-}
-
-// DeployDummyCaller deploys DummyCaller at the prank address with the given OPCM address.
-func DeployDummyCaller(t *testing.T, rpcClient *rpc.Client, afactsFS foundry.StatDirFs, prank, opcmAddr common.Address) {
-	t.Helper()
-
-	artifacts := &foundry.ArtifactsFS{FS: afactsFS}
-	artifact, err := artifacts.ReadArtifact("DummyCaller.sol", "DummyCaller.0.8.15")
-	require.NoError(t, err, "failed to read DummyCaller artifact")
-
-	err = rpcClient.Call(nil, "anvil_setCode", prank, hexutil.Encode(artifact.DeployedBytecode.Object))
-	require.NoError(t, err, "failed to deploy DummyCaller")
-
-	err = rpcClient.Call(nil, "anvil_setStorageAt", prank, common.Hash{}, common.BytesToHash(opcmAddr.Bytes()))
-	require.NoError(t, err, "failed to set OPCM address in storage")
 }
