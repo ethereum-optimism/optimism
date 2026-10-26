@@ -495,6 +495,27 @@ mod tests {
         assert!(!task.is_finished(), "driver task should keep running for the ENR receiver");
     }
 
+    /// Once every handler was dropped, `recv` returned `None` on every iteration, so the loop kept
+    /// a core busy for as long as the ENR receiver kept the task running.
+    #[tokio::test]
+    async fn regression_discv5_driver_idles_for_enr_receiver() {
+        let (handler, _enr_recv, task) = offline_driver().spawn();
+
+        wait_until_started(&handler).await;
+        drop(handler);
+        // Let the intervals fire their immediate first ticks, so the loop is idle.
+        sleep(Duration::from_millis(100)).await;
+
+        // The test runtime is single-threaded, so its only worker also runs the driver.
+        let metrics = tokio::runtime::Handle::current().metrics();
+        let before = metrics.worker_total_busy_duration(0);
+        sleep(Duration::from_millis(500)).await;
+        let busy = metrics.worker_total_busy_duration(0) - before;
+
+        assert!(!task.is_finished(), "driver task should keep running for the ENR receiver");
+        assert!(busy < Duration::from_millis(10), "driver should idle, but was busy for {busy:?}");
+    }
+
     /// [`Discv5Driver::start`]: dropping only the ENR receiver keeps the task running for the
     /// handler, which still gets answers.
     #[tokio::test]
