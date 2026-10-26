@@ -19,28 +19,8 @@ contract RelayActor is StdUtils {
     uint256 public numHashes;
     bytes32[] public hashes;
     bool public reverted = false;
-    bytes public revertData;
-    uint256 public revertIndex;
-    uint256 public lastGas;
-    Diag public diag;
-    string public accessTrace;
-
-    struct Diag {
-        uint256 version;
-        uint256 value;
-        uint256 msgLen;
-        uint256 minGasLimit;
-        uint256 gas;
-        uint256 gasBefore;
-        uint256 gasAfter;
-        uint256 idBalance;
-        address origin;
-        uint256 blockNumber;
-        uint256 timestamp;
-        uint256 opBalance;
-        uint256 actorBalance;
-        uint256 valueRelays;
-    }
+    string public revertCtx;
+    uint256 public valueRelays;
 
     IOptimismPortal2 op;
     IL1CrossDomainMessenger xdm;
@@ -84,7 +64,6 @@ contract RelayActor is StdUtils {
         // If the message should succeed, supply it `baseGas`. If not, supply enough gas for the
         // relay to record the failure from cold storage, but too little to call the target.
         uint256 gas = doFail ? bound(minGasLimit, 125_000, 135_000) : xdm.baseGas(_message, minGasLimit);
-        lastGas = gas;
 
         // Compute the cross domain message hash and store it in `hashes`.
         // The `relayMessage` function will always encode the message as a version 1
@@ -104,104 +83,31 @@ contract RelayActor is StdUtils {
         if (!doFail) {
             vm.expectCallMinGas(address(0x04), _value, minGasLimit, _message);
         }
-        diag.idBalance = address(0x04).balance;
-        diag.opBalance = address(op).balance;
-        diag.actorBalance = address(this).balance;
-        diag.gasBefore = gasleft();
-        vm.startStateDiffRecording();
         try xdm.relayMessage{ gas: gas, value: _value }(
             Encoding.encodeVersionedNonce(0, _version), sender, target, _value, minGasLimit, _message
         ) {
-            vm.stopAndReturnStateDiff();
-            if (_value > 0) diag.valueRelays++;
+            if (_value > 0) valueRelays++;
         } catch (bytes memory err) {
-            Vm.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
-            if (!reverted) _recordAccesses(accesses);
             // If any of these calls revert, set `reverted` to true to fail the invariant test.
             // NOTE: This is to get around forge's invariant fuzzer ignoring reverted calls
             // to this function.
             if (!reverted) {
-                diag.gasAfter = gasleft();
-                revertData = err;
-                revertIndex = numHashes - 1;
-                diag.version = _version;
-                diag.value = _value;
-                diag.msgLen = _message.length;
-                diag.minGasLimit = minGasLimit;
-                diag.gas = gas;
-                diag.origin = tx.origin;
-                diag.blockNumber = block.number;
-                diag.timestamp = block.timestamp;
+                revertCtx = string.concat(
+                    "DIAG value=",
+                    vm.toString(_value),
+                    " data=",
+                    vm.toString(err),
+                    " opBalance=",
+                    vm.toString(address(op).balance),
+                    " idBalance=",
+                    vm.toString(address(0x04).balance),
+                    " valueRelays=",
+                    vm.toString(valueRelays)
+                );
             }
             reverted = true;
         }
         vm.stopPrank();
-    }
-
-    function _recordAccesses(Vm.AccountAccess[] memory _accesses) internal {
-        string memory out;
-        for (uint256 i = 0; i < _accesses.length; i++) {
-            Vm.AccountAccess memory a = _accesses[i];
-            bytes4 selector;
-            if (a.data.length >= 4) selector = bytes4(a.data);
-            out = string.concat(
-                out,
-                string.concat(" |d", vm.toString(uint256(a.depth)), "k", vm.toString(uint256(a.kind)), " "),
-                string.concat(vm.toString(a.account), " ", vm.toString(abi.encodePacked(selector))),
-                string.concat(" init=", vm.toString(a.initialized), " code=", vm.toString(a.account.code.length)),
-                string.concat(" sl=", vm.toString(a.storageAccesses.length))
-            );
-        }
-        accessTrace = out;
-    }
-
-    function revertCtx() external view returns (string memory) {
-        Diag memory d = diag;
-        return string.concat(
-            string.concat(
-                " version=",
-                vm.toString(d.version),
-                " value=",
-                vm.toString(d.value),
-                " msgLen=",
-                vm.toString(d.msgLen),
-                " minGasLimit=",
-                vm.toString(d.minGasLimit),
-                " gas=",
-                vm.toString(d.gas),
-                " gasUsed=",
-                vm.toString(d.gasBefore - d.gasAfter)
-            ),
-            string.concat(
-                " idBalance=",
-                vm.toString(d.idBalance),
-                " idCodeLen=",
-                vm.toString(address(0x04).code.length),
-                " xdmBalance=",
-                vm.toString(address(xdm).balance),
-                " origin=",
-                vm.toString(d.origin),
-                " block=",
-                vm.toString(d.blockNumber),
-                " ts=",
-                vm.toString(d.timestamp),
-                " gasBefore=",
-                vm.toString(d.gasBefore)
-            ),
-            _balanceCtx(),
-            accessTrace
-        );
-    }
-
-    function _balanceCtx() internal view returns (string memory) {
-        return string.concat(
-            " opBalance=",
-            vm.toString(diag.opBalance),
-            " actorBalance=",
-            vm.toString(diag.actorBalance),
-            " valueRelays=",
-            vm.toString(diag.valueRelays)
-        );
     }
 }
 
@@ -259,39 +165,14 @@ contract XDM_MinGasLimits_Succeeds is XDM_MinGasLimits {
     ///                     `L1CrossDomainMessenger` to the target contract.
     function invariant_minGasLimits() external view {
         uint256 length = actor.numHashes();
-        assertFalse(
-            actor.reverted(),
-            string.concat(
-                "DIAG relay reverted at index ",
-                vm.toString(actor.revertIndex()),
-                " of ",
-                vm.toString(length),
-                " data=",
-                vm.toString(actor.revertData()),
-                actor.revertCtx()
-            )
-        );
         for (uint256 i = 0; i < length; ++i) {
             bytes32 hash = actor.hashes(i);
-            string memory ctx = string.concat(
-                " index=",
-                vm.toString(i),
-                " of ",
-                vm.toString(length),
-                " hash=",
-                vm.toString(hash),
-                " failed=",
-                vm.toString(l1CrossDomainMessenger.failedMessages(hash)),
-                " lastGas=",
-                vm.toString(actor.lastGas()),
-                " l2Sender=",
-                vm.toString(optimismPortal2.l2Sender())
-            );
             // The message hash is set in the successfulMessages mapping
-            assertTrue(l1CrossDomainMessenger.successfulMessages(hash), string.concat("DIAG not successful", ctx));
+            assertTrue(l1CrossDomainMessenger.successfulMessages(hash));
             // The message hash is not set in the failedMessages mapping
-            assertFalse(l1CrossDomainMessenger.failedMessages(hash), string.concat("DIAG marked failed", ctx));
+            assertFalse(l1CrossDomainMessenger.failedMessages(hash));
         }
+        assertFalse(actor.reverted(), actor.revertCtx());
     }
 }
 
@@ -324,6 +205,6 @@ contract XDM_MinGasLimits_Reverts is XDM_MinGasLimits {
             // The message hash is set in the failedMessages mapping
             assertTrue(l1CrossDomainMessenger.failedMessages(hash));
         }
-        assertFalse(actor.reverted());
+        assertFalse(actor.reverted(), actor.revertCtx());
     }
 }
