@@ -541,10 +541,6 @@ serves every use:
 | `prepare` / `continue` | keyless forge dry-run; `continue` preflight on an ephemeral `anvil --fork-url` |
 | Read-only paths (op-fetcher, StandardValidator reads) | no script engine: eth_call on the live L1, or on the anvil fork in `continue` |
 
-The Go-side seal records the L1 dev genesis state root in `core.Genesis.StateHash`, a fork-only
-field that upstream `core.Genesis` lacks, so the sealed genesis needs another carrier for it
-(#23217).
-
 **Dropped, not ported:** the `calldata`/`noop` deployment targets, `manage`, the script-driven
 upgrade path (`upgrade/embedded.Upgrade`, used by `manage` and sysgo) and `inspect l2-semvers`.
 Day-2 operations leave op-deployer and are ABI-packed by their callers (netchef, superchain-ops,
@@ -602,11 +598,9 @@ the survivors swapped to op-core, with the DA-footprint calculation added to `op
 (#22163).
 
 **`op-wheel`**: the `cheat` commands did offline surgery on op-geth datadirs and were deleted
-(#21747). The `engine` commands drive a live EL over Engine-API RPC and stay, but still read OP
-fork times off a geth `params.ChainConfig`: `rollupFromGethConfig` copies them from the EL's
-`debug_chainConfig` response, which an upstream decode would silently drop, and
-`blockAsPayloadEnv` sets `CanyonTime` to pick the withdrawals encoding. They swap to
-`opparams.ChainConfig` and to a local `eth.HardforkConfig` (§5), tracked in #23217.
+(#21747). The `engine` commands drive a live EL over Engine-API RPC and stay. They decode the
+EL's `debug_chainConfig` into `opparams.ChainConfig`, and pick a payload's withdrawals encoding
+with an `opparams.ChainConfig` as its `eth.HardforkConfig` (§5).
 
 **`cmd/receipt-reference-builder`** records transaction nonces with the fork's
 `Transaction.EffectiveNonce`, which for a deposit returns the nonce the RPC reported for it. It
@@ -779,7 +773,7 @@ monorepo has to fix on their behalf.
 | In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open (#21744) |
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | **done** (#21746) |
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
-| `op-wheel/engine` fork-config reads (§18) | `opparams.ChainConfig` + `eth.HardforkConfig` | open (#23217) |
+| `op-wheel/engine` fork-config reads (§18) | `opparams.ChainConfig` + `eth.HardforkConfig` | **done** (#23217) |
 | CI ratchet (§19) | required upstream type-check against a shrinking allowlist | **done** |
 | Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | a few modules unblocked; most wait for the final cutover (the `op-core/types` deposit edge) |
 | Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |

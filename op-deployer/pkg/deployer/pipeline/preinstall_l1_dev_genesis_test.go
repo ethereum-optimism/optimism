@@ -48,7 +48,7 @@ func TestPreinstallL1DevGenesis_RequestQueues(t *testing.T) {
 		{"builder exit", common.HexToAddress("0x000064d678505ad48f8ccb093bc65613800e8282"), common.HexToHash("0xc889ed88730d157d192aae28c2dee61324d0df3bd01ff0078386808b4adb27aa"), 0, 1},
 	} {
 		t.Run(queue.name, func(t *testing.T) {
-			account, ok := st.L1StateDump.Data.Accounts[queue.addr]
+			account, ok := st.L1DevGenesis.Alloc[queue.addr]
 			require.True(t, ok, "request queue must be present in the L1 genesis alloc")
 			require.Equal(t, queue.codeHash, common.Hash(sha256.Sum256(account.Code)))
 			require.Equal(t, queue.nonce, account.Nonce)
@@ -56,11 +56,5 @@ func TestPreinstallL1DevGenesis_RequestQueues(t *testing.T) {
 		})
 	}
 
-	require.Equal(t, storageValue, st.L1StateDump.Data.Accounts[params.WithdrawalQueueAddress].Storage[storageKey])
-
-	// The exported alloc must include the queues before the genesis state root is sealed.
-	genesis := *st.L1DevGenesis
-	genesis.StateHash = nil
-	genesis.Alloc = st.L1StateDump.Data.Accounts
-	require.Equal(t, *st.L1DevGenesis.StateHash, genesis.ToBlock().Root())
+	require.Equal(t, storageValue, st.L1DevGenesis.Alloc[params.WithdrawalQueueAddress].Storage[storageKey])
 }
