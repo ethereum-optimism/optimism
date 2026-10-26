@@ -11,7 +11,7 @@ revert.
 
 The L1 pause reaches L2 through the permissionless `L1CrossDomainMessenger.syncETHLiquidityPause()`.
 That call reads the L1 pause and sends `ETHLiquidity.setPaused(paused, messageNonce)` to L2 as
-a cross-domain message with a 100k gas limit. `messageNonce` is the versioned nonce of that
+a cross-domain message with a 200k gas limit. `messageNonce` is the versioned nonce of that
 message, the same one as in the messenger's `SentMessage` event. Anyone can call it, so `sync`
 only mirrors state and needs no privileged key. L2 records the nonce as `pausedMessageNonce()`
 and ignores a message older than the one it already applied.
