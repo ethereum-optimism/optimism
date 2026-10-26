@@ -25,8 +25,9 @@ async fn test_sequencer_network_conn() -> anyhow::Result<()> {
 
     sequencer.gossip_payload_tx.send(envelope.clone()).await?;
 
-    let block =
-        validator.blocks_rx.recv().await.ok_or_else(|| anyhow::anyhow!("No block received"))?;
+    let block = tokio::time::timeout(Duration::from_secs(10), validator.blocks_rx.recv())
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("No block received"))?;
 
     assert_eq!(block, envelope);
 
