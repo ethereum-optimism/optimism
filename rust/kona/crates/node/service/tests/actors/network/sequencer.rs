@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::actors::{
     generator::{block_builder::PayloadVersion, seed::SEED_GENERATOR_BUILDER},
     network::mocks::builder::TestNetworkBuilder,
@@ -25,6 +27,34 @@ async fn test_sequencer_network_conn() -> anyhow::Result<()> {
 
     let block =
         validator.blocks_rx.recv().await.ok_or_else(|| anyhow::anyhow!("No block received"))?;
+
+    assert_eq!(block, envelope);
+
+    Ok(())
+}
+
+/// Blocks gossiped by the sequencer reach a validator connected over the in-memory transport.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_memory_network_conn() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().set_sequencer().in_memory();
+
+    let sequencer = builder.build(vec![]).await;
+    let mut validator = builder.build(vec![]).await;
+
+    validator.connect_to(&sequencer).await?;
+
+    validator.is_connected_to_with_retries(&sequencer).await?;
+    sequencer.is_connected_to_with_retries(&validator).await?;
+
+    let mut seed_generator = SEED_GENERATOR_BUILDER.next_generator();
+
+    let envelope = seed_generator.random_valid_payload(PayloadVersion::V1)?;
+
+    sequencer.gossip_payload_tx.send(envelope.clone()).await?;
+
+    let block = tokio::time::timeout(Duration::from_secs(10), validator.blocks_rx.recv())
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("No block received"))?;
 
     assert_eq!(block, envelope);
 
