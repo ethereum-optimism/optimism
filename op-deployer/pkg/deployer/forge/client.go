@@ -182,7 +182,8 @@ func scriptReverted(stderr string) bool {
 }
 
 // RunScript runs a prebuilt script without a compile. It returns forge's output and the transactions
-// that the script would send, which forge records in the run's private dry-run file. Not --offline:
+// that the script would send, which forge records in the run's private dry-run file; a --broadcast
+// run sends them itself and returns none. Not --offline:
 // offline, forge requires the solc versions of the cache installed even when it compiles nothing.
 // Each run gets its own copy of the compile cache and its own broadcast directory, so concurrent
 // runs write no shared file.
@@ -221,6 +222,15 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	buf := new(bytes.Buffer)
 	cliOpts := []string{"script", "--root", root, "--config-path", configPath, "--cache-path", cacheDir}
 	cliOpts = append(cliOpts, opts...)
+	// Only the unlocked sends to an L1 fork broadcast with forge. --slow: forge otherwise waits
+	// forever on a receipt when the node drops one of several transactions sent at once. The node's
+	// gas estimate, as with txmgr: forge's own simulation does not know every L1 fork (it
+	// underestimated a Glamsterdam L1), and its default +30% lifts the OPCM deployment over the Osaka
+	// per-transaction gas cap (EIP-7825).
+	broadcast := slices.Contains(opts, "--broadcast")
+	if broadcast {
+		cliOpts = append(cliOpts, "--slow", "--skip-simulation", "--gas-estimate-multiplier", "100")
+	}
 	cliOpts = append(cliOpts, "--sig", sig, script, "0x"+hex.EncodeToString(args))
 	release, err := runSlots.acquire(ctx)
 	if err != nil {
@@ -248,6 +258,9 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	}
 	if strings.Contains(buf.String(), "Compiler run successful") {
 		return "", nil, compileErr
+	}
+	if broadcast {
+		return buf.String(), nil, nil
 	}
 	transactions, err := readTransactions(filepath.Join(scratch, "broadcast"), buf.String())
 	if err != nil {
