@@ -263,7 +263,8 @@ async fn later_transaction_affordability_depends_on_prior_refund() -> eyre::Resu
     }
     let mut node = launch_sdm_node_with_attributes(&chain_spec, move |timestamp| {
         let mut attributes = lagoon::payload_attributes(timestamp);
-        attributes.0.no_tx_pool = Some(true);
+        // Local sequencing produces refunds; derived mode only verifies embedded refunds.
+        attributes.0.no_tx_pool = Some(false);
         attributes.0.transactions = Some(forced_transactions.clone());
         attributes
     })
