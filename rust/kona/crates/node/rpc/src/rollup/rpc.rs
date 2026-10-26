@@ -11,11 +11,13 @@ use jsonrpsee::{
 use kona_engine::{EngineQueryClient, EngineState};
 use kona_genesis::RollupConfig;
 use kona_protocol::SyncStatus;
+use kona_safedb::{SafeDb, SafeDbError};
 use std::sync::Arc;
 use tokio::sync::{oneshot, watch};
 
 use crate::{
-    L1WatcherQueries, OutputResponse, RollupNodeApiServer, l1_watcher::L1WatcherQuerySender,
+    L1WatcherQueries, OutputResponse, RollupNodeApiServer, SafeHeadResponse,
+    l1_watcher::L1WatcherQuerySender, safe_db_error::safe_db_error,
 };
 
 /// `RollupRpc`
@@ -33,6 +35,8 @@ pub struct RollupRpc {
     pub l2: EngineQueryClient,
     /// The channel to send [`crate::L1WatcherQueries`]s.
     pub l1_watcher_sender: L1WatcherQuerySender,
+    /// The record of the L2 safe head reached as of each L1 block.
+    pub safe_db: Option<Arc<dyn SafeDb>>,
 }
 
 impl RollupRpc {
@@ -44,8 +48,9 @@ impl RollupRpc {
         engine_state: watch::Receiver<EngineState>,
         l2: EngineQueryClient,
         l1_watcher_sender: L1WatcherQuerySender,
+        safe_db: Option<Arc<dyn SafeDb>>,
     ) -> Self {
-        Self { version, config, engine_state, l2, l1_watcher_sender }
+        Self { version, config, engine_state, l2, l1_watcher_sender, safe_db }
     }
 
     async fn sync_status(&self) -> Result<SyncStatus, oneshot::error::RecvError> {
@@ -89,6 +94,34 @@ impl RollupNodeApiServer for RollupRpc {
         Ok(OutputResponse::from_v0(output_root, sync_status, l2_block_info))
     }
 
+    async fn op_safe_head_at_l1_block(
+        &self,
+        block_num: BlockNumberOrTag,
+    ) -> RpcResult<SafeHeadResponse> {
+        // op-node takes a plain number here; `earliest` is the only tag that names one.
+        let l1_block_num = match block_num {
+            BlockNumberOrTag::Number(number) => number,
+            BlockNumberOrTag::Earliest => 0,
+            tag => {
+                return Err(ErrorObject::owned(
+                    ErrorCode::InvalidParams.code(),
+                    format!("safeHeadAtL1Block requires an L1 block number, got {tag}"),
+                    None::<()>,
+                ));
+            }
+        };
+
+        let record = self
+            .safe_db
+            .as_ref()
+            .ok_or(SafeDbError::NotEnabled)
+            .and_then(|database| database.safe_head_at_l1(l1_block_num))
+            .map_err(|e| {
+                safe_db_error(e, format_args!("failed to get safe head at l1 block {l1_block_num}"))
+            })?;
+        Ok(SafeHeadResponse { l1_block: record.l1, safe_head: record.safe_head })
+    }
+
     async fn op_sync_status(&self) -> RpcResult<SyncStatus> {
         self.sync_status().await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
@@ -122,6 +155,7 @@ mod tests {
             state_rx,
             client.query_client(),
             l1_tx,
+            None,
         );
         assert_eq!(rpc.op_rollup_config().await.unwrap(), *config);
 
@@ -170,6 +204,7 @@ mod tests {
                 state_rx.clone(),
                 client.query_client(),
                 l1_tx.clone(),
+                None,
             );
             assert_eq!(rpc.op_version().await.unwrap(), version);
         }

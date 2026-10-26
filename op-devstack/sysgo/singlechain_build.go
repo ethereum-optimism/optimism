@@ -166,15 +166,14 @@ func startStoppedSequencerCL(
 				opt.Apply(t, target, &konaCfg)
 			}
 		}
-		// Only the conductor settings are forwarded to kona. Fail on any other
-		// option rather than silently running a node that never saw it.
-		// SafeDBPath is set on every primary but is not forwarded to kona.
+		// Only the conductor and safe head database settings are forwarded to kona. Fail on
+		// any other option rather than silently running a node that never saw it.
 		unsupported := konaCfg
 		unsupported.ConductorRPC = ""
 		unsupported.ConductorRPCTimeout = 0
 		unsupported.SafeDBPath = ""
-		t.Require().Equal(baseCfg, unsupported, "L2CL options other than the conductor settings cannot be applied to kona-node")
-		extraEnv := []string{"KONA_NODE_SEQUENCER_STOPPED=true"}
+		t.Require().Equal(baseCfg, unsupported, "L2CL options other than the conductor and safe head database settings cannot be applied to kona-node")
+		extraEnv := append([]string{"KONA_NODE_SEQUENCER_STOPPED=true"}, konaSafeDBEnv(konaCfg.SafeDBPath)...)
 		if konaCfg.ConductorRPC != "" {
 			t.Require().Positive(konaCfg.ConductorRPCTimeout, "conductor RPC timeout must be positive")
 			// kona-node parses this flag but does not apply it yet (#21906).

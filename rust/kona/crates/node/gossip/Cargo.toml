@@ -40,6 +40,7 @@ discv5.workspace = true
 openssl = { workspace = true, features = ["vendored"] }
 libp2p-identity = { workspace = true, features = ["secp256k1"] }
 libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "dns", "noise", "gossipsub", "ping", "yamux", "identify", "metrics"] }
+hickory-resolver = { workspace = true, features = ["metrics"] }
 ipnet = { workspace = true, features = ["serde"] }
 
 # Misc
