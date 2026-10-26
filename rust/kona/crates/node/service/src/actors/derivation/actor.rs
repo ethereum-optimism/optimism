@@ -325,15 +325,20 @@ where
             );
             return Ok(());
         }
-        if let Some(derived_from) = attributes.derived_from {
-            self.safe_head_history.record(safe_head, derived_from.id());
-        }
-        if let (Some(database), Some(derived_from)) = (&self.safe_db, attributes.derived_from) {
-            debug!(target: "derivation", l1_block = derived_from.number, safe_head = safe_head.block_info.number, "Recording safe head");
-            database.safe_head_updated(safe_head, derived_from.id()).inspect_err(|error| {
-                error!(target: "derivation", %error, l1_block = derived_from.number, safe_head = safe_head.block_info.number, "Failed to record safe head");
-            })?;
-            debug!(target: "derivation", l1_block = derived_from.number, safe_head = safe_head.block_info.number, "Recorded safe head");
+        if let Some(derived_from) = attributes.derived_from.map(|block| block.id()) {
+            // Both records take the L1 block the history works out: the derivation source,
+            // raised to the L1 block the parent was recorded at, since a block cannot become safe
+            // before its parent. Below a floor known only as a bound, the history records nothing
+            // and the database keeps the derivation source.
+            let safe_at =
+                self.safe_head_history.record(safe_head, derived_from).unwrap_or(derived_from);
+            if let Some(database) = &self.safe_db {
+                debug!(target: "derivation", l1_block = safe_at.number, safe_head = safe_head.block_info.number, "Recording safe head");
+                database.safe_head_updated(safe_head, safe_at).inspect_err(|error| {
+                    error!(target: "derivation", %error, l1_block = safe_at.number, safe_head = safe_head.block_info.number, "Failed to record safe head");
+                })?;
+                debug!(target: "derivation", l1_block = safe_at.number, safe_head = safe_head.block_info.number, "Recorded safe head");
+            }
         }
         self.finalizer.enqueue_for_finalization(&attributes);
         Ok(())

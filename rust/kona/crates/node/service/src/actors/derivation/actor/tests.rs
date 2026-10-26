@@ -584,6 +584,51 @@ async fn a_reset_that_keeps_the_confirmed_safe_head_resumes_derivation(
     }
 }
 
+/// Attributes for the child of `parent`, derived from L1 block `derived_from`.
+fn attributes_after(parent: u64, derived_from: u64) -> OpAttributesWithParent {
+    OpAttributesWithParent {
+        attributes: OpPayloadAttributes::default(),
+        parent: l2_block(parent),
+        derived_from: Some(l1_block(derived_from)),
+        is_last_in_span: true,
+    }
+}
+
+/// After a reset, the pipeline replays from before the safe head's L1 origin and can produce the
+/// next block from an L1 block below the one the safe head became safe at. That block became safe
+/// only once its parent did, so the database records it at its parent's L1 block: updates stay
+/// in ascending L1 order, and no query answers it for an L1 block where the parent was not safe.
+#[tokio::test]
+async fn replay_after_a_reset_records_no_safe_head_below_its_parents_l1_block() {
+    let mut node = RecordingActor::new(engine_client_accepting_attributes());
+    node.derive_and_confirm_one_block().await;
+    let parent_l1 = DERIVED_FROM_L1 + 6;
+    node.actor.pipeline.attributes.push_back(attributes_after(DERIVED_HEAD, parent_l1));
+    node.handle(DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::default())).await;
+    node.confirm_safe_head(DERIVED_HEAD + 1).await;
+    assert_eq!(node.db.last_entry().unwrap(), record(parent_l1, DERIVED_HEAD + 1));
+
+    // A reset that keeps that safe head, then a replay that finds the next block's batch lower.
+    node.actor.pipeline.attributes.push_back(attributes_after(DERIVED_HEAD + 1, parent_l1 - 3));
+    node.signal(Signal::Reset(kona_derive::ResetSignal {
+        l2_safe_head: l2_block(DERIVED_HEAD + 1),
+    }))
+    .await;
+    node.actor
+        .pipeline
+        .attributes
+        .retain(|attributes| attributes.parent == l2_block(DERIVED_HEAD + 1));
+    node.confirm_safe_head(DERIVED_HEAD + 2).await;
+
+    assert_eq!(node.db.last_entry().unwrap(), record(parent_l1, DERIVED_HEAD + 2));
+    // Below the parent's L1 block, the safe head is still the grandparent.
+    assert_eq!(
+        node.db.safe_head_at_l1(parent_l1 - 1).unwrap(),
+        record(DERIVED_FROM_L1, DERIVED_HEAD)
+    );
+    assert_eq!(node.db.l1_at_safe_head(DERIVED_HEAD + 1).unwrap().l1, l1_block(parent_l1).id());
+}
+
 #[tokio::test]
 async fn a_confirmed_block_is_recorded_against_its_derivation_source() {
     let mut node = RecordingActor::new(engine_client_accepting_attributes());
