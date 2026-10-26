@@ -49,7 +49,10 @@ build-source:
 
 # Builds source contracts and scripts, skipping tests.
 build-no-tests:
-  @# op-deployer runs the scripts and never compiles: forge-build also warms the script cache.
+  @# op-deployer runs the scripts and never compiles. The skip leaves out the test/mocks that the
+  @# scripts import, so compile the scripts too; forge-build then warms the script cache.
+  forge build --skip "/**/test/**"
+  forge build scripts
   just forge-build --skip "/**/test/**"
 
 # Builds the contracts.

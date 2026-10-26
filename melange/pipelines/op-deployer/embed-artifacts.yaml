@@ -36,7 +36,7 @@ pipeline:
       fi
       "$forge_bin" --version
       # Compile contracts-bedrock and warm the script cache (mirrors `just build-no-tests`).
-      ( cd "${{inputs.contracts-dir}}" && "$forge_bin" build --skip "/**/test/**" && \
+      ( cd "${{inputs.contracts-dir}}" && "$forge_bin" build --skip "/**/test/**" && "$forge_bin" build scripts && \
         { "$forge_bin" script scripts/deploy/Deploy.s.sol --skip "/**/test/**" --sig "idonotexist()" --skip-simulation >/dev/null 2>&1 || true; } )
       # Pack the compiled artifacts into the embedded tarball (mirrors
       # `just copy-contract-artifacts`).
