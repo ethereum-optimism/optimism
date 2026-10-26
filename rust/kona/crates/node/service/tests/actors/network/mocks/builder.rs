@@ -29,7 +29,7 @@ use libp2p::{
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rand::RngCore;
 use tokio::sync::{mpsc, watch};
-use tracing::error;
+use tracing::{Instrument, error, info_span};
 
 /// Builds [`TestNetwork`]s: nodes that share a random chain ID, so they get no registry bootnodes
 /// and find each other only through the bootnodes a test passes in.
@@ -50,6 +50,8 @@ pub(crate) struct TestNetworkBuilder {
     in_memory: bool,
     /// How often nodes look up random nodes, if not the default.
     discovery_interval: Option<Duration>,
+    /// The ID of the next node built, which prefixes its logs.
+    next_node_id: usize,
 }
 
 impl TestNetworkBuilder {
@@ -58,6 +60,7 @@ impl TestNetworkBuilder {
     }
 
     pub(crate) fn new() -> Self {
+        init_test_tracing();
         let chain_id = rand::rng().next_u64();
 
         Self {
@@ -66,6 +69,7 @@ impl TestNetworkBuilder {
             custom_keypair: None,
             in_memory: false,
             discovery_interval: None,
+            next_node_id: 0,
         }
     }
 
@@ -158,7 +162,17 @@ impl TestNetworkBuilder {
             builder = builder.with_enr_update(false).with_gossip_transport(memory_transport());
         }
 
-        let handler = builder.build().expect("build network").start().await.expect("start network");
+        // Logs from this node's tasks are prefixed with `node{id=..}`.
+        let span = info_span!(target: NODE_SPAN_TARGET, "node", id = self.next_node_id);
+        self.next_node_id += 1;
+
+        let handler = builder
+            .build()
+            .expect("build network")
+            .start()
+            .instrument(span.clone())
+            .await
+            .expect("start network");
 
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
         let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel(1024);
@@ -183,26 +197,57 @@ impl TestNetworkBuilder {
             gossip_payload_rx,
             signed_payload_tx,
         );
-        tokio::spawn(async move {
-            let err = loop {
-                if let Err(err) = signer.step().await {
-                    break err;
-                }
-            };
-            error!(target: "net", ?err, "Signer actor failed");
-        });
-
-        let handle = tokio::spawn(async move {
-            loop {
-                actor.step().await?;
+        tokio::spawn(
+            async move {
+                let err = loop {
+                    if let Err(err) = signer.step().await {
+                        break err;
+                    }
+                };
+                error!(target: "net", ?err, "Signer actor failed");
             }
-            // Unreachable: the loop above only exits via Err.
-            #[allow(unreachable_code)]
-            Ok(())
-        });
+            .instrument(span.clone()),
+        );
+
+        let handle = tokio::spawn(
+            async move {
+                loop {
+                    actor.step().await?;
+                }
+                // Unreachable: the loop above only exits via Err.
+                #[allow(unreachable_code)]
+                Ok(())
+            }
+            .instrument(span),
+        );
 
         TestNetwork { p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx, blocks_rx, handle }
     }
+}
+
+/// The target of the span around each test node's tasks.
+const NODE_SPAN_TARGET: &str = "test_node";
+
+/// Logs to the test output, filtered by `RUST_LOG`. Without it, only errors are logged.
+///
+/// Each line a node's tasks log is prefixed with `node{id=..}`, the order the node was built in.
+/// For example, to see warnings from everything and dialing details from the gossip driver:
+///
+/// ```sh
+/// RUST_LOG=warn,gossip=trace cargo nextest run -p kona-node-service test_large_network_conn \
+///     --no-capture
+/// ```
+///
+/// `--no-capture` prints the logs of passing tests too. Setting `RUST_LOG` replaces the default of
+/// logging errors, so start it with a base level such as `warn`.
+fn init_test_tracing() {
+    // Spans are filtered like events, so the node spans are always enabled, to prefix whatever
+    // `RUST_LOG` lets through. They log nothing themselves.
+    let filter = tracing_subscriber::EnvFilter::from_default_env()
+        .add_directive(format!("{NODE_SPAN_TARGET}=info").parse().expect("valid directive"));
+
+    // Fails if another test in this binary already installed a subscriber, which is fine.
+    let _ = tracing_subscriber::fmt().with_env_filter(filter).with_test_writer().try_init();
 }
 
 #[derive(Debug)]
