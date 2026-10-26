@@ -245,6 +245,16 @@ where
 
     /// Dials the given [`Multiaddr`].
     pub fn dial_multiaddr(&mut self, addr: Multiaddr) {
+        // Discovery hands over the ENRs of connected peers again and again. So this is checked
+        // before the gate, which would refuse it as already dialing or count it as a dial.
+        if let Some(peer_id) = ConnectionGater::peer_id_from_addr(&addr) &&
+            self.swarm.is_connected(&peer_id)
+        {
+            debug!(target: "gossip", peer=?addr, "Already connected to peer, not dialing");
+            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected");
+            return;
+        }
+
         // Check if we're allowed to dial the address.
         if let Err(dial_error) = self.connection_gate.can_dial(&addr) {
             debug!(target: "gossip", ?dial_error, "unable to dial peer");
@@ -256,12 +266,6 @@ where
             warn!(target: "gossip", peer=?addr, "Failed to extract PeerId from Multiaddr");
             return;
         };
-
-        if self.swarm.connected_peers().any(|p| p == &peer_id) {
-            debug!(target: "gossip", peer=?addr, "Already connected to peer, not dialing");
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected");
-            return;
-        }
 
         // Let the gate know we are dialing the address.
         // Note: libp2p-dns will automatically resolve DNS multiaddrs at the transport layer.
@@ -460,5 +464,61 @@ where
         };
 
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        ConnectionGater, GossipDriver,
+        builder::tests::{memory_driver, poll_until_connected},
+    };
+    use libp2p::{Multiaddr, multiaddr::Protocol};
+
+    /// Dials `addr` a few times, as discovery does whenever it sees the peer again.
+    fn redial(driver: &mut GossipDriver<ConnectionGater>, addr: &Multiaddr) {
+        for _ in 0..3 {
+            driver.dial_multiaddr(addr.clone());
+        }
+    }
+
+    /// Dialing a connected peer is skipped before the gate: it is recorded as an
+    /// `already_connected` dial error, not refused as already dialing, and not counted as a dial.
+    #[tokio::test]
+    async fn test_dial_skips_connected_peer() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+
+        let peer_2 = *driver_2.local_peer_id();
+        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        driver_1.start().await.expect("listen");
+
+        driver_1.dial_multiaddr(addr_2.clone());
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+
+        #[cfg(feature = "metrics")]
+        {
+            let recorder = metrics_util::debugging::DebuggingRecorder::new();
+            let snapshotter = recorder.snapshotter();
+            metrics::with_local_recorder(&recorder, || redial(&mut driver_1, &addr_2));
+            let dial_error_types: Vec<(String, f64)> = snapshotter
+                .snapshot()
+                .into_vec()
+                .into_iter()
+                .filter(|(key, ..)| key.key().name() == crate::Metrics::DIAL_PEER_ERROR)
+                .filter_map(|(key, _, _, value)| {
+                    let kind = key.key().labels().find(|l| l.key() == "type")?.value().to_owned();
+                    let metrics_util::debugging::DebugValue::Gauge(count) = value else {
+                        return None;
+                    };
+                    Some((kind, count.into_inner()))
+                })
+                .collect();
+            assert_eq!(dial_error_types, vec![("already_connected".to_owned(), 3.0)]);
+        }
+        #[cfg(not(feature = "metrics"))]
+        redial(&mut driver_1, &addr_2);
+
+        assert_eq!(driver_1.connection_gate.dialed_peers[&addr_2].num_dials, 1);
     }
 }

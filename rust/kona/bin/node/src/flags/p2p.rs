@@ -194,8 +194,8 @@ pub struct P2PArgs {
     #[arg(long = "p2p.no-bootstore", env = "KONA_NODE_P2P_NO_BOOTSTORE")]
     pub disable_bootstore: bool,
     /// Peer Redialing threshold is the maximum amount of times to attempt to redial a peer that
-    /// disconnects, per `p2p.redial.period`. If set to 0, the peer will be redialed
-    /// indefinitely.
+    /// disconnects. The count resets once the peer has not been dialed for `p2p.redial.period`.
+    /// If set to 0, the peer will be redialed indefinitely.
     #[arg(long = "p2p.redial", env = "KONA_NODE_P2P_REDIAL", default_value = "500")]
     pub peer_redial: Option<u64>,
 

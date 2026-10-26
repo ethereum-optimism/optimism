@@ -275,7 +275,7 @@ impl GossipDriverBuilder {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use libp2p::{
         Transport,
@@ -297,7 +297,7 @@ mod tests {
 
     /// Builds a gossip driver whose swarm uses the in-memory transport, listening on a free
     /// `/memory` port once started.
-    fn memory_driver() -> GossipDriver<crate::ConnectionGater> {
+    pub(crate) fn memory_driver() -> GossipDriver<crate::ConnectionGater> {
         GossipDriverBuilder::new(
             RollupConfig::default(),
             Address::ZERO,
@@ -307,6 +307,22 @@ mod tests {
         .with_transport(memory_transport())
         .build()
         .expect("build gossip driver")
+    }
+
+    /// Polls both drivers' swarms until each has a connection, as the handshake needs both.
+    pub(crate) async fn poll_until_connected(
+        driver_1: &mut GossipDriver<crate::ConnectionGater>,
+        driver_2: &mut GossipDriver<crate::ConnectionGater>,
+    ) {
+        let connected = async {
+            while driver_1.connected_peers() == 0 || driver_2.connected_peers() == 0 {
+                tokio::select! {
+                    Some(event) = driver_1.next() => { driver_1.handle_event(event); }
+                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
+                }
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(10), connected).await.expect("swarms connect");
     }
 
     /// [`GossipTransport::Other`] replaces TCP: swarms built with a memory transport listen on
@@ -324,16 +340,7 @@ mod tests {
         let peer_2 = *driver_2.local_peer_id();
         driver_1.swarm.dial(addr_2.with(Protocol::P2p(peer_2))).expect("dial");
 
-        // Both swarms have to be polled for the handshake to complete.
-        let connected = async {
-            while driver_1.connected_peers() == 0 || driver_2.connected_peers() == 0 {
-                tokio::select! {
-                    Some(event) = driver_1.next() => { driver_1.handle_event(event); }
-                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
-                }
-            }
-        };
-        tokio::time::timeout(Duration::from_secs(10), connected).await.expect("swarms connect");
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
 
         assert!(driver_1.swarm.is_connected(&peer_2));
         assert!(driver_2.swarm.is_connected(driver_1.local_peer_id()));
