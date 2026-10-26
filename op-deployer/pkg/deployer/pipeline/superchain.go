@@ -27,15 +27,9 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 	var dso opcm.DeploySuperchainOutput
 	var err error
 
-	if env.UseForge {
+	if env.Forge != nil {
 		lgr.Info("using Forge for DeploySuperchain")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     env.ForgeClient,
-			Context:    env.Context,
-			L1RPCUrl:   env.L1RPCUrl,
-			PrivateKey: env.PrivateKey,
-		}
-		dso, err = opcm.DeploySuperchainViaForge(forgeEnv, input)
+		dso, err = opcm.DeploySuperchainViaForge(env.Forge, input)
 		if err != nil {
 			return err
 		}

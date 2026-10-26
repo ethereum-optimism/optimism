@@ -1894,6 +1894,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: check-nut-prefork-states
       - run:
@@ -1967,6 +1968,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - run:
           name: Configure op-reth binary paths
           command: |
@@ -2043,6 +2045,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: go-actions-tests
       - run:
@@ -2111,6 +2114,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: go-tests-with-fault-proof-deps
       # Build the superchain-configs.zip op-e2e/faultproofs //go:embeds (no prep-superchain job here).
@@ -2202,6 +2206,7 @@ jobs:
             fi
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - run:
           name: Configure Rust binary paths (sysgo)
           command: |
