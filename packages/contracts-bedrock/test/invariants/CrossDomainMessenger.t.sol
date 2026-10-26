@@ -37,6 +37,9 @@ contract RelayActor is StdUtils {
         address origin;
         uint256 blockNumber;
         uint256 timestamp;
+        uint256 opBalance;
+        uint256 actorBalance;
+        uint256 valueRelays;
     }
 
     IOptimismPortal2 op;
@@ -102,12 +105,15 @@ contract RelayActor is StdUtils {
             vm.expectCallMinGas(address(0x04), _value, minGasLimit, _message);
         }
         diag.idBalance = address(0x04).balance;
+        diag.opBalance = address(op).balance;
+        diag.actorBalance = address(this).balance;
         diag.gasBefore = gasleft();
         vm.startStateDiffRecording();
         try xdm.relayMessage{ gas: gas, value: _value }(
             Encoding.encodeVersionedNonce(0, _version), sender, target, _value, minGasLimit, _message
         ) {
             vm.stopAndReturnStateDiff();
+            if (_value > 0) diag.valueRelays++;
         } catch (bytes memory err) {
             Vm.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
             if (!reverted) _recordAccesses(accesses);
@@ -182,7 +188,19 @@ contract RelayActor is StdUtils {
                 " gasBefore=",
                 vm.toString(d.gasBefore)
             ),
+            _balanceCtx(),
             accessTrace
+        );
+    }
+
+    function _balanceCtx() internal view returns (string memory) {
+        return string.concat(
+            " opBalance=",
+            vm.toString(diag.opBalance),
+            " actorBalance=",
+            vm.toString(diag.actorBalance),
+            " valueRelays=",
+            vm.toString(diag.valueRelays)
         );
     }
 }
