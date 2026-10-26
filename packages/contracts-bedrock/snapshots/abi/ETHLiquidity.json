@@ -41,7 +41,7 @@
   },
   {
     "inputs": [],
-    "name": "pausedL1Timestamp",
+    "name": "pausedMessageNonce",
     "outputs": [
       {
         "internalType": "uint256",
@@ -61,7 +61,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "_l1Timestamp",
+        "name": "_messageNonce",
         "type": "uint256"
       }
     ],
@@ -152,7 +152,7 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "l1Timestamp",
+        "name": "messageNonce",
         "type": "uint256"
       }
     ],
