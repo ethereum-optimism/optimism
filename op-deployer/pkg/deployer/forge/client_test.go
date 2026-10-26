@@ -200,6 +200,39 @@ func TestClient_TimeoutUnblocksHungCommand(t *testing.T) {
 	require.Less(t, time.Since(start), 10*time.Second)
 }
 
+// TestClient_SlowBroadcast checks the flags of a forge broadcast, and that it returns no transactions
+// to send: forge sent them.
+func TestClient_SlowBroadcast(t *testing.T) {
+	tests := []struct {
+		name     string
+		opts     []string
+		wantSlow bool
+	}{
+		{name: "broadcast", opts: []string{"--broadcast"}, wantSlow: true},
+		{name: "dry run", opts: nil, wantSlow: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cl := NewClient(stubScript(t, `echo "$@"`))
+			cl.Wd = stubProject(t)
+			cl.Stdout = io.Discard
+
+			out, transactions, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil, tt.opts...)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSlow, strings.Contains(out, "--slow"))
+			require.Equal(t, tt.wantSlow, strings.Contains(out, "--skip-simulation --gas-estimate-multiplier 100"),
+				"a broadcast uses the node's gas estimate of each transaction, as txmgr does")
+			if tt.wantSlow {
+				require.Nil(t, transactions)
+			} else {
+				require.Empty(t, transactions)
+				require.NotNil(t, transactions)
+			}
+		})
+	}
+}
+
 // TestClient_RunScriptStopsOnCompile checks that a run stops at the compile, before the script runs.
 func TestClient_RunScriptStopsOnCompile(t *testing.T) {
 	// The stub's sleep can start before the kill and hold the output pipe; do not wait for it.
