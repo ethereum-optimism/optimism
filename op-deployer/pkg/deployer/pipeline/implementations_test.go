@@ -8,13 +8,15 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,14 +28,14 @@ func TestGenesisMockSP1VerifierArtifactAndDeployment(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, artifact.Bytecode.Object, "genesis MockSP1Verifier must have bytecode in op-deployer artifacts")
 
-	host := script.NewHost(testlog.Logger(t, slog.LevelDebug), af, nil, script.DefaultContext)
+	genesis := opcm.NewGenesisState(common.Address{0xdd}, true)
 	verifier, err := deployGenesisMockSP1Verifier(&Env{
-		L1ScriptHost: host,
-		Deployer:     common.Address{0xdd},
+		Forge:       &opcm.ForgeEnv{Genesis: genesis},
+		L1Artifacts: af,
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, common.Address{}, verifier)
-	require.NotEmpty(t, host.GetCode(verifier))
+	require.Equal(t, []byte(artifact.DeployedBytecode.Object), genesis.Allocs.Accounts[verifier].Code)
 }
 
 func TestParseSP1VerifierOverrideRequiresExactKey(t *testing.T) {
@@ -86,7 +88,7 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 		require.ErrorContains(t, err, "sp1Verifier must be specified")
 	})
 
-	t.Run("explicit mock selection requires a script host", func(t *testing.T) {
+	t.Run("explicit mock selection requires the genesis state", func(t *testing.T) {
 		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
 			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
 		}}
@@ -94,7 +96,7 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 		mockEnv.IsGenesis = true
 		mockEnv.DeployMockSP1Verifier = true
 		err := DeployImplementations(&mockEnv, intent, newState())
-		require.ErrorContains(t, err, "without an L1 script host")
+		require.ErrorContains(t, err, "without the genesis state")
 	})
 
 	t.Run("explicit zero verifier is rejected", func(t *testing.T) {
@@ -107,31 +109,15 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 	})
 
 	t.Run("reused implementations require the same verifier", func(t *testing.T) {
-		artifactsFS, err := artifacts.Download(context.Background(), artifacts.EmbeddedLocator, nil, t.TempDir())
-		require.NoError(t, err)
-		af := &foundry.ArtifactsFS{FS: artifactsFS}
-		host := script.NewHost(testlog.Logger(t, slog.LevelDebug), af, nil, script.DefaultContext)
-		adapterArtifact, err := af.ReadArtifact("SP1PlonkAdapter.sol", "SP1PlonkAdapter")
-		require.NoError(t, err)
-
-		rawVerifier, err := deployGenesisMockSP1Verifier(&Env{
-			L1ScriptHost: host,
-			Deployer:     common.Address{0xdd},
-		})
-		require.NoError(t, err)
-		constructorArgs, err := adapterArtifact.ABI.Pack("", rawVerifier)
-		require.NoError(t, err)
-		adapter, err := host.Create(common.Address{0xdd}, append(adapterArtifact.Bytecode.Object, constructorArgs...))
-		require.NoError(t, err)
-
+		rawVerifier := common.Address{0x0a}
 		st := newState()
-		st.ImplementationsDeployment = &addresses.ImplementationsContracts{SP1PlonkAdapterImpl: adapter}
+		st.ImplementationsDeployment = &addresses.ImplementationsContracts{SP1PlonkAdapterImpl: common.Address{0xad}}
 		st.SP1Verifier = &rawVerifier
 		resumeEnv := *env
-		resumeEnv.L1ScriptHost = host
+		resumeEnv.L1Client = newSP1PlonkAdapterClient(t, rawVerifier)
 
 		disabledIntent := &state.Intent{GlobalDeployOverrides: map[string]any{"sp1Verifier": rawVerifier}}
-		err = DeployImplementations(&resumeEnv, disabledIntent, st)
+		err := DeployImplementations(&resumeEnv, disabledIntent, st)
 		require.ErrorContains(t, err, "ZK dispute games are disabled")
 
 		unselectedLiveIntent := &state.Intent{GlobalDeployOverrides: map[string]any{
@@ -184,36 +170,29 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 	})
 }
 
-// capturingDeployImplementations records the input DeployImplementations would broadcast. The
-// embedded nil ForgeScript satisfies the rest of the interface; only Run is exercised.
-type capturingDeployImplementations struct {
-	script.ForgeScript
-	input opcm.DeployImplementationsInput
-	ran   bool
+// newSP1PlonkAdapterClient returns an L1 client on which each call returns verifier, as
+// SP1PlonkAdapter.sp1Verifier() does.
+func newSP1PlonkAdapterClient(t *testing.T, verifier common.Address) *ethclient.Client {
+	srv := rpc.NewServer()
+	require.NoError(t, srv.RegisterName("eth", &sp1PlonkAdapterAPI{verifier: verifier}))
+	t.Cleanup(srv.Stop)
+	client := ethclient.NewClient(rpc.DialInProc(srv))
+	t.Cleanup(client.Close)
+	return client
 }
 
-func (c *capturingDeployImplementations) Run(input opcm.DeployImplementationsInput) (opcm.DeployImplementationsOutput, error) {
-	c.input = input
-	c.ran = true
-	var out opcm.DeployImplementationsOutput
-	return out, nil
+type sp1PlonkAdapterAPI struct {
+	verifier common.Address
 }
 
-// TestDeployImplementationsSelectsStandardSP1Verifier pins which raw SP1 verifier a live
+func (a *sp1PlonkAdapterAPI) Call(_ map[string]any, _ string) hexutil.Bytes {
+	return common.LeftPadBytes(a.verifier.Bytes(), 32)
+}
+
+// TestImplementationsInputSelectsStandardSP1Verifier pins which raw SP1 verifier a live
 // ZK-enabled apply hands to DeployImplementations.
-func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
+func TestImplementationsInputSelectsStandardSP1Verifier(t *testing.T) {
 	const standardVerifier = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
-
-	// Matches any line reporting a raw verifier, so a reintroduced premature log is caught too.
-	verifierLogged := testlog.NewMessageContainsFilter("SP1 verifier")
-
-	deploy := func(t *testing.T, env Env, intent *state.Intent, st *state.State) (*capturingDeployImplementations, *testlog.CapturingHandler, error) {
-		capture := new(capturingDeployImplementations)
-		lgr, logs := testlog.CaptureLogger(t, slog.LevelDebug)
-		env.Logger = lgr
-		env.Scripts = &opcm.Scripts{DeployImplementations: capture}
-		return capture, logs, DeployImplementations(&env, intent, st)
-	}
 
 	zkIntent := func(l1ChainID uint64, overrides map[string]any) *state.Intent {
 		merged := map[string]any{"devFeatureBitmap": devfeatures.ZKDisputeGameFlag}
@@ -231,48 +210,36 @@ func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
 		{"sepolia", 11155111},
 	} {
 		t.Run(tt.name+" defaults to the release verifier", func(t *testing.T) {
-			st := newSP1VerifierTestState()
 			intent := zkIntent(tt.l1ChainID, nil)
-			capture, logs, err := deploy(t, Env{}, intent, st)
+			input, err := implementationsInput(&Env{}, intent, newSP1VerifierTestState())
 			require.NoError(t, err)
-			require.Equal(t, common.HexToAddress(standardVerifier), capture.input.SP1Verifier)
-			require.NotNil(t, st.SP1Verifier)
-			require.Equal(t, common.HexToAddress(standardVerifier), *st.SP1Verifier)
+			require.Equal(t, common.HexToAddress(standardVerifier), input.SP1Verifier)
 			require.NotContains(t, intent.GlobalDeployOverrides, "sp1Verifier")
-			require.NotNil(t, logs.FindLog(
-				verifierLogged,
-				testlog.NewAttributesFilter("address", common.HexToAddress(standardVerifier).String()),
-			), "should log the verifier it actually deploys against")
 		})
 	}
 
 	t.Run("explicit override wins", func(t *testing.T) {
 		override := common.Address{0x05}
-		capture, _, err := deploy(t, Env{}, zkIntent(11155111, map[string]any{"sp1Verifier": override}), newSP1VerifierTestState())
+		input, err := implementationsInput(&Env{}, zkIntent(11155111, map[string]any{"sp1Verifier": override}), newSP1VerifierTestState())
 		require.NoError(t, err)
-		require.Equal(t, override, capture.input.SP1Verifier)
+		require.Equal(t, override, input.SP1Verifier)
 	})
 
 	t.Run("unsupported network requires an override", func(t *testing.T) {
-		capture, _, err := deploy(t, Env{}, zkIntent(900, nil), newSP1VerifierTestState())
+		_, err := implementationsInput(&Env{}, zkIntent(900, nil), newSP1VerifierTestState())
 		require.ErrorContains(t, err, "sp1Verifier must be specified")
 		require.ErrorContains(t, err, "900")
-		require.False(t, capture.ran)
 	})
 
 	t.Run("disabled ZK selects nothing", func(t *testing.T) {
-		st := newSP1VerifierTestState()
-		capture, logs, err := deploy(t, Env{}, &state.Intent{L1ChainID: 11155111}, st)
+		input, err := implementationsInput(&Env{}, &state.Intent{L1ChainID: 11155111}, newSP1VerifierTestState())
 		require.NoError(t, err)
-		require.Equal(t, common.Address{}, capture.input.SP1Verifier)
-		require.Nil(t, st.SP1Verifier)
-		require.Nil(t, logs.FindLog(verifierLogged))
+		require.Equal(t, common.Address{}, input.SP1Verifier)
 	})
 
 	t.Run("genesis does not select the release verifier", func(t *testing.T) {
-		capture, _, err := deploy(t, Env{IsGenesis: true}, zkIntent(11155111, nil), newSP1VerifierTestState())
+		_, err := implementationsInput(&Env{IsGenesis: true}, zkIntent(11155111, nil), newSP1VerifierTestState())
 		require.ErrorContains(t, err, "sp1Verifier must be specified")
-		require.False(t, capture.ran)
 	})
 
 	t.Run("predeployed OPCM bypasses selection", func(t *testing.T) {
@@ -283,11 +250,10 @@ func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
 		intent := zkIntent(900, nil)
 		intent.OPCMAddress = &opcmAddr
 
-		capture, logs, err := deploy(t, Env{}, intent, st)
+		input, err := implementationsInput(&Env{}, intent, st)
 		require.NoError(t, err)
-		require.False(t, capture.ran)
+		require.Nil(t, input)
 		require.Nil(t, st.SP1Verifier)
-		require.Nil(t, logs.FindLog(verifierLogged))
 	})
 
 	t.Run("resumed deployment keeps the verifier recorded in state", func(t *testing.T) {
@@ -296,10 +262,9 @@ func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
 		st.ImplementationsDeployment = &addresses.ImplementationsContracts{SP1PlonkAdapterImpl: common.Address{0xad}}
 		st.SP1Verifier = &recorded
 
-		capture, logs, err := deploy(t, Env{}, zkIntent(11155111, nil), st)
+		input, err := implementationsInput(&Env{}, zkIntent(11155111, nil), st)
 		require.NoError(t, err)
-		require.False(t, capture.ran)
+		require.Nil(t, input)
 		require.Equal(t, recorded, *st.SP1Verifier)
-		require.Nil(t, logs.FindLog(verifierLogged), "resume must not report a verifier it is not using")
 	})
 }

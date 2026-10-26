@@ -162,8 +162,10 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	}
 	cliOpts = append(cliOpts, "--sig", sig, script, "0x"+hex.EncodeToString(args))
 	run := c.WithEnv("FOUNDRY_BROADCAST=" + filepath.Join(scratch, "broadcast"))
-	if err := run.execCmd(ctx, buf, io.Discard, cliOpts...); err != nil {
-		return "", fmt.Errorf("failed to execute forge script: %w", err)
+	// forge prints the revert reason of a failed script to stderr.
+	errBuf := new(bytes.Buffer)
+	if err := run.execCmd(ctx, buf, errBuf, cliOpts...); err != nil {
+		return "", fmt.Errorf("failed to execute forge script: %w\n%s", err, strings.TrimSpace(errBuf.String()))
 	}
 	if strings.Contains(buf.String(), "Compiler run successful") {
 		return "", fmt.Errorf("forge compiled the project in %s; its compile cache must be up to date", c.Wd)

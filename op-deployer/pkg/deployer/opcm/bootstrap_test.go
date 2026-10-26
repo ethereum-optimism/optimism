@@ -1,34 +1,31 @@
 package opcm
 
 import (
-	"math/big"
+	"context"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 )
 
-// createTestHost is a helper function for testing deploy script wrappers
-func createTestHost(t *testing.T) *script.Host {
+// newTestGenesisEnv returns an env that runs the scripts of the local contracts offline, on an
+// empty genesis state.
+func newTestGenesisEnv(t *testing.T) *ForgeEnv {
 	t.Helper()
-
-	// Create a logger
-	logger, _ := testlog.CaptureLogger(t, log.LevelInfo)
-
-	// Create an artifact filesystem pointing to the bedrock contracts artifact directory
-	af := foundry.OpenArtifactsDir("../../../../packages/contracts-bedrock/forge-artifacts")
-
-	// Now put a host together
-	host := script.NewHost(logger, af, nil, script.DefaultContext, script.WithCreate2Deployer())
-	host.SetTxOrigin(common.BigToAddress(big.NewInt(6)))
-
-	// And enable cheats
-	err := host.EnableCheats()
+	_, afs := testutil.LocalArtifacts(t)
+	client, err := NewForgeClient(afs, "", append(L1ForgeScripts, L2ForgeScripts...))
 	require.NoError(t, err)
+	return &ForgeEnv{
+		Client:  client,
+		Context: context.Background(),
+		Genesis: NewGenesisState(common.Address{'D'}, true),
+	}
+}
 
-	return host
+// requireCode checks that the genesis state of env has code at addr.
+func requireCode(t *testing.T, env *ForgeEnv, addr common.Address) {
+	t.Helper()
+	require.NotEmpty(t, env.Genesis.Allocs.Accounts[addr].Code, "no code at %s", addr)
 }

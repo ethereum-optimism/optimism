@@ -3,7 +3,6 @@ package opcm
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -17,13 +16,6 @@ type DeployAlphabetVMOutput struct {
 	AlphabetVM common.Address
 }
 
-type DeployAlphabetVMScript script.DeployScriptWithOutput[DeployAlphabetVMInput, DeployAlphabetVMOutput]
-
-// NewDeployAlphabetVMScript loads and validates the DeployAlphabetVM2 script contract
-func NewDeployAlphabetVMScript(host *script.Host) (DeployAlphabetVMScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployAlphabetVMInput, DeployAlphabetVMOutput](host, "DeployAlphabetVM.s.sol", "DeployAlphabetVM")
-}
-
 func NewDeployAlphabetVMForgeCaller(client *forge.Client) forge.ScriptCaller[DeployAlphabetVMInput, DeployAlphabetVMOutput] {
 	return forge.NewScriptCaller(
 		client,
@@ -34,8 +26,8 @@ func NewDeployAlphabetVMForgeCaller(client *forge.Client) forge.ScriptCaller[Dep
 	)
 }
 
-// DeployAlphabetVMViaForge deploys Alphabet VM contracts using Forge
-func DeployAlphabetVMViaForge(env *ForgeEnv, input DeployAlphabetVMInput) (DeployAlphabetVMOutput, error) {
+// DeployAlphabetVM deploys Alphabet VM contracts using Forge
+func DeployAlphabetVM(env *ForgeEnv, input DeployAlphabetVMInput) (DeployAlphabetVMOutput, error) {
 	output, err := broadcastScript(env, NewDeployAlphabetVMForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy Alphabet VM with Forge: %w", err)

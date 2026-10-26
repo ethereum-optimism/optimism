@@ -4,31 +4,25 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
 
@@ -225,7 +219,6 @@ func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifact
 	pEnv := &pipeline.Env{
 		StateWriter:               opts.StateWriter,
 		Logger:                    opts.Logger,
-		Broadcaster:               broadcaster.NoopBroadcaster(),
 		Deployer:                  deployer,
 		L1Artifacts:               &foundry.ArtifactsFS{FS: bundle.L1},
 		IsGenesis:                 isGenesis,
@@ -234,22 +227,16 @@ func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifact
 		Context:                   ctx,
 	}
 
-	var l1RPC *rpc.Client
 	switch opts.DeploymentTarget {
 	case DeploymentTargetLive:
-		var err error
-		l1RPC, err = rpc.Dial(opts.L1RPCUrl)
+		l1Client, err := ethclient.DialContext(ctx, opts.L1RPCUrl)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to L1 RPC: %w", err)
 		}
-		pEnv.L1Client = ethclient.NewClient(l1RPC)
+		pEnv.L1Client = l1Client
 	case DeploymentTargetGenesis:
 	default:
 		return nil, fmt.Errorf("invalid deployment target: '%s'", opts.DeploymentTarget)
-	}
-
-	if opts.UseScriptHost {
-		return pEnv, useScriptHost(ctx, pEnv, opts, bundle, l1RPC)
 	}
 
 	forgeClient, err := opcm.NewForgeClient(bundle.L1, opts.CacheDir, opcm.L1ForgeScripts)
@@ -272,51 +259,6 @@ func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifact
 	return pEnv, nil
 }
 
-// useScriptHost runs the scripts of pEnv on the Go script host.
-func useScriptHost(ctx context.Context, pEnv *pipeline.Env, opts ApplyPipelineOpts, bundle artifacts.Bundle, l1RPC *rpc.Client) error {
-	var err error
-	switch opts.DeploymentTarget {
-	case DeploymentTargetLive:
-		chainID, err := pEnv.L1Client.ChainID(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to get chain ID: %w", err)
-		}
-		signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(opts.DeployerPrivateKey, chainID))
-		pEnv.Broadcaster, err = broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-			Logger:               opts.Logger,
-			ChainID:              new(big.Int).SetUint64(opts.Intent.L1ChainID),
-			Client:               pEnv.L1Client,
-			Signer:               signer,
-			From:                 pEnv.Deployer,
-			ReceiptQueryInterval: opts.ReceiptQueryInterval,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to create broadcaster: %w", err)
-		}
-		pEnv.L1ScriptHost, err = env.DefaultForkedScriptHost(ctx, pEnv.Broadcaster, opts.Logger, pEnv.Deployer, bundle.L1, l1RPC)
-		if err != nil {
-			return fmt.Errorf("failed to initialize L1 host: %w", err)
-		}
-	case DeploymentTargetGenesis:
-		pEnv.L1ScriptHost, err = env.DefaultScriptHost(
-			pEnv.Broadcaster,
-			opts.Logger,
-			pEnv.Deployer,
-			bundle.L1,
-			script.WithNoMaxCodeSize(), // Allow unoptimized contracts from the forge lite profile in genesis deployments
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create L1 script host: %w", err)
-		}
-	}
-	// This step will error out if the ABIs don't match the Go types
-	pEnv.Scripts, err = opcm.NewScripts(pEnv.L1ScriptHost)
-	if err != nil {
-		return fmt.Errorf("failed to load OPCM script: %w", err)
-	}
-	return nil
-}
-
 type pipelineStage struct {
 	name  string
 	apply func() error
@@ -331,9 +273,6 @@ type ApplyPipelineOpts struct {
 	Logger             log.Logger
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
-	// UseScriptHost runs the scripts on the Go script host instead of forge. Only the test that
-	// compares the two engines sets it.
-	UseScriptHost bool
 	// DeployMockSP1Verifier is a test-only opt-in for development environments.
 	DeployMockSP1Verifier bool
 	// AllowUnoptimizedContracts is a test-only opt-in that lets oversized dev-profile
@@ -476,9 +415,6 @@ func ApplyPipeline(
 	for _, stage := range pline {
 		if err := stage.apply(); err != nil {
 			return fmt.Errorf("error in pipeline stage apply: %w", err)
-		}
-		if _, err := pEnv.Broadcaster.Broadcast(ctx); err != nil {
-			return fmt.Errorf("failed to broadcast stage %s: %w", stage.name, err)
 		}
 		if err := pEnv.StateWriter.WriteState(st); err != nil {
 			return fmt.Errorf("failed to write state: %w", err)

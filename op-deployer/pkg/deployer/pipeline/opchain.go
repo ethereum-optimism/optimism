@@ -89,17 +89,9 @@ func ExecuteOPChainDeployment(
 
 	var dco opcm.DeployOPChainOutput
 	var err error
-	if env.Forge != nil {
-		lgr.Info("using Forge for DeployOPChain")
-		dco, err = opcm.DeployOPChainViaForge(env.Forge, dci)
-		if err != nil {
-			return result, err
-		}
-	} else {
-		dco, err = env.Scripts.DeployOPChain.Run(dci)
-		if err != nil {
-			return result, fmt.Errorf("error deploying OP chain: %w", err)
-		}
+	dco, err = opcm.DeployOPChain(env.Forge, dci)
+	if err != nil {
+		return result, err
 	}
 
 	return readOPChainDeployment(env, chainID, OpChainContractsFromDeployOutput(dco), dci.Opcm)
@@ -135,22 +127,9 @@ func readOPChainDeployment(
 
 	var impls opcm.ReadImplementationAddressesOutput
 	var err error
-	if env.Forge != nil {
-		env.Logger.Info("using Forge for ReadImplementationAddresses", "stage", "deploy-opchain")
-		impls, err = opcm.ReadImplementationAddressesViaForge(env.Forge, readInput)
-		if err != nil {
-			return OPChainDeploymentResult{}, err
-		}
-	} else {
-		readImplementations, err := opcm.NewReadImplementationAddressesScript(env.L1ScriptHost)
-		if err != nil {
-			return OPChainDeploymentResult{}, fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
-		}
-
-		impls, err = readImplementations.Run(readInput)
-		if err != nil {
-			return OPChainDeploymentResult{}, fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
-		}
+	impls, err = opcm.ReadImplementationAddresses(env.Forge, readInput)
+	if err != nil {
+		return OPChainDeploymentResult{}, err
 	}
 
 	return OPChainDeploymentResult{

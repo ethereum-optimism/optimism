@@ -211,6 +211,15 @@ func TestClient_SlowBroadcast(t *testing.T) {
 	}
 }
 
+func TestClient_RunScriptErrorHasReason(t *testing.T) {
+	cl := NewClient(stubBinary(t, `echo "Error: script failed: boom" >&2; exit 1`))
+	cl.Wd = stubProject(t)
+	cl.Stderr = io.Discard
+
+	_, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	require.ErrorContains(t, err, "Error: script failed: boom")
+}
+
 func TestClient_WithEnv(t *testing.T) {
 	base := NewClient(stubBinary(t, `echo "A=$OP_DEPLOYER_TEST_A B=$OP_DEPLOYER_TEST_B"`))
 	base.Wd = stubProject(t)

@@ -184,7 +184,7 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 		L1RPCUrl:   cfg.L1RPCUrl,
 		PrivateKey: cfg.PrivateKey,
 	}
-	dso, err = opcm.DeploySuperchainViaForge(forgeEnv, input)
+	dso, err = opcm.DeploySuperchain(forgeEnv, input)
 	if err != nil {
 		return dso, err
 	}

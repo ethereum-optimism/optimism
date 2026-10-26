@@ -22,7 +22,8 @@ forge-build *ARGS:
 
   @# Forge build compiles only the src/ graph; the scripts/ graph is compiled by `forge script`.
   @# On the first invocation, `forge script` may compile a small set of dependencies.
-  @# To avoid paying this cost in every CI test, we pre‑warm the script cache once here.
+  @# To avoid paying this cost in every CI test, we pre‑warm the script cache once here. op-deployer
+  @# runs the scripts offline and fails if forge compiles, so its contracts bundles need this step.
   @#
   @# Notes:
   @# - A single `forge script <any script> --skip-simulation` is sufficient to compile the script
@@ -48,9 +49,8 @@ build-source:
 
 # Builds source contracts and scripts, skipping tests.
 build-no-tests:
-  forge build --skip "/**/test/**"
-  @# op-deployer runs the scripts and never compiles, so compile them with their test/mocks imports.
-  forge build scripts
+  @# op-deployer runs the scripts and never compiles: forge-build also warms the script cache.
+  just forge-build --skip "/**/test/**"
 
 # Builds the contracts.
 build *ARGS: lint-fix-no-fail

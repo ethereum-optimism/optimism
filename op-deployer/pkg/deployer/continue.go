@@ -418,7 +418,6 @@ func (r *continuationRunner) preflightAll(pending []continuationChain) error {
 func (r *continuationRunner) preflight(chain *continuationChain) error {
 	env := &pipeline.Env{
 		StateWriter: pipeline.NoopStateWriter(),
-		Broadcaster: broadcaster.NoopBroadcaster(),
 		Deployer:    r.deployer,
 		Logger:      r.cfg.Logger,
 		Forge:       r.fork.forge,

@@ -297,7 +297,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 		L1RPCUrl:   cfg.L1RPCUrl,
 		PrivateKey: cfg.PrivateKey,
 	}
-	dio, err = opcm.DeployImplementationsViaForge(forgeEnv, input)
+	dio, err = opcm.DeployImplementations(forgeEnv, input)
 	if err != nil {
 		return dio, err
 	}

@@ -5,17 +5,14 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -119,12 +116,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 		L2ToL2MessageExpiryPeriod:  new(big.Int).SetUint64(overrides.L2ToL2MessageExpiryPeriod),
 	}
 
-	var dump *foundry.ForgeAllocs
-	if pEnv.L2Forge != nil {
-		dump, err = opcm.L2GenesisViaForge(pEnv.Context, pEnv.L2Forge, pEnv.Deployer, pEnv.AllowUnoptimizedContracts, input)
-	} else {
-		dump, err = l2GenesisOnScriptHost(pEnv, bundle, input)
-	}
+	dump, err := opcm.L2Genesis(pEnv.Context, pEnv.L2Forge, pEnv.Deployer, pEnv.AllowUnoptimizedContracts, input)
 	if err != nil {
 		return err
 	}
@@ -143,39 +135,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 	}
 
 	return nil
-}
-
-func l2GenesisOnScriptHost(pEnv *Env, bundle artifacts.Bundle, input opcm.L2GenesisInput) (*foundry.ForgeAllocs, error) {
-	hostOpts := []script.HostOption{}
-	if pEnv.AllowUnoptimizedContracts {
-		hostOpts = append(hostOpts, script.WithNoMaxCodeSize())
-	}
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		pEnv.Logger,
-		pEnv.Deployer,
-		bundle.L2,
-		hostOpts...,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create L2 script host: %w", err)
-	}
-
-	script, err := opcm.NewL2GenesisScript(host)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create L2Genesis script: %w", err)
-	}
-	if err := script.Run(input); err != nil {
-		return nil, fmt.Errorf("failed to call L2Genesis script: %w", err)
-	}
-
-	host.Wipe(pEnv.Deployer)
-
-	dump, err := host.StateDump()
-	if err != nil {
-		return nil, fmt.Errorf("failed to dump state: %w", err)
-	}
-	return dump, nil
 }
 
 func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIntent) (l2GenesisOverrides, *genesis.UpgradeScheduleDeployConfig, error) {

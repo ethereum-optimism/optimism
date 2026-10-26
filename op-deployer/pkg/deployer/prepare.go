@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -211,7 +213,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	st.SuperchainRoles = superRoles
 
 	// Predict the addresses by deploying the chains on a fork of L1, one after another.
-	fork, err := startL1Fork(ctx, l1Client, cfg.L1RPCUrl, deployer, forgeClient, cfg.CacheDir)
+	fork, err := startPredictionFork(ctx, l1Client, cfg.L1RPCUrl, deployer, forgeClient, cfg.CacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to fork L1 for the address prediction: %w", err)
 	}
@@ -221,7 +223,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		}
 	}()
 	predict := func(dci opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
-		return opcm.DeployOPChainViaForge(fork.forge, dci)
+		return opcm.DeployOPChain(fork.forge, dci)
 	}
 
 	// Fetch safe block once, so all unpinned chains without an override share one anchor.
@@ -268,13 +270,35 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	return nil
 }
 
-// Validate the dependency set before mutating chain state.
 // prepareForgeScripts are the scripts that prepare runs.
 var prepareForgeScripts = []opcm.ForgeScript{
 	{File: "ReadSuperchainDeployment.s.sol", Contract: "ReadSuperchainDeployment"},
 	{File: "DeployOPChain.s.sol", Contract: "DeployOPChain"},
 }
 
+// startPredictionFork starts the L1 fork on which prepare predicts the chain addresses. The
+// deployer can hold no ETH before continue, so the fork funds it.
+func startPredictionFork(
+	ctx context.Context,
+	l1Client *ethclient.Client,
+	l1RPCURL string,
+	deployer common.Address,
+	forgeClient *forge.Client,
+	cacheDir string,
+) (*l1Fork, error) {
+	fork, err := startL1Fork(ctx, l1Client, l1RPCURL, deployer, forgeClient, cacheDir)
+	if err != nil {
+		return nil, err
+	}
+	balance := new(big.Int).Lsh(big.NewInt(1), 128)
+	if err := fork.client.Client().CallContext(ctx, nil, "anvil_setBalance", deployer, (*hexutil.Big)(balance)); err != nil {
+		_ = fork.stop()
+		return nil, fmt.Errorf("failed to fund the deployer on the L1 fork: %w", err)
+	}
+	return fork, nil
+}
+
+// Validate the dependency set before mutating chain state.
 func prepareChains(
 	lgr log.Logger,
 	intent *state.Intent,
