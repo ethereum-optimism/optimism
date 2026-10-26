@@ -3,6 +3,7 @@
 //! Implemented in the op-node in <https://github.com/ethereum-optimism/optimism/blob/174e55f0a1e73b49b80a561fd3fedd4fea5770c6/op-service/sources/rollupclient.go#L16>
 
 use alloy_eips::BlockNumberOrTag;
+use alloy_primitives::U64;
 use async_trait::async_trait;
 use jsonrpsee::{
     core::RpcResult,
@@ -94,30 +95,19 @@ impl RollupNodeApiServer for RollupRpc {
         Ok(OutputResponse::from_v0(output_root, sync_status, l2_block_info))
     }
 
-    async fn op_safe_head_at_l1_block(
-        &self,
-        block_num: BlockNumberOrTag,
-    ) -> RpcResult<SafeHeadResponse> {
-        // op-node takes a plain number here; `earliest` is the only tag that names one.
-        let l1_block_num = match block_num {
-            BlockNumberOrTag::Number(number) => number,
-            BlockNumberOrTag::Earliest => 0,
-            tag => {
-                return Err(ErrorObject::owned(
-                    ErrorCode::InvalidParams.code(),
-                    format!("safeHeadAtL1Block requires an L1 block number, got {tag}"),
-                    None::<()>,
-                ));
-            }
-        };
+    async fn op_safe_head_at_l1_block(&self, block_number: U64) -> RpcResult<SafeHeadResponse> {
+        let l1_block_number = block_number.to::<u64>();
 
         let record = self
             .safe_db
             .as_ref()
             .ok_or(SafeDbError::NotEnabled)
-            .and_then(|database| database.safe_head_at_l1(l1_block_num))
+            .and_then(|database| database.safe_head_at_l1(l1_block_number))
             .map_err(|e| {
-                safe_db_error(e, format_args!("failed to get safe head at l1 block {l1_block_num}"))
+                safe_db_error(
+                    e,
+                    format_args!("failed to get safe head at l1 block {l1_block_number}"),
+                )
             })?;
         Ok(SafeHeadResponse { l1_block: record.l1, safe_head: record.safe_head })
     }
