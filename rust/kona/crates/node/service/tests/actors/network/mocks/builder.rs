@@ -21,9 +21,14 @@ use rand::RngCore;
 use tokio::sync::{mpsc, watch};
 use tracing::error;
 
+/// Builds [`TestNetwork`]s: nodes that share a random chain ID, so they get no registry bootnodes
+/// and find each other only through the bootnodes a test passes in.
 pub(crate) struct TestNetworkBuilder {
+    /// The chain ID every node built by this builder uses.
     chain_id: u64,
+    /// The address gossiped blocks must be signed by.
     unsafe_block_signer: Address,
+    /// The keypair for the next node built, if it must not be random.
     custom_keypair: Option<Keypair>,
 }
 
@@ -57,8 +62,9 @@ impl TestNetworkBuilder {
         self
     }
 
-    /// Minimal network configuration.
-    /// Only allows loopback addresses in the discovery table.
+    /// Builds and starts one node, which bootstraps discovery from `bootnodes`.
+    ///
+    /// Its discovery table only accepts loopback addresses.
     pub(crate) async fn build(&mut self, bootnodes: Vec<Enr>) -> TestNetwork {
         let keypair = self.custom_keypair.take().unwrap_or_else(Keypair::generate_secp256k1);
 

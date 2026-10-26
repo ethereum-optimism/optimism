@@ -15,16 +15,27 @@ use tokio::{
 
 pub(crate) mod builder;
 
+/// One node's network stack: a [`NetworkActor`](kona_node_service::NetworkActor) and a
+/// [`SignerActor`](kona_node_service::SignerActor) running on their own tasks, plus the channels a
+/// test uses to drive and observe them.
+///
+/// It is one peer in the test's p2p network, not the network itself.
 pub(crate) struct TestNetwork {
+    /// Sends p2p RPC requests, the ones behind `opp2p_*`, to the network actor.
     pub(super) p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
+    /// Sends admin queries, such as posting an unsafe payload, to the network actor.
     #[allow(dead_code)]
     pub(super) admin_rpc_tx: mpsc::Sender<NetworkAdminQuery>,
+    /// Payloads sent here are signed with this node's key and gossiped.
     pub(super) gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
+    /// Receives the unsafe blocks this node accepts from gossip.
     pub(super) blocks_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
+    /// The network actor's task.
     #[allow(dead_code)]
     handle: JoinHandle<Result<(), NetworkActorError>>,
 }
 
+/// An error from querying a [`TestNetwork`] through its p2p RPC channel.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum TestNetworkError {
     #[error("P2p receiver closed")]
@@ -35,11 +46,13 @@ pub(crate) enum TestNetworkError {
     PeerInfoMissingEnr,
     #[error("Invalid ENR: {0}")]
     InvalidEnr(String),
+    /// The other node is not among this node's connected peers yet.
     #[error("Peer not connected")]
     PeerNotConnected,
 }
 
 impl TestNetwork {
+    /// Returns this node's own peer info, as `opp2p_self` does.
     pub(super) async fn peer_info(&self) -> Result<PeerInfo, TestNetworkError> {
         // Try to get the peer info. Send a peer info request to the network actor.
         let (peer_info_tx, peer_info_rx) = oneshot::channel();
@@ -54,6 +67,7 @@ impl TestNetwork {
         Ok(info)
     }
 
+    /// Returns this node's connected peers, as `opp2p_peers` does.
     pub(super) async fn peers(&self) -> Result<PeerDump, TestNetworkError> {
         let (peers_tx, peers_rx) = oneshot::channel();
         let peers_request = P2pRpcRequest::Peers { out: peers_tx, connected: true };
@@ -65,6 +79,7 @@ impl TestNetwork {
         Ok(peers)
     }
 
+    /// Checks whether `other` is among this node's connected peers.
     pub(super) async fn is_connected_to(&self, other: &Self) -> Result<(), TestNetworkError> {
         let other_peer_id = other.peer_id().await?;
         let peers = self.peers().await?;
@@ -87,6 +102,7 @@ impl TestNetwork {
             .await
     }
 
+    /// Returns this node's own ENR.
     pub(super) async fn peer_enr(&self) -> Result<Enr, TestNetworkError> {
         let enr = self.peer_info().await?.enr.ok_or(TestNetworkError::PeerInfoMissingEnr)?;
         // Parse the ENR
@@ -94,6 +110,7 @@ impl TestNetwork {
         Ok(enr)
     }
 
+    /// Returns this node's own peer ID.
     pub(super) async fn peer_id(&self) -> Result<String, TestNetworkError> {
         Ok(self.peer_info().await?.peer_id)
     }

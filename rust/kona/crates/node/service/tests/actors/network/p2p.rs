@@ -3,40 +3,40 @@ use crate::actors::network::mocks::builder::TestNetworkBuilder;
 #[tokio::test(flavor = "multi_thread")]
 async fn test_p2p_network_conn() -> anyhow::Result<()> {
     let mut builder = TestNetworkBuilder::new();
-    let network_1 = builder.build(vec![]).await;
-    let enr_1 = network_1.peer_enr().await?;
+    let node_1 = builder.build(vec![]).await;
+    let enr_1 = node_1.peer_enr().await?;
 
-    let network_2 = builder.build(vec![enr_1]).await;
+    let node_2 = builder.build(vec![enr_1]).await;
 
-    network_2.is_connected_to_with_retries(&network_1).await?;
+    node_2.is_connected_to_with_retries(&node_1).await?;
 
-    network_1.is_connected_to_with_retries(&network_2).await?;
+    node_1.is_connected_to_with_retries(&node_2).await?;
 
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_large_network_conn() -> anyhow::Result<()> {
-    const NETWORKS: usize = 10;
+    const NODES: usize = 10;
 
     let mut builder = TestNetworkBuilder::new();
 
-    let (mut networks, mut bootnodes) = (vec![], vec![]);
+    let (mut nodes, mut bootnodes) = (vec![], vec![]);
 
-    for _ in 0..NETWORKS {
-        let network = builder.build(bootnodes.clone()).await;
-        let enr = network.peer_enr().await?;
-        networks.push(network);
+    for _ in 0..NODES {
+        let node = builder.build(bootnodes.clone()).await;
+        let enr = node.peer_enr().await?;
+        nodes.push(node);
         bootnodes.push(enr);
     }
 
-    for network in &networks {
-        for other_network in &networks {
-            if network.peer_id().await? == other_network.peer_id().await? {
+    for node in &nodes {
+        for other_node in &nodes {
+            if node.peer_id().await? == other_node.peer_id().await? {
                 continue;
             }
 
-            network.is_connected_to_with_retries(other_network).await?;
+            node.is_connected_to_with_retries(other_node).await?;
         }
     }
 
