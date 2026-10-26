@@ -1395,11 +1395,11 @@ impl Proposer {
     /// 2. Tombstone invalid games and their cached subtrees; cached records stay for lifecycle work
     ///    but cannot be extended or proven. Invalid games created by this proposer are kept.
     /// 3. Re-validate pending games (timestamps not yet safe from this node's view, unavailable
-    ///    super-root data, or an untrusted root mismatch); entries still pending past the anchor's
-    ///    deadline-lag cutoff are tombstoned unless their prestate is locally available. Cached
-    ///    descendants remain available for lifecycle work but cannot be extended or proven. A read
-    ///    failure while revalidating the registered anchor aborts the cycle without clearing the
-    ///    pending entry or cache.
+    ///    super-root data, or an untrusted root mismatch or past-l1Head requirement); entries still
+    ///    pending past the anchor's deadline-lag cutoff are tombstoned unless their prestate is
+    ///    locally available. Cached descendants remain available for lifecycle work but cannot be
+    ///    extended or proven. A read failure while revalidating the registered anchor aborts the
+    ///    cycle without clearing the pending entry or cache.
     /// 4. Synchronize cached game lifecycle and non-anchor own-registry standing. Blocked, locally
     ///    unprovable foreign in-progress games use lifecycle-only polls. Apply actions: mark owned
     ///    winners and resolvable proposer-created games (owned or disallowed) for resolution,
@@ -2512,10 +2512,12 @@ impl Proposer {
     ///
     /// Terminal drops: unsupported game type, disrespected game type at
     /// creation, an `l2SequenceNumber` exceeding `u64`, a non-refundable
-    /// `ChallengerWins` result, or a claim contradicting a trusted canonical
-    /// super root. A timestamp not yet safe from this node's view, or a
-    /// mismatch reported by an untrusted response, yields `Pending` instead:
-    /// excluded from the DAG but re-validated on later syncs.
+    /// `ChallengerWins` result, a claim contradicting a trusted canonical
+    /// super root, or a canonical claim a trusted response shows needs L1 data
+    /// past the game's l1Head. A timestamp not yet safe from this node's view,
+    /// or a mismatch or past-l1Head requirement reported by an untrusted
+    /// response, yields `Pending` instead: excluded from the DAG but
+    /// re-validated on later syncs.
     pub async fn fetch_game(
         &self,
         index: U256,
@@ -2737,7 +2739,52 @@ impl Proposer {
                 );
                 return Ok(self.terminal_invalid_game(&game).await);
             }
-            Some(_) => {}
+            Some(_) => {
+                // The proof binds the game's l1Head, so a canonical root that needs L1 data past
+                // it can never be proven: the game loses if challenged (op-challenger's ZK actor
+                // challenges it) and must never become a parent.
+                let required_l1 = super_root_at
+                    .response
+                    .data
+                    .as_ref()
+                    .context("canonical super root response lost its data")?
+                    .verified_required_l1
+                    .number;
+                let l1_head_number =
+                    self.l1_view.game_l1_head_number(game_address, pinned_block).await?;
+                if required_l1 > l1_head_number {
+                    if !response_trusted(&super_root_at.response) {
+                        if let Some(retained) =
+                            self.retain_disallowed_own_game(&game, pinned_block).await?
+                        {
+                            return Ok(retained);
+                        }
+                        tracing::warn!(
+                            game_index = %index,
+                            ?game_address,
+                            required_l1,
+                            l1_head_number,
+                            "Game root needs L1 data past its L1 head per untrusted supernode response; deferring validation"
+                        );
+                        return Ok(GameFetchResult::Pending {
+                            index,
+                            game_address,
+                            parent_index,
+                            sequence_number,
+                            deadline,
+                            prestate: absolute_prestate,
+                        });
+                    }
+                    tracing::warn!(
+                        game_index = %index,
+                        ?game_address,
+                        required_l1,
+                        l1_head_number,
+                        "Invalid game: canonical super root needs L1 data past the game's L1 head"
+                    );
+                    return Ok(self.terminal_invalid_game(&game).await);
+                }
+            }
         }
 
         tracing::info!(
@@ -5075,6 +5122,7 @@ mod tests {
         game_claim: GameClaim,
         game_identity: GameIdentity,
         game_validity: GameValidity,
+        game_l1_head_number: u64,
         lifecycle: GameLifecycle,
         game_status: u8,
         parent_status: u8,
@@ -5137,6 +5185,7 @@ mod tests {
                     status: GameStatus::InProgress,
                     absolute_prestate: B256::ZERO,
                 },
+                game_l1_head_number: 11,
                 lifecycle: GameLifecycle {
                     proposal_status: ProposalStatus::Unchallenged,
                     deadline: 2_000,
@@ -5294,6 +5343,13 @@ mod tests {
             self.record("game_validity");
             self.record_block("game_validity", block);
             Ok(self.game_validity)
+        }
+
+        async fn game_l1_head_number(&self, _game: Address, block: BlockId) -> anyhow::Result<u64> {
+            self.record("game_l1_head_number");
+            self.record_block("game_l1_head_number", block);
+            self.fail_if_configured("game_l1_head_number")?;
+            Ok(self.game_l1_head_number)
         }
 
         async fn game_lifecycle(
@@ -7170,6 +7226,7 @@ mod tests {
         }
 
         let canonical = B256::repeat_byte(0x11);
+        // The game's L1 head is block 11.
         let cases = [
             (100, absent_super_root_at_timestamp(99), canonical, false, Expected::Pending),
             (
@@ -7214,6 +7271,29 @@ mod tests {
                 true,
                 Expected::Pending,
             ),
+            // Canonical root, but a trusted response needs L1 block 12, past the game's L1 head.
+            (
+                100,
+                super_root_at_timestamp(100, canonical, 13, 12),
+                canonical,
+                false,
+                Expected::Invalid,
+            ),
+            (
+                100,
+                super_root_at_timestamp(100, canonical, 13, 12),
+                canonical,
+                true,
+                Expected::LifecycleOnly,
+            ),
+            // The same requirement from an untrusted response (current_l1 == required_l1) defers.
+            (
+                100,
+                super_root_at_timestamp(100, canonical, 12, 12),
+                canonical,
+                false,
+                Expected::Pending,
+            ),
         ];
 
         for (sequence_number, super_root_at, claim, own_game, expected) in cases {
@@ -7232,6 +7312,7 @@ mod tests {
                     status: GameStatus::InProgress,
                     absolute_prestate: B256::ZERO,
                 },
+                game_l1_head_number: 11,
                 ..Default::default()
             });
             proposer.l1_view = view;
