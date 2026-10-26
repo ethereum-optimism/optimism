@@ -46,6 +46,7 @@ reth-optimism-forks.workspace = true
 reth-optimism-trie.workspace = true
 
 # ethereum
+alloy-eip7928.workspace = true
 alloy-eips.workspace = true
 alloy-hardforks.workspace = true
 alloy-json-rpc.workspace = true
@@ -58,6 +59,7 @@ alloy-transport.workspace = true
 alloy-transport-http.workspace = true
 alloy-consensus.workspace = true
 alloy-rpc-types-engine.workspace = true
+alloy-rpc-types-trace.workspace = true
 op-alloy-network.workspace = true
 op-alloy-rpc-types = { workspace = true, features = ["reth"] }
 op-alloy-rpc-types-engine.workspace = true
@@ -65,6 +67,7 @@ op-alloy-rpc-jsonrpsee.workspace = true
 op-alloy-consensus.workspace = true
 alloy-op-evm.workspace = true
 revm.workspace = true
+revm-inspectors.workspace = true
 op-revm.workspace = true
 
 # async

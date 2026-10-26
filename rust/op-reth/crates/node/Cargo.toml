@@ -113,6 +113,7 @@ alloy-rpc-types-admin.workspace = true
 alloy-signer-local.workspace = true
 futures.workspace = true
 jsonrpsee.workspace = true
+rstest.workspace = true
 metrics-util = { workspace = true, features = ["debugging"] }
 # Fatal-signal handler in tests/it/crash_backtrace.rs.
 libc.workspace = true
