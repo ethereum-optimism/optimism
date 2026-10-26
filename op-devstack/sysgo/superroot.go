@@ -2,7 +2,6 @@ package sysgo
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -12,25 +11,19 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/lmittmann/w3"
 	w3eth "github.com/lmittmann/w3/module/eth"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/delegatecallproxy"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
 // V2 structs for OPCM >= 7.0.0 (using IOPContractsManagerMigrator interface)
@@ -52,77 +45,6 @@ type MigrateInputV2 struct {
 	DisputeGameConfigs        []DisputeGameConfigV2
 	StartingAnchorRoot        Proposal
 	StartingRespectedGameType uint32
-}
-
-func deployDelegateCallProxy(t devtest.CommonT, transactOpts *bind.TransactOpts, client *ethclient.Client, owner common.Address) (common.Address, *delegatecallproxy.Delegatecallproxy) {
-	deployAddress, tx, proxyContract, err := delegatecallproxy.DeployDelegatecallproxy(transactOpts, client, owner)
-	t.Require().NoError(err, "DelegateCallProxy deployment failed")
-	// Make sure the transaction actually got included rather than just being sent
-	_, err = wait.ForReceiptOK(t.Ctx(), client, tx.Hash())
-	t.Require().NoError(err, "DelegateCallProxy deployment tx was not included successfully")
-	return deployAddress, proxyContract
-}
-
-// delegateCallWithSetCode executes a delegatecall to target with the given data
-// by delegating the sender's code to a DelegateCallProxy via EIP-7702 SetCode.
-// The sender EOA temporarily gets DelegateCallProxy code, calls executeDelegateCall
-// on itself, and the target runs via delegatecall in the sender's context.
-// This avoids transferring ownership of contracts to a temporary proxy.
-//
-// Uses txplan for nonce management, gas pricing, signing, and retry — the same
-// infrastructure that dsl.EOA.PlanAuth uses, without requiring a dsl.EOA.
-func delegateCallWithSetCode(
-	t devtest.CommonT,
-	privateKey *ecdsa.PrivateKey,
-	client *ethclient.Client,
-	target common.Address,
-	data []byte,
-) {
-	require := t.Require()
-	ctx := t.Ctx()
-	sender := crypto.PubkeyToAddress(privateKey.PublicKey)
-
-	// A delegatecall to an address without code succeeds and does nothing.
-	code, err := client.CodeAt(ctx, target, nil)
-	require.NoError(err, "failed to read code at delegatecall target %s", target)
-	require.NotEmpty(code, "delegatecall target %s has no code", target)
-
-	// Deploy DelegateCallProxy as code reference for SetCode delegation
-	chainID, err := client.ChainID(ctx)
-	require.NoError(err)
-	transactOpts, err := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
-	require.NoError(err)
-	transactOpts.Context = ctx
-	proxyAddr, _ := deployDelegateCallProxy(t, transactOpts, client, sender)
-
-	// Encode executeDelegateCall(target, data) calldata
-	proxyABI, err := delegatecallproxy.DelegatecallproxyMetaData.GetAbi()
-	require.NoError(err)
-	calldata, err := proxyABI.Pack("executeDelegateCall", target, data)
-	require.NoError(err)
-
-	// Build a SetCode tx using txplan — same options PlanAuth uses,
-	// plus the delegatecall payload as tx data.
-	toAddr := sender
-	tx := txplan.NewPlannedTx(
-		txplan.WithChainID(client),
-		txplan.WithPrivateKey(privateKey),
-		txplan.WithPendingNonce(client),
-		txplan.WithAgainstLatestBlockEthClient(client),
-		txplan.WithType(types.SetCodeTxType),
-		txplan.WithTo(&toAddr),
-		txplan.WithAuthorizationTo(proxyAddr),
-		txplan.WithData(calldata),
-		// Fixed gas limit because eth_estimateGas doesn't handle EIP-7702 authorizations.
-		// Use the EIP-7825 max transaction gas limit to give the migration maximum room.
-		txplan.WithGasLimit(params.MaxTxGas),
-		txplan.WithRetrySubmission(client, 5, retry.Exponential()),
-		txplan.WithRetryInclusion(txplan.FromGethReceipts(client), 10, retry.Exponential()),
-	)
-
-	receipt, err := tx.Included.Eval(ctx)
-	require.NoError(err)
-	require.Equal(types.ReceiptStatusSuccessful, receipt.Status, "delegatecall via SetCode failed")
 }
 
 func awaitSuperrootTime(t devtest.T, cls ...L2CLNode) uint64 {
@@ -243,7 +165,7 @@ func migrateSuperRootsWithProposal(
 	l1PAOKey := l1ProxyAdminOwnerKey(t, keys, l1ChainID)
 
 	t.Log("Executing OPCM migration via SetCode delegatecall")
-	delegateCallWithSetCode(t, l1PAOKey, client, migration.opcmImpl, migrateCallData)
+	require.NoError(transactions.DelegateCallWithSetCode(t.Ctx(), client, l1PAOKey, migration.opcmImpl, migrateCallData))
 
 	var sharedDGF common.Address
 	for _, l2Deployment := range migration.l2Deployments {
