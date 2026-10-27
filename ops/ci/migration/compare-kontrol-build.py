@@ -59,7 +59,7 @@ def report(directory, provider, sha):
         raise ValueError('Changed original Kontrol settings, retries or image')
     if provider == 'rwx' and (not settings['rwx_run_id'] or str(settings['rwx_task_attempt']) != '1'):
         raise ValueError('Missing native Kontrol identity or unexpected retry')
-    if K.F.SUBMODULES.revisions((directory / 'submodules.txt').read_text()) != settings['submodules']:
+    if K.SUBMODULES.revisions((directory / 'submodules.txt').read_text()) != settings['submodules']:
         raise ValueError('Changed original Kontrol submodule selection')
     selected = G.read(directory / 'selection.json'); before = settings['input_sha256']
     proofs = {n:h for n,h in before.items() if n.startswith(K.PROOFS + '/') and n.endswith('.sol')}
