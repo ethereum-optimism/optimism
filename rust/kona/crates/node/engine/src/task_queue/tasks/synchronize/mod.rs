@@ -5,3 +5,6 @@ pub(in crate::task_queue) use helper::synchronize;
 
 mod error;
 pub use error::SynchronizeTaskError;
+
+#[cfg(test)]
+mod tests;

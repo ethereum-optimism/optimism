@@ -145,3 +145,40 @@ async fn test_execute_variants(
     l1.assert_finished();
     l2.assert_finished();
 }
+
+/// A successful build FCU supersedes an older pending update, but acknowledges the actual
+/// parent used by the build rather than pretending the consensus unsafe head was changed.
+#[tokio::test]
+async fn valid_build_supersedes_pending_forkchoice_without_completing_sync() {
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let parent = test_block_info(10);
+    let mut state = TestEngineStateBuilder::new()
+        .with_unsafe_head(test_block_info(20))
+        .with_safe_head(test_block_info(5))
+        .with_finalized_head(test_block_info(0))
+        .with_el_sync_finished(false)
+        .build();
+    state.forkchoice_status =
+        crate::ForkchoiceStatus::Syncing(state.sync_state.create_forkchoice_state());
+    let initial_heads = state.sync_state;
+    let attributes = TestAttributesBuilder::new().with_parent(parent).build();
+    let actual_forkchoice = state
+        .sync_state
+        .apply_update(crate::EngineSyncStateUpdate {
+            unsafe_head: Some(parent),
+            ..Default::default()
+        })
+        .create_forkchoice_state();
+    l2.expect_params(
+        "engine_forkchoiceUpdatedV2",
+        serde_json::json!([actual_forkchoice, attributes.attributes]),
+        fcu_for_payload(Some(PayloadId::new([1; 8])), PayloadStatusEnum::Valid),
+    );
+    BuildTask::new(Arc::new(client), config, attributes, None).execute(&mut state).await.unwrap();
+    assert_eq!(state.sync_state, initial_heads);
+    assert_eq!(state.forkchoice_status, crate::ForkchoiceStatus::Applied(actual_forkchoice));
+    assert!(!state.el_sync_finished);
+    l1.assert_finished();
+    l2.assert_finished();
+}

@@ -57,6 +57,8 @@ where
     retry_at: Instant,
     /// Exponentially increasing retry delay, capped to keep recovery responsive.
     retry_delay: Duration,
+    /// Separate cadence so SYNCING does not hold the task queue or busy-loop on idle chains.
+    forkchoice_retry_at: Instant,
 }
 
 impl<DerivationClient> EngineActor<DerivationClient>
@@ -87,6 +89,7 @@ where
             reset_waiters: Vec::new(),
             retry_at: Instant::now(),
             retry_delay: Duration::from_millis(100),
+            forkchoice_retry_at: Instant::now(),
         }
     }
 
@@ -150,6 +153,7 @@ where
 
     /// Drains the inner [`Engine`] task queue and attempts to update the safe head.
     async fn drain(&mut self) -> Result<(), EngineError> {
+        let forkchoice_was_pending = self.engine.has_pending_forkchoice();
         match self.engine.drain().await {
             Ok(_) => {
                 trace!(target: "engine", "[ENGINE] tasks drained");
@@ -192,6 +196,13 @@ where
             }
         }
 
+        if !forkchoice_was_pending && self.engine.has_pending_forkchoice() {
+            self.forkchoice_retry_at = Instant::now() + Duration::from_secs(1);
+        }
+        self.notify_engine_progress().await
+    }
+
+    async fn notify_engine_progress(&mut self) -> Result<(), EngineError> {
         self.send_derivation_actor_safe_head_if_updated().await?;
 
         if !self.el_sync_complete && self.engine.state().el_sync_finished {
@@ -203,6 +214,20 @@ where
         }
 
         Ok(())
+    }
+
+    async fn retry_pending_forkchoice(&mut self) -> Result<(), EngineError> {
+        self.forkchoice_retry_at = Instant::now() + Duration::from_secs(1);
+        if let Err(err) = self.engine.retry_pending_forkchoice(self.client.as_ref()).await {
+            match err.severity() {
+                EngineTaskErrorSeverity::Critical => return Err(err.into()),
+                EngineTaskErrorSeverity::Reset => self.begin_reset(),
+                _ => {
+                    warn!(target: "engine", ?err, "Pending forkchoice retry failed; retaining target")
+                }
+            }
+        }
+        self.notify_engine_progress().await
     }
 
     async fn mark_el_sync_complete_and_notify_derivation_actor(
@@ -259,6 +284,15 @@ where
             }
         }
 
+        // This deadline is checked before reading inbound requests, so a continuous request
+        // stream cannot starve recovery, and a SYNCING response never blocks queued payloads.
+        if !self.reset_pending &&
+            self.engine.has_pending_forkchoice() &&
+            Instant::now() >= self.forkchoice_retry_at
+        {
+            self.retry_pending_forkchoice().await?;
+        }
+
         // If the unsafe head has updated, propagate it to the outbound channels.
         if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
             unsafe_head_tx.send_if_modified(|val| {
@@ -275,6 +309,8 @@ where
                 if self.engine.len() < 1024 && self.reset_waiters.len() < 1024 => {
                 request.ok_or(EngineError::ChannelClosed)?
             }
+            _ = time::sleep_until(self.forkchoice_retry_at),
+                if !self.reset_pending && self.engine.has_pending_forkchoice() => return Ok(()),
             _ = time::sleep_until(self.retry_at),
                 if self.reset_pending || !self.engine.is_empty() => return Ok(()),
         };

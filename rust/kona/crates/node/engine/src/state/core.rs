@@ -124,11 +124,28 @@ pub struct EngineSyncStateUpdate {
     pub finalized_head: Option<L2BlockInfo>,
 }
 
+/// Execution-layer acknowledgement and pending synchronization of forkchoice updates.
+///
+/// A `SYNCING` label update starts synchronization but is not acknowledged as applied.
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ForkchoiceStatus {
+    /// No forkchoice has been acknowledged since startup or reset.
+    #[default]
+    Unsent,
+    /// The execution layer applied this forkchoice with a `VALID` response.
+    Applied(ForkchoiceState),
+    /// The execution layer is still synchronizing this forkchoice.
+    Syncing(ForkchoiceState),
+}
+
 /// The chain state viewed by the engine controller.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
 pub struct EngineState {
     /// The sync state of the engine.
     pub sync_state: EngineSyncState,
+
+    /// Acknowledged forkchoice or pending label update, independent of transient consensus labels.
+    pub forkchoice_status: ForkchoiceStatus,
 
     /// Whether or not the EL has finished syncing.
     pub el_sync_finished: bool,

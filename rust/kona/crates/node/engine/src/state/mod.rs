@@ -1,4 +1,4 @@
 //! Engine State
 
 mod core;
-pub use core::{EngineState, EngineSyncState, EngineSyncStateUpdate};
+pub use core::{EngineState, EngineSyncState, EngineSyncStateUpdate, ForkchoiceStatus};

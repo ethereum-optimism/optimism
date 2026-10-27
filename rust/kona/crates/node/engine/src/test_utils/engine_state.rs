@@ -1,4 +1,4 @@
-use crate::{EngineState, EngineSyncStateUpdate};
+use crate::{EngineState, EngineSyncStateUpdate, ForkchoiceStatus};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, b256};
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -75,6 +75,10 @@ impl TestEngineStateBuilder {
         });
 
         state.el_sync_finished = self.el_sync_finished;
+        if self.el_sync_finished {
+            state.forkchoice_status =
+                ForkchoiceStatus::Applied(state.sync_state.create_forkchoice_state());
+        }
         state
     }
 }

@@ -1,6 +1,8 @@
 //! The `engine_forkchoiceUpdated` call, with no attributes, that the engine tasks share.
 
-use crate::{EngineClient, EngineState, SynchronizeTaskError, state::EngineSyncStateUpdate};
+use crate::{
+    EngineClient, EngineState, ForkchoiceStatus, SynchronizeTaskError, state::EngineSyncStateUpdate,
+};
 use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
 use op_alloy_provider::ext::engine::OpEngineApi;
 
@@ -25,20 +27,6 @@ pub(in crate::task_queue) async fn synchronize(
     // Apply the sync state update to the engine state.
     let new_sync_state = state.sync_state.apply_update(state_update);
 
-    // Check if a forkchoice update is not needed, return early.
-    // A forkchoice update is not needed if...
-    // 1. The engine state is not default (initial forkchoice state has been emitted), and
-    // 2. The new sync state is the same as the current sync state (no changes to the sync state).
-    //
-    // NOTE:
-    // We shouldn't retry the synchronization here. Since the `sync_state` is only updated inside
-    // `synchronize` (except inside the ConsolidateTask, when the block is not the last in the
-    // batch) - the engine would get stuck retrying the synchronization.
-    if state.sync_state != Default::default() && state.sync_state == new_sync_state {
-        debug!(target: "engine", ?new_sync_state, "No forkchoice update needed");
-        return Ok(());
-    }
-
     // Check if the head is behind the finalized head.
     if new_sync_state.unsafe_head().block_info.number <
         new_sync_state.finalized_head().block_info.number
@@ -51,6 +39,13 @@ pub(in crate::task_queue) async fn synchronize(
 
     // Send the forkchoice update through the input.
     let forkchoice = new_sync_state.create_forkchoice_state();
+    // Local-safe metadata and intermediate span updates do not acknowledge an EL update.
+    // Only an identical forkchoice accepted as VALID can suppress another request.
+    if state.forkchoice_status == ForkchoiceStatus::Applied(forkchoice) {
+        state.sync_state = new_sync_state;
+        state.el_sync_finished = true;
+        return Ok(());
+    }
     tracing::Span::current().record("forkchoice", tracing::field::debug(forkchoice));
 
     // Handle the forkchoice update result.
@@ -71,6 +66,7 @@ pub(in crate::task_queue) async fn synchronize(
 
     match &valid_response.payload_status.status {
         PayloadStatusEnum::Valid => {
+            state.forkchoice_status = ForkchoiceStatus::Applied(forkchoice);
             if !state.el_sync_finished {
                 info!(target: "engine", "Finished execution layer sync.");
                 state.el_sync_finished = true;
@@ -78,6 +74,7 @@ pub(in crate::task_queue) async fn synchronize(
         }
         // If we're not building a new payload, we're driving EL sync.
         PayloadStatusEnum::Syncing => {
+            state.forkchoice_status = ForkchoiceStatus::Syncing(forkchoice);
             debug!(target: "engine", "Attempting to update forkchoice state while EL syncing")
         }
         // Other codes are not expected.

@@ -2,7 +2,7 @@
 //!
 //! [`EngineActor`]: super::EngineActor
 
-use kona_engine::{EngineResetError, EngineTaskErrors};
+use kona_engine::{EngineResetError, EngineTaskErrors, SynchronizeTaskError};
 
 /// An error from the [`EngineActor`].
 ///
@@ -15,6 +15,9 @@ pub enum EngineError {
     /// Engine reset error.
     #[error(transparent)]
     EngineReset(#[from] EngineResetError),
+    /// A pending forkchoice retry failed critically.
+    #[error(transparent)]
+    Forkchoice(#[from] SynchronizeTaskError),
     /// Engine task error.
     #[error(transparent)]
     EngineTask(#[from] EngineTaskErrors),

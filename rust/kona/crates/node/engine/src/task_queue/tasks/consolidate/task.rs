@@ -52,12 +52,12 @@ impl ConsolidateInput {
         }
     }
 
-    /// Returns true if this is `Attributes` and `attributes.is_last_in_span` is true.
-    const fn is_attributes_last_in_span(&self) -> bool {
+    /// Only intermediate native span attributes may defer the forkchoice update.
+    const fn is_intermediate_span(&self) -> bool {
         matches!(
             self,
             Self::Attributes(attributes)
-                if attributes.is_last_in_span
+                if !attributes.is_last_in_span
         )
     }
 }
@@ -197,7 +197,7 @@ impl ConsolidateTask {
                 // Only issue a forkchoice update if the attributes are the last in the span
                 // batch. This is an optimization to avoid sending a FCU
                 // call for every block in the span batch.
-                Ok(block_info) if !self.input.is_attributes_last_in_span() => {
+                Ok(block_info) if self.input.is_intermediate_span() => {
                     // The next attributes built are this block's child, and ask for its config.
                     self.block_sink.block_imported(consensus_block, block_info);
 
@@ -305,6 +305,205 @@ mod tests {
     use kona_genesis::ChainGenesis;
     use kona_protocol::BlockInfo;
 
+    /// Delegated safe promotion must reach the EL even when finalization is unchanged
+    /// and no new unsafe block triggers another forkchoice update.
+    #[tokio::test]
+    async fn delegated_safe_update_reaches_el_when_finalized_unchanged() {
+        use crate::{
+            FinalizeBlockId, FinalizeTask,
+            test_utils::{TestEngineStateBuilder, test_block_info},
+        };
+        use alloy_primitives::{Address, Sealed};
+        use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
+
+        let genesis_header = RpcHeader::new(alloy_consensus::Header::default());
+        let genesis_hash = genesis_header.hash;
+        let genesis_block: RpcBlock<op_alloy_rpc_types::Transaction> =
+            RpcBlock::new(genesis_header, BlockTransactions::Full(vec![]));
+        let cfg = Arc::new(RollupConfig {
+            genesis: ChainGenesis {
+                l2: BlockNumHash { hash: genesis_hash, number: 0 },
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let genesis = L2BlockInfo::from_block_and_genesis(
+            &genesis_block.clone().into_consensus(),
+            &cfg.genesis,
+        )
+        .unwrap();
+        let header = alloy_consensus::Header { number: 10, timestamp: 20, ..Default::default() };
+        let header = RpcHeader::new(header);
+        let tx = OpTxEnvelope::Deposit(Sealed::new(TxDeposit {
+            input: kona_protocol::L1BlockInfoBedrock::default().encode_calldata(),
+            ..Default::default()
+        }));
+        let tx = op_alloy_rpc_types::Transaction::from_transaction(
+            alloy_consensus::transaction::Recovered::new_unchecked(tx, Address::ZERO),
+            Default::default(),
+        );
+        let safe_block = RpcBlock::new(header, BlockTransactions::Full(vec![tx]));
+        let safe =
+            L2BlockInfo::from_block_and_genesis(&safe_block.clone().into_consensus(), &cfg.genesis)
+                .unwrap();
+        let unsafe_head = test_block_info(20);
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(unsafe_head)
+            .with_safe_head(genesis)
+            .with_finalized_head(genesis)
+            .build();
+        state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+            local_safe_head: Some(genesis),
+            ..Default::default()
+        });
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0xa", true]), safe_block);
+        let target = state
+            .sync_state
+            .apply_update(EngineSyncStateUpdate {
+                safe_head: Some(safe),
+                local_safe_head: Some(safe),
+                ..Default::default()
+            })
+            .create_forkchoice_state();
+        l2.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([target, null]),
+            alloy_rpc_types_engine::ForkchoiceUpdated::new(
+                alloy_rpc_types_engine::PayloadStatus::from_status(
+                    alloy_rpc_types_engine::PayloadStatusEnum::Valid,
+                ),
+            ),
+        );
+        l2.expect_params(
+            "eth_getBlockByHash",
+            serde_json::json!([genesis_hash, true]),
+            genesis_block,
+        );
+        let client = Arc::new(client);
+        let task = ConsolidateTask::new(
+            client.clone(),
+            cfg.clone(),
+            ConsolidateInput::BlockInfo(safe),
+            Arc::new(crate::NoopBlockSink),
+        );
+        task.execute(&mut state).await.unwrap();
+        assert_eq!(state.sync_state.safe_head(), safe);
+        FinalizeTask::new(client, cfg, FinalizeBlockId::ByHash(genesis.block_info.id()))
+            .execute(&mut state)
+            .await
+            .unwrap();
+        assert_eq!(state.sync_state.safe_head(), safe);
+        assert_eq!(state.sync_state.unsafe_head(), unsafe_head);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// Native intermediate span blocks remain transient. The span boundary (or an already
+    /// pending EL-sync retry) delivers the latest labels rather than replaying an older target.
+    #[rstest::rstest]
+    #[case(false)]
+    #[case(true)]
+    #[tokio::test]
+    async fn intermediate_native_span_preserves_batching_and_pending_retry(#[case] pending: bool) {
+        use crate::{
+            Engine, ForkchoiceStatus, NoopBlockSink,
+            test_utils::{TestEngineStateBuilder, test_block_info},
+        };
+        use alloy_eips::Encodable2718;
+        use alloy_primitives::{Address, Sealed};
+        use alloy_rpc_types_engine::{
+            ForkchoiceUpdated, PayloadAttributes, PayloadStatus, PayloadStatusEnum,
+        };
+        use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
+        use op_alloy_rpc_types_engine::OpPayloadAttributes;
+
+        let parent = test_block_info(9);
+        let tx = OpTxEnvelope::Deposit(Sealed::new(TxDeposit {
+            input: kona_protocol::L1BlockInfoBedrock::default().encode_calldata(),
+            ..Default::default()
+        }));
+        let tx_bytes = tx.encoded_2718().into();
+        let tx = op_alloy_rpc_types::Transaction::from_transaction(
+            alloy_consensus::transaction::Recovered::new_unchecked(tx, Address::ZERO),
+            Default::default(),
+        );
+        let header = RpcHeader::new(alloy_consensus::Header {
+            parent_hash: parent.hash(),
+            number: 10,
+            timestamp: 20,
+            ..Default::default()
+        });
+        let block = RpcBlock::new(header, BlockTransactions::Full(vec![tx]));
+        let cfg = Arc::new(RollupConfig::default());
+        let safe =
+            L2BlockInfo::from_block_and_genesis(&block.clone().into_consensus(), &cfg.genesis)
+                .unwrap();
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(test_block_info(20))
+            .with_safe_head(test_block_info(5))
+            .with_finalized_head(test_block_info(0))
+            .build();
+        if pending {
+            state.forkchoice_status =
+                ForkchoiceStatus::Syncing(state.sync_state.create_forkchoice_state());
+        }
+        let original_status = state.forkchoice_status;
+        let mut attributes = OpAttributesWithParent::new(
+            OpPayloadAttributes {
+                payload_attributes: PayloadAttributes { timestamp: 20, ..Default::default() },
+                transactions: Some(vec![tx_bytes]),
+                gas_limit: Some(0),
+                ..Default::default()
+            },
+            parent,
+            Some(BlockInfo::default()),
+            false,
+        );
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0xa", true]), block.clone());
+        let client = Arc::new(client);
+        ConsolidateTask::new(
+            client.clone(),
+            cfg.clone(),
+            attributes.clone().into(),
+            Arc::new(NoopBlockSink),
+        )
+        .execute(&mut state)
+        .await
+        .unwrap();
+        assert_eq!(state.sync_state.safe_head(), safe);
+        assert_eq!(
+            state.forkchoice_status, original_status,
+            "intermediate block must not emit FCU"
+        );
+        let target = state.sync_state.create_forkchoice_state();
+        if !pending {
+            attributes.is_last_in_span = true;
+            l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0xa", true]), block);
+        }
+        l2.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([target, null]),
+            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+        );
+        if pending {
+            let (tx, _rx) = tokio::sync::watch::channel(state);
+            let mut engine = Engine::new(state, tx);
+            engine.retry_pending_forkchoice(&client).await.unwrap();
+            assert!(!engine.has_pending_forkchoice());
+            assert_eq!(engine.state().forkchoice_status, ForkchoiceStatus::Applied(target));
+        } else {
+            ConsolidateTask::new(client, cfg, attributes.into(), Arc::new(NoopBlockSink))
+                .execute(&mut state)
+                .await
+                .unwrap();
+            assert_eq!(state.forkchoice_status, ForkchoiceStatus::Applied(target));
+        }
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
     /// Records the blocks the engine hands over after consolidating.
     #[derive(Debug, Default)]
     struct RecordingSink(std::sync::Mutex<Vec<B256>>);
@@ -335,6 +534,14 @@ mod tests {
         });
         let (client, l1, l2) = test_engine_client(cfg.clone());
         l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0x0", true]), block);
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            alloy_rpc_types_engine::ForkchoiceUpdated::new(
+                alloy_rpc_types_engine::PayloadStatus::from_status(
+                    alloy_rpc_types_engine::PayloadStatusEnum::Valid,
+                ),
+            ),
+        );
         let client = Arc::new(client);
 
         let safe_l2 = L2BlockInfo {

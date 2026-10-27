@@ -392,7 +392,20 @@ mod tests {
                 "{result:?}"
             ),
         }
-        assert_eq!(state, EngineState::default(), "a rejected payload must not change forkchoice");
+        let mut expected = EngineState::default();
+        if matches!(fallback, Fallback::ReplacementRejected) {
+            // The replacement build's FCU was VALID even though its subsequent payload failed.
+            expected.forkchoice_status = crate::ForkchoiceStatus::Applied(
+                expected
+                    .sync_state
+                    .apply_update(crate::EngineSyncStateUpdate {
+                        unsafe_head: Some(attributes.parent),
+                        ..Default::default()
+                    })
+                    .create_forkchoice_state(),
+            );
+        }
+        assert_eq!(state, expected, "a rejected payload must not change consensus heads");
         l1.assert_finished();
         l2.assert_finished();
     }

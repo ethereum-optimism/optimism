@@ -3,7 +3,7 @@
 use super::EngineTaskExt;
 use crate::{
     EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTaskError,
+    EngineTaskErrorSeverity, ForkchoiceStatus, Metrics, SyncStartError, SynchronizeTaskError,
     find_starting_forkchoice,
     task_queue::{EngineTaskErrors, synchronize},
 };
@@ -100,9 +100,27 @@ impl Engine {
         self.tasks.len() + usize::from(self.active.is_some())
     }
 
-    /// Whether there is no pending work.
+    /// Whether there are no queued or active tasks.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Whether a forkchoice accepted as `SYNCING` needs an independent retry.
+    pub const fn has_pending_forkchoice(&self) -> bool {
+        matches!(self.state.forkchoice_status, ForkchoiceStatus::Syncing(_))
+    }
+
+    /// Retries pending forkchoice with current labels, without retaining a task that could block
+    /// newer unsafe imports needed for execution-layer synchronization.
+    pub async fn retry_pending_forkchoice(
+        &mut self,
+        client: &EngineClient,
+    ) -> Result<(), SynchronizeTaskError> {
+        if self.has_pending_forkchoice() {
+            synchronize(client, &mut self.state, EngineSyncStateUpdate::default()).await?;
+            self.state_sender.send_replace(self.state);
+        }
+        Ok(())
     }
 
     /// Resets the engine by finding a plausible sync starting point via
@@ -114,6 +132,8 @@ impl Engine {
         config: Arc<RollupConfig>,
     ) -> Result<L2BlockInfo, EngineResetError> {
         let start = find_starting_forkchoice(&config, client.as_ref()).await?;
+
+        self.state.forkchoice_status = ForkchoiceStatus::Unsent;
 
         // One attempt. The actor retains the reset request and retries transient failures.
         synchronize(
@@ -137,6 +157,7 @@ impl Engine {
     pub fn clear(&mut self) {
         self.tasks.clear();
         self.active = None;
+        self.state.forkchoice_status = ForkchoiceStatus::Unsent;
     }
 
     /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
@@ -262,6 +283,90 @@ mod recovery_tests {
         engine.drain().await.unwrap();
         assert!(engine.is_empty());
         assert_eq!(engine.state().sync_state.unsafe_head().block_info.number, 3);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// SYNCING finishes the request task so payload imports can catch up, while the pending
+    /// forkchoice remains independently retryable. A newer target supersedes it.
+    #[tokio::test]
+    async fn syncing_forkchoice_does_not_retain_task_or_block_newer_target() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let client = Arc::new(client);
+        let state = TestEngineStateBuilder::new()
+            .with_unsafe_head(test_block_info(20))
+            .with_safe_head(test_block_info(10))
+            .with_finalized_head(test_block_info(5))
+            .build();
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, state_tx);
+        for (number, status) in [(30, PayloadStatusEnum::Syncing), (40, PayloadStatusEnum::Valid)] {
+            let safe = test_block_info(number);
+            let target = engine
+                .state
+                .sync_state
+                .apply_update(EngineSyncStateUpdate {
+                    unsafe_head: Some(safe),
+                    safe_head: Some(safe),
+                    local_safe_head: Some(safe),
+                    ..Default::default()
+                })
+                .create_forkchoice_state();
+            l2.expect_params(
+                "engine_forkchoiceUpdatedV3",
+                serde_json::json!([target, null]),
+                ForkchoiceUpdated::new(PayloadStatus::from_status(status)),
+            );
+            engine.enqueue(EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+                client.clone(),
+                config.clone(),
+                safe.into(),
+                Arc::new(NoopBlockSink),
+            ))));
+            engine.drain().await.unwrap();
+            assert!(engine.is_empty(), "SYNCING must not retain an active task");
+        }
+        assert!(!engine.has_pending_forkchoice());
+        engine.retry_pending_forkchoice(&client).await.unwrap();
+        assert_eq!(engine.state().sync_state.safe_head().block_info.number, 40);
+        // Clearing/resetting discards old acknowledgements, forcing the next requested FCU.
+        engine.clear();
+        assert_eq!(engine.state().forkchoice_status, ForkchoiceStatus::Unsent);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    #[tokio::test]
+    async fn reset_resends_even_previously_applied_forkchoice() {
+        let block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
+            Default::default();
+        let mut config = RollupConfig::default();
+        config.genesis.l2.hash = block.header.inner.hash_slow();
+        let config = Arc::new(config);
+        let genesis =
+            L2BlockInfo::from_block_and_genesis(&block.clone().into_consensus(), &config.genesis)
+                .unwrap();
+        let state = TestEngineStateBuilder::new().with_unsafe_head(genesis).build();
+        let applied = state.sync_state.create_forkchoice_state();
+        assert_eq!(state.forkchoice_status, ForkchoiceStatus::Applied(applied));
+        let (client, l1, l2) = test_engine_client(config.clone());
+        for tag in ["finalized", "safe", "latest"] {
+            l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
+        }
+        l1.expect(
+            "eth_getBlockByHash",
+            alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
+        );
+        l2.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([applied, null]),
+            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+        );
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, state_tx);
+        engine.reset(Arc::new(client), config).await.unwrap();
+        assert_eq!(engine.state().forkchoice_status, ForkchoiceStatus::Applied(applied));
         l1.assert_finished();
         l2.assert_finished();
     }

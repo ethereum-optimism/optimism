@@ -1,7 +1,7 @@
 //! A task for building a new block and importing it.
 use super::BuildTaskError;
 use crate::{
-    EngineClient, EngineForkchoiceVersion, EngineState, EngineTaskExt,
+    EngineClient, EngineForkchoiceVersion, EngineState, EngineTaskExt, ForkchoiceStatus,
     state::EngineSyncStateUpdate, task_queue::tasks::build::error::EngineBuildError,
 };
 use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
@@ -89,7 +89,7 @@ impl EngineTaskExt for BuildTask {
 pub(in crate::task_queue) async fn start_build(
     engine_client: &EngineClient,
     cfg: &RollupConfig,
-    state: &EngineState,
+    state: &mut EngineState,
     attributes_envelope: OpAttributesWithParent,
 ) -> Result<PayloadId, EngineBuildError> {
     // Sanity check if the head is behind the finalized head. If it is, this is a critical error.
@@ -131,7 +131,11 @@ pub(in crate::task_queue) async fn start_build(
     .map_err(EngineBuildError::AttributesInsertionFailed)?;
 
     match update.payload_status.status {
-        PayloadStatusEnum::Valid => {}
+        PayloadStatusEnum::Valid => {
+            // This FCU can satisfy a pending label update too. Keep sync-completion notification
+            // at synchronize/import time, so starting a build does not trigger a reset mid-build.
+            state.forkchoice_status = ForkchoiceStatus::Applied(new_forkchoice);
+        }
         PayloadStatusEnum::Invalid { validation_error } => {
             error!(target: "engine_builder", "Forkchoice update failed: {}", validation_error);
             return Err(EngineBuildError::InvalidPayload(validation_error));

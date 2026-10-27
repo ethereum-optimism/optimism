@@ -64,7 +64,7 @@ mod versions;
 pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion, EngineNewPayloadVersion};
 
 mod state;
-pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate};
+pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate, ForkchoiceStatus};
 
 mod kinds;
 pub use kinds::EngineKind;
