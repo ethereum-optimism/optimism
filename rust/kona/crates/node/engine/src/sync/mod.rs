@@ -3,6 +3,7 @@
 use alloy_eips::BlockId;
 use alloy_primitives::B256;
 use alloy_provider::ext::EngineApi;
+use alloy_rpc_types_engine::PayloadStatusEnum;
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 
@@ -316,11 +317,10 @@ async fn retained_safe_checkpoint(
                 None,
             )
             .await?;
-        if !matches!(
-            response.payload_status.status,
-            alloy_rpc_types_engine::PayloadStatusEnum::Valid
-        ) {
-            return Err(SyncStartError::CheckpointNotValidated);
+        match &response.payload_status.status {
+            PayloadStatusEnum::Valid => {}
+            PayloadStatusEnum::Syncing => return Err(SyncStartError::CheckpointNotValidated),
+            _ => return Err(SyncStartError::CheckpointRejected(response.payload_status)),
         }
         let current_anchor = client.get_l1_block(anchor.header.number.into()).await?;
         if current_anchor.is_none_or(|block| block.header.hash != anchor.header.hash) {
@@ -384,6 +384,8 @@ mod checkpoint_tests {
         NewerInvalid,
         MissingHead,
         SyncingAfterValid,
+        InvalidExecution,
+        AcceptedExecution,
         CanonicalReplay,
         ReorgedReplay,
         ReorgedUnsafe,
@@ -398,6 +400,8 @@ mod checkpoint_tests {
     #[case(Scenario::NewerInvalid)]
     #[case(Scenario::MissingHead)]
     #[case(Scenario::SyncingAfterValid)]
+    #[case(Scenario::InvalidExecution)]
+    #[case(Scenario::AcceptedExecution)]
     #[case(Scenario::CanonicalReplay)]
     #[case(Scenario::ReorgedReplay)]
     #[case(Scenario::ReorgedUnsafe)]
@@ -502,12 +506,22 @@ mod checkpoint_tests {
             if matches!(scenario, Scenario::ChangedL2) {
                 break;
             }
-            let status =
-                if attempt == 1 { PayloadStatusEnum::Syncing } else { PayloadStatusEnum::Valid };
+            let status = match scenario {
+                Scenario::InvalidExecution => {
+                    PayloadStatusEnum::Invalid { validation_error: "invalid state root".into() }
+                }
+                Scenario::AcceptedExecution => PayloadStatusEnum::Accepted,
+                _ if attempt == 1 => PayloadStatusEnum::Syncing,
+                _ => PayloadStatusEnum::Valid,
+            };
+            let payload_status =
+                PayloadStatus::from_status(status).with_latest_valid_hash(B256::repeat_byte(9));
             l2.expect_params("engine_forkchoiceUpdatedV3", json!([{
                 "headBlockHash": heads.un_safe.hash(), "safeBlockHash": safe.hash(), "finalizedBlockHash": heads.finalized.hash()
-            }, null]), ForkchoiceUpdated::new(PayloadStatus::from_status(status)));
-            if attempt == 1 {
+            }, null]), ForkchoiceUpdated::new(payload_status));
+            if attempt == 1 ||
+                matches!(scenario, Scenario::InvalidExecution | Scenario::AcceptedExecution)
+            {
                 break;
             }
             let mut recheck = anchor.clone();
@@ -520,7 +534,18 @@ mod checkpoint_tests {
             let selected = retained_safe_checkpoint(&client, &heads, &checkpoints).await;
             match scenario {
                 Scenario::SyncingAfterValid if attempt == 1 => {
-                    assert!(matches!(selected, Err(SyncStartError::CheckpointNotValidated)))
+                    let err = selected.unwrap_err();
+                    assert!(matches!(err, SyncStartError::CheckpointNotValidated));
+                    assert!(crate::EngineResetError::SyncStart(err).is_temporary());
+                }
+                Scenario::InvalidExecution | Scenario::AcceptedExecution => {
+                    let err = crate::EngineResetError::SyncStart(selected.unwrap_err());
+                    assert!(!err.is_temporary(), "execution rejection must not retry: {err}");
+                    let diagnostic = err.to_string();
+                    assert!(diagnostic.contains(&B256::repeat_byte(9).to_string()));
+                    if matches!(scenario, Scenario::InvalidExecution) {
+                        assert!(diagnostic.contains("invalid state root"));
+                    }
                 }
                 Scenario::ChangedL1 |
                 Scenario::ChangedL2 |

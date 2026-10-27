@@ -2,6 +2,7 @@
 
 use alloy_eips::BlockId;
 use alloy_primitives::B256;
+use alloy_rpc_types_engine::PayloadStatus;
 use alloy_transport::{RpcError, TransportErrorKind};
 use kona_protocol::FromBlockError;
 use thiserror::Error;
@@ -9,9 +10,12 @@ use thiserror::Error;
 /// An error that can occur during the sync start process.
 #[derive(Error, Debug)]
 pub enum SyncStartError {
-    /// The EL has not validated the retained checkpoint; retry without trusting its labels.
+    /// The EL is still syncing; retry without trusting the retained checkpoint's labels.
     #[error("Execution layer has not validated the sync-start checkpoint")]
     CheckpointNotValidated,
+    /// The EL rejected the checkpoint forkchoice or returned an unexpected status; do not retry.
+    #[error("Execution layer rejected the sync-start checkpoint: {0:?}")]
+    CheckpointRejected(PayloadStatus),
     /// The canonical L1 view changed during recovery; retry with a fresh view.
     #[error("Canonical chain changed during sync-start recovery")]
     ChainViewChanged,
