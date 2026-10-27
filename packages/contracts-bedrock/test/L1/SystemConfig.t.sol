@@ -13,7 +13,6 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 import { Constants } from "src/libraries/Constants.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Features } from "src/libraries/Features.sol";
-import { PrivateChainSettings } from "src/libraries/PrivateChainSettings.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -994,86 +993,168 @@ contract SystemConfig_LastUsedOPCM_Test is SystemConfig_TestInit {
     }
 }
 
-/// @title SystemConfig_SetKeyValue_Test
-/// @notice Test contract for SystemConfig `setKeyValue` function.
-contract SystemConfig_SetKeyValue_Test is SystemConfig_TestInit {
-    /// @notice Tests that `setKeyValue` reverts if the caller is not the owner.
-    function testFuzz_setKeyValue_notOwner_reverts(address _sender, bytes32 _key, bytes calldata _value) external {
+/// @title SystemConfig_SetPrivateConfig_Test
+/// @notice Test contract for SystemConfig `setPrivateConfig` function.
+contract SystemConfig_SetPrivateConfig_Test is SystemConfig_TestInit {
+    /// @notice Number of members of the `UpdateType` enum.
+    uint8 internal constant NUM_UPDATE_TYPES = uint8(type(ISystemConfig.UpdateType).max) + 1;
+
+    /// @notice Topic 0 of `PrivateConfigUpdate`.
+    bytes32 internal constant PRIVATE_CONFIG_UPDATE_TOPIC =
+        keccak256("PrivateConfigUpdate(uint256,uint256,uint8,bytes)");
+
+    /// @notice Topic 0 of `ConfigUpdate`, which stock nodes read.
+    bytes32 internal constant CONFIG_UPDATE_TOPIC = keccak256("ConfigUpdate(uint256,uint8,bytes)");
+
+    /// @notice Returns a valid `UpdateType` for a fuzzed value.
+    /// @param _seed Fuzzed value.
+    /// @return The `UpdateType`.
+    function _updateType(uint8 _seed) internal pure returns (ISystemConfig.UpdateType) {
+        return ISystemConfig.UpdateType(_seed % NUM_UPDATE_TYPES);
+    }
+
+    /// @notice Tests that `setPrivateConfig` reverts if the caller is not the owner.
+    function testFuzz_setPrivateConfig_notOwner_reverts(
+        address _sender,
+        uint256 _chainId,
+        uint8 _type,
+        bytes calldata _data
+    )
+        external
+    {
         vm.assume(_sender != systemConfig.owner());
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(_sender);
-        systemConfig.setKeyValue(_key, _value);
+        systemConfig.setPrivateConfig(_chainId, _updateType(_type), _data);
     }
 
-    /// @notice Tests that `setKeyValue` stores the value and emits only KeyValueSet, so stock
-    ///         derivation, which reads ConfigUpdate, ignores it.
-    function testFuzz_setKeyValue_succeeds(bytes32 _key, bytes calldata _value) external {
-        assertEq(systemConfig.keyValue(_key), bytes(""));
+    /// @notice Tests that `setPrivateConfig` stores the data and emits exactly one
+    ///         `PrivateConfigUpdate` log and no `ConfigUpdate` log.
+    function testFuzz_setPrivateConfig_succeeds(uint256 _chainId, uint8 _type, bytes calldata _data) external {
+        ISystemConfig.UpdateType updateType = _updateType(_type);
+        assertEq(systemConfig.privateConfig(_chainId, updateType), bytes(""));
 
         vm.recordLogs();
         vm.prank(systemConfig.owner());
-        systemConfig.setKeyValue(_key, _value);
+        systemConfig.setPrivateConfig(_chainId, updateType, _data);
 
         VmSafe.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
         assertEq(logs[0].emitter, address(systemConfig));
-        assertEq(logs[0].topics.length, 2);
-        assertEq(logs[0].topics[0], keccak256("KeyValueSet(bytes32,bytes)"));
-        assertEq(logs[0].topics[1], _key);
-        assertEq(logs[0].data, abi.encode(_value));
-        assertEq(systemConfig.keyValue(_key), _value);
+        assertEq(logs[0].topics.length, 4);
+        assertEq(logs[0].topics[0], PRIVATE_CONFIG_UPDATE_TOPIC);
+        assertNotEq(logs[0].topics[0], CONFIG_UPDATE_TOPIC);
+        assertEq(logs[0].topics[1], bytes32(systemConfig.VERSION()));
+        assertEq(logs[0].topics[2], bytes32(_chainId));
+        assertEq(logs[0].topics[3], bytes32(uint256(updateType)));
+        assertEq(logs[0].data, abi.encode(_data));
+        assertEq(systemConfig.privateConfig(_chainId, updateType), _data);
     }
 
-    /// @notice Tests that `setKeyValue` overwrites an existing value.
-    function testFuzz_setKeyValue_overwrite_succeeds(bytes32 _key, bytes calldata _a, bytes calldata _b) external {
+    /// @notice Tests that `setPrivateConfig` overwrites existing data.
+    function testFuzz_setPrivateConfig_overwrite_succeeds(
+        uint256 _chainId,
+        uint8 _type,
+        bytes calldata _a,
+        bytes calldata _b
+    )
+        external
+    {
+        ISystemConfig.UpdateType updateType = _updateType(_type);
         vm.startPrank(systemConfig.owner());
-        systemConfig.setKeyValue(_key, _a);
-        systemConfig.setKeyValue(_key, _b);
+        systemConfig.setPrivateConfig(_chainId, updateType, _a);
+        systemConfig.setPrivateConfig(_chainId, updateType, _b);
         vm.stopPrank();
-        assertEq(systemConfig.keyValue(_key), _b);
+        assertEq(systemConfig.privateConfig(_chainId, updateType), _b);
     }
 
-    /// @notice Tests that the private chain settings are stored under the documented keys and
-    ///         read back with their documented encodings.
-    function test_setKeyValue_privateChainSettings_succeeds() external {
-        uint256 chainId = 901;
+    /// @notice Tests that data for different chain IDs and update types is stored separately.
+    function testFuzz_setPrivateConfig_separateEntries_succeeds(
+        uint256 _chainId,
+        uint8 _type,
+        bytes calldata _data
+    )
+        external
+    {
+        vm.assume(_data.length > 0);
+        ISystemConfig.UpdateType updateType = _updateType(_type);
+        ISystemConfig.UpdateType otherType = ISystemConfig.UpdateType((uint8(updateType) + 1) % NUM_UPDATE_TYPES);
+        uint256 otherChainId;
+        unchecked {
+            otherChainId = _chainId + 1;
+        }
 
-        // Pin one key so that off-chain readers can check their derivation against it.
-        assertEq(PrivateChainSettings.MIN_BASE_FEE, bytes32("minBaseFee"));
+        vm.prank(systemConfig.owner());
+        systemConfig.setPrivateConfig(_chainId, updateType, _data);
+
+        assertEq(systemConfig.privateConfig(_chainId, updateType), _data);
+        assertEq(systemConfig.privateConfig(otherChainId, updateType), bytes(""));
+        assertEq(systemConfig.privateConfig(_chainId, otherType), bytes(""));
+    }
+
+    /// @notice Returns this chain's own configuration as set by the stock setters.
+    /// @return The encoded configuration.
+    function _ownConfig() internal view returns (bytes memory) {
+        return bytes.concat(
+            abi.encode(
+                systemConfig.unsafeBlockSigner(),
+                systemConfig.batcherHash(),
+                systemConfig.scalar(),
+                systemConfig.basefeeScalar(),
+                systemConfig.blobbasefeeScalar(),
+                systemConfig.gasLimit()
+            ),
+            abi.encode(
+                systemConfig.eip1559Denominator(),
+                systemConfig.eip1559Elasticity(),
+                systemConfig.operatorFeeScalar(),
+                systemConfig.operatorFeeConstant(),
+                systemConfig.minBaseFee(),
+                systemConfig.daFootprintGasScalar()
+            )
+        );
+    }
+
+    /// @notice Tests that `setPrivateConfig` leaves this chain's own configuration unchanged,
+    ///         and that data encoded as in `ConfigUpdate` reads back.
+    function test_setPrivateConfig_ownConfigUnchanged_succeeds() external {
+        uint256 chainId = 1337;
+        bytes memory ownConfig = _ownConfig();
+
+        vm.recordLogs();
+        vm.startPrank(systemConfig.owner());
+        systemConfig.setPrivateConfig(
+            chainId, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(address(0xabcd))
+        );
+        systemConfig.setPrivateConfig(
+            chainId, ISystemConfig.UpdateType.EIP_1559_PARAMS, abi.encode(uint256(250) << 32 | uint64(6))
+        );
+        systemConfig.setPrivateConfig(chainId, ISystemConfig.UpdateType.MIN_BASE_FEE, abi.encode(uint64(7)));
+        systemConfig.setPrivateConfig(chainId, ISystemConfig.UpdateType.GAS_LIMIT, abi.encode(uint64(60_000_000)));
+        vm.stopPrank();
+
+        // Only PrivateConfigUpdate logs were emitted.
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 4);
+        for (uint256 i = 0; i < logs.length; i++) {
+            assertEq(logs[i].topics[0], PRIVATE_CONFIG_UPDATE_TOPIC);
+        }
+
+        // This chain's own configuration is unchanged.
+        assertEq(_ownConfig(), ownConfig);
+
+        // The private chain's configuration reads back with the ConfigUpdate encodings.
         assertEq(
-            PrivateChainSettings.key(PrivateChainSettings.MIN_BASE_FEE, chainId),
-            0x659f261d68b613453fcea03b1af560b554583d8276177608bebf3b6d15dd6782
+            abi.decode(systemConfig.privateConfig(chainId, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER), (address)),
+            address(0xabcd)
         );
-
-        vm.startPrank(systemConfig.owner());
-        systemConfig.setKeyValue(
-            PrivateChainSettings.key(PrivateChainSettings.UNSAFE_BLOCK_SIGNER, chainId), abi.encode(address(0xabcd))
+        uint256 params =
+            abi.decode(systemConfig.privateConfig(chainId, ISystemConfig.UpdateType.EIP_1559_PARAMS), (uint256));
+        assertEq(uint32(params >> 32), 250);
+        assertEq(uint32(params), 6);
+        assertEq(abi.decode(systemConfig.privateConfig(chainId, ISystemConfig.UpdateType.MIN_BASE_FEE), (uint64)), 7);
+        assertEq(
+            abi.decode(systemConfig.privateConfig(chainId, ISystemConfig.UpdateType.GAS_LIMIT), (uint64)), 60_000_000
         );
-        systemConfig.setKeyValue(
-            PrivateChainSettings.key(PrivateChainSettings.MIN_BASE_FEE, chainId), abi.encode(uint64(7))
-        );
-        systemConfig.setKeyValue(
-            PrivateChainSettings.key(PrivateChainSettings.EIP1559_DENOMINATOR, chainId), abi.encode(uint32(250))
-        );
-        systemConfig.setKeyValue(
-            PrivateChainSettings.key(PrivateChainSettings.EIP1559_ELASTICITY, chainId), abi.encode(uint32(6))
-        );
-        vm.stopPrank();
-
-        bytes memory signer =
-            systemConfig.keyValue(PrivateChainSettings.key(PrivateChainSettings.UNSAFE_BLOCK_SIGNER, chainId));
-        bytes memory minBaseFee =
-            systemConfig.keyValue(PrivateChainSettings.key(PrivateChainSettings.MIN_BASE_FEE, chainId));
-        bytes memory denominator =
-            systemConfig.keyValue(PrivateChainSettings.key(PrivateChainSettings.EIP1559_DENOMINATOR, chainId));
-        bytes memory elasticity =
-            systemConfig.keyValue(PrivateChainSettings.key(PrivateChainSettings.EIP1559_ELASTICITY, chainId));
-        assertEq(abi.decode(signer, (address)), address(0xabcd));
-        assertEq(abi.decode(minBaseFee, (uint64)), 7);
-        assertEq(abi.decode(denominator, (uint32)), 250);
-        assertEq(abi.decode(elasticity, (uint32)), 6);
-
-        // Settings are per private chain.
-        assertEq(systemConfig.keyValue(PrivateChainSettings.key(PrivateChainSettings.MIN_BASE_FEE, chainId + 1)), "");
     }
 }

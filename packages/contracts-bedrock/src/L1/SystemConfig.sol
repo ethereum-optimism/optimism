@@ -159,9 +159,10 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice Bytes32 feature flag name to boolean enabled value.
     mapping(bytes32 => bool) public isFeatureEnabled;
 
-    /// @notice Generic key/value store. OP Private uses it for private chain settings. See
-    ///         `setKeyValue`.
-    mapping(bytes32 => bytes) public keyValue;
+    /// @notice Configuration of the private chains of this chain's settlement group (OP Private),
+    ///         by private chain ID and update type. Each value uses the same encoding as the
+    ///         `ConfigUpdate` data for that update type. See `setPrivateConfig`.
+    mapping(uint256 => mapping(UpdateType => bytes)) public privateConfig;
 
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
@@ -174,10 +175,15 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @param enabled Whether the feature is enabled.
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);
 
-    /// @notice Emitted when a key/value entry is set.
-    /// @param key   Key that was set.
-    /// @param value Value that was set.
-    event KeyValueSet(bytes32 indexed key, bytes value);
+    /// @notice Emitted when the configuration of a private chain is updated. Same shape as
+    ///         `ConfigUpdate`, plus the private chain's ID.
+    /// @param version    SystemConfig version.
+    /// @param chainId    Chain ID of the private chain.
+    /// @param updateType Type of update.
+    /// @param data       Encoded update data, same encoding as `ConfigUpdate` for `updateType`.
+    event PrivateConfigUpdate(
+        uint256 indexed version, uint256 indexed chainId, UpdateType indexed updateType, bytes data
+    );
 
     /// @notice Thrown when attempting to enable/disable a feature when already enabled/disabled,
     ///         respectively.
@@ -485,22 +491,19 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         emit ConfigUpdate(VERSION, UpdateType.DA_FOOTPRINT_GAS_SCALAR, data);
     }
 
-    /// @notice Sets a key/value entry. Can only be called by the owner. Emits KeyValueSet, not
-    ///         ConfigUpdate, so stock derivation ignores it.
-    ///         OP Private stores the settings of each private chain of this settlement chain here.
-    ///         The key is `keccak256(abi.encode(name, chainId))`, with `chainId` the private
-    ///         chain's chain ID and `name` one of the bytes32 names below. The contract does not
-    ///         validate values. Nodes validate them and apply a default to any setting without an
-    ///         entry. See `PrivateChainSettings` for the names and the key helper.
-    ///         - "unsafeBlockSigner": `abi.encode(address)`
-    ///         - "minBaseFee": `abi.encode(uint64)`
-    ///         - "eip1559Denominator": `abi.encode(uint32)`
-    ///         - "eip1559Elasticity": `abi.encode(uint32)`
-    /// @param _key   Key to set.
-    /// @param _value Value to set.
-    function setKeyValue(bytes32 _key, bytes calldata _value) external onlyOwner {
-        keyValue[_key] = _value;
-        emit KeyValueSet(_key, _value);
+    /// @notice Updates the configuration of a private chain of this chain's settlement group (OP
+    ///         Private). Can only be called by the owner. Stores `_data` in `privateConfig` and
+    ///         emits `PrivateConfigUpdate`. It does not emit `ConfigUpdate` and does not change
+    ///         this chain's own configuration, so nodes of this chain ignore it.
+    ///         `_data` uses the same encoding as the `ConfigUpdate` data for `_updateType`, e.g.
+    ///         `abi.encode(address)` for `UNSAFE_BLOCK_SIGNER`. The contract does not validate
+    ///         `_chainId`, `_updateType` or `_data`. Nodes of the private chain validate them.
+    /// @param _chainId    Chain ID of the private chain.
+    /// @param _updateType Type of update.
+    /// @param _data       Encoded update data.
+    function setPrivateConfig(uint256 _chainId, UpdateType _updateType, bytes calldata _data) external onlyOwner {
+        privateConfig[_chainId][_updateType] = _data;
+        emit PrivateConfigUpdate(VERSION, _chainId, _updateType, _data);
     }
 
     /// @notice Sets the start block in a backwards compatible way. Proxies

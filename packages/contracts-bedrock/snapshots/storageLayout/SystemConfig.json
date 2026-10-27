@@ -148,9 +148,9 @@
   },
   {
     "bytes": "32",
-    "label": "keyValue",
+    "label": "privateConfig",
     "offset": 0,
     "slot": "110",
-    "type": "mapping(bytes32 => bytes)"
+    "type": "mapping(uint256 => mapping(enum SystemConfig.UpdateType => bytes))"
   }
 ]

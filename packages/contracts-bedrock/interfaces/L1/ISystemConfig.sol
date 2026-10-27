@@ -32,7 +32,9 @@ interface ISystemConfig is IProxyAdminOwnedBase {
 
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);
-    event KeyValueSet(bytes32 indexed key, bytes value);
+    event PrivateConfigUpdate(
+        uint256 indexed version, uint256 indexed chainId, UpdateType indexed updateType, bytes data
+    );
     event Initialized(uint8 version);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
@@ -106,8 +108,8 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function guardian() external view returns (address);
     function setFeature(bytes32 _feature, bool _enabled) external;
     function isFeatureEnabled(bytes32) external view returns (bool);
-    function keyValue(bytes32) external view returns (bytes memory);
-    function setKeyValue(bytes32 _key, bytes calldata _value) external;
+    function privateConfig(uint256, UpdateType) external view returns (bytes memory);
+    function setPrivateConfig(uint256 _chainId, UpdateType _updateType, bytes calldata _data) external;
     function isCustomGasToken() external view returns (bool);
 
     function __constructor__() external;
