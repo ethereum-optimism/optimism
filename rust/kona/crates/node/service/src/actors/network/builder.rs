@@ -4,7 +4,7 @@ use alloy_primitives::Address;
 use discv5::Config as Discv5Config;
 use kona_disc::{Discv5Builder, LocalNode};
 use kona_genesis::RollupConfig;
-use kona_gossip::{GaterConfig, GossipDriverBuilder, GossipTransport};
+use kona_gossip::{GaterConfig, GossipDriverBuilder, GossipTransport, StaticPeer};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use libp2p::{Multiaddr, identity::Keypair};
 use std::time::Duration;
@@ -43,6 +43,7 @@ impl From<NetworkConfig> for NetworkBuilder {
         .with_discovery_randomize(config.discovery_randomize)
         .with_bootstore(config.bootstore)
         .with_bootnodes(config.bootnodes)
+        .with_static_peers(config.static_peers)
         .with_discovery_interval(config.discovery_interval)
         .with_gossip_config(config.gossip_config)
         .with_peer_scoring(config.scoring)
@@ -108,6 +109,11 @@ impl NetworkBuilder {
     /// Sets the interval at which to randomize discovery peers.
     pub fn with_discovery_randomize(self, randomize: Option<Duration>) -> Self {
         Self { discovery: self.discovery.with_discovery_randomize(randomize), ..self }
+    }
+
+    /// Sets the peers to dial at startup and keep connected.
+    pub fn with_static_peers(self, static_peers: Vec<StaticPeer>) -> Self {
+        Self { gossip: self.gossip.with_static_peers(static_peers), ..self }
     }
 
     /// Sets the initial bootnodes to add to the bootstore.

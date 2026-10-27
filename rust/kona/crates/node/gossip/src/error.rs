@@ -118,3 +118,17 @@ pub enum DialError {
         ip: IpAddr,
     },
 }
+
+/// Error parsing a [`StaticPeer`](crate::StaticPeer) address.
+#[derive(Debug, Error)]
+pub enum StaticPeerError {
+    /// The address is not a multiaddr.
+    #[error("Invalid multiaddr")]
+    InvalidMultiaddr(#[source] libp2p::multiaddr::Error),
+    /// The address does not end in `/p2p/<peer id>`.
+    #[error("Address does not end in /p2p/<peer id>")]
+    MissingPeerId,
+    /// The address is only a `/p2p/<peer id>`, with nothing to dial.
+    #[error("Address has nothing to dial before /p2p/<peer id>")]
+    MissingAddress,
+}

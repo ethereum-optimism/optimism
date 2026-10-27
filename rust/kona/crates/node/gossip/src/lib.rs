@@ -62,10 +62,15 @@ mod builder;
 pub use builder::{GossipDriverBuilder, GossipTransport, TransportBuilder};
 
 mod error;
-pub use error::{DialError, GossipDriverBuilderError, HandlerEncodeError, PublishError};
+pub use error::{
+    DialError, GossipDriverBuilderError, HandlerEncodeError, PublishError, StaticPeerError,
+};
 
 mod event;
 pub use event::Event;
+
+mod static_peer;
+pub use static_peer::StaticPeer;
 
 mod payload;
 

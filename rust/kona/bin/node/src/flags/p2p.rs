@@ -13,11 +13,11 @@ use enr::k256;
 use kona_derive::ChainProvider;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
-use kona_gossip::GaterConfig;
+use kona_gossip::{GaterConfig, StaticPeer};
 use kona_node_service::NetworkConfig;
 use kona_peers::{BootNode, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_providers_alloy::AlloyChainProvider;
-use libp2p::identity::Keypair;
+use libp2p::{identity::Keypair, multiaddr::Protocol};
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
     num::ParseIntError,
@@ -56,6 +56,51 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
 /// Returns the port to advertise: `advertise` if set to a non-zero port, `listen` otherwise.
 fn advertised_port(advertise: Option<u16>, listen: u16) -> u16 {
     advertise.filter(|&port| port != 0).unwrap_or(listen)
+}
+
+/// Parses `--p2p.static-peers`: comma-separated static peer addresses. Empty entries are skipped,
+/// as in op-node, so the flag or its environment variable can be set to an empty string.
+fn parse_static_peers(addrs: &str) -> Result<Vec<StaticPeer>, String> {
+    addrs
+        .split(',')
+        .map(str::trim)
+        .filter(|addr| !addr.is_empty())
+        .map(|addr| parse_static_peer(addr).map_err(|e| format!("{addr}: {e}")))
+        .collect()
+}
+
+/// Parses one static peer: a TCP address that ends in the peer's ID, such as
+/// `/dns4/node.example.com/tcp/9222/p2p/16Uiu2...`.
+///
+/// The node only gossips over TCP, so any other transport could never be dialed. DNS names are
+/// resolved when dialing, not here, so a peer whose name does not resolve yet does not stop the
+/// node from starting.
+fn parse_static_peer(addr: &str) -> Result<StaticPeer, String> {
+    let peer: StaticPeer = addr.parse().map_err(|e| format!("{:#}", anyhow::Error::new(e)))?;
+    let mut protocols = peer.addr().iter();
+    let host = protocols.next();
+    let tcp = protocols.next();
+    if !matches!(
+        host,
+        Some(
+            Protocol::Ip4(_) |
+                Protocol::Ip6(_) |
+                Protocol::Dns(_) |
+                Protocol::Dns4(_) |
+                Protocol::Dns6(_)
+        )
+    ) {
+        return Err("Address must start with /ip4, /ip6, /dns, /dns4 or /dns6".to_string());
+    }
+    match tcp {
+        Some(Protocol::Tcp(0)) => return Err("TCP port must not be 0".to_string()),
+        Some(Protocol::Tcp(_)) => {}
+        _ => return Err("Address must have a /tcp/<port> after the host".to_string()),
+    }
+    if !matches!(protocols.next(), Some(Protocol::P2p(_))) {
+        return Err("Address must end in /tcp/<port>/p2p/<peer id>".to_string());
+    }
+    Ok(peer)
 }
 
 /// P2P CLI Flags
@@ -208,6 +253,24 @@ pub struct P2PArgs {
     /// An optional list of bootnode ENRs or node records to start the node with.
     #[arg(long = "p2p.bootnodes", value_delimiter = ',', env = "KONA_NODE_P2P_BOOTNODES")]
     pub bootnodes: Vec<String>,
+
+    /// Comma-separated multiaddrs of peers to dial at startup and keep connected, such as
+    /// `/dns4/node.example.com/tcp/9222/p2p/16Uiu2...`.
+    ///
+    /// Each address must be TCP and end in the peer's ID: an `opp2p_self` RPC call lists a node's
+    /// addresses in this form.
+    // The full path stops clap from treating this as a repeated flag, so that one parser sees
+    // the whole list and can skip empty entries.
+    #[arg(
+        long = "p2p.static-peers",
+        // op-node's name for the flag, for configs migrated from op-node.
+        visible_alias = "p2p.static",
+        env = "KONA_NODE_P2P_STATIC_PEERS",
+        default_value = "",
+        hide_default_value = true,
+        value_parser = parse_static_peers
+    )]
+    pub static_peers: ::std::vec::Vec<StaticPeer>,
 
     /// Optionally enable topic scoring.
     ///
@@ -447,6 +510,7 @@ impl P2PArgs {
                 dial_period: Duration::from_secs(60 * self.redial_period),
             },
             bootnodes,
+            static_peers: self.static_peers,
             rollup_config: config.clone(),
             gossip_signer: self.signer.config(args)?,
         })
@@ -486,6 +550,7 @@ mod tests {
     use alloy_primitives::b256;
     use clap::Parser;
     use kona_peers::NodeRecord;
+    use libp2p::PeerId;
 
     /// A mock command that uses the `P2PArgs`.
     #[derive(Parser, Debug, Clone)]
@@ -664,6 +729,64 @@ mod tests {
                 "enr:-J64QBbwPjPLZ6IOOToOLsSjtFUjjzN66qmBZdUexpO32Klrc458Q24kbty2PdRaLacHM5z-cZQr8mjeQu3pik6jPSOGAYYFIqBfgmlkgnY0gmlwhDaRWFWHb3BzdGFja4SzlAUAiXNlY3AyNTZrMaECmeSnJh7zjKrDSPoNMGXoopeDF4hhpj5I0OsQUUt4u8uDdGNwgiQGg3VkcIIkBg",
             ]
         );
+    }
+
+    #[test]
+    fn test_p2p_args_static_peers_default_empty() {
+        let args = MockCommand::parse_from(["test"]);
+        assert!(args.p2p.static_peers.is_empty());
+    }
+
+    #[test]
+    fn test_p2p_args_static_peers() {
+        let (id1, id2) = (PeerId::random(), PeerId::random());
+        let addr1 = format!("/ip4/10.0.0.1/tcp/9222/p2p/{id1}");
+        let addr2 = format!("/dns4/node.example.com/tcp/9222/p2p/{id2}");
+        // Spaces around entries and empty entries are ignored, as in op-node.
+        for flag in ["--p2p.static-peers", "--p2p.static"] {
+            let args = MockCommand::parse_from(["test", flag, &format!(" {addr1}, ,{addr2},")]);
+            let peers = args.p2p.static_peers;
+            assert_eq!(
+                peers.iter().map(|p| (p.peer_id(), p.to_string())).collect::<Vec<_>>(),
+                vec![(id1, addr1.clone()), (id2, addr2.clone())],
+                "{flag}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_p2p_args_static_peers_empty_string() {
+        let args = MockCommand::parse_from(["test", "--p2p.static-peers", ""]);
+        assert!(args.p2p.static_peers.is_empty());
+    }
+
+    #[test]
+    fn test_p2p_args_static_peers_rejects_invalid_addresses() {
+        let id = PeerId::random();
+        let cases = [
+            ("127.0.0.1:9222".to_string(), "Invalid multiaddr"),
+            ("/ip4/127.0.0.1/tcp/9222".to_string(), "does not end in /p2p/<peer id>"),
+            (format!("/p2p/{id}"), "nothing to dial"),
+            (format!("/ip4/127.0.0.1/udp/9222/p2p/{id}"), "must have a /tcp/<port>"),
+            (format!("/ip4/127.0.0.1/tcp/0/p2p/{id}"), "must not be 0"),
+            (format!("/memory/1/p2p/{id}"), "must start with /ip4"),
+            (format!("/ip4/127.0.0.1/tcp/9222/ws/p2p/{id}"), "must end in /tcp/<port>/p2p"),
+            // A UDP port next to the TCP one, in either order.
+            (format!("/ip4/127.0.0.1/tcp/9222/udp/9223/p2p/{id}"), "must end in /tcp/<port>/p2p"),
+            (format!("/ip4/127.0.0.1/udp/9223/tcp/9222/p2p/{id}"), "must have a /tcp/<port>"),
+        ];
+        for (addr, expected) in cases {
+            let valid = format!("/ip4/127.0.0.1/tcp/9222/p2p/{id}");
+            // One bad entry rejects the whole list.
+            let err = MockCommand::try_parse_from([
+                "test",
+                "--p2p.static-peers",
+                &format!("{valid},{addr}"),
+            ])
+            .unwrap_err()
+            .to_string();
+            assert!(err.contains(expected), "{addr}: {err}");
+        }
     }
 
     #[test]

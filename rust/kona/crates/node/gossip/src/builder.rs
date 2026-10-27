@@ -15,7 +15,9 @@ use libp2p::{
 use std::{convert::Infallible, error::Error, time::Duration};
 use tokio::sync::watch;
 
-use crate::{Behaviour, BlockHandler, GaterConfig, GossipDriver, GossipDriverBuilderError};
+use crate::{
+    Behaviour, BlockHandler, GaterConfig, GossipDriver, GossipDriverBuilderError, StaticPeer,
+};
 
 /// Builds the swarm's authenticated, multiplexed transport from the node's [`Keypair`].
 pub type TransportBuilder = Box<
@@ -63,6 +65,8 @@ pub struct GossipDriverBuilder {
     topic_scoring: bool,
     /// The transport the swarm listens and dials on. TCP by default.
     transport: GossipTransport,
+    /// The peers to dial at startup and keep connected.
+    static_peers: Vec<StaticPeer>,
 }
 
 impl GossipDriverBuilder {
@@ -88,12 +92,19 @@ impl GossipDriverBuilder {
             rollup_config,
             topic_scoring: false,
             transport: GossipTransport::default(),
+            static_peers: Vec::new(),
         }
     }
 
     /// Sets the [`GossipTransport`] the swarm listens and dials on.
     pub fn with_transport(mut self, transport: GossipTransport) -> Self {
         self.transport = transport;
+        self
+    }
+
+    /// Sets the peers to dial at startup and keep connected.
+    pub fn with_static_peers(mut self, static_peers: Vec<StaticPeer>) -> Self {
+        self.static_peers = static_peers;
         self
     }
 
@@ -161,15 +172,24 @@ impl GossipDriverBuilder {
     }
 
     /// Builds the [`GossipDriver`].
-    pub fn build(
-        mut self,
-    ) -> Result<GossipDriver<crate::ConnectionGater>, GossipDriverBuilderError> {
-        // Extract builder arguments
-        let timeout = self.timeout.take().unwrap_or(Duration::from_secs(60));
-        let keypair = self.keypair;
-        let addr = self.gossip_addr;
-        let signer_rx = self.signer;
-        let rollup_config = self.rollup_config;
+    pub fn build(self) -> Result<GossipDriver<crate::ConnectionGater>, GossipDriverBuilderError> {
+        // Unpacked without `..`, so a new builder field that is never used fails to compile.
+        let Self {
+            rollup_config,
+            keypair,
+            gossip_addr: addr,
+            signer: signer_rx,
+            timeout,
+            scoring,
+            config,
+            peer_monitoring,
+            gater_config,
+            topic_scoring,
+            transport,
+            static_peers,
+        } = self;
+
+        let timeout = timeout.unwrap_or(Duration::from_secs(60));
         let l2_chain_id = rollup_config.l2_chain_id;
         let block_time = rollup_config.block_time;
 
@@ -177,7 +197,7 @@ impl GossipDriverBuilder {
         let handler = BlockHandler::new(rollup_config, signer_rx);
 
         // Construct the gossip behaviour
-        let config = self.config.unwrap_or_else(crate::default_config);
+        let config = config.unwrap_or_else(crate::default_config);
         info!(
             target: "gossip",
             "CONFIG: [Mesh D: {}] [Mesh L: {}] [Mesh H: {}] [Gossip Lazy: {}] [Flood Publish: {}]",
@@ -198,7 +218,7 @@ impl GossipDriverBuilder {
         let mut behaviour = Behaviour::new(keypair.public(), config, &[Box::new(handler.clone())])?;
 
         // If peer scoring is configured, set it on the behaviour.
-        match self.scoring {
+        match scoring {
             None => info!(target: "scoring", "Peer scoring not enabled"),
             Some(PeerScoreLevel::Off) => {
                 info!(target: "scoring", level = ?PeerScoreLevel::Off, "Peer scoring explicitly disabled")
@@ -206,7 +226,7 @@ impl GossipDriverBuilder {
             Some(level) => {
                 use crate::handler::Handler;
                 let params = level
-                    .to_params(handler.topics(), self.topic_scoring, block_time)
+                    .to_params(handler.topics(), topic_scoring, block_time)
                     .unwrap_or_default();
                 match behaviour.gossipsub.with_peer_score(params, PeerScoreLevel::thresholds()) {
                     Ok(_) => debug!(target: "scoring", "Peer scoring enabled successfully"),
@@ -226,9 +246,9 @@ impl GossipDriverBuilder {
             .map_err(GossipDriverBuilderError::SyncReqRespAlreadyAccepted)?;
 
         debug!(target: "gossip", "Building Swarm with Peer ID: {}", keypair.public().to_peer_id());
-        let custom_transport = matches!(self.transport, GossipTransport::Other(_));
+        let custom_transport = matches!(transport, GossipTransport::Other(_));
         let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
-        let swarm = match self.transport {
+        let swarm = match transport {
             // Note: with_dns() must be called after with_tcp() to wrap TCP with DNS resolution.
             GossipTransport::Tcp => builder
                 .with_tcp(
@@ -255,13 +275,15 @@ impl GossipDriverBuilder {
                 .build(),
         };
 
-        let gater_config = self.gater_config.take().unwrap_or_default();
-        let mut gate = crate::ConnectionGater::new(gater_config);
+        let mut gate = crate::ConnectionGater::new(gater_config.unwrap_or_default());
         if custom_transport {
             gate = gate.allowing_addrs_without_ip();
         }
 
-        Ok(GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate))
+        let mut driver = GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate);
+        driver.peer_monitoring = peer_monitoring;
+        driver.static_peers = static_peers;
+        Ok(driver)
     }
 }
 
@@ -314,6 +336,30 @@ pub(crate) mod tests {
             }
         };
         tokio::time::timeout(Duration::from_secs(10), connected).await.expect("swarms connect");
+    }
+
+    /// The settings the driver reads at runtime reach it, not just the builder.
+    #[test]
+    fn test_build_passes_settings_to_driver() {
+        let static_peer: StaticPeer =
+            format!("/ip4/127.0.0.1/tcp/9222/p2p/{}", PeerId::random()).parse().unwrap();
+        let driver = GossipDriverBuilder::new(
+            RollupConfig::default(),
+            Address::ZERO,
+            Multiaddr::empty().with(Protocol::Memory(0)),
+            Keypair::generate_secp256k1(),
+        )
+        .with_peer_monitoring(Some(PeerMonitoring {
+            ban_threshold: -10.0,
+            ban_duration: Duration::from_secs(60),
+        }))
+        .with_static_peers(vec![static_peer.clone()])
+        .build()
+        .expect("build gossip driver");
+
+        let monitoring = driver.peer_monitoring.expect("peer monitoring is set");
+        assert_eq!(monitoring.ban_threshold, -10.0);
+        assert_eq!(driver.static_peers, vec![static_peer]);
     }
 
     /// [`GossipTransport::Other`] replaces TCP: swarms built with a memory transport listen on

@@ -23,7 +23,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     Behaviour, BlockHandler, ConnectionGate, ConnectionGater, Event, GossipDriverBuilder, Handler,
-    PublishError,
+    PublishError, StaticPeer,
 };
 
 /// A driver for a [`Swarm`] instance.
@@ -60,6 +60,8 @@ pub struct GossipDriver<G: ConnectionGate> {
     pub peer_connection_start: HashMap<PeerId, Instant>,
     /// The connection gate.
     pub connection_gate: G,
+    /// The peers to dial at startup and keep connected.
+    pub static_peers: Vec<StaticPeer>,
     /// Tracks ping times for peers.
     pub ping: Arc<Mutex<HashMap<PeerId, Duration>>>,
     /// The open connections to each peer, used to close duplicate connections.
@@ -124,6 +126,7 @@ where
             sync_handler,
             sync_protocol: Some(sync_protocol),
             connection_gate: gate,
+            static_peers: Vec::new(),
             ping: Arc::new(Mutex::new(Default::default())),
             connections: Default::default(),
             duplicate_connection_grace: DUPLICATE_CONNECTION_GRACE,

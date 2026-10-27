@@ -3,7 +3,7 @@
 use alloy_primitives::Address;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
-use kona_gossip::GaterConfig;
+use kona_gossip::{GaterConfig, StaticPeer};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_sources::BlockSigner;
 use libp2p::{Multiaddr, identity::Keypair};
@@ -43,6 +43,8 @@ pub struct NetworkConfig {
     pub gater_config: GaterConfig,
     /// An optional list of bootnode ENRs to start the node with.
     pub bootnodes: BootNodes,
+    /// The peers to dial at startup and keep connected.
+    pub static_peers: Vec<StaticPeer>,
     /// The [`RollupConfig`].
     pub rollup_config: RollupConfig,
     /// Signs the sequencer's blocks for gossip. Required in sequencer mode. It is used by the
@@ -92,6 +94,7 @@ impl NetworkConfig {
             enr_update: true,
             keypair: Keypair::generate_secp256k1(),
             bootnodes: Default::default(),
+            static_peers: Default::default(),
             bootstore: Default::default(),
             gater_config: Default::default(),
             gossip_config: Default::default(),
