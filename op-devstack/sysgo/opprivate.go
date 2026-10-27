@@ -12,11 +12,6 @@ import (
 // no settlement chain yet: any ID other than 0 and the chain's own ID makes the chain private.
 const OPPrivateSettlementChainID = 1337
 
-// opPrivateSequencingWindow is an effectively infinite sequencing window (in L1 blocks): a
-// private chain never posts batches. It is not math.MaxUint64 because derivation adds to it and
-// op-node multiplies it by the L1 block time.
-const opPrivateSequencingWindow = 1 << 32
-
 // OPPrivateNode is one private-chain node: a kona-node CL and an op-reth EL.
 type OPPrivateNode struct {
 	EL *OpReth
@@ -49,7 +44,9 @@ func NewOPPrivateSkeletonRuntime(t devtest.T, cfg PresetConfig) *OPPrivateSkelet
 		func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 			builder.WithGlobalOverride("settlementChainId", uint64(OPPrivateSettlementChainID))
 		},
-		WithSequencingWindow(opPrivateSequencingWindow),
+		// A private chain never posts batches, so its sequencing window expires a few L1 blocks
+		// in. The tests run past it to check that the nodes still never mark blocks safe.
+		WithSequencingWindow(4),
 	}, cfg.DeployerOptions...)
 	var l1EL *L1Geth
 	var l1CL *L1CLNode

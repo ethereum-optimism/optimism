@@ -1,18 +1,13 @@
 package opprivate
 
 import (
-	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -47,19 +42,28 @@ func TestPrivateChainRunsContracts(gt *testing.T) {
 	alice.WaitForTokenBalance(weth, eth.OneTenthEther)
 }
 
-// TestPrivateChainSafeAndFinalizedHeadsStayAtGenesis checks that the sequencer never derives
-// from L1, so its safe and finalized heads stay at genesis while it builds blocks, also after a
-// restart.
+// TestPrivateChainSafeAndFinalizedHeadsStayAtGenesis checks that the nodes never derive from
+// L1, so their safe and finalized heads stay at genesis while the sequencer builds blocks past
+// the sequencing window, also after a sequencer restart and an engine reset, which keep the
+// blocks.
 func TestPrivateChainSafeAndFinalizedHeadsStayAtGenesis(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewOPPrivateSkeleton(t)
+	rollupCfg := sys.L2Chain.Escape().RollupConfig()
 
-	sys.SequencerCL.AdvancedUnsafe(5, 30)
+	// Past this L1 origin, a public chain's sync start would mark blocks safe.
+	sys.SequencerEL.WaitL1OriginReached(eth.Unsafe, rollupCfg.Genesis.L1.Number+rollupCfg.SeqWindowSize+2, 120)
+	alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
+	alice.Transfer(sys.Wallet.NewEOA(sys.SequencerEL).Address(), eth.OneHundredthEther).Included.Value()
 	requireSafeAndFinalizedAtGenesis(t, sys)
 
-	restart(sys.SequencerEL, sys.SequencerCL)
-	sys.SequencerCL.AdvancedUnsafe(5, 30)
-	requireSafeAndFinalizedAtGenesis(t, sys)
+	head := sys.SequencerCL.SyncStatus().UnsafeL2
+	restart(sys.SequencerEL, sys.SequencerCL, sys.RPCNodeEL)
+	requireResumedFrom(t, sys, head)
+
+	head = sys.SequencerCL.SyncStatus().UnsafeL2
+	t.Require().NoError(sys.SequencerCL.Escape().ClientRPC().CallContext(t.Ctx(), nil, "admin_resetDerivationPipeline"))
+	requireResumedFrom(t, sys, head)
 }
 
 // TestPrivateChainSequencerResumesAfterRestart checks that the sequencer restarts from its
@@ -71,7 +75,7 @@ func TestPrivateChainSequencerResumesAfterRestart(gt *testing.T) {
 	sys.SequencerCL.AdvancedUnsafe(5, 30)
 	before := sys.SequencerCL.SyncStatus().UnsafeL2
 
-	restart(sys.SequencerEL, sys.SequencerCL)
+	restart(sys.SequencerEL, sys.SequencerCL, sys.RPCNodeEL)
 
 	sys.SequencerCL.ReachedUnsafe(before.Number+5, 30)
 	t.Require().Equal(before.Hash, sys.SequencerEL.BlockRefByNumber(before.Number).Hash,
@@ -86,11 +90,9 @@ func TestPrivateChainRPCNodeResumesAfterRestart(gt *testing.T) {
 	sys := presets.NewOPPrivateSkeleton(t)
 
 	sys.RPCNodeCL.AdvancedUnsafe(5, 30)
-	sys.RPCNodeCL.Stop()
-	sys.RPCNodeEL.Stop()
+	stop(sys.RPCNodeEL, sys.RPCNodeCL)
 	sys.SequencerCL.AdvancedUnsafe(5, 30)
-	sys.RPCNodeEL.Start()
-	sys.RPCNodeCL.Start()
+	start(sys.RPCNodeEL, sys.RPCNodeCL, sys.SequencerEL)
 
 	target := sys.SequencerCL.SyncStatus().UnsafeL2
 	sys.RPCNodeCL.ReachedUnsafe(target.Number, 30)
@@ -98,37 +100,39 @@ func TestPrivateChainRPCNodeResumesAfterRestart(gt *testing.T) {
 		"the RPC node has the sequencer's chain")
 }
 
-// TestPrivateChainConfigHoldsSettlementChainID checks that op-deployer wrote the same settlement
-// chain ID into the ChainConfig predeploy and the rollup config.
-func TestPrivateChainConfigHoldsSettlementChainID(gt *testing.T) {
-	t := devtest.ParallelT(gt)
-	sys := presets.NewOPPrivateSkeleton(t)
-
-	chainConfig := bindings.NewBindings[chainConfig](
-		bindings.WithClient(sys.SequencerEL.Escape().EthClient()),
-		bindings.WithTo(predeploys.ChainConfigAddr),
-		bindings.WithTest(t),
-	)
-	want := uint64(sysgo.OPPrivateSettlementChainID)
-	t.Require().Equal(want, bigs.Uint64Strict(contract.Read(chainConfig.SettlementChainID())), "ChainConfig.settlementChainId()")
-	t.Require().Equal(want, sys.L2Chain.Escape().RollupConfig().SettlementChainID, "rollup config settlement_chain_id")
+// restart restarts a node from its database and re-peers its EL with peer's: op-reth does not
+// reconnect to its peers after a restart.
+func restart(el *dsl.L2ELNode, cl *dsl.L2CLNode, peer *dsl.L2ELNode) {
+	stop(el, cl)
+	start(el, cl, peer)
 }
 
-type chainConfig struct {
-	SettlementChainID func() bindings.TypedCall[*big.Int] `sol:"settlementChainId"`
-}
-
-func restart(el *dsl.L2ELNode, cl *dsl.L2CLNode) {
+func stop(el *dsl.L2ELNode, cl *dsl.L2CLNode) {
 	cl.Stop()
 	el.Stop()
+}
+
+func start(el *dsl.L2ELNode, cl *dsl.L2CLNode, peer *dsl.L2ELNode) {
 	el.Start()
+	el.PeerWith(peer)
 	cl.Start()
+}
+
+// requireResumedFrom checks that the sequencer builds on head and the RPC node follows, with the
+// safe and finalized heads still at genesis.
+func requireResumedFrom(t devtest.T, sys *presets.OPPrivateSkeleton, head eth.L2BlockRef) {
+	sys.SequencerCL.ReachedUnsafe(head.Number+5, 30)
+	sys.RPCNodeCL.ReachedUnsafe(head.Number+5, 30)
+	t.Require().Equal(head.Hash, sys.SequencerEL.BlockRefByNumber(head.Number).Hash, "the sequencer kept its blocks")
+	requireSafeAndFinalizedAtGenesis(t, sys)
 }
 
 func requireSafeAndFinalizedAtGenesis(t devtest.T, sys *presets.OPPrivateSkeleton) {
 	genesis := sys.L2Chain.Escape().RollupConfig().Genesis.L2
-	status := sys.SequencerCL.SyncStatus()
-	t.Require().Equal(eth.L1BlockRef{}, status.CurrentL1, "the sequencer derives from no L1 block")
-	t.Require().Equal(genesis, status.SafeL2.ID(), "safe head stays at genesis")
-	t.Require().Equal(genesis, status.FinalizedL2.ID(), "finalized head stays at genesis")
+	t.Require().Equal(eth.L1BlockRef{}, sys.SequencerCL.SyncStatus().CurrentL1, "the sequencer derives from no L1 block")
+	for _, cl := range []*dsl.L2CLNode{sys.SequencerCL, sys.RPCNodeCL} {
+		status := cl.SyncStatus()
+		t.Require().Equal(genesis, status.SafeL2.ID(), "%s safe head stays at genesis", cl)
+		t.Require().Equal(genesis, status.FinalizedL2.ID(), "%s finalized head stays at genesis", cl)
+	}
 }

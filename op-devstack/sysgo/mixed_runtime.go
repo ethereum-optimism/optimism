@@ -77,6 +77,13 @@ func SkipOnKonaNode(t devtest.T, reason string) {
 	}
 }
 
+// SkipUnlessKonaNode skips the test unless the L2 consensus layer is kona-node
+func SkipUnlessKonaNode(t devtest.T, reason string) {
+	if devstackL2CLKind() != MixedL2CLKona {
+		t.Skipf("skipping unless on kona-node: %s", reason)
+	}
+}
+
 func FlakyOnKonaNode(t devtest.T, reason string) {
 	if devstackL2CLKind() == MixedL2CLKona {
 		t.MarkFlaky(reason)

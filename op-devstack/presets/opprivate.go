@@ -8,7 +8,9 @@ import (
 
 // OPPrivateSkeleton is L1 and one OP Private private chain with test accounts funded in genesis:
 // a kona-node + op-reth sequencer, a kona-node + op-reth RPC node that follows it, and no
-// batcher, proposer or challenger.
+// batcher, proposer or challenger. Only kona-node runs a private chain, so the preset uses
+// kona-node and op-reth whatever DEVSTACK_L2CL_KIND and DEVSTACK_L2EL_KIND select, and skips the
+// test unless they select kona-node and not op-geth: it runs once, in the kona CI variant.
 type OPPrivateSkeleton struct {
 	T devtest.T
 
@@ -26,6 +28,8 @@ type OPPrivateSkeleton struct {
 
 // NewOPPrivateSkeleton starts the OP Private Skeleton devnet.
 func NewOPPrivateSkeleton(t devtest.T, opts ...Option) *OPPrivateSkeleton {
+	sysgo.SkipUnlessKonaNode(t, "the OP Private Skeleton always runs kona-node")
+	sysgo.SkipOnOpGeth(t, "the OP Private Skeleton always runs op-reth")
 	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewOPPrivateSkeleton", opts, optionKindDeployer|optionKindOpReth)
 	out := opPrivateSkeletonFromRuntime(t, sysgo.NewOPPrivateSkeletonRuntime(t, presetCfg))
 	presetOpts.applyPreset(out)
