@@ -300,10 +300,12 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 		}
 
 		forgeEnv := &opcm.ForgeEnv{
-			Client:     forgeClient,
-			Context:    ctx,
-			L1RPCUrl:   cfg.L1RPCUrl,
-			PrivateKey: cfg.PrivateKey,
+			Client:               forgeClient,
+			Context:              ctx,
+			L1RPCUrl:             cfg.L1RPCUrl,
+			PrivateKey:           cfg.PrivateKey,
+			Logger:               lgr,
+			ReceiptQueryInterval: cfg.ReceiptQueryInterval,
 		}
 		dio, err = opcm.DeployImplementationsViaForge(forgeEnv, input)
 		if err != nil {

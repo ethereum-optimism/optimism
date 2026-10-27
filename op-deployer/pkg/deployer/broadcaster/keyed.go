@@ -67,7 +67,6 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		receiptQueryInterval = DefaultReceiptQueryInterval
 	}
 	if receiptQueryInterval != DefaultReceiptQueryInterval {
-		// apply --use-forge --deployment-target=live also builds this broadcaster, so it warns even though Forge does its own sending.
 		cfg.Logger.Warn(
 			"using non-default receipt query interval, which is only meant for tests",
 			"interval", receiptQueryInterval,
@@ -208,6 +207,7 @@ func asTxCandidate(bcast Broadcast, gasLimit uint64) txmgr.TxCandidate {
 		candidate = txmgr.TxCandidate{
 			TxData:   bcast.Input,
 			To:       nil,
+			Value:    value,
 			GasLimit: gasLimit,
 		}
 	case BroadcastCreate2:

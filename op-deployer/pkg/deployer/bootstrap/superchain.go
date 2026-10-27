@@ -196,10 +196,12 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 		}
 
 		forgeEnv := &opcm.ForgeEnv{
-			Client:     forgeClient,
-			Context:    ctx,
-			L1RPCUrl:   cfg.L1RPCUrl,
-			PrivateKey: cfg.PrivateKey,
+			Client:               forgeClient,
+			Context:              ctx,
+			L1RPCUrl:             cfg.L1RPCUrl,
+			PrivateKey:           cfg.PrivateKey,
+			Logger:               lgr,
+			ReceiptQueryInterval: cfg.ReceiptQueryInterval,
 		}
 		dso, err = opcm.DeploySuperchainViaForge(forgeEnv, input)
 		if err != nil {

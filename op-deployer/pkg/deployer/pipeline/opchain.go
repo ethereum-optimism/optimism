@@ -68,8 +68,8 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 }
 
 // ExecuteOPChainDeployment runs the deployment without recording state. impls are the
-// implementations of the OPCM in dci. Script-host execution queues transactions. Forge broadcasts
-// directly.
+// implementations of the OPCM in dci. Script-host execution queues transactions. The forge path
+// sends them before it returns.
 func ExecuteOPChainDeployment(
 	env *Env,
 	st *state.State,
