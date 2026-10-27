@@ -6,7 +6,7 @@ use url::Url;
 const DEFAULT_L2_ENGINE_TIMEOUT: u64 = 30_000;
 
 const DEFAULT_L2_TRUST_RPC: bool = true;
-const DEFAULT_L1_TRUST_RPC: bool = true;
+const DEFAULT_L1_TRUST_RPC: bool = false;
 
 /// L1 client arguments.
 #[derive(Clone, Debug, clap::Args)]
@@ -139,19 +139,19 @@ mod tests {
     }
 
     #[rstest]
-    #[case::defaults(&[], true, true)]
+    #[case::defaults(&[], false, true)]
     #[case::l1_false(&["--l1-trust-rpc=false"], false, true)]
     #[case::l1_true(&["--l1-trust-rpc=true"], true, true)]
     #[case::l1_bare(&["--l1-trust-rpc"], true, true)]
     #[case::l1_alias_false(&["--l1.trust-rpc=false"], false, true)]
     #[case::l1_alias_true(&["--l1.trust-rpc=true"], true, true)]
     #[case::l1_alias_bare(&["--l1.trust-rpc"], true, true)]
-    #[case::l2_false(&["--l2-trust-rpc=false"], true, false)]
-    #[case::l2_true(&["--l2-trust-rpc=true"], true, true)]
-    #[case::l2_bare(&["--l2-trust-rpc"], true, true)]
-    #[case::l2_alias_false(&["--l2.trust-rpc=false"], true, false)]
-    #[case::l2_alias_true(&["--l2.trust-rpc=true"], true, true)]
-    #[case::l2_alias_bare(&["--l2.trust-rpc"], true, true)]
+    #[case::l2_false(&["--l2-trust-rpc=false"], false, false)]
+    #[case::l2_true(&["--l2-trust-rpc=true"], false, true)]
+    #[case::l2_bare(&["--l2-trust-rpc"], false, true)]
+    #[case::l2_alias_false(&["--l2.trust-rpc=false"], false, false)]
+    #[case::l2_alias_true(&["--l2.trust-rpc=true"], false, true)]
+    #[case::l2_alias_bare(&["--l2.trust-rpc"], false, true)]
     #[case::both_false(&["--l1.trust-rpc=false", "--l2.trust-rpc=false"], false, false)]
     fn test_parse_trust_rpc_args(#[case] flags: &[&str], #[case] l1: bool, #[case] l2: bool) {
         // Keep these CLI/default tests independent of the operator's environment.
@@ -163,6 +163,12 @@ mod tests {
         let parsed = ClientArgs::from_arg_matches(&matches).unwrap();
         assert_eq!(parsed.l1.l1_trust_rpc, l1);
         assert_eq!(parsed.l2.l2_trust_rpc, l2);
+    }
+
+    #[test]
+    fn test_default_rpc_trust() {
+        assert!(!L1ClientArgs::default().l1_trust_rpc);
+        assert!(L2ClientArgs::default().l2_trust_rpc);
     }
 
     #[test]
