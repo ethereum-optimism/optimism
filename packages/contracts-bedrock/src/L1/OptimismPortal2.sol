@@ -280,6 +280,15 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when removing a bridge hook that is not set.
     error OptimismPortal_InvalidBridgeHookState();
 
+    /// @notice Thrown when the caller is not the bridge hook.
+    error OptimismPortal_NotBridgeHook();
+
+    /// @notice Thrown when completing an item that is not held.
+    error OptimismPortal_NotHeld();
+
+    /// @notice Thrown when the ETH sent with a completion does not match the held item.
+    error OptimismPortal_ValueMismatch();
+
     /// @notice Thrown when ETHLockbox is set/unset incorrectly depending on the feature flag.
     error OptimismPortal_InvalidLockboxState();
 
@@ -888,7 +897,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Sends a held deposit to L2 on its original terms. Only callable by the bridge hook.
     ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
     /// @param _item Held deposit.
-    function completeDepositTransaction(BridgeHookTypes.Item memory _item) external payable { }
+    function completeDepositTransaction(BridgeHookTypes.Item memory _item) external payable {
+        _releaseHeld(_item, heldDeposits);
+        _emitDeposit(_item.from, _item.to, _item.l2Value, uint64(_item.gasLimit), _item.isCreation, _item.data);
+    }
 
     /// @notice Executes a held withdrawal on its original terms. Only callable by the bridge hook.
     ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
@@ -960,6 +972,25 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         if (_item.asset == BridgeHookTypes.Asset.ERC20) {
             _l1StandardBridge().holdERC20(_item.direction, _message);
+        }
+    }
+
+    /// @notice Deletes a held item's commitment and returns its escrowed tokens to the bridge.
+    ///         Reverts unless the caller is the hook and sends the item's ETH.
+    /// @param _item Held item.
+    /// @param _held Held items of the direction that the caller completes.
+    function _releaseHeld(BridgeHookTypes.Item memory _item, mapping(bytes32 => bool) storage _held) internal {
+        if (msg.sender != address(bridgeHook)) revert OptimismPortal_NotBridgeHook();
+
+        bytes32 id = BridgeHookHashing.hashItem(_item);
+        if (!_held[id]) revert OptimismPortal_NotHeld();
+        delete _held[id];
+
+        if (msg.value != _item.ethAmount) revert OptimismPortal_ValueMismatch();
+
+        if (_item.asset == BridgeHookTypes.Asset.ERC20) {
+            (, bytes memory message) = BridgeHookDecoder.extractTokenMessage(_item);
+            _l1StandardBridge().restoreERC20(_item.direction, message);
         }
     }
 
