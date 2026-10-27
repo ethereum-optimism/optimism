@@ -186,6 +186,7 @@ impl ChainConfig {
             #[cfg(feature = "rollup_config_override")]
             fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             chain_op_config: self.base_fee_config(),
+            settlement_chain_id: 0,
             alt_da_config: self.alt_da.clone(),
         }
     }

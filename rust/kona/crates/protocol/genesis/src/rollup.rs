@@ -91,6 +91,15 @@ pub struct RollupConfig {
     /// `chain_op_config` is the chain-specific EIP1559 config for the rollup.
     #[cfg_attr(feature = "serde", serde(default = "BaseFeeConfig::optimism"))]
     pub chain_op_config: BaseFeeConfig,
+    /// The OP Private settlement chain ID: 0 on a public chain, the chain's own ID on a
+    /// settlement chain, and its settlement chain's ID on a private chain.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_zero"))]
+    pub settlement_chain_id: u64,
+}
+
+#[cfg(feature = "serde")]
+const fn is_zero(v: &u64) -> bool {
+    *v == 0
 }
 
 #[cfg(feature = "arbitrary")]
@@ -125,6 +134,7 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             da_challenge_address: Option::<Address>::arbitrary(u)?,
             chain_op_config,
             alt_da_config: Option::<AltDAConfig>::arbitrary(u)?,
+            settlement_chain_id: u.arbitrary()?,
         })
     }
 }
@@ -152,11 +162,17 @@ impl Default for RollupConfig {
             da_challenge_address: None,
             alt_da_config: None,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
+            settlement_chain_id: 0,
         }
     }
 }
 
 impl RollupConfig {
+    /// Returns true if this is an OP Private private chain, which never derives from L1.
+    pub const fn is_private_chain(&self) -> bool {
+        self.settlement_chain_id != 0 && self.settlement_chain_id != self.l2_chain_id.id()
+    }
+
     /// Returns true if Regolith is active at the given timestamp.
     pub fn is_regolith_active(&self, timestamp: u64) -> bool {
         self.hardforks.regolith_time.is_some_and(|t| timestamp >= t) ||
@@ -875,6 +891,30 @@ mod tests {
         assert_eq!(config.max_sequencer_drift(10), FJORD_MAX_SEQUENCER_DRIFT);
     }
 
+    #[test]
+    fn test_is_private_chain() {
+        let mut config = RollupConfig { l2_chain_id: Chain::from_id(901), ..Default::default() };
+        assert!(!config.is_private_chain(), "public chain");
+        config.settlement_chain_id = 901;
+        assert!(!config.is_private_chain(), "settlement chain");
+        config.settlement_chain_id = 1337;
+        assert!(config.is_private_chain(), "private chain");
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_settlement_chain_id_serde() {
+        let config = RollupConfig { settlement_chain_id: 1337, ..Default::default() };
+        let json = serde_json::to_value(&config).unwrap();
+        assert_eq!(json["settlement_chain_id"], 1337);
+        assert_eq!(serde_json::from_value::<RollupConfig>(json).unwrap(), config);
+
+        // A public chain omits the field, and an absent field reads as 0.
+        let json = serde_json::to_value(RollupConfig::default()).unwrap();
+        assert!(json.get("settlement_chain_id").is_none());
+        assert_eq!(serde_json::from_value::<RollupConfig>(json).unwrap().settlement_chain_id, 0);
+    }
+
     fn expected_rollup_config() -> RollupConfig {
         use crate::{OP_MAINNET_BASE_FEE_CONFIG, SystemConfig};
         RollupConfig {
@@ -928,6 +968,7 @@ mod tests {
             da_challenge_address: None,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
             alt_da_config: None,
+            settlement_chain_id: 0,
         }
     }
 

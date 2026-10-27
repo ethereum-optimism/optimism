@@ -718,6 +718,11 @@ type L2CoreDeployConfig struct {
 	// from. It is an override to set this value on legacy networks where it is not set by
 	// default. It can be removed once all networks have this value set in their storage.
 	SystemConfigStartBlock uint64 `json:"systemConfigStartBlock"`
+
+	// SettlementChainID is the chain's OP Private settlement chain ID, written into both the
+	// ChainConfig predeploy and the rollup config: 0 on a public chain, the chain's own ID on a
+	// settlement chain, and its settlement chain's ID on a private chain.
+	SettlementChainID uint64 `json:"settlementChainId,omitempty"`
 }
 
 var _ ConfigChecker = (*L2CoreDeployConfig)(nil)
@@ -1184,6 +1189,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		KeepKarstUpgradeGas:    d.KeepKarstUpgradeGas,
 		AltDAConfig:            altDA,
 		ChainOpConfig:          chainOpConfig,
+		SettlementChainID:      d.SettlementChainID,
 	}, nil
 }
 
