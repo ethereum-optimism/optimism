@@ -74,6 +74,8 @@ pub struct GossipDriverBuilder {
     static_peers: Vec<StaticPeer>,
     /// How often static peers that aren't connected are dialed again, once a minute if not set.
     static_peer_redial_interval: Option<Duration>,
+    /// How soon a static peer is dialed again after its connection closes, a second if not set.
+    static_peer_reconnect_delay: Option<Duration>,
 }
 
 impl GossipDriverBuilder {
@@ -101,6 +103,7 @@ impl GossipDriverBuilder {
             transport: GossipTransport::default(),
             static_peers: Vec::new(),
             static_peer_redial_interval: None,
+            static_peer_reconnect_delay: None,
         }
     }
 
@@ -119,6 +122,12 @@ impl GossipDriverBuilder {
     /// Sets how often static peers that aren't connected are dialed again.
     pub const fn with_static_peer_redial_interval(mut self, interval: Duration) -> Self {
         self.static_peer_redial_interval = Some(interval);
+        self
+    }
+
+    /// Sets how soon a static peer is dialed again after its connection closes.
+    pub const fn with_static_peer_reconnect_delay(mut self, delay: Duration) -> Self {
+        self.static_peer_reconnect_delay = Some(delay);
         self
     }
 
@@ -202,6 +211,7 @@ impl GossipDriverBuilder {
             transport,
             static_peers,
             static_peer_redial_interval,
+            static_peer_reconnect_delay,
         } = self;
 
         let timeout = timeout.unwrap_or(DEFAULT_IDLE_CONNECTION_TIMEOUT);
@@ -310,6 +320,9 @@ impl GossipDriverBuilder {
         if let Some(interval) = static_peer_redial_interval {
             driver.static_peer_redial_interval = interval;
         }
+        if let Some(delay) = static_peer_reconnect_delay {
+            driver.static_peer_reconnect_delay = delay;
+        }
         Ok(driver)
     }
 }
@@ -397,7 +410,7 @@ pub(crate) mod tests {
         .build()
         .expect("build gossip driver");
 
-        let monitoring = driver.peer_monitoring.expect("peer monitoring is set");
+        let monitoring = driver.peer_monitoring.as_ref().expect("peer monitoring is set");
         assert_eq!(monitoring.ban_threshold, -10.0);
         assert_eq!(
             driver.static_peers,
@@ -428,6 +441,19 @@ pub(crate) mod tests {
 
         assert_eq!(driver.static_peers.keys().collect::<Vec<_>>(), vec![&other]);
         assert_eq!(driver.connection_gate.list_protected_peers(), vec![other]);
+    }
+
+    /// A dropped driver frees its memory address, so a new one can listen there, as on TCP.
+    #[tokio::test]
+    async fn test_dropped_driver_frees_its_address() {
+        let addr = Multiaddr::empty().with(Protocol::Memory(rand::random::<u64>()));
+        let builder = || memory_driver_builder_at(Keypair::generate_secp256k1(), addr.clone());
+
+        let mut driver = builder().build().expect("build");
+        driver.start().await.expect("listen");
+        drop(driver);
+
+        builder().build().expect("build").start().await.expect("listen on the same address");
     }
 
     /// [`GossipTransport::Other`] replaces TCP: swarms built with a memory transport listen on

@@ -8,6 +8,7 @@ use kona_genesis::RollupConfig;
 use kona_peers::{EnrValidation, PeerMonitoring, enr_to_multiaddr};
 use libp2p::{
     Multiaddr, PeerId, Swarm, TransportError,
+    core::transport::ListenerId,
     gossipsub::{IdentTopic, MessageId},
     swarm::{ConnectionId, SwarmEvent, dial_opts::DialOpts},
 };
@@ -65,11 +66,13 @@ pub struct GossipDriver<G: ConnectionGate> {
     pub(crate) static_peers: HashMap<PeerId, Vec<Multiaddr>>,
     /// How often static peers that aren't connected are dialed again.
     pub(crate) static_peer_redial_interval: Duration,
+    /// How soon a static peer is dialed again after its connection closes.
+    pub(crate) static_peer_reconnect_delay: Duration,
     /// When static peers that aren't connected are dialed again.
     ///
     /// Set when the driver starts with static peers, and after each check to one
     /// [`Self::static_peer_redial_interval`] later. Brought forward to
-    /// [`STATIC_PEER_RECONNECT_DELAY`] from now when the connection to a static peer closes.
+    /// [`Self::static_peer_reconnect_delay`] from now when the connection to a static peer closes.
     next_static_peer_check: Option<tokio::time::Instant>,
     /// Tracks ping times for peers.
     pub ping: Arc<Mutex<HashMap<PeerId, Duration>>>,
@@ -87,6 +90,20 @@ pub struct GossipDriver<G: ConnectionGate> {
     /// Set when a duplicate connection is established, and after each check to the earliest
     /// duplicate still in its grace period. `None` until the next duplicate is established.
     next_duplicate_check: Option<tokio::time::Instant>,
+    /// The listener [`Self::start`] added, removed again when the driver is dropped.
+    listener_id: Option<ListenerId>,
+}
+
+/// Removes the listener, so another driver can listen on the same address.
+///
+/// Dropping a TCP listener frees its port anyway, but the memory transport only frees one when its
+/// listener is removed, so a restarted in-memory node couldn't listen on its address again.
+impl<G: ConnectionGate> Drop for GossipDriver<G> {
+    fn drop(&mut self) {
+        if let Some(listener_id) = self.listener_id.take() {
+            self.swarm.remove_listener(listener_id);
+        }
+    }
 }
 
 /// How long a duplicate connection stays open by default, see
@@ -96,7 +113,7 @@ const DUPLICATE_CONNECTION_GRACE: Duration = Duration::from_secs(10);
 /// How often static peers that aren't connected are dialed again by default, as in op-node.
 const STATIC_PEER_REDIAL_INTERVAL: Duration = Duration::from_secs(60);
 
-/// How soon a static peer is dialed again after its connection closes.
+/// How soon a static peer is dialed again after its connection closes, by default.
 ///
 /// Short, so a peer that restarts is back quickly. Not zero, so a peer that keeps closing the
 /// connection right away isn't redialed in a tight loop.
@@ -146,7 +163,9 @@ where
             connection_gate: gate,
             static_peers: HashMap::new(),
             static_peer_redial_interval: STATIC_PEER_REDIAL_INTERVAL,
+            static_peer_reconnect_delay: STATIC_PEER_RECONNECT_DELAY,
             next_static_peer_check: None,
+            listener_id: None,
             ping: Arc::new(Mutex::new(Default::default())),
             connections: Default::default(),
             duplicate_connection_grace: DUPLICATE_CONNECTION_GRACE,
@@ -243,6 +262,7 @@ where
 
         match self.swarm.listen_on(self.addr.clone()) {
             Ok(id) => loop {
+                self.listener_id = Some(id);
                 if let SwarmEvent::NewListenAddr { address, listener_id } =
                     self.swarm.select_next_some().await &&
                     id == listener_id
@@ -654,7 +674,7 @@ where
 
                 if self.static_peers.contains_key(&peer_id) {
                     self.update_next_static_peer_check(
-                        tokio::time::Instant::now() + STATIC_PEER_RECONNECT_DELAY,
+                        tokio::time::Instant::now() + self.static_peer_reconnect_delay,
                     );
                 }
 
@@ -830,27 +850,16 @@ mod tests {
 
     /// Builds a gossip driver on TCP, listening on a free port on localhost once started.
     fn tcp_driver() -> GossipDriver<ConnectionGater> {
-        let mut driver = tcp_driver_builder_at(
-            libp2p::identity::Keypair::generate_secp256k1(),
+        let mut driver = crate::GossipDriverBuilder::new(
+            kona_genesis::RollupConfig::default(),
+            alloy_primitives::Address::ZERO,
             "/ip4/127.0.0.1/tcp/0".parse().expect("valid multiaddr"),
+            libp2p::identity::Keypair::generate_secp256k1(),
         )
         .build()
         .expect("build gossip driver");
         driver.duplicate_connection_grace = Duration::from_millis(100);
         driver
-    }
-
-    /// A builder for a gossip driver on TCP, with a given identity and listen address.
-    fn tcp_driver_builder_at(
-        keypair: libp2p::identity::Keypair,
-        addr: Multiaddr,
-    ) -> crate::GossipDriverBuilder {
-        crate::GossipDriverBuilder::new(
-            kona_genesis::RollupConfig::default(),
-            alloy_primitives::Address::ZERO,
-            addr,
-            keypair,
-        )
     }
 
     /// Peers dialing each other over TCP at the same time connect. Dialing from the listen port,
@@ -1059,7 +1068,8 @@ mod tests {
     const REDIAL_INTERVAL: Duration = Duration::from_millis(100);
 
     /// A random identity and memory address for a peer, with the static peer address they make,
-    /// chosen up front so the peer can be listed as a static peer before it starts.
+    /// chosen up front so the peer can be listed as a static peer before it starts, or restart at
+    /// the same address.
     fn random_identity() -> (libp2p_identity::Keypair, Multiaddr, StaticPeer) {
         let keypair = libp2p_identity::Keypair::generate_secp256k1();
         let addr = Multiaddr::empty().with(Protocol::Memory(rand::random::<u64>()));
@@ -1108,25 +1118,20 @@ mod tests {
 
     /// A static peer that restarts is dialed again soon after its connection closes, well before
     /// the next regular check, which is a minute away.
-    ///
-    /// Over TCP, because the memory transport never frees a port unless its listener is removed,
-    /// so a restarted peer could not listen on the same address again.
     #[tokio::test]
     async fn test_static_peer_reconnects_after_restart() {
-        let keypair_2 = libp2p::identity::Keypair::generate_secp256k1();
-        let peer_2 = keypair_2.public().to_peer_id();
-        let any_port: Multiaddr = "/ip4/127.0.0.1/tcp/0".parse().unwrap();
-        let mut driver_2 = tcp_driver_builder_at(keypair_2.clone(), any_port).build().unwrap();
-        let addr_2 = driver_2.start().await.expect("listen");
-
-        let static_peer = StaticPeer::try_from(addr_2.clone().with(Protocol::P2p(peer_2))).unwrap();
-        let mut driver_1 = tcp_driver_builder_at(
-            libp2p::identity::Keypair::generate_secp256k1(),
-            "/ip4/127.0.0.1/tcp/0".parse().unwrap(),
-        )
-        .with_static_peers(vec![static_peer])
-        .build()
-        .unwrap();
+        let (keypair_2, addr_2, static_peer) = random_identity();
+        let peer_2 = static_peer.peer_id();
+        let mut driver_2 =
+            memory_driver_builder_at(keypair_2.clone(), addr_2.clone()).build().expect("build");
+        driver_2.start().await.expect("listen");
+        // A short reconnect delay, but the default minute between regular checks: only the
+        // reconnect after the connection closes can bring the peer back within the test.
+        let mut driver_1 = memory_driver_builder()
+            .with_static_peers(vec![static_peer])
+            .with_static_peer_reconnect_delay(REDIAL_INTERVAL)
+            .build()
+            .unwrap();
         driver_1.start().await.expect("listen");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
@@ -1134,9 +1139,9 @@ mod tests {
         drop(driver_2);
         poll_one_until(&mut driver_1, |driver_1| !driver_1.is_connected(&peer_2)).await;
 
-        // Start it again, with the same identity and port.
-        let mut driver_2 = tcp_driver_builder_at(keypair_2, addr_2).build().unwrap();
-        driver_2.start().await.expect("listen on the same port");
+        // Start it again, with the same identity and address.
+        let mut driver_2 = memory_driver_builder_at(keypair_2, addr_2).build().expect("build");
+        driver_2.start().await.expect("listen on the same address");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
 
