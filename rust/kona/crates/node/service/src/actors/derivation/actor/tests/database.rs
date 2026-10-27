@@ -1,6 +1,6 @@
 use super::*;
 use kona_derive::ResetSignal;
-use mockall::{mock, predicate::eq};
+use mockall::{Sequence, mock, predicate::eq};
 
 mock! {
     #[derive(Debug)]
@@ -24,19 +24,33 @@ mock! {
 fn actor_with_database(
     database: Option<Arc<dyn SafeDb>>,
 ) -> DerivationActor<MockDerivationEngineClient, StubPipeline> {
+    actor_with_database_at_genesis(database, l2_block(0).block_info.id())
+}
+
+fn actor_with_database_at_genesis(
+    database: Option<Arc<dyn SafeDb>>,
+    genesis: BlockNumHash,
+) -> DerivationActor<MockDerivationEngineClient, StubPipeline> {
     let (_request_sender, request_receiver) = mpsc::channel(1);
+    let mut rollup_config = RollupConfig::default();
+    rollup_config.genesis.l2 = genesis;
     DerivationActor::new(
         MockDerivationEngineClient::new(),
         request_receiver,
         StubPipeline {
             origin: BlockInfo::default(),
             reset_error: None,
-            rollup_config: Arc::new(RollupConfig::default()),
+            rollup_config: Arc::new(rollup_config),
             step_result: StepResult::StepFailed(PipelineError::Eof.temp()),
         },
         database,
+        l1_block_zero(),
         watch::channel(None).0,
     )
+}
+
+fn l1_block_zero() -> BlockNumHash {
+    BlockNumHash { hash: B256::repeat_byte(9), number: 0 }
 }
 
 fn tip_record(number: u64) -> Result<SafeHeadRecord, SafeDbError> {
@@ -152,4 +166,63 @@ fn an_absent_database_skips_writes_and_truncation() {
     actor.truncate_safe_db(l2_block(RESUME_HEAD), "engine reset").unwrap();
 
     assert_eq!(actor.finalizer.try_finalize_next(l1_block(DERIVED_FROM_L1)), Some(DERIVED_HEAD));
+}
+
+#[rstest]
+#[case::genesis_at_block_zero(0)]
+#[case::genesis_at_a_later_block(7)]
+#[test]
+fn truncation_to_genesis_records_genesis_as_safe_from_l1_block_zero(#[case] genesis: u64) {
+    let mut database = MockSafeDatabase::new();
+    let mut sequence = Sequence::new();
+    database.expect_last_entry().once().returning(|| Err(SafeDbError::NotFound));
+    database
+        .expect_safe_head_reset()
+        .with(eq(l2_block(genesis)))
+        .once()
+        .in_sequence(&mut sequence)
+        .returning(|_| Ok(()));
+    database
+        .expect_safe_head_updated()
+        .with(eq(l2_block(genesis)), eq(l1_block_zero()))
+        .once()
+        .in_sequence(&mut sequence)
+        .returning(|_, _| Ok(()));
+    let actor =
+        actor_with_database_at_genesis(Some(Arc::new(database)), l2_block(genesis).block_info.id());
+
+    actor.truncate_safe_db(l2_block(genesis), "engine reset").unwrap();
+}
+
+fn genesis_with_different_hash() -> BlockNumHash {
+    BlockNumHash { hash: B256::repeat_byte(7), number: 0 }
+}
+
+#[rstest]
+#[case::different_number(l2_block(7).block_info.id())]
+#[case::different_hash(genesis_with_different_hash())]
+fn truncation_to_block_zero_that_is_not_genesis_records_nothing(#[case] genesis: BlockNumHash) {
+    let mut database = MockSafeDatabase::new();
+    database.expect_last_entry().once().returning(|| Err(SafeDbError::NotFound));
+    database.expect_safe_head_reset().with(eq(l2_block(0))).once().returning(|_| Ok(()));
+    let actor = actor_with_database_at_genesis(Some(Arc::new(database)), genesis);
+
+    actor.truncate_safe_db(l2_block(0), "engine reset").unwrap();
+}
+
+#[test]
+fn a_failed_genesis_write_is_returned_without_retry() {
+    let mut database = MockSafeDatabase::new();
+    database.expect_last_entry().once().returning(|| Err(SafeDbError::NotFound));
+    database.expect_safe_head_reset().with(eq(l2_block(0))).once().returning(|_| Ok(()));
+    database
+        .expect_safe_head_updated()
+        .with(eq(l2_block(0)), eq(l1_block_zero()))
+        .once()
+        .returning(|_, _| Err(SafeDbError::InvalidEntry));
+    let actor = actor_with_database(Some(Arc::new(database)));
+
+    let result = actor.truncate_safe_db(l2_block(0), "engine reset");
+
+    assert!(matches!(result, Err(SafeDbError::InvalidEntry)));
 }

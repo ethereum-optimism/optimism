@@ -1,8 +1,11 @@
 //! The Optimism RPC API using `jsonrpsee`
 
-use crate::{OutputResponse, health::HealthzResponse};
+use crate::{
+    OutputResponse, SafeHeadResponse, health::HealthzResponse,
+    superroot::SuperRootAtTimestampResponse,
+};
 use alloy_eips::BlockNumberOrTag;
-use alloy_primitives::B256;
+use alloy_primitives::{B256, U64};
 use core::net::IpAddr;
 use ipnet::IpNet;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
@@ -29,6 +32,10 @@ pub trait RollupNodeApi {
     async fn op_output_at_block(&self, block_number: BlockNumberOrTag)
     -> RpcResult<OutputResponse>;
 
+    /// Get the safe head at an L1 block.
+    #[method(name = "safeHeadAtL1Block")]
+    async fn op_safe_head_at_l1_block(&self, block_number: U64) -> RpcResult<SafeHeadResponse>;
+
     /// Get the synchronization status.
     #[method(name = "syncStatus")]
     async fn op_sync_status(&self) -> RpcResult<SyncStatus>;
@@ -40,6 +47,20 @@ pub trait RollupNodeApi {
     /// Get the software version.
     #[method(name = "version")]
     async fn op_version(&self) -> RpcResult<String>;
+}
+
+/// The super root API op-node serves for its single chain, the non-interop counterpart of
+/// op-supernode's.
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "superroot"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "superroot"))]
+pub trait SuperRootApi {
+    /// Returns the super root at a timestamp, the output it is built from, and the L1 block that
+    /// first made that output safe.
+    #[method(name = "atTimestamp")]
+    async fn superroot_at_timestamp(
+        &self,
+        timestamp: U64,
+    ) -> RpcResult<SuperRootAtTimestampResponse>;
 }
 
 /// The opp2p namespace handles peer interactions.

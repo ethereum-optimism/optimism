@@ -1,15 +1,24 @@
 use super::*;
-use crate::actors::derivation::engine_client::MockDerivationEngineClient;
+use crate::{
+    DerivationActorRequest, DerivationState, NodeActor,
+    actors::derivation::engine_client::MockDerivationEngineClient,
+};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
-use kona_engine::DerivedSafeHead;
+use async_trait::async_trait;
+use kona_derive::{
+    ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, PipelineResult, ResetError,
+    Signal, SignalReceiver, StepResult,
+};
+use kona_engine::{DerivedSafeHead, FinalizeBlockId};
 use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
-use kona_protocol::BlockInfo;
-use kona_safedb::{SafeDatabase, SafeHeadRecord};
+use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
+use kona_safedb::{SafeDatabase, SafeDb, SafeDbError, SafeHeadRecord};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use rstest::rstest;
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 use tempfile::TempDir;
+use tokio::sync::{mpsc, watch};
 
 /// A pipeline stub that returns `step_result` once, then yields. Origin advances increment
 /// its L1 block number, and a reset moves it to the safe head's L1 origin.
@@ -121,6 +130,7 @@ async fn test_pipeline_reset_always_resets_engine(
             step_result: StepResult::StepFailed(reset.reset()),
         },
         None,
+        l1_block(0).id(),
         derivation_origin_tx,
     );
 
@@ -163,6 +173,7 @@ async fn test_origin_is_published(#[case] step_result: StepResult) {
             reset_error: None,
         },
         None,
+        l1_block(0).id(),
         derivation_origin_tx,
     );
 
@@ -208,6 +219,7 @@ async fn test_non_reset_signal_does_not_publish_uninitialized_origin(#[case] sig
             reset_error: None,
         },
         None,
+        l1_block(0).id(),
         derivation_origin_tx,
     );
 
@@ -235,6 +247,7 @@ async fn test_failed_reset_keeps_origin_unpublished_until_successful_reset(#[cas
             step_result: StepResult::AdvancedOrigin,
         },
         None,
+        l1_block(0).id(),
         derivation_origin_tx,
     );
 
@@ -360,7 +373,7 @@ fn l2_block(number: u64) -> L2BlockInfo {
         block_info: BlockInfo {
             hash: B256::with_last_byte(number as u8),
             number,
-            parent_hash: B256::with_last_byte(number as u8 - 1),
+            parent_hash: B256::with_last_byte(number.saturating_sub(1) as u8),
             timestamp: 0,
         },
         l1_origin: BlockNumHash { hash: B256::ZERO, number: SAFE_HEAD_L1_ORIGIN },
@@ -413,6 +426,7 @@ impl RecordingActor {
             request_rx,
             pipeline,
             Some(db.clone()),
+            l1_block(0).id(),
             watch::channel(None).0,
         );
         Self { actor, db, request_tx, _dir: dir }
