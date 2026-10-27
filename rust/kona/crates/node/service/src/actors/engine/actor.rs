@@ -5,9 +5,9 @@ use crate::{
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildSealCoupling, BuildTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient,
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink,
-    InsertTask, SealTask,
+    BuildTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient, EngineTask,
+    EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink, InsertTask,
+    SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -353,9 +353,6 @@ where
                     self.rollup.clone(),
                     payload_id,
                     attributes,
-                    // The payload is not derived in this case.
-                    false,
-                    BuildSealCoupling::Detached,
                     Some(result_tx),
                     Arc::clone(&self.block_sink),
                 )));

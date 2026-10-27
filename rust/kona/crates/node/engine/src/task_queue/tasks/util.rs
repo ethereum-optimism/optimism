@@ -1,113 +1,399 @@
-//! Utility functions for task execution.
+//! Shared steps for building, sealing, and importing blocks.
 
-use super::{BuildSealCoupling, BuildTask, BuildTaskError, EngineTaskExt, SealTask, SealTaskError};
-use crate::{EngineClient, EngineState, ImportedBlockSink};
+use super::{EngineBuildError, SealTaskError, get_payload, insert_payload, start_build};
+use crate::{EngineClient, EngineState, ImportedBlockSink, InsertTaskError};
 use kona_genesis::RollupConfig;
-use kona_protocol::OpAttributesWithParent;
-use std::sync::Arc;
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 
-/// Error type for build and seal operations.
+/// Error type for build and import operations.
 #[derive(Debug, thiserror::Error)]
-pub(in crate::task_queue) enum BuildAndSealError {
+pub(in crate::task_queue) enum BuildAndImportError {
     /// An error occurred during the build phase.
     #[error(transparent)]
-    Build(#[from] BuildTaskError),
-    /// An error occurred during the seal phase.
+    Build(#[from] EngineBuildError),
+    /// An error occurred while sealing or importing the block.
     #[error(transparent)]
     Seal(#[from] SealTaskError),
 }
 
-/// Builds and seals a block for derived attributes in sequence.
+/// Builds a block from derived `attributes`, seals it, and imports it as the new safe head.
 ///
-/// This is a utility function that:
-/// 1. Creates and executes a [`BuildTask`] to initiate block building
-/// 2. Creates and executes a [`SealTask`] to seal the block, referencing the initiated payload
-///
-/// The consolidate task uses it for derived attributes that it cannot consolidate, and for their
-/// deposits-only replacement.
-///
-/// # Arguments
-///
-/// * `state` - Mutable reference to the engine state
-/// * `engine` - The engine client
-/// * `cfg` - The rollup configuration
-/// * `attributes` - The derived payload attributes to build
-/// * `block_sink` - Where to hand the built block once the engine has canonicalized it
-pub(in crate::task_queue) async fn build_and_seal(
+/// Build and import run inside the same engine task, so no other task can move the unsafe head in
+/// between, and no staleness check is needed. A derivation-driven reorg legitimately builds on a
+/// parent that differs from the current unsafe head.
+pub(in crate::task_queue) async fn build_and_import(
+    engine: &EngineClient,
+    cfg: &RollupConfig,
     state: &mut EngineState,
-    engine: Arc<EngineClient>,
-    cfg: Arc<RollupConfig>,
     attributes: OpAttributesWithParent,
-    block_sink: Arc<dyn ImportedBlockSink>,
-) -> Result<(), BuildAndSealError> {
-    // Execute the build task
-    let payload_id = BuildTask::new(
-        engine.clone(),
-        cfg.clone(),
-        attributes.clone(),
-        None, // Build task doesn't send the payload yet
-    )
-    .execute(state)
-    .await?;
+    block_sink: &dyn ImportedBlockSink,
+) -> Result<(), BuildAndImportError> {
+    let payload_id = match start_build(engine, cfg, state, attributes.clone()).await {
+        Err(err) if err.is_invalid_attributes() => {
+            warn!(target: "engine", %err, "Derived attributes rejected at forkchoiceUpdated");
+            handle_rejected_attributes(engine, cfg, state, &attributes, true, block_sink).await?;
+            return Err(err.into());
+        }
+        result => result?,
+    };
 
-    // Execute the seal task with the payload ID from the build.
-    SealTask::new(
+    let payload =
+        get_payload(engine, cfg, payload_id, attributes.attributes().payload_attributes.timestamp)
+            .await?;
+    let new_block_ref = insert_payload_with_holocene_fallback(
         engine,
         cfg,
-        payload_id,
-        attributes,
+        state,
+        &attributes,
+        payload,
+        // Derived blocks are safe.
         true,
-        BuildSealCoupling::Atomic,
-        None,
         block_sink,
     )
-    .execute(state)
     .await?;
+
+    info!(
+        target: "engine",
+        l2_number = new_block_ref.block_info.number,
+        l2_time = new_block_ref.block_info.timestamp,
+        "Built and imported new safe block",
+    );
 
     Ok(())
 }
 
-/// Handles `attributes` that the engine rejected, at forkchoiceUpdated or at newPayload, by the
-/// rules of op-node's `onBuildInvalid`. op-node applies these rules at forkchoiceUpdated; at
-/// newPayload it applies only the derived and Holocene rule, while kona-node also keeps rejected
-/// deposits-only attributes critical there.
+/// Inserts a `payload` built from `attributes` into the engine. If the engine rejects the payload
+/// after Holocene and the payload was derived, it is replaced with a deposits-only block.
 ///
-/// - Rejected deposits-only attributes are critical: [`SealTaskError::DepositOnlyPayloadFailed`].
-/// - Rejected derived attributes are replaced with their deposits-only block under Holocene. The
-///   task then ends with [`SealTaskError::HoloceneInvalidFlush`], which flushes the rest of the
-///   channel, or with [`SealTaskError::DepositOnlyPayloadReattemptFailed`] if the replacement
-///   fails.
-/// - Nothing replaces other attributes, so this returns `None` and the task keeps its own error. A
-///   sequencer drops its payload and builds the next one.
-pub(in crate::task_queue) async fn handle_rejected_attributes(
+/// A successful replacement is reported as [`SealTaskError::HoloceneInvalidFlush`], whose
+/// severity tells the engine to flush the derivation pipeline's current channel. A rejected
+/// deposits-only payload has no replacement and fails with
+/// [`SealTaskError::DepositOnlyPayloadFailed`].
+pub(in crate::task_queue) async fn insert_payload_with_holocene_fallback(
+    engine: &EngineClient,
+    cfg: &RollupConfig,
     state: &mut EngineState,
-    engine: Arc<EngineClient>,
-    cfg: Arc<RollupConfig>,
+    attributes: &OpAttributesWithParent,
+    payload: OpExecutionPayloadEnvelope,
+    is_payload_safe: bool,
+    block_sink: &dyn ImportedBlockSink,
+) -> Result<L2BlockInfo, SealTaskError> {
+    match insert_payload(engine, cfg, state, payload, is_payload_safe, block_sink).await {
+        Err(err @ InsertTaskError::UnexpectedPayloadStatus(_)) => {
+            warn!(target: "engine", %err, "Payload rejected at newPayload");
+            handle_rejected_attributes(engine, cfg, state, attributes, is_payload_safe, block_sink)
+                .await?;
+            Err(SealTaskError::PayloadInsertionFailed(Box::new(err)))
+        }
+        Err(e) => {
+            error!(target: "engine", "Payload import failed: {e}");
+            Err(Box::new(e).into())
+        }
+        Ok(new_block_ref) => Ok(new_block_ref),
+    }
+}
+
+/// Applies the deposits-only and Holocene recovery rules to rejected attributes.
+/// Sequenced payloads keep their rejection; only derived payloads receive a replacement.
+/// Returns `Ok(())` when no recovery rule applies and the caller should keep its original error.
+/// A successful replacement still returns [`SealTaskError::HoloceneInvalidFlush`] to flush the
+/// current derivation channel.
+async fn handle_rejected_attributes(
+    engine: &EngineClient,
+    cfg: &RollupConfig,
+    state: &mut EngineState,
     attributes: &OpAttributesWithParent,
     is_attributes_derived: bool,
-    block_sink: Arc<dyn ImportedBlockSink>,
-) -> Option<SealTaskError> {
-    let parent = attributes.parent.block_info.id();
+    block_sink: &dyn ImportedBlockSink,
+) -> Result<(), SealTaskError> {
     if attributes.is_deposits_only() {
-        error!(target: "engine", ?parent, "Critical: the engine rejected deposits-only attributes");
-        return Some(SealTaskError::DepositOnlyPayloadFailed);
+        error!(target: "engine", "Critical: the engine rejected deposits-only attributes");
+        return Err(SealTaskError::DepositOnlyPayloadFailed);
     }
     if !is_attributes_derived ||
         !cfg.is_holocene_active(attributes.attributes().payload_attributes.timestamp)
     {
-        return None;
+        return Ok(());
+    }
+    warn!(target: "engine", "Replacing rejected derived attributes with deposits only");
+    Err(
+        match build_seal_and_insert(
+            engine,
+            cfg,
+            state,
+            attributes.as_deposits_only(),
+            true,
+            block_sink,
+        )
+        .await
+        {
+            Ok(block) => {
+                info!(
+                    target: "engine",
+                    l2_number = block.block_info.number,
+                    hash = %block.block_info.hash,
+                    "Successfully imported deposits-only payload"
+                );
+                SealTaskError::HoloceneInvalidFlush
+            }
+            Err(err) => {
+                error!(target: "engine", %err, "Critical: deposits-only replacement failed");
+                SealTaskError::DepositOnlyPayloadReattemptFailed
+            }
+        },
+    )
+}
+
+/// Builds a block from `attributes`, seals it, and inserts it, without the Holocene fallback.
+async fn build_seal_and_insert(
+    engine: &EngineClient,
+    cfg: &RollupConfig,
+    state: &mut EngineState,
+    attributes: OpAttributesWithParent,
+    is_payload_safe: bool,
+    block_sink: &dyn ImportedBlockSink,
+) -> Result<L2BlockInfo, BuildAndImportError> {
+    let timestamp = attributes.attributes().payload_attributes.timestamp;
+    let payload_id = start_build(engine, cfg, state, attributes).await?;
+    let payload = get_payload(engine, cfg, payload_id, timestamp).await?;
+    insert_payload(engine, cfg, state, payload, is_payload_safe, block_sink)
+        .await
+        .map_err(|err| SealTaskError::PayloadInsertionFailed(Box::new(err)).into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        EngineTaskError, EngineTaskErrorSeverity, NoopBlockSink,
+        test_utils::{
+            TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
+        },
+    };
+    use alloy_consensus::Block;
+    use alloy_primitives::Bytes;
+    use alloy_rpc_types_engine::{
+        ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3, ForkchoiceUpdated, PayloadId,
+        PayloadStatus, PayloadStatusEnum,
+    };
+    use op_alloy_consensus::{OpTxEnvelope, OpTxType};
+    use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
+    use rstest::rstest;
+    use std::sync::Arc;
+
+    /// A derivation-driven reorg builds on a parent other than the current unsafe head. Unlike a
+    /// queued seal, the build and import must proceed instead of aborting as stale.
+    #[tokio::test]
+    async fn build_and_import_proceeds_on_a_parent_other_than_the_unsafe_head() {
+        let parent = test_block_info(10);
+        let attributes = TestAttributesBuilder::new().with_parent(parent).build();
+        let mut cfg = RollupConfig::default();
+        // Use `engine_forkchoiceUpdatedV3` to start the build.
+        cfg.hardforks.ecotone_time = Some(attributes.attributes().payload_attributes.timestamp);
+        let (engine, l1, l2) = test_engine_client(Arc::new(cfg.clone()));
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            ForkchoiceUpdated {
+                payload_status: PayloadStatus::from_status(PayloadStatusEnum::Valid),
+                payload_id: Some(PayloadId::new([1u8; 8])),
+            },
+        );
+        l2.expect_error("engine_getPayloadV3");
+        let mut state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(15)).build();
+
+        let result = build_and_import(&engine, &cfg, &mut state, attributes, &NoopBlockSink).await;
+
+        // The injected payload-fetch failure shows the build was not aborted as stale.
+        assert!(
+            matches!(result, Err(BuildAndImportError::Seal(SealTaskError::GetPayloadFailed(_)))),
+            "{result:?}"
+        );
+        l1.assert_finished();
+        l2.assert_finished();
     }
 
-    warn!(target: "engine", ?parent, "Replacing rejected derived attributes with deposits only");
-    let deposits_only = attributes.as_deposits_only();
-    Some(match build_and_seal(state, engine, cfg, deposits_only, block_sink).await {
-        Ok(()) => {
-            info!(target: "engine", "Successfully imported deposits-only payload");
-            SealTaskError::HoloceneInvalidFlush
+    /// Recovery must import the replacement and request a channel flush at either rejection point.
+    #[rstest]
+    #[tokio::test]
+    async fn successful_replacement_still_flushes(#[values(true, false)] rejected_at_build: bool) {
+        let mut block = Block::<OpTxEnvelope>::default();
+        block.header.base_fee_per_gas = Some(0);
+        block.header.withdrawals_root = Some(alloy_consensus::EMPTY_ROOT_HASH);
+        block.header.parent_beacon_block_root = Some(Default::default());
+        block.header.blob_gas_used = Some(0);
+        block.header.excess_blob_gas = Some(0);
+        let payload = OpExecutionPayloadEnvelope::V3 {
+            payload: ExecutionPayloadV3::from_block_slow(&block),
+            parent_beacon_block_root: Default::default(),
+        };
+        let attributes = TestAttributesBuilder::new()
+            .with_transactions(vec![Bytes::from(vec![OpTxType::Legacy as u8, 0xaa])])
+            .build();
+        let mut cfg = RollupConfig::default();
+        cfg.hardforks.holocene_time = Some(0);
+        // Pin the synthetic replacement to genesis so decoding needs no L1-info transaction.
+        cfg.genesis.l2 =
+            alloy_eips::BlockNumHash::new(payload.block_number(), payload.block_hash());
+        let (engine, l1, l2) = test_engine_client(Arc::new(cfg.clone()));
+        if rejected_at_build {
+            l2.expect_error_code("engine_forkchoiceUpdatedV3", -38003);
+        } else {
+            l2.expect(
+                "engine_newPayloadV3",
+                PayloadStatus::from_status(PayloadStatusEnum::Invalid {
+                    validation_error: "invalid".into(),
+                }),
+            );
         }
-        Err(err) => {
-            error!(target: "engine", %err, "Critical: deposits-only replacement failed");
-            SealTaskError::DepositOnlyPayloadReattemptFailed
+        let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            ForkchoiceUpdated { payload_status: valid(), payload_id: Some(PayloadId::new([1; 8])) },
+        );
+        l2.expect(
+            "engine_getPayloadV3",
+            OpExecutionPayloadEnvelopeV3 {
+                execution_payload: ExecutionPayloadV3::from_block_slow(&block),
+                block_value: Default::default(),
+                blobs_bundle: Default::default(),
+                should_override_builder: false,
+                parent_beacon_block_root: Default::default(),
+            },
+        );
+        l2.expect("engine_newPayloadV3", valid());
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            ForkchoiceUpdated { payload_status: valid(), payload_id: None },
+        );
+        let mut state = EngineState::default();
+
+        let err = if rejected_at_build {
+            match build_and_import(&engine, &cfg, &mut state, attributes, &NoopBlockSink).await {
+                Err(BuildAndImportError::Seal(err)) => err,
+                other => panic!("expected a seal error after recovery, got {other:?}"),
+            }
+        } else {
+            insert_payload_with_holocene_fallback(
+                &engine,
+                &cfg,
+                &mut state,
+                &attributes,
+                payload.clone(),
+                true,
+                &NoopBlockSink,
+            )
+            .await
+            .expect_err("successful recovery must request a flush")
+        };
+
+        assert!(matches!(err, SealTaskError::HoloceneInvalidFlush), "{err:?}");
+        assert_eq!(err.severity(), EngineTaskErrorSeverity::Flush);
+        assert_eq!(state.sync_state.unsafe_head().block_info.hash, payload.block_hash());
+        assert_eq!(state.sync_state.safe_head(), state.sync_state.unsafe_head());
+        assert_eq!(state.sync_state.local_safe_head(), state.sync_state.unsafe_head());
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// How the engine responds when the payload is rejected and the Holocene fallback is or is not
+    /// available.
+    #[derive(Debug)]
+    enum Fallback {
+        /// The rejected payload was already deposits-only, so nothing can replace it.
+        DepositsOnlyRejected,
+        /// Holocene is not active, so the rejection is returned as is.
+        PreHolocene,
+        /// Holocene is active, and the deposits-only replacement is rejected too.
+        ReplacementRejected,
+    }
+
+    #[rstest]
+    #[case::deposits_only_rejected(Fallback::DepositsOnlyRejected)]
+    #[case::pre_holocene(Fallback::PreHolocene)]
+    #[case::replacement_rejected(Fallback::ReplacementRejected)]
+    #[tokio::test]
+    async fn rejected_payload_fallback(#[case] fallback: Fallback) {
+        let payload = ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
+        let mut attributes = TestAttributesBuilder::new().with_parent(test_block_info(0));
+        if !matches!(fallback, Fallback::DepositsOnlyRejected) {
+            attributes =
+                attributes.with_transactions(vec![Bytes::from(vec![OpTxType::Legacy as u8, 0xaa])]);
         }
-    })
+        let attributes = attributes.build();
+        let mut cfg = RollupConfig::default();
+        if !matches!(fallback, Fallback::PreHolocene) {
+            cfg.hardforks.holocene_time = Some(0);
+        }
+        let (engine, l1, l2) = test_engine_client(Arc::new(cfg.clone()));
+        let invalid = || {
+            PayloadStatus::from_status(PayloadStatusEnum::Invalid {
+                validation_error: "invalid".into(),
+            })
+        };
+        l2.expect("engine_newPayloadV1", invalid());
+        if matches!(fallback, Fallback::ReplacementRejected) {
+            l2.expect(
+                "engine_forkchoiceUpdatedV3",
+                ForkchoiceUpdated {
+                    payload_status: PayloadStatus::from_status(PayloadStatusEnum::Valid),
+                    payload_id: Some(PayloadId::new([1u8; 8])),
+                },
+            );
+            l2.expect(
+                "engine_getPayloadV3",
+                OpExecutionPayloadEnvelopeV3 {
+                    execution_payload: ExecutionPayloadV3 {
+                        payload_inner: ExecutionPayloadV2 {
+                            payload_inner: payload.clone(),
+                            withdrawals: vec![],
+                        },
+                        blob_gas_used: 0,
+                        excess_blob_gas: 0,
+                    },
+                    block_value: Default::default(),
+                    blobs_bundle: Default::default(),
+                    should_override_builder: false,
+                    parent_beacon_block_root: Default::default(),
+                },
+            );
+            l2.expect("engine_newPayloadV3", invalid());
+        }
+        let mut state = EngineState::default();
+
+        let result = insert_payload_with_holocene_fallback(
+            &engine,
+            &cfg,
+            &mut state,
+            &attributes,
+            OpExecutionPayloadEnvelope::V1(payload),
+            true,
+            &NoopBlockSink,
+        )
+        .await;
+
+        match fallback {
+            Fallback::DepositsOnlyRejected => {
+                assert!(
+                    matches!(result, Err(SealTaskError::DepositOnlyPayloadFailed)),
+                    "{result:?}"
+                )
+            }
+            Fallback::PreHolocene => assert!(
+                matches!(
+                    &result,
+                    Err(SealTaskError::PayloadInsertionFailed(err))
+                        if matches!(**err, InsertTaskError::UnexpectedPayloadStatus(_))
+                ),
+                "{result:?}"
+            ),
+            Fallback::ReplacementRejected => assert!(
+                matches!(result, Err(SealTaskError::DepositOnlyPayloadReattemptFailed)),
+                "{result:?}"
+            ),
+        }
+        assert_eq!(state, EngineState::default(), "a rejected payload must not change forkchoice");
+        l1.assert_finished();
+        l2.assert_finished();
+    }
 }

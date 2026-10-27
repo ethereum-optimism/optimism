@@ -1,4 +1,4 @@
-//! Contains error types for the [`crate::SynchronizeTask`].
+//! Contains error types for the [`crate::BuildTask`].
 
 use crate::{EngineTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
 use alloy_rpc_types_engine::{INVALID_PAYLOAD_ATTRIBUTES_ERROR, PayloadId, PayloadStatusEnum};
@@ -42,12 +42,25 @@ pub enum EngineBuildError {
     EngineSyncing,
 }
 
+impl EngineBuildError {
+    /// Whether forkchoiceUpdated rejected the attributes with -38003 or INVALID.
+    pub fn is_invalid_attributes(&self) -> bool {
+        match self {
+            Self::AttributesInsertionFailed(err) => err
+                .as_error_resp()
+                .is_some_and(|resp| resp.code == i64::from(INVALID_PAYLOAD_ATTRIBUTES_ERROR)),
+            Self::InvalidPayload(_) => true,
+            _ => false,
+        }
+    }
+}
+
 /// An error that occurs when running the [`crate::BuildTask`].
 #[derive(Debug, Error)]
 pub enum BuildTaskError {
     /// An error occurred when building the payload attributes in the engine.
     #[error("An error occurred when building the payload attributes to the engine.")]
-    EngineBuildError(EngineBuildError),
+    EngineBuildError(#[from] EngineBuildError),
     /// Error sending the built payload envelope.
     #[error(transparent)]
     MpscSend(#[from] Box<mpsc::error::SendError<PayloadId>>),
@@ -57,11 +70,8 @@ impl BuildTaskError {
     /// Whether forkchoiceUpdated rejected the attributes with -38003 or INVALID.
     pub fn is_invalid_attributes(&self) -> bool {
         match self {
-            Self::EngineBuildError(EngineBuildError::AttributesInsertionFailed(err)) => err
-                .as_error_resp()
-                .is_some_and(|resp| resp.code == i64::from(INVALID_PAYLOAD_ATTRIBUTES_ERROR)),
-            Self::EngineBuildError(EngineBuildError::InvalidPayload(_)) => true,
-            _ => false,
+            Self::EngineBuildError(err) => err.is_invalid_attributes(),
+            Self::MpscSend(_) => false,
         }
     }
 }
