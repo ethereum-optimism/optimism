@@ -147,7 +147,13 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                     error!(target: "node::p2p", "The enr receiver channel has closed");
                     return Err(NetworkActorError::ChannelClosed);
                 };
-                self.handler.gossip.dial(enr);
+                // Discovery hands over the ENRs of connected peers again and again.
+                let gossip = &mut self.handler.gossip;
+                if let Some((peer_id, addr)) = gossip.enr_to_multiaddr(&enr) &&
+                    !gossip.is_connected(&peer_id)
+                {
+                    gossip.dial_peer(peer_id, [addr]);
+                }
                 Ok(())
             }
             _ = self.handler.peer_score_inspector.tick(), if self.handler.gossip.peer_monitoring.as_ref().is_some() => {

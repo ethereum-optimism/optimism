@@ -283,19 +283,30 @@ where
         self.swarm.connected_peers().count()
     }
 
-    /// Dials the given [`Enr`].
-    pub fn dial(&mut self, enr: Enr) {
-        let validation = EnrValidation::validate(&enr, self.handler.rollup_config.l2_chain_id.id());
+    /// Returns whether the swarm has a connection to `peer_id`.
+    pub fn is_connected(&self, peer_id: &PeerId) -> bool {
+        self.swarm.is_connected(peer_id)
+    }
+
+    /// Returns the peer ID and gossip address that an [`Enr`] from discovery gives, for
+    /// [`Self::dial_peer`].
+    ///
+    /// Returns `None` for an ENR of another OP Stack chain, or one without a TCP socket.
+    pub fn enr_to_multiaddr(&self, enr: &Enr) -> Option<(PeerId, Multiaddr)> {
+        let chain_id = self.handler.rollup_config.l2_chain_id.id();
+        let validation = EnrValidation::validate(enr, chain_id);
         if validation.is_invalid() {
-            trace!(target: "gossip", "Invalid OP Stack ENR for chain id {}: {}", self.handler.rollup_config.l2_chain_id.id(), validation);
-            return;
+            trace!(target: "gossip", "Invalid OP Stack ENR for chain id {chain_id}: {validation}");
+            return None;
         }
-        let Some(multiaddr) = enr_to_multiaddr(&enr) else {
+        let Some(addr) = enr_to_multiaddr(enr) else {
             debug!(target: "gossip", "Failed to extract tcp socket from enr: {:?}", enr);
             metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_enr").increment(1);
-            return;
+            return None;
         };
-        self.dial_multiaddr(multiaddr);
+        // `enr_to_multiaddr` ends the address in the peer ID.
+        let peer_id = ConnectionGater::peer_id_from_addr(&addr)?;
+        Some((peer_id, addr))
     }
 
     /// Dials the given [`Multiaddr`], which must end in the peer's `/p2p/<peer id>`.
@@ -315,9 +326,9 @@ where
     /// refuses are left out, and nothing is dialed if it refuses them all. The rest make a single
     /// dial, in which libp2p tries several addresses at once and keeps the first connection.
     pub fn dial_peer(&mut self, peer_id: PeerId, addrs: impl IntoIterator<Item = Multiaddr>) {
-        // Discovery hands over the ENRs of connected peers again and again. So this is checked
-        // before the gate, which would refuse it as already dialing or count it as a dial.
-        if self.swarm.is_connected(&peer_id) {
+        // Callers should not dial connected peers, so this is counted as a dial error. It is
+        // checked before the gate, which would refuse it as already dialing or count it as a dial.
+        if self.is_connected(&peer_id) {
             debug!(target: "gossip", ?peer_id, "Already connected to peer, not dialing");
             metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected")
                 .increment(1);
@@ -837,7 +848,7 @@ mod tests {
         driver_1.dial_peer(peer_2, [unused_memory_addr(peer_2), addr_2.clone()]);
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
-        assert!(driver_1.swarm.is_connected(&peer_2));
+        assert!(driver_1.is_connected(&peer_2));
         let gate = &driver_1.connection_gate;
         assert_eq!(gate.dialed_addrs[&unused_memory_addr(peer_2)].num_dials, 1);
         assert_eq!(gate.dialed_addrs[&addr_2].num_dials, 1);
@@ -918,7 +929,42 @@ mod tests {
         driver_1.start().await.expect("listen");
 
         poll_until_connected(&mut driver_1, &mut driver_2).await;
-        assert!(driver_1.swarm.is_connected(&peer_2));
+        assert!(driver_1.is_connected(&peer_2));
+    }
+
+    /// An ENR for `chain_id` signed with `keypair`, with an IPv4 socket that has a TCP port only
+    /// if `tcp` is set.
+    fn enr(keypair: &libp2p_identity::Keypair, chain_id: u64, tcp: bool) -> discv5::Enr {
+        use alloy_rlp::Encodable;
+        let mut secret = keypair.clone().try_into_secp256k1().unwrap().secret().to_bytes();
+        let key = enr::CombinedKey::secp256k1_from_bytes(&mut secret).unwrap();
+        let mut opstack = Vec::new();
+        kona_peers::OpStackEnr::from_chain_id(chain_id).encode(&mut opstack);
+        let mut builder = discv5::Enr::builder();
+        builder.ip4(std::net::Ipv4Addr::LOCALHOST).udp4(9223);
+        if tcp {
+            builder.tcp4(9222);
+        }
+        builder.add_value_rlp(kona_peers::OpStackEnr::OP_CL_KEY, opstack.into());
+        builder.build(&key).unwrap()
+    }
+
+    /// An ENR from discovery gives the peer ID and TCP address to dial, if it is for this chain
+    /// and has a TCP port.
+    #[test]
+    fn test_enr_to_multiaddr() {
+        let driver = memory_driver();
+        let chain_id = driver.handler.rollup_config.l2_chain_id.id();
+        let keypair = libp2p_identity::Keypair::generate_secp256k1();
+        let peer_id = keypair.public().to_peer_id();
+
+        let expected: Multiaddr = format!("/ip4/127.0.0.1/tcp/9222/p2p/{peer_id}").parse().unwrap();
+        assert_eq!(
+            driver.enr_to_multiaddr(&enr(&keypair, chain_id, true)),
+            Some((peer_id, expected))
+        );
+        assert_eq!(driver.enr_to_multiaddr(&enr(&keypair, chain_id + 1, true)), None);
+        assert_eq!(driver.enr_to_multiaddr(&enr(&keypair, chain_id, false)), None);
     }
 
     /// A dial that connects is no longer in flight in the gate.

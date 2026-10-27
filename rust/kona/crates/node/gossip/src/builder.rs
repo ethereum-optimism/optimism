@@ -425,7 +425,7 @@ pub(crate) mod tests {
 
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
-        assert!(driver_1.swarm.is_connected(&peer_2));
-        assert!(driver_2.swarm.is_connected(driver_1.local_peer_id()));
+        assert!(driver_1.is_connected(&peer_2));
+        assert!(driver_2.is_connected(driver_1.local_peer_id()));
     }
 }
