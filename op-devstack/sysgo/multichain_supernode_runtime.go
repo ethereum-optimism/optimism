@@ -170,7 +170,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 	}
 	var l1EL *L1Geth
 	var l1CL *L1CLNode
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorld(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
+	migration, l1Net, l2Net, depSet := buildSingleChainWorld(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
 		func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
 			l1EL, l1CL = startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 			return l1EL, l1CL
@@ -323,12 +323,7 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 		interopActivationTimestamp = &activationTime
 	}
 
-	var depSet *depset.StaticConfigDependencySet
-	if wb.outFullCfgSet.DependencySet != nil {
-		cast, ok := wb.outFullCfgSet.DependencySet.(*depset.StaticConfigDependencySet)
-		require.True(ok, "expected static dependency set")
-		depSet = cast
-	}
+	depSet := wb.output.InteropDepSet
 	if cfg.MessageExpiryWindow != nil && depSet != nil {
 		depSet, err = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
 			depSet.Dependencies(), *cfg.MessageExpiryWindow)
@@ -338,8 +333,6 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 	var runtimeDepSet depset.DependencySet
 	if depSet != nil {
 		runtimeDepSet = depSet
-	} else {
-		runtimeDepSet = wb.outFullCfgSet.DependencySet
 	}
 
 	supernode, supernodeCLs := startSharedSupernode(

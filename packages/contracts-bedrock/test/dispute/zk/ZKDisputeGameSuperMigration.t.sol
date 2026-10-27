@@ -31,7 +31,7 @@ import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManager
 /// @title ZKDisputeGameSuperMigration_Test
 /// @notice Integration test exercising Path A (SFDG -> ZKDG) and Path B (SPDG -> ZKDG): migrating an
 ///         isolated chain's respected super game to the ZK dispute game via the real
-///         `OPCMv2.upgrade()` flow (the same flow the `op-deployer manage` commands invoke). Asserts
+///         `OPCMv2.upgrade()` flow (the same flow that a ProxyAdmin owner calls). Asserts
 ///         (1) the upgrade succeeds (ZK registered, source super game cleared, respected type flipped
 ///         to ZK), (2) a ZK game can be created, proven, resolved, and finalized in place of the
 ///         super game (closeGame -> valid claim -> anchor advances), (3) a super game created

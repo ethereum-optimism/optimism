@@ -10,10 +10,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/holiman/uint256"
 	"github.com/urfave/cli/v2"
 )
 
@@ -99,11 +100,9 @@ type continuationRunner struct {
 	l1Client   *ethclient.Client
 	deployer   common.Address
 	pinnedOPCM common.Address
-	artifacts  artifacts.Bundle
 
 	expectedNonce uint64
-	preflightEnv  *pipeline.Env
-	capture       *broadcaster.CaptureBroadcaster
+	forgeClient   *forge.Client
 }
 
 type continuationChain struct {
@@ -153,6 +152,10 @@ func (r *continuationRunner) run() error {
 	if err := pipeline.ValidatePreparedArtifactContents(st.PreparedDeployment, bundle); err != nil {
 		return fmt.Errorf("failed to validate prepared artifacts: %w", err)
 	}
+	r.forgeClient, err = opcm.NewForgeClient(bundle.L1, r.cfg.CacheDir, continuationForgeScripts)
+	if err != nil {
+		return err
+	}
 
 	l1RPC, err := rpc.DialContext(r.ctx, r.cfg.L1RPCUrl)
 	if err != nil {
@@ -164,7 +167,6 @@ func (r *continuationRunner) run() error {
 	r.state = st
 	r.l1RPC = l1RPC
 	r.l1Client = l1Client
-	r.artifacts = bundle
 
 	if err := validateL1ChainID(r.ctx, l1RPC, st.PreparedDeployment.Intent); err != nil {
 		return err
@@ -194,10 +196,8 @@ func (r *continuationRunner) run() error {
 	if err := validateContinuationGameTypes(pending, superRoot, pinnedOPCM); err != nil {
 		return err
 	}
-	for i := range pending {
-		if err := r.preflight(&pending[i]); err != nil {
-			return err
-		}
+	if err := r.preflightAll(pending); err != nil {
+		return err
 	}
 	for i := range pending {
 		if err := r.broadcastAndCheckpoint(&pending[i]); err != nil {
@@ -360,20 +360,20 @@ func (r *continuationRunner) reconcileLiveChain(
 	); err != nil {
 		return fmt.Errorf("already-live deployment validation failed for chain %s: %w", chainID.Hex(), err)
 	}
-	if err := r.initPreflightEnv(); err != nil {
-		return err
+	// The readback only reads L1, so it runs on L1 itself, without a key.
+	readEnv := &pipeline.Env{
+		Logger:  r.cfg.Logger,
+		Forge:   &opcm.ForgeEnv{Client: r.forgeClient, Context: r.ctx, L1RPCUrl: r.cfg.L1RPCUrl},
+		Context: r.ctx,
 	}
 	result, err := pipeline.ReconcileOPChainDeployment(
-		r.preflightEnv,
+		readEnv,
 		chainID,
 		expected.OpChainContracts,
 		r.pinnedOPCM,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to normalize already-live deployment for chain %s: %w", chainID.Hex(), err)
-	}
-	if captured := r.capture.Drain(); len(captured) != 0 {
-		return fmt.Errorf("implementation readback unexpectedly captured %d broadcasts for chain %s", len(captured), chainID.Hex())
 	}
 	if err := pipeline.RecordOPChainDeployment(r.state, result); err != nil {
 		return fmt.Errorf("failed to record reconciled deployment for chain %s: %w", chainID.Hex(), err)
@@ -388,21 +388,50 @@ func (r *continuationRunner) reconcileLiveChain(
 	return nil
 }
 
-func (r *continuationRunner) preflight(chain *continuationChain) error {
-	if err := r.initPreflightEnv(); err != nil {
-		return err
+// preflightAll simulates all pending deployments on one L1 fork, so each sees the ones before it.
+func (r *continuationRunner) preflightAll(pending []continuationChain) error {
+	if len(pending) == 0 {
+		return nil
 	}
-	result, err := pipeline.ExecuteOPChainDeployment(r.preflightEnv, r.state, chain.id, chain.dci)
+	fork, err := startL1Fork(r.ctx, r.l1Client, r.cfg.L1RPCUrl, r.deployer, r.forgeClient, r.cfg.CacheDir)
+	if err != nil {
+		return fmt.Errorf("failed to start the continuation preflight: %w", err)
+	}
+	defer func() {
+		if err := fork.stop(); err != nil {
+			r.cfg.Logger.Warn("failed to stop the L1 fork", "err", err)
+		}
+	}()
+	for i := range pending {
+		if err := r.preflight(fork, &pending[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *continuationRunner) preflight(fork *l1Fork, chain *continuationChain) error {
+	env := &pipeline.Env{
+		StateWriter: pipeline.NoopStateWriter(),
+		Deployer:    r.deployer,
+		Logger:      r.cfg.Logger,
+		Forge:       fork.forge,
+		Context:     r.ctx,
+	}
+	result, err := pipeline.ExecuteOPChainDeployment(env, r.state, chain.id, chain.dci)
 	if err != nil {
 		return fmt.Errorf("continuation preflight failed for chain %s: %w", chain.id.Hex(), err)
 	}
-	captured := r.capture.Drain()
+	captured, err := fork.transactions(r.ctx)
+	if err != nil {
+		return fmt.Errorf("continuation preflight failed for chain %s: %w", chain.id.Hex(), err)
+	}
 	if err := validateContinuationBroadcast(captured, r.deployer, r.pinnedOPCM); err != nil {
 		return fmt.Errorf("continuation preflight failed for chain %s: %w", chain.id.Hex(), err)
 	}
 	if err := verifyContinuationDeployment(
 		r.ctx,
-		newScriptHostReadBackend(r.preflightEnv.L1ScriptHost),
+		fork.client,
 		result.Contracts(),
 		&chain.expected,
 		chain.dci,
@@ -414,31 +443,10 @@ func (r *continuationRunner) preflight(chain *continuationChain) error {
 	return nil
 }
 
-func (r *continuationRunner) initPreflightEnv() error {
-	if r.preflightEnv != nil {
-		return nil
-	}
-	capture := new(broadcaster.CaptureBroadcaster)
-	l1Host, err := env.DefaultForkedScriptHost(r.ctx, capture, r.cfg.Logger, r.deployer, r.artifacts.L1, r.l1RPC)
-	if err != nil {
-		return fmt.Errorf("failed to initialize L1 preflight host: %w", err)
-	}
-	scripts, err := opcm.NewScripts(l1Host)
-	if err != nil {
-		return fmt.Errorf("failed to load OPCM scripts: %w", err)
-	}
-	r.capture = capture
-	r.preflightEnv = &pipeline.Env{
-		StateWriter:  pipeline.NoopStateWriter(),
-		L1ScriptHost: l1Host,
-		L1Client:     r.l1Client,
-		Broadcaster:  capture,
-		Deployer:     r.deployer,
-		Logger:       r.cfg.Logger,
-		Scripts:      scripts,
-		Context:      r.ctx,
-	}
-	return nil
+// continuationForgeScripts are the scripts that the continue preflight runs.
+var continuationForgeScripts = []opcm.ForgeScript{
+	{File: "DeployOPChain.s.sol", Contract: "DeployOPChain"},
+	{File: "ReadImplementationAddresses.s.sol", Contract: "ReadImplementationAddresses"},
 }
 
 func (r *continuationRunner) broadcastAndCheckpoint(chain *continuationChain) error {
@@ -692,6 +700,10 @@ func validateContinuationBroadcast(
 	}
 	if bcast.From != deployer {
 		return fmt.Errorf("deployment broadcast sender mismatch: expected %s, got %s", deployer, bcast.From)
+	}
+	// OPCM.deploy is not payable.
+	if bcast.Value != nil && !(*uint256.Int)(bcast.Value).IsZero() {
+		return fmt.Errorf("deployment broadcast has value %s", (*uint256.Int)(bcast.Value))
 	}
 	return nil
 }

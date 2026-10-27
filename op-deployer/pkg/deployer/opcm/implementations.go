@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -68,13 +67,6 @@ type DeployImplementationsOutput struct {
 	SP1PlonkAdapterSingleton         common.Address `json:"sp1PlonkAdapterSingletonAddress" abi:"sp1PlonkAdapterSingleton"`
 }
 
-type DeployImplementationsScript script.DeployScriptWithOutput[DeployImplementationsInput, DeployImplementationsOutput]
-
-// NewDeployImplementationsScript loads and validates the DeployImplementations script contract
-func NewDeployImplementationsScript(host *script.Host) (DeployImplementationsScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployImplementationsInput, DeployImplementationsOutput](host, "DeployImplementations.s.sol", "DeployImplementations")
-}
-
 func NewDeployImplementationsForgeCaller(client *forge.Client) forge.ScriptCaller[DeployImplementationsInput, DeployImplementationsOutput] {
 	return forge.NewScriptCaller(
 		client,
@@ -85,15 +77,9 @@ func NewDeployImplementationsForgeCaller(client *forge.Client) forge.ScriptCalle
 	)
 }
 
-// DeployImplementationsViaForge deploys implementation contracts using Forge
-func DeployImplementationsViaForge(env *ForgeEnv, input DeployImplementationsInput) (DeployImplementationsOutput, error) {
-	var output DeployImplementationsOutput
-	if err := env.validate(true); err != nil {
-		return output, err
-	}
-	forgeCaller := NewDeployImplementationsForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOpts()...)
+// DeployImplementations deploys implementation contracts using Forge
+func DeployImplementations(env *ForgeEnv, input DeployImplementationsInput) (DeployImplementationsOutput, error) {
+	output, err := broadcastScript(env, NewDeployImplementationsForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy implementations with Forge: %w", err)
 	}

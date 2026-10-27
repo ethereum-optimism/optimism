@@ -2,51 +2,59 @@ package opcm
 
 import (
 	"context"
+	"math/big"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/holiman/uint256"
-
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
-	"github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
+	opbindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 func TestSetDisputeGameImpl(t *testing.T) {
 	t.Parallel()
 
-	_, artifacts := testutil.LocalArtifacts(t)
-
 	l1RPCUrl := os.Getenv("SEPOLIA_RPC_URL")
 	require.NotEmpty(t, l1RPCUrl, "SEPOLIA_RPC_URL must be set")
 
-	l1RPC, err := rpc.Dial(l1RPCUrl)
-	require.NoError(t, err)
-
-	// OP Sepolia DGF owner
-	deployer := common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2")
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		deployer,
-		artifacts,
-		l1RPC,
-	)
+	l1Client, err := ethclient.DialContext(ctx, l1RPCUrl)
 	require.NoError(t, err)
+	head, err := l1Client.HeaderByNumber(ctx, nil)
+	require.NoError(t, err)
+
+	anvil, err := forge.NewAnvilBinary()
+	require.NoError(t, err)
+	fork, err := forge.StartFork(ctx, anvil, l1RPCUrl, bigs.Uint64Strict(head.Number))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, fork.Stop()) })
+
+	_, afs := testutil.LocalArtifacts(t)
+	client, err := NewForgeClient(afs, "", L1ForgeScripts)
+	require.NoError(t, err)
+	// OP Sepolia DGF owner, a Safe with no ETH for gas.
+	owner := common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2")
+	forkClient, err := ethclient.DialContext(ctx, fork.RPCURL())
+	require.NoError(t, err)
+	defer forkClient.Close()
+	require.NoError(t, forkClient.Client().CallContext(ctx, nil, "anvil_setBalance", owner, (*hexutil.Big)(big.NewInt(params.Ether))))
+	env := &ForgeEnv{
+		Client:         client,
+		Context:        ctx,
+		L1RPCUrl:       fork.RPCURL(),
+		UnlockedSender: owner,
+	}
 
 	// Use OP Sepolia's dispute game factory
 	factoryAddr := common.HexToAddress("0x05F9613aDB30026FFd634f38e5C4dFd30a197Fa1")
@@ -54,7 +62,11 @@ func TestSetDisputeGameImpl(t *testing.T) {
 	gameArgs := gameargs.GameArgs{}.PackPermissionless()
 	// Backwards compatibility for DisputeGameFactory prior to adding game args
 	// Can be removed once sepolia is upgraded.
-	if contractVersion(t, host, factoryAddr) == "1.2.0" {
+	factory, err := opbindings.NewDisputeGameFactory(factoryAddr, l1Client)
+	require.NoError(t, err)
+	version, err := factory.Version(&bind.CallOpts{Context: ctx})
+	require.NoError(t, err)
+	if version == "1.2.0" {
 		gameArgs = nil
 	}
 
@@ -65,15 +77,11 @@ func TestSetDisputeGameImpl(t *testing.T) {
 		AnchorStateRegistry: common.Address{}, // Do not set as respected game type as we aren't authorized
 		GameArgs:            gameArgs,
 	}
-	require.NoError(t, SetDisputeGameImpl(host, input))
-}
+	require.NoError(t, SetDisputeGameImpl(env, input))
 
-func contractVersion(t *testing.T, host *script.Host, factoryAddr common.Address) string {
-	versionSelector := crypto.Keccak256([]byte("version()"))[:4]
-	data, _, err := host.Call(common.Address{}, factoryAddr, versionSelector, 1_000_000, uint256.NewInt(0))
+	forkFactory, err := opbindings.NewDisputeGameFactory(factoryAddr, forkClient)
 	require.NoError(t, err)
-	decoded, err := (abi.Arguments{{Type: abi.Type{T: abi.StringTy}}}).Unpack(data)
+	impl, err := forkFactory.GameImpls(&bind.CallOpts{Context: ctx}, input.GameType)
 	require.NoError(t, err)
-	version := decoded[0].(string)
-	return version
+	require.Equal(t, input.Impl, impl)
 }

@@ -55,111 +55,29 @@ func ResolveSuperchainProofParams(intent *state.Intent) (state.SuperchainProofPa
 
 func DeployImplementations(env *Env, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-implementations")
-	if env.DeployMockSP1Verifier && !env.IsGenesis {
-		return fmt.Errorf("mock SP1 verifier deployment is only supported for genesis")
-	}
-
-	requestedSP1Verifier, hasSP1VerifierOverride, err := parseSP1VerifierOverride(intent.GlobalDeployOverrides)
+	input, err := implementationsInput(env, intent, st)
 	if err != nil {
 		return err
 	}
-	if hasSP1VerifierOverride && requestedSP1Verifier == (common.Address{}) {
-		return fmt.Errorf("sp1Verifier override must not be zero")
-	}
-	proofParams, err := ResolveSuperchainProofParams(intent)
-	if err != nil {
-		return fmt.Errorf("error merging proof params from overrides: %w", err)
-	}
-	zkEnabled := devfeatures.IsDevFeatureEnabled(proofParams.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
-	if !zkEnabled && hasSP1VerifierOverride {
-		return fmt.Errorf("sp1Verifier must not be specified when ZK dispute games are disabled")
-	}
-	selectedSP1Verifier := requestedSP1Verifier
-	if intent.OPCMAddress == nil && zkEnabled && !hasSP1VerifierOverride && !env.DeployMockSP1Verifier {
-		// A generated genesis contains no release-approved verifier, so it must be selected explicitly.
-		if env.IsGenesis {
-			return fmt.Errorf("sp1Verifier must be specified when ZK dispute games are enabled")
-		}
-		selectedSP1Verifier, err = standard.SP1VerifierFor(intent.L1ChainID)
-		if err != nil {
-			return fmt.Errorf("sp1Verifier must be specified when ZK dispute games are enabled on L1 chain ID %d: %w", intent.L1ChainID, err)
-		}
-	}
-
-	if !shouldDeployImplementations(intent, st) {
-		if hasSP1VerifierOverride {
-			if env.IsGenesis {
-				if st.SP1Verifier == nil || *st.SP1Verifier == (common.Address{}) {
-					return fmt.Errorf("reused genesis implementations do not record an SP1 verifier")
-				}
-				if requestedSP1Verifier != *st.SP1Verifier {
-					return fmt.Errorf("sp1Verifier %s does not match %s recorded for the reused implementations", requestedSP1Verifier, *st.SP1Verifier)
-				}
-			} else {
-				if err := validateReusedSP1Verifier(env, st.ImplementationsDeployment.SP1PlonkAdapterImpl, requestedSP1Verifier); err != nil {
-					return err
-				}
-			}
-		} else if intent.OPCMAddress == nil && zkEnabled {
-			if st.SP1Verifier == nil || *st.SP1Verifier == (common.Address{}) {
-				return fmt.Errorf("reused ZK implementations do not record an SP1 verifier")
-			}
-		}
+	if input == nil {
 		lgr.Info("implementations deployment not needed")
 		return nil
 	}
 
 	lgr.Info("deploying implementations")
-
-	var dio opcm.DeployImplementationsOutput
-	input := opcm.DeployImplementationsInput{
-		MinWithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.MinWithdrawalDelaySeconds),
-		MaxWithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.MaxWithdrawalDelaySeconds),
-		MinProposalSizeBytes:               new(big.Int).SetUint64(proofParams.MinProposalSizeBytes),
-		ChallengePeriodSeconds:             new(big.Int).SetUint64(proofParams.ChallengePeriodSeconds),
-		MinProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.MinProofMaturityDelaySeconds),
-		MaxProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.MaxProofMaturityDelaySeconds),
-		MinDisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.MinDisputeGameFinalityDelaySeconds),
-		MaxDisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.MaxDisputeGameFinalityDelaySeconds),
-		MipsVersion:                        new(big.Int).SetUint64(proofParams.MIPSVersion),
-		DevFeatureBitmap:                   proofParams.DevFeatureBitmap,
-		FaultGameV2MaxGameDepth:            new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
-		FaultGameV2SplitDepth:              new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
-		FaultGameV2ClockExtension:          new(big.Int).SetUint64(proofParams.DisputeClockExtension),
-		FaultGameV2MaxClockDuration:        new(big.Int).SetUint64(proofParams.DisputeMaxClockDuration),
-		SuperchainConfigProxy:              st.SuperchainDeployment.SuperchainConfigProxy,
-		SuperchainProxyAdmin:               st.SuperchainDeployment.SuperchainProxyAdminImpl,
-		L1ProxyAdminOwner:                  st.SuperchainRoles.SuperchainProxyAdminOwner,
-		Challenger:                         st.SuperchainRoles.Challenger,
-		SP1Verifier:                        selectedSP1Verifier,
-	}
-	if zkEnabled && input.SP1Verifier == (common.Address{}) {
-		input.SP1Verifier, err = deployGenesisMockSP1Verifier(env)
-		if err != nil {
-			return err
+	if devfeatures.IsDevFeatureEnabled(input.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag) {
+		if input.SP1Verifier == (common.Address{}) {
+			input.SP1Verifier, err = deployGenesisMockSP1Verifier(env)
+			if err != nil {
+				return err
+			}
 		}
-	}
-	if zkEnabled {
 		lgr.Info("using SP1 verifier", "address", input.SP1Verifier)
 	}
 
-	if env.UseForge {
-		lgr.Info("using Forge for DeployImplementations")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     env.ForgeClient,
-			Context:    env.Context,
-			L1RPCUrl:   env.L1RPCUrl,
-			PrivateKey: env.PrivateKey,
-		}
-		dio, err = opcm.DeployImplementationsViaForge(forgeEnv, input)
-		if err != nil {
-			return err
-		}
-	} else {
-		dio, err = env.Scripts.DeployImplementations.Run(input)
-		if err != nil {
-			return fmt.Errorf("error deploying implementations: %w", err)
-		}
+	dio, err := opcm.DeployImplementations(env.Forge, *input)
+	if err != nil {
+		return err
 	}
 
 	st.ImplementationsDeployment = &addresses.ImplementationsContracts{
@@ -193,6 +111,86 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	}
 
 	return nil
+}
+
+// implementationsInput returns the DeployImplementations input, or nil when the implementations
+// are already deployed. It selects the SP1 verifier and checks the one of reused implementations;
+// zero with ZK games enabled means a genesis mock.
+func implementationsInput(env *Env, intent *state.Intent, st *state.State) (*opcm.DeployImplementationsInput, error) {
+	if env.DeployMockSP1Verifier && !env.IsGenesis {
+		return nil, fmt.Errorf("mock SP1 verifier deployment is only supported for genesis")
+	}
+
+	requestedSP1Verifier, hasSP1VerifierOverride, err := parseSP1VerifierOverride(intent.GlobalDeployOverrides)
+	if err != nil {
+		return nil, err
+	}
+	if hasSP1VerifierOverride && requestedSP1Verifier == (common.Address{}) {
+		return nil, fmt.Errorf("sp1Verifier override must not be zero")
+	}
+	proofParams, err := ResolveSuperchainProofParams(intent)
+	if err != nil {
+		return nil, fmt.Errorf("error merging proof params from overrides: %w", err)
+	}
+	zkEnabled := devfeatures.IsDevFeatureEnabled(proofParams.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
+	if !zkEnabled && hasSP1VerifierOverride {
+		return nil, fmt.Errorf("sp1Verifier must not be specified when ZK dispute games are disabled")
+	}
+	selectedSP1Verifier := requestedSP1Verifier
+	if intent.OPCMAddress == nil && zkEnabled && !hasSP1VerifierOverride && !env.DeployMockSP1Verifier {
+		// A generated genesis contains no release-approved verifier, so it must be selected explicitly.
+		if env.IsGenesis {
+			return nil, fmt.Errorf("sp1Verifier must be specified when ZK dispute games are enabled")
+		}
+		selectedSP1Verifier, err = standard.SP1VerifierFor(intent.L1ChainID)
+		if err != nil {
+			return nil, fmt.Errorf("sp1Verifier must be specified when ZK dispute games are enabled on L1 chain ID %d: %w", intent.L1ChainID, err)
+		}
+	}
+
+	if !shouldDeployImplementations(intent, st) {
+		if hasSP1VerifierOverride {
+			if env.IsGenesis {
+				if st.SP1Verifier == nil || *st.SP1Verifier == (common.Address{}) {
+					return nil, fmt.Errorf("reused genesis implementations do not record an SP1 verifier")
+				}
+				if requestedSP1Verifier != *st.SP1Verifier {
+					return nil, fmt.Errorf("sp1Verifier %s does not match %s recorded for the reused implementations", requestedSP1Verifier, *st.SP1Verifier)
+				}
+			} else {
+				if err := validateReusedSP1Verifier(env, st.ImplementationsDeployment.SP1PlonkAdapterImpl, requestedSP1Verifier); err != nil {
+					return nil, err
+				}
+			}
+		} else if intent.OPCMAddress == nil && zkEnabled {
+			if st.SP1Verifier == nil || *st.SP1Verifier == (common.Address{}) {
+				return nil, fmt.Errorf("reused ZK implementations do not record an SP1 verifier")
+			}
+		}
+		return nil, nil
+	}
+
+	return &opcm.DeployImplementationsInput{
+		MinWithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.MinWithdrawalDelaySeconds),
+		MaxWithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.MaxWithdrawalDelaySeconds),
+		MinProposalSizeBytes:               new(big.Int).SetUint64(proofParams.MinProposalSizeBytes),
+		ChallengePeriodSeconds:             new(big.Int).SetUint64(proofParams.ChallengePeriodSeconds),
+		MinProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.MinProofMaturityDelaySeconds),
+		MaxProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.MaxProofMaturityDelaySeconds),
+		MinDisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.MinDisputeGameFinalityDelaySeconds),
+		MaxDisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.MaxDisputeGameFinalityDelaySeconds),
+		MipsVersion:                        new(big.Int).SetUint64(proofParams.MIPSVersion),
+		DevFeatureBitmap:                   proofParams.DevFeatureBitmap,
+		FaultGameV2MaxGameDepth:            new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
+		FaultGameV2SplitDepth:              new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
+		FaultGameV2ClockExtension:          new(big.Int).SetUint64(proofParams.DisputeClockExtension),
+		FaultGameV2MaxClockDuration:        new(big.Int).SetUint64(proofParams.DisputeMaxClockDuration),
+		SuperchainConfigProxy:              st.SuperchainDeployment.SuperchainConfigProxy,
+		SuperchainProxyAdmin:               st.SuperchainDeployment.SuperchainProxyAdminImpl,
+		L1ProxyAdminOwner:                  st.SuperchainRoles.SuperchainProxyAdminOwner,
+		Challenger:                         st.SuperchainRoles.Challenger,
+		SP1Verifier:                        selectedSP1Verifier,
+	}, nil
 }
 
 func parseSP1VerifierOverride(overrides map[string]any) (common.Address, bool, error) {
@@ -231,14 +229,8 @@ func readReusedSP1Verifier(env *Env, adapter common.Address) (common.Address, er
 		return common.Address{}, fmt.Errorf("cannot read sp1Verifier from a zero SP1PlonkAdapter address")
 	}
 
-	var backend opcm.CallContractBackend
-	switch {
-	case env.L1Client != nil:
-		backend = env.L1Client
-	case env.L1ScriptHost != nil:
-		backend = opcm.NewScriptHostCallBackend(env.L1ScriptHost)
-	default:
-		return common.Address{}, fmt.Errorf("cannot read sp1Verifier from reused implementations without an L1 call backend")
+	if env.L1Client == nil {
+		return common.Address{}, fmt.Errorf("cannot read sp1Verifier from reused implementations without an L1 client")
 	}
 
 	ctx := env.Context
@@ -249,7 +241,7 @@ func readReusedSP1Verifier(env *Env, adapter common.Address) (common.Address, er
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to encode SP1PlonkAdapter.sp1Verifier call: %w", err)
 	}
-	result, err := backend.CallContract(ctx, ethereum.CallMsg{To: &adapter, Data: calldata}, nil)
+	result, err := env.L1Client.CallContract(ctx, ethereum.CallMsg{To: &adapter, Data: calldata}, nil)
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to read sp1Verifier from reused SP1PlonkAdapter %s: %w", adapter, err)
 	}
@@ -261,21 +253,15 @@ func readReusedSP1Verifier(env *Env, adapter common.Address) (common.Address, er
 }
 
 func deployGenesisMockSP1Verifier(env *Env) (common.Address, error) {
-	if env.L1ScriptHost == nil {
-		return common.Address{}, fmt.Errorf("cannot deploy genesis MockSP1Verifier without an L1 script host")
+	if env.Forge == nil || env.Forge.Genesis == nil {
+		return common.Address{}, fmt.Errorf("cannot deploy genesis MockSP1Verifier without the genesis state")
 	}
-	artifact, err := env.L1ScriptHost.Artifacts().ReadArtifact(genesisMockSP1VerifierArtifact, genesisMockSP1VerifierContract)
+	artifact, err := env.L1Artifacts.ReadArtifact(genesisMockSP1VerifierArtifact, genesisMockSP1VerifierContract)
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to read genesis MockSP1Verifier artifact: %w", err)
 	}
-	verifier, err := env.L1ScriptHost.Create(env.Deployer, artifact.Bytecode.Object)
-	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to deploy genesis MockSP1Verifier: %w", err)
-	}
-	if verifier == (common.Address{}) {
-		return common.Address{}, fmt.Errorf("genesis MockSP1Verifier deployment produced no contract address")
-	}
-	return verifier, nil
+	// The verifier has no constructor and no immutables, so its runtime code is its genesis code.
+	return env.Forge.Genesis.Create(artifact.DeployedBytecode.Object), nil
 }
 
 func shouldDeployImplementations(intent *state.Intent, st *state.State) bool {

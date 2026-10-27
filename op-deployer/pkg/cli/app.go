@@ -5,7 +5,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/clean"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/validate"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 
@@ -78,11 +77,6 @@ func NewApp(versionWithMeta string) *cli.App {
 			Usage:  "verifies deployed contracts with contract explorers",
 			Flags:  cliapp.ProtectFlags(deployer.VerifyFlags),
 			Action: verify.VerifyCLI,
-		},
-		{
-			Name:        "manage",
-			Usage:       "manages the chain",
-			Subcommands: manage.Commands,
 		},
 		{
 			Name:        "validate",

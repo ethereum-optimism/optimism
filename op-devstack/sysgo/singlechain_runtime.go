@@ -71,7 +71,7 @@ func newDefaultSingleChainWorld(t devtest.T, keys devkeys.Keys, cfg PresetConfig
 			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 		}, deployerOpts...)
 	}
-	migration, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorld(t, keys, cfg.InteropAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), startL1, deployerOpts...)
+	migration, l1Net, l2Net, depSet := buildSingleChainWorld(t, keys, cfg.InteropAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), startL1, deployerOpts...)
 	world := singleChainRuntimeWorld{
 		L1Network: l1Net,
 		L2Network: l2Net,
@@ -81,7 +81,6 @@ func newDefaultSingleChainWorld(t devtest.T, keys devkeys.Keys, cfg PresetConfig
 		world.Interop = &SingleChainInteropSupport{
 			Migration:     migration,
 			DependencySet: depSet,
-			FullConfigSet: fullCfgSet,
 		}
 	}
 	return world

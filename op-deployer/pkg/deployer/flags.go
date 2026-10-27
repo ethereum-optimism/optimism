@@ -13,26 +13,24 @@ import (
 )
 
 const (
-	EnvVarPrefix               = flags.EnvVarPrefix
-	L1RPCURLFlagName           = flags.L1RPCURLFlagName
-	CacheDirFlagName           = flags.CacheDirFlagName
-	L1ChainIDFlagName          = flags.L1ChainIDFlagName
-	ArtifactsLocatorFlagName   = flags.ArtifactsLocatorFlagName
-	L2ChainIDsFlagName         = flags.L2ChainIDsFlagName
-	WorkdirFlagName            = flags.WorkdirFlagName
-	OutdirFlagName             = flags.OutdirFlagName
-	PrivateKeyFlagName         = flags.PrivateKeyFlagName
-	PrestateFlagName           = flags.PrestateFlagName
-	IntentTypeFlagName         = flags.IntentTypeFlagName
-	VerifierAPIKeyFlagName     = flags.VerifierAPIKeyFlagName
-	EtherscanAPIKeyFlagName    = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
-	InputFileFlagName          = flags.InputFileFlagName
-	ContractNameFlagName       = flags.ContractNameFlagName
-	VerifierTypeFlagName       = flags.VerifierTypeFlagName
-	VerifierUrlFlagName        = flags.VerifierUrlFlagName
-	UseForgeFlagName           = flags.UseForgeFlagName
-	ForgeSlowBroadcastFlagName = flags.ForgeSlowBroadcastFlagName
-	GenesisTimeOffsetFlagName  = flags.GenesisTimeOffsetFlagName
+	EnvVarPrefix              = flags.EnvVarPrefix
+	L1RPCURLFlagName          = flags.L1RPCURLFlagName
+	CacheDirFlagName          = flags.CacheDirFlagName
+	L1ChainIDFlagName         = flags.L1ChainIDFlagName
+	ArtifactsLocatorFlagName  = flags.ArtifactsLocatorFlagName
+	L2ChainIDsFlagName        = flags.L2ChainIDsFlagName
+	WorkdirFlagName           = flags.WorkdirFlagName
+	OutdirFlagName            = flags.OutdirFlagName
+	PrivateKeyFlagName        = flags.PrivateKeyFlagName
+	PrestateFlagName          = flags.PrestateFlagName
+	IntentTypeFlagName        = flags.IntentTypeFlagName
+	VerifierAPIKeyFlagName    = flags.VerifierAPIKeyFlagName
+	EtherscanAPIKeyFlagName   = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
+	InputFileFlagName         = flags.InputFileFlagName
+	ContractNameFlagName      = flags.ContractNameFlagName
+	VerifierTypeFlagName      = flags.VerifierTypeFlagName
+	VerifierUrlFlagName       = flags.VerifierUrlFlagName
+	GenesisTimeOffsetFlagName = flags.GenesisTimeOffsetFlagName
 )
 
 var (
@@ -89,7 +87,7 @@ var (
 	}
 	DeploymentTargetFlag = &cli.StringFlag{
 		Name:    "deployment-target",
-		Usage:   fmt.Sprintf("Where to deploy L1 contracts. Options: %s, %s, %s, %s", DeploymentTargetLive, DeploymentTargetGenesis, DeploymentTargetCalldata, DeploymentTargetNoop),
+		Usage:   fmt.Sprintf("Where to deploy L1 contracts. Options: %s, %s", DeploymentTargetLive, DeploymentTargetGenesis),
 		EnvVars: PrefixEnvVar("DEPLOYMENT_TARGET"),
 		Value:   string(DeploymentTargetLive),
 	}
@@ -138,18 +136,6 @@ var (
 		EnvVars: PrefixEnvVar("NO_VERIFY"),
 		Value:   false,
 	}
-	UseForgeFlag = &cli.BoolFlag{
-		Name:    UseForgeFlagName,
-		Usage:   "use Forge instead of script.Host for deployment scripts",
-		EnvVars: PrefixEnvVar("USE_FORGE"),
-		Value:   false,
-	}
-	ForgeSlowBroadcastFlag = &cli.BoolFlag{
-		Name:    ForgeSlowBroadcastFlagName,
-		Usage:   "with --use-forge, wait for each broadcast transaction to confirm before sending the next",
-		EnvVars: PrefixEnvVar("FORGE_SLOW_BROADCAST"),
-		Value:   false,
-	}
 	GenesisTimeOffsetFlag = &cli.Uint64Flag{
 		Name: GenesisTimeOffsetFlagName,
 		Usage: "Offset in seconds added to the L1 anchor block's timestamp to produce the committed L2 genesis " +
@@ -190,8 +176,6 @@ var ApplyFlags = []cli.Flag{
 	VerifierAPIKeyFlag,
 	VerifierFlag,
 	VerifierUrlFlag,
-	UseForgeFlag,
-	ForgeSlowBroadcastFlag,
 }
 
 var PrestateFlags = []cli.Flag{

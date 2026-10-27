@@ -8,6 +8,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Script } from "forge-std/Script.sol";
 import { SetPreinstalls } from "scripts/SetPreinstalls.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 import { OutputMode, OutputModeUtils, Fork, ForkUtils } from "scripts/libraries/Config.sol";
 
 // Libraries
@@ -127,7 +128,14 @@ contract L2Genesis is Script {
         0x9DCCe783B6464611f38631e6C851bf441907c710 // 29
     ];
 
-    /// @notice Alias for `runWithStateDump` so that no `--sig` needs to be specified.
+    /// @notice Entrypoint of op-deployer: runs on ABI-encoded input and dumps the state.
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        run(abi.decode(_input, (Input)));
+        DeployState.dump(msg.sender);
+        return "";
+    }
+
+    /// @notice Generates the L2 genesis state.
     function run(Input memory _input) public {
         require(
             _input.useInterop

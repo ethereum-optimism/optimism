@@ -4,30 +4,24 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	"math/big"
 	"strings"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
 
@@ -39,9 +33,6 @@ type ApplyConfig struct {
 	Logger           log.Logger
 	CacheDir         string
 	privateKeyECDSA  *ecdsa.PrivateKey
-	UseForge         bool
-	// ForgeSlowBroadcast confirms each Forge broadcast transaction before sending the next.
-	ForgeSlowBroadcast bool
 }
 
 func (a *ApplyConfig) Check() error {
@@ -98,14 +89,12 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 		ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
 
 		if err := Apply(ctx, ApplyConfig{
-			L1RPCUrl:           l1RPCUrl,
-			Workdir:            workdir,
-			PrivateKey:         privateKey,
-			DeploymentTarget:   depTarget,
-			Logger:             l,
-			CacheDir:           cacheDir,
-			UseForge:           cliCtx.Bool(UseForgeFlagName),
-			ForgeSlowBroadcast: cliCtx.Bool(ForgeSlowBroadcastFlagName),
+			L1RPCUrl:         l1RPCUrl,
+			Workdir:          workdir,
+			PrivateKey:       privateKey,
+			DeploymentTarget: depTarget,
+			Logger:           l,
+			CacheDir:         cacheDir,
 		}); err != nil {
 			return err
 		}
@@ -178,15 +167,93 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		Logger:             cfg.Logger,
 		StateWriter:        pipeline.WorkdirStateWriter(cfg.Workdir),
 		CacheDir:           cfg.CacheDir,
-		UseForge:           cfg.UseForge,
-		ForgeSlowBroadcast: cfg.ForgeSlowBroadcast,
-		PrivateKey:         cfg.PrivateKey,
 		Workdir:            cfg.Workdir,
 	}); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// ApplyL1DevGenesis deploys the superchain and implementations into a new L1 dev genesis, with no
+// chains. Preinstalls go in first, so the deployer keeps its nonce for later deploys on the live L1.
+func ApplyL1DevGenesis(ctx context.Context, opts ApplyPipelineOpts) error {
+	opts.DeploymentTarget = DeploymentTargetGenesis
+	intent := opts.Intent
+	st := opts.State
+	if err := pipeline.ValidateInputs(intent, st); err != nil {
+		return err
+	}
+	bundle, err := artifacts.DownloadBundle(ctx, intent.L1ContractsLocator, intent.L2ContractsLocator, ioutil.NoopProgressor(), opts.CacheDir)
+	if err != nil {
+		return err
+	}
+	pEnv, err := newPipelineEnv(ctx, opts, bundle)
+	if err != nil {
+		return err
+	}
+	for _, stage := range []func(*pipeline.Env, *state.Intent, *state.State) error{
+		pipeline.InitGenesisStrategy, pipeline.PreinstallL1DevGenesis,
+		pipeline.DeploySuperchain, pipeline.DeployImplementations,
+		pipeline.PrefundL1DevGenesis, pipeline.SealL1DevGenesis,
+	} {
+		if err := stage(pEnv, intent, st); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// newPipelineEnv returns the pipeline env for the deployment target.
+func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifacts.Bundle) (*pipeline.Env, error) {
+	deployer := standard.PlaceholderAddress
+	var privateKey string
+	if opts.DeployerPrivateKey != nil {
+		deployer = crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
+		privateKey = hexutil.Encode(crypto.FromECDSA(opts.DeployerPrivateKey))
+	}
+	isGenesis := opts.DeploymentTarget == DeploymentTargetGenesis
+	pEnv := &pipeline.Env{
+		StateWriter:               opts.StateWriter,
+		Logger:                    opts.Logger,
+		Deployer:                  deployer,
+		L1Artifacts:               &foundry.ArtifactsFS{FS: bundle.L1},
+		IsGenesis:                 isGenesis,
+		DeployMockSP1Verifier:     opts.DeployMockSP1Verifier,
+		AllowUnoptimizedContracts: isGenesis || opts.AllowUnoptimizedContracts,
+		Context:                   ctx,
+	}
+
+	switch opts.DeploymentTarget {
+	case DeploymentTargetLive:
+		l1Client, err := ethclient.DialContext(ctx, opts.L1RPCUrl)
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to L1 RPC: %w", err)
+		}
+		pEnv.L1Client = l1Client
+	case DeploymentTargetGenesis:
+	default:
+		return nil, fmt.Errorf("invalid deployment target: '%s'", opts.DeploymentTarget)
+	}
+
+	forgeClient, err := opcm.NewForgeClient(bundle.L1, opts.CacheDir, opcm.L1ForgeScripts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create L1 Forge client: %w", err)
+	}
+	pEnv.Forge = &opcm.ForgeEnv{
+		Client:     forgeClient,
+		Context:    ctx,
+		L1RPCUrl:   opts.L1RPCUrl,
+		PrivateKey: privateKey,
+	}
+	if isGenesis {
+		pEnv.Forge.Genesis = opcm.NewGenesisState(deployer, true)
+	}
+	pEnv.L2Forge, err = opcm.NewForgeClient(bundle.L2, opts.CacheDir, opcm.L2ForgeScripts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create L2 Forge client: %w", err)
+	}
+	return pEnv, nil
 }
 
 type pipelineStage struct {
@@ -203,16 +270,12 @@ type ApplyPipelineOpts struct {
 	Logger             log.Logger
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
-	UseForge           bool
-	ForgeSlowBroadcast bool
 	// DeployMockSP1Verifier is a test-only opt-in for development environments.
 	DeployMockSP1Verifier bool
 	// AllowUnoptimizedContracts is a test-only opt-in that lets oversized dev-profile
 	// artifacts build an L2 genesis. A genesis deployment always allows them.
 	AllowUnoptimizedContracts bool
-	PrivateKey                string
 	Workdir                   string
-	ReceiptQueryInterval      time.Duration
 }
 
 func ApplyPipeline(
@@ -234,115 +297,9 @@ func ApplyPipeline(
 		return err
 	}
 
-	deployer := standard.PlaceholderAddress
-	if opts.DeployerPrivateKey != nil {
-		deployer = crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
-	}
-
-	var bcaster broadcaster.Broadcaster
-	var l1RPC *rpc.Client
-	var l1Client *ethclient.Client
-	var l1Host *script.Host
-
-	switch opts.DeploymentTarget {
-	case DeploymentTargetLive:
-		l1RPC, err = rpc.Dial(opts.L1RPCUrl)
-		if err != nil {
-			return fmt.Errorf("failed to connect to L1 RPC: %w", err)
-		}
-
-		l1Client = ethclient.NewClient(l1RPC)
-
-		chainID, err := l1Client.ChainID(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to get chain ID: %w", err)
-		}
-
-		signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(opts.DeployerPrivateKey, chainID))
-
-		bcaster, err = broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-			Logger:               opts.Logger,
-			ChainID:              new(big.Int).SetUint64(intent.L1ChainID),
-			Client:               l1Client,
-			Signer:               signer,
-			From:                 deployer,
-			ReceiptQueryInterval: opts.ReceiptQueryInterval,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to create broadcaster: %w", err)
-		}
-
-		l1Host, err = env.DefaultForkedScriptHost(ctx, bcaster, opts.Logger, deployer, bundle.L1, l1RPC)
-		if err != nil {
-			return fmt.Errorf("failed to initialize L1 host: %w", err)
-		}
-	case DeploymentTargetCalldata, DeploymentTargetNoop:
-		l1RPC, err = rpc.Dial(opts.L1RPCUrl)
-		if err != nil {
-			return fmt.Errorf("failed to connect to L1 RPC: %w", err)
-		}
-
-		l1Client = ethclient.NewClient(l1RPC)
-
-		bcaster = new(broadcaster.CalldataBroadcaster)
-
-		l1Host, err = env.DefaultForkedScriptHost(ctx, bcaster, opts.Logger, deployer, bundle.L1, l1RPC)
-		if err != nil {
-			return fmt.Errorf("failed to initialize L1 host: %w", err)
-		}
-	case DeploymentTargetGenesis:
-		bcaster = broadcaster.NoopBroadcaster()
-		l1Host, err = env.DefaultScriptHost(
-			bcaster,
-			opts.Logger,
-			deployer,
-			bundle.L1,
-			script.WithNoMaxCodeSize(), // Allow unoptimized contracts from the forge lite profile in genesis deployments
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create L1 script host: %w", err)
-		}
-	default:
-		return fmt.Errorf("invalid deployment target: '%s'", opts.DeploymentTarget)
-	}
-
-	// Now that we have the host, we can load the deployment scripts
-	//
-	// This step will error out if the ABIs don't match the Go types
-	opcmScripts, err := opcm.NewScripts(l1Host)
+	pEnv, err := newPipelineEnv(ctx, opts, bundle)
 	if err != nil {
-		return fmt.Errorf("failed to load OPCM script: %w", err)
-	}
-
-	// Initialize Forge client if UseForge flag is enabled
-	var forgeClient *forge.Client
-	if opts.UseForge {
-		// Forge needs to run from the artifacts directory where foundry.toml is located
-		// The workdir is for storing state, not for running forge commands
-		artifactsPath := fmt.Sprintf("%v", bundle.L1)
-		forgeClient, err = forge.NewStandardClient(artifactsPath)
-		if err != nil {
-			return fmt.Errorf("failed to create Forge client: %w", err)
-		}
-		forgeClient.SlowBroadcast = opts.ForgeSlowBroadcast
-	}
-
-	pEnv := &pipeline.Env{
-		StateWriter:               opts.StateWriter,
-		L1ScriptHost:              l1Host,
-		L1Client:                  l1Client,
-		Logger:                    opts.Logger,
-		Broadcaster:               bcaster,
-		Deployer:                  deployer,
-		Scripts:                   opcmScripts,
-		ForgeClient:               forgeClient,
-		UseForge:                  opts.UseForge,
-		IsGenesis:                 opts.DeploymentTarget == DeploymentTargetGenesis,
-		DeployMockSP1Verifier:     opts.DeployMockSP1Verifier,
-		AllowUnoptimizedContracts: opts.DeploymentTarget == DeploymentTargetGenesis || opts.AllowUnoptimizedContracts,
-		L1RPCUrl:                  opts.L1RPCUrl,
-		PrivateKey:                opts.PrivateKey,
-		Context:                   ctx,
+		return err
 	}
 
 	pline := []pipelineStage{
@@ -455,19 +412,8 @@ func ApplyPipeline(
 		if err := stage.apply(); err != nil {
 			return fmt.Errorf("error in pipeline stage apply: %w", err)
 		}
-		if _, err := pEnv.Broadcaster.Broadcast(ctx); err != nil {
-			return fmt.Errorf("failed to broadcast stage %s: %w", stage.name, err)
-		}
 		if err := pEnv.StateWriter.WriteState(st); err != nil {
 			return fmt.Errorf("failed to write state: %w", err)
-		}
-	}
-
-	if opts.DeploymentTarget == DeploymentTargetCalldata {
-		cdCaster := pEnv.Broadcaster.(*broadcaster.CalldataBroadcaster)
-		st.DeploymentCalldata, err = cdCaster.Dump()
-		if err != nil {
-			return fmt.Errorf("failed to dump calldata: %w", err)
 		}
 	}
 

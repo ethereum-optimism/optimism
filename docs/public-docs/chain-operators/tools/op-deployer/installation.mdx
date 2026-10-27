@@ -23,3 +23,18 @@ cd optimism/op-deployer
 just build
 cp ./bin/op-deployer /usr/local/bin/op-deployer # or any other directory in your $PATH
 ```
+
+## Runtime Dependencies
+
+OP Deployer runs its Solidity deploy scripts with [forge](https://getfoundry.sh), and `op-deployer continue`
+also runs anvil. OP Deployer pins one Foundry version, in
+[`version.json`](https://github.com/ethereum-optimism/optimism/blob/develop/op-deployer/pkg/deployer/forge/version.json).
+
+*   If `forge` and `anvil` of that version are on your `PATH`, OP Deployer uses them.
+*   If they are not, OP Deployer downloads that Foundry release to its cache directory (`--cache-dir`, default
+    `~/.op-deployer/cache`) on first use, and verifies the checksum of the download. It downloads only for Linux and
+    macOS.
+*   Without network access, install the pinned Foundry version and put `forge` and `anvil` on your `PATH`.
+
+The OP Deployer Docker images include `forge` and `anvil`. Go programs that use the OP Deployer packages, such as
+devstack tests, have the same runtime dependencies.

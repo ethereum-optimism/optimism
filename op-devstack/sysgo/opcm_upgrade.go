@@ -10,16 +10,12 @@ import (
 	w3eth "github.com/lmittmann/w3/module/eth"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
 var (
@@ -39,27 +35,20 @@ func RerunOPCMUpgrade(t devtest.T, l1EL stack.L1ELNode, l2 stack.L2Network, enab
 	w3Client := w3.NewClient(rpcClient)
 
 	systemConfig := l2.Deployment().SystemConfigProxyAddr()
-	var opcm common.Address
-	require.NoError(w3Client.Call(w3eth.CallFunc(systemConfig, lastUsedOPCMFn).Returns(&opcm)), "failed to read the last used OPCM")
-	require.NotEqual(common.Address{}, opcm, "SystemConfig %s has no last used OPCM", systemConfig)
+	var lastUsedOPCM common.Address
+	require.NoError(w3Client.Call(w3eth.CallFunc(systemConfig, lastUsedOPCMFn).Returns(&lastUsedOPCM)), "failed to read the last used OPCM")
+	require.NotEqual(common.Address{}, lastUsedOPCM, "SystemConfig %s has no last used OPCM", systemConfig)
 	var respected uint32
 	portal := l2.RollupConfig().DepositContractAddress
 	require.NoError(w3Client.Call(w3eth.CallFunc(portal, respectedGameTypeFn).Returns(&respected)), "failed to read the respected game type")
 
 	keys := stackKeys{l2.Keys()}
-	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l2.L1().ChainID())
-	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
-	require.NoError(err, "failed to download artifacts")
-
-	executeOPCMUpgrade(t, rpcClient, ethclient.NewClient(rpcClient), l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
-		Prank: l1PAO,
-		Opcm:  opcm,
-		UpgradeInputV2: &embedded.UpgradeInputV2{
-			SystemConfig:       systemConfig,
-			DisputeGameConfigs: disputeGameConfigsForRuntime(t, keys, l2.ChainID(), enabledGameTypes),
-			ExtraInstructions: []embedded.ExtraInstruction{
-				{Key: "overrides.cfg.startingRespectedGameType", Data: encodeStartingRespectedGameType(t, respected)},
-			},
+	l1PAOKey := l1ProxyAdminOwnerKey(t, keys, l2.L1().ChainID())
+	executeOPCMUpgrade(t, ethclient.NewClient(rpcClient), l1PAOKey, lastUsedOPCM, opcm.UpgradeInputV2{
+		SystemConfig:       systemConfig,
+		DisputeGameConfigs: disputeGameConfigsForRuntime(t, keys, l2.ChainID(), enabledGameTypes),
+		ExtraInstructions: []opcm.ExtraInstruction{
+			{Key: "overrides.cfg.startingRespectedGameType", Data: encodeStartingRespectedGameType(t, respected)},
 		},
 	})
 }
@@ -71,40 +60,25 @@ func (k stackKeys) Secret(key devkeys.Key) (*ecdsa.PrivateKey, error) { return k
 
 func (k stackKeys) Address(key devkeys.Key) (common.Address, error) { return k.Keys.Address(key), nil }
 
-// resolveL1ProxyAdminOwner returns the L1 proxy-admin owner address and key.
-func resolveL1ProxyAdminOwner(t devtest.T, keys devkeys.Keys, l1ChainID eth.ChainID) (common.Address, *ecdsa.PrivateKey) {
-	require := t.Require()
+// l1ProxyAdminOwnerKey returns the key of the L1 proxy-admin owner.
+func l1ProxyAdminOwnerKey(t devtest.T, keys devkeys.Keys, l1ChainID eth.ChainID) *ecdsa.PrivateKey {
 	role := devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole)
-	addr, err := keys.Address(role)
-	require.NoError(err, "failed to resolve L1 proxy-admin owner address")
 	key, err := keys.Secret(role)
-	require.NoError(err, "failed to resolve L1 proxy-admin owner key")
-	return addr, key
+	t.Require().NoError(err, "failed to resolve L1 proxy-admin owner key")
+	return key
 }
 
-// executeOPCMUpgrade simulates input against a forked UpgradeOPChain.s.sol
-// script host and submits the resulting calldata on L1 as a SetCode
-// delegatecall from l1PAOKey.
+// executeOPCMUpgrade delegatecalls OPContractsManagerV2.upgrade from l1PAOKey through SetCode.
 func executeOPCMUpgrade(
 	t devtest.T,
-	rpcClient *rpc.Client,
 	client *ethclient.Client,
 	l1PAOKey *ecdsa.PrivateKey,
-	artifactsFS foundry.StatDirFs,
-	input embedded.UpgradeOPChainInput,
+	opcmAddr common.Address,
+	input opcm.UpgradeInputV2,
 ) {
-	require := t.Require()
-	bcaster := new(broadcaster.CalldataBroadcaster)
-	host, err := env.DefaultForkedScriptHost(
-		t.Ctx(), bcaster, t.Logger(), common.Address{'D'}, artifactsFS, rpcClient,
-	)
-	require.NoError(err, "failed to create script host")
-	require.NoError(embedded.Upgrade(host, input), "failed to run UpgradeOPChain.s.sol")
-
-	calldata, err := bcaster.Dump()
-	require.NoError(err, "failed to dump calldata")
-	require.Len(calldata, 1, "calldata must contain one entry")
+	calldata, err := input.UpgradeCalldata()
+	t.Require().NoError(err, "failed to encode the OPCM upgrade")
 
 	t.Log("Executing opcm.upgrade via SetCode delegatecall")
-	delegateCallWithSetCode(t, l1PAOKey, client, input.Opcm, calldata[0].Data)
+	t.Require().NoError(transactions.DelegateCallWithSetCode(t.Ctx(), client, l1PAOKey, opcmAddr, calldata))
 }

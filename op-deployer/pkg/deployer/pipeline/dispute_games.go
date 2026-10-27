@@ -8,7 +8,6 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -70,58 +69,21 @@ func deployDisputeGame(
 		var out opcm.DeployAlphabetVMOutput
 		var err error
 
-		if env.UseForge {
-			lgr.Info("using Forge for DeployAlphabetVM")
-			forgeEnv := &opcm.ForgeEnv{
-				Client:     env.ForgeClient,
-				Context:    env.Context,
-				L1RPCUrl:   env.L1RPCUrl,
-				PrivateKey: env.PrivateKey,
-			}
-			out, err = opcm.DeployAlphabetVMViaForge(forgeEnv, input)
-			if err != nil {
-				return err
-			}
-		} else {
-			deployAlphabetVM, err := opcm.NewDeployAlphabetVMScript(env.L1ScriptHost)
-			if err != nil {
-				return fmt.Errorf("failed to load DeployAlphabetVM script: %w", err)
-			}
-			out, err = deployAlphabetVM.Run(input)
-			if err != nil {
-				return fmt.Errorf("failed to deploy Alphabet VM: %w", err)
-			}
+		out, err = opcm.DeployAlphabetVM(env.Forge, input)
+		if err != nil {
+			return err
 		}
 		vmAddr = out.AlphabetVM
 	case state.VMTypeCannon, state.VMTypeCannonNext:
-		if env.UseForge {
-			lgr.Info("using Forge for DeployMIPS")
-			forgeInput := opcm.DeployMIPSInput{
-				MipsVersion:    new(big.Int).SetUint64(game.VMType.MipsVersion()),
-				PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
-			}
-			forgeEnv := &opcm.ForgeEnv{
-				Client:     env.ForgeClient,
-				Context:    env.Context,
-				L1RPCUrl:   env.L1RPCUrl,
-				PrivateKey: env.PrivateKey,
-			}
-			forgeOut, err := opcm.DeployMIPSViaForge(forgeEnv, forgeInput)
-			if err != nil {
-				return err
-			}
-			vmAddr = forgeOut.MipsSingleton
-		} else {
-			input := opcm.DeployMIPSInput{
-				MipsVersion:    new(big.Int).SetUint64(game.VMType.MipsVersion()),
-				PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
-			}
-			out, err := opcm.DeployMIPS(env.L1ScriptHost, input)
-			if err != nil {
-				return fmt.Errorf("failed to deploy MIPS VM: %w", err)
-			}
-			vmAddr = out.MipsSingleton
+		forgeInput := opcm.DeployMIPSInput{
+			MipsVersion:    new(big.Int).SetUint64(game.VMType.MipsVersion()),
+			PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
 		}
+		forgeOut, err := opcm.DeployMIPS(env.Forge, forgeInput)
+		if err != nil {
+			return err
+		}
+		vmAddr = forgeOut.MipsSingleton
 	case state.VMTypeZK:
 		zkImpl := st.ImplementationsDeployment.ZkDisputeGameImpl
 		if zkImpl == (common.Address{}) {
@@ -130,8 +92,8 @@ func deployDisputeGame(
 		if game.ZKDisputeGame == nil {
 			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")
 		}
-		if game.DisputeGameType != uint32(embedded.GameTypeZKDisputeGame) {
-			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", embedded.GameTypeZKDisputeGame, game.DisputeGameType)
+		if game.DisputeGameType != uint32(opcm.GameTypeZKDisputeGame) {
+			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", opcm.GameTypeZKDisputeGame, game.DisputeGameType)
 		}
 		sp1PlonkAdapter := st.ImplementationsDeployment.SP1PlonkAdapterImpl
 		if sp1PlonkAdapter == (common.Address{}) {
@@ -160,7 +122,7 @@ func deployDisputeGame(
 		if game.MakeRespected {
 			zkInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
 		}
-		if err := opcm.SetDisputeGameImpl(env.L1ScriptHost, zkInput); err != nil {
+		if err := opcm.SetDisputeGameImpl(env.Forge, zkInput); err != nil {
 			return fmt.Errorf("failed to set ZK dispute game impl: %w", err)
 		}
 		thisState.AdditionalDisputeGames = append(thisState.AdditionalDisputeGames, state.AdditionalDisputeGameState{
@@ -212,23 +174,9 @@ func deployDisputeGame(
 	var out opcm.DeployDisputeGameOutput
 	var err error
 
-	if env.UseForge {
-		lgr.Info("using Forge for DeployDisputeGame")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     env.ForgeClient,
-			Context:    env.Context,
-			L1RPCUrl:   env.L1RPCUrl,
-			PrivateKey: env.PrivateKey,
-		}
-		out, err = opcm.DeployDisputeGameViaForge(forgeEnv, input)
-		if err != nil {
-			return err
-		}
-	} else {
-		out, err = env.Scripts.DeployDisputeGame.Run(input)
-		if err != nil {
-			return fmt.Errorf("failed to deploy dispute game: %w", err)
-		}
+	out, err = opcm.DeployDisputeGame(env.Forge, input)
+	if err != nil {
+		return err
 	}
 	lgr.Info("dispute game deployed", "impl", out.DisputeGameImpl)
 
@@ -243,10 +191,7 @@ func deployDisputeGame(
 	if game.MakeRespected {
 		sdgiInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
 	}
-	if err := opcm.SetDisputeGameImpl(
-		env.L1ScriptHost,
-		sdgiInput,
-	); err != nil {
+	if err := opcm.SetDisputeGameImpl(env.Forge, sdgiInput); err != nil {
 		return fmt.Errorf("failed to set dispute game impl: %w", err)
 	}
 

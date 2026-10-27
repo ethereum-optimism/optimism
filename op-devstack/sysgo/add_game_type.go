@@ -10,12 +10,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
@@ -101,35 +100,27 @@ func addGameTypesForRuntime(
 	defer rpcClient.Close()
 	client := ethclient.NewClient(rpcClient)
 
-	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
+	l1PAOKey := l1ProxyAdminOwnerKey(t, keys, l1ChainID)
 
-	extraInstructions := []embedded.ExtraInstruction{
+	extraInstructions := []opcm.ExtraInstruction{
 		{
 			Key:  "overrides.cfg.startingRespectedGameType",
 			Data: encodeStartingRespectedGameType(t, superPermissionedGameType),
 		},
 	}
 
-	// Download the contracts artifacts for the upgrade.
-	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
-	require.NoError(err, "failed to download artifacts")
-
 	configs := disputeGameConfigsForRuntime(t, keys, l2Net.ChainID(), enabledGameTypes)
 
-	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
-		Prank: l1PAO,
-		Opcm:  l2Net.opcmImpl,
-		UpgradeInputV2: &embedded.UpgradeInputV2{
-			SystemConfig:       l2Net.deployment.SystemConfigProxyAddr(),
-			DisputeGameConfigs: configs,
-			ExtraInstructions:  extraInstructions,
-		},
+	executeOPCMUpgrade(t, client, l1PAOKey, l2Net.opcmImpl, opcm.UpgradeInputV2{
+		SystemConfig:       l2Net.deployment.SystemConfigProxyAddr(),
+		DisputeGameConfigs: configs,
+		ExtraInstructions:  extraInstructions,
 	})
 }
 
 // disputeGameConfigsForRuntime returns the 6 dispute game configs OPCMv2 requires, in order. Game types in
 // enabledGameTypes are enabled; the rest are disabled.
-func disputeGameConfigsForRuntime(t devtest.T, keys devkeys.Keys, l2ChainID eth.ChainID, enabledGameTypes []gameTypes.GameType) []embedded.DisputeGameConfig {
+func disputeGameConfigsForRuntime(t devtest.T, keys devkeys.Keys, l2ChainID eth.ChainID, enabledGameTypes []gameTypes.GameType) []opcm.DisputeGameConfig {
 	require := t.Require()
 
 	// Operator roles are scoped to the OP chain, even though the game contracts use them on L1.
@@ -148,7 +139,7 @@ func disputeGameConfigsForRuntime(t devtest.T, keys devkeys.Keys, l2ChainID eth.
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 	superCannonKonaPrestate := PrestateForGameType(t, gameTypes.SuperCannonKonaGameType)
 	dummyCannonPrestate := common.HexToHash(sharedchallenger.DummyPermissionedPrestate)
-	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
+	var zkDisputeGameConfig *opcm.ZKDisputeGameConfig
 	if enabled[gameTypes.ZKDisputeGameType] {
 		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime()
 	}
@@ -156,13 +147,13 @@ func disputeGameConfigsForRuntime(t devtest.T, keys devkeys.Keys, l2ChainID eth.
 	// OPCMv2 requires all 6 game configs in order. Keep the legacy Cannon Kona
 	// slot available for pre-Isthmus hard-fork tests while using super-root games
 	// for post-migration configurations.
-	configs := []embedded.DisputeGameConfig{
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannon},
+	configs := []opcm.DisputeGameConfig{
+		{Enabled: false, InitBond: new(big.Int), GameType: opcm.GameTypeCannon},
 		{
 			Enabled:  enabled[gameTypes.PermissionedGameType],
 			InitBond: initBond,
-			GameType: embedded.GameTypePermissionedCannon,
-			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
+			GameType: opcm.GameTypePermissionedCannon,
+			PermissionedDisputeGameConfig: &opcm.PermissionedDisputeGameConfig{
 				AbsolutePrestate: dummyCannonPrestate,
 				Proposer:         proposer,
 				Challenger:       challenger,
@@ -171,31 +162,31 @@ func disputeGameConfigsForRuntime(t devtest.T, keys devkeys.Keys, l2ChainID eth.
 		{
 			Enabled:  enabled[gameTypes.CannonKonaGameType],
 			InitBond: initBond,
-			GameType: embedded.GameTypeCannonKona,
-			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+			GameType: opcm.GameTypeCannonKona,
+			FaultDisputeGameConfig: &opcm.FaultDisputeGameConfig{
 				AbsolutePrestate: cannonKonaPrestate,
 			},
 		},
 		{
 			Enabled:  true,
 			InitBond: new(big.Int),
-			GameType: embedded.GameTypeSuperPermissioned,
-			SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
+			GameType: opcm.GameTypeSuperPermissioned,
+			SuperPermissionedDisputeGameConfig: &opcm.SuperPermissionedDisputeGameConfig{
 				Proposer: proposer,
 			},
 		},
 		{
 			Enabled:  enabled[gameTypes.SuperCannonKonaGameType],
 			InitBond: initBond,
-			GameType: embedded.GameTypeSuperCannonKona,
-			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+			GameType: opcm.GameTypeSuperCannonKona,
+			FaultDisputeGameConfig: &opcm.FaultDisputeGameConfig{
 				AbsolutePrestate: superCannonKonaPrestate,
 			},
 		},
 		{
 			Enabled:             enabled[gameTypes.ZKDisputeGameType],
 			InitBond:            initBond,
-			GameType:            embedded.GameTypeZKDisputeGame,
+			GameType:            opcm.GameTypeZKDisputeGame,
 			ZKDisputeGameConfig: zkDisputeGameConfig,
 		},
 	}
@@ -210,8 +201,8 @@ func disputeGameConfigsForRuntime(t devtest.T, keys devkeys.Keys, l2ChainID eth.
 
 // ZKDisputeGameConfigForRuntime returns a ZKDisputeGameConfig for use in devstack/test environments.
 // AbsolutePrestate is a fixed dummy hash — ZK proofs are never verified in devstack.
-func ZKDisputeGameConfigForRuntime() *embedded.ZKDisputeGameConfig {
-	return &embedded.ZKDisputeGameConfig{
+func ZKDisputeGameConfigForRuntime() *opcm.ZKDisputeGameConfig {
+	return &opcm.ZKDisputeGameConfig{
 		AbsolutePrestate:     common.Hash{0x01}, // dummy for devstack, not validated at claim time
 		MaxChallengeDuration: 604800,            // 7 days
 		MaxProveDuration:     259200,            // 3 days

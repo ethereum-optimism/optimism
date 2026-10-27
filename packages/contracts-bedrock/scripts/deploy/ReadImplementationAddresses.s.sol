@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { Script } from "forge-std/Script.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
@@ -83,6 +84,7 @@ contract ReadImplementationAddresses is Script {
     }
 
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        DeployState.load();
         Input memory input = abi.decode(_input, (Input));
         Output memory output = run(input);
         return abi.encode(output);

@@ -245,8 +245,6 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 // gas price. The L1 blob gas limit is set to a low value to speed up this process.
 func TestBatcherAutoDA(t *testing.T) {
 	op_e2e.InitParallel(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
 
 	// System setup
 	cfg := e2esys.HoloceneSystemConfig(t, new(hexutil.Uint64))
@@ -267,6 +265,9 @@ func TestBatcherAutoDA(t *testing.T) {
 	cfg.DisableBatcher = true // disable batcher because we start it manually later
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
+	// The deadline starts after the setup, which may build the package's genesis allocs.
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 

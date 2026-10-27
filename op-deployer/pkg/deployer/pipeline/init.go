@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -90,7 +90,7 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 		return fmt.Errorf("l1 chain ID mismatch: got %d, expected %d", l1ChainID, intent.L1ChainID)
 	}
 
-	deployerCode, err := env.L1Client.CodeAt(ctx, script.DeterministicDeployerAddress, nil)
+	deployerCode, err := env.L1Client.CodeAt(ctx, predeploys.DeterministicDeploymentProxyAddr, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get deployer code: %w", err)
 	}
@@ -170,26 +170,9 @@ func PopulateSuperchainState(env *Env, opcmAddr common.Address, superchainConfig
 	var out opcm.ReadSuperchainDeploymentOutput
 	var err error
 
-	if env.UseForge {
-		forgeEnv := &opcm.ForgeEnv{
-			Client:   env.ForgeClient,
-			Context:  env.Context,
-			L1RPCUrl: env.L1RPCUrl,
-		}
-		out, err = opcm.ReadSuperchainDeploymentViaForge(forgeEnv, input)
-		if err != nil {
-			return nil, nil, err
-		}
-	} else {
-		readScript, err := opcm.NewReadSuperchainDeploymentScript(env.L1ScriptHost)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error generating read superchain deployment script: %w", err)
-		}
-
-		out, err = readScript.Run(input)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error reading superchain deployment: %w", err)
-		}
+	out, err = opcm.ReadSuperchainDeployment(env.Forge, input)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	deployment := &addresses.SuperchainContracts{

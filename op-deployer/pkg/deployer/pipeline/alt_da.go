@@ -41,27 +41,9 @@ func DeployAltDA(env *Env, intent *state.Intent, st *state.State, chainID common
 
 	var output opcm.DeployAltDAOutput
 
-	if env.UseForge {
-		lgr.Info("using Forge for DeployAltDA")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     env.ForgeClient,
-			Context:    env.Context,
-			L1RPCUrl:   env.L1RPCUrl,
-			PrivateKey: env.PrivateKey,
-		}
-		output, err = opcm.DeployAltDAViaForge(forgeEnv, input)
-		if err != nil {
-			return err
-		}
-	} else {
-		deployAltDAScript, err := opcm.NewDeployAltDAScript(env.L1ScriptHost)
-		if err != nil {
-			return fmt.Errorf("failed to load DeployAltDA script: %w", err)
-		}
-		output, err = deployAltDAScript.Run(input)
-		if err != nil {
-			return fmt.Errorf("failed to deploy alt-da contracts: %w", err)
-		}
+	output, err = opcm.DeployAltDA(env.Forge, input)
+	if err != nil {
+		return err
 	}
 
 	chainState.OpChainContracts.AltDAChallengeProxy = output.DataAvailabilityChallengeProxy

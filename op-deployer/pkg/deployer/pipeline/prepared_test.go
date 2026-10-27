@@ -9,8 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -91,7 +91,7 @@ func TestValidatePreparedDeploymentDrift(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			intent, st, _, _ := preparedDeploymentFixture(t, embedded.GameTypePermissionedCannon)
+			intent, st, _, _ := preparedDeploymentFixture(t, opcm.GameTypePermissionedCannon)
 			test.mutate(intent)
 			require.ErrorContains(t, ValidatePreparedDeployment(intent, st), test.wantErr)
 		})
@@ -125,7 +125,7 @@ func TestValidatePreparedDeploymentChainSetDrift(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			intent, st, _, _ := preparedDeploymentFixture(t, embedded.GameTypePermissionedCannon)
+			intent, st, _, _ := preparedDeploymentFixture(t, opcm.GameTypePermissionedCannon)
 			test.mutate(intent)
 			require.ErrorContains(t, ValidatePreparedDeployment(intent, st), "deployment intent changed")
 		})
@@ -133,17 +133,17 @@ func TestValidatePreparedDeploymentChainSetDrift(t *testing.T) {
 }
 
 func TestValidatePreparedDeploymentLateBoundPrestate(t *testing.T) {
-	intent, st, _, _ := preparedDeploymentFixture(t, embedded.GameTypeCannonKona)
+	intent, st, _, _ := preparedDeploymentFixture(t, opcm.GameTypeCannonKona)
 	intent.Chains[0].DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.Hash{0xaa}
 	require.NoError(t, ValidatePreparedDeployment(intent, st))
 
-	permissioned, permissionedState, _, _ := preparedDeploymentFixture(t, embedded.GameTypePermissionedCannon)
+	permissioned, permissionedState, _, _ := preparedDeploymentFixture(t, opcm.GameTypePermissionedCannon)
 	permissioned.Chains[0].DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.Hash{0xbb}
 	require.ErrorContains(t, ValidatePreparedDeployment(permissioned, permissionedState), "deployment intent changed")
 }
 
 func TestValidatePreparedDeploymentAfterCheckpoint(t *testing.T) {
-	intent, st, _, _ := preparedDeploymentFixture(t, embedded.GameTypePermissionedCannon)
+	intent, st, _, _ := preparedDeploymentFixture(t, opcm.GameTypePermissionedCannon)
 	deployed := true
 	st.Chains[0].Deployed = &deployed
 	require.NoError(t, ValidatePreparedDeployment(intent, st))
@@ -184,7 +184,7 @@ func TestValidateCommittedPrestateOverrides(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			intent, st, _, _ := preparedDeploymentFixture(t, embedded.GameTypeCannonKona)
+			intent, st, _, _ := preparedDeploymentFixture(t, opcm.GameTypeCannonKona)
 			st.Chains[0].Prestate = committed
 			test.mutate(intent)
 			err := ValidateCommittedPrestateOverrides(intent, st)
@@ -198,7 +198,7 @@ func TestValidateCommittedPrestateOverrides(t *testing.T) {
 }
 
 func TestPreparedChainProofParamsUsesFrozenIntent(t *testing.T) {
-	intent, st, _, _ := preparedDeploymentFixture(t, embedded.GameTypePermissionedCannon)
+	intent, st, _, _ := preparedDeploymentFixture(t, opcm.GameTypePermissionedCannon)
 	chainID := intent.Chains[0].ID
 	before, err := PreparedChainProofParams(st, chainID)
 	require.NoError(t, err)
@@ -211,7 +211,7 @@ func TestPreparedChainProofParamsUsesFrozenIntent(t *testing.T) {
 }
 
 func TestNewPreparedDeploymentDetachesAndSurvivesStateJSONRoundTrip(t *testing.T) {
-	intent, st, _, _ := preparedDeploymentFixture(t, embedded.GameTypePermissionedCannon)
+	intent, st, _, _ := preparedDeploymentFixture(t, opcm.GameTypePermissionedCannon)
 	require.True(t, st.PreparedDeployment.Intent.FundDevAccounts)
 	preparedJSON, err := json.Marshal(st.PreparedDeployment)
 	require.NoError(t, err)
@@ -255,7 +255,7 @@ func TestNewPreparedDeploymentRequiresPinnedChainTiming(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			intent, st, bundle, _ := preparedDeploymentFixture(t, embedded.GameTypePermissionedCannon)
+			intent, st, bundle, _ := preparedDeploymentFixture(t, opcm.GameTypePermissionedCannon)
 			test.mutate(st.Chains[0])
 			_, err := NewPreparedDeployment(
 				intent,
@@ -291,7 +291,7 @@ func TestValidatePreparedArtifactContents(t *testing.T) {
 		},
 	} {
 		t.Run(target.name, func(t *testing.T) {
-			_, st, bundle, roots := preparedDeploymentFixture(t, embedded.GameTypePermissionedCannon)
+			_, st, bundle, roots := preparedDeploymentFixture(t, opcm.GameTypePermissionedCannon)
 			require.NoError(t, ValidatePreparedArtifactContents(st.PreparedDeployment, bundle))
 			target.mutate(roots)
 			require.ErrorContains(t, ValidatePreparedArtifactContents(st.PreparedDeployment, bundle), target.wantError)
@@ -301,7 +301,7 @@ func TestValidatePreparedArtifactContents(t *testing.T) {
 
 func preparedDeploymentFixture(
 	t *testing.T,
-	gameType embedded.GameType,
+	gameType opcm.GameType,
 ) (*state.Intent, *state.State, artifacts.Bundle, [2]string) {
 	t.Helper()
 	chainID := common.Hash{0x01}

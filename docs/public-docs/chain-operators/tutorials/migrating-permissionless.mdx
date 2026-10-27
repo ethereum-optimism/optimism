@@ -184,7 +184,7 @@ For detailed information about privileged roles and their security implications,
 
 ### Adding the PermissionlessDisputeGame to a chain
 
-To enable the permissionless dispute game, call the `upgrade()` function on the `OPContractsManagerV2` (OPCM) contract with the appropriate `DisputeGameConfig` entries. This is typically done via `op-deployer manage add-game-type-v2`.
+To enable the permissionless dispute game, call the `upgrade()` function on the `OPContractsManagerV2` (OPCM) contract with the appropriate `DisputeGameConfig` entries. The ProxyAdmin owner sends this call, typically through a [superchain-ops](https://github.com/ethereum-optimism/superchain-ops) task.
 
 The upgrade will:
 

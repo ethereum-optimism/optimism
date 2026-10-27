@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -272,7 +272,9 @@ func TestCLIPCDResume(t *testing.T) {
 		latest, err := journey.l1Client.HeaderByNumber(t.Context(), nil)
 		require.NoError(t, err)
 		liveValidationBlock := new(big.Int).Add(latest.Number, big.NewInt(1))
-		// Preflight reads block N and passes. The deployment lands at N+1, where this validator rejects it.
+		// The deployment lands at N+1, where this validator rejects it. The preflight also runs at N+1,
+		// but on an anvil fork with another coinbase, so it passes.
+		require.NoError(t, journey.l1Client.Client().Call(nil, "anvil_setCoinbase", pcdLiveCoinbase))
 		setPCDAnvilCode(t, journey.l1Client, validator, pcdConditionalValidatorCode(liveValidationBlock))
 
 		failureOutput := journey.runner.ExpectErrorContainsWithNetwork(t, []string{
@@ -356,7 +358,7 @@ func newPCDResumeJourney(t *testing.T, boundary pcdResumeBoundary, prestate comm
 	t.Helper()
 	journey := newPCDJourneyFixture(t, []common.Hash{uint256.NewInt(1).Bytes32()})
 	journey.bootstrapOPCM()
-	journey.runInit(embedded.GameTypeSuperCannonKona)
+	journey.runInit(opcm.GameTypeSuperCannonKona)
 	if boundary >= pcdAfterPrepare {
 		journey.runPrepare()
 	}
@@ -502,8 +504,8 @@ func requirePCDSingletonCompletion(
 			portal:                        preparedChain.OptimismPortalProxy,
 			disputeGameFactory:            preparedChain.DisputeGameFactoryProxy,
 			anchorStateRegistry:           preparedChain.AnchorStateRegistryProxy,
-			respectedGameType:             embedded.GameTypeSuperCannonKona,
-			fallbackGameType:              embedded.GameTypeSuperPermissioned,
+			respectedGameType:             opcm.GameTypeSuperCannonKona,
+			fallbackGameType:              opcm.GameTypeSuperPermissioned,
 			respectedGameImplementation:   preparedChain.FaultDisputeGameImpl,
 			fallbackGameImplementation:    preparedChain.PermissionedDisputeGameImpl,
 			respectedGameAbsolutePrestate: prestate,
@@ -550,12 +552,17 @@ func pcdValidatorResultCode(result string) []byte {
 	return append(code, byte(vm.PUSH1), returnSize, byte(vm.PUSH1), 0, byte(vm.RETURN))
 }
 
+// pcdLiveCoinbase follows liveCoinbase in integration_test/continue_test.go.
+var pcdLiveCoinbase = common.Address{0x1c, 0x0b}
+
 // pcdConditionalValidatorCode follows conditionalValidatorCode in
 // op-deployer/pkg/deployer/integration_test/continue_test.go.
 func pcdConditionalValidatorCode(liveValidationBlock *big.Int) []byte {
 	code := []byte{byte(vm.NUMBER), byte(vm.PUSH32)}
 	code = append(code, common.LeftPadBytes(liveValidationBlock.Bytes(), 32)...)
-	code = append(code, byte(vm.EQ), byte(vm.PUSH1), 0, byte(vm.JUMPI))
+	code = append(code, byte(vm.EQ), byte(vm.COINBASE), byte(vm.PUSH20))
+	code = append(code, pcdLiveCoinbase.Bytes()...)
+	code = append(code, byte(vm.EQ), byte(vm.AND), byte(vm.PUSH1), 0, byte(vm.JUMPI))
 	jumpDestinationIndex := len(code) - 2
 	code = append(code, pcdValidatorResultCode(pcdValidValidatorResult)...)
 	code[jumpDestinationIndex] = byte(len(code))
