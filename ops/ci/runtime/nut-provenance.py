@@ -226,7 +226,7 @@ def validate_fork(directory,entry,fork):
     inventory=git_inventory((raw/'tracked-stage.bin').read_bytes())
     for name,path in [('mise.toml','mise.toml'),('contracts.justfile','packages/contracts-bedrock/justfile'),
                       ('foundry.toml','packages/contracts-bedrock/foundry.toml')]:
-        data=(raw/name).read_bytes();blob=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+        data=(raw/name).read_bytes();blob=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data,usedforsecurity=False).hexdigest()
         if inventory.get(path)!={'mode':'100644','object':blob}:
             raise ValueError('Retained NUT generator input differs from historical Git source')
     module_rows=submodules((raw/'submodules.txt').read_text())

@@ -60,7 +60,7 @@ def source_inputs(source, revision, allow_gitlinks=False):
             check(bool(path.stat().st_mode & 0o111) == (mode == b'100755'),
                   'Changed committed source executable mode: ' + name)
             data = path.read_bytes()
-        check(hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == oid.decode(),
+        check(hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data, usedforsecurity=False).hexdigest() == oid.decode(),
               'Changed committed source input: ' + name)
         result[name] = {'mode': mode.decode(), 'sha256': hashlib.sha256(data).hexdigest()}
     check(result, 'Empty source tree')
