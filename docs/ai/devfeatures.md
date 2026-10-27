@@ -15,7 +15,7 @@ Active flags:
 
 | Flag | Gates |
 |------|-------|
-| `OptimismPortalInterop` | Interop predeploys on L2 (genesis and L2ContractsManager upgrades) |
+| `OptimismPortalInterop` | Interop predeploys on L2 at genesis |
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `ZKDisputeGame` | ZK dispute game system |
 | `BridgeHook` | Bridge hook configuration on OptimismPortal2, currently planned only for the compliance module |
@@ -103,11 +103,11 @@ It does **not** flow to op-node or kona at runtime. They learn about feature act
 
 ## E. Activation — who reads it and what they gate
 
-**On L2 (Solidity)**, readers consult either the in-memory bitmap (during deploy scripts) or the `L2DevFeatureFlags` predeploy (at runtime):
+**On L2 (Solidity)**, readers consult the in-memory bitmap during deploy scripts:
 
 - `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. Gates whether the interop predeploys (`CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, `SuperchainETHBridge`, `ETHLiquidity`, `UndeliveredMessageExporter`, all under `OptimismPortalInterop`) are considered "real" predeploys.
 - `scripts/L2Genesis.s.sol` — gates which predeploys get installed at genesis.
-- `L2ContractsManager._isDevFeatureEnabled()` in `src/L2/L2ContractsManager.sol` — at runtime, calls `IL2DevFeatureFlags.isDevFeatureEnabled(...)` on the predeploy to decide whether to execute upgrade flows.
+- `L2ContractsManager` does **not** read the bitmap. Its upgrade gates the interop predeploys on the `INTEROP` system feature in `L1Block`, so chains that never set the bitmap at genesis can still activate interop at Lagoon.
 
 **On Go**, the bitmap is essentially deploy-time-only:
 
@@ -140,7 +140,6 @@ Interop and ZK use the bitmap as their per-chain provisioning switch and have no
 | Release-approved SP1 verifier | `op-deployer/pkg/deployer/standard/standard.go` |
 | Genesis writer | `packages/contracts-bedrock/scripts/L2Genesis.s.sol` |
 | L2 storage | `packages/contracts-bedrock/src/L2/L2DevFeatureFlags.sol` |
-| L2 runtime reader | `packages/contracts-bedrock/src/L2/L2ContractsManager.sol` |
 | Predeploy gating | `packages/contracts-bedrock/src/libraries/Predeploys.sol` |
 | L2CM hardfork gate | `op-node/rollup/toggles.go` |
 | Test-only feature controls | `packages/contracts-bedrock/scripts/libraries/Config.sol` |

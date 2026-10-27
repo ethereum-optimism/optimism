@@ -16,14 +16,10 @@ import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 
-import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
-
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { Features } from "src/libraries/Features.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.sol";
 
@@ -33,12 +29,9 @@ contract L2ContractsManager is ISemver {
     /// @notice Thrown when the upgrade or deploy function is called outside of a DELEGATECALL context.
     error L2ContractsManager_OnlyDelegatecall();
 
-    /// @notice Thrown when the fullConfig input and dev feature flags are not compatible.
-    error L2ContractsManager_FeatureFlagMismatch();
-
     /// @notice The semantic version of the L2ContractsManager contract.
-    /// @custom:semver 1.16.1
-    string public constant version = "1.16.1";
+    /// @custom:semver 1.17.0
+    string public constant version = "1.17.0";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
@@ -176,7 +169,7 @@ contract L2ContractsManager is ISemver {
     /// @notice Loads the full configuration for the L2 Predeploys.
     /// @return fullConfig_ The full configuration.
     function _loadFullConfig() internal view returns (L2ContractsManagerTypes.FullConfig memory fullConfig_) {
-        // First we read the system customization and dev feature flags from the state.
+        // First we read the system customization flags from the state.
         // Because the L2CM's upgrade function does not accept arguments, these values must be set from outside of the
         // Network Upgrade Transactions bundle. The expectation is that they will be set at the start of a
         // hard fork block, within the consensus client's code.
@@ -194,11 +187,9 @@ contract L2ContractsManager is ISemver {
         } catch {
             fullConfig_.isInterop = false;
         }
-        // The INTEROP system customization can only be enabled if the dev feature is also enabled.
-        // The dev feature gates whether interop code was deployed; the system customization controls activation.
-        if (fullConfig_.isInterop && !_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            revert L2ContractsManager_FeatureFlagMismatch();
-        }
+        // The INTEROP feature alone gates the interop predeploys. The upgrade does not consult the
+        // L2 dev feature bitmap: existing chains activate interop at the Lagoon hard fork without
+        // ever having set that bitmap at genesis.
 
         // L2CrossDomainMessenger
         fullConfig_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({
@@ -450,7 +441,7 @@ contract L2ContractsManager is ISemver {
             L2ContractsManagerUtils.upgradeTo(Predeploys.NATIVE_ASSET_LIQUIDITY, NATIVE_ASSET_LIQUIDITY_IMPL, _isDeploy);
         }
 
-        // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
+        // Interop predeploys are gated behind the INTEROP system feature.
         if (_config.isInterop) {
             L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL, _isDeploy);
             L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_ETH_BRIDGE, SUPERCHAIN_ETH_BRIDGE_IMPL, _isDeploy);
@@ -462,18 +453,6 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(Predeploys.SCHEMA_REGISTRY, SCHEMA_REGISTRY_IMPL, _isDeploy);
         L2ContractsManagerUtils.upgradeTo(Predeploys.EAS, EAS_IMPL, _isDeploy);
         L2ContractsManagerUtils.upgradeTo(Predeploys.CONDITIONAL_DEPLOYER, CONDITIONAL_DEPLOYER_IMPL, _isDeploy);
-    }
-
-    /// @notice Checks if a development feature is enabled by reading from the L2DevFeatureFlags predeploy.
-    ///         If the L2DevFeatureFlags Predeploy is not available on-chain, i.e. it has no implementation,
-    ///         it defaults to false.
-    /// @param _feature The feature to check.
-    /// @return True if the L2DevFeatureFlags is available and _feature is enabled, false otherwise.
-    function _isDevFeatureEnabled(bytes32 _feature) internal view returns (bool) {
-        address flagsImpl =
-            IL2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
-        if (flagsImpl.code.length == 0) return false;
-        return IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).isDevFeatureEnabled(_feature);
     }
 
     /// @notice Returns the implementation addresses for each predeploy upgraded by the L2ContractsManager.

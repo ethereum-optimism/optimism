@@ -24,6 +24,7 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
+import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
@@ -37,11 +38,6 @@ contract L2ContractsManager_FunctionsExposer_Harness is L2ContractsManager {
     /// @notice Returns the full configuration for the L2 predeploys.
     function loadFullConfig() external view returns (L2ContractsManagerTypes.FullConfig memory) {
         return _loadFullConfig();
-    }
-
-    /// @notice Returns true if _feature is enabled and false otherwise.
-    function isDevFeatureEnabled(bytes32 _feature) external view returns (bool) {
-        return _isDevFeatureEnabled(_feature);
     }
 }
 
@@ -1023,10 +1019,11 @@ contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManag
     }
 }
 
-/// @title L2ContractsManager_Upgrade_FeatureFlagMismatch_Test
-/// @notice Tests that _loadFullConfig reverts when the INTEROP system customization is enabled
-///         but the OPTIMISM_PORTAL_INTEROP dev feature is not.
-contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManager_Upgrade_Test {
+/// @title L2ContractsManager_Upgrade_InteropWithoutDevFeature_Test
+/// @notice Tests that the upgrade is gated by the INTEROP system feature alone, independent of the
+///         OPTIMISM_PORTAL_INTEROP dev feature. Existing chains activate interop at the Lagoon hard fork
+///         without having set the L2 dev feature bitmap at genesis.
+contract L2ContractsManager_Upgrade_InteropWithoutDevFeature_Test is L2ContractsManager_Upgrade_Test {
     using stdStorage for StdStorage;
 
     /// @notice Tests that upgrade succeeds when the dev feature is enabled but the system feature is not.
@@ -1043,9 +1040,13 @@ contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManag
         _executeUpgrade();
     }
 
-    /// @notice Tests that upgrade reverts when the system feature is enabled but the dev feature is not.
-    function test_upgrade_sysEnabledDevDisabled_reverts() public {
+    /// @notice Tests that upgrade installs the interop predeploys when the system feature is enabled
+    ///         but the dev feature bitmap is zero, as on a chain activating interop at Lagoon.
+    function test_upgrade_sysEnabledDevDisabled_succeeds() public {
         skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        assertFalse(
+            IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)
+        );
 
         // Set the INTEROP system feature on L1Block while the dev feature remains disabled.
         stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
@@ -1053,8 +1054,41 @@ contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManag
             .with_key(Features.INTEROP)
             .checked_write(true);
 
-        vm.expectRevert(L2ContractsManager.L2ContractsManager_FeatureFlagMismatch.selector);
         _executeUpgrade();
+
+        _assertInteropPredeploysUpgraded();
+    }
+
+    /// @notice Tests that upgrade installs the interop predeploys when the system feature is enabled
+    ///         and the L2DevFeatureFlags implementation has no code, as on a chain that predates it.
+    function test_upgrade_sysEnabledFlagsImplHasNoCode_succeeds() public {
+        vm.etch(EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS), bytes(""));
+
+        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.INTEROP)
+            .checked_write(true);
+
+        _executeUpgrade();
+
+        _assertInteropPredeploysUpgraded();
+    }
+
+    /// @notice Asserts that every interop predeploy points at its L2CM implementation.
+    function _assertInteropPredeploysUpgraded() internal view {
+        assertEq(EIP1967Helper.getImplementation(Predeploys.CROSS_L2_INBOX), _findImplByName("CrossL2Inbox"));
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER),
+            _findImplByName("L2ToL2CrossDomainMessenger")
+        );
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.SUPERCHAIN_ETH_BRIDGE), _findImplByName("SuperchainETHBridge")
+        );
+        assertEq(EIP1967Helper.getImplementation(Predeploys.ETH_LIQUIDITY), _findImplByName("ETHLiquidity"));
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.UNDELIVERED_MESSAGE_EXPORTER),
+            _findImplByName("UndeliveredMessageExporter")
+        );
     }
 }
 
@@ -1185,24 +1219,16 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
     using stdStorage for StdStorage;
 
     /// @notice Helper function that simulates an existing-chain state where L2DevFeatureFlags
-    ///         has not been deployed. Empties the current proxy implementation so that the
-    ///         null-safe guard in `_isDevFeatureEnabled` fires and returns false.
+    ///         has not been deployed. Empties the current proxy implementation.
     function _simulateNoFlagsImpl() internal {
         address currentImpl = EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
         vm.etch(currentImpl, bytes(""));
 
-        // Clear the INTEROP system feature on L1Block to stay consistent with the dev feature
-        // being unavailable, otherwise _loadFullConfig will revert on the mismatch check.
+        // Clear the INTEROP system feature on L1Block so these tests cover a chain without interop.
         stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
             .sig("isFeatureEnabled(bytes32)")
             .with_key(Features.INTEROP)
             .checked_write(false);
-    }
-
-    /// @notice Tests that _isDevFeatureEnabled returns false when the flags implementation has no code.
-    function testFuzz_isDevFeatureEnabled_whenFlagsImplHasNoCode_succeeds(bytes32 _feature) public {
-        _simulateNoFlagsImpl();
-        assertFalse(l2cm.isDevFeatureEnabled(_feature));
     }
 
     /// @notice Tests that the upgrade does not revert when L2DevFeatureFlags implementation has no code.
