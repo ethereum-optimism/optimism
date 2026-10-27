@@ -13,7 +13,6 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 import { Constants } from "src/libraries/Constants.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Features } from "src/libraries/Features.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { PrivateChainSettings } from "src/libraries/PrivateChainSettings.sol";
 
 // Interfaces
@@ -1006,20 +1005,9 @@ contract SystemConfig_SetKeyValue_Test is SystemConfig_TestInit {
         systemConfig.setKeyValue(_key, _value);
     }
 
-    /// @notice Tests that `setKeyValue` reverts while the OP_PRIVATE dev feature is off.
-    function testFuzz_setKeyValue_opPrivateDisabled_reverts(bytes32 _key, bytes calldata _value) external {
-        skipIfDevFeatureEnabled(DevFeatures.OP_PRIVATE);
-        address owner_ = systemConfig.owner();
-        vm.expectRevert(ISystemConfig.SystemConfig_OPPrivateNotEnabled.selector);
-        vm.prank(owner_);
-        systemConfig.setKeyValue(_key, _value);
-        assertEq(systemConfig.keyValue(_key), bytes(""));
-    }
-
     /// @notice Tests that `setKeyValue` stores the value and emits only KeyValueSet, so stock
     ///         derivation, which reads ConfigUpdate, ignores it.
     function testFuzz_setKeyValue_succeeds(bytes32 _key, bytes calldata _value) external {
-        skipIfDevFeatureDisabled(DevFeatures.OP_PRIVATE);
         assertEq(systemConfig.keyValue(_key), bytes(""));
 
         vm.recordLogs();
@@ -1038,7 +1026,6 @@ contract SystemConfig_SetKeyValue_Test is SystemConfig_TestInit {
 
     /// @notice Tests that `setKeyValue` overwrites an existing value.
     function testFuzz_setKeyValue_overwrite_succeeds(bytes32 _key, bytes calldata _a, bytes calldata _b) external {
-        skipIfDevFeatureDisabled(DevFeatures.OP_PRIVATE);
         vm.startPrank(systemConfig.owner());
         systemConfig.setKeyValue(_key, _a);
         systemConfig.setKeyValue(_key, _b);
@@ -1049,7 +1036,6 @@ contract SystemConfig_SetKeyValue_Test is SystemConfig_TestInit {
     /// @notice Tests that the private chain settings are stored under the documented keys and
     ///         read back with their documented encodings.
     function test_setKeyValue_privateChainSettings_succeeds() external {
-        skipIfDevFeatureDisabled(DevFeatures.OP_PRIVATE);
         uint256 chainId = 901;
 
         // Pin one key so that off-chain readers can check their derivation against it.

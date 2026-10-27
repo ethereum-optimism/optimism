@@ -1171,10 +1171,5 @@
     "inputs": [],
     "name": "SystemConfig_InvalidFeatureState",
     "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "SystemConfig_OPPrivateNotEnabled",
-    "type": "error"
   }
 ]

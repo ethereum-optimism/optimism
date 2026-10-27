@@ -9,14 +9,12 @@ import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 // Libraries
 import { Storage } from "src/libraries/Storage.sol";
 import { Features } from "src/libraries/Features.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
@@ -184,10 +182,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice Thrown when attempting to enable/disable a feature when already enabled/disabled,
     ///         respectively.
     error SystemConfig_InvalidFeatureState();
-
-    /// @notice Thrown when setting a key/value entry while the OP_PRIVATE dev feature is not
-    ///         enabled on the last used OPCM.
-    error SystemConfig_OPPrivateNotEnabled();
 
     /// @notice Semantic version.
     /// @custom:semver 4.4.0
@@ -491,8 +485,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         emit ConfigUpdate(VERSION, UpdateType.DA_FOOTPRINT_GAS_SCALAR, data);
     }
 
-    /// @notice Sets a key/value entry. Can only be called by the owner, and only while the
-    ///         OP_PRIVATE dev feature is enabled on the last used OPCM. Emits KeyValueSet, not
+    /// @notice Sets a key/value entry. Can only be called by the owner. Emits KeyValueSet, not
     ///         ConfigUpdate, so stock derivation ignores it.
     ///         OP Private stores the settings of each private chain of this settlement chain here.
     ///         The key is `keccak256(abi.encode(name, chainId))`, with `chainId` the private
@@ -506,11 +499,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @param _key   Key to set.
     /// @param _value Value to set.
     function setKeyValue(bytes32 _key, bytes calldata _value) external onlyOwner {
-        // OP Private is a dev feature, so the setter is off unless the OPCM enables it.
-        if (!IOPContractsManagerV2(lastUsedOPCM()).isDevFeatureEnabled(DevFeatures.OP_PRIVATE)) {
-            revert SystemConfig_OPPrivateNotEnabled();
-        }
-
         keyValue[_key] = _value;
         emit KeyValueSet(_key, _value);
     }
