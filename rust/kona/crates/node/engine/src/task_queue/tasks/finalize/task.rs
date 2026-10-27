@@ -13,6 +13,8 @@ use std::sync::Arc;
 
 /// The [`FinalizeTask`] fetches the [`L2BlockInfo`] identified by `block_id`, updates the
 /// [`EngineState`], and dispatches a forkchoice update to finalize the block.
+/// Missing hash-pinned blocks are deferred to the next delegated derivation poll, allowing
+/// unsafe imports and other engine tasks to continue while the execution client catches up.
 #[derive(Debug, Clone, Constructor)]
 pub struct FinalizeTask {
     /// The engine client.
@@ -38,9 +40,8 @@ impl EngineTaskExt for FinalizeTask {
         }
 
         // Look up by hash when the caller pinned a specific hash (delegated polling supplies
-        // `(number, hash)`); otherwise look up by number. Finalization is irreversible, so a stale
-        // hash must produce a hard error, not silently finalize whatever the engine has at the
-        // same height.
+        // `(number, hash)`); otherwise look up by number. Finalization is irreversible, so never
+        // substitute the engine's block at the same height if the pinned hash is unavailable.
         let lookup: BlockId = match self.block_id {
             FinalizeBlockId::ByHash(id) => id.hash.into(),
             FinalizeBlockId::ByNumber(n) => n.into(),
@@ -50,20 +51,29 @@ impl EngineTaskExt for FinalizeTask {
             .get_l2_block(lookup)
             .full()
             .await
-            .map_err(FinalizeTaskError::TransportError)?
-            .ok_or(FinalizeTaskError::BlockNotFound(block_number))?
-            .into_consensus();
+            .map_err(FinalizeTaskError::TransportError)?;
+        let Some(block) = block else {
+            if let FinalizeBlockId::ByHash(id) = self.block_id {
+                // Delegated derivation resubmits the target on every poll. Retaining this task
+                // for an engine retry would prevent newer imports from making it available.
+                debug!(target: "engine", ?id, "Deferring finalization until the block is available");
+                return Ok(());
+            }
+            return Err(FinalizeTaskError::BlockNotFound(block_number));
+        };
+        let block = block.into_consensus();
         let block_info = L2BlockInfo::from_block_and_genesis(&block, &self.client.cfg().genesis)
             .map_err(FinalizeTaskError::FromBlock)?;
 
-        // For ByHash, also assert the returned block's height matches the caller's claim. The
-        // engine should never serve a block at a different height for a given hash, but a height
-        // mismatch indicates either an upstream protocol bug or a misuse of the API and must
-        // never lead to silent finalization.
+        // An available block must match the complete pinned identity. A malformed response is
+        // different from a block that has not downloaded yet and must never be finalized.
         if let FinalizeBlockId::ByHash(id) = self.block_id &&
-            block_info.block_info.number != id.number
+            block_info.block_info.id() != id
         {
-            return Err(FinalizeTaskError::BlockNotFound(id.number));
+            return Err(FinalizeTaskError::BlockIdentityMismatch {
+                expected: id,
+                actual: block_info.block_info.id(),
+            });
         }
 
         // Dispatch a forkchoice update.
