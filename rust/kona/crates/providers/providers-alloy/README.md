@@ -11,3 +11,6 @@ The L1 provider verifies both raw and JSON receipts against the requested header
 receipt root before discarding receipt types and blooms. Invalid raw receipts can
 fall back to JSON receipts, which undergo the same verification. Verification
 failures remain retryable and rejected responses are not cached.
+
+Header lookups and empty-receipt checks share a hash-keyed cache that retains the
+RPC transaction count in both trust modes.

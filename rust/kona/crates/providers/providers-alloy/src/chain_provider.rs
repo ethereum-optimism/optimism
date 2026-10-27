@@ -26,6 +26,13 @@ use std::{
     vec::Vec,
 };
 
+/// A fetched header and the RPC transaction count needed to check empty raw receipts.
+#[derive(Debug, Clone)]
+struct CachedHeader {
+    header: Header,
+    transaction_count: usize,
+}
+
 /// The [`AlloyChainProvider`] is a concrete implementation of the [`ChainProvider`] trait,
 /// providing data over Ethereum JSON-RPC using an alloy provider as the backend.
 #[derive(Debug, Clone)]
@@ -35,7 +42,7 @@ pub struct AlloyChainProvider {
     /// Whether to trust the RPC without verification.
     pub trust_rpc: bool,
     /// `header_by_hash` LRU cache.
-    header_by_hash_cache: LruCache<B256, Header>,
+    header_by_hash_cache: LruCache<B256, CachedHeader>,
     /// `receipts_by_hash_cache` LRU cache.
     receipts_by_hash_cache: LruCache<B256, Vec<Receipt>>,
     /// Whether the L1 RPC supports `debug_getRawReceipts`.
@@ -126,29 +133,59 @@ impl AlloyChainProvider {
         Ok(receipts)
     }
 
+    /// Fetch, verify, and cache headers with their transaction counts for both header consumers.
+    async fn cached_header_by_hash(
+        &mut self,
+        hash: B256,
+    ) -> Result<CachedHeader, AlloyChainProviderError> {
+        if let Some(header) = self.header_by_hash_cache.get(&hash) {
+            kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_HITS, "cache" => "header_by_hash");
+            return Ok(header.clone());
+        }
+
+        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_MISSES, "cache" => "header_by_hash");
+
+        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "header_by_hash");
+
+        let block = self
+            .inner
+            .get_block_by_hash(hash)
+            .await
+            .inspect_err(|_e| {
+                kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "header_by_hash");
+            })?
+            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
+        let transaction_count = block.transactions.len();
+        let header = block.header.into_consensus();
+
+        // Verify the header hash matches what we requested
+        self.verify_header_hash(&header, hash)?;
+
+        let header = CachedHeader { header, transaction_count };
+        self.header_by_hash_cache.put(hash, header.clone());
+
+        kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "header_by_hash");
+
+        Ok(header)
+    }
+
     /// Verifies that an empty raw receipt response belongs to an existing empty block.
     async fn verify_empty_raw_receipts(
         &mut self,
         hash: B256,
     ) -> Result<(), AlloyChainProviderError> {
-        let block = self
-            .inner
-            .get_block_by_hash(hash)
-            .await?
-            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
-        let transaction_count = block.transactions.len();
-        let header = block.header.into_consensus();
-        self.verify_header_hash(&header, hash)?;
-
+        let CachedHeader { header, transaction_count } = self.cached_header_by_hash(hash).await?;
         if transaction_count != 0 || !header.transaction_root_is_empty() {
+            if (transaction_count == 0) != header.transaction_root_is_empty() {
+                // The header hash does not authenticate the RPC's transaction count. Allow a
+                // corrected block response to replace contradictory metadata on the next retry.
+                self.header_by_hash_cache.pop(&hash);
+            }
             return Err(AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock {
                 hash,
                 transaction_count,
                 transactions_root: header.transactions_root,
             });
-        }
-        if !self.trust_rpc {
-            self.header_by_hash_cache.put(hash, header);
         }
         Ok(())
     }
@@ -436,33 +473,7 @@ impl ChainProvider for AlloyChainProvider {
     type Error = AlloyChainProviderError;
 
     async fn header_by_hash(&mut self, hash: B256) -> Result<Header, Self::Error> {
-        if let Some(header) = self.header_by_hash_cache.get(&hash) {
-            kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_HITS, "cache" => "header_by_hash");
-            return Ok(header.clone());
-        }
-
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_MISSES, "cache" => "header_by_hash");
-
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "header_by_hash");
-
-        let block = self
-            .inner
-            .get_block_by_hash(hash)
-            .await
-            .inspect_err(|_e| {
-                kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "header_by_hash");
-            })?
-            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
-        let header = block.header.into_consensus();
-
-        // Verify the header hash matches what we requested
-        self.verify_header_hash(&header, hash)?;
-
-        self.header_by_hash_cache.put(hash, header.clone());
-
-        kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "header_by_hash");
-
-        Ok(header)
+        Ok(self.cached_header_by_hash(hash).await?.header)
     }
 
     async fn block_info_by_number(&mut self, number: u64) -> Result<BlockInfo, Self::Error> {
@@ -1374,6 +1385,140 @@ mod tests {
                 provider.block_info_and_transactions_by_hash(hash).await.is_ok(),
                 expected_ok
             );
+        }
+    }
+    #[tokio::test]
+    async fn header_and_empty_receipt_lookups_share_the_cache_in_both_trust_modes() {
+        use crate::test_utils::rpc_block;
+        let header = Header::default();
+        let hash = header.hash_slow();
+        let block = rpc_block::<TxEnvelope>(header.clone(), &[]);
+        for trust_rpc in [false, true] {
+            for header_first in [false, true] {
+                let asserter = Asserter::new();
+                if header_first {
+                    asserter.push_success(&block);
+                    asserter.push_success(&Vec::<Bytes>::new());
+                } else {
+                    asserter.push_success(&Vec::<Bytes>::new());
+                    asserter.push_success(&block);
+                }
+                let mut provider = AlloyChainProvider::new_with_trust(
+                    RootProvider::new(RpcClient::mocked(asserter.clone())),
+                    8,
+                    trust_rpc,
+                );
+                if header_first {
+                    assert_eq!(provider.header_by_hash(hash).await.unwrap(), header);
+                }
+                assert!(provider.receipts_by_hash(hash).await.unwrap().is_empty());
+                // No second block response is available: this must reuse the same header.
+                assert_eq!(provider.header_by_hash(hash).await.unwrap(), header);
+                assert!(asserter.read_q().is_empty());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn cached_headers_retain_both_empty_receipt_checks() {
+        for trust_rpc in [false, true] {
+            // The reported count and the header root must each indicate an empty block.
+            for (transaction_count, transactions_root) in
+                [(1, alloy_consensus::EMPTY_ROOT_HASH), (0, B256::repeat_byte(1))]
+            {
+                let header = Header { transactions_root, ..Default::default() };
+                let hash = header.hash_slow();
+                let asserter = Asserter::new();
+                asserter.push_success(&rpc_block(
+                    hash,
+                    vec![B256::repeat_byte(2); transaction_count],
+                    transactions_root,
+                ));
+                asserter.push_success(&Vec::<Bytes>::new());
+                let mut provider = AlloyChainProvider::new_with_trust(
+                    RootProvider::new(RpcClient::mocked(asserter.clone())),
+                    8,
+                    trust_rpc,
+                );
+                assert_eq!(provider.header_by_hash(hash).await.unwrap(), header);
+                let error = provider.raw_receipts_by_hash(hash).await.unwrap_err();
+                assert!(matches!(
+                    error,
+                    AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock {
+                        transaction_count: actual_count, transactions_root: actual_root, ..
+                    } if actual_count == transaction_count && actual_root == transactions_root
+                ));
+                assert!(asserter.read_q().is_empty());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn shared_header_fetch_rejects_invalid_headers_before_caching() {
+        use crate::test_utils::rpc_block;
+        let header = Header::default();
+        let hash = header.hash_slow();
+        let valid = rpc_block::<TxEnvelope>(header.clone(), &[]);
+        let mut invalid = valid.clone();
+        invalid["number"] = serde_json::json!("0x1");
+        for empty_receipts_first in [false, true] {
+            let asserter = Asserter::new();
+            if empty_receipts_first {
+                asserter.push_success(&Vec::<Bytes>::new());
+            }
+            asserter.push_success(&invalid);
+            asserter.push_success(&valid);
+            let mut provider = AlloyChainProvider::new_with_trust(
+                RootProvider::new(RpcClient::mocked(asserter.clone())),
+                8,
+                false,
+            );
+            let error = if empty_receipts_first {
+                provider.raw_receipts_by_hash(hash).await.unwrap_err()
+            } else {
+                provider.header_by_hash(hash).await.unwrap_err()
+            };
+            assert!(error.to_string().contains("Header hash mismatch"), "{error:?}");
+            assert!(provider.header_by_hash_cache.is_empty());
+            assert_eq!(provider.header_by_hash(hash).await.unwrap(), header);
+            assert!(asserter.read_q().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn contradictory_cached_counts_can_recover_on_retry() {
+        use crate::test_utils::rpc_block as full_rpc_block;
+        let header = Header::default();
+        let hash = header.hash_slow();
+        for trust_rpc in [false, true] {
+            let asserter = Asserter::new();
+            asserter.push_success(&rpc_block(
+                hash,
+                vec![B256::repeat_byte(1)],
+                alloy_consensus::EMPTY_ROOT_HASH,
+            ));
+            asserter.push_success(&Vec::<Bytes>::new());
+            asserter.push_failure_msg("JSON receipts unavailable");
+            asserter.push_success(&Vec::<Bytes>::new());
+            asserter.push_success(&full_rpc_block::<TxEnvelope>(header.clone(), &[]));
+            let mut provider = AlloyChainProvider::new_with_trust(
+                RootProvider::new(RpcClient::mocked(asserter.clone())),
+                8,
+                trust_rpc,
+            );
+            assert_eq!(provider.header_by_hash(hash).await.unwrap(), header);
+            let error = provider.receipts_by_hash(hash).await.unwrap_err();
+            assert!(matches!(
+                error,
+                AlloyChainProviderError::ReceiptMethodsFailed { raw, .. }
+                    if matches!(*raw, AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock {
+                        transaction_count: 1, ..
+                    })
+            ));
+            assert!(provider.header_by_hash_cache.is_empty());
+            assert!(provider.receipts_by_hash_cache.is_empty());
+            assert!(provider.receipts_by_hash(hash).await.unwrap().is_empty());
+            assert!(asserter.read_q().is_empty());
         }
     }
 }
