@@ -2,7 +2,7 @@
 
 #[cfg(feature = "metrics")]
 use crate::Metrics;
-use crate::verification::VerificationError;
+use crate::verify;
 use alloy_consensus::{Header, Receipt, ReceiptEnvelope, TxEnvelope};
 use alloy_eips::{
     BlockId,
@@ -129,7 +129,9 @@ impl AlloyChainProvider {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        self.verify_receipts(hash, &receipts).await?;
+        if !self.trust_rpc {
+            self.verify_receipts(hash, &receipts).await?;
+        }
         Ok(receipts)
     }
 
@@ -158,8 +160,9 @@ impl AlloyChainProvider {
         let transaction_count = block.transactions.len();
         let header = block.header.into_consensus();
 
-        // Verify the header hash matches what we requested
-        self.verify_header_hash(&header, hash)?;
+        if !self.trust_rpc {
+            verify::header_hash(&header, hash).map_err(RpcError::local_usage)?;
+        }
 
         let header = CachedHeader { header, transaction_count };
         self.header_by_hash_cache.put(hash, header.clone());
@@ -204,7 +207,9 @@ impl AlloyChainProvider {
             .into_iter()
             .map(|receipt| receipt.inner.into_primitives_receipt())
             .collect::<Vec<_>>();
-        self.verify_receipts(hash, &receipts).await?;
+        if !self.trust_rpc {
+            self.verify_receipts(hash, &receipts).await?;
+        }
         Ok(receipts)
     }
 
@@ -306,30 +311,14 @@ impl AlloyChainProvider {
         })
     }
 
-    /// Verifies that a header's hash matches the expected hash when `trust_rpc` is false.
-    fn verify_header_hash(
-        &self,
-        header: &Header,
-        expected_hash: B256,
-    ) -> Result<(), AlloyChainProviderError> {
-        if self.trust_rpc {
-            return Ok(());
-        }
-
-        VerificationError::header(header, expected_hash).map_err(RpcError::local_usage)?;
-        Ok(())
-    }
-
     /// Keep the EIP-2718 type and bloom until the consensus receipt root has been checked.
     async fn verify_receipts(
         &mut self,
         hash: B256,
         receipts: &[ReceiptEnvelope],
     ) -> Result<(), AlloyChainProviderError> {
-        if !self.trust_rpc {
-            let header = self.header_by_hash(hash).await?;
-            VerificationError::receipts(&header, receipts).map_err(RpcError::local_usage)?;
-        }
+        let header = self.header_by_hash(hash).await?;
+        verify::receipts(&header, receipts).map_err(RpcError::local_usage)?;
         Ok(())
     }
 }
@@ -490,8 +479,8 @@ impl ChainProvider for AlloyChainProvider {
         let claimed_hash = block.header.hash;
         let header = block.header.into_consensus();
         if !self.trust_rpc {
-            self.verify_header_hash(&header, claimed_hash)?;
-            VerificationError::number(&header, number).map_err(RpcError::local_usage)?;
+            verify::header_hash(&header, claimed_hash).map_err(RpcError::local_usage)?;
+            verify::block_number(&header, number).map_err(RpcError::local_usage)?;
         }
 
         let block_info = BlockInfo {
@@ -569,10 +558,9 @@ impl ChainProvider for AlloyChainProvider {
             .into_consensus()
             .map_transactions(|t| t.inner.into_inner());
 
-        // Verify the block hash matches what we requested
-        self.verify_header_hash(&block.header, hash)?;
         if !self.trust_rpc {
-            VerificationError::transactions(&block.header, &block.body.transactions)
+            verify::header_hash(&block.header, hash).map_err(RpcError::local_usage)?;
+            verify::transactions(&block.header, &block.body.transactions)
                 .map_err(RpcError::local_usage)?;
         }
 

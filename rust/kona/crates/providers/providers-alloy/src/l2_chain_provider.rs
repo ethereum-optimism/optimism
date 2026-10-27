@@ -2,7 +2,7 @@
 
 #[cfg(feature = "metrics")]
 use crate::Metrics;
-use crate::verification::VerificationError;
+use crate::verify;
 use alloy_primitives::{B256, Bytes};
 use alloy_provider::{Provider, RootProvider};
 use alloy_rpc_client::RpcClient;
@@ -94,7 +94,11 @@ impl AlloyL2ChainProvider {
             .ok_or(AlloyL2ChainProviderError::BlockHashNotFound(hash))?;
 
         let block = block.into_consensus().map_transactions(|t| t.inner.inner.into_inner());
-        self.verify_block(&block, hash)?;
+        if !self.trust_rpc {
+            verify::header_hash(&block.header, hash).map_err(RpcError::local_usage)?;
+            verify::transactions(&block.header, &block.body.transactions)
+                .map_err(RpcError::local_usage)?;
+        }
 
         let block = Arc::new(block);
         self.block_by_hash_cache.put(hash, Arc::clone(&block));
@@ -109,21 +113,6 @@ impl AlloyL2ChainProvider {
     /// Returns the latest L2 block number.
     pub async fn latest_block_number(&mut self) -> Result<u64, RpcError<TransportErrorKind>> {
         self.inner.get_block_number().await
-    }
-
-    /// Authenticate both the header and body before using or caching an untrusted block.
-    fn verify_block(
-        &self,
-        block: &OpBlock,
-        expected_hash: B256,
-    ) -> Result<(), RpcError<TransportErrorKind>> {
-        if !self.trust_rpc {
-            VerificationError::header(&block.header, expected_hash)
-                .map_err(RpcError::local_usage)?;
-            VerificationError::transactions(&block.header, &block.body.transactions)
-                .map_err(RpcError::local_usage)?;
-        }
-        Ok(())
     }
 
     /// Creates a new [`AlloyL2ChainProvider`] from the provided [`reqwest::Url`].
@@ -225,9 +214,11 @@ impl BatchValidationProvider for AlloyL2ChainProvider {
         let claimed_hash = block.header.hash;
         let block = block.into_consensus().map_transactions(|t| t.inner.inner.into_inner());
         if !self.trust_rpc {
-            VerificationError::number(&block.header, number).map_err(RpcError::local_usage)?;
+            verify::block_number(&block.header, number).map_err(RpcError::local_usage)?;
+            verify::header_hash(&block.header, claimed_hash).map_err(RpcError::local_usage)?;
+            verify::transactions(&block.header, &block.body.transactions)
+                .map_err(RpcError::local_usage)?;
         }
-        self.verify_block(&block, claimed_hash)?;
         let block = Arc::new(block);
 
         self.block_by_hash_cache.put(block.header.hash_slow(), Arc::clone(&block));
