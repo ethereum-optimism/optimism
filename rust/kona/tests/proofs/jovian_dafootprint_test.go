@@ -74,7 +74,7 @@ func TestJovianDAFootprint(gt *testing.T) {
 
 		l2Cl := env.Engine.EthClient()
 		chainID := rollupCfg.L2ChainID
-		signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+		signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
 
 		// Deterministic nonces from pending state
 		nonce, err := l2Cl.PendingNonceAt(t.Ctx(), env.Dp.Addresses.Alice)
@@ -119,7 +119,7 @@ func TestJovianDAFootprint(gt *testing.T) {
 			// Send to txpool then include in the in-progress L2 block.
 			err = l2Cl.SendTransaction(t.Ctx(), tx)
 			require.NoError(t, err)
-			_, err = env.Engine.EngineApi.IncludeTx(tx, env.Dp.Addresses.Alice)
+			err = env.Engine.IncludeTxErr(t, tx, env.Dp.Addresses.Alice)
 			require.NoError(t, err)
 
 			runningDAFootprint += est
@@ -137,11 +137,11 @@ func TestJovianDAFootprint(gt *testing.T) {
 
 		// Inspect the built block and verify header DA footprint and base fee behavior.
 		env.Sequencer.L2Unsafe()
-		blk, userTxs, err := env.Engine.SourceClient().InfoAndUserTxsByHash(t.Ctx(), env.Sequencer.L2Unsafe().Hash)
+		blk, userTxs, err := env.Engine.SourceClient(t, 10).InfoAndUserTxsByHash(t.Ctx(), env.Sequencer.L2Unsafe().Hash)
 		require.NoError(t, err)
 		require.NotNil(t, blk.BlobGasUsed(), "blobGasUsed must be set on Jovian blocks")
 		blockDAFootprint := *blk.BlobGasUsed()
-		_, receipts, err := env.Engine.SourceClient().FetchReceipts(t.Ctx(), blk.Hash())
+		_, receipts, err := env.Engine.SourceClient(t, 10).FetchReceipts(t.Ctx(), blk.Hash())
 		require.NoError(t, err)
 		userReceipts := receipts.UserReceipts()
 		require.Len(t, userReceipts, len(userTxs), "every user tx must have a receipt")

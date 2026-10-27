@@ -38,6 +38,10 @@ use reth_storage_api::StateProvider as _;
 use crate::{builder::InFlightPayload, exec::ImportOutcome};
 
 /// Errors produced by the test engine.
+///
+/// op-e2e's `L2Engine.includeNextTx` (`op-e2e/actions/helpers/l2_engine.go`) matches the messages
+/// of [`Error::NotBuildingBlock`] and [`Error::UsesTooMuchGas`] over RPC, so those texts are a wire
+/// contract.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// A reth provider or storage query failed.
@@ -81,15 +85,13 @@ pub enum Error {
         /// The offending block hash.
         hash: B256,
     },
-    /// A block-building operation was requested while no block is being built. Mirrors
-    /// `engineapi.ErrNotBuildingBlock`.
+    /// A block-building operation was requested while no block is being built.
     #[error("not currently building a block")]
     NotBuildingBlock,
     /// `get_payload` was asked for a payload id that is not being built.
     #[error("unknown payload id {0}")]
     UnknownPayloadId(PayloadId),
-    /// A transaction's declared gas limit exceeds the block gas limit. Mirrors
-    /// `engineapi.ErrExceedsGasLimit`.
+    /// A transaction's declared gas limit exceeds the block gas limit.
     #[error("tx gas exceeds block gas limit: tx gas {tx_gas}, block gas limit {block_gas_limit}")]
     ExceedsGasLimit {
         /// The transaction's declared gas limit.
@@ -97,8 +99,7 @@ pub enum Error {
         /// The block gas limit.
         block_gas_limit: u64,
     },
-    /// A transaction's declared gas limit exceeds the gas remaining in the block. Mirrors
-    /// `engineapi.ErrUsesTooMuchGas` ("action takes too much gas").
+    /// A transaction's declared gas limit exceeds the gas remaining in the block.
     #[error("action takes too much gas: {tx_gas}, only have {remaining}")]
     UsesTooMuchGas {
         /// The transaction's declared gas limit.
@@ -287,19 +288,18 @@ impl TestEngine {
     }
 
     /// Gas remaining in the block being built (`optest_remainingBlockGas`). Returns `0` when no
-    /// block is being built or it is already sealed, mirroring `L2EngineAPI.RemainingBlockGas`.
+    /// block is being built or it is already sealed.
     pub fn remaining_block_gas(&self, id: Option<PayloadId>) -> u64 {
         self.in_flight_ref(id).map_or(0, InFlightPayload::remaining_block_gas)
     }
 
     /// Whether force-empty is set for the block being built (`optest_forcedEmpty`). Returns `false`
-    /// when no block is being built, mirroring `L2EngineAPI.ForcedEmpty`.
+    /// when no block is being built.
     pub fn forced_empty(&self, id: Option<PayloadId>) -> bool {
         self.in_flight_ref(id).is_some_and(InFlightPayload::forced_empty)
     }
 
-    /// Set the force-empty flag for the block being built (`optest_setForceEmpty`). Mirrors
-    /// `L2EngineAPI.SetForceEmpty`.
+    /// Set the force-empty flag for the block being built (`optest_setForceEmpty`).
     pub fn set_force_empty(&mut self, id: Option<PayloadId>, value: bool) -> Result<()> {
         let id = self.resolve_id(id)?;
         self.in_flight.get_mut(&id).ok_or(Error::NotBuildingBlock)?.set_force_empty(value);

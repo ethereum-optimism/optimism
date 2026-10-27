@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::actors::{
     generator::{block_builder::PayloadVersion, seed::SEED_GENERATOR_BUILDER},
     network::mocks::builder::TestNetworkBuilder,
@@ -8,25 +10,23 @@ use crate::actors::{
 async fn test_sequencer_network_conn() -> anyhow::Result<()> {
     let mut builder = TestNetworkBuilder::new().set_sequencer();
 
-    let sequencer_network = builder.build(vec![]).await;
-    let enr_1 = sequencer_network.peer_enr().await?;
+    let sequencer = builder.build(vec![]).await;
+    let enr_1 = sequencer.peer_enr().await?;
 
-    let mut validator_network = builder.build(vec![enr_1]).await;
+    let mut validator = builder.build(vec![enr_1]).await;
 
-    sequencer_network.is_connected_to_with_retries(&validator_network).await?;
+    sequencer.is_connected_to_with_retries(&validator).await?;
 
-    validator_network.is_connected_to_with_retries(&sequencer_network).await?;
+    validator.is_connected_to_with_retries(&sequencer).await?;
 
     let mut seed_generator = SEED_GENERATOR_BUILDER.next_generator();
 
     let envelope = seed_generator.random_valid_payload(PayloadVersion::V1)?;
 
-    sequencer_network.gossip_payload_tx.send(envelope.clone()).await?;
+    sequencer.gossip_payload_tx.send(envelope.clone()).await?;
 
-    let block = validator_network
-        .blocks_rx
-        .recv()
-        .await
+    let block = tokio::time::timeout(Duration::from_secs(10), validator.blocks_rx.recv())
+        .await?
         .ok_or_else(|| anyhow::anyhow!("No block received"))?;
 
     assert_eq!(block, envelope);
@@ -34,31 +34,61 @@ async fn test_sequencer_network_conn() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Test that the network can properly propagate blocks to all connected peers.
+/// Blocks gossiped by the sequencer reach a validator connected over the in-memory transport.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_memory_network_conn() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().set_sequencer().in_memory();
+
+    let sequencer = builder.build(vec![]).await;
+    let mut validator = builder.build(vec![]).await;
+
+    validator.connect_to(&sequencer).await?;
+
+    validator.is_connected_to_with_retries(&sequencer).await?;
+    sequencer.is_connected_to_with_retries(&validator).await?;
+
+    let mut seed_generator = SEED_GENERATOR_BUILDER.next_generator();
+
+    let envelope = seed_generator.random_valid_payload(PayloadVersion::V1)?;
+
+    sequencer.gossip_payload_tx.send(envelope.clone()).await?;
+
+    let block = tokio::time::timeout(Duration::from_secs(10), validator.blocks_rx.recv())
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("No block received"))?;
+
+    assert_eq!(block, envelope);
+
+    Ok(())
+}
+
+/// Blocks gossiped by the sequencer reach every validator of a network set up as a line.
 ///
-/// We are setting up a linear network topology, and we check that the block propagates to every
-/// block of the network.
+/// Each validator only bootstraps from the node before it. The block reaches the far end of the
+/// line either over connections discovery adds, or by validators relaying it.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_network_propagation() -> anyhow::Result<()> {
-    const NETWORKS: usize = 10;
+    const VALIDATORS: usize = 10;
 
     let mut builder = TestNetworkBuilder::new().set_sequencer();
 
-    let sequencer_network = builder.build(vec![]).await;
-    let mut previous_enrs = vec![sequencer_network.peer_enr().await?];
+    let sequencer = builder.build(vec![]).await;
+    let mut previous_enr = sequencer.peer_enr().await?;
 
-    let mut validator_networks = Vec::new();
+    let mut validators = Vec::new();
 
-    for _ in 0..NETWORKS {
-        let network = builder.build(previous_enrs.clone()).await;
+    for _ in 0..VALIDATORS {
+        let validator = builder.build(vec![previous_enr]).await;
 
-        previous_enrs.push(network.peer_enr().await?);
-        validator_networks.push(network);
+        previous_enr = validator.peer_enr().await?;
+        validators.push(validator);
     }
 
-    // Check that all networks are connected to the sequencer.
-    for network in &validator_networks {
-        network.is_connected_to_with_retries(&sequencer_network).await?;
+    // Check that each validator is connected to the node before it, so the line is complete.
+    let mut previous = &sequencer;
+    for validator in &validators {
+        validator.is_connected_to_with_retries(previous).await?;
+        previous = validator;
     }
 
     // Send a block to the sequencer.
@@ -66,12 +96,13 @@ async fn test_sequencer_network_propagation() -> anyhow::Result<()> {
 
     let envelope = seed_generator.random_valid_payload(PayloadVersion::V1)?;
 
-    sequencer_network.gossip_payload_tx.send(envelope.clone()).await?;
+    sequencer.gossip_payload_tx.send(envelope.clone()).await?;
 
-    // Check that the block propagates to all networks.
-    for network in &mut validator_networks {
-        let block =
-            network.blocks_rx.recv().await.ok_or_else(|| anyhow::anyhow!("No block received"))?;
+    // Check that the block propagates to all validators.
+    for validator in &mut validators {
+        let block = tokio::time::timeout(Duration::from_secs(10), validator.blocks_rx.recv())
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("No block received"))?;
 
         assert_eq!(block, envelope);
     }

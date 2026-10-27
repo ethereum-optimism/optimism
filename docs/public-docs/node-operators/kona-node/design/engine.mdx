@@ -60,11 +60,12 @@ The engine uses a priority-based task queue (a binary heap ordered by the `Engin
 
 ### Task Priority (Highest to Lowest)
 
-1. **Seal** - Seals blocks that have finished building (sequencer mode)
-2. **Build** - Builds new blocks (sequencer mode)
-3. **Insert** - Inserts unsafe blocks from gossip
-4. **Consolidate** - Advances safe chain via derivation
-5. **Finalize** - Finalizes L2 blocks
+1. **Canonicalize** - Imports sealed blocks after their conductor commit (sequencer mode)
+2. **Seal** - Seals blocks that have finished building (sequencer mode)
+3. **Build** - Builds new blocks (sequencer mode)
+4. **Insert** - Inserts unsafe blocks from gossip
+5. **Consolidate** - Advances safe chain via derivation
+6. **Finalize** - Finalizes L2 blocks
 
 Only the queue executes tasks. A task never runs another task: the steps that several tasks share, such as starting a build, fetching a built payload, inserting a payload, and synchronizing forkchoice, are plain functions that the tasks call.
 
@@ -94,7 +95,7 @@ Handles payload building initiation with `engine_forkchoiceUpdated`.
 
 #### SealTask
 
-Seals a block started by a `BuildTask` in sequencer mode. It checks that the build's parent is still the unsafe head, retrieves the payload with version-specific `engine_getPayload` calls, inserts it, and canonicalizes it:
+Seals a block started by a `BuildTask` in sequencer mode. It checks that the build's parent is still the unsafe head and retrieves the payload with version-specific `engine_getPayload` calls. It does not change forkchoice: the sequencer commits the payload to the conductor before a `CanonicalizeTask` imports it.
 
 ```rust
 pub struct SealTask {
@@ -106,13 +107,15 @@ pub struct SealTask {
     pub payload_id: PayloadId,
     /// The OpAttributesWithParent to instruct the execution layer to build.
     pub attributes: OpAttributesWithParent,
-    /// An optional sender for the built OpExecutionPayloadEnvelope or the
+    /// An optional sender for the sealed OpExecutionPayloadEnvelope or the
     /// SealTaskError that occurred during processing.
     pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
-    /// Where to hand the decoded block once the engine has canonicalized it.
-    pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 ```
+
+#### CanonicalizeTask
+
+Imports a sealed block in sequencer mode once the sequencer has committed it to the conductor, making it the new unsafe head. The conductor commit happens outside the engine queue, so the task first checks that the block's parent is still the unsafe head. A rejected block is not replaced with a deposits-only block, because a replacement would need its own conductor commit. The new unsafe head is published before the result is returned to the sequencer, which then gossips the block.
 
 #### InsertTask
 

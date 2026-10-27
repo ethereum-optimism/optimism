@@ -106,7 +106,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			root := crypto.Keccak256Hash([]byte("fake-beacon-block-root"), header.Number.Bytes())
 			header.ParentBeaconRoot = &root
 
-			// Mirrors the beacon-root setup in op-e2e/e2eutils/gethengine/engineapi/block_processor.go.
+			// Process the EIP-4788 beacon root at the start of the block.
 			// TODO(client-pod#826)
 			// Unfortunately this is not part of any Geth environment setup,
 			// we just have to apply it, like how the Geth block-builder worker does.

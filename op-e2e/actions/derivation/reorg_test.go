@@ -360,7 +360,7 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l2UserEnv := &actionsHelpers.BasicUserEnv[*actionsHelpers.L2Bindings]{
 		EthCl:          l2Client,
-		Signer:         types.LatestSigner(sd.L2Cfg.Config),
+		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Client, seqEngine.GethClient()),
 	}
@@ -709,7 +709,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l2UserEnv := &actionsHelpers.BasicUserEnv[*actionsHelpers.L2Bindings]{
 		EthCl:          l2Cl,
-		Signer:         types.LatestSigner(sd.L2Cfg.Config),
+		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Cl, altSeqEng.GethClient()),
 	}
@@ -806,7 +806,7 @@ func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l2UserEnv := &actionsHelpers.BasicUserEnv[*actionsHelpers.L2Bindings]{
 		EthCl:          l2Client,
-		Signer:         types.LatestSigner(sd.L2Cfg.Config),
+		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Client, seqEngine.GethClient()),
 	}

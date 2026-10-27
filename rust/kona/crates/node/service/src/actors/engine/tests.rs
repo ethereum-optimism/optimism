@@ -47,13 +47,15 @@ async fn admin_reset_recovers_and_completes_original_request(
         .unwrap();
     let derivation = QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx };
     let (requests, request_rx) = mpsc::channel(8);
-    let (state_tx, _state_rx) = tokio::sync::watch::channel(EngineState::default());
+    let (state_tx, state_rx) = tokio::sync::watch::channel(EngineState::default());
+    let (unsafe_head_tx, unsafe_head_rx) =
+        tokio::sync::watch::channel(kona_protocol::L2BlockInfo::default());
     let mut actor = EngineActor::new(
         client,
         config,
         derivation,
         Engine::new(EngineState::default(), state_tx),
-        None,
+        Some(unsafe_head_tx),
         request_rx,
         Arc::new(NoopBlockSink),
     );
@@ -84,6 +86,15 @@ async fn admin_reset_recovers_and_completes_original_request(
         Ok::<(), crate::EngineError>(())
     });
     time::timeout(Duration::from_secs(20), reset).await.unwrap().unwrap().unwrap();
+    // Reset acknowledgement must make the recovered heads visible to RPC readers, even
+    // when stopped sequencing leaves the engine task queue empty.
+    // The unsafe head keeps its canonical L1 origin; the safe heads walk back to finalized.
+    let published = state_rx.borrow().sync_state;
+    assert_eq!(published.unsafe_head(), chain.info(26));
+    for head in [published.local_safe_head(), published.safe_head(), published.finalized_head()] {
+        assert_eq!(head, chain.info(18));
+    }
+    assert_eq!(*unsafe_head_rx.borrow(), chain.info(26));
     assert!(matches!(
         derivation_rx.recv().await.unwrap(),
         DerivationActorRequest::ProcessL1HeadUpdateRequest(_)

@@ -320,8 +320,7 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
             IncludeTxOutcome::Included { tx_hash, gas_used } => {
                 json!({ "txHash": tx_hash, "gasUsed": gas_used })
             }
-            // Force-empty dropped the tx (op-geth returns nil, nil); the caller treats null as "not
-            // included".
+            // Force-empty dropped the tx; the caller treats null as "not included".
             IncludeTxOutcome::Skipped => Value::Null,
         };
         Ok::<Value, ErrorObjectOwned>(value)

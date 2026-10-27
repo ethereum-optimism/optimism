@@ -10,9 +10,8 @@
 //! lifetime, so it cannot be parked across RPC round-trips. Instead the in-flight payload keeps the
 //! ordered transaction list and re-runs [`EphemeralChain::assemble_block`] on demand; block
 //! assembly is deterministic, so re-execution yields the same block the eventual `get_payload`
-//! seals. The semantics mirror the `L2EngineAPI`/`BlockProcessor` of
-//! `op-e2e/e2eutils/gethengine/engineapi` (forced transactions applied at block start,
-//! `no_tx_pool` → force-empty, the gas-limit checks in `CheckTxWithinGasLimit`).
+//! seals. The attributes' transactions are applied at block start, `no_tx_pool` sets force-empty,
+//! and a pool transaction is gas-checked against the block before it is executed.
 
 use alloy_consensus::{Transaction as _, transaction::SignerRecoverable};
 use alloy_eips::eip2718::Decodable2718;
@@ -48,8 +47,7 @@ pub enum IncludeTxOutcome {
         /// Gas the transaction consumed.
         gas_used: u64,
     },
-    /// Force-empty is set, so the transaction was silently dropped. Mirrors `L2EngineAPI.IncludeTx`
-    /// returning `(nil, nil)` when `l2ForceEmpty` is true.
+    /// Force-empty is set, so the transaction was silently dropped.
     Skipped,
 }
 
@@ -106,7 +104,7 @@ impl InFlightPayload {
     /// attributes' transactions, which must not put a deposit after a non-deposit (an
     /// [`Error::InvalidPayloadAttributes`] otherwise), and picks the block's
     /// [post-exec mode](post_exec_mode). It then applies them (an invalid one fails
-    /// here, mirroring `L2EngineAPI.startBlock`), seeding the cumulative gas from that assembly.
+    /// here), seeding the cumulative gas from that assembly.
     pub(crate) fn open(
         chain: &EphemeralChain,
         version: EngineApiMessageVersion,
@@ -145,8 +143,8 @@ impl InFlightPayload {
             &forced_txs,
         )?;
 
-        // Assemble the forced transactions once: this validates them (a bad one errors, as in
-        // op-geth's startBlock) and gives the starting cumulative gas.
+        // Assemble the forced transactions once: this validates them (a bad one errors) and gives
+        // the starting cumulative gas.
         let cumulative_gas = chain
             .assemble_block_on(
                 parent,
@@ -189,8 +187,7 @@ impl InFlightPayload {
 
     /// How many pool transactions from `from` have already been included in this block. Combined
     /// with the sender's nonce in the parent state, this gives the nonce of the next transaction
-    /// from `from` eligible for inclusion — the parking buffer's lookup key. Mirrors
-    /// `L2EngineAPI.PendingIndices`.
+    /// from `from` eligible for inclusion — the parking buffer's lookup key.
     pub(crate) fn included_count_from(&self, from: Address) -> u64 {
         self.pool_txs
             .iter()
@@ -198,18 +195,17 @@ impl InFlightPayload {
             .count() as u64
     }
 
-    /// Whether force-empty is set. Mirrors `L2EngineAPI.ForcedEmpty`.
+    /// Whether force-empty is set.
     pub(crate) const fn forced_empty(&self) -> bool {
         self.force_empty
     }
 
-    /// Set the force-empty flag. Mirrors `L2EngineAPI.SetForceEmpty`.
+    /// Set the force-empty flag.
     pub(crate) const fn set_force_empty(&mut self, value: bool) {
         self.force_empty = value;
     }
 
-    /// Gas remaining in the block, or `0` once it is sealed. Mirrors
-    /// `L2EngineAPI.RemainingBlockGas` (the block gas pool, gone after `endBlock`).
+    /// Gas remaining in the block, or `0` once it is sealed.
     pub(crate) const fn remaining_block_gas(&self) -> u64 {
         if self.sealed.is_some() {
             return 0;
@@ -224,10 +220,9 @@ impl InFlightPayload {
 
     /// Decode, gas-check, and execute a pool transaction, appending it on success.
     ///
-    /// Mirrors `L2EngineAPI.IncludeTx` + `BlockProcessor.CheckTxWithinGasLimit`: a sealed block is
-    /// no longer being built ([`Error::NotBuildingBlock`]); a force-empty block drops the
-    /// transaction ([`IncludeTxOutcome::Skipped`]); a declared gas limit above the block gas limit
-    /// or above the remaining gas is rejected with [`Error::ExceedsGasLimit`] /
+    /// A sealed block is no longer being built ([`Error::NotBuildingBlock`]); a force-empty block
+    /// drops the transaction ([`IncludeTxOutcome::Skipped`]); a declared gas limit above the
+    /// block gas limit or above the remaining gas is rejected with [`Error::ExceedsGasLimit`] /
     /// [`Error::UsesTooMuchGas`]; a transaction that fails execution errors without being appended.
     pub(crate) fn include_tx(
         &mut self,
@@ -274,7 +269,7 @@ impl InFlightPayload {
 
     /// Seal the block and return it as execution-payload data ready for `new_payload`.
     ///
-    /// Mirrors `L2EngineAPI.getPayload` → `endBlock`: sealing closes the build. Fetching the
+    /// Sealing closes the build. Fetching the
     /// payload again returns the block sealed first, as reth's payload store does, so a retried
     /// `getPayload` is safe.
     pub(crate) fn get_payload(&mut self, chain: &EphemeralChain) -> crate::Result<OpExecutionData> {
@@ -741,7 +736,7 @@ mod tests {
         assert!(updated.is_valid());
         assert!(engine.forced_empty(None));
 
-        // include_tx is a silent no-op under force-empty (mirrors op-geth returning nil,nil).
+        // include_tx is a silent no-op under force-empty.
         let outcome = engine.include_tx(None, &encode(&user_tx(0))).unwrap();
         assert!(matches!(outcome, IncludeTxOutcome::Skipped), "{outcome:?}");
         assert_eq!(engine.remaining_block_gas(None), GAS_LIMIT);
@@ -777,8 +772,7 @@ mod tests {
 
         let sealed = engine.get_payload(id).expect("get payload");
 
-        // Sealing ends the build, as op-geth's endBlock does: nothing more can be included and no
-        // block gas is left to report.
+        // Sealing ends the build: nothing more can be included and no block gas is left to report.
         let err = engine.include_tx(None, &encode(&user_tx(1))).unwrap_err();
         assert!(matches!(err, Error::NotBuildingBlock), "{err:?}");
         assert_eq!(engine.remaining_block_gas(None), 0);
@@ -957,7 +951,7 @@ mod tests {
     fn include_next_tx_needs_a_block() {
         let mut engine = test_engine(user_sender());
         engine.send_raw_transaction(&encode(&user_tx(0))).unwrap();
-        // No in-flight payload: mirrors ErrNotBuildingBlock.
+        // No in-flight payload: Error::NotBuildingBlock.
         assert!(matches!(
             engine.include_next_tx(user_sender()),
             Err(crate::Error::NotBuildingBlock)

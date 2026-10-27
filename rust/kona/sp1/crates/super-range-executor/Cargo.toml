@@ -32,7 +32,7 @@ kona-registry.workspace = true
 alloy-consensus.workspace = true
 alloy-eips.workspace = true
 alloy-primitives.workspace = true
-alloy-provider = { workspace = true, features = ["ws"] }
+alloy-provider = { workspace = true, features = ["ws", "ipc"] }
 alloy-rlp.workspace = true
 alloy-rpc-client.workspace = true
 op-alloy-consensus.workspace = true

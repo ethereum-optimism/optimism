@@ -1,13 +1,13 @@
 use crate::{
-    BuildRequest, EngineDerivationClient, EngineError, NodeActor, ResetKind, ResetRequest,
-    SealRequest,
+    BuildRequest, CanonicalizeRequest, EngineDerivationClient, EngineError, NodeActor, ResetKind,
+    ResetRequest, SealRequest,
 };
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient, EngineTask,
-    EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink, InsertTask,
-    SealTask,
+    BuildTask, CanonicalizeTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient,
+    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink,
+    InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -145,6 +145,9 @@ where
             }
             _ => self.engine.reset(self.client.clone(), self.rollup.clone()).await?,
         };
+        // The sequencer must observe the same reset head as RPC readers before its reset
+        // acknowledgement can release a queued start command.
+        self.publish_unsafe_head();
 
         // Derivation may be awaiting this reply with its inbound queue full of L1 updates.
         // Release those callers before awaiting delivery to that same queue. They transition
@@ -166,6 +169,21 @@ where
         self.send_derivation_actor_safe_head_if_updated().await?;
 
         Ok(())
+    }
+
+    /// Publishes the current unsafe head to the sequencer without waiting on derivation.
+    fn publish_unsafe_head(&self) {
+        if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
+            unsafe_head_tx.send_if_modified(|current_head| {
+                let new_head = self.engine.state().sync_state.unsafe_head();
+                if *current_head == new_head {
+                    false
+                } else {
+                    *current_head = new_head;
+                    true
+                }
+            });
+        }
     }
 
     /// Drains the inner [`Engine`] task queue and attempts to update the safe head.
@@ -280,12 +298,7 @@ where
         }
 
         // If the unsafe head has updated, propagate it to the outbound channels.
-        if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
-            unsafe_head_tx.send_if_modified(|val| {
-                let new_head = self.engine.state().sync_state.unsafe_head();
-                (*val != new_head).then(|| *val = new_head).is_some()
-            });
-        }
+        self.publish_unsafe_head();
 
         // Wait for the next processing request.
         // Retry without needing a new inbound message, while still accepting requests during
@@ -346,6 +359,18 @@ where
                 self.begin_reset(kind);
                 self.reset_waiters.push(result_tx);
             }
+            EngineActorRequest::Canonicalize(request) => {
+                let CanonicalizeRequest { payload, parent, result_tx } = *request;
+                self.engine.enqueue(EngineTask::Canonicalize(Box::new(CanonicalizeTask::new(
+                    self.client.clone(),
+                    self.rollup.clone(),
+                    payload,
+                    parent,
+                    result_tx,
+                    self.unsafe_head_tx.clone(),
+                    Arc::clone(&self.block_sink),
+                ))));
+            }
             EngineActorRequest::Seal(seal_request) => {
                 let SealRequest { payload_id, attributes, result_tx } = *seal_request;
                 let task = EngineTask::Seal(Box::new(SealTask::new(
@@ -354,7 +379,6 @@ where
                     payload_id,
                     attributes,
                     Some(result_tx),
-                    Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
             }

@@ -29,8 +29,8 @@ of three fates:
    extensions** to geth's `log`/`rpc` packages, re-homed into owned op-service layers (§15).
 2. **Migrate execution to op-reth / Rust** — anything that builds or executes blocks, or needs
    fork-only EVM hooks. op-acceptance-tests sequences op-reth-only for Karst+ (#21182);
-   op-e2e/actions runs on an op-reth-test-engine subprocess EL (#20415, #21196); the kona proof
-   tests' in-process op-geth L2 EL, `op-e2e/e2eutils/gethengine`, moves onto it too (#21905);
+   op-e2e/actions and the kona proof tests (`rust/kona/tests/proofs`) run on an
+   op-reth-test-engine subprocess EL (#20415, #21196, #21905);
    op-e2e system tests and op-devstack/sysgo retire their in-process op-geth L2 EL (§17); and
    op-deployer runs all its scripts on upstream forge, deleting `op-chain-ops/script` (§16).
 3. **Delete** — geth-as-library tools with no remaining need, to be reimplemented in Rust against
@@ -432,9 +432,9 @@ is rejected. `Genesis.ToBlock()` computes the genesis block on upstream go-ether
 adds — from Isthmus the header's `WithdrawalsHash` is the storage root of the
 `L2ToL1MessagePasser` predeploy (upstream `state`/`triedb`) instead of the empty hash.
 `GethGenesis()` bridges to `core.Genesis` for code that commits genesis state with go-ethereum:
-the in-process op-geth ELs of op-e2e and op-devstack (§17) and op-e2e's action-test
-`SetupData.L2Cfg`. op-devstack's `L2Network.ChainConfig()` still returns the go-ethereum config
-`GethChainConfig()` derives (§13).
+the in-process op-geth ELs of op-e2e and op-devstack (§17). op-e2e's action-test
+`SetupData.L2Cfg` is the `Genesis` itself. op-devstack's `L2Network.ChainConfig()` still
+returns the go-ethereum config `GethChainConfig()` derives (§13).
 
 `opparams.ChainConfig`'s JSON codec writes the go-ethereum config `GethChainConfig()` derives,
 embedded, with the OP fields declared directly: `encoding/json` lets a direct field dominate a
@@ -761,7 +761,7 @@ monorepo-only (#22678).
 | op-proposer / op-challenger / op-supernode / cannon (§12) | — | audited, no work; cannon test support rides #23405 |
 | Test migration: wait.go split, L2 call sites, `L2Client` type, sysgo audit, delete op-e2e/opgeth, fork-symbol swaps (§13) | `apis.EthClient` + header-only variants + op-core | open (#20265 + subs, incl. #23405) |
 | op-e2e/actions in-process EL | `op-reth-test-engine` subprocess | **done** (#20415 Rust, #21196 Go) |
-| Kona proof tests' in-process EL (`op-e2e/e2eutils/gethengine`, `rust/kona/tests/proofs`) | `op-reth-test-engine` subprocess | open (#21905) |
+| Kona proof tests' in-process EL (`rust/kona/tests/proofs`) | `op-reth-test-engine` subprocess | **done** (#21905) |
 | Genesis tooling (§14) | `op-core/genesis` on upstream geth + `opparams` | **done** (#21281) |
 | op-simulate / op-run-block (§14) | delete | **done** (#21282) |
 | op-sync-tester PayloadID hash + fork-config swaps | OP-aware `Id()` reimplementation | open (#21525) |

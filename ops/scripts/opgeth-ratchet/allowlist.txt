@@ -143,7 +143,6 @@ op-e2e/actions/helpers | missing go-ethereum/core/types.DefaultBlockConfig | #23
 op-e2e/actions/helpers | missing go-ethereum/core/vm.Config.PrecompileOverrides | #23405 test and DSL swaps to op-core
 op-e2e/actions/helpers | missing go-ethereum/core/vm.PrecompileOverrides | #23405 test and DSL swaps to op-core
 op-e2e/actions/helpers | missing go-ethereum/eth/ethconfig.Config.RollupDisableTxPoolGossip | #23405 test and DSL swaps to op-core
-op-e2e/actions/helpers (tests) | missing go-ethereum/params.ChainConfig.IsCanyon | #21196 action-test L2 engine
 op-e2e/actions/upgrades (tests) | missing go-ethereum/core/types.FlzCompressLen | #23405 test and DSL swaps to op-core
 op-e2e/actions/upgrades (tests) | missing go-ethereum/core/types.NewL1CostFuncFjord | #23405 test and DSL swaps to op-core
 op-e2e/actions/upgrades (tests) | missing go-ethereum/core/types.RollupCostData | #23405 test and DSL swaps to op-core
@@ -154,20 +153,6 @@ op-e2e/e2eutils/geth | missing go-ethereum/eth/ethconfig.Config.RollupDisableTxP
 op-e2e/e2eutils/geth | missing go-ethereum/eth/ethconfig.Config.RollupDisableTxPoolGossip | #21744 in-process op-geth L2 EL
 op-e2e/e2eutils/geth | missing go-ethereum/eth/ethconfig.Config.RollupSequencerHTTP | #21744 in-process op-geth L2 EL
 op-e2e/e2eutils/geth (tests) | missing go-ethereum/beacon/engine.ExecutableData.BlockAccessList | upstream backport, in go-ethereum v1.17.7
-op-e2e/e2eutils/gethengine/engineapi | changed signature of go-ethereum/beacon/engine.ExecutableDataToBlock | #21905 kona proof harness's in-process op-geth L2 engine
-op-e2e/e2eutils/gethengine/engineapi | changed signature of go-ethereum/consensus/misc/eip1559.CalcBaseFee | #21905 kona proof harness's in-process op-geth L2 engine
-op-e2e/e2eutils/gethengine/engineapi | changed signature of go-ethereum/core.NewEVMBlockContext | #21905 kona proof harness's in-process op-geth L2 engine
-op-e2e/e2eutils/gethengine/engineapi | changed signature of go-ethereum/params.ChainConfig.BaseFeeChangeDenominator | #21905 kona proof harness's in-process op-geth L2 engine
-op-e2e/e2eutils/gethengine/engineapi | missing go-ethereum/beacon/engine.ExecutableData.WithdrawalsRoot | #21905 kona proof harness's in-process op-geth L2 engine
-op-e2e/e2eutils/gethengine/engineapi | missing go-ethereum/consensus/misc/eip1559.DecodeHolocene1559Params | #21905 kona proof harness's in-process op-geth L2 engine
-op-e2e/e2eutils/gethengine/engineapi | missing go-ethereum/consensus/misc/eip1559.EncodeOptimismExtraData | #21905 kona proof harness's in-process op-geth L2 engine
-op-e2e/e2eutils/gethengine/engineapi | missing go-ethereum/consensus/misc/eip1559.ValidateHolocene1559Params | #21905 kona proof harness's in-process op-geth L2 engine
-op-e2e/e2eutils/gethengine/engineapi | missing go-ethereum/consensus/misc/eip1559.ValidateOptimismExtraData | #21905 kona proof harness's in-process op-geth L2 engine
-op-e2e/e2eutils/gethengine/engineapi | missing go-ethereum/params.ChainConfig.IsCanyon | #21905 kona proof harness's in-process op-geth L2 engine
-op-e2e/e2eutils/gethengine/engineapi | missing go-ethereum/params.ChainConfig.IsHolocene | #21905 kona proof harness's in-process op-geth L2 engine
-op-e2e/e2eutils/gethengine/engineapi | missing go-ethereum/params.ChainConfig.IsIsthmus | #21905 kona proof harness's in-process op-geth L2 engine
-op-e2e/e2eutils/gethengine/engineapi | missing go-ethereum/params.ChainConfig.IsOptimismHolocene | #21905 kona proof harness's in-process op-geth L2 engine
-op-e2e/e2eutils/gethengine/engineapi | missing go-ethereum/params.ChainConfig.Optimism | #21905 kona proof harness's in-process op-geth L2 engine
 op-e2e/opgeth | missing go-ethereum/params.ChainConfig.CanyonTime | #20275 op-e2e/opgeth deletion
 op-e2e/opgeth | missing go-ethereum/params.ChainConfig.IsCanyon | #20275 op-e2e/opgeth deletion
 op-e2e/opgeth | missing go-ethereum/params.ChainConfig.IsEcotone | #20275 op-e2e/opgeth deletion

@@ -209,10 +209,10 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 			require.NoError(t, err, "failed to RLP encode transaction")
 
 			unsafeHeader := env.Engine.LatestHeader(t)
-			_, l1InfoDeposit, err := env.Engine.SourceClient().InfoAndFirstDepositByHash(t.Ctx(), unsafeHeader.Hash())
+			_, l1InfoDeposit, err := env.Engine.SourceClient(t, 10).InfoAndFirstDepositByHash(t.Ctx(), unsafeHeader.Hash())
 			require.NoError(t, err)
 			nextBaseFee := eip1559.CalcBaseFee(
-				env.Sd.L2Cfg.Config,
+				env.Sd.L2Cfg.Config.GethChainConfig(),
 				unsafeHeader,
 				unsafeHeader.Time+env.Sd.RollupCfg.BlockTime,
 			)
@@ -269,7 +269,7 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 
 				// Re-sign Alice's tx with a random key.
 				require.NoError(t, err, "error generating random private key")
-				signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+				signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
 				newSignedTx, err := types.SignTx(txs[1], signer, pkey)
 				require.NoError(t, err, "error re-signing Alice's transaction")
 
@@ -293,9 +293,16 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 			receipt = env.Alice.L2.LastTxReceipt(t)
 		}
 
-		if testCfg.Custom == DepositTx || testCfg.Custom == IsthmusTransitionBlock {
+		if testCfg.Custom == IsthmusTransitionBlock {
 			require.Nil(t, receipt.OperatorFeeScalar)
 			require.Nil(t, receipt.OperatorFeeConstant)
+
+			// Nothing should has been sent to operator fee vault
+			require.Equal(t, operatorFeeVaultInitialBalance, operatorFeeVaultFinalBalance)
+		} else if testCfg.Custom == DepositTx {
+			// op-reth reports the block's operator fee parameters on deposit receipts too.
+			require.Equal(t, testOperatorFeeScalar, uint32(*receipt.OperatorFeeScalar))
+			require.Equal(t, testOperatorFeeConstant, *receipt.OperatorFeeConstant)
 
 			// Nothing should has been sent to operator fee vault
 			require.Equal(t, operatorFeeVaultInitialBalance, operatorFeeVaultFinalBalance)
@@ -388,8 +395,7 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 
 				// Ensure that the logs contain a mention of the block being replaced _due to the signer not having enough
 				// balance_.
-				require.NotNil(t, env.Logs.FindLog(testlog.NewAttributesContainsFilter("err", "insufficient funds for gas * price + value")))
-				require.NotNil(t, env.Logs.FindLog(testlog.NewAttributesContainsFilter("err", "have 1400000021000 want 1400000086535")))
+				require.NotNil(t, env.Logs.FindLog(testlog.NewAttributesContainsFilter("err", "lack of funds (1400000021000) for max fee (1400000065535)")))
 			} else {
 				require.Len(t, userTxs, 1)
 			}
