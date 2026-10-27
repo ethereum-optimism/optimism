@@ -118,7 +118,7 @@ pub fn karst() -> &'static Precompiles {
     })
 }
 
-/// UPSTREAM-MIRROR(set): revm-precompile@42.0.1 `revm_precompile::Precompiles`
+/// UPSTREAM-MIRROR(set): revm-precompile@43.0.2 `revm_precompile::Precompiles`
 ///
 /// Lagoon replaces the BLS12-381 MSM and pairing precompiles with lower input limits.
 /// Returns precompiles for lagoon spec.
