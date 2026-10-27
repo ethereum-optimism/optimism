@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { SafeSend } from "src/universal/SafeSend.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
@@ -23,10 +24,12 @@ import { InvalidAmount } from "src/libraries/errors/CommonErrors.sol";
 ///         uint128.max balance to prevent liquidity shortages. It mirrors the chain's pause on
 ///         L1: while that is paused, ETH can't be burned or minted, so the SuperchainETHBridge
 ///         can't send, relay or refund ETH. Anyone can sync the pause from L1 through
-///         `L1CrossDomainMessenger.syncETHLiquidityPause`. A pause longer than the message expiry
-///         window leaves sends in flight to expire, and only senders that can call `refundETH`
-///         get that ETH back.
-contract ETHLiquidity is ISemver {
+///         `L1CrossDomainMessenger.syncETHLiquidityPause`. The L2 ProxyAdmin owner can also pause
+///         it directly, independently of L1: the contract is paused while either pause is set,
+///         and neither can lift the other. A pause longer than the message expiry window leaves
+///         sends in flight to expire, and only senders that can call `refundETH` get that ETH
+///         back.
+contract ETHLiquidity is ProxyAdminOwnedBase, ISemver {
     /// @notice Thrown when burning or minting ETH liquidity while the contract is paused.
     error ETHLiquidity_Paused();
 
@@ -47,22 +50,29 @@ contract ETHLiquidity is ISemver {
     /// @param messageNonce Nonce of the L1CrossDomainMessenger message that sent it.
     event PausedSet(bool paused, uint256 messageNonce);
 
-    /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @notice Emitted when the L2 ProxyAdmin owner sets its pause.
+    /// @param paused Whether the L2 ProxyAdmin owner's pause is now set.
+    event ProxyAdminOwnerPausedSet(bool paused);
 
-    /// @notice Whether burning and minting ETH liquidity is paused, as this chain was on L1 when
-    ///         the L1CrossDomainMessenger sent message `pausedMessageNonce`.
-    bool public paused;
+    /// @notice Semantic version.
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
+
+    /// @notice Whether this chain was paused on L1 when the L1CrossDomainMessenger sent message
+    ///         `pausedMessageNonce`.
+    bool public l1Paused;
 
     /// @notice Nonce of the L1CrossDomainMessenger message that sent the applied pause state. An
     ///         update from an earlier message is ignored.
     uint256 public pausedMessageNonce;
 
+    /// @notice Whether the L2 ProxyAdmin owner has paused burning and minting ETH liquidity.
+    bool public proxyAdminOwnerPaused;
+
     /// @notice Allows an address to lock ETH liquidity into this contract.
     function burn() external payable {
         if (msg.sender != Predeploys.SUPERCHAIN_ETH_BRIDGE) revert Unauthorized();
-        if (paused) revert ETHLiquidity_Paused();
+        if (paused()) revert ETHLiquidity_Paused();
         emit LiquidityBurned(msg.sender, msg.value);
     }
 
@@ -70,7 +80,7 @@ contract ETHLiquidity is ISemver {
     /// @param _amount The amount of liquidity to unlock.
     function mint(uint256 _amount) external {
         if (msg.sender != Predeploys.SUPERCHAIN_ETH_BRIDGE) revert Unauthorized();
-        if (paused) revert ETHLiquidity_Paused();
+        if (paused()) revert ETHLiquidity_Paused();
         new SafeSend{ value: _amount }(payable(msg.sender));
         emit LiquidityMinted(msg.sender, _amount);
     }
@@ -99,9 +109,27 @@ contract ETHLiquidity is ISemver {
         }
         if (_messageNonce <= pausedMessageNonce) return;
 
-        paused = _paused;
+        l1Paused = _paused;
         pausedMessageNonce = _messageNonce;
 
         emit PausedSet(_paused, _messageNonce);
+    }
+
+    /// @notice Sets or lifts the L2 ProxyAdmin owner's pause. It is separate from the pause synced
+    ///         from L1, so it neither lifts nor is lifted by it.
+    /// @param _paused Whether to pause burning and minting ETH liquidity.
+    function setProxyAdminOwnerPaused(bool _paused) external {
+        _assertOnlyProxyAdminOwner();
+
+        proxyAdminOwnerPaused = _paused;
+
+        emit ProxyAdminOwnerPausedSet(_paused);
+    }
+
+    /// @notice Whether burning and minting ETH liquidity is paused: while this chain was paused on
+    ///         L1 as last synced, or while the L2 ProxyAdmin owner has paused it.
+    /// @return Whether burning and minting ETH liquidity is paused.
+    function paused() public view returns (bool) {
+        return l1Paused || proxyAdminOwnerPaused;
     }
 }

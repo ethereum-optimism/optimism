@@ -17,6 +17,7 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 // Interfaces
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 // Error imports
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
@@ -36,6 +37,9 @@ abstract contract ETHLiquidity_TestInit is CommonTest {
 
     /// @notice Emitted when the pause state synced from L1 is applied.
     event PausedSet(bool paused, uint256 messageNonce);
+
+    /// @notice Emitted when the L2 ProxyAdmin owner sets its pause.
+    event ProxyAdminOwnerPausedSet(bool paused);
 
     /// @notice Gas limit the L1CrossDomainMessenger gives `setPaused` on L2.
     uint32 internal constant SET_PAUSED_GAS_LIMIT = 200_000;
@@ -64,6 +68,8 @@ abstract contract ETHLiquidity_TestInit is CommonTest {
         // Assert
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE);
         assertFalse(ethLiquidity.paused());
+        assertFalse(ethLiquidity.l1Paused());
+        assertFalse(ethLiquidity.proxyAdminOwnerPaused());
         assertEq(ethLiquidity.pausedMessageNonce(), 0);
     }
 
@@ -116,7 +122,15 @@ abstract contract ETHLiquidity_TestInit is CommonTest {
     /// @param _paused Whether to pause the contract.
     function _setPaused(bool _paused) internal {
         _relaySetPaused(_paused, _nextNonce(), 1_000_000);
-        assertEq(ethLiquidity.paused(), _paused);
+        assertEq(ethLiquidity.l1Paused(), _paused);
+    }
+
+    /// @notice Sets the L2 ProxyAdmin owner's pause to `_paused`, and checks that it applied.
+    /// @param _paused Whether to pause the contract.
+    function _setProxyAdminOwnerPaused(bool _paused) internal {
+        vm.prank(ethLiquidity.proxyAdminOwner());
+        ethLiquidity.setProxyAdminOwnerPaused(_paused);
+        assertEq(ethLiquidity.proxyAdminOwnerPaused(), _paused);
     }
 }
 
@@ -192,6 +206,29 @@ contract ETHLiquidity_Burn_Test is ETHLiquidity_TestInit {
 
         // Assert: unpausing lets the same burn through.
         _setPaused(false);
+        vm.prank(address(superchainETHBridge));
+        ethLiquidity.burn{ value: _amount }();
+        assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE + _amount);
+    }
+
+    /// @notice Tests that the burn function reverts while the L2 ProxyAdmin owner has paused the
+    ///         contract, even for the authorized caller, and works again once it lifts the pause.
+    /// @param _amount Amount of ETH (in wei) to call the burn function with.
+    function testFuzz_burn_whileProxyAdminOwnerPaused_reverts(uint256 _amount) public {
+        // Assume
+        _amount = bound(_amount, 0, type(uint248).max - 1);
+
+        // Arrange
+        vm.deal(address(superchainETHBridge), _amount);
+        _setProxyAdminOwnerPaused(true);
+
+        // Act
+        vm.prank(address(superchainETHBridge));
+        vm.expectRevert(IETHLiquidity.ETHLiquidity_Paused.selector);
+        ethLiquidity.burn{ value: _amount }();
+
+        // Assert: lifting the pause lets the same burn through.
+        _setProxyAdminOwnerPaused(false);
         vm.prank(address(superchainETHBridge));
         ethLiquidity.burn{ value: _amount }();
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE + _amount);
@@ -295,6 +332,29 @@ contract ETHLiquidity_Mint_Test is ETHLiquidity_TestInit {
         assertEq(address(superchainETHBridge).balance, _amount);
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE - _amount);
     }
+
+    /// @notice Tests that the mint function reverts while the L2 ProxyAdmin owner has paused the
+    ///         contract, even for the authorized caller, and works again once it lifts the pause.
+    /// @param _amount Amount of ETH (in wei) to call the mint function with.
+    function testFuzz_mint_whileProxyAdminOwnerPaused_reverts(uint256 _amount) public {
+        // Assume
+        _amount = bound(_amount, 0, type(uint248).max - 1);
+
+        // Arrange
+        _setProxyAdminOwnerPaused(true);
+
+        // Act
+        vm.prank(address(superchainETHBridge));
+        vm.expectRevert(IETHLiquidity.ETHLiquidity_Paused.selector);
+        ethLiquidity.mint(_amount);
+
+        // Assert: lifting the pause lets the same mint through.
+        _setProxyAdminOwnerPaused(false);
+        vm.prank(address(superchainETHBridge));
+        ethLiquidity.mint(_amount);
+        assertEq(address(superchainETHBridge).balance, _amount);
+        assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE - _amount);
+    }
 }
 
 /// @title ETHLiquidity_Fund_Test
@@ -374,6 +434,7 @@ contract ETHLiquidity_SetPaused_Test is ETHLiquidity_TestInit {
         bytes32 pauseHash = _relaySetPaused(true, pauseNonce, 1_000_000);
         assertTrue(l2CrossDomainMessenger.successfulMessages(pauseHash));
         assertTrue(ethLiquidity.paused());
+        assertTrue(ethLiquidity.l1Paused());
         assertEq(ethLiquidity.pausedMessageNonce(), pauseNonce);
 
         uint256 unpauseNonce = _nextNonce();
@@ -381,6 +442,7 @@ contract ETHLiquidity_SetPaused_Test is ETHLiquidity_TestInit {
         emit PausedSet(false, unpauseNonce);
         _relaySetPaused(false, unpauseNonce, 1_000_000);
         assertFalse(ethLiquidity.paused());
+        assertFalse(ethLiquidity.l1Paused());
         assertEq(ethLiquidity.pausedMessageNonce(), unpauseNonce);
     }
 
@@ -492,8 +554,8 @@ contract ETHLiquidity_SetPaused_Test is ETHLiquidity_TestInit {
         assertEq(ethLiquidity.pausedMessageNonce(), nonce);
     }
 
-    /// @notice Tests that the pause flag lives at storage slot 0 and its message nonce at slot 1,
-    ///         where the storage layout snapshot puts them.
+    /// @notice Tests that the L1 pause flag lives at storage slot 0 and its message nonce at
+    ///         slot 1, where the storage layout snapshot puts them.
     function test_setPaused_storageSlots_succeeds() public {
         assertEq(vm.load(address(ethLiquidity), bytes32(uint256(0))), bytes32(0));
         assertEq(vm.load(address(ethLiquidity), bytes32(uint256(1))), bytes32(0));
@@ -543,6 +605,98 @@ contract ETHLiquidity_SetPaused_Test is ETHLiquidity_TestInit {
             if (called) high = mid;
             else gas_ = mid + 1;
         }
+    }
+}
+
+/// @title ETHLiquidity_SetProxyAdminOwnerPaused_Test
+/// @notice Tests the `setProxyAdminOwnerPaused` function of the `ETHLiquidity` contract.
+contract ETHLiquidity_SetProxyAdminOwnerPaused_Test is ETHLiquidity_TestInit {
+    /// @notice Tests that the L2 ProxyAdmin owner can set and lift its pause, and that each is
+    ///         reported.
+    function test_setProxyAdminOwnerPaused_fromProxyAdminOwner_succeeds() public {
+        address owner = ethLiquidity.proxyAdminOwner();
+
+        vm.expectEmit(address(ethLiquidity));
+        emit ProxyAdminOwnerPausedSet(true);
+        vm.prank(owner);
+        ethLiquidity.setProxyAdminOwnerPaused(true);
+        assertTrue(ethLiquidity.proxyAdminOwnerPaused());
+        assertTrue(ethLiquidity.paused());
+        assertFalse(ethLiquidity.l1Paused());
+
+        vm.expectEmit(address(ethLiquidity));
+        emit ProxyAdminOwnerPausedSet(false);
+        vm.prank(owner);
+        ethLiquidity.setProxyAdminOwnerPaused(false);
+        assertFalse(ethLiquidity.proxyAdminOwnerPaused());
+        assertFalse(ethLiquidity.paused());
+    }
+
+    /// @notice Tests that no caller but the L2 ProxyAdmin owner can set its pause.
+    /// @param _caller Address of the caller.
+    /// @param _paused Value to set.
+    function testFuzz_setProxyAdminOwnerPaused_notProxyAdminOwner_reverts(address _caller, bool _paused) public {
+        vm.assume(_caller != ethLiquidity.proxyAdminOwner());
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        vm.prank(_caller);
+        ethLiquidity.setProxyAdminOwnerPaused(_paused);
+    }
+
+    /// @notice Tests that a message relayed through the L2CrossDomainMessenger can't set the
+    ///         L2 ProxyAdmin owner's pause, even from this chain's L1CrossDomainMessenger.
+    function test_setProxyAdminOwnerPaused_fromL1Messenger_fails() public {
+        bytes32 hash = _relayFromL1(
+            _nextNonce(),
+            address(l1CrossDomainMessenger),
+            Predeploys.ETH_LIQUIDITY,
+            0,
+            SET_PAUSED_GAS_LIMIT,
+            abi.encodeCall(IETHLiquidity.setProxyAdminOwnerPaused, (true)),
+            1_000_000
+        );
+
+        assertTrue(l2CrossDomainMessenger.failedMessages(hash));
+        assertFalse(ethLiquidity.proxyAdminOwnerPaused());
+        assertFalse(ethLiquidity.paused());
+    }
+
+    /// @notice Tests that the L2 ProxyAdmin owner's pause and the pause synced from L1 are
+    ///         independent: the contract is paused while either is set, and lifting one leaves
+    ///         the other in place.
+    function test_setProxyAdminOwnerPaused_independentOfL1Pause_succeeds() public {
+        // A sync of the L1 unpause doesn't lift the ProxyAdmin owner's pause.
+        _setProxyAdminOwnerPaused(true);
+        _setPaused(false);
+        assertTrue(ethLiquidity.paused());
+
+        // The ProxyAdmin owner lifting its pause doesn't lift the L1 pause.
+        _setPaused(true);
+        _setProxyAdminOwnerPaused(false);
+        assertTrue(ethLiquidity.paused());
+
+        // With both pauses set, lifting either leaves the contract paused.
+        _setProxyAdminOwnerPaused(true);
+        _setPaused(false);
+        assertTrue(ethLiquidity.paused());
+        _setPaused(true);
+        _setProxyAdminOwnerPaused(false);
+        assertTrue(ethLiquidity.paused());
+
+        // Lifting both unpauses it.
+        _setPaused(false);
+        assertFalse(ethLiquidity.paused());
+    }
+
+    /// @notice Tests that the L2 ProxyAdmin owner's pause flag lives at storage slot 2, where the
+    ///         storage layout snapshot puts it.
+    function test_setProxyAdminOwnerPaused_storageSlot_succeeds() public {
+        assertEq(vm.load(address(ethLiquidity), bytes32(uint256(2))), bytes32(0));
+
+        _setProxyAdminOwnerPaused(true);
+
+        assertEq(vm.load(address(ethLiquidity), bytes32(uint256(0))), bytes32(0));
+        assertEq(vm.load(address(ethLiquidity), bytes32(uint256(2))), bytes32(uint256(1)));
     }
 }
 
