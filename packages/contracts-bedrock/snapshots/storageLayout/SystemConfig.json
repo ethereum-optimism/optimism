@@ -145,12 +145,5 @@
     "offset": 0,
     "slot": "109",
     "type": "mapping(bytes32 => bool)"
-  },
-  {
-    "bytes": "32",
-    "label": "privateConfig",
-    "offset": 0,
-    "slot": "110",
-    "type": "mapping(uint256 => mapping(enum SystemConfig.UpdateType => bytes))"
   }
 ]
