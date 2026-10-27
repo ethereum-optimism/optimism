@@ -20,6 +20,10 @@ pub struct L1ClientArgs {
         long,
         visible_alias = "l1.trust-rpc",
         env = "KONA_NODE_L1_TRUST_RPC",
+        action = clap::ArgAction::Set,
+        num_args = 0..=1,
+        require_equals = true,
+        default_missing_value = "true",
         default_value_t = DEFAULT_L1_TRUST_RPC
     )]
     pub l1_trust_rpc: bool,
@@ -77,6 +81,10 @@ pub struct L2ClientArgs {
         long,
         visible_alias = "l2.trust-rpc",
         env = "KONA_NODE_L2_TRUST_RPC",
+        action = clap::ArgAction::Set,
+        num_args = 0..=1,
+        require_equals = true,
+        default_missing_value = "true",
         default_value_t = DEFAULT_L2_TRUST_RPC
     )]
     pub l2_trust_rpc: bool,
@@ -106,5 +114,101 @@ impl DerivationDelegateArgs {
     /// Builds the derivation delegate configuration if an L2 CL URL was provided.
     pub fn config(self) -> Option<DerivationDelegateConfig> {
         self.l2_follow_source.map(|url| DerivationDelegateConfig { l2_cl_url: url })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::{CommandFactory, FromArgMatches, Parser};
+    use rstest::rstest;
+
+    const CLIENT_ARGS: &[&str] = &[
+        "kona-node",
+        "--l1=http://localhost:8545",
+        "--l1.beacon=http://localhost:5052",
+        "--l2=http://localhost:8551",
+    ];
+
+    #[derive(Debug, Parser)]
+    struct ClientArgs {
+        #[command(flatten)]
+        l1: L1ClientArgs,
+        #[command(flatten)]
+        l2: L2ClientArgs,
+    }
+
+    #[rstest]
+    #[case::defaults(&[], true, true)]
+    #[case::l1_false(&["--l1-trust-rpc=false"], false, true)]
+    #[case::l1_true(&["--l1-trust-rpc=true"], true, true)]
+    #[case::l1_bare(&["--l1-trust-rpc"], true, true)]
+    #[case::l1_alias_false(&["--l1.trust-rpc=false"], false, true)]
+    #[case::l1_alias_true(&["--l1.trust-rpc=true"], true, true)]
+    #[case::l1_alias_bare(&["--l1.trust-rpc"], true, true)]
+    #[case::l2_false(&["--l2-trust-rpc=false"], true, false)]
+    #[case::l2_true(&["--l2-trust-rpc=true"], true, true)]
+    #[case::l2_bare(&["--l2-trust-rpc"], true, true)]
+    #[case::l2_alias_false(&["--l2.trust-rpc=false"], true, false)]
+    #[case::l2_alias_true(&["--l2.trust-rpc=true"], true, true)]
+    #[case::l2_alias_bare(&["--l2.trust-rpc"], true, true)]
+    #[case::both_false(&["--l1.trust-rpc=false", "--l2.trust-rpc=false"], false, false)]
+    fn test_parse_trust_rpc_args(#[case] flags: &[&str], #[case] l1: bool, #[case] l2: bool) {
+        // Keep these CLI/default tests independent of the operator's environment.
+        let command = ClientArgs::command()
+            .mut_arg("l1_trust_rpc", |arg| arg.env(None::<&str>))
+            .mut_arg("l2_trust_rpc", |arg| arg.env(None::<&str>));
+        let args = [CLIENT_ARGS, flags].concat();
+        let matches = command.try_get_matches_from(args).unwrap();
+        let parsed = ClientArgs::from_arg_matches(&matches).unwrap();
+        assert_eq!(parsed.l1.l1_trust_rpc, l1);
+        assert_eq!(parsed.l2.l2_trust_rpc, l2);
+    }
+
+    #[test]
+    fn test_trust_rpc_environment() {
+        // Re-run this test in subprocesses so environment changes cannot race other tests.
+        if let Ok(expected) = std::env::var("KONA_TEST_TRUST_RPC_EXPECTED") {
+            let flags = std::env::var("KONA_TEST_TRUST_RPC_FLAGS").unwrap();
+            let parsed =
+                ClientArgs::parse_from(CLIENT_ARGS.iter().copied().chain(flags.split_whitespace()));
+            let expected = expected.parse::<bool>().unwrap();
+            assert_eq!(parsed.l1.l1_trust_rpc, expected);
+            assert_eq!(parsed.l2.l2_trust_rpc, expected);
+            return;
+        }
+
+        for env_value in ["true", "false"] {
+            for cli_value in ["env", "true", "false", "bare"] {
+                let flags = match cli_value {
+                    "env" => String::new(),
+                    "bare" => "--l1.trust-rpc --l2.trust-rpc".to_string(),
+                    value => format!("--l1.trust-rpc={value} --l2.trust-rpc={value}"),
+                };
+                let expected = match cli_value {
+                    "env" => env_value,
+                    "bare" => "true",
+                    value => value,
+                };
+                let output = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", std::thread::current().name().unwrap(), "--nocapture"])
+                    .env("KONA_NODE_L1_TRUST_RPC", env_value)
+                    .env("KONA_NODE_L2_TRUST_RPC", env_value)
+                    .env("KONA_TEST_TRUST_RPC_EXPECTED", expected)
+                    .env("KONA_TEST_TRUST_RPC_FLAGS", flags)
+                    .output()
+                    .unwrap();
+                assert!(output.status.success(), "{output:?}");
+                assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"), "{output:?}");
+            }
+        }
+    }
+
+    #[rstest]
+    #[case::l1("--l1.trust-rpc=invalid")]
+    #[case::l2("--l2.trust-rpc=invalid")]
+    fn test_reject_invalid_trust_rpc(#[case] flag: &str) {
+        let err = ClientArgs::try_parse_from(["kona-node", flag]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
     }
 }
