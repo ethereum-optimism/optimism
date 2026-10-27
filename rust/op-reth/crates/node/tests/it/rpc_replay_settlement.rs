@@ -4,8 +4,8 @@ use super::{
     },
     lagoon,
 };
-use alloy_consensus::{BlockHeader, TxReceipt, transaction::TxHashRef};
-use alloy_eips::eip2718::Encodable2718;
+use alloy_consensus::{BlockHeader, TxReceipt};
+use alloy_network::eip2718::Encodable2718;
 use alloy_primitives::{Address, Bytes, TxKind, U256, map::HashSet};
 use alloy_rpc_types_eth::{BlockNumberOrTag, TransactionInput, TransactionRequest};
 use alloy_rpc_types_trace::{
@@ -22,7 +22,6 @@ use reth_chainspec::EthChainSpec;
 use reth_e2e_test_utils::{transaction::TransactionTestContext, wallet::Wallet};
 use reth_evm::ConfigureEvm;
 use reth_optimism_primitives::OpTransactionSigned;
-use reth_primitives_traits::BlockBody;
 use reth_provider::{ReceiptProvider, StateProviderFactory};
 use reth_rpc_api::clients::{DebugApiClient, TraceApiClient};
 use reth_rpc_eth_api::{
@@ -99,7 +98,7 @@ async fn later_transactions_include_prior_sdm_settlement() -> eyre::Result<()> {
         let account = DebugApiClient::<TransactionRequest>::debug_account_info_at(
             &client,
             block.hash().into(),
-            (index as u64).into(),
+            index.into(),
             sender,
         )
         .await?
@@ -121,7 +120,7 @@ async fn later_transactions_include_prior_sdm_settlement() -> eyre::Result<()> {
         )
         .await?;
         let call: GethTrace = client
-            .request("debug_traceTransaction", rpc_params![hash, {"tracer": "callTracer"}])
+            .request("debug_traceTransaction", rpc_params![hash, json!({"tracer": "callTracer"})])
             .await?;
         let GethTrace::CallTracer(frame) = call else {
             panic!("unexpected call trace");
@@ -145,7 +144,7 @@ async fn later_transactions_include_prior_sdm_settlement() -> eyre::Result<()> {
             let mut environment =
                 api.evm_config().tx_env(recovered.transactions_recovered().nth(2).unwrap());
             environment.base.gas_limit = 21_000;
-            environment.base.input = Bytes::new();
+            environment.base.data = Bytes::new();
             environment.base.kind = TxKind::Call(recipient);
             environment.base.value = U256::from(1);
             api.inspect_transaction_in_block(
@@ -184,7 +183,7 @@ async fn later_transactions_include_prior_sdm_settlement() -> eyre::Result<()> {
     let traces: Vec<Vec<GethTrace>> = client
         .request(
             "debug_traceCallMany",
-            rpc_params![bundles, context, {"stateOverrides": overrides}],
+            rpc_params![bundles, context, json!({"stateOverrides": overrides})],
         )
         .await?;
     let GethTrace::Default(frame) = &traces[0][0] else {
@@ -209,13 +208,20 @@ async fn later_transactions_include_prior_sdm_settlement() -> eyre::Result<()> {
         tokio::time::timeout(Duration::from_secs(10), subscription.next()).await?.unwrap()?;
     assert_eq!(traced.traces, block_traces.into_iter().map(Some).collect::<Vec<_>>());
     subscription.unsubscribe().await?;
-    let mut failed: Subscription<ChainBlockTraceResult> = ws.subscribe(
-        "debug_subscribe",
-        rpc_params!["traceChain", BlockNumberOrTag::Number(0), BlockNumberOrTag::Number(block.number()), {
-            "tracer": "callTracer", "tracerConfig": {"onlyTopCall": "invalid"}
-        }],
-        "debug_unsubscribe",
-    ).await?;
+    let mut failed: Subscription<ChainBlockTraceResult> = ws
+        .subscribe(
+            "debug_subscribe",
+            rpc_params![
+                "traceChain",
+                BlockNumberOrTag::Number(0),
+                BlockNumberOrTag::Number(block.number()),
+                json!({
+                    "tracer": "callTracer", "tracerConfig": {"onlyTopCall": "invalid"}
+                })
+            ],
+            "debug_unsubscribe",
+        )
+        .await?;
     let failure = tokio::time::timeout(Duration::from_secs(10), failed.next()).await?.unwrap()?;
     assert_eq!(failure.traces.len(), transactions.len());
     assert!(matches!(
@@ -276,7 +282,7 @@ async fn later_transaction_affordability_depends_on_prior_refund() -> eyre::Resu
     let sender_before_target = DebugApiClient::<TransactionRequest>::debug_account_info_at(
         &client,
         block.hash().into(),
-        0u64.into(),
+        0usize.into(),
         sender,
     )
     .await?

@@ -35,8 +35,7 @@ where
 
 /// UPSTREAM-MIRROR(override): reth@rev:7eb96f9 `reth_rpc_eth_api::helpers::Call`
 ///
-/// `spawn_replay_transaction` executes the target through the block executor, see
-/// [`crate::eth::trace`].
+/// Executes replay targets through the block executor to include transaction settlement.
 impl<N, Rpc> Call for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
