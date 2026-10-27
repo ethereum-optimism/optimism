@@ -28,6 +28,7 @@ type capturedTest struct {
 func (t capturedTest) Logger() log.Logger { return t.logger }
 
 func TestVerifierConfirmationsProtectDerivationFromShallowL1Reorg(gt *testing.T) {
+	sysgo.SkipOnKonaNode(devtest.SerialT(gt), "pins op-node and kona-node explicitly; covered by the op-node variant")
 	for _, confirmations := range []uint64{0, 4} {
 		gt.Run(fmt.Sprintf("confirmations_%d", confirmations), func(gt *testing.T) {
 			testShallowL1Reorg(gt, confirmations)
