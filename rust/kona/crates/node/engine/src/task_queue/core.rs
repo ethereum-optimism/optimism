@@ -183,7 +183,7 @@ impl EngineResetError {
     /// Whether retrying the reset can recover without changing the node configuration.
     pub fn is_temporary(&self) -> bool {
         match self {
-            Self::SyncStart(SyncStartError::RpcError(_)) => true,
+            Self::SyncStart(SyncStartError::RpcError(_) | SyncStartError::ChainViewChanged) => true,
             Self::SyncStart(_) => false,
             Self::Forkchoice(err) => err.severity() != EngineTaskErrorSeverity::Critical,
         }
@@ -343,5 +343,78 @@ mod recovery_tests {
             state_rx.borrow().sync_state.safe_head().block_info.hash,
             imported.header.hash_slow()
         );
+    }
+}
+
+#[cfg(test)]
+mod reset_tests {
+    use super::*;
+    use crate::test_utils::{test_engine_client, test_l2_block};
+    use alloy_primitives::B256;
+
+    #[rstest::rstest]
+    #[case::walk_stops_at_finality(22, false)]
+    #[case::already_finalized(20, false)]
+    #[case::conflicting_finalized(20, true)]
+    #[case::below_finalized(18, false)]
+    #[tokio::test]
+    async fn unsafe_walk_never_passes_finality(#[case] number: u64, #[case] conflict: bool) {
+        let config = Arc::new(RollupConfig { seq_window_size: 3600, ..Default::default() });
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let finalized = test_l2_block(20, 99, 0, B256::ZERO);
+        let parent = test_l2_block(21, 100, 0, finalized.header.hash);
+        let mut head = if number == 20 {
+            finalized.clone()
+        } else {
+            test_l2_block(number, 100, 1, parent.header.hash)
+        };
+        if number == 22 {
+            head.header.inner.parent_hash = parent.header.hash;
+        }
+        if conflict {
+            head.header.inner.timestamp += 1;
+        }
+        head.header.hash = head.header.inner.hash_slow();
+        for (tag, block) in [("finalized", &finalized), ("safe", &finalized), ("latest", &head)] {
+            l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), block);
+        }
+        if number == 22 {
+            let mut replaced =
+                alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default();
+            replaced.header.hash = B256::ZERO;
+            for _ in 0..2 {
+                l1.expect_params(
+                    "eth_getBlockByNumber",
+                    serde_json::json!(["0x64", false]),
+                    &replaced,
+                );
+            }
+            for block in [&parent, &finalized] {
+                l2.expect_params(
+                    "eth_getBlockByHash",
+                    serde_json::json!([block.header.hash, true]),
+                    block,
+                );
+            }
+        }
+        if number >= 20 && !conflict {
+            let mut origin =
+                alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default();
+            origin.header.hash = B256::with_last_byte(99);
+            origin.header.inner.number = 99;
+            l1.expect_params("eth_getBlockByNumber", serde_json::json!(["0x63", false]), origin);
+        }
+        let result = crate::find_starting_forkchoice(&config, &client).await;
+        if number < 20 || conflict {
+            let err = result.unwrap_err();
+            assert!(matches!(err, SyncStartError::MismatchedFinalizedBlock(..)));
+            assert!(!EngineResetError::SyncStart(err).is_temporary());
+        } else {
+            let heads = result.unwrap();
+            assert_eq!(heads.un_safe, heads.finalized);
+            assert_eq!(heads.safe, heads.finalized);
+        }
+        l1.assert_finished();
+        l2.assert_finished();
     }
 }
