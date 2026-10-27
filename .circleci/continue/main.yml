@@ -3239,11 +3239,13 @@ workflows:
             branches:
               only: [develop, maurelian/xdm-mingas-repro]
       - contracts-bedrock-tests:
-          name: contracts-bedrock-tests-develop-nobuild <<matrix.features>>
+          name: contracts-bedrock-tests-develop-shared2 <<matrix.features>>
           requires:
             - prep-go-modules
+            - contracts-bedrock-build-tests-develop
           test_list: find test -name "*.t.sol"
           test_profile: ci
+          attach_build: true
           features: <<matrix.features>>
           matrix:
             parameters:

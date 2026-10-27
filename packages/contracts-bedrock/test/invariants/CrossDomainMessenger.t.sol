@@ -19,8 +19,6 @@ contract RelayActor is StdUtils {
     uint256 public numHashes;
     bytes32[] public hashes;
     bool public reverted = false;
-    string public revertCtx;
-    uint256 public valueRelays;
 
     IOptimismPortal2 op;
     IL1CrossDomainMessenger xdm;
@@ -78,33 +76,20 @@ contract RelayActor is StdUtils {
         vm.assume(xdm.successfulMessages(_hash) == false && xdm.failedMessages(_hash) == false);
 
         // Act as the optimism portal and call `relayMessage` on the `L1CrossDomainMessenger` with
-        // the outer min gas limit.
+        // the outer min gas limit. Forge can zero the portal's balance mid-run, so
+        // fund it before each relay.
+        vm.deal(address(op), type(uint128).max);
         vm.startPrank(address(op));
         if (!doFail) {
             vm.expectCallMinGas(address(0x04), _value, minGasLimit, _message);
         }
         try xdm.relayMessage{ gas: gas, value: _value }(
             Encoding.encodeVersionedNonce(0, _version), sender, target, _value, minGasLimit, _message
-        ) {
-            if (_value > 0) valueRelays++;
-        } catch (bytes memory err) {
+        ) { }
+        catch {
             // If any of these calls revert, set `reverted` to true to fail the invariant test.
             // NOTE: This is to get around forge's invariant fuzzer ignoring reverted calls
             // to this function.
-            if (!reverted) {
-                revertCtx = string.concat(
-                    "DIAG value=",
-                    vm.toString(_value),
-                    " data=",
-                    vm.toString(err),
-                    " opBalance=",
-                    vm.toString(address(op).balance),
-                    " idBalance=",
-                    vm.toString(address(0x04).balance),
-                    " valueRelays=",
-                    vm.toString(valueRelays)
-                );
-            }
             reverted = true;
         }
         vm.stopPrank();
@@ -164,7 +149,6 @@ contract XDM_MinGasLimits_Succeeds is XDM_MinGasLimits {
     ///                   - The inner min gas limit is for the call from the
     ///                     `L1CrossDomainMessenger` to the target contract.
     function invariant_minGasLimits() external view {
-        assertFalse(actor.reverted(), actor.revertCtx());
         uint256 length = actor.numHashes();
         for (uint256 i = 0; i < length; ++i) {
             bytes32 hash = actor.hashes(i);
@@ -173,6 +157,7 @@ contract XDM_MinGasLimits_Succeeds is XDM_MinGasLimits {
             // The message hash is not set in the failedMessages mapping
             assertFalse(l1CrossDomainMessenger.failedMessages(hash));
         }
+        assertFalse(actor.reverted());
     }
 }
 
@@ -205,6 +190,6 @@ contract XDM_MinGasLimits_Reverts is XDM_MinGasLimits {
             // The message hash is set in the failedMessages mapping
             assertTrue(l1CrossDomainMessenger.failedMessages(hash));
         }
-        assertFalse(actor.reverted(), actor.revertCtx());
+        assertFalse(actor.reverted());
     }
 }
