@@ -76,8 +76,9 @@ contract RelayActor is StdUtils {
         vm.assume(xdm.successfulMessages(_hash) == false && xdm.failedMessages(_hash) == false);
 
         // Act as the optimism portal and call `relayMessage` on the `L1CrossDomainMessenger` with
-        // the outer min gas limit. Forge can zero the portal's balance mid-run, so
-        // fund it before each relay.
+        // the outer min gas limit.
+        // TODO(#23671): Forge can zero the portal's balance mid-run, for reasons not yet
+        // understood, so fund it before each relay. Remove this once the cause is fixed.
         vm.deal(address(op), type(uint128).max);
         vm.startPrank(address(op));
         if (!doFail) {
