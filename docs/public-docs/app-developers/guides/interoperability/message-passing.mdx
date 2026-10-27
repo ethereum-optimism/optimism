@@ -4,7 +4,7 @@ description: Understand how interop message passing works, from the initiating m
 diataxis: explanation
 ---
 
-<Info>OP Stack interop is in active development. Some features may be experimental.</Info>
+<Info>OP Stack interop goes live with the Lagoon hardfork.</Info>
 <Info>
   This is an explanation of how interop works.
   You can find a step by step tutorial [here](/app-developers/tutorials/interoperability/message-passing).
@@ -31,7 +31,7 @@ sequenceDiagram
     srcContract->>srcXdom: 2. Call contract A<br/>in chainId B<br/>with calldata C
     note over srcXdom: 3. Sanity checks
     srcXdom->>log: 4. Log event SentMessage
-    
+
 ```
 
 1.  The application sends a transaction to a contract on the source chain.
@@ -42,7 +42,7 @@ sequenceDiagram
     *   `_destination`: The chain ID of the destination blockchain.
     *   `_target`: The address of the contract on that blockchain.
     *   `_message`: The actual message.
-    
+
     This message is provided to `_target` as calldata, which means it includes a function selector and the parameters for that function call.
 
 3.  `L2ToL2CrossDomainMessenger` on the source chain verifies the message is legitimate:
@@ -74,12 +74,12 @@ sequenceDiagram
     end
     log->>dstNode: 1. Initiating message log event
     app->>dstXdom: 2. Send an executing message
-    dstXdom->>Xinbox: 3. Verify the initiating message is real 
+    dstXdom->>Xinbox: 3. Verify the initiating message is real
     note over dstXdom: 4. Sanity checks
     dstXdom->>dstContract: 5. Call with provided calldata
 ```
 
-1.  Before the executing message is processed, the log event of the initiating message has to reach the destination chain's node before the [expiry window](/app-developers/guides/interoperability/message-expiration) of 7 days. 
+1.  Before the executing message is processed, the log event of the initiating message has to reach the destination chain's node before the [expiry window](/app-developers/guides/interoperability/message-expiration) of 7 days.
 
 2.  The autorelayer, the application, or a contract calling on the application's behalf calls `L2ToL2CrossDomainMessenger.relayMessage`.
     This call includes the message that was sent (`_sentMessage`), as well as the [fields required to find that message (`_id`)](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/L2/ICrossL2Inbox.sol#L4-L10).
