@@ -156,14 +156,47 @@ async fn admin_reset_recovers_and_completes_original_request(
         Default::default();
     let mut config = RollupConfig::default();
     config.genesis.l2.hash = block.header.inner.hash_slow();
+    // Keep an unsafe block above genesis so both the L1 origin check and the safe walk run.
+    let mut unsafe_block = block.clone();
+    unsafe_block.header.inner.number = 1;
+    unsafe_block.header.inner.parent_hash = config.genesis.l2.hash;
+    unsafe_block.header.hash = unsafe_block.header.inner.hash_slow();
+    type RpcTransaction =
+        <op_alloy_network::Optimism as alloy_provider::Network>::TransactionResponse;
+    let deposit = op_alloy_consensus::OpTxEnvelope::Deposit(alloy_primitives::Sealed::new(
+        op_alloy_consensus::TxDeposit {
+            input: kona_protocol::L1BlockInfoBedrock::new(
+                0,
+                0,
+                0,
+                B256::ZERO,
+                1,
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            )
+            .encode_calldata(),
+            ..Default::default()
+        },
+    ));
+    unsafe_block.transactions =
+        alloy_rpc_types_eth::BlockTransactions::Full(vec![RpcTransaction::from_transaction(
+            alloy_consensus::transaction::Recovered::new_unchecked(deposit, Default::default()),
+            Default::default(),
+        )]);
+
     let config = Arc::new(config);
     let (client, l1, l2) = test_engine_client(config.clone());
     let client = Arc::new(client);
     if l1_failure {
         for tag in ["finalized", "safe", "latest"] {
-            l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
+            l2.expect_params(
+                "eth_getBlockByNumber",
+                serde_json::json!([tag, true]),
+                if tag == "latest" { &unsafe_block } else { &block },
+            );
         }
-        l1.expect_error("eth_getBlockByHash");
+        l1.expect_error("eth_getBlockByNumber");
     } else {
         l2.expect_error("eth_getBlockByNumber");
     }
@@ -180,7 +213,7 @@ async fn admin_reset_recovers_and_completes_original_request(
         tokio::sync::watch::channel(kona_protocol::L2BlockInfo::default());
     let mut actor = EngineActor::new(
         client,
-        config,
+        config.clone(),
         derivation,
         Engine::new(EngineState::default(), state_tx),
         Some(unsafe_head_tx),
@@ -193,11 +226,16 @@ async fn admin_reset_recovers_and_completes_original_request(
     actor.step().await.unwrap(); // retain the reset
     actor.step().await.unwrap(); // failed attempt, then wait for backoff
     assert!(!reset.is_finished());
-    for _ in 0..3 {
-        l2.expect_with_delay("eth_getBlockByNumber", &block, read_delay);
+    for response in [&block, &block, &unsafe_block] {
+        l2.expect_with_delay("eth_getBlockByNumber", response, read_delay);
     }
-    l1.expect(
+    l2.expect_params(
         "eth_getBlockByHash",
+        serde_json::json!([config.genesis.l2.hash, true]),
+        &block,
+    );
+    l1.expect(
+        "eth_getBlockByNumber",
         alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
     );
     l2.expect(

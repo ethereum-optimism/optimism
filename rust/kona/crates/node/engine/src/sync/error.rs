@@ -9,6 +9,9 @@ use thiserror::Error;
 /// An error that can occur during the sync start process.
 #[derive(Error, Debug)]
 pub enum SyncStartError {
+    /// The canonical L1 view changed during recovery; retry with a fresh view.
+    #[error("Canonical chain changed during sync-start recovery")]
+    ChainViewChanged,
     /// An rpc error occurred
     #[error("An RPC error occurred: {0}")]
     RpcError(#[from] RpcError<TransportErrorKind>),
@@ -29,6 +32,9 @@ pub enum SyncStartError {
     /// Finalized block mismatch
     #[error("Finalized block mismatch. Expected {0}, Got {1}")]
     MismatchedFinalizedBlock(B256, B256),
+    /// Recovery would rewind the unsafe origin by more than op-node's five lookback windows.
+    #[error("L1 reorg exceeds five sync lookback windows")]
+    ReorgTooDeep,
     /// L1 origin mismatch.
     #[error("L1 origin mismatch")]
     L1OriginMismatch,
