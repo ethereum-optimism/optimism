@@ -18,6 +18,8 @@ type L2CLConfig struct {
 	SequencerSyncMode nodeSync.Mode
 	// SyncMode to run, if this is a verifier
 	VerifierSyncMode nodeSync.Mode
+	// VerifierL1Confs delays L1 input to derivation, independently of sequencing.
+	VerifierL1Confs uint64
 
 	// SafeDBPath is the path to the safe DB to use. Disabled if empty.
 	SafeDBPath string

@@ -411,6 +411,7 @@ func startL2CLNode(
 			SequencerEnabled:    cfg.IsSequencer,
 			SequencerStopped:    startCfg.SequencerStopped,
 			SequencerConfDepth:  2,
+			VerifierConfDepth:   cfg.VerifierL1Confs,
 			SequencerMaxSafeLag: cfg.SequencerMaxSafeLag,
 		},
 		Rollup:        *l2Net.rollupCfg,

@@ -114,6 +114,8 @@ pub struct RollupNode {
     pub(crate) dependency_set: Option<Arc<DependencySet>>,
     /// Records the safe head reached as of each L1 block. Disabled unless configured.
     pub(crate) safe_db: Option<Arc<dyn SafeDb>>,
+    /// L1 confirmation depth for online derivation, independent of sequencing.
+    pub(crate) verifier_l1_confs: u64,
 }
 
 /// A RollupNode-level derivation actor wrapper.
@@ -214,13 +216,17 @@ impl RollupNode {
         )
     }
 
-    async fn create_pipeline(&self) -> Result<OnlinePipeline, BlobProviderError> {
+    async fn create_pipeline(
+        &self,
+        l1_head: watch::Receiver<Option<BlockInfo>>,
+    ) -> Result<OnlinePipeline, BlobProviderError> {
         // Create the caching L1/L2 EL providers for derivation.
         let l1_derivation_provider = AlloyChainProvider::new_with_trust(
             self.l1_config.engine_provider.clone(),
             DERIVATION_PROVIDER_CACHE_SIZE,
             self.l1_config.trust_rpc,
-        );
+        )
+        .with_confirmation_depth(self.verifier_l1_confs, l1_head);
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
             self.l2_block_buffer.clone(),
             AlloyL2ChainProvider::new_with_trust(
@@ -278,6 +284,7 @@ impl RollupNode {
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
+        l1_head: watch::Receiver<Option<BlockInfo>>,
     ) -> Result<ConfiguredDerivationActor, String> {
         if let Some(provider) = self.derivation_delegate_provider.clone() {
             // L1 Provider for sanity checking Derivation Delegation
@@ -294,7 +301,7 @@ impl RollupNode {
             ))))
         } else {
             let pipeline = self
-                .create_pipeline()
+                .create_pipeline(l1_head)
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
             let l1_block_zero = self.l1_block_zero().await?;
@@ -593,6 +600,7 @@ impl RollupNode {
                 engine_actor_request_tx.clone(),
                 derivation_actor_request_rx,
                 derivation_origin_tx,
+                l1_head_updates_rx.clone(),
             )
             .await?;
 

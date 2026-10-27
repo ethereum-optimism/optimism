@@ -152,6 +152,20 @@ jobs:
             export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
             cd rust/kona && just test-e2e-sysgo-run node node/common "<<parameters.devnet_config>>"
+      # This package creates its own mixed Go/Kona fixture, so run it once
+      # rather than repeating it for the sequencer-client matrix variant.
+      - when:
+          condition:
+            equal: ["simple-kona", <<parameters.devnet_config>>]
+          steps:
+            - run:
+                name: Compare Go and Kona verifier L1 confirmations
+                no_output_timeout: 10m
+                command: |
+                  WD=$(pwd)
+                  export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
+                  export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
+                  cd rust/kona && just test-e2e-sysgo-run node node/confirmations "<<parameters.devnet_config>>"
       - when:
           condition:
             equal: [true, <<parameters.reorg_tests>>]

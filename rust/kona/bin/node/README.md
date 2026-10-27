@@ -80,6 +80,7 @@ Many configuration options can be set via environment variables:
 - `KONA_NODE_L1_ETH_RPC` - L1 execution client RPC URL
 - `KONA_NODE_L1_TRUST_RPC` - Whether to trust the L1 RPC without verification (default: true)
 - `KONA_NODE_L1_BEACON` - L1 beacon API URL
+- `KONA_NODE_VERIFIER_L1_CONFS` - L1 confirmation depth before deriving L2 data (default: 0)
 - `KONA_NODE_L2_ENGINE_RPC` - L2 engine API URL
 - `KONA_NODE_L2_TRUST_RPC` - Whether to trust the L2 RPC without verification (default: true)
 - `KONA_NODE_L2_ENGINE_AUTH` - Path to L2 engine JWT secret file
@@ -96,6 +97,11 @@ export RUST_LOG="kona_node=info,kona_derive=debug"
 
 kona-node node --port 5060
 ```
+
+Use `--verifier.l1-confs 4` (or `KONA_NODE_VERIFIER_L1_CONFS=4`) to keep derivation
+four blocks behind the observed L1 head. This applies in validator and sequencer modes;
+the sequencer's selection of L1 origins is configured separately. The default of zero
+derives through the L1 tip, matching op-node's default.
 
 ### Help and Documentation
 
