@@ -808,11 +808,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             if (msg.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
         }
 
-        // If using ETHLockbox, lock the ETH in the ETHLockbox.
-        if (_isUsingLockbox()) {
-            if (msg.value > 0) _lockETH(msg.value);
-        }
-
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
         if (_isCreation && _to != address(0)) {
@@ -839,14 +834,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
         }
 
-        // Compute the opaque data that will be emitted as part of the TransactionDeposited event.
-        // We use opaque data so that we can update the TransactionDeposited event in the future
-        // without breaking the current interface.
-        bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation, _data);
-
-        // Emit a TransactionDeposited event so that the rollup node can derive a deposit
-        // transaction for this deposit.
-        emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
+        _emitDeposit(from, _to, _value, _gasLimit, _isCreation, _data);
     }
 
     /// @notice External getter for the number of proof submitters for a withdrawal hash.
@@ -889,6 +877,37 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _amount Amount of ETH to unlock.
     function _unlockETH(uint256 _amount) internal {
         ethLockbox.unlockETH(_amount);
+    }
+
+    /// @notice Locks the deposit's ETH and emits its TransactionDeposited event.
+    /// @param _from       Sender on L2, aliased if a contract.
+    /// @param _to         Target address on L2.
+    /// @param _value      ETH value to send to the recipient.
+    /// @param _gasLimit   Amount of L2 gas to purchase.
+    /// @param _isCreation Whether or not the transaction is a contract creation.
+    /// @param _data       Data to trigger the recipient with.
+    function _emitDeposit(
+        address _from,
+        address _to,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    )
+        internal
+    {
+        if (_isUsingLockbox()) {
+            if (msg.value > 0) _lockETH(msg.value);
+        }
+
+        // Compute the opaque data that will be emitted as part of the TransactionDeposited event.
+        // We use opaque data so that we can update the TransactionDeposited event in the future
+        // without breaking the current interface.
+        bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation, _data);
+
+        // Emit a TransactionDeposited event so that the rollup node can derive a deposit
+        // transaction for this deposit.
+        emit TransactionDeposited(_from, _to, DEPOSIT_VERSION, opaqueData);
     }
 
     /// @notice Returns the L1StandardBridge.
