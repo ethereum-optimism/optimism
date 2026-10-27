@@ -71,6 +71,12 @@ type zkProposerConfig struct {
 	ProposalInterval *time.Duration
 	FastFinality     bool
 	Metrics          bool
+	LogPath          string
+	RangeGasLimit    uint64
+	RangeSplitCount  uint64
+	// L2RPCProxy, when set, starts a proxy in front of an L2 EL endpoint and
+	// returns the URL the proposer uses instead.
+	L2RPCProxy func(p devtest.T, name string, targetURL string) string
 }
 
 // ZKProposerRuntime is the opaque handle for a running op-zk-proposer.
@@ -108,6 +114,33 @@ func WithZKFastFinality() ZKProposerOption {
 func WithZKMetrics() ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.Metrics = true
+	}
+}
+
+// WithZKLogPath sets how the proposer proves logs below a local safe head:
+// "table" (the proposer's default) or "receipts".
+func WithZKLogPath(path string) ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.LogPath = path
+	}
+}
+
+// WithZKRangeGasLimit sets the range and consolidation request gas limit. The
+// mock provider proves nothing, so the limit only drives the proposer's
+// estimate checks: a small one makes it bisect spans. Zero keeps the proposer
+// default.
+func WithZKRangeGasLimit(limit uint64) ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.RangeGasLimit = limit
+	}
+}
+
+// WithZKRangeSplitCount sets the number of chunks each game span is proven in,
+// between 1 and 128. A span shorter than the count gets one timestamp per
+// chunk. Zero keeps the proposer default.
+func WithZKRangeSplitCount(count uint64) ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.RangeSplitCount = count
 	}
 }
 
@@ -164,17 +197,19 @@ func startZKProposer(
 	require.NotEmpty(execPath, "op-zk-proposer binary path resolved")
 
 	// The proposer checks and loads program artifacts at
-	// OP_ZK_PROPOSER_PRESTATES_URL/<vkey>.agg.bin.gz and .range.bin.gz, mirroring
-	// op-challenger's --prestates-url convention. The aggregation vkey embeds
-	// the range program's vkey, so it keys both ELFs. Devstack publishes the
-	// real ELFs, gzipped, when KONA_SP1_ELF_DIR is set; otherwise stub bytes
-	// suffice, since the devstack deploys the mock verifier and the mock
-	// proof provider never executes the ELFs and skips vkey verification.
+	// OP_ZK_PROPOSER_PRESTATES_URL/<vkey>.agg.bin.gz, .range.bin.gz, and
+	// .log.bin.gz, mirroring op-challenger's --prestates-url convention. The
+	// aggregation vkey embeds the range program's vkey, which embeds the
+	// log-commitment program's vkey, so it keys all three ELFs. Devstack
+	// publishes the real ELFs, gzipped, when KONA_SP1_ELF_DIR is set; otherwise
+	// stub bytes suffice, since the devstack deploys the mock verifier and the
+	// mock proof provider never executes the ELFs and skips vkey verification.
 	// Either way the file:// path is exercised.
 	prestatesDir := t.TempDir()
 	sources := map[string]func() (io.ReadCloser, error){
 		".agg.bin.gz":   elfSource(elfDir, "super-aggregation-elf"),
 		".range.bin.gz": elfSource(elfDir, "super-range-elf"),
+		".log.bin.gz":   elfSource(elfDir, "log-commitment-elf"),
 	}
 	for suffix, open := range sources {
 		writePrestateArtifact(t, open, filepath.Join(prestatesDir, programVKey.Hex()+suffix))
@@ -188,6 +223,9 @@ func startZKProposer(
 	rollupPaths := make([]string, len(l2Nets))
 	for i, l2Net := range l2Nets {
 		l2RPCs[i] = l2ELs[i].UserRPC()
+		if cfg.L2RPCProxy != nil {
+			l2RPCs[i] = cfg.L2RPCProxy(t, l2Net.ChainID().String(), l2RPCs[i])
+		}
 		rollupData, err := json.Marshal(l2Net.rollupCfg)
 		require.NoError(err, "must marshal rollup config")
 		rollupPath := filepath.Join(configDir, fmt.Sprintf("rollup-%v.json", l2Net.ChainID()))
@@ -223,12 +261,23 @@ func startZKProposer(
 		zkProposerEnv("PROPOSAL_SAFETY", "safe"),
 		zkProposerEnv("FETCH_INTERVAL", "2"),
 		zkProposerEnv("LOG_FORMAT", "json"),
+		// Keeps every collection's preimages and log trees on disk, so devstack runs cover DATA_DIR.
+		zkProposerEnv("DATA_DIR", t.TempDir()),
 	}
 	if cfg.ProposalInterval != nil {
 		env = append(env, zkProposerEnv("PROPOSAL_INTERVAL_SECONDS", strconv.FormatUint(uint64(*cfg.ProposalInterval/time.Second), 10)))
 	}
 	if cfg.FastFinality {
 		env = append(env, zkProposerEnv("FAST_FINALITY_MODE", "true"))
+	}
+	if cfg.LogPath != "" {
+		env = append(env, zkProposerEnv("LOG_PATH", cfg.LogPath))
+	}
+	if cfg.RangeGasLimit != 0 {
+		env = append(env, zkProposerEnv("RANGE_GAS_LIMIT", strconv.FormatUint(cfg.RangeGasLimit, 10)))
+	}
+	if cfg.RangeSplitCount != 0 {
+		env = append(env, zkProposerEnv("RANGE_SPLIT_COUNT", strconv.FormatUint(cfg.RangeSplitCount, 10)))
 	}
 	// Always pin the metrics port so inherited host configuration cannot
 	// reach every devstack proposer and collide across parallel systems.
@@ -326,8 +375,7 @@ func elfSource(elfDir, name string) func() (io.ReadCloser, error) {
 }
 
 // writePrestateArtifact gzips the program ELF from open into dst, one of the
-// `<vkey>.agg.bin.gz` / `<vkey>.range.bin.gz` artifacts the proposer's
-// prestate check looks for.
+// prestate artifacts the proposer loads.
 func writePrestateArtifact(t devtest.T, open func() (io.ReadCloser, error), dst string) {
 	require := t.Require()
 	in, err := open()

@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/superchain"
+	"github.com/ethereum-optimism/optimism/op-core/superchain/bundle"
 
 	"github.com/ethereum-optimism/superchain-registry/validation"
 
@@ -29,7 +30,15 @@ const (
 	ChallengePeriodSeconds          uint64 = 86400
 	ProofMaturityDelaySeconds       uint64 = 604800
 	DisputeGameFinalityDelaySeconds uint64 = 302400
-	MIPSVersion                     uint64 = 8
+	// Bounds baked into the OptimismPortal, AnchorStateRegistry and DelayedWETH implementations
+	// for the per-chain withdrawal delays above.
+	MinProofMaturityDelaySeconds       uint64 = 86400
+	MaxProofMaturityDelaySeconds       uint64 = 604800
+	MinDisputeGameFinalityDelaySeconds uint64 = 43200
+	MaxDisputeGameFinalityDelaySeconds uint64 = 302400
+	MinWithdrawalDelaySeconds          uint64 = 43200
+	MaxWithdrawalDelaySeconds          uint64 = 604800
+	MIPSVersion                        uint64 = 8
 	// DisputeGameType is the SUPER_PERMISSIONED game type. DeployOPChain requires the initial game
 	// type to match the OPCM's family, and SUPER_ROOT_GAMES_MIGRATION is enabled by default, so the
 	// permissioned selector for a standard deploy is the super root one.
@@ -42,12 +51,6 @@ const (
 	Eip1559DenominatorCanyon uint64 = 250
 	Eip1559Denominator       uint64 = 50
 	Eip1559Elasticity        uint64 = 6
-
-	// DefaultGenesisTimeOffsetSeconds is the default offset added to the L1 anchor block's
-	// timestamp to produce the committed L2 genesis timestamp.
-	DefaultGenesisTimeOffsetSeconds uint64 = 10800 // 3 hours
-	// MinGenesisTimeOffsetSeconds is the smallest offset prepare accepts.
-	MinGenesisTimeOffsetSeconds uint64 = 3600 // 1 hour
 
 	ContractsV160Tag        = "op-contracts/v1.6.0"
 	ContractsV180Tag        = "op-contracts/v1.8.0-rc.4"
@@ -166,9 +169,9 @@ func SP1VerifierHashFor(chainID uint64) (common.Hash, error) {
 func SuperchainFor(chainID uint64) (superchain.Superchain, error) {
 	switch chainID {
 	case 1:
-		return superchain.GetSuperchain("mainnet")
+		return bundle.GetSuperchain("mainnet")
 	case 11155111:
-		return superchain.GetSuperchain("sepolia")
+		return bundle.GetSuperchain("sepolia")
 	default:
 		return superchain.Superchain{}, fmt.Errorf("unsupported chain ID: %d", chainID)
 	}
@@ -241,7 +244,7 @@ func DefaultHardforkSchedule() *genesis.UpgradeScheduleDeployConfig {
 }
 
 var defaultHardfork = sync.OnceValue(func() forks.Name {
-	chain, err := superchain.GetChain(opparams.OPMainnetChainID)
+	chain, err := bundle.GetChain(opparams.OPMainnetChainID)
 	if err != nil {
 		panic(fmt.Errorf("get op mainnet chain: %w", err))
 	}

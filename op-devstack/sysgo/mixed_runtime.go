@@ -181,6 +181,9 @@ type MixedSingleChainNodeSpec struct {
 	// override (OpRethWithBinary) or a flag a single node should receive while its peers reject it.
 	// Ignored for non-op-reth EL kinds.
 	OpRethOpts []OpRethOption
+	// EnableSafeDB gives this node's CL a safe head database in a fresh temp dir, so it records
+	// the L2 safe head reached as of each L1 block and serves it over optimism_safeHeadAtL1Block.
+	EnableSafeDB bool
 }
 
 type MixedSingleChainPresetConfig struct {
@@ -267,6 +270,11 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
 		}
 
+		safeDBPath := ""
+		if spec.EnableSafeDB {
+			safeDBPath = t.TempDirWithPrefix("safedb-" + NewComponentTarget(spec.CLKey, l2Net.ChainID()).String())
+		}
+
 		var cl L2CLNode
 		switch spec.CLKind {
 		case MixedL2CLOpNode:
@@ -274,8 +282,10 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				Key:           spec.CLKey,
 				IsSequencer:   spec.IsSequencer,
 				NoDiscovery:   true,
-				EnableReqResp: true,
 				DependencySet: depSet,
+				L2CLOptions: []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+					cfg.SafeDBPath = safeDBPath
+				})},
 			})
 		case MixedL2CLKona:
 			cl = startMixedKonaNode(
@@ -290,6 +300,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				spec.ELKey,
 				spec.IsSequencer,
 				depSet,
+				konaSafeDBEnv(safeDBPath)...,
 			)
 		default:
 			require.FailNowf("unsupported CL kind", "unsupported mixed CL kind %q", spec.CLKind)
@@ -355,6 +366,15 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		L2Batcher:     l2Batcher,
 		TestSequencer: newTestSequencerRuntime(testSequencer, cfg.TestSequencerName),
 	}
+}
+
+// konaSafeDBEnv returns the environment that points kona-node at a safe head database, or
+// nothing when the node runs without one.
+func konaSafeDBEnv(safeDBPath string) []string {
+	if safeDBPath == "" {
+		return nil
+	}
+	return []string{"KONA_NODE_SAFEDB_PATH=" + safeDBPath}
 }
 
 func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {
@@ -451,8 +471,8 @@ func buildMixedOpRethNode(
 		"--datadir=" + dataDirPath,
 		"--chain=" + chainConfigPath,
 	}
-	err = exec.Command(execPath, initArgs...).Run()
-	t.Require().NoError(err, "must init op-reth node")
+	initOut, err := exec.Command(execPath, initArgs...).CombinedOutput()
+	t.Require().NoError(err, "must init op-reth node: %s", string(initOut))
 
 	if !opRethCfg.DisableProofsHistory {
 		proofHistoryDir := filepath.Join(tempDir, "proof-history")
@@ -543,6 +563,7 @@ func startMixedKonaNode(
 	elKey string,
 	isSequencer bool,
 	depSet coredepset.DependencySet,
+	extraEnv ...string,
 ) *KonaNode {
 	tempKonaDir := t.TempDirWithPrefix("l2-cl-kona-" + NewComponentTarget(clKey, l2Net.ChainID()).String())
 
@@ -569,7 +590,6 @@ func startMixedKonaNode(
 		propagateEnvVarOrDefault("KONA_NODE_P2P_NO_DISCOVERY", "true"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
-		propagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
 		// Acceptance tests drive the sequencer via the admin API (StartSequencer, etc.), which
 		// kona only registers when admin is enabled. op-node's devstack node enables it too.
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ENABLE_ADMIN", "true"),
@@ -605,6 +625,7 @@ func startMixedKonaNode(
 	} else {
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
+	envVars = append(envVars, extraEnv...)
 
 	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",

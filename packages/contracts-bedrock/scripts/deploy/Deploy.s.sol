@@ -169,6 +169,13 @@ contract Deploy is Deployer {
             cfg.setUseCustomGasToken(true);
         }
 
+        // TODO(optimism-private#744): remove once OPCM rejects unsupported BRIDGE_HOOK combinations.
+        bool useBridgeHook = DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.BRIDGE_HOOK);
+        require(
+            !useBridgeHook || !(cfg.useInterop() || cfg.useCustomGasToken()),
+            "Deploy: BRIDGE_HOOK is not supported with interop or a custom gas token"
+        );
+
         deployImplementations();
 
         // Deploy Current OPChain Contracts
@@ -254,11 +261,14 @@ contract Deploy is Deployer {
 
         DeployImplementations.Output memory dio = di.run(
             DeployImplementations.Input({
-                withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
+                minWithdrawalDelaySeconds: cfg.minWithdrawalDelaySeconds(),
+                maxWithdrawalDelaySeconds: cfg.maxWithdrawalDelaySeconds(),
                 minProposalSizeBytes: cfg.preimageOracleMinProposalSize(),
                 challengePeriodSeconds: cfg.preimageOracleChallengePeriod(),
-                proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-                disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+                minProofMaturityDelaySeconds: cfg.minProofMaturityDelaySeconds(),
+                maxProofMaturityDelaySeconds: cfg.maxProofMaturityDelaySeconds(),
+                minDisputeGameFinalityDelaySeconds: cfg.minDisputeGameFinalityDelaySeconds(),
+                maxDisputeGameFinalityDelaySeconds: cfg.maxDisputeGameFinalityDelaySeconds(),
                 mipsVersion: StandardConstants.MIPS_VERSION,
                 devFeatureBitmap: cfg.devFeatureBitmap(),
                 faultGameV2MaxGameDepth: cfg.faultGameV2MaxGameDepth(),
@@ -294,7 +304,9 @@ contract Deploy is Deployer {
             _contracts: impls,
             _superchainConfig: superchainConfigProxy,
             _opChainProxyAdminOwner: cfg.finalSystemOwner(),
-            _isProxy: false
+            _isProxy: false,
+            _minProofMaturityDelaySeconds: cfg.minProofMaturityDelaySeconds(),
+            _maxProofMaturityDelaySeconds: cfg.maxProofMaturityDelaySeconds()
         });
         ChainAssertions.checkETHLockboxImpl(
             IETHLockbox(impls.ETHLockbox), IOptimismPortal2(payable(impls.OptimismPortal))
@@ -310,7 +322,9 @@ contract Deploy is Deployer {
         ChainAssertions.checkDisputeGameFactory(
             IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false, permGameType
         );
-        ChainAssertions.checkDelayedWETHImpl(IDelayedWETH(payable(impls.DelayedWETH)), cfg.faultGameWithdrawalDelay());
+        ChainAssertions.checkDelayedWETHImpl(
+            IDelayedWETH(payable(impls.DelayedWETH)), cfg.minWithdrawalDelaySeconds(), cfg.maxWithdrawalDelaySeconds()
+        );
         ChainAssertions.checkMIPS({
             _mips: IMIPS64(address(dio.mipsSingleton)), _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))
         });
@@ -322,7 +336,9 @@ contract Deploy is Deployer {
             IAnchorStateRegistry(impls.AnchorStateRegistry),
             false,
             GameType.wrap(0),
-            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
+            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
+            cfg.minDisputeGameFinalityDelaySeconds(),
+            cfg.maxDisputeGameFinalityDelaySeconds()
         );
     }
 
@@ -443,7 +459,10 @@ contract Deploy is Deployer {
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
             disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: cfg.useCustomGasToken()
+            useCustomGasToken: cfg.useCustomGasToken(),
+            proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+            withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay()
         });
     }
 
@@ -509,7 +528,10 @@ contract Deploy is Deployer {
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
             disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: cfg.useCustomGasToken()
+            useCustomGasToken: cfg.useCustomGasToken(),
+            proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+            withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay()
         });
     }
 }

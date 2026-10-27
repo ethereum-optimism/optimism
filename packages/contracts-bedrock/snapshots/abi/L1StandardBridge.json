@@ -415,6 +415,24 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "enum BridgeHookTypes.Direction",
+        "name": "_direction",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_message",
+        "type": "bytes"
+      }
+    ],
+    "name": "holdERC20",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "initVersion",
     "outputs": [
@@ -521,6 +539,24 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "enum BridgeHookTypes.Direction",
+        "name": "_direction",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_message",
+        "type": "bytes"
+      }
+    ],
+    "name": "restoreERC20",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

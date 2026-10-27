@@ -273,7 +273,7 @@ func ValidatePostExecBlock(ctx context.Context, rpcClient Caller, blockNum uint6
 		if uint64(targetTx.Type) == optypes.PostExecTxType {
 			return nil, fmt.Errorf("payload entry index %d targets post-exec tx", entry.Index)
 		}
-		if uint64(targetTx.Type) == types.DepositTxType {
+		if uint64(targetTx.Type) == optypes.DepositTxType {
 			return nil, fmt.Errorf("payload entry index %d targets deposit tx", entry.Index)
 		}
 		if opts.CheckReceipts {

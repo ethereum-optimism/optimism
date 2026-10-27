@@ -20,6 +20,7 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { GameType, Proposal } from "src/dispute/lib/Types.sol";
@@ -50,11 +51,11 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when attempting to migrate a CGT chain.
     error OPContractsManagerMigrator_CustomGasTokenNotSupported();
 
+    /// @notice Thrown when attempting to migrate a chain whose portal has a bridge hook.
+    error OPContractsManagerMigrator_BridgeHookNotSupported();
+
     /// @notice Thrown when the chainSystemConfigs array is empty.
     error OPContractsManagerMigrator_NoChains();
-
-    /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
-    error OPContractsManagerMigrator_InteropNotEnabled();
 
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
@@ -100,6 +101,14 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///         successor.
     error OPContractsManagerMigrator_InvalidStartingAnchorRoot();
 
+    /// @notice Thrown when the chains being migrated disagree on the dispute game finality delay.
+    ///         The shared AnchorStateRegistry can only hold one value.
+    error OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch();
+
+    /// @notice Thrown when the chains being migrated disagree on the DelayedWETH withdrawal delay.
+    ///         The shared DelayedWETH can only hold one value.
+    error OPContractsManagerMigrator_WithdrawalDelayMismatch();
+
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
 
@@ -135,11 +144,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             revert OPContractsManagerMigrator_NoChains();
         }
 
-        // Check that the OPTIMISM_PORTAL_INTEROP dev feature is enabled.
-        if (!contractsContainer().isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            revert OPContractsManagerMigrator_InteropNotEnabled();
-        }
-
         // Check that the starting respected game type is a valid super game type.
         // SUPER_CANNON is retired in favor of SUPER_CANNON_KONA.
         if (
@@ -161,6 +165,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // zero l2ChainId, that no two chains share the same l2ChainId, and that l2ChainIds are
         // provided in ascending order.
         _validateChainSystemConfigs(_input.chainSystemConfigs);
+
+        // Check that every chain has the same finality and DelayedWETH delays.
+        _validateSharedDelays(_input.chainSystemConfigs);
 
         if (SemverComp.lt(
                 _input.chainSystemConfigs[0].superchainConfig().version(),
@@ -259,6 +266,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 abi.encodeCall(IDisputeGameFactory.initialize, (proxyDeployArgs.proxyAdmin.owner()))
             );
 
+            // Every chain has the same finality delay (checked in _validateSharedDelays).
+            uint256 finalityDelay = _disputeGameFinalityDelay(_input.chainSystemConfigs[0]);
+
             // Initialize the new AnchorStateRegistry.
             _upgrade(
                 proxyDeployArgs.proxyAdmin,
@@ -266,7 +276,13 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 impls.anchorStateRegistryImpl,
                 abi.encodeCall(
                     IAnchorStateRegistry.initialize,
-                    (ethLockbox, disputeGameFactory, _input.startingAnchorRoot, _input.startingRespectedGameType)
+                    (
+                        ethLockbox,
+                        disputeGameFactory,
+                        _input.startingAnchorRoot,
+                        _input.startingRespectedGameType,
+                        finalityDelay
+                    )
                 )
             );
 
@@ -417,8 +433,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         }
     }
 
-    /// @notice Updates a chain's existing DelayedWETH to point at the shared ETHLockbox. Games
-    ///         created before the migration still read their pause state from it.
+    /// @notice Updates a chain's existing DelayedWETH to point at the shared ETHLockbox, keeping its
+    ///         current withdrawal delay. Games created before the migration still read their pause
+    ///         state and delay from it.
     /// @param _systemConfig The system config for the chain being migrated.
     /// @param _ethLockbox The shared ETHLockbox to store in the DelayedWETH.
     /// @param _delayedWETHImpl The DelayedWETH implementation to reinitialize with.
@@ -429,11 +446,13 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     )
         internal
     {
+        IDelayedWETH delayedWETH = IDelayedWETH(payable(_systemConfig.delayedWETH()));
+        uint256 delay = delayedWETH.delay();
         _upgrade(
             _systemConfig.proxyAdmin(),
-            _systemConfig.delayedWETH(),
+            address(delayedWETH),
             _delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (_ethLockbox))
+            abi.encodeCall(IDelayedWETH.initialize, (_ethLockbox, delay))
         );
     }
 
@@ -499,6 +518,12 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         IAnchorStateRegistry oldASR = portal.anchorStateRegistry();
         IDisputeGameFactory existingDGF = IDisputeGameFactory(payable(address(portal.disputeGameFactory())));
 
+        // Chains with a bridge hook must not be migrated. An interop set would need the same hook
+        // on every chain, and nothing enforces that yet.
+        if (address(portal.bridgeHook()) != address(0)) {
+            revert OPContractsManagerMigrator_BridgeHookNotSupported();
+        }
+
         // Check the current pause state before mutating the portal's lockbox. For chains that
         // already use a per-chain lockbox, SystemConfig.paused() keys the local pause against the
         // portal's current lockbox. Reinitializing the portal first would switch the pause
@@ -521,11 +546,18 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         _systemConfig.setFeature(Features.INTEROP, true);
 
         // Attach the portal directly to the shared ETHLockbox before migrating portal-held ETH.
+        // NOTE: The portal's proof maturity delay is read here, before the implementation swap,
+        // and carried forward unchanged. At the time of the migration, it is assumed that all chains will
+        // have the same proof maturity delay.
+        // NOTE: Passing a zero address bridge hook keeps the portal's current hook.
         _upgrade(
             _systemConfig.proxyAdmin(),
             address(portal),
             _impls.optimismPortalImpl,
-            abi.encodeCall(IOptimismPortal.initialize, (_systemConfig, oldASR, _newLockbox))
+            abi.encodeCall(
+                IOptimismPortal.initialize,
+                (_systemConfig, oldASR, _newLockbox, portal.proofMaturityDelaySeconds(), IBridgeHook(address(0)))
+            )
         );
 
         // Migrate ETH held directly by the portal into the shared ETHLockbox.
@@ -558,9 +590,43 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             _impls.anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (_newLockbox, oldASR.disputeGameFactory(), oldASR.getStartingAnchorRoot(), oldASR.respectedGameType())
+                (
+                    _newLockbox,
+                    oldASR.disputeGameFactory(),
+                    oldASR.getStartingAnchorRoot(),
+                    oldASR.respectedGameType(),
+                    oldASR.disputeGameFinalityDelaySeconds()
+                )
             )
         );
+    }
+
+    /// @notice Reads a chain's dispute game finality delay from its current AnchorStateRegistry.
+    /// @param _systemConfig The system config for the chain.
+    /// @return The chain's dispute game finality delay in seconds.
+    function _disputeGameFinalityDelay(ISystemConfig _systemConfig) internal view returns (uint256) {
+        return IOptimismPortal(payable(_systemConfig.optimismPortal()))
+            .anchorStateRegistry()
+            .disputeGameFinalityDelaySeconds();
+    }
+
+    /// @notice Reverts unless every chain has the same dispute game finality and DelayedWETH delays.
+    ///         The AnchorStateRegistry and DelayedWETH are shared, so we perform a check to avoid a
+    ///         single chain dictating the delays for the entire interop set.
+    /// @param _chainSystemConfigs The chain system configs being migrated.
+    function _validateSharedDelays(ISystemConfig[] calldata _chainSystemConfigs) internal view {
+        for (uint256 i = 1; i < _chainSystemConfigs.length; i++) {
+            if (_disputeGameFinalityDelay(_chainSystemConfigs[i]) != _disputeGameFinalityDelay(_chainSystemConfigs[0]))
+            {
+                revert OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch();
+            }
+            if (
+                IDelayedWETH(payable(_chainSystemConfigs[i].delayedWETH())).delay()
+                    != IDelayedWETH(payable(_chainSystemConfigs[0].delayedWETH())).delay()
+            ) {
+                revert OPContractsManagerMigrator_WithdrawalDelayMismatch();
+            }
+        }
     }
 
     /// @notice Returns the contracts container.

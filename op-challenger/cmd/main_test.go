@@ -8,7 +8,7 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-core/superchain"
+	"github.com/ethereum-optimism/optimism/op-core/superchain/bundle"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/stretchr/testify/require"
 
@@ -273,7 +273,7 @@ func TestGameFactoryAddress(t *testing.T) {
 func TestNetwork(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		opSepoliaChainId := uint64(11155420)
-		opSepolia, err := superchain.GetChain(opSepoliaChainId)
+		opSepolia, err := bundle.GetChain(opSepoliaChainId)
 		require.NoError(t, err)
 		opSepoliaCfg, err := opSepolia.Config()
 		require.NoError(t, err)
@@ -629,7 +629,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 
 			t.Run("Required", func(t *testing.T) {
 				if gameType == gameTypes.PermissionedGameType {
-					// The permissioned game never reaches step() so does not run op-program.
+					// The permissioned game never reaches step() so does not run the cannon server.
 					configForArgs(t, addRequiredArgsExcept(gameType, "--cannon-server"))
 				} else {
 					verifyArgsInvalid(t, "flag cannon-server is required", addRequiredArgsExcept(gameType, "--cannon-server"))

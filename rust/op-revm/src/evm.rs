@@ -32,13 +32,12 @@ impl<CTX: ContextTr<Cfg: Cfg<Spec: Into<OpSpecId> + Clone>>, INSP>
     /// Create a new Optimism EVM.
     pub fn new(ctx: CTX, inspector: INSP) -> Self {
         let spec: OpSpecId = ctx.cfg().spec().into();
-        Self(Evm {
+        Self(Evm::new_with_inspector(
             ctx,
             inspector,
-            instruction: EthInstructions::new_mainnet_with_spec(spec.into()),
-            precompiles: OpPrecompiles::new_with_spec(spec),
-            frame_stack: FrameStack::new_prealloc(8),
-        })
+            EthInstructions::new_mainnet_with_spec(spec.into()),
+            OpPrecompiles::new_with_spec(spec),
+        ))
     }
 
     /// Consumes self and returns the inner context.
@@ -64,7 +63,7 @@ impl<CTX, INSP, I, P> OpEvm<CTX, INSP, I, P> {
     }
 }
 
-/// UPSTREAM-MIRROR(delegate): revm-inspector@42.0.1 `revm_inspector::InspectorEvmTr`
+/// UPSTREAM-MIRROR(delegate): revm-inspector@43.0.2 `revm_inspector::InspectorEvmTr`
 ///
 /// Forwards inspector EVM access to the inner mainnet-shaped EVM.
 impl<CTX, INSP, I, P> InspectorEvmTr for OpEvm<CTX, INSP, I, P>
@@ -103,7 +102,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(delegate): revm-handler@42.0.1 `revm_handler::EvmTr`
+/// UPSTREAM-MIRROR(delegate): revm-handler@43.0.2 `revm_handler::EvmTr`
 ///
 /// Forwards selected EVM operations to the inner EVM. Re-check newly defaulted methods and
 /// upstream overrides that this wrapper would otherwise miss.

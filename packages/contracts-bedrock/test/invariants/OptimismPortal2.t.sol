@@ -162,6 +162,9 @@ contract OptimismPortal2_Invariant_Harness is DisputeGameFactory_TestInit {
         targetInterface(FuzzInterface({ addr: address(optimismPortal2), artifacts: artifacts }));
 
         excludeSender(EIP1967Helper.getAdmin(address(optimismPortal2)));
+        // The ProxyAdmin owner could move the proof maturity delay and shift the finalization
+        // window under the invariants.
+        excludeSender(proxyAdminOwner);
         // The lockbox cannot originate arbitrary ETH transfers.
         excludeSender(address(ethLockbox));
     }

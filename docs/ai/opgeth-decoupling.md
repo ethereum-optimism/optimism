@@ -3,7 +3,7 @@
 This document analyses the dependencies of the optimism monorepo Go services on op-geth–specific
 APIs, and proposes decoupling strategies for each. The goal is to depend on upstream go-ethereum
 instead of op-geth without opening upstream PRs. Tracking issue: #20257. Last full revisit:
-2026-08 (re-verified against an upstream-build spike; §§1/3/4/5/11 closed out, added §20).
+2026-10 (audited against the ratchet allowlist, §19).
 
 Sections are numbered stably (§0–§20) because issues reference them. Done sections keep their
 context and decisions but not their implementation detail — the landed code in `op-core/*` is its
@@ -22,20 +22,23 @@ of three fates:
    op-devstack) and the Go proof tests under `rust/kona/tests/proofs/`; `op-chain-ops/genesis`
    (#21281) and the surviving `op-chain-ops/cmd/check-*` checkers (§18); **op-sync-tester** — a
    CL-sync EL *mock* that does **no execution** (it proxies a real op-reth EL and gates
-   visibility), whose one non-swap bit, the OP-aware `PayloadID` hash, is tracked in #21525; and
-   the **fork's infrastructure extensions** to geth's `log`/`rpc` packages, re-homed into owned
-   op-service layers (§15).
+   visibility), whose one non-swap bit, the OP-aware `PayloadID` hash, is tracked in #21525
+   together with its plain swaps (OP fork times set on a geth `ChainConfig`, the fork's
+   `Block.WithdrawalsRoot`); **op-test-sequencer**'s fake-PoS L1 builder, which calls the fork's
+   `engine.ExecutableDataToBlockNoHash` signature (#23406); and the **fork's infrastructure
+   extensions** to geth's `log`/`rpc` packages, re-homed into owned op-service layers (§15).
 2. **Migrate execution to op-reth / Rust** — anything that builds or executes blocks, or needs
    fork-only EVM hooks. op-acceptance-tests sequences op-reth-only for Karst+ (#21182);
-   op-e2e/actions moves onto an op-reth-test-engine subprocess EL (#20415, #21196); op-e2e system
-   tests and op-devstack/sysgo retire their in-process op-geth L2 EL (§17); and
+   op-e2e/actions and the kona proof tests (`rust/kona/tests/proofs`) run on an
+   op-reth-test-engine subprocess EL (#20415, #21196, #21905);
+   op-e2e system tests and op-devstack/sysgo retire their in-process op-geth L2 EL (§17); and
    op-deployer runs all its scripts on upstream forge, deleting `op-chain-ops/script` (§16).
 3. **Delete** — geth-as-library tools with no remaining need, to be reimplemented in Rust against
-   op-reth if ever needed again: op-simulate and op-run-block (#21282), `op-wheel/cheat` and the
-   stale pre-Holocene `check-*` tools (§18).
+   op-reth if ever needed again: op-simulate and op-run-block (#21282), `op-wheel/cheat`, the
+   stale pre-Holocene `check-*` tools and `cmd/receipt-reference-builder` (§18).
 
 Once every component is in fate 1, 2, or 3, the go.mod `replace` flips to upstream go-ethereum
-(#20266). A scheduled **CI ratchet** job rehearses the flip continuously (see §19).
+(#20266). A required **CI ratchet** check rehearses the flip on every PR (see §19).
 
 **Compile-compat is necessary, not sufficient.** Upstream go-ethereum does not implement the OP
 state transition, so code can compile and silently behave wrongly. The classifying question for
@@ -69,7 +72,7 @@ All op-geth-specific code lives in `op-core/` packages (alongside the pre-existi
 | `core/types/deposit_tx.go`, `post_exec_tx.go`, `receipt_opstack.go` | `op-core/types/` | `DepositTx`, `PostExecTx`, `Receipt` + helpers |
 | `core/types/rollup_cost.go` | `op-core/fees/` | L1 cost + operator-fee math |
 | `params/config_op.go`, `params/superchain.go` | `op-core/params/` | `OptimismConfig`, standalone `ChainConfig`, loaders |
-| `superchain/` + `sync-superchain.sh` | `op-core/superchain/` | embedded registry (absorbed `op-service/superutil`) |
+| `superchain/` + `sync-superchain.sh` | `op-core/superchain/`, `op-core/superchain/bundle/` | registry types and loader; embedded registry in `bundle` (absorbed `op-service/superutil`) |
 | `consensus/misc/eip1559/eip1559_optimism.go` | `op-core/eip1559/` | Holocene/Jovian extraData helpers |
 
 ### Design principles (apply to all future op-core additions)
@@ -149,11 +152,12 @@ Two wire facts worth keeping in mind (both encoded in the landed implementation)
 `optypes.DepositTx{...}.MarshalBinary()` — the `*types.Transaction` wrapper is eliminated, struct
 straight to bytes — and `UnmarshalDepositLogEvent` returns `*optypes.DepositTx`.
 
-**Remaining sites are test and test-support code only**, and ride §13: op-node derivation tests
-(`batch_queue_test.go`, `channel_out_test.go`, `batches_test.go`) and
-`op-service/testutils/deposits.go`. Re-derive with
-`grep -rn 'types\.\(DepositTx\|PostExecTx\)' --include='*.go'` over the go-ethereum import —
-any hit outside a test or testutils file is a regression.
+**Remaining sites are test and tooling code**, and the ratchet allowlist (§19) lists them. The
+test and test-support sites ride §13 (#23405), together with the contracts-bedrock `go-ffi`
+helper, which encodes deposits with `types.DepositTx` for the Solidity tests and swaps to
+`optypes.DepositTx`. Production code needs no fork transaction type: it uses the op-core types
+and the class-partitioned sources accessors (§11); `optypes.IsDepositTx` and its siblings are
+transition scaffolding (§2).
 
 ---
 
@@ -235,34 +239,37 @@ fields don't exist upstream — **shedding them is a cutover edit** (#20266).
 
 The `*params.ChainConfig` uses that remain in op-node are **L1** chain configs
 (`NewL1ChainConfig`, `FetchingAttributesBuilder`, `L1InfoDeposit`) — legitimately upstream
-go-ethereum types, not OP-hardfork reads, and they stay. Grep recipe for regressions: files
-importing `go-ethereum/params` that call `Is<OpFork>(` or reference `OptimismConfig`.
+go-ethereum types, not OP-hardfork reads, and they stay. One exception reads a fork field off
+such a config: `NewL1ChainConfig` in `op-node/service.go` exempts an L1 that is itself an OP
+chain (an L3 setup) from the blob-schedule check via `IsOptimism()`, which upstream lacks; an
+upstream-decoded config also drops the `optimism` JSON field it tests (#23406). Regressions fail
+the ratchet (§19).
 
 ---
 
 ## 6. `params/superchain.go` – `LoadOPStackChainConfig` — **DONE**
 
-Moved to `op-core/superchain`: `(*superchain.ChainConfig).OpChainConfig()` plus the by-chain-ID
-loader `superchain.LoadOpChainConfig` (ex-superutil). §7 has the layering rationale.
+`(*superchain.ChainConfig).OpChainConfig()` in `op-core/superchain` builds an `op-core/params`
+chain config from a registry chain config. §7 has the layering rationale.
 
 ---
 
 ## 7. `superchain/` package — **DONE** (#20267, #21487)
 
-The registry package moved verbatim to `op-core/superchain` (embedded zip regenerated from the
-repo-root `superchain-registry` submodule by `sync-superchain.sh`; the zip is gitignored, pinned
-by a committed `.sha256`). `op-service/superutil` was deleted; all consumers import
-`op-core/superchain`.
+The registry's config types and a loader for a registry bundle live in `op-core/superchain`.
+The registry built into the monorepo lives in `op-core/superchain/bundle`: the embedded zip,
+regenerated from the repo-root `superchain-registry` submodule by `bundle/sync-superchain.sh`,
+gitignored and pinned by a committed `.sha256`. `op-service/superutil` was deleted.
 
-Layering decision worth remembering: `op-core/params` holds pure config types and must stay
-free of `op-core/superchain`, which embeds the bundle — anything in its build closure needs the
-bundle generated before it compiles, and external module consumers (the superchain-registry ops
-tooling) cannot generate it at all. The registry→`ChainConfig` conversion (`OpChainConfig`,
-`LoadOpChainConfig`) therefore lives in **`op-core/superchain`**, which imports `op-core/params`
-one-way. `TestBundleReachability` in `op-core/superchain/deps_test.go` guards the whole
+Layering decision worth remembering: only `op-core/superchain/bundle` embeds the bundle —
+anything in its build closure needs the bundle generated before it compiles, and external module
+consumers (the superchain-registry ops tooling) cannot generate it at all. `op-core/superchain`
+embeds nothing, so those consumers can import the registry types and the registry→`ChainConfig`
+conversion (`OpChainConfig`); it imports `op-core/params` one-way, and `op-core/params` holds pure
+config types. `TestBundleReachability` in `op-core/superchain/bundle/deps_test.go` guards the whole
 monorepo against reaching the bundle via a `bundleAllowed` allowlist; per-package guard
 tests (`op-service/testutils/depguard`) in `op-node/rollup`, `op-chain-ops/{genesis,script}`,
-and `op-fetcher/pkg/fetcher/fetch{,/script}` give a local failure signal on top.
+and `op-fetcher/fetch` give a local failure signal on top.
 
 `rollup.Config` carries the full OP hardfork schedule itself (loaded from the registry,
 bypassing any geth `ChainConfig`); future forks extend `rollup.Config` directly. Any remaining
@@ -270,7 +277,7 @@ gaps ride #20270.
 
 ---
 
-## 8. `consensus/misc/eip1559` – Holocene/Jovian helpers — op-node **DONE** (#20268), helpers missing for §13/§14/§18
+## 8. `consensus/misc/eip1559` – Holocene/Jovian helpers — op-node **DONE** (#20268), helpers missing for §13
 
 `op-core/eip1559` landed and op-node is fully switched (no op-node production code imports geth's
 eip1559; one test file still does — a fork-comparison import that goes away at cutover).
@@ -278,8 +285,7 @@ Signatures operate on `[]byte`/`uint64` only.
 
 Still absent from `op-core/eip1559`: only `EncodeOptimismExtraData` and `DecodeHoloceneExtraData`
 (the Holocene/Jovian encode helpers are already present) — add them when §13 migrates the op-e2e
-helpers. The geth-eip1559 imports remaining in genesis (§14) and the check-* tools (§18) are pure
-import swaps onto the existing op-core helpers.
+helpers.
 
 ---
 
@@ -360,8 +366,9 @@ Migrations landed with this issue: the `InfoAndUserTxsBy*`, `InfoAndDepositsBy*`
   issue). If it ever needs L2 block bodies, migrate per §11 then.
 - **op-supernode** — no direct `ethclient`; receipts via sources interfaces, reads only
   `receipt.Logs`. Picks up §11 improvements transparently.
-- **cannon** — imports only `common`/`hexutil`/`log`; the preimage oracle treats bytes opaquely.
-  Zero blockchain-layer coupling.
+- **cannon** — production code imports only `common`/`hexutil`/`crypto`; the preimage oracle
+  treats bytes opaquely. Its test support (`mipsevm/testutil`) runs the MIPS contracts on a plain
+  L1 (mainnet-config) EVM, but calls it through a fork-only signature (§15).
 
 ---
 
@@ -369,10 +376,16 @@ Migrations landed with this issue: the `InfoAndUserTxsBy*`, `InfoAndDepositsBy*`
 
 Dependency profiles: **op-acceptance-tests** has zero direct `ethclient` imports — everything
 goes through the op-devstack DSL to `apis.EthClient`, so it picks up §11's implementation swap
-automatically (this is why §11 rejects a parallel wrapper type). **op-e2e** uses `ethclient` and
-OP receipt fields directly in dozens of files. **op-devstack**'s DSL layer is clean;
-`sysgo/` calls `ethclient.Dial` directly in a handful of files (mostly L1 contract/dispute-game
-setup).
+automatically (this is why §11 rejects a parallel wrapper type). Its tests still call fork
+helpers directly, though (`IsDepositTx`, `RollupCostData`, `EncodeJovianExtraData`, receipt fee
+fields), and so does the `sdmtest` harness that external suites import. **op-e2e** uses
+`ethclient` and OP receipt fields directly in dozens of files. **op-devstack**'s DSL reaches L2
+through `apis.EthClient`, except `bridge.go`'s withdrawal-proof path, which uses `ethclient` only
+for receipts and headers (upstream-safe). Its fee helpers (`fjord_fees.go`, `operator_fee.go`)
+compute expected L1 and operator fees with op-geth's cost functions and read geth receipt fee
+fields — they swap to `op-core/fees` and `optypes.Receipt`. These symbol swaps across the test
+code are #23405. `sysgo/` calls `ethclient.Dial` directly in a handful of files (mostly L1
+contract/dispute-game setup).
 
 ### Strategy
 
@@ -403,21 +416,31 @@ upstream-stable APIs.
 
 ---
 
-## 14. Genesis tooling — op-geth as a *library*, not an engine — open (#21281)
+## 14. Genesis tooling — op-geth as a *library*, not an engine — **DONE** (#21281)
 
 Removing op-geth has two parts: op-geth as the execution *engine* (in-process ELs — deleted or
-replaced by op-reth; §17, #21196) and op-geth as a *library* in offline tooling. The genuine
-in-scope library consumer is **`op-chain-ops/genesis`** (`BuildL2Genesis`: genesis state-root +
-`genesis.json`). `op-simulate`/`op-run-block` were deleted instead (#21282, closed — no importers).
+replaced by op-reth; §17, #21196, #21905) and op-geth as a *library* in offline tooling. The
+genuine in-scope library consumer is **`op-chain-ops/genesis`** (`BuildL2Genesis`: genesis
+state-root + `genesis.json`). `op-simulate`/`op-run-block` were deleted instead (#21282, closed —
+no importers).
 
-The only op-geth *diff* the genesis path relies on: for Isthmus+ chains the genesis block's
-`WithdrawalsHash` is the storage root of the `L2ToL1MessagePasser` predeploy (via the upstream
-`GetStorageRoot` primitive) instead of the empty hash. Migration (#21281): genesis builds an
-`opparams.ChainConfig` and serialises *that* into `genesis.json` (it carries the OP fields;
-upstream's config cannot); the block/state-root is computed against upstream via
-`GethChainConfig()`; the ~15-line Isthmus withdrawals-root rule is ported on top of upstream
-`state`/`triedb` + `op-core/predeploys`. This is why `GethChainConfig()` is a real bridge rather
-than throwaway.
+`op-chain-ops/genesis` builds an `op-core/genesis.Genesis` around an `opparams.ChainConfig`. That
+type is the one L2 genesis JSON encoding: the `core.Genesis` envelope (header fields, alloc) with
+a `config` object in `opparams.ChainConfig`'s own JSON encoding; op-geth's `stateHash` genesis key
+is rejected. `Genesis.ToBlock()` computes the genesis block on upstream go-ethereum: the block
+`core.Genesis.ToBlock()` builds for `GethGenesis()`, with the one OP rule op-geth's genesis path
+adds — from Isthmus the header's `WithdrawalsHash` is the storage root of the
+`L2ToL1MessagePasser` predeploy (upstream `state`/`triedb`) instead of the empty hash.
+`GethGenesis()` bridges to `core.Genesis` for code that commits genesis state with go-ethereum:
+the in-process op-geth ELs of op-e2e and op-devstack (§17) and op-e2e's action-test
+`SetupData.L2Cfg`. op-devstack's `L2Network.ChainConfig()` still returns the go-ethereum config
+`GethChainConfig()` derives (§13).
+
+`opparams.ChainConfig`'s JSON codec writes the go-ethereum config `GethChainConfig()` derives,
+embedded, with the OP fields declared directly: `encoding/json` lets a direct field dominate a
+same-named embedded one, so the OP fields win over op-geth's duplicates and need no change once
+upstream's config has none. The Ethereum fork keys of a decoded config are not kept (they are
+re-derived on encoding, and decoding rejects one that contradicts the derivation).
 
 ---
 
@@ -469,14 +492,25 @@ and `Server.SetRecorder` inside the geth RPC client *and server*, and exports `r
   `WithHTTPRecorder` option. A `forbidigo` rule in `.golangci.yaml` rejects the fork-only symbols. The
   `<ns>_rpc_client_*` metric names and labels are pinned by `TestRPCMetricsDescriptors`.
 
-**One-off fork symbols** in the same spirit ride the §2-style call-site swaps (#20263 family).
+**One-off fork symbols** in the same spirit are per-symbol swaps (#23405, #23406).
 `Transaction.SetBlobTxSidecar` and `types.LogForStorage` are **done** (no occurrences remain),
 and `op-core/interop/messages` no longer reads `params.InteropCrossL2InboxAddress`. Still open:
 `types.NewIsthmusSigner` (op-e2e, `rust/kona/tests/proofs`), the fork-changed
 `types.NewBlock(…, *BlockConfig)` signature (`op-service/testutils/random.go`), and the
 remaining `params.InteropCrossL2InboxAddress` reads in op-interop-mon and op-interop-filter test
-files — all test or test-support code, so they ride §13. Derive current sites by grepping the
-symbol; listed file snapshots go stale.
+files — all test or test-support code, so they ride §13 (#23405). Two more:
+
+- `core.ErrTxFilteredOut`, the fork's interop tx-filter rejection, which
+  `op-service/txinclude`'s resubmitter classifies as a permanent failure (production) and the
+  interop load test matches. Upstream has no such error, so the classification needs op-reth's
+  equivalent rejection instead (#23406).
+- The fork's `core.NewEVMBlockContext(header, chain, author, config, statedb)` signature, used by
+  cannon's `mipsevm/testutil` to run the MIPS contracts on an L1 EVM, and by op-e2e's in-process
+  L1 miner. Upstream's takes only `(header, chain, author)`; the extra arguments feed only the OP
+  L1-cost and operator-fee functions, which an L1 config never uses, so these callers just drop
+  them (#23405). The op-e2e actions L2 engine uses it too and goes with #21196.
+
+The ratchet allowlist (§19) lists the current sites.
 
 **Cutover check:** revisit `op-batcher/batcher.maxFloorDataGas`; check whether the then-current
 upstream `core.FloorDataGas` can replace its local pre- and post-Amsterdam floor calculations while
@@ -491,9 +525,9 @@ deployment/genesis scripts through it. Semantically it is **plain L1 EVM** — i
 activates only Ethereum forks (the OP fork fields are explicitly nil) — so by §"scope" rules it
 *could* be fate 1. But its cheatcode mechanism runs on fork-only EVM hooks that upstream has no
 equivalent for: `vm.Config.PrecompileOverrides` (cheatcode precompiles), `vm.Config.CallerOverride`
-(pranks), `vm.Config.NoMaxCodeSize`, and the exported `state.StateUpdate` without which
-`script/forking.ForkDB` cannot implement upstream's `state.Database` (its `Commit` takes an
-*unexported* type). "Swap to op-core" does not exist here.
+(pranks) and `vm.Config.NoMaxCodeSize`. (`script/forking.ForkDB` also needs the exported
+`state.StateUpdate`, but that is an upstream backport: later go-ethereum releases export it.)
+"Swap to op-core" does not exist here.
 
 **Decision: upstream forge is the only script engine; delete the Go host.** op-deployer's
 `--use-forge` path (pinned forge binary, `runWithBytes(bytes)` entrypoints, `== Return ==` output
@@ -539,7 +573,7 @@ This is a hard blocker of #20266.
 
 ---
 
-## 17. In-process op-geth L2 EL in op-e2e system tests and op-devstack/sysgo
+## 17. In-process op-geth L2 EL in op-e2e system tests and op-devstack/sysgo — open (#21744)
 
 Beyond op-e2e/actions (§ scope fate 2, #21196), op-e2e *system* tests and op-devstack/sysgo can
 run op-geth **in-process as the L2 EL**: `op-e2e/e2eutils/geth.InitL2` behind the
@@ -559,32 +593,56 @@ bedrock/regolith co-activation. Precedent: #21182 (acceptance tests op-reth-only
 
 ## 18. Remaining op-chain-ops tools — check-* and op-wheel
 
-**`cmd/check-*` per-fork checkers** verify fork activation on live chains using fork symbols
-(`types.DepositTx`, receipt `DepositReceiptVersion`, L1-cost funcs, `types.CalcDAFootprint`, geth
-`eip1559` Jovian helpers). Plan: **delete the checkers for long-activated forks** (proposal:
-pre-Holocene — team confirms the list on the issue) and **swap the survivors to op-core**, adding
-the one missing symbol family with differential tests — DA-footprint calculation
-(`types.CalcDAFootprint`) to `op-core/fees`; the eip1559 uses are import swaps onto the existing
-`op-core/eip1559` helpers (§8).
+**`cmd/check-*` per-fork checkers — done.** The pre-Holocene checkers were deleted (#22158) and
+the survivors swapped to op-core, with the DA-footprint calculation added to `op-core/fees`
+(#22163).
 
-**`op-wheel`** splits cleanly: the `engine` commands drive a live EL over Engine-API RPC —
-upstream-safe, stay. The `cheat` commands do offline surgery on **op-geth datadirs** (raw
-`rawdb`/`core/state`, fork-only `StateDB.OpenStorageTrie`, in-process block processing) — not
-upstream-portable, and pointless in an op-reth fleet whose datadirs aren't geth-format. Plan:
-**delete `op-wheel/cheat`** (op-simulate precedent, #21282).
+**`op-wheel`**: the `cheat` commands did offline surgery on op-geth datadirs and were deleted
+(#21747). The `engine` commands drive a live EL over Engine-API RPC and stay. They decode the
+EL's `debug_chainConfig` into `opparams.ChainConfig`, and pick a payload's withdrawals encoding
+with an `opparams.ChainConfig` as its `eth.HardforkConfig` (§5).
+
+**`cmd/receipt-reference-builder`** records transaction nonces with the fork's
+`Transaction.EffectiveNonce`, which for a deposit returns the nonce the RPC reported for it. It
+serves only chains with pre-Canyon activity and is deleted like the pre-Holocene checkers
+(#23408).
 
 ---
 
 ## 19. CI ratchet — continuously rehearsing the cutover
 
-A scheduled CI job makes decoupling progress measurable and regression-proof: in a throwaway
-checkout it drops the go-ethereum `replace`, pins upstream at the current op-geth base version,
-runs `go mod tidy` + `go build`/`go vet`, and compares the **set of failing packages** against a
-committed baseline. A failure outside the baseline is a regression (a fork-API use crept into a
-clean package) and fails the job; a baselined package turning green shrinks the baseline — it
-only ever tightens. #20266 becomes executable exactly when the baseline is empty, and the flip PR
-deletes the job. The op-core differential tests are expected baseline members until then (they
-import op-geth-only symbols by design).
+`just opgeth-ratchet` (CI job `opgeth-ratchet`, required through `ci-gate`) type-checks the whole
+tree, tests included, against the upstream go-ethereum version op-geth is based on — via a
+temporary go.mod; the repo's go.mod is untouched — and compares the op-geth-only API uses it finds
+with `ops/scripts/opgeth-ratchet/allowlist.txt`. An entry names the package (suffixed `(tests)`
+for uses in its test files) and what it needs from the fork, e.g.
+`op-batcher/batcher (tests) | missing go-ethereum/core/types.DefaultBlockConfig | <reason>`.
+
+- **A use not on the allowlist fails the check.** Avoid it using this doc; if there is no way
+  around it yet, add the entry by hand with a reason. Review of that line is the gate.
+- **Reasons start with the tracking issue** that removes the entry (e.g. `#23405 …`), so grepping
+  the allowlist and its history for an issue number shows that workstream's remaining entries and
+  its progress.
+- **An entry no longer used fails the check too**; `just opgeth-ratchet-update` removes it. The
+  tool never adds entries, so the allowlist only grows deliberately.
+- **Each package reports only its own uses.** go/types type-checks every package from source and
+  continues past errors, so fixing a package never surfaces its importers as new failures. `go
+  build`/`go vet` report only the first failing layer, which is why the check doesn't compare
+  their failing-package sets.
+- **Entries are per package and API, not per call site.** A package that lists an API can use it
+  again without a new entry; the check stops a package from taking on APIs it didn't use before.
+- **A missing API can hide another.** In `tx.Deposit().Mint`, once `Tx.Deposit` is missing the
+  type checker can't look up `Mint`, so removing one use can surface another, which then needs its
+  own entry. That is a use the tree already had, not a new one.
+- **Compile-compat only.** Code that type-checks against upstream but would behave wrongly (e.g.
+  the in-process L2 EL, §17) is outside the check.
+- **op-geth also carries upstream backports** — later go-ethereum features (block access lists,
+  `CustodyBitmap`, builder deposit addresses, …) that its base version lacks. Uses of them are
+  allowlisted with reason "upstream backport" and are not decoupling work: they go when op-geth's
+  upstream base catches up.
+
+#20266 is executable when the allowlist is empty; the flip PR deletes the tool, the allowlist and
+the CI job. The op-core differential tests are allowlist entries until then.
 
 ---
 
@@ -616,12 +674,12 @@ the one carrying security relevance, and the monorepo pin catches up in one bump
 Revisit these when §15 lands. The log layer is not a blocker: `op-service/log` and
 `op-service/testlog` compile against upstream go-ethereum.
 
-**An edge into `op-core/superchain` caps a consumer's monorepo version.** Any package reaching
+**An edge into `op-core/superchain/bundle` caps a consumer's monorepo version.** Any package reaching
 the bundle cannot be built by a downstream module at all (#22678), so a consumer that reaches it
 is stuck on the last commit predating the breakage. #22700 and #22709 cleared the *accidental*
 reachers — `op-service/{apis,dial,sources,testutils,txintent}`, `op-node/rollup/...` and
 `op-service/oppprof` among them — and what remains is the explicit `bundleAllowed` list in
-`op-core/superchain/deps_test.go`. So a consumer's ceiling is now a checkable question: does its
+`op-core/superchain/bundle/deps_test.go`. So a consumer's ceiling is now a checkable question: does its
 import closure land on that list? Reaching `op-deployer`, `op-conductor`, `op-challenger` or
 op-node's non-`rollup` packages still caps it; the op-service plumbing no longer does.
 
@@ -681,9 +739,9 @@ that matter arrive through **libp2p**, an inbound path independent of go-ethereu
 moving to upstream geth leaves them where they were. That is the other half of why decoupling and
 bumping belong in the same change.
 
-Related: #22678 (`op-core/superchain` is unbuildable by downstream modules because
-`superchain-configs.zip` is gitignored) is a distinct blocker for these consumers, and one the
-monorepo has to fix on their behalf.
+Related: downstream modules can import `op-core/superchain` for the registry's types and loader;
+only `op-core/superchain/bundle`, which embeds the gitignored `superchain-configs.zip`, is
+monorepo-only (#22678).
 
 ---
 
@@ -692,27 +750,30 @@ monorepo has to fix on their behalf.
 | Area | Target | Status |
 |------|--------|--------|
 | ProtocolVersions mechanism (§0) | deleted end-to-end | **done** |
-| `DepositTx` / `PostExecTx` types + helpers (§1, §2) | `op-core/types` | **done** (#20262, #20269, #20263); test sites ride §13 |
+| `DepositTx` / `PostExecTx` types + helpers (§1, §2) | `op-core/types` | **done** (#20262, #20269, #20263); test sites ride §13 (#23405) |
 | OP `Receipt` (§3) | `op-core/types.Receipt` | **done** (#20262); wiring landed with §11 (#20264) |
 | L1-cost / operator-fee math (§4) | `op-core/fees` | **done** (#20261); op-batcher site landed with §11 |
 | `OptimismConfig` / standalone `ChainConfig` / `GethChainConfig` (§5) | `op-core/params` | **done** (#20260, #20270) |
-| Superchain registry + loaders (§6, §7) | `op-core/superchain` + `op-core/params` | **done** (#20267, #21487) |
+| Superchain registry + loaders (§6, §7) | `op-core/superchain{,/bundle}` + `op-core/params` | **done** (#20267, #21487) |
 | eip1559 Holocene/Jovian helpers (§8) | `op-core/eip1559` | **done** for op-node; `EncodeOptimismExtraData`/`DecodeHoloceneExtraData` pending (§13) |
 | `PayloadID`, Engine-API types (§9, §10) | upstream / op-service | no change needed |
 | OP-aware eth client: class-partitioned accessors, `optypes.Receipt` returns, op-batcher + txinclude migration (§11) | `op-service/sources` / `apis.EthClient` | **done** (#20264) |
-| op-proposer / op-challenger / op-supernode / cannon (§12) | — | audited, no work |
-| Test migration: wait.go split, L2 call sites, `L2Client` type, sysgo audit, delete op-e2e/opgeth (§13) | `apis.EthClient` + header-only variants | open (#20265 + subs) |
-| op-e2e/actions in-process EL | `op-reth-test-engine` subprocess | open (#20415 Rust, #21196 Go) |
-| Genesis tooling (§14) | upstream geth as library + `opparams` | open (#21281) |
+| op-proposer / op-challenger / op-supernode / cannon (§12) | — | audited, no work; cannon test support rides #23405 |
+| Test migration: wait.go split, L2 call sites, `L2Client` type, sysgo audit, delete op-e2e/opgeth, fork-symbol swaps (§13) | `apis.EthClient` + header-only variants + op-core | open (#20265 + subs, incl. #23405) |
+| op-e2e/actions in-process EL | `op-reth-test-engine` subprocess | **done** (#20415 Rust, #21196 Go) |
+| Kona proof tests' in-process EL (`rust/kona/tests/proofs`) | `op-reth-test-engine` subprocess | **done** (#21905) |
+| Genesis tooling (§14) | `op-core/genesis` on upstream geth + `opparams` | **done** (#21281) |
 | op-simulate / op-run-block (§14) | delete | **done** (#21282) |
-| op-sync-tester PayloadID hash | OP-aware `Id()` reimplementation | open (#21525) |
+| op-sync-tester PayloadID hash + fork-config swaps | OP-aware `Id()` reimplementation | open (#21525) |
 | Log context extensions (§15) | owned `op-service/log` layer: owned `Logger` + slog implementation, `ToGeth` at geth boundaries | **done** |
 | RPC recorder hooks + `JsonError` (§15) | owned `op-service/jsonrpc` seam: client wrapper; server-side recording removed | **done** |
-| One-off fork symbols (§15) | per-symbol swaps, ride #20263 family | `SetBlobTxSidecar`/`LogForStorage` **done**; rest are test-only, ride §13 |
+| One-off fork symbols (§15) | per-symbol swaps | `SetBlobTxSidecar`/`LogForStorage` **done**; test sites ride §13 (#23405) |
+| Remaining non-test fork uses (§5, §15, §18, op-test-sequencer) | swap or delete | open (#23406) |
 | `op-chain-ops/script` + op-deployer (§16) | upstream forge only; delete Go host + interopgen | open (#23300) |
-| In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open |
-| `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | open |
+| In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open (#21744) |
+| `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | **done** (#21746) |
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
-| CI ratchet (§19) | scheduled upstream-build job + tightening baseline | open |
+| `op-wheel/engine` fork-config reads (§18) | `opparams.ChainConfig` + `eth.HardforkConfig` | **done** (#23217) |
+| CI ratchet (§19) | required upstream type-check against a shrinking allowlist | **done** |
 | Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | a few modules unblocked; most wait for the final cutover (the `op-core/types` deposit edge) |
 | Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |

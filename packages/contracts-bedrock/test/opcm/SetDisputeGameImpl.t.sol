@@ -90,7 +90,7 @@ contract SetDisputeGameImpl_Test is Test {
         input = new SetDisputeGameImplInput();
         DisputeGameFactory dgfImpl = new DisputeGameFactory();
         SuperchainConfig supConfigImpl = new SuperchainConfig();
-        AnchorStateRegistry anchorStateRegistryImpl = new AnchorStateRegistry(0);
+        AnchorStateRegistry anchorStateRegistryImpl = new AnchorStateRegistry(43200, 302400);
         ETHLockbox ethLockboxImpl = new ETHLockbox();
 
         Proxy supConfigProxy = new Proxy(address(1));
@@ -122,7 +122,8 @@ contract SetDisputeGameImpl_Test is Test {
                     IETHLockbox(payable(address(ethLockboxProxy))),
                     factory,
                     Proposal({ root: Hash.wrap(0), l2SequenceNumber: 0 }),
-                    GameType.wrap(100)
+                    GameType.wrap(100),
+                    302400
                 )
             )
         );

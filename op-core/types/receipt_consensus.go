@@ -63,6 +63,22 @@ func (rs Receipts) Geth() types.Receipts {
 // Len returns the number of receipts in the list.
 func (rs Receipts) Len() int { return len(rs) }
 
+// UserReceipts returns the receipts of the standard Ethereum transactions of
+// the list — every receipt that is not of an OP Stack synthetic transaction
+// (0x7E deposit or 0x7D post-exec). It pairs index-for-index with the user
+// transactions of the same block. The elements alias the receiver's.
+func (rs Receipts) UserReceipts() Receipts {
+	out := make(Receipts, 0, len(rs))
+	for _, r := range rs {
+		switch r.Type {
+		case DepositTxType, PostExecTxType:
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
 // receiptRLP is the consensus encoding of a receipt.
 type receiptRLP struct {
 	PostStateOrStatus []byte

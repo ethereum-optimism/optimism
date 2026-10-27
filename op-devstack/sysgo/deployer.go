@@ -26,6 +26,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -229,7 +230,7 @@ type worldBuilder struct {
 	output          *state.State
 	outL1Genesis    *core.Genesis
 	l2Chains        []eth.ChainID
-	outL2Genesis    map[eth.ChainID]*core.Genesis
+	outL2Genesis    map[eth.ChainID]*opgenesis.Genesis
 	outL2RollupCfg  map[eth.ChainID]*rollup.Config
 	outL2Deployment map[eth.ChainID]*L2Deployment
 
@@ -455,15 +456,90 @@ func WithFinalizationPeriodSeconds(n uint64) DeployerOption {
 	}
 }
 
+// WithProofMaturityDelaySeconds sets the per-chain proof maturity delay. The delay is bounded by
+// the OptimismPortal implementation, so the bounds are widened when the requested value falls
+// outside the standard range. This only takes effect when the implementations are deployed by
+// this devstack run.
 func WithProofMaturityDelaySeconds(n uint64) DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		if n < standard.MinProofMaturityDelaySeconds {
+			builder.WithGlobalOverride("minProofMaturityDelaySeconds", n)
+		}
+		if n > standard.MaxProofMaturityDelaySeconds {
+			builder.WithGlobalOverride("maxProofMaturityDelaySeconds", n)
+		}
 		builder.WithGlobalOverride("proofMaturityDelaySeconds", uint64(n))
 	}
 }
 
+// WithDisputeGameFinalityDelaySeconds sets the per-chain dispute game finality delay. The delay is bounded by
+// the AnchorStateRegistry implementation, so the bounds are widened when the requested value falls
+// outside the standard range. This only takes effect when the implementations are deployed by
+// this devstack run.
 func WithDisputeGameFinalityDelaySeconds(seconds uint64) DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		if seconds < standard.MinDisputeGameFinalityDelaySeconds {
+			builder.WithGlobalOverride("minDisputeGameFinalityDelaySeconds", seconds)
+		}
+		if seconds > standard.MaxDisputeGameFinalityDelaySeconds {
+			builder.WithGlobalOverride("maxDisputeGameFinalityDelaySeconds", seconds)
+		}
 		builder.WithGlobalOverride("disputeGameFinalityDelaySeconds", seconds)
+	}
+}
+
+// WithWithdrawalDelaySeconds sets the per-chain DelayedWETH withdrawal delay. The delay is bounded by
+// the DelayedWETH implementation, so the bounds are widened when the requested value falls
+// outside the standard range. This only takes effect when the implementations are deployed by
+// this devstack run.
+func WithWithdrawalDelaySeconds(seconds uint64) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		if seconds < standard.MinWithdrawalDelaySeconds {
+			builder.WithGlobalOverride("minWithdrawalDelaySeconds", seconds)
+		}
+		if seconds > standard.MaxWithdrawalDelaySeconds {
+			builder.WithGlobalOverride("maxWithdrawalDelaySeconds", seconds)
+		}
+		builder.WithGlobalOverride("faultGameWithdrawalDelay", seconds)
+	}
+}
+
+// WithFaultGameMaxClockDuration overrides the fault dispute game's maximum chess-clock
+// duration, i.e. how long an unchallenged game takes to become resolvable
+// (dsl.StandardBridge.GameResolutionDelay). Shrinking it lets a test wait a game out in
+// wall-clock time instead of skipping it with time travel, which matters when the test also
+// depends on L2 origin adoption (time travel advances L1 only, so a large jump stalls
+// deposits for the size of the jump).
+//
+// The game contracts enforce
+// `max(2*clockExtension, clockExtension+preimageOracleChallengePeriod) <= maxClockDuration`,
+// checked in the game constructor and again in initialize(). With the standard
+// clockExtension (10800s) and challenge period (86400s), any max clock duration below
+// ~97200s makes game creation revert with InvalidClockExtension, so shrinking this value
+// requires shrinking the other two as well - see WithFaultGameClockExtension and
+// WithPreimageOracleChallengePeriod.
+func WithFaultGameMaxClockDuration(seconds uint64) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("faultGameMaxClockDuration", seconds)
+	}
+}
+
+// WithFaultGameClockExtension overrides the fault dispute game's clock extension. Must be
+// non-zero (DeployImplementations rejects zero) and small enough to satisfy the
+// maxClockDuration relationship documented on WithFaultGameMaxClockDuration.
+func WithFaultGameClockExtension(seconds uint64) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("faultGameClockExtension", seconds)
+	}
+}
+
+// WithPreimageOracleChallengePeriod overrides the large-preimage-proposal challenge period
+// of the shared PreimageOracle. It feeds the game's clock-extension bound (see
+// WithFaultGameMaxClockDuration), so it must be shrunk alongside a shortened max clock
+// duration.
+func WithPreimageOracleChallengePeriod(seconds uint64) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("preimageOracleChallengePeriod", seconds)
 	}
 }
 
@@ -476,16 +552,8 @@ func WithCustomGasToken(name, symbol string, initialLiquidity *big.Int, liquidit
 }
 
 func (wb *worldBuilder) buildL1Genesis() {
-	wb.require.NotNil(wb.output.L1DevGenesis, "must have L1 genesis outer config")
-	wb.require.NotNil(wb.output.L1StateDump, "must have L1 genesis alloc")
-
-	genesisOuter := wb.output.L1DevGenesis
-	genesisAlloc := wb.output.L1StateDump.Data.Accounts
-	genesisCfg := *genesisOuter
-	genesisCfg.StateHash = nil
-	genesisCfg.Alloc = genesisAlloc
-
-	wb.outL1Genesis = &genesisCfg
+	wb.require.NotNil(wb.output.L1DevGenesis, "must have L1 genesis")
+	wb.outL1Genesis = wb.output.L1DevGenesis
 }
 
 func (wb *worldBuilder) finalizeL2Allocs() {
@@ -535,7 +603,7 @@ func (wb *worldBuilder) finalizeL2Allocs() {
 }
 
 func (wb *worldBuilder) buildL2Genesis() {
-	wb.outL2Genesis = make(map[eth.ChainID]*core.Genesis)
+	wb.outL2Genesis = make(map[eth.ChainID]*opgenesis.Genesis)
 	wb.outL2RollupCfg = make(map[eth.ChainID]*rollup.Config)
 	for _, ch := range wb.output.Chains {
 		l2Genesis, l2RollupCfg, err := pipeline.RenderGenesisAndRollup(wb.output, ch.ID, wb.intent)
@@ -611,11 +679,6 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 		requirements, err := pipeline.ResolveInitialDeployRequirements(params.DisputeGameType)
 		wb.require.NoError(err)
 		prepareDeployment = prepareDeployment || requirements.Permissionless
-	}
-	if prepareDeployment {
-		// Prepare pins L2 genesis one hour after its safe L1 anchor.
-		// Backdate L1, rather than move L2 beyond the sequencer's wall clock.
-		intent.L1DevGenesisParams.BlockParams.Timestamp -= standard.MinGenesisTimeOffsetSeconds
 	}
 	deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
 	intent.L1DevGenesisParams.Prefund[deployerAddr] = (*hexutil.U256)(millionEth)
@@ -696,7 +759,6 @@ func (wb *worldBuilder) prepareAndDeployChains(opts deployer.ApplyPipelineOpts, 
 	wb.require.NoError(deployer.Prepare(wb.p.Ctx(), deployer.PrepareConfig{
 		Workdir: workdir, Logger: wb.logger, PrivateKey: privateKey,
 		L1RPCUrl: opts.L1RPCUrl, CacheDir: opts.CacheDir,
-		GenesisTimeOffset:         standard.MinGenesisTimeOffsetSeconds,
 		AllowUnoptimizedContracts: true,
 	}))
 	st, err := pipeline.ReadState(workdir)

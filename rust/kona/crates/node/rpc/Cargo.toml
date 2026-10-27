@@ -18,14 +18,15 @@ workspace = true
 # Workspace
 kona-protocol = {workspace = true, features = ["serde", "std"]}
 kona-gossip.workspace = true
+kona-disc.workspace = true
+kona-peers.workspace = true
 kona-engine.workspace = true
-kona-macros.workspace = true
 kona-genesis = {workspace = true, features = ["serde", "std"]}
+kona-interop.workspace = true
+kona-safedb.workspace = true
 
 # OP Alloy
-op-alloy-consensus.workspace = true
 op-alloy-rpc-types-engine = {workspace = true, features = ["serde", "std"]}
-op-alloy-rpc-types.workspace = true
 
 # Alloy
 alloy-eips = { workspace = true, features = ["serde", "std"] }
@@ -33,7 +34,7 @@ alloy-rpc-types-engine = { workspace = true, features = ["serde", "std"] }
 alloy-primitives = { workspace = true, features = ["map", "rlp", "serde", "std"] }
 
 # Misc
-libp2p.workspace = true
+libp2p = { workspace = true, features = ["metrics"] }
 tracing.workspace = true
 thiserror.workspace = true
 derive_more = { workspace = true, default-features = false, features = [
@@ -45,6 +46,7 @@ derive_more = { workspace = true, default-features = false, features = [
 async-trait.workspace = true
 tokio = { workspace = true, features = ["time"] }
 ipnet = { workspace = true }
+enr.workspace = true
 backon = { workspace = true }
 
 # `serde`
@@ -58,11 +60,17 @@ op-alloy-rpc-jsonrpsee.workspace = true
 # `reqwest` feature
 alloy-rpc-client = { workspace = true, features = ["reqwest"], optional = true }
 
-# `metrics` feature
-metrics = { workspace = true, optional = true }
-
 [dev-dependencies]
+alloy-consensus.workspace = true
+alloy-rpc-types-eth.workspace = true
+kona-engine = { workspace = true, features = ["test-utils"] }
+kona-safedb = { workspace = true, features = ["rocksdb"] }
+op-alloy-consensus.workspace = true
+op-alloy-rpc-types.workspace = true
+rstest.workspace = true
 serde_json.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 default = []
@@ -71,11 +79,4 @@ client = [
 	"jsonrpsee/async-client",
 	"jsonrpsee/client",
 	"op-alloy-rpc-jsonrpsee/client",
-	"op-alloy-rpc-types/jsonrpsee",
-]
-metrics = [
-	"dep:metrics",
-	"kona-engine/metrics",
-	"kona-gossip/metrics",
-	"libp2p/metrics",
 ]

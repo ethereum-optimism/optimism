@@ -8,8 +8,8 @@
 
 [lagoon]
   bundle = "op-core/nuts/bundles/lagoon_nut_bundle.json"
-  hash = "sha256:f1c953f3f2bf67af057af561e15836fe16e71b90bf4778277248483ea4fc0d05"
-  commit = "c2fe2a991bb3e1fb5d76fd9e480f1fab0ad10eab"
+  hash = "sha256:311fa53f9a8c4071b911ab83a2531325e0739b85fde5925322699dd0ca771863"
+  commit = "cd5488c3a0fd718c68a8fb19a1024e4c79af9dee"
 
 # REVIEWER NOTE: Changes to this file affect which NUT bundles are embedded
 # into op-node and kona-node for hardfork activations. Review carefully.

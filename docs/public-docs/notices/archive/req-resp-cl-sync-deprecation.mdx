@@ -25,7 +25,7 @@ This change simplifies `op-node` configuration, removes fragile sync logic, and 
 - `op-node` should rely on its connected EL node, such as **op-geth** or **op-reth**, to reach the chain tip in the presence of gaps between local state and chain tip received over gossip.
 - Operators should ensure their EL nodes have healthy P2P connectivity and enough peers to sync independently.
 - If you still explicitly set `--syncmode.req-resp=true`, plan to remove that override.
-- The Req/Res **server** path will remain temporarily to support older nodes, but it is also planned for removal later.
+- The Req/Res **server** path, which kept serving payloads to older nodes, has since been removed as well. `--p2p.sync.req-resp` is now a deprecated no-op flag and can be dropped from your configuration.
 
 ## Action required
 

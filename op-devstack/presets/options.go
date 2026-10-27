@@ -323,6 +323,19 @@ func WithMessageExpiryWindow(window uint64) Option {
 	}
 }
 
+// WithL2ToL2MessageExpiryPeriod sets the L2ToL2CrossDomainMessenger's expiry period, in seconds,
+// in every L2 genesis, so a test can watch an undelivered message expire. Production networks use
+// 8 days. It requires interop at genesis and a dependency-set message expiry window
+// (WithMessageExpiryWindow) shorter than the period, which keeps an expired message unrelayable.
+func WithL2ToL2MessageExpiryPeriod(seconds uint64) Option {
+	return option{
+		kinds: optionKindL2ToL2MessageExpiryPeriod,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.L2ToL2MessageExpiryPeriod = seconds
+		},
+	}
+}
+
 // WithL2BlockTimes configures per-chain L2 block times via the deployer.
 // The blockTimes map keys are L2 chain IDs and values are the desired block
 // time in seconds for that chain.

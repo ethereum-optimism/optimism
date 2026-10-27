@@ -242,6 +242,7 @@ mod tests {
     impl HintHandler for TestHintHandler {
         type Cfg = TestCfg;
 
+        #[allow(clippy::branches_sharing_code)]
         async fn fetch_hint(
             hint: Hint<TestHint>,
             _cfg: &TestCfg,

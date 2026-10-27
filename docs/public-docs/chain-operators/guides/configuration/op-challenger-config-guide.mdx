@@ -52,7 +52,7 @@ Before configuring your challenger, complete the following steps:
   <Step title="Prepare configuration files">
   *   `rollup.json` - Rollup configuration file
   *   `genesis-l2.json` - L2 genesis file
-  *   `prestate.json` - The absolute prestate file generated in step 1
+  *   `<prestate-hash>.bin.gz` - The absolute prestate file generated in step 1 (`rust/kona/prestate-artifacts-cannon/<prestate-hash>.bin.gz`)
   </Step>
 </Steps>
 
@@ -319,11 +319,11 @@ Check that you have properly installed the challenger component:
       --cannon-kona-server ./kona \
       # version of kona-client deployed on chain
       # if you use the wrong one, you will lose the game
-      # if you deploy your own contracts, you specify the hash, the root of the json file
+      # if you deploy your own contracts, you specify the hash (the .pre field of prestate-proof.json)
       # OP Mainnet uses tagged versions of kona-client
       # build with: just reproducible-prestate-kona
       # challenger verifies that onchain
-       --cannon-kona-prestate ./prestate.json \
+       --cannon-kona-prestate ./<prestate-hash>.bin.gz \
       # load the game factory address from system config or superchain registry
       # point the game factory address at the dispute game factory proxy
        --game-factory-address
@@ -350,7 +350,7 @@ Check that you have properly installed the challenger component:
       *   `--cannon-kona-prestate`: specifies a path to a single kona-client absolute-prestate file
       *   `--cannon-kona-prestates-url`: specifies a URL to load prestates from. This enables participating in games that use different prestates, for example due to a network upgrade. The prestates are stored in this directory named by their hash.
   *   Example final URL for a prestate:
-      *   [https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.json](https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.json)
+      *   [https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.bin.gz](https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.bin.gz)
       *   This file contains the cannon memory state.
   
   <Info>
@@ -543,11 +543,11 @@ The challenger should show logs indicating:
       --cannon-kona-server ./kona \
       # version of kona-client deployed on chain
       # if you use the wrong one, you will lose the game
-      # if you deploy your own contracts, you specify the hash, the root of the json file
+      # if you deploy your own contracts, you specify the hash (the .pre field of prestate-proof.json)
       # OP Mainnet uses tagged versions of kona-client
       # build with: just reproducible-prestate-kona
       # challenger verifies that onchain
-       --cannon-kona-prestate ./prestate.json \
+       --cannon-kona-prestate ./<prestate-hash>.bin.gz \
       # load the game factory address from system config or superchain registry
       # point the game factory address at the dispute game factory proxy
        --game-factory-address
@@ -574,7 +574,7 @@ The challenger should show logs indicating:
       *   `--cannon-kona-prestate`: specifies a path to a single kona-client absolute-prestate file
       *   `--cannon-kona-prestates-url`: specifies a URL to load prestates from. This enables participating in games that use different prestates, for example due to a network upgrade. The prestates are stored in this directory named by their hash.
   *   Example final URL for a prestate:
-      *   [https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.json](https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.json)
+      *   [https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.bin.gz](https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.bin.gz)
       *   This file contains the cannon memory state.
   
   <Info>
@@ -598,6 +598,7 @@ The challenger should show logs indicating:
         - ./challenger-data:/data
         - ./rollup.json:/workspace/rollup.json:ro
         - ./genesis-l2.json:/workspace/genesis-l2.json:ro
+        - ./<prestate-hash>.bin.gz:/workspace/<prestate-hash>.bin.gz:ro
       environment:
         - L1_RPC_URL=${L1_RPC_URL}
         - L1_BEACON=${L1_BEACON}
@@ -620,7 +621,7 @@ The challenger should show logs indicating:
         - "--game-factory-address=${GAME_FACTORY_ADDRESS}"
         - "--datadir=/data"
         - "--trace-type=cannon-kona"
-        - "--cannon-kona-prestate=/workspace/prestate-proof.json"
+        - "--cannon-kona-prestate=/workspace/<prestate-hash>.bin.gz"
       restart: unless-stopped
       ports:
         - "8548:8548"  # If challenger exposes metrics endpoint

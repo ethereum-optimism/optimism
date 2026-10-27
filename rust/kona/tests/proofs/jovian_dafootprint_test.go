@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
@@ -108,7 +109,7 @@ func TestJovianDAFootprint(gt *testing.T) {
 			tx := types.MustSignNewTx(env.Dp.Secrets.Alice, signer, txData)
 
 			// Estimate incremental DA footprint if we include this tx.
-			est := bigs.Uint64Strict(tx.RollupCostData().EstimatedDASize()) * uint64(effectiveScalar)
+			est := bigs.Uint64Strict(fees.TxRollupCostData(tx).EstimatedDASize()) * uint64(effectiveScalar)
 			if runningDAFootprint+est > gasLimit {
 				break
 			} else if isLowScalar && runningGas+tx.Gas() > gasLimit {
@@ -118,7 +119,7 @@ func TestJovianDAFootprint(gt *testing.T) {
 			// Send to txpool then include in the in-progress L2 block.
 			err = l2Cl.SendTransaction(t.Ctx(), tx)
 			require.NoError(t, err)
-			_, err = env.Engine.EngineApi.IncludeTx(tx, env.Dp.Addresses.Alice)
+			err = env.Engine.IncludeTxErr(t, tx, env.Dp.Addresses.Alice)
 			require.NoError(t, err)
 
 			runningDAFootprint += est
@@ -136,32 +137,33 @@ func TestJovianDAFootprint(gt *testing.T) {
 
 		// Inspect the built block and verify header DA footprint and base fee behavior.
 		env.Sequencer.L2Unsafe()
-		blk := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
-		header := blk.Header()
-		require.NotNil(t, header.BlobGasUsed, "blobGasUsed must be set on Jovian blocks")
-		blockDAFootprint := *header.BlobGasUsed
-		receipts := env.Engine.L2Chain().GetReceiptsByHash(header.Hash())
+		blk, userTxs, err := env.Engine.SourceClient(t, 10).InfoAndUserTxsByHash(t.Ctx(), env.Sequencer.L2Unsafe().Hash)
+		require.NoError(t, err)
+		require.NotNil(t, blk.BlobGasUsed(), "blobGasUsed must be set on Jovian blocks")
+		blockDAFootprint := *blk.BlobGasUsed()
+		_, receipts, err := env.Engine.SourceClient(t, 10).FetchReceipts(t.Ctx(), blk.Hash())
+		require.NoError(t, err)
+		userReceipts := receipts.UserReceipts()
+		require.Len(t, userReceipts, len(userTxs), "every user tx must have a receipt")
 
-		// Compute expected DA footprint from the actual included txs (skip deposits and system txs)
+		// Compute expected DA footprint from the actual included user txs
 		var expectedDAFootprint uint64
-		for i, tx := range blk.Transactions() {
-			if tx.IsDepositTx() {
-				continue
-			}
-			recScalar := receipts[i].DAFootprintGasScalar
+		for i, tx := range userTxs {
+			require.Equal(t, tx.Hash(), userReceipts[i].TxHash)
+			recScalar := userReceipts[i].DAFootprintGasScalar
 			require.NotNil(t, recScalar, "nil receipt DA footprint gas scalar")
 			require.EqualValues(t, effectiveScalar, *recScalar, "DA footprint gas scalar mismatch in receipt")
 
-			txDAFootprint := bigs.Uint64Strict(tx.RollupCostData().EstimatedDASize()) * uint64(effectiveScalar)
-			require.Equal(t, txDAFootprint, receipts[i].BlobGasUsed, "tx DA footprint mismatch with receipt")
+			txDAFootprint := bigs.Uint64Strict(fees.TxRollupCostData(tx).EstimatedDASize()) * uint64(effectiveScalar)
+			require.Equal(t, txDAFootprint, userReceipts[i].BlobGasUsed, "tx DA footprint mismatch with receipt")
 			expectedDAFootprint += txDAFootprint
 		}
 		require.Equal(t, expectedDAFootprint, blockDAFootprint, "DA footprint mismatch with header")
 		require.Less(t, blockDAFootprint, gasLimit, "DA footprint should be below gas limit")
 		if !isLowScalar {
-			require.Greater(t, blockDAFootprint, header.GasUsed, "DA footprint should exceed gas used")
+			require.Greater(t, blockDAFootprint, blk.GasUsed(), "DA footprint should exceed gas used")
 		} else {
-			require.Less(t, blockDAFootprint, header.GasUsed, "DA footprint should be less than gas used for low scalar")
+			require.Less(t, blockDAFootprint, blk.GasUsed(), "DA footprint should be less than gas used for low scalar")
 		}
 
 		// Verify base fee update uses DA footprint against the gas target
@@ -169,7 +171,7 @@ func TestJovianDAFootprint(gt *testing.T) {
 		parentBaseFee := blk.BaseFee()
 		delta := new(big.Int).SetUint64(blockDAFootprint - gasTarget) // safe: we aim for > gasTarget
 		if isLowScalar {
-			delta = new(big.Int).SetUint64(header.GasUsed - gasTarget)
+			delta = new(big.Int).SetUint64(blk.GasUsed() - gasTarget)
 		}
 		inc := new(big.Int).Mul(delta, parentBaseFee)
 		inc.Div(inc, new(big.Int).SetUint64(gasTarget))
@@ -181,8 +183,8 @@ func TestJovianDAFootprint(gt *testing.T) {
 
 		// Build the next block and compare base fee
 		env.Sequencer.ActL2EmptyBlock(t)
-		next := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
-		require.Equal(t, expectedNextBaseFee, next.BaseFee(), "next block base fee incorrect")
+		next := env.Engine.HeaderByHash(t, env.Sequencer.L2Unsafe().Hash)
+		require.Equal(t, expectedNextBaseFee, next.BaseFee, "next block base fee incorrect")
 	}
 
 	run := func(gt *testing.T, testCfg *helpers.TestCfg[helpers.DeployConfigOverride]) {

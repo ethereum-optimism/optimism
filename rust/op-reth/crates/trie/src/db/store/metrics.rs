@@ -3,12 +3,16 @@
 //!
 //! Reports per-table size, page counts, and entry counts.
 
-use super::{MdbxProofsStorage, Tables};
+use super::{MdbxProofsStorage, Tables, table_size_bytes};
 use eyre::WrapErr;
 use metrics::{Label, gauge};
 use reth_db::Database;
 use tracing::error;
 
+/// UPSTREAM-MIRROR(copy): reth@rev:8d359d0
+/// `reth_db::database_metrics::DatabaseMetrics`
+///
+/// Mirrors the implementation for `DatabaseEnv`, which hard-codes reth's own table names.
 impl reth_db::database_metrics::DatabaseMetrics for MdbxProofsStorage {
     fn report_metrics(&self) {
         for (name, value, labels) in self.gauge_metrics() {
@@ -31,12 +35,10 @@ impl reth_db::database_metrics::DatabaseMetrics for MdbxProofsStorage {
                         .db_stat(table_db.dbi())
                         .wrap_err(format!("Could not find table: {table}"))?;
 
-                    let page_size = stats.page_size() as usize;
                     let leaf_pages = stats.leaf_pages();
                     let branch_pages = stats.branch_pages();
                     let overflow_pages = stats.overflow_pages();
-                    let num_pages = leaf_pages + branch_pages + overflow_pages;
-                    let table_size = page_size * num_pages;
+                    let table_size = table_size_bytes(&stats);
                     let entries = stats.entries();
 
                     metrics.push((

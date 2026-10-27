@@ -18,7 +18,6 @@ workspace = true
 [dependencies]
 # Kona
 kona-peers.workspace = true
-kona-macros.workspace = true
 kona-genesis.workspace = true
 
 # Alloy
@@ -27,7 +26,7 @@ alloy-rlp.workspace = true
 # Networking
 discv5 = { workspace = true, features = ["libp2p"] }
 enr.workspace = true
-libp2p.workspace = true
+libp2p = { workspace = true, features = ["metrics"] }
 
 # Misc
 tokio.workspace = true
@@ -37,8 +36,7 @@ derive_more.workspace = true
 backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
 rand = { workspace = true, features = ["thread_rng"] }
 
-# `metrics` feature
-metrics = { workspace = true, optional = true }
+metrics.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
@@ -47,4 +45,3 @@ kona-cli.workspace = true
 
 [features]
 default = []
-metrics = [ "dep:metrics", "libp2p/metrics" ]

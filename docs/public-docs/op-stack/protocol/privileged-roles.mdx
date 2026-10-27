@@ -13,8 +13,7 @@ import { NormativeSpec } from "/snippets/normative-spec.mdx"
   note="This page explains the roles and their risks; it does not restate the spec."
 />
 
-OP Stack chains follow a [Pragmatic Path to Decentralization](https://blog.oplabs.co/decentralization-roadmap/).
-In their current state, OP Stack chains still include some "privileged" roles that give certain addresses the ability to carry out specific actions.
+The OP Stack has some privileged roles that give certain addresses the ability to carry out specific actions.
 Members and users of the OP Stack ecosystem should be aware of these roles and their associated risks because they're shared across many OP Stack chains.
 Read this page to understand these roles, why they exist, and what risks they pose.
 
@@ -61,9 +60,9 @@ The L2 Proxy Admin is an address that can be used to upgrade most OP Stack chain
 
 <Info>
 These addresses are controlled by the same L1 Proxy Admin addresses. Please read the descriptions above for more details.
-</Info> 
+</Info>
 
-*   **Optimism Governed Chains on Ethereum**: [`0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b`](https://explorer.optimism.io/address/0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b) 
+*   **Optimism Governed Chains on Ethereum**: [`0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b`](https://explorer.optimism.io/address/0x6B1BAE59D09fCcbdDB6C6cceb07B7279367C4E3b)
 *   **Optimism Governed Chains on Sepolia:** [`0x2FC3ffc903729a0f03966b917003800B145F67F3`](https://testnet-explorer.optimism.io/address/0x2FC3ffc903729a0f03966b917003800B145F67F3)
 
 ## System Config Owner
@@ -77,7 +76,7 @@ The System Config Owner is an address that can be used to change the values with
 
 ### Mitigations
 
-*   System Config Owner is a 5-of-7 [multisig](https://etherscan.io/address/0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A#readProxyContract).
+*   System Config Owner is a 5-of-7 [multisig](https://etherscan.io/address/0x847B5c174615B1B7fDF770882256e2D3E95b9D92#readProxyContract).
 *   System Config Owner may eventually be operated by a [Security Council](https://gov.optimism.io/t/intro-to-optimisms-security-council/6885).
 *   System Config Owner can be replaced by the [L1 Proxy Admin](#l1-proxy-admin).
 
@@ -156,8 +155,8 @@ The Challenger is an address that can participate in and challenge `Permissioned
 
 ### Addresses
 
-*   **Optimism Governed Chains on Ethereum**: [`0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A`](https://etherscan.io/address/0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A)
-*   **Optimism Governed Chains on Sepolia**: [`0xfd1D2e729aE8eEe2E146c033bf4400fE75284301`](https://sepolia.etherscan.io/address/0xfd1D2e729aE8eEe2E146c033bf4400fE75284301)
+The challenger address is chain specific and is set in each chain's `PermissionedDisputeGame`.
+OP Mainnet, Ink, Soneium, and Unichain, and their Sepolia testnets, use the `SuperPermissionedDisputeGame` instead, which has no Challenger role.
 
 ## Guardian
 

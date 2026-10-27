@@ -1,5 +1,5 @@
 use super::*;
-use crate::post_exec::NullRefundPolicy;
+use crate::post_exec::{NullRefundPolicy, RevertToCheckpointError};
 
 fn recovered_post_exec(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<OpTxEnvelope> {
     Recovered::new_unchecked(
@@ -80,7 +80,7 @@ struct FixedRefundPolicy {
 }
 
 impl PostExecRefundInspector for FixedRefundPolicy {
-    type Snapshot = ();
+    type Checkpoint = ();
 
     fn begin_tx(&mut self, ctx: PostExecTxContext) {
         self.kind = Some(ctx.kind);
@@ -135,9 +135,14 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-    fn snapshot(&self) -> Self::Snapshot {}
+    fn checkpoint(&mut self) -> Self::Checkpoint {}
 
-    fn restore(&mut self, _snapshot: Self::Snapshot) {}
+    fn revert_to_checkpoint(
+        &mut self,
+        _checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
+        Ok(())
+    }
 }
 
 #[test]
@@ -374,7 +379,9 @@ where
 #[test]
 fn fixed_policy_settlement_conserves_total_eth_supply() {
     let beneficiary = Address::from([0x99; 20]);
-    let target = Address::from([0x77; 20]);
+    // A contract call, not a plain transfer: a 21,000-gas transfer sits on the EIP-7623 floor, so
+    // the producer clips any refund on it to its zero net saving.
+    let target = OBSERVER_TEST_CONTRACT;
     let universe = eth_holding_universe(beneficiary, target);
 
     let (total_settled, sender_settled, entries) =
@@ -419,7 +426,7 @@ struct FaultyRefundPolicy {
 }
 
 impl PostExecRefundInspector for FaultyRefundPolicy {
-    type Snapshot = (u64, Option<PostExecTxKind>);
+    type Checkpoint = (u64, Option<PostExecTxKind>);
 
     fn begin_tx(&mut self, ctx: PostExecTxContext) {
         self.block_state += 1;
@@ -477,18 +484,95 @@ impl PostExecRefundInspector for FaultyRefundPolicy {
 
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-    fn snapshot(&self) -> Self::Snapshot {
+    fn checkpoint(&mut self) -> Self::Checkpoint {
         (self.block_state, self.kind)
     }
 
-    fn restore(&mut self, snapshot: Self::Snapshot) {
-        (self.block_state, self.kind) = snapshot;
+    fn revert_to_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
+        (self.block_state, self.kind) = checkpoint;
+        Ok(())
     }
+}
+
+/// EIP-3529 refund quotient from London onward.
+const REFUND_QUOTIENT: u64 = 5;
+
+fn result_gas(spent: u64, refunded: u64, floor: u64) -> ResultGas {
+    ResultGas::default().with_total_gas_spent(spent).with_refunded(refunded).with_floor_gas(floor)
 }
 
 #[test]
 fn producer_refund_at_evm_gas_limit_is_preserved() {
-    assert_eq!(sanitize_producer_refund(42, 42, false), 42);
+    let gas = result_gas(42, 0, 0);
+    assert_eq!(sanitize_producer_refund(42, &gas, REFUND_QUOTIENT, false), 42);
+}
+
+#[test]
+fn producer_refund_is_kept_when_refund_cap_does_not_bind() {
+    // 100,000 spent with 1,000 refunded: the cap (20,000, or 10,000 after the discount) never
+    // binds, so the whole 50,000 discount is saved.
+    let gas = result_gas(100_000, 1_000, 0);
+    assert_eq!(sanitize_producer_refund(50_000, &gas, REFUND_QUOTIENT, false), 50_000);
+}
+
+#[test]
+fn cap_bound_producer_refund_is_clipped_to_net_saving() {
+    // SDM-M5 / C10: 331,655 spent, refund capped at 66,331, 200,000 of block-warm surcharges.
+    // Without the surcharges: 131,655 spent, cap 26,331, 105,324 used. Net saving: 160,000.
+    let gas = result_gas(331_655, 66_331, 0);
+    assert_eq!(gas.tx_gas_used(), 265_324);
+    assert_eq!(sanitize_producer_refund(200_000, &gas, REFUND_QUOTIENT, false), 160_000);
+}
+
+#[test]
+fn refund_binding_only_with_surcharges_is_partially_clipped() {
+    // Raw refund 40,000: capped at 66,331 spent-with-surcharges (so fully paid) but at 26,331
+    // without them. Without the surcharges: 131,655 - 26,331 = 105,324; with: 291,655. Saving
+    // 186,331.
+    let gas = result_gas(331_655, 40_000, 0);
+    assert_eq!(sanitize_producer_refund(200_000, &gas, REFUND_QUOTIENT, false), 186_331);
+}
+
+#[test]
+fn floor_bound_producer_refund_is_zeroed() {
+    // EIP-7623 floor of 60,000 binds with and without the 20,000 discount, so it saves nothing.
+    let gas = result_gas(50_000, 0, 60_000);
+    assert_eq!(gas.tx_gas_used(), 60_000);
+    assert_eq!(sanitize_producer_refund(20_000, &gas, REFUND_QUOTIENT, false), 0);
+}
+
+#[test]
+fn floor_partially_absorbs_producer_refund() {
+    // 80,000 used; the discount takes spend to 50,000, below the 60,000 floor. Saving 20,000.
+    let gas = result_gas(80_000, 0, 60_000);
+    assert_eq!(sanitize_producer_refund(30_000, &gas, REFUND_QUOTIENT, false), 20_000);
+}
+
+#[test]
+fn producer_refund_above_evm_gas_used_is_clipped_to_net_saving() {
+    // A capped native refund can leave gas used (200,000) below an achievable discount (210,000).
+    // Without the discount: 40,000 spent, cap 8,000, 32,000 used. Saving 168,000.
+    let gas = result_gas(250_000, 50_000, 21_000);
+    assert_eq!(gas.tx_gas_used(), 200_000);
+    assert_eq!(sanitize_producer_refund(210_000, &gas, REFUND_QUOTIENT, false), 168_000);
+}
+
+#[test]
+fn producer_refund_equal_to_gas_spent_nets_down_to_floor() {
+    // The largest accepted discount leaves only the floor: 200,000 used, 21,000 floor.
+    let gas = result_gas(250_000, 50_000, 21_000);
+    assert_eq!(sanitize_producer_refund(250_000, &gas, REFUND_QUOTIENT, false), 179_000);
+}
+
+#[test]
+fn producer_refund_above_gas_spent_is_zeroed() {
+    // No discount can exceed the gas execution spent, so this refund can only come from a faulty
+    // policy.
+    let gas = result_gas(250_000, 50_000, 21_000);
+    assert_eq!(sanitize_producer_refund(250_001, &gas, REFUND_QUOTIENT, false), 0);
 }
 
 #[test]
@@ -509,8 +593,8 @@ fn excessive_producer_refund_is_zeroed_and_verifies() {
         "an invalid refund must not produce a post-exec entry"
     );
     assert_eq!(
-        producer.refund_snapshot(),
-        (1, None),
+        producer.evm().refund_policy().block_state,
+        1,
         "a zeroed refund still came from a committed transaction"
     );
     let (_, produced) = producer.finish().expect("producer finishes block");
@@ -559,8 +643,11 @@ fn faulty_producer_refunds_increment_correction_metrics() {
     let recorder = DebuggingRecorder::new();
     let snapshotter = recorder.snapshotter();
     metrics::with_local_recorder(&recorder, || {
-        assert_eq!(sanitize_producer_refund(u64::MAX, 42, false), 0);
-        assert_eq!(sanitize_producer_refund(1, 42, true), 0);
+        let gas = result_gas(42, 0, 0);
+        assert_eq!(sanitize_producer_refund(u64::MAX, &gas, REFUND_QUOTIENT, false), 0);
+        assert_eq!(sanitize_producer_refund(1, &gas, REFUND_QUOTIENT, true), 0);
+        let floor_bound = result_gas(50_000, 0, 60_000);
+        assert_eq!(sanitize_producer_refund(1, &floor_bound, REFUND_QUOTIENT, false), 0);
     });
 
     let mut corrections = snapshotter
@@ -583,7 +670,8 @@ fn faulty_producer_refunds_increment_correction_metrics() {
     assert_eq!(
         corrections,
         vec![
-            ("exceeds_evm_gas".to_string(), DebugValue::Counter(1)),
+            ("exceeds_gas_spent".to_string(), DebugValue::Counter(1)),
+            ("exceeds_net_saving".to_string(), DebugValue::Counter(1)),
             ("ineligible_transaction".to_string(), DebugValue::Counter(1)),
         ]
     );
@@ -899,6 +987,45 @@ fn test_mismatched_payload_block_number_fails_pre_execution() {
 }
 
 #[test]
+fn test_resume_rejects_mismatched_payload_block_number() {
+    // Resuming skips pre-execution, so it must raise the payload errors pre-execution would.
+    let mut fixture = JovianExecutorFixture::default();
+    let mut executor = fixture.verifier(42, vec![SDMGasEntry { index: 0, gas_refund: 1 }]);
+
+    let err = executor.resume_at_tx_index(1).expect_err("mismatched block number must fail");
+    assert_invalid_post_exec(err, "payload block number 42 does not match block number 0");
+}
+
+#[test]
+fn test_resume_rejects_producer() {
+    // A producer's entries and refund-inspector state live in the executor, not the prestate.
+    let mut fixture = JovianExecutorFixture::default();
+    let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+
+    producer.resume_at_tx_index(1).expect_err("a producer cannot resume mid-block");
+}
+
+#[test]
+fn test_resumed_verifier_applies_entries_at_block_indexes() {
+    // A verifier resumed at index 1 runs the block's second transaction first: it must take the
+    // index-1 refund, treat the index-0 entry as settled by the prefix, and finish clean.
+    const REFUND: u64 = 1_000;
+    let mut fixture = JovianExecutorFixture::default();
+    let target = Address::repeat_byte(0x22);
+    let entries =
+        vec![SDMGasEntry { index: 0, gas_refund: 5 }, SDMGasEntry { index: 1, gas_refund: REFUND }];
+    let mut verifier = fixture.verifier(0, entries.clone());
+    verifier.resume_at_tx_index(1).expect("resume at index 1");
+
+    verifier.execute_transaction(&legacy_tx(0, target)).expect("index-1 tx verifies");
+    assert_eq!(verifier.gas_used, verifier.evm_gas_used - REFUND);
+    verifier
+        .execute_transaction(&recovered_post_exec(0, entries))
+        .expect("post-exec tx verifies at index 2");
+    verifier.finish().expect("no unconsumed entries");
+}
+
+#[test]
 fn test_duplicate_payload_index_fails_pre_execution() {
     // Two entries colliding on tx index 3 — the second insert must be flagged at construction
     // and surface as a pre-execution failure.
@@ -1143,7 +1270,7 @@ fn test_post_exec_tx_does_not_accrue_da_footprint() {
 /// tests here are the end-to-end builder-vs-validator pin.
 ///
 /// The final two tests cover a separate leak in the producer policy's block-scoped state. They use
-/// a stateful policy, assert on its snapshot rather than probe transaction gas, and specifically
+/// a stateful policy, assert on its state rather than probe transaction gas, and specifically
 /// pin this crate's candidate-rollback wrapper; op-revm's unit matrix does not cover that
 /// invariant.
 mod warm_set_leak {
@@ -1156,7 +1283,8 @@ mod warm_set_leak {
     const LEAK_ADDR: Address = Address::new([0xAA; 20]);
     /// Sender of the probe tx `B`.
     const PROBE_SENDER: Address = Address::new([0xBB; 20]);
-    /// Unique policy-state marker used to distinguish snapshot restoration from clearing state.
+    /// Unique policy-state marker used to distinguish reverting to a checkpoint from clearing
+    /// state.
     const POLICY_SENTINEL: Address = Address::new([0xDD; 20]);
     /// Probe contract: `PUSH20 <LEAK_ADDR>; BALANCE; POP; STOP` — a Berlin account access on `A`'s
     /// sender, charged 100 (warm) or 2600 (cold).
@@ -1384,17 +1512,37 @@ mod warm_set_leak {
         );
     }
 
+    /// Block-scoped account touches a test policy holds, read back through the EVM's policy
+    /// accessor.
+    trait TouchedAccounts {
+        fn touched(&self) -> &BTreeSet<Address>;
+    }
+
     // Leak B: unlike the journal-warmth leak above, this rides the producer *policy's* block-scoped
     // state. `FixedRefundPolicy` is stateless, so it cannot detect it; use a policy whose only
     // mutation is in `note_account_touch` — the `transact_raw` error-path call
-    // (`note_post_exec_account_touch`) a dropped tx triggers.
-    #[derive(Debug, Clone, Default)]
+    // (`note_post_exec_account_touch`) a dropped tx triggers. It starts holding `POLICY_SENTINEL`
+    // as prior block-scoped state. Its checkpoint is a full copy of its state: the simplest correct
+    // shape, too slow for a real policy, and the contrast to `JournalingTouchPolicy` below.
+    #[derive(Debug, Clone)]
     struct FeeVaultTouchPolicy {
         touched: BTreeSet<Address>,
     }
 
+    impl Default for FeeVaultTouchPolicy {
+        fn default() -> Self {
+            Self { touched: BTreeSet::from([POLICY_SENTINEL]) }
+        }
+    }
+
+    impl TouchedAccounts for FeeVaultTouchPolicy {
+        fn touched(&self) -> &BTreeSet<Address> {
+            &self.touched
+        }
+    }
+
     impl PostExecRefundInspector for FeeVaultTouchPolicy {
-        type Snapshot = BTreeSet<Address>;
+        type Checkpoint = BTreeSet<Address>;
 
         fn begin_tx(&mut self, _ctx: PostExecTxContext) {}
 
@@ -1446,12 +1594,117 @@ mod warm_set_leak {
 
         fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-        fn snapshot(&self) -> Self::Snapshot {
+        fn checkpoint(&mut self) -> Self::Checkpoint {
             self.touched.clone()
         }
 
-        fn restore(&mut self, snapshot: Self::Snapshot) {
-            self.touched = snapshot;
+        fn revert_to_checkpoint(
+            &mut self,
+            checkpoint: Self::Checkpoint,
+        ) -> Result<(), RevertToCheckpointError> {
+            self.touched = checkpoint;
+            Ok(())
+        }
+    }
+
+    /// The shape the seam's contract asks implementors to write: block-scoped state plus an undo
+    /// journal of the keys added since the latest checkpoint. A checkpoint clears the journal,
+    /// which keeps it O(1) and bounds the journal to one candidate's changes; a revert drains it.
+    /// The generation number refuses a revert to a checkpoint that a later one invalidated.
+    #[derive(Debug, Clone)]
+    struct JournalingTouchPolicy {
+        touched: BTreeSet<Address>,
+        journal: Vec<Address>,
+        generation: u64,
+    }
+
+    impl Default for JournalingTouchPolicy {
+        fn default() -> Self {
+            Self { touched: BTreeSet::from([POLICY_SENTINEL]), journal: Vec::new(), generation: 0 }
+        }
+    }
+
+    impl TouchedAccounts for JournalingTouchPolicy {
+        fn touched(&self) -> &BTreeSet<Address> {
+            &self.touched
+        }
+    }
+
+    impl PostExecRefundInspector for JournalingTouchPolicy {
+        type Checkpoint = u64;
+
+        fn begin_tx(&mut self, _ctx: PostExecTxContext) {}
+
+        fn note_account_touch(&mut self, address: Address) {
+            if self.touched.insert(address) {
+                self.journal.push(address);
+            }
+        }
+
+        fn finish_tx(&mut self) -> PostExecExecutedTx {
+            PostExecExecutedTx::default()
+        }
+
+        fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
+        where
+            CTX: ContextTr<Journal: JournalExt>,
+        {
+        }
+
+        fn inspect_call<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CallInputs)
+        where
+            CTX: ContextTr<Journal: JournalExt>,
+        {
+        }
+
+        fn inspect_call_end<CTX>(
+            &mut self,
+            _context: &mut CTX,
+            _inputs: &CallInputs,
+            _outcome: &CallOutcome,
+        ) where
+            CTX: ContextTr<Journal: JournalExt>,
+        {
+        }
+
+        fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
+        where
+            CTX: ContextTr<Journal: JournalExt>,
+        {
+        }
+
+        fn inspect_create_end<CTX>(
+            &mut self,
+            _context: &mut CTX,
+            _inputs: &CreateInputs,
+            _outcome: &CreateOutcome,
+        ) where
+            CTX: ContextTr<Journal: JournalExt>,
+        {
+        }
+
+        fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
+
+        fn checkpoint(&mut self) -> Self::Checkpoint {
+            self.journal.clear();
+            self.generation += 1;
+            self.generation
+        }
+
+        fn revert_to_checkpoint(
+            &mut self,
+            checkpoint: Self::Checkpoint,
+        ) -> Result<(), RevertToCheckpointError> {
+            if checkpoint != self.generation {
+                return Err(RevertToCheckpointError::new(alloc::format!(
+                    "checkpoint {checkpoint} is not the latest ({})",
+                    self.generation
+                )));
+            }
+            for address in self.journal.drain(..) {
+                self.touched.remove(&address);
+            }
+            Ok(())
         }
     }
 
@@ -1464,20 +1717,22 @@ mod warm_set_leak {
         }
     }
 
-    /// A dropped state-invalid tx must restore a stateful producer policy to its per-candidate
-    /// snapshot. The sentinel proves the wrapper restores rather than clears prior block-scoped
+    /// A dropped state-invalid tx must revert a stateful producer policy to its per-candidate
+    /// checkpoint. The sentinel proves the wrapper reverts rather than clears prior block-scoped
     /// state; the successful probe afterward proves this fixture exercises fee-vault touch
-    /// tracking. Removing the `Err`-branch restore leaves the failed tx's touches alongside the
-    /// sentinel and fails the exact-snapshot assertion.
-    fn assert_dropped_tx_leaves_no_policy_touch(
+    /// tracking. Removing the `Err`-branch revert leaves the failed tx's touches alongside the
+    /// sentinel and fails the exact-state assertion.
+    fn assert_dropped_tx_leaves_no_policy_touch<R>(
         make_db: impl Fn() -> State<InMemoryDB>,
         expected_error: InvalidTransaction,
         a_error_context: &str,
-    ) {
+    ) where
+        R: Default + PostExecRefundInspector + TouchedAccounts,
+    {
         let mut db = make_db();
         let receipt_builder = OpAlloyReceiptBuilder::default();
         let op_chain_hardforks = hardforks();
-        let mut executor = build_policy_executor_with::<FeeVaultTouchPolicy>(
+        let mut executor = build_policy_executor_with::<R>(
             &mut db,
             &receipt_builder,
             &op_chain_hardforks,
@@ -1486,37 +1741,40 @@ mod warm_set_leak {
             Inspect::Disabled,
         );
 
-        let sentinel_snapshot = BTreeSet::from([POLICY_SENTINEL]);
-        executor.seed_refund_snapshot(sentinel_snapshot.clone());
-        assert_eq!(executor.refund_snapshot(), sentinel_snapshot);
+        let sentinel_state = BTreeSet::from([POLICY_SENTINEL]);
+        assert_eq!(*executor.evm().refund_policy().touched(), sentinel_state);
 
         let err = executor
             .execute_transaction(&legacy_with_sender(LEAK_ADDR, 0, PROBE_SENDER, 50_000))
             .expect_err(a_error_context);
         assert_invalid_transaction(err, expected_error);
         assert_eq!(
-            executor.refund_snapshot(),
-            sentinel_snapshot,
-            "a dropped failing tx did not restore the producer policy's per-candidate snapshot",
+            *executor.evm().refund_policy().touched(),
+            sentinel_state,
+            "a dropped failing tx did not revert the producer policy to its per-candidate checkpoint",
         );
 
         executor.execute_transaction(&probe_tx()).expect("probe tx B executes");
-        let expected_committed_snapshot = BTreeSet::from([
-            POLICY_SENTINEL,
-            L1_FEE_RECIPIENT,
-            BASE_FEE_RECIPIENT,
-            OPERATOR_FEE_RECIPIENT,
-        ]);
         assert_eq!(
-            executor.refund_snapshot(),
-            expected_committed_snapshot,
+            *executor.evm().refund_policy().touched(),
+            committed_probe_state(),
             "a committed tx must exercise and retain the fee-vault touch pathway",
         );
     }
 
+    /// The policy state after one committed probe: the sentinel plus the fee-vault touches.
+    fn committed_probe_state() -> BTreeSet<Address> {
+        BTreeSet::from([
+            POLICY_SENTINEL,
+            L1_FEE_RECIPIENT,
+            BASE_FEE_RECIPIENT,
+            OPERATOR_FEE_RECIPIENT,
+        ])
+    }
+
     #[test]
-    fn dropped_nonce_too_low_tx_leaves_no_fee_vault_touch_in_policy() {
-        assert_dropped_tx_leaves_no_policy_touch(
+    fn dropped_nonce_too_low_tx_leaves_no_fee_vault_touch_in_copying_policy() {
+        assert_dropped_tx_leaves_no_policy_touch::<FeeVaultTouchPolicy>(
             nonce_too_low_db,
             InvalidTransaction::NonceTooLow { tx: 0, state: 5 },
             "tx A must fail NonceTooLow and be skipped",
@@ -1524,11 +1782,59 @@ mod warm_set_leak {
     }
 
     #[test]
-    fn dropped_eip3607_tx_leaves_no_fee_vault_touch_in_policy() {
-        assert_dropped_tx_leaves_no_policy_touch(
+    fn dropped_eip3607_tx_leaves_no_fee_vault_touch_in_copying_policy() {
+        assert_dropped_tx_leaves_no_policy_touch::<FeeVaultTouchPolicy>(
             contract_sender_db,
             InvalidTransaction::RejectCallerWithCode,
             "tx A must fail EIP-3607 (contract sender) and be skipped",
         );
+    }
+
+    #[test]
+    fn dropped_nonce_too_low_tx_leaves_no_fee_vault_touch_in_journaling_policy() {
+        assert_dropped_tx_leaves_no_policy_touch::<JournalingTouchPolicy>(
+            nonce_too_low_db,
+            InvalidTransaction::NonceTooLow { tx: 0, state: 5 },
+            "tx A must fail NonceTooLow and be skipped",
+        );
+    }
+
+    #[test]
+    fn dropped_eip3607_tx_leaves_no_fee_vault_touch_in_journaling_policy() {
+        assert_dropped_tx_leaves_no_policy_touch::<JournalingTouchPolicy>(
+            contract_sender_db,
+            InvalidTransaction::RejectCallerWithCode,
+            "tx A must fail EIP-3607 (contract sender) and be skipped",
+        );
+    }
+
+    // The producer's decline path with the journaling shape: a declined candidate's touches are
+    // undone, the prior block-scoped state survives, and the next committed candidate warms anew.
+    #[test]
+    fn declined_candidate_leaves_no_fee_vault_touch_in_journaling_policy() {
+        let mut db = nonce_too_low_db();
+        let receipt_builder = OpAlloyReceiptBuilder::default();
+        let op_chain_hardforks = hardforks();
+        let mut executor = build_policy_executor_with::<JournalingTouchPolicy>(
+            &mut db,
+            &receipt_builder,
+            &op_chain_hardforks,
+            0,
+            Address::ZERO,
+            Inspect::Disabled,
+        );
+
+        let declined = executor
+            .execute_transaction_with_commit_condition(&probe_tx(), |_| CommitChanges::No)
+            .expect("declined candidate executes");
+        assert!(declined.is_none());
+        assert_eq!(
+            *executor.evm().refund_policy().touched(),
+            BTreeSet::from([POLICY_SENTINEL]),
+            "a declined candidate's fee-vault touches must be undone",
+        );
+
+        executor.execute_transaction(&probe_tx()).expect("probe tx executes");
+        assert_eq!(*executor.evm().refund_policy().touched(), committed_probe_state());
     }
 }

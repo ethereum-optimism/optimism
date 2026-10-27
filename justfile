@@ -12,8 +12,10 @@ TEST_TIMEOUT := env('TEST_TIMEOUT', '10m')
 #   cannon                          dedicated cannon job (slow MIPS emulation tests)
 #   rust                            rust-e2e pipeline (needs prebuilt Rust binaries)
 #   op-deployer/pkg/deployer/forge  fails when forge is on PATH (ethereum-optimism/optimism#21200)
+#   op-e2e/actions                  dedicated go-actions-tests job (its own resource class
+#                                   and timeout; running them here too would run them twice)
 # See the list-test-packages recipe, which expands `go list ./...` minus these.
-EXCLUDED_TEST_PKGS := "op-acceptance-tests cannon rust op-deployer/pkg/deployer/forge"
+EXCLUDED_TEST_PKGS := "op-acceptance-tests cannon rust op-deployer/pkg/deployer/forge op-e2e/actions"
 
 # Fault-proof packages run in the default go-tests job and again in a dedicated
 # job with Cannon enabled, so they keep a separate list.
@@ -47,14 +49,14 @@ update-superchain-registry-submodule ref="":
     git add superchain-registry
   fi
 
-# Builds op-core/superchain/superchain-configs.zip (gitignored) from the
+# Builds op-core/superchain/bundle/superchain-configs.zip (gitignored) from the
 # superchain-registry submodule. Lightweight; this is the recipe the Go build/test
 # targets depend on. Verify mode: skips work if the existing zip already matches the
 # committed .sha256, otherwise regenerates and asserts it still matches (failing on drift).
 build-superchain-go: update-superchain-registry-submodule
-  bash op-core/superchain/sync-superchain.sh
+  bash op-core/superchain/bundle/sync-superchain.sh
 
-# Regenerates op-core/superchain/superchain-configs.zip AND rewrites its committed
+# Regenerates op-core/superchain/bundle/superchain-configs.zip AND rewrites its committed
 # .sha256 from the submodule — build-superchain-go in refresh mode. Sibling of
 # sync-superchain-rust; both are run by sync-superchain when bumping the registry.
 sync-superchain-go:
@@ -98,6 +100,15 @@ lint-go-fix: build-customlint build-superchain-go
 # Checks that op-geth version in go.mod is valid.
 check-op-geth-version:
   go run ./ops/scripts/check-op-geth-version
+
+# Type-checks the tree against upstream go-ethereum and fails on op-geth-only API uses that are
+# not in ops/scripts/opgeth-ratchet/allowlist.txt, or on allowlist entries no longer used.
+opgeth-ratchet: build-superchain-go
+  go run ./ops/scripts/opgeth-ratchet
+
+# Removes allowlist entries that opgeth-ratchet reports as no longer used.
+opgeth-ratchet-update: build-superchain-go
+  go run ./ops/scripts/opgeth-ratchet -update
 
 # Builds Docker images for Go components using buildx.
 [script('bash')]
@@ -393,6 +404,27 @@ go-tests-short-ci:
 go-tests-ci:
   just _go-tests-ci-internal ""
 
+# Runs the op-e2e action tests against the out-of-process op-reth-test-engine
+# execution layer. Needs a prebuilt engine binary at
+# RUST_BINARY_PATH_OP_RETH_TEST_ENGINE; REQUIRE_RUST_ENGINE=1 makes an unset
+# path a hard error, so the job never builds the engine or uses a local build.
+[script('bash')]
+go-actions-tests-ci: build-superchain-go
+  set -euo pipefail
+  echo "Setting up test directories..."
+  mkdir -p ./tmp/test-results ./tmp/testlogs
+  echo "Running op-e2e action tests on op-reth-test-engine with gotestsum..."
+  export REQUIRE_RUST_ENGINE=1
+  export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
+  ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
+      --junitfile=./tmp/test-results/results.xml \
+      --jsonfile=./tmp/testlogs/log.json \
+      --rerun-fails=3 \
+      --rerun-fails-max-failures=50 \
+      --packages="./op-e2e/actions/..." \
+      -- -p=4 -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} -tags="ci"
+
 # Runs fraud proofs Go tests with gotestsum for CI.
 [script('bash')]
 go-tests-fraud-proofs-ci:
@@ -432,7 +464,8 @@ build-rust-release:
 check-nut-locks:
   go run ./ops/scripts/check-nut-locks
 
-# Checks that committed NUT pre-fork states regenerate without drift. Assumes required build artifacts are present.
+# Checks that committed NUT pre-fork states regenerate without drift. Assumes required build artifacts,
+# including the op-reth-test-engine binary the generator runs the L2 chain on, are present.
 [script('bash')]
 _check-nut-prefork-states:
   set -euo pipefail
@@ -448,6 +481,7 @@ _check-nut-prefork-states:
 
 # Checks that committed NUT pre-fork states regenerate without drift.
 check-nut-prefork-states: build-contracts build-superchain-go
+  just rust/build-op-reth-test-engine
   just _check-nut-prefork-states
 
 # Snapshots current-upgrade-bundle.json as a fork's NUT bundle and updates the lock file.
@@ -464,6 +498,7 @@ _nut-prefork-state-for fork:
 
 # Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
 nut-prefork-state-for fork: build-contracts build-superchain-go
+  just rust/build-op-reth-test-engine
   just _nut-prefork-state-for {{fork}}
 
 # Checks that TODO comments have corresponding issues.
@@ -476,12 +511,12 @@ semgrep-test:
 
 # Runs shellcheck.
 shellcheck:
-  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -exec sh -c 'echo "Checking $1"; shellcheck "$1"' _ {} \;
-  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -exec shfmt --diff {} \;
+  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -not -path './rust/*target*/*' -exec sh -c 'echo "Checking $1"; shellcheck "$1"' _ {} \;
+  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -not -path './rust/*target*/*' -exec shfmt --diff {} \;
 
 # Format shell scripts with shfmt.
 shfmt-fix:
-  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -exec shfmt --write {} \;
+  find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -not -path './rust/*target*/*' -exec shfmt --write {} \;
 
 # Generates a table of contents for the README.md file.
 toc:

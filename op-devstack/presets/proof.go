@@ -114,6 +114,12 @@ func WithDisputeGameFinalityDelaySeconds(seconds uint64) Option {
 	)
 }
 
+func WithWithdrawalDelaySeconds(seconds uint64) Option {
+	return WithDeployerOptions(
+		sysgo.WithWithdrawalDelaySeconds(seconds),
+	)
+}
+
 // WithZK installs a shared ZK dispute game after the interop migration and
 // starts the honest op-zk-proposer and op-challenger for it, sourcing super
 // roots from the supernode. The SP1 super-aggregation vkey is loaded from

@@ -13,6 +13,7 @@ import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Scripts
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
 import { Types } from "src/libraries/Types.sol";
@@ -20,7 +21,6 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 import "src/dispute/lib/Types.sol";
 import { UnknownChainId } from "src/dispute/lib/Errors.sol";
@@ -35,6 +35,7 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
@@ -51,6 +52,12 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     bytes[] _withdrawalProof;
     Types.OutputRootProof internal _outputRootProof;
     GameType internal respectedGameType;
+
+    /// @notice The configured proof maturity delay. Read once in setUp so tests can pass it back to
+    ///         initialize() without an external call consuming a pending prank.
+    uint256 internal portalProofMaturityDelay;
+
+    event ProofMaturityDelaySecondsSet(uint256 proofMaturityDelaySeconds);
 
     // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
     constructor() {
@@ -101,6 +108,7 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
         }
 
         depositor = makeAddr("depositor");
+        portalProofMaturityDelay = optimismPortal2.proofMaturityDelaySeconds();
 
         setupFaultDisputeGame(Claim.wrap(_outputRoot));
 
@@ -194,6 +202,13 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
         }
     }
 
+    /// @notice Sets the bridge hook.
+    /// @param _hook Address of the bridge hook to set.
+    function forceSetBridgeHook(address _hook) public {
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "bridgeHook");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(_hook))));
+    }
+
     /// @notice Enables the runtime interop features used by portal migration methods.
     function forceEnableInterop() public {
         forceEnableLockbox(address(ethLockbox));
@@ -234,6 +249,28 @@ contract OptimismPortal2_Constructor_Test is OptimismPortal2_TestInit {
         assertEq(opImpl.l2Sender(), address(0));
         assertEq(address(opImpl.anchorStateRegistry()), address(0));
         assertEq(address(opImpl.ethLockbox()), address(0));
+        // The delay lives in proxy storage; only its bounds are set on the implementation.
+        assertEq(opImpl.proofMaturityDelaySeconds(), 0);
+        assertEq(opImpl.minProofMaturityDelaySeconds(), deploy.cfg().minProofMaturityDelaySeconds());
+        assertEq(opImpl.maxProofMaturityDelaySeconds(), deploy.cfg().maxProofMaturityDelaySeconds());
+    }
+
+    /// @notice Tests that the constructor rejects a zero lower bound.
+    function test_constructor_zeroMinBound_reverts() external {
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidProofMaturityDelayBounds.selector);
+        DeployUtils.create1({
+            _name: "OptimismPortal2",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismPortal.__constructor__, (0, 1)))
+        });
+    }
+
+    /// @notice Tests that the constructor rejects inverted bounds.
+    function test_constructor_invertedBounds_reverts() external {
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidProofMaturityDelayBounds.selector);
+        DeployUtils.create1({
+            _name: "OptimismPortal2",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismPortal.__constructor__, (2, 1)))
+        });
     }
 }
 
@@ -293,8 +330,6 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
     /// @param _sender The address of the sender to test.
 
     function testFuzz_initialize_interopNotProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         // Prank as the not ProxyAdmin or ProxyAdmin owner.
         vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
 
@@ -309,13 +344,13 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 
         // Call the `initialize` function with the sender
         vm.prank(_sender);
-        optimismPortal2.initialize(systemConfig, anchorStateRegistry, ethLockbox);
+        optimismPortal2.initialize(
+            systemConfig, anchorStateRegistry, ethLockbox, portalProofMaturityDelay, IBridgeHook(address(0))
+        );
     }
 
     /// @notice Tests that the initialize function reverts when lockbox state is invalid.
     function test_initialize_invalidLockboxState_reverts() external {
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
 
@@ -337,14 +372,18 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 
         // Call the `initialize` function
         vm.prank(address(proxyAdmin));
-        optimismPortal2.initialize(systemConfig, anchorStateRegistry, IETHLockbox(address(0)));
+        optimismPortal2.initialize(
+            systemConfig,
+            anchorStateRegistry,
+            IETHLockbox(address(0)),
+            portalProofMaturityDelay,
+            IBridgeHook(address(0))
+        );
     }
 
     /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
     /// @param _sender The address of the sender to test.
     function testFuzz_initialize_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         // Prank as the not ProxyAdmin or ProxyAdmin owner.
         vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
 
@@ -359,7 +398,47 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 
         // Call the `initialize` function with the sender
         vm.prank(_sender);
-        optimismPortal2.initialize(systemConfig, anchorStateRegistry, IETHLockbox(address(0)));
+        optimismPortal2.initialize(
+            systemConfig,
+            anchorStateRegistry,
+            IETHLockbox(address(0)),
+            portalProofMaturityDelay,
+            IBridgeHook(address(0))
+        );
+    }
+
+    /// @notice Tests that the initializer stores the proof maturity delay and emits the event.
+    function test_initialize_setsProofMaturityDelay_succeeds() external {
+        uint256 newDelay = optimismPortal2.minProofMaturityDelaySeconds();
+
+        // Reset the initialized slot so initialize() can run again.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+
+        // Passing a zero lockbox keeps the current one, so this works in every feature mode.
+        vm.expectEmit(address(optimismPortal2));
+        emit ProofMaturityDelaySecondsSet(newDelay);
+        vm.prank(address(proxyAdmin));
+        optimismPortal2.initialize(
+            systemConfig, anchorStateRegistry, IETHLockbox(address(0)), newDelay, IBridgeHook(address(0))
+        );
+
+        assertEq(optimismPortal2.proofMaturityDelaySeconds(), newDelay);
+    }
+
+    /// @notice Tests that the initializer rejects a proof maturity delay outside the bounds.
+    function test_initialize_proofMaturityDelayOutOfBounds_reverts() external {
+        uint256 tooHigh = optimismPortal2.maxProofMaturityDelaySeconds() + 1;
+
+        // Reset the initialized slot so initialize() can run again.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidProofMaturityDelay.selector);
+        vm.prank(address(proxyAdmin));
+        optimismPortal2.initialize(
+            systemConfig, anchorStateRegistry, IETHLockbox(address(0)), tooHigh, IBridgeHook(address(0))
+        );
     }
 }
 
@@ -402,9 +481,146 @@ contract OptimismPortal2_Paused_Test is OptimismPortal2_TestInit {
 /// @title OptimismPortal2_ProofMaturityDelaySeconds_Test
 /// @notice Test contract for OptimismPortal2 `proofMaturityDelaySeconds` function.
 contract OptimismPortal2_ProofMaturityDelaySeconds_Test is OptimismPortal2_TestInit {
-    /// @notice Tests that `proofMaturityDelaySeconds` returns the correct delay.
+    /// @notice Tests that `proofMaturityDelaySeconds` returns a delay within the configured bounds.
     function test_proofMaturityDelaySeconds_succeeds() external view {
-        assertTrue(optimismPortal2.proofMaturityDelaySeconds() > 0);
+        uint256 delay = optimismPortal2.proofMaturityDelaySeconds();
+        assertTrue(delay > 0);
+        assertGe(delay, optimismPortal2.minProofMaturityDelaySeconds());
+        assertLe(delay, optimismPortal2.maxProofMaturityDelaySeconds());
+    }
+}
+
+/// @title OptimismPortal2_MinProofMaturityDelaySeconds_Test
+/// @notice Test contract for OptimismPortal2 `minProofMaturityDelaySeconds` function.
+contract OptimismPortal2_MinProofMaturityDelaySeconds_Test is OptimismPortal2_TestInit {
+    /// @notice Tests that `minProofMaturityDelaySeconds` returns the configured lower bound.
+    function test_minProofMaturityDelaySeconds_succeeds() external view {
+        assertEq(optimismPortal2.minProofMaturityDelaySeconds(), deploy.cfg().minProofMaturityDelaySeconds());
+    }
+}
+
+/// @title OptimismPortal2_MaxProofMaturityDelaySeconds_Test
+/// @notice Test contract for OptimismPortal2 `maxProofMaturityDelaySeconds` function.
+contract OptimismPortal2_MaxProofMaturityDelaySeconds_Test is OptimismPortal2_TestInit {
+    /// @notice Tests that `maxProofMaturityDelaySeconds` returns the configured upper bound.
+    function test_maxProofMaturityDelaySeconds_succeeds() external view {
+        assertEq(optimismPortal2.maxProofMaturityDelaySeconds(), deploy.cfg().maxProofMaturityDelaySeconds());
+    }
+}
+
+/// @title OptimismPortal2_SetProofMaturityDelaySeconds_Test
+/// @notice Test contract for OptimismPortal2 `setProofMaturityDelaySeconds` function.
+contract OptimismPortal2_SetProofMaturityDelaySeconds_Test is OptimismPortal2_TestInit {
+    /// @notice Tests that the ProxyAdmin owner can set any in-range delay and the event is emitted.
+    /// @param _delay The new proof maturity delay.
+    function testFuzz_setProofMaturityDelaySeconds_succeeds(uint256 _delay) external {
+        _delay = bound(
+            _delay, optimismPortal2.minProofMaturityDelaySeconds(), optimismPortal2.maxProofMaturityDelaySeconds()
+        );
+
+        vm.expectEmit(address(optimismPortal2));
+        emit ProofMaturityDelaySecondsSet(_delay);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setProofMaturityDelaySeconds(_delay);
+
+        assertEq(optimismPortal2.proofMaturityDelaySeconds(), _delay);
+    }
+
+    /// @notice Tests that only the ProxyAdmin owner can set the delay.
+    /// @param _caller The address attempting the call.
+    function testFuzz_setProofMaturityDelaySeconds_notProxyAdminOwner_reverts(address _caller) external {
+        vm.assume(_caller != proxyAdminOwner);
+        uint256 delay = optimismPortal2.minProofMaturityDelaySeconds();
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        vm.prank(_caller);
+        optimismPortal2.setProofMaturityDelaySeconds(delay);
+    }
+
+    /// @notice Tests that a delay below the lower bound is rejected.
+    function test_setProofMaturityDelaySeconds_belowMin_reverts() external {
+        uint256 tooLow = optimismPortal2.minProofMaturityDelaySeconds() - 1;
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidProofMaturityDelay.selector);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setProofMaturityDelaySeconds(tooLow);
+    }
+
+    /// @notice Tests that a delay above the upper bound is rejected.
+    function test_setProofMaturityDelaySeconds_aboveMax_reverts() external {
+        uint256 tooHigh = optimismPortal2.maxProofMaturityDelaySeconds() + 1;
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidProofMaturityDelay.selector);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setProofMaturityDelaySeconds(tooHigh);
+    }
+
+    /// @notice Tests that lowering the delay applies to withdrawals that were already proven: a
+    ///         withdrawal blocked under the old delay becomes finalizable as soon as the delay drops.
+    function test_setProofMaturityDelaySeconds_lowerAppliesToProvenWithdrawal_succeeds() external {
+        uint256 oldDelay = optimismPortal2.proofMaturityDelaySeconds();
+        uint256 newDelay = optimismPortal2.minProofMaturityDelaySeconds();
+        uint256 finalityDelay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+        uint256 waitTime = newDelay > finalityDelay ? newDelay : finalityDelay;
+        // The scenario needs room between the new delay (plus finality) and the old delay.
+        assertLt(waitTime, oldDelay);
+
+        // Prove the withdrawal.
+        optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
+        uint256 provenAt = block.timestamp;
+
+        // Treat the game as resolved for the defender at creation so only the delays gate finalization.
+        vm.mockCall(address(game), abi.encodeCall(game.resolvedAt, ()), abi.encode(game.createdAt()));
+        vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+
+        // Past the new delay and the finality delay, but not the old delay: still blocked.
+        vm.warp(provenAt + waitTime + 1);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ProofNotOldEnough.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Lower the delay; the already-proven withdrawal is finalizable immediately.
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setProofMaturityDelaySeconds(newDelay);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+    }
+
+    /// @notice Tests that raising the delay applies to withdrawals that were already proven: a
+    ///         withdrawal that was finalizable under the old delay is blocked until the new one.
+    function test_setProofMaturityDelaySeconds_raiseAppliesToProvenWithdrawal_succeeds() external {
+        uint256 lowDelay = optimismPortal2.minProofMaturityDelaySeconds();
+        uint256 highDelay = optimismPortal2.maxProofMaturityDelaySeconds();
+        uint256 finalityDelay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+        uint256 waitTime = lowDelay > finalityDelay ? lowDelay : finalityDelay;
+        // The scenario needs room between the low delay (plus finality) and the high delay.
+        assertLt(waitTime, highDelay);
+
+        // Start from the low delay.
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setProofMaturityDelaySeconds(lowDelay);
+
+        // Prove the withdrawal.
+        optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
+        uint256 provenAt = block.timestamp;
+
+        // Treat the game as resolved for the defender at creation so only the delays gate finalization.
+        vm.mockCall(address(game), abi.encodeCall(game.resolvedAt, ()), abi.encode(game.createdAt()));
+        vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+
+        // Finalizable under the low delay.
+        vm.warp(provenAt + waitTime + 1);
+        optimismPortal2.checkWithdrawal(_withdrawalHash, address(this));
+
+        // Raise the delay; the same withdrawal is blocked again.
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.setProofMaturityDelaySeconds(highDelay);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ProofNotOldEnough.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Once the new delay has passed it finalizes.
+        vm.warp(provenAt + highDelay + 1);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
     }
 }
 
@@ -749,7 +965,6 @@ contract OptimismPortal2_MigrateLiquidity_Test is OptimismPortal2_TestInit {
 contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_TestInit {
     function setUp() public override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
         forceEnableInterop();
     }
 
@@ -785,13 +1000,16 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         Proposal memory startingAnchorRoot =
             Proposal({ root: Hash.wrap(keccak256("starting-anchor-root")), l2SequenceNumber: 1 });
 
+        // Read before the prank so the external call does not consume it.
+        uint256 finalityDelay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+
         vm.prank(proxyAdminAddr);
         Proxy(payable(newProxy))
             .upgradeToAndCall(
                 impl,
                 abi.encodeCall(
                     IAnchorStateRegistry.initialize,
-                    (_ethLockbox, disputeGameFactory, startingAnchorRoot, GameTypes.SUPER_PERMISSIONED)
+                    (_ethLockbox, disputeGameFactory, startingAnchorRoot, GameTypes.SUPER_PERMISSIONED, finalityDelay)
                 )
             );
 
@@ -953,6 +1171,70 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
                 _withdrawalProof: _withdrawalProof
             });
         }
+    }
+
+    /// @notice Tests that the L1StandardBridge is an unsafe withdrawal target.
+    function test_proveWithdrawalTransaction_standardBridgeTarget_reverts() external {
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+
+        _defaultTx.target = address(l1StandardBridge);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @notice Tests that a configured hook is an unsafe withdrawal target.
+    function test_proveWithdrawalTransaction_bridgeHookTarget_reverts() external {
+        address hook = makeAddr("bridgeHook");
+        forceSetBridgeHook(hook);
+
+        _defaultTx.target = hook;
+        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @notice Tests that address(0) is not an **unsafe target**, by proving a
+    ///         withdrawal that targets it.
+    function test_proveWithdrawalTransaction_zeroTargetWithNoHook_succeeds() external {
+        skipIfForkTest("Skipping because of the L2ToL1MessagePasser call below");
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+
+        Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
+            nonce: l2ToL1MessagePasser.messageNonce(),
+            sender: alice,
+            target: address(0),
+            value: 0,
+            gasLimit: 100_000,
+            data: hex""
+        });
+        (
+            bytes32 stateRoot,
+            bytes32 storageRoot,
+            bytes32 outputRoot,
+            bytes32 withdrawalHash,
+            bytes[] memory withdrawalProof
+        ) = ffi.getProveWithdrawalTransactionInputs(_tx);
+        Types.OutputRootProof memory proof = Types.OutputRootProof({
+            version: bytes32(uint256(0)),
+            stateRoot: stateRoot,
+            messagePasserStorageRoot: storageRoot,
+            latestBlockhash: bytes32(uint256(0))
+        });
+        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(outputRoot));
+
+        optimismPortal2.proveWithdrawalTransaction(_tx, _proposedGameIndex, proof, withdrawalProof);
+
+        (IDisputeGame provenGame,) = optimismPortal2.provenWithdrawals(withdrawalHash, address(this));
+        assertEq(address(provenGame), address(game));
     }
 
     /// @notice Tests that `proveWithdrawalTransaction` reverts when the current timestamp is less
@@ -1171,8 +1453,6 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` reverts when super roots are active
     ///         and the game's rootClaimByChainId reverts with UnknownChainId.
     function test_proveWithdrawalTransaction_superRootsVersionBadChainId_reverts() external {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         _enableSuperRoots();
 
         // Mock rootClaimByChainId to revert with UnknownChainId.
@@ -1195,8 +1475,6 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` reverts when super roots are active
     ///         and the output root proof doesn't match the game's rootClaimByChainId.
     function test_proveWithdrawalTransaction_superRootsVersionBadOutputRootProof_reverts() external {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         _enableSuperRoots();
 
         // Mock rootClaimByChainId to return a different output root (wrong one).
@@ -1220,8 +1498,6 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` succeeds when super roots are active
     ///         and all parameters are valid.
     function test_proveWithdrawalTransaction_superRootsVersion_succeeds() external {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         _enableSuperRoots();
 
         // Mock rootClaimByChainId to return the correct output root.
@@ -1243,8 +1519,6 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` uses rootClaimByChainId for super game types
     ///         via the stateless _isSuperGameType check in OptimismPortal2.
     function test_proveWithdrawalTransaction_superGameType_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         // Mock the game type to be SUPER_CANNON_KONA.
         vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.SUPER_CANNON_KONA));
 
@@ -1280,8 +1554,6 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` reverts when a super game type's
     ///         rootClaimByChainId reverts with UnknownChainId.
     function test_proveWithdrawalTransaction_superGameTypeWrongChainId_reverts() external {
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
         // Mock the game type to be SUPER_CANNON_KONA.
         vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.SUPER_CANNON_KONA));
 
@@ -1349,6 +1621,25 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
             vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
             optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
         }
+    }
+
+    /// @notice Tests that the L1StandardBridge is an unsafe withdrawal target.
+    function test_finalizeWithdrawalTransaction_standardBridgeTarget_reverts() external {
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+
+        _defaultTx.target = address(l1StandardBridge);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+    }
+
+    /// @notice Tests that a configured hook is an unsafe withdrawal target.
+    function test_finalizeWithdrawalTransaction_bridgeHookTarget_reverts() external {
+        address hook = makeAddr("bridgeHook");
+        forceSetBridgeHook(hook);
+
+        _defaultTx.target = hook;
+        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts if the target reverts and caller
@@ -2941,5 +3232,149 @@ contract OptimismPortal2_Params_Test is CommonTest {
         bytes32 slot21After = vm.load(address(optimismPortal2), bytes32(uint256(21)));
         bytes32 slot21Expected = NextImpl(address(optimismPortal2)).slot21Init();
         assertEq(slot21Expected, slot21After);
+    }
+}
+
+/// @title OptimismPortal2_BridgeHook_Test
+/// @notice Test contract for OptimismPortal2 bridge hook configuration.
+contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
+    event BridgeHookSet(address indexed bridgeHook);
+    event BridgeHookRemoved(address indexed bridgeHook);
+
+    address internal hook = makeAddr("bridgeHook");
+
+    function setUp() public override {
+        super.setUp();
+        // A bridge hook is not supported alongside a custom gas token.
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+    }
+
+    /// @notice Clears the initialized slot so the Portal can be initialized again.
+    function _allowReinitialize() internal {
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+    }
+
+    /// @notice Initializes the Portal with the given hook, keeping every other value.
+    function _initialize(address _hook) internal {
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.initialize(
+            systemConfig, anchorStateRegistry, IETHLockbox(address(0)), portalProofMaturityDelay, IBridgeHook(_hook)
+        );
+    }
+
+    /// @notice Marks an item as held by writing its bit directly.
+    /// @param _mapping Either "heldDeposits" or "heldWithdrawals".
+    /// @param _key The item ID.
+    function _mockHeld(string memory _mapping, bytes32 _key) internal {
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", _mapping);
+        vm.store(address(optimismPortal2), keccak256(abi.encode(_key, slot.slot)), bytes32(uint256(1)));
+    }
+
+    /// @notice Tests that no hook is configured by default.
+    function test_bridgeHook_unsetByDefault_succeeds() external view {
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+    }
+
+    /// @notice Tests that initialize sets a nonzero hook.
+    function test_initialize_setsBridgeHook_succeeds() external {
+        _allowReinitialize();
+
+        vm.expectEmit(address(optimismPortal2));
+        emit BridgeHookSet(hook);
+        _initialize(hook);
+
+        assertEq(address(optimismPortal2.bridgeHook()), hook);
+    }
+
+    /// @notice Tests that initializing with a zero hook keeps the hook and its held items.
+    function test_initialize_zeroBridgeHookKeepsCurrent_succeeds() external {
+        forceSetBridgeHook(hook);
+        bytes32 depositId = keccak256("deposit");
+        bytes32 withdrawalId = keccak256("withdrawal");
+        _mockHeld("heldDeposits", depositId);
+        _mockHeld("heldWithdrawals", withdrawalId);
+
+        _allowReinitialize();
+        vm.recordLogs();
+        _initialize(address(0));
+
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(optimismPortal2) && logs[i].topics.length > 0) {
+                assertTrue(logs[i].topics[0] != BridgeHookSet.selector, "BridgeHookSet emitted");
+            }
+        }
+        assertEq(address(optimismPortal2.bridgeHook()), hook);
+        assertTrue(optimismPortal2.heldDeposits(depositId));
+        assertTrue(optimismPortal2.heldWithdrawals(withdrawalId));
+    }
+
+    /// @notice Tests that initializing with another nonzero hook replaces the current one and
+    ///         leaves held items untouched.
+    function test_initialize_replacesBridgeHook_succeeds() external {
+        forceSetBridgeHook(hook);
+        bytes32 depositId = keccak256("deposit");
+        bytes32 withdrawalId = keccak256("withdrawal");
+        _mockHeld("heldDeposits", depositId);
+        _mockHeld("heldWithdrawals", withdrawalId);
+        address newHook = makeAddr("newBridgeHook");
+        _allowReinitialize();
+
+        vm.expectEmit(address(optimismPortal2));
+        emit BridgeHookSet(newHook);
+        _initialize(newHook);
+
+        assertEq(address(optimismPortal2.bridgeHook()), newHook);
+        assertTrue(optimismPortal2.heldDeposits(depositId));
+        assertTrue(optimismPortal2.heldWithdrawals(withdrawalId));
+    }
+
+    /// @notice Tests that the ProxyAdmin owner can remove the hook.
+    function test_removeHook_succeeds() external {
+        forceSetBridgeHook(hook);
+
+        vm.expectEmit(address(optimismPortal2));
+        emit BridgeHookRemoved(hook);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.removeHook();
+
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+    }
+
+    /// @notice Tests that removing the hook while items are held succeeds.
+    function test_removeHook_withHeldItems_succeeds() external {
+        forceSetBridgeHook(hook);
+        bytes32 depositId = keccak256("deposit");
+        bytes32 withdrawalId = keccak256("withdrawal");
+        _mockHeld("heldDeposits", depositId);
+        _mockHeld("heldWithdrawals", withdrawalId);
+
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.removeHook();
+
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+        assertTrue(optimismPortal2.heldDeposits(depositId));
+        assertTrue(optimismPortal2.heldWithdrawals(withdrawalId));
+    }
+
+    /// @notice Tests that only the ProxyAdmin owner can remove the hook.
+    /// @param _caller The address attempting the call.
+    function testFuzz_removeHook_notProxyAdminOwner_reverts(address _caller) external {
+        vm.assume(_caller != proxyAdminOwner && _caller != address(proxyAdmin));
+        forceSetBridgeHook(hook);
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        vm.prank(_caller);
+        optimismPortal2.removeHook();
+    }
+
+    /// @notice Tests that removeHook reverts when no hook is set.
+    function test_removeHook_noHook_reverts() external {
+        assertEq(address(optimismPortal2.bridgeHook()), address(0));
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidBridgeHookState.selector);
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.removeHook();
     }
 }

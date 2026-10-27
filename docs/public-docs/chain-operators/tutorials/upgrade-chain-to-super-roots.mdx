@@ -36,11 +36,10 @@ Collect everything below before you start.
 
 **Chain identity.** The chain's per-chain addresses live in the `superchain-registry` repository under `superchain/configs/<network>/<chain-name>.toml`. Open that file and read `chain_id`, `addresses.SystemConfigProxy`, and `addresses.L1StandardBridgeProxy`.
 
-**Chain addresses and roles.** Use `op-fetcher` to derive the rest of the on-chain configuration in a single call. It runs an embedded forge script against `$L1_RPC` and resolves every per-chain proxy, role, and the current fault-proof status from `SystemConfig` and `L1StandardBridge`:
+**Chain addresses and roles.** Use `op-fetcher` to derive the rest of the on-chain configuration in a single command. It reads the L1 contracts through `$L1_RPC` and resolves every per-chain proxy, role, and the current fault-proof status from `SystemConfig` and `L1StandardBridge`:
 
 ```bash
 cd <optimism-monorepo>/op-fetcher
-just build-all
 go run ./cmd fetch \
   --l1-rpc-url "$L1_RPC" \
   --system-config "<SystemConfigProxy>" \
@@ -318,4 +317,4 @@ Run these checks once the proposer is stable.
 * **`op-challenger` traces `SUPER_CANNON_KONA` when enabled.** On a permissionless chain, verify the startup log lists `super-cannon-kona` and ongoing logs contain no scheduler or game-poll errors as type-9 games appear. On a permissioned chain, `op-challenger` continues to update the `AnchorStateRegistry` when `SUPER_PERMISSIONED` games finalize but does not need to post claims.
 * **`op-dispute-mon` reports super-root games.** Confirm `op_dispute_mon_games` reports the enabled super game types and `op_dispute_mon_failed_games` remains zero. On a permissioned chain, alert on `op_dispute_mon_games_agreement{status="disagree_defender_wins"}` and `Unexpected game result` logs for `SUPER_PERMISSIONED`.
 * **No new pre-migration games can be created.** Optionally call `DisputeGameFactory.create` with one of the disabled game types and confirm it reverts.
-* **Anchor advances on first super-game finalisation.** The first anchor update typically lands ~7 days after the first super-root game is created (game duration plus `DISPUTE_GAME_FINALITY_DELAY_SECONDS`). Do not block the rollout on this — schedule a follow-up to re-run `getAnchorRoot()` after that window and confirm it returns the new game's claim instead of the starting root. Track via `op-dispute-mon` rather than waiting in-line.
+* **Anchor advances on first super-game finalisation.** The first anchor update typically lands ~7 days after the first super-root game is created (game duration plus `disputeGameFinalityDelaySeconds()`). Do not block the rollout on this — schedule a follow-up to re-run `getAnchorRoot()` after that window and confirm it returns the new game's claim instead of the starting root. Track via `op-dispute-mon` rather than waiting in-line.

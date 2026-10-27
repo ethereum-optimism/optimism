@@ -11,11 +11,11 @@ use kona_sources::redacted_url;
 use kona_sp1_host_utils::{
     logger::setup_logger,
     metrics::{MetricsGauge, init_metrics},
-    network::{build_network_prover_from_env, determine_network_mode},
+    network::build_network_prover_from_env,
 };
 use op_zk_proposer::{
     ENV_VAR_PREFIX,
-    config::{ProofProviderKind, ProposerConfig},
+    config::{LogPath, ProofProviderKind, ProposerConfig},
     contract::DisputeGameFactory,
     metrics::{ProposerGauge, record_spn_requester, register_metrics},
     proposer::Proposer,
@@ -68,22 +68,30 @@ async fn main() -> Result<()> {
         l1_config_path = ?config.l1_config_path,
         dependency_set_path = ?config.dependency_set_path,
         range_split_count = ?config.range_split_count,
+        max_stdin_bytes = config.max_stdin_bytes.get(),
         max_concurrent_range_proofs = %config.max_concurrent_range_proofs,
         max_concurrent_defense_tasks = %config.max_concurrent_defense_tasks,
         fast_finality_mode = config.fast_finality_mode,
         fast_finality_proving_limit = %config.fast_finality_proving_limit,
+        log_path = ?config.log_path,
+        data_dir = ?config.data_dir,
+        log_gas_limit = config.proof_provider_config.log_gas_limit,
         "Resolved proposer configuration"
     );
+    if config.log_path == LogPath::Receipts {
+        tracing::warn!(
+            "OP_ZK_PROPOSER_LOG_PATH overrides the log path to receipts mode: games prove \
+             references below a local safe head through block receipts, with no log-commitment \
+             batch proofs (only for chains with interop off)"
+        );
+    }
 
     // Mock deployments need no SPN credentials.
     let mut spn_requester = None;
     let proof_provider = match config.proof_provider {
         ProofProviderKind::Network => {
             let provider_config = config.proof_provider_config.clone();
-            let network_mode = determine_network_mode(
-                provider_config.range_proof_strategy,
-                provider_config.agg_proof_strategy,
-            )?;
+            let network_mode = provider_config.network_mode()?;
             let network_prover =
                 build_network_prover_from_env(ENV_VAR_PREFIX, provider_config.range_proof_strategy)
                     .await?;

@@ -9,6 +9,7 @@
 # Each binary is its own subpackage/APK so images pull only what they run:
 # each Kona image pulls its matching binary, while op-challenger pulls just
 # kona-host. The op-stack-rust package itself is an empty meta package.
+# kona-zkvm-canary is deliberately not here; see melange/kona-zkvm-canary.yaml.
 package:
   name: op-stack-rust
   version: "0.0.0"
@@ -114,24 +115,6 @@ subpackages:
           install -Dm755 \
             "${CARGO_TARGET_DIR}/rust/${profile}/op-zk-proposer" \
             "${{targets.contextdir}}/usr/local/bin/op-zk-proposer"
-      - uses: strip
-        with:
-          opts: -g --remove-section=.note.package
-
-  - name: kona-zkvm-canary
-    description: kona-zkvm-canary — OP Stack SP1 zkVM canary
-    pipeline:
-      # Keep the canary's SP1 profiling feature out of the combined build. On
-      # x86_64 Linux that feature selects SP1's portable in-process executor;
-      # unifying it with the proposer would change the proposer's production
-      # executor from the native child runner.
-      - uses: cargo/build
-        with:
-          install-dir: local/bin
-          modroot: rust/kona/sp1/crates/zkvm-canary
-          output: kona-zkvm-canary
-          profile: "${MELANGE_CARGO_PROFILE}"
-          opts: --locked --package kona-zkvm-canary
       - uses: strip
         with:
           opts: -g --remove-section=.note.package

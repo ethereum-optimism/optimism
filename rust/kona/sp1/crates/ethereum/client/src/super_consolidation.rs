@@ -11,9 +11,9 @@ use kona_interop::DependencySet;
 use kona_preimage::{CommsClient, PreimageKey};
 use kona_proof::l2::OracleL2ChainProvider;
 use kona_proof_interop::{
-    BootInfo as InteropBootInfo, HintType, OptimisticBlock as InteropOptimisticBlock,
-    OracleInteropProvider, PreState, SuperchainConsolidator, TRANSITION_STATE_MAX_STEPS,
-    TransitionState,
+    BootInfo as InteropBootInfo, HintType, LogCommitmentSource,
+    OptimisticBlock as InteropOptimisticBlock, OracleInteropProvider, PreState,
+    SuperchainConsolidator, TRANSITION_STATE_MAX_STEPS, TransitionState,
 };
 use kona_registry::HashMap as RegistryHashMap;
 use kona_sp1_client_utils::{
@@ -30,19 +30,21 @@ use crate::{
 };
 
 /// Builds consolidation outputs; `None` uses the embedded registry (see [`ChainConfigs`]).
+/// `log_commitments` serves blocks below the local safe heads at every timestamp and round.
 pub async fn build_consolidation_outputs<C>(
     inputs: SuperConsolidationInputs,
     oracle: Arc<C>,
     configs: Option<&ChainConfigs>,
+    log_commitments: Arc<dyn LogCommitmentSource>,
 ) -> anyhow::Result<SuperConsolidationOutputs>
 where
     C: CommsClient + Send + Sync + Debug + 'static,
 {
     inputs.validate()?;
 
-    // Deposit-only replacement re-executes blocks through revm, which may hit the KZG
-    // point-evaluation precompile. Install the SP1-compatible crypto provider first.
-    revm::precompile::install_crypto(CustomCrypto::default());
+    // Deposit-only replacement re-executes blocks through revm; install the SP1-accelerated
+    // crypto provider (see `CustomCrypto`) first.
+    revm::precompile::install_crypto(CustomCrypto);
 
     let chain_ids = consolidation_chain_ids(&inputs)?;
     let embedded_configs;
@@ -79,6 +81,7 @@ where
             configs.dependency_set.clone(),
             &rollup_configs,
             &configs.l1_config,
+            log_commitments.clone(),
         )
         .await?;
         previous_super_root = input.claimed_super_root_proof.super_root;
@@ -124,6 +127,7 @@ where
     Ok(super_root)
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_transition<C>(
     oracle: Arc<C>,
     previous_super_root: SuperRoot,
@@ -132,6 +136,7 @@ async fn run_transition<C>(
     dependency_set: DependencySet,
     rollup_configs: &RegistryHashMap<u64, RollupConfig>,
     l1_config: &L1ChainConfig,
+    log_commitments: Arc<dyn LogCommitmentSource>,
 ) -> anyhow::Result<SuperConsolidationTransition>
 where
     C: CommsClient + Send + Sync + Debug + 'static,
@@ -167,7 +172,8 @@ where
     )
     .await?;
 
-    let interop_provider = OracleInteropProvider::new(oracle, boot.clone(), headers);
+    let interop_provider = OracleInteropProvider::new(oracle, boot.clone(), headers)
+        .with_log_commitments(log_commitments);
     let evm_factory = PostExecEvmFactoryAdapter::new(ZkvmOpEvmFactory);
     SuperchainConsolidator::new(&mut boot, interop_provider, l2_providers, evm_factory)
         .consolidate()
@@ -300,6 +306,7 @@ mod tests {
     };
     use kona_proof::block_on;
     use kona_sp1_client_utils::{
+        log_commitment::VerifiedLogCommitments,
         super_root::{
             SuperConsolidationTransitionInput, SuperOptimisticBlock, SuperOutputRoot,
             SuperRootProof, TimestampSpan,
@@ -314,6 +321,10 @@ mod tests {
 
     const INITIATING_CHAIN: u64 = u64::MAX - 1;
     const EXECUTING_CHAIN: u64 = u64::MAX;
+
+    fn no_log_commitments() -> Arc<dyn LogCommitmentSource> {
+        Arc::new(VerifiedLogCommitments::new(Default::default(), &[0; 8], |_, _| {}))
+    }
 
     fn save_super_root(oracle: &mut PreimageStore, super_root: &SuperRoot) -> B256 {
         let hash = super_root.hash();
@@ -514,6 +525,7 @@ mod tests {
             dependency_set(&[10], None),
             &rollup_configs(&[10]),
             &Default::default(),
+            no_log_commitments(),
         ))
         .unwrap();
 
@@ -596,9 +608,13 @@ mod tests {
         };
         let oracle = RecordingOracle::new(oracle);
 
-        let outputs =
-            block_on(build_consolidation_outputs(inputs, Arc::new(oracle.clone()), Some(&configs)))
-                .expect("two-timestamp consolidation succeeds");
+        let outputs = block_on(build_consolidation_outputs(
+            inputs,
+            Arc::new(oracle.clone()),
+            Some(&configs),
+            no_log_commitments(),
+        ))
+        .expect("two-timestamp consolidation succeeds");
 
         assert_eq!(
             outputs.transitions.iter().map(|transition| transition.super_root).collect::<Vec<_>>(),
@@ -641,8 +657,13 @@ mod tests {
         ] {
             oracle.save_preimage(PreimageKey::new_local(key.to()), serialized).unwrap();
         }
-        let err = block_on(build_consolidation_outputs(inputs, Arc::new(oracle), None))
-            .expect_err("guest-facing consolidation must reject witness configs");
+        let err = block_on(build_consolidation_outputs(
+            inputs,
+            Arc::new(oracle),
+            None,
+            no_log_commitments(),
+        ))
+        .expect_err("guest-facing consolidation must reject witness configs");
         assert!(err.to_string().contains("no embedded dependency set"), "unexpected error: {err}");
     }
 
@@ -670,8 +691,13 @@ mod tests {
             }],
         };
         inputs.validate().expect("typed consolidation timestamps are valid");
-        let err = block_on(build_consolidation_outputs(inputs, Arc::new(oracle), Some(&configs)))
-            .unwrap_err();
+        let err = block_on(build_consolidation_outputs(
+            inputs,
+            Arc::new(oracle),
+            Some(&configs),
+            no_log_commitments(),
+        ))
+        .unwrap_err();
 
         assert!(
             err.to_string().contains(
@@ -785,6 +811,8 @@ mod tests {
         let mut configs = rollup_configs(&[INITIATING_CHAIN, EXECUTING_CHAIN]);
         for config in configs.values_mut() {
             config.hardforks.lagoon_time = Some(0);
+            // Blocks #3/#4 at ts 100/101 sit on the block-time grid (block_time 1).
+            config.genesis.l2_time = 97;
         }
         block_on(async {
             let (oracle, _) =
@@ -799,6 +827,7 @@ mod tests {
                 dependency_set(&[INITIATING_CHAIN, EXECUTING_CHAIN], None),
                 &configs,
                 &Default::default(),
+                no_log_commitments(),
             )
             .await
         })

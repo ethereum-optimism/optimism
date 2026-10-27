@@ -28,7 +28,8 @@ pragma solidity ^0.8.0;
 ///      For the parallel SYSTEM feature checklist, see
 ///      packages/contracts-bedrock/src/libraries/Features.sol.
 library DevFeatures {
-    /// @notice The feature that enables the Interop migration functions on the OptimismPortal2 contract.
+    /// @notice The feature that enables the interop predeploys on L2, at genesis and in
+    ///         L2ContractsManager upgrades.
     bytes32 public constant OPTIMISM_PORTAL_INTEROP =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000001);
 
@@ -45,6 +46,9 @@ library DevFeatures {
     /// @notice The feature that enables the super root games migration path in OPCM upgrade.
     bytes32 public constant SUPER_ROOT_GAMES_MIGRATION =
         bytes32(0x0000000000000000000000000000000000000000000000000000000010000000);
+
+    /// @notice The feature that enables bridge hook configuration on OptimismPortal2.
+    bytes32 public constant BRIDGE_HOOK = bytes32(0x0000000000000000000000000000000000000000000000000000000100000000);
 
     /// @notice Checks if a feature is enabled in a bitmap. Note that this function does not check
     ///         that the input feature represents a single feature and the bitwise AND operation

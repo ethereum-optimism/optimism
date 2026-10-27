@@ -35,7 +35,7 @@ use tracing::Instrument;
 use crate::{
     L1Provider, TxErrorExt, ZK_GAME_TYPE,
     adapters::{
-        ProductionActionExecutor, ProductionL1View, ProductionProofEngine,
+        ProductionActionExecutor, ProductionL1View, ProductionL2BlockSource, ProductionProofEngine,
         ProductionSuperRootSource, SystemQueryTime,
     },
     config::{PrestatePrograms, ProofProviderKind, ProposalSafety, ProposerConfig, load_prestate},
@@ -49,9 +49,13 @@ use crate::{
         QueryTime, SuperRootSource,
     },
     prover::{ProofKeys, ProofProvider, setup_proof_keys},
-    proving::{GameProofInputs, fetch_span_responses, is_unprovable, response_trusted},
-    signer::{FeeCaps, SignerLock},
+    proving::{
+        GameProofInputs, LogProofSettings, fetch_span_responses, is_unprovable, prepare_data_dir,
+        response_trusted,
+    },
+    signer::SignerLock,
     superroot::{SuperrootClient, zk_extra_data},
+    tx_sender::FeeCaps,
     verifier::check_verifier_hash,
 };
 
@@ -72,7 +76,7 @@ pub(crate) struct TaskId(NonZeroU64);
 impl TaskId {
     fn allocate(next_task_id: &AtomicU64) -> Self {
         let task_id = next_task_id
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |task_id| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |task_id| {
                 if task_id == 0 { None } else { task_id.checked_add(1) }
             })
             .expect("task ID counter must be nonzero and not exhausted");
@@ -958,18 +962,29 @@ impl Proposer {
         let proposer_address = signer.address();
         let superroot_source =
             Arc::new(ProductionSuperRootSource::new(SuperrootClient::new(&config.superroot_rpcs)?));
+        let l2 = Arc::new(ProductionL2BlockSource::connect(&config.l2_rpcs).await?);
+        if let Some(data_dir) = &config.data_dir {
+            prepare_data_dir(data_dir)?;
+        }
         let proof_engine = Arc::new(ProductionProofEngine::new(
             proof_provider,
             host_inputs,
             config.range_split_count,
             config.max_concurrent_range_proofs,
+            l2,
+            LogProofSettings {
+                path: config.log_path,
+                range_gas_limit: config.proof_provider_config.range_gas_limit,
+                log_gas_limit: config.proof_provider_config.log_gas_limit,
+                max_stdin_bytes: config.max_stdin_bytes,
+                data_dir: config.data_dir.clone(),
+            },
         ));
         let action_executor = Arc::new(ProductionActionExecutor::new(
             signer,
             l1_provider,
             factory,
-            config.l1_rpc.clone(),
-            config.tx_confirmation_timeout,
+            Duration::from_secs(config.tx_confirmation_timeout),
             Self::fee_caps_for(&config),
         ));
         Self::new_with_dependencies(
@@ -1380,11 +1395,11 @@ impl Proposer {
     /// 2. Tombstone invalid games and their cached subtrees; cached records stay for lifecycle work
     ///    but cannot be extended or proven. Invalid games created by this proposer are kept.
     /// 3. Re-validate pending games (timestamps not yet safe from this node's view, unavailable
-    ///    super-root data, or an untrusted root mismatch); entries still pending past the anchor's
-    ///    deadline-lag cutoff are tombstoned unless their prestate is locally available. Cached
-    ///    descendants remain available for lifecycle work but cannot be extended or proven. A read
-    ///    failure while revalidating the registered anchor aborts the cycle without clearing the
-    ///    pending entry or cache.
+    ///    super-root data, or an untrusted root mismatch or past-l1Head requirement); entries still
+    ///    pending past the anchor's deadline-lag cutoff are tombstoned unless their prestate is
+    ///    locally available. Cached descendants remain available for lifecycle work but cannot be
+    ///    extended or proven. A read failure while revalidating the registered anchor aborts the
+    ///    cycle without clearing the pending entry or cache.
     /// 4. Synchronize cached game lifecycle and non-anchor own-registry standing. Blocked, locally
     ///    unprovable foreign in-progress games use lifecycle-only polls. Apply actions: mark owned
     ///    winners and resolvable proposer-created games (owned or disallowed) for resolution,
@@ -2497,10 +2512,12 @@ impl Proposer {
     ///
     /// Terminal drops: unsupported game type, disrespected game type at
     /// creation, an `l2SequenceNumber` exceeding `u64`, a non-refundable
-    /// `ChallengerWins` result, or a claim contradicting a trusted canonical
-    /// super root. A timestamp not yet safe from this node's view, or a
-    /// mismatch reported by an untrusted response, yields `Pending` instead:
-    /// excluded from the DAG but re-validated on later syncs.
+    /// `ChallengerWins` result, a claim contradicting a trusted canonical
+    /// super root, or a canonical claim a trusted response shows needs L1 data
+    /// past the game's l1Head. A timestamp not yet safe from this node's view,
+    /// or a mismatch or past-l1Head requirement reported by an untrusted
+    /// response, yields `Pending` instead: excluded from the DAG but
+    /// re-validated on later syncs.
     pub async fn fetch_game(
         &self,
         index: U256,
@@ -2722,7 +2739,52 @@ impl Proposer {
                 );
                 return Ok(self.terminal_invalid_game(&game).await);
             }
-            Some(_) => {}
+            Some(_) => {
+                // The proof binds the game's l1Head, so a canonical root that needs L1 data past
+                // it can never be proven: the game loses if challenged (op-challenger's ZK actor
+                // challenges it) and must never become a parent.
+                let required_l1 = super_root_at
+                    .response
+                    .data
+                    .as_ref()
+                    .context("canonical super root response lost its data")?
+                    .verified_required_l1
+                    .number;
+                let l1_head_number =
+                    self.l1_view.game_l1_head_number(game_address, pinned_block).await?;
+                if required_l1 > l1_head_number {
+                    if !response_trusted(&super_root_at.response) {
+                        if let Some(retained) =
+                            self.retain_disallowed_own_game(&game, pinned_block).await?
+                        {
+                            return Ok(retained);
+                        }
+                        tracing::warn!(
+                            game_index = %index,
+                            ?game_address,
+                            required_l1,
+                            l1_head_number,
+                            "Game root needs L1 data past its L1 head per untrusted supernode response; deferring validation"
+                        );
+                        return Ok(GameFetchResult::Pending {
+                            index,
+                            game_address,
+                            parent_index,
+                            sequence_number,
+                            deadline,
+                            prestate: absolute_prestate,
+                        });
+                    }
+                    tracing::warn!(
+                        game_index = %index,
+                        ?game_address,
+                        required_l1,
+                        l1_head_number,
+                        "Invalid game: canonical super root needs L1 data past the game's L1 head"
+                    );
+                    return Ok(self.terminal_invalid_game(&game).await);
+                }
+            }
         }
 
         tracing::info!(
@@ -4500,9 +4562,9 @@ pub struct PrestateEntry {
     programs: Arc<PrestatePrograms>,
     /// Lazily initialized proving keys and the vkey-verification verdict
     /// (network mode only; mock mode never initializes this). A stored
-    /// `Err` poisons the entry: setup already ran and the aggregation ELF
-    /// does not hash to the prestate (or setup itself failed), so the
-    /// outcome is deterministic and never retried.
+    /// `Err` poisons the entry: setup already ran and a vkey check failed
+    /// (or setup itself failed), so the outcome is deterministic and never
+    /// retried.
     keys: OnceCell<Result<Arc<ProofKeys>, PrestateKeyError>>,
     /// One-shot latch claiming the right to start background key setup for
     /// this entry (see `try_kick_key_setup`).
@@ -4522,6 +4584,15 @@ pub enum PrestateKeyError {
         /// The verifying-key hash the aggregation ELF actually has.
         actual: B256,
     },
+    /// A program ELF does not hold the verifying key of the program it verifies exactly once.
+    PinnedVkeyMismatch {
+        /// The program whose ELF must pin the key.
+        program: &'static str,
+        /// The bytes32 hash of the pinned program's verifying key.
+        vkey: String,
+        /// How many times the ELF holds the key.
+        occurrences: usize,
+    },
     /// SP1 proving-key setup failed.
     Setup(String),
 }
@@ -4533,12 +4604,51 @@ impl std::fmt::Display for PrestateKeyError {
                 f,
                 "aggregation ELF verifying key {actual} does not hash to prestate {expected}"
             ),
+            Self::PinnedVkeyMismatch { program, vkey, occurrences } => write!(
+                f,
+                "{program} ELF holds verifying key {vkey} {occurrences} times, expected exactly once"
+            ),
             Self::Setup(err) => write!(f, "SP1 proving-key setup failed: {err}"),
         }
     }
 }
 
 impl std::error::Error for PrestateKeyError {}
+
+/// Checks that `programs` are the programs that `prestate` pins: the aggregation vkey hashes to
+/// `prestate`, the aggregation ELF pins the super-range vkey, and the super-range ELF pins the
+/// log-commitment vkey, each exactly once. SP1 execution does not bind deferred proofs to the
+/// guest's digests, so only this check finds a mismatch before a proof request.
+fn verify_vkeys(
+    prestate: B256,
+    programs: &PrestatePrograms,
+    keys: &ProofKeys,
+) -> Result<(), PrestateKeyError> {
+    let actual = B256::from(keys.agg_vk.bytes32_raw());
+    if actual != prestate {
+        return Err(PrestateKeyError::VkeyMismatch { expected: prestate, actual });
+    }
+    for (program, elf, pinned) in [
+        ("super-aggregation", &programs.aggregation_elf, &keys.range_vk),
+        ("super-range", &programs.range_elf, &keys.log_vk),
+    ] {
+        let occurrences = pinned_vkey_occurrences(elf, &pinned.hash_u32());
+        if occurrences != 1 {
+            return Err(PrestateKeyError::PinnedVkeyMismatch {
+                program,
+                vkey: pinned.bytes32(),
+                occurrences,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// The occurrences in `elf` of `vkey` as a guest embeds it: its words in little-endian order.
+fn pinned_vkey_occurrences(elf: &[u8], vkey: &[u32; 8]) -> usize {
+    let needle: Vec<u8> = vkey.iter().flat_map(|word| word.to_le_bytes()).collect();
+    elf.windows(needle.len()).filter(|window| *window == needle.as_slice()).count()
+}
 
 /// Prestate program cache: loaded ELFs keyed by `absolutePrestate()` hash,
 /// fetched from the base `OP_ZK_PROPOSER_PRESTATES_URL` on demand, plus per-prestate SP1
@@ -4623,6 +4733,7 @@ impl PrestateCache {
                     prestate = %prestate,
                     aggregation_elf_bytes = programs.aggregation_elf.len(),
                     range_elf_bytes = programs.range_elf.len(),
+                    log_commitment_elf_bytes = programs.log_commitment_elf.len(),
                     "Loaded prestate programs"
                 );
                 self.misses.write().await.remove(&prestate);
@@ -4723,9 +4834,8 @@ impl PrestateCache {
     /// use in network mode.
     ///
     /// Setup takes tens of seconds per ELF. The entry is cloned before setup
-    /// so no map guard blocks cache readers or writers. The aggregation
-    /// verifying key must hash to `prestate`; otherwise the entry is poisoned
-    /// and excluded from [`Self::known_prestates`].
+    /// so no map guard blocks cache readers or writers. When `verify_vkeys`
+    /// fails, the entry is poisoned and excluded from [`Self::known_prestates`].
     pub async fn proof_keys(
         &self,
         prestate: B256,
@@ -4747,22 +4857,19 @@ impl PrestateCache {
             .keys
             .get_or_init(|| async move {
                 match setup_proof_keys(&programs).await {
-                    Ok(keys) => {
-                        let actual = B256::from(keys.agg_vk.bytes32_raw());
-                        if actual == prestate {
-                            Ok(Arc::new(keys))
-                        } else {
+                    Ok(keys) => match verify_vkeys(prestate, &programs, &keys) {
+                        Ok(()) => Ok(Arc::new(keys)),
+                        Err(err) => {
                             tracing::error!(
                                 prestate = %prestate,
-                                vkey = %actual,
-                                "Aggregation ELF does not hash to the on-chain prestate; \
-                                 games with this prestate cannot be defended with the \
-                                 published artifacts"
+                                error = %err,
+                                "Prestate artifacts fail vkey verification; games with this \
+                                 prestate cannot be defended with the published artifacts"
                             );
                             ProposerGauge::PrestateVkeyMismatch.increment(1.0);
-                            Err(PrestateKeyError::VkeyMismatch { expected: prestate, actual })
+                            Err(err)
                         }
-                    }
+                    },
                     Err(err) => Err(PrestateKeyError::Setup(err.to_string())),
                 }
             })
@@ -4805,8 +4912,9 @@ mod tests {
         TxErrorExt, ZK_GAME_TYPE,
         adapters::ProductionL1View,
         config::{
-            PrestatePrograms, ProofProviderConfig, ProofProviderKind, ProposalSafety,
-            ProposerConfig, RangeSplitCount,
+            AGGREGATION_ARTIFACT_SUFFIX, LOG_COMMITMENT_ARTIFACT_SUFFIX, PrestatePrograms,
+            ProofProviderConfig, ProofProviderKind, ProposalSafety, ProposerConfig,
+            RANGE_ARTIFACT_SUFFIX, RangeSplitCount,
         },
         contract::{
             BondDistributionMode, DisputeGameFactory, GameStatus, ProposalStatus, ZKGameArgs,
@@ -5014,6 +5122,7 @@ mod tests {
         game_claim: GameClaim,
         game_identity: GameIdentity,
         game_validity: GameValidity,
+        game_l1_head_number: u64,
         lifecycle: GameLifecycle,
         game_status: u8,
         parent_status: u8,
@@ -5076,6 +5185,7 @@ mod tests {
                     status: GameStatus::InProgress,
                     absolute_prestate: B256::ZERO,
                 },
+                game_l1_head_number: 11,
                 lifecycle: GameLifecycle {
                     proposal_status: ProposalStatus::Unchallenged,
                     deadline: 2_000,
@@ -5233,6 +5343,13 @@ mod tests {
             self.record("game_validity");
             self.record_block("game_validity", block);
             Ok(self.game_validity)
+        }
+
+        async fn game_l1_head_number(&self, _game: Address, block: BlockId) -> anyhow::Result<u64> {
+            self.record("game_l1_head_number");
+            self.record_block("game_l1_head_number", block);
+            self.fail_if_configured("game_l1_head_number")?;
+            Ok(self.game_l1_head_number)
         }
 
         async fn game_lifecycle(
@@ -5461,7 +5578,9 @@ mod tests {
         let dir = std::env::temp_dir()
             .join(format!("op-zk-proposer-sync-test-{}-{name}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        for suffix in [".agg.bin.gz", ".range.bin.gz"] {
+        for suffix in
+            [AGGREGATION_ARTIFACT_SUFFIX, RANGE_ARTIFACT_SUFFIX, LOG_COMMITMENT_ARTIFACT_SUFFIX]
+        {
             let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
             std::io::Write::write_all(&mut gz, b"elf").unwrap();
             std::fs::write(dir.join(format!("{prestate}{suffix}")), gz.finish().unwrap()).unwrap();
@@ -5486,11 +5605,12 @@ mod tests {
             max_priority_fee_per_gas: None,
             proof_provider: ProofProviderKind::Mock,
             l1_beacon_rpc: "http://127.0.0.1:1".parse().unwrap(),
-            l2_rpcs: vec!["http://127.0.0.1:1".parse().unwrap()],
+            l2_rpcs: Vec::new(),
             rollup_config_paths: None,
             l1_config_path: None,
             dependency_set_path: None,
             range_split_count: RangeSplitCount::one(),
+            max_stdin_bytes: Default::default(),
             max_concurrent_range_proofs: std::num::NonZeroUsize::MIN,
             max_concurrent_defense_tasks: std::num::NonZeroU64::new(8).unwrap(),
             fast_finality_mode: false,
@@ -5505,9 +5625,14 @@ mod tests {
                 range_gas_limit: 1,
                 agg_cycle_limit: 1,
                 agg_gas_limit: 1,
+                log_proof_strategy: sp1_sdk::network::FulfillmentStrategy::Reserved,
+                log_cycle_limit: 1,
+                log_gas_limit: 1,
                 max_price_per_pgu: Some(std::num::NonZeroU64::MIN),
                 min_auction_period: 1,
             },
+            log_path: crate::config::LogPath::Table,
+            data_dir: None,
         }
     }
 
@@ -5579,13 +5704,7 @@ mod tests {
                     pinned_l1,
                     ancestry_decision: AncestryDecision::Allowed,
                 });
-            proposer
-                .prestates
-                .insert_for_tests(
-                    B256::ZERO,
-                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-                )
-                .await;
+            proposer.prestates.insert_for_tests(B256::ZERO, PrestatePrograms::stub(1)).await;
             proposer
         }
 
@@ -6203,13 +6322,7 @@ mod tests {
             let expected_bond_target =
                 (game.address, game.weth, proposer.proposer_address, BlockId::number(1));
             proposer.l1_view = view.clone();
-            proposer
-                .prestates
-                .insert_for_tests(
-                    prestate,
-                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-                )
-                .await;
+            proposer.prestates.insert_for_tests(prestate, PrestatePrograms::stub(1)).await;
             if status == GameStatus::ChallengerWins {
                 proposer.last_created_game_l2_sequence_number.store(100, AtomicOrdering::Relaxed);
                 *proposer.last_created_game_address.lock().await = game.address;
@@ -6330,13 +6443,7 @@ mod tests {
             },
             ..Default::default()
         });
-        proposer
-            .prestates
-            .insert_for_tests(
-                prestate,
-                PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-            )
-            .await;
+        proposer.prestates.insert_for_tests(prestate, PrestatePrograms::stub(1)).await;
         {
             let mut state = proposer.state.write().await;
             state.cursor = Cursor::from(U256::ZERO);
@@ -6794,13 +6901,7 @@ mod tests {
                 ..game_with(1, 0, 200)
             };
             let anchor = game_with(2, 1, 300);
-            proposer
-                .prestates
-                .insert_for_tests(
-                    owned_prestate,
-                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-                )
-                .await;
+            proposer.prestates.insert_for_tests(owned_prestate, PrestatePrograms::stub(1)).await;
             {
                 let mut state = proposer.state.write().await;
                 state.games.insert(middle.index, middle.clone());
@@ -7125,6 +7226,7 @@ mod tests {
         }
 
         let canonical = B256::repeat_byte(0x11);
+        // The game's L1 head is block 11.
         let cases = [
             (100, absent_super_root_at_timestamp(99), canonical, false, Expected::Pending),
             (
@@ -7169,6 +7271,29 @@ mod tests {
                 true,
                 Expected::Pending,
             ),
+            // Canonical root, but a trusted response needs L1 block 12, past the game's L1 head.
+            (
+                100,
+                super_root_at_timestamp(100, canonical, 13, 12),
+                canonical,
+                false,
+                Expected::Invalid,
+            ),
+            (
+                100,
+                super_root_at_timestamp(100, canonical, 13, 12),
+                canonical,
+                true,
+                Expected::LifecycleOnly,
+            ),
+            // The same requirement from an untrusted response (current_l1 == required_l1) defers.
+            (
+                100,
+                super_root_at_timestamp(100, canonical, 12, 12),
+                canonical,
+                false,
+                Expected::Pending,
+            ),
         ];
 
         for (sequence_number, super_root_at, claim, own_game, expected) in cases {
@@ -7187,6 +7312,7 @@ mod tests {
                     status: GameStatus::InProgress,
                     absolute_prestate: B256::ZERO,
                 },
+                game_l1_head_number: 11,
                 ..Default::default()
             });
             proposer.l1_view = view;
@@ -7259,7 +7385,7 @@ mod tests {
             verifier: registered_adapter,
             ..RecordingL1View::default().registered_args
         };
-        let programs = PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] };
+        let programs = PrestatePrograms::stub(1);
 
         // Network mode: a foreign VERIFIER_HASH on the registered adapter pauses creation
         // before the prestate gate runs (key setup is never kicked). Real proving keys need
@@ -7308,13 +7434,7 @@ mod tests {
         let config = ProposerConfig { proof_provider: ProofProviderKind::Network, ..test_config() };
         let mut proposer = test_proposer_with(config).await;
         // The registered prestate is loaded, so only the verifier can stop dispatch.
-        proposer
-            .prestates
-            .insert_for_tests(
-                B256::ZERO,
-                PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-            )
-            .await;
+        proposer.prestates.insert_for_tests(B256::ZERO, PrestatePrograms::stub(1)).await;
         let view = Arc::new(RecordingL1View {
             verifier_hash: B256::repeat_byte(0xaa),
             ..Default::default()
@@ -7491,13 +7611,7 @@ mod tests {
         );
         let mut proposer = test_proposer().await;
         for prestate in [first_prestate, second_prestate] {
-            proposer
-                .prestates
-                .insert_for_tests(
-                    prestate,
-                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-                )
-                .await;
+            proposer.prestates.insert_for_tests(prestate, PrestatePrograms::stub(1)).await;
         }
         proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
             horizon: ProposalHorizon { safe_timestamp: 200, finalized_timestamp: 200 },
@@ -7558,13 +7672,7 @@ mod tests {
         let mut game = game_with(7, u32::MAX, 100);
         game.absolute_prestate = prestate;
         game.should_attempt_to_claim_bond = true;
-        proposer
-            .prestates
-            .insert_for_tests(
-                prestate,
-                PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-            )
-            .await;
+        proposer.prestates.insert_for_tests(prestate, PrestatePrograms::stub(1)).await;
         proposer.state.write().await.games.insert(game.index, game.clone());
 
         assert_eq!(
@@ -7720,13 +7828,7 @@ mod tests {
             let mut proposer = test_proposer().await;
             proposer.l1_view = Arc::new(RecordingL1View::default());
             // Dispatch rechecks the registration; the default fake registers prestate zero.
-            proposer
-                .prestates
-                .insert_for_tests(
-                    B256::ZERO,
-                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-                )
-                .await;
+            proposer.prestates.insert_for_tests(B256::ZERO, PrestatePrograms::stub(1)).await;
             proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
                 horizon: ProposalHorizon { safe_timestamp: 100, finalized_timestamp: 100 },
                 roots: vec![(100, super_root_at_timestamp(100, root, 12, 11))],
@@ -8163,13 +8265,7 @@ mod tests {
             let proposer = test_proposer_with_provider(provider).await;
             proposer.max_prove_duration.set(7200).unwrap();
             let prestate = B256::left_padding_from(&[0x77]);
-            proposer
-                .prestates
-                .insert_for_tests(
-                    prestate,
-                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-                )
-                .await;
+            proposer.prestates.insert_for_tests(prestate, PrestatePrograms::stub(1)).await;
             let mut game = game_with(1, u32::MAX, 100);
             game.proposal_status = ProposalStatus::Challenged;
             game.deadline = u64::MAX;
@@ -8208,6 +8304,7 @@ mod tests {
                     PrestatePrograms {
                         aggregation_elf: b"not an elf".to_vec(),
                         range_elf: b"not an elf".to_vec(),
+                        log_commitment_elf: b"not an elf".to_vec(),
                     },
                 )
                 .await;
@@ -8237,13 +8334,7 @@ mod tests {
             let proposer = test_proposer().await;
             let old = B256::left_padding_from(&[0x0a]);
             let new = B256::left_padding_from(&[0x0b]);
-            proposer
-                .prestates
-                .insert_for_tests(
-                    old,
-                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-                )
-                .await;
+            proposer.prestates.insert_for_tests(old, PrestatePrograms::stub(1)).await;
 
             // Old prestate: usable (mock mode never initializes keys).
             assert!(proposer.prestate_usable_for_creation(old).await);
@@ -8255,13 +8346,7 @@ mod tests {
             assert!(proposer.prestates.known_prestates().await.contains(&old));
 
             // Operator publishes the new artifacts: creation resumes.
-            proposer
-                .prestates
-                .insert_for_tests(
-                    new,
-                    PrestatePrograms { aggregation_elf: vec![2], range_elf: vec![2] },
-                )
-                .await;
+            proposer.prestates.insert_for_tests(new, PrestatePrograms::stub(2)).await;
             assert!(proposer.prestate_usable_for_creation(new).await);
         }
     }
@@ -8281,13 +8366,7 @@ mod tests {
         async fn insert_prestate(proposer: &Proposer, prestate: B256) {
             proposer
                 .prestates
-                .insert_for_tests(
-                    prestate,
-                    crate::config::PrestatePrograms {
-                        aggregation_elf: vec![1],
-                        range_elf: vec![1],
-                    },
-                )
+                .insert_for_tests(prestate, crate::config::PrestatePrograms::stub(1))
                 .await;
         }
 
@@ -8565,8 +8644,11 @@ mod tests {
         use alloy_primitives::B256;
         use alloy_transport_http::reqwest::Url;
 
-        use super::super::{PrestateCache, PrestateKeyError};
-        use crate::config::{PrestatePrograms, ProofProviderKind};
+        use super::super::{PrestateCache, PrestateKeyError, pinned_vkey_occurrences};
+        use crate::config::{
+            AGGREGATION_ARTIFACT_SUFFIX, LOG_COMMITMENT_ARTIFACT_SUFFIX, PrestatePrograms,
+            ProofProviderKind, RANGE_ARTIFACT_SUFFIX,
+        };
 
         const HASH_A: &str = "0x0101010101010101010101010101010101010101010101010101010101010101";
 
@@ -8582,7 +8664,9 @@ mod tests {
         }
 
         fn write_artifacts_with(dir: &std::path::Path, contents: &[u8]) {
-            for s in [".agg.bin.gz", ".range.bin.gz"] {
+            for s in
+                [AGGREGATION_ARTIFACT_SUFFIX, RANGE_ARTIFACT_SUFFIX, LOG_COMMITMENT_ARTIFACT_SUFFIX]
+            {
                 let mut gz =
                     flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
                 std::io::Write::write_all(&mut gz, contents).unwrap();
@@ -8601,6 +8685,7 @@ mod tests {
             let programs = cache.programs(hash).await.expect("cached");
             assert_eq!(programs.aggregation_elf, b"elf");
             assert_eq!(programs.range_elf, b"elf");
+            assert_eq!(programs.log_commitment_elf, b"elf");
 
             // Cache hit: succeeds even if the directory disappears.
             std::fs::remove_dir_all(&dir).unwrap();
@@ -8666,12 +8751,7 @@ mod tests {
         async fn proof_keys_unavailable_in_mock_mode() {
             let cache = PrestateCache::new(Url::parse("file:///nonexistent").unwrap());
             let hash: B256 = HASH_A.parse().unwrap();
-            cache
-                .insert_for_tests(
-                    hash,
-                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-                )
-                .await;
+            cache.insert_for_tests(hash, PrestatePrograms::stub(1)).await;
             let err = cache.proof_keys(hash, ProofProviderKind::Mock).await.unwrap_err();
             assert!(err.to_string().contains("mock mode"), "unexpected error: {err}");
         }
@@ -8690,6 +8770,7 @@ mod tests {
                     PrestatePrograms {
                         aggregation_elf: b"not an elf".to_vec(),
                         range_elf: b"not an elf".to_vec(),
+                        log_commitment_elf: b"not an elf".to_vec(),
                     },
                 )
                 .await;
@@ -8708,15 +8789,9 @@ mod tests {
             assert_eq!(again.to_string(), verdict);
         }
 
-        /// With `KONA_SP1_ELF_DIR` set, verifies the built aggregation vkey
-        /// against the canonical prestate in `vkeys.toml`. Skipped when the
-        /// environment variable is absent.
-        #[tokio::test]
-        async fn real_elf_agg_vkey_matches_vkeys_toml_prestate() {
-            let Ok(elf_dir) = std::env::var("KONA_SP1_ELF_DIR") else {
-                return;
-            };
-            let dir = std::path::PathBuf::from(&elf_dir);
+        /// The built ELFs and their prestate, when `KONA_SP1_ELF_DIR` is set.
+        fn real_elfs() -> Option<(B256, PrestatePrograms)> {
+            let dir = std::path::PathBuf::from(std::env::var("KONA_SP1_ELF_DIR").ok()?);
             let manifest = std::fs::read_to_string(dir.join("vkeys.toml")).unwrap();
             let prestate: B256 = manifest
                 .lines()
@@ -8725,21 +8800,81 @@ mod tests {
                 .expect("vkeys.toml lacks a super-aggregation entry")
                 .parse()
                 .unwrap();
+            let read = |name: &str| std::fs::read(dir.join(name)).unwrap();
+            Some((
+                prestate,
+                PrestatePrograms {
+                    aggregation_elf: read("super-aggregation-elf"),
+                    range_elf: read("super-range-elf"),
+                    log_commitment_elf: read("log-commitment-elf"),
+                },
+            ))
+        }
 
+        async fn cache_with(prestate: B256, programs: PrestatePrograms) -> PrestateCache {
             let cache = PrestateCache::new(Url::parse("file:///nonexistent").unwrap());
+            cache.insert_for_tests(prestate, programs).await;
             cache
-                .insert_for_tests(
-                    prestate,
-                    PrestatePrograms {
-                        aggregation_elf: std::fs::read(dir.join("super-aggregation-elf")).unwrap(),
-                        range_elf: std::fs::read(dir.join("super-range-elf")).unwrap(),
-                    },
-                )
-                .await;
-            cache.proof_keys(prestate, ProofProviderKind::Network).await.expect(
-                "real aggregation vkey must match the vkeys.toml prestate (bytes32 encoding)",
-            );
+        }
+
+        /// Pins the built ELFs to the `vkeys.toml` prestate and to each other's vkeys.
+        #[tokio::test]
+        async fn real_elf_pins_log_and_range_vkeys() {
+            let Some((prestate, programs)) = real_elfs() else { return };
+            let cache = cache_with(prestate, programs).await;
+            cache
+                .proof_keys(prestate, ProofProviderKind::Network)
+                .await
+                .expect("built ELFs must hash to the vkeys.toml prestate and pin each other");
             assert!(cache.known_prestates().await.contains(&prestate));
+        }
+
+        /// Pins the poison of a prestate whose ELF does not hold the next program's vkey.
+        #[tokio::test]
+        async fn real_elf_pinned_vkey_mismatch_poisons_prestate() {
+            let Some((prestate, programs)) = real_elfs() else { return };
+            let cases = [
+                (
+                    "super-range",
+                    PrestatePrograms {
+                        log_commitment_elf: programs.aggregation_elf.clone(),
+                        ..programs.clone()
+                    },
+                ),
+                (
+                    "super-aggregation",
+                    PrestatePrograms {
+                        range_elf: programs.log_commitment_elf.clone(),
+                        ..programs.clone()
+                    },
+                ),
+            ];
+            for (pinning, programs) in cases {
+                let cache = cache_with(prestate, programs).await;
+                let err = cache.proof_keys(prestate, ProofProviderKind::Network).await.unwrap_err();
+                assert!(
+                    matches!(
+                        err.downcast_ref::<PrestateKeyError>(),
+                        Some(PrestateKeyError::PinnedVkeyMismatch { program, occurrences: 0, .. })
+                            if *program == pinning
+                    ),
+                    "{err}"
+                );
+                assert!(!cache.known_prestates().await.contains(&prestate));
+            }
+        }
+
+        /// Pins the embedded form of a vkey: its words in little-endian order.
+        #[test]
+        fn pinned_vkey_occurrences_counts_little_endian_words() {
+            let vkey: [u32; 8] = [1, 2, 3, 4, 5, 6, 7, 0x0a0b_0c0d];
+            let embedded: Vec<u8> = vkey.iter().flat_map(|word| word.to_le_bytes()).collect();
+            let big_endian: Vec<u8> = vkey.iter().flat_map(|word| word.to_be_bytes()).collect();
+            let elf = |parts: &[&[u8]]| parts.concat();
+            assert_eq!(pinned_vkey_occurrences(&elf(&[b"head", &embedded, b"tail"]), &vkey), 1);
+            assert_eq!(pinned_vkey_occurrences(&elf(&[&embedded, b"x", &embedded]), &vkey), 2);
+            assert_eq!(pinned_vkey_occurrences(&elf(&[b"head", &big_endian]), &vkey), 0);
+            assert_eq!(pinned_vkey_occurrences(&embedded[1..], &vkey), 0);
         }
 
         /// A poisoned prestate must close the creation gate (never bond a

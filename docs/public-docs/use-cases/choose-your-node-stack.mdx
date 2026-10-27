@@ -123,7 +123,7 @@ selection logic:
 | ----------------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | You want the default, for any node role                          | op-node        | It is the reference implementation, is explicitly not deprecated, and its default engine kind (`--l2.enginekind=reth`) already matches the Step 3 default.       |
 | You want to try the in-development Rust consensus node           | kona-node      | It ships tagged releases, superchain-registry support, and sequencer/conductor integration, but it is not yet production ready: its documentation marks it experimental and in active development, so give it a role where that is acceptable. As of 2026-07-21. |
-| The node must follow every chain in an interop dependency set    | op-supernode   | It hosts a virtual op-node per chain in one process and adds cross-chain message verification; it is in active development, tracking a v0.2.x release candidate. As of 2026-07-21. |
+| The node must follow every chain in an interop dependency set    | op-supernode   | It hosts a virtual op-node per chain in one process and adds cross-chain message verification; it has shipped stable releases since v1.0.0, with v1.0.4 current. As of 2026-10-15. |
 
 One pairing note: op-node's `--l2.enginekind` flag tunes its Engine API
 behavior to the execution client, and its default is `reth`, so the Step 3

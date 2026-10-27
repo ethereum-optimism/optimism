@@ -4,21 +4,18 @@ use std::{str::FromStr, time::Duration};
 
 use backon::{ExponentialBuilder, Retryable};
 use discv5::Enr;
-use kona_gossip::{P2pRpcRequest, PeerDump, PeerInfo};
+use kona_gossip::{PeerDump, PeerInfo};
 use kona_node_service::NetworkActorError;
-use kona_rpc::NetworkAdminQuery;
+use kona_rpc::{OpP2PApiServer, P2pRpc};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use tokio::{
-    sync::{mpsc, oneshot},
-    task::JoinHandle,
-};
+use tokio::{sync::mpsc, task::JoinHandle};
 
 pub(crate) mod builder;
 
 pub(crate) struct TestNetwork {
-    pub(super) p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
+    pub(super) p2p_rpc: P2pRpc,
     #[allow(dead_code)]
-    pub(super) admin_rpc_tx: mpsc::Sender<NetworkAdminQuery>,
+    pub(super) admin_rpc_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
     pub(super) gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
     pub(super) blocks_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     #[allow(dead_code)]
@@ -27,10 +24,8 @@ pub(crate) struct TestNetwork {
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum TestNetworkError {
-    #[error("P2p receiver closed")]
-    P2pReceiverClosed,
-    #[error("P2p receiver closed before sending response: {0}")]
-    OneshotError(#[from] oneshot::error::RecvError),
+    #[error("P2p RPC failed: {0}")]
+    Rpc(#[from] jsonrpsee::types::ErrorObjectOwned),
     #[error("Peer info missing ENR")]
     PeerInfoMissingEnr,
     #[error("Invalid ENR: {0}")]
@@ -41,28 +36,11 @@ pub(crate) enum TestNetworkError {
 
 impl TestNetwork {
     pub(super) async fn peer_info(&self) -> Result<PeerInfo, TestNetworkError> {
-        // Try to get the peer info. Send a peer info request to the network actor.
-        let (peer_info_tx, peer_info_rx) = oneshot::channel();
-        let peer_info_request = P2pRpcRequest::PeerInfo(peer_info_tx);
-        self.p2p_rpc_tx
-            .send(peer_info_request)
-            .await
-            .map_err(|_| TestNetworkError::P2pReceiverClosed)?;
-
-        let info = peer_info_rx.await?;
-
-        Ok(info)
+        Ok(self.p2p_rpc.opp2p_self().await?)
     }
 
     pub(super) async fn peers(&self) -> Result<PeerDump, TestNetworkError> {
-        let (peers_tx, peers_rx) = oneshot::channel();
-        let peers_request = P2pRpcRequest::Peers { out: peers_tx, connected: true };
-        self.p2p_rpc_tx
-            .send(peers_request)
-            .await
-            .map_err(|_| TestNetworkError::P2pReceiverClosed)?;
-        let peers = peers_rx.await?;
-        Ok(peers)
+        Ok(self.p2p_rpc.opp2p_peers(true).await?)
     }
 
     pub(super) async fn is_connected_to(&self, other: &Self) -> Result<(), TestNetworkError> {

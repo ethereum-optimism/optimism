@@ -15,9 +15,10 @@ Active flags:
 
 | Flag | Gates |
 |------|-------|
-| `OptimismPortalInterop` | Interop migration functions on OptimismPortal2 |
+| `OptimismPortalInterop` | Interop predeploys on L2 (genesis and L2ContractsManager upgrades) |
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `ZKDisputeGame` | ZK dispute game system |
+| `BridgeHook` | Bridge hook configuration on OptimismPortal2, currently planned only for the compliance module |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade — **enabled by default** |
 
 
@@ -46,7 +47,7 @@ The bitmap has **two operator-facing input surfaces**, both in op-deployer:
    - The selected raw verifier is recorded in deployment state (`State.SP1Verifier`) and never written back into intent. A resumed deployment reuses the recorded address rather than re-resolving the default, so upgrading op-deployer mid-deployment cannot swap the verifier under a chain.
    - Genesis deployments never select the release verifier: it does not exist in a generated genesis. They must set `sp1Verifier` explicitly, or the op-devstack builder can opt into deploying a test raw verifier during genesis.
 
-There is no other production operator-facing surface. `op-node`, `op-program`, `kona`, and rollup config do not take a bitmap at runtime.
+There is no other production operator-facing surface. `op-node`, `kona`, and rollup config do not take a bitmap at runtime.
 
 ### Developer-only: `op-node/rollup/toggles.go`
 
@@ -68,8 +69,9 @@ A separate, **test-only** assembler exists for Foundry tests and fork scripts. I
 
 - `DEV_FEATURE__OPTIMISM_PORTAL_INTEROP`
 - `DEV_FEATURE__ZK_DISPUTE_GAME`
+- `DEV_FEATURE__BRIDGE_HOOK`
 
-Interop and ZK are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
+Interop, ZK and bridge hook are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
 
 - `test/setup/FeatureFlags.sol` — `resolveFeaturesFromEnv()` OR-s each enabled flag into `devFeatureBitmap`
 - `test/setup/ForkL1Live.s.sol` — branches on individual `Config.devFeature*` returns
@@ -97,20 +99,20 @@ From op-deployer the bitmap fans out two ways:
 1. **Into L2 genesis state** — `scripts/L2Genesis.s.sol` (Foundry script) writes the bitmap into the **`L2DevFeatureFlags` predeploy at `0x42...2D`** via `setDevFeatureBitmap()`. Only `DEPOSITOR_ACCOUNT` can write; effectively write-once at genesis.
 2. **Into L1 implementation deployment** — `scripts/deploy/DeployImplementations.s.sol` consults the bitmap to decide which implementation contracts to deploy / configure.
 
-It does **not** flow to op-node, op-program, or kona at runtime. They learn about feature activation through other channels (hardfork timestamps in rollup config, primarily).
+It does **not** flow to op-node or kona at runtime. They learn about feature activation through other channels (hardfork timestamps in rollup config, primarily).
 
 ## E. Activation — who reads it and what they gate
 
 **On L2 (Solidity)**, readers consult either the in-memory bitmap (during deploy scripts) or the `L2DevFeatureFlags` predeploy (at runtime):
 
-- `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. Gates whether the interop predeploys (`CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, `SuperchainETHBridge`, `ETHLiquidity`, all under `OptimismPortalInterop`) are considered "real" predeploys.
+- `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. Gates whether the interop predeploys (`CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, `SuperchainETHBridge`, `ETHLiquidity`, `UndeliveredMessageExporter`, all under `OptimismPortalInterop`) are considered "real" predeploys.
 - `scripts/L2Genesis.s.sol` — gates which predeploys get installed at genesis.
 - `L2ContractsManager._isDevFeatureEnabled()` in `src/L2/L2ContractsManager.sol` — at runtime, calls `IL2DevFeatureFlags.isDevFeatureEnabled(...)` on the predeploy to decide whether to execute upgrade flows.
 
 **On Go**, the bitmap is essentially deploy-time-only:
 
 - The interop cross-check in `buildDevFeatureBitmap()` noted above.
-- No runtime callers. (op-node / op-program use hardfork timestamps, not the bitmap.)
+- No runtime callers. (op-node uses hardfork timestamps, not the bitmap.)
 
 **The L2DevFeatureFlags predeploy API** (`src/L2/L2DevFeatureFlags.sol`):
 

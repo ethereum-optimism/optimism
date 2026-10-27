@@ -1,15 +1,15 @@
 //! [`Engine`] — the thin event-loop dispatcher.
 
 use super::{
-    DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD, EngineAction,
-    IDLE_FLUSH_INTERVAL, error::EngineError, state::EngineState as State,
+    CanonicalInMemoryStateProvider, DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD,
+    EngineAction, IDLE_FLUSH_INTERVAL, error::EngineError, state::EngineState as State,
 };
 use crate::{OpProofStoragePruner, OpProofsStore};
 use crossbeam_channel::Receiver;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
 use reth_provider::{
-    BlockHashReader, BlockReader, DatabaseProviderFactory, StateProviderFactory, StateReader,
+    BlockHashReader, BlockReader, DatabaseProviderFactory, StageCheckpointReader,
     TransactionVariant,
 };
 use std::{
@@ -35,7 +35,7 @@ fn next_sync_backoff(current: Duration) -> Duration {
 pub(super) struct Engine<Evm, Provider, Store>
 where
     Evm: ConfigureEvm,
-    Provider: StateReader + DatabaseProviderFactory + StateProviderFactory + BlockReader,
+    Provider: CanonicalInMemoryStateProvider + DatabaseProviderFactory + BlockReader,
 {
     state: State<Evm, Provider, Store>,
     incoming: Receiver<EngineAction<BlockTy<Evm::Primitives>>>,
@@ -49,9 +49,9 @@ impl<Evm, Provider, Store> Engine<Evm, Provider, Store>
 where
     Evm: ConfigureEvm,
     Provider: BlockHashReader
-        + StateReader
+        + CanonicalInMemoryStateProvider
+        + StageCheckpointReader
         + DatabaseProviderFactory
-        + StateProviderFactory
         + BlockReader<Block = BlockTy<Evm::Primitives>>
         + Clone
         + 'static,

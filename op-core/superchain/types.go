@@ -1,6 +1,8 @@
 package superchain
 
 import (
+	"strconv"
+
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -37,6 +39,15 @@ type Dependency struct{}
 
 type Interop struct {
 	Dependencies map[string]Dependency `json:"dependencies" toml:"dependencies"`
+}
+
+// Dependencies returns the chain's interop dependency set, keyed by decimal chain ID. A chain
+// without an interop config depends only on itself.
+func (c *ChainConfig) Dependencies() map[string]Dependency {
+	if c.Interop == nil {
+		return map[string]Dependency{strconv.FormatUint(c.ChainID, 10): {}}
+	}
+	return c.Interop.Dependencies
 }
 
 type HardforkConfig struct {

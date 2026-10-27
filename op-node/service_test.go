@@ -10,17 +10,15 @@ import (
 )
 
 func syncConfigCliApp() *cli.App {
-	syncConfigFlags := append([]cli.Flag{
+	syncConfigFlags := []cli.Flag{
 		flags.SequencerEnabledFlag,
 		flags.L2EngineSyncEnabled,
 		flags.SyncModeFlag,
-		flags.SyncModeReqRespFlag,
 		flags.SyncModeOffsetELSafeFlag,
 		flags.L2FollowSource,
 		flags.L2EngineKind,
 		flags.SkipSyncStartCheck,
-	}, flags.P2PFlags("")..., // For p2p.sync.req-resp
-	)
+	}
 	return &cli.App{
 		Flags: syncConfigFlags,
 		Action: func(c *cli.Context) error {
