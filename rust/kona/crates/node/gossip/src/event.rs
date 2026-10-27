@@ -40,6 +40,11 @@ pub enum Event {
     ///
     /// Emitted by [`crate::GossipDriver::next`] itself, not by the swarm's behaviour.
     DuplicateConnectionsDue,
+
+    /// Static peers that aren't connected may be dialed again.
+    ///
+    /// Emitted by [`crate::GossipDriver::next`] itself, not by the swarm's behaviour.
+    StaticPeersDue,
 }
 
 impl From<ping::Event> for Event {

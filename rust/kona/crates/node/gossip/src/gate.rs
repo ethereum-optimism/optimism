@@ -11,9 +11,9 @@ use std::net::IpAddr;
 /// logic for which peers are allowed to connect to the
 /// gossip swarm.
 pub trait ConnectionGate {
-    /// Checks if a peer is allowed to connect to the gossip swarm.
-    /// Returns Ok(()) if the peer can be dialed, or Err(DialError) with the reason why not.
-    fn can_dial(&mut self, peer_id: &Multiaddr) -> Result<(), DialError>;
+    /// Checks whether the gossip swarm may dial `addr`, which must end in the peer's
+    /// `/p2p/<peer id>`. Returns the reason in a [`DialError`] if not.
+    fn can_dial(&mut self, addr: &Multiaddr) -> Result<(), DialError>;
 
     /// Returns the [`Connectedness`] for a given peer id.
     fn connectedness(&self, peer_id: &PeerId) -> Connectedness;
@@ -31,7 +31,7 @@ pub trait ConnectionGate {
     ///
     /// Since peers can be protected from disconnection, this method
     /// checks if the peer is protected or not.
-    fn can_disconnect(&self, peer_id: &Multiaddr) -> bool;
+    fn can_disconnect(&self, addr: &Multiaddr) -> bool;
 
     /// Blocks a given peer id.
     fn block_peer(&mut self, peer_id: &PeerId);
@@ -42,14 +42,21 @@ pub trait ConnectionGate {
     /// Lists the blocked peers.
     fn list_blocked_peers(&self) -> Vec<PeerId>;
 
-    /// Blocks a given ip address from connecting to the gossip swarm.
+    /// Returns whether a peer is blocked.
+    fn is_blocked_peer(&self, peer_id: &PeerId) -> bool;
+
+    /// Blocks a given IP address from connecting to the gossip swarm.
     fn block_addr(&mut self, ip: IpAddr);
 
-    /// Unblocks a given ip address, allowing it to connect to the gossip swarm.
+    /// Unblocks a given IP address, allowing it to connect to the gossip swarm.
     fn unblock_addr(&mut self, ip: IpAddr);
 
-    /// Lists all blocked ip addresses.
+    /// Lists all blocked IP addresses.
     fn list_blocked_addrs(&self) -> Vec<IpAddr>;
+
+    /// Returns whether an IP address is blocked by itself. A blocked subnet that contains it
+    /// doesn't count.
+    fn is_blocked_addr(&self, ip: &IpAddr) -> bool;
 
     /// Blocks a subnet from connecting to the gossip swarm.
     fn block_subnet(&mut self, subnet: IpNet);

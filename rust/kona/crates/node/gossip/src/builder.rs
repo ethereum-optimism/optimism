@@ -72,6 +72,8 @@ pub struct GossipDriverBuilder {
     transport: GossipTransport,
     /// The peers to dial at startup and keep connected.
     static_peers: Vec<StaticPeer>,
+    /// How often static peers that aren't connected are dialed again, once a minute if not set.
+    static_peer_redial_interval: Option<Duration>,
 }
 
 impl GossipDriverBuilder {
@@ -98,6 +100,7 @@ impl GossipDriverBuilder {
             topic_scoring: false,
             transport: GossipTransport::default(),
             static_peers: Vec::new(),
+            static_peer_redial_interval: None,
         }
     }
 
@@ -110,6 +113,12 @@ impl GossipDriverBuilder {
     /// Sets the peers to dial at startup and keep connected.
     pub fn with_static_peers(mut self, static_peers: Vec<StaticPeer>) -> Self {
         self.static_peers = static_peers;
+        self
+    }
+
+    /// Sets how often static peers that aren't connected are dialed again.
+    pub const fn with_static_peer_redial_interval(mut self, interval: Duration) -> Self {
+        self.static_peer_redial_interval = Some(interval);
         self
     }
 
@@ -192,6 +201,7 @@ impl GossipDriverBuilder {
             topic_scoring,
             transport,
             static_peers,
+            static_peer_redial_interval,
         } = self;
 
         let timeout = timeout.unwrap_or(DEFAULT_IDLE_CONNECTION_TIMEOUT);
@@ -297,6 +307,9 @@ impl GossipDriverBuilder {
         let mut driver = GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate);
         driver.peer_monitoring = peer_monitoring;
         driver.static_peers = static_peers;
+        if let Some(interval) = static_peer_redial_interval {
+            driver.static_peer_redial_interval = interval;
+        }
         Ok(driver)
     }
 }
@@ -331,22 +344,31 @@ pub(crate) mod tests {
 
     /// A builder for [`memory_driver`], for tests that need more settings.
     pub(crate) fn memory_driver_builder() -> GossipDriverBuilder {
-        GossipDriverBuilder::new(
-            RollupConfig::default(),
-            Address::ZERO,
-            Multiaddr::empty().with(Protocol::Memory(0)),
+        memory_driver_builder_at(
             Keypair::generate_secp256k1(),
+            Multiaddr::empty().with(Protocol::Memory(0)),
         )
-        .with_transport(memory_transport())
     }
 
-    /// Polls both drivers' swarms until each has a connection, as the handshake needs both.
+    /// Like [`memory_driver_builder`], with a given identity and listen address, for tests that
+    /// need to know them before the driver starts, or to restart it.
+    pub(crate) fn memory_driver_builder_at(
+        keypair: Keypair,
+        addr: Multiaddr,
+    ) -> GossipDriverBuilder {
+        GossipDriverBuilder::new(RollupConfig::default(), Address::ZERO, addr, keypair)
+            .with_transport(memory_transport())
+    }
+
+    /// Polls both drivers' swarms until they are connected to each other, for at most 10 seconds.
+    /// Both need polling, as the handshake runs on both sides.
     pub(crate) async fn poll_until_connected(
         driver_1: &mut GossipDriver<crate::ConnectionGater>,
         driver_2: &mut GossipDriver<crate::ConnectionGater>,
     ) {
+        let (peer_1, peer_2) = (*driver_1.local_peer_id(), *driver_2.local_peer_id());
         let connected = async {
-            while driver_1.connected_peers() == 0 || driver_2.connected_peers() == 0 {
+            while !driver_1.is_connected(&peer_2) || !driver_2.is_connected(&peer_1) {
                 tokio::select! {
                     Some(event) = driver_1.next() => { driver_1.handle_event(event); }
                     Some(event) = driver_2.next() => { driver_2.handle_event(event); }
@@ -424,8 +446,5 @@ pub(crate) mod tests {
         driver_1.swarm.dial(addr_2.with(Protocol::P2p(peer_2))).expect("dial");
 
         poll_until_connected(&mut driver_1, &mut driver_2).await;
-
-        assert!(driver_1.is_connected(&peer_2));
-        assert!(driver_2.is_connected(driver_1.local_peer_id()));
     }
 }

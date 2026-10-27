@@ -246,7 +246,7 @@ impl ConnectionGater {
     /// Checks the IP address of `addr` against the blocked addresses and subnets.
     fn check_ip(&mut self, addr: &Multiaddr, peer_id: PeerId, ip: IpAddr) -> Result<(), DialError> {
         // If the address is blocked, do not dial.
-        if self.blocked_addrs.contains(&ip) {
+        if self.is_blocked_addr(&ip) {
             debug!(target: "gossip", peer=?addr, "Address is blocked, not dialing");
             self.connectedness.insert(peer_id, Connectedness::CannotConnect);
             metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_address")
@@ -298,7 +298,7 @@ impl ConnectionGate for ConnectionGater {
         }
 
         // If the peer is blocked, do not dial.
-        if self.blocked_peers.contains(&peer_id) {
+        if self.is_blocked_peer(&peer_id) {
             debug!(target: "gossip", peer=?addr, "Peer is blocked, not dialing");
             metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_peer").increment(1);
             return Err(DialError::PeerBlocked { peer_id });
@@ -375,6 +375,10 @@ impl ConnectionGate for ConnectionGater {
         self.blocked_peers.iter().copied().collect()
     }
 
+    fn is_blocked_peer(&self, peer_id: &PeerId) -> bool {
+        self.blocked_peers.contains(peer_id)
+    }
+
     fn block_addr(&mut self, ip: IpAddr) {
         self.blocked_addrs.insert(ip);
         debug!(target: "gossip", ?ip, "Blocked ip address");
@@ -387,6 +391,10 @@ impl ConnectionGate for ConnectionGater {
 
     fn list_blocked_addrs(&self) -> Vec<IpAddr> {
         self.blocked_addrs.iter().copied().collect()
+    }
+
+    fn is_blocked_addr(&self, ip: &IpAddr) -> bool {
+        self.blocked_addrs.contains(ip)
     }
 
     fn block_subnet(&mut self, subnet: IpNet) {
@@ -647,4 +655,27 @@ fn test_dns_multiaddr_blocked_by_subnet() {
     // Should now fail because localhost resolves to IP in blocked subnet
     let result = gater.can_dial(&dns_localhost);
     assert!(matches!(result, Err(DialError::SubnetBlocked { .. })));
+}
+
+#[test]
+fn test_is_blocked() {
+    let mut gater = ConnectionGater::new(GaterConfig::default());
+    let peer_id = PeerId::random();
+    let ip: IpAddr = "10.0.0.1".parse().unwrap();
+    assert!(!gater.is_blocked_peer(&peer_id));
+    assert!(!gater.is_blocked_addr(&ip));
+
+    gater.block_peer(&peer_id);
+    gater.block_addr(ip);
+    assert!(gater.is_blocked_peer(&peer_id));
+    assert!(gater.is_blocked_addr(&ip));
+
+    gater.unblock_peer(&peer_id);
+    gater.unblock_addr(ip);
+    assert!(!gater.is_blocked_peer(&peer_id));
+    assert!(!gater.is_blocked_addr(&ip));
+
+    // Only an address blocked by itself counts, not one in a blocked subnet.
+    gater.block_subnet("10.0.0.0/8".parse().unwrap());
+    assert!(!gater.is_blocked_addr(&ip));
 }
