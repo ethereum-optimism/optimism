@@ -167,7 +167,7 @@ impl OperationSummary {
     }
 }
 
-/// Deferred actions retain proof progress until ancestry synchronization catches up.
+/// Action eligibility: `Deferred` waits for sync; `Ineligible` abandons the action.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ActionEligibility {
     Eligible,
@@ -4914,6 +4914,7 @@ mod tests {
     use kona_sp1_super_range_executor::{
         BlockId as SuperBlockId, SuperRootAtTimestampResponse, SuperRootResponseData, SuperV1,
     };
+    use tokio::sync::Barrier;
 
     use super::{
         ActionEligibility, AncestryDecision, ClaimPreflightDecision, CompactGameSummary, Cursor,
@@ -5141,6 +5142,8 @@ mod tests {
         game_l1_head_number: u64,
         lifecycle: GameLifecycle,
         game_status: u8,
+        game_statuses: HashMap<Address, u8>,
+        game_status_barrier: StdMutex<Option<Arc<Barrier>>>,
         parent_status: u8,
         bond_state: BondState,
         claim_preflight: Option<(U256, WithdrawalState)>,
@@ -5210,6 +5213,8 @@ mod tests {
                     is_finalized: false,
                 },
                 game_status: GameStatus::InProgress as u8,
+                game_statuses: HashMap::new(),
+                game_status_barrier: StdMutex::new(None),
                 parent_status: GameStatus::DefenderWins as u8,
                 bond_state: BondState {
                     bond_distribution_mode: BondDistributionMode::Normal,
@@ -5411,10 +5416,16 @@ mod tests {
             Ok(self.init_bond)
         }
 
-        async fn game_status(&self, _game: Address, block: BlockId) -> anyhow::Result<u8> {
+        async fn game_status(&self, game: Address, block: BlockId) -> anyhow::Result<u8> {
             self.record("game_status");
             self.record_block("game_status", block);
-            Ok(self.game_status)
+            let barrier = { self.game_status_barrier.lock().unwrap().take() };
+            if let Some(barrier) = barrier {
+                // Rendezvous on entry, then wait for the test to release the response.
+                barrier.wait().await;
+                barrier.wait().await;
+            }
+            Ok(self.game_statuses.get(&game).copied().unwrap_or(self.game_status))
         }
 
         async fn claim_preflight(
@@ -7761,6 +7772,155 @@ mod tests {
             1,
             "retrying after anchor synchronization must reuse the completed proof"
         );
+        assert_eq!(*engine.cleared.lock().unwrap(), vec![game.address]);
+        assert!(engine.cached.lock().unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn unconfirmed_ancestor_loss_retains_proof_until_sync_confirms_loss() {
+        let starting_root = B256::repeat_byte(0x11);
+        let root_claim = B256::repeat_byte(0x22);
+        let parent = game_with(1, u32::MAX, 100);
+        let game = game_with(2, 1, 101);
+        let observed_head =
+            L1BlockRef { hash: B256::repeat_byte(0x44), number: 31, timestamp: 1_000 };
+        let mut proposer = test_proposer().await;
+        proposer.config.sync_l1_confirmations = 1;
+        proposer.l1_view = Arc::new(RecordingL1View {
+            latest_head: Some(observed_head),
+            game_statuses: HashMap::from([(parent.address, GameStatus::ChallengerWins as u8)]),
+            proof_inputs: ProofInputs {
+                l1_head: B256::repeat_byte(0x33),
+                l1_head_number: 20,
+                starting_root,
+                starting_sequence_number: 100,
+                root_claim,
+                sequence_number: 101,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+            horizon: ProposalHorizon { safe_timestamp: 101, finalized_timestamp: 101 },
+            roots: vec![
+                (100, super_root_at_timestamp(100, starting_root, 12, 10)),
+                (101, super_root_at_timestamp(101, root_claim, 12, 10)),
+            ],
+        });
+        let engine =
+            Arc::new(RecordingProofEngine { proof: vec![0xaa, 0xbb], ..Default::default() });
+        let actions = Arc::new(RecordingActionExecutor::default());
+        proposer.proof_engine = engine.clone();
+        proposer.action_executor = actions.clone();
+        *proposer.state.write().await = state(vec![parent.clone(), game.clone()], None);
+        proposer.state.write().await.cursor = Cursor::from(game.index);
+
+        assert!(matches!(proposer.prove_game(game.address).await.unwrap(), TaskSuccess::Completed));
+        assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
+        assert!(engine.cached.lock().unwrap().is_some());
+        assert!(engine.cleared.lock().unwrap().is_empty());
+        assert!(actions.calls.lock().is_empty());
+        assert!(proposer.state.read().await.invalid_games.is_empty());
+
+        let lifecycle = RecordingL1View::default().lifecycle;
+        proposer.l1_view = Arc::new(RecordingL1View {
+            latest_head: Some(L1BlockRef {
+                hash: B256::repeat_byte(0x55),
+                number: observed_head.number + 1,
+                timestamp: observed_head.timestamp + 1,
+            }),
+            block_ref: Some(observed_head),
+            latest_game_index: Some(game.index),
+            parent_status: GameStatus::ChallengerWins as u8,
+            lifecycles: HashMap::from([
+                (
+                    parent.address,
+                    GameLifecycle {
+                        status: GameStatus::ChallengerWins,
+                        proposal_status: ProposalStatus::Resolved,
+                        ..lifecycle
+                    },
+                ),
+                (game.address, GameLifecycle { parent_index: 1, ..lifecycle }),
+            ]),
+            ..Default::default()
+        });
+        proposer.prestates.insert_for_tests(B256::ZERO, PrestatePrograms::stub(1)).await;
+        proposer.sync_state().await.unwrap();
+
+        assert_eq!(
+            proposer.last_successful_sync.read().await.as_ref().unwrap().pinned_l1,
+            observed_head
+        );
+        let invalid = &proposer.state.read().await.invalid_games;
+        assert!(invalid.contains(&parent.index));
+        assert!(invalid.contains(&game.index));
+        assert!(engine.cleared.lock().unwrap().contains(&game.address));
+        assert!(engine.cached.lock().unwrap().is_none());
+        assert!(actions.calls.lock().is_empty());
+    }
+
+    #[tokio::test]
+    async fn anchor_sync_during_rpc_reads_reuses_cached_proof() {
+        let starting_root = B256::repeat_byte(0x11);
+        let root_claim = B256::repeat_byte(0x22);
+        let parent = Game {
+            status: GameStatus::DefenderWins,
+            proposal_status: ProposalStatus::Resolved,
+            ..game_with(1, u32::MAX, 100)
+        };
+        let game = game_with(2, 1, 101);
+        let proof_inputs = ProofInputs {
+            l1_head: B256::repeat_byte(0x33),
+            l1_head_number: 20,
+            starting_root,
+            starting_sequence_number: 100,
+            root_claim,
+            sequence_number: 101,
+            ..Default::default()
+        };
+        let barrier = Arc::new(Barrier::new(2));
+        let mut proposer = test_proposer().await;
+        proposer.l1_view = Arc::new(RecordingL1View {
+            proof_inputs,
+            game_statuses: HashMap::from([(parent.address, GameStatus::DefenderWins as u8)]),
+            game_status_barrier: StdMutex::new(Some(barrier.clone())),
+            ..Default::default()
+        });
+        proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+            horizon: ProposalHorizon { safe_timestamp: 101, finalized_timestamp: 101 },
+            roots: vec![
+                (100, super_root_at_timestamp(100, starting_root, 12, 10)),
+                (101, super_root_at_timestamp(101, root_claim, 12, 10)),
+            ],
+        });
+        let engine =
+            Arc::new(RecordingProofEngine { proof: vec![0xaa, 0xbb], ..Default::default() });
+        let actions = Arc::new(RecordingActionExecutor::default());
+        proposer.proof_engine = engine.clone();
+        proposer.action_executor = actions.clone();
+        *proposer.state.write().await = state(vec![parent.clone(), game.clone()], None);
+
+        let (first, ()) = tokio::join!(proposer.prove_game(game.address), async {
+            barrier.wait().await;
+            proposer.sync_anchor_game(parent.address).await;
+            barrier.wait().await;
+        });
+        assert!(matches!(first.unwrap(), TaskSuccess::Completed));
+        assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
+        assert!(engine.cached.lock().unwrap().is_some());
+        assert!(engine.cleared.lock().unwrap().is_empty());
+        assert!(actions.calls.lock().is_empty());
+
+        proposer.l1_view = Arc::new(RecordingL1View {
+            proof_inputs,
+            anchor_game: parent.address,
+            ..Default::default()
+        });
+        assert!(matches!(proposer.prove_game(game.address).await.unwrap(), TaskSuccess::Completed));
+        assert_eq!(engine.calls.lock().unwrap().len(), 2);
+        assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
+        assert_eq!(actions.calls.lock().len(), 1);
         assert_eq!(*engine.cleared.lock().unwrap(), vec![game.address]);
         assert!(engine.cached.lock().unwrap().is_none());
     }
