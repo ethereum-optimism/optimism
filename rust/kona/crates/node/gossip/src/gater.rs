@@ -16,12 +16,12 @@ use tokio::time::Instant;
 /// Used to prevent excessive connection attempts to the same peer within a
 /// configured time window.
 #[derive(Debug, Clone)]
-pub struct DialInfo {
+pub(crate) struct DialInfo {
     /// Number of times the peer has been dialed during the current dial period.
     /// This number is reset once the last time the peer was dialed is longer than the dial period.
-    pub num_dials: u64,
+    pub(crate) num_dials: u64,
     /// The last time the peer was dialed.
-    pub last_dial: Instant,
+    pub(crate) last_dial: Instant,
 }
 
 impl Default for DialInfo {
@@ -67,8 +67,8 @@ pub struct ConnectionGater {
     config: GaterConfig,
     /// A set of [`PeerId`]s that are currently being dialed.
     pub current_dials: HashSet<PeerId>,
-    /// A mapping from [`Multiaddr`] to the dial info for the peer.
-    pub dialed_peers: HashMap<Multiaddr, DialInfo>,
+    /// The dial info for each address dialed.
+    pub(crate) dialed_addrs: HashMap<Multiaddr, DialInfo>,
     /// Holds a map from peer id to connectedness for the given peer id.
     pub connectedness: HashMap<PeerId, Connectedness>,
     /// A set of protected peers that cannot be disconnected.
@@ -94,7 +94,7 @@ impl ConnectionGater {
         Self {
             config,
             current_dials: HashSet::new(),
-            dialed_peers: HashMap::new(),
+            dialed_addrs: HashMap::new(),
             connectedness: HashMap::new(),
             protected_peers: HashSet::new(),
             blocked_peers: HashSet::new(),
@@ -113,7 +113,7 @@ impl ConnectionGater {
     /// Returns if the given [`Multiaddr`] has been dialed the maximum number of times.
     pub fn dial_threshold_reached(&self, addr: &Multiaddr) -> bool {
         // If the peer has not been dialed yet, the threshold is not reached.
-        let Some(dialed) = self.dialed_peers.get(addr) else {
+        let Some(dialed) = self.dialed_addrs.get(addr) else {
             return false;
         };
         // Without a threshold, a peer can be redialed any number of times.
@@ -131,7 +131,7 @@ impl ConnectionGater {
     }
 
     fn dial_period_expired(&self, addr: &Multiaddr) -> bool {
-        let Some(dial_info) = self.dialed_peers.get(addr) else {
+        let Some(dial_info) = self.dialed_addrs.get(addr) else {
             return false;
         };
         dial_info.last_dial.elapsed() > self.config.dial_period
@@ -327,7 +327,7 @@ impl ConnectionGate for ConnectionGater {
 
     fn dialed(&mut self, addr: &Multiaddr) {
         let dial_info = self
-            .dialed_peers
+            .dialed_addrs
             .entry(addr.clone())
             .or_insert_with(|| DialInfo { num_dials: 0, last_dial: Instant::now() });
 

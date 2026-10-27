@@ -54,7 +54,6 @@ pub use gate::ConnectionGate; // trait
 mod gater;
 pub use gater::{
     ConnectionGater, // implementation
-    DialInfo,
     GaterConfig,
 };
 

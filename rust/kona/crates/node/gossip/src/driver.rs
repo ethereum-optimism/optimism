@@ -803,7 +803,7 @@ mod tests {
             .collect();
         assert_eq!(dial_error_types, vec![("already_connected".to_owned(), 3.0)]);
 
-        assert_eq!(driver_1.connection_gate.dialed_peers[&addr_2].num_dials, 1);
+        assert_eq!(driver_1.connection_gate.dialed_addrs[&addr_2].num_dials, 1);
     }
 
     /// An address no one listens on, so a dial to it fails.
@@ -827,8 +827,8 @@ mod tests {
 
         assert!(driver_1.swarm.is_connected(&peer_2));
         let gate = &driver_1.connection_gate;
-        assert_eq!(gate.dialed_peers[&unused_memory_addr(peer_2)].num_dials, 1);
-        assert_eq!(gate.dialed_peers[&addr_2].num_dials, 1);
+        assert_eq!(gate.dialed_addrs[&unused_memory_addr(peer_2)].num_dials, 1);
+        assert_eq!(gate.dialed_addrs[&addr_2].num_dials, 1);
     }
 
     /// Addresses the gate refuses, or that are for another peer, are left out of the dial.
@@ -849,7 +849,7 @@ mod tests {
 
         driver_1.dial_peer(peer_2, [blocked, other_peer, addr_2.clone()]);
 
-        let dialed: Vec<_> = driver_1.connection_gate.dialed_peers.keys().cloned().collect();
+        let dialed: Vec<_> = driver_1.connection_gate.dialed_addrs.keys().cloned().collect();
         assert_eq!(dialed, vec![addr_2]);
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
@@ -866,7 +866,7 @@ mod tests {
         driver.dial_peer(peer, [unused_memory_addr(peer)]);
 
         assert!(!driver.connection_gate.current_dials.contains(&peer));
-        assert!(driver.connection_gate.dialed_peers.is_empty());
+        assert!(driver.connection_gate.dialed_addrs.is_empty());
     }
 
     /// When every address fails, the dial ends once, so the peer can be dialed again.
