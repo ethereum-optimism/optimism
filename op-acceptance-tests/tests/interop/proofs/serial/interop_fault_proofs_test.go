@@ -87,6 +87,12 @@ func TestInteropFaultProofs_ReplacedBlockStorageDeletion(gt *testing.T) {
 	sfp.RunReplacedBlockStorageDeletionTest(t, sys, proofRunners()...)
 }
 
+func TestInteropFaultProofs_ReplacementCascadeDeployment(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunReplacementCascadeDeploymentTest(t, sys, proofRunners()...)
+}
+
 func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
 	for _, tc := range sfp.IntraBlockCases() {
 		gt.Run(tc.Name, func(gt *testing.T) {

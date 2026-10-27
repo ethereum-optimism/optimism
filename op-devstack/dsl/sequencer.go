@@ -100,18 +100,9 @@ func (s *TestSequencer) SequenceBlockWithTxs(t devtest.T, chainID eth.ChainID, p
 		require.NoError(t, ca.IncludeTx(ctx, hexutil.Bytes(rawTx)))
 	}
 
-	// Open the block building with the included transactions
-	require.NoError(t, ca.Open(ctx))
-
-	// Seal, sign, and commit the block
-	// Commit is what makes the block canonical in the EL
-	require.NoError(t, ca.Seal(ctx))
-	require.NoError(t, ca.Sign(ctx))
-	require.NoError(t, ca.Commit(ctx))
-
-	// Publish is optional - it broadcasts via P2P which may not be enabled in tests.
-	// The block is already committed and canonical at this point.
-	_ = ca.Publish(ctx) // ignore publish errors
+	// Next opens, seals, signs, commits and publishes the job started above, then resets the
+	// sequencer so the next block on this chain can start a new job.
+	require.NoError(t, ca.Next(ctx))
 }
 
 // SequenceBlockWithPlannedTxs assigns consecutive nonces and includes the planned transactions in one block.

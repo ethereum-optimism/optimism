@@ -60,6 +60,12 @@ func freezeChains(chains []*chain) {
 	for _, c := range chains {
 		c.CLNode.StopSequencer()
 	}
+	settleFrozenChains(chains)
+}
+
+// settleFrozenChains finishes freezeChains once every sequencer is stopped and every batcher is
+// running: it waits for unsafe to stall, lets the batchers drain it to LocalSafe, then stops them.
+func settleFrozenChains(chains []*chain) {
 	for _, c := range chains {
 		c.CLNode.WaitForStall(safety.LocalUnsafe)
 	}
@@ -70,6 +76,19 @@ func freezeChains(chains []*chain) {
 	for _, c := range chains {
 		c.Batcher.Stop()
 	}
+}
+
+// refreezeChains retakes control of block production after the supernode rewound a chain to
+// replace a block. The rewind restarts the chain's virtual node, sequencer included, so stop
+// every sequencer that is running again and settle the chains as freezeChains does.
+func refreezeChains(chains []*chain) {
+	for _, c := range chains {
+		c.Batcher.Start()
+		if c.CLNode.SequencerActive() {
+			c.CLNode.StopSequencer()
+		}
+	}
+	settleFrozenChains(chains)
 }
 
 // advanceUnsafeToTimestamp drives every chain's UnsafeL2 head to its latest
