@@ -1,10 +1,119 @@
 # RWX evidence retrieval and comparison
 
-PR #23151 covers all 86 baseline CircleCI PR job occurrences. Its generated
-reports are archived outside Git. The three maintained documents are this guide, the [operator guide](rwx-migration.md)
-and [86-job checklist](rwx-parity-todos.md). The small
+Start with the [project handoff](rwx-handoff.md) for current PR state, decisions
+and next steps. This index links the final source-change benchmarks and the
+earlier parity archives. Generated reports, billing details and raw originals
+remain outside Git in operator-private storage.
+
+PR #23151 covered all 86 **historical baseline** CircleCI PR job occurrences;
+that is not a current-upstream coverage claim. Maintain this index alongside
+the [operator guide](rwx-migration.md), [coverage checklist](rwx-parity-todos.md)
+and handoff. The small
 [summary checksum index](rwx-evidence-summaries.sha256) remains integrity data.
 Historical human-written closeouts and experiments are archived below.
+
+## Representative source-change benchmarks
+
+These are one-sample measurements with fresh verdicts and normal PR cache
+permissions. Each provider pair used the same source commit and matched
+advertised resources. The three languages used different frozen commits and
+dates. Report preparation separately from measured runs; do not combine this
+table into a whole-repository or monthly savings estimate.
+
+| Workload / proof PR | Measured commit | CircleCI | RWX | Selected verdict wall time |
+| --- | --- | --- | --- | --- |
+| [Go #23513](https://github.com/ethereum-optimism/optimism/pull/23513) | `3c99ebf34eb00d5478e2ebb50493ccb08524b8cc` | [137098](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/137098) | [measured run](https://cloud.rwx.com/optimism/runs/01a15bb4570477c5be0a3b63cfd00997) | 1,021.488s → 816.490s |
+| [Rust #23517](https://github.com/ethereum-optimism/optimism/pull/23517) | `de695f31eb719bbc6ca924184a5dc1b0fcf29209` | [137046](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/137046) | [measured run](https://cloud.rwx.com/optimism/runs/01a15a1b284e751cba4cb65a19dd9723) | 1,055.205s → 423.459s |
+| [Solidity #23519](https://github.com/ethereum-optimism/optimism/pull/23519) | `13a35ccd4af7a665e047af20467b3fc236513324` | [136984](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/136984) | [measured run](https://cloud.rwx.com/optimism/runs/01a156127d9e75a981107c3f48f7ad84) | 934.893s → 595.913s |
+
+Wall time includes setup, queueing, prerequisites, cache restore, compilation
+and publication through the selected verdicts. It excludes unrelated native
+E2E/GitHub checks and GitHub status-publication delay. Resource matching is per
+phase/worker, not identical hardware or an aggregate CPU cap. Cache-transfer
+totals have different provider scopes and are not comparable network-only or
+critical-path measurements.
+
+### Go: final corrected warm-parent experiment
+
+The edit preserves the original error when `ErrorData()` is nil, including
+wrapped errors, in `op-service/errutil/errors.go`. Two regression subtests in
+`errors_test.go` failed before the fix and passed on both providers.
+
+Warm parent: `e2d7e980154cb31ee38ce6f055d91e9556de3bae`, with the same tree as
+harness head `f8b1c43bfb7a489f8eb5a2aa9d2a16ea19dffa0c`.
+Parent [Circle 137097](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/137097)
+(Go job `5732694`) and [RWX parent](https://cloud.rwx.com/optimism/runs/01a15ba177687ff09dddb636c7796d26)
+passed strict warmth validation before the new edit. The
+[seed-hit probe](https://cloud.rwx.com/optimism/runs/01a15ba4f5db7c27ad8cc5de2d04f80c)
+is unmeasured preparation. Measured Circle Go job: `5732707`.
+
+All 12 Circle compiler caches restored from the verified parent job; all 12 RWX
+seed cache keys and original source-task IDs matched verified parent evidence.
+Both used Go 1.26.9 without SDK/module downloads or captured standard-library /
+external-dependency recompilation. The compiler checkpoint
+`3dab7ff1acea716f7ea23760258a43ce0e21ae9a` has the same tracked Go sources as the
+parent, not the same whole repository tree. Embedded inputs can still differ.
+
+Scope: the 12-worker Go unit-test job plus contracts, superchain, Go modules,
+Cannon prestate, Kona binaries, op-reth and sysgo binaries, including setup.
+Both selected 462 packages, 34 split top-level tests, 495 unique work units and
+3,191 unique top-level cases. No original failure events or measured retries
+were observed. All eleven final protocol checks passed. Compile/verdict workers
+used 8 CPU / 16 GiB, `-p=4`, `-parallel=32`, and `-count=1`. These are measured
+settings; consult definitions and launch records for ordinary defaults.
+
+For a UI example, [Go verdict shard 0](https://cloud.rwx.com/optimism/tasks/01a15bb8091e726e80ecf38faa1c90be)
+passed with 476 seconds of execution. That task duration is distinct from the
+816.490-second selected workflow verdict.
+
+### Rust: warm-parent source edit
+
+Parent: `8dd70d3246a7b9adade2df998dbb2bbd6046247e`. Migration implementation at
+measurement: `8368c4c35ef1f63ff629d49ddd33187389966ffc`.
+The edit changes quantity diagnostics and adds three regression tests in
+`rust/kona/crates/utilities/serde/src/quantity.rs`. All three passed. Parent
+warmth was verified before editing; the measured commit was not prewarmed.
+
+Scope: workspace unit tests, beacon, doctests and ten feature partitions.
+Feature partitions compile test configurations without executing tests. Unit
+phases used 16 CPU / 32 GiB; feature phases used 4 CPU / 8 GiB. All 24 resource
+comparisons passed. Larger accumulated source deltas were not measured; some
+compilation misses on the new edit are expected. Separate native E2E duration
+does not belong to this benchmark.
+
+### Solidity: normal PR permissions, qualified cache state
+
+The edit checks byte-array length before hashing in `Bytes.sol`, with a prefix
+regression. Scope is the standard `main` suite, not all feature, upgrade,
+coverage or later bridge-hook variants. Both providers reported 3,024 cases:
+2,453 passed and 571 skipped. Compile/verdict phases used 16 CPU / 32 GiB.
+
+Caches were not uniformly warm. Circle's selected target queued for 170.372
+seconds. Consequently the 36.3% wall reduction is not a compilation/test-body
+speedup claim. Preserve this qualification in presentations and future reports.
+
+### Retention and superseded results
+
+The private companion index identifies the comparative HTML/JSON report,
+detailed Go evidence, Rust report and original source-change report. It also
+locates the sealed Go bundle: 488 indexed evidence files plus report and helper
+copies, with SHA-256
+`836951e7f6f913ab562e17c799d4c7573661ed0d91ddd553b2c587d649ed4f85`.
+Its report copies retain historical Rust/Solidity metadata; they do not imply
+that all Rust/Solidity raw originals are contained in the Go bundle. Verify
+custody before deleting any older collection. Provider UI retention is not a
+backup, and another machine needs an operator-mediated private transfer.
+
+The earlier Go sample at `4f65e67b2c5a5da841b670ff1a9c0a6fa86595ac`
+([Circle 137077](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/137077))
+downloaded the SDK on every Circle worker. It remains diagnostic history and
+is superseded by the corrected Go pair above. Older forced whole-repository
+reruns and initial source fixtures also must not replace these final samples.
+
+Keep billing, provider responses, logs, signed artifact URLs and machine-local
+collection paths out of new public updates. Follow the private index to inspect
+original evidence or cost models. Historical archives below have their own
+custody and limitations; their parity credit is separate from runtime evidence.
 
 ## Current split Rust reports
 

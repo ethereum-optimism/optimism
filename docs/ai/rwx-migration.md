@@ -1,5 +1,9 @@
 # RWX CI operator guide
 
+Start with the [project handoff](rwx-handoff.md) for the latest dated PR state,
+benchmark conclusions and next steps. Operational details below include older
+snapshots; refresh the inventory and hosted limits before a cutover decision.
+
 Maintain this guide, the [86-job checklist](rwx-parity-todos.md), and
 [evidence retrieval instructions](rwx-evidence-index.md). Historical closeouts,
 benchmark samples and earlier inventories are archived outside Git. Implementation
