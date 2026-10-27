@@ -2,7 +2,8 @@
 use super::BuildTaskError;
 use crate::{
     EngineClient, EngineForkchoiceVersion, EngineState, EngineTaskError, EngineTaskErrorSeverity,
-    ExecutableEngineTask, state::EngineSyncStateUpdate, task_queue::tasks::build::error::EngineBuildError,
+    ExecutableEngineTask, state::EngineSyncStateUpdate,
+    task_queue::tasks::build::error::EngineBuildError,
 };
 use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
 use async_trait::async_trait;

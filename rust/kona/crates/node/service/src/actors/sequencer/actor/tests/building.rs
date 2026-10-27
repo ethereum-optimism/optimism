@@ -254,23 +254,43 @@ async fn next_block_starts_earlier_by_the_seal_time(
 }
 
 #[rstest]
-#[case::stale_build(crate::EngineClientError::StartBuildError(
-    kona_engine::BuildTaskError::StaleBuild
-))]
-#[case::engine_recovery(crate::EngineClientError::ResponseError("reset cleared the build".into()))]
-#[case::invalid_forkchoice(crate::EngineClientError::StartBuildError(kona_engine::BuildTaskError::EngineBuildError(
-    kona_engine::EngineBuildError::AttributesInsertionFailed(Arc::new(alloy_transport::RpcError::ErrorResp(
-        alloy_json_rpc::ErrorPayload {
-            code: i64::from(alloy_rpc_types_engine::INVALID_FORK_CHOICE_STATE_ERROR),
-            message: "inconsistent forkchoice".into(), data: None,
-        }
-    )))
-)))]
+#[case::stale_build(
+    crate::EngineClientError::StartBuildError(kona_engine::BuildTaskError::StaleBuild),
+    Duration::ZERO
+)]
+#[case::engine_recovery(crate::EngineClientError::ResponseError("reset cleared the build".into()), Duration::from_secs(1))]
+#[case::invalid_forkchoice(build_rpc_error(-38002), Duration::from_secs(1))]
+#[case::invalid_attributes(build_rpc_error(-38003), Duration::from_secs(6))]
+#[case::unsupported_fork(build_rpc_error(-38005), Duration::from_secs(6))]
+#[case::other_engine_rejection(build_rpc_error(-38042), Duration::from_secs(6))]
+#[case::internal_rpc_error(build_rpc_error(-32603), Duration::from_secs(1))]
+#[case::transport_error(crate::EngineClientError::StartBuildError(
+    kona_engine::EngineBuildError::AttributesInsertionFailed(Arc::new(
+        alloy_transport::TransportErrorKind::custom_str("engine unavailable")
+    )).into()
+), Duration::from_secs(1))]
+#[case::invalid_parent(crate::EngineClientError::StartBuildError(
+    kona_engine::EngineBuildError::InvalidPayload("invalid parent".into()).into()
+), Duration::from_secs(1))]
+#[case::unexpected_status(crate::EngineClientError::StartBuildError(
+    kona_engine::EngineBuildError::UnexpectedPayloadStatus(
+        alloy_rpc_types_engine::PayloadStatusEnum::Accepted
+    ).into()
+), Duration::from_secs(1))]
+#[case::missing_id(crate::EngineClientError::StartBuildError(
+    kona_engine::EngineBuildError::MissingPayloadId.into()
+), Duration::from_secs(1))]
+#[case::syncing(crate::EngineClientError::StartBuildError(
+    kona_engine::EngineBuildError::EngineSyncing.into()
+), Duration::from_secs(1))]
 #[tokio::test(start_paused = true)]
 async fn rejected_build_retries_on_new_head_and_keeps_admin_responsive(
     #[case] error: crate::EngineClientError,
+    #[case] retry_delay: Duration,
 ) {
     let (mut actor, commands) = super::test_actor_with_config(true, false, None);
+    actor.rollup_config =
+        Arc::new(kona_genesis::RollupConfig { block_time: 6, ..Default::default() });
     actor.started = true;
     let mut old_head = block_at(TEST_START);
     old_head.block_info.hash = alloy_primitives::B256::repeat_byte(1);
@@ -312,7 +332,15 @@ async fn rejected_build_retries_on_new_head_and_keeps_admin_responsive(
     assert_eq!(step_time(&mut actor).await, Duration::ZERO);
     assert!(actor.in_flight.is_none());
     assert!(actor.state().active);
-    assert_eq!(step_time(&mut actor).await, Duration::from_secs(1));
+    // Admin commands take priority even when a retry is due immediately or is backing off.
+    let (tx, rx) = oneshot::channel();
+    commands.send(SequencerAdminCommand::SetRecoveryMode(true, tx)).await.unwrap();
+    assert_eq!(step_time(&mut actor).await, Duration::ZERO);
+    rx.await.unwrap().unwrap();
+    assert!(actor.in_flight.is_none());
+    assert!(actor.state().recovery_mode);
+
+    assert_eq!(step_time(&mut actor).await, retry_delay);
     assert!(matches!(&actor.in_flight, Some(super::super::InFlightBlock::Building(handle))
         if handle.attributes_with_parent.parent == new_head));
 
@@ -340,4 +368,80 @@ async fn terminal_build_failures_still_stop_sequencing(#[case] error: crate::Eng
     actor.engine_client = engine;
     expect_builds(&mut actor, 1, 1);
     assert!(actor.step().await.is_err());
+}
+
+/// A JSON-RPC build rejection, including codes from the Engine API error namespace.
+fn build_rpc_error(code: i64) -> crate::EngineClientError {
+    crate::EngineClientError::StartBuildError(
+        kona_engine::EngineBuildError::AttributesInsertionFailed(Arc::new(
+            alloy_transport::RpcError::ErrorResp(alloy_json_rpc::ErrorPayload {
+                code,
+                message: "build rejected".into(),
+                data: None,
+            }),
+        ))
+        .into(),
+    )
+}
+
+/// Deterministic Engine API rejections are visible to operators through error logs and a counter;
+/// an invalid forkchoice is instead handled by the engine's reset path.
+#[test]
+fn deterministic_build_rejections_log_errors_and_increment_metric() {
+    #[derive(Clone, Default)]
+    struct LogWriter(Arc<std::sync::Mutex<Vec<u8>>>);
+
+    impl std::io::Write for LogWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let logs = LogWriter::default();
+    let writer = logs.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .without_time()
+        .with_ansi(false)
+        .with_writer(move || writer.clone())
+        .finish();
+    let _guard = tracing::subscriber::set_default(subscriber);
+    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+    let metrics = recorder.handle();
+    metrics::with_local_recorder(&recorder, || {
+        tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(
+            async {
+                let mut actor = test_actor();
+                for code in [-38002, -38003, -38005, -38042] {
+                    let crate::EngineClientError::StartBuildError(err) = build_rpc_error(code)
+                    else {
+                        unreachable!();
+                    };
+                    actor.handle_build_error(err).unwrap();
+                }
+            },
+        );
+    });
+    let output = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+    let errors: Vec<_> = output.lines().filter(|line| line.contains("ERROR")).collect();
+    assert_eq!(errors.len(), 3, "{output}");
+    for code in [-38003, -38005, -38042] {
+        assert!(errors.iter().any(|line| line.contains(&code.to_string())), "{output}");
+    }
+    assert!(
+        output.lines().any(|line| line.contains("WARN") && line.contains("-38002")),
+        "{output}"
+    );
+    assert!(
+        metrics
+            .render()
+            .lines()
+            .any(|line| line == format!("{} 3", crate::Metrics::SEQUENCER_BUILD_REJECTIONS)),
+        "{}",
+        metrics.render()
+    );
 }
