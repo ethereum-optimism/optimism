@@ -20,6 +20,10 @@ use crate::{
     StaticPeer,
 };
 
+/// How long a connection with no open streams stays open, unless set with
+/// [`GossipDriverBuilder::with_timeout`].
+const DEFAULT_IDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(60);
+
 /// Builds the swarm's authenticated, multiplexed transport from the node's [`Keypair`].
 pub type TransportBuilder = Box<
     dyn FnOnce(&Keypair) -> Result<Boxed<(PeerId, StreamMuxerBox)>, Box<dyn Error + Send + Sync>>
@@ -51,7 +55,7 @@ pub struct GossipDriverBuilder {
     gossip_addr: Multiaddr,
     /// The unsafe block signer [`Address`] that gossiped blocks must be signed by.
     signer: watch::Receiver<Address>,
-    /// The idle connection timeout as a [`Duration`].
+    /// The idle connection timeout, [`DEFAULT_IDLE_CONNECTION_TIMEOUT`] if not set.
     timeout: Option<Duration>,
     /// Sets the [`PeerScoreLevel`] for the [`Behaviour`].
     scoring: Option<PeerScoreLevel>,
@@ -190,7 +194,7 @@ impl GossipDriverBuilder {
             static_peers,
         } = self;
 
-        let timeout = timeout.unwrap_or(Duration::from_secs(60));
+        let timeout = timeout.unwrap_or(DEFAULT_IDLE_CONNECTION_TIMEOUT);
         let mut static_peers = crate::static_peer::group_by_peer(static_peers);
         // Lets a cluster share one list.
         if let Some(addrs) = static_peers.remove(&keypair.public().to_peer_id()) {
