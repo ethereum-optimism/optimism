@@ -122,7 +122,7 @@ It does **not** flow to op-node or kona at runtime. They learn about feature act
 
 ## F. Hardfork interaction
 
-Interop and ZK use the bitmap as their per-chain provisioning switch and have no parallel hardfork timestamp. Super-root migration also has no parallel hardfork timestamp, but it is default-on in the predicate, so its bitmap bit no longer acts as a circuit breaker. Network-wide activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when** L2ContractsManager upgrade transactions execute across the network.
+ZK uses the bitmap as its per-chain provisioning switch and has no parallel hardfork timestamp. Interop uses the bitmap only at genesis. Existing chains activate interop at the Lagoon hardfork through the `INTEROP` system feature (see section E). Super-root migration also has no parallel hardfork timestamp, but it is default-on in the predicate, so its bitmap bit no longer acts as a circuit breaker. Network-wide activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when** L2ContractsManager upgrade transactions execute across the network.
 
 ## G. Lifecycle direction
 

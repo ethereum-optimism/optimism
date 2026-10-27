@@ -854,8 +854,7 @@ contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManage
         interopPredeploys.push(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
     }
 
-    /// @notice Tests that all interop predeploys are upgraded when the INTEROP sys feature is enabled
-    ///         (which requires OPTIMISM_PORTAL_INTEROP dev feature to also be enabled for consistency).
+    /// @notice Tests that all interop predeploys are upgraded when the INTEROP sys feature is enabled.
     function test_upgradeUpgradesInteropPredeploys_whenInteropFlagEnabled_succeeds() public {
         // Capture pre-upgrade implementations
         address[] memory preUpgradeImpls = new address[](interopPredeploys.length);
@@ -990,6 +989,10 @@ contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManag
     function setUp() public override {
         super.setUp();
         skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.INTEROP)
+            .checked_write(false);
         interopPredeploys.push(Predeploys.CROSS_L2_INBOX);
         interopPredeploys.push(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         interopPredeploys.push(Predeploys.SUPERCHAIN_ETH_BRIDGE);
@@ -997,7 +1000,7 @@ contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManag
         interopPredeploys.push(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
     }
 
-    /// @notice Tests that all interop predeploys retain pre-upgrade implementations when OPTIMISM_PORTAL_INTEROP flag
+    /// @notice Tests that all interop predeploys retain pre-upgrade implementations when the INTEROP sys feature
     /// is disabled.
     function test_upgradeSkipsInteropPredeploys_whenInteropFlagDisabled_succeeds() public {
         // Capture pre-upgrade implementations
@@ -1013,7 +1016,7 @@ contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManag
             assertEq(
                 EIP1967Helper.getImplementation(interopPredeploys[i]),
                 preUpgradeImpls[i],
-                "Interop predeploy should not be upgraded when OPTIMISM_PORTAL_INTEROP is disabled"
+                "Interop predeploy should not be upgraded when INTEROP is disabled"
             );
         }
     }
