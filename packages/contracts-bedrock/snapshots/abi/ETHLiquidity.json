@@ -28,6 +28,50 @@
   },
   {
     "inputs": [],
+    "name": "paused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pausedMessageNonce",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "_paused",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_messageNonce",
+        "type": "uint256"
+      }
+    ],
+    "name": "setPaused",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "version",
     "outputs": [
       {
@@ -95,6 +139,35 @@
     ],
     "name": "LiquidityMinted",
     "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "paused",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "messageNonce",
+        "type": "uint256"
+      }
+    ],
+    "name": "PausedSet",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "ETHLiquidity_NotL1CrossDomainMessenger",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ETHLiquidity_Paused",
+    "type": "error"
   },
   {
     "inputs": [],

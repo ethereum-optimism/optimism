@@ -18,7 +18,7 @@ use alloy_transport_http::{
 };
 use http_body_util::Full;
 use kona_genesis::RollupConfig;
-use kona_protocol::{FromBlockError, L2BlockInfo, OutputRoot, Predeploys};
+use kona_protocol::FromBlockError;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types::Transaction;
 use std::{
@@ -29,6 +29,9 @@ use std::{
 use thiserror::Error;
 use tower::{Layer, Service, ServiceBuilder, util::MapFutureLayer};
 use url::Url;
+
+mod query;
+pub use query::EngineQueryClient;
 
 /// Deadline for each request the engine client sends, to the Engine API or to L1.
 ///
@@ -153,6 +156,10 @@ pub enum EngineClientError {
     #[error("No L2 block found for block number or tag: {0}")]
     NoL2BlockFound(BlockNumberOrTag),
 
+    /// No L2 block was found for the requested hash.
+    #[error("No L2 block found for block hash: {0}")]
+    NoL2BlockFoundByHash(alloy_primitives::B256),
+
     /// The block has no withdrawals root while Isthmus is active.
     #[error("No block withdrawals root while Isthmus is active")]
     NoWithdrawalsRoot,
@@ -215,7 +222,7 @@ impl EngineClient {
 
     /// Returns a restricted handle sharing this client's L2 connection.
     pub fn query_client(&self) -> EngineQueryClient {
-        EngineQueryClient { engine: self.engine.clone(), cfg: self.cfg.clone() }
+        EngineQueryClient { cfg: self.cfg.clone(), engine: self.engine.clone() }
     }
 
     /// Creates an authenticated L2 provider with request metrics, logs, and a deadline.
@@ -235,55 +242,6 @@ impl EngineClient {
 impl Provider<Optimism> for EngineClient {
     fn root(&self) -> &RootProvider<Optimism> {
         &self.engine
-    }
-}
-
-/// Read-only execution-layer handle that computes L2 outputs. Its provider is private and it
-/// exposes no Engine API mutations.
-#[derive(Clone, Debug)]
-pub struct EngineQueryClient {
-    engine: RootProvider<Optimism>,
-    cfg: Arc<RollupConfig>,
-}
-
-impl EngineQueryClient {
-    /// Reads the L2 block and computes its output root using the active fork rules.
-    pub async fn output_at_block(
-        &self,
-        block: BlockNumberOrTag,
-    ) -> Result<(L2BlockInfo, OutputRoot), EngineClientError> {
-        let output_block = self.engine.get_block_by_number(block).full().await?;
-        let output_block = output_block.ok_or(EngineClientError::NoL2BlockFound(block))?;
-        // Cloning the l2 block below is cheaper than sending a network request to get the
-        // l2 block info. Querying the `L2BlockInfo` from the client ends up
-        // fetching the full l2 block again.
-        let consensus_block = output_block.clone().into_consensus();
-        let output_block_info =
-            L2BlockInfo::from_block_and_genesis::<op_alloy_consensus::OpTxEnvelope>(
-                &consensus_block.map_transactions(|tx| tx.inner.inner.into_inner()),
-                &self.cfg.genesis,
-            )?;
-
-        let state_root = output_block.header.state_root;
-
-        let message_passer_storage_root =
-            if self.cfg.is_isthmus_active(output_block.header.timestamp) {
-                output_block.header.withdrawals_root.ok_or(EngineClientError::NoWithdrawalsRoot)?
-            } else {
-                // Fetch the storage root for the L2 head block.
-                self.engine
-                    .get_proof(Predeploys::L2_TO_L1_MESSAGE_PASSER, Default::default())
-                    .block_id(block.into())
-                    .await?
-                    .storage_hash
-            };
-
-        let output_response_v0 = OutputRoot::from_parts(
-            state_root,
-            message_passer_storage_root,
-            output_block.header.hash,
-        );
-        Ok((output_block_info, output_response_v0))
     }
 }
 
@@ -613,6 +571,7 @@ mod provider_tests {
     use crate::test_utils::test_engine_client;
     use alloy_primitives::B256;
     use alloy_rpc_types_eth::EIP1186AccountProofResponse;
+    use kona_protocol::{OutputRoot, Predeploys};
     use serde_json::json;
 
     #[tokio::test]
@@ -643,7 +602,7 @@ mod provider_tests {
             if !isthmus {
                 l2.expect_params(
                     "eth_getProof",
-                    json!([Predeploys::L2_TO_L1_MESSAGE_PASSER, [], "0x0"]),
+                    json!([Predeploys::L2_TO_L1_MESSAGE_PASSER, [], block.header.hash]),
                     EIP1186AccountProofResponse { storage_hash, ..Default::default() },
                 );
             }
