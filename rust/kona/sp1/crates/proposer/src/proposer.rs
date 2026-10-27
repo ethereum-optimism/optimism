@@ -7712,7 +7712,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn anchor_deferral_reuses_cached_proof() {
+    async fn anchor_sync_retry_reuses_cached_proof() {
         let starting_root = B256::repeat_byte(0x11);
         let root_claim = B256::repeat_byte(0x22);
         let parent = game_with(1, u32::MAX, 100);
@@ -7759,7 +7759,7 @@ mod tests {
         assert_eq!(
             engine.generations.load(AtomicOrdering::SeqCst),
             1,
-            "an anchor deferral must reuse the completed proof"
+            "retrying after anchor synchronization must reuse the completed proof"
         );
         assert_eq!(*engine.cleared.lock().unwrap(), vec![game.address]);
         assert!(engine.cached.lock().unwrap().is_none());
@@ -7834,7 +7834,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn proof_failure_and_post_proof_skip_do_not_submit() {
+    async fn proof_generation_errors_and_proven_or_resolved_games_skip_submission() {
         for (fail, status) in [
             (true, ProposalStatus::Unchallenged),
             (false, ProposalStatus::UnchallengedAndValidProofProvided),
@@ -7917,7 +7917,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn pre_submit_checks_use_strict_deadline() {
+    async fn proof_submission_allows_deadline_equality_but_rejects_expiry() {
         for (deadline, expected) in
             [(999, ActionEligibility::Ineligible), (1_000, ActionEligibility::Eligible)]
         {
@@ -7939,7 +7939,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn pre_submit_checks_discard_disallowed_ancestry() {
+    async fn proof_submission_rejects_blacklisted_or_retired_games() {
         for proof_standing in [
             GameStanding { blacklisted: true, retired: false },
             GameStanding { blacklisted: false, retired: true },
@@ -7958,7 +7958,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn proof_pre_submit_claim_failure_is_fatal() {
+    async fn proof_submission_propagates_claim_read_errors() {
         let view = Arc::new(RecordingL1View { fail_on: Some("game_claim"), ..Default::default() });
         let mut proposer = test_proposer().await;
         proposer.l1_view = view;
@@ -8323,7 +8323,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn pre_submit_checks_skip_evicted_games() {
+        async fn proof_submission_rejects_evicted_games() {
             let proposer = test_proposer().await;
             // A game evicted after a parent loss is never submitted.
             let evicted = Address::left_padding_from(&[0xee]);
