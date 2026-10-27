@@ -167,6 +167,14 @@ impl OperationSummary {
     }
 }
 
+/// Deferred actions retain proof progress until ancestry synchronization catches up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ActionEligibility {
+    Eligible,
+    Deferred,
+    Ineligible,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TaskSuccess {
     Completed,
@@ -3505,15 +3513,14 @@ impl Proposer {
         }
     }
 
-    /// Rechecks a game's whole cached ancestry against one `latest` L1 block.
-    /// Returns false when a cached link is blacklisted, retired, or `ChallengerWins`.
+    /// Rechecks a game's cached ancestry at one latest L1 block, deferring across anchor changes.
     /// Proofs may cross a non-ZK anchor only after sync clears the old cached anchor.
-    async fn latest_ancestry_eligible(
+    async fn latest_ancestry_eligibility(
         &self,
         index: U256,
         address: Address,
         allow_unsupported_anchor: bool,
-    ) -> Result<bool> {
+    ) -> Result<ActionEligibility> {
         let (anchor_index, cached_anchor_address, chain) = {
             let state = self.state.read().await;
             if !state
@@ -3521,10 +3528,10 @@ impl Proposer {
                 .get(&index)
                 .is_some_and(|game| game.address == address && state.ancestry_eligible(game))
             {
-                return Ok(false);
+                return Ok(ActionEligibility::Ineligible);
             }
             let Some(chain) = state.eligibility_chain(index) else {
-                return Ok(false);
+                return Ok(ActionEligibility::Ineligible);
             };
             (
                 state.anchor_game.as_ref().map(|anchor| anchor.index),
@@ -3549,7 +3556,7 @@ impl Proposer {
                 ?latest_anchor_address,
                 "Registered anchor changed at latest; deferring ancestry-gated action"
             );
-            return Ok(false);
+            return Ok(ActionEligibility::Deferred);
         }
 
         for (game_index, game_address, registry) in chain {
@@ -3571,7 +3578,7 @@ impl Proposer {
                 drop(guarded_address);
                 drop(state);
                 self.compute_canonical_head().await;
-                return Ok(false);
+                return Ok(ActionEligibility::Ineligible);
             }
             if GameStatus::try_from(status?).context("invalid ancestry game status")? ==
                 GameStatus::ChallengerWins
@@ -3581,16 +3588,22 @@ impl Proposer {
                     ?game_address,
                     "Ancestry game is ChallengerWins at latest; waiting for confirmed sync"
                 );
-                return Ok(false);
+                return Ok(ActionEligibility::Deferred);
             }
         }
 
         let state = self.state.read().await;
-        Ok(state.anchor_game.as_ref().map(|anchor| anchor.index) == anchor_index &&
-            state
-                .games
-                .get(&index)
-                .is_some_and(|game| game.address == address && state.ancestry_eligible(game)))
+        if !state
+            .games
+            .get(&index)
+            .is_some_and(|game| game.address == address && state.ancestry_eligible(game))
+        {
+            return Ok(ActionEligibility::Ineligible);
+        }
+        if state.anchor_game.as_ref().map(|anchor| anchor.index) != anchor_index {
+            return Ok(ActionEligibility::Deferred);
+        }
+        Ok(ActionEligibility::Eligible)
     }
 
     /// Resolves a chosen parent to the index creation should use. A current-registry
@@ -3607,8 +3620,9 @@ impl Proposer {
             );
             return Ok(None);
         };
-        if !self.latest_ancestry_eligible(index, parent_address, false).await? {
-            return Ok(None);
+        match self.latest_ancestry_eligibility(index, parent_address, false).await? {
+            ActionEligibility::Eligible => {}
+            ActionEligibility::Deferred | ActionEligibility::Ineligible => return Ok(None),
         }
 
         let registry =
@@ -4214,12 +4228,13 @@ impl Proposer {
         let responses = fetch_span_responses(self.superroot_source.as_ref(), &inputs).await?;
         let proof_bytes = self.proof_engine.prove(game_address, keys, inputs, responses).await?;
 
-        // Pre-submit re-check: proving can take long; avoid a guaranteed
-        // revert when the game was proven by someone else, resolved, hit
-        // its deadline, or was evicted (parent lost) meanwhile.
-        if !self.pre_submit_checks(game_address).await? {
-            self.proof_engine.clear(game_address);
-            return Ok(TaskSuccess::Completed);
+        match self.pre_submit_checks(game_address).await? {
+            ActionEligibility::Eligible => {}
+            ActionEligibility::Deferred => return Ok(TaskSuccess::Completed),
+            ActionEligibility::Ineligible => {
+                self.proof_engine.clear(game_address);
+                return Ok(TaskSuccess::Completed);
+            }
         }
 
         let transaction_hash = self.action_executor.prove_game(game_address, proof_bytes).await?;
@@ -4253,12 +4268,8 @@ impl Proposer {
         }
     }
 
-    /// Final checks before submitting a `prove()` transaction. Returns false when:
-    /// 1. the game is no longer cached with eligible ancestry;
-    /// 2. any cached ancestry link is disallowed or lost at the latest L1 head;
-    /// 3. the game is no longer awaiting a proof; or
-    /// 4. the proving deadline has passed.
-    async fn pre_submit_checks(&self, game_address: Address) -> Result<bool> {
+    /// Checks whether a prepared proof may be submitted or must wait for ancestry synchronization.
+    async fn pre_submit_checks(&self, game_address: Address) -> Result<ActionEligibility> {
         let game_index = {
             let state = self.state.read().await;
             state
@@ -4269,11 +4280,16 @@ impl Proposer {
         };
         let Some(game_index) = game_index else {
             tracing::info!(?game_address, "Skipping prove(): game is not ancestry-eligible");
-            return Ok(false);
+            return Ok(ActionEligibility::Ineligible);
         };
-        if !self.latest_ancestry_eligible(game_index, game_address, true).await? {
-            tracing::info!(?game_address, "Skipping prove(): ancestry is no longer eligible");
-            return Ok(false);
+        let eligibility = self.latest_ancestry_eligibility(game_index, game_address, true).await?;
+        if eligibility != ActionEligibility::Eligible {
+            tracing::info!(
+                ?game_address,
+                ?eligibility,
+                "Skipping prove(): ancestry check did not permit submission"
+            );
+            return Ok(eligibility);
         }
 
         let claim = self.l1_view.game_claim(game_address, BlockId::latest()).await?;
@@ -4284,7 +4300,7 @@ impl Proposer {
                 ?status,
                 "Skipping prove(): game no longer awaiting a proof"
             );
-            return Ok(false);
+            return Ok(ActionEligibility::Ineligible);
         }
 
         let now = self
@@ -4300,10 +4316,10 @@ impl Proposer {
                 now,
                 "Skipping prove(): game deadline passed mid-proving"
             );
-            return Ok(false);
+            return Ok(ActionEligibility::Ineligible);
         }
 
-        Ok(true)
+        Ok(ActionEligibility::Eligible)
     }
 }
 
@@ -4900,7 +4916,7 @@ mod tests {
     };
 
     use super::{
-        AncestryDecision, ClaimPreflightDecision, CompactGameSummary, Cursor,
+        ActionEligibility, AncestryDecision, ClaimPreflightDecision, CompactGameSummary, Cursor,
         DEADLINE_WARNING_DIVISOR, DeadlineStatus, Game, GameFetchResult, GameSyncAction,
         GameSyncFacts, GameSyncRetention, InFlightCreation, LastSuccessfulSync,
         MAX_GAME_DEADLINE_LAG, OperationSummary, PrestateCache, Proposer, ProposerGauge,
@@ -7696,6 +7712,60 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn anchor_deferral_reuses_cached_proof() {
+        let starting_root = B256::repeat_byte(0x11);
+        let root_claim = B256::repeat_byte(0x22);
+        let parent = game_with(1, u32::MAX, 100);
+        let game = game_with(2, 1, 101);
+        let view = Arc::new(RecordingL1View {
+            anchor_game: parent.address,
+            proof_inputs: ProofInputs {
+                l1_head: B256::repeat_byte(0x33),
+                l1_head_number: 20,
+                starting_root,
+                starting_sequence_number: 100,
+                root_claim,
+                sequence_number: 101,
+                verifier: Address::ZERO,
+            },
+            ..Default::default()
+        });
+        let engine =
+            Arc::new(RecordingProofEngine { proof: vec![0xaa, 0xbb], ..Default::default() });
+        let actions = Arc::new(RecordingActionExecutor::default());
+        let mut proposer = test_proposer().await;
+        proposer.l1_view = view;
+        proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+            horizon: ProposalHorizon { safe_timestamp: 101, finalized_timestamp: 101 },
+            roots: vec![
+                (100, super_root_at_timestamp(100, starting_root, 12, 10)),
+                (101, super_root_at_timestamp(101, root_claim, 12, 10)),
+            ],
+        });
+        proposer.proof_engine = engine.clone();
+        proposer.action_executor = actions.clone();
+        *proposer.state.write().await = state(vec![parent.clone(), game.clone()], None);
+
+        let first = proposer.prove_game(game.address).await.unwrap();
+        assert!(matches!(first, TaskSuccess::Completed));
+        assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
+        assert!(actions.calls.lock().is_empty());
+
+        proposer.sync_anchor_game(parent.address).await;
+        let second = proposer.prove_game(game.address).await.unwrap();
+        assert!(matches!(second, TaskSuccess::Completed));
+        assert_eq!(engine.calls.lock().unwrap().len(), 2);
+        assert_eq!(actions.calls.lock().len(), 1);
+        assert_eq!(
+            engine.generations.load(AtomicOrdering::SeqCst),
+            1,
+            "an anchor deferral must reuse the completed proof"
+        );
+        assert_eq!(*engine.cleared.lock().unwrap(), vec![game.address]);
+        assert!(engine.cached.lock().unwrap().is_none());
+    }
+
+    #[tokio::test]
     async fn l1_submission_retry_reuses_cached_proof() {
         let starting_root = B256::repeat_byte(0x11);
         let root_claim = B256::repeat_byte(0x22);
@@ -7768,6 +7838,8 @@ mod tests {
         for (fail, status) in [
             (true, ProposalStatus::Unchallenged),
             (false, ProposalStatus::UnchallengedAndValidProofProvided),
+            (false, ProposalStatus::ChallengedAndValidProofProvided),
+            (false, ProposalStatus::Resolved),
         ] {
             let starting_root = B256::repeat_byte(0x11);
             let root_claim = B256::repeat_byte(0x22);
@@ -7841,6 +7913,47 @@ mod tests {
             let error = proposer.handle_game_creation(100, u32::MAX).await.unwrap_err();
             assert_eq!(error.is_revert(), !should_retain);
             assert_eq!(proposer.in_flight_creation.lock().await.is_some(), should_retain);
+        }
+    }
+
+    #[tokio::test]
+    async fn pre_submit_checks_use_strict_deadline() {
+        for (deadline, expected) in
+            [(999, ActionEligibility::Ineligible), (1_000, ActionEligibility::Eligible)]
+        {
+            let mut proposer = test_proposer().await;
+            proposer.l1_view = Arc::new(RecordingL1View {
+                game_claim: GameClaim {
+                    status: ProposalStatus::Unchallenged as u8,
+                    deadline,
+                    parent_index: u32::MAX,
+                },
+                latest_l1_timestamp: 1_000,
+                ..Default::default()
+            });
+            let game = game_with(1, u32::MAX, 100);
+            proposer.state.write().await.games.insert(game.index, game.clone());
+
+            assert_eq!(proposer.pre_submit_checks(game.address).await.unwrap(), expected);
+        }
+    }
+
+    #[tokio::test]
+    async fn pre_submit_checks_discard_disallowed_ancestry() {
+        for proof_standing in [
+            GameStanding { blacklisted: true, retired: false },
+            GameStanding { blacklisted: false, retired: true },
+        ] {
+            let mut proposer = test_proposer().await;
+            proposer.l1_view = Arc::new(RecordingL1View { proof_standing, ..Default::default() });
+            let game = game_with(1, u32::MAX, 100);
+            proposer.state.write().await.games.insert(game.index, game.clone());
+
+            assert_eq!(
+                proposer.pre_submit_checks(game.address).await.unwrap(),
+                ActionEligibility::Ineligible
+            );
+            assert!(proposer.state.read().await.games[&game.index].disallowed);
         }
     }
 
@@ -8214,7 +8327,10 @@ mod tests {
             let proposer = test_proposer().await;
             // A game evicted after a parent loss is never submitted.
             let evicted = Address::left_padding_from(&[0xee]);
-            assert!(!proposer.pre_submit_checks(evicted).await.unwrap());
+            assert_eq!(
+                proposer.pre_submit_checks(evicted).await.unwrap(),
+                ActionEligibility::Ineligible
+            );
         }
 
         #[test]
@@ -8993,11 +9109,12 @@ mod tests {
         *proposer.state.write().await =
             state(vec![cached_anchor.clone(), candidate.clone()], Some(cached_anchor));
 
-        assert!(
-            !proposer
-                .latest_ancestry_eligible(candidate.index, candidate.address, false)
+        assert_eq!(
+            proposer
+                .latest_ancestry_eligibility(candidate.index, candidate.address, false)
                 .await
-                .unwrap()
+                .unwrap(),
+            ActionEligibility::Deferred
         );
     }
 
@@ -9011,10 +9128,16 @@ mod tests {
             ..Default::default()
         });
 
-        assert!(!proposer.latest_ancestry_eligible(game.index, game.address, false).await.unwrap());
+        assert_eq!(
+            proposer.latest_ancestry_eligibility(game.index, game.address, false).await.unwrap(),
+            ActionEligibility::Deferred
+        );
 
         proposer.l1_view = Arc::new(RecordingL1View::default());
-        assert!(proposer.latest_ancestry_eligible(game.index, game.address, false).await.unwrap());
+        assert_eq!(
+            proposer.latest_ancestry_eligibility(game.index, game.address, false).await.unwrap(),
+            ActionEligibility::Eligible
+        );
     }
 
     #[test]
