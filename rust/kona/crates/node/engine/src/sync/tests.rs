@@ -127,6 +127,7 @@ async fn safe_head_is_last_block_before_epoch_boundary(
 enum Path {
     ReplacedUnsafe,
     Conservative,
+    Checkpoint,
 }
 #[derive(Debug, Clone, Copy)]
 enum Invalid {
@@ -136,7 +137,8 @@ enum Invalid {
     ParentHash,
 }
 
-// Both traversal paths call the production RPC client and decode real L1-info deposits.
+// Each traversal calls the production RPC client and decodes real L1-info deposits. A check
+// that exists only in the conservative path cannot protect the retained-checkpoint path.
 #[rstest::rstest]
 #[case(Path::ReplacedUnsafe, Invalid::EpochSkip)]
 #[case(Path::ReplacedUnsafe, Invalid::NonzeroEpoch)]
@@ -145,6 +147,10 @@ enum Invalid {
 #[case(Path::Conservative, Invalid::NonzeroEpoch)]
 #[case(Path::Conservative, Invalid::Sequence)]
 #[case(Path::Conservative, Invalid::ParentHash)]
+#[case(Path::Checkpoint, Invalid::EpochSkip)]
+#[case(Path::Checkpoint, Invalid::NonzeroEpoch)]
+#[case(Path::Checkpoint, Invalid::Sequence)]
+#[case(Path::Checkpoint, Invalid::ParentHash)]
 #[tokio::test]
 async fn rejects_inconsistent_edges_on_every_path(#[case] path: Path, #[case] invalid: Invalid) {
     let cfg = RollupConfig::default();
@@ -167,8 +173,26 @@ async fn rejects_inconsistent_edges_on_every_path(#[case] path: Path, #[case] in
     let (client, l1, l2) = test_engine_client(Arc::new(cfg.clone()));
     expect_heads(&l2, &finalized, &parent, &child);
     l1.expect_params("eth_getBlockByNumber", json!([format!("{origin:#x}"), false]), &l1_origin);
+    let checkpoint = SafeCheckpoint {
+        safe: info(&parent, &cfg),
+        source: BlockInfo { number: 103, hash: l1_block(103).header.hash, ..Default::default() },
+        replay_source: None,
+    };
+    if matches!(path, Path::Checkpoint) {
+        l1.expect_params("eth_getBlockByNumber", json!(["latest", false]), l1_block(105));
+        l1.expect_params(
+            "eth_getBlockByNumber",
+            json!([format!("{origin:#x}"), false]),
+            &l1_origin,
+        );
+        l1.expect_params("eth_getBlockByNumber", json!(["0x67", false]), l1_block(103));
+        l2.expect_params("eth_getBlockByNumber", json!(["0x2", false]), &parent);
+        l2.expect_params("eth_getBlockByNumber", json!(["0x3", false]), &child);
+    }
     expect_parent(&l2, &parent);
-    let err = find_starting_forkchoice(&cfg, &client).await.unwrap_err();
+    let checkpoints = if matches!(path, Path::Checkpoint) { vec![checkpoint] } else { vec![] };
+    let err =
+        find_starting_forkchoice_with_checkpoints(&cfg, &client, &checkpoints).await.unwrap_err();
     assert!(
         match invalid {
             Invalid::EpochSkip | Invalid::ParentHash =>
@@ -245,6 +269,63 @@ async fn missing_l1_parent_retries_from_a_fresh_chain_view() {
     l2.assert_finished();
 }
 
+#[rstest::rstest]
+#[case::ahead(false)]
+#[case::disappeared(true)]
+#[tokio::test]
+async fn checkpoint_accepts_future_unsafe_origin_but_retries_a_disappeared_one(
+    #[case] disappeared: bool,
+) {
+    let cfg = RollupConfig::default();
+    let finalized = test_l2_block(1, 99, 0, B256::ZERO);
+    let safe = test_l2_block(2, 100, 0, finalized.header.hash);
+    let head = test_l2_block(3, 101, 0, safe.header.hash);
+    let (client, l1, l2) = test_engine_client(Arc::new(cfg.clone()));
+    expect_heads(&l2, &finalized, &safe, &head);
+    l1.expect_params("eth_getBlockByNumber", json!(["0x65", false]), Option::<L1Block>::None);
+    l1.expect_params(
+        "eth_getBlockByNumber",
+        json!(["latest", false]),
+        l1_block(if disappeared { 101 } else { 100 }),
+    );
+    l1.expect_params("eth_getBlockByNumber", json!(["0x65", false]), Option::<L1Block>::None);
+    if !disappeared {
+        l1.expect_params("eth_getBlockByNumber", json!(["0x64", false]), l1_block(100));
+        for (number, block) in [(2, &safe), (3, &head)] {
+            l2.expect_params("eth_getBlockByNumber", json!([format!("{number:#x}"), false]), block);
+        }
+        expect_parent(&l2, &safe);
+        l2.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            json!([{
+            "headBlockHash": head.header.hash, "safeBlockHash": safe.header.hash,
+            "finalizedBlockHash": finalized.header.hash
+        }, null]),
+            alloy_rpc_types_engine::ForkchoiceUpdated::new(
+                alloy_rpc_types_engine::PayloadStatus::from_status(
+                    alloy_rpc_types_engine::PayloadStatusEnum::Valid,
+                ),
+            ),
+        );
+        l1.expect_params("eth_getBlockByNumber", json!(["0x64", false]), l1_block(100));
+    }
+    let checkpoint = SafeCheckpoint {
+        safe: info(&safe, &cfg),
+        source: BlockInfo { number: 100, hash: l1_block(100).header.hash, ..Default::default() },
+        replay_source: None,
+    };
+    let result = find_starting_forkchoice_with_checkpoints(&cfg, &client, &[checkpoint]).await;
+    if disappeared {
+        assert!(matches!(result, Err(SyncStartError::ChainViewChanged)));
+    } else {
+        let result = result.unwrap();
+        assert_eq!(result.un_safe, info(&head, &cfg));
+        assert_eq!(result.safe, checkpoint.safe);
+    }
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
 #[tokio::test]
 async fn rejects_reorgs_deeper_than_five_lookback_windows() {
     let mut blocks = vec![];
@@ -272,6 +353,77 @@ async fn rejects_reorgs_deeper_than_five_lookback_windows() {
     let err = find_starting_forkchoice(&cfg, &client).await.unwrap_err();
     assert!(matches!(err, SyncStartError::ReorgTooDeep));
     assert!(!crate::EngineResetError::SyncStart(err).is_temporary());
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+#[tokio::test]
+async fn checkpoint_is_retried_after_an_ahead_suffix_hides_a_replaced_origin() {
+    let cfg = RollupConfig { seq_window_size: 2, ..Default::default() };
+    let mut blocks = vec![];
+    for number in 1..=5 {
+        let parent = blocks.last().map_or(B256::ZERO, |b: &L2Block| b.header.hash);
+        blocks.push(test_l2_block(number, number + 97, 0, parent));
+    }
+    let (client, l1, l2) = test_engine_client(Arc::new(cfg.clone()));
+    expect_heads(&l2, &blocks[0], &blocks[1], &blocks[4]);
+    let mut replacement = l1_block(100);
+    replacement.header.hash = B256::repeat_byte(0xff);
+    let missing = Option::<L1Block>::None;
+    l1.expect_params("eth_getBlockByNumber", json!(["0x66", false]), missing.as_ref());
+    l1.expect_params("eth_getBlockByNumber", json!(["latest", false]), &replacement);
+    l1.expect_params("eth_getBlockByNumber", json!(["0x66", false]), missing.as_ref());
+    l1.expect_params("eth_getBlockByNumber", json!(["0x63", false]), l1_block(99));
+    for block in [&blocks[1], &blocks[4]] {
+        l2.expect_params(
+            "eth_getBlockByNumber",
+            json!([format!("{:#x}", block.header.number), false]),
+            block,
+        );
+    }
+    // The first probe and then the conservative walk both encounter the hidden replacement.
+    for pass in 0..2 {
+        if pass == 1 {
+            l1.expect_params("eth_getBlockByNumber", json!(["0x66", false]), missing.as_ref());
+        }
+        for parent in [&blocks[3], &blocks[2]] {
+            expect_parent(&l2, parent);
+        }
+        l1.expect_params("eth_getBlockByNumber", json!(["0x65", false]), missing.as_ref());
+        l1.expect_params("eth_getBlockByNumber", json!(["0x64", false]), &replacement);
+    }
+    expect_parent(&l2, &blocks[1]);
+    l1.expect_params("eth_getBlockByHash", json!([l1_block(99).header.hash, false]), l1_block(99));
+    l1.expect_params("eth_getBlockByNumber", json!(["latest", false]), &replacement);
+    for _ in 0..2 {
+        l1.expect_params("eth_getBlockByNumber", json!(["0x63", false]), l1_block(99));
+    }
+    for _ in 0..2 {
+        l2.expect_params("eth_getBlockByNumber", json!(["0x2", false]), &blocks[1]);
+    }
+    l2.expect_params(
+        "engine_forkchoiceUpdatedV3",
+        json!([{
+        "headBlockHash": blocks[1].header.hash, "safeBlockHash": blocks[1].header.hash,
+        "finalizedBlockHash": blocks[0].header.hash
+    }, null]),
+        alloy_rpc_types_engine::ForkchoiceUpdated::new(
+            alloy_rpc_types_engine::PayloadStatus::from_status(
+                alloy_rpc_types_engine::PayloadStatusEnum::Valid,
+            ),
+        ),
+    );
+    l1.expect_params("eth_getBlockByNumber", json!(["0x64", false]), replacement);
+    let safe = info(&blocks[1], &cfg);
+    let checkpoint = SafeCheckpoint {
+        safe,
+        source: BlockInfo { number: 99, hash: l1_block(99).header.hash, ..Default::default() },
+        replay_source: None,
+    };
+    let result =
+        find_starting_forkchoice_with_checkpoints(&cfg, &client, &[checkpoint]).await.unwrap();
+    assert_eq!(result.un_safe, safe);
+    assert_eq!(result.safe, safe);
     l1.assert_finished();
     l2.assert_finished();
 }

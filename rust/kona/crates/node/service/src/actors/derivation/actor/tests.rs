@@ -540,3 +540,21 @@ async fn a_block_is_queued_for_finalization_only_once_it_is_recorded() {
 mod database;
 
 mod safedb_tests;
+
+#[tokio::test]
+async fn reset_retaining_confirmed_head_resumes_without_a_new_l1_head() {
+    let mut client = MockDerivationEngineClient::new();
+    client.expect_send_safe_l2_signal().times(2).returning(|_| Ok(()));
+    let mut node = RecordingActor::new(client);
+    node.complete_el_sync_at(RESUME_HEAD).await;
+    node.signal(Signal::Reset(kona_derive::ResetSignal { l2_safe_head: l2_block(RESUME_HEAD) }))
+        .await;
+    assert_eq!(
+        node.actor.derivation_state_machine.current_state(),
+        DerivationState::AwaitingSafeHeadConfirmation
+    );
+    assert_eq!(
+        node.actor.attributes_awaiting_confirmation.as_ref().unwrap().parent,
+        l2_block(RESUME_HEAD)
+    );
+}

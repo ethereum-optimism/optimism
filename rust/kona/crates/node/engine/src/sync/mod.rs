@@ -2,6 +2,7 @@
 
 use alloy_eips::BlockId;
 use alloy_primitives::B256;
+use alloy_provider::ext::EngineApi;
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 
@@ -22,6 +23,23 @@ pub async fn find_starting_forkchoice(
     cfg: &RollupConfig,
     engine_client: &EngineClient,
 ) -> Result<L2ForkchoiceState, SyncStartError> {
+    find_starting_forkchoice_with_checkpoints(cfg, engine_client, &[]).await
+}
+
+/// A completed safe block and an L1 block bounding all of its inherited derivation inputs.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct SafeCheckpoint {
+    pub safe: L2BlockInfo,
+    pub source: BlockInfo,
+    /// The retained parent's input, which replay may encounter on a different L1 branch.
+    pub replay_source: Option<BlockInfo>,
+}
+
+pub(crate) async fn find_starting_forkchoice_with_checkpoints(
+    cfg: &RollupConfig,
+    engine_client: &EngineClient,
+    checkpoints: &[SafeCheckpoint],
+) -> Result<L2ForkchoiceState, SyncStartError> {
     let mut current_fc = L2ForkchoiceState::current(cfg, engine_client).await?;
     info!(
         target: "sync_start",
@@ -37,6 +55,7 @@ pub async fn find_starting_forkchoice(
     let mut unsafe_candidate = Some(cursor);
     let mut highest_canonical: Option<L2BlockInfo> = None;
     let mut walker = SyncWalker::new(cfg, engine_client);
+    let mut check_checkpoint = !checkpoints.is_empty();
     let lookback = sync_lookback(cfg);
 
     // Port of op-node's normal FindL2Heads walk. Keep plausible heads ahead of L1, discard
@@ -81,12 +100,29 @@ pub async fn find_starting_forkchoice(
             OriginStatus::Replaced => {
                 unsafe_candidate = None;
                 highest_canonical = None;
+                check_checkpoint = !checkpoints.is_empty();
             }
         }
         if cursor.block_info.number == current_fc.finalized.block_info.number {
             current_fc.un_safe = unsafe_candidate.ok_or(SyncStartError::L1OriginMismatch)?;
             current_fc.safe = cursor;
             break;
+        }
+        if check_checkpoint && origin != OriginStatus::Replaced {
+            check_checkpoint = false;
+            current_fc.un_safe = unsafe_candidate.ok_or(SyncStartError::L1OriginMismatch)?;
+            if let Some(safe) =
+                retained_safe_checkpoint(engine_client, &current_fc, checkpoints).await?
+            {
+                info!(target: "sync_start", safe = %safe, "Retaining completed safe checkpoint with canonical L1 input");
+                current_fc.safe = safe;
+                return Ok(current_fc);
+            }
+            // Checkpoint validation may have observed a newer chain view. Restart this origin
+            // by number before doing the conservative walk in that view.
+            walker.l1 = None;
+            highest_canonical = None;
+            continue;
         }
         // Use the parent of an epoch boundary below both the previous safe head and a full
         // canonical lookback window. Finality above is the lower bound.
@@ -200,6 +236,101 @@ fn check_epoch_and_sequence(
     Ok(())
 }
 
+/// A canonical origin alone does not prove safety: the batch may have been submitted later.
+/// Retain only completed blocks whose actual L1 input and L2 ancestry are still canonical.
+async fn retained_safe_checkpoint(
+    client: &EngineClient,
+    heads: &L2ForkchoiceState,
+    checkpoints: &[SafeCheckpoint],
+) -> Result<Option<L2BlockInfo>, SyncStartError> {
+    if checkpoints.is_empty() {
+        return Ok(None);
+    }
+    let anchor =
+        client.get_l1_block(BlockId::latest()).await?.ok_or(SyncStartError::ChainViewChanged)?;
+    // The L1 chain may have changed since the unsafe walk, before this anchor was read.
+    let mut walker = SyncWalker::new(client.cfg(), client);
+    if heads.un_safe != heads.finalized {
+        let status = walker.origin(heads.un_safe).await?;
+        if status == OriginStatus::Replaced ||
+            (status == OriginStatus::Ahead &&
+                heads.un_safe.l1_origin.number <= anchor.header.number)
+        {
+            return Err(SyncStartError::ChainViewChanged);
+        }
+    }
+    for checkpoint in checkpoints.iter().rev() {
+        if checkpoint.safe.block_info.number < heads.finalized.block_info.number ||
+            checkpoint.safe.block_info.number > heads.un_safe.block_info.number ||
+            checkpoint.source.number > anchor.header.number
+        {
+            continue;
+        }
+        let source = client.get_l1_block(checkpoint.source.number.into()).await?;
+        if source.is_none_or(|block| block.header.hash != checkpoint.source.hash) {
+            continue;
+        }
+        if let Some(parent_input) =
+            checkpoint.replay_source.filter(|input| *input != checkpoint.source)
+        {
+            let parent = client.get_l1_block(parent_input.number.into()).await?;
+            if parent.is_none_or(|block| block.header.hash != parent_input.hash) {
+                continue;
+            }
+        }
+        // Number lookups are on one canonical L2 chain. Recheck its unsafe anchor after the
+        // checkpoint lookup so an EL reorg cannot combine two different chain views.
+        let safe = client.get_l2_block(checkpoint.safe.block_info.number.into()).await?;
+        if safe.is_none_or(|block| block.header.hash != checkpoint.safe.hash()) {
+            continue;
+        }
+        let unsafe_anchor = client.get_l2_block(heads.un_safe.block_info.number.into()).await?;
+        if unsafe_anchor.is_none_or(|block| block.header.hash != heads.un_safe.hash()) {
+            return Err(SyncStartError::ChainViewChanged);
+        }
+        // Numeric ancestry alone does not establish epoch/sequence consistency. Apply the
+        // same edge checks as the conservative walk before accepting the retained checkpoint.
+        let mut cursor = heads.un_safe;
+        let mut ancestry = SyncWalker { cfg: walker.cfg, client, l1: walker.l1 };
+        while cursor.block_info.number > checkpoint.safe.block_info.number {
+            cursor = ancestry.parent(cursor).await?;
+            if cursor.block_info.number > checkpoint.safe.block_info.number &&
+                ancestry.origin(cursor).await? == OriginStatus::Replaced
+            {
+                return Ok(None);
+            }
+        }
+        if cursor != checkpoint.safe {
+            return Err(SyncStartError::ChainViewChanged);
+        }
+        // A successful consolidation can have received SYNCING. Numeric canonical lookups
+        // establish ancestry, but only a fresh VALID response establishes execution validity,
+        // including after an EL restart. Do not trust the permanent el_sync_finished latch.
+        let response = client
+            .fork_choice_updated_v3(
+                alloy_rpc_types_engine::ForkchoiceState {
+                    head_block_hash: heads.un_safe.hash(),
+                    safe_block_hash: checkpoint.safe.hash(),
+                    finalized_block_hash: heads.finalized.hash(),
+                },
+                None,
+            )
+            .await?;
+        if !matches!(
+            response.payload_status.status,
+            alloy_rpc_types_engine::PayloadStatusEnum::Valid
+        ) {
+            return Err(SyncStartError::CheckpointNotValidated);
+        }
+        let current_anchor = client.get_l1_block(anchor.header.number.into()).await?;
+        if current_anchor.is_none_or(|block| block.header.hash != anchor.header.hash) {
+            return Err(SyncStartError::ChainViewChanged);
+        }
+        return Ok(Some(checkpoint.safe));
+    }
+    Ok(None)
+}
+
 #[cfg(test)]
 mod test {
     use alloy_provider::Network;
@@ -231,6 +362,190 @@ mod test {
         let l2_block_info =
             L2BlockInfo::from_block_and_genesis(&consensus_block, &rollup_config.genesis).unwrap();
         assert_eq!(rpc_reported_hash, l2_block_info.block_info.hash);
+    }
+}
+
+#[cfg(test)]
+mod checkpoint_tests {
+    use super::*;
+    use crate::test_utils::{test_block_info, test_engine_client};
+    use alloy_primitives::B256;
+    use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
+    use serde_json::json;
+    use std::sync::Arc;
+
+    #[derive(Debug, Clone, Copy)]
+    enum Scenario {
+        Retain,
+        InvalidInput,
+        InvalidL2,
+        ChangedL1,
+        ChangedL2,
+        NewerInvalid,
+        MissingHead,
+        SyncingAfterValid,
+        CanonicalReplay,
+        ReorgedReplay,
+        ReorgedUnsafe,
+    }
+
+    #[rstest::rstest]
+    #[case(Scenario::Retain)]
+    #[case(Scenario::InvalidInput)]
+    #[case(Scenario::InvalidL2)]
+    #[case(Scenario::ChangedL1)]
+    #[case(Scenario::ChangedL2)]
+    #[case(Scenario::NewerInvalid)]
+    #[case(Scenario::MissingHead)]
+    #[case(Scenario::SyncingAfterValid)]
+    #[case(Scenario::CanonicalReplay)]
+    #[case(Scenario::ReorgedReplay)]
+    #[case(Scenario::ReorgedUnsafe)]
+    #[tokio::test]
+    async fn checkpoint_requires_canonical_batch_input_and_l2_ancestry(#[case] scenario: Scenario) {
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        let safe = test_block_info(117029);
+        let heads = L2ForkchoiceState { safe, un_safe: safe, finalized: test_block_info(44302) };
+        let mut source = alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default();
+        source.header.inner.number = 10679;
+        source.header.hash = B256::repeat_byte(1);
+        let mut checkpoint = SafeCheckpoint {
+            safe,
+            source: BlockInfo { number: 10679, hash: source.header.hash, ..Default::default() },
+            replay_source: None,
+        };
+        if matches!(scenario, Scenario::CanonicalReplay | Scenario::ReorgedReplay) {
+            checkpoint.replay_source =
+                Some(BlockInfo { number: 10678, hash: B256::repeat_byte(8), ..Default::default() });
+        }
+        let mut anchor = source.clone();
+        anchor.header.inner.number = 10690;
+        anchor.header.hash = B256::repeat_byte(2);
+        let mut safe_block =
+            alloy_rpc_types_eth::Block::<op_alloy_rpc_types::Transaction>::default();
+        safe_block.header.hash = safe.hash();
+        let mut unsafe_block = safe_block.clone();
+        unsafe_block.header.hash = heads.un_safe.hash();
+        let mut checkpoints = vec![checkpoint];
+        if matches!(scenario, Scenario::NewerInvalid) {
+            checkpoints.push(SafeCheckpoint {
+                safe,
+                source: BlockInfo { number: 10680, ..checkpoint.source },
+                replay_source: None,
+            });
+        }
+        let attempts = if matches!(scenario, Scenario::SyncingAfterValid) { 2 } else { 1 };
+        for attempt in 0..attempts {
+            l1.expect_params(
+                "eth_getBlockByNumber",
+                json!(["latest", false]),
+                (!matches!(scenario, Scenario::MissingHead)).then_some(&anchor),
+            );
+            if matches!(scenario, Scenario::MissingHead) {
+                break;
+            }
+            let mut origin = source.clone();
+            origin.header.hash = if matches!(scenario, Scenario::ReorgedUnsafe) {
+                B256::repeat_byte(9)
+            } else {
+                heads.un_safe.l1_origin.hash
+            };
+            l1.expect_params("eth_getBlockByNumber", json!(["0x0", false]), origin);
+            if matches!(scenario, Scenario::ReorgedUnsafe) {
+                break;
+            }
+            if matches!(scenario, Scenario::NewerInvalid) {
+                l1.expect_params(
+                    "eth_getBlockByNumber",
+                    json!(["0x29b8", false]),
+                    Option::<alloy_rpc_types_eth::Block>::None,
+                );
+            }
+            if matches!(scenario, Scenario::InvalidInput) {
+                source.header.hash = B256::ZERO;
+            }
+            l1.expect_params("eth_getBlockByNumber", json!(["0x29b7", false]), &source);
+            if matches!(scenario, Scenario::InvalidInput) {
+                break;
+            }
+            if let Some(parent_input) = checkpoint.replay_source {
+                let mut parent = source.clone();
+                parent.header.hash = if matches!(scenario, Scenario::ReorgedReplay) {
+                    B256::ZERO
+                } else {
+                    parent_input.hash
+                };
+                l1.expect_params("eth_getBlockByNumber", json!(["0x29b6", false]), parent);
+                if matches!(scenario, Scenario::ReorgedReplay) {
+                    break;
+                }
+            }
+            if matches!(scenario, Scenario::InvalidL2) {
+                safe_block.header.hash = B256::ZERO;
+            }
+            l2.expect_params(
+                "eth_getBlockByNumber",
+                json!([format!("{:#x}", safe.block_info.number), false]),
+                &safe_block,
+            );
+            if matches!(scenario, Scenario::InvalidL2) {
+                break;
+            }
+            if matches!(scenario, Scenario::ChangedL2) {
+                unsafe_block.header.hash = B256::ZERO;
+            }
+            l2.expect_params(
+                "eth_getBlockByNumber",
+                json!([format!("{:#x}", heads.un_safe.block_info.number), false]),
+                &unsafe_block,
+            );
+            if matches!(scenario, Scenario::ChangedL2) {
+                break;
+            }
+            let status =
+                if attempt == 1 { PayloadStatusEnum::Syncing } else { PayloadStatusEnum::Valid };
+            l2.expect_params("engine_forkchoiceUpdatedV3", json!([{
+                "headBlockHash": heads.un_safe.hash(), "safeBlockHash": safe.hash(), "finalizedBlockHash": heads.finalized.hash()
+            }, null]), ForkchoiceUpdated::new(PayloadStatus::from_status(status)));
+            if attempt == 1 {
+                break;
+            }
+            let mut recheck = anchor.clone();
+            if matches!(scenario, Scenario::ChangedL1) {
+                recheck.header.hash = B256::ZERO;
+            }
+            l1.expect_params("eth_getBlockByNumber", json!(["0x29c2", false]), recheck);
+        }
+        for attempt in 0..attempts {
+            let selected = retained_safe_checkpoint(&client, &heads, &checkpoints).await;
+            match scenario {
+                Scenario::SyncingAfterValid if attempt == 1 => {
+                    assert!(matches!(selected, Err(SyncStartError::CheckpointNotValidated)))
+                }
+                Scenario::ChangedL1 |
+                Scenario::ChangedL2 |
+                Scenario::MissingHead |
+                Scenario::ReorgedUnsafe => {
+                    assert!(matches!(selected, Err(SyncStartError::ChainViewChanged)))
+                }
+                Scenario::InvalidInput | Scenario::InvalidL2 | Scenario::ReorgedReplay => {
+                    assert_eq!(selected.unwrap(), None)
+                }
+                _ => assert_eq!(selected.unwrap(), Some(safe)),
+            }
+        }
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    #[tokio::test]
+    async fn startup_without_accepted_checkpoints_uses_conservative_walkback() {
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        let block = test_block_info(1);
+        let heads = L2ForkchoiceState { safe: block, un_safe: block, finalized: block };
+        assert_eq!(retained_safe_checkpoint(&client, &heads, &[]).await.unwrap(), None);
+        l1.assert_finished();
+        l2.assert_finished();
     }
 }
 

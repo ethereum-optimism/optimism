@@ -4,11 +4,11 @@ use super::EngineTaskExt;
 use crate::{
     EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
     EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTaskError,
-    find_starting_forkchoice,
+    sync::{SafeCheckpoint, find_starting_forkchoice_with_checkpoints, sync_lookback},
     task_queue::{EngineTaskErrors, synchronize},
 };
 use kona_genesis::RollupConfig;
-use kona_protocol::L2BlockInfo;
+use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use std::{cmp::Ordering, collections::BinaryHeap, sync::Arc};
 use thiserror::Error;
 use tokio::sync::watch::Sender;
@@ -34,6 +34,69 @@ impl PartialOrd for QueuedTask {
 impl Ord for QueuedTask {
     fn cmp(&self, other: &Self) -> Ordering {
         self.task.cmp(&other.task).then_with(|| other.sequence.cmp(&self.sequence))
+    }
+}
+
+/// L1 dependencies are inherited across replay and incomplete spans. Only completed spans
+/// become reset candidates; their source bounds every input their ancestors depend on.
+#[derive(Debug, Default)]
+struct SafeCheckpoints {
+    entries: Vec<SafeCheckpoint>,
+    source: Option<BlockInfo>,
+    // Keep the retained parent's dependency even if replay crosses onto a new L1 branch.
+    replay_source: Option<BlockInfo>,
+}
+
+impl SafeCheckpoints {
+    fn record(
+        &mut self,
+        attributes: &OpAttributesWithParent,
+        cfg: &RollupConfig,
+        safe: L2BlockInfo,
+    ) {
+        let Some(mut source) = attributes.derived_from else {
+            *self = Self::default();
+            return;
+        };
+        if let Some(parent_source) = self.source {
+            if parent_source.number > source.number {
+                source = parent_source;
+            }
+        } else if attributes.parent.block_info.id() != cfg.genesis.l2 &&
+            source.number <
+                attributes
+                    .parent
+                    .l1_origin
+                    .number
+                    .saturating_add(sync_lookback(cfg))
+                    .saturating_add(1)
+        {
+            // The parent's exact input is unknown after startup or a conservative reset.
+            // Wait until derivation reaches an L1 block that bounds its sequencing window.
+            return;
+        }
+        self.source = Some(source);
+        if !attributes.is_last_in_span {
+            return;
+        }
+        self.entries.retain(|entry| {
+            entry.safe.block_info.number < safe.block_info.number &&
+                entry.source.number < source.number
+        });
+        self.entries.push(SafeCheckpoint { safe, source, replay_source: self.replay_source });
+        if self.entries.len() > 4096 {
+            self.entries.remove(0);
+        }
+    }
+
+    fn reset_to(&mut self, safe: L2BlockInfo) {
+        self.entries.retain(|entry| entry.safe.block_info.number <= safe.block_info.number);
+        self.source =
+            self.entries.last().filter(|entry| entry.safe == safe).map(|entry| entry.source);
+        self.replay_source = self.source;
+        if self.source.is_none() {
+            self.entries.clear();
+        }
     }
 }
 
@@ -63,6 +126,8 @@ pub struct Engine {
     /// Preserve the task being retried ahead of newly enqueued work: it may have already
     /// performed part of an Engine API operation.
     active: Option<EngineTask>,
+    /// Recent accepted completed-safe checkpoints; no unverified EL labels are recorded.
+    safe_checkpoints: SafeCheckpoints,
 }
 
 impl Engine {
@@ -73,6 +138,7 @@ impl Engine {
             state_sender,
             tasks: BinaryHeap::default(),
             active: None,
+            safe_checkpoints: SafeCheckpoints::default(),
             next_sequence: 0,
         }
     }
@@ -106,14 +172,20 @@ impl Engine {
     }
 
     /// Resets the engine by finding a plausible sync starting point via
-    /// [`find_starting_forkchoice`]. The state will be updated to the starting point, and a
+    /// [`crate::find_starting_forkchoice`]. The state will be updated to the starting point, and a
     /// forkchoice update will be enqueued in order to reorg the execution layer.
     pub async fn reset(
         &mut self,
         client: Arc<EngineClient>,
         config: Arc<RollupConfig>,
     ) -> Result<L2BlockInfo, EngineResetError> {
-        let start = find_starting_forkchoice(&config, client.as_ref()).await?;
+        let previous_safe = self.state.sync_state.safe_head();
+        let start = find_starting_forkchoice_with_checkpoints(
+            &config,
+            client.as_ref(),
+            &self.safe_checkpoints.entries,
+        )
+        .await?;
 
         // One attempt. The actor retains the reset request and retries transient failures.
         synchronize(
@@ -128,6 +200,14 @@ impl Engine {
         )
         .await?;
 
+        self.safe_checkpoints.reset_to(start.safe);
+        self.state_sender.send_replace(self.state);
+        if start.safe.block_info.number < previous_safe.block_info.number {
+            warn!(target: "engine", old_safe = previous_safe.block_info.number,
+                new_safe = start.safe.block_info.number,
+                rollback_blocks = previous_safe.block_info.number - start.safe.block_info.number,
+                "Reset demoted completed safe head");
+        }
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
 
         Ok(start.safe)
@@ -159,6 +239,25 @@ impl Engine {
                 return result;
             }
 
+            if let EngineTask::Consolidate(task) = task {
+                match &task.input {
+                    crate::ConsolidateInput::Attributes(attributes)
+                        if self.state.sync_state.local_safe_head().block_info.number ==
+                            attributes.block_number() =>
+                    {
+                        self.safe_checkpoints.record(
+                            attributes,
+                            &task.cfg,
+                            self.state.sync_state.local_safe_head(),
+                        );
+                    }
+                    // Delegated derivation supplies no L1 input dependency.
+                    crate::ConsolidateInput::BlockInfo(_) => {
+                        self.safe_checkpoints = SafeCheckpoints::default()
+                    }
+                    _ => {}
+                }
+            }
             self.state_sender.send_replace(self.state);
             self.active = None;
             result?;
@@ -183,7 +282,11 @@ impl EngineResetError {
     /// Whether retrying the reset can recover without changing the node configuration.
     pub fn is_temporary(&self) -> bool {
         match self {
-            Self::SyncStart(SyncStartError::RpcError(_) | SyncStartError::ChainViewChanged) => true,
+            Self::SyncStart(
+                SyncStartError::RpcError(_) |
+                SyncStartError::ChainViewChanged |
+                SyncStartError::CheckpointNotValidated,
+            ) => true,
             Self::SyncStart(_) => false,
             Self::Forkchoice(err) => err.severity() != EngineTaskErrorSeverity::Critical,
         }
@@ -268,14 +371,20 @@ mod recovery_tests {
 
     // A flush means the task already replaced its block with a deposits-only block. Keeping it
     // would rebuild that replacement on every later drain.
+    #[rstest::rstest]
+    #[case(true)]
+    #[case(false)]
     #[tokio::test]
-    async fn flushed_task_is_dropped_not_retried() {
+    async fn flushed_task_is_dropped_not_retried(#[case] completed_span: bool) {
         let parent = test_block_info(10);
         let deposit = alloy_primitives::Bytes::from(vec![op_alloy_consensus::DEPOSIT_TX_TYPE_ID]);
-        let attributes = TestAttributesBuilder::new()
+        let mut attributes = TestAttributesBuilder::new()
             .with_parent(parent)
             .with_transactions(vec![deposit, alloy_primitives::Bytes::from(vec![0x02])])
             .build();
+        let source = kona_protocol::BlockInfo { number: 20, ..Default::default() };
+        attributes.derived_from = Some(source);
+        attributes.is_last_in_span = completed_span;
 
         // The deposits-only block the engine builds. It is genesis, so its block info needs no
         // L1-info deposit.
@@ -326,6 +435,7 @@ mod recovery_tests {
         let state = TestEngineStateBuilder::new().with_unsafe_head(parent).build();
         let (state_tx, state_rx) = tokio::sync::watch::channel(EngineState::default());
         let mut engine = Engine::new(state, state_tx);
+        engine.safe_checkpoints.source = Some(source);
         engine.enqueue(EngineTask::Consolidate(Box::new(ConsolidateTask::new(
             client.clone(),
             config,
@@ -338,6 +448,11 @@ mod recovery_tests {
         l1.assert_finished();
         l2.assert_finished();
         assert!(engine.is_empty());
+        assert_eq!(engine.safe_checkpoints.entries.len(), usize::from(completed_span));
+        if completed_span {
+            assert_eq!(engine.safe_checkpoints.entries[0].source, source);
+            assert_eq!(engine.safe_checkpoints.entries[0].safe.hash(), imported.header.hash_slow());
+        }
         // The task updates `engine.state()` itself; only drain publishes it.
         assert_eq!(
             state_rx.borrow().sync_state.safe_head().block_info.hash,
@@ -349,8 +464,139 @@ mod recovery_tests {
 #[cfg(test)]
 mod reset_tests {
     use super::*;
-    use crate::test_utils::{test_engine_client, test_l2_block};
+    use crate::test_utils::{TestEngineStateBuilder, test_engine_client, test_l2_block};
     use alloy_primitives::B256;
+    use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
+    use kona_protocol::BlockInfo;
+
+    #[rstest::rstest]
+    #[case::canonical_origin(false)]
+    #[case::replaced_origin(true)]
+    #[tokio::test]
+    async fn reset_retains_recent_completed_safe_instead_of_walking_seventy_thousand_blocks(
+        #[case] reorged_unsafe: bool,
+    ) {
+        let config = Arc::new(RollupConfig { seq_window_size: 3600, ..Default::default() });
+        let safe = test_l2_block(117029, 10635, 0, B256::ZERO);
+        let unsafe_block = test_l2_block(
+            117030,
+            if reorged_unsafe { 10636 } else { 10635 },
+            if reorged_unsafe { 0 } else { 1 },
+            safe.header.hash,
+        );
+        let finalized = test_l2_block(44302, 7084, 0, B256::ZERO);
+        let safe_info =
+            L2BlockInfo::from_block_and_genesis(&safe.clone().into_consensus(), &config.genesis)
+                .unwrap();
+        let unsafe_info = L2BlockInfo::from_block_and_genesis(
+            &unsafe_block.clone().into_consensus(),
+            &config.genesis,
+        )
+        .unwrap();
+        let mut head: <alloy_network::Ethereum as alloy_provider::Network>::BlockResponse =
+            Default::default();
+        head.header.inner.number = 10690;
+        head.header.hash = B256::repeat_byte(2); // A replacement head, not the old branch's hash.
+        let mut source: <alloy_network::Ethereum as alloy_provider::Network>::BlockResponse =
+            Default::default();
+        source.header.inner.number = 10679;
+        source.header.hash = B256::repeat_byte(3);
+        let checkpoint = SafeCheckpoint {
+            safe: safe_info,
+            source: BlockInfo {
+                number: source.header.number,
+                hash: source.header.hash,
+                ..Default::default()
+            },
+            replay_source: None,
+        };
+        let (client, l1, l2) = test_engine_client(config.clone());
+        for (tag, block) in [("finalized", &finalized), ("safe", &safe), ("latest", &unsafe_block)]
+        {
+            l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), block);
+        }
+        let mut origin = head.clone();
+        origin.header.hash = if reorged_unsafe { B256::ZERO } else { unsafe_info.l1_origin.hash };
+        l1.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!([format!("{:#x}", unsafe_info.l1_origin.number), false]),
+            origin,
+        );
+        if reorged_unsafe {
+            l2.expect_params(
+                "eth_getBlockByHash",
+                serde_json::json!([safe_info.hash(), true]),
+                &safe,
+            );
+            let mut origin = source.clone();
+            origin.header.inner.number = safe_info.l1_origin.number;
+            origin.header.hash = safe_info.l1_origin.hash;
+            l1.expect_params(
+                "eth_getBlockByNumber",
+                serde_json::json!([format!("{:#x}", safe_info.l1_origin.number), false]),
+                origin,
+            );
+        }
+        let kept_unsafe = if reorged_unsafe { safe_info } else { unsafe_info };
+        l1.expect_params("eth_getBlockByNumber", serde_json::json!(["latest", false]), &head);
+        let mut origin = head.clone();
+        origin.header.inner.number = kept_unsafe.l1_origin.number;
+        origin.header.hash = kept_unsafe.l1_origin.hash;
+        l1.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!([format!("{:#x}", kept_unsafe.l1_origin.number), false]),
+            origin,
+        );
+        l1.expect_params("eth_getBlockByNumber", serde_json::json!(["0x29b7", false]), source);
+        l2.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!([format!("{:#x}", safe_info.block_info.number), false]),
+            &safe,
+        );
+
+        l2.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!([format!("{:#x}", kept_unsafe.block_info.number), false]),
+            if reorged_unsafe { &safe } else { &unsafe_block },
+        );
+        if !reorged_unsafe {
+            l2.expect_params(
+                "eth_getBlockByHash",
+                serde_json::json!([safe_info.hash(), true]),
+                &safe,
+            );
+        }
+        let forkchoice = alloy_rpc_types_engine::ForkchoiceState {
+            head_block_hash: kept_unsafe.hash(),
+            safe_block_hash: safe_info.hash(),
+            finalized_block_hash: finalized.header.hash,
+        };
+        l2.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([forkchoice, null]),
+            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+        );
+        l1.expect_params("eth_getBlockByNumber", serde_json::json!(["0x29c2", false]), head);
+        l2.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([forkchoice, null]),
+            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+        );
+        let state = TestEngineStateBuilder::new()
+            .with_safe_head(safe_info)
+            .with_unsafe_head(unsafe_info)
+            .build();
+        let (sender, receiver) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, sender);
+        engine.safe_checkpoints.entries.push(checkpoint);
+        // No old L2 ancestors are supplied: the historical full-window walk fails this fixture.
+        assert_eq!(engine.reset(Arc::new(client), config).await.unwrap(), safe_info);
+        assert_eq!(engine.state().sync_state.safe_head(), safe_info);
+        assert_eq!(receiver.borrow().sync_state.safe_head(), safe_info);
+        assert_eq!(engine.state().sync_state.unsafe_head(), kept_unsafe);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
 
     #[rstest::rstest]
     #[case::walk_stops_at_finality(22, false)]
@@ -416,5 +662,70 @@ mod reset_tests {
         }
         l1.assert_finished();
         l2.assert_finished();
+    }
+}
+
+#[cfg(test)]
+mod checkpoint_history_tests {
+    use super::*;
+    use crate::test_utils::{TestAttributesBuilder, test_block_info};
+
+    #[rstest::rstest]
+    #[case::completed_parent(true)]
+    #[case::incomplete_span(false)]
+    fn replay_inherits_parent_inputs_even_when_child_source_is_earlier(#[case] completed: bool) {
+        let cfg = RollupConfig { seq_window_size: 10, ..Default::default() };
+        let parent = test_block_info(20);
+        let source = BlockInfo { number: 1000, ..Default::default() };
+        let mut history = SafeCheckpoints { source: Some(source), ..Default::default() };
+        let mut attrs = TestAttributesBuilder::new().with_parent(parent).build();
+        attrs.derived_from = Some(source);
+        attrs.is_last_in_span = completed;
+        let child = test_block_info(21);
+        history.record(&attrs, &cfg, child);
+        assert_eq!(history.entries.len(), usize::from(completed));
+        if completed {
+            history.reset_to(child);
+        }
+        attrs.parent = child;
+        attrs.derived_from.as_mut().unwrap().number = 900;
+        attrs.is_last_in_span = true;
+        let grandchild = test_block_info(22);
+        history.record(&attrs, &cfg, grandchild);
+        assert_eq!(history.entries.len(), 1);
+        assert_eq!(history.entries[0].source, source);
+        assert_eq!(history.entries[0].replay_source, completed.then_some(source));
+        assert_eq!(history.entries[0].safe, grandchild);
+    }
+
+    #[rstest::rstest]
+    #[case::sequencing_window(false)]
+    #[case::alt_da_window(true)]
+    fn unknown_parent_waits_for_its_dependency_bound_and_resets_forget_unrelated_inputs(
+        #[case] alt_da: bool,
+    ) {
+        let mut cfg = RollupConfig { seq_window_size: 10, ..Default::default() };
+        if alt_da {
+            cfg.alt_da_config = Some(kona_genesis::AltDAConfig {
+                da_challenge_window: Some(7),
+                da_resolve_window: Some(8),
+                ..Default::default()
+            });
+        }
+        let parent = test_block_info(20);
+        let mut attrs = TestAttributesBuilder::new().with_parent(parent).build();
+        let bound = parent.l1_origin.number + if alt_da { 15 } else { 10 } + 1;
+        attrs.derived_from = Some(BlockInfo { number: bound - 1, ..Default::default() });
+        attrs.is_last_in_span = true;
+        let child = test_block_info(21);
+        let mut history = SafeCheckpoints::default();
+        history.record(&attrs, &cfg, child);
+        assert!(history.entries.is_empty());
+        attrs.derived_from.as_mut().unwrap().number = bound;
+        history.record(&attrs, &cfg, child);
+        assert_eq!(history.entries.len(), 1);
+        history.reset_to(parent);
+        assert!(history.entries.is_empty());
+        assert!(history.source.is_none());
     }
 }

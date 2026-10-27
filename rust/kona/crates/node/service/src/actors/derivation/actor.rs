@@ -217,6 +217,21 @@ where
                     self.derivation_state_machine
                         .update(&DerivationStateUpdate::SignalProcessed)?;
                 }
+                // The engine only publishes changed safe heads. Resume a reset that retains
+                // the already-confirmed head without waiting for another L1 block.
+                if let Signal::Reset(reset) = *signal &&
+                    reset.l2_safe_head ==
+                        self.derivation_state_machine.last_confirmed_safe_head() &&
+                    self.derivation_state_machine.current_state() ==
+                        DerivationState::AwaitingUpdateAfterSignal
+                {
+                    self.derivation_state_machine.update(
+                        &DerivationStateUpdate::NewAttributesConfirmed(Box::new(
+                            reset.l2_safe_head,
+                        )),
+                    )?;
+                    self.attempt_derivation().await?;
+                }
             }
             DerivationActorRequest::ProcessFinalizedL1Block(finalized_l1_block) => {
                 // Attempt to finalize the block. If successful, notify engine.
