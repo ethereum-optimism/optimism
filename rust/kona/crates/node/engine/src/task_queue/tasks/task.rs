@@ -259,10 +259,14 @@ mod tests {
         #[case] status: PayloadStatusEnum,
         #[case] expected: EngineTaskErrorSeverity,
     ) {
+        let build_error = match &status {
+            PayloadStatusEnum::Invalid { validation_error } => {
+                EngineBuildError::InvalidPayload(validation_error.clone())
+            }
+            _ => EngineBuildError::UnexpectedPayloadStatus(status.clone()),
+        };
         let errors = [
-            ConsolidateTaskError::BuildTaskFailed(BuildTaskError::EngineBuildError(
-                EngineBuildError::UnexpectedPayloadStatus(status.clone()),
-            )),
+            ConsolidateTaskError::BuildTaskFailed(BuildTaskError::EngineBuildError(build_error)),
             ConsolidateTaskError::SealTaskFailed(SealTaskError::PayloadInsertionFailed(Box::new(
                 InsertTaskError::ForkchoiceUpdateFailed(
                     SynchronizeTaskError::UnexpectedPayloadStatus(status),

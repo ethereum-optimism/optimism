@@ -94,10 +94,9 @@ impl EngineTaskError for BuildTaskError {
                 EngineTaskErrorSeverity::Critical
             }
             // Retrying the same invalid head cannot recover. Reconcile with the EL's chain.
-            Self::EngineBuildError(
-                EngineBuildError::InvalidPayload(_) |
-                EngineBuildError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. }),
-            ) => EngineTaskErrorSeverity::Reset,
+            Self::EngineBuildError(EngineBuildError::InvalidPayload(_)) => {
+                EngineTaskErrorSeverity::Reset
+            }
             Self::EngineBuildError(
                 EngineBuildError::AttributesInsertionFailed(_) |
                 EngineBuildError::UnexpectedPayloadStatus(_) |
