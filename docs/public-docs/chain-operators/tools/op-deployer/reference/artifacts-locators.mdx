@@ -12,13 +12,9 @@ additional behaviors which are described here.
 
 Locators can be one of three types:
 
-*   `tag://` locators, which point to a versioned contracts release. These resolve to a known URL. Artifacts
-    downloaded using a tagged locator are validated against a hardcoded checksum in the OP Deployer implementation.
-    This prevents tampering with the contract artifacts once they have been tagged. Additionally, tagged locators are
-    cached on disk to avoid repeated downloads.
-    *   ex: `tag://op-contracts/v1.8.0-rc.4`
-*   `https://` locators, which point to a tarball of contract artifacts somewhere on the web. HTTP locators are cached
-    just like tagged locators are, but they are not validated against a checksum.
+*   `embedded`, the default: the artifacts that OP Deployer was built with.
+*   `https://` locators, which point to a tarball of contract artifacts somewhere on the web. OP Deployer caches them
+    on disk, but does not validate them against a checksum.
     *   ex: `https://<url-to-remote-forge-artifacts>`
 *   `file://` locators, which point to a directory on local disk containing the artifacts.
     *   ex: `file://<path-to-repo-root>/packages/contracts-bedrock/forge-artifacts`
@@ -30,5 +26,5 @@ uses the artifacts that OP Deployer was built with.
 
 A contracts bundle is code that runs on your machine and decides what OP Deployer deploys with your key. OP Deployer
 runs its scripts without the FFI cheatcode, with file access only to the artifacts and to its own state directory, and
-with only the environment variables that forge needs. Use only bundles that you trust: `embedded`, a `tag://` locator,
-whose checksum OP Deployer verifies, or a bundle that you built.
+with only the environment variables that forge needs. Use only bundles that you trust: `embedded`, or a bundle that
+you built.
