@@ -22,7 +22,7 @@ func TestKeyedBroadcasterSendsSequentiallyWithGasEstimation(t *testing.T) {
 		{
 			Type:  BroadcastCreate,
 			Input: []byte{0x60, 0x00},
-			Value: (*hexutil.U256)(new(uint256.Int)),
+			Value: (*hexutil.U256)(uint256.NewInt(7)),
 		},
 		{
 			Type:  BroadcastCall,
@@ -39,6 +39,7 @@ func TestKeyedBroadcasterSendsSequentiallyWithGasEstimation(t *testing.T) {
 			require.Less(t, next, len(bcasts))
 			require.Zero(t, candidate.GasLimit)
 			require.Equal(t, []byte(bcasts[next].Input), candidate.TxData)
+			require.Equal(t, (*uint256.Int)(bcasts[next].Value).ToBig(), candidate.Value)
 			if bcasts[next].Type == BroadcastCreate {
 				require.Nil(t, candidate.To)
 			} else {
