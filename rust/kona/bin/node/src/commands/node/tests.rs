@@ -1,6 +1,7 @@
 use super::*;
 use anyhow::anyhow;
 use clap::Parser;
+use kona_genesis::RollupConfig;
 use kona_node_service::NodeMode;
 
 #[derive(Debug)]
@@ -107,6 +108,23 @@ fn a_configured_safe_database_is_opened() {
         NodeCommand { safedb_path: Some(directory.path().to_path_buf()), ..Default::default() };
 
     assert!(command.open_safe_db().unwrap().is_some());
+}
+
+#[test]
+fn a_safe_database_is_rejected_where_the_node_derives_nothing() {
+    let public = RollupConfig { l2_chain_id: 901.into(), ..Default::default() };
+    let private = RollupConfig { settlement_chain_id: 1337, ..public.clone() };
+    let with_safe_db = NodeCommand { safedb_path: Some("safedb".into()), ..Default::default() };
+    let mut following = with_safe_db.clone();
+    following.derivation_delegate_args.l2_follow_source =
+        Some("http://localhost:9545".parse().unwrap());
+
+    assert!(with_safe_db.check_safe_db_supported(&public).is_ok());
+    assert!(NodeCommand::default().check_safe_db_supported(&private).is_ok());
+    let error = following.check_safe_db_supported(&public).unwrap_err().to_string();
+    assert!(error.contains("derivation delegation"), "{error}");
+    let error = with_safe_db.check_safe_db_supported(&private).unwrap_err().to_string();
+    assert!(error.contains("OP Private private chain"), "{error}");
 }
 
 #[test]

@@ -232,7 +232,11 @@ where
                 self.engine_l2_safe_head = *safe_head;
             }
             DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head) => {
-                info!(target: "derivation", "Engine finished syncing, starting derivation.");
+                if self.derivation_delegate_provider.is_some() {
+                    info!(target: "derivation", "Engine finished syncing, starting derivation.");
+                } else {
+                    info!(target: "derivation", "Engine finished syncing, no follow source to derive from.");
+                }
                 self.engine_l2_safe_head = *safe_head;
                 self.has_engine_sync_completed = true;
             }

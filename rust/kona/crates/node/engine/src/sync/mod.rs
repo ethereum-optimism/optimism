@@ -73,6 +73,31 @@ pub async fn find_starting_forkchoice(
         }
     }
 
+    // An OP Private private chain derives nothing from L1, so an expired sequencing window says
+    // nothing about which blocks are safe: keep the safe head the execution layer persisted
+    // (genesis unless a follow source advanced it), capped at the unsafe head.
+    if cfg.is_private_chain() {
+        if current_fc.finalized.block_info.number > current_fc.un_safe.block_info.number {
+            let genesis = engine_client
+                .get_l2_block(cfg.genesis.l2.number.into())
+                .full()
+                .await?
+                .ok_or(SyncStartError::BlockNotFound(cfg.genesis.l2.number.into()))?;
+            current_fc.finalized =
+                L2BlockInfo::from_block_and_genesis(&genesis.into_consensus(), &cfg.genesis)?;
+        }
+        if current_fc.safe.block_info.number > current_fc.un_safe.block_info.number {
+            current_fc.safe = current_fc.finalized;
+        }
+        info!(
+            target: "sync_start",
+            l2_safe = %current_fc.safe.block_info.number,
+            l2_finalized = %current_fc.finalized.block_info.number,
+            "Keeping the persisted safe head of a private chain"
+        );
+        return Ok(current_fc);
+    }
+
     // Search for the highest `safe` block that's L1 origin is at least older than the sequencing
     // window, relative to the L1 origin of the `unsafe` block.
     let mut safe_cursor = current_fc.un_safe;
@@ -144,5 +169,151 @@ mod test {
         let l2_block_info =
             L2BlockInfo::from_block_and_genesis(&consensus_block, &rollup_config.genesis).unwrap();
         assert_eq!(rpc_reported_hash, l2_block_info.block_info.hash);
+    }
+
+    mod private_chain {
+        use crate::{find_starting_forkchoice, test_utils::test_engine_client};
+        use alloy_consensus::transaction::Recovered;
+        use alloy_eips::BlockNumHash;
+        use alloy_primitives::{B256, Sealed, U256};
+        use alloy_rpc_types_eth::{Block, BlockTransactions, Header};
+        use kona_genesis::RollupConfig;
+        use kona_protocol::L1BlockInfoBedrock;
+        use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
+        use serde_json::json;
+        use std::sync::Arc;
+
+        type L2Block = Block<op_alloy_rpc_types::Transaction>;
+
+        fn l1_hash(number: u64) -> B256 {
+            B256::with_last_byte(number as u8)
+        }
+
+        /// An L2 block whose L1-info deposit names the L1 block `l1_origin`.
+        fn l2_block(number: u64, parent_hash: B256, l1_origin: u64) -> L2Block {
+            let header =
+                Header::new(alloy_consensus::Header { number, parent_hash, ..Default::default() });
+            let mut input = L1BlockInfoBedrock::L1_INFO_TX_SELECTOR.to_vec();
+            input.extend_from_slice(&U256::from(l1_origin).to_be_bytes::<32>());
+            input.extend_from_slice(&[0; 64]); // time, base fee
+            input.extend_from_slice(l1_hash(l1_origin).as_slice());
+            input.extend_from_slice(&[0; 128]); // sequence number, batcher, overhead, scalar
+            let deposit = OpTxEnvelope::Deposit(Sealed::new(TxDeposit {
+                input: input.into(),
+                ..Default::default()
+            }));
+            let tx = op_alloy_rpc_types::Transaction {
+                inner: alloy_rpc_types_eth::Transaction {
+                    inner: Recovered::new_unchecked(deposit, Default::default()),
+                    block_hash: Some(header.hash),
+                    block_number: Some(number),
+                    transaction_index: Some(0),
+                    effective_gas_price: Some(0),
+                    block_timestamp: None,
+                },
+                deposit_nonce: None,
+                deposit_receipt_version: None,
+            };
+            Block::new(header, BlockTransactions::Full(vec![tx]))
+        }
+
+        /// Genesis, block 1 with L1 origin 1, and block 2 with L1 origin 100: block 2's origin
+        /// is far past the 4-block sequencing window of block 1's origin.
+        fn chain(settlement_chain_id: u64) -> (Arc<RollupConfig>, [L2Block; 3]) {
+            let genesis = L2Block::new(
+                Header::new(alloy_consensus::Header::default()),
+                BlockTransactions::Full(vec![]),
+            );
+            let one = l2_block(1, genesis.header.hash, 1);
+            let two = l2_block(2, one.header.hash, 100);
+            let mut cfg = RollupConfig {
+                l2_chain_id: 901.into(),
+                settlement_chain_id,
+                seq_window_size: 4,
+                ..Default::default()
+            };
+            cfg.genesis.l2 = BlockNumHash { hash: genesis.header.hash, number: 0 };
+            (Arc::new(cfg), [genesis, one, two])
+        }
+
+        fn canonical_l1_block() -> Option<Block> {
+            Some(Block::default())
+        }
+
+        /// The sequencing-window search would walk the unsafe chain back to block 1. A private
+        /// chain keeps the persisted genesis safe head without reading any older block (the mock
+        /// panics on any request not scripted here).
+        #[tokio::test]
+        async fn keeps_the_persisted_safe_head_past_the_sequencing_window() {
+            let (cfg, [genesis, _, two]) = chain(1337);
+            let (client, l1, l2) = test_engine_client(cfg.clone());
+            l2.expect_params("eth_getBlockByNumber", json!(["finalized", true]), &genesis);
+            l2.expect_params("eth_getBlockByNumber", json!(["safe", true]), &genesis);
+            l2.expect_params("eth_getBlockByNumber", json!(["latest", true]), &two);
+            l1.expect_params(
+                "eth_getBlockByHash",
+                json!([l1_hash(100), false]),
+                canonical_l1_block(),
+            );
+
+            let fc = find_starting_forkchoice(&cfg, &client).await.unwrap();
+
+            assert_eq!(fc.un_safe.block_info.hash, two.header.hash);
+            assert_eq!(fc.safe.block_info.hash, genesis.header.hash);
+            assert_eq!(fc.finalized.block_info.hash, genesis.header.hash);
+            l1.assert_finished();
+            l2.assert_finished();
+        }
+
+        /// The same chain on a public chain still takes the safe head from the sequencing window.
+        #[tokio::test]
+        async fn a_public_chain_still_searches_the_sequencing_window() {
+            let (cfg, [genesis, one, two]) = chain(0);
+            let (client, l1, l2) = test_engine_client(cfg.clone());
+            l2.expect_params("eth_getBlockByNumber", json!(["finalized", true]), &genesis);
+            l2.expect_params("eth_getBlockByNumber", json!(["safe", true]), &genesis);
+            l2.expect_params("eth_getBlockByNumber", json!(["latest", true]), &two);
+            l1.expect_params(
+                "eth_getBlockByHash",
+                json!([l1_hash(100), false]),
+                canonical_l1_block(),
+            );
+            l2.expect_params("eth_getBlockByHash", json!([one.header.hash, true]), &one);
+
+            let fc = find_starting_forkchoice(&cfg, &client).await.unwrap();
+
+            assert_eq!(fc.un_safe.block_info.hash, two.header.hash);
+            assert_eq!(fc.safe.block_info.hash, one.header.hash);
+            assert_eq!(fc.finalized.block_info.hash, genesis.header.hash);
+            l1.assert_finished();
+            l2.assert_finished();
+        }
+
+        /// When block 2's L1 origin is reorged out, the unsafe head rewinds to block 1, below the
+        /// persisted safe and finalized heads, which fall back to genesis.
+        #[tokio::test]
+        async fn caps_persisted_heads_at_the_rewound_unsafe_head() {
+            let (cfg, [genesis, one, two]) = chain(1337);
+            let (client, l1, l2) = test_engine_client(cfg.clone());
+            l2.expect_params("eth_getBlockByNumber", json!(["finalized", true]), &two);
+            l2.expect_params("eth_getBlockByNumber", json!(["safe", true]), &two);
+            l2.expect_params("eth_getBlockByNumber", json!(["latest", true]), &two);
+            l1.expect_params("eth_getBlockByHash", json!([l1_hash(100), false]), None::<Block>);
+            l2.expect_params("eth_getBlockByHash", json!([one.header.hash, true]), &one);
+            l1.expect_params(
+                "eth_getBlockByHash",
+                json!([l1_hash(1), false]),
+                canonical_l1_block(),
+            );
+            l2.expect_params("eth_getBlockByNumber", json!(["0x0", true]), &genesis);
+
+            let fc = find_starting_forkchoice(&cfg, &client).await.unwrap();
+
+            assert_eq!(fc.un_safe.block_info.hash, one.header.hash);
+            assert_eq!(fc.safe.block_info.hash, genesis.header.hash);
+            assert_eq!(fc.finalized.block_info.hash, genesis.header.hash);
+            l1.assert_finished();
+            l2.assert_finished();
+        }
     }
 }
