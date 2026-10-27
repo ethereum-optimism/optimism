@@ -193,6 +193,7 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 			Context:    ctx,
 			L1RPCUrl:   cfg.L1RPCUrl,
 			PrivateKey: cfg.PrivateKey,
+			Logger:     lgr,
 		}
 		dso, err = opcm.DeploySuperchainViaForge(forgeEnv, input)
 		if err != nil {

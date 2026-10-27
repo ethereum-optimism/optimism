@@ -57,7 +57,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 }
 
 // ExecuteOPChainDeployment runs the deployment without recording state.
-// Script-host execution queues transactions. Forge broadcasts directly.
+// Script-host execution queues transactions. The forge path sends them before it returns.
 func ExecuteOPChainDeployment(
 	env *Env,
 	st *state.State,
