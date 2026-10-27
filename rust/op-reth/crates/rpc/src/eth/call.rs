@@ -33,7 +33,7 @@ where
 {
 }
 
-/// UPSTREAM-MIRROR(override): reth@rev:7eb96f9 `reth_rpc_eth_api::helpers::Call`
+/// UPSTREAM-MIRROR(override): reth@rev:6383666 `reth_rpc_eth_api::helpers::Call`
 ///
 /// Executes replay targets through the block executor to include transaction settlement.
 impl<N, Rpc> Call for OpEthApi<N, Rpc>

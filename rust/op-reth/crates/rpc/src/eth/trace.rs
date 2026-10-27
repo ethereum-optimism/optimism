@@ -35,7 +35,7 @@ use revm::{
 use revm_inspectors::tracing::{DebugInspector, TransactionContext};
 use std::sync::Arc;
 
-/// UPSTREAM-MIRROR(override): reth@rev:7eb96f9 `reth_rpc_eth_api::helpers::Trace`
+/// UPSTREAM-MIRROR(override): reth@rev:6383666 `reth_rpc_eth_api::helpers::Trace`
 ///
 /// Canonical replays include executor settlement; diagnostic block replays use the bare EVM.
 impl<N, Rpc> Trace for OpEthApi<N, Rpc>
