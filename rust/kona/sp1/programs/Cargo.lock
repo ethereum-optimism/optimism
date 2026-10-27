@@ -2748,7 +2748,7 @@ dependencies = [
 [[package]]
 name = "reth-zstd-compressors"
 version = "0.7.1"
-source = "git+https://github.com/ethereum-optimism/reth?rev=6383666a92afd1a1dcf54e802e68ad16f345b27a#6383666a92afd1a1dcf54e802e68ad16f345b27a"
+source = "git+https://github.com/ethereum-optimism/reth-core?rev=46719f79ff5f1b94bae3738cd65a4e44774b8e09#46719f79ff5f1b94bae3738cd65a4e44774b8e09"
 dependencies = [
  "zstd",
 ]
