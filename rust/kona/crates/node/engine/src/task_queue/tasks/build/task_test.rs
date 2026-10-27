@@ -1,6 +1,6 @@
 use crate::{
     BuildTask, BuildTaskError, EngineBuildError, EngineForkchoiceVersion, EngineState,
-    EngineTaskExt,
+    ExecutableEngineTask,
     test_utils::{
         TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
     },

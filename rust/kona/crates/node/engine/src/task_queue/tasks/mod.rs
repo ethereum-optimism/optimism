@@ -2,7 +2,7 @@
 
 mod task;
 pub use task::{
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, EngineTaskExt,
+    EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, ExecutableEngineTask,
 };
 
 mod synchronize;

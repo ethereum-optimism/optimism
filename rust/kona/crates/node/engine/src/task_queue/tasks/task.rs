@@ -43,16 +43,16 @@ pub trait EngineTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity;
 }
 
-/// The interface for an engine task.
+/// The execution contract every engine task implements. [`EngineTask`] dispatches to it.
 #[async_trait]
-pub trait EngineTaskExt {
+pub trait ExecutableEngineTask {
     /// The output type of the task.
     type Output;
 
     /// The error type of the task.
     type Error: EngineTaskError;
 
-    /// Executes the task, taking a shared lock on the engine state and `self`.
+    /// Executes the task with exclusive access to the engine state.
     async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, Self::Error>;
 }
 
@@ -218,7 +218,7 @@ impl Ord for EngineTask {
 }
 
 #[async_trait]
-impl EngineTaskExt for EngineTask {
+impl ExecutableEngineTask for EngineTask {
     type Output = ();
 
     type Error = EngineTaskErrors;

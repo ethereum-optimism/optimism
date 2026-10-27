@@ -381,7 +381,7 @@ mod request_observability_tests {
     #[test]
     fn build_requests_log_once_with_task_context_at_info() {
         use crate::{
-            BuildTask, EngineState, EngineTaskExt,
+            BuildTask, EngineState, ExecutableEngineTask,
             test_utils::{RpcMock, TestAttributesBuilder, test_block_info},
         };
         use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadId, PayloadStatusEnum};

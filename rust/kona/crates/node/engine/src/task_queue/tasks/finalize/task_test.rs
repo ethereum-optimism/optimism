@@ -1,5 +1,5 @@
 use crate::{
-    EngineTaskExt, FinalizeBlockId, FinalizeTask, FinalizeTaskError,
+    ExecutableEngineTask, FinalizeBlockId, FinalizeTask, FinalizeTaskError,
     test_utils::{TestEngineStateBuilder, test_engine_client},
 };
 use alloy_eips::BlockNumHash;
