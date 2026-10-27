@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,12 +59,10 @@ func runPrecompileTest(gt *testing.T, testCfg *helpers.TestCfg[PrecompileTestFix
 
 	receipt := env.Alice.L2.LastTxReceipt(t)
 	receiptBlockTime := env.Engine.HeaderByHash(t, receipt.BlockHash).Time
-	rules := env.Sd.L2Cfg.Config.GethChainConfig().Rules(receipt.BlockNumber, true, receiptBlockTime)
+	// A call to an inactive precompile's address succeeds with empty output.
 	expectedResult := make([]byte, 0)
-	precompile, ok := vm.ActivePrecompiledContracts(rules)[testCase.Address]
-	if ok {
-		expectedResult, err = precompile.Run(testCase.Input)
-		require.NoError(t, err)
+	if testCase.ActivationFork == "" || env.Sd.L2Cfg.Config.IsForkActive(testCase.ActivationFork, receiptBlockTime) {
+		expectedResult = testCase.Output
 	}
 
 	// sanity check Invoker precompile call
