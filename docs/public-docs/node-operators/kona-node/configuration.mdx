@@ -127,6 +127,7 @@ The RPC server starts once. If it stops unexpectedly, the node shuts down with a
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
 | `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | Path to the JSON file describing the interop dependency set for this chain. Required when the rollup config schedules the Lagoon hardfork. | - |
+| `--safedb.path <PATH>` | `KONA_NODE_SAFEDB_PATH` | Directory of the safe head database, which records the L2 safe head reached as of each L1 block and backs `optimism_safeHeadAtL1Block` and `superroot_atTimestamp`. Needed by op-challenger, op-proposer and op-dispute-mon. Nothing is recorded when unset. | - |
 
 `kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`
 flag group. `--interop.dependency-set` is the node's only interop flag.
