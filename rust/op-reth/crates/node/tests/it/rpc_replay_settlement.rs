@@ -177,7 +177,7 @@ async fn later_transactions_include_prior_sdm_settlement() -> eyre::Result<()> {
     let context = json!({"blockNumber": block.hash(), "transactionIndex": 4});
     let overrides = json!({balance_reader.to_string(): {"code": Bytes::from(balance_code)}, Address::ZERO.to_string(): {"balance": "0xffffffffffffffff"}});
     let output: Vec<Vec<alloy_rpc_types_eth::EthCallResponse>> = client
-        .request("eth_callMany", rpc_params![bundles.clone(), context, overrides.clone()])
+        .request("eth_callMany", rpc_params![bundles.clone(), context.clone(), overrides.clone()])
         .await?;
     assert_eq!(U256::from_be_slice(output[0][0].value.as_ref().unwrap()), sender_balance);
     let traces: Vec<Vec<GethTrace>> = client
