@@ -58,8 +58,14 @@ abstract contract ResourceMetering is Initializable {
     /// @notice EIP-1559 style gas parameters.
     ResourceParams public params;
 
+    /// @notice Gas published to L2 in the last counted block.
+    uint64 internal publishedGas;
+
+    /// @notice Last block in which published gas was counted.
+    uint64 internal publishedBlockNum;
+
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
-    uint256[48] private __gap;
+    uint256[47] private __gap;
 
     /// @notice Meters access to a function based an amount of a requested resource.
     /// @param _amount Amount of the resource requested.
@@ -155,6 +161,23 @@ abstract contract ResourceMetering is Initializable {
     /// @param _amount Amount of the L2 gas resource requested.
     function useGas(uint32 _amount) internal {
         params.prevBoughtGas += uint64(_amount);
+    }
+
+    /// @notice Adds published gas to this block's count.
+    /// @param _amount Amount of gas published.
+    function _countPublished(uint64 _amount) internal {
+        uint64 used = _amount;
+        if (publishedBlockNum == block.number) used += publishedGas;
+        if (used > _resourceConfig().maxResourceLimit) revert OutOfGas();
+        (publishedGas, publishedBlockNum) = (used, uint64(block.number));
+    }
+
+    /// @notice Counts the gas this block published before a hook was set.
+    function _countAlreadyPublished() internal {
+        if (publishedBlockNum == block.number) return;
+        uint64 used;
+        if (params.prevBlockNum == block.number) used = params.prevBoughtGas;
+        (publishedGas, publishedBlockNum) = (used, uint64(block.number));
     }
 
     /// @notice Virtual function that returns the resource config.

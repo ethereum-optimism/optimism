@@ -217,6 +217,13 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
         vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(_hook))));
     }
 
+    /// @notice Returns the published gas count and the block it counts.
+    function publishedCount() internal returns (uint64 gas_, uint64 blockNum_) {
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "publishedGas");
+        uint256 word = uint256(vm.load(address(optimismPortal2), bytes32(slot.slot)));
+        return (uint64(word), uint64(word >> 64));
+    }
+
     /// @notice Enables the runtime interop features used by portal migration methods.
     function forceEnableInterop() public {
         forceEnableLockbox(address(ethLockbox));
@@ -3138,6 +3145,10 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
         vm.deal(depositor, _mint);
         vm.prank(depositor, _isContract ? address(this) : depositor);
         optimismPortal2.depositTransaction{ value: _mint }(_to, _value, _gasLimit, _isCreation, _data);
+
+        (uint64 gas, uint64 blockNum) = publishedCount();
+        assertEq(gas, _gasLimit);
+        assertEq(blockNum, block.number);
     }
 
     /// @notice Tests that a held deposit is committed, its ETH goes to the hook and nothing is emitted.
@@ -3186,6 +3197,9 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
         assertEq(vm.getRecordedLogs().length, 0);
         assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)));
         assertEq(hook.balance, _mint);
+        (uint64 gas, uint64 blockNum) = publishedCount();
+        assertEq(gas, 0);
+        assertEq(blockNum, 0);
     }
 
     /// @notice Tests that the hook's revert data reaches the caller unchanged.
@@ -3266,6 +3280,8 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
 
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "depositNonce");
         assertEq(vm.load(address(optimismPortal2), bytes32(slot.slot)), bytes32(0));
+        (uint64 gas,) = publishedCount();
+        assertEq(gas, 100_000);
     }
 
     /// @notice Tests that the L1PAO's message through the messenger is screened.
@@ -3277,6 +3293,61 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
 
         vm.prank(proxyAdminOwner, proxyAdminOwner);
         l1CrossDomainMessenger.sendMessage(bob, hex"aa", 100_000);
+    }
+
+    /// @notice Tests that the published gas count restarts in each block.
+    function test_depositTransaction_countResetsPerBlock_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        vm.mockCall(hook, abi.encodeWithSelector(IBridgeHook.screenDeposit.selector), abi.encode(true));
+
+        vm.startPrank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
+        vm.roll(block.number + 1);
+        optimismPortal2.depositTransaction(bob, 0, 200_000, false, hex"");
+        vm.stopPrank();
+
+        (uint64 gas, uint64 blockNum) = publishedCount();
+        assertEq(gas, 200_000);
+        assertEq(blockNum, block.number);
+    }
+
+    /// @notice Tests that a deposit past the block's published gas limit reverts.
+    function testFuzz_depositTransaction_overPublishedLimit_reverts(uint64 _published) external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        vm.mockCall(hook, abi.encodeWithSelector(IBridgeHook.screenDeposit.selector), abi.encode(true));
+        uint64 max = systemConfig.resourceConfig().maxResourceLimit;
+        _published = uint64(bound(_published, max - 100_000 + 1, max));
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "publishedGas");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(block.number << 64 | _published));
+
+        vm.expectRevert(IOptimismPortal.OutOfGas.selector);
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
+    }
+
+    /// @notice Tests that after the hook is removed, deposits are counted only until the block ends.
+    function test_depositTransaction_countAfterRemoval_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        vm.mockCall(hook, abi.encodeWithSelector(IBridgeHook.screenDeposit.selector), abi.encode(true));
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.removeHook();
+
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
+        (uint64 gas,) = publishedCount();
+        assertEq(gas, 200_000, "same block");
+
+        vm.roll(block.number + 1);
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
+        (uint64 gasAfter, uint64 blockNum) = publishedCount();
+        assertEq(gasAfter, 200_000, "next block");
+        assertEq(blockNum, block.number - 1, "next block");
     }
 
     /// @notice Tests that without a hook a deposit never reads the L1PAO and writes only the meter.
@@ -3402,6 +3473,7 @@ contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_Test
         });
         uint256 balanceBefore = address(optimismPortal2).balance;
         uint256 lockboxBalanceBefore = address(ethLockbox).balance;
+        (uint128 baseFee, uint64 boughtGas, uint64 meteredBlockNum) = optimismPortal2.params();
 
         vm.expectEmit(address(optimismPortal2));
         emitTransactionDeposited(depositor, _to, _mint, _value, _gasLimit, _isCreation, _data);
@@ -3412,6 +3484,12 @@ contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_Test
         assertFalse(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)));
         assertEq(address(optimismPortal2).balance, balanceBefore);
         assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _mint);
+        (uint64 gas,) = publishedCount();
+        assertEq(gas, _gasLimit, "published");
+        (uint128 baseFeeAfter, uint64 boughtGasAfter, uint64 meteredBlockNumAfter) = optimismPortal2.params();
+        assertEq(baseFeeAfter, baseFee, "base fee");
+        assertEq(boughtGasAfter, boughtGas, "bought gas");
+        assertEq(meteredBlockNumAfter, meteredBlockNum, "metered block");
     }
 
     /// @notice Tests that a held deposit completes only once.
@@ -3570,6 +3648,35 @@ contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_Test
 
         vm.prank(hook);
         optimismPortal2.completeDepositTransaction(item);
+    }
+
+    /// @notice Tests that a completion past the block's published gas limit reverts and the deposit
+    ///         stays held.
+    function test_completeDepositTransaction_overPublishedLimit_reverts() external {
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: bob,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 0
+        });
+        uint64 max = systemConfig.resourceConfig().maxResourceLimit;
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "publishedGas");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(block.number << 64 | (max - 50_000)));
+
+        vm.prank(hook);
+        vm.expectRevert(IOptimismPortal.OutOfGas.selector);
+        optimismPortal2.completeDepositTransaction(item);
+
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)));
     }
 }
 
@@ -3859,5 +3966,46 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidBridgeHookState.selector);
         vm.prank(proxyAdminOwner);
         optimismPortal2.removeHook();
+    }
+
+    /// @notice Tests that setting a hook counts the gas this block published before it.
+    function test_initialize_countsAlreadyPublished_succeeds() external {
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
+        (, uint64 boughtGas,) = optimismPortal2.params();
+
+        _allowReinitialize();
+        _initialize(hook);
+
+        (uint64 gas, uint64 blockNum) = publishedCount();
+        assertEq(gas, boughtGas);
+        assertEq(blockNum, block.number);
+    }
+
+    /// @notice Tests that setting a hook keeps a count that already started in this block.
+    function test_initialize_countStarted_succeeds() external {
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "publishedGas");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(block.number << 64 | 300_000));
+
+        _allowReinitialize();
+        _initialize(hook);
+
+        (uint64 gas,) = publishedCount();
+        assertEq(gas, 300_000);
+    }
+
+    /// @notice Tests that a hook removed and set again in the same block keeps the block's count.
+    function test_removeHook_setAgainSameBlock_succeeds() external {
+        forceSetBridgeHook(hook);
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "publishedGas");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(block.number << 64 | 300_000));
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.removeHook();
+
+        _allowReinitialize();
+        _initialize(hook);
+
+        (uint64 gas,) = publishedCount();
+        assertEq(gas, 300_000);
     }
 }

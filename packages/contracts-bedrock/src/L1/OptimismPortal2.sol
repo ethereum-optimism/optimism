@@ -326,7 +326,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Initializer. A nonzero `_bridgeHook` replaces the current hook and emits
     ///         BridgeHookSet on every run. Value held by a replaced hook stays with it. Upgrades
-    ///         pass the zero address to keep the current hook.
+    ///         pass the zero address to keep the current hook. Setting a hook also counts the gas
+    ///         this block already published.
     ///
     /// @param _systemConfig Address of the SystemConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
@@ -355,6 +356,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         if (address(_bridgeHook) != address(0)) {
             bridgeHook = _bridgeHook;
             emit BridgeHookSet(_bridgeHook);
+            _countAlreadyPublished();
         }
 
         _assertValidInteropState();
@@ -1011,6 +1013,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     )
         internal
     {
+        if (_isUsingBridgeHook() || publishedBlockNum == block.number) _countPublished(_gasLimit);
+
         if (_isUsingLockbox()) {
             if (msg.value > 0) _lockETH(msg.value);
         }
