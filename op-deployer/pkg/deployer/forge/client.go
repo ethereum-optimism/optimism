@@ -47,6 +47,8 @@ type Client struct {
 	Timeout time.Duration
 	// Env holds KEY=VALUE variables for each forge command, on top of the inherited environment.
 	Env []string
+	// capture is set only on the private client copy used by CaptureTransactions.
+	capture *[]Transaction
 }
 
 func NewStandardClient(workdir string, binOpts ...StandardBinOpt) (*Client, error) {
@@ -148,10 +150,36 @@ type FsPermission struct {
 // compileCacheFile is forge's compile cache, relative to the project.
 const compileCacheFile = "cache/solidity-files-cache.json"
 
+// CaptureTransactions runs one script on a private copy of the client and returns only the
+// transactions recorded by forge. The callback must not broadcast: Go owns live delivery.
+func (c *Client) CaptureTransactions(run func(*Client) error) ([]Transaction, error) {
+	var transactions []Transaction
+	client := *c
+	client.capture = &transactions
+	if err := run(&client); err != nil {
+		return nil, err
+	}
+	if transactions == nil {
+		return nil, errors.New("forge did not capture a script run")
+	}
+	return transactions, nil
+}
+
 // RunScript runs a prebuilt script without a compile. Not --offline: offline, forge requires the solc
 // versions of the cache installed even when it compiles nothing. Each run gets its own copy of the
 // compile cache and its own broadcast directory, so concurrent runs write no shared file.
 func (c *Client) RunScript(ctx context.Context, script string, sig string, args []byte, opts ...string) (string, error) {
+	if c.capture != nil {
+		if *c.capture != nil {
+			return "", errors.New("transaction capture requires exactly one script run")
+		}
+		for _, opt := range opts {
+			name, _, _ := strings.Cut(opt, "=")
+			if name == "--broadcast" || name == "--resume" {
+				return "", errors.New("transaction capture requires a keyless dry run, not broadcast or resume")
+			}
+		}
+	}
 	scratch, err := os.MkdirTemp("", "op-deployer-forge-")
 	if err != nil {
 		return "", fmt.Errorf("failed to create forge scratch directory: %w", err)
@@ -204,6 +232,13 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	}
 	if strings.Contains(buf.String(), "Compiler run successful") {
 		return "", compileErr
+	}
+	if c.capture != nil {
+		transactions, err := readTransactions(filepath.Join(scratch, "broadcast"), buf.String())
+		if err != nil {
+			return "", err
+		}
+		*c.capture = transactions
 	}
 	return buf.String(), nil
 }

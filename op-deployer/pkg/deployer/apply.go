@@ -405,10 +405,12 @@ func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifact
 		return nil, fmt.Errorf("failed to create L1 Forge client: %w", err)
 	}
 	pEnv.Forge = &opcm.ForgeEnv{
-		Client:     forgeClient,
-		Context:    ctx,
-		L1RPCUrl:   opts.L1RPCUrl,
-		PrivateKey: privateKey,
+		Client:               forgeClient,
+		Context:              ctx,
+		L1RPCUrl:             opts.L1RPCUrl,
+		PrivateKey:           privateKey,
+		Logger:               opts.Logger,
+		ReceiptQueryInterval: opts.ReceiptQueryInterval,
 	}
 	return pEnv, nil
 }

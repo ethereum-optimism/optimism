@@ -26,8 +26,11 @@ cp ./bin/op-deployer /usr/local/bin/op-deployer # or any other directory in your
 
 ## Runtime Dependencies
 
-OP Deployer runs its Solidity deploy scripts with [forge](https://getfoundry.sh). OP Deployer pins one Foundry
-version, in
+OP Deployer runs its Solidity deploy scripts with [forge](https://getfoundry.sh). Live `apply` and `bootstrap`
+produce transactions with a keyless forge dry run, then sign and send only forge's recorded transactions
+with txmgr, preserving automatic rebroadcasts and fee bumps. The private key is not passed to forge.
+Use an up-to-date L1 RPC endpoint: each dry run is pinned to the observed head and fails before replay if that block
+is unavailable. OP Deployer pins one Foundry version, in
 [`version.json`](https://github.com/ethereum-optimism/optimism/blob/develop/op-deployer/pkg/deployer/forge/version.json).
 
 *   If `forge` of that version is on your `PATH`, OP Deployer uses it.
