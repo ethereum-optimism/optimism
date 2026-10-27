@@ -1168,6 +1168,15 @@ jobs:
           namespace: packages/contracts-bedrock/scripts/go-ffi
       - setup-features:
           features: <<parameters.features>>
+      - when:
+          condition: << parameters.attach_build >>
+          steps:
+            - run:
+                name: Check attached build is fresh
+                command: forge build 2>&1 | tail -20
+                environment:
+                  FOUNDRY_PROFILE: <<parameters.test_profile>>
+                working_directory: packages/contracts-bedrock
       - run:
           name: Pick fuzz seed
           command: |
@@ -1190,6 +1199,22 @@ jobs:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: <<parameters.test_timeout>>
+      - run:
+          name: Hash test artifacts
+          command: |
+            mkdir -p diag
+            find forge-artifacts -name '*.json' -print0 \
+              | xargs -0 jq -r '"\(input_filename) \(.deployedBytecode.object // "-")"' \
+              | while read -r f b; do echo "$f $(printf %s "$b" | sha256sum | cut -c1-16)"; done \
+              | sort > diag/artifact-hashes.txt
+            wc -l diag/artifact-hashes.txt
+            grep -E "CrossDomainMessenger.t.sol/|/L1CrossDomainMessenger.json|/OptimismPortal2.json" diag/artifact-hashes.txt
+            cp cache/solidity-files-cache.json diag/ || true
+          working_directory: packages/contracts-bedrock
+          when: always
+      - store_artifacts:
+          path: packages/contracts-bedrock/diag
+          when: always
       - run:
           name: Print failed test traces
           command: just test-rerun
