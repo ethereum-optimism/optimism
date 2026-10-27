@@ -5,7 +5,7 @@ use alloy_signer::Signature;
 use alloy_transport::{RpcError, TransportError, TransportErrorKind};
 use backon::{ExponentialBuilder, Retryable};
 use op_alloy_rpc_types_engine::PayloadHash;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use thiserror::Error;
 
 use crate::ReloadingRpcClient;
@@ -16,20 +16,14 @@ const MIN_RETRY_DELAY: Duration = Duration::from_millis(100);
 /// Longest delay between signing attempts.
 const MAX_RETRY_DELAY: Duration = Duration::from_secs(5);
 
-/// Request parameters for signing a block payload
+/// JSON arguments for op-signer's V2 signing API. The P2P signature is still V1.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct BlockPayloadArgs {
+struct BlockPayloadArgsV2 {
     domain: B256,
-    chain_id: u64,
+    chain_id: String,
     payload_hash: B256,
     sender_address: Address,
-}
-
-/// Response from the remote signer
-#[derive(Debug, Deserialize)]
-struct SignResponse {
-    signature: String,
 }
 
 /// Remote signer that communicates with an external signing service via JSON-RPC
@@ -103,10 +97,10 @@ impl RemoteSignerHandler {
             });
         }
 
-        let params = BlockPayloadArgs {
+        let params = BlockPayloadArgsV2 {
             // For v1 payloads, the domain is always zero
             domain: B256::ZERO,
-            chain_id,
+            chain_id: chain_id.to_string(),
             payload_hash: payload_hash.0,
             sender_address,
         };
@@ -114,9 +108,8 @@ impl RemoteSignerHandler {
         let response = self.request_signature(&params).await?;
 
         // Parse the hex signature
-        let signature_bytes =
-            alloy_primitives::hex::decode(response.signature.trim_start_matches("0x"))
-                .map_err(RemoteSignerError::InvalidSignatureHex)?;
+        let signature_bytes = alloy_primitives::hex::decode(response.trim_start_matches("0x"))
+            .map_err(RemoteSignerError::InvalidSignatureHex)?;
 
         if signature_bytes.len() != 65 {
             return Err(RemoteSignerError::InvalidSignatureLength(signature_bytes.len()));
@@ -131,15 +124,15 @@ impl RemoteSignerHandler {
     /// Requests a signature, retrying transient failures until the signer returns one.
     async fn request_signature(
         &self,
-        params: &BlockPayloadArgs,
-    ) -> Result<SignResponse, RemoteSignerError> {
+        params: &BlockPayloadArgsV2,
+    ) -> Result<String, RemoteSignerError> {
         let backoff = ExponentialBuilder::default()
             .with_min_delay(MIN_RETRY_DELAY)
             .with_max_delay(MAX_RETRY_DELAY)
             .without_max_times();
         // Take the current client on each attempt, so a client rebuilt for new certificates is
         // used next.
-        (|| async { self.client.client().request("opsigner_signBlockPayload", params).await })
+        (|| async { self.client.client().request("opsigner_signBlockPayloadV2", (params,)).await })
             .retry(backoff)
             .when(is_transient)
             .notify(|err, delay| {
@@ -257,6 +250,7 @@ mod tests {
             )
             .await;
         }
+        assert_eq!(request["method"], "opsigner_signBlockPayloadV2");
         let body = match answer(calls.fetch_add(1, Ordering::SeqCst)) {
             Answer::Drop => return,
             Answer::Stall => std::future::pending().await,
@@ -276,11 +270,15 @@ mod tests {
                 json!({ "jsonrpc": "2.0", "id": id, "result": { "unexpected": true } })
             }
             Answer::Sign => {
-                // The client sends the arguments as a single object.
+                // op-signer expects one positional argument and returns a hex string.
+                assert_eq!(request["params"].as_array().unwrap().len(), 1);
+                assert_eq!(request["params"][0]["domain"], json!(B256::ZERO));
+                assert_eq!(request["params"][0]["chainId"], CHAIN_ID.to_string());
+                assert_eq!(request["params"][0]["senderAddress"], json!(key.address()));
                 let hash: B256 =
-                    serde_json::from_value(request["params"]["payloadHash"].clone()).unwrap();
+                    serde_json::from_value(request["params"][0]["payloadHash"].clone()).unwrap();
                 let signature = expected_signature(&key, PayloadHash(hash)).to_string();
-                json!({ "jsonrpc": "2.0", "id": id, "result": { "signature": signature } })
+                json!({ "jsonrpc": "2.0", "id": id, "result": signature })
             }
         };
         respond(&mut stream, 200, body).await;
@@ -327,7 +325,21 @@ mod tests {
         handler: &RemoteSignerHandler,
         key: &PrivateKeySigner,
     ) -> Result<Signature, RemoteSignerError> {
-        handler.sign_block_v1(PayloadHash(B256::repeat_byte(7)), CHAIN_ID, key.address()).await
+        tokio::time::timeout(
+            Duration::from_secs(10),
+            handler.sign_block_v1(PayloadHash(B256::repeat_byte(7)), CHAIN_ID, key.address()),
+        )
+        .await
+        .expect("signing request did not complete")
+    }
+
+    #[tokio::test]
+    async fn signs_with_op_signer_v2_wire_format() {
+        let key = PrivateKeySigner::random();
+        let (handler, calls) = fake_signer(&key, |_| Answer::Sign).await;
+        let signature = sign(&handler, &key).await.unwrap();
+        assert_eq!(signature, expected_signature(&key, PayloadHash(B256::repeat_byte(7))));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]

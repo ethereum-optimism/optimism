@@ -123,16 +123,16 @@ mod tests {
         let mut module = RpcModule::new((calls.clone(), key.clone()));
         module.register_method("health_status", |_, _, _| "ok").unwrap();
         module
-            .register_method("opsigner_signBlockPayload", move |params, ctx, _| {
+            .register_method("opsigner_signBlockPayloadV2", move |params, ctx, _| {
                 let (calls, key) = ctx;
                 calls.fetch_add(1, Ordering::SeqCst);
-                // The client sends the arguments as a single object.
+                // Match op-signer's positional argument and hex-string result.
                 let args: serde_json::Value = params.parse().unwrap();
                 let hash: alloy_primitives::B256 =
-                    serde_json::from_value(args["payloadHash"].clone()).unwrap();
+                    serde_json::from_value(args[0]["payloadHash"].clone()).unwrap();
                 let message =
                     op_alloy_rpc_types_engine::PayloadHash(hash).signature_message(CHAIN_ID);
-                serde_json::json!({"signature": key.sign_hash_sync(&message).unwrap().to_string()})
+                serde_json::json!(key.sign_hash_sync(&message).unwrap().to_string())
             })
             .unwrap();
         let server = server.start(module);
