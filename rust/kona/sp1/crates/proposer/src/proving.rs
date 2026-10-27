@@ -3747,3 +3747,7 @@ mod tests {
         assert_eq!(values, vec![0, 10, 20, 30]);
     }
 }
+
+#[cfg(test)]
+#[path = "proving/native_tests.rs"]
+mod native_tests;

@@ -62,7 +62,16 @@ flate2.workspace = true
 jsonrpsee = { workspace = true, features = ["http-client"] }
 
 [dev-dependencies]
-kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
+alloy-op-evm.workspace = true
+alloy-rlp.workspace = true
+alloy-trie.workspace = true
+kona-executor.workspace = true
+kona-mpt.workspace = true
+kona-preimage.workspace = true
+kona-proof.workspace = true
+kona-protocol.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils", "log-commitment-test-utils"] }
 kona-genesis.workspace = true
 kona-interop = { workspace = true, features = ["test-utils"] }
 alloy-json-rpc.workspace = true

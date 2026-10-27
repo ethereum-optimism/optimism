@@ -239,6 +239,11 @@ fn below_head_reference(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+
     use alloy_consensus::{Sealed, proofs::ordered_trie_root_with_encoder};
     use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Address, U256};
@@ -266,6 +271,9 @@ mod tests {
         headers: BTreeMap<(u64, B256), Header>,
         by_number: BTreeMap<(u64, u64), Header>,
         receipts: BTreeMap<B256, Vec<OpReceiptEnvelope>>,
+        hash_reads: Mutex<Vec<(u64, B256)>>,
+        number_reads: Mutex<Vec<(u64, u64)>>,
+        receipt_reads: Mutex<Vec<(u64, B256)>>,
     }
 
     /// The header of block `number` at `timestamp` with `receipts`.
@@ -301,7 +309,10 @@ mod tests {
 
     /// Replaced blocks by chain and hash.
     #[derive(Default)]
-    struct FakeReplaced(BTreeMap<(u64, B256), Replaced>);
+    struct FakeReplaced {
+        blocks: BTreeMap<(u64, B256), Replaced>,
+        reads: AtomicUsize,
+    }
 
     #[async_trait]
     impl ReplacedBlockSource for FakeReplaced {
@@ -311,7 +322,8 @@ mod tests {
             parent: B256,
             hash: B256,
         ) -> Result<OptimisticBlockReceipts> {
-            match self.0.get(&(chain_id, hash)) {
+            self.reads.fetch_add(1, Ordering::Relaxed);
+            match self.blocks.get(&(chain_id, hash)) {
                 Some(replaced) if replaced.parent == parent => Ok(replaced.block.clone()),
                 _ => anyhow::bail!("unknown replaced block"),
             }
@@ -321,20 +333,23 @@ mod tests {
     #[async_trait]
     impl L2BlockSource for FakeL2 {
         async fn header_by_hash(&self, chain_id: u64, hash: B256) -> Result<Header> {
+            self.hash_reads.lock().unwrap().push((chain_id, hash));
             self.headers.get(&(chain_id, hash)).cloned().context("unknown header")
         }
 
         async fn header_by_number(&self, chain_id: u64, number: u64) -> Result<Sealed<Header>> {
+            self.number_reads.lock().unwrap().push((chain_id, number));
             let header = self.by_number.get(&(chain_id, number)).context("unknown number")?;
             Ok(Sealed::new_unchecked(header.clone(), header.hash_slow()))
         }
 
         async fn receipts(
             &self,
-            _chain_id: u64,
+            chain_id: u64,
             hash: B256,
             _receipts_root: B256,
         ) -> Result<Vec<OpReceiptEnvelope>> {
+            self.receipt_reads.lock().unwrap().push((chain_id, hash));
             self.receipts.get(&hash).cloned().context("unknown receipts")
         }
     }
@@ -496,7 +511,7 @@ mod tests {
         let denied_header = header(3, 12, &executing.receipts);
         let denied = denied_header.hash_slow();
         let block = OptimisticBlockReceipts { header: denied_header, receipts: executing.receipts };
-        replaced.0.insert((B, denied), Replaced { parent: b2, block });
+        replaced.blocks.insert((B, denied), Replaced { parent: b2, block });
         let responses = SPAN
             .iter()
             .map(|&timestamp| {
@@ -534,6 +549,43 @@ mod tests {
             scan.timestamps.iter().map(|t| t.references.iter().copied().collect()).collect();
         assert_eq!(references, [vec![(A, 10)], vec![], vec![], vec![]]);
         assert_eq!(scan.blocks.keys().copied().collect::<Vec<_>>(), [(A, 10)]);
+    }
+
+    #[tokio::test]
+    async fn scan_retains_persisting_replaced_head_references_at_each_timestamp() {
+        for agreed in 0..4 {
+            let mut l2 = FakeL2::default();
+            let mut replaced = FakeReplaced::default();
+            let (mut responses, denied) = replaced_span(&mut l2, &mut replaced);
+            let optimistic = responses[1].optimistic_at_timestamp[&ChainId(U256::from(B))].clone();
+            for response in responses.iter_mut().skip(2) {
+                response.optimistic_at_timestamp.insert(ChainId(U256::from(B)), optimistic.clone());
+            }
+            let scan = scan_span(&l2, &replaced, &responses[agreed..], &configs()).await.unwrap();
+            assert_eq!(
+                scan.timestamps.iter().map(|step| step.timestamp).collect::<Vec<_>>(),
+                SPAN[agreed + 1..],
+            );
+            for step in &scan.timestamps {
+                assert_eq!(step.replaced_chains, 1);
+                assert_eq!(step.messages, 1);
+                assert_eq!(step.references, BTreeSet::from([(A, 10)]));
+            }
+            let initiating = &scan.blocks[&(A, 10)];
+            assert_eq!(scan.blocks.len(), 1);
+            assert_eq!(initiating.hash, l2.by_number[&(A, 10)].hash_slow());
+            assert_eq!(initiating.receipts_root, l2.by_number[&(A, 10)].receipts_root);
+            assert_eq!(replaced.reads.load(Ordering::Relaxed), 1);
+            assert_eq!(*l2.number_reads.lock().unwrap(), [(B, 2), (A, 10)]);
+            assert!(
+                l2.hash_reads
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .all(|(chain, hash)| *chain == A && *hash != denied)
+            );
+            assert!(l2.receipt_reads.lock().unwrap().iter().all(|(chain, _)| *chain == A));
+        }
     }
 
     /// Pins an error, not a scan without the replaced head's references, when the replaced-block

@@ -54,6 +54,10 @@ tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [dev-dependencies]
+alloy-op-evm.workspace = true
+alloy-trie.workspace = true
+kona-executor.workspace = true
+op-alloy-rpc-types-engine.workspace = true
 kona-sp1-client-utils = { workspace = true, features = ["log-commitment-test-utils"] }
 alloy-chains.workspace = true
 kona-genesis.workspace = true
