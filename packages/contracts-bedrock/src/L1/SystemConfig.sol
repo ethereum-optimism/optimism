@@ -64,9 +64,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     ///         layout from the way that `solc` lays out storage. The `op-node` uses a storage
     ///         proof to fetch this value.
     /// @dev    NOTE: this value will be migrated to another storage slot in a future version.
-    ///         User input should not be placed in storage in this contract until this migration
-    ///         happens. It is unlikely that keccak second preimage resistance will be broken,
-    ///         but it is better to be safe than sorry.
+    ///         Owner-set values in mapping slots (`isFeatureEnabled`, `privateConfig`) cannot
+    ///         reach this slot without a keccak second preimage.
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
     /// @notice Storage slot that the L1CrossDomainMessenger address is stored at.

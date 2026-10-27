@@ -8,6 +8,7 @@ import { VmSafe } from "forge-std/Vm.sol";
 
 // Scripts
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
@@ -19,6 +20,7 @@ import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
 /// @title SystemConfig Test Init
 /// @notice Reusable test initialization for SystemConfig tests.
@@ -1006,6 +1008,18 @@ contract SystemConfig_SetPrivateConfig_Test is SystemConfig_TestInit {
     /// @notice Topic 0 of `ConfigUpdate`, which stock nodes read.
     bytes32 internal constant CONFIG_UPDATE_TOPIC = keccak256("ConfigUpdate(uint256,uint8,bytes)");
 
+    /// @notice Base storage slot of `privateConfig`, as in `snapshots/storageLayout/SystemConfig.json`.
+    uint256 internal constant PRIVATE_CONFIG_SLOT = 110;
+
+    /// @notice Returns the storage slot of `privateConfig[_chainId][_updateType]`.
+    /// @param _chainId Chain ID of the entry.
+    /// @param _type Update type of the entry.
+    /// @return The storage slot.
+    function _entrySlot(uint256 _chainId, ISystemConfig.UpdateType _type) internal pure returns (bytes32) {
+        bytes32 outer = keccak256(abi.encode(_chainId, PRIVATE_CONFIG_SLOT));
+        return keccak256(abi.encode(uint256(_type), outer));
+    }
+
     /// @notice Returns a valid `UpdateType` for a fuzzed value.
     /// @param _seed Fuzzed value.
     /// @return The `UpdateType`.
@@ -1156,5 +1170,114 @@ contract SystemConfig_SetPrivateConfig_Test is SystemConfig_TestInit {
         assertEq(
             abi.decode(systemConfig.privateConfig(chainId, ISystemConfig.UpdateType.GAS_LIMIT), (uint64)), 60_000_000
         );
+    }
+
+    /// @notice Tests that `privateConfig` entries live at the storage slots that off-chain
+    ///         readers derive. The literal slots are pinned so readers can check their derivation.
+    function test_setPrivateConfig_storageSlot_succeeds() external {
+        assertEq(ForgeArtifacts.getSlot("SystemConfig", "privateConfig").slot, PRIVATE_CONFIG_SLOT);
+
+        bytes32 outer = keccak256(abi.encode(uint256(1337), PRIVATE_CONFIG_SLOT));
+        assertEq(outer, 0x1034e9e1669a95aba7621ce5b39dc0037f4fa3bb70012d4971fc8e322a0e7f4c);
+        bytes32 entry = keccak256(abi.encode(uint256(ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER), outer));
+        assertEq(entry, 0xacf9df9fdc764ece4c3bd4b37fdff5cafefd1ccf2c99b0b321c6675ad01c547d);
+        assertEq(_entrySlot(1337, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER), entry);
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setPrivateConfig(1337, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(address(0xdEaD)));
+
+        // The value is 32 bytes, so it uses the long `bytes` encoding: the entry slot holds
+        // `length * 2 + 1` and the data starts at `keccak256(entry)`.
+        assertEq(vm.load(address(systemConfig), entry), bytes32(uint256(0x41)));
+        bytes32 dataSlot = keccak256(abi.encode(entry));
+        assertEq(dataSlot, 0xb2ff57daa4ed3d4f68f6702f06ec6ed298f25bd7ff6659af16d52ad241bf7697);
+        assertEq(vm.load(address(systemConfig), dataSlot), bytes32(uint256(uint160(address(0xdEaD)))));
+    }
+
+    /// @notice Tests that `setPrivateConfig` and `privateConfig` revert for an update type that
+    ///         is not a member of `UpdateType`.
+    function test_setPrivateConfig_updateTypeOutOfRange_reverts() external {
+        // `abi.encodeCall` cannot encode an out-of-range enum value, so encode the arguments raw.
+        vm.prank(systemConfig.owner());
+        (bool success,) = address(systemConfig)
+            .call(
+                bytes.concat(
+                    ISystemConfig.setPrivateConfig.selector,
+                    abi.encode(uint256(1337), uint256(NUM_UPDATE_TYPES), hex"01")
+                )
+            );
+        assertFalse(success);
+
+        (success,) = address(systemConfig)
+            .staticcall(
+                bytes.concat(ISystemConfig.privateConfig.selector, abi.encode(uint256(1337), uint256(NUM_UPDATE_TYPES)))
+            );
+        assertFalse(success);
+    }
+
+    /// @notice Tests that overwriting a long value with empty bytes clears the entry slot and
+    ///         all of the old data slots.
+    function test_setPrivateConfig_clearLongValue_succeeds() external {
+        ISystemConfig.UpdateType updateType = ISystemConfig.UpdateType.GAS_LIMIT;
+        bytes32 entry = _entrySlot(1337, updateType);
+        bytes32 dataSlot = keccak256(abi.encode(entry));
+
+        bytes memory value = new bytes(100);
+        for (uint256 i = 0; i < value.length; i++) {
+            value[i] = bytes1(uint8(i + 1));
+        }
+
+        vm.startPrank(systemConfig.owner());
+        systemConfig.setPrivateConfig(1337, updateType, value);
+        assertEq(vm.load(address(systemConfig), entry), bytes32(uint256(100 * 2 + 1)));
+        for (uint256 i = 0; i < 4; i++) {
+            assertNotEq(vm.load(address(systemConfig), bytes32(uint256(dataSlot) + i)), bytes32(0));
+        }
+
+        systemConfig.setPrivateConfig(1337, updateType, bytes(""));
+        vm.stopPrank();
+
+        assertEq(systemConfig.privateConfig(1337, updateType), bytes(""));
+        assertEq(vm.load(address(systemConfig), entry), bytes32(0));
+        for (uint256 i = 0; i < 4; i++) {
+            assertEq(vm.load(address(systemConfig), bytes32(uint256(dataSlot) + i)), bytes32(0));
+        }
+    }
+
+    /// @notice Tests that `privateConfig` entries survive an upgrade to a new implementation.
+    function test_setPrivateConfig_survivesUpgrade_succeeds() external {
+        bytes memory value = abi.encode(address(0xdEaD));
+        vm.prank(systemConfig.owner());
+        systemConfig.setPrivateConfig(1337, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, value);
+
+        address newImpl = DeployUtils.create1({
+            _name: "SystemConfig",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfig.__constructor__, ()))
+        });
+
+        // Wipe out the initialized slot so the proxy can be initialized again, as in an upgrade.
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+
+        bytes memory initializeCall = abi.encodeCall(
+            ISystemConfig.initialize,
+            (
+                systemConfig.owner(),
+                systemConfig.basefeeScalar(),
+                systemConfig.blobbasefeeScalar(),
+                systemConfig.batcherHash(),
+                systemConfig.gasLimit(),
+                systemConfig.unsafeBlockSigner(),
+                systemConfig.resourceConfig(),
+                systemConfig.getAddresses(),
+                systemConfig.l2ChainId(),
+                systemConfig.superchainConfig()
+            )
+        );
+        IProxyAdmin admin = systemConfig.proxyAdmin();
+        vm.prank(admin.owner());
+        admin.upgradeAndCall(payable(address(systemConfig)), newImpl, initializeCall);
+
+        assertEq(EIP1967Helper.getImplementation(address(systemConfig)), newImpl);
+        assertEq(systemConfig.privateConfig(1337, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER), value);
     }
 }
