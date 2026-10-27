@@ -18,8 +18,8 @@ pub trait ConnectionGate {
     /// Returns the [`Connectedness`] for a given peer id.
     fn connectedness(&self, peer_id: &PeerId) -> Connectedness;
 
-    /// Marks an address as currently being dialed.
-    fn dialing(&mut self, addr: &Multiaddr);
+    /// Marks a peer as being dialed, at one or more addresses, until [`Self::remove_dial`].
+    fn dialing(&mut self, peer_id: &PeerId);
 
     /// Marks an address as dialed.
     fn dialed(&mut self, addr: &Multiaddr);

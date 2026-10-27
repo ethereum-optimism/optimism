@@ -286,44 +286,67 @@ where
         self.dial_multiaddr(multiaddr);
     }
 
-    /// Dials the given [`Multiaddr`].
+    /// Dials the given [`Multiaddr`], which must end in the peer's `/p2p/<peer id>`.
     pub fn dial_multiaddr(&mut self, addr: Multiaddr) {
-        let peer_id = ConnectionGater::peer_id_from_addr(&addr);
+        let Some(peer_id) = ConnectionGater::peer_id_from_addr(&addr) else {
+            warn!(target: "gossip", peer=?addr, "Failed to extract PeerId from Multiaddr");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_multiaddr")
+                .increment(1);
+            return;
+        };
+        self.dial_peer(peer_id, [addr]);
+    }
 
+    /// Dials `peer_id` at whichever of `addrs` connects first.
+    ///
+    /// Each address must end in `/p2p/<peer_id>`, and the gate checks each one: the addresses it
+    /// refuses are left out, and nothing is dialed if it refuses them all. The rest make a single
+    /// dial, in which libp2p tries several addresses at once and keeps the first connection.
+    pub fn dial_peer(&mut self, peer_id: PeerId, addrs: impl IntoIterator<Item = Multiaddr>) {
         // Discovery hands over the ENRs of connected peers again and again. So this is checked
         // before the gate, which would refuse it as already dialing or count it as a dial.
-        if peer_id.is_some_and(|peer_id| self.swarm.is_connected(&peer_id)) {
-            debug!(target: "gossip", peer=?addr, "Already connected to peer, not dialing");
+        if self.swarm.is_connected(&peer_id) {
+            debug!(target: "gossip", ?peer_id, "Already connected to peer, not dialing");
             metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected")
                 .increment(1);
             return;
         }
 
-        // Check if we're allowed to dial the address.
-        if let Err(dial_error) = self.connection_gate.can_dial(&addr) {
-            debug!(target: "gossip", ?dial_error, "unable to dial peer");
+        // Every address is checked before the peer is marked as being dialed, which would make
+        // the gate refuse all but the first.
+        let addrs: Vec<Multiaddr> = addrs
+            .into_iter()
+            .filter(|addr| {
+                if ConnectionGater::peer_id_from_addr(addr) != Some(peer_id) {
+                    warn!(target: "gossip", ?peer_id, peer=?addr, "Address is not for the peer being dialed");
+                    return false;
+                }
+                if let Err(dial_error) = self.connection_gate.can_dial(addr) {
+                    debug!(target: "gossip", ?dial_error, "unable to dial peer");
+                    return false;
+                }
+                true
+            })
+            .collect();
+        if addrs.is_empty() {
             return;
         }
 
-        // `ConnectionGater` rejects an address without a peer ID, but another gate may not.
-        let Some(peer_id) = peer_id else {
-            warn!(target: "gossip", peer=?addr, "Failed to extract PeerId from Multiaddr");
-            return;
-        };
-
-        // Let the gate know we are dialing the address.
+        // Let the gate know we are dialing the peer.
         // Note: libp2p-dns will automatically resolve DNS multiaddrs at the transport layer.
-        self.connection_gate.dialing(&addr);
+        self.connection_gate.dialing(&peer_id);
 
         // Dial from a new port. From the listen port, two peers dialing each other at the same
         // time would share one TCP connection, which fails the handshake, and on macOS could not
         // redial until it leaves `TIME_WAIT`. With new ports, each dial gets its own connection,
         // and the duplicate is closed once both are established.
-        let opts = DialOpts::unknown_peer_id().address(addr.clone()).allocate_new_port().build();
+        let opts = DialOpts::peer_id(peer_id).addresses(addrs.clone()).allocate_new_port().build();
         match self.swarm.dial(opts) {
             Ok(_) => {
-                trace!(target: "gossip", peer=?addr, "Dialed peer");
-                self.connection_gate.dialed(&addr);
+                trace!(target: "gossip", ?peer_id, ?addrs, "Dialed peer");
+                for addr in &addrs {
+                    self.connection_gate.dialed(addr);
+                }
                 metrics::gauge!(crate::Metrics::DIAL_PEER).increment(1);
             }
             Err(e) => {
@@ -501,7 +524,14 @@ where
                 num_established,
                 ..
             } => {
-                let dialer = if endpoint.is_dialer() { *self.local_peer_id() } else { peer_id };
+                let dialer = if endpoint.is_dialer() {
+                    // Our dial succeeded, so it is no longer in flight. An inbound connection
+                    // leaves a dial of ours alone: it still ends in its own event.
+                    self.connection_gate.remove_dial(&peer_id);
+                    *self.local_peer_id()
+                } else {
+                    peer_id
+                };
                 let connection =
                     PeerConnection { dialer, established: tokio::time::Instant::now() };
                 self.connections.entry(peer_id).or_default().insert(connection_id, connection);
@@ -774,5 +804,107 @@ mod tests {
         assert_eq!(dial_error_types, vec![("already_connected".to_owned(), 3.0)]);
 
         assert_eq!(driver_1.connection_gate.dialed_peers[&addr_2].num_dials, 1);
+    }
+
+    /// An address no one listens on, so a dial to it fails.
+    fn unused_memory_addr(peer: PeerId) -> Multiaddr {
+        Multiaddr::empty().with(Protocol::Memory(u64::MAX)).with(Protocol::P2p(peer))
+    }
+
+    /// A peer dialed at several addresses connects through the one that works, in one dial that
+    /// counts against each address.
+    #[tokio::test]
+    async fn test_dial_peer_connects_at_any_address() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+
+        let peer_2 = *driver_2.local_peer_id();
+        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        driver_1.start().await.expect("listen");
+
+        driver_1.dial_peer(peer_2, [unused_memory_addr(peer_2), addr_2.clone()]);
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+
+        assert!(driver_1.swarm.is_connected(&peer_2));
+        let gate = &driver_1.connection_gate;
+        assert_eq!(gate.dialed_peers[&unused_memory_addr(peer_2)].num_dials, 1);
+        assert_eq!(gate.dialed_peers[&addr_2].num_dials, 1);
+    }
+
+    /// Addresses the gate refuses, or that are for another peer, are left out of the dial.
+    #[tokio::test]
+    async fn test_dial_peer_leaves_out_refused_addresses() {
+        use crate::ConnectionGate;
+
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+
+        let peer_2 = *driver_2.local_peer_id();
+        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        driver_1.start().await.expect("listen");
+
+        let blocked: Multiaddr = format!("/ip4/10.0.0.1/tcp/9222/p2p/{peer_2}").parse().unwrap();
+        driver_1.connection_gate.block_addr("10.0.0.1".parse().unwrap());
+        let other_peer = unused_memory_addr(PeerId::random());
+
+        driver_1.dial_peer(peer_2, [blocked, other_peer, addr_2.clone()]);
+
+        let dialed: Vec<_> = driver_1.connection_gate.dialed_peers.keys().cloned().collect();
+        assert_eq!(dialed, vec![addr_2]);
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+    }
+
+    /// Nothing is dialed when the gate refuses every address.
+    #[tokio::test]
+    async fn test_dial_peer_skips_peer_with_no_allowed_address() {
+        use crate::ConnectionGate;
+
+        let mut driver = memory_driver();
+        let peer = PeerId::random();
+        driver.connection_gate.block_peer(&peer);
+
+        driver.dial_peer(peer, [unused_memory_addr(peer)]);
+
+        assert!(!driver.connection_gate.current_dials.contains(&peer));
+        assert!(driver.connection_gate.dialed_peers.is_empty());
+    }
+
+    /// When every address fails, the dial ends once, so the peer can be dialed again.
+    #[tokio::test]
+    async fn test_dial_peer_failing_at_every_address_is_no_longer_in_flight() {
+        let mut driver = memory_driver();
+        driver.start().await.expect("listen");
+        let peer = PeerId::random();
+        let unused_2 =
+            Multiaddr::empty().with(Protocol::Memory(u64::MAX - 1)).with(Protocol::P2p(peer));
+
+        driver.dial_peer(peer, [unused_memory_addr(peer), unused_2]);
+        assert!(driver.connection_gate.current_dials.contains(&peer));
+
+        let failed = async {
+            while driver.connection_gate.current_dials.contains(&peer) {
+                if let Some(event) = driver.next().await {
+                    driver.handle_event(event);
+                }
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(10), failed).await.expect("dial fails");
+    }
+
+    /// A dial that connects is no longer in flight in the gate.
+    #[tokio::test]
+    async fn test_connected_dial_is_no_longer_in_flight() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+
+        let peer_2 = *driver_2.local_peer_id();
+        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        driver_1.start().await.expect("listen");
+
+        driver_1.dial_multiaddr(addr_2);
+        assert!(driver_1.connection_gate.current_dials.contains(&peer_2));
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+
+        assert!(!driver_1.connection_gate.current_dials.contains(&peer_2));
     }
 }

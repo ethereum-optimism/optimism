@@ -320,13 +320,9 @@ impl ConnectionGate for ConnectionGater {
         self.protected_peers.iter().copied().collect()
     }
 
-    fn dialing(&mut self, addr: &Multiaddr) {
-        if let Some(peer_id) = Self::peer_id_from_addr(addr) {
-            self.current_dials.insert(peer_id);
-            self.connectedness.insert(peer_id, Connectedness::Connected);
-        } else {
-            warn!(target: "p2p", peer=?addr, "Failed to extract PeerId from Multiaddr when dialing");
-        }
+    fn dialing(&mut self, peer_id: &PeerId) {
+        self.current_dials.insert(*peer_id);
+        self.connectedness.insert(*peer_id, Connectedness::Connected);
     }
 
     fn dialed(&mut self, addr: &Multiaddr) {
@@ -454,7 +450,7 @@ fn test_dial_threshold() {
     let dial = |gater: &mut ConnectionGater| {
         let result = gater.can_dial(&addr);
         if result.is_ok() {
-            gater.dialing(&addr);
+            gater.dialing(&peer_id);
             gater.dialed(&addr);
             // As when the dial fails.
             gater.remove_dial(&peer_id);
@@ -498,7 +494,7 @@ fn test_dial_error_handling() {
     assert!(gater.can_dial(&valid_addr).is_ok());
 
     // Mark as dialing
-    gater.dialing(&valid_addr);
+    gater.dialing(&ConnectionGater::peer_id_from_addr(&valid_addr).unwrap());
 
     // Second dial should fail with AlreadyDialing
     let result = gater.can_dial(&valid_addr);
