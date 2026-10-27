@@ -30,8 +30,18 @@ impl PeerScoreLevel {
 
     /// Helper function to calculate the decay factor for a given duration.
     /// The decay factor is calculated using the formula:
-    /// `decay_factor = (1 - decay_to_zero) ^ (duration / slot)`.
+    /// `decay_factor = (1 - decay_to_zero) ^ (slot / duration)`, so that it compounds to
+    /// `1 - decay_to_zero` over `duration`.
+    ///
+    /// # Panics
+    ///
+    /// If `slot` is shorter than a second, such as the 0 s block time of a default
+    /// `RollupConfig`: the slots are counted in whole seconds.
     pub fn score_decay(duration: std::time::Duration, slot: std::time::Duration) -> f64 {
+        assert!(
+            slot.as_secs() > 0,
+            "Peer scoring needs a block time of at least a second, got {slot:?}"
+        );
         let num_of_times = duration.as_secs() / slot.as_secs();
         (1.0 - Self::DECAY_TO_ZERO).powf(1.0 / num_of_times as f64)
     }
@@ -140,5 +150,25 @@ impl PeerScoreLevel {
     /// Returns the [`PeerScoreThresholds`].
     pub const fn thresholds() -> PeerScoreThresholds {
         Self::DEFAULT_PEER_SCORE_THRESHOLDS
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_score_decay() {
+        // 20 s is ten 2 s slots, and over ten slots the factor compounds to `1 - DECAY_TO_ZERO`.
+        let factor = PeerScoreLevel::score_decay(Duration::from_secs(20), Duration::from_secs(2));
+        let rest = (1.0 - PeerScoreLevel::DECAY_TO_ZERO).powf(0.1);
+        assert!((factor - rest).abs() < f64::EPSILON, "{factor} != {rest}");
+    }
+
+    #[test]
+    #[should_panic(expected = "Peer scoring needs a block time of at least a second")]
+    fn test_score_decay_rejects_zero_slot() {
+        PeerScoreLevel::score_decay(Duration::from_secs(20), Duration::ZERO);
     }
 }

@@ -369,7 +369,9 @@ pub(crate) mod tests {
         keypair: Keypair,
         addr: Multiaddr,
     ) -> GossipDriverBuilder {
-        GossipDriverBuilder::new(RollupConfig::default(), Address::ZERO, addr, keypair)
+        // Peer scoring divides by the block time, so it can't be the default 0.
+        let rollup_config = RollupConfig { block_time: 2, ..Default::default() };
+        GossipDriverBuilder::new(rollup_config, Address::ZERO, addr, keypair)
             .with_transport(memory_transport())
     }
 

@@ -355,6 +355,34 @@ where
         self.swarm.is_connected(peer_id)
     }
 
+    /// Returns the gossipsub score of `peer_id`, or 0 if peer scoring is off or the peer has no
+    /// score.
+    pub fn peer_score(&self, peer_id: &PeerId) -> f64 {
+        self.swarm.behaviour().gossipsub.peer_score(peer_id).unwrap_or_default()
+    }
+
+    /// Returns whether `peer_id` is one of the static peers.
+    pub fn is_static_peer(&self, peer_id: &PeerId) -> bool {
+        self.static_peers.contains_key(peer_id)
+    }
+
+    /// Returns the connected peers whose gossipsub score is below the ban threshold of
+    /// [`Self::peer_monitoring`], or none if it isn't set.
+    ///
+    /// Static peers are never banned, as in op-node: they would be dialed again right away.
+    pub fn peers_to_ban(&self) -> Vec<PeerId> {
+        let Some(monitoring) = self.peer_monitoring.as_ref() else {
+            return Vec::new();
+        };
+        self.swarm
+            .connected_peers()
+            .filter(|peer_id| {
+                self.peer_score(peer_id) < monitoring.ban_threshold && !self.is_static_peer(peer_id)
+            })
+            .copied()
+            .collect()
+    }
+
     /// Returns the peer ID and gossip address that an [`Enr`] from discovery gives, for
     /// [`Self::dial_peer`].
     ///
@@ -1162,6 +1190,41 @@ mod tests {
         assert!(!driver.connection_gate.current_dials.contains(&peer));
         assert!(driver.connection_gate.dialed_addrs.is_empty());
         assert!(driver.next_static_peer_check.is_some());
+    }
+
+    /// Peers scoring below the ban threshold are banned, but a static peer never is.
+    #[tokio::test]
+    async fn test_peers_to_ban_skips_static_peers() {
+        let (keypair_2, addr_2, static_peer) = random_identity();
+        let static_peer_id = static_peer.peer_id();
+        let mut driver_2 = memory_driver_builder_at(keypair_2, addr_2).build().expect("build");
+        driver_2.start().await.expect("listen");
+        let mut driver_3 = memory_driver();
+        let peer_3 = *driver_3.local_peer_id();
+        let addr_3 = driver_3.start().await.expect("listen").with(Protocol::P2p(peer_3));
+
+        // Light scoring weighs the application score, which the test can set.
+        let mut driver_1 = memory_driver_builder()
+            .with_peer_scoring(kona_peers::PeerScoreLevel::Light)
+            .with_peer_monitoring(Some(kona_peers::PeerMonitoring {
+                ban_threshold: -100.0,
+                ban_duration: Duration::from_secs(60),
+            }))
+            .with_static_peers(vec![static_peer])
+            .build()
+            .expect("build");
+        driver_1.start().await.expect("listen");
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+        driver_1.dial_multiaddr(addr_3);
+        poll_until_connected(&mut driver_1, &mut driver_3).await;
+        assert!(driver_1.peers_to_ban().is_empty());
+
+        let gossipsub = &mut driver_1.swarm.behaviour_mut().gossipsub;
+        for peer_id in [static_peer_id, peer_3] {
+            assert!(gossipsub.set_application_score(&peer_id, -1000.0), "{peer_id} is scored");
+        }
+
+        assert_eq!(driver_1.peers_to_ban(), vec![peer_3]);
     }
 
     /// A dial that connects is no longer in flight in the gate.

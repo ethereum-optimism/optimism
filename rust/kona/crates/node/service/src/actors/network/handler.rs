@@ -21,31 +21,18 @@ pub struct NetworkHandler {
 impl NetworkHandler {
     pub(super) async fn handle_peer_monitoring(&mut self) {
         // Inspect peer scores and ban peers that are below the threshold.
-        let Some(ban_peers) = self.gossip.peer_monitoring.as_ref() else {
+        let Some(ban_duration) = self.gossip.peer_monitoring.as_ref().map(|m| m.ban_duration)
+        else {
             return;
         };
 
-        // We iterate over all connected peers and check their scores.
-        // We collect a list of peers to remove
-        let peers_to_remove = self
-            .gossip
-            .swarm
-            .connected_peers()
-            .filter_map(|peer_id| {
-                // If the score is not available, we use a default value of 0.
-                let score =
-                    self.gossip.swarm.behaviour().gossipsub.peer_score(peer_id).unwrap_or_default();
+        // Record the score of every connected peer in the metrics.
+        for peer_id in self.gossip.swarm.connected_peers() {
+            metrics::histogram!(kona_gossip::Metrics::PEER_SCORES)
+                .record(self.gossip.peer_score(peer_id));
+        }
 
-                // Record the peer score in the metrics.
-                metrics::histogram!(kona_gossip::Metrics::PEER_SCORES).record(score);
-
-                if score < ban_peers.ban_threshold {
-                    return Some(*peer_id);
-                }
-
-                None
-            })
-            .collect::<Vec<_>>();
+        let peers_to_remove = self.gossip.peers_to_ban();
 
         // We remove the addresses from the gossip layer.
         let addrs_to_ban = peers_to_remove
@@ -67,7 +54,7 @@ impl NetworkHandler {
                 if let Some(info) = self.gossip.peerstore.remove(&peer_to_remove) {
                     use kona_gossip::ConnectionGate;
                     self.gossip.connection_gate.remove_dial(&peer_to_remove);
-                    let score = self.gossip.swarm.behaviour().gossipsub.peer_score(&peer_to_remove).unwrap_or_default();
+                    let score = self.gossip.peer_score(&peer_to_remove);
                     metrics::gauge!(kona_gossip::Metrics::BANNED_PEERS, "peer_id" => peer_to_remove.to_string(), "score" => score.to_string()).increment(1);
                     return Some(info.listen_addrs);
                 }
@@ -81,10 +68,7 @@ impl NetworkHandler {
         if let Err(send_err) = self
             .discovery
             .sender
-            .send(HandlerRequest::BanAddrs {
-                addrs_to_ban: addrs_to_ban.into(),
-                ban_duration: ban_peers.ban_duration,
-            })
+            .send(HandlerRequest::BanAddrs { addrs_to_ban: addrs_to_ban.into(), ban_duration })
             .await
         {
             warn!(err = ?send_err, "Impossible to send a request to the discovery handler. The channel connection is dropped.");
