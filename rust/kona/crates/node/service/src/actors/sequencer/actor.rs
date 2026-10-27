@@ -58,15 +58,22 @@ struct ConductorCommittedBlock {
     pub parent: L2BlockInfo,
     /// The number of transactions in the block.
     pub tx_count: u64,
+    /// Whether the conductor may have committed this envelope before canonicalization.
+    pub committed_to_conductor: bool,
 }
 
 impl ConductorCommittedBlock {
     /// Pairs a committed `envelope` with the build job that produced it.
-    fn new(envelope: OpExecutionPayloadEnvelope, handle: &UnsealedPayloadHandle) -> Self {
+    fn new(
+        envelope: OpExecutionPayloadEnvelope,
+        handle: &UnsealedPayloadHandle,
+        committed_to_conductor: bool,
+    ) -> Self {
         Self {
             envelope,
             parent: handle.attributes_with_parent.parent,
             tx_count: handle.attributes_with_parent.count_transactions(),
+            committed_to_conductor,
         }
     }
 }
@@ -76,8 +83,11 @@ impl ConductorCommittedBlock {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 enum InFlightBlock {
-    /// Built but not yet sealed. Commit failures retry the seal with this payload ID.
+    /// Built but not yet sealed.
     Building(UnsealedPayloadHandle),
+    /// Sealed but with an unacknowledged conductor commit. Retry the exact envelope because the
+    /// conductor may have committed it even when the RPC failed.
+    Committing(ConductorCommittedBlock),
     /// Sealed and committed. Retries must canonicalize this exact envelope.
     Committed(ConductorCommittedBlock),
 }
@@ -387,19 +397,15 @@ where
         }
     }
 
-    /// Handles a failed conductor commit of a sealed payload. Like op-node, the build job is
-    /// retained rather than the uncommitted envelope, so the retry fetches the payload again with
-    /// the same payload ID before committing, canonicalizing, or gossiping anything.
-    fn handle_conductor_error(&mut self, err: ConductorError, handle: UnsealedPayloadHandle) {
-        warn!(target: "sequencer", ?err, "Conductor commit failed; retrying the build job before canonicalization or gossip");
-        self.in_flight = Some(InFlightBlock::Building(handle));
+    /// A failed RPC can leave an applied conductor commit unacknowledged. Retry the exact payload.
+    fn handle_conductor_error(&mut self, err: ConductorError, block: ConductorCommittedBlock) {
+        warn!(target: "sequencer", ?err, "Conductor commit failed; retrying the sealed payload before canonicalization or gossip");
+        self.in_flight = Some(InFlightBlock::Committing(block));
         self.build_ticker.reset_after(Duration::from_secs(1));
     }
 
-    /// Handles a failed canonicalization of a committed block. A temporary insertion failure
-    /// retains the block so that the retry imports the exact committed envelope; a stale or
-    /// invalid block is dropped so that the next tick rebuilds; an invalid forkchoice state resets
-    /// the engine before rebuilding; any other failure is fatal.
+    /// Handles failed canonicalization. A conductor-committed block must not be replaced by a
+    /// different block at the same height: the conductor acknowledges but ignores that commit.
     async fn handle_canonicalize_error(
         &mut self,
         err: EngineClientError,
@@ -410,8 +416,12 @@ where
             return Err(err.into());
         };
         match canonicalize_err {
-            // The block no longer extends the unsafe head. Drop it and rebuild on the next tick.
+            // A committed block on another parent cannot be retried or safely replaced.
             CanonicalizeTaskError::UnsafeHeadChangedSinceBuild => {
+                if block.committed_to_conductor {
+                    error!(target: "sequencer", ?err, "Conductor-committed payload no longer extends the unsafe head");
+                    return Err(err.into());
+                }
                 self.build_ticker.reset_immediately();
                 Ok(())
             }
@@ -421,9 +431,8 @@ where
                 error!(target: "sequencer", ?err, "Critical canonicalization error occurred");
                 Err(err.into())
             }
-            // Canonicalization errors are relayed to us, so the engine queue cannot initiate this
-            // reset. Discard the committed block and wait for the reset before rebuilding on the
-            // engine's new unsafe head.
+            // The engine queue cannot initiate this reset because the error is relayed here.
+            // Retry the exact committed envelope after reset; a changed parent fails closed above.
             CanonicalizeTaskError::PayloadInsertionFailed(insert_err)
                 if matches!(
                     **insert_err,
@@ -434,16 +443,23 @@ where
             {
                 warn!(target: "sequencer", ?err, "Invalid forkchoice during canonicalization; resetting engine");
                 self.engine_client.reset_engine_forkchoice().await?;
+                if block.committed_to_conductor {
+                    self.in_flight = Some(InFlightBlock::Committed(block));
+                }
                 self.build_ticker.reset_after(Duration::from_secs(1));
                 Ok(())
             }
-            // The engine rejected the block. Drop it and rebuild on the next tick.
+            // An invalid conductor-committed payload cannot be safely replaced at this height.
             CanonicalizeTaskError::PayloadInsertionFailed(insert_err)
                 if matches!(
                     **insert_err,
                     InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. })
                 ) =>
             {
+                if block.committed_to_conductor {
+                    error!(target: "sequencer", ?err, "Engine rejected conductor-committed payload");
+                    return Err(err.into());
+                }
                 self.build_ticker.reset_immediately();
                 Ok(())
             }
@@ -742,22 +758,25 @@ where
                 // committed skips straight to canonicalization. On failure, keep the state the
                 // block was in when it failed so that a retry resumes from there.
                 let publish_start = self.in_flight.is_some().then(Instant::now);
-                let committed = match self.in_flight.take() {
-                    None => None,
-                    Some(InFlightBlock::Committed(block)) => Some(block),
+                let (block, needs_commit) = match self.in_flight.take() {
+                    None => (None, false),
+                    Some(InFlightBlock::Committed(block)) => (Some(block), false),
+                    Some(InFlightBlock::Committing(block)) => (Some(block), true),
                     Some(InFlightBlock::Building(handle)) => {
                         let envelope = match self.seal(&handle).await {
                             Ok(envelope) => envelope,
                             Err(err) => return self.handle_seal_error(err),
                         };
-                        if let Err(err) = self.commit_to_conductor(&envelope).await {
-                            self.handle_conductor_error(err, handle);
-                            return Ok(());
-                        }
-                        Some(ConductorCommittedBlock::new(envelope, &handle))
+                        (Some(ConductorCommittedBlock::new(envelope, &handle, self.conductor.is_some())), true)
                     }
                 };
-                if let Some(block) = committed {
+                if let Some(block) = block {
+                    if needs_commit
+                        && let Err(err) = self.commit_to_conductor(&block.envelope).await
+                    {
+                        self.handle_conductor_error(err, block);
+                        return Ok(());
+                    }
                     if let Err(err) = self.engine_client.canonicalize_block(block.envelope.clone(), block.parent).await {
                         return self.handle_canonicalize_error(err, block).await;
                     }
