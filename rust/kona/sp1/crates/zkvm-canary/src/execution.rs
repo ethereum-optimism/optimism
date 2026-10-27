@@ -12,8 +12,7 @@ use kona_sp1_client_utils::{
 };
 use kona_sp1_super_range_executor::{
     HostInputs, SynthesizedExecution, build_interop_host, build_super_consolidation_stdin,
-    build_super_range_stdin, collect_consolidation_witness, collect_range_witness,
-    deployment_chain_configs,
+    build_super_range_stdin, deployment_chain_configs,
 };
 use sp1_core_executor::{ExecutionError, SP1CoreOpts};
 use sp1_sdk::{Elf, ExecutionReport, Prover, ProverClient, SP1PublicValues};
@@ -283,6 +282,7 @@ pub(crate) async fn execute_snapshot(
         &synthesized.previous_super_root_proof_bytes,
         synthesized.current_super_root,
         synthesized.range_inputs.span.end,
+        None,
     ) {
         Ok(host) => host,
         Err(error) => {
@@ -293,7 +293,10 @@ pub(crate) async fn execute_snapshot(
             );
         }
     };
-    let configs = match deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids) {
+    let configs = match deployment_chain_configs(
+        &range_host,
+        &synthesized.range_inputs.super_root_chain_ids(),
+    ) {
         Ok(configs) => configs,
         Err(error) => {
             return infrastructure_result(
@@ -305,12 +308,7 @@ pub(crate) async fn execute_snapshot(
     };
     let range_witness = tokio::time::timeout_at(
         deadline,
-        collect_range_witness(
-            range_host,
-            &synthesized.range_inputs,
-            &synthesized.preloaded_preimages,
-            Some(&configs),
-        ),
+        synthesized.collect_range_witness(range_host, Some(&configs)),
     )
     .await;
     let (range_witness, native_range) = match range_witness {
@@ -388,6 +386,7 @@ pub(crate) async fn execute_snapshot(
         &synthesized.previous_super_root_proof_bytes,
         synthesized.current_super_root,
         synthesized.range_inputs.span.end,
+        None,
     ) {
         Ok(host) => host,
         Err(error) => {
@@ -400,13 +399,12 @@ pub(crate) async fn execute_snapshot(
     };
     let consolidation_witness = tokio::time::timeout_at(
         deadline,
-        collect_consolidation_witness(
+        synthesized.collect_consolidation_witness(
             consolidation_host,
-            &synthesized.consolidation_inputs,
-            &synthesized.preloaded_preimages,
             Some(&configs),
             // TODO(proofs-team#30): take the table path for a below-head reference.
             &[],
+            None,
         ),
     )
     .await;

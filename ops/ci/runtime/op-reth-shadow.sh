@@ -56,13 +56,13 @@ case "$job" in
     ;;
   release-build)
     (cd rust && mold -run cargo build --locked --profile release \
-      --package op-reth --features default) \
+      --package op-reth --package op-reth-test-engine --features default) \
       2>&1 | tee "$report_dir/build.log"
-    cp rust/target/release/op-reth "$report_dir/"
-    python3 "$REPORT" binaries "$report_dir" "${CI_COMMIT_SHA:?}" op-reth
+    cp rust/target/release/op-reth rust/target/release/op-reth-test-engine "$report_dir/"
+    python3 "$REPORT" binaries "$report_dir" "${CI_COMMIT_SHA:?}" op-reth op-reth-test-engine
     ;;
   release)
-    python3 "$REPORT" verify-binaries .ci/op-reth/release-build "${CI_COMMIT_SHA:?}" op-reth
+    python3 "$REPORT" verify-binaries .ci/op-reth/release-build "${CI_COMMIT_SHA:?}" op-reth op-reth-test-engine
     .ci/op-reth/release-build/op-reth --version | tee "$report_dir/op-reth-version.txt"
     ;;
   integration-build)

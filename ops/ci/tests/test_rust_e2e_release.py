@@ -25,7 +25,7 @@ class ReleaseTests(unittest.TestCase):
         self.report.mkdir()
         self.binding = {'source_sha': 'a' * 40, 'profile': 'release'}
         self.packages, self.messages = [], []
-        for name in ('kona-host', 'kona-node', 'op-reth', 'utility'):
+        for name in ('kona-host', 'kona-node', 'op-reth', 'op-reth-test-engine', 'utility'):
             target = {'name': name, 'kind': ['bin'], 'required-features': []}
             self.packages.append({'id': name, 'name': name, 'features': {}, 'targets': [target]})
             path = self.root / 'rust/target/release' / name
@@ -48,8 +48,18 @@ class ReleaseTests(unittest.TestCase):
             return REPORT.artifacts(self.report)
 
     def test_complete_workspace_includes_utility_binary(self):
-        self.assertEqual(set(self.validate()), {'kona-host', 'kona-node', 'op-reth', 'utility'})
-        self.assertEqual(len(REPORT.read(self.report / 'coverage.json')['targets']), 4)
+        self.assertEqual(set(self.validate()), {'kona-host', 'kona-node', 'op-reth', 'op-reth-test-engine', 'utility'})
+        self.assertEqual(len(REPORT.read(self.report / 'coverage.json')['targets']), 5)
+
+    def test_workspace_without_required_runtime_binary_rejected(self):
+        for name in ('kona-host', 'kona-node', 'op-reth', 'op-reth-test-engine'):
+            with self.subTest(name=name):
+                self.setUp()
+                self.packages = [p for p in self.packages if p['name'] != name]
+                self.messages = [m for m in self.messages if m['package_id'] != name]
+                self.files()
+                with self.assertRaisesRegex(ValueError, 'Missing E2E runtime release binaries'):
+                    self.validate()
 
     def test_build_dependency_unit_is_retained_without_replacing_workspace_target(self):
         target = {'name': 'shared', 'kind': ['lib']}
@@ -129,7 +139,7 @@ class LiveReleaseTests(unittest.TestCase):
         if not shutil.which('cargo'): self.fail('Cargo is required for the live fixture')
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); rust = root / 'rust'; rust.mkdir()
-            names = ['kona-host', 'kona-node', 'op-reth', 'utility']
+            names = ['kona-host', 'kona-node', 'op-reth', 'op-reth-test-engine', 'utility']
             (rust / 'Cargo.toml').write_text('[workspace]\nresolver="2"\nmembers=' + json.dumps(names + ['shared']) +
                 '\n[profile.release]\nopt-level=3\n')
             for name in names:

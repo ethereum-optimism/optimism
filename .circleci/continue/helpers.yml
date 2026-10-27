@@ -128,6 +128,10 @@ commands:
               exit 1
             fi
             protoc --version
+            # Build scripts run in the package source dir (the cargo registry for
+            # sp1-prover-types), outside the repo, where the mise shim has no version.
+            # Export the resolved binary so prost-build finds it from any directory.
+            echo "export PROTOC=$(mise which protoc)" >> "$BASH_ENV"
       # Shared GCS compile cache (op-rust-sccache).
       - rust-sccache-setup:
           enabled: << parameters.enable_sccache >>

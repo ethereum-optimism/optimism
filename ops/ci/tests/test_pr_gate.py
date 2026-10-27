@@ -237,7 +237,8 @@ class GateTests(unittest.TestCase):
         _,selections=G.configuration();selection=selections['ci-gate']
         self.assertEqual(result,0);self.assertEqual(len(selection['requires']),20)
         self.assertEqual([row['name'] for row in record['dependencies']],selection['requires'])
-        self.assertEqual(len(G.group_tasks(self.manifest,'main-go')),12)
+        go={row['name']:row['tasks'] for row in self.manifest['gates']['ci-gate']['dependencies'] if row['group']=='main-go'}
+        self.assertEqual(go,{'go-tests':['verdict-'+str(i) for i in range(12)],'go-actions-tests':['actions-verdict']})
         self.assertEqual(len(G.group_tasks(self.manifest,'main-acceptance')),16)
         self.assertEqual(G.originals(output)['tests'],0)
         for group in selection['groups']:

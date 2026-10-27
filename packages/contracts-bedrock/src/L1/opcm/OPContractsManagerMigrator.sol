@@ -20,6 +20,7 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { GameType, Proposal } from "src/dispute/lib/Types.sol";
@@ -50,11 +51,11 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when attempting to migrate a CGT chain.
     error OPContractsManagerMigrator_CustomGasTokenNotSupported();
 
+    /// @notice Thrown when attempting to migrate a chain whose portal has a bridge hook.
+    error OPContractsManagerMigrator_BridgeHookNotSupported();
+
     /// @notice Thrown when the chainSystemConfigs array is empty.
     error OPContractsManagerMigrator_NoChains();
-
-    /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
-    error OPContractsManagerMigrator_InteropNotEnabled();
 
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
@@ -141,11 +142,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // Check that at least one chain is being migrated.
         if (_input.chainSystemConfigs.length == 0) {
             revert OPContractsManagerMigrator_NoChains();
-        }
-
-        // Check that the OPTIMISM_PORTAL_INTEROP dev feature is enabled.
-        if (!contractsContainer().isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            revert OPContractsManagerMigrator_InteropNotEnabled();
         }
 
         // Check that the starting respected game type is a valid super game type.
@@ -522,6 +518,12 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         IAnchorStateRegistry oldASR = portal.anchorStateRegistry();
         IDisputeGameFactory existingDGF = IDisputeGameFactory(payable(address(portal.disputeGameFactory())));
 
+        // Chains with a bridge hook must not be migrated. An interop set would need the same hook
+        // on every chain, and nothing enforces that yet.
+        if (address(portal.bridgeHook()) != address(0)) {
+            revert OPContractsManagerMigrator_BridgeHookNotSupported();
+        }
+
         // Check the current pause state before mutating the portal's lockbox. For chains that
         // already use a per-chain lockbox, SystemConfig.paused() keys the local pause against the
         // portal's current lockbox. Reinitializing the portal first would switch the pause
@@ -547,12 +549,14 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // NOTE: The portal's proof maturity delay is read here, before the implementation swap,
         // and carried forward unchanged. At the time of the migration, it is assumed that all chains will
         // have the same proof maturity delay.
+        // NOTE: Passing a zero address bridge hook keeps the portal's current hook.
         _upgrade(
             _systemConfig.proxyAdmin(),
             address(portal),
             _impls.optimismPortalImpl,
             abi.encodeCall(
-                IOptimismPortal.initialize, (_systemConfig, oldASR, _newLockbox, portal.proofMaturityDelaySeconds())
+                IOptimismPortal.initialize,
+                (_systemConfig, oldASR, _newLockbox, portal.proofMaturityDelaySeconds(), IBridgeHook(address(0)))
             )
         );
 

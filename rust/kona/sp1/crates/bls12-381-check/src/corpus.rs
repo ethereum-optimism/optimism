@@ -559,6 +559,7 @@ fn g2_single_coordinate() -> [G2Point; 4] {
 }
 
 /// `p` with coordinate `pos` (0 = x, 1 = y) replaced by the raw bytes `v`.
+#[allow(clippy::tuple_array_conversions)]
 pub fn set_g1(p: G1Point, pos: usize, v: [u8; 48]) -> G1Point {
     let mut c = [p.0, p.1];
     c[pos] = v;
@@ -567,6 +568,7 @@ pub fn set_g1(p: G1Point, pos: usize, v: [u8; 48]) -> G1Point {
 
 /// `p` with coordinate `pos` (0 = x.c0, 1 = x.c1, 2 = y.c0, 3 = y.c1) replaced by the raw bytes
 /// `v`.
+#[allow(clippy::tuple_array_conversions)]
 pub fn set_g2(p: G2Point, pos: usize, v: [u8; 48]) -> G2Point {
     let mut c = [p.0, p.1, p.2, p.3];
     c[pos] = v;

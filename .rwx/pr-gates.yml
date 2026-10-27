@@ -31,8 +31,6 @@ on:
             tasks: native-nut-prefork
           - name: optimism-nut-provenance-shadow
             tasks: native-nut-provenance
-          - name: optimism-fetcher-artifacts-shadow
-            tasks: native-fetcher
           - name: optimism-sp1-guest-shadow
             tasks: native-sp1
           - name: optimism-kontrol-build-shadow
@@ -316,15 +314,6 @@ tasks:
       cache-warm: "false"
       cache-epoch: "v1"
 
-  - key: native-fetcher
-    call: ${{ run.dir }}/fetcher-artifacts.yml
-    init:
-      commit-sha: ${{ init.commit-sha }}
-      branch: ${{ init.branch }}
-      tag: ${{ init.tag }}
-      cache-warm: "false"
-      cache-epoch: "v1"
-
   - key: native-sp1
     call: ${{ run.dir }}/sp1-guest.yml
     init:
@@ -346,8 +335,8 @@ tasks:
 
   - key: main-aggregate
     use: [code, tools]
-    after: ${{ (native-acceptance.succeeded || native-acceptance.failed || native-acceptance.skipped) && (native-cannon.succeeded || native-cannon.failed || native-cannon.skipped) && (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-fetcher.succeeded || native-fetcher.failed || native-fetcher.skipped) && (native-go.succeeded || native-go.failed || native-go.skipped) && (native-kontrol.succeeded || native-kontrol.failed || native-kontrol.skipped) && (native-nut-prefork.succeeded || native-nut-prefork.failed || native-nut-prefork.skipped) && (native-nut-provenance.succeeded || native-nut-provenance.failed || native-nut-provenance.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-sp1.succeeded || native-sp1.failed || native-sp1.skipped) }}
-    if: ${{ tasks.native-acceptance.tasks.main-gate-receipt.succeeded && tasks.native-cannon.tasks.main-gate-receipt.succeeded && tasks.native-pr-checks.tasks.main-gate-receipt.succeeded && tasks.native-fetcher.tasks.main-gate-receipt.succeeded && tasks.native-go.tasks.main-gate-receipt.succeeded && tasks.native-kontrol.tasks.main-gate-receipt.succeeded && tasks.native-nut-prefork.tasks.main-gate-receipt.succeeded && tasks.native-nut-provenance.tasks.main-gate-receipt.succeeded && tasks.native-fmt.tasks.main-gate-receipt.succeeded && tasks.native-sp1.tasks.main-gate-receipt.succeeded }}
+    after: ${{ (native-acceptance.succeeded || native-acceptance.failed || native-acceptance.skipped) && (native-cannon.succeeded || native-cannon.failed || native-cannon.skipped) && (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-go.succeeded || native-go.failed || native-go.skipped) && (native-kontrol.succeeded || native-kontrol.failed || native-kontrol.skipped) && (native-nut-prefork.succeeded || native-nut-prefork.failed || native-nut-prefork.skipped) && (native-nut-provenance.succeeded || native-nut-provenance.failed || native-nut-provenance.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-sp1.succeeded || native-sp1.failed || native-sp1.skipped) }}
+    if: ${{ tasks.native-acceptance.tasks.main-gate-receipt.succeeded && tasks.native-cannon.tasks.main-gate-receipt.succeeded && tasks.native-pr-checks.tasks.main-gate-receipt.succeeded && tasks.native-go.tasks.main-gate-receipt.succeeded && tasks.native-kontrol.tasks.main-gate-receipt.succeeded && tasks.native-nut-prefork.tasks.main-gate-receipt.succeeded && tasks.native-nut-provenance.tasks.main-gate-receipt.succeeded && tasks.native-fmt.tasks.main-gate-receipt.succeeded && tasks.native-sp1.tasks.main-gate-receipt.succeeded }}
     run: python3 ops/ci/runtime/pr-gate.py aggregate ci-gate
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -365,10 +354,6 @@ tasks:
       GROUP_MAIN_CHECKS_SUCCEEDED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.succeeded }}
       GROUP_MAIN_CHECKS_FAILED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.failed }}
       GROUP_MAIN_CHECKS_SKIPPED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.skipped }}
-      GROUP_MAIN_FETCHER_REPORT: ${{ tasks.native-fetcher.tasks.main-gate-receipt.artifacts.receipt }}
-      GROUP_MAIN_FETCHER_SUCCEEDED: ${{ tasks.native-fetcher.tasks.main-gate-receipt.succeeded }}
-      GROUP_MAIN_FETCHER_FAILED: ${{ tasks.native-fetcher.tasks.main-gate-receipt.failed }}
-      GROUP_MAIN_FETCHER_SKIPPED: ${{ tasks.native-fetcher.tasks.main-gate-receipt.skipped }}
       GROUP_MAIN_GO_REPORT: ${{ tasks.native-go.tasks.main-gate-receipt.artifacts.receipt }}
       GROUP_MAIN_GO_SUCCEEDED: ${{ tasks.native-go.tasks.main-gate-receipt.succeeded }}
       GROUP_MAIN_GO_FAILED: ${{ tasks.native-go.tasks.main-gate-receipt.failed }}
@@ -407,8 +392,8 @@ tasks:
 
   - key: main-gate-failure
     use: [code, tools]
-    after: ${{ (native-acceptance.succeeded || native-acceptance.failed || native-acceptance.skipped) && (native-cannon.succeeded || native-cannon.failed || native-cannon.skipped) && (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-fetcher.succeeded || native-fetcher.failed || native-fetcher.skipped) && (native-go.succeeded || native-go.failed || native-go.skipped) && (native-kontrol.succeeded || native-kontrol.failed || native-kontrol.skipped) && (native-nut-prefork.succeeded || native-nut-prefork.failed || native-nut-prefork.skipped) && (native-nut-provenance.succeeded || native-nut-provenance.failed || native-nut-provenance.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-sp1.succeeded || native-sp1.failed || native-sp1.skipped) }}
-    if: ${{ (tasks.native-acceptance.tasks.main-gate-receipt.failed || tasks.native-acceptance.tasks.main-gate-receipt.skipped) || (tasks.native-cannon.tasks.main-gate-receipt.failed || tasks.native-cannon.tasks.main-gate-receipt.skipped) || (tasks.native-pr-checks.tasks.main-gate-receipt.failed || tasks.native-pr-checks.tasks.main-gate-receipt.skipped) || (tasks.native-fetcher.tasks.main-gate-receipt.failed || tasks.native-fetcher.tasks.main-gate-receipt.skipped) || (tasks.native-go.tasks.main-gate-receipt.failed || tasks.native-go.tasks.main-gate-receipt.skipped) || (tasks.native-kontrol.tasks.main-gate-receipt.failed || tasks.native-kontrol.tasks.main-gate-receipt.skipped) || (tasks.native-nut-prefork.tasks.main-gate-receipt.failed || tasks.native-nut-prefork.tasks.main-gate-receipt.skipped) || (tasks.native-nut-provenance.tasks.main-gate-receipt.failed || tasks.native-nut-provenance.tasks.main-gate-receipt.skipped) || (tasks.native-fmt.tasks.main-gate-receipt.failed || tasks.native-fmt.tasks.main-gate-receipt.skipped) || (tasks.native-sp1.tasks.main-gate-receipt.failed || tasks.native-sp1.tasks.main-gate-receipt.skipped) }}
+    after: ${{ (native-acceptance.succeeded || native-acceptance.failed || native-acceptance.skipped) && (native-cannon.succeeded || native-cannon.failed || native-cannon.skipped) && (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-go.succeeded || native-go.failed || native-go.skipped) && (native-kontrol.succeeded || native-kontrol.failed || native-kontrol.skipped) && (native-nut-prefork.succeeded || native-nut-prefork.failed || native-nut-prefork.skipped) && (native-nut-provenance.succeeded || native-nut-provenance.failed || native-nut-provenance.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-sp1.succeeded || native-sp1.failed || native-sp1.skipped) }}
+    if: ${{ (tasks.native-acceptance.tasks.main-gate-receipt.failed || tasks.native-acceptance.tasks.main-gate-receipt.skipped) || (tasks.native-cannon.tasks.main-gate-receipt.failed || tasks.native-cannon.tasks.main-gate-receipt.skipped) || (tasks.native-pr-checks.tasks.main-gate-receipt.failed || tasks.native-pr-checks.tasks.main-gate-receipt.skipped) || (tasks.native-go.tasks.main-gate-receipt.failed || tasks.native-go.tasks.main-gate-receipt.skipped) || (tasks.native-kontrol.tasks.main-gate-receipt.failed || tasks.native-kontrol.tasks.main-gate-receipt.skipped) || (tasks.native-nut-prefork.tasks.main-gate-receipt.failed || tasks.native-nut-prefork.tasks.main-gate-receipt.skipped) || (tasks.native-nut-provenance.tasks.main-gate-receipt.failed || tasks.native-nut-provenance.tasks.main-gate-receipt.skipped) || (tasks.native-fmt.tasks.main-gate-receipt.failed || tasks.native-fmt.tasks.main-gate-receipt.skipped) || (tasks.native-sp1.tasks.main-gate-receipt.failed || tasks.native-sp1.tasks.main-gate-receipt.skipped) }}
     run: python3 ops/ci/runtime/pr-gate.py aggregate ci-gate --failed
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -423,9 +408,6 @@ tasks:
       GROUP_MAIN_CHECKS_SUCCEEDED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.succeeded }}
       GROUP_MAIN_CHECKS_FAILED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.failed }}
       GROUP_MAIN_CHECKS_SKIPPED: ${{ tasks.native-pr-checks.tasks.main-gate-receipt.skipped }}
-      GROUP_MAIN_FETCHER_SUCCEEDED: ${{ tasks.native-fetcher.tasks.main-gate-receipt.succeeded }}
-      GROUP_MAIN_FETCHER_FAILED: ${{ tasks.native-fetcher.tasks.main-gate-receipt.failed }}
-      GROUP_MAIN_FETCHER_SKIPPED: ${{ tasks.native-fetcher.tasks.main-gate-receipt.skipped }}
       GROUP_MAIN_GO_SUCCEEDED: ${{ tasks.native-go.tasks.main-gate-receipt.succeeded }}
       GROUP_MAIN_GO_FAILED: ${{ tasks.native-go.tasks.main-gate-receipt.failed }}
       GROUP_MAIN_GO_SKIPPED: ${{ tasks.native-go.tasks.main-gate-receipt.skipped }}

@@ -236,6 +236,13 @@
           ]
         },
         {
+          "name": "go-actions-tests",
+          "group": "main-go",
+          "tasks": [
+            "actions-verdict"
+          ]
+        },
+        {
           "name": "memory-all-opn-op-reth-fusaka",
           "group": "main-acceptance",
           "tasks": [
@@ -338,13 +345,6 @@
           "group": "main-nut-provenance",
           "tasks": [
             "verify"
-          ]
-        },
-        {
-          "name": "diff-fetcher-forge-artifacts",
-          "group": "main-fetcher",
-          "tasks": [
-            "check"
           ]
         }
       ],
@@ -690,18 +690,6 @@
       "route": "run-main",
       "embedded_task": "native-nut-provenance",
       "check_name": "optimism-nut-provenance-shadow",
-      "init": {
-        "cache-warm": "false",
-        "cache-epoch": "v1"
-      },
-      "receipt_if": "${{ init.cache-warm != 'true' }}"
-    },
-    "main-fetcher": {
-      "config": ".rwx/fetcher-artifacts.yml",
-      "receipt_task": "main-gate-receipt",
-      "route": "run-main",
-      "embedded_task": "native-fetcher",
-      "check_name": "optimism-fetcher-artifacts-shadow",
       "init": {
         "cache-warm": "false",
         "cache-epoch": "v1"

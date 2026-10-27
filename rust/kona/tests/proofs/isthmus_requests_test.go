@@ -7,6 +7,7 @@ import (
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -79,7 +80,7 @@ func TestIsthmusExcludedPredeploys(gt *testing.T) {
 	err = ethCl.SendTransaction(t.Ctx(), tx)
 	require.NoError(gt, err, "failed to send withdrawal request tx")
 
-	_, err = engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
+	err = engine.IncludeTxErr(t, tx, dp.Addresses.Alice)
 	require.NoError(gt, err, "failed to include tx")
 
 	ret, err = ethCl.CallContract(context.Background(), ethereum.CallMsg{
@@ -106,22 +107,21 @@ func TestIsthmusExcludedPredeploys(gt *testing.T) {
 	err = ethCl.SendTransaction(t.Ctx(), tx)
 	require.NoError(gt, err, "failed to send consolidation queue request tx")
 
-	_, err = engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
+	err = engine.IncludeTxErr(t, tx, dp.Addresses.Alice)
 	require.NoError(gt, err, "failed to include tx")
 
 	sequencer.ActL2EndBlock(t)
 
 	// ensure requests hash is still empty
-	latestBlock, err := ethCl.BlockByNumber(t.Ctx(), nil)
-	require.NoError(t, err, "error fetching latest block")
-	require.Equal(t, types.EmptyRequestsHash, *latestBlock.RequestsHash())
+	latestHeader := engine.LatestHeader(t)
+	require.Equal(t, types.EmptyRequestsHash, *latestHeader.RequestsHash)
 
 	// get receipt
 	receipt, err := ethCl.TransactionReceipt(context.Background(), tx.Hash())
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "transaction must pass")
 
-	env.RunFaultProofProgramFromGenesis(t, latestBlock.NumberU64()-1, func(t actionsHelpers.Testing, err error) {
+	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(latestHeader.Number)-1, func(t actionsHelpers.Testing, err error) {
 		require.NoError(t, err, "no error expected running FP program")
 	})
 }

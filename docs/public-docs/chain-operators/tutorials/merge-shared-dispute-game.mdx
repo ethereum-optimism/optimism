@@ -12,7 +12,9 @@ import { SuperchainOpsPrereqs } from "/snippets/superchain-ops-prereqs.mdx"
 
 <Warning>This guide depends on the interop feature, which is still in development. Do not follow it on production chains.</Warning>
 
-This runbook walks you through merging two existing OP Stack chains into a shared dispute game by calling `OPContractsManagerMigrator.migrate` (`opcm.migrate`). After migration, both chains share a newly deployed `DisputeGameFactory`, `AnchorStateRegistry`, and `ETHLockbox`. New proposals are super-root claims defended on the shared factory; the per-chain dispute game factories are emptied of implementations and exist only to let still-in-flight games resolve so their bonds can be reclaimed.
+<Info>This guide requires `op-contracts/v9.0.0`, which ships in Upgrade 21. Upgrade 21 is pending Optimism Governance approval, and a chain can follow this guide only once the upgrade is executed on it.</Info>
+
+This runbook walks you through merging two existing OP Stack chains into a shared dispute game by calling `OPContractsManagerV2.migrate` (`opcm.migrate`). `OPContractsManagerV2.migrate` checks each chain's release and then delegates to `OPContractsManagerMigrator`, so most of the reverts listed below carry the `OPContractsManagerMigrator_` prefix. After migration, both chains share a newly deployed `DisputeGameFactory`, `AnchorStateRegistry`, and `ETHLockbox`. New proposals are super-root claims defended on the shared factory; the per-chain dispute game factories are emptied of implementations and exist only to let still-in-flight games resolve so their bonds can be reclaimed.
 
 By the end you will have one `op-proposer` proposing super-root claims to the shared factory against an `op-supernode` that derives both chains, one `op-challenger` defending super-root games on the shared factory, one `op-dispute-mon` watching it, and per-chain `op-challenger` and `op-dispute-mon` "drain" instances — each using that shared op-supernode's `/<chainID>/` endpoint — winding down the retired games on the old per-chain factories.
 
@@ -31,7 +33,8 @@ This runbook assumes:
 * Both chains run permissionless fault proofs with `SUPER_CANNON_KONA` (game type `9`) as the respected game type today.
 * The per-chain `op-proposer`, `op-challenger`, and `op-dispute-mon` instances stood up by the [single-chain super-roots upgrade](/chain-operators/tutorials/upgrade-chain-to-super-roots) are running for both chains. The per-chain challengers and monitors keep running through migration cutover and the subsequent drain window.
 * A separate `op-supernode` instance is in sync and derives **exactly `chainA` and `chainB`** (and no other chains) in the same process. This is the supernode the new shared `op-proposer`, `op-challenger`, and `op-dispute-mon` point at after migration; it must not double as a multi-chain supernode for any other chain or interop cluster.
-* Both chains have already been upgraded to a release that exposes `OPContractsManagerMigrator.migrate` and have `Features.ETH_LOCKBOX` enabled on their `SystemConfig`. `ETH_LOCKBOX` is turned on automatically by `OPContractsManagerV2.upgrade()`; that pre-upgrade is a prerequisite for this runbook. `Features.INTEROP` must still be **disabled** going in, `migrate()` enables it.
+* Both chains have already been upgraded to `op-contracts/v9.0.0` or later, which Upgrade 21 ships and which exposes `OPContractsManagerV2.migrate`, and have `Features.ETH_LOCKBOX` enabled on their `SystemConfig`. `ETH_LOCKBOX` is turned on automatically by `OPContractsManagerV2.upgrade()`; that pre-upgrade is a prerequisite for this runbook. `Features.INTEROP` must still be **disabled** going in, `migrate()` enables it.
+* The OPCM you call `migrate` on is the one that last upgraded each chain, or has the same major version and at least the same minor version as that OPCM. `migrate` reverts with `OPContractsManagerV2_InvalidUpgradeSequence` otherwise.
 
 ### Install Required Tooling
 
@@ -41,7 +44,7 @@ This runbook assumes:
 
 Collect everything below before you start. Replace `<chainA>` and `<chainB>` placeholders with the actual values for each chain. Anywhere this runbook says `<X>` it means a value you must capture.
 
-**Per-chain identity, addresses, and roles.** For each chain, open the entry under `superchain/configs/<network>/<chain-name>.toml` in `superchain-registry` and read `chain_id`, `addresses.SystemConfigProxy`, and `addresses.L1StandardBridgeProxy`. Pass those two proxies to [`op-fetcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-fetcher) to resolve the rest in a single L1 call, writing the JSON to a file you can reference later:
+**Per-chain identity, addresses, and roles.** For each chain, open the entry under `superchain/configs/<network>/<chain-name>.toml` in `superchain-registry` and read `chain_id`, `addresses.SystemConfigProxy`, and `addresses.L1StandardBridgeProxy`. Pass those two proxies to [`op-fetcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-fetcher) to resolve the rest from L1, writing the JSON to a file you can reference later:
 
 ```bash
 op-fetcher fetch \
@@ -73,7 +76,7 @@ The portal-derived lookups return the chain's current `DisputeGameFactory`, `Anc
 
 | Item | Source |
 | --- | --- |
-| `OPCM` address for the migrate-feature container | The same OPCM the chains ran for the prerequisite `OPCMv2.upgrade()`. This run is what enables `Features.ETH_LOCKBOX` on each `SystemConfig`. `Features.INTEROP` is not set by the upgrade; `migrate()` sets it. The container must have `OPTIMISM_PORTAL_INTEROP` set in `devFeatureBitmap`, which gates `migrate()` itself; without it `migrate()` reverts with `OPContractsManagerMigrator_InteropNotEnabled`. |
+| `OPCM` address | The same OPCM the chains ran for the prerequisite `OPCMv2.upgrade()`. This run is what enables `Features.ETH_LOCKBOX` on each `SystemConfig`. `Features.INTEROP` is not set by the upgrade; `migrate()` sets it. |
 | `SUPER_CANNON_KONA` absolute prestate hash | `validation/standard/standard-prestates.toml` in `superchain-registry`. Use the entry with `type="cannon64-kona-interop"` for the OPCM release version. |
 | Prestate artifact URL | The `cannon-kona-prestates-url` server, with the kona-interop prestate uploaded ahead of the migration. |
 | Shared `op-supernode` RPC URL | Your infrastructure team. The instance must derive **exactly `chainA` and `chainB`** (and no other chains). The shared `op-proposer`, `op-challenger`, and `op-dispute-mon` for the merged factory all point at this same instance. The per-chain services will be pointed to chain-specific endpoints under this URL. |
@@ -236,7 +239,7 @@ Someone other than the task author should:
 
 ## Build the superchain-ops Task
 
-Author a new task directory under `superchain-ops/src/tasks/<network>/<NNN-name>/` using the `OPCMMigrateInterop` template, which wraps `OPContractsManagerMigrator.migrate(MigrateInput)` and runs `OPContractsManagerMigrationValidator` over the resulting state.
+Author a new task directory under `superchain-ops/src/tasks/<network>/<NNN-name>/` using the `OPCMMigrateInterop` template, which wraps `OPContractsManagerV2.migrate(MigrateInput)` and runs `OPContractsManagerMigrationValidator` over the resulting state.
 
 ### Configure config.toml
 
@@ -249,7 +252,7 @@ l2chains = [
 templateName = "OPCMMigrateInterop"
 
 [addresses]
-OPCM = "0x<OPCM address with OPTIMISM_PORTAL_INTEROP enabled>"
+OPCM = "0x<OPCM address>"
 
 # One stanza per chain, both required.
 [[migrateChains]]

@@ -162,6 +162,11 @@ func (a *Actor) isValidProposal(ctx context.Context) (bool, error) {
 		// early to be backed by the canonical chain and is therefore invalid.
 		return false, nil
 	}
+	if resp.Data.VerifiedRequiredL1.Number > a.l1Head.Number {
+		// The proof binds the game's l1Head, so a root that needs L1 data after it can never be
+		// proven. Super fault games treat it as invalid in the same way (trace/super/provider.go).
+		return false, nil
+	}
 	// Valid exactly when the canonical super root matches the proposal claim.
 	return common.Hash(resp.Data.SuperRoot) == proposalHash, nil
 }

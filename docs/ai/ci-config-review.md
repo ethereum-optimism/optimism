@@ -190,54 +190,73 @@ here. Treat items 1–4 as **blocking**.
    change, then compare job durations (and the critical-path total) against the
    base. Cite the real numbers in review rather than guessing.
 
-9. **Validate locally.** Never `circleci config validate` a single fragment (fails
-   on duplicate keys). Always produce the merged output by running the repo's own
-   script — `bash .circleci/scripts/merge-configs.sh`, which writes
-   `/tmp/merged-config.yml` — so you validate exactly what CI builds; don't
-   re-run the `yq` merge by hand. Then validate `/tmp/merged-config.yml`, first
-   stubbing the private `ethereum-optimism/circleci-utils` orb (inline orb with
-   `checkout-with-mise`, `ci-gate`, `github-stale`;
-   `name` is reserved). Also run `bash .circleci/scripts/test-decision-tree.sh`.
-   Validation catches schema and missing-`requires:`-target errors, not semantics
-   (items 1–6).
+9. **Don't assume the PR targets `develop`.** PRs also target release branches
+   (`proposal/*`). These are cut from `develop` and then drift: they keep older
+   NUT bundles, dependency pins and generated artifacts. A job that compares
+   against `develop` passes on `develop` PRs but fails on every release-branch PR
+   once `develop` moves, for reasons unrelated to the PR. Look for
+   `origin/develop`, `git show develop:<file>`, `git checkout origin/develop` or
+   `BASE_BRANCH="develop"`, both in the config and in any script a CI command runs
+   (e.g. `ops/scripts/`). Resolve the base with the `get-target-branch` command
+   and `git fetch origin "$TARGET_BRANCH"` before use, since the checkout may not
+   include other branches. Also check that:
+   - branch names are not parsed with `[^/]+`, because base branches contain
+     slashes (`proposal/op-contracts/v9.0.0`);
+   - builds with no PR (branch pushes, post-merge) compare against a deliberate
+     base. A branch compared with itself gives an empty diff, which silently
+     disables path-gated routing.
 
-   **`validate` is not enough — use `process` with pipeline parameters.** Jobs
-   reachable only from a `when: << pipeline.parameters.c-run_* >>` workflow are
-   skipped when the parameter is false, which is the default, so a job that fails
-   to compile validates clean. Process the merged config with the gated params
-   turned on:
+   `develop`-only post-merge jobs and the `develop` default for PR-less
+   feature-branch pushes are fine.
 
-   ```sh
-   printf '{"c-run_release":true,"c-run_kona_publish_prestates":true}' > /tmp/pp.json
-   circleci config process --pipeline-parameters /tmp/pp.json /tmp/merged-config.yml
-   ```
+10. **Validate locally.** Never `circleci config validate` a single fragment (fails
+    on duplicate keys). Always produce the merged output by running the repo's own
+    script — `bash .circleci/scripts/merge-configs.sh`, which writes
+    `/tmp/merged-config.yml` — so you validate exactly what CI builds; don't
+    re-run the `yq` merge by hand. Then validate `/tmp/merged-config.yml`, first
+    stubbing the private `ethereum-optimism/circleci-utils` orb (inline orb with
+    `checkout-with-mise`, `ci-gate`, `github-stale`;
+    `name` is reserved). Also run `bash .circleci/scripts/test-decision-tree.sh`.
+    Validation catches schema and missing-`requires:`-target errors, not semantics
+    (items 1–6).
 
-   **Never write `<<` inside a `command:`.** CircleCI 2.1 treats `<<` as a
-   parameter-tag opener before any shell sees it, so bash here-strings (`<<<`) and
-   heredocs (`<<EOF`) fail the whole continuation with `Unclosed '<<' tag` — and a
-   continuation that fails to compile produces *no* workflows at all, so every
-   check silently disappears from the PR instead of going red. This bites shell
-   comments too: a comment merely *mentioning* the token fails compilation.
-   Escape as `\<<` if you truly need the literal, or restructure to avoid it —
-   but mind what the restructure costs:
+    **`validate` is not enough — use `process` with pipeline parameters.** Jobs
+    reachable only from a `when: << pipeline.parameters.c-run_* >>` workflow are
+    skipped when the parameter is false, which is the default, so a job that fails
+    to compile validates clean. Process the merged config with the gated params
+    turned on:
 
-   ```sh
-   ARR=(); while IFS= read -r L; do ARR+=("$L"); done < <(cmd)
-                                    # no '<<', but swallows cmd's exit status:
-                                    # a failing cmd reads as an empty array
-   TMP=$(mktemp); cmd > "$TMP"      # keeps set -e, and keeps the stream off the
-   ARR=(); while IFS= read -r L; do ARR+=("$L"); done < "$TMP"   # Prefer this.
-   rm -f "$TMP"
-   (( ${#ARR[@]} > 0 )) || { echo "empty" >&2; exit 1; }
-   ```
+    ```sh
+    printf '{"c-run_release":true,"c-run_kona_publish_prestates":true}' > /tmp/pp.json
+    circleci config process --pipeline-parameters /tmp/pp.json /tmp/merged-config.yml
+    ```
 
-   Process substitution trades the `<<` bug for a swallowed-exit-status bug, so
-   assert on the result either way. For a heredoc, write the body to a temp file.
+    **Never write `<<` inside a `command:`.** CircleCI 2.1 treats `<<` as a
+    parameter-tag opener before any shell sees it, so bash here-strings (`<<<`) and
+    heredocs (`<<EOF`) fail the whole continuation with `Unclosed '<<' tag` — and a
+    continuation that fails to compile produces *no* workflows at all, so every
+    check silently disappears from the PR instead of going red. This bites shell
+    comments too: a comment merely *mentioning* the token fails compilation.
+    Escape as `\<<` if you truly need the literal, or restructure to avoid it —
+    but mind what the restructure costs:
 
-   Read the lines with `while read`, not `mapfile`: `mapfile` is a bash 4
-   builtin, and macOS ships bash 3.2, so any snippet copied from a CI command
-   into a justfile recipe would break local runs. Same for the rest of bash 4
-   (`declare -A`, `${var^^}`, `local -n`).
+    ```sh
+    ARR=(); while IFS= read -r L; do ARR+=("$L"); done < <(cmd)
+                                     # no '<<', but swallows cmd's exit status:
+                                     # a failing cmd reads as an empty array
+    TMP=$(mktemp); cmd > "$TMP"      # keeps set -e, and keeps the stream off the
+    ARR=(); while IFS= read -r L; do ARR+=("$L"); done < "$TMP"   # Prefer this.
+    rm -f "$TMP"
+    (( ${#ARR[@]} > 0 )) || { echo "empty" >&2; exit 1; }
+    ```
+
+    Process substitution trades the `<<` bug for a swallowed-exit-status bug, so
+    assert on the result either way. For a heredoc, write the body to a temp file.
+
+    Read the lines with `while read`, not `mapfile`: `mapfile` is a bash 4
+    builtin, and macOS ships bash 3.2, so any snippet copied from a CI command
+    into a justfile recipe would break local runs. Same for the rest of bash 4
+    (`declare -A`, `${var^^}`, `local -n`).
 
 ## General best practices
 

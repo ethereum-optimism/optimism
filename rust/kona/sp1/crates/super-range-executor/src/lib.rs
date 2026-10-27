@@ -6,25 +6,29 @@
 //! `super-range` SP1 ELF.
 
 use std::{
+    borrow::Cow,
     collections::BTreeMap,
     fmt::{self, Debug},
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::FromStr,
     sync::{Arc, Mutex},
 };
 
+use alloy_consensus::Header;
 use alloy_primitives::{B256, Bytes, U256, keccak256};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use async_trait::async_trait;
 use jsonrpsee_core::{client::ClientT, rpc_params};
 use jsonrpsee_http_client::{HttpClient, HttpClientBuilder};
-use kona_host::{DataFormat, interop::InteropHost};
+use kona_host::DataFormat;
+pub use kona_host::interop::InteropHost;
 use kona_preimage::{
     BidirectionalChannel, DEPENDENCY_SET_KEY, HintWriter, HintWriterClient, L1_CONFIG_KEY,
     L2_ROLLUP_CONFIG_KEY, NativeChannel, OracleReader, PreimageKey, PreimageOracleClient,
     errors::PreimageOracleResult,
 };
 use kona_proof::{CachingOracle, FlushableCache, l1::OracleBlobProvider};
+use kona_proof_interop::HintType;
 use kona_sp1_client_utils::{
     log_commitment::{
         BlockReceipts, LogCommitmentInputs, LogOpening, VerifiedLogCommitments,
@@ -39,10 +43,12 @@ use kona_sp1_client_utils::{
     witness::{BlobData, DefaultWitnessData, WitnessData, preimage_store::PreimageStore},
 };
 use kona_sp1_ethereum_client_utils::{
-    chain_config::ChainConfigs, super_consolidation::build_consolidation_outputs,
-    super_range::build_range_outputs,
+    chain_config::ChainConfigs,
+    super_consolidation::build_consolidation_outputs,
+    super_range::{build_range_outputs, fetch_l2_header},
 };
 use kona_sp1_host_utils::witness_generation::{OnlineBlobStore, PreimageWitnessCollector};
+use op_alloy_consensus::OpReceiptEnvelope;
 use serde::Deserialize;
 use sp1_sdk::{
     Elf, Prover, ProverClient, SP1Proof, SP1ProofWithPublicValues, SP1PublicValues, SP1Stdin,
@@ -59,7 +65,7 @@ mod l2;
 pub use l2::L2BlockClient;
 mod log_commitments;
 pub use log_commitments::MissingLogCommitment;
-use log_commitments::{NativeConsolidation, run_native_consolidation};
+use log_commitments::{NativeConsolidation, hinted_receipts, run_native_consolidation};
 
 #[cfg(test)]
 mod consolidation_tests;
@@ -224,11 +230,117 @@ pub struct SynthesizedExecution {
     /// Typed inputs for the SP1 guest's consolidation mode.
     pub consolidation_inputs: SuperConsolidationInputs,
     /// Preimages that must be available before host hinting can discover the rest of the witness.
-    pub preloaded_preimages: Vec<(PreimageKey, Vec<u8>)>,
+    /// The collectors add those of `replaced_agreed_outputs`, which the host reads.
+    preloaded_preimages: Vec<(PreimageKey, Vec<u8>)>,
+    /// The agreed outputs that the span's pre-transition super roots replaced, by timestamp.
+    replaced_agreed_outputs: Vec<ReplacedAgreedOutputs>,
     /// The span-end super-root hash, used as the host post-state claim.
     pub current_super_root: B256,
     /// The pre-span super-root proof, encoded as the host agreed pre-state.
     pub previous_super_root_proof_bytes: Vec<u8>,
+}
+
+/// The agreed outputs that one pre-transition super root of a span replaced. The supernode
+/// reports the denied block as optimistic at that timestamp, so the response holds no preimage of
+/// these, and kona-host reads them only at the timestamp of its agreed pre-state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ReplacedAgreedOutputs {
+    /// The encoded super-root proof at their timestamp.
+    agreed_pre_state: Vec<u8>,
+    /// The outputs that the proof commits in place of the optimistic ones.
+    outputs: Vec<SuperOutputRoot>,
+}
+
+impl SynthesizedExecution {
+    /// Collects a range-mode witness and the natively computed range outputs through `host`,
+    /// seeded with the preloaded preimages and the agreed outputs that the span's super roots
+    /// replaced, which it reads through `host`'s L2 nodes.
+    pub async fn collect_range_witness(
+        &self,
+        host: InteropHost,
+        configs: Option<&ChainConfigs>,
+    ) -> Result<(DefaultWitnessData, SuperRangeOutputs)> {
+        let preimages = self
+            .seeded_preimages(&host)
+            .await
+            .context("failed to read the replaced agreed outputs")?;
+        collect_witness(&preimages, host, |oracle, beacon| {
+            let inputs = self.range_inputs.clone();
+            async move { build_range_outputs(inputs, oracle, beacon, configs).await }
+        })
+        .await
+    }
+
+    /// Collects a consolidation-mode witness and the natively computed consolidation outputs
+    /// through `host`, seeded with the preloaded preimages and the agreed outputs that the span's
+    /// super roots replaced, which it reads through `host`'s L2 nodes.
+    ///
+    /// `batches` are the public values of the log-commitment batch proofs that the consolidation
+    /// stdin will carry; the run takes the guest's path for them (see [`VerifiedLogCommitments`]).
+    /// With `log_tree_dir`, the run keeps the log trees it builds there, and builds each tree once.
+    pub async fn collect_consolidation_witness(
+        &self,
+        host: InteropHost,
+        configs: Option<&ChainConfigs>,
+        batches: &[Vec<u8>],
+        log_tree_dir: Option<&Path>,
+    ) -> Result<CollectedConsolidation> {
+        let preimages = self
+            .seeded_preimages(&host)
+            .await
+            .context("failed to read the replaced agreed outputs")?;
+        let (witness, native) = collect_witness(&preimages, host, |oracle, _beacon| {
+            run_native_consolidation(
+                oracle,
+                self.consolidation_inputs.clone(),
+                configs,
+                batches,
+                log_tree_dir,
+            )
+        })
+        .await?;
+        let NativeConsolidation {
+            outputs,
+            openings,
+            missing,
+            served,
+            read_bytes,
+            log_check_siblings,
+        } = native;
+        Ok(CollectedConsolidation {
+            witness,
+            outputs,
+            openings,
+            missing,
+            served,
+            read_bytes,
+            log_check_siblings,
+        })
+    }
+
+    /// The preloaded preimages with those of `replaced_agreed_outputs`. Each timestamp's outputs
+    /// are read through a clone of `host` agreeing on that timestamp's super root, since
+    /// kona-host's `L2OutputRoot` hint computes the output at the timestamp of its agreed
+    /// pre-state (see `replaced_agreed_output_preimages`). The clones keep no data directory, so
+    /// they share no store with `host`.
+    async fn seeded_preimages(
+        &self,
+        host: &InteropHost,
+    ) -> Result<Cow<'_, [(PreimageKey, Vec<u8>)]>> {
+        if self.replaced_agreed_outputs.is_empty() {
+            return Ok(Cow::Borrowed(&self.preloaded_preimages));
+        }
+        let mut preimages = self.preloaded_preimages.clone();
+        for replaced in &self.replaced_agreed_outputs {
+            let host = InteropHost {
+                agreed_l2_pre_state: Bytes::from(replaced.agreed_pre_state.clone()),
+                data_dir: None,
+                ..host.clone()
+            };
+            preimages.extend(replaced_agreed_output_preimages(host, &replaced.outputs).await?);
+        }
+        Ok(Cow::Owned(preimages))
+    }
 }
 
 /// The verdict of a `mode` replay that failed with `err`. A witness over the archive limit is the
@@ -264,7 +376,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
 
     let span = TimestampSpan::new(config.end_timestamp, config.end_timestamp)
         .context("failed to build single-timestamp span")?;
-    let synthesized =
+    let mut synthesized =
         synthesize_execution(span, config.l1_head, l1_head_number, &[previous, current])
             .context("failed to synthesize super-range inputs")?;
     let host_inputs = config.host_inputs();
@@ -274,9 +386,10 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         &synthesized.previous_super_root_proof_bytes,
         synthesized.current_super_root,
         config.end_timestamp,
+        None,
     )?;
-    let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
-    let mut preloaded_preimages = synthesized.preloaded_preimages.clone();
+    let configs =
+        deployment_chain_configs(&range_host, &synthesized.range_inputs.super_root_chain_ids())?;
     if !config.native_core {
         // Test guests consume Local config keys; production guests ignore these preimages.
         for (key, bytes) in [
@@ -284,16 +397,11 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
             (L2_ROLLUP_CONFIG_KEY, serde_json::to_vec(&configs.rollup_configs)?),
             (L1_CONFIG_KEY, serde_json::to_vec(&configs.l1_config)?),
         ] {
-            preloaded_preimages.push((PreimageKey::new_local(key.to()), bytes));
+            synthesized.preloaded_preimages.push((PreimageKey::new_local(key.to()), bytes));
         }
     }
-    let (range_witness, native_range_outputs) = collect_range_witness(
-        range_host,
-        &synthesized.range_inputs,
-        &preloaded_preimages,
-        Some(&configs),
-    )
-    .await?;
+    let (range_witness, native_range_outputs) =
+        synthesized.collect_range_witness(range_host, Some(&configs)).await?;
 
     // Witnesses were collected on the honest claim; see [`corrupt_range_claim`].
     let replay_range_inputs = if config.corrupt_claimed_root {
@@ -342,15 +450,9 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
             &synthesized.previous_super_root_proof_bytes,
             synthesized.current_super_root,
             config.end_timestamp,
+            None,
         )?;
-        collect_consolidation_witness(
-            host,
-            &synthesized.consolidation_inputs,
-            &preloaded_preimages,
-            Some(&configs),
-            batches,
-        )
-        .await
+        synthesized.collect_consolidation_witness(host, Some(&configs), batches, None).await
     };
     // The table path: commit the blocks below the heads that the first run read, then recollect.
     let mut consolidation = collect(&[]).await?;
@@ -585,24 +687,39 @@ pub fn synthesize_execution(
         }
     }
 
+    // The pre-span response holds no claimed output, so its outputs are checked here, and those
+    // that the pre-span super root kept are preloaded.
     let previous_label = format!("timestamp {first_timestamp}");
-    for &chain_id in &chain_ids {
-        let previous_output = output_entry(&responses[0], chain_id, &previous_label)?;
-        ensure_required_l1_within_head(previous_output.required_l1, l1_head_number, chain_id)?;
+    for agreed in &proofs[0].super_root.output_roots {
+        let previous = output_entry(&responses[0], agreed.chain_id, &previous_label)?;
+        ensure_required_l1_within_head(previous.required_l1, l1_head_number, agreed.chain_id)?;
         let (previous_root, previous_preimage) =
-            checked_output_preimage(previous_output, chain_id, &previous_label)?;
-        let proof_root = proofs[0]
-            .super_root
-            .output_roots
-            .iter()
-            .find(|root| root.chain_id == chain_id)
-            .map(|root| root.output_root)
-            .ok_or_else(|| anyhow!("previous proof missing chain {chain_id}"))?;
-        ensure!(
-            previous_root == proof_root,
-            "previous optimistic output root {previous_root} for chain {chain_id} does not match previous super-root proof output {proof_root}",
-        );
-        preloaded_preimages.push((PreimageKey::new_keccak256(*previous_root), previous_preimage));
+            checked_output_preimage(previous, agreed.chain_id, &previous_label)?;
+        if previous_root == agreed.output_root {
+            preloaded_preimages
+                .push((PreimageKey::new_keccak256(*previous_root), previous_preimage));
+        }
+    }
+
+    // Every pre-transition super root of the span is an agreed pre-state, whose outputs the range
+    // and the consolidation read. Where it replaced a chain's optimistic block, the response at
+    // that timestamp reports the denied block, so the agreed output is left for the host to read.
+    let mut replaced_agreed_outputs = Vec::new();
+    for (offset, (response, proof)) in responses.iter().zip(&proofs[..timestamp_count]).enumerate()
+    {
+        let label = format!("timestamp {}", first_timestamp + offset as u64);
+        let mut outputs = Vec::new();
+        for agreed in &proof.super_root.output_roots {
+            if output_entry(response, agreed.chain_id, &label)?.output_root != agreed.output_root {
+                outputs.push(agreed.clone());
+            }
+        }
+        if !outputs.is_empty() {
+            replaced_agreed_outputs.push(ReplacedAgreedOutputs {
+                agreed_pre_state: encode_super_root_proof(proof)?,
+                outputs,
+            });
+        }
     }
 
     let range_inputs = SuperRangeInputs {
@@ -631,6 +748,7 @@ pub fn synthesize_execution(
         range_inputs,
         consolidation_inputs,
         preloaded_preimages,
+        replaced_agreed_outputs,
         current_super_root: super_roots[timestamp_count],
         previous_super_root_proof_bytes: encode_super_root_proof(&proofs[0])?,
     })
@@ -959,20 +1077,6 @@ fn ensure_consolidation_outputs_match_inputs(
     Ok(())
 }
 
-/// Collects a range-mode witness and the natively computed range outputs.
-pub async fn collect_range_witness(
-    host: InteropHost,
-    inputs: &SuperRangeInputs,
-    preloaded_preimages: &[(PreimageKey, Vec<u8>)],
-    configs: Option<&ChainConfigs>,
-) -> Result<(DefaultWitnessData, SuperRangeOutputs)> {
-    collect_witness(preloaded_preimages, host, |oracle, beacon| {
-        let inputs = inputs.clone();
-        async move { build_range_outputs(inputs, oracle, beacon, configs).await }
-    })
-    .await
-}
-
 /// A consolidation witness with what the native run that collected it computed.
 #[derive(Debug)]
 pub struct CollectedConsolidation {
@@ -993,32 +1097,65 @@ pub struct CollectedConsolidation {
     pub log_check_siblings: u64,
 }
 
-/// Collects a consolidation-mode witness and the natively computed consolidation outputs.
-///
-/// `batches` are the public values of the log-commitment batch proofs that the consolidation
-/// stdin will carry; the run takes the guest's path for them (see [`VerifiedLogCommitments`]).
-pub async fn collect_consolidation_witness(
+/// The header and receipts of an optimistic block.
+#[derive(Debug, Clone)]
+pub struct OptimisticBlockReceipts {
+    /// The block's header, checked against the requested hash.
+    pub header: Header,
+    /// The block's receipts, read from the header's receipts root.
+    pub receipts: Vec<OpReceiptEnvelope>,
+}
+
+/// The header and receipts of `block_hash`, the optimistic block of `chain_id` built on the
+/// canonical block `parent_hash`, read through `host` the way the consolidation reads its heads.
+/// When the block is not canonical, kona-host re-derives it from L1 and re-executes it, so no L2
+/// node needs to hold it.
+pub async fn optimistic_block_receipts(
     host: InteropHost,
-    inputs: &SuperConsolidationInputs,
-    preloaded_preimages: &[(PreimageKey, Vec<u8>)],
-    configs: Option<&ChainConfigs>,
-    batches: &[Vec<u8>],
-) -> Result<CollectedConsolidation> {
-    let (witness, native) = collect_witness(preloaded_preimages, host, |oracle, _beacon| {
-        run_native_consolidation(oracle, inputs.clone(), configs, batches)
+    chain_id: u64,
+    parent_hash: B256,
+    block_hash: B256,
+) -> Result<OptimisticBlockReceipts> {
+    let (_, block) = collect_witness(&[], host, |oracle, _beacon| async move {
+        HintType::L2BlockData
+            .with_data(&[parent_hash.as_slice(), block_hash.as_slice(), &chain_id.to_be_bytes()])
+            .send(oracle.as_ref())
+            .await?;
+        let header = fetch_l2_header(oracle.as_ref(), block_hash, chain_id).await?;
+        let receipts =
+            hinted_receipts(oracle.as_ref(), chain_id, block_hash, header.receipts_root).await?;
+        Ok(OptimisticBlockReceipts { header, receipts })
     })
     .await?;
-    let NativeConsolidation { outputs, openings, missing, served, read_bytes, log_check_siblings } =
-        native;
-    Ok(CollectedConsolidation {
-        witness,
-        outputs,
-        openings,
-        missing,
-        served,
-        read_bytes,
-        log_check_siblings,
+    Ok(block)
+}
+
+/// The output-root preimages of `outputs`, agreed outputs that a pre-transition super root
+/// replaced (see [`SynthesizedExecution::replaced_agreed_outputs`]), read through `host` with
+/// kona-host's `L2OutputRoot` hint. The hint computes the output of the L2 node's canonical block
+/// at the timestamp of the host's agreed pre-state. kona-host retries the hint until the node
+/// serves the block.
+async fn replaced_agreed_output_preimages(
+    host: InteropHost,
+    outputs: &[SuperOutputRoot],
+) -> Result<Vec<(PreimageKey, Vec<u8>)>> {
+    let (_, preimages) = collect_witness(&[], host, |oracle, _beacon| async move {
+        let mut preimages = Vec::with_capacity(outputs.len());
+        for output in outputs {
+            HintType::L2OutputRoot
+                .with_data(&[output.output_root.as_slice(), output.chain_id.to_be_bytes().as_ref()])
+                .send(oracle.as_ref())
+                .await?;
+            let key = PreimageKey::new_keccak256(*output.output_root);
+            let preimage = oracle.get(key).await.map_err(|err| {
+                anyhow!("agreed output {} of chain {}: {err}", output.output_root, output.chain_id)
+            })?;
+            preimages.push((key, preimage));
+        }
+        Ok(preimages)
     })
+    .await?;
+    Ok(preimages)
 }
 
 struct AbortOnDrop(tokio::task::AbortHandle);
@@ -1095,13 +1232,16 @@ where
 ///
 /// Deployment-scoped endpoints come from `inputs`; the remaining arguments are the per-span
 /// facts: the trusted L1 head, the encoded agreed pre-state super-root proof, the claimed
-/// post-state super root, and the claimed (span-end) timestamp.
+/// post-state super root, and the claimed (span-end) timestamp. With `data_dir`, the host keeps
+/// its preimages in a `RocksDB` store there instead of in memory; the caller removes the
+/// directory after the collection.
 pub fn build_interop_host(
     inputs: &HostInputs,
     l1_head: B256,
     agreed_pre_state: &[u8],
     claimed_post_state: B256,
     claimed_timestamp: u64,
+    data_dir: Option<&Path>,
 ) -> Result<InteropHost> {
     ensure!(!inputs.l2_node_addresses.is_empty(), "at least one L2 node address is required",);
     Ok(InteropHost {
@@ -1112,8 +1252,8 @@ pub fn build_interop_host(
         l2_node_addresses: Some(inputs.l2_node_addresses.clone()),
         l1_node_address: Some(inputs.l1_node_address.clone()),
         l1_beacon_address: Some(inputs.l1_beacon_address.clone()),
-        data_dir: None,
-        data_format: DataFormat::Directory,
+        data_dir: data_dir.map(Path::to_path_buf),
+        data_format: DataFormat::Rocksdb,
         native: false,
         server: true,
         rollup_config_paths: inputs.rollup_config_paths.clone(),
@@ -1506,7 +1646,15 @@ struct RpcBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_consensus::{Receipt, ReceiptWithBloom, proofs::ordered_trie_root_with_encoder};
+    use alloy_eips::eip2718::Encodable2718;
+    use alloy_primitives::{Address, Log};
+    use httpmock::{
+        HttpMockRequest, HttpMockResponse, MockServer,
+        prelude::{GET, POST},
+    };
     use kona_preimage::errors::PreimageOracleError;
+    use serde_json::{Value, json};
 
     #[test]
     fn replay_witness_over_the_limit_is_not_a_rejected_claim() {
@@ -1622,6 +1770,7 @@ mod tests {
                 &[],
                 b256(0xbb),
                 101,
+                None,
             )
             .unwrap();
             let result = deployment_chain_configs(&host, &chain_ids);
@@ -1670,6 +1819,7 @@ mod tests {
             &[],
             b256(0xbb),
             101,
+            None,
         )
         .unwrap();
         let loaded = deployment_chain_configs(&host, &[U256::from(u64::MAX)]).unwrap();
@@ -1777,6 +1927,304 @@ mod tests {
             replacement_shaped.output_root,
             current.data.as_ref().unwrap().super_v1.chains[1].output,
         );
+    }
+
+    /// Pins that every agreed output that a pre-transition super root of the span replaced is
+    /// reported with that super root, for a host agreeing on it to read, and not preloaded: the
+    /// response's optimistic output there is the denied block's, and on a chain with a block at
+    /// every timestamp no claimed output is the replacement either.
+    #[test]
+    fn synthesize_execution_reports_replaced_agreed_outputs_by_timestamp() {
+        let mut responses: Vec<_> = (100u64..=102)
+            .map(|timestamp| {
+                response_with_block_hash(timestamp, &[10, 20], 8, |chain_id| {
+                    b256(chain_id as u8 ^ timestamp as u8)
+                })
+            })
+            .collect();
+        // Chain 20's block at the pre-span timestamp and chain 10's inside the span were denied.
+        let denied_pre_span = output_entry(b256(0xf0), 8);
+        responses[0]
+            .optimistic_at_timestamp
+            .insert(ChainId(U256::from(20)), denied_pre_span.clone());
+        responses[1]
+            .optimistic_at_timestamp
+            .insert(ChainId(U256::from(10)), output_entry(b256(0xf1), 8));
+
+        let synthesized =
+            synthesize_execution(TimestampSpan::new(101, 102).unwrap(), b256(0xaa), 8, &responses)
+                .expect("synthesizes");
+
+        let replaced = |offset: usize, chain_id: u64, index: usize| {
+            let super_v1 = &responses[offset].data.as_ref().unwrap().super_v1;
+            let proof = proof_from_super_v1(super_v1).unwrap();
+            ReplacedAgreedOutputs {
+                agreed_pre_state: encode_super_root_proof(&proof).unwrap(),
+                outputs: vec![SuperOutputRoot {
+                    chain_id,
+                    output_root: super_v1.chains[index].output,
+                }],
+            }
+        };
+        let expected = vec![replaced(0, 20, 1), replaced(1, 10, 0)];
+        assert_eq!(synthesized.replaced_agreed_outputs, expected);
+        let not_preloaded = expected
+            .iter()
+            .flat_map(|replaced| &replaced.outputs)
+            .map(|output| output.output_root)
+            .chain([denied_pre_span.output_root])
+            .map(|root| PreimageKey::new_keccak256(*root));
+        for key in not_preloaded {
+            assert!(synthesized.preloaded_preimages.iter().all(|(preloaded, _)| *preloaded != key));
+        }
+    }
+
+    /// Pins that each replaced agreed output of a span is read through kona-host from the L2
+    /// node's canonical block at its own timestamp, by number, and seeded as the root's preimage.
+    #[tokio::test]
+    async fn seeded_preimages_read_each_replaced_agreed_output_at_its_timestamp() {
+        let rollup = &kona_registry::ROLLUP_CONFIGS[&10];
+        let first = rollup.genesis.l2_time + 10 * rollup.block_time;
+        let second = first + rollup.block_time;
+        let server = mock_nodes().await;
+        let (first_hash, first_preimage, first_reads) = mock_canonical_output(&server, first).await;
+        let (second_hash, second_preimage, second_reads) =
+            mock_canonical_output(&server, second).await;
+
+        // Both replacements are inside the span, so a host agreeing on the pre-span super root,
+        // or one host for both, would ask for a block the node does not serve.
+        let mut responses: Vec<_> = (first - 1..=second + 1)
+            .map(|at| {
+                response_with_block_hash(at, &[10], 8, |_| match at {
+                    _ if at == first => first_hash,
+                    _ if at == second => second_hash,
+                    _ => b256(at as u8),
+                })
+            })
+            .collect();
+        for at in [first, second] {
+            responses[(at - (first - 1)) as usize]
+                .optimistic_at_timestamp
+                .insert(ChainId(U256::from(10)), output_entry(b256(0xfe), 8));
+        }
+        let synthesized = synthesize_execution(
+            TimestampSpan::new(first, second + 1).unwrap(),
+            b256(0xaa),
+            8,
+            &responses,
+        )
+        .unwrap();
+        let host = build_interop_host(
+            &mock_host_inputs(&server),
+            synthesized.range_inputs.l1_head,
+            &synthesized.previous_super_root_proof_bytes,
+            synthesized.current_super_root,
+            second + 1,
+            None,
+        )
+        .unwrap();
+
+        // kona-host retries a hint it cannot serve, so a wrong read would hang, not fail.
+        let preimages = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            synthesized.seeded_preimages(&host),
+        )
+        .await
+        .expect("the host must serve the agreed outputs")
+        .unwrap();
+
+        for preimage in [first_preimage, second_preimage] {
+            let key = PreimageKey::new_keccak256(*keccak256(&preimage));
+            assert!(preimages.contains(&(key, preimage)));
+        }
+        for read in first_reads.iter().chain(&second_reads) {
+            read.assert_async().await;
+        }
+    }
+
+    /// Serves the canonical block of chain 10 at `timestamp` only by number, the way kona-host's
+    /// `L2OutputRoot` hint reads it. Returns the block's hash and output preimage, and the mocks
+    /// of the two reads.
+    async fn mock_canonical_output(
+        server: &MockServer,
+        timestamp: u64,
+    ) -> (B256, Vec<u8>, [httpmock::Mock<'_>; 2]) {
+        let number = kona_registry::ROLLUP_CONFIGS[&10].block_number_from_timestamp(timestamp);
+        let header = Header { number, timestamp, state_root: b256(0x11), ..Default::default() };
+        let storage_root = b256(0x22);
+        let header_read = server
+            .mock_async(|when, then| {
+                when.method(POST).json_body_includes(
+                    json!({ "method": "debug_getRawHeader", "params": [format!("0x{number:x}")] })
+                        .to_string(),
+                );
+                then.respond_with(rpc_result(json!(alloy_primitives::hex::encode_prefixed(
+                    alloy_rlp::encode(&header)
+                ))));
+            })
+            .await;
+        let message_passer = "0x4200000000000000000000000000000000000016";
+        let proof_read = server
+            .mock_async(|when, then| {
+                when.method(POST).json_body_includes(
+                    json!({
+                        "method": "eth_getProof",
+                        "params": [message_passer, [], format!("0x{number:x}")],
+                    })
+                    .to_string(),
+                );
+                then.respond_with(rpc_result(json!({
+                    "address": message_passer,
+                    "balance": "0x0",
+                    "codeHash": B256::ZERO,
+                    "nonce": "0x0",
+                    "storageHash": storage_root,
+                    "accountProof": [],
+                    "storageProof": [],
+                })));
+            })
+            .await;
+        let preimage = OutputV0 {
+            state_root: header.state_root,
+            message_passer_storage_root: storage_root,
+            block_hash: header.hash_slow(),
+        }
+        .marshal();
+        (header.hash_slow(), preimage, [header_read, proof_read])
+    }
+
+    /// Pins that kona-host serves the header and receipts of a canonical optimistic block by hash,
+    /// once it finds the block canonical above `parent`.
+    // The receipts trie walk blocks in place, which needs the multi-threaded runtime.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn optimistic_block_receipts_read_a_canonical_block_through_the_host() {
+        let log = Log::new_unchecked(Address::ZERO, vec![b256(0x33)], Bytes::from_static(b"log"));
+        let receipts = vec![OpReceiptEnvelope::Eip1559(ReceiptWithBloom {
+            receipt: Receipt { status: true.into(), cumulative_gas_used: 21_000, logs: vec![log] },
+            logs_bloom: Default::default(),
+        })];
+        let raw_receipts: Vec<Bytes> =
+            receipts.iter().map(|receipt| receipt.encoded_2718().into()).collect();
+        let parent = Header { number: 9, ..Default::default() };
+        let header = Header {
+            number: 10,
+            parent_hash: parent.hash_slow(),
+            receipts_root: ordered_trie_root_with_encoder(&raw_receipts, |receipt, out| {
+                out.extend_from_slice(receipt)
+            }),
+            ..Default::default()
+        };
+        let hash = header.hash_slow();
+        let rpc_block = |header: &Header| {
+            let mut block = serde_json::to_value(header).unwrap();
+            block["hash"] = json!(header.hash_slow());
+            block["transactions"] = json!([]);
+            block["uncles"] = json!([]);
+            block
+        };
+
+        let server = mock_nodes().await;
+        let mut reads = Vec::new();
+        for (method, param, result) in [
+            ("eth_getBlockByHash", json!(parent.hash_slow()), rpc_block(&parent)),
+            ("eth_getBlockByNumber", json!("0xa"), rpc_block(&header)),
+            (
+                "debug_getRawHeader",
+                json!(hash),
+                json!(alloy_primitives::hex::encode_prefixed(alloy_rlp::encode(&header))),
+            ),
+            ("debug_getRawReceipts", json!(hash), json!(raw_receipts)),
+        ] {
+            reads.push(
+                server
+                    .mock_async(|when, then| {
+                        when.method(POST).json_body_includes(
+                            json!({ "method": method, "params": [param] }).to_string(),
+                        );
+                        then.respond_with(rpc_result(result));
+                    })
+                    .await,
+            );
+        }
+        let agreed = SuperRootProof::new(
+            100,
+            vec![SuperOutputRoot { chain_id: 10, output_root: b256(0x44) }],
+        );
+        let host = build_interop_host(
+            &mock_host_inputs(&server),
+            b256(0xaa),
+            &encode_super_root_proof(&agreed).unwrap(),
+            b256(0xbb),
+            101,
+            None,
+        )
+        .unwrap();
+        // kona-host retries a hint it cannot serve, so a wrong read would hang, not fail.
+        let block = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            optimistic_block_receipts(host, 10, parent.hash_slow(), hash),
+        )
+        .await
+        .expect("the host must serve the block")
+        .unwrap();
+
+        assert_eq!(block.header, header);
+        assert_eq!(block.receipts, receipts);
+        for read in reads {
+            read.assert_async().await;
+        }
+    }
+
+    /// A mock chain-10 L2 node, L1 node, and beacon node that answers what kona-host reads at
+    /// startup.
+    async fn mock_nodes() -> MockServer {
+        let server = MockServer::start_async().await;
+        server
+            .mock_async(|when, then| {
+                when.method(GET).path("/eth/v1/beacon/genesis");
+                then.status(200).json_body(json!({ "data": { "genesis_time": "10" } }));
+            })
+            .await;
+        server
+            .mock_async(|when, then| {
+                when.method(GET).path("/eth/v1/config/spec");
+                then.status(200).json_body(json!({ "data": { "SECONDS_PER_SLOT": "12" } }));
+            })
+            .await;
+        server
+            .mock_async(|when, then| {
+                when.method(POST)
+                    .json_body_includes(json!({ "method": "eth_chainId" }).to_string());
+                then.respond_with(rpc_result(json!("0xa")));
+            })
+            .await;
+        server
+    }
+
+    /// Host inputs that read every node from `server`.
+    fn mock_host_inputs(server: &MockServer) -> HostInputs {
+        HostInputs {
+            l1_node_address: server.base_url(),
+            l1_beacon_address: server.base_url(),
+            l2_node_addresses: vec![server.base_url()],
+            rollup_config_paths: None,
+            l1_config_path: None,
+            dependency_set_path: None,
+        }
+    }
+
+    /// Answers with `result` under the request's JSON-RPC id, which the client checks.
+    fn rpc_result(
+        result: Value,
+    ) -> impl Fn(&HttpMockRequest) -> HttpMockResponse + Send + Sync + 'static {
+        move |request| {
+            let id = serde_json::from_slice::<Value>(&request.body().0).unwrap()["id"].clone();
+            HttpMockResponse::builder()
+                .status(200)
+                .header("content-type", "application/json")
+                .body(json!({ "jsonrpc": "2.0", "id": id, "result": result }).to_string())
+                .build()
+        }
     }
 
     #[test]
@@ -1977,6 +2425,7 @@ mod tests {
                 }],
             },
             preloaded_preimages: expected_preimages,
+            replaced_agreed_outputs: Vec::new(),
             current_super_root: current.data.as_ref().unwrap().super_root,
             previous_super_root_proof_bytes: encode_super_root_proof(&previous_proof).unwrap(),
         };

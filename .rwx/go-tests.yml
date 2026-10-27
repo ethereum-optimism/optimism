@@ -419,7 +419,7 @@ tasks:
       export GOMODCACHE="$PWD/.ci/go-cache/full/modules" GOCACHE="$PWD/.ci/go-cache/full/build"
       go mod download
       just sync-superchain-go
-      git diff --exit-code op-core/superchain/superchain-configs.zip.sha256
+      git diff --exit-code op-core/superchain/bundle/superchain-configs.zip.sha256
       just cannon
       python3 ops/ci/runtime/go-artifacts.py restore contracts .ci/go-tests/dependencies/contracts
       mise exec -- bash ops/ci/runtime/go-full-tests.sh discover
@@ -729,7 +729,7 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [.ci/go-tests/manifest.json, .ci/go-tests/go-list.json, .ci/go-tests/all-packages.txt, .ci/go-cache/full/modules, cannon/bin, cannon/multicannon/embeds, cannon/testdata/bin, op-core/superchain/superchain-configs.zip, packages/contracts-bedrock/cache, packages/contracts-bedrock/artifacts, packages/contracts-bedrock/forge-artifacts, op-deployer/pkg/deployer/artifacts/forge-artifacts]
+          workspace: [.ci/go-tests/manifest.json, .ci/go-tests/go-list.json, .ci/go-tests/all-packages.txt, .ci/go-cache/full/modules, cannon/bin, cannon/multicannon/embeds, cannon/testdata/bin, op-core/superchain/bundle/superchain-configs.zip, packages/contracts-bedrock/cache, packages/contracts-bedrock/artifacts, packages/contracts-bedrock/forge-artifacts, op-deployer/pkg/deployer/artifacts/forge-artifacts]
           system: []
       artifacts:
         - key: discovery
@@ -1024,9 +1024,45 @@ tasks:
       test-parallel: ${{ init.test-parallel }}
       cache-key: go-full-runtime-11-${{ init.cache-epoch }}
 
+  # op-e2e/actions has its own Circle job (go-actions-tests); list-test-packages
+  # excludes it from the general verdicts, so it never runs twice.
+  - key: actions-verdict
+    use: [go-build-tools, go.build, contracts.build, op-reth.build, source]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      if ! git cat-file -e "$CI_COMMIT_SHA^{commit}"; then git fetch --no-tags origin "$CI_COMMIT_SHA"; fi
+      git reset --hard "$CI_COMMIT_SHA"
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+      python3 ops/ci/runtime/go-artifacts.py restore contracts .ci/go-tests/dependencies/contracts
+      python3 ops/ci/runtime/go-artifacts.py restore op-reth .ci/go-tests/dependencies/op-reth
+      export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="$PWD/rust/target/release/op-reth-test-engine"
+      test -x "$RUST_BINARY_PATH_OP_RETH_TEST_ENGINE"
+      export GOMODCACHE="$PWD/.ci/go-cache/full/modules" GOCACHE="$PWD/.ci/go-cache/actions/run"
+      mkdir -p "$GOCACHE"
+      TEST_TIMEOUT=30m mise exec -- just go-actions-tests-ci
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+    cache: false
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem: false
+      test-results:
+        - path: tmp/test-results/results.xml
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: test-logs
+          path: tmp/testlogs
+
   - key: main-gate-receipt
     use: [tools, code]
-    after: ${{ (verdict-0.succeeded || verdict-0.failed || verdict-0.skipped) && (verdict-1.succeeded || verdict-1.failed || verdict-1.skipped) && (verdict-10.succeeded || verdict-10.failed || verdict-10.skipped) && (verdict-11.succeeded || verdict-11.failed || verdict-11.skipped) && (verdict-2.succeeded || verdict-2.failed || verdict-2.skipped) && (verdict-3.succeeded || verdict-3.failed || verdict-3.skipped) && (verdict-4.succeeded || verdict-4.failed || verdict-4.skipped) && (verdict-5.succeeded || verdict-5.failed || verdict-5.skipped) && (verdict-6.succeeded || verdict-6.failed || verdict-6.skipped) && (verdict-7.succeeded || verdict-7.failed || verdict-7.skipped) && (verdict-8.succeeded || verdict-8.failed || verdict-8.skipped) && (verdict-9.succeeded || verdict-9.failed || verdict-9.skipped) }}
+    after: ${{ (actions-verdict.succeeded || actions-verdict.failed || actions-verdict.skipped) && (verdict-0.succeeded || verdict-0.failed || verdict-0.skipped) && (verdict-1.succeeded || verdict-1.failed || verdict-1.skipped) && (verdict-10.succeeded || verdict-10.failed || verdict-10.skipped) && (verdict-11.succeeded || verdict-11.failed || verdict-11.skipped) && (verdict-2.succeeded || verdict-2.failed || verdict-2.skipped) && (verdict-3.succeeded || verdict-3.failed || verdict-3.skipped) && (verdict-4.succeeded || verdict-4.failed || verdict-4.skipped) && (verdict-5.succeeded || verdict-5.failed || verdict-5.skipped) && (verdict-6.succeeded || verdict-6.failed || verdict-6.skipped) && (verdict-7.succeeded || verdict-7.failed || verdict-7.skipped) && (verdict-8.succeeded || verdict-8.failed || verdict-8.skipped) && (verdict-9.succeeded || verdict-9.failed || verdict-9.skipped) }}
     if: ${{ init.cache-warm != 'true' && init.shard-total == '12' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt main-go
     env:
@@ -1037,6 +1073,9 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
+      TASK_ACTIONS_VERDICT_SUCCEEDED: ${{ tasks.actions-verdict.succeeded }}
+      TASK_ACTIONS_VERDICT_FAILED: ${{ tasks.actions-verdict.failed }}
+      TASK_ACTIONS_VERDICT_SKIPPED: ${{ tasks.actions-verdict.skipped }}
       TASK_VERDICT_0_SUCCEEDED: ${{ tasks.verdict-0.succeeded }}
       TASK_VERDICT_0_FAILED: ${{ tasks.verdict-0.failed }}
       TASK_VERDICT_0_SKIPPED: ${{ tasks.verdict-0.skipped }}

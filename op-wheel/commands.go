@@ -15,9 +15,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -196,7 +196,7 @@ func initVersionProvider(ctx *cli.Context, lgr log.Logger) (sources.EngineVersio
 	if err != nil {
 		return nil, err
 	}
-	return rollupFromGethConfig(cfg), nil
+	return rollupFromChainConfig(cfg), nil
 }
 
 func initOpenEngineRPC(ctx *cli.Context, lgr log.Logger) (client.RPC, error) {
@@ -208,13 +208,13 @@ func initOpenEngineRPC(ctx *cli.Context, lgr log.Logger) (client.RPC, error) {
 	return rpc, nil
 }
 
-// rollupFromGethConfig returns a very incomplete rollup config with only the
+// rollupFromChainConfig returns a very incomplete rollup config with only the
 // L2ChainID and (most) fork activation timestamps set.
 //
 // Because Delta was a pure CL fork, its time isn't set either.
 //
 // This incomplete [rollup.Config] can be used as a [sources.EngineVersionProvider].
-func rollupFromGethConfig(cfg *params.ChainConfig) *rollup.Config {
+func rollupFromChainConfig(cfg *opparams.ChainConfig) *rollup.Config {
 	return &rollup.Config{
 		L2ChainID: cfg.ChainID,
 

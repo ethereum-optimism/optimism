@@ -1019,6 +1019,21 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(uint256(vm.load(address(delayedWeth), bytes32(uint256(6)))), wethDelayBefore);
     }
 
+    /// @notice Tests that the upgrade keeps the bridge hook a chain already has, since the OPCM
+    ///         passes a zero hook to the portal's initialize.
+    function test_upgrade_bridgeHookUnchanged_succeeds() public {
+        if (systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) vm.skip(true);
+
+        // The pre-upgrade portal has no hook getter, so the hook is written straight into its storage slot.
+        address hook = makeAddr("bridgeHook");
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "bridgeHook");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(hook))));
+
+        runCurrentUpgradeV2(chainPAO);
+
+        assertEq(address(optimismPortal2.bridgeHook()), hook, "bridge hook changed");
+    }
+
     /// @notice Tests that overriding to a disabled game type reverts during upgrade.
     function test_upgrade_respectedGameTypeOverrideToDisabled_reverts() public {
         v2UpgradeInput.disputeGameConfigs[4].enabled = false;
@@ -2581,10 +2596,8 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice Super root prestate for super cannon games.
     Claim superPrestate = Claim.wrap(bytes32(keccak256("superPrestate")));
 
-    /// @notice Function requires interop portal.
     function setUp() public override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Deploy two chains via OPCMv2 for migration testing.
         chainContracts1 = _deployChainForMigration(1000001);
@@ -3625,6 +3638,19 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice Tests that migration reverts when any chain's portal has a bridge hook.
+    /// @param _hook The bridge hook set on the second chain's portal.
+    function testFuzz_migrate_bridgeHookSet_reverts(address _hook) public {
+        vm.assume(_hook != address(0));
+        vm.mockCall(
+            address(chainContracts2.optimismPortal), abi.encodeCall(IOptimismPortal2.bridgeHook, ()), abi.encode(_hook)
+        );
+        _doMigration(
+            _getDefaultMigrateInput(),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_BridgeHookNotSupported.selector
+        );
+    }
+
     /// @notice Tests that the migration function reverts when the starting respected game type is invalid.
     /// @param _gameTypeRaw The raw game type value to test.
     function testFuzz_migrate_invalidStartingRespectedGameType_reverts(uint32 _gameTypeRaw) public {
@@ -3850,23 +3876,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             GameTypes.SUPER_CANNON_KONA.raw(),
             "ASR respected game type not SUPER_CANNON_KONA"
         );
-    }
-
-    /// @notice Tests that the migration function reverts when the OPTIMISM_PORTAL_INTEROP dev
-    ///         feature is not enabled.
-    function test_migrate_interopNotEnabled_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-
-        // Mock the container's isDevFeatureEnabled to return false for OPTIMISM_PORTAL_INTEROP,
-        // simulating a container that was deployed without the interop dev feature.
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.OPTIMISM_PORTAL_INTEROP)),
-            abi.encode(false)
-        );
-
-        // Execute the migration, expect revert.
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropNotEnabled.selector);
     }
 
     /// @notice Builds the dispute game configs for upgrading a migrated super-permissioned

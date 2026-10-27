@@ -18,9 +18,13 @@ zkVM programs that execute inside the SP1 prover:
   `receipts_root ‖ log_count ‖ log_root` (72 bytes per root), so that interop message checks can
   open a log without loading the block's receipts.
 - **`super-range`**: Unified super-root program for one or more chains, with modes for
-  proving ranges and span-shaped consolidation.
+  proving ranges and span-shaped consolidation. A range may cover all or some of the chains of
+  its previous super roots; consolidation covers all of them.
 - **`super-aggregation`**: Recursively verifies unified super-range proofs and
-  commits the public values consumed by `ZKDisputeGame`.
+  commits the public values consumed by `ZKDisputeGame`. Read in order, the range outputs must
+  prove every `(timestamp, chain)` of the claim once, timestamp-major and chain-minor, so a
+  timestamp may be proven by one output for every chain or by several outputs that each cover a
+  contiguous run of its chains, in chain-ID order.
 - **`tests/bls12-381-check`** (test-only): Differential check of `CustomCrypto`'s EIP-2537
   operations against revm's arkworks backend inside the zkVM; not part of `build-elfs`.
 
@@ -43,6 +47,8 @@ Supporting libraries for the SP1 fault proof system:
 - **`proposer`**: The `op-zk-proposer` service: creates super-root ZK dispute games,
   defends challenged ones with SP1 super-aggregation proofs, resolves finished games, and
   claims bonds (see the Proposer section below)
+- **`spn-wallet`**: Operator CLI that funds and inspects PROVE accounts on the Succinct Prover
+  Network, such as the proposer's SPN requester (see Funding the SPN requester below)
 - **`super-range-executor`**: Witness synthesis and execution engine for the super-root
   programs; used as a library by the proposer and as the `kona-sp1-super-range-executor`
   validity-checker binary in acceptance tests
@@ -53,7 +59,9 @@ Supporting libraries for the SP1 fault proof system:
 
 The super-range guest reads chain configurations only from its compiled registry. Both range
 and consolidation reject chains without an embedded rollup config, L1 config, or matching
-dependency set. Custom chains must be embedded at build time using `KONA_CUSTOM_CONFIGS_DIR`.
+dependency set. Range mode matches the dependency set against the chains of its previous super
+roots, not the chains it proves, so a range over one chain still derives under the whole set.
+Custom chains must be embedded at build time using `KONA_CUSTOM_CONFIGS_DIR`.
 Custom registry inputs currently support only Mainnet, Sepolia, and Holesky as L1s;
 embedding other L1 configurations requires additional registry support.
 
@@ -426,6 +434,39 @@ Its `bump_failed` reason counts fee bumps that failed, for example when
 got a receipt, and `op_zk_proposer_tx_fees_gwei_total` totals
 `gas_used * effective_gas_price` over those sends, in whole gwei.
 
+#### Funding the SPN requester
+
+The proposer pays for proofs from its SPN requester's PROVE balance (`prove_balance`).
+With op-signer, the requester is a KMS key that can sign only SPN messages, so it cannot
+deposit for itself. Another account funds it with `spn-wallet`, and the recipient
+signs nothing. Find the requester address in the `address` label of
+`op_zk_proposer_spn_requester_info`, or as the `fromAddress` of the `*-spn-requester.*`
+entry in op-signer's ConfigMap.
+
+```bash
+cd rust
+# From PROVE the funder already holds on SPN:
+PRIVATE_KEY=<funder key> cargo run -p spn-wallet -- fund --to <requester> --amount 100 --max-fee 1
+# From PROVE on Ethereum mainnet (deposits amount + fee into the funder's SPN account first):
+cargo run -p spn-wallet -- fund --to <requester> --amount 100 --max-fee 1 --from-l1 \
+  --l1-rpc <mainnet RPC> --kms-key projects/P/locations/L/keyRings/R/cryptoKeys/K/cryptoKeyVersions/V
+# Check the credit:
+cargo run -p spn-wallet -- history <requester>
+```
+
+- Every write command prints what it would send and signs nothing. Add `--broadcast`
+  to sign and send; `--max-fee` (in PROVE) is then required, and the command stops if
+  SPN quotes a higher fee. SPN charges 1 PROVE per transfer and per withdraw today.
+- The PROVE side is always Ethereum mainnet, also for chains that settle on Sepolia:
+  `--l1-rpc` must serve chain 1. The VApp's minimum deposit is 0.01 PROVE.
+- Sign with `PRIVATE_KEY` or with a GCP Cloud KMS key via `--kms-key` (or `KMS_KEY`), in
+  the format of op-signer's `key:`. KMS signing calls Cloud KMS directly with Application
+  Default Credentials (`gcloud auth application-default login`). It needs
+  `cloudkms.cryptoKeyVersions.viewPublicKey` on the key, plus `useToSign` to broadcast.
+- `fund` reports success once the recipient's balance history shows the TRANSFER_IN.
+  `requests <requester>`, `request <id> --bids` and `transaction <hash>` inspect SPN
+  state without a key.
+
 ### Environment
 
 All proposer-owned variables use the `OP_ZK_PROPOSER_` prefix.
@@ -474,6 +515,7 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
 | `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` | total in-flight proving tasks before creation pauses (default `1`) |
 | `OP_ZK_PROPOSER_LOG_PATH` | how a game proves executing messages that reference blocks below a local safe head: `table` (the default) or `receipts`. `receipts` turns the table path off and is meant only for chains with interop off; the proposer logs a warning at startup when it is set |
+| `OP_ZK_PROPOSER_DATA_DIR` | directory for the kona-host preimage store and log trees of each witness collection, one `collection-*` subdirectory each, removed when the collection ends; absent = in memory. Startup removes every `collection-*` entry, so use a directory private to one proposer process. It need not persist: a node-disk `emptyDir` fits, a `medium: Memory` one saves no memory. Under attack, a table-path collection can hold about 12 GB per chain for each timestamp it covers, and a collection covers a whole chunk (about 225 timestamps of a 3,600 s game at the default split), so no disk bounds the worst case. A full disk stalls collections, since kona-host keeps retrying the fetches it cannot store, and a restart collects the same chunk again; alert on the volume's usage and on `defense_deadline_remaining_seconds` |
 
 SP1 network configuration applies when `OP_ZK_PROPOSER_PROOF_PROVIDER=network`.
 `OP_ZK_PROPOSER_NETWORK_CALLS_TIMEOUT` also bounds metric observations in mock mode.

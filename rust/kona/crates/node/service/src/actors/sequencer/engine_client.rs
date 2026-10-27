@@ -1,6 +1,8 @@
 use crate::{
     EngineClientError, EngineClientResult,
-    actors::engine::{BuildRequest, EngineActorRequest, ResetRequest, SealRequest},
+    actors::engine::{
+        BuildRequest, CanonicalizeRequest, EngineActorRequest, ResetRequest, SealRequest,
+    },
 };
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
@@ -27,15 +29,22 @@ pub trait SequencerEngineClient: Debug + Send + Sync {
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<PayloadId>;
 
-    /// Seals and canonicalizes a previously started block.
+    /// Fetches a previously started block without changing forkchoice.
     ///
     /// Takes a `PayloadId` from a previous `start_build_block` call and returns
     /// the finalized execution payload envelope.
-    async fn seal_and_canonicalize_block(
+    async fn seal_block(
         &self,
         payload_id: PayloadId,
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<OpExecutionPayloadEnvelope>;
+
+    /// Imports a sealed payload and awaits its canonicalization before publication.
+    async fn canonicalize_block(
+        &self,
+        payload: OpExecutionPayloadEnvelope,
+        parent: L2BlockInfo,
+    ) -> EngineClientResult<()>;
 
     /// Returns the current unsafe head [`L2BlockInfo`].
     async fn get_unsafe_head(&self) -> EngineClientResult<L2BlockInfo>;
@@ -60,20 +69,15 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
     async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
         let (result_tx, mut result_rx) = mpsc::channel(1);
 
-        info!(target: "sequencer", "Sending reset request to engine.");
         self.engine_actor_request_tx
             .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx })))
             .await
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
 
-        result_rx
-            .recv()
-            .await
-            .inspect(|_| info!(target: "sequencer", "Engine reset successfully."))
-            .ok_or_else(|| {
-                error!(target: "block_engine", "Failed to receive built payload");
-                EngineClientError::ResponseError("response channel closed.".to_string())
-            })?
+        result_rx.recv().await.ok_or_else(|| {
+            error!(target: "block_engine", "Failed to receive built payload");
+            EngineClientError::ResponseError("response channel closed.".to_string())
+        })?
     }
 
     async fn start_build_block(
@@ -82,7 +86,6 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
     ) -> EngineClientResult<PayloadId> {
         let (payload_id_tx, mut payload_id_rx) = mpsc::channel(1);
 
-        trace!(target: "sequencer", "Sending start build request to engine.");
         if self
             .engine_actor_request_tx
             .send(EngineActorRequest::Build(Box::new(BuildRequest {
@@ -95,23 +98,19 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
             return Err(EngineClientError::RequestError("request channel closed.".to_string()));
         }
 
-        payload_id_rx.recv()
-            .await
-            .inspect(|payload_id| trace!(target: "sequencer", ?payload_id, "Start build request successfully."))
-            .ok_or_else(|| {
+        payload_id_rx.recv().await.ok_or_else(|| {
             error!(target: "block_engine", "Failed to receive payload for initiated block build");
             EngineClientError::ResponseError("response channel closed.".to_string())
         })
     }
 
-    async fn seal_and_canonicalize_block(
+    async fn seal_block(
         &self,
         payload_id: PayloadId,
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<OpExecutionPayloadEnvelope> {
         let (result_tx, mut result_rx) = mpsc::channel(1);
 
-        trace!(target: "sequencer", ?attributes, "Sending seal request to engine.");
         self.engine_actor_request_tx
             .send(EngineActorRequest::Seal(Box::new(SealRequest {
                 payload_id,
@@ -122,18 +121,34 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
 
         match result_rx.recv().await {
-            Some(Ok(payload)) => {
-                trace!(target: "sequencer", ?payload, "Seal succeeded.");
-                Ok(payload)
-            }
-            Some(Err(err)) => {
-                info!(target: "sequencer", ?err, "Seal failed.");
-                Err(EngineClientError::SealError(err))
-            }
+            Some(Ok(payload)) => Ok(payload),
+            Some(Err(err)) => Err(EngineClientError::SealError(err)),
             None => {
                 error!(target: "block_engine", "Failed to receive built payload");
                 Err(EngineClientError::ResponseError("response channel closed.".to_string()))
             }
         }
+    }
+    async fn canonicalize_block(
+        &self,
+        payload: OpExecutionPayloadEnvelope,
+        parent: L2BlockInfo,
+    ) -> EngineClientResult<()> {
+        let (result_tx, mut result_rx) = mpsc::channel(1);
+        self.engine_actor_request_tx
+            .send(EngineActorRequest::Canonicalize(Box::new(CanonicalizeRequest {
+                payload,
+                parent,
+                result_tx,
+            })))
+            .await
+            .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
+        result_rx
+            .recv()
+            .await
+            .ok_or_else(|| {
+                EngineClientError::ResponseError("response channel closed.".to_string())
+            })?
+            .map_err(EngineClientError::CanonicalizeError)
     }
 }

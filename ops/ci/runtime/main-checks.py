@@ -29,8 +29,8 @@ COMMANDS = {
 }
 GO_JOBS = {'opgeth-ratchet', 'check-op-geth-version', 'check-nut-locks', *MOCKS}
 GO_FIELDS = ('GoFiles', 'CgoFiles', 'TestGoFiles', 'XTestGoFiles')
-BUNDLE = 'op-core/superchain/superchain-configs.zip'
-BUNDLE_INPUTS = ('mise.toml', 'justfile', 'op-core/superchain/sync-superchain.sh', BUNDLE + '.sha256')
+BUNDLE = 'op-core/superchain/bundle/superchain-configs.zip'
+BUNDLE_INPUTS = ('mise.toml', 'justfile', 'op-core/superchain/bundle/sync-superchain.sh', BUNDLE + '.sha256')
 TODO_GLOBS = ['-g', '!ops/scripts/todo-checker.sh', '-g', '!packages/contracts-bedrock/lib']
 TODO_DISCOVERY = {
     'files': ['rg', '--files', *TODO_GLOBS],

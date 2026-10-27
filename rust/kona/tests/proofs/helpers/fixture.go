@@ -4,7 +4,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 type TestFixture struct {
@@ -14,9 +13,8 @@ type TestFixture struct {
 }
 
 type FaultProofProgramL2Source struct {
-	Node        *helpers.L2Verifier
-	Engine      *helpers.L2Engine
-	ChainConfig *params.ChainConfig
+	Node   *helpers.L2Verifier
+	Engine *helpers.L2Engine
 }
 
 type FixtureInputs struct {
@@ -39,10 +37,6 @@ type FixtureInputs struct {
 	// super-range executor needs it: it synthesizes its own agreed pre-state and claim from the
 	// supernode rather than being handed them. Not part of the serialized fixture.
 	SupernodeAddress string `toml:"-"`
-
-	// L2RPCTracker is an optional observer for L2 JSON-RPC calls made by the host.
-	// It is not serialized as part of the test fixture inputs.
-	L2RPCTracker *L2RPCTracker `toml:"-"`
 
 	// CorruptClaim, when set, instructs the SP1 super-range executor to tamper the claim the guest
 	// sees, so it rejects it (the invalid-claim soundness path). Ignored by the native fault-proof

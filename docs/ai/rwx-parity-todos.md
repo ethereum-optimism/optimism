@@ -28,6 +28,26 @@ resolved same-SHA original-report parity in the retained evidence. This does not
 establish provider speed superiority, current-head readiness or required-gate
 ownership. Circle remains responsible for all four required gates.
 
+## Upstream changes since the baseline
+
+The October 27 merge of `develop` at `60698d94a5ebfae2df26005f3baf1d358f6c61f5`
+changed these PR occurrences. The baseline counts above stay as recorded. A
+full inventory refresh must still recount every workflow.
+
+- Retired: `diff-fetcher-forge-artifacts`. #23527 replaced the forge script with
+  `eth_call`s and deleted the job and its committed artifacts. The native
+  fetcher workload and its shadow check were removed with it.
+- Added: `go-actions-tests` (`ci-gate`). #21786 moved `op-e2e/actions` into its
+  own job on `op-reth-test-engine`. The native `actions-verdict` task and its
+  `main-go` gate mapping are implemented. Hosted same-SHA parity is not yet
+  verified, so this occurrence has no parity credit.
+- Changed inputs: `go-tests`, `check-nut-prefork-states` and
+  `kona-proof-action-single` now require `op-reth-test-engine` (#23648,
+  #22632). Both providers supply it from their release producers. Their earlier
+  parity evidence predates this input.
+- Outside the PR denominator: `contracts-bedrock-build-tests-develop` (#23619)
+  runs only on `develop`.
+
 The completed workload snapshot is `a1aa49aaf3713a8172f3f615f094488fd8e39c3d`;
 its 92 summary hashes and complete provider originals are recoverable through the
 evidence guide. Historical per-stage percentages and closeouts are archived.

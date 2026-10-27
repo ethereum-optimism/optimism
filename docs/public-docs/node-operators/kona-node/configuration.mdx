@@ -101,15 +101,15 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 
 ## RPC Arguments
 
+The RPC server starts once. If it stops unexpectedly, the node shuts down with an error.
+
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
 | `--rpc.disabled` | `KONA_NODE_RPC_DISABLED` | Disable the RPC server | `false` |
-| `--rpc.no-restart` | `KONA_NODE_RPC_NO_RESTART` | Prevent RPC server from restarting | `false` |
 | `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address | `0.0.0.0` |
 | `--port <PORT>` | `KONA_NODE_RPC_PORT` | RPC listening port | `9545` |
 | `--rpc.enable-admin` | `KONA_NODE_RPC_ENABLE_ADMIN` | Enable the admin API | `false` |
 | `--rpc.admin-state <PATH>` | `KONA_NODE_RPC_ADMIN_STATE` | File path for admin state persistence | - |
-| `--rpc.ws-enabled` | `KONA_NODE_RPC_WS_ENABLED` | Enable websocket RPC server | `false` |
 
 ## Sequencer Arguments
 
@@ -127,6 +127,7 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
 | `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | Path to the JSON file describing the interop dependency set for this chain. Required when the rollup config schedules the Lagoon hardfork. | - |
+| `--safedb.path <PATH>` | `KONA_NODE_SAFEDB_PATH` | Directory of the safe head database, which records the L2 safe head reached as of each L1 block and backs `optimism_safeHeadAtL1Block` and `superroot_atTimestamp`. Needed by op-challenger, op-proposer and op-dispute-mon. Nothing is recorded when unset. | - |
 
 `kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`
 flag group. `--interop.dependency-set` is the node's only interop flag.

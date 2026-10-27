@@ -19,7 +19,7 @@ def helper(name):
     return value
 
 
-F = helper('fetcher-artifacts'); G = F.G; S = F.S; IMAGE = helper('kontrol-image')
+G = helper('cannon-go'); S = G.S; SUBMODULES = helper('git-submodule-report'); IMAGE = helper('kontrol-image')
 ROOT = Path(__file__).resolve().parents[3]
 CONTRACTS = ROOT / 'packages/contracts-bedrock'
 PROOFS = 'packages/contracts-bedrock/test/kontrol/proofs'
@@ -32,7 +32,10 @@ SOURCES = ('mise.toml', 'packages/contracts-bedrock/justfile', 'packages/contrac
     'packages/contracts-bedrock/test/kontrol/scripts/json/reverse_key_values.py',
     'ops/ci/runtime/kontrol-image.json', 'ops/ci/runtime/kontrol-image.py', 'ops/ci/runtime/kontrol-build.py')
 COMMANDS = {'summaries': ['just', 'kontrol-summary-full'], 'proofs': ['just', 'forge-build', './test/kontrol/proofs']}
-ENVIRONMENT = (*F.COMPILER_ENV, 'FOUNDRY_PROFILE', 'KONTROL_FP_DEPLOYMENT')
+COMPILER_ENV = ('FOUNDRY_OPTIMIZER', 'FOUNDRY_OPTIMIZER_RUNS', 'FOUNDRY_VIA_IR', 'FOUNDRY_SOLC_VERSION',
+                'FOUNDRY_EVM_VERSION', 'FOUNDRY_BYTECODE_HASH', 'FOUNDRY_CBOR_METADATA', 'FOUNDRY_REMAPPINGS',
+                'FOUNDRY_AUTO_DETECT_REMAPPINGS', 'FOUNDRY_LIBRARIES', 'DAPP_OPTIMIZE', 'DAPP_OPTIMIZE_RUNS')
+ENVIRONMENT = (*COMPILER_ENV, 'FOUNDRY_PROFILE', 'KONTROL_FP_DEPLOYMENT')
 
 
 def command(*argv, cwd=ROOT): return subprocess.check_output(argv, cwd=cwd, text=True).strip()
@@ -107,7 +110,7 @@ def execute(provider, contract_artifact=None):
         submodules = command('git', 'submodule', 'status', '--recursive')
         (directory / 'submodules.txt').write_text(submodules + '\n')
         settings = {'suite': 'kontrol-build', 'source_sha': sha, 'branch': branch, 'provider': provider,
-            'workspace_root': str(ROOT), 'input_sha256': before, 'submodules': F.SUBMODULES.revisions(submodules),
+            'workspace_root': str(ROOT), 'input_sha256': before, 'submodules': SUBMODULES.revisions(submodules),
             'profile': 'default', 'environment': {name: os.environ.get(name) for name in ENVIRONMENT},
             'rerun_fails': 0, 'image': IMAGE.selection(), 'kontrol_version': 'Kontrol version: ' + IMAGE.selection()['version'],
             'tools': {name: command(*argv) for name, argv in [('forge',['forge','--version']), ('just',['just','--version']),

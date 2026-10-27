@@ -516,8 +516,8 @@ func (w *Withdrawal) proveWithdrawalParameters() ProvenWithdrawalParameters {
 	}
 }
 
-func (w *Withdrawal) Finalize(user *EOA) {
-	wd := crossdomain.Withdrawal{
+func (w *Withdrawal) crossDomainWithdrawal() crossdomain.Withdrawal {
+	return crossdomain.Withdrawal{
 		Nonce:    w.proveParams.Nonce,
 		Sender:   &w.proveParams.Sender,
 		Target:   &w.proveParams.Target,
@@ -525,6 +525,20 @@ func (w *Withdrawal) Finalize(user *EOA) {
 		GasLimit: w.proveParams.GasLimit,
 		Data:     w.proveParams.Data,
 	}
+}
+
+// CheckFinalizable returns nil if the withdrawal proven by prover can be finalized at the latest
+// L1 block, or the portal's checkWithdrawal revert otherwise.
+func (w *Withdrawal) CheckFinalizable(prover *EOA) error {
+	wd := w.crossDomainWithdrawal()
+	hash, err := wd.Hash()
+	w.require.NoError(err, "failed to hash the withdrawal")
+	_, err = contractio.Read(w.bridge.l1Portal.CheckWithdrawal(hash, prover.Address()), w.ctx)
+	return err
+}
+
+func (w *Withdrawal) Finalize(user *EOA) {
+	wd := w.crossDomainWithdrawal()
 
 	// Finalize withdrawal
 	w.log.Info("FinalizeWithdrawal: finalizing withdrawal...")

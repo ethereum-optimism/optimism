@@ -93,7 +93,8 @@ Some subdirectories have their own CLAUDE.md with domain-specific conventions. R
 
 ## Additional Documentation
 
-More detailed guidance for AI agents can be found in:
+Before writing or refactoring code, read [docs/ai/dev-workflow.md](docs/ai/dev-workflow.md)
+and the relevant language guide below. More detailed guidance for AI agents can be found in:
 
 - [docs/ai/ci-ops.md](docs/ai/ci-ops.md) - CI/CD operations
 - [docs/ai/ci-config-review.md](docs/ai/ci-config-review.md) - Reviewing changes to CI config (`.circleci/`, `.github/workflows/`): gate coverage, required checks, path filtering, caching, plus general CircleCI/GHA best practices
@@ -104,7 +105,7 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/safedb-review.md](docs/ai/safedb-review.md) - Reviewing changes to a safe head database (op-node's or kona's): the behaviour contract both must keep, the six invariants, why a gap in recorded history returns a later L1 block instead of an error, and why local-safe and cross-safe being equal in most test modes hides a label error. Pairs with the `safedb-reviewer` agent
 - [docs/ai/dispute-game-investigation.md](docs/ai/dispute-game-investigation.md) - Investigating fault dispute games: challenger disagreements, excessive moves, self-contradiction, proposal validity, diagnosing the responsible op-node, and the bond outcome (read-only)
 - [docs/ai/flake-prevention.md](docs/ai/flake-prevention.md) - Guidance for preventing flaky tests
-- [docs/ai/dev-workflow.md](docs/ai/dev-workflow.md) - General development workflow: pinned tools via mise, Just usage, pre-PR checks, and CI caveats
+- [docs/ai/dev-workflow.md](docs/ai/dev-workflow.md) - Shared code simplicity principles and development workflow: pinned tools via mise, Just usage, pre-PR checks, and CI caveats
 - [docs/ai/go-dev.md](docs/ai/go-dev.md) - Go service development
 - [docs/ai/rust-dev.md](docs/ai/rust-dev.md) - Rust development (kona, op-reth, alloy crates)
 - [docs/ai/reth-update-review.md](docs/ai/reth-update-review.md) - Reviewing reth/revm/alloy dependency bumps: the risk guide for upstream changes that should force a change in our in-tree op- forks but produce no diff (silent overrides, new defaults/variants, sync drift, consensus-critical math). Pairs with the `reth-update-reviewer` agent

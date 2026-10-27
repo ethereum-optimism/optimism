@@ -452,7 +452,7 @@ type ImpersonationBroadcaster struct {
 	rpcClient *rpc.Client
 	from      common.Address
 	chainID   *big.Int
-	bcasts    []script.Broadcast
+	bcasts    []broadcaster.Broadcast
 	mtx       sync.Mutex
 }
 
@@ -466,7 +466,7 @@ func NewImpersonationBroadcaster(lgr log.Logger, client *ethclient.Client, rpcCl
 	}
 }
 
-func (b *ImpersonationBroadcaster) Hook(bcast script.Broadcast) {
+func (b *ImpersonationBroadcaster) Hook(bcast broadcaster.Broadcast) {
 	b.mtx.Lock()
 	b.bcasts = append(b.bcasts, bcast)
 	b.mtx.Unlock()
@@ -487,7 +487,7 @@ func (b *ImpersonationBroadcaster) Broadcast(ctx context.Context) ([]broadcaster
 		result := broadcaster.BroadcastResult{Broadcast: bcast}
 
 		var to *common.Address
-		if bcast.Type == script.BroadcastCall {
+		if bcast.Type == broadcaster.BroadcastCall {
 			to = &bcast.To
 		}
 

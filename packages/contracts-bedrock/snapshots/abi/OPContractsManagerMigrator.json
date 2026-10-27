@@ -107,6 +107,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_BridgeHookNotSupported",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_ChainAlreadyMigrated",
     "type": "error"
   },
@@ -133,11 +138,6 @@
   {
     "inputs": [],
     "name": "OPContractsManagerMigrator_DuplicateL2ChainId",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "OPContractsManagerMigrator_InteropNotEnabled",
     "type": "error"
   },
   {

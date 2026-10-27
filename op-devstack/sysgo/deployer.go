@@ -488,6 +488,22 @@ func WithDisputeGameFinalityDelaySeconds(seconds uint64) DeployerOption {
 	}
 }
 
+// WithWithdrawalDelaySeconds sets the per-chain DelayedWETH withdrawal delay. The delay is bounded by
+// the DelayedWETH implementation, so the bounds are widened when the requested value falls
+// outside the standard range. This only takes effect when the implementations are deployed by
+// this devstack run.
+func WithWithdrawalDelaySeconds(seconds uint64) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		if seconds < standard.MinWithdrawalDelaySeconds {
+			builder.WithGlobalOverride("minWithdrawalDelaySeconds", seconds)
+		}
+		if seconds > standard.MaxWithdrawalDelaySeconds {
+			builder.WithGlobalOverride("maxWithdrawalDelaySeconds", seconds)
+		}
+		builder.WithGlobalOverride("faultGameWithdrawalDelay", seconds)
+	}
+}
+
 // WithFaultGameMaxClockDuration overrides the fault dispute game's maximum chess-clock
 // duration, i.e. how long an unchallenged game takes to become resolvable
 // (dsl.StandardBridge.GameResolutionDelay). Shrinking it lets a test wait a game out in
@@ -536,16 +552,8 @@ func WithCustomGasToken(name, symbol string, initialLiquidity *big.Int, liquidit
 }
 
 func (wb *worldBuilder) buildL1Genesis() {
-	wb.require.NotNil(wb.output.L1DevGenesis, "must have L1 genesis outer config")
-	wb.require.NotNil(wb.output.L1StateDump, "must have L1 genesis alloc")
-
-	genesisOuter := wb.output.L1DevGenesis
-	genesisAlloc := wb.output.L1StateDump.Data.Accounts
-	genesisCfg := *genesisOuter
-	genesisCfg.StateHash = nil
-	genesisCfg.Alloc = genesisAlloc
-
-	wb.outL1Genesis = &genesisCfg
+	wb.require.NotNil(wb.output.L1DevGenesis, "must have L1 genesis")
+	wb.outL1Genesis = wb.output.L1DevGenesis
 }
 
 func (wb *worldBuilder) finalizeL2Allocs() {

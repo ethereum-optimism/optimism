@@ -1,7 +1,6 @@
 package helpers
 
 import (
-	"encoding/binary"
 	"errors"
 	"math/big"
 	"testing"
@@ -9,17 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/beacon"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/triedb"
-	"github.com/ethereum/go-ethereum/triedb/hashdb"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -27,40 +20,69 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
+// payloadAttrs returns the attributes of a block built two seconds after a parent at parentTime,
+// with no forced transactions.
+func payloadAttrs(cfg *rollup.Config, parentTime uint64, feeRecipient common.Address, noTxPool bool) *eth.PayloadAttributes {
+	nextBlockTime := parentTime + 2
+
+	var w *types.Withdrawals
+	if cfg.IsCanyon(nextBlockTime) {
+		w = &types.Withdrawals{}
+	}
+
+	var parentBeaconBlockRoot *common.Hash
+	if cfg.IsEcotone(nextBlockTime) {
+		parentBeaconBlockRoot = &common.Hash{}
+	}
+
+	return &eth.PayloadAttributes{
+		Timestamp:             eth.Uint64Quantity(nextBlockTime),
+		PrevRandao:            eth.Bytes32{},
+		SuggestedFeeRecipient: feeRecipient,
+		NoTxPool:              noTxPool,
+		GasLimit:              (*eth.Uint64Quantity)(&cfg.Genesis.SystemConfig.GasLimit),
+		Withdrawals:           w,
+		ParentBeaconBlockRoot: parentBeaconBlockRoot,
+	}
+}
+
 func TestL2EngineAPI(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	jwtPath := e2eutils.WriteDefaultJWT(t)
 	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L2Cfg.ToBlock()
-	consensus := beacon.New(ethash.NewFaker())
-	db := rawdb.NewMemoryDatabase()
-	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
-	sd.L2Cfg.MustCommit(db, tdb)
 
-	engine := NewL2Engine(t, log, sd.L2Cfg, jwtPath)
+	engine := NewL2Engine(t, log, sd.L2Cfg)
 
 	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	// build an empty block
-	chainA, _ := core.GenerateChain(sd.L2Cfg.Config, genesisBlock, consensus, db, 1, func(n int, gen *core.BlockGen) {
-		gen.SetCoinbase(common.Address{'A'})
-		if sd.L2Cfg.Config.IsCancun(gen.Number(), gen.Timestamp()) {
-			root := crypto.Keccak256Hash([]byte("A"), binary.BigEndian.AppendUint64(nil, uint64(n)))
-			gen.SetParentBeaconRoot(root)
-		}
-	})
-
-	payloadA, err := eth.BlockAsPayloadEnv(chainA[0], sd.L2Cfg.Config)
-	require.NoError(t, err)
+	// build two empty sibling blocks on genesis, differing in their fee recipient
+	buildOnGenesis := func(feeRecipient common.Address) *eth.ExecutionPayloadEnvelope {
+		attrs := payloadAttrs(sd.RollupCfg, genesisBlock.Time(), feeRecipient, true)
+		fcRes, err := l2Cl.ForkchoiceUpdate(t.Ctx(), &eth.ForkchoiceState{
+			HeadBlockHash:      genesisBlock.Hash(),
+			SafeBlockHash:      genesisBlock.Hash(),
+			FinalizedBlockHash: genesisBlock.Hash(),
+		}, attrs)
+		require.NoError(t, err)
+		require.Equal(t, eth.ExecutionValid, fcRes.PayloadStatus.Status)
+		require.NotNil(t, fcRes.PayloadID, "building a block now")
+		envelope, err := l2Cl.GetPayload(t.Ctx(), eth.PayloadInfo{ID: *fcRes.PayloadID, Timestamp: uint64(attrs.Timestamp)})
+		require.NoError(t, err)
+		return envelope
+	}
+	payloadA := buildOnGenesis(common.Address{'A'})
+	payloadB := buildOnGenesis(common.Address{'B'})
+	require.NotEqual(t, payloadA.ExecutionPayload.BlockHash, payloadB.ExecutionPayload.BlockHash)
+	require.Equal(t, genesisBlock.Hash(), engine.LatestHeader(t).Hash(), "built payloads are not canonical")
 
 	// apply the payload
 	status, err := l2Cl.NewPayload(t.Ctx(), payloadA.ExecutionPayload, payloadA.ParentBeaconBlockRoot)
 	require.NoError(t, err)
 	require.Equal(t, eth.ExecutionValid, status.Status)
-	require.Equal(t, genesisBlock.Hash(), engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
+	require.Equal(t, genesisBlock.Hash(), engine.LatestHeader(t).Hash(), "processed payloads are not immediately canonical")
 
 	// recognize the payload as canonical
 	fcRes, err := l2Cl.ForkchoiceUpdate(t.Ctx(), &eth.ForkchoiceState{
@@ -71,25 +93,13 @@ func TestL2EngineAPI(gt *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
-	require.Equal(t, payloadA.ExecutionPayload.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "now payload A is canonical")
-
-	// build an alternative block
-	chainB, _ := core.GenerateChain(sd.L2Cfg.Config, genesisBlock, consensus, db, 1, func(n int, gen *core.BlockGen) {
-		gen.SetCoinbase(common.Address{'B'})
-		if sd.L2Cfg.Config.IsCancun(gen.Number(), gen.Timestamp()) {
-			root := crypto.Keccak256Hash([]byte("A"), binary.BigEndian.AppendUint64(nil, uint64(n)))
-			gen.SetParentBeaconRoot(root)
-		}
-	})
-
-	payloadB, err := eth.BlockAsPayloadEnv(chainB[0], sd.L2Cfg.Config)
-	require.NoError(t, err)
+	require.Equal(t, payloadA.ExecutionPayload.BlockHash, engine.LatestHeader(t).Hash(), "now payload A is canonical")
 
 	// apply the payload
 	status, err = l2Cl.NewPayload(t.Ctx(), payloadB.ExecutionPayload, payloadB.ParentBeaconBlockRoot)
 	require.NoError(t, err)
 	require.Equal(t, status.Status, eth.ExecutionValid)
-	require.Equal(t, payloadA.ExecutionPayload.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
+	require.Equal(t, payloadA.ExecutionPayload.BlockHash, engine.LatestHeader(t).Hash(), "processed payloads are not immediately canonical")
 
 	// reorg block A in favor of block B
 	fcRes, err = l2Cl.ForkchoiceUpdate(t.Ctx(), &eth.ForkchoiceState{
@@ -99,35 +109,31 @@ func TestL2EngineAPI(gt *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 	require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
-	require.Equal(t, payloadB.ExecutionPayload.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "now payload B is canonical")
+	require.Equal(t, payloadB.ExecutionPayload.BlockHash, engine.LatestHeader(t).Hash(), "now payload B is canonical")
 
 }
 
 func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	jwtPath := e2eutils.WriteDefaultJWT(t)
 	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L2Cfg.ToBlock()
-	db := rawdb.NewMemoryDatabase()
-	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
-	sd.L2Cfg.MustCommit(db, tdb)
 
-	engine := NewL2Engine(t, log, sd.L2Cfg, jwtPath)
+	engine := NewL2Engine(t, log, sd.L2Cfg)
 	t.Cleanup(func() {
 		_ = engine.Close()
 	})
 
 	cl := engine.EthClient()
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 
 	// send a tx to the miner
 	tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
 		ChainID:   sd.L2Cfg.Config.ChainID,
 		Nonce:     0,
 		GasTipCap: big.NewInt(2 * params.GWei),
-		GasFeeCap: new(big.Int).Add(engine.l2Chain.CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
+		GasFeeCap: new(big.Int).Add(engine.LatestHeader(t).BaseFee, big.NewInt(2*params.GWei)),
 		Gas:       params.TxGas,
 		To:        &dp.Addresses.Bob,
 		Value:     e2eutils.Ether(2),
@@ -135,37 +141,18 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 	require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
 
 	buildBlock := func(includeAlice bool) {
-		parent := engine.l2Chain.CurrentBlock()
+		parent := engine.LatestHeader(t)
 		l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 		require.NoError(t, err)
 
-		nextBlockTime := eth.Uint64Quantity(parent.Time) + 2
-
-		var w *types.Withdrawals
-		if sd.RollupCfg.IsCanyon(uint64(nextBlockTime)) {
-			w = &types.Withdrawals{}
-		}
-
-		var parentBeaconBlockRoot *common.Hash
-		if sd.RollupCfg.IsEcotone(uint64(nextBlockTime)) {
-			parentBeaconBlockRoot = &common.Hash{}
-		}
+		attrs := payloadAttrs(sd.RollupCfg, parent.Time, common.Address{'C'}, false)
 
 		// Now let's ask the engine to build a block
 		fcRes, err := l2Cl.ForkchoiceUpdate(t.Ctx(), &eth.ForkchoiceState{
 			HeadBlockHash:      parent.Hash(),
 			SafeBlockHash:      genesisBlock.Hash(),
 			FinalizedBlockHash: genesisBlock.Hash(),
-		}, &eth.PayloadAttributes{
-			Timestamp:             nextBlockTime,
-			PrevRandao:            eth.Bytes32{},
-			SuggestedFeeRecipient: common.Address{'C'},
-			Transactions:          nil,
-			NoTxPool:              false,
-			GasLimit:              (*eth.Uint64Quantity)(&sd.RollupCfg.Genesis.SystemConfig.GasLimit),
-			Withdrawals:           w,
-			ParentBeaconBlockRoot: parentBeaconBlockRoot,
-		})
+		}, attrs)
 		require.NoError(t, err)
 		require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
 		require.NotNil(t, fcRes.PayloadID, "building a block now")
@@ -174,7 +161,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 		}
 
-		envelope, err := l2Cl.GetPayload(t.Ctx(), eth.PayloadInfo{ID: *fcRes.PayloadID, Timestamp: uint64(nextBlockTime)})
+		envelope, err := l2Cl.GetPayload(t.Ctx(), eth.PayloadInfo{ID: *fcRes.PayloadID, Timestamp: uint64(attrs.Timestamp)})
 		payload := envelope.ExecutionPayload
 		require.NoError(t, err)
 		require.Equal(t, parent.Hash(), payload.ParentHash, "block builds on parent block")
@@ -183,7 +170,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 		status, err := l2Cl.NewPayload(t.Ctx(), payload, envelope.ParentBeaconBlockRoot)
 		require.NoError(t, err)
 		require.Equal(t, status.Status, eth.ExecutionValid)
-		require.Equal(t, parent.Hash(), engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
+		require.Equal(t, parent.Hash(), engine.LatestHeader(t).Hash(), "processed payloads are not immediately canonical")
 
 		// recognize the payload as canonical
 		fcRes, err = l2Cl.ForkchoiceUpdate(t.Ctx(), &eth.ForkchoiceState{
@@ -193,24 +180,23 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 		}, nil)
 		require.NoError(t, err)
 		require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
-		require.Equal(t, payload.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "now payload is canonical")
+		require.Equal(t, payload.BlockHash, engine.LatestHeader(t).Hash(), "now payload is canonical")
 	}
 	buildBlock(false)
-	require.Zero(t, engine.l2Chain.GetBlockByHash(engine.l2Chain.CurrentBlock().Hash()).Transactions().Len(), "no tx included")
+	require.Zero(t, len(engine.BlockByNumber(t, bigs.Uint64Strict(engine.LatestHeader(t).Number)).Transactions()), "no tx included")
 	buildBlock(true)
-	require.Equal(gt, 1, engine.l2Chain.GetBlockByHash(engine.l2Chain.CurrentBlock().Hash()).Transactions().Len(), "tx from alice is included")
+	require.Equal(gt, 1, len(engine.BlockByNumber(t, bigs.Uint64Strict(engine.LatestHeader(t).Number)).Transactions()), "tx from alice is included")
 	buildBlock(false)
-	require.Zero(t, engine.l2Chain.GetBlockByHash(engine.l2Chain.CurrentBlock().Hash()).Transactions().Len(), "no tx included")
-	require.Equal(t, uint64(3), bigs.Uint64Strict(engine.l2Chain.CurrentBlock().Number), "built 3 blocks")
+	require.Zero(t, len(engine.BlockByNumber(t, bigs.Uint64Strict(engine.LatestHeader(t).Number)).Transactions()), "no tx included")
+	require.Equal(t, uint64(3), bigs.Uint64Strict(engine.LatestHeader(t).Number), "built 3 blocks")
 }
 
 func TestL2EngineAPIFail(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	jwtPath := e2eutils.WriteDefaultJWT(t)
 	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	engine := NewL2Engine(t, log, sd.L2Cfg, jwtPath)
+	engine := NewL2Engine(t, log, sd.L2Cfg)
 	// mock an RPC failure
 	mockErr := errors.New("mock L2 RPC error")
 	engine.ActL2RPCFail(t, mockErr)
@@ -222,4 +208,21 @@ func TestL2EngineAPIFail(gt *testing.T) {
 	head, err := l2Cl.InfoByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 	require.Equal(gt, sd.L2Cfg.ToBlock().Hash(), head.Hash(), "expecting engine to start at genesis")
+}
+
+// TestRethEngineStderrLoggedAtInfo checks that the engine subprocess's stderr reaches the test
+// logger at Info, so engine panics and startup errors show at the usual test log levels.
+func TestRethEngineStderrLoggedAtInfo(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
+
+	engine := NewL2Engine(t, logger, sd.L2Cfg)
+	require.NoError(t, engine.Close())
+
+	require.NotNil(t, logs.FindLog(
+		testlog.NewMessageFilter("op-reth-test-engine"),
+		testlog.NewAttributesContainsFilter("line", "binding"),
+	), "engine stderr not logged at Info")
 }

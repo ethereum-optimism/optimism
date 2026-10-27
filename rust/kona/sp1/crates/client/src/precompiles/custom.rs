@@ -3,7 +3,7 @@
 //! explicitly to [`DefaultCrypto`]; `clippy::missing_trait_methods` forces a decision on any method
 //! a future revm release adds.
 
-use kzg_rs::{Bytes32, Bytes48, KzgProof, KzgSettings};
+use kzg_rs::{Bytes32, Bytes48, KzgProof, get_kzg_settings};
 use revm::precompile::{
     Crypto, DefaultCrypto, PrecompileHalt,
     bls12_381::{G1Point, G1PointScalar, G2Point, G2PointScalar},
@@ -13,16 +13,11 @@ use super::bls12_381;
 
 /// SP1-accelerated [`Crypto`]: KZG via `kzg-rs`, EIP-2537 via `sp1_bls12_381`. Every other method
 /// delegates explicitly to [`DefaultCrypto`].
+///
+/// The KZG trusted setup is decoded on the first point evaluation instead of on construction, so
+/// runs without point evaluations skip that cost.
 #[derive(Debug)]
-pub struct CustomCrypto {
-    kzg_settings: KzgSettings,
-}
-
-impl Default for CustomCrypto {
-    fn default() -> Self {
-        Self { kzg_settings: KzgSettings::load_trusted_setup_file().unwrap() }
-    }
-}
+pub struct CustomCrypto;
 
 // Every `Crypto` method must be implemented here: a method that revm adds later would
 // otherwise run its default backend in the zkVM, which may be unaccelerated.
@@ -105,7 +100,7 @@ impl Crypto for CustomCrypto {
         let proof =
             Bytes48::from_slice(proof).map_err(|_| PrecompileHalt::BlobVerifyKzgProofFailed)?;
 
-        match KzgProof::verify_kzg_proof(&commitment, &z, &y, &proof, &self.kzg_settings) {
+        match KzgProof::verify_kzg_proof(&commitment, &z, &y, &proof, &get_kzg_settings()) {
             Ok(true) => Ok(()),
             Ok(false) | Err(_) => Err(PrecompileHalt::BlobVerifyKzgProofFailed),
         }
@@ -202,13 +197,13 @@ mod tests {
 
         y[31] ^= 1;
 
-        let crypto = CustomCrypto::default();
+        let crypto = CustomCrypto;
         let raw_result = KzgProof::verify_kzg_proof(
             &Bytes48::from_slice(&commitment).unwrap(),
             &Bytes32::from_slice(&z).unwrap(),
             &Bytes32::from_slice(&y).unwrap(),
             &Bytes48::from_slice(&proof).unwrap(),
-            &crypto.kzg_settings,
+            &get_kzg_settings(),
         );
         assert!(matches!(raw_result, Ok(false)), "raw kzg-rs result: {raw_result:?}");
 
@@ -229,7 +224,7 @@ mod tests {
             "a62ad71d14c5719385c0686f1871430475bf3a00f0aa3f7b8dd99a9abc2160744faf0070725e00b60ad9a026a15b1a8c"
         );
 
-        let crypto = CustomCrypto::default();
+        let crypto = CustomCrypto;
         assert_eq!(crypto.verify_kzg_proof(&z, &y, &commitment, &proof), Ok(()));
     }
 }

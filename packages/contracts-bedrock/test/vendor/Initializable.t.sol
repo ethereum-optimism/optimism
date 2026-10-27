@@ -16,6 +16,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -132,7 +133,13 @@ contract Initializer_Test is CommonTest {
                     target: EIP1967Helper.getImplementation(address(optimismPortal2)),
                     initCalldata: abi.encodeCall(
                         optimismPortal2.initialize,
-                        (systemConfig, anchorStateRegistry, ethLockbox, optimismPortal2.proofMaturityDelaySeconds())
+                        (
+                            systemConfig,
+                            anchorStateRegistry,
+                            ethLockbox,
+                            optimismPortal2.proofMaturityDelaySeconds(),
+                            IBridgeHook(address(0))
+                        )
                     )
                 })
             );
@@ -143,7 +150,13 @@ contract Initializer_Test is CommonTest {
                     target: address(optimismPortal2),
                     initCalldata: abi.encodeCall(
                         optimismPortal2.initialize,
-                        (systemConfig, anchorStateRegistry, ethLockbox, optimismPortal2.proofMaturityDelaySeconds())
+                        (
+                            systemConfig,
+                            anchorStateRegistry,
+                            ethLockbox,
+                            optimismPortal2.proofMaturityDelaySeconds(),
+                            IBridgeHook(address(0))
+                        )
                     )
                 })
             );
@@ -158,7 +171,8 @@ contract Initializer_Test is CommonTest {
                             systemConfig,
                             anchorStateRegistry,
                             IETHLockbox(address(0)),
-                            optimismPortal2.proofMaturityDelaySeconds()
+                            optimismPortal2.proofMaturityDelaySeconds(),
+                            IBridgeHook(address(0))
                         )
                     )
                 })
@@ -174,7 +188,8 @@ contract Initializer_Test is CommonTest {
                             systemConfig,
                             anchorStateRegistry,
                             IETHLockbox(address(0)),
-                            optimismPortal2.proofMaturityDelaySeconds()
+                            optimismPortal2.proofMaturityDelaySeconds(),
+                            IBridgeHook(address(0))
                         )
                     )
                 })

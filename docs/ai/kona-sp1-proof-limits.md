@@ -62,7 +62,10 @@ SP1's native executor. `kona-sp1-super-range-executor` reports a memory kill lik
 claim: exit code 1 and a "replay failed (claim rejected)" log line that holds the SP1 error.
 
 The proposer limits are configuration defaults, and `OP_ZK_PROPOSER_*` env vars override them. The
-witness encoding, the input region, and the one-timestamp floor are fixed for a deployed guest.
+witness encoding, the input region, and the split floors are fixed for a deployed guest. A
+consolidation request covers every chain of one timestamp at least. A range request may cover one
+chain of one timestamp, but the proposer does not split a timestamp by chain yet, so its range
+requests also cover every chain of one timestamp at least.
 
 The table has no time limits. Proof time depends on prover throughput and the prover-network
 market, so a review cannot estimate it. Measure the cost in PGU, witness bytes, and memory.
@@ -233,7 +236,9 @@ Look for these patterns:
   user pays per reference. The prover pays per byte of the object.
 - **Multipliers that a per-block view hides.** No cache across timestamps in one proof. One check
   per block-time step. Replacement rounds. Several chains at one timestamp.
-- **Work below the split floor.** The proposer cannot split cost that grows inside one timestamp.
+- **Work below the split floor.** The proposer cannot split cost that grows inside one timestamp:
+  a consolidation covers every chain of it, and until the proposer splits a timestamp by chain, so
+  does a range.
 - **Witness size.** Each preimage that the guest reads goes into stdin. Check the witness bytes
   as well as the PGU.
 

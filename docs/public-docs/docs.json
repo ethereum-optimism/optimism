@@ -3632,6 +3632,7 @@
               {
                 "group": "Network Upgrades",
                 "pages": [
+                  "notices/upgrade-21",
                   "notices/interop-prep"
                 ]
               },
@@ -3640,7 +3641,8 @@
                 "pages": [
                   "notices/preconfirmation-architecture-transition",
                   "notices/subblocks",
-                  "notices/specialized-node-topology"
+                  "notices/specialized-node-topology",
+                  "notices/op-reth-storage-v1-deprecation"
                 ]
               },
               "notices/archive/index"

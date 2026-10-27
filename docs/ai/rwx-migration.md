@@ -107,12 +107,13 @@ been retired.
 
 | Workload | Definition / contract |
 | --- | --- |
-| Full Go | `go-tests.yml`: 12 duration-balanced workers, with four top-level test groups for the deployer CLI package; compile 8 CPU / 16 GiB, verdict 8 CPU / 16 GiB; `-p=4`, `-parallel=8`, `40m` package timeout, three gotestsum retries / 50-failure ceiling |
+| Full Go | `go-tests.yml`: 12 duration-balanced workers, with four top-level test groups for the deployer CLI package; compile 8 CPU / 16 GiB, verdict 8 CPU / 16 GiB; `-p=4`, `-parallel=8`, `40m` package timeout, three gotestsum retries / 50-failure ceiling. Verdicts require the sealed `op-reth-test-engine` (`REQUIRE_RUST_ENGINE=1`) |
+| Go action tests | `go-tests.yml` `actions-verdict`: Circle's `just go-actions-tests-ci` recipe for `op-e2e/actions` on `op-reth-test-engine`, 16 CPU / 32 GiB like `2xlarge.gen2`; `list-test-packages` excludes this package from the 12 general workers |
 | Acceptance | `acceptance.yml`: eight shards each for op-node and Kona, Fusaka / op-reth; separate discovery/compilation and fresh verdicts, per-variant memory |
 | Contracts | `contracts.yml`: standard and modified-file matrices for four features; PR standard `liteci`, protected standard `ci`, modified `ciheavy` |
 | Coverage / upgrades / L2 fork | Separate definitions and compile/verdict packages; preserve `cicoverage`, chain/feature matrices, pinned fork inputs and reporting |
 | Rust | `rust.yml`, `op-reth.yml`, `rust-e2e.yml`; preserve package/features/partitions and original command authorities |
-| Other PR jobs | `pilot.yml`, `pr-checks.yml`, `cannon-go.yml`, `nut-prefork.yml`, `nut-provenance.yml`, `sp1-guest.yml`, `kontrol-build.yml`, `fetcher-artifacts.yml`, `flaky-report.yml`, `selector-upload.yml` |
+| Other PR jobs | `pilot.yml`, `pr-checks.yml`, `cannon-go.yml`, `nut-prefork.yml`, `nut-provenance.yml`, `sp1-guest.yml`, `kontrol-build.yml`, `flaky-report.yml`, `selector-upload.yml` |
 | Rollup compatibility | `go-rollup.yml` remains CLI-only; shared compiled-Go helpers retain `--suite go-rollup` alongside `go-tests`; it adds no coverage credit |
 
 `just list-test-packages` owns full Go selection, including packages without tests.
@@ -253,10 +254,13 @@ vault without private writable namespaces or permission changes. Set Circle's
 `c-go_fresh_tests` and `c-contract_coverage_replay` to true to match RWX's fresh
 Go verdicts and deterministic coverage settings. Record every failed sample.
 Compare actual provider allocations, including producers and shards: the pilot's
-OP Node acceptance and coverage jobs use Circle machines at 16 CPU / 64 GB to
-match RWX without reducing memory below the observed acceptance peak. Circle's
-Docker runner sizes cannot express that allocation. Other branches retain their
-existing Docker executor for those jobs. Equal allocations do not imply equal
+contract coverage job uses a Circle machine at 16 CPU / 64 GB to match RWX.
+Circle's Docker runner sizes cannot express that allocation. Other branches
+retain their existing Docker executor. Since #23594, every Circle job that runs
+Rust binaries must use the Wolfi image that built them, so OP Node acceptance
+and NUT pre-fork can no longer use the Ubuntu machine. OP Node acceptance runs
+on 20 CPU / 40 GB Docker against RWX's 16 CPU / 64 GB; report that allocation
+difference with any acceptance comparison. Equal allocations do not imply equal
 available RAM: RWX reserves 2 GB for its own processes. Report executor differences
 and unmatched bootstrap/control tasks separately, but include them in elapsed
 time and cost. Keep preparation, execution and output processing visible; cache
@@ -265,9 +269,10 @@ Cold preparation killed SP1 at 4 CPU / 8 GB on RWX; its matched pilot build and
 check allocations use 8 CPU / 16 GB on both providers. Non-pilot Circle jobs keep
 their existing allocation. Do not infer adequate cold-build headroom from a
 successful cached build.
-The pilot NUT verdict likewise matches 2 CPU / 8 GB: its cold Go build was
-killed at 2 CPU / 4 GB on RWX. Circle uses a machine for this pilot job while
-other branches retain the existing Docker executor.
+The RWX NUT verdict uses 2 CPU / 8 GB because its cold Go build was killed at
+2 CPU / 4 GB. Circle runs this job on the Rust Wolfi image at `medium.gen2`
+(2 CPU / 4 GB) on all branches, so the allocations no longer match. Both
+providers restore the sealed `op-reth-test-engine` that the generator spawns.
 Clippy and udeps use 4 CPU / 8 GB on both pilot providers after both cold
 checks were killed at 2 CPU / 4 GB. Circle retains its Rust Docker image and
 normal compiler-cache setup; non-pilot jobs keep their existing allocation.
@@ -490,9 +495,6 @@ bytes. The table distinguishes required reporting from workload changes.
 | Root `justfile` pre-fork recipe | Delegate original fresh Go command to `nut-prefork-test.sh` so originals survive failure | `test_nut_prefork` exercises production Just loops, both forks, fixture paths, cancellation and original failure retention |
 | `op-acceptance-tests/justfile` | Provider-neutral shard inputs and retained discovery/assignments/JSON/JUnit; valid empty shards still emit reports; quote checkout paths | `test_acceptance_manifest`, `test_acceptance_runner`, `test_acceptance_report` verify exact selection, errors, empty shards and retries; same-SHA full Fusaka parity retained |
 | `op-acceptance-tests/scripts/generate-flaky-tests-report.sh` | Public API may run anonymously; reject HTTP/schema errors, retain each attempt, escape report HTML, preserve acceptance-only interface | `test_flaky_report` / comparer fixtures cover full public response, malformed data, transient/permanent errors and output drift; branch label identifies requesting branch, not an API filter |
-| `op-fetcher/justfile` | Separate `compile-contracts` from explicit developer `build-contracts` export; CI must compare untouched committed inputs | Old command overwrote its comparison inputs. `test_fetcher_artifacts` proves committed drift fails, full future artifact discovery, failed exports remain atomic, missing/corrupt data and cancellation |
-| `packages/contracts-bedrock/scripts/FetchChainInfo.s.sol` | Pin 0.8.30; restored compiler sets otherwise selected 0.8.28 | Both first hosted builds failed the strict artifact diff; the pin resolves compiler selection without relaxing comparison |
-| Four `op-fetcher/pkg/fetcher/fetch/forge-artifacts/FetchChainInfo.s.sol/*.json` | Actual compiler-generated metadata refresh and portable remappings; required by the repaired strict check | Baseline/current ABI, method identifiers, creation/runtime bytecode and link references agree. Source maps, compiler node IDs and documentation metadata changed; they remain checked, not ignored; same-SHA parity covers all 729 compiler outputs and four embedded artifacts |
 | `ops/check-changed/main.py` | Treat `.rwx` and `ops/ci` as CI inputs for existing changed-pattern jobs | `test_check_changed` and real routing fixtures prevent CI-only changes silently skipping validation |
 | `ops/scripts/nut-provenance-verify-changed.sh` | Shared selection/report adapter; full inspection remains opt-in and does not alter normal changed-lock selection | `test_nut_provenance` covers missing refs, unchanged/changed locks, failed generation and retained attempts; historical worktree remains authority |
 | `ops/scripts/nut-provenance-verify/{main.go,report.go,main_test.go}` | Optional reports copy actual source/tool/submodule and generated bytes before temporary worktree removal; failed generation cannot report an old snapshot as fresh | Real Git tests cover matching/mismatched bytes, failed generator, dual report/generator errors and worktree cleanup; plain verifier wrapper keeps reporting disabled |
@@ -519,7 +521,7 @@ package placement consume them. They are not generated run evidence.
 | --- | --- |
 | `.circleci/config.yml` and continuation parameters | Keep default-false `c-go_fresh_tests`, `c-contract_coverage_replay`, `c-nut_provenance_full`, with default-false forwarding. These alter explicit verification inputs, not normal Circle test settings. Retired API replay and block-override parameters are no longer forwarded |
 | `.circleci/routing.yml`, `scripts/{collect-params.sh,compute-workflow-conditions.sh,workflow-helpers.sh}` | One policy and path authority for both providers; Circle entrypoints translate event/base/branch and preserve schedules, tags and authorized forks. The retired issue-close automation is no longer routed. Real changed-file and Circle-adapter fixtures cover unknown paths and safe gates |
-| `continue/main.yml` workload wrappers | Retain original recipes via shared suite runners and complete discovery/settings/failure reports, including dependency/prestate hashes. The fetcher check now detects committed drift. Gate names and dependency lists remain Circle-owned |
+| `continue/main.yml` workload wrappers | Retain original recipes via shared suite runners and complete discovery/settings/failure reports, including dependency/prestate hashes. Gate names and dependency lists remain Circle-owned |
 | Main contract matrices | Preserve profile, feature, changed-file selection, timeout and fuzz/invariant settings. Reasons/reporting support strict parity; seeded coverage is opt-in. L2 pilot relay/pinned-block checks retain originals without reloading `BASH_ENV` over runtime overrides |
 | Private selector workflow | Pilot pushes only, original publisher against official private service/database; no production context. No API replay dispatch remains. Non-pilot production uploader retains its original branch filtering and destination |
 | `continue/rust-ci.yml` | Shared reporters retain original workspace, WASM, registry, Cannon and interop commands; manifests bind complete selection and native artifacts. Original profiles/features and required fan-in remain |

@@ -33,17 +33,17 @@ class _MainTestsFixtures:
             shutil.copyfile(MAIN.ROOT / 'justfiles' / name, directory / name)
 
     def install_bundle(self, root):
-        directory = root / 'op-core/superchain'
+        directory = root / 'op-core/superchain/bundle'
         directory.mkdir(parents=True)
-        shutil.copyfile(MAIN.ROOT / 'op-core/superchain/sync-superchain.sh', directory / 'sync-superchain.sh')
+        shutil.copyfile(MAIN.ROOT / 'op-core/superchain/bundle/sync-superchain.sh', directory / 'sync-superchain.sh')
         (directory / 'superchain-configs.zip.sha256').write_text('0' * 64 + '\n')
-        (directory / 'bundle.go').write_text('package superchain\nimport _ "embed"\n//go:embed superchain-configs.zip\nvar Data []byte\n')
+        (directory / 'bundle.go').write_text('package bundle\nimport _ "embed"\n//go:embed superchain-configs.zip\nvar Data []byte\n')
         (root / 'mise.toml').write_text('')
         original = (MAIN.ROOT / 'justfile').read_text()
         start = original.index("[script('bash')]\nupdate-superchain-registry-submodule ref=")
-        end = original.index('# Builds op-core/superchain/superchain-configs.zip', start)
+        end = original.index('# Builds op-core/superchain/bundle/superchain-configs.zip', start)
         with (root / 'justfile').open('a') as file:
-            file.write('\n' + original[start:end] + '\nbuild-superchain-go: update-superchain-registry-submodule\n  bash op-core/superchain/sync-superchain.sh\n')
+            file.write('\n' + original[start:end] + '\nbuild-superchain-go: update-superchain-registry-submodule\n  bash op-core/superchain/bundle/sync-superchain.sh\n')
         self.commit(root)
         origin = root / '.ci/origin'
         origin.mkdir(parents=True)
@@ -83,12 +83,12 @@ class _MainTestsFixtures:
             component.mkdir()
             shutil.copyfile(MAIN.ROOT / 'op-node/justfile', component / 'justfile')
             source = component / 'input.go'
-            source.write_text('package input\nimport _ "fixture.invalid/main/op-core/superchain"\n//go:generate mockery --name Greeter --output ./mocks --outpkg mocks\ntype Greeter interface { Greet(string) string }\n')
+            source.write_text('package input\nimport _ "fixture.invalid/main/op-core/superchain/bundle"\n//go:generate mockery --name Greeter --output ./mocks --outpkg mocks\ntype Greeter interface { Greet(string) string }\n')
             (component / 'input_test.go').write_text('package input\n//go:generate sh -c "printf run\\\\n >> ../generation-runs"\n')
             (root / 'go.mod').write_text('module fixture.invalid/main\n\ngo 1.26.0\n\nrequire github.com/stretchr/testify v1.11.1\n')
             (root / 'go.sum').write_text('')
             (root / 'justfile').write_text('generate-mocks-op-node:\n  cd op-node && just generate-mocks\n')
-            (root / '.gitignore').write_text('.ci/\ngeneration-runs\nop-core/superchain/superchain-configs.zip\n')
+            (root / '.gitignore').write_text('.ci/\ngeneration-runs\nop-core/superchain/bundle/superchain-configs.zip\n')
             self.install_bundle(root)
             initial = subprocess.run(['just', 'generate-mocks-op-node'], cwd=root, capture_output=True, text=True)
             self.assertEqual(initial.returncode, 0, initial.stdout + initial.stderr)

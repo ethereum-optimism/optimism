@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
@@ -207,18 +208,19 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 			rlp, err := tx.MarshalBinary()
 			require.NoError(t, err, "failed to RLP encode transaction")
 
-			unsafeHeader := env.Engine.L2Chain().CurrentHeader()
-			unsafeBlock := env.Engine.L2Chain().GetBlockByHash(unsafeHeader.Hash())
+			unsafeHeader := env.Engine.LatestHeader(t)
+			_, l1InfoDeposit, err := env.Engine.SourceClient(t, 10).InfoAndFirstDepositByHash(t.Ctx(), unsafeHeader.Hash())
+			require.NoError(t, err)
 			nextBaseFee := eip1559.CalcBaseFee(
-				env.Sd.L2Cfg.Config,
+				env.Sd.L2Cfg.Config.GethChainConfig(),
 				unsafeHeader,
 				unsafeHeader.Time+env.Sd.RollupCfg.BlockTime,
 			)
 
-			l1BlockInfo, err := derive.L1BlockInfoFromBytes(env.Sd.RollupCfg, unsafeHeader.Time, unsafeBlock.Transactions()[0].Data())
+			l1BlockInfo, err := derive.L1BlockInfoFromBytes(env.Sd.RollupCfg, unsafeHeader.Time, l1InfoDeposit.Data)
 			require.NoError(t, err)
 
-			daCost := fjordL1Cost(l1BlockInfo, types.NewRollupCostData(rlp))
+			daCost := fjordL1Cost(l1BlockInfo, fees.NewRollupCostData(rlp))
 			expectedFeePreIsthmus := nextBaseFee.Mul(nextBaseFee, big.NewInt(int64(params.TxGas)))
 			expectedFeePreIsthmus.Add(expectedFeePreIsthmus, daCost)
 
@@ -267,7 +269,7 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 
 				// Re-sign Alice's tx with a random key.
 				require.NoError(t, err, "error generating random private key")
-				signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+				signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
 				newSignedTx, err := types.SignTx(txs[1], signer, pkey)
 				require.NoError(t, err, "error re-signing Alice's transaction")
 
@@ -285,15 +287,22 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 		}
 
 		aliceFinalBalance, l1FeeVaultFinalBalance, baseFeeVaultFinalBalance, sequencerFeeVaultFinalBalance, operatorFeeVaultFinalBalance := getCurrentBalances()
-		l2UnsafeHead := env.Engine.L2Chain().CurrentHeader()
+		l2UnsafeHead := env.Engine.LatestHeader(t)
 
 		if receipt == nil {
 			receipt = env.Alice.L2.LastTxReceipt(t)
 		}
 
-		if testCfg.Custom == DepositTx || testCfg.Custom == IsthmusTransitionBlock {
+		if testCfg.Custom == IsthmusTransitionBlock {
 			require.Nil(t, receipt.OperatorFeeScalar)
 			require.Nil(t, receipt.OperatorFeeConstant)
+
+			// Nothing should has been sent to operator fee vault
+			require.Equal(t, operatorFeeVaultInitialBalance, operatorFeeVaultFinalBalance)
+		} else if testCfg.Custom == DepositTx {
+			// op-reth reports the block's operator fee parameters on deposit receipts too.
+			require.Equal(t, testOperatorFeeScalar, uint32(*receipt.OperatorFeeScalar))
+			require.Equal(t, testOperatorFeeConstant, *receipt.OperatorFeeConstant)
 
 			// Nothing should has been sent to operator fee vault
 			require.Equal(t, operatorFeeVaultInitialBalance, operatorFeeVaultFinalBalance)
@@ -367,7 +376,7 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 		env.Sequencer.ActL1HeadSignal(t)
 		env.Sequencer.ActL2PipelineFull(t)
 
-		l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+		l2SafeHead := env.Engine.SafeHeader(t)
 
 		if testCfg.Custom == NotEnoughFundsInBatchMissingOpFee {
 			// The unsafe block prior to derivation should be different from the safe block after derivation. The
@@ -376,19 +385,19 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 			// if Isthmus is active.
 			require.NotEqual(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(l2UnsafeHead), "derivation should not lead to the same block")
 
-			reorgedUnsafe := env.Engine.L2Chain().CurrentHeader()
+			reorgedUnsafe := env.Engine.LatestHeader(t)
 			require.Equal(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(reorgedUnsafe), "reorged unsafe block is the same")
 
-			safeHeadBlock := env.Engine.L2Chain().GetBlockByHash(l2SafeHead.Hash())
+			deposits, userTxs := helpers.BlockTxs(t, env.Engine, l2SafeHead.Hash())
+			require.Len(t, deposits, 1)
 			if env.Sd.RollupCfg.IsIsthmus(l2SafeHead.Time) {
-				require.Equal(t, len(safeHeadBlock.Transactions()), 1)
+				require.Empty(t, userTxs)
 
 				// Ensure that the logs contain a mention of the block being replaced _due to the signer not having enough
 				// balance_.
-				require.NotNil(t, env.Logs.FindLog(testlog.NewAttributesContainsFilter("err", "insufficient funds for gas * price + value")))
-				require.NotNil(t, env.Logs.FindLog(testlog.NewAttributesContainsFilter("err", "have 1400000021000 want 1400000086535")))
+				require.NotNil(t, env.Logs.FindLog(testlog.NewAttributesContainsFilter("err", "lack of funds (1400000021000) for max fee (1400000065535)")))
 			} else {
-				require.Equal(t, len(safeHeadBlock.Transactions()), 2)
+				require.Len(t, userTxs, 1)
 			}
 		} else {
 			require.Equal(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(l2UnsafeHead), "derivation leads to the same block")
@@ -406,15 +415,13 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 	matrix.Run(gt)
 }
 
-func fjordL1Cost(l1BlockInfo *derive.L1BlockInfo, rollupCostData types.RollupCostData) *big.Int {
-	costFunc := types.NewL1CostFuncFjord(
-		l1BlockInfo.BaseFee,
-		l1BlockInfo.BlobBaseFee,
-		new(big.Int).SetUint64(uint64(l1BlockInfo.BaseFeeScalar)),
-		new(big.Int).SetUint64(uint64(l1BlockInfo.BlobBaseFeeScalar)))
-
-	fee, _ := costFunc(rollupCostData)
-	return fee
+func fjordL1Cost(l1BlockInfo *derive.L1BlockInfo, rollupCostData fees.RollupCostData) *big.Int {
+	return fees.L1CostFjord(rollupCostData, fees.L1FeeParams{
+		L1BaseFee:     l1BlockInfo.BaseFee,
+		L1BlobBaseFee: l1BlockInfo.BlobBaseFee,
+		BaseFeeScalar: new(big.Int).SetUint64(uint64(l1BlockInfo.BaseFeeScalar)),
+		BlobFeeScalar: new(big.Int).SetUint64(uint64(l1BlockInfo.BlobBaseFeeScalar)),
+	})
 }
 
 func ptr[T any](v T) *T {

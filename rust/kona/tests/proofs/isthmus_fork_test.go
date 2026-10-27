@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -75,18 +76,17 @@ func testIsthmusActivationAtGenesis(gt *testing.T, testCfg *helpers.TestCfg[any]
 	env.Sequencer.ActBuildToL1Head(t)
 
 	// Make verifier (=sequencer) sync, then check the block
-	block := env.Engine.L2Chain().CurrentBlock()
+	block := env.Engine.LatestHeader(t)
 	verifyIsthmusHeaderWithdrawalsRoot(gt, env.Engine.RPCClient(), block, true)
 	require.Equal(t, types.EmptyRequestsHash, *block.RequestsHash, "isthmus block must have requests hash")
 
 	// Check genesis config type can convert to a valid block
-	genesisBlock, err := env.Engine.EthClient().BlockByNumber(t.Ctx(), big.NewInt(0))
-	require.NoError(t, err)
+	genesisHeader := env.Engine.HeaderByNumber(t, 0)
 	reproduced := env.Sd.L2Cfg.ToBlock()
-	require.Equal(t, genesisBlock.WithdrawalsRoot(), reproduced.WithdrawalsRoot(), "genesis.ToBlock withdrawals-hash must match as expected")
-	require.Equal(t, genesisBlock.Hash(), reproduced.Hash(), "genesis.ToBlock block hash must match")
+	require.Equal(t, genesisHeader.WithdrawalsHash, reproduced.WithdrawalsRoot(), "genesis.ToBlock withdrawals-hash must match as expected")
+	require.Equal(t, genesisHeader.Hash(), reproduced.Hash(), "genesis.ToBlock block hash must match")
 
-	require.Equal(t, types.EmptyRequestsHash, *genesisBlock.RequestsHash(), "isthmus retrieved genesis block must have a requests-hash")
+	require.Equal(t, types.EmptyRequestsHash, *genesisHeader.RequestsHash, "isthmus retrieved genesis block must have a requests-hash")
 	require.Equal(t, types.EmptyRequestsHash, *reproduced.RequestsHash(), "isthmus generated genesis block have a requests-hash")
 
 	// Check that the RPC client can handle block-hash verification of the genesis block
@@ -97,7 +97,7 @@ func testIsthmusActivationAtGenesis(gt *testing.T, testCfg *helpers.TestCfg[any]
 	genesisPayload, err := l2Cl.PayloadByNumber(t.Ctx(), 0)
 	require.NoError(t, err)
 	require.NotNil(t, genesisPayload.ExecutionPayload.WithdrawalsRoot)
-	require.Equal(t, genesisPayload.ExecutionPayload.WithdrawalsRoot, genesisBlock.WithdrawalsRoot())
+	require.Equal(t, genesisPayload.ExecutionPayload.WithdrawalsRoot, genesisHeader.WithdrawalsHash)
 	got, ok := genesisPayload.CheckBlockHash()
 	require.Equal(t, got, reproduced.Hash())
 	require.True(t, ok, "CheckBlockHash must pass")
@@ -153,10 +153,10 @@ func testWithdrawalsRoot(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	sequencer.ActL2EmptyBlock(t)
 	sequencer.ActL2EmptyBlock(t)
 
-	if sequencer.RollupCfg.IsIsthmus(engine.L2Chain().CurrentBlock().Time) {
-		verifyIsthmusHeaderWithdrawalsRoot(gt, engine.RPCClient(), engine.L2Chain().CurrentBlock(), true)
+	if sequencer.RollupCfg.IsIsthmus(engine.LatestHeader(t).Time) {
+		verifyIsthmusHeaderWithdrawalsRoot(gt, engine.RPCClient(), engine.LatestHeader(t), true)
 	} else {
-		verifyPreIsthmusHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
+		verifyPreIsthmusHeaderWithdrawalsRoot(gt, engine.LatestHeader(t))
 	}
 
 	l2Safe := env.BatchMineAndSync(t)
@@ -200,7 +200,7 @@ func TestWithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 		// start op-nodes
 		sequencer.ActL2PipelineFull(t)
 
-		verifyPreIsthmusHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
+		verifyPreIsthmusHeaderWithdrawalsRoot(gt, engine.LatestHeader(t))
 
 		ethCl := engine.EthClient()
 		for i := 1; i <= totalBlocks; i++ {
@@ -237,7 +237,7 @@ func TestWithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 
 		// we set withdrawals root only at or after isthmus
 		if totalBlocks >= isthmusOffset {
-			verifyIsthmusHeaderWithdrawalsRoot(gt, rpcCl, engine.L2Chain().CurrentBlock(), true)
+			verifyIsthmusHeaderWithdrawalsRoot(gt, rpcCl, engine.LatestHeader(t), true)
 		}
 
 		l2Safe := env.BatchMineAndSync(t)
@@ -354,29 +354,30 @@ func testIsthmusNetworkUpgradeTransactions(gt *testing.T, testCfg *helpers.TestC
 	sequencer.ActBuildL2ToIsthmus(t)
 
 	// get latest block
-	latestBlock, err := ethCl.BlockByNumber(context.Background(), nil)
-	require.NoError(t, err)
-	require.Equal(t, sequencer.L2Unsafe().Number, latestBlock.NumberU64())
+	latestHeader := engine.LatestHeader(t)
+	require.Equal(t, sequencer.L2Unsafe().Number, bigs.Uint64Strict(latestHeader.Number))
 
-	transactions := latestBlock.Transactions()
+	_, transactions, err := engine.SourceClient(t, 10).InfoAndDepositsByHash(t.Ctx(), latestHeader.Hash())
+	require.NoError(t, err)
 
 	// L1Block: 1 set-L1-info + 1 deploy
 	// See [derive.IsthmusNetworkUpgradeTransactions]
 	require.Equal(t, 9, len(transactions))
 
+	_, receipts, err := engine.SourceClient(t, 10).FetchReceipts(t.Ctx(), latestHeader.Hash())
+	require.NoError(t, err)
+	require.Len(t, receipts, len(transactions), "upgrade block must contain only deposits")
+
 	// All transactions are successful
 	for i := 1; i < 9; i++ {
-		txn := transactions[i]
-		receipt, err := ethCl.TransactionReceipt(context.Background(), txn.Hash())
-		require.NoError(t, err)
-		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
-		require.NotEmpty(t, txn.Data(), "upgrade tx must provide input data")
+		require.Equal(t, types.ReceiptStatusSuccessful, receipts[i].Status)
+		require.NotEmpty(t, transactions[i].Data, "upgrade tx must provide input data")
 	}
 
 	expectedL1BlockAddress := crypto.CreateAddress(derive.L1BlockIsthmusDeployerAddress, 0)
 
 	// L1 Block Proxy is updated
-	updatedL1BlockAddress, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, latestBlock.Number())
+	updatedL1BlockAddress, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, latestHeader.Number)
 	require.NoError(t, err)
 	require.Equal(t, expectedL1BlockAddress, common.BytesToAddress(updatedL1BlockAddress))
 	require.NotEqualf(t, initialL1BlockAddress, updatedL1BlockAddress, "Gas L1 Block address should have changed")
@@ -385,7 +386,7 @@ func testIsthmusNetworkUpgradeTransactions(gt *testing.T, testCfg *helpers.TestC
 	expectedGasPriceOracleAddress := crypto.CreateAddress(derive.GasPriceOracleIsthmusDeployerAddress, 0)
 
 	// Gas Price Oracle Proxy is updated
-	updatedGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, latestBlock.Number())
+	updatedGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, latestHeader.Number)
 	require.NoError(t, err)
 	require.Equal(t, expectedGasPriceOracleAddress, common.BytesToAddress(updatedGasPriceOracleAddress))
 	require.NotEqualf(t, initialGasPriceOracleAddress, updatedGasPriceOracleAddress, "Gas Price Oracle Proxy address should have changed")
@@ -399,7 +400,7 @@ func testIsthmusNetworkUpgradeTransactions(gt *testing.T, testCfg *helpers.TestC
 	expectedOperatorFeeVaultAddress := crypto.CreateAddress(derive.OperatorFeeVaultDeployerAddress, 0)
 
 	// Operator Fee vault is updated
-	updatedOperatorFeeVaultAddress, err := ethCl.StorageAt(context.Background(), predeploys.OperatorFeeVaultAddr, genesis.ImplementationSlot, latestBlock.Number())
+	updatedOperatorFeeVaultAddress, err := ethCl.StorageAt(context.Background(), predeploys.OperatorFeeVaultAddr, genesis.ImplementationSlot, latestHeader.Number)
 	require.NoError(t, err)
 	require.Equal(t, expectedOperatorFeeVaultAddress, common.BytesToAddress(updatedOperatorFeeVaultAddress))
 	verifyCodeHashMatches(t, ethCl, expectedOperatorFeeVaultAddress, isthmusOperatorFeeVaultCodeHash)
@@ -430,16 +431,15 @@ func testIsthmusNetworkUpgradeTransactions(gt *testing.T, testCfg *helpers.TestC
 	// > since the recent-block-hash contract isn't there at Isthmus activation,
 	// > and the recent-block-hash insertion is processed at the start of the block before deposit txs.
 	// > If the contract was permissionlessly deployed before, the contract storage will be updated (but not in this test).
-	checkRecentBlockHash(latestBlock.NumberU64(), common.Hash{}, "isthmus activation block has no data yet (since contract wasn't there)")
+	checkRecentBlockHash(bigs.Uint64Strict(latestHeader.Number), common.Hash{}, "isthmus activation block has no data yet (since contract wasn't there)")
 
 	// Build empty L2 block, to pass Isthmus activation
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
 
 	// Test the L2 block after activation: it should have the most recent block hash
-	latestBlock, err = ethCl.BlockByNumber(context.Background(), nil)
-	require.NoError(t, err)
-	checkRecentBlockHash(latestBlock.NumberU64()-1, latestBlock.Header().ParentHash, "post-activation")
+	latestHeader = engine.LatestHeader(t)
+	checkRecentBlockHash(bigs.Uint64Strict(latestHeader.Number)-1, latestHeader.ParentHash, "post-activation")
 
 	l2Safe := env.BatchMineAndSync(t)
 	env.RunFaultProofProgramFromGenesis(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)

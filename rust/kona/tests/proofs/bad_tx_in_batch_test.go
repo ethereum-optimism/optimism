@@ -44,7 +44,7 @@ func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[int64]) {
 		} else if testCfg.Custom == NotEnoughBalance {
 			pkey, err := crypto.GenerateKey()
 			require.NoError(t, err)
-			signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+			signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
 
 			txCopy, err := types.SignTx(txs[1], signer, pkey)
 			require.NoError(t, err)
@@ -70,7 +70,7 @@ func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[int64]) {
 
 	// Ensure the safe head has not advanced if pre-Holocene - the batch is invalid.
 	// If post-holocene, the block should be reduced to deposits only.
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	if !env.Sd.RollupCfg.IsHolocene(l2SafeHead.Time) {
 		require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
@@ -91,7 +91,7 @@ func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[int64]) {
 	}
 
 	// Ensure the safe head has advanced.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.Equal(t, uint64(1), bigs.Uint64Strict(l2SafeHead.Number))
 
 	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)
@@ -128,7 +128,7 @@ func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.
 		} else if testCfg.Custom == NotEnoughBalance {
 			pkey, err := crypto.GenerateKey()
 			require.NoError(t, err)
-			signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+			signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
 
 			txCopy, err := types.SignTx(txs[1], signer, pkey)
 			require.NoError(t, err)
@@ -155,7 +155,7 @@ func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.
 
 	// Ensure the safe head has not advanced if pre-Holocene - the batch is invalid.
 	// If post-holocene, the block should be reduced to deposits only.
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	if !env.Sd.RollupCfg.IsHolocene(l2SafeHead.Time) {
 		require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
@@ -176,7 +176,7 @@ func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.
 	}
 
 	// Ensure the safe head has advanced.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.Equal(t, uint64(2), bigs.Uint64Strict(l2SafeHead.Number))
 
 	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)

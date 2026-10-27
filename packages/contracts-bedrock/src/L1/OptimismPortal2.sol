@@ -30,6 +30,7 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
+import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 
 /// @custom:proxied true
 /// @title OptimismPortal2
@@ -141,6 +142,16 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:network-specific
     uint256 public proofMaturityDelaySeconds;
 
+    /// @notice Bridge hook that screens deposits and withdrawals, or the zero address if unset.
+    /// @custom:network-specific
+    IBridgeHook public bridgeHook;
+
+    /// @notice Deposits the hook is holding, keyed by item ID.
+    mapping(bytes32 => bool) public heldDeposits;
+
+    /// @notice Withdrawals the hook is holding, keyed by item ID.
+    mapping(bytes32 => bool) public heldWithdrawals;
+
     /// @notice Emitted when the Portal is migrated.
     /// @param oldLockbox The lockbox before the migration
     /// @param newLockbox The shared lockbox
@@ -155,6 +166,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Migrates the total ETH balance to the ETHLockbox.
     event ETHMigrated(address indexed lockbox, uint256 balance);
+
+    /// @notice Emitted when the bridge hook is set.
+    /// @param bridgeHook The new bridge hook.
+    event BridgeHookSet(IBridgeHook indexed bridgeHook);
+
+    /// @notice Emitted when the bridge hook is removed.
+    /// @param bridgeHook The removed bridge hook.
+    event BridgeHookRemoved(IBridgeHook indexed bridgeHook);
 
     /// @notice Emitted when the proof maturity delay is set.
     /// @param proofMaturityDelaySeconds The new proof maturity delay in seconds.
@@ -253,6 +272,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when a withdrawal has not been proven.
     error OptimismPortal_Unproven();
 
+    /// @notice Thrown when removing a bridge hook that is not set.
+    error OptimismPortal_InvalidBridgeHookState();
+
     /// @notice Thrown when ETHLockbox is set/unset incorrectly depending on the feature flag.
     error OptimismPortal_InvalidLockboxState();
 
@@ -272,9 +294,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 6.1.0
+    /// @custom:semver 7.1.0
     function version() public pure virtual returns (string memory) {
-        return "6.1.0";
+        return "7.1.0";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -288,16 +310,21 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         _disableInitializers();
     }
 
-    /// @notice Initializer.
+    /// @notice Initializer. A nonzero `_bridgeHook` replaces the current hook and emits
+    ///         BridgeHookSet on every run. Value held by a replaced hook stays with it. Upgrades
+    ///         pass the zero address to keep the current hook.
+    ///
     /// @param _systemConfig Address of the SystemConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
     /// @param _ethLockbox Address of the ETHLockbox.
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
+    /// @param _bridgeHook Bridge hook to set, or the zero address to keep the current one.
     function initialize(
         ISystemConfig _systemConfig,
         IAnchorStateRegistry _anchorStateRegistry,
         IETHLockbox _ethLockbox,
-        uint256 _proofMaturityDelaySeconds
+        uint256 _proofMaturityDelaySeconds,
+        IBridgeHook _bridgeHook
     )
         external
         reinitializer(initVersion())
@@ -310,6 +337,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         anchorStateRegistry = _anchorStateRegistry;
         if (address(_ethLockbox) != address(0)) {
             ethLockbox = _ethLockbox;
+        }
+        if (address(_bridgeHook) != address(0)) {
+            bridgeHook = _bridgeHook;
+            emit BridgeHookSet(_bridgeHook);
         }
 
         _assertValidInteropState();
@@ -463,7 +494,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
 
         // Game must not have resolved in favor of the Challenger (invalid root claim).
-        if (disputeGameProxy.status() == GameStatus.CHALLENGER_WINS) {
+        if (_gameStatus(disputeGameProxy) == GameStatus.CHALLENGER_WINS) {
             revert OptimismPortal_InvalidDisputeGame();
         }
 
@@ -471,7 +502,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // the dispute game's creation timestamp. Not strictly necessary but extra layer of
         // safety against weird bugs. Note that this blocks withdrawals from being proven in the
         // same block that a dispute game is created.
-        if (block.timestamp <= disputeGameProxy.createdAt().raw()) {
+        if (block.timestamp <= _gameCreatedAt(disputeGameProxy)) {
             revert OptimismPortal_InvalidProofTimestamp();
         }
 
@@ -549,7 +580,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         // Migrate the liquidity.
         uint256 ethBalance = address(this).balance;
-        ethLockbox.lockETH{ value: ethBalance }();
+        _lockETH(ethBalance);
         emit ETHMigrated(address(ethLockbox), ethBalance);
     }
 
@@ -629,9 +660,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             if (_tx.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
         }
 
-        // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
-        // than the default value when a withdrawal transaction is being finalized. This check is
-        // a defacto reentrancy guard.
+        // Block reentrancy from a withdrawal's target. l2Sender holds the withdrawal's sender while the
+        // target executes. A nested finalization would change l2Sender before the outer call ends.
         if (l2Sender != Constants.DEFAULT_L2_SENDER) {
             revert OptimismPortal_NoReentrancy();
         }
@@ -652,7 +682,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         // If using ETHLockbox, unlock the ETH from the ETHLockbox.
         if (_isUsingLockbox()) {
-            if (_tx.value > 0) ethLockbox.unlockETH(_tx.value);
+            if (_tx.value > 0) _unlockETH(_tx.value);
         }
 
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
@@ -678,7 +708,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // it'll get stuck here and would need to be moved back via admin action.
         if (_isUsingLockbox()) {
             if (!success && _tx.value > 0) {
-                ethLockbox.lockETH{ value: _tx.value }();
+                _lockETH(_tx.value);
             }
         }
 
@@ -714,7 +744,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // starting timestamp inside the Dispute Game. Not strictly necessary but extra layer of
         // safety against weird bugs in the proving step. Note that this blocks withdrawals that
         // are proven in the same block that a dispute game is created.
-        if (provenWithdrawal.timestamp <= disputeGameProxy.createdAt().raw()) {
+        if (provenWithdrawal.timestamp <= _gameCreatedAt(disputeGameProxy)) {
             revert OptimismPortal_InvalidProofTimestamp();
         }
 
@@ -741,7 +771,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         IDisputeGame disputeGameProxy = provenWithdrawal.disputeGameProxy;
         if (
-            disputeGameProxy.status() != GameStatus.CHALLENGER_WINS
+            _gameStatus(disputeGameProxy) != GameStatus.CHALLENGER_WINS
                 && !anchorStateRegistry.isGameBlacklisted(disputeGameProxy)
         ) {
             revert OptimismPortal_DisputeGameNotInvalidated();
@@ -780,7 +810,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         // If using ETHLockbox, lock the ETH in the ETHLockbox.
         if (_isUsingLockbox()) {
-            if (msg.value > 0) ethLockbox.lockETH{ value: msg.value }();
+            if (msg.value > 0) _lockETH(msg.value);
         }
 
         // Just to be safe, make sure that people specify address(0) as the target when doing
@@ -826,45 +856,84 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         return proofSubmitters[_withdrawalHash].length;
     }
 
-    /// @notice Returns the hook that screens deposits and withdrawal finalizations.
-    /// @return Bridge hook, or the zero address if unset.
-    function bridgeHook() external view returns (IBridgeHook) { }
+    /// @notice Removes the bridge hook. Only callable by the ProxyAdmin owner. The removed hook
+    ///         keeps the value it holds and stops being an unsafe target. Only initialize can set
+    ///         a hook again.
+    function removeHook() external {
+        _assertOnlyProxyAdminOwner();
 
-    /// @notice Sets the bridge hook. Only callable by the ProxyAdmin owner.
-    ///         A nonzero hook requires the BRIDGE_HOOK feature.
-    /// @param _hook Bridge hook, or the zero address to unset it.
-    function setBridgeHook(IBridgeHook _hook) external { }
+        if (address(bridgeHook) == address(0)) revert OptimismPortal_InvalidBridgeHookState();
 
-    /// @notice Returns whether a deposit is held.
-    /// @param _id Deposit item hash.
-    /// @return True if held.
-    function heldDeposits(bytes32 _id) external view returns (bool) { }
-
-    /// @notice Returns whether a withdrawal is held.
-    /// @param _id Withdrawal item hash.
-    /// @return True if held.
-    function heldWithdrawals(bytes32 _id) external view returns (bool) { }
+        IBridgeHook hook = bridgeHook;
+        bridgeHook = IBridgeHook(address(0));
+        emit BridgeHookRemoved(hook);
+    }
 
     /// @notice Sends a held deposit to L2 on its original terms. Only callable by the bridge hook.
     ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
     /// @param _item Held deposit.
-    function completeDepositTransaction(BridgeHookTypes.Item calldata _item) external payable { }
+    function completeDepositTransaction(BridgeHookTypes.Item memory _item) external payable { }
 
     /// @notice Executes a held withdrawal on its original terms. Only callable by the bridge hook.
     ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
     /// @param _item Held withdrawal.
-    function completeWithdrawalTransaction(BridgeHookTypes.Item calldata _item) external payable { }
+    function completeWithdrawalTransaction(BridgeHookTypes.Item memory _item) external payable { }
+
+    /// @notice Locks ETH in the ETHLockbox.
+    /// @param _amount Amount of ETH to lock.
+    function _lockETH(uint256 _amount) internal {
+        ethLockbox.lockETH{ value: _amount }();
+    }
+
+    /// @notice Unlocks ETH from the ETHLockbox.
+    /// @param _amount Amount of ETH to unlock.
+    function _unlockETH(uint256 _amount) internal {
+        ethLockbox.unlockETH(_amount);
+    }
+
+    /// @notice Returns the L1StandardBridge.
+    /// @return The L1StandardBridge.
+    function _l1StandardBridge() internal view returns (IL1StandardBridge) {
+        return IL1StandardBridge(payable(systemConfig.l1StandardBridge()));
+    }
+
+    /// @notice Checks if a SystemConfig feature is enabled.
+    /// @param _feature Feature to check.
+    /// @return bool True if the feature is enabled.
+    function _isFeatureEnabled(bytes32 _feature) internal view returns (bool) {
+        return systemConfig.isFeatureEnabled(_feature);
+    }
+
+    /// @notice Returns a dispute game's status.
+    /// @param _game Dispute game.
+    /// @return The game's status.
+    function _gameStatus(IDisputeGame _game) internal view returns (GameStatus) {
+        return _game.status();
+    }
+
+    /// @notice Returns when a dispute game was created.
+    /// @param _game Dispute game.
+    /// @return The game's creation timestamp.
+    function _gameCreatedAt(IDisputeGame _game) internal view returns (uint64) {
+        return _game.createdAt().raw();
+    }
+
+    /// @notice Checks if a bridge hook is set.
+    /// @return bool True if a bridge hook is set.
+    function _isUsingBridgeHook() internal view returns (bool) {
+        return address(bridgeHook) != address(0);
+    }
 
     /// @notice Checks if the ETHLockbox feature is enabled.
     /// @return bool True if the ETHLockbox feature is enabled.
     function _isUsingLockbox() internal view returns (bool) {
-        return systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(ethLockbox) != address(0);
+        return _isFeatureEnabled(Features.ETH_LOCKBOX) && address(ethLockbox) != address(0);
     }
 
     /// @notice Checks if the Interop feature is enabled.
     /// @return bool True if the Interop feature is enabled.
     function _isUsingInterop() internal view returns (bool) {
-        return systemConfig.isFeatureEnabled(Features.INTEROP) && systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX);
+        return _isFeatureEnabled(Features.INTEROP) && _isFeatureEnabled(Features.ETH_LOCKBOX);
     }
 
     /// @notice Checks if the Custom Gas Token feature is enabled.
@@ -872,7 +941,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function _isUsingCustomGasToken() internal view returns (bool) {
         // NOTE: Chains are not supposed to enable Custom Gas Token (CGT) mode after initial deployment.
         //       Enabling CGT post-deployment is strongly discouraged and may lead to unexpected behavior.
-        return systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        return _isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
     }
 
     /// @notice Asserts that the contract is not paused.
@@ -884,14 +953,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Asserts the ETHLockbox feature flag must be set if INTEROP is set
     function _assertValidInteropState() internal view {
-        if (systemConfig.isFeatureEnabled(Features.INTEROP) && !systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+        if (_isFeatureEnabled(Features.INTEROP) && !_isFeatureEnabled(Features.ETH_LOCKBOX)) {
             revert OptimismPortal_InvalidInteropState();
         }
     }
 
     /// @notice Asserts that the ETHLockbox is configured.
     function _assertValidLockboxState() internal view {
-        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) || address(ethLockbox) == address(0)) {
+        if (!_isFeatureEnabled(Features.ETH_LOCKBOX) || address(ethLockbox) == address(0)) {
             revert OptimismPortal_InvalidLockboxState();
         }
     }
@@ -909,10 +978,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         emit ProofMaturityDelaySecondsSet(_proofMaturityDelaySeconds);
     }
 
-    /// @notice Checks if a target address is unsafe.
+    /// @notice Checks if a target address is unsafe. The L1StandardBridge is always unsafe, and
+    ///         the bridge hook is unsafe while it is set.
     function _isUnsafeTarget(address _target) internal view virtual returns (bool) {
         // Prevent users from targeting an unsafe target address on a withdrawal transaction.
-        return _target == address(this) || _target == address(ethLockbox);
+        if (_target == address(this) || _target == address(ethLockbox)) return true;
+        if (_target == address(_l1StandardBridge())) return true;
+        return _isUsingBridgeHook() && _target == address(bridgeHook);
     }
 
     /// @notice Getter for the resource config. Used internally by the ResourceMetering contract.

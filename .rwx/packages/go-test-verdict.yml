@@ -43,6 +43,9 @@ tasks:
         python3 ops/ci/runtime/go-artifacts.py restore "$dependency" "$artifact"
       done
       export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      # A missing engine must fail instead of building one locally, as on Circle.
+      export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="$PWD/rust/target/release/op-reth-test-engine"
+      export REQUIRE_RUST_ENGINE=1
       mise exec -- bash ops/ci/runtime/go-full-tests.sh run
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}

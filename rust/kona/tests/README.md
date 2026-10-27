@@ -61,7 +61,7 @@ Where:
 
 - `just build-reth`: Builds the op-reth binary.
 
-- `just action-tests-single`: Runs action tests for the single-chain client program.
+- `just action-tests-single`: Builds kona-host and op-reth-test-engine (the L2 execution engine the tests run on), then runs action tests for the single-chain client program.
 
 - `just action-tests-interop`: Runs action tests for the interop client program.
 

@@ -22,6 +22,8 @@ pub struct L1WatcherChain<L1WatcherDerivationClient_> {
     /// The source of truth for this chain's unsafe block signer, read from `SystemConfig`. Gossip
     /// validation and block signing subscribe to it.
     pub(super) block_signer_sender: watch::Sender<Address>,
+    /// The L1 block that this chain's derivation has reached, served as `current_l1`.
+    pub(super) derivation_origin: watch::Receiver<Option<BlockInfo>>,
     /// The inbound queries for this chain.
     pub(super) inbound_queries: mpsc::Receiver<L1WatcherQueries>,
 }
@@ -32,9 +34,16 @@ impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_> {
         rollup_config: Arc<RollupConfig>,
         derivation_client: L1WatcherDerivationClient_,
         block_signer_sender: watch::Sender<Address>,
+        derivation_origin: watch::Receiver<Option<BlockInfo>>,
         inbound_queries: mpsc::Receiver<L1WatcherQueries>,
     ) -> Self {
-        Self { rollup_config, derivation_client, block_signer_sender, inbound_queries }
+        Self {
+            rollup_config,
+            derivation_client,
+            block_signer_sender,
+            derivation_origin,
+            inbound_queries,
+        }
     }
 
     /// The id of the L2 chain this instance serves.
@@ -56,8 +65,13 @@ where
         finalized: tokio::sync::watch::Receiver<Option<BlockInfo>>,
     ) -> Result<(), L1WatcherActorError<BlockInfo>> {
         let chain_id = self.chain_id();
-        let Self { rollup_config, derivation_client, block_signer_sender, mut inbound_queries } =
-            self;
+        let Self {
+            rollup_config,
+            derivation_client,
+            block_signer_sender,
+            derivation_origin,
+            mut inbound_queries,
+        } = self;
         let mut heads = head.clone();
         let mut finalized = finalized;
         let forward = async {
@@ -82,9 +96,9 @@ where
             #[allow(unreachable_code)]
             Ok::<(), L1WatcherActorError<BlockInfo>>(())
         };
-        let signer =
-            Self::refresh_signer(&provider, &rollup_config, &block_signer_sender, head.clone());
-        let queries = Self::serve_queries(&provider, &rollup_config, head, &mut inbound_queries);
+        let signer = Self::refresh_signer(&provider, &rollup_config, &block_signer_sender, head);
+        let queries =
+            Self::serve_queries(&provider, &rollup_config, derivation_origin, &mut inbound_queries);
         tokio::try_join!(forward, signer, queries)?;
         Ok(())
     }
@@ -129,7 +143,7 @@ where
     async fn serve_queries(
         provider: &impl Provider,
         config: &RollupConfig,
-        head: tokio::sync::watch::Receiver<Option<BlockInfo>>,
+        derivation_origin: watch::Receiver<Option<BlockInfo>>,
         queries: &mut mpsc::Receiver<L1WatcherQueries>,
     ) -> Result<(), L1WatcherActorError<BlockInfo>> {
         while let Some(query) = queries.recv().await {
@@ -138,7 +152,7 @@ where
                     let _ = sender.send(config.clone());
                 }
                 L1WatcherQueries::L1State(sender) => {
-                    let current = *head.borrow();
+                    let current = *derivation_origin.borrow();
                     let _ = sender.send(Self::l1_state(provider, current).await);
                 }
             }

@@ -86,7 +86,6 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Deploy two chains via OPCMv2 for migration testing.
         chainContracts1 = _deployChainForMigration(1000001);

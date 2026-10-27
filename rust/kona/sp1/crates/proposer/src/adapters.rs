@@ -20,7 +20,10 @@ use alloy_transport_http::reqwest::Url;
 use anyhow::{Context, Result, bail, ensure};
 use async_trait::async_trait;
 use kona_sources::redacted_url;
-use kona_sp1_super_range_executor::{HostInputs, L2BlockClient, SuperRootAtTimestampResponse};
+use kona_sp1_super_range_executor::{
+    HostInputs, InteropHost, L2BlockClient, OptimisticBlockReceipts, SuperRootAtTimestampResponse,
+    optimistic_block_receipts,
+};
 use op_alloy_consensus::OpReceiptEnvelope;
 
 use crate::{
@@ -36,7 +39,7 @@ use crate::{
         ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
         GameCreationReceipt, GameIdentity, GameLifecycle, GameStanding, GameValidity, L1BlockRef,
         L1View, L2BlockSource, NonceState, ProofEngine, ProofInputs, ProposalHorizon, QueryTime,
-        SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
+        ReplacedBlockSource, SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
     },
     prover::{ProofKeys, ProofProvider},
     proving::{
@@ -234,6 +237,12 @@ where
         let absolute_prestate = absolute_prestate.decode().await?;
 
         Ok(GameValidity { root_claim, was_respected, status, absolute_prestate })
+    }
+
+    async fn game_l1_head_number(&self, game: Address, block: BlockId) -> Result<u64> {
+        let l1_head =
+            ZKDisputeGame::new(game, self.provider.clone()).l1Head().block(block).call().await?;
+        kona_sp1_super_range_executor::fetch_l1_head_number(self.l1_rpc.as_str(), l1_head).await
     }
 
     async fn game_lifecycle(
@@ -544,6 +553,21 @@ impl L2BlockSource for ProductionL2BlockSource {
         receipts_root: B256,
     ) -> Result<Vec<OpReceiptEnvelope>> {
         self.client(chain_id)?.receipts(hash, receipts_root).await
+    }
+}
+
+/// Replaced heads through kona-host (see [`optimistic_block_receipts`]).
+pub(crate) struct HostReplacedBlocks(pub(crate) InteropHost);
+
+#[async_trait]
+impl ReplacedBlockSource for HostReplacedBlocks {
+    async fn replaced_block(
+        &self,
+        chain_id: u64,
+        parent: B256,
+        hash: B256,
+    ) -> Result<OptimisticBlockReceipts> {
+        optimistic_block_receipts(self.0.clone(), chain_id, parent, hash).await
     }
 }
 
@@ -929,6 +953,7 @@ mod tests {
                 range_gas_limit: 1,
                 log_gas_limit: 1,
                 max_stdin_bytes: Default::default(),
+                data_dir: None,
             },
         );
 

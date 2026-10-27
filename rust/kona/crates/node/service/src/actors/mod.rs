@@ -2,21 +2,24 @@
 //!
 //! [NodeActor]: super::NodeActor
 
+// Actors read time from tokio's clock or an injected `Clock`, so tests can control it.
+#![warn(clippy::disallowed_methods)]
+
 mod traits;
 pub use traits::NodeActor;
 
+mod clock;
+pub use clock::{Clock, SystemClock};
+
 mod engine;
 pub use engine::{
-    BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
-    EngineConfig, EngineDerivationClient, EngineError, EngineRpcActor, EngineRpcRequest,
+    BuildRequest, CanonicalizeRequest, EngineActor, EngineActorRequest, EngineClientError,
+    EngineClientResult, EngineConfig, EngineDerivationClient, EngineError,
     QueuedEngineDerivationClient, ResetRequest, SealRequest,
 };
 
-pub(crate) mod rpc;
-pub use rpc::{
-    JsonrpseeServerLauncher, QueuedEngineRpcClient, QueuedSequencerAdminAPIClient, RpcActor,
-    RpcActorError, RpcServerHandle, RpcServerLauncher,
-};
+mod rpc;
+pub use rpc::{RpcActor, RpcActorError};
 
 mod derivation;
 pub use derivation::{
@@ -49,8 +52,7 @@ mod sequencer;
 pub use sequencer::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider, L1OriginSelector,
     L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector, QueuedSequencerEngineClient,
-    SequencerActor, SequencerActorError, SequencerAdminQuery, SequencerConfig,
-    SequencerEngineClient,
+    SequencerActor, SequencerActorError, SequencerConfig, SequencerEngineClient,
 };
 
 #[cfg(test)]

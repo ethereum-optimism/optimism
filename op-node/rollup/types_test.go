@@ -1089,7 +1089,7 @@ func TestConfigImplementsBlockType(t *testing.T) {
 }
 
 func TestConfig_ProbablyMissingPectraBlobSchedule(t *testing.T) {
-	hol, sep := params.HoleskyChainConfig, params.SepoliaChainConfig
+	sep := params.SepoliaChainConfig
 
 	for _, tt := range []struct {
 		name                   string
@@ -1105,21 +1105,9 @@ func TestConfig_ProbablyMissingPectraBlobSchedule(t *testing.T) {
 			l1chainID:              sep.ChainID,
 		},
 		{
-			name:                   "holesky-ok",
-			pectraBlobScheduleTime: u64ptr(1742486400), // sepolia superchain
-			l2genesisTime:          1691802540,         // op-sepolia
-			l1chainID:              hol.ChainID,
-		},
-		{
 			name:          "sepolia-missing",
 			l2genesisTime: 1691802540, // op-sepolia
 			l1chainID:     sep.ChainID,
-			expMissing:    true,
-		},
-		{
-			name:          "holesky-missing",
-			l2genesisTime: 1691802540, // op-sepolia
-			l1chainID:     hol.ChainID,
 			expMissing:    true,
 		},
 		{
@@ -1128,9 +1116,9 @@ func TestConfig_ProbablyMissingPectraBlobSchedule(t *testing.T) {
 			l1chainID:     sep.ChainID,
 		},
 		{
-			name:          "holesky-young-genesis",
-			l2genesisTime: *hol.PragueTime + 1,
-			l1chainID:     hol.ChainID,
+			name:          "holesky-missing-ok",
+			l2genesisTime: 1691802540,
+			l1chainID:     big.NewInt(17000),
 		},
 		{
 			name:          "other-missing-ok",

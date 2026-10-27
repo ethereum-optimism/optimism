@@ -117,8 +117,6 @@ op-core/types (tests) | missing go-ethereum/core/types.Transaction.Mint | #20266
 op-core/types (tests) | missing go-ethereum/core/types.Transaction.SourceHash | #20266 op-core transition code, removed at the cutover
 op-deployer/pkg/deployer/opcm | missing go-ethereum/params.BuilderDepositAddress | upstream backport, in go-ethereum v1.17.7
 op-deployer/pkg/deployer/opcm | missing go-ethereum/params.BuilderExitAddress | upstream backport, in go-ethereum v1.17.7
-op-deployer/pkg/deployer/pipeline | missing go-ethereum/core.Genesis.StateHash | #23217 genesis readers
-op-deployer/pkg/deployer/pipeline (tests) | missing go-ethereum/core.Genesis.StateHash | #23217 genesis readers
 op-devstack/dsl | missing go-ethereum/core/types.DepositTxType | #23405 test and DSL swaps to op-core
 op-devstack/dsl | missing go-ethereum/core/types.FlzCompressLen | #23405 test and DSL swaps to op-core
 op-devstack/dsl | missing go-ethereum/core/types.NewL1CostFuncFjord | #23405 test and DSL swaps to op-core
@@ -127,7 +125,6 @@ op-devstack/dsl | missing go-ethereum/core/types.Receipt.OperatorFeeConstant | #
 op-devstack/dsl | missing go-ethereum/core/types.Receipt.OperatorFeeScalar | #23405 test and DSL swaps to op-core
 op-devstack/dsl | missing go-ethereum/core/types.RollupCostData | #23405 test and DSL swaps to op-core
 op-devstack/dsl | missing go-ethereum/core/types.Transaction.RollupCostData | #23405 test and DSL swaps to op-core
-op-devstack/sysgo | missing go-ethereum/core.Genesis.StateHash | #23217 genesis readers
 op-devstack/sysgo | missing go-ethereum/core/types.CustodyBitmap | upstream backport, in go-ethereum v1.17.7
 op-devstack/sysgo | missing go-ethereum/eth/ethconfig.Config.InteropMempoolFiltering | #21744 in-process op-geth L2 EL
 op-devstack/sysgo | missing go-ethereum/eth/ethconfig.Config.InteropMessageRPC | #21744 in-process op-geth L2 EL
@@ -146,43 +143,6 @@ op-e2e/actions/helpers | missing go-ethereum/core/types.DefaultBlockConfig | #23
 op-e2e/actions/helpers | missing go-ethereum/core/vm.Config.PrecompileOverrides | #23405 test and DSL swaps to op-core
 op-e2e/actions/helpers | missing go-ethereum/core/vm.PrecompileOverrides | #23405 test and DSL swaps to op-core
 op-e2e/actions/helpers | missing go-ethereum/eth/ethconfig.Config.RollupDisableTxPoolGossip | #23405 test and DSL swaps to op-core
-op-e2e/actions/helpers (tests) | missing go-ethereum/params.ChainConfig.IsCanyon | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | changed signature of go-ethereum/beacon/engine.ExecutableDataToBlock | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | changed signature of go-ethereum/consensus/misc/eip1559.CalcBaseFee | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | changed signature of go-ethereum/core.NewEVMBlockContext | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | changed signature of go-ethereum/params.ChainConfig.BaseFeeChangeDenominator | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/beacon/engine.ExecutableData.WithdrawalsRoot | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/consensus/misc/eip1559.DecodeHolocene1559Params | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/consensus/misc/eip1559.EncodeOptimismExtraData | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/consensus/misc/eip1559.ValidateHolocene1559Params | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/consensus/misc/eip1559.ValidateOptimismExtraData | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/core/vm.Config.PrecompileOverrides | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/core/vm.PrecompileOverrides | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.Bls12381G1MulMaxInputSizeIsthmus | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.Bls12381G1MulMaxInputSizeJovian | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.Bls12381G2MulMaxInputSizeIsthmus | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.Bls12381G2MulMaxInputSizeJovian | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.Bls12381PairingMaxInputSizeIsthmus | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.Bls12381PairingMaxInputSizeJovian | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.Bn256PairingMaxInputSizeGranite | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.Bn256PairingMaxInputSizeJovian | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.ChainConfig.IsCanyon | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.ChainConfig.IsHolocene | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.ChainConfig.IsIsthmus | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.ChainConfig.IsOptimismHolocene | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.ChainConfig.Optimism | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.Rules.IsOptimismGranite | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi | missing go-ethereum/params.Rules.IsOptimismJovian | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi (tests) | missing go-ethereum/params.Bls12381G1MulMaxInputSizeIsthmus | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi (tests) | missing go-ethereum/params.Bls12381G1MulMaxInputSizeJovian | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi (tests) | missing go-ethereum/params.Bls12381G2MulMaxInputSizeIsthmus | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi (tests) | missing go-ethereum/params.Bls12381G2MulMaxInputSizeJovian | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi (tests) | missing go-ethereum/params.Bls12381PairingMaxInputSizeIsthmus | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi (tests) | missing go-ethereum/params.Bls12381PairingMaxInputSizeJovian | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi (tests) | missing go-ethereum/params.Bn256PairingMaxInputSizeGranite | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi (tests) | missing go-ethereum/params.Bn256PairingMaxInputSizeJovian | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi (tests) | missing go-ethereum/params.Rules.IsOptimismGranite | #21196 action-test L2 engine
-op-e2e/actions/helpers/engineapi (tests) | missing go-ethereum/params.Rules.IsOptimismJovian | #21196 action-test L2 engine
 op-e2e/actions/upgrades (tests) | missing go-ethereum/core/types.FlzCompressLen | #23405 test and DSL swaps to op-core
 op-e2e/actions/upgrades (tests) | missing go-ethereum/core/types.NewL1CostFuncFjord | #23405 test and DSL swaps to op-core
 op-e2e/actions/upgrades (tests) | missing go-ethereum/core/types.RollupCostData | #23405 test and DSL swaps to op-core
@@ -289,30 +249,11 @@ op-sync-tester/synctester/backend | missing go-ethereum/params.ChainConfig.IsCan
 op-sync-tester/synctester/backend | missing go-ethereum/params.ChainConfig.IsthmusTime | #21525 sync-tester PayloadID
 op-test-sequencer/sequencer/backend/work/builders/fakepos | changed signature of go-ethereum/beacon/engine.ExecutableDataToBlockNoHash | #23406 non-test swaps
 op-test-sequencer/sequencer/backend/work/builders/fakepos | missing go-ethereum/beacon/engine.PayloadAttributes.TargetGasLimit | upstream backport, in go-ethereum v1.17.7
-op-wheel | missing go-ethereum/params.ChainConfig.CanyonTime | #23217 genesis readers
-op-wheel | missing go-ethereum/params.ChainConfig.EcotoneTime | #23217 genesis readers
-op-wheel | missing go-ethereum/params.ChainConfig.GraniteTime | #23217 genesis readers
-op-wheel | missing go-ethereum/params.ChainConfig.HoloceneTime | #23217 genesis readers
-op-wheel | missing go-ethereum/params.ChainConfig.IsthmusTime | #23217 genesis readers
-op-wheel | missing go-ethereum/params.ChainConfig.JovianTime | #23217 genesis readers
-op-wheel | missing go-ethereum/params.ChainConfig.KarstTime | #23217 genesis readers
-op-wheel | missing go-ethereum/params.ChainConfig.LagoonTime | #23217 genesis readers
-op-wheel | missing go-ethereum/params.ChainConfig.RegolithTime | #23217 genesis readers
-op-wheel/engine | missing go-ethereum/params.ChainConfig.CanyonTime | #23217 genesis readers
-op-wheel/engine | missing go-ethereum/params.ChainConfig.IsCanyon | #23217 genesis readers
 packages/contracts-bedrock/scripts/go-ffi | missing go-ethereum/core/types.DepositTx | #23405 test and DSL swaps to op-core
 rust/kona/tests/proofs (tests) | changed signature of go-ethereum/consensus/misc/eip1559.CalcBaseFee | #23405 test and DSL swaps to op-core
 rust/kona/tests/proofs (tests) | missing go-ethereum/consensus/misc/eip1559.EncodeHoloceneExtraData | #23405 test and DSL swaps to op-core
 rust/kona/tests/proofs (tests) | missing go-ethereum/consensus/misc/eip1559.EncodeJovianExtraData | #23405 test and DSL swaps to op-core
 rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Block.WithdrawalsRoot | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.DepositTxType | #23405 test and DSL swaps to op-core
 rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.NewIsthmusSigner | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.NewL1CostFuncFjord | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.NewRollupCostData | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Receipt.DAFootprintGasScalar | #23405 test and DSL swaps to op-core
 rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Receipt.OperatorFeeConstant | #23405 test and DSL swaps to op-core
 rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Receipt.OperatorFeeScalar | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.RollupCostData | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Transaction.IsDepositTx | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Transaction.IsSystemTx | #23405 test and DSL swaps to op-core
-rust/kona/tests/proofs (tests) | missing go-ethereum/core/types.Transaction.RollupCostData | #23405 test and DSL swaps to op-core

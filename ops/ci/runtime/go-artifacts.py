@@ -20,7 +20,7 @@ SETTINGS = {"go": {"hello_toolchain": "go1.24.13"}, "go-modules": {"verified": T
                                   "legacy_graph": {"source": "scripts/Artifacts.s.sol", "compiler": "0.8.28"}},
             "rust-e2e-release": {"profile": "release", "features": ["default"], "scope": "workspace"},
             "kona": {"profile": "release", "features": ["default"], "packages": ["kona-host", "kona-client", "kona-node", "op-zk-proposer"]},
-            "op-reth": {"profile": "release", "features": ["default"], "packages": ["op-reth"]},
+            "op-reth": {"profile": "release", "features": ["default"], "packages": ["op-reth", "op-reth-test-engine"]},
             "prestate": {"recipe": "just reproducible-prestate"},
             "sp1-executor": {"profile": "release", "features": ["all"], "packages": ["kona-sp1-super-range-executor"]}}
 

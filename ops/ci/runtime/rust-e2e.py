@@ -59,7 +59,9 @@ def settings(job):
 
 def environment(job):
     values = {'DISABLE_OP_E2E_LEGACY': 'true', 'DEVSTACK_ORCHESTRATOR': 'sysgo'} if job != 'proof' else {}
-    if job == 'proof': values['KONA_HOST_PATH'] = str(ROOT / 'rust/target/release/kona-host')
+    if job == 'proof':
+        values.update(KONA_HOST_PATH=str(ROOT / 'rust/target/release/kona-host'),
+                      RUST_BINARY_PATH_OP_RETH_TEST_ENGINE=str(ROOT / 'rust/target/release/op-reth-test-engine'))
     elif job == 'op-reth':
         values.update(OP_RETH_ENABLE_PROOF_HISTORY='true', OP_DEVSTACK_PROOF_SEQUENCER_EL='op-reth',
                       OP_DEVSTACK_PROOF_VALIDATOR_EL='op-reth',

@@ -117,6 +117,10 @@ library Predeploys {
     /// @notice Address of the UndeliveredMessageExporter predeploy.
     address internal constant UNDELIVERED_MESSAGE_EXPORTER = 0x4200000000000000000000000000000000000030;
 
+    /// @notice Address of the ChainConfig predeploy, which holds the chain's OP Private settlement
+    ///         chain ID.
+    address internal constant CHAIN_CONFIG = 0x4200000000000000000000000000000000000034;
+
     /// @notice Implementation variant selector.
     /// @dev Values are array indexes into `PredeployRecord.variants`.
     enum VariantKind {
@@ -463,7 +467,7 @@ library Predeploys {
         });
         records_[18] = PredeployRecord({
             proxy: ETH_LIQUIDITY,
-            variants: _variants("ETHLiquidity", "ETHLiquidity.sol:ETHLiquidity", 423_000),
+            variants: _variants("ETHLiquidity", "ETHLiquidity.sol:ETHLiquidity", 750_000),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,
             isInterop: true,

@@ -135,9 +135,9 @@ mod tests {
 
     #[test]
     fn deposits_have_correct_count() {
-        // 1 setFeature + 28 bundle txs + 1 ETHLiquidity funding = 30
-        assert_eq!(Lagoon::deposits(true).len(), 30);
-        assert_eq!(Lagoon::deposits(false).len(), 28);
+        // 1 setFeature + 29 bundle txs + 1 ETHLiquidity funding = 31
+        assert_eq!(Lagoon::deposits(true).len(), 31);
+        assert_eq!(Lagoon::deposits(false).len(), 29);
     }
 
     #[test]

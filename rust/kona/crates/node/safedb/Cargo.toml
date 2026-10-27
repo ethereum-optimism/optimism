@@ -27,7 +27,6 @@ alloy-primitives.workspace = true
 rocksdb = { workspace = true, features = ["snappy"], optional = true }
 
 # Misc
-tracing.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
@@ -37,5 +36,5 @@ tempfile.workspace = true
 [features]
 default = []
 # Enables the on-disk [`SafeDatabase`] backend. Off by default so that consumers needing only the
-# `SafeDb` trait (or `DisabledDatabase`) avoid the rocksdb/libclang build dependency.
+# `SafeDb` trait avoid the rocksdb/libclang build dependency.
 rocksdb = ["dep:rocksdb"]

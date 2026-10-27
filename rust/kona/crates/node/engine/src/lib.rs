@@ -32,7 +32,6 @@
 //!   [`EngineNewPayloadVersion`], [`EngineGetPayloadVersion`]
 //! - **Attributes** - Payload attribute validation via [`AttributesMatch`]
 //! - **Kinds** - Engine client type identification via [`EngineKind`]
-//! - **Query** - Engine query interface via [`EngineQueries`]
 //! - **Metrics** - Optional Prometheus metrics collection via [`Metrics`]
 
 #[macro_use]
@@ -40,10 +39,10 @@ extern crate tracing;
 
 mod task_queue;
 pub use task_queue::{
-    BuildSealCoupling, BuildTask, BuildTaskError, ConsolidateInput, ConsolidateTask,
-    ConsolidateTaskError, Engine, EngineBuildError, EngineResetError, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, EngineTaskErrors, EngineTaskExt, FinalizeBlockId, FinalizeTask,
-    FinalizeTaskError, InsertTask, InsertTaskError, SealTask, SealTaskError, SynchronizeTask,
+    BuildTask, BuildTaskError, CanonicalizeTask, CanonicalizeTaskError, ConsolidateInput,
+    ConsolidateTask, ConsolidateTaskError, Engine, EngineBuildError, EngineResetError, EngineTask,
+    EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, EngineTaskExt, FinalizeBlockId,
+    FinalizeTask, FinalizeTaskError, InsertTask, InsertTaskError, SealTask, SealTaskError,
     SynchronizeTaskError,
 };
 
@@ -54,9 +53,12 @@ mod block_sink;
 pub use block_sink::{ImportedBlockSink, NoopBlockSink};
 
 mod client;
-pub use client::{
-    EngineClient, EngineClientBuilder, EngineClientError, EngineRpcClient, HyperAuthClient,
-    OpEngineClient,
+pub use client::{EngineClient, EngineClientBuilder, EngineClientError, EngineQueryClient};
+
+mod request;
+pub use request::{
+    BuildRequest, CanonicalizeRequest, EngineActorRequest, EngineRequestError, EngineRequestResult,
+    ResetRequest, SealRequest,
 };
 
 mod versions;
@@ -67,9 +69,6 @@ pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate};
 
 mod kinds;
 pub use kinds::EngineKind;
-
-mod query;
-pub use query::{EngineQueries, EngineQueriesError, EngineQuerySender};
 
 mod metrics;
 pub use metrics::Metrics;

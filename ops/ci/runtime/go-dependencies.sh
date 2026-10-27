@@ -13,11 +13,11 @@ case "$job" in
       sleep "$((2 ** attempt))"
     done
     just sync-superchain-go
-    git diff --exit-code op-core/superchain/superchain-configs.zip.sha256
+    git diff --exit-code op-core/superchain/bundle/superchain-configs.zip.sha256
     just cannon
     (cd cannon && just diff-hello-elf)
     python3 ops/ci/runtime/go-artifacts.py pack go \
-      op-core/superchain/superchain-configs.zip cannon/bin cannon/multicannon/embeds cannon/testdata/bin
+      op-core/superchain/bundle/superchain-configs.zip cannon/bin cannon/multicannon/embeds cannon/testdata/bin
     ;;
   contracts|contracts-e2e)
     git submodule update --init --recursive -- packages/contracts-bedrock/lib
@@ -68,7 +68,7 @@ case "$job" in
   op-reth)
     bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
     bash /usr/local/lib/optimism-ci/op-reth-shadow.sh release-build
-    python3 ops/ci/runtime/go-artifacts.py pack op-reth rust/target/release/op-reth
+    python3 ops/ci/runtime/go-artifacts.py pack op-reth rust/target/release/op-reth rust/target/release/op-reth-test-engine
     ;;
   prestate)
     just reproducible-prestate

@@ -60,6 +60,35 @@ The shared harness advanced after the Rust/Solidity measurements. Their frozen
 commits remain the source of truth even though their PR base branch has moved.
 Preserve those commits and provider run identities when updating migration code.
 
+### Local `develop` integration after the handoff
+
+Later on October 27, `codex/rwx-handoff-docs-20261027` merged `develop` at
+`60698d94a5ebfae2df26005f3baf1d358f6c61f5` (76 commits). It is a merge, not a
+rebase: the branch already integrated `develop` eight times, and a rebase would
+rewrite cited evidence commits such as `3dab7ff1ac` and `8368c4c35e`. The merge
+is local and unpushed. #23151 still points at `5552a61ccc`, and no hosted check
+has run on the merged tree.
+
+| `develop` change | Migration update |
+| --- | --- |
+| #23527 removed the fetcher forge script and artifacts | Took `develop`'s deletions; removed the native fetcher workload, its shadow check, `main-fetcher` gate group and tests; moved Kontrol's two helper imports out of the fetcher module |
+| #23594 moved Rust builds to a new Wolfi image | Rust-binary consumers run on that image. OP Node acceptance and NUT pre-fork dropped the pilot's Ubuntu machine executor; the acceptance `executor` parameter is gone |
+| #23648, #22632 run Go engine, NUT and kona proof tests on `op-reth-test-engine` | RWX `op-reth` release producer builds, seals and packs both binaries with Circle's flags; Go verdicts set `REQUIRE_RUST_ENGINE=1`; NUT pre-fork gained an `op-reth` producer; the E2E release report requires the engine |
+| #21786 added the required `go-actions-tests` job | New `actions-verdict` in `go-tests.yml`, mapped into `ci-gate` after `go-tests` |
+| #23614 moved the superchain bundle to `op-core/superchain/bundle/` | Updated RWX filters, helpers and fixtures |
+
+SP1 6.10.0, Go 1.26.10 and Rust 1.99.1 reach RWX through `mise.toml` without
+other edits; all SP1 pins agree. RWX does not need Circle's new `PROTOC`
+export, because its Rust layer puts mise's real binary directories on `PATH`.
+
+Local validation on macOS: both Circle configs validate; the merged config
+processes with all 24 `c-run_*` workflows enabled; native gate configuration
+and Circle alignment pass for all three mapped gates; the permanent (403) and
+migration (238) helper suites pass; `rwx lint` reports only the pre-existing
+`mise/install` 1.1.1 notice, which also appears before the merge. Not run:
+`test-decision-tree.sh` and the Circle adapter fixtures, which need Bash 4+ or
+Linux. Neither side of the merge changed routing data or the adapters.
+
 ## What the benchmarks establish
 
 | Selected workload | CircleCI | RWX | Less wall time | Qualification |
@@ -119,11 +148,13 @@ the timestamp and local materialization fixes already validated.
    and fetch current PR heads. The documentation branch preserves this handoff;
    use an appropriate migration checkout for implementation. Keep benchmark
    fixtures frozen; do not rerun experiments merely to reconstruct context.
-2. **Resolve migration drift.** Reconcile #23151 with current `develop` in an
-   isolated checkout. Read the CI review guidance, inventory changed workflows,
-   gates and matrices, run affected validation, then watch checks and dependency
-   review to terminal states on the resulting SHA. Historical green checks do
-   not validate that new merge.
+2. **Finish the migration drift.** The local merge above resolves the conflicts
+   and maps the new upstream workloads. An operator must still push it to
+   `codex/rwx-ci-pilot` (a fast-forward from `5552a61ccc`), then watch checks
+   and dependency review to terminal states on the resulting SHA. The first
+   hosted run must confirm the new `actions-verdict`, the NUT `op-reth`
+   producer and the two-binary release manifest. Historical green checks do
+   not validate that merge.
 3. **Refresh coverage before claiming completion.** The 86/86 baseline is an
    October 1 inventory with later original-report parity. The October 19 guide
    mentions 88 occurrences, but later upstream jobs and variants need a new

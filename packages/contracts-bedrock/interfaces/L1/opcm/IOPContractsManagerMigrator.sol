@@ -31,11 +31,11 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when attempting to migrate a CGT chain.
     error OPContractsManagerMigrator_CustomGasTokenNotSupported();
 
+    /// @notice Thrown when attempting to migrate a chain whose portal has a bridge hook.
+    error OPContractsManagerMigrator_BridgeHookNotSupported();
+
     /// @notice Thrown when the chainSystemConfigs array is empty.
     error OPContractsManagerMigrator_NoChains();
-
-    /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
-    error OPContractsManagerMigrator_InteropNotEnabled();
 
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();

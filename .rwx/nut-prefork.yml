@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [modules, contracts, superchain]
+    target: [modules, contracts, superchain, op-reth]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -98,6 +98,13 @@ tasks:
     with:
       mode: compiler
 
+  - key: rust-tools
+    use: [bootstrap-inputs, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-rust.yml
+    with:
+      mode: release
+
   - key: source
     use: [code, tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -136,11 +143,22 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [op-core/superchain/superchain-configs.zip]
+          workspace: [op-core/superchain/bundle/superchain-configs.zip]
           system: []
       artifacts:
         - key: reports
           path: .ci/main-checks/prep-superchain
+
+  # The generator runs the L2 chain on op-reth-test-engine.
+  - key: op-reth
+    use: [source, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-op-reth.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ''
+      target-cache-mode: keep
 
   - key: helper-tests
     use: [code, go-tools, contract-tools]
@@ -164,6 +182,9 @@ tasks:
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       export GOCACHE="$PWD/.ci/go-cache/nut-prefork/build"
       mkdir -p "$GOCACHE"
+      python3 ops/ci/runtime/go-artifacts.py restore op-reth "$RETH_ARTIFACT"
+      export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="$PWD/rust/target/release/op-reth-test-engine"
+      test -x "$RUST_BINARY_PATH_OP_RETH_TEST_ENGINE"
       python3 ops/ci/runtime/nut-prefork.py --provider rwx \
         --module-artifact "$MODULE_ARTIFACT" --contract-artifact "$CONTRACT_ARTIFACT" \
         --bundle-artifact "$BUNDLE_ARTIFACT"
@@ -174,6 +195,7 @@ tasks:
       MODULE_ARTIFACT: ${{ tasks.modules.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       BUNDLE_ARTIFACT: ${{ tasks.superchain.artifacts.reports }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:

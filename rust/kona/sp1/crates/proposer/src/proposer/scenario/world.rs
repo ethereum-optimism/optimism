@@ -69,6 +69,7 @@ pub(super) enum L1ReadBoundary {
     GameClaim,
     GameIdentity,
     GameValidity,
+    GameL1HeadNumber,
     GameLifecycle,
     ParentGameStatus,
     BondState,
@@ -1644,6 +1645,12 @@ impl L1View for FakeL1View {
         })
     }
 
+    async fn game_l1_head_number(&self, game: Address, block: BlockId) -> Result<u64> {
+        let GameReadResult { state, .. } =
+            self.state_for_game(L1ReadBoundary::GameL1HeadNumber, game, block)?;
+        Ok(state.game(game)?.proof_inputs.l1_head_number)
+    }
+
     async fn game_lifecycle(
         &self,
         game: Address,
@@ -2481,6 +2488,7 @@ pub(super) fn scenario_config() -> ProposerConfig {
             min_auction_period: 1,
         },
         log_path: crate::config::LogPath::Table,
+        data_dir: None,
     }
 }
 

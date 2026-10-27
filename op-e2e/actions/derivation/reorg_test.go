@@ -3,7 +3,6 @@ package derivation
 import (
 	"math/big"
 	"math/rand"
-	"path"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
@@ -13,8 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
-	"github.com/ethereum/go-ethereum/node"
 	"github.com/stretchr/testify/require"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
@@ -36,7 +33,7 @@ func TestReorgBatchType(t *testing.T) {
 		{"ReorgOrphanBlock", ReorgOrphanBlock},
 		{"ReorgFlipFlop", ReorgFlipFlop},
 		{"DeepReorg", DeepReorg},
-		{"RestartOpGeth", RestartOpGeth},
+		{"RestartEngineFreshState", RestartEngineFreshState},
 		{"ConflictingL2Blocks", ConflictingL2Blocks},
 		{"SyncAfterReorg", SyncAfterReorg},
 	}
@@ -363,7 +360,7 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l2UserEnv := &actionsHelpers.BasicUserEnv[*actionsHelpers.L2Bindings]{
 		EthCl:          l2Client,
-		Signer:         types.LatestSigner(sd.L2Cfg.Config),
+		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Client, seqEngine.GethClient()),
 	}
@@ -574,26 +571,23 @@ type rpcWrapper struct {
 	client.RPC
 }
 
-// RestartOpGeth tests that the sequencer can restart its execution engine without rollup-node restart,
-// including recovering the finalized/safe state of L2 chain without reorging.
-func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
+// RestartEngineFreshState tests that the rollup node recovers when its execution engine restarts
+// with all state lost (an ephemeral EL, or an operator wiping a datadir): the fresh engine boots at
+// genesis, the node notices on its next forkchoice update and resets, and re-derives the safe chain
+// from L1, restoring safety and finality without a rollup-node restart. Unsafe blocks that were
+// never batched are lost with the engine state; the sequencer re-builds them.
+func RestartEngineFreshState(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := actionsHelpers.NewDefaultTesting(gt)
-	dbPath := path.Join(t.TempDir(), "testdb")
-	dbOption := func(_ *ethconfig.Config, nodeCfg *node.Config) error {
-		nodeCfg.DataDir = dbPath
-		return nil
-	}
 	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams())
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	jwtPath := e2eutils.WriteDefaultJWT(t)
 	// L1
 	miner := actionsHelpers.NewL1Miner(t, log, sd.L1Cfg)
 	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindStandard))
 	require.NoError(t, err)
-	// Sequencer
-	seqEng := actionsHelpers.NewL2Engine(t, log, sd.L2Cfg, jwtPath, dbOption)
+	// Sequencer, with an engine that keeps no persistent state
+	seqEng := actionsHelpers.NewL2Engine(t, log, sd.L2Cfg)
 	engRpc := &rpcWrapper{seqEng.RPCClient()}
 	l2Cl, err := sources.NewEngineClient(engRpc, log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
@@ -645,25 +639,47 @@ func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	require.Less(t, statusBeforeRestart.FinalizedL2.L1Origin.Number, statusBeforeRestart.SafeL2.L1Origin.Number)
 	require.Less(t, statusBeforeRestart.SafeL2.L1Origin.Number, statusBeforeRestart.UnsafeL2.L1Origin.Number)
 
-	// close the sequencer engine
+	// close the sequencer engine, and replace it with a fresh one: all execution-layer state is lost
 	require.NoError(t, seqEng.Close())
-	// and start a new one with same db path
-	seqEngNew := actionsHelpers.NewL2Engine(t, log, sd.L2Cfg, jwtPath, dbOption)
-	// swap in the new rpc. This is as close as we can get to reconnecting to a new in-memory rpc connection
+	seqEngNew := actionsHelpers.NewL2Engine(t, log, sd.L2Cfg)
 	engRpc.RPC = seqEngNew.RPCClient()
 
-	// note: geth does not persist the safe block label, only the finalized block label
-	safe, err := l2Cl.L2BlockRefByLabel(t.Ctx(), eth.Safe)
+	// the fresh engine boots at genesis
+	latest, err := l2Cl.L2BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	finalized, err := l2Cl.L2BlockRefByLabel(t.Ctx(), eth.Finalized)
-	require.NoError(t, err)
-	require.Equal(t, statusBeforeRestart.FinalizedL2, safe, "expecting to revert safe head to finalized head upon restart")
-	require.Equal(t, statusBeforeRestart.FinalizedL2, finalized, "expecting to keep same finalized head upon restart")
+	require.Equal(t, sd.RollupCfg.Genesis.L2, latest.ID(), "expecting the fresh engine to boot at genesis")
 
-	// sequencer runs pipeline, but now attached to the restarted geth node
+	engineHead := func(label eth.BlockLabel) eth.L2BlockRef {
+		ref, err := l2Cl.L2BlockRefByLabel(t.Ctx(), label)
+		require.NoError(t, err, "engine %s head", label)
+		return ref
+	}
+
+	// The rollup node notices the wiped engine only through a forkchoice update carrying heads the
+	// engine lacks: the engine answers SYNCING and the node resets against it. A block build does
+	// not get there: preparing it fails on the parent block the engine lacks, a temporary error the
+	// sequencer retries. Advancing L1 finality moves the finalized head and so sends that update:
+	// finalize the L1 block that carries the second batch.
+	miner.ActL1FinalizeNext(t)
+	sequencer.ActL1FinalizedSignal(t)
 	sequencer.ActL2PipelineFull(t)
-	require.Equal(t, statusBeforeRestart.UnsafeL2, sequencer.L2Unsafe(), "expecting to keep same unsafe head upon restart")
-	require.Equal(t, statusBeforeRestart.SafeL2, sequencer.L2Safe(), "expecting the safe block to catch up to what it was before shutdown after syncing from L1, and not be stuck at the finalized block")
+
+	// The node re-derived the safe chain from the batches on L1 and re-applied L1 finality, which
+	// now covers the whole safe chain. The unsafe blocks were never batched, so the head falls back
+	// to the safe head.
+	require.Equal(t, statusBeforeRestart.SafeL2, engineHead(eth.Safe), "expecting the safe chain to be re-derived from L1")
+	require.Equal(t, statusBeforeRestart.SafeL2, engineHead(eth.Finalized), "expecting the re-derived chain to be finalized up to the finalized L1 block")
+	require.Equal(t, statusBeforeRestart.SafeL2, engineHead(eth.Unsafe), "expecting the lost unsafe chain to fall back to the safe head")
+	require.Equal(t, statusBeforeRestart.SafeL2, sequencer.L2Unsafe())
+	require.Equal(t, statusBeforeRestart.SafeL2, sequencer.L2Safe())
+	require.Equal(t, statusBeforeRestart.SafeL2, sequencer.L2Finalized())
+
+	// The sequencer re-builds the unsafe chain on top of the recovered safe head. The lost unsafe
+	// blocks are deposit-only, so it re-builds the identical chain from the same L1 origins.
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActBuildToL1Head(t)
+	require.Equal(t, statusBeforeRestart.UnsafeL2, engineHead(eth.Unsafe), "expecting the sequencer to re-build the identical deposit-only unsafe chain")
+	require.Equal(t, statusBeforeRestart.UnsafeL2, sequencer.L2Unsafe())
 }
 
 // ConflictingL2Blocks tests that a second copy of the sequencer stack cannot introduce an alternative
@@ -679,8 +695,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	sd, _, miner, sequencer, seqEng, verifier, _, batcher := actionsHelpers.SetupReorgTestActors(t, dp, sd, log)
 
 	// Extra setup: a full alternative sequencer, sequencer engine, and batcher
-	jwtPath := e2eutils.WriteDefaultJWT(t)
-	altSeqEng := actionsHelpers.NewL2Engine(t, log, sd.L2Cfg, jwtPath)
+	altSeqEng := actionsHelpers.NewL2Engine(t, log, sd.L2Cfg)
 	altSeqEngCl, err := sources.NewEngineClient(altSeqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindStandard))
@@ -694,7 +709,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l2UserEnv := &actionsHelpers.BasicUserEnv[*actionsHelpers.L2Bindings]{
 		EthCl:          l2Cl,
-		Signer:         types.LatestSigner(sd.L2Cfg.Config),
+		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Cl, altSeqEng.GethClient()),
 	}
@@ -740,7 +755,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	altSeqEng.ActL2IncludeTx(alice.Address())(t)
 	altSequencer.ActL2EndBlock(t)
 
-	conflictBlock := seqEng.L2Chain().GetBlockByNumber(altSequencer.L2Unsafe().Number)
+	conflictBlock := seqEng.BlockByNumber(t, altSequencer.L2Unsafe().Number)
 	require.NotEqual(t, conflictBlock.Hash(), altSequencer.L2Unsafe().Hash, "alt sequencer has built a conflicting block")
 
 	// give the unsafe block to the verifier, and see if it reorgs because of any unsafe inputs
@@ -791,7 +806,7 @@ func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l2UserEnv := &actionsHelpers.BasicUserEnv[*actionsHelpers.L2Bindings]{
 		EthCl:          l2Client,
-		Signer:         types.LatestSigner(sd.L2Cfg.Config),
+		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Client, seqEngine.GethClient()),
 	}

@@ -109,7 +109,7 @@ def artifacts(directory):
             if target['name'] in binaries: raise ValueError('Duplicate release executable name')
             binaries[target['name']] = {'path': str(path.relative_to(root)), 'sha256': digest(path)}
     if not complete or found.keys() != expected.keys(): raise ValueError('Incomplete full workspace release build coverage')
-    required = {'kona-host', 'kona-node', 'op-reth'}
+    required = {'kona-host', 'kona-node', 'op-reth', 'op-reth-test-engine'}
     if not required <= binaries.keys(): raise ValueError('Missing E2E runtime release binaries')
     write(directory / 'coverage.json', {'packages': sorted(packages[p]['name'] for p in members),
           'targets': sorted(units.values(), key=lambda t: (t['package'], t['target'], t['kind'], t['role'], t['features'])),

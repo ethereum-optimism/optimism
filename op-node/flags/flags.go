@@ -425,7 +425,7 @@ var (
 
 	IgnoreMissingPectraBlobSchedule = &cli.BoolFlag{
 		Name: "ignore-missing-pectra-blob-schedule",
-		Usage: "Ignore missing pectra blob schedule fix for Sepolia and Holesky chains. Only set if you know what you are doing!" +
+		Usage: "Ignore missing pectra blob schedule fix for Sepolia chains. Only set if you know what you are doing!" +
 			"Ask your chain's operator for the correct Pectra blob schedule activation time and set it via the rollup.json config" +
 			"or use the --override.pectrablobschedule flag.",
 		EnvVars:  prefixEnvVars("IGNORE_MISSING_PECTRA_BLOB_SCHEDULE"),
