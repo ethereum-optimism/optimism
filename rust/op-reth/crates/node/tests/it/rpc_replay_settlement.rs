@@ -56,7 +56,11 @@ async fn later_transactions_include_prior_sdm_settlement() -> eyre::Result<()> {
             max_fee_per_gas: Some(20_000_000_000),
             max_priority_fee_per_gas: Some(1_000_000_000),
             nonce: Some(nonce as u64),
-            to: (nonce == 1).then_some(TxKind::Call(Address::repeat_byte(0x99))),
+            to: Some(if nonce == 1 {
+                TxKind::Call(Address::repeat_byte(0x99))
+            } else {
+                TxKind::Create
+            }),
             ..Default::default()
         };
         let transaction = TransactionTestContext::sign_tx(wallet.inner.clone(), transaction).await;
@@ -262,6 +266,7 @@ async fn later_transaction_affordability_depends_on_prior_refund() -> eyre::Resu
             max_fee_per_gas: Some(gas_price),
             max_priority_fee_per_gas: Some(gas_price),
             nonce: Some(nonce),
+            to: Some(TxKind::Create),
             ..Default::default()
         };
         let transaction = TransactionTestContext::sign_tx(wallet.inner.clone(), transaction).await;
