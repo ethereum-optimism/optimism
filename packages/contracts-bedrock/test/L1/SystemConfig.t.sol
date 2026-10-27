@@ -1009,8 +1009,9 @@ contract SystemConfig_SetKeyValue_Test is SystemConfig_TestInit {
     /// @notice Tests that `setKeyValue` reverts while the OP_PRIVATE dev feature is off.
     function testFuzz_setKeyValue_opPrivateDisabled_reverts(bytes32 _key, bytes calldata _value) external {
         skipIfDevFeatureEnabled(DevFeatures.OP_PRIVATE);
+        address owner_ = systemConfig.owner();
         vm.expectRevert(ISystemConfig.SystemConfig_OPPrivateNotEnabled.selector);
-        vm.prank(owner);
+        vm.prank(owner_);
         systemConfig.setKeyValue(_key, _value);
         assertEq(systemConfig.keyValue(_key), bytes(""));
     }
@@ -1022,7 +1023,7 @@ contract SystemConfig_SetKeyValue_Test is SystemConfig_TestInit {
         assertEq(systemConfig.keyValue(_key), bytes(""));
 
         vm.recordLogs();
-        vm.prank(owner);
+        vm.prank(systemConfig.owner());
         systemConfig.setKeyValue(_key, _value);
 
         VmSafe.Log[] memory logs = vm.getRecordedLogs();
@@ -1038,7 +1039,7 @@ contract SystemConfig_SetKeyValue_Test is SystemConfig_TestInit {
     /// @notice Tests that `setKeyValue` overwrites an existing value.
     function testFuzz_setKeyValue_overwrite_succeeds(bytes32 _key, bytes calldata _a, bytes calldata _b) external {
         skipIfDevFeatureDisabled(DevFeatures.OP_PRIVATE);
-        vm.startPrank(owner);
+        vm.startPrank(systemConfig.owner());
         systemConfig.setKeyValue(_key, _a);
         systemConfig.setKeyValue(_key, _b);
         vm.stopPrank();
@@ -1058,7 +1059,7 @@ contract SystemConfig_SetKeyValue_Test is SystemConfig_TestInit {
             0x659f261d68b613453fcea03b1af560b554583d8276177608bebf3b6d15dd6782
         );
 
-        vm.startPrank(owner);
+        vm.startPrank(systemConfig.owner());
         systemConfig.setKeyValue(
             PrivateChainSettings.key(PrivateChainSettings.UNSAFE_BLOCK_SIGNER, chainId), abi.encode(address(0xabcd))
         );
