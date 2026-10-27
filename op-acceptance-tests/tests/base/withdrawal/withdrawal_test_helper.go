@@ -87,10 +87,6 @@ func newWithdrawalTestEnv(t devtest.T, gameType gameTypes.GameType, extra ...pre
 
 func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType, extra ...presets.Option) {
 	t := devtest.ParallelT(gt)
-	if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
-		// TODO(#23479): Validate super-root withdrawals on kona-node and enable these cases.
-		sysgo.SkipOnKonaNode(t, "super-root withdrawal integration on kona-node is pending validation")
-	}
 	env := newWithdrawalTestEnv(t, gameType, extra...)
 	bridge := env.bridge
 	bridge.VerifyRespectedGameType(gameType)
