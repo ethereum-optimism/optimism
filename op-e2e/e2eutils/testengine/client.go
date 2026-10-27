@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -35,6 +36,12 @@ func Spawn(binPath, genesisPath string, logw io.Writer) (*Client, error) {
 // clients. It is valid until Close.
 func (c *Client) RPC() *rpc.Client {
 	return c.rpc
+}
+
+// SocketPath returns the path of the engine's Unix socket, for processes that dial the engine
+// themselves, such as kona-host. It is valid until Close.
+func (c *Client) SocketPath() string {
+	return c.proc.Path()
 }
 
 // Close stops the engine process. It is idempotent.
@@ -136,4 +143,18 @@ func (c *Client) IncludeNextTx(ctx context.Context, from common.Address) (*Inclu
 		return nil, err
 	}
 	return &res, nil
+}
+
+// DumpAccounts returns the state of the given accounts at the block with the given hash
+// (optest_dumpAccounts): nonce, balance, code and non-zero storage. Accounts that do not exist at
+// that block are absent from the result.
+func (c *Client) DumpAccounts(ctx context.Context, blockHash common.Hash, addrs []common.Address) (types.GenesisAlloc, error) {
+	if addrs == nil {
+		addrs = []common.Address{} // the engine rejects a null address list
+	}
+	var alloc types.GenesisAlloc
+	if err := c.rpc.CallContext(ctx, &alloc, "optest_dumpAccounts", blockHash, addrs); err != nil {
+		return nil, err
+	}
+	return alloc, nil
 }

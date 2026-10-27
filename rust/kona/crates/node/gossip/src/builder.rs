@@ -4,13 +4,38 @@ use alloy_primitives::Address;
 use kona_genesis::RollupConfig;
 use kona_peers::{PeerMonitoring, PeerScoreLevel};
 use libp2p::{
-    Multiaddr, StreamProtocol, SwarmBuilder, gossipsub::Config, identity::Keypair,
-    noise::Config as NoiseConfig, tcp::Config as TcpConfig, yamux::Config as YamuxConfig,
+    Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
+    core::{muxing::StreamMuxerBox, transport::Boxed},
+    gossipsub::Config,
+    identity::Keypair,
+    noise::Config as NoiseConfig,
+    tcp::Config as TcpConfig,
+    yamux::Config as YamuxConfig,
 };
-use std::time::Duration;
+use std::{convert::Infallible, error::Error, time::Duration};
 use tokio::sync::watch;
 
 use crate::{Behaviour, BlockHandler, GaterConfig, GossipDriver, GossipDriverBuilderError};
+
+/// Builds the swarm's authenticated, multiplexed transport from the node's [`Keypair`].
+pub type TransportBuilder = Box<
+    dyn FnOnce(&Keypair) -> Result<Boxed<(PeerId, StreamMuxerBox)>, Box<dyn Error + Send + Sync>>
+        + Send,
+>;
+
+/// The transport the gossip swarm listens and dials on.
+#[derive(Default, derive_more::Debug)]
+pub enum GossipTransport {
+    /// TCP, with DNS resolution of `/dns`, `/dns4` and `/dns6` addresses.
+    #[default]
+    Tcp,
+    /// A transport built by the caller, such as an in-memory one in tests.
+    ///
+    /// The connection gater cannot apply IP and subnet blocks to addresses without an IP, such as
+    /// `/memory` ones. With this transport it dials them after its other checks, such as blocked
+    /// peers, leaving the rest to the transport.
+    Other(#[debug(skip)] TransportBuilder),
+}
 
 /// A builder for the [`GossipDriver`].
 #[derive(Debug)]
@@ -36,6 +61,8 @@ pub struct GossipDriverBuilder {
     gater_config: Option<GaterConfig>,
     /// Topic scoring. Disabled by default.
     topic_scoring: bool,
+    /// The transport the swarm listens and dials on. TCP by default.
+    transport: GossipTransport,
 }
 
 impl GossipDriverBuilder {
@@ -60,7 +87,14 @@ impl GossipDriverBuilder {
             gater_config: None,
             rollup_config,
             topic_scoring: false,
+            transport: GossipTransport::default(),
         }
+    }
+
+    /// Sets the [`GossipTransport`] the swarm listens and dials on.
+    pub fn with_transport(mut self, transport: GossipTransport) -> Self {
+        self.transport = transport;
+        self
     }
 
     /// Sets the configuration for the connection gater.
@@ -186,35 +220,120 @@ impl GossipDriverBuilder {
 
         let protocol = format!("/opstack/req/payload_by_number/{l2_chain_id}/0/");
         let sync_protocol_name = StreamProtocol::try_from_owned(protocol)
-            .map_err(|_| GossipDriverBuilderError::SetupSyncReqRespError)?;
+            .map_err(GossipDriverBuilderError::SetupSyncReqRespError)?;
         let sync_protocol = sync_handler
             .accept(sync_protocol_name)
-            .map_err(|_| GossipDriverBuilderError::SyncReqRespAlreadyAccepted)?;
+            .map_err(GossipDriverBuilderError::SyncReqRespAlreadyAccepted)?;
 
-        // Build the swarm with DNS+TCP transport.
-        // Note: with_dns() must be called after with_tcp() to wrap TCP with DNS resolution.
         debug!(target: "gossip", "Building Swarm with Peer ID: {}", keypair.public().to_peer_id());
-        let swarm = SwarmBuilder::with_existing_identity(keypair)
-            .with_tokio()
-            .with_tcp(
-                TcpConfig::default().nodelay(true),
-                |i: &Keypair| {
-                    debug!(target: "gossip", "Noise Config Peer ID: {}", i.public().to_peer_id());
-                    NoiseConfig::new(i)
-                },
-                YamuxConfig::default,
-            )
-            .map_err(|_| GossipDriverBuilderError::TcpError)?
-            .with_dns()
-            .map_err(|_| GossipDriverBuilderError::TcpError)?
-            .with_behaviour(|_| behaviour)
-            .map_err(|_| GossipDriverBuilderError::WithBehaviourError)?
-            .with_swarm_config(|c| c.with_idle_connection_timeout(timeout))
-            .build();
+        let custom_transport = matches!(self.transport, GossipTransport::Other(_));
+        let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
+        let swarm = match self.transport {
+            // Note: with_dns() must be called after with_tcp() to wrap TCP with DNS resolution.
+            GossipTransport::Tcp => builder
+                .with_tcp(
+                    TcpConfig::default().nodelay(true),
+                    |i: &Keypair| {
+                        debug!(target: "gossip", "Noise Config Peer ID: {}", i.public().to_peer_id());
+                        NoiseConfig::new(i)
+                    },
+                    YamuxConfig::default,
+                )
+                .map_err(GossipDriverBuilderError::TcpError)?
+                .with_dns()
+                .map_err(GossipDriverBuilderError::DnsError)?
+                .with_behaviour(|_| behaviour)
+                .unwrap_or_else(|never: Infallible| match never {})
+                .with_swarm_config(|c| c.with_idle_connection_timeout(timeout))
+                .build(),
+            GossipTransport::Other(build_transport) => builder
+                .with_other_transport(build_transport)
+                .map_err(GossipDriverBuilderError::OtherTransportError)?
+                .with_behaviour(|_| behaviour)
+                .unwrap_or_else(|never: Infallible| match never {})
+                .with_swarm_config(|c| c.with_idle_connection_timeout(timeout))
+                .build(),
+        };
 
         let gater_config = self.gater_config.take().unwrap_or_default();
-        let gate = crate::ConnectionGater::new(gater_config);
+        let mut gate = crate::ConnectionGater::new(gater_config);
+        if custom_transport {
+            gate = gate.allowing_addrs_without_ip();
+        }
 
         Ok(GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate))
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use libp2p::{
+        Transport,
+        core::{transport::MemoryTransport, upgrade::Version},
+        multiaddr::Protocol,
+    };
+
+    /// An in-process transport with the upgrades `with_tcp` applies: lazy protocol negotiation,
+    /// Noise, then Yamux.
+    fn memory_transport() -> GossipTransport {
+        GossipTransport::Other(Box::new(|keypair| {
+            Ok(MemoryTransport::default()
+                .upgrade(Version::V1Lazy)
+                .authenticate(NoiseConfig::new(keypair)?)
+                .multiplex(YamuxConfig::default())
+                .boxed())
+        }))
+    }
+
+    /// Builds a gossip driver whose swarm uses the in-memory transport, listening on a free
+    /// `/memory` port once started.
+    pub(crate) fn memory_driver() -> GossipDriver<crate::ConnectionGater> {
+        GossipDriverBuilder::new(
+            RollupConfig::default(),
+            Address::ZERO,
+            Multiaddr::empty().with(Protocol::Memory(0)),
+            Keypair::generate_secp256k1(),
+        )
+        .with_transport(memory_transport())
+        .build()
+        .expect("build gossip driver")
+    }
+
+    /// Polls both drivers' swarms until each has a connection, as the handshake needs both.
+    pub(crate) async fn poll_until_connected(
+        driver_1: &mut GossipDriver<crate::ConnectionGater>,
+        driver_2: &mut GossipDriver<crate::ConnectionGater>,
+    ) {
+        let connected = async {
+            while driver_1.connected_peers() == 0 || driver_2.connected_peers() == 0 {
+                tokio::select! {
+                    Some(event) = driver_1.next() => { driver_1.handle_event(event); }
+                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
+                }
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(10), connected).await.expect("swarms connect");
+    }
+
+    /// [`GossipTransport::Other`] replaces TCP: swarms built with a memory transport listen on
+    /// and connect over `/memory` addresses.
+    #[tokio::test]
+    async fn test_other_transport_connects_swarms() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+
+        // Port 0 binds a free memory port, the way it binds a free TCP port.
+        let addr_2 = driver_2.start().await.expect("listen");
+        assert!(matches!(addr_2.iter().next(), Some(Protocol::Memory(port)) if port != 0));
+        driver_1.start().await.expect("listen");
+
+        let peer_2 = *driver_2.local_peer_id();
+        driver_1.swarm.dial(addr_2.with(Protocol::P2p(peer_2))).expect("dial");
+
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+
+        assert!(driver_1.swarm.is_connected(&peer_2));
+        assert!(driver_2.swarm.is_connected(driver_1.local_peer_id()));
     }
 }

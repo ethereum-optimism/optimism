@@ -3,7 +3,6 @@ package helpers
 import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/gethengine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -25,7 +24,7 @@ import (
 // and the consolidation step is covered against a real dependency set by the ConsolidateStep cases
 // in op-acceptance-tests' superfaultproofs suite; re-proving it for every transition here would
 // double the suite's kona-host invocations for a single-chain no-op.
-func WithSuperDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpers.L2Verifier, l2Eng *gethengine.L2Engine) FixtureInputParam {
+func WithSuperDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpers.L2Verifier, l2Eng *helpers.L2Engine) FixtureInputParam {
 	return func(f *FixtureInputs) {
 		cfg := l2.RollupCfg
 		require.Greater(t, l2ClaimBlockNum, cfg.Genesis.L2.Number,
@@ -64,9 +63,8 @@ func WithSuperDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpers.L2
 
 		f.L2Sources = []*FaultProofProgramL2Source{
 			{
-				Node:        l2,
-				Engine:      l2Eng,
-				ChainConfig: l2Eng.L2Chain().Config(),
+				Node:   l2,
+				Engine: l2Eng,
 			},
 		}
 	}
@@ -133,21 +131,9 @@ func runProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, run P
 	rollupCfgs := make([]*rollup.Config, 0, len(fixtureInputs.L2Sources))
 	l1chainConfig := l1.L1Chain().Config()
 	l2Endpoints := make([]string, 0, len(fixtureInputs.L2Sources))
-	var closeProxies []func()
-	defer func() {
-		for _, closeFn := range closeProxies {
-			closeFn()
-		}
-	}()
 	for _, source := range fixtureInputs.L2Sources {
 		rollupCfgs = append(rollupCfgs, source.Node.RollupCfg)
-		endpoint := source.Engine.HTTPEndpoint()
-		if fixtureInputs.L2RPCTracker != nil {
-			proxyURL, closeFn := fixtureInputs.L2RPCTracker.StartProxy(endpoint)
-			closeProxies = append(closeProxies, closeFn)
-			endpoint = proxyURL
-		}
-		l2Endpoints = append(l2Endpoints, endpoint)
+		l2Endpoints = append(l2Endpoints, source.Engine.RPCEndpoint())
 	}
 
 	err := run(t, workDir, rollupCfgs, l1chainConfig, l1.HTTPEndpoint(), fakeBeacon.BeaconAddr(), l2Endpoints, *fixtureInputs)

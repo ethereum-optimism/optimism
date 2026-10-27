@@ -1,10 +1,10 @@
 // Package params holds the OP-Stack-specific chain configuration types. Consumers
 // import it as opparams.
 //
-// This package must stay free of op-core/superchain, which embeds the generated
+// This package must stay free of op-core/superchain/bundle, which embeds the generated
 // registry bundle: packages that only need config types (notably op-node/rollup)
-// must not pull the bundle into their build closure. The registry-backed loading
-// lives in op-core/superchain, which imports this package one-way.
+// must not pull the bundle into their build closure. op-core/superchain, which maps
+// registry configs onto these types, imports this package one-way.
 package params
 
 import (

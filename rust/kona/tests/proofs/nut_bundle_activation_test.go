@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -91,8 +92,8 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	require.NotEmpty(t, expectedTxs, "bundle for %s must contain at least one upgrade tx", fork)
 
 	engine := env.Engine
-	actBlock := engine.L2Chain().GetBlockByHash(actHeader.Hash())
-	txs := actBlock.Transactions()
+	_, txs, err := engine.SourceClient(t, 10).InfoAndDepositsByHash(t.Ctx(), actHeader.Hash())
+	require.NoError(t, err)
 	// Index 0 is the L1 info deposit; indices 1.. are the NUT upgrade deposits.
 	require.Len(t, txs, 1+len(expectedTxs),
 		"activation block should have 1 L1 info deposit + %d NUT upgrade txs", len(expectedTxs))
@@ -103,9 +104,9 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 		require.NoError(t, err)
 		require.Equal(t, []byte(rawExpected), actualBytes, "NUT tx %d byte mismatch", i)
 
-		var expected types.Transaction
-		require.NoError(t, expected.UnmarshalBinary(rawExpected))
-		totalUpgradeGas += expected.Gas()
+		expected, err := optypes.UnmarshalDepositTx(rawExpected)
+		require.NoError(t, err)
+		totalUpgradeGas += expected.Gas
 	}
 	// The reservation covers wrapper deposits that only a multi-chain activation emits, which this
 	// single-chain devnet does not execute. Sum the multi-chain deposit set — the one that actually
@@ -117,9 +118,9 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	}
 	var reservedGas uint64
 	for _, raw := range reservedTxs {
-		var tx types.Transaction
-		require.NoError(t, tx.UnmarshalBinary(raw))
-		reservedGas += tx.Gas()
+		tx, err := optypes.UnmarshalDepositTx(raw)
+		require.NoError(t, err)
+		reservedGas += tx.Gas
 	}
 	require.Equal(t, expectedGas, reservedGas, "reserved gas must equal its activation deposits' total")
 	require.LessOrEqual(t, totalUpgradeGas, reservedGas, "executed deposits must fit within the reservation")
@@ -127,8 +128,9 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	// Every tx in the activation block — the L1 info deposit and all NUT upgrade
 	// deposits — must execute successfully. A reverted upgrade tx would leave the
 	// chain in a broken fork-activation state.
-	receipts := engine.L2Chain().GetReceiptsByHash(actHeader.Hash())
-	require.Len(t, receipts, len(txs), "receipt count must match tx count")
+	_, receipts, err := engine.SourceClient(t, 10).FetchReceipts(t.Ctx(), actHeader.Hash())
+	require.NoError(t, err)
+	require.Len(t, receipts, len(txs), "receipt count must match deposit count")
 	for i, r := range receipts {
 		require.Equal(t, types.ReceiptStatusSuccessful, r.Status,
 			"activation-block tx %d reverted", i)
@@ -165,8 +167,8 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	upgradeGas, err := derive.UpgradeGas(fork)
 	require.NoError(t, err, "read upgrade gas for %s", fork)
 	env.Sequencer.ActL2EmptyBlock(t)
-	postActivation := engine.L2Chain().CurrentHeader()
-	preActivation := engine.L2Chain().GetHeaderByNumber(bigs.Uint64Strict(actHeader.Number) - 1)
+	postActivation := engine.LatestHeader(t)
+	preActivation := engine.HeaderByNumber(t, bigs.Uint64Strict(actHeader.Number)-1)
 	require.Equal(t, preActivation.GasLimit+upgradeGas, actHeader.GasLimit,
 		"activation block gas limit must be the pre-activation limit plus the one-time upgrade gas")
 	require.Equal(t, preActivation.GasLimit, postActivation.GasLimit,
@@ -205,13 +207,13 @@ func testKarstActivationKeepUpgradeGas(gt *testing.T, testCfg *helpers.TestCfg[f
 	require.NoError(t, err)
 
 	engine := env.Engine
-	preActivation := engine.L2Chain().GetHeaderByNumber(bigs.Uint64Strict(actHeader.Number) - 1)
+	preActivation := engine.HeaderByNumber(t, bigs.Uint64Strict(actHeader.Number)-1)
 	require.Equal(t, preActivation.GasLimit+karstGas, actHeader.GasLimit,
 		"activation block gas limit must be the pre-activation limit plus the Karst upgrade gas")
 
 	// The block after activation keeps the inflated limit instead of reverting.
 	env.Sequencer.ActL2EmptyBlock(t)
-	postActivation := engine.L2Chain().CurrentHeader()
+	postActivation := engine.LatestHeader(t)
 	require.Equal(t, actHeader.GasLimit, postActivation.GasLimit,
 		"keep_karst_upgrade_gas must keep the inflated gas limit past the Karst activation block")
 
@@ -256,7 +258,7 @@ func activateFork(t actionsHelpers.Testing, testCfg *helpers.TestCfg[forks.Name]
 		env.Sequencer.ActL2EmptyBlock(t)
 	}
 
-	actHeader := env.Engine.L2Chain().CurrentHeader()
+	actHeader := env.Engine.LatestHeader(t)
 	require.True(t,
 		env.Sd.RollupCfg.IsActivationBlockForFork(actHeader.Time, fork),
 		"expected activation block for %s at time %d", fork, actHeader.Time)

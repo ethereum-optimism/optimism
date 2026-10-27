@@ -88,7 +88,7 @@ func newWithdrawalTestEnv(t devtest.T, gameType gameTypes.GameType, extra ...pre
 func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType, extra ...presets.Option) {
 	t := devtest.ParallelT(gt)
 	if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
-		// TODO(#21861): Enable this when kona-node supports superroot_atTimestamp
+		// TODO(#23476): Enable this when kona-node supports superroot_atTimestamp
 		sysgo.SkipOnKonaNode(t, "super-root proposals require op-node superroot RPC")
 	}
 	env := newWithdrawalTestEnv(t, gameType, extra...)

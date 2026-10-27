@@ -73,6 +73,10 @@ type zkProposerConfig struct {
 	Metrics          bool
 	LogPath          string
 	RangeGasLimit    uint64
+	RangeSplitCount  uint64
+	// L2RPCProxy, when set, starts a proxy in front of an L2 EL endpoint and
+	// returns the URL the proposer uses instead.
+	L2RPCProxy func(p devtest.T, name string, targetURL string) string
 }
 
 // ZKProposerRuntime is the opaque handle for a running op-zk-proposer.
@@ -128,6 +132,15 @@ func WithZKLogPath(path string) ZKProposerOption {
 func WithZKRangeGasLimit(limit uint64) ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.RangeGasLimit = limit
+	}
+}
+
+// WithZKRangeSplitCount sets the number of chunks each game span is proven in,
+// between 1 and 128. A span shorter than the count gets one timestamp per
+// chunk. Zero keeps the proposer default.
+func WithZKRangeSplitCount(count uint64) ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.RangeSplitCount = count
 	}
 }
 
@@ -210,6 +223,9 @@ func startZKProposer(
 	rollupPaths := make([]string, len(l2Nets))
 	for i, l2Net := range l2Nets {
 		l2RPCs[i] = l2ELs[i].UserRPC()
+		if cfg.L2RPCProxy != nil {
+			l2RPCs[i] = cfg.L2RPCProxy(t, l2Net.ChainID().String(), l2RPCs[i])
+		}
 		rollupData, err := json.Marshal(l2Net.rollupCfg)
 		require.NoError(err, "must marshal rollup config")
 		rollupPath := filepath.Join(configDir, fmt.Sprintf("rollup-%v.json", l2Net.ChainID()))
@@ -259,6 +275,9 @@ func startZKProposer(
 	}
 	if cfg.RangeGasLimit != 0 {
 		env = append(env, zkProposerEnv("RANGE_GAS_LIMIT", strconv.FormatUint(cfg.RangeGasLimit, 10)))
+	}
+	if cfg.RangeSplitCount != 0 {
+		env = append(env, zkProposerEnv("RANGE_SPLIT_COUNT", strconv.FormatUint(cfg.RangeSplitCount, 10)))
 	}
 	// Always pin the metrics port so inherited host configuration cannot
 	// reach every devstack proposer and collide across parallel systems.

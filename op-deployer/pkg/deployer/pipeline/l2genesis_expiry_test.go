@@ -8,8 +8,8 @@ import (
 )
 
 func TestCheckL2ToL2MessageExpiryPeriodOverride(t *testing.T) {
-	// Mainnet, Sepolia, Holesky and Hoodi.
-	for _, l1ChainID := range []uint64{1, 11155111, 17000, 560048} {
+	// Mainnet, Sepolia and Hoodi.
+	for _, l1ChainID := range []uint64{1, 11155111, 560048} {
 		require.NoError(t, checkL2ToL2MessageExpiryPeriodOverride(state.IntentTypeCustom, l1ChainID, 0),
 			"the production period is always allowed")
 		require.ErrorContains(t, checkL2ToL2MessageExpiryPeriodOverride(state.IntentTypeCustom, l1ChainID, 30),
@@ -21,4 +21,6 @@ func TestCheckL2ToL2MessageExpiryPeriodOverride(t *testing.T) {
 	}
 	require.NoError(t, checkL2ToL2MessageExpiryPeriodOverride(state.IntentTypeCustom, 900, 30),
 		"a custom intent on a local devnet may shorten the period")
+	require.NoError(t, checkL2ToL2MessageExpiryPeriodOverride(state.IntentTypeCustom, 17000, 30),
+		"Holesky, shut down, is no public L1")
 }

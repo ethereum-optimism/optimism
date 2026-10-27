@@ -336,7 +336,7 @@ flag definitions. %[4]d flags: %[5]d required, %[6]d optional.
 //     KindKeys is sorted upstream (proposed as a follow-up to the B1 slice).
 //   - The --network usage string enumerates chaincfg.AvailableNetworks(),
 //     which is read from the superchain-registry bundle
-//     (op-core/superchain/superchain-configs.zip) — it changes with every
+//     (op-core/superchain/bundle/superchain-configs.zip) — it changes with every
 //     registry submodule bump, independent of any component release, and
 //     would otherwise make the snippet stale (and -check red) by
 //     construction. Replace the enumerated list with a stable pointer at the

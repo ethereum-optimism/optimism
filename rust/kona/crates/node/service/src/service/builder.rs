@@ -22,6 +22,7 @@ use kona_interop::DependencySet;
 use kona_providers_alloy::OnlineBeaconClient;
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::RpcBuilder;
+use kona_safedb::SafeDb;
 
 /// Configuration for Derivation Delegate mode.
 #[derive(Debug, Clone)]
@@ -56,6 +57,8 @@ pub struct L1ConfigBuilder {
 /// The [`RollupNodeBuilder`] is used to construct a [`RollupNode`] service.
 #[derive(Debug)]
 pub struct RollupNodeBuilder {
+    /// The application version reported by the RPC server.
+    pub version: String,
     /// The rollup configuration.
     pub config: RollupConfig,
     /// The L1 chain configuration.
@@ -75,11 +78,14 @@ pub struct RollupNodeBuilder {
     pub derivation_delegate_config: Option<DerivationDelegateConfig>,
     /// The interop dependency set for this chain.
     pub dependency_set: Option<Arc<DependencySet>>,
+    /// Records the safe head reached as of each L1 block when configured.
+    pub safe_db: Option<Arc<dyn SafeDb>>,
 }
 
 impl RollupNodeBuilder {
-    /// Creates a new [`RollupNodeBuilder`] with the given [`RollupConfig`].
+    /// Creates a new [`RollupNodeBuilder`] with the application version and [`RollupConfig`].
     pub const fn new(
+        version: String,
         config: RollupConfig,
         l1_config_builder: L1ConfigBuilder,
         l2_trust_rpc: bool,
@@ -88,6 +94,7 @@ impl RollupNodeBuilder {
         rpc_config: Option<RpcBuilder>,
     ) -> Self {
         Self {
+            version,
             config,
             l1_config_builder,
             l2_trust_rpc,
@@ -97,6 +104,7 @@ impl RollupNodeBuilder {
             sequencer_config: None,
             derivation_delegate_config: None,
             dependency_set: None,
+            safe_db: None,
         }
     }
 
@@ -107,6 +115,11 @@ impl RollupNodeBuilder {
     /// constructor panics on an interop-scheduled chain.
     pub fn with_dependency_set(self, dependency_set: Option<Arc<DependencySet>>) -> Self {
         Self { dependency_set, ..self }
+    }
+
+    /// Sets the safe head database that records derivation progress per L1 block.
+    pub fn with_safe_db(self, safe_db: Option<Arc<dyn SafeDb>>) -> Self {
+        Self { safe_db, ..self }
     }
 
     /// Sets the [`EngineConfig`] on the [`RollupNodeBuilder`].
@@ -187,6 +200,7 @@ impl RollupNodeBuilder {
         });
 
         RollupNode {
+            version: self.version,
             config: rollup_config,
             l1_config,
             l2_provider,
@@ -198,6 +212,7 @@ impl RollupNodeBuilder {
             sequencer_config,
             derivation_delegate_provider,
             dependency_set: self.dependency_set,
+            safe_db: self.safe_db,
         }
     }
 }

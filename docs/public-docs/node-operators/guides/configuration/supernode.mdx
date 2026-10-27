@@ -12,8 +12,7 @@ audit-source:
 ---
 
 <Info>
-  op-supernode is in active development.
-  This page tracks the [op-supernode/v0.2.2-rc.8](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv0.2.2-rc.8) release candidate and the recommendations may evolve before the stable release.
+  This page tracks the [op-supernode/v1.0.4](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.4) release.
   For background on what op-supernode is and why it exists, see the [supernode explainer](/op-stack/interop/supernode).
 </Info>
 
@@ -46,7 +45,7 @@ Configure `--l1.beacon-fallbacks` (or `OP_SUPERNODE_L1_BEACON_FALLBACKS`) with o
 Set them up from the start — once a primary beacon prunes a blob the supernode needs, only an archiver can recover it.
 The shared beacon client uses the fallbacks transparently when the primary beacon node returns 404 for an expired blob.
 
-For options on what to point `--l1.beacon-fallbacks` at — running your own non-pruning beacon, running `blob-archiver`, or using a third-party service — see the [blob archiver guide](/node-operators/guides/management/blobs#configure-a-blob-archiver).
+For options on what to point `--l1.beacon-fallbacks` at — running your own non-pruning beacon, running `blob-archiver`, or using a third-party service — see the [blob archiver guide](/node-operators/guides/management/blobs#configuring-a-blob-archiver).
 
 ### Configure EL retention for supernode backfill
 
@@ -85,18 +84,19 @@ A single op-supernode is acceptable for evaluation, but treat it as a single poi
 
 ## Example configuration
 
-This is a minimum viable configuration for an op-supernode acting as a verifier across OP Sepolia and Unichain Sepolia.
+This is a minimum viable configuration for an op-supernode acting as a verifier across OP Mainnet and Unichain.
 The example uses environment variables; pass the equivalent `--flag` arguments instead if that fits your deployment better.
 Fill in the placeholders before starting the binary.
 
 <Info>
-  The example below assumes a two-chain dependency set of OP Sepolia (chain ID `11155420`) and Unichain Sepolia (chain ID `1301`).
+  The example below assumes a two-chain dependency set of OP Mainnet (chain ID `10`) and Unichain (chain ID `130`).
+  For the testnet pair, use `11155420` and `1301` with networks `op-sepolia` and `unichain-sepolia`.
   For a different dependency set, replace the chain IDs in `OP_SUPERNODE_CHAINS` and add or remove the matching `OP_SUPERNODE_VN_<CHAINID>_NETWORK` and `OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_RPC` pairs for each chain.
 </Info>
 
 ```yaml
 # Dependency set and storage
-OP_SUPERNODE_CHAINS: "11155420,1301"          # OP Sepolia + Unichain Sepolia
+OP_SUPERNODE_CHAINS: "10,130"                 # OP Mainnet + Unichain
 OP_SUPERNODE_DATA_DIR: /var/lib/op-supernode  # default is ./datadir
 
 # Shared L1 access
@@ -108,12 +108,12 @@ OP_SUPERNODE_L1_BEACON_FALLBACKS: <your-l1-beacon-archiver-rpc>
 OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH: /etc/op/jwt-secret.txt
 
 # Per-chain: chain identity, engine RPC, and engine kind (reth when the chain's EL is op-reth)
-OP_SUPERNODE_VN_11155420_NETWORK: op-sepolia
-OP_SUPERNODE_VN_11155420_L2_ENGINE_RPC: <op-sepolia-engine-rpc>
-OP_SUPERNODE_VN_11155420_L2_ENGINE_KIND: reth
-OP_SUPERNODE_VN_1301_NETWORK: unichain-sepolia
-OP_SUPERNODE_VN_1301_L2_ENGINE_RPC: <unichain-sepolia-engine-rpc>
-OP_SUPERNODE_VN_1301_L2_ENGINE_KIND: reth
+OP_SUPERNODE_VN_10_NETWORK: op-mainnet
+OP_SUPERNODE_VN_10_L2_ENGINE_RPC: <op-mainnet-engine-rpc>
+OP_SUPERNODE_VN_10_L2_ENGINE_KIND: reth
+OP_SUPERNODE_VN_130_NETWORK: unichain-mainnet
+OP_SUPERNODE_VN_130_L2_ENGINE_RPC: <unichain-engine-rpc>
+OP_SUPERNODE_VN_130_L2_ENGINE_KIND: reth
 
 # Top-level JSON-RPC server (per-chain namespaces under /<chainID>/)
 OP_SUPERNODE_RPC_ADDR: 0.0.0.0
@@ -134,7 +134,7 @@ Every flag in the example — and everything else the binary accepts, including 
 
 * Follow the [supernode setup guide](/node-operators/guides/configuration/supernode-setup) to stand up a supernode from scratch.
 * Read the [op-supernode configuration reference](/node-operators/reference/op-supernode-config) for the complete flag and environment-variable catalogue.
-* Read the [interop prep notice](/notices/interop-prep) for the node-operator action checklist for the OP Sepolia and Unichain Sepolia activation.
+* Read the [interop prep notice](/notices/interop-prep) for the node-operator action checklist for the OP Mainnet and Unichain activation.
 * Read the [supernode explainer](/op-stack/interop/supernode) for what op-supernode is and why it exists.
 * Read the [specialized op-node topology notice](/notices/specialized-node-topology) for the operator-facing pattern of running Light CL fleets that follow a supernode safe source.
 * Read the [interop explainer](/op-stack/interop/explainer) for how cross-chain messaging works at the protocol level.

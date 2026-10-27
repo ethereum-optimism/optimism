@@ -9,7 +9,7 @@ use kona_peers::{EnrValidation, PeerMonitoring, enr_to_multiaddr};
 use libp2p::{
     Multiaddr, PeerId, Swarm, TransportError,
     gossipsub::{IdentTopic, MessageId},
-    swarm::SwarmEvent,
+    swarm::{ConnectionId, SwarmEvent, dial_opts::DialOpts},
 };
 use libp2p_identity::Keypair;
 use libp2p_stream::IncomingStreams;
@@ -62,6 +62,33 @@ pub struct GossipDriver<G: ConnectionGate> {
     pub connection_gate: G,
     /// Tracks ping times for peers.
     pub ping: Arc<Mutex<HashMap<PeerId, Duration>>>,
+    /// The open connections to each peer, used to close duplicate connections.
+    pub(crate) connections: HashMap<PeerId, HashMap<ConnectionId, PeerConnection>>,
+    /// How long a duplicate connection stays open before it is closed.
+    ///
+    /// gossipsub sends its subscriptions to a peer only once, on the first connection, through a
+    /// queue that all connections to the peer share (`on_connection_established` in
+    /// libp2p-gossipsub). Closing a connection while it still carries them loses them, and the
+    /// peers then never mesh. Waiting gives them time to arrive.
+    pub(crate) duplicate_connection_grace: Duration,
+    /// When the next duplicate connection may be closed, if there is one.
+    ///
+    /// Set when a duplicate connection is established, and after each check to the earliest
+    /// duplicate still in its grace period. `None` until the next duplicate is established.
+    next_duplicate_check: Option<tokio::time::Instant>,
+}
+
+/// How long a duplicate connection stays open by default, see
+/// [`GossipDriver::duplicate_connection_grace`].
+const DUPLICATE_CONNECTION_GRACE: Duration = Duration::from_secs(10);
+
+/// An open connection to a peer.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PeerConnection {
+    /// The peer that dialed the connection, this node or the other one.
+    dialer: PeerId,
+    /// When the connection was established.
+    established: tokio::time::Instant,
 }
 
 impl<G> GossipDriver<G>
@@ -98,6 +125,9 @@ where
             sync_protocol: Some(sync_protocol),
             connection_gate: gate,
             ping: Arc::new(Mutex::new(Default::default())),
+            connections: Default::default(),
+            duplicate_connection_grace: DUPLICATE_CONNECTION_GRACE,
+            next_duplicate_check: None,
         }
     }
 
@@ -123,7 +153,7 @@ where
         let topic_hash = topic.hash();
         let data = self.handler.encode(topic, payload, signature)?;
         let id = self.swarm.behaviour_mut().gossipsub.publish(topic_hash, data)?;
-        kona_macros::inc!(gauge, crate::Metrics::UNSAFE_BLOCK_PUBLISHED);
+        metrics::gauge!(crate::Metrics::UNSAFE_BLOCK_PUBLISHED).increment(1);
         Ok(id)
     }
 
@@ -219,8 +249,18 @@ where
     }
 
     /// Attempts to select the next event from the Swarm.
+    ///
+    /// When duplicate connections may be closed, it returns [`Event::DuplicateConnectionsDue`]
+    /// instead, for [`Self::handle_event`] to close them.
     pub async fn next(&mut self) -> Option<SwarmEvent<Event>> {
-        self.swarm.next().await
+        let check = self.next_duplicate_check;
+        let deadline = check.unwrap_or_else(tokio::time::Instant::now);
+        tokio::select! {
+            event = self.swarm.next() => event,
+            () = tokio::time::sleep_until(deadline), if check.is_some() => {
+                Some(SwarmEvent::Behaviour(Event::DuplicateConnectionsDue))
+            }
+        }
     }
 
     /// Returns the number of connected peers.
@@ -237,7 +277,7 @@ where
         }
         let Some(multiaddr) = enr_to_multiaddr(&enr) else {
             debug!(target: "gossip", "Failed to extract tcp socket from enr: {:?}", enr);
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_enr");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_enr").increment(1);
             return;
         };
         self.dial_multiaddr(multiaddr);
@@ -245,62 +285,125 @@ where
 
     /// Dials the given [`Multiaddr`].
     pub fn dial_multiaddr(&mut self, addr: Multiaddr) {
+        let peer_id = ConnectionGater::peer_id_from_addr(&addr);
+
+        // Discovery hands over the ENRs of connected peers again and again. So this is checked
+        // before the gate, which would refuse it as already dialing or count it as a dial.
+        if peer_id.is_some_and(|peer_id| self.swarm.is_connected(&peer_id)) {
+            debug!(target: "gossip", peer=?addr, "Already connected to peer, not dialing");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected")
+                .increment(1);
+            return;
+        }
+
         // Check if we're allowed to dial the address.
         if let Err(dial_error) = self.connection_gate.can_dial(&addr) {
             debug!(target: "gossip", ?dial_error, "unable to dial peer");
             return;
         }
 
-        // Extract the peer ID from the address.
-        let Some(peer_id) = ConnectionGater::peer_id_from_addr(&addr) else {
+        // `ConnectionGater` rejects an address without a peer ID, but another gate may not.
+        let Some(peer_id) = peer_id else {
             warn!(target: "gossip", peer=?addr, "Failed to extract PeerId from Multiaddr");
             return;
         };
-
-        if self.swarm.connected_peers().any(|p| p == &peer_id) {
-            debug!(target: "gossip", peer=?addr, "Already connected to peer, not dialing");
-            kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected");
-            return;
-        }
 
         // Let the gate know we are dialing the address.
         // Note: libp2p-dns will automatically resolve DNS multiaddrs at the transport layer.
         self.connection_gate.dialing(&addr);
 
-        // Dial
-        match self.swarm.dial(addr.clone()) {
+        // Dial from a new port. From the listen port, two peers dialing each other at the same
+        // time would share one TCP connection, which fails the handshake, and on macOS could not
+        // redial until it leaves `TIME_WAIT`. With new ports, each dial gets its own connection,
+        // and the duplicate is closed once both are established.
+        let opts = DialOpts::unknown_peer_id().address(addr.clone()).allocate_new_port().build();
+        match self.swarm.dial(opts) {
             Ok(_) => {
                 trace!(target: "gossip", peer=?addr, "Dialed peer");
                 self.connection_gate.dialed(&addr);
-                kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER);
+                metrics::gauge!(crate::Metrics::DIAL_PEER).increment(1);
             }
             Err(e) => {
                 error!(target: "gossip", "Failed to connect to peer: {:?}", e);
                 self.connection_gate.remove_dial(&peer_id);
-                kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "connection_error");
+                metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "connection_error")
+                    .increment(1);
             }
         }
+    }
+
+    /// Closes duplicate connections whose grace period has passed, so that both peers keep the
+    /// same one, and schedules the next check for those still in theirs.
+    ///
+    /// Two peers that dial each other at the same time, or one that dials while the other is
+    /// already connected, get two connections. Both peers close the connection dialed by the one
+    /// with the larger [`PeerId`], once a connection dialed by the smaller one exists. That only
+    /// depends on what both peers see, so they close the same connection and keep the other.
+    /// Connections dialed by the same peer are left open: there is no choice between those that
+    /// both peers would agree on.
+    ///
+    /// A peer's duplicates are closed once its youngest connection has been open for
+    /// [`Self::duplicate_connection_grace`].
+    fn close_duplicate_connections(&mut self) {
+        self.next_duplicate_check = None;
+        let local_peer_id = *self.local_peer_id();
+        let now = tokio::time::Instant::now();
+        let mut pending = Vec::new();
+        let mut duplicates = Vec::new();
+        for (peer_id, connections) in &self.connections {
+            let preferred_dialer = local_peer_id.min(*peer_id);
+            if connections.len() < 2 ||
+                !connections.values().any(|connection| connection.dialer == preferred_dialer)
+            {
+                continue;
+            }
+            let youngest = connections.values().map(|connection| connection.established).max();
+            let Some(closable_at) = youngest.map(|at| at + self.duplicate_connection_grace) else {
+                continue;
+            };
+            if closable_at > now {
+                pending.push(closable_at);
+                continue;
+            }
+            duplicates.extend(
+                connections
+                    .iter()
+                    .filter(|(_, connection)| connection.dialer != preferred_dialer)
+                    .map(|(connection_id, _)| (*peer_id, *connection_id)),
+            );
+        }
+        for (peer_id, connection_id) in duplicates {
+            debug!(target: "gossip", ?peer_id, ?connection_id, "Closing duplicate connection");
+            self.swarm.close_connection(connection_id);
+        }
+        for at in pending {
+            self.update_next_duplicate_check(at);
+        }
+    }
+
+    /// Moves the next duplicate connection check to `at`, if that is earlier.
+    fn update_next_duplicate_check(&mut self, at: tokio::time::Instant) {
+        self.next_duplicate_check =
+            Some(self.next_duplicate_check.map_or(at, |check| check.min(at)));
     }
 
     fn handle_gossip_event(&mut self, event: Event) -> Option<OpExecutionPayloadEnvelope> {
         match event {
             Event::Gossipsub(e) => return self.handle_gossipsub_event(*e),
+            Event::DuplicateConnectionsDue => self.close_duplicate_connections(),
             Event::Ping(libp2p::ping::Event { peer, result, .. }) => {
                 trace!(target: "gossip", ?peer, ?result, "Ping received");
 
                 // If the peer is connected to gossip, record the connection duration.
                 if let Some(start_time) = self.peer_connection_start.get(&peer) {
                     let _ping_duration = start_time.elapsed();
-                    kona_macros::record!(
-                        histogram,
-                        crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS,
-                        _ping_duration.as_secs_f64()
-                    );
+                    metrics::histogram!(crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS)
+                        .record(_ping_duration.as_secs_f64());
                 }
 
                 // Record the peer score in the metrics if available.
                 if let Some(_peer_score) = self.behaviour_mut().gossipsub.peer_score(&peer) {
-                    kona_macros::record!(histogram, crate::Metrics::PEER_SCORES, _peer_score);
+                    metrics::histogram!(crate::Metrics::PEER_SCORES).record(_peer_score);
                 }
 
                 let pings = Arc::clone(&self.ping);
@@ -350,7 +453,7 @@ where
                 message,
             } => {
                 trace!(target: "gossip", "Received message with topic: {}", message.topic);
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIP_EVENT, "type" => "message", "topic" => message.topic.to_string());
+                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "message", "topic" => message.topic.to_string()).increment(1);
                 if self.handler.topics().contains(&message.topic) {
                     let (status, payload) = self.handler.handle(message);
                     _ = self
@@ -363,19 +466,20 @@ where
             }
             libp2p::gossipsub::Event::Subscribed { peer_id, topic } => {
                 trace!(target: "gossip", "Peer: {:?} subscribed to topic: {:?}", peer_id, topic);
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIP_EVENT, "type" => "subscribed", "topic" => topic.to_string());
+                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "subscribed", "topic" => topic.to_string()).increment(1);
             }
             libp2p::gossipsub::Event::Unsubscribed { peer_id, topic } => {
                 trace!(target: "gossip", "Peer: {:?} unsubscribed from topic: {:?}", peer_id, topic);
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIP_EVENT, "type" => "unsubscribed", "topic" => topic.to_string());
+                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "unsubscribed", "topic" => topic.to_string()).increment(1);
             }
             libp2p::gossipsub::Event::SlowPeer { peer_id, .. } => {
                 trace!(target: "gossip", "Slow peer: {:?}", peer_id);
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIP_EVENT, "type" => "slow_peer");
+                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "slow_peer").increment(1);
             }
             libp2p::gossipsub::Event::GossipsubNotSupported { peer_id } => {
                 trace!(target: "gossip", "Peer: {:?} does not support gossipsub", peer_id);
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIP_EVENT, "type" => "not_supported");
+                metrics::gauge!(crate::Metrics::GOSSIP_EVENT, "type" => "not_supported")
+                    .increment(1);
             }
         }
         None
@@ -387,13 +491,30 @@ where
             SwarmEvent::Behaviour(behavior_event) => {
                 return self.handle_gossip_event(behavior_event);
             }
-            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+            SwarmEvent::ConnectionEstablished {
+                peer_id,
+                connection_id,
+                endpoint,
+                num_established,
+                ..
+            } => {
+                let dialer = if endpoint.is_dialer() { *self.local_peer_id() } else { peer_id };
+                let connection =
+                    PeerConnection { dialer, established: tokio::time::Instant::now() };
+                self.connections.entry(peer_id).or_default().insert(connection_id, connection);
+                if num_established.get() > 1 {
+                    self.update_next_duplicate_check(
+                        connection.established + self.duplicate_connection_grace,
+                    );
+                }
+
                 let peer_count = self.swarm.connected_peers().count();
                 info!(target: "gossip", "Connection established: {:?} | Peer Count: {}", peer_id, peer_count);
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "connected");
-                kona_macros::set!(gauge, crate::Metrics::GOSSIP_PEER_COUNT, peer_count as f64);
+                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "connected")
+                    .increment(1);
+                metrics::gauge!(crate::Metrics::GOSSIP_PEER_COUNT).set(peer_count as f64);
 
-                self.peer_connection_start.insert(peer_id, Instant::now());
+                self.peer_connection_start.entry(peer_id).or_insert_with(Instant::now);
             }
             SwarmEvent::OutgoingConnectionError { peer_id: _peer_id, error, .. } => {
                 debug!(target: "gossip", "Outgoing connection error: {:?}", error);
@@ -401,39 +522,46 @@ where
                 if let Some(peer_id) = _peer_id {
                     self.connection_gate.remove_dial(&peer_id);
                 }
-                kona_macros::inc!(
-                    gauge,
-                    crate::Metrics::GOSSIPSUB_CONNECTION,
-                    "type" => "outgoing_error"
-                );
+                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "outgoing_error")
+                    .increment(1);
             }
             SwarmEvent::IncomingConnectionError { error, .. } => {
                 debug!(target: "gossip", "Incoming connection error: {:?}", error);
-                kona_macros::inc!(
-                    gauge,
-                    crate::Metrics::GOSSIPSUB_CONNECTION,
-                    "type" => "incoming_error"
-                );
+                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "incoming_error")
+                    .increment(1);
             }
-            SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
+            SwarmEvent::ConnectionClosed {
+                peer_id, connection_id, num_established, cause, ..
+            } => {
+                if let Some(connections) = self.connections.get_mut(&peer_id) {
+                    connections.remove(&connection_id);
+                    if connections.is_empty() {
+                        self.connections.remove(&peer_id);
+                    }
+                }
+                metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "closed")
+                    .increment(1);
+
+                // The peer is still connected, for example after closing a duplicate connection.
+                if num_established > 0 {
+                    debug!(target: "gossip", ?peer_id, ?cause, num_established, "Connection closed, peer still connected");
+                    return None;
+                }
+
                 let peer_count = self.swarm.connected_peers().count();
                 warn!(target: "gossip", ?peer_id, ?cause, peer_count, "Connection closed");
-                kona_macros::inc!(gauge, crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "closed");
-                kona_macros::set!(gauge, crate::Metrics::GOSSIP_PEER_COUNT, peer_count as f64);
+                metrics::gauge!(crate::Metrics::GOSSIP_PEER_COUNT).set(peer_count as f64);
 
                 // Record the total connection duration.
                 if let Some(start_time) = self.peer_connection_start.remove(&peer_id) {
                     let _peer_duration = start_time.elapsed();
-                    kona_macros::record!(
-                        histogram,
-                        crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS,
-                        _peer_duration.as_secs_f64()
-                    );
+                    metrics::histogram!(crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS)
+                        .record(_peer_duration.as_secs_f64());
                 }
 
                 // Record the peer score in the metrics if available.
                 if let Some(_peer_score) = self.behaviour_mut().gossipsub.peer_score(&peer_id) {
-                    kona_macros::record!(histogram, crate::Metrics::PEER_SCORES, _peer_score);
+                    metrics::histogram!(crate::Metrics::PEER_SCORES).record(_peer_score);
                 }
 
                 let pings = Arc::clone(&self.ping);
@@ -460,5 +588,188 @@ where
         };
 
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        ConnectionGater, GossipDriver,
+        builder::tests::{memory_driver, poll_until_connected},
+    };
+    use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
+    use std::time::Duration;
+
+    /// Polls both drivers' swarms until `done` holds for them, for at most 10 seconds.
+    async fn poll_until(
+        driver_1: &mut GossipDriver<ConnectionGater>,
+        driver_2: &mut GossipDriver<ConnectionGater>,
+        done: impl Fn(&GossipDriver<ConnectionGater>, &GossipDriver<ConnectionGater>) -> bool,
+    ) {
+        let poll = async {
+            while !done(driver_1, driver_2) {
+                tokio::select! {
+                    Some(event) = driver_1.next() => { driver_1.handle_event(event); }
+                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
+                }
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(10), poll).await.expect("condition reached");
+    }
+
+    /// Returns the number of connections the driver has open.
+    fn num_connections(driver: &GossipDriver<ConnectionGater>) -> u32 {
+        driver.swarm.network_info().connection_counters().num_established()
+    }
+
+    /// Returns whether the driver knows that `peer` is subscribed to some topic.
+    fn knows_subscriptions(driver: &GossipDriver<ConnectionGater>, peer: PeerId) -> bool {
+        driver
+            .swarm
+            .behaviour()
+            .gossipsub
+            .all_peers()
+            .any(|(id, topics)| *id == peer && !topics.is_empty())
+    }
+
+    /// Starts both drivers and has them dial each other at the same time, returning their peer IDs.
+    async fn cross_dial(
+        driver_1: &mut GossipDriver<ConnectionGater>,
+        driver_2: &mut GossipDriver<ConnectionGater>,
+    ) -> (PeerId, PeerId) {
+        let peer_1 = *driver_1.local_peer_id();
+        let peer_2 = *driver_2.local_peer_id();
+        let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
+        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        driver_1.dial_multiaddr(addr_2);
+        driver_2.dial_multiaddr(addr_1);
+        (peer_1, peer_2)
+    }
+
+    /// Two peers that dial each other at the same time end up with one connection, the one dialed
+    /// by the peer with the smaller ID, and each knows the other's subscriptions.
+    #[tokio::test]
+    async fn test_crossing_dials_keep_one_connection() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+        driver_1.duplicate_connection_grace = Duration::from_millis(100);
+        driver_2.duplicate_connection_grace = Duration::from_millis(100);
+
+        let (peer_1, peer_2) = cross_dial(&mut driver_1, &mut driver_2).await;
+        poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
+            num_connections(driver_1) == 1 &&
+                num_connections(driver_2) == 1 &&
+                knows_subscriptions(driver_1, peer_2) &&
+                knows_subscriptions(driver_2, peer_1)
+        })
+        .await;
+
+        let preferred_dialer = peer_1.min(peer_2);
+        for (driver, peer) in [(&driver_1, peer_2), (&driver_2, peer_1)] {
+            let dialers: Vec<_> =
+                driver.connections[&peer].values().map(|connection| connection.dialer).collect();
+            assert_eq!(dialers, vec![preferred_dialer]);
+        }
+    }
+
+    /// A duplicate connection stays open for its grace period, so that gossipsub's subscriptions,
+    /// which it sends only on the first connection, are not lost with it.
+    #[tokio::test]
+    async fn test_duplicate_connection_stays_open_during_grace() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+        driver_1.duplicate_connection_grace = Duration::from_secs(60);
+        driver_2.duplicate_connection_grace = Duration::from_secs(60);
+
+        cross_dial(&mut driver_1, &mut driver_2).await;
+        poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
+            num_connections(driver_1) == 2 && num_connections(driver_2) == 2
+        })
+        .await;
+
+        // Well within the grace period, nothing is closed.
+        let _ = tokio::time::timeout(Duration::from_millis(200), async {
+            loop {
+                tokio::select! {
+                    Some(event) = driver_1.next() => { driver_1.handle_event(event); }
+                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
+                }
+            }
+        })
+        .await;
+        assert_eq!(num_connections(&driver_1), 2);
+        assert_eq!(num_connections(&driver_2), 2);
+    }
+
+    /// Builds a gossip driver on TCP, listening on a free port on localhost once started.
+    fn tcp_driver() -> GossipDriver<ConnectionGater> {
+        let mut driver = crate::GossipDriverBuilder::new(
+            kona_genesis::RollupConfig::default(),
+            alloy_primitives::Address::ZERO,
+            "/ip4/127.0.0.1/tcp/0".parse().expect("valid multiaddr"),
+            libp2p::identity::Keypair::generate_secp256k1(),
+        )
+        .build()
+        .expect("build gossip driver");
+        driver.duplicate_connection_grace = Duration::from_millis(100);
+        driver
+    }
+
+    /// Peers dialing each other over TCP at the same time connect. Dialing from the listen port,
+    /// both dials would share one TCP connection and fail the handshake, which happens to about
+    /// one crossing in five, so ten crossings catch it most of the time.
+    #[tokio::test]
+    async fn test_tcp_crossing_dials_connect() {
+        for _ in 0..10 {
+            let mut driver_1 = tcp_driver();
+            let mut driver_2 = tcp_driver();
+            cross_dial(&mut driver_1, &mut driver_2).await;
+            poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
+                num_connections(driver_1) == 1 && num_connections(driver_2) == 1
+            })
+            .await;
+        }
+    }
+
+    /// Dials `addr` a few times, as discovery does whenever it sees the peer again.
+    fn redial(driver: &mut GossipDriver<ConnectionGater>, addr: &Multiaddr) {
+        for _ in 0..3 {
+            driver.dial_multiaddr(addr.clone());
+        }
+    }
+
+    /// Dialing a connected peer is skipped before the gate: it is recorded as an
+    /// `already_connected` dial error, not refused as already dialing, and not counted as a dial.
+    #[tokio::test]
+    async fn test_dial_skips_connected_peer() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+
+        let peer_2 = *driver_2.local_peer_id();
+        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        driver_1.start().await.expect("listen");
+
+        driver_1.dial_multiaddr(addr_2.clone());
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+
+        let recorder = metrics_util::debugging::DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || redial(&mut driver_1, &addr_2));
+        let dial_error_types: Vec<(String, f64)> = snapshotter
+            .snapshot()
+            .into_vec()
+            .into_iter()
+            .filter(|(key, ..)| key.key().name() == crate::Metrics::DIAL_PEER_ERROR)
+            .filter_map(|(key, _, _, value)| {
+                let kind = key.key().labels().find(|l| l.key() == "type")?.value().to_owned();
+                let metrics_util::debugging::DebugValue::Gauge(count) = value else {
+                    return None;
+                };
+                Some((kind, count.into_inner()))
+            })
+            .collect();
+        assert_eq!(dial_error_types, vec![("already_connected".to_owned(), 3.0)]);
+
+        assert_eq!(driver_1.connection_gate.dialed_peers[&addr_2].num_dials, 1);
     }
 }

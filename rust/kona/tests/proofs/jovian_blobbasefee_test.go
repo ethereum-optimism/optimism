@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -51,7 +52,7 @@ func TestJovianBlobBaseFeeMatchesCanonical(gt *testing.T) {
 		effectiveScalar := uint64(derive.DAFootprintGasScalarDefault)
 
 		l2Cl := env.Engine.EthClient()
-		signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+		signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
 		nonce, err := l2Cl.PendingNonceAt(t.Ctx(), env.Dp.Addresses.Alice)
 		require.NoError(t, err)
 
@@ -78,14 +79,14 @@ func TestJovianBlobBaseFeeMatchesCanonical(gt *testing.T) {
 				Data:      payload,
 			})
 			require.NoError(t, l2Cl.SendTransaction(t.Ctx(), tx))
-			_, err = env.Engine.EngineApi.IncludeTx(tx, env.Dp.Addresses.Alice)
+			err = env.Engine.IncludeTxErr(t, tx, env.Dp.Addresses.Alice)
 			require.NoError(t, err)
-			runningDAFootprint += bigs.Uint64Strict(tx.RollupCostData().EstimatedDASize()) * effectiveScalar
+			runningDAFootprint += bigs.Uint64Strict(fees.TxRollupCostData(tx).EstimatedDASize()) * effectiveScalar
 			nonce++
 		}
 		env.Sequencer.ActL2EndBlock(t)
 
-		footprintHeader := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash).Header()
+		footprintHeader := env.Engine.HeaderByHash(t, env.Sequencer.L2Unsafe().Hash)
 		require.NotNil(t, footprintHeader.BlobGasUsed, "blobGasUsed must be set on Jovian blocks")
 		require.Less(t, *footprintHeader.BlobGasUsed, gasLimit, "DA footprint must stay below the block gas limit")
 		require.Greater(t, *footprintHeader.BlobGasUsed, uint64(4_258_349),
@@ -102,7 +103,7 @@ func TestJovianBlobBaseFeeMatchesCanonical(gt *testing.T) {
 		env.Sequencer.ActL2EndBlock(t)
 		env.Bob.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 
-		probeBlockNum := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash).Number()
+		probeBlockNum := env.Engine.HeaderByHash(t, env.Sequencer.L2Unsafe().Hash).Number
 		storedBlobBaseFee, err := l2Cl.StorageAt(t.Ctx(), blobBaseFeeProbeAddr, common.Hash{}, probeBlockNum)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, bigs.Uint64Strict(new(big.Int).SetBytes(storedBlobBaseFee)),

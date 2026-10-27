@@ -16,6 +16,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
+import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 
 /// @custom:proxied true
 /// @title L1CrossDomainMessenger
@@ -27,8 +28,11 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     ///         gas.
     uint32 internal constant EXPIRE_MESSAGE_GAS_LIMIT = 100_000;
 
-    /// @notice Thrown when `relayUndeliveredMessage` is called on a chain that does not run
-    ///         interop.
+    /// @notice Gas limit for ETHLiquidity.setPaused on L2.
+    uint32 internal constant SET_ETH_LIQUIDITY_PAUSED_GAS_LIMIT = 200_000;
+
+    /// @notice Thrown when `relayUndeliveredMessage` or `syncETHLiquidityPause` is called on a
+    ///         chain that does not run interop.
     error L1CrossDomainMessenger_InteropNotEnabled();
 
     /// @notice Thrown when `relayUndeliveredMessage` is not called by another chain's
@@ -55,8 +59,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     address private spacer_253_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 3.0.0
-    string public constant version = "3.0.0";
+    /// @custom:semver 3.1.0
+    string public constant version = "3.1.0";
 
     /// @notice Contract of the SystemConfig.
     ISystemConfig public systemConfig;
@@ -135,6 +139,21 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
             _target: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
             _message: abi.encodeCall(IL2ToL2CrossDomainMessenger.expireMessage, (_messageHash, _undeliveredAt)),
             _minGasLimit: EXPIRE_MESSAGE_GAS_LIMIT
+        });
+    }
+
+    /// @notice Sends this chain's current pause state to its ETHLiquidity predeploy, which stops
+    ///         the SuperchainETHBridge on L2 while the chain is paused. Anyone can call it, also
+    ///         while paused; call it again after any pause, unpause or pause expiry. L2 ignores a
+    ///         message older, by nonce, than the one it applied. It reverts unless this chain runs
+    ///         interop.
+    function syncETHLiquidityPause() external {
+        if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert L1CrossDomainMessenger_InteropNotEnabled();
+
+        this.sendMessage({
+            _target: Predeploys.ETH_LIQUIDITY,
+            _message: abi.encodeCall(IETHLiquidity.setPaused, (paused(), messageNonce())),
+            _minGasLimit: SET_ETH_LIQUIDITY_PAUSED_GAS_LIMIT
         });
     }
 

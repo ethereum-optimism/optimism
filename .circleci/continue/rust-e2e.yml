@@ -6,7 +6,7 @@ version: 2.1
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge; commands used
 # only by this file's jobs are defined below.
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.32
+  utils: ethereum-optimism/circleci-utils@1.0.33
 
 parameters:
   c-default_docker_image:
@@ -14,7 +14,7 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi@sha256:f79d7c422cf320f67bbd9dbe3f36ed2755bf800d7065e4fbb63a034c3ff56914
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/circleci-runner-wolfi@sha256:5998ffd3bc688988140e697da55cf929abf1a05f5540db1069e4744e5e313ba0
   c-go-cache-version:
     type: string
     default: "v0.1"
@@ -272,6 +272,9 @@ jobs:
           command: |
             echo "Running action tests"
             export KONA_HOST_PATH=$(pwd)/../target/release/kona-host
+            export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE=$(pwd)/../target/release/op-reth-test-engine
+            test -x "$KONA_HOST_PATH"
+            test -x "$RUST_BINARY_PATH_OP_RETH_TEST_ENGINE"
             just action-tests-<<parameters.kind>>-run
       - go-save-cache:
           namespace: kona-ci
@@ -517,7 +520,9 @@ jobs:
             ROOT_DIR="$(pwd)"
             export KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$ROOT_DIR/rust/target/release/kona-sp1-super-range-executor"
             export KONA_SP1_ELF_DIR="$ROOT_DIR/rust/kona/sp1/elf"
+            export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="$ROOT_DIR/rust/target/release/op-reth-test-engine"
             test -x "$KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH"
+            test -x "$RUST_BINARY_PATH_OP_RETH_TEST_ENGINE"
             test -s "$KONA_SP1_ELF_DIR/super-range-elf"
             test -s "$KONA_SP1_ELF_DIR/log-commitment-elf"
 

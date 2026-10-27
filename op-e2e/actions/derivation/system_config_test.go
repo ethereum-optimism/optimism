@@ -249,7 +249,7 @@ func GPODefaultParams(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	alice := actionsHelpers.NewBasicUser[any](log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
 	alice.SetUserEnv(&actionsHelpers.BasicUserEnv[any]{
 		EthCl:  seqEngine.EthClient(),
-		Signer: types.LatestSigner(sd.L2Cfg.Config),
+		Signer: types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 	})
 
 	sequencer.ActL2PipelineFull(t)
@@ -304,7 +304,7 @@ func TestGPOParamsChangeEcotone(gt *testing.T) {
 	alice := actionsHelpers.NewBasicUser[any](log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
 	alice.SetUserEnv(&actionsHelpers.BasicUserEnv[any]{
 		EthCl:  seqEngine.EthClient(),
-		Signer: types.LatestSigner(sd.L2Cfg.Config),
+		Signer: types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 	})
 
 	sequencer.ActL2PipelineFull(t)

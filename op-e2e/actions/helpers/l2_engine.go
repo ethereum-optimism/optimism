@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/testengine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -44,9 +44,8 @@ var resolveEngineBinary = sync.OnceValues(func() (string, error) {
 
 // NewL2Engine spawns a fresh op-reth-test-engine subprocess over the given genesis and returns the
 // L2Engine handle driving it. The engine is ephemeral: it keeps no state across processes. Genesis
-// is marshalled to a temp file in exactly the op-geth core.Genesis JSON the binary parses
-// (OpChainSpec::from_genesis).
-func NewL2Engine(t Testing, logger log.Logger, genesis *core.Genesis) *L2Engine {
+// is marshalled to a temp file in the L2 genesis JSON the binary parses (OpChainSpec::from_genesis).
+func NewL2Engine(t Testing, logger log.Logger, genesis *opgenesis.Genesis) *L2Engine {
 	binPath, err := resolveEngineBinary()
 	require.NoError(t, err, "resolve op-reth-test-engine binary")
 
@@ -99,6 +98,12 @@ func (e *L2Engine) RPCClient() client.RPC {
 	}
 }
 
+// RPCEndpoint returns the engine's IPC endpoint, the path of its Unix socket, for processes that
+// read the L2 chain from the engine themselves, such as kona-host.
+func (e *L2Engine) RPCEndpoint() string {
+	return e.client.SocketPath()
+}
+
 // LatestHeader returns the current unsafe (canonical head) L2 header, read over the eth RPC.
 func (e *L2Engine) LatestHeader(t Testing) *types.Header {
 	return e.headerByLabel(t, rpc.LatestBlockNumber)
@@ -125,6 +130,28 @@ func (e *L2Engine) BlockByNumber(t Testing, n uint64) *types.Block {
 	b, err := e.EthClient().BlockByNumber(t.Ctx(), new(big.Int).SetUint64(n))
 	require.NoError(t, err, "block %d", n)
 	return b
+}
+
+// HeaderByHash returns the L2 header with the given hash over the eth RPC.
+func (e *L2Engine) HeaderByHash(t Testing, hash common.Hash) *types.Header {
+	h, err := e.EthClient().HeaderByHash(t.Ctx(), hash)
+	require.NoError(t, err, "header %s", hash)
+	return h
+}
+
+// HeaderByNumber returns the canonical L2 header at height n over the eth RPC.
+func (e *L2Engine) HeaderByNumber(t Testing, n uint64) *types.Header {
+	h, err := e.EthClient().HeaderByNumber(t.Ctx(), new(big.Int).SetUint64(n))
+	require.NoError(t, err, "header %d", n)
+	return h
+}
+
+// DumpAccounts returns the state of the given accounts at the L2 block with the given hash
+// (optest_dumpAccounts). Accounts that do not exist at that block are absent from the result.
+func (e *L2Engine) DumpAccounts(t Testing, blockHash common.Hash, addrs []common.Address) types.GenesisAlloc {
+	alloc, err := e.client.DumpAccounts(t.Ctx(), blockHash, addrs)
+	require.NoError(t, err, "dump accounts at %s", blockHash)
+	return alloc
 }
 
 // GenesisBlock returns the L2 genesis block.
@@ -191,6 +218,20 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 		if e.ForcedEmpty(t) {
 			e.log.Info("Skipping including a transaction because forced-empty is set")
 			return
+		}
+		e.includeNextTx(t, from)
+	}
+}
+
+// ActL2IncludeTxIgnoreForcedEmpty includes the next transaction from the given address in the
+// block that is being built, even if the block is forced to stay empty. The force-empty flag is
+// restored afterwards.
+func (e *L2Engine) ActL2IncludeTxIgnoreForcedEmpty(from common.Address) Action {
+	return func(t Testing) {
+		if e.ForcedEmpty(t) {
+			e.log.Info("Ignoring forced-empty to include a transaction")
+			require.NoError(t, e.client.SetForceEmpty(t.Ctx(), false))
+			defer func() { require.NoError(t, e.client.SetForceEmpty(t.Ctx(), true)) }()
 		}
 		e.includeNextTx(t, from)
 	}

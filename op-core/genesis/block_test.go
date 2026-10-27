@@ -1,16 +1,11 @@
 package genesis
 
 import (
-	"bytes"
 	"math/big"
-	"slices"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/trie"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
@@ -63,8 +58,6 @@ func TestToBlockWithdrawalsRoot(t *testing.T) {
 	require.Equal(t,
 		common.HexToHash("0xc14a972ff37a31d58badf880928348d5ce3fa02d50a3d935686d937d6b68b071"),
 		*block.Header().WithdrawalsHash)
-	require.Equal(t, directStorageRoot(t, fixtureAlloc()[predeploys.L2ToL1MessagePasserAddr].Storage),
-		*block.Header().WithdrawalsHash)
 	require.NotNil(t, block.Withdrawals())
 	require.Empty(t, block.Withdrawals())
 
@@ -72,8 +65,8 @@ func TestToBlockWithdrawalsRoot(t *testing.T) {
 	require.Equal(t, types.EmptyWithdrawalsHash, *g.ToBlock().Header().WithdrawalsHash)
 }
 
-// TestStorageRoot checks storageRoot against a storage trie built directly from the slots:
-// keccak256(slot) keys, RLP-encoded left-trimmed values, zero values absent.
+// TestStorageRoot pins storageRoot to the roots go-ethereum's state database computes for the
+// same storage.
 func TestStorageRoot(t *testing.T) {
 	addr := predeploys.L2ToL1MessagePasserAddr
 	storage := map[common.Hash]common.Hash{
@@ -81,28 +74,18 @@ func TestStorageRoot(t *testing.T) {
 		common.BigToHash(big.NewInt(7)): common.BigToHash(big.NewInt(0x1234)),
 		{0x05}:                          {}, // zero values are not stored
 	}
-	require.Equal(t, directStorageRoot(t, storage), storageRoot(types.GenesisAlloc{addr: {Storage: storage}}, addr))
+	require.Equal(t,
+		common.HexToHash("0x494d8ce4a991aa3310a547052a1b56e0ff645cec6095e068842fadcbfa209948"),
+		storageRoot(types.GenesisAlloc{addr: {Storage: storage}}, addr))
+	many := make(map[common.Hash]common.Hash)
+	for i := range int64(300) {
+		many[common.BigToHash(big.NewInt(i))] = common.BigToHash(big.NewInt(i*i + 1))
+	}
+	require.Equal(t,
+		common.HexToHash("0x41b76207fef93e9417eb978dbe52a985974570bb80fb092cd4365257ec7f4069"),
+		storageRoot(types.GenesisAlloc{addr: {Storage: many}}, addr))
 	require.Equal(t, types.EmptyRootHash, storageRoot(types.GenesisAlloc{addr: {}}, addr))
 	require.Equal(t, common.Hash{}, storageRoot(types.GenesisAlloc{}, addr))
-}
-
-func directStorageRoot(t *testing.T, storage map[common.Hash]common.Hash) common.Hash {
-	type kv struct{ k, v []byte }
-	var leaves []kv
-	for slot, value := range storage {
-		if value == (common.Hash{}) {
-			continue
-		}
-		v, err := rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
-		require.NoError(t, err)
-		leaves = append(leaves, kv{crypto.Keccak256(slot[:]), v})
-	}
-	slices.SortFunc(leaves, func(a, b kv) int { return bytes.Compare(a.k, b.k) })
-	st := trie.NewStackTrie(nil)
-	for _, l := range leaves {
-		require.NoError(t, st.Update(l.k, l.v))
-	}
-	return st.Hash()
 }
 
 // TestToBlockHash pins the fixture's genesis block hash, as op-geth computes it, so that

@@ -1,3 +1,7 @@
+use jsonrpsee::{
+    core::RpcResult,
+    types::{ErrorCode, ErrorObject},
+};
 use kona_genesis::RollupConfig;
 use kona_protocol::BlockInfo;
 use tokio::sync::oneshot::Sender;
@@ -28,6 +32,18 @@ pub struct L1State {
     pub safe_l1: Option<BlockInfo>,
     /// The finalized L1 block ref.
     pub finalized_l1: Option<BlockInfo>,
+}
+
+impl L1State {
+    /// Asks the L1 watcher for its current state.
+    pub async fn query(sender: &L1WatcherQuerySender) -> RpcResult<Self> {
+        let (reply, response) = tokio::sync::oneshot::channel();
+        sender
+            .send(L1WatcherQueries::L1State(reply))
+            .await
+            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+        response.await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+    }
 }
 
 /// A sender for L1 watcher queries.

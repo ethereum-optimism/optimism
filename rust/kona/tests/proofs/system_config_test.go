@@ -64,8 +64,9 @@ func testSystemConfigEarlyIsthmusUpgrade(gt *testing.T, testCfg *helpers.TestCfg
 
 	requireL1InfoParams := func(block eth.L2BlockRef, scalar uint32, constant uint64) {
 		t.Helper()
-		l1infoTx := env.Engine.L2Chain().GetBlockByHash(block.Hash).Transactions()[0]
-		l1info, err := derive.L1BlockInfoFromBytes(env.Sd.RollupCfg, block.Time, l1infoTx.Data())
+		_, l1infoTx, err := env.Engine.SourceClient(t, 10).InfoAndFirstDepositByHash(t.Ctx(), block.Hash)
+		require.NoError(t, err)
+		l1info, err := derive.L1BlockInfoFromBytes(env.Sd.RollupCfg, block.Time, l1infoTx.Data)
 		require.NoError(t, err)
 		require.Equal(t, scalar, l1info.OperatorFeeScalar)
 		require.Equal(t, constant, l1info.OperatorFeeConstant)

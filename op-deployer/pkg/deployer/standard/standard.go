@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/superchain"
+	"github.com/ethereum-optimism/optimism/op-core/superchain/bundle"
 
 	"github.com/ethereum-optimism/superchain-registry/validation"
 
@@ -168,9 +169,9 @@ func SP1VerifierHashFor(chainID uint64) (common.Hash, error) {
 func SuperchainFor(chainID uint64) (superchain.Superchain, error) {
 	switch chainID {
 	case 1:
-		return superchain.GetSuperchain("mainnet")
+		return bundle.GetSuperchain("mainnet")
 	case 11155111:
-		return superchain.GetSuperchain("sepolia")
+		return bundle.GetSuperchain("sepolia")
 	default:
 		return superchain.Superchain{}, fmt.Errorf("unsupported chain ID: %d", chainID)
 	}
@@ -243,7 +244,7 @@ func DefaultHardforkSchedule() *genesis.UpgradeScheduleDeployConfig {
 }
 
 var defaultHardfork = sync.OnceValue(func() forks.Name {
-	chain, err := superchain.GetChain(opparams.OPMainnetChainID)
+	chain, err := bundle.GetChain(opparams.OPMainnetChainID)
 	if err != nil {
 		panic(fmt.Errorf("get op mainnet chain: %w", err))
 	}

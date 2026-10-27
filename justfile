@@ -49,14 +49,14 @@ update-superchain-registry-submodule ref="":
     git add superchain-registry
   fi
 
-# Builds op-core/superchain/superchain-configs.zip (gitignored) from the
+# Builds op-core/superchain/bundle/superchain-configs.zip (gitignored) from the
 # superchain-registry submodule. Lightweight; this is the recipe the Go build/test
 # targets depend on. Verify mode: skips work if the existing zip already matches the
 # committed .sha256, otherwise regenerates and asserts it still matches (failing on drift).
 build-superchain-go: update-superchain-registry-submodule
-  bash op-core/superchain/sync-superchain.sh
+  bash op-core/superchain/bundle/sync-superchain.sh
 
-# Regenerates op-core/superchain/superchain-configs.zip AND rewrites its committed
+# Regenerates op-core/superchain/bundle/superchain-configs.zip AND rewrites its committed
 # .sha256 from the submodule — build-superchain-go in refresh mode. Sibling of
 # sync-superchain-rust; both are run by sync-superchain when bumping the registry.
 sync-superchain-go:
@@ -464,7 +464,8 @@ build-rust-release:
 check-nut-locks:
   go run ./ops/scripts/check-nut-locks
 
-# Checks that committed NUT pre-fork states regenerate without drift. Assumes required build artifacts are present.
+# Checks that committed NUT pre-fork states regenerate without drift. Assumes required build artifacts,
+# including the op-reth-test-engine binary the generator runs the L2 chain on, are present.
 [script('bash')]
 _check-nut-prefork-states:
   set -euo pipefail
@@ -480,6 +481,7 @@ _check-nut-prefork-states:
 
 # Checks that committed NUT pre-fork states regenerate without drift.
 check-nut-prefork-states: build-contracts build-superchain-go
+  just rust/build-op-reth-test-engine
   just _check-nut-prefork-states
 
 # Snapshots current-upgrade-bundle.json as a fork's NUT bundle and updates the lock file.
@@ -496,6 +498,7 @@ _nut-prefork-state-for fork:
 
 # Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
 nut-prefork-state-for fork: build-contracts build-superchain-go
+  just rust/build-op-reth-test-engine
   just _nut-prefork-state-for {{fork}}
 
 # Checks that TODO comments have corresponding issues.

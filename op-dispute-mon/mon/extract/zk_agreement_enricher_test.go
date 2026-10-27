@@ -30,22 +30,25 @@ func TestZKAgreementPolicy(t *testing.T) {
 		errors            int
 		notFound          int
 		outOfSync         int
+		safe              int
+		unsafe            int
 		differentRoots    bool
 		mixedAvailability bool
 		fetchRecorded     bool
 	}{
-		{name: "matching root", providers: []SuperRootProvider{zkFound(101, root)}, claim: root, agree: true, expected: root, fetchRecorded: true},
-		{name: "verified L1 does not gate ZK", providers: []SuperRootProvider{zkFoundWithRequiredL1(101, 101, root)}, claim: root, agree: true, expected: root, fetchRecorded: true},
+		{name: "matching root", providers: []SuperRootProvider{zkFound(101, root)}, claim: root, agree: true, expected: root, safe: 1, fetchRecorded: true},
+		{name: "canonical root not derivable at L1 head", providers: []SuperRootProvider{zkFoundWithRequiredL1(101, 101, root)}, claim: root, expected: common.Hash{}, unsafe: 1, fetchRecorded: true},
+		{name: "derivable at one source only", providers: []SuperRootProvider{zkFoundWithRequiredL1(101, 101, root), zkFound(101, root)}, claim: root, agree: true, expected: root, safe: 1, unsafe: 1, fetchRecorded: true},
 		{name: "mismatching root", providers: []SuperRootProvider{zkFound(101, root)}, claim: otherRoot, expected: root, fetchRecorded: true},
 		{name: "all behind", providers: []SuperRootProvider{zkFound(100, root), zkFound(99, otherRoot)}, wantErr: gameTypes.ErrNotInSync, outOfSync: 2},
 		{name: "all errors", providers: []SuperRootProvider{zkError(errors.New("first")), zkError(errors.New("second"))}, wantErr: ErrAllSuperRootRpcsUnavailable, errors: 2},
 		{name: "behind and error", providers: []SuperRootProvider{zkFound(100, root), zkError(errors.New("boom"))}, wantErr: ErrAllSuperRootRpcsUnavailable, errors: 1, outOfSync: 1},
-		{name: "usable and error", providers: []SuperRootProvider{zkError(errors.New("boom")), zkFound(101, root)}, claim: root, agree: true, expected: root, errors: 1, fetchRecorded: true},
-		{name: "usable and behind", providers: []SuperRootProvider{zkFound(100, otherRoot), zkFound(101, root)}, claim: root, agree: true, expected: root, outOfSync: 1, fetchRecorded: true},
+		{name: "usable and error", providers: []SuperRootProvider{zkError(errors.New("boom")), zkFound(101, root)}, claim: root, agree: true, expected: root, errors: 1, safe: 1, fetchRecorded: true},
+		{name: "usable and behind", providers: []SuperRootProvider{zkFound(100, otherRoot), zkFound(101, root)}, claim: root, agree: true, expected: root, outOfSync: 1, safe: 1, fetchRecorded: true},
 		{name: "all not found", providers: []SuperRootProvider{zkNotFound(101), zkNotFound(102)}, notFound: 2},
-		{name: "found and not found", providers: []SuperRootProvider{zkFound(101, root), zkNotFound(101)}, claim: root, expected: root, notFound: 1, mixedAvailability: true, fetchRecorded: true},
-		{name: "conflicting roots use first provider", providers: []SuperRootProvider{zkFound(101, root), zkFound(101, otherRoot)}, claim: root, expected: root, differentRoots: true, fetchRecorded: true},
-		{name: "conflicting roots and not found", providers: []SuperRootProvider{zkFound(101, root), zkFound(101, otherRoot), zkNotFound(101)}, claim: root, expected: root, notFound: 1, differentRoots: true, mixedAvailability: true, fetchRecorded: true},
+		{name: "found and not found", providers: []SuperRootProvider{zkFound(101, root), zkNotFound(101)}, claim: root, expected: root, notFound: 1, safe: 1, mixedAvailability: true, fetchRecorded: true},
+		{name: "conflicting roots use first provider", providers: []SuperRootProvider{zkFound(101, root), zkFound(101, otherRoot)}, claim: root, expected: root, safe: 1, differentRoots: true, fetchRecorded: true},
+		{name: "conflicting roots and not found", providers: []SuperRootProvider{zkFound(101, root), zkFound(101, otherRoot), zkNotFound(101)}, claim: root, expected: root, notFound: 1, safe: 1, differentRoots: true, mixedAvailability: true, fetchRecorded: true},
 	}
 
 	for _, test := range tests {
@@ -74,8 +77,8 @@ func TestZKAgreementPolicy(t *testing.T) {
 			require.Equal(t, test.outOfSync, game.NodeEndpointOutOfSyncCount)
 			require.Equal(t, test.differentRoots, game.NodeEndpointDifferentRoots)
 			require.Equal(t, test.mixedAvailability, game.HasMixedAvailability())
-			require.Zero(t, game.NodeEndpointSafeCount)
-			require.Zero(t, game.NodeEndpointUnsafeCount)
+			require.Equal(t, test.safe, game.NodeEndpointSafeCount)
+			require.Equal(t, test.unsafe, game.NodeEndpointUnsafeCount)
 			require.Equal(t, test.fetchRecorded, metricer.fetchTime != 0)
 		})
 	}
@@ -126,7 +129,7 @@ func TestZKAgreementReplacesEndpointTracking(t *testing.T) {
 	require.Zero(t, game.NodeEndpointNotFoundCount)
 	require.Zero(t, game.NodeEndpointOutOfSyncCount)
 	require.Equal(t, 1, game.NodeEndpointTotalCount)
-	require.Zero(t, game.NodeEndpointSafeCount)
+	require.Equal(t, 1, game.NodeEndpointSafeCount)
 	require.Zero(t, game.NodeEndpointUnsafeCount)
 	require.False(t, game.NodeEndpointDifferentRoots)
 }
