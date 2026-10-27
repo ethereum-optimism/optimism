@@ -58,15 +58,13 @@ fn advertised_port(advertise: Option<u16>, listen: u16) -> u16 {
     advertise.filter(|&port| port != 0).unwrap_or(listen)
 }
 
-/// Parses `--p2p.static-peers`: comma-separated static peer addresses. Empty entries are skipped,
-/// as in op-node, so the flag or its environment variable can be set to an empty string.
-fn parse_static_peers(addrs: &str) -> Result<Vec<StaticPeer>, String> {
-    addrs
-        .split(',')
-        .map(str::trim)
-        .filter(|addr| !addr.is_empty())
-        .map(|addr| parse_static_peer(addr).map_err(|e| format!("{addr}: {e}")))
-        .collect()
+/// Parses one `--p2p.bootnodes` entry: an ENR (`enr:...`) or an enode URL (`enode://...`).
+fn parse_bootnode(raw: &str) -> Result<BootNode, String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err("Bootnode must not be empty".to_string());
+    }
+    BootNode::parse_bootnode(raw).map_err(|e| format!("{:#}", anyhow::Error::new(e)))
 }
 
 /// Parses one static peer: a TCP address that ends in the peer's ID, such as
@@ -76,6 +74,10 @@ fn parse_static_peers(addrs: &str) -> Result<Vec<StaticPeer>, String> {
 /// resolved when dialing, not here, so a peer whose name does not resolve yet does not stop the
 /// node from starting.
 fn parse_static_peer(addr: &str) -> Result<StaticPeer, String> {
+    let addr = addr.trim();
+    if addr.is_empty() {
+        return Err("Static peer must not be empty".to_string());
+    }
     let peer: StaticPeer = addr.parse().map_err(|e| format!("{:#}", anyhow::Error::new(e)))?;
     let mut protocols = peer.addr().iter();
     let host = protocols.next();
@@ -251,26 +253,31 @@ pub struct P2PArgs {
     pub redial_period: u64,
 
     /// An optional list of bootnode ENRs or node records to start the node with.
-    #[arg(long = "p2p.bootnodes", value_delimiter = ',', env = "KONA_NODE_P2P_BOOTNODES")]
-    pub bootnodes: Vec<String>,
+    ///
+    /// Each entry is an ENR (`enr:...`) or an enode URL (`enode://...`). The flag can be repeated,
+    /// or given a comma-separated list.
+    #[arg(
+        long = "p2p.bootnodes",
+        value_delimiter = ',',
+        env = "KONA_NODE_P2P_BOOTNODES",
+        value_parser = parse_bootnode
+    )]
+    pub bootnodes: Vec<BootNode>,
 
-    /// Comma-separated multiaddrs of peers to dial at startup and keep connected, such as
+    /// Multiaddrs of peers to dial at startup and keep connected, such as
     /// `/dns4/node.example.com/tcp/9222/p2p/16Uiu2...`.
     ///
     /// Each address must be TCP and end in the peer's ID: an `opp2p_self` RPC call lists a node's
-    /// addresses in this form.
-    // The full path stops clap from treating this as a repeated flag, so that one parser sees
-    // the whole list and can skip empty entries.
+    /// addresses in this form. The flag can be repeated, or given a comma-separated list.
     #[arg(
         long = "p2p.static-peers",
         // op-node's name for the flag, for configs migrated from op-node.
         visible_alias = "p2p.static",
+        value_delimiter = ',',
         env = "KONA_NODE_P2P_STATIC_PEERS",
-        default_value = "",
-        hide_default_value = true,
-        value_parser = parse_static_peers
+        value_parser = parse_static_peer
     )]
-    pub static_peers: ::std::vec::Vec<StaticPeer>,
+    pub static_peers: Vec<StaticPeer>,
 
     /// Optionally enable topic scoring.
     ///
@@ -484,12 +491,7 @@ impl P2PArgs {
             ))
         };
 
-        let bootnodes = self
-            .bootnodes
-            .iter()
-            .map(|bootnode| BootNode::parse_bootnode(bootnode))
-            .collect::<Vec<BootNode>>()
-            .into();
+        let bootnodes = self.bootnodes.into();
 
         Ok(NetworkConfig {
             discovery_config,
@@ -670,65 +672,62 @@ mod tests {
         assert_eq!(args.p2p.listen_udp_port, 1234);
     }
 
+    const ENODE_1: &str = "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305";
+    const ENODE_2: &str = "enode://dd751a9ef8912be1bfa7a5e34e2c3785cc5253110bd929f385e07ba7ac19929fb0e0c5d93f77827291f4da02b2232240fbc47ea7ce04c46e333e452f8656b667@34.65.107.0:30305";
+
+    /// The bootnodes the CLI arguments parse to.
+    fn bootnodes(args: &[&str]) -> Vec<BootNode> {
+        MockCommand::parse_from(std::iter::once("test").chain(args.iter().copied())).p2p.bootnodes
+    }
+
     #[test]
     fn test_p2p_args_bootnodes() {
-        let args = MockCommand::parse_from([
-            "test",
-            "--p2p.bootnodes",
-            "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305",
-        ]);
-        assert_eq!(
-            args.p2p.bootnodes,
-            vec![
-                "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305",
-            ]
-        );
-
-        // Parse the bootnodes.
-        let bootnodes = args
-            .p2p
-            .bootnodes
-            .iter()
-            .map(|bootnode| BootNode::parse_bootnode(bootnode))
-            .collect::<Vec<BootNode>>();
-
-        // Otherwise, attempt to use the Node Record format.
-        let record = NodeRecord::from_str(
-                "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305").unwrap();
-        let expected_bootnode = vec![BootNode::from_unsigned(record).unwrap()];
-
-        assert_eq!(bootnodes, expected_bootnode);
+        let record = NodeRecord::from_str(ENODE_1).unwrap();
+        let expected = BootNode::from_unsigned(record).unwrap();
+        assert_eq!(bootnodes(&["--p2p.bootnodes", ENODE_1]), vec![expected]);
     }
 
     #[test]
     fn test_p2p_args_bootnodes_multiple() {
-        let args = MockCommand::parse_from([
-            "test",
-            "--p2p.bootnodes",
-            "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305,enode://dd751a9ef8912be1bfa7a5e34e2c3785cc5253110bd929f385e07ba7ac19929fb0e0c5d93f77827291f4da02b2232240fbc47ea7ce04c46e333e452f8656b667@34.65.107.0:30305",
-        ]);
-        assert_eq!(
-            args.p2p.bootnodes,
-            vec![
-                "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305",
-                "enode://dd751a9ef8912be1bfa7a5e34e2c3785cc5253110bd929f385e07ba7ac19929fb0e0c5d93f77827291f4da02b2232240fbc47ea7ce04c46e333e452f8656b667@34.65.107.0:30305",
-            ]
-        );
+        let expected = [ENODE_1, ENODE_2].map(|raw| BootNode::parse_bootnode(raw).unwrap());
+        // A comma-separated list, as the environment variable needs, with spaces trimmed.
+        assert_eq!(bootnodes(&["--p2p.bootnodes", &format!(" {ENODE_1}, {ENODE_2}")]), expected);
+        // A repeated flag.
+        assert_eq!(bootnodes(&["--p2p.bootnodes", ENODE_1, "--p2p.bootnodes", ENODE_2]), expected);
     }
 
     #[test]
     fn test_p2p_args_bootnode_enr() {
-        let args = MockCommand::parse_from([
-            "test",
-            "--p2p.bootnodes",
-            "enr:-J64QBbwPjPLZ6IOOToOLsSjtFUjjzN66qmBZdUexpO32Klrc458Q24kbty2PdRaLacHM5z-cZQr8mjeQu3pik6jPSOGAYYFIqBfgmlkgnY0gmlwhDaRWFWHb3BzdGFja4SzlAUAiXNlY3AyNTZrMaECmeSnJh7zjKrDSPoNMGXoopeDF4hhpj5I0OsQUUt4u8uDdGNwgiQGg3VkcIIkBg",
-        ]);
-        assert_eq!(
-            args.p2p.bootnodes,
-            vec![
-                "enr:-J64QBbwPjPLZ6IOOToOLsSjtFUjjzN66qmBZdUexpO32Klrc458Q24kbty2PdRaLacHM5z-cZQr8mjeQu3pik6jPSOGAYYFIqBfgmlkgnY0gmlwhDaRWFWHb3BzdGFja4SzlAUAiXNlY3AyNTZrMaECmeSnJh7zjKrDSPoNMGXoopeDF4hhpj5I0OsQUUt4u8uDdGNwgiQGg3VkcIIkBg",
-            ]
-        );
+        let enr = "enr:-J64QBbwPjPLZ6IOOToOLsSjtFUjjzN66qmBZdUexpO32Klrc458Q24kbty2PdRaLacHM5z-cZQr8mjeQu3pik6jPSOGAYYFIqBfgmlkgnY0gmlwhDaRWFWHb3BzdGFja4SzlAUAiXNlY3AyNTZrMaECmeSnJh7zjKrDSPoNMGXoopeDF4hhpj5I0OsQUUt4u8uDdGNwgiQGg3VkcIIkBg";
+        let expected = BootNode::parse_bootnode(enr).unwrap();
+        assert!(matches!(expected, BootNode::Enr(_)));
+        assert_eq!(bootnodes(&["--p2p.bootnodes", enr]), vec![expected]);
+    }
+
+    #[test]
+    fn test_p2p_args_bootnodes_default_empty() {
+        assert!(bootnodes(&[]).is_empty());
+    }
+
+    #[test]
+    fn test_p2p_args_bootnodes_rejects_empty_entries() {
+        for list in ["", ",", &format!("{ENODE_1},"), &format!("{ENODE_1}, ,{ENODE_2}")] {
+            let err = MockCommand::try_parse_from(["test", "--p2p.bootnodes", list])
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("Bootnode must not be empty"), "{list:?}: {err}");
+        }
+    }
+
+    /// A malformed bootnode is a CLI error, not a panic when the config is built.
+    #[test]
+    fn test_p2p_args_bootnodes_rejects_invalid_entries() {
+        let err =
+            MockCommand::try_parse_from(["test", "--p2p.bootnodes", &format!("{ENODE_1},nope")])
+                .unwrap_err()
+                .to_string();
+        assert!(err.contains("invalid value 'nope'"), "{err}");
+        assert!(err.contains("Invalid enode URL"), "{err}");
     }
 
     #[test]
@@ -742,22 +741,28 @@ mod tests {
         let (id1, id2) = (PeerId::random(), PeerId::random());
         let addr1 = format!("/ip4/10.0.0.1/tcp/9222/p2p/{id1}");
         let addr2 = format!("/dns4/node.example.com/tcp/9222/p2p/{id2}");
-        // Spaces around entries and empty entries are ignored, as in op-node.
+        let expected = vec![(id1, addr1.clone()), (id2, addr2.clone())];
+        let static_peers = |args: &[&str]| {
+            let args = MockCommand::parse_from(std::iter::once("test").chain(args.iter().copied()));
+            args.p2p.static_peers.iter().map(|p| (p.peer_id(), p.to_string())).collect::<Vec<_>>()
+        };
         for flag in ["--p2p.static-peers", "--p2p.static"] {
-            let args = MockCommand::parse_from(["test", flag, &format!(" {addr1}, ,{addr2},")]);
-            let peers = args.p2p.static_peers;
-            assert_eq!(
-                peers.iter().map(|p| (p.peer_id(), p.to_string())).collect::<Vec<_>>(),
-                vec![(id1, addr1.clone()), (id2, addr2.clone())],
-                "{flag}"
-            );
+            // A comma-separated list, as the environment variable needs, with spaces trimmed.
+            assert_eq!(static_peers(&[flag, &format!(" {addr1}, {addr2}")]), expected, "{flag}");
+            // A repeated flag.
+            assert_eq!(static_peers(&[flag, &addr1, flag, &addr2]), expected, "{flag}");
         }
     }
 
     #[test]
-    fn test_p2p_args_static_peers_empty_string() {
-        let args = MockCommand::parse_from(["test", "--p2p.static-peers", ""]);
-        assert!(args.p2p.static_peers.is_empty());
+    fn test_p2p_args_static_peers_rejects_empty_entries() {
+        let addr = format!("/ip4/10.0.0.1/tcp/9222/p2p/{}", PeerId::random());
+        for list in ["", ",", &format!("{addr},"), &format!("{addr}, ,{addr}")] {
+            let err = MockCommand::try_parse_from(["test", "--p2p.static-peers", list])
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("Static peer must not be empty"), "{list:?}: {err}");
+        }
     }
 
     #[test]
