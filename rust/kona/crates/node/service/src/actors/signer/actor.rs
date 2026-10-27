@@ -87,6 +87,7 @@ mod tests {
     use alloy_signer::SignerSync;
     use alloy_signer_local::PrivateKeySigner;
     use arbitrary::Arbitrary;
+    use base64::{Engine, engine::general_purpose::STANDARD};
     use jsonrpsee::{
         RpcModule,
         server::{ServerBuilder, ServerHandle},
@@ -123,13 +124,17 @@ mod tests {
         let mut module = RpcModule::new((calls.clone(), key.clone()));
         module.register_method("health_status", |_, _, _| "ok").unwrap();
         module
-            .register_method("opsigner_signBlockPayloadV2", move |params, ctx, _| {
+            .register_method("opsigner_signBlockPayload", move |params, ctx, _| {
                 let (calls, key) = ctx;
                 calls.fetch_add(1, Ordering::SeqCst);
-                // Match op-signer's positional argument and hex-string result.
+                // Match op-node's V1 request and op-signer's hex-string result.
                 let args: serde_json::Value = params.parse().unwrap();
-                let hash: alloy_primitives::B256 =
-                    serde_json::from_value(args[0]["payloadHash"].clone()).unwrap();
+                assert_eq!(args[0]["domain"], serde_json::json!(vec![0u8; 32]));
+                assert_eq!(args[0]["chainId"], serde_json::json!(CHAIN_ID));
+                assert_eq!(args[0]["senderAddress"], serde_json::json!(key.address()));
+                let hash = B256::from_slice(
+                    &STANDARD.decode(args[0]["payloadHash"].as_str().unwrap()).unwrap(),
+                );
                 let message =
                     op_alloy_rpc_types_engine::PayloadHash(hash).signature_message(CHAIN_ID);
                 serde_json::json!(key.sign_hash_sync(&message).unwrap().to_string())
