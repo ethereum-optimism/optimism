@@ -50,9 +50,6 @@ var bundleAllowed = []string{
 	// Loads rollup configs for registry networks by name.
 	"github.com/ethereum-optimism/optimism/op-interop-filter/...",
 
-	// Deploys via op-deployer, which reads registry records.
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen",
-
 	// Chain-selection flags: the --network help text lists the available
 	// networks, so the package is inherently about the registry.
 	"github.com/ethereum-optimism/optimism/op-service/flags",
