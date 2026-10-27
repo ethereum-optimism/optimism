@@ -18,6 +18,8 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Claim, GameStatus, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { Features } from "src/libraries/Features.sol";
 import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
+import { BridgeHookHashing } from "src/libraries/BridgeHookHashing.sol";
+import { BridgeHookDecoder } from "src/libraries/BridgeHookDecoder.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -151,6 +153,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Withdrawals the hook is holding, keyed by item ID.
     mapping(bytes32 => bool) public heldWithdrawals;
+
+    /// @notice Nonce of the next screened deposit.
+    uint256 internal depositNonce;
 
     /// @notice Emitted when the Portal is migrated.
     /// @param oldLockbox The lockbox before the migration
@@ -834,6 +839,29 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
         }
 
+        // The L1PAO skips the hook so that governance can always reach L2.
+        if (_isUsingBridgeHook() && msg.sender != proxyAdminOwner()) {
+            BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+                direction: BridgeHookTypes.Direction.Deposit,
+                asset: BridgeHookTypes.Asset.ETH,
+                from: from,
+                aliased: from != msg.sender,
+                to: _to,
+                ethAmount: msg.value,
+                l2Value: _value,
+                gasLimit: _gasLimit,
+                isCreation: _isCreation,
+                data: _data,
+                nonce: depositNonce++
+            });
+            bytes memory message = _recognize(item);
+            if (!bridgeHook.screenDeposit(item)) {
+                _commitHold(item, message, heldDeposits);
+                bridgeHook.holdDeposit{ value: msg.value }(item);
+                return;
+            }
+        }
+
         _emitDeposit(from, _to, _value, _gasLimit, _isCreation, _data);
     }
 
@@ -879,6 +907,62 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         ethLockbox.unlockETH(_amount);
     }
 
+    /// @notice Returns the L1StandardBridge.
+    /// @return The L1StandardBridge.
+    function _l1StandardBridge() internal view returns (IL1StandardBridge) {
+        return IL1StandardBridge(payable(systemConfig.l1StandardBridge()));
+    }
+
+    /// @notice Checks if a SystemConfig feature is enabled.
+    /// @param _feature Feature to check.
+    /// @return bool True if the feature is enabled.
+    function _isFeatureEnabled(bytes32 _feature) internal view returns (bool) {
+        return systemConfig.isFeatureEnabled(_feature);
+    }
+
+    /// @notice Returns a dispute game's status.
+    /// @param _game Dispute game.
+    /// @return The game's status.
+    function _gameStatus(IDisputeGame _game) internal view returns (GameStatus) {
+        return _game.status();
+    }
+
+    /// @notice Returns when a dispute game was created.
+    /// @param _game Dispute game.
+    /// @return The game's creation timestamp.
+    function _gameCreatedAt(IDisputeGame _game) internal view returns (uint64) {
+        return _game.createdAt().raw();
+    }
+
+    /// @notice Marks the item as a token transfer if it is one.
+    /// @param _item Item to recognize.
+    /// @return message_ The bridge's call, or empty if not a token transfer.
+    function _recognize(BridgeHookTypes.Item memory _item) internal view returns (bytes memory message_) {
+        bool isTokenTransfer;
+        (isTokenTransfer, message_) = BridgeHookDecoder.recognizeTokenTransfer(
+            _item, systemConfig.l1CrossDomainMessenger(), address(_l1StandardBridge())
+        );
+        if (isTokenTransfer) _item.asset = BridgeHookTypes.Asset.ERC20;
+    }
+
+    /// @notice Commits a held item and moves its escrowed tokens to the hook.
+    /// @param _item    Held item.
+    /// @param _message The bridge's call, for a token transfer.
+    /// @param _held    Held items of the item's direction.
+    function _commitHold(
+        BridgeHookTypes.Item memory _item,
+        bytes memory _message,
+        mapping(bytes32 => bool) storage _held
+    )
+        internal
+    {
+        _held[BridgeHookHashing.hashItem(_item)] = true;
+
+        if (_item.asset == BridgeHookTypes.Asset.ERC20) {
+            _l1StandardBridge().holdERC20(_item.direction, _message);
+        }
+    }
+
     /// @notice Locks the deposit's ETH and emits its TransactionDeposited event.
     /// @param _from       Sender on L2, aliased if a contract.
     /// @param _to         Target address on L2.
@@ -908,33 +992,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Emit a TransactionDeposited event so that the rollup node can derive a deposit
         // transaction for this deposit.
         emit TransactionDeposited(_from, _to, DEPOSIT_VERSION, opaqueData);
-    }
-
-    /// @notice Returns the L1StandardBridge.
-    /// @return The L1StandardBridge.
-    function _l1StandardBridge() internal view returns (IL1StandardBridge) {
-        return IL1StandardBridge(payable(systemConfig.l1StandardBridge()));
-    }
-
-    /// @notice Checks if a SystemConfig feature is enabled.
-    /// @param _feature Feature to check.
-    /// @return bool True if the feature is enabled.
-    function _isFeatureEnabled(bytes32 _feature) internal view returns (bool) {
-        return systemConfig.isFeatureEnabled(_feature);
-    }
-
-    /// @notice Returns a dispute game's status.
-    /// @param _game Dispute game.
-    /// @return The game's status.
-    function _gameStatus(IDisputeGame _game) internal view returns (GameStatus) {
-        return _game.status();
-    }
-
-    /// @notice Returns when a dispute game was created.
-    /// @param _game Dispute game.
-    /// @return The game's creation timestamp.
-    function _gameCreatedAt(IDisputeGame _game) internal view returns (uint64) {
-        return _game.createdAt().raw();
     }
 
     /// @notice Checks if a bridge hook is set.
