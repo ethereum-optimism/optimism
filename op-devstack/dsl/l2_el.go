@@ -402,13 +402,9 @@ func (el *L2ELNode) WaitL1OriginReached(label eth.BlockLabel, l1OriginTarget uin
 // If the head's L1 origin has advanced past the target number (e.g. due to a large batch),
 // it walks back through L2 blocks to find one with the target L1 origin number and checks its hash.
 func (el *L2ELNode) WaitL1OriginHash(label eth.BlockLabel, target eth.BlockID, attempts int) {
-	el.require.NoError(el.waitL1OriginHash(label, target, attempts))
-}
-
-func (el *L2ELNode) waitL1OriginHash(label eth.BlockLabel, target eth.BlockID, attempts int) error {
 	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "label", label, "target", target)
 	logger.Info("Expecting L2EL L1 origin to match")
-	return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+	el.require.NoError(retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 		func() error {
 			// A reorg can temporarily make the label or a historical block unavailable.
 			// Return lookup errors to the retry loop instead of failing the test here.
@@ -436,7 +432,7 @@ func (el *L2ELNode) waitL1OriginHash(label eth.BlockLabel, target eth.BlockID, a
 			}
 			logger.Debug("L2EL L1 origin hash mismatch", "l2Block", block.ID(), "l1Origin", block.L1Origin)
 			return fmt.Errorf("L1 origin hash of %s head does not match target", label)
-		})
+		}))
 }
 
 // VerifyWithdrawalHashChangedIn verifies that the withdrawal hash changed between the parent and current block.
