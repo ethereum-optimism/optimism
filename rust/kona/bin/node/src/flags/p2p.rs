@@ -53,6 +53,11 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
     }
 }
 
+/// Returns the port to advertise: `advertise` if set to a non-zero port, `listen` otherwise.
+fn advertised_port(advertise: Option<u16>, listen: u16) -> u16 {
+    advertise.filter(|&port| port != 0).unwrap_or(listen)
+}
+
 /// P2P CLI Flags
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 pub struct P2PArgs {
@@ -95,7 +100,8 @@ pub struct P2PArgs {
     /// TCP port to bind `LibP2P` to. Any available system port if set to 0.
     #[arg(long = "p2p.listen.tcp", default_value = "9222", env = "KONA_NODE_P2P_LISTEN_TCP_PORT")]
     pub listen_tcp_port: u16,
-    /// UDP port to bind Discv5 to. Same as TCP port if left 0.
+    /// UDP port to bind Discv5 to. Any available system port if set to 0, which then cannot be
+    /// combined with `p2p.advertise.udp`.
     #[arg(long = "p2p.listen.udp", default_value = "9223", env = "KONA_NODE_P2P_LISTEN_UDP_PORT")]
     pub listen_udp_port: u16,
     /// Low-tide peer count. The node actively searches for new peer connections if below this
@@ -188,8 +194,8 @@ pub struct P2PArgs {
     #[arg(long = "p2p.no-bootstore", env = "KONA_NODE_P2P_NO_BOOTSTORE")]
     pub disable_bootstore: bool,
     /// Peer Redialing threshold is the maximum amount of times to attempt to redial a peer that
-    /// disconnects. By default, peers are *not* redialed. If set to 0, the peer will be
-    /// redialed indefinitely.
+    /// disconnects. The count resets once the peer has not been dialed for `p2p.redial.period`.
+    /// If set to 0, the peer will be redialed indefinitely.
     #[arg(long = "p2p.redial", env = "KONA_NODE_P2P_REDIAL", default_value = "500")]
     pub peer_redial: Option<u64>,
 
@@ -361,16 +367,9 @@ impl P2PArgs {
         // If the advertise ip is set, we will disable the dynamic ENR updates.
         let static_ip = self.advertise_ip.is_some();
 
-        // If the advertise tcp port is null, use the listen tcp port
-        let advertise_tcp_port = match self.advertise_tcp_port {
-            None => self.listen_tcp_port,
-            Some(port) => port,
-        };
-
-        let advertise_udp_port = match self.advertise_udp_port {
-            None => self.listen_udp_port,
-            Some(port) => port,
-        };
+        let advertise_tcp_port = advertised_port(self.advertise_tcp_port, self.listen_tcp_port);
+        // Discovery advertises the port it listens on for 0, see `Discv5Builder::build`.
+        let advertise_udp_port = self.advertise_udp_port.unwrap_or_default();
 
         let keypair = self.keypair().unwrap_or_else(|e| {
             let generated = Keypair::generate_secp256k1();
@@ -591,6 +590,13 @@ mod tests {
     fn test_p2p_args_listen_tcp_port() {
         let args = MockCommand::parse_from(["test", "--p2p.listen.tcp", "1234"]);
         assert_eq!(args.p2p.listen_tcp_port, 1234);
+    }
+
+    #[test]
+    fn test_advertised_port_falls_back_to_listen_port() {
+        assert_eq!(advertised_port(None, 9223), 9223);
+        assert_eq!(advertised_port(Some(0), 9223), 9223);
+        assert_eq!(advertised_port(Some(30303), 9223), 30303);
     }
 
     #[test]

@@ -35,6 +35,11 @@ pub enum Event {
     /// Handles direct peer-to-peer communication outside of the gossip mesh,
     /// typically used for block synchronization requests.
     Stream,
+
+    /// Duplicate connections to a peer may be closed now that their grace period has passed.
+    ///
+    /// Emitted by [`crate::GossipDriver::next`] itself, not by the swarm's behaviour.
+    DuplicateConnectionsDue,
 }
 
 impl From<ping::Event> for Event {

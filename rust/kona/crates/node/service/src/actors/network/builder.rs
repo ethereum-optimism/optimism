@@ -4,7 +4,7 @@ use alloy_primitives::Address;
 use discv5::Config as Discv5Config;
 use kona_disc::{Discv5Builder, LocalNode};
 use kona_genesis::RollupConfig;
-use kona_gossip::{GaterConfig, GossipDriverBuilder};
+use kona_gossip::{GaterConfig, GossipDriverBuilder, GossipTransport};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use libp2p::{Multiaddr, identity::Keypair};
 use std::time::Duration;
@@ -81,6 +81,11 @@ impl NetworkBuilder {
     /// Sets the ENR update flag for the [`NetworkBuilder`].
     pub fn with_enr_update(self, enr_update: bool) -> Self {
         Self { enr_update, ..self }
+    }
+
+    /// Sets the [`GossipTransport`] the gossip swarm listens and dials on.
+    pub fn with_gossip_transport(self, transport: GossipTransport) -> Self {
+        Self { gossip: self.gossip.with_transport(transport), ..self }
     }
 
     /// Sets the configuration for the connection gater.

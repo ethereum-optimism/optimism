@@ -191,12 +191,14 @@ impl NodeCommand {
                     CliMetrics::P2P_ADVERTISE_TCP_PORT,
                     self.p2p_flags
                         .advertise_tcp_port
+                        .filter(|&p| p != 0)
                         .map_or_else(|| "auto".to_string(), |p| p.to_string())
                 ),
                 (
                     CliMetrics::P2P_ADVERTISE_UDP_PORT,
                     self.p2p_flags
                         .advertise_udp_port
+                        .filter(|&p| p != 0)
                         .map_or_else(|| "auto".to_string(), |p| p.to_string())
                 ),
                 (CliMetrics::P2P_PEERS_LO, self.p2p_flags.peers_lo.to_string()),

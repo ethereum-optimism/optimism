@@ -1,4 +1,7 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::{
+    net::{IpAddr, Ipv4Addr},
+    time::Duration,
+};
 
 use alloy_chains::Chain;
 use alloy_signer::k256;
@@ -10,22 +13,46 @@ use alloy_primitives::Address;
 use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
+use kona_gossip::GossipTransport;
 use kona_node_service::{
     EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, SignerActor,
 };
 use kona_peers::BootNode;
 use kona_rpc::P2pRpc;
 use kona_sources::BlockSignerHandler;
-use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
+use libp2p::{
+    Multiaddr, Transport,
+    core::{transport::MemoryTransport, upgrade::Version},
+    identity::Keypair,
+    multiaddr::Protocol,
+    noise, yamux,
+};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rand::RngCore;
 use tokio::sync::{mpsc, watch};
-use tracing::error;
+use tracing::{Instrument, error, info_span};
 
+/// Builds [`TestNetwork`]s: nodes that share a random chain ID, so they get no registry bootnodes
+/// and find each other only through the bootnodes a test passes in.
 pub(crate) struct TestNetworkBuilder {
+    /// The chain ID every node built by this builder uses.
     chain_id: u64,
+    /// The address gossiped blocks must be signed by.
     unsafe_block_signer: Address,
+    /// The keypair for the next node built, if it must not be random.
     custom_keypair: Option<Keypair>,
+    /// Whether nodes gossip over the in-memory transport instead of TCP.
+    ///
+    /// Discovery still runs over UDP on localhost, but it cannot connect in-memory nodes: their
+    /// ENRs only advertise IP and TCP, which the memory transport cannot dial, and nodes connected
+    /// directly over gossip are never added to each other's discovery tables. So build in-memory
+    /// nodes without bootnodes and connect them explicitly. That makes them fast to test manually
+    /// configured networks with, where discovery finds nobody.
+    in_memory: bool,
+    /// How often nodes look up random nodes, if not the default.
+    discovery_interval: Option<Duration>,
+    /// The ID of the next node built, which prefixes its logs.
+    next_node_id: usize,
 }
 
 impl TestNetworkBuilder {
@@ -34,9 +61,33 @@ impl TestNetworkBuilder {
     }
 
     pub(crate) fn new() -> Self {
+        init_test_tracing();
         let chain_id = rand::rng().next_u64();
 
-        Self { chain_id, unsafe_block_signer: Address::ZERO, custom_keypair: None }
+        Self {
+            chain_id,
+            unsafe_block_signer: Address::ZERO,
+            custom_keypair: None,
+            in_memory: false,
+            discovery_interval: None,
+            next_node_id: 0,
+        }
+    }
+
+    /// Makes the nodes built from now on gossip over the in-memory transport, listening on a free
+    /// `/memory` port. See the `in_memory` field for how this interacts with discovery.
+    pub(crate) const fn in_memory(mut self) -> Self {
+        self.in_memory = true;
+        self
+    }
+
+    /// Makes the nodes built from now on look up random nodes every `interval`, instead of the
+    /// default 5s.
+    ///
+    /// Only for tests that wait on discovery to connect nodes: frequent lookups flood debug logs.
+    pub(crate) const fn with_discovery_interval(mut self, interval: Duration) -> Self {
+        self.discovery_interval = Some(interval);
+        self
     }
 
     /// Sets a sequencer keypair for the network.
@@ -58,8 +109,9 @@ impl TestNetworkBuilder {
         self
     }
 
-    /// Minimal network configuration.
-    /// Only allows loopback addresses in the discovery table.
+    /// Builds and starts one node, which bootstraps discovery from `bootnodes`.
+    ///
+    /// Its discovery table only accepts loopback addresses.
     pub(crate) async fn build(&mut self, bootnodes: Vec<Enr>) -> TestNetwork {
         let keypair = self.custom_keypair.take().unwrap_or_else(Keypair::generate_secp256k1);
 
@@ -86,11 +138,14 @@ impl TestNetworkBuilder {
             })
             .build();
 
-        let mut gossip_multiaddr = Multiaddr::from(node_addr);
-        gossip_multiaddr.push(Protocol::Tcp(0));
+        let gossip_multiaddr = if self.in_memory {
+            Multiaddr::empty().with(Protocol::Memory(0))
+        } else {
+            Multiaddr::from(node_addr).with(Protocol::Tcp(0))
+        };
 
         // Create a new network actor. No external connections
-        let builder = NetworkBuilder::new(
+        let mut builder = NetworkBuilder::new(
             // Create a new rollup config. We don't need to specify any of the fields.
             self.rollup_config(),
             self.unsafe_block_signer,
@@ -100,8 +155,25 @@ impl TestNetworkBuilder {
             discovery_config,
         )
         .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into());
+        if let Some(interval) = self.discovery_interval {
+            builder = builder.with_discovery_interval(interval);
+        }
+        if self.in_memory {
+            // A `/memory` address has no IP or TCP port to put in the ENR.
+            builder = builder.with_enr_update(false).with_gossip_transport(memory_transport());
+        }
 
-        let handler = builder.build().expect("build network").start().await.expect("start network");
+        // Logs from this node's tasks are prefixed with `node{id=..}`.
+        let span = info_span!(target: NODE_SPAN_TARGET, "node", id = self.next_node_id);
+        self.next_node_id += 1;
+
+        let handler = builder
+            .build()
+            .expect("build network")
+            .start()
+            .instrument(span.clone())
+            .await
+            .expect("start network");
 
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
         let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
@@ -118,7 +190,8 @@ impl TestNetworkBuilder {
             signed_payload_rx,
         );
 
-        let p2p_rpc = P2pRpc::new(actor.gossip_query_handle(), discovery, gossip_command_tx);
+        let p2p_rpc =
+            P2pRpc::new(actor.gossip_query_handle(), discovery, gossip_command_tx.clone());
 
         // Every test network can sign: payloads sent to `gossip_payload_tx` are signed with this
         // node's key and then gossiped.
@@ -129,26 +202,64 @@ impl TestNetworkBuilder {
             gossip_payload_rx,
             signed_payload_tx,
         );
-        tokio::spawn(async move {
-            let err = loop {
-                if let Err(err) = signer.step().await {
-                    break err;
-                }
-            };
-            error!(target: "net", ?err, "Signer actor failed");
-        });
-
-        let handle = tokio::spawn(async move {
-            loop {
-                actor.step().await?;
+        tokio::spawn(
+            async move {
+                let err = loop {
+                    if let Err(err) = signer.step().await {
+                        break err;
+                    }
+                };
+                error!(target: "net", ?err, "Signer actor failed");
             }
-            // Unreachable: the loop above only exits via Err.
-            #[allow(unreachable_code)]
-            Ok(())
-        });
+            .instrument(span.clone()),
+        );
 
-        TestNetwork { p2p_rpc, admin_rpc_tx, gossip_payload_tx, blocks_rx, handle }
+        let handle = tokio::spawn(
+            async move {
+                loop {
+                    actor.step().await?;
+                }
+                // Unreachable: the loop above only exits via Err.
+                #[allow(unreachable_code)]
+                Ok(())
+            }
+            .instrument(span),
+        );
+
+        TestNetwork {
+            p2p_rpc,
+            gossip_command_tx,
+            admin_rpc_tx,
+            gossip_payload_tx,
+            blocks_rx,
+            handle,
+        }
     }
+}
+
+/// The target of the span around each test node's tasks.
+const NODE_SPAN_TARGET: &str = "test_node";
+
+/// Logs to the test output, filtered by `RUST_LOG`. Without it, only errors are logged.
+///
+/// Each line a node's tasks log is prefixed with `node{id=..}`, the order the node was built in.
+/// For example, to see warnings from everything and dialing details from the gossip driver:
+///
+/// ```sh
+/// RUST_LOG=warn,gossip=trace cargo nextest run -p kona-node-service test_large_network_conn \
+///     --no-capture
+/// ```
+///
+/// `--no-capture` prints the logs of passing tests too. Setting `RUST_LOG` replaces the default of
+/// logging errors, so start it with a base level such as `warn`.
+fn init_test_tracing() {
+    // Spans are filtered like events, so the node spans are always enabled, to prefix whatever
+    // `RUST_LOG` lets through. They log nothing themselves.
+    let filter = tracing_subscriber::EnvFilter::from_default_env()
+        .add_directive(format!("{NODE_SPAN_TARGET}=info").parse().expect("valid directive"));
+
+    // Fails if another test in this binary already installed a subscriber, which is fine.
+    let _ = tracing_subscriber::fmt().with_env_filter(filter).with_test_writer().try_init();
 }
 
 #[derive(Debug)]
@@ -166,4 +277,16 @@ impl NetworkEngineClient for ForwardingNetworkEngineClient {
             .inspect_err(|e| error!(target: "net", "Failed to send block: {:?}", e));
         Ok(())
     }
+}
+
+/// An in-process transport with the upgrades `with_tcp` applies: lazy protocol negotiation, Noise,
+/// then Yamux.
+fn memory_transport() -> GossipTransport {
+    GossipTransport::Other(Box::new(|keypair| {
+        Ok(MemoryTransport::default()
+            .upgrade(Version::V1Lazy)
+            .authenticate(noise::Config::new(keypair)?)
+            .multiplex(yamux::Config::default())
+            .boxed())
+    }))
 }
