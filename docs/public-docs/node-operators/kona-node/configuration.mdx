@@ -119,7 +119,7 @@ The RPC server starts once. If it stops unexpectedly, the node shuts down with a
 | `--sequencer.max-safe-lag <N>` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | Pause new builds when the unsafe-to-safe block gap reaches `N`; resume when it drops below `N`. `0` disables the limit. | `0` |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | Strictly prepare next L1 origin and create empty L2 blocks | `false` |
-| `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration in sequencer mode; it has no effect in validator mode. | - |
+| `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration in sequencer mode and always starts the sequencer stopped for coordinated activation; it has no effect in validator mode. | - |
 | `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | Conductor service RPC timeout | `1` |
 
 ## Interop Arguments

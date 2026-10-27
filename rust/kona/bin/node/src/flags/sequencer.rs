@@ -13,7 +13,7 @@ use url::Url;
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 pub struct SequencerArgs {
     /// Initialize the sequencer in a stopped state. The sequencer can be started using the
-    /// `admin_startSequencer` RPC.
+    /// `admin_startSequencer` RPC. Conductor-managed nodes always start stopped.
     #[arg(
         long = "sequencer.stopped",
         default_value = "false",
@@ -69,7 +69,7 @@ impl SequencerArgs {
     /// Creates a [`SequencerConfig`] from the [`SequencerArgs`].
     pub fn config(&self) -> SequencerConfig {
         SequencerConfig {
-            sequencer_stopped: self.stopped,
+            sequencer_stopped: self.stopped || self.conductor_rpc.is_some(),
             sequencer_recovery_mode: self.recover,
             max_safe_lag: self.max_safe_lag,
             conductor_rpc_url: self.conductor_rpc.clone(),
@@ -83,6 +83,19 @@ impl SequencerArgs {
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    #[rstest]
+    fn conductor_managed_config_starts_stopped(
+        #[values(true, false)] stopped: bool,
+        #[values(true, false)] managed: bool,
+    ) {
+        let args = SequencerArgs {
+            stopped,
+            conductor_rpc: managed.then(|| "http://127.0.0.1:8547".parse().unwrap()),
+            ..Default::default()
+        };
+        assert_eq!(args.config().sequencer_stopped, stopped || managed);
+    }
 
     #[test]
     fn max_safe_lag_disabled() {

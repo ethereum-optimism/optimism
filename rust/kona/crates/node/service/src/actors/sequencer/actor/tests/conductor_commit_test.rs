@@ -163,6 +163,8 @@ async fn local_override_retries_a_rejected_block_without_another_conductor_commi
     });
     conductor.expect_leader().times(1).return_once(|| Ok(false));
     let (mut actor, _) = test_actor_with_config(true, false, Some(conductor));
+    // Model a sequencer already activated by its conductor before quorum was lost.
+    actor.update_state(|state| state.active = true);
     actor.started = true;
     actor.in_flight = Some(InFlightBlock::Building(pending_handle()));
     actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);

@@ -104,6 +104,19 @@ async fn command<T>(
 }
 
 #[rstest]
+#[tokio::test]
+async fn conductor_managed_actor_starts_stopped(
+    #[values(true, false)] requested_active: bool,
+    #[values(true, false)] managed: bool,
+) {
+    let (actor, _) =
+        test_actor_with_config(requested_active, false, managed.then(MockConductor::new));
+    let state = actor.admin_state_receiver();
+    assert_eq!(state.borrow().active, requested_active && !managed);
+    assert_eq!(state.borrow().conductor_enabled, managed);
+}
+
+#[rstest]
 #[case::standalone(false)]
 #[case::leader(true)]
 #[tokio::test(start_paused = true)]
@@ -279,7 +292,7 @@ async fn override_leader_is_local_and_idempotent(#[case] configured: bool) {
     }
     assert!(actor.conductor.is_none());
     assert_eq!(state.borrow().conductor_enabled, configured);
-    assert!(state.borrow().active);
+    assert_eq!(state.borrow().active, !configured);
     assert!(!state.borrow().recovery_mode);
 }
 
@@ -318,16 +331,18 @@ async fn local_override_bypasses_leadership_but_still_checks_the_start_head() {
 async fn accepted_commands_run_when_response_receivers_are_dropped() {
     let mut conductor = MockConductor::new();
     conductor.expect_leader().times(2).returning(|| Ok(true));
-    let (mut actor, commands_tx) = test_actor_with_config(true, false, Some(conductor));
+    let (mut actor, commands_tx) = test_actor_with_config(false, false, Some(conductor));
     actor.engine_client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
-    actor
-        .engine_client
-        .expect_get_unsafe_head()
-        .times(1)
-        .return_once(|| Ok(L2BlockInfo::default()));
+    let head = B256::repeat_byte(42);
+    actor.engine_client.expect_get_unsafe_head().times(2).returning(move || {
+        Ok(L2BlockInfo {
+            block_info: BlockInfo { hash: head, ..Default::default() },
+            ..Default::default()
+        })
+    });
     let mut commands = Vec::new();
     let (tx, _) = oneshot::channel();
-    commands.push(SequencerAdminCommand::StartSequencer(B256::ZERO, tx));
+    commands.push(SequencerAdminCommand::StartSequencer(head, tx));
     let (tx, _) = oneshot::channel();
     commands.push(SequencerAdminCommand::StopSequencer(tx));
     let (tx, _) = oneshot::channel();

@@ -72,7 +72,7 @@ use kona_node_service::{NodeMode, RollupNodeBuilder, SequencerConfig};
 
 // Configure sequencer settings
 let sequencer_config = SequencerConfig {
-    sequencer_stopped: false,           // Start sequencer immediately
+    sequencer_stopped: true,            // Conductor-managed nodes start stopped
     sequencer_recovery_mode: false,     // Normal operation mode
     conductor_rpc_url: Some(            // Optional conductor integration
         Url::parse("http://conductor:8080").unwrap()

@@ -72,6 +72,9 @@ kona-node node \
 ```
 
 ### Sequencer with Conductor
+
+Configuring a conductor always starts the sequencer stopped, regardless of `--sequencer.stopped`. The conductor coordinates activation through `admin_startSequencer`; after quorum loss, operators must explicitly enable the local leadership override before starting manually.
+
 ```bash
 kona-node node \
   --mode=Sequencer \

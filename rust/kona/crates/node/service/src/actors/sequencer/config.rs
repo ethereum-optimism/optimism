@@ -11,7 +11,7 @@ use url::Url;
 /// [`SequencerActor`]: super::SequencerActor
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SequencerConfig {
-    /// Whether or not the sequencer is enabled at startup.
+    /// Start the sequencer stopped. A configured conductor always forces stopped startup.
     pub sequencer_stopped: bool,
     /// Whether or not the sequencer is in recovery mode.
     pub sequencer_recovery_mode: bool,

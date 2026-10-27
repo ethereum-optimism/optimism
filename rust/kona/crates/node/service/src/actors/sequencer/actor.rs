@@ -155,6 +155,8 @@ where
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
     /// Instantiate a new [`SequencerActor`].
+    ///
+    /// A configured conductor keeps the sequencer stopped until explicit activation.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
@@ -171,7 +173,7 @@ where
     ) -> Self {
         let build_ticker = tokio::time::interval(Duration::from_secs(rollup_config.block_time));
         let (state_tx, _) = watch::channel(SequencerState {
-            active: is_active,
+            active: is_active && conductor.is_none(),
             conductor_enabled: conductor.is_some(),
             recovery_mode: in_recovery_mode,
         });
