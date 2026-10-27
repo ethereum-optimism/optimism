@@ -102,7 +102,8 @@ pub struct SequencerActor<
     state_tx: watch::Sender<SequencerState>,
     /// The attributes builder used for block building.
     pub attributes_builder: AttributesBuilder_,
-    /// The optional conductor RPC client.
+    /// The conductor RPC client, cleared by a local leadership override.
+    /// Whether a conductor was configured remains in the published sequencer state.
     conductor: Option<Conductor_>,
     /// The struct used to interact with the engine.
     pub engine_client: SequencerEngineClient_,
@@ -265,21 +266,26 @@ where
         info!(target: "sequencer", is_active = mode, "Updated recovery mode");
     }
 
-    /// Overrides the leader, if the conductor is enabled.
-    /// If not, an error will be returned.
+    /// Bypasses conductor leadership checks and commits locally until node restart.
     async fn override_leader(&mut self) -> Result<(), SequencerAdminAPIError> {
-        let Some(conductor) = self.conductor.as_mut() else {
+        if !self.state().conductor_enabled {
             return Err(SequencerAdminAPIError::LeaderOverrideError(
                 "No conductor configured".to_string(),
             ));
-        };
-
-        if let Err(e) = conductor.override_leader().await {
-            error!(target: "sequencer::rpc", "Failed to override leader: {}", e);
-            return Err(SequencerAdminAPIError::LeaderOverrideError(e.to_string()));
         }
-        info!(target: "sequencer", "Overrode leader via the conductor service");
 
+        // Record the conductor's view of leadership for operators, but never let the override
+        // depend on it: during disaster recovery the conductor is often unreachable.
+        let conductor_leader = match self.conductor.take() {
+            Some(conductor) => conductor.leader().await.map_err(|err| err.to_string()),
+            None => Err("leadership already overridden".to_string()),
+        };
+        warn!(
+            target: "sequencer",
+            local_leader = true,
+            ?conductor_leader,
+            "Locally overrode conductor leadership"
+        );
         Ok(())
     }
 

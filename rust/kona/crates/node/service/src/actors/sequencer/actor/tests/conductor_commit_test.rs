@@ -1,4 +1,4 @@
-use super::{super::*, test_actor};
+use super::{super::*, test_actor, test_actor_with_config};
 use crate::actors::{
     MockConductor, MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient,
 };
@@ -153,6 +153,57 @@ async fn conductor_recovery_reseals_the_build_job_before_commit_canonicalization
     assert!(matches!(actor.in_flight, Some(InFlightBlock::Building(_))));
     tick(&mut actor).await;
     assert!(actor.in_flight.is_none());
+}
+
+#[tokio::test]
+async fn local_override_retries_a_rejected_block_without_another_conductor_commit() {
+    let mut conductor = MockConductor::new();
+    conductor.expect_commit_unsafe_payload().times(1).return_once(|_| {
+        Err(crate::actors::ConductorError::Rpc(RpcError::local_usage_str("quorum unavailable")))
+    });
+    conductor.expect_leader().times(1).return_once(|| Ok(false));
+    let (mut actor, _) = test_actor_with_config(true, false, Some(conductor));
+    actor.started = true;
+    actor.in_flight = Some(InFlightBlock::Building(pending_handle()));
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    actor.engine_client.expect_get_unsafe_head().returning(|| Ok(L2BlockInfo::default()));
+    actor
+        .origin_selector
+        .expect_next_l1_origin()
+        .returning(|_, _| Err(L1OriginSelectorError::NotEnoughData(BlockInfo::default())));
+    let mut sequence = Sequence::new();
+    for timestamp in [2, 3] {
+        actor
+            .engine_client
+            .expect_seal_block()
+            .withf(|id, _| *id == PayloadId::new([1; 8]))
+            .times(1)
+            .in_sequence(&mut sequence)
+            .return_once(move |_, _| Ok(sealed_payload(timestamp)));
+    }
+    let payload = sealed_payload(3);
+    let expected = payload.clone();
+    actor
+        .engine_client
+        .expect_canonicalize_block()
+        .withf(move |p, parent| p == &expected && *parent == L2BlockInfo::default())
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_, _| Ok(()));
+    actor
+        .unsafe_payload_gossip_client
+        .expect_schedule_execution_payload_gossip()
+        .withf(move |p| p == &payload)
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| Ok(()));
+
+    tick(&mut actor).await;
+    assert!(matches!(actor.in_flight, Some(InFlightBlock::Building(_))));
+    actor.override_leader().await.unwrap();
+    tick(&mut actor).await;
+    assert!(actor.in_flight.is_none());
+    assert!(actor.admin_state_receiver().borrow().conductor_enabled);
 }
 
 #[tokio::test]
