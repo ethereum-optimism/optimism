@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
+import { VmSafe } from "forge-std/Vm.sol";
 
 // Scripts
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
@@ -12,6 +13,8 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 import { Constants } from "src/libraries/Constants.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Features } from "src/libraries/Features.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { PrivateChainSettings } from "src/libraries/PrivateChainSettings.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -989,5 +992,101 @@ contract SystemConfig_LastUsedOPCM_Test is SystemConfig_TestInit {
 
         // Verify that the lastUsedOPCMVersion matches the OPCM V2 version
         assertEq(systemConfig.lastUsedOPCMVersion(), opcmV2.version());
+    }
+}
+
+/// @title SystemConfig_SetKeyValue_Test
+/// @notice Test contract for SystemConfig `setKeyValue` function.
+contract SystemConfig_SetKeyValue_Test is SystemConfig_TestInit {
+    /// @notice Tests that `setKeyValue` reverts if the caller is not the owner.
+    function testFuzz_setKeyValue_notOwner_reverts(address _sender, bytes32 _key, bytes calldata _value) external {
+        vm.assume(_sender != systemConfig.owner());
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(_sender);
+        systemConfig.setKeyValue(_key, _value);
+    }
+
+    /// @notice Tests that `setKeyValue` reverts while the OP_PRIVATE dev feature is off.
+    function testFuzz_setKeyValue_opPrivateDisabled_reverts(bytes32 _key, bytes calldata _value) external {
+        skipIfDevFeatureEnabled(DevFeatures.OP_PRIVATE);
+        vm.expectRevert(ISystemConfig.SystemConfig_OPPrivateNotEnabled.selector);
+        vm.prank(owner);
+        systemConfig.setKeyValue(_key, _value);
+        assertEq(systemConfig.keyValue(_key), bytes(""));
+    }
+
+    /// @notice Tests that `setKeyValue` stores the value and emits only KeyValueSet, so stock
+    ///         derivation, which reads ConfigUpdate, ignores it.
+    function testFuzz_setKeyValue_succeeds(bytes32 _key, bytes calldata _value) external {
+        skipIfDevFeatureDisabled(DevFeatures.OP_PRIVATE);
+        assertEq(systemConfig.keyValue(_key), bytes(""));
+
+        vm.recordLogs();
+        vm.prank(owner);
+        systemConfig.setKeyValue(_key, _value);
+
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, address(systemConfig));
+        assertEq(logs[0].topics.length, 2);
+        assertEq(logs[0].topics[0], keccak256("KeyValueSet(bytes32,bytes)"));
+        assertEq(logs[0].topics[1], _key);
+        assertEq(logs[0].data, abi.encode(_value));
+        assertEq(systemConfig.keyValue(_key), _value);
+    }
+
+    /// @notice Tests that `setKeyValue` overwrites an existing value.
+    function testFuzz_setKeyValue_overwrite_succeeds(bytes32 _key, bytes calldata _a, bytes calldata _b) external {
+        skipIfDevFeatureDisabled(DevFeatures.OP_PRIVATE);
+        vm.startPrank(owner);
+        systemConfig.setKeyValue(_key, _a);
+        systemConfig.setKeyValue(_key, _b);
+        vm.stopPrank();
+        assertEq(systemConfig.keyValue(_key), _b);
+    }
+
+    /// @notice Tests that the private chain settings are stored under the documented keys and
+    ///         read back with their documented encodings.
+    function test_setKeyValue_privateChainSettings_succeeds() external {
+        skipIfDevFeatureDisabled(DevFeatures.OP_PRIVATE);
+        uint256 chainId = 901;
+
+        // Pin one key so that off-chain readers can check their derivation against it.
+        assertEq(PrivateChainSettings.MIN_BASE_FEE, bytes32("minBaseFee"));
+        assertEq(
+            PrivateChainSettings.key(PrivateChainSettings.MIN_BASE_FEE, chainId),
+            0x659f261d68b613453fcea03b1af560b554583d8276177608bebf3b6d15dd6782
+        );
+
+        vm.startPrank(owner);
+        systemConfig.setKeyValue(
+            PrivateChainSettings.key(PrivateChainSettings.UNSAFE_BLOCK_SIGNER, chainId), abi.encode(address(0xabcd))
+        );
+        systemConfig.setKeyValue(
+            PrivateChainSettings.key(PrivateChainSettings.MIN_BASE_FEE, chainId), abi.encode(uint64(7))
+        );
+        systemConfig.setKeyValue(
+            PrivateChainSettings.key(PrivateChainSettings.EIP1559_DENOMINATOR, chainId), abi.encode(uint32(250))
+        );
+        systemConfig.setKeyValue(
+            PrivateChainSettings.key(PrivateChainSettings.EIP1559_ELASTICITY, chainId), abi.encode(uint32(6))
+        );
+        vm.stopPrank();
+
+        bytes memory signer =
+            systemConfig.keyValue(PrivateChainSettings.key(PrivateChainSettings.UNSAFE_BLOCK_SIGNER, chainId));
+        bytes memory minBaseFee =
+            systemConfig.keyValue(PrivateChainSettings.key(PrivateChainSettings.MIN_BASE_FEE, chainId));
+        bytes memory denominator =
+            systemConfig.keyValue(PrivateChainSettings.key(PrivateChainSettings.EIP1559_DENOMINATOR, chainId));
+        bytes memory elasticity =
+            systemConfig.keyValue(PrivateChainSettings.key(PrivateChainSettings.EIP1559_ELASTICITY, chainId));
+        assertEq(abi.decode(signer, (address)), address(0xabcd));
+        assertEq(abi.decode(minBaseFee, (uint64)), 7);
+        assertEq(abi.decode(denominator, (uint32)), 250);
+        assertEq(abi.decode(elasticity, (uint32)), 6);
+
+        // Settings are per private chain.
+        assertEq(systemConfig.keyValue(PrivateChainSettings.key(PrivateChainSettings.MIN_BASE_FEE, chainId + 1)), "");
     }
 }

@@ -32,8 +32,8 @@
     "sourceCodeHash": "0xfa663c02f15483ddb535485b0c5d1d8ed84dbf5f47b4243ece00cbda24dd759d"
   },
   "src/L1/SystemConfig.sol:SystemConfig": {
-    "initCodeHash": "0x5d44d0cb6c5ee22388ed53cfd92c2287fc528605ecda0f288dd8456211340995",
-    "sourceCodeHash": "0x9f38067280289999a50a8f2b6ce14898bd14d4c97406a26b88368e48c1317a3e"
+    "initCodeHash": "0xfd5303af0d72f71691c986145aaa24a24fafb0b58ac292dec2860e844e9db41d",
+    "sourceCodeHash": "0xfdaf15fe8f9becbc49e4d1ff04266e07f138ee715538b0f6df57890cccc2b654"
   },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
     "initCodeHash": "0xac98f92853e4e72c7b746a4f72ef9d906f897d3496d7a97b512bd9be1c5a9f95",

@@ -487,6 +487,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "keyValue",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "l1CrossDomainMessenger",
     "outputs": [
@@ -894,6 +913,24 @@
   {
     "inputs": [
       {
+        "internalType": "bytes32",
+        "name": "_key",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_value",
+        "type": "bytes"
+      }
+    ],
+    "name": "setKeyValue",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint64",
         "name": "_minBaseFee",
         "type": "uint64"
@@ -1062,6 +1099,25 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "bytes32",
+        "name": "key",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "value",
+        "type": "bytes"
+      }
+    ],
+    "name": "KeyValueSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "address",
         "name": "previousOwner",
         "type": "address"
@@ -1114,6 +1170,11 @@
   {
     "inputs": [],
     "name": "SystemConfig_InvalidFeatureState",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SystemConfig_OPPrivateNotEnabled",
     "type": "error"
   }
 ]

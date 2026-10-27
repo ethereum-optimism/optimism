@@ -9,12 +9,14 @@ import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 // Libraries
 import { Storage } from "src/libraries/Storage.sol";
 import { Features } from "src/libraries/Features.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
@@ -159,6 +161,10 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice Bytes32 feature flag name to boolean enabled value.
     mapping(bytes32 => bool) public isFeatureEnabled;
 
+    /// @notice Generic key/value store. OP Private uses it for private chain settings. See
+    ///         `setKeyValue`.
+    mapping(bytes32 => bytes) public keyValue;
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
@@ -170,14 +176,23 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @param enabled Whether the feature is enabled.
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);
 
+    /// @notice Emitted when a key/value entry is set.
+    /// @param key   Key that was set.
+    /// @param value Value that was set.
+    event KeyValueSet(bytes32 indexed key, bytes value);
+
     /// @notice Thrown when attempting to enable/disable a feature when already enabled/disabled,
     ///         respectively.
     error SystemConfig_InvalidFeatureState();
 
+    /// @notice Thrown when setting a key/value entry while the OP_PRIVATE dev feature is not
+    ///         enabled on the last used OPCM.
+    error SystemConfig_OPPrivateNotEnabled();
+
     /// @notice Semantic version.
-    /// @custom:semver 4.3.0
+    /// @custom:semver 4.4.0
     function version() public pure virtual returns (string memory) {
-        return "4.3.0";
+        return "4.4.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -474,6 +489,30 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         bytes memory data = abi.encode(_dAFootprintGasScalar);
         emit ConfigUpdate(VERSION, UpdateType.DA_FOOTPRINT_GAS_SCALAR, data);
+    }
+
+    /// @notice Sets a key/value entry. Can only be called by the owner, and only while the
+    ///         OP_PRIVATE dev feature is enabled on the last used OPCM. Emits KeyValueSet, not
+    ///         ConfigUpdate, so stock derivation ignores it.
+    ///         OP Private stores the settings of each private chain of this settlement chain here.
+    ///         The key is `keccak256(abi.encode(name, chainId))`, with `chainId` the private
+    ///         chain's chain ID and `name` one of the bytes32 names below. The contract does not
+    ///         validate values. Nodes validate them and apply a default to any setting without an
+    ///         entry. See `PrivateChainSettings` for the names and the key helper.
+    ///         - "unsafeBlockSigner": `abi.encode(address)`
+    ///         - "minBaseFee": `abi.encode(uint64)`
+    ///         - "eip1559Denominator": `abi.encode(uint32)`
+    ///         - "eip1559Elasticity": `abi.encode(uint32)`
+    /// @param _key   Key to set.
+    /// @param _value Value to set.
+    function setKeyValue(bytes32 _key, bytes calldata _value) external onlyOwner {
+        // OP Private is a dev feature, so the setter is off unless the OPCM enables it.
+        if (!IOPContractsManagerV2(lastUsedOPCM()).isDevFeatureEnabled(DevFeatures.OP_PRIVATE)) {
+            revert SystemConfig_OPPrivateNotEnabled();
+        }
+
+        keyValue[_key] = _value;
+        emit KeyValueSet(_key, _value);
     }
 
     /// @notice Sets the start block in a backwards compatible way. Proxies
