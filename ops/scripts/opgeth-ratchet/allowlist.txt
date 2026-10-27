@@ -143,7 +143,6 @@ op-e2e/actions/helpers | missing go-ethereum/core/types.DefaultBlockConfig | #23
 op-e2e/actions/helpers | missing go-ethereum/core/vm.Config.PrecompileOverrides | #23405 test and DSL swaps to op-core
 op-e2e/actions/helpers | missing go-ethereum/core/vm.PrecompileOverrides | #23405 test and DSL swaps to op-core
 op-e2e/actions/helpers | missing go-ethereum/eth/ethconfig.Config.RollupDisableTxPoolGossip | #23405 test and DSL swaps to op-core
-op-e2e/actions/helpers (tests) | missing go-ethereum/params.ChainConfig.IsCanyon | #21196 action-test L2 engine
 op-e2e/actions/upgrades (tests) | missing go-ethereum/core/types.FlzCompressLen | #23405 test and DSL swaps to op-core
 op-e2e/actions/upgrades (tests) | missing go-ethereum/core/types.NewL1CostFuncFjord | #23405 test and DSL swaps to op-core
 op-e2e/actions/upgrades (tests) | missing go-ethereum/core/types.RollupCostData | #23405 test and DSL swaps to op-core

@@ -212,7 +212,7 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 			_, l1InfoDeposit, err := env.Engine.SourceClient(t, 10).InfoAndFirstDepositByHash(t.Ctx(), unsafeHeader.Hash())
 			require.NoError(t, err)
 			nextBaseFee := eip1559.CalcBaseFee(
-				env.Sd.L2Cfg.Config,
+				env.Sd.L2Cfg.Config.GethChainConfig(),
 				unsafeHeader,
 				unsafeHeader.Time+env.Sd.RollupCfg.BlockTime,
 			)
@@ -269,7 +269,7 @@ func TestOperatorFeeConsistency(gt *testing.T) {
 
 				// Re-sign Alice's tx with a random key.
 				require.NoError(t, err, "error generating random private key")
-				signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+				signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
 				newSignedTx, err := types.SignTx(txs[1], signer, pkey)
 				require.NoError(t, err, "error re-signing Alice's transaction")
 

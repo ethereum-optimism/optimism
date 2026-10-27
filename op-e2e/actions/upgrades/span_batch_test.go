@@ -65,7 +65,7 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	cl := seqEngine.EthClient()
 	n, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
 	require.NoError(t, err)
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 	tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
 		ChainID:   sd.L2Cfg.Config.ChainID,
 		Nonce:     n,
@@ -164,7 +164,7 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 	cl := seqEngine.EthClient()
 	n, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
 	require.NoError(t, err)
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 	tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
 		ChainID:   sd.L2Cfg.Config.ChainID,
 		Nonce:     n,
@@ -272,7 +272,7 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 	cl := seqEngine.EthClient()
 	n, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
 	require.NoError(t, err)
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 	tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
 		ChainID:   sd.L2Cfg.Config.ChainID,
 		Nonce:     n,
@@ -356,7 +356,7 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 		// Alice makes a L2 tx
 		n, err := seqEngCl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
 		require.NoError(t, err)
-		signer := types.LatestSigner(sd.L2Cfg.Config)
+		signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 		tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
 			ChainID:   sd.L2Cfg.Config.ChainID,
 			Nonce:     n,
@@ -537,7 +537,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 			// fill the block with random number of L2 txs
 			for j := 0; j < rand.Intn(3); j++ {
 				userIdx := totalTxCount % numTestUsers
-				signer := types.LatestSigner(sd.L2Cfg.Config)
+				signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 				data := make([]byte, rand.Intn(100))
 				_, err := crand.Read(data[:]) // fill with random bytes
 				require.NoError(t, err)
@@ -677,7 +677,7 @@ func TestBatchEquivalence(gt *testing.T) {
 		// fill the block with random number of L2 txs
 		for j := 0; j < rand.Intn(3); j++ {
 			userIdx := totalTxCount % numTestUsers
-			signer := types.LatestSigner(sdDeltaActivated.L2Cfg.Config)
+			signer := types.LatestSignerForChainID(sdDeltaActivated.L2Cfg.Config.ChainID)
 			data := make([]byte, rand.Intn(100))
 			_, err := crand.Read(data[:]) // fill with random bytes
 			require.NoError(t, err)

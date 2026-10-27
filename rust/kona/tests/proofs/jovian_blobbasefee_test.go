@@ -52,7 +52,7 @@ func TestJovianBlobBaseFeeMatchesCanonical(gt *testing.T) {
 		effectiveScalar := uint64(derive.DAFootprintGasScalarDefault)
 
 		l2Cl := env.Engine.EthClient()
-		signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+		signer := types.LatestSignerForChainID(env.Sd.L2Cfg.Config.ChainID)
 		nonce, err := l2Cl.PendingNonceAt(t.Ctx(), env.Dp.Addresses.Alice)
 		require.NoError(t, err)
 

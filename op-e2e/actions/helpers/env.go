@@ -104,7 +104,7 @@ func (env Env) L2UserEnv(t Testing) *BasicUserEnv[*L2Bindings] {
 	l2EthCl := env.SeqEngine.EthClient()
 	return &BasicUserEnv[*L2Bindings]{
 		EthCl:          l2EthCl,
-		Signer:         types.LatestSigner(env.SetupData.L2Cfg.Config),
+		Signer:         types.LatestSignerForChainID(env.SetupData.L2Cfg.Config.ChainID),
 		AddressCorpora: env.AddressCorpora,
 		Bindings:       NewL2Bindings(t, l2EthCl, env.SeqEngine.GethClient()),
 	}

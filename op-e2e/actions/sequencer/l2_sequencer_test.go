@@ -41,7 +41,7 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 
 	sequencer.ActL2PipelineFull(t)
 
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 	cl := engine.EthClient()
 	aliceTx := func() {
 		n, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
