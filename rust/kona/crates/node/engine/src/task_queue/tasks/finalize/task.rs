@@ -4,7 +4,7 @@ use crate::{
     EngineClient, EngineState, EngineTaskExt, FinalizeBlockId, FinalizeTaskError,
     state::EngineSyncStateUpdate, task_queue::synchronize,
 };
-use alloy_eips::BlockId;
+use alloy_eips::{BlockId, BlockNumHash};
 use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
@@ -31,10 +31,24 @@ impl EngineTaskExt for FinalizeTask {
 
     async fn execute(&self, state: &mut EngineState) -> Result<(), FinalizeTaskError> {
         let block_number = self.block_id.number();
+        let finalized_head = state.sync_state.finalized_head();
+
+        // A delegate can temporarily lag behind our finalized head. Ignore stale targets without
+        // asking the execution layer to move its irreversible finalized label backwards.
+        if block_number < finalized_head.block_info.number {
+            debug!(target: "engine", block_number, ?finalized_head, "Ignoring stale finalized target");
+            return Ok(());
+        }
 
         // Sanity check that the block that is being finalized is at least safe.
         if state.sync_state.safe_head().block_info.number < block_number {
             return Err(FinalizeTaskError::BlockNotSafe);
+        }
+
+        // A pinned conflicting hash is already enough evidence to reject the request, even when
+        // the execution layer has not downloaded that block yet.
+        if let FinalizeBlockId::ByHash(id) = self.block_id {
+            Self::check_finalized_hash(finalized_head, id)?;
         }
 
         // Look up by hash when the caller pinned a specific hash (delegated polling supplies
@@ -56,15 +70,14 @@ impl EngineTaskExt for FinalizeTask {
         let block_info = L2BlockInfo::from_block_and_genesis(&block, &self.client.cfg().genesis)
             .map_err(FinalizeTaskError::FromBlock)?;
 
-        // For ByHash, also assert the returned block's height matches the caller's claim. The
-        // engine should never serve a block at a different height for a given hash, but a height
-        // mismatch indicates either an upstream protocol bug or a misuse of the API and must
-        // never lead to silent finalization.
-        if let FinalizeBlockId::ByHash(id) = self.block_id &&
-            block_info.block_info.number != id.number
-        {
-            return Err(FinalizeTaskError::BlockNotFound(id.number));
+        // Validate the resolved height for either identifier form. Otherwise a malformed
+        // by-number response could bypass the stale-target guard and regress finality.
+        if block_info.block_info.number != block_number {
+            return Err(FinalizeTaskError::BlockNotFound(block_number));
         }
+
+        // Identical targets still pass through synchronize so pending EL work can be retried.
+        Self::check_finalized_hash(finalized_head, block_info.block_info.id())?;
 
         // Dispatch a forkchoice update.
         synchronize(
@@ -81,6 +94,27 @@ impl EngineTaskExt for FinalizeTask {
             "Updated finalized head"
         );
 
+        Ok(())
+    }
+}
+
+impl FinalizeTask {
+    /// Reject a different hash at an established finalized height. The default head represents an
+    /// uninitialized label, so it must allow initialization to the configured genesis hash.
+    fn check_finalized_hash(
+        finalized: L2BlockInfo,
+        target: BlockNumHash,
+    ) -> Result<(), FinalizeTaskError> {
+        if finalized != L2BlockInfo::default() &&
+            target.number == finalized.block_info.number &&
+            target.hash != finalized.block_info.hash
+        {
+            return Err(FinalizeTaskError::ConflictingFinalizedBlock {
+                number: target.number,
+                current_hash: finalized.block_info.hash,
+                requested_hash: target.hash,
+            });
+        }
         Ok(())
     }
 }
