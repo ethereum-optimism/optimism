@@ -1,5 +1,5 @@
 use crate::{
-    EngineTaskExt, SealTask, SealTaskError,
+    ExecutableEngineTask, SealTask, SealTaskError,
     test_utils::{
         TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
     },

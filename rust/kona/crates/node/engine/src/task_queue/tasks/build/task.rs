@@ -1,7 +1,7 @@
 //! A task for building a new block and importing it.
 use super::BuildTaskError;
 use crate::{
-    EngineClient, EngineForkchoiceVersion, EngineState, EngineTaskExt,
+    EngineClient, EngineForkchoiceVersion, EngineState, ExecutableEngineTask,
     state::EngineSyncStateUpdate, task_queue::tasks::build::error::EngineBuildError,
 };
 use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
@@ -39,7 +39,7 @@ pub struct BuildTask {
 }
 
 #[async_trait]
-impl EngineTaskExt for BuildTask {
+impl ExecutableEngineTask for BuildTask {
     type Output = PayloadId;
 
     type Error = BuildTaskError;

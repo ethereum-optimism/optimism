@@ -16,13 +16,13 @@ The execution engine is built around several key components:
 
 ## Core Trait Abstractions
 
-### EngineTaskExt
+### ExecutableEngineTask
 
-The `EngineTaskExt` trait defines the interface for all engine tasks:
+The `ExecutableEngineTask` trait defines the interface for all engine tasks:
 
 ```rust
 #[async_trait]
-pub trait EngineTaskExt {
+pub trait ExecutableEngineTask {
     type Output;
     type Error: EngineTaskError;
 
@@ -308,7 +308,7 @@ The engine always includes metrics instrumentation for:
 
 The trait-based architecture allows for:
 
-- **Custom task implementations** via `EngineTaskExt`
+- **Custom task implementations** via `ExecutableEngineTask`
 - **Custom error handling** via `EngineTaskError`
 - **Custom state management** extensions
 - **Testing and mocking** support

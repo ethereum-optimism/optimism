@@ -1,6 +1,6 @@
 //! A task for sealing a sequenced block.
 use super::SealTaskError;
-use crate::{EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt};
+use crate::{EngineClient, EngineGetPayloadVersion, EngineState, ExecutableEngineTask};
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
 use async_trait::async_trait;
 use derive_more::Constructor;
@@ -62,7 +62,7 @@ impl SealTask {
 }
 
 #[async_trait]
-impl EngineTaskExt for SealTask {
+impl ExecutableEngineTask for SealTask {
     type Output = ();
 
     type Error = SealTaskError;
