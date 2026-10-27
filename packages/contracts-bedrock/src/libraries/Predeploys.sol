@@ -119,7 +119,7 @@ library Predeploys {
 
     /// @notice Address of the ChainConfig predeploy, which holds the chain's OP Private settlement
     ///         chain ID.
-    address internal constant CHAIN_CONFIG = 0x4200000000000000000000000000000000000034;
+    address internal constant CHAIN_CONFIG = 0x4200000000000000000000000000000000000031;
 
     /// @notice Implementation variant selector.
     /// @dev Values are array indexes into `PredeployRecord.variants`.
