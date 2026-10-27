@@ -23,7 +23,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     Behaviour, BlockHandler, ConnectionGate, ConnectionGater, Event, GossipDriverBuilder, Handler,
-    PublishError, StaticPeer,
+    PublishError,
 };
 
 /// A driver for a [`Swarm`] instance.
@@ -60,8 +60,9 @@ pub struct GossipDriver<G: ConnectionGate> {
     pub peer_connection_start: HashMap<PeerId, Instant>,
     /// The connection gate.
     pub connection_gate: G,
-    /// The peers to dial at startup and keep connected.
-    pub static_peers: Vec<StaticPeer>,
+    /// The addresses of each peer to dial at startup and keep connected, without the node's own
+    /// ID.
+    pub(crate) static_peers: HashMap<PeerId, Vec<Multiaddr>>,
     /// Tracks ping times for peers.
     pub ping: Arc<Mutex<HashMap<PeerId, Duration>>>,
     /// The open connections to each peer, used to close duplicate connections.
@@ -126,7 +127,7 @@ where
             sync_handler,
             sync_protocol: Some(sync_protocol),
             connection_gate: gate,
-            static_peers: Vec::new(),
+            static_peers: HashMap::new(),
             ping: Arc::new(Mutex::new(Default::default())),
             connections: Default::default(),
             duplicate_connection_grace: DUPLICATE_CONNECTION_GRACE,
@@ -227,9 +228,10 @@ where
                     self.swarm.select_next_some().await &&
                     id == listener_id
                 {
-                    info!(target: "gossip", "Swarm now listening on: {address}");
+                    info!(target: "gossip", peer_id = %self.local_peer_id(), "Swarm now listening on: {address}");
 
                     self.addr = address.clone();
+                    self.dial_static_peers();
 
                     return Ok(address);
                 }
@@ -238,6 +240,16 @@ where
                 error!(target: "gossip", "Fail to listen on {}: {err}", self.addr);
                 Err(err)
             }
+        }
+    }
+
+    /// Dials each static peer, at all of its addresses.
+    fn dial_static_peers(&mut self) {
+        let static_peers: Vec<_> =
+            self.static_peers.iter().map(|(peer_id, addrs)| (*peer_id, addrs.clone())).collect();
+        for (peer_id, addrs) in static_peers {
+            info!(target: "gossip", %peer_id, ?addrs, "Dialing static peer");
+            self.dial_peer(peer_id, addrs);
         }
     }
 
@@ -627,8 +639,8 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        ConnectionGater, GossipDriver,
-        builder::tests::{memory_driver, poll_until_connected},
+        ConnectionGater, GossipDriver, StaticPeer,
+        builder::tests::{memory_driver, memory_driver_builder, poll_until_connected},
     };
     use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
     use std::time::Duration;
@@ -889,6 +901,24 @@ mod tests {
             }
         };
         tokio::time::timeout(Duration::from_secs(10), failed).await.expect("dial fails");
+    }
+
+    /// Starting a driver dials its static peers, at all of their addresses.
+    #[tokio::test]
+    async fn test_start_dials_static_peers() {
+        let mut driver_2 = memory_driver();
+        let peer_2 = *driver_2.local_peer_id();
+        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+
+        let static_peers = [unused_memory_addr(peer_2), addr_2]
+            .map(|addr| StaticPeer::try_from(addr).unwrap())
+            .to_vec();
+        let mut driver_1 =
+            memory_driver_builder().with_static_peers(static_peers).build().expect("build");
+        driver_1.start().await.expect("listen");
+
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+        assert!(driver_1.swarm.is_connected(&peer_2));
     }
 
     /// A dial that connects is no longer in flight in the gate.

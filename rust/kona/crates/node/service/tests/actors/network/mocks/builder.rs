@@ -13,7 +13,7 @@ use alloy_primitives::Address;
 use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
-use kona_gossip::GossipTransport;
+use kona_gossip::{GossipTransport, StaticPeer};
 use kona_node_service::{
     EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, SignerActor,
 };
@@ -53,6 +53,8 @@ pub(crate) struct TestNetworkBuilder {
     discovery_interval: Option<Duration>,
     /// The ID of the next node built, which prefixes its logs.
     next_node_id: usize,
+    /// The static peers of the next node built.
+    static_peers: Vec<StaticPeer>,
 }
 
 impl TestNetworkBuilder {
@@ -71,6 +73,7 @@ impl TestNetworkBuilder {
             in_memory: false,
             discovery_interval: None,
             next_node_id: 0,
+            static_peers: Vec::new(),
         }
     }
 
@@ -87,6 +90,12 @@ impl TestNetworkBuilder {
     /// Only for tests that wait on discovery to connect nodes: frequent lookups flood debug logs.
     pub(crate) const fn with_discovery_interval(mut self, interval: Duration) -> Self {
         self.discovery_interval = Some(interval);
+        self
+    }
+
+    /// Gives the next node built these static peers, which it dials at startup.
+    pub(crate) fn with_static_peers(mut self, static_peers: Vec<StaticPeer>) -> Self {
+        self.static_peers = static_peers;
         self
     }
 
@@ -154,7 +163,8 @@ impl TestNetworkBuilder {
             LocalNode::new(local_node_key, node_addr, 0, 0),
             discovery_config,
         )
-        .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into());
+        .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into())
+        .with_static_peers(std::mem::take(&mut self.static_peers));
         if let Some(interval) = self.discovery_interval {
             builder = builder.with_discovery_interval(interval);
         }

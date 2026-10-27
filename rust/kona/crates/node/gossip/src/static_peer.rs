@@ -2,7 +2,7 @@
 
 use crate::StaticPeerError;
 use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
-use std::{fmt, str::FromStr};
+use std::{collections::HashMap, fmt, str::FromStr};
 
 /// A peer to dial at startup and keep connected, given by an address that ends in its
 /// `/p2p/<peer id>`, such as `/dns4/node.example.com/tcp/9222/p2p/16Uiu2...`.
@@ -52,6 +52,21 @@ impl FromStr for StaticPeer {
     }
 }
 
+/// Groups static peers by peer ID, so several addresses for one peer make one peer. An address
+/// listed twice is kept once.
+pub(crate) fn group_by_peer(
+    peers: impl IntoIterator<Item = StaticPeer>,
+) -> HashMap<PeerId, Vec<Multiaddr>> {
+    let mut grouped: HashMap<PeerId, Vec<Multiaddr>> = HashMap::new();
+    for peer in peers {
+        let addrs = grouped.entry(peer.peer_id).or_default();
+        if !addrs.contains(&peer.addr) {
+            addrs.push(peer.addr);
+        }
+    }
+    grouped
+}
+
 impl fmt::Display for StaticPeer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.addr.fmt(f)
@@ -62,7 +77,30 @@ impl fmt::Display for StaticPeer {
 mod tests {
     use super::*;
 
-    const PEER_ID: &str = "16Uiu2HAmLFhCjjNUXiZA3Hdd3j3qp6rnD6tHkFtsSZmhpV8axfGX";
+    const PEER_ID: &str = "16Uiv2HAmLFhCjjNUXiZA3Hdd3j3qp6rnD6tHkFtsSZmhpV8axfGX";
+
+    #[test]
+    fn test_group_by_peer() {
+        let (peer_1, peer_2) = (PeerId::random(), PeerId::random());
+        let peer = |ip: &str, id: PeerId| -> StaticPeer {
+            format!("/ip4/{ip}/tcp/9222/p2p/{id}").parse().unwrap()
+        };
+        let peers = [
+            peer("10.0.0.1", peer_1),
+            peer("10.0.0.2", peer_1),
+            // Listed twice.
+            peer("10.0.0.1", peer_1),
+            peer("10.0.0.3", peer_2),
+        ];
+
+        let grouped = group_by_peer(peers.clone());
+
+        let expected = HashMap::from([
+            (peer_1, vec![peers[0].addr.clone(), peers[1].addr.clone()]),
+            (peer_2, vec![peers[3].addr.clone()]),
+        ]);
+        assert_eq!(grouped, expected);
+    }
 
     #[test]
     fn test_parses_address_with_peer_id() {

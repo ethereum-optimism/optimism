@@ -16,7 +16,8 @@ use std::{convert::Infallible, error::Error, time::Duration};
 use tokio::sync::watch;
 
 use crate::{
-    Behaviour, BlockHandler, GaterConfig, GossipDriver, GossipDriverBuilderError, StaticPeer,
+    Behaviour, BlockHandler, ConnectionGate, GaterConfig, GossipDriver, GossipDriverBuilderError,
+    StaticPeer,
 };
 
 /// Builds the swarm's authenticated, multiplexed transport from the node's [`Keypair`].
@@ -190,6 +191,11 @@ impl GossipDriverBuilder {
         } = self;
 
         let timeout = timeout.unwrap_or(Duration::from_secs(60));
+        let mut static_peers = crate::static_peer::group_by_peer(static_peers);
+        // Lets a cluster share one list.
+        if let Some(addrs) = static_peers.remove(&keypair.public().to_peer_id()) {
+            info!(target: "gossip", ?addrs, "Static peer list contains this node's own ID, ignoring it");
+        }
         let l2_chain_id = rollup_config.l2_chain_id;
         let block_time = rollup_config.block_time;
 
@@ -276,6 +282,10 @@ impl GossipDriverBuilder {
         };
 
         let mut gate = crate::ConnectionGater::new(gater_config.unwrap_or_default());
+        // Static peers are exempt from the redial limit.
+        for peer_id in static_peers.keys() {
+            gate.protect_peer(*peer_id);
+        }
         if custom_transport {
             gate = gate.allowing_addrs_without_ip();
         }
@@ -295,6 +305,7 @@ pub(crate) mod tests {
         core::{transport::MemoryTransport, upgrade::Version},
         multiaddr::Protocol,
     };
+    use std::collections::HashMap;
 
     /// An in-process transport with the upgrades `with_tcp` applies: lazy protocol negotiation,
     /// Noise, then Yamux.
@@ -311,6 +322,11 @@ pub(crate) mod tests {
     /// Builds a gossip driver whose swarm uses the in-memory transport, listening on a free
     /// `/memory` port once started.
     pub(crate) fn memory_driver() -> GossipDriver<crate::ConnectionGater> {
+        memory_driver_builder().build().expect("build gossip driver")
+    }
+
+    /// A builder for [`memory_driver`], for tests that need more settings.
+    pub(crate) fn memory_driver_builder() -> GossipDriverBuilder {
         GossipDriverBuilder::new(
             RollupConfig::default(),
             Address::ZERO,
@@ -318,8 +334,6 @@ pub(crate) mod tests {
             Keypair::generate_secp256k1(),
         )
         .with_transport(memory_transport())
-        .build()
-        .expect("build gossip driver")
     }
 
     /// Polls both drivers' swarms until each has a connection, as the handshake needs both.
@@ -359,7 +373,35 @@ pub(crate) mod tests {
 
         let monitoring = driver.peer_monitoring.expect("peer monitoring is set");
         assert_eq!(monitoring.ban_threshold, -10.0);
-        assert_eq!(driver.static_peers, vec![static_peer]);
+        assert_eq!(
+            driver.static_peers,
+            HashMap::from([(static_peer.peer_id(), vec![static_peer.addr().clone()])])
+        );
+    }
+
+    /// The node's own ID is dropped from the static peers, and the others are protected from the
+    /// moment the driver is built.
+    #[test]
+    fn test_build_protects_static_peers() {
+        let keypair = Keypair::generate_secp256k1();
+        let local = keypair.public().to_peer_id();
+        let other = PeerId::random();
+        let static_peers = [other, local]
+            .map(|id| format!("/ip4/127.0.0.1/tcp/9222/p2p/{id}").parse().unwrap())
+            .to_vec();
+
+        let driver = GossipDriverBuilder::new(
+            RollupConfig::default(),
+            Address::ZERO,
+            Multiaddr::empty().with(Protocol::Memory(0)),
+            keypair,
+        )
+        .with_static_peers(static_peers)
+        .build()
+        .expect("build gossip driver");
+
+        assert_eq!(driver.static_peers.keys().collect::<Vec<_>>(), vec![&other]);
+        assert_eq!(driver.connection_gate.list_protected_peers(), vec![other]);
     }
 
     /// [`GossipTransport::Other`] replaces TCP: swarms built with a memory transport listen on

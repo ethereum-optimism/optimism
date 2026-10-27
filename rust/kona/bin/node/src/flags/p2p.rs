@@ -269,6 +269,9 @@ pub struct P2PArgs {
     ///
     /// Each address must be TCP and end in the peer's ID: an `opp2p_self` RPC call lists a node's
     /// addresses in this form. The flag can be repeated, or given a comma-separated list.
+    ///
+    /// Several addresses with the same peer ID make one peer, dialed at whichever address connects
+    /// first. Addresses with the node's own ID are ignored, so a cluster can share one list.
     #[arg(
         long = "p2p.static-peers",
         // op-node's name for the flag, for configs migrated from op-node.

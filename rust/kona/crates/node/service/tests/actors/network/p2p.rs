@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use crate::actors::network::mocks::builder::TestNetworkBuilder;
+use kona_gossip::StaticPeer;
 use kona_rpc::OpP2PApiServer;
 
 /// Two nodes connect through discovery: the second bootstraps from the first's ENR, and its
@@ -63,6 +64,26 @@ async fn test_memory_network_conn() -> anyhow::Result<()> {
     let node_2 = builder.build(vec![]).await;
 
     node_2.connect_to(&node_1).await?;
+
+    node_2.is_connected_to_with_retries(&node_1).await?;
+    node_1.is_connected_to_with_retries(&node_2).await?;
+
+    assert!(node_1.discovery_table().await?.is_empty());
+    assert!(node_2.discovery_table().await?.is_empty());
+
+    Ok(())
+}
+
+/// A node dials its static peers at startup, with no `ConnectPeer` command and no discovery: the
+/// in-memory nodes have no bootnodes.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_static_peer_connects_at_startup() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().in_memory();
+    let node_1 = builder.build(vec![]).await;
+
+    let static_peer = StaticPeer::try_from(node_1.listen_addr().await?)?;
+    let mut builder = builder.with_static_peers(vec![static_peer]);
+    let node_2 = builder.build(vec![]).await;
 
     node_2.is_connected_to_with_retries(&node_1).await?;
     node_1.is_connected_to_with_retries(&node_2).await?;
