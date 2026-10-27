@@ -90,9 +90,15 @@ Alternatively `RUST_JIT_BUILD=1` has the tests run the release build themselves;
 takes long, so give `go test` a `-timeout` that covers it (e.g. `-timeout 60m`).
 
 **Kona fault-proof action tests** (`rust/kona/tests/proofs/...`, e.g.
-`TestActivationBlockNUTBundle`) additionally run kona-client through the native `kona-host`
-binary, so they need it built and `KONA_HOST_PATH` pointing at it. These tests are excluded
-from the normal `go test ./...` suite — they only run under kona-host.
+`TestActivationBlockNUTBundle`) run their L2 chain on the same `op-reth-test-engine` and
+additionally run kona-client through the native `kona-host` binary, which reads the L2 chain from
+the engine over its IPC socket. So they need both binaries built, and `KONA_HOST_PATH` pointing at
+kona-host. These tests are excluded from the normal `go test ./...` suite — they only run under
+kona-host.
+
+A kona-host run that does not finish within 10 minutes fails the test. The host retries a
+preimage it cannot fetch indefinitely, and the engine's `debug_dbGet` serves contract code only,
+so a trie node missing from an execution witness shows up as that timeout.
 
 > [!NOTE]
 > These tests cover **op-node as well as kona-client**. The chain is built and derived by op-node
@@ -102,14 +108,18 @@ from the normal `go test ./...` suite — they only run under kona-host.
 > consensus-layer implementations of the state transition.
 
 ```bash
-# build the native host (release; heavy build)
-cargo build --release --manifest-path rust/Cargo.toml --bin kona-host
+# build the native host and the engine (release; heavy builds) from rust/, where the toolchain is pinned
+cd rust
+mise x -- cargo build --release --bin kona-host
+mise x -- just build-op-reth-test-engine
 
-# run, pointing KONA_HOST_PATH at the binary
-cd rust/kona/tests/proofs
+# run, pointing the harness at both binaries (without RUST_BINARY_PATH_OP_RETH_TEST_ENGINE it
+# falls back to the most recently built engine under rust/target)
+cd kona/tests/proofs
 KONA_HOST_PATH="$(git rev-parse --show-toplevel)/rust/target/release/kona-host" \
+RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="$(git rev-parse --show-toplevel)/rust/target/release/op-reth-test-engine" \
   go test -run TestActivationBlockNUTBundle -count=1 .
 ```
 
-Or let the justfile build kona-host and run in one step (still needs the contracts built
+Or let the justfile build both binaries and run in one step (still needs the contracts built
 above): from `rust/kona/tests`, `just action-tests-single TestActivationBlockNUTBundle`.
