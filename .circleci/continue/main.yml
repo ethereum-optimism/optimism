@@ -412,7 +412,13 @@ commands:
           name: Determine target branch for this pipeline
           command: |
             # Use the get-target-branch.sh script
-            GH_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-}}" source scripts/ops/get-target-branch.sh
+            GH_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-${MISE_GITHUB_TOKEN:-}}}" source scripts/ops/get-target-branch.sh
+
+            # A release branch's own pushes compare against itself, not develop.
+            # Not in the script: setup change detection would see an empty diff.
+            if [ -z "${CIRCLE_PULL_REQUEST:-}" ] && [[ "${CIRCLE_BRANCH:-}" == proposal/* ]]; then
+              TARGET_BRANCH="$CIRCLE_BRANCH"
+            fi
 
             # Make TARGET_BRANCH available to subsequent steps
             echo "export TARGET_BRANCH=$TARGET_BRANCH" >> "$BASH_ENV"
@@ -1812,6 +1818,7 @@ jobs:
           patterns: op-core/nuts
       # The verify script runs `go run ./ops/scripts/nut-provenance-verify`.
       - restore-go-mod-cache
+      - get-target-branch
       - run:
           name: verify NUT bundle provenance
           command: ./ops/scripts/nut-provenance-verify-changed.sh
