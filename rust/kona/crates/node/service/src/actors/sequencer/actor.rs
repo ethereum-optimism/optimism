@@ -18,10 +18,13 @@ use crate::{
     },
 };
 use alloy_primitives::B256;
-use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
+use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadId, PayloadStatusEnum};
 use async_trait::async_trait;
 use kona_derive::{AttributesBuilder, PipelineErrorKind};
-use kona_engine::{CanonicalizeTaskError, InsertTaskError, SealTaskError, SynchronizeTaskError};
+use kona_engine::{
+    BuildTaskError, CanonicalizeTaskError, EngineBuildError, InsertTaskError, SealTaskError,
+    SynchronizeTaskError,
+};
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use kona_rpc::{SequencerAdminAPIError, SequencerAdminCommand, SequencerState};
@@ -315,6 +318,45 @@ where
         let result = conductor.commit_unsafe_payload(envelope).await;
         update_conductor_commitment_duration_metrics(conductor_commitment_start.elapsed());
         result
+    }
+
+    /// Retries rejected builds with fresh attributes. Match every build error explicitly so new
+    /// errors require a sequencing policy independent of the engine queue's severity.
+    fn handle_build_error(&mut self, err: BuildTaskError) -> Result<(), SequencerActorError> {
+        match &err {
+            BuildTaskError::StaleBuild => {
+                debug!(target: "sequencer", %err, "Build parent changed; rebuilding immediately");
+                self.build_ticker.reset_immediately();
+            }
+            BuildTaskError::EngineBuildError(EngineBuildError::FinalizedAheadOfUnsafe(_, _)) => {
+                error!(target: "sequencer", %err, "Critical build task error occurred");
+                return Err(EngineClientError::StartBuildError(err).into());
+            }
+            BuildTaskError::EngineBuildError(EngineBuildError::AttributesInsertionFailed(
+                rpc_err,
+            )) if rpc_err.as_error_resp().is_some_and(|resp| {
+                // -38002 initiates an engine reset; other Engine API rejections can signal
+                // a CL/EL configuration disagreement that retrying the same inputs cannot fix.
+                (-38099..=-38000).contains(&resp.code) &&
+                    resp.code != i64::from(INVALID_FORK_CHOICE_STATE_ERROR)
+            }) =>
+            {
+                error!(target: "sequencer", %err, "Engine rejected payload attributes; check CL/EL configuration; retrying after one block time");
+                metrics::counter!(crate::Metrics::SEQUENCER_BUILD_REJECTIONS).increment(1);
+                self.build_ticker.reset_after(Duration::from_secs(self.rollup_config.block_time));
+            }
+            BuildTaskError::EngineBuildError(
+                EngineBuildError::AttributesInsertionFailed(_) |
+                EngineBuildError::InvalidPayload(_) |
+                EngineBuildError::UnexpectedPayloadStatus(_) |
+                EngineBuildError::MissingPayloadId |
+                EngineBuildError::EngineSyncing,
+            ) => {
+                warn!(target: "sequencer", %err, "Build rejected; retrying on the next tick");
+                self.build_ticker.reset_after(Duration::from_secs(1));
+            }
+        }
+        Ok(())
     }
 
     /// Handles a failed seal of the in-flight build job. A stale or expired job is dropped so that
@@ -727,6 +769,14 @@ where
                 // Start the build job for the next L2 block on top of the current unsafe head.
                 match self.build_unsealed_payload().await {
                     Ok(handle) => self.in_flight = handle.map(InFlightBlock::Building),
+                    Err(SequencerActorError::EngineError(EngineClientError::StartBuildError(err))) => {
+                        return self.handle_build_error(err);
+                    }
+                    Err(SequencerActorError::EngineError(EngineClientError::ResponseError(err))) => {
+                        warn!(target: "sequencer", %err, "Build interrupted by engine recovery; retrying on the next tick");
+                        self.build_ticker.reset_after(Duration::from_secs(1));
+                        return Ok(());
+                    }
                     Err(err) => {
                         error!(target: "sequencer", ?err, "Unexpected error building payload");
                         return Err(err);
