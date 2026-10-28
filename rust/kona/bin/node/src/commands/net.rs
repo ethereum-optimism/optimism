@@ -97,7 +97,12 @@ impl NetCommand {
             gossip_payload_rx,
         );
 
-        let rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx.clone());
+        let rpc = P2pRpc::new(
+            network.gossip_query_handle(),
+            Some(discovery),
+            rollup_config.l2_chain_id.id(),
+            gossip_command_tx.clone(),
+        );
 
         // Spawn the actor; the loop below polls the p2p RPC interface on an interval.
         tokio::spawn(async move {

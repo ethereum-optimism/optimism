@@ -209,8 +209,12 @@ impl TestNetworkBuilder {
             signed_payload_rx,
         );
 
-        let p2p_rpc =
-            P2pRpc::new(actor.gossip_query_handle(), discovery, gossip_command_tx.clone());
+        let p2p_rpc = P2pRpc::new(
+            actor.gossip_query_handle(),
+            Some(discovery),
+            self.chain_id,
+            gossip_command_tx.clone(),
+        );
 
         // Every test network can sign: payloads sent to `gossip_payload_tx` are signed with this
         // node's key and then gossiped.

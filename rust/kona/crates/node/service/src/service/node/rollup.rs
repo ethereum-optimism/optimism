@@ -642,7 +642,12 @@ impl RollupNode {
             signed_payload_rx,
         );
 
-        let p2p_rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx);
+        let p2p_rpc = P2pRpc::new(
+            network.gossip_query_handle(),
+            Some(discovery),
+            self.config.l2_chain_id.id(),
+            gossip_command_tx,
+        );
 
         let l1_watcher = self.build_l1_watcher(
             derivation_actor_request_tx,

@@ -19,7 +19,7 @@ use kona_gossip::{
     Connectedness, Direction, GossipCommand, GossipCommandSender, GossipQueryHandle, GossipScores,
     GossipState, PeerCount, PeerDump, PeerInfo, PeerScores, PeerStats,
 };
-use kona_peers::OpStackEnr;
+use kona_peers::{OpStackEnr, peer_id_to_node_id};
 use libp2p::{PeerId, multiaddr::Protocol};
 use std::{net::IpAddr, str::FromStr, sync::Arc, time::Duration};
 
@@ -29,8 +29,16 @@ use crate::OpP2PApiServer;
 #[derive(Debug, Clone)]
 pub struct P2pRpc {
     gossip: GossipQueryHandle,
-    discovery: Discv5Handler,
+    /// `None` if discovery is disabled.
+    discovery: Option<Discv5Handler>,
+    chain_id: u64,
     commands: GossipCommandSender,
+}
+
+/// The error op-node's `opp2p_discoveryTable` returns when discovery is disabled.
+fn discovery_disabled() -> ErrorObject<'static> {
+    // The code op-node's server assigns to a plain error.
+    ErrorObject::owned(-32000, "discovery disabled", None::<()>)
 }
 
 #[async_trait]
@@ -38,12 +46,19 @@ impl OpP2PApiServer for P2pRpc {
     async fn opp2p_self(&self) -> RpcResult<PeerInfo> {
         let gossip = self.gossip_snapshot()?;
         let peer_id = gossip.local_peer_id;
-        let chain_id = self.discovery.chain_id;
-        let enr = self
-            .discovery
-            .local_enr()
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+        let chain_id = self.chain_id;
+        // Like op-node, from the libp2p key, which is discovery's key too.
+        let node_id = peer_id_to_node_id(&peer_id)
+            .ok_or_else(|| ErrorObject::from(ErrorCode::InternalError))?;
+        let enr = match &self.discovery {
+            Some(discovery) => Some(
+                discovery
+                    .local_enr()
+                    .await
+                    .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?,
+            ),
+            None => None,
+        };
         let mut addresses = gossip
             .listen_addresses
             .iter()
@@ -57,10 +72,10 @@ impl OpP2PApiServer for P2pRpc {
         Ok(PeerInfo {
             peer_id: peer_id.to_string(),
             // Display abbreviates the node ID; the RPC response needs the full value.
-            node_id: format!("{:?}", enr.node_id()),
+            node_id: format!("{node_id:?}"),
             user_agent: "kona".to_string(),
             protocol_version: String::new(),
-            enr: Some(enr.to_string()),
+            enr: enr.map(|enr| enr.to_string()),
             addresses,
             protocols: Some(vec![
                 "/ipfs/id/push/1.0.0".to_string(),
@@ -87,14 +102,16 @@ impl OpP2PApiServer for P2pRpc {
 
     async fn opp2p_peer_count(&self) -> RpcResult<PeerCount> {
         let gossip = self.gossip_snapshot()?;
-        let connected_discovery = self
-            .discovery
-            .peer_count()
-            .await
-            .inspect_err(|e| {
-                warn!(target: "p2p_rpc", "Failed to receive peer count: {e:?}");
-            })
-            .ok();
+        let connected_discovery = match &self.discovery {
+            Some(discovery) => discovery
+                .peer_count()
+                .await
+                .inspect_err(|e| {
+                    warn!(target: "p2p_rpc", "Failed to receive peer count: {e:?}");
+                })
+                .ok(),
+            None => None,
+        };
         Ok(PeerCount { connected_discovery, connected_gossip: gossip.connected_peers.len() })
     }
 
@@ -110,11 +127,13 @@ impl OpP2PApiServer for P2pRpc {
         } else {
             gossip.peerstore.keys().copied().collect()
         };
-        let table_infos = self
-            .discovery
-            .table_infos()
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+        let table_infos = match &self.discovery {
+            Some(discovery) => discovery
+                .table_infos()
+                .await
+                .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?,
+            None => Vec::new(),
+        };
         let pings = gossip.pings().await;
         let node_to_peer_id = peer_ids.into_iter().filter_map(|id| {
             let Ok(pubkey) = libp2p::identity::PublicKey::try_decode_protobuf(&id.to_bytes()[2..]) else {
@@ -218,11 +237,13 @@ impl OpP2PApiServer for P2pRpc {
 
     async fn opp2p_peer_stats(&self) -> RpcResult<PeerStats> {
         let gossip = self.gossip_snapshot()?;
-        let table = self
-            .discovery
-            .peer_count()
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+        let table = match &self.discovery {
+            Some(discovery) => discovery
+                .peer_count()
+                .await
+                .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?,
+            None => 0,
+        };
         let to_u32 = |count: usize| {
             count.try_into().map_err(|_| ErrorObject::from(ErrorCode::InternalError))
         };
@@ -246,6 +267,8 @@ impl OpP2PApiServer for P2pRpc {
     async fn opp2p_discovery_table(&self) -> RpcResult<Vec<String>> {
         self.gossip_snapshot()?;
         self.discovery
+            .as_ref()
+            .ok_or_else(discovery_disabled)?
             .table_enrs()
             .await
             .map(|enrs| enrs.into_iter().map(|enr| enr.to_string()).collect())
@@ -386,13 +409,15 @@ impl OpP2PApiServer for P2pRpc {
 }
 
 impl P2pRpc {
-    /// Constructs an RPC server from read handles and a network command sender.
+    /// Constructs an RPC server from read handles and a network command sender. `discovery` is
+    /// `None` if discovery is disabled.
     pub const fn new(
         gossip: GossipQueryHandle,
-        discovery: Discv5Handler,
+        discovery: Option<Discv5Handler>,
+        chain_id: u64,
         commands: GossipCommandSender,
     ) -> Self {
-        Self { gossip, discovery, commands }
+        Self { gossip, discovery, chain_id, commands }
     }
 
     async fn apply_command(&self, command: GossipCommand) -> RpcResult<()> {
@@ -427,7 +452,7 @@ mod tests {
         driver: GossipDriver<ConnectionGater>,
     }
 
-    fn fixture() -> Fixture {
+    fn fixture(discovery: bool) -> Fixture {
         let driver = GossipDriver::<ConnectionGater>::builder(
             RollupConfig::default(),
             Address::ZERO,
@@ -441,7 +466,8 @@ mod tests {
         let (discovery_tx, discovery_rx) = mpsc::channel(8);
         let rpc = P2pRpc::new(
             GossipQueryHandle::new(state_rx),
-            Discv5Handler::new(10, discovery_tx),
+            discovery.then(|| Discv5Handler::new(10, discovery_tx)),
+            10,
             commands_tx,
         );
         Fixture { rpc, state_tx, commands_rx, discovery_rx, driver }
@@ -449,7 +475,7 @@ mod tests {
 
     #[tokio::test]
     async fn queries_assemble_peer_data_without_sending_network_requests() {
-        let mut fixture = fixture();
+        let mut fixture = fixture(true);
         let connected_key = Keypair::generate_secp256k1();
         let disconnected_key = Keypair::generate_secp256k1();
         let connected = connected_key.public().to_peer_id();
@@ -517,7 +543,7 @@ mod tests {
 
     #[tokio::test]
     async fn queries_observe_updates_and_fail_after_the_publisher_exits() {
-        let fixture = fixture();
+        let fixture = fixture(true);
         let clone = fixture.rpc.clone();
         assert!(clone.opp2p_list_blocked_peers().await.unwrap().is_empty());
         let mut state = fixture.driver.snapshot();
@@ -538,7 +564,7 @@ mod tests {
 
     #[tokio::test]
     async fn discovery_failure_preserves_optional_peer_count_and_errors_for_stats() {
-        let mut fixture = fixture();
+        let mut fixture = fixture(true);
         let mut state = fixture.driver.snapshot();
         state.connected_peers.insert(Keypair::generate_secp256k1().public().to_peer_id());
         fixture.state_tx.send_replace(Arc::new(state));
@@ -550,6 +576,39 @@ mod tests {
             fixture.rpc.opp2p_peer_stats().await.unwrap_err().code(),
             ErrorCode::InternalError.code()
         );
+    }
+
+    /// With discovery disabled, the queries answer as op-node's do: no ENR, an empty table in the
+    /// stats, and an error for the table itself.
+    #[tokio::test]
+    async fn queries_answer_without_discovery() {
+        let fixture = fixture(false);
+        let mut state = fixture.driver.snapshot();
+        let peer = Keypair::generate_secp256k1().public().to_peer_id();
+        state.connected_peers.insert(peer);
+        fixture.state_tx.send_replace(Arc::new(state));
+        let rpc = &fixture.rpc;
+
+        let info = rpc.opp2p_self().await.unwrap();
+        assert_eq!(info.enr, None);
+        assert_eq!(info.chain_id, 10);
+        let node_id = peer_id_to_node_id(fixture.driver.local_peer_id()).unwrap();
+        assert_eq!(info.node_id, format!("{node_id:?}"));
+
+        let count = rpc.opp2p_peer_count().await.unwrap();
+        assert_eq!(count.connected_discovery, None);
+        assert_eq!(count.connected_gossip, 1);
+
+        let dump = rpc.opp2p_peers(true).await.unwrap();
+        assert!(dump.peers[&peer.to_string()].enr.is_none());
+
+        let stats = rpc.opp2p_peer_stats().await.unwrap();
+        assert_eq!(stats.table, 0);
+        assert_eq!(stats.connected, 1);
+
+        let err = rpc.opp2p_discovery_table().await.unwrap_err();
+        assert_eq!(err.code(), -32000);
+        assert_eq!(err.message(), "discovery disabled");
     }
 
     #[test]
