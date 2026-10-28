@@ -48,11 +48,10 @@ struct UnsealedPayloadHandle {
     attributes_with_parent: OpAttributesWithParent,
 }
 
-/// A sequenced block that has been sealed and committed to the conductor, if one is configured,
-/// but not yet canonicalized and gossiped.
+/// A sequenced block that has been sealed but not yet canonicalized and gossiped.
 #[derive(Debug)]
-struct ConductorCommittedBlock {
-    /// The committed payload. Retries must canonicalize this exact envelope.
+struct SealedBlock {
+    /// The sealed payload. Retries must canonicalize this exact envelope.
     pub envelope: OpExecutionPayloadEnvelope,
     /// The unsafe head on which the block was built.
     pub parent: L2BlockInfo,
@@ -62,8 +61,8 @@ struct ConductorCommittedBlock {
     pub committed: bool,
 }
 
-impl ConductorCommittedBlock {
-    /// Pairs a committed `envelope` with the build job that produced it.
+impl SealedBlock {
+    /// Pairs a sealed `envelope` with the build job that produced it.
     fn new(
         envelope: OpExecutionPayloadEnvelope,
         handle: &UnsealedPayloadHandle,
@@ -87,9 +86,10 @@ enum InFlightBlock {
     Building(UnsealedPayloadHandle),
     /// Sealed but with an unacknowledged conductor commit. Retry the exact envelope because the
     /// conductor may have committed it even when the RPC failed.
-    Committing(ConductorCommittedBlock),
-    /// Sealed and committed. Retries must canonicalize this exact envelope.
-    Committed(ConductorCommittedBlock),
+    Committing(SealedBlock),
+    /// Sealed and acknowledged by the conductor, if configured. Retries must canonicalize this
+    /// exact envelope.
+    Committed(SealedBlock),
 }
 
 /// The [`SequencerActor`] is responsible for building L2 blocks on top of the current unsafe head
@@ -401,7 +401,7 @@ where
     }
 
     /// A failed RPC can leave an applied conductor commit unacknowledged. Retry the exact payload.
-    fn handle_conductor_error(&mut self, err: ConductorError, block: ConductorCommittedBlock) {
+    fn handle_conductor_error(&mut self, err: ConductorError, block: SealedBlock) {
         warn!(target: "sequencer", ?err, "Conductor commit failed; retrying the sealed payload before canonicalization or gossip");
         self.in_flight = Some(InFlightBlock::Committing(block));
         self.build_ticker.reset_after(Duration::from_secs(1));
@@ -412,7 +412,7 @@ where
     async fn handle_canonicalize_error(
         &mut self,
         err: EngineClientError,
-        block: ConductorCommittedBlock,
+        block: SealedBlock,
     ) -> Result<(), SequencerActorError> {
         let EngineClientError::CanonicalizeError(canonicalize_err) = &err else {
             error!(target: "sequencer", ?err, "Unexpected error canonicalizing payload");
@@ -770,7 +770,7 @@ where
                             Ok(envelope) => envelope,
                             Err(err) => return self.handle_seal_error(err),
                         };
-                        (Some(ConductorCommittedBlock::new(envelope, &handle, self.conductor.is_some())), true)
+                        (Some(SealedBlock::new(envelope, &handle, self.conductor.is_some())), true)
                     }
                 };
                 if let Some(block) = block {

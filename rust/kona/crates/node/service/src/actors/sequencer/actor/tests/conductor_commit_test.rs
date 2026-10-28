@@ -60,8 +60,8 @@ fn pending_handle() -> UnsealedPayloadHandle {
     }
 }
 
-fn pending_sealed_block() -> ConductorCommittedBlock {
-    ConductorCommittedBlock::new(sealed_payload(2), &pending_handle(), true)
+fn pending_sealed_block() -> SealedBlock {
+    SealedBlock::new(sealed_payload(2), &pending_handle(), true)
 }
 
 #[rstest]
@@ -395,7 +395,7 @@ async fn stale_or_invalid_payload_fails_if_conductor_committed(
 ) {
     let mut actor = test_actor();
     actor.started = true;
-    actor.in_flight = Some(InFlightBlock::Committed(ConductorCommittedBlock {
+    actor.in_flight = Some(InFlightBlock::Committed(SealedBlock {
         envelope: sealed_payload(2),
         parent: L2BlockInfo::default(),
         tx_count: 0,
@@ -485,7 +485,7 @@ async fn invalid_forkchoice_resets_before_retrying_committed_payload(#[case] res
     actor.started = true;
     actor.conductor = Some(MockConductor::new());
     let payload = sealed_payload(2);
-    actor.in_flight = Some(InFlightBlock::Committed(ConductorCommittedBlock {
+    actor.in_flight = Some(InFlightBlock::Committed(SealedBlock {
         envelope: payload.clone(),
         parent: L2BlockInfo::default(),
         tx_count: 0,
@@ -567,7 +567,7 @@ async fn invalid_forkchoice_resets_before_retrying_committed_payload(#[case] res
 async fn changed_parent_after_reset_cannot_replace_a_conductor_committed_payload() {
     let mut actor = test_actor();
     actor.started = true;
-    actor.in_flight = Some(InFlightBlock::Committed(ConductorCommittedBlock {
+    actor.in_flight = Some(InFlightBlock::Committed(SealedBlock {
         envelope: sealed_payload(2),
         parent: L2BlockInfo::default(),
         tx_count: 0,
