@@ -200,7 +200,7 @@ impl TestNetworkBuilder {
         let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
         let (signed_payload_tx, signed_payload_rx) = mpsc::channel(16);
 
-        let discovery = handler.discovery.clone();
+        let discovery = handler.discovery.as_ref().map(|discovery| discovery.handler.clone());
         let mut actor = NetworkActor::new(
             ForwardingNetworkEngineClient { blocks_tx },
             handler,
@@ -211,7 +211,7 @@ impl TestNetworkBuilder {
 
         let p2p_rpc = P2pRpc::new(
             actor.gossip_query_handle(),
-            Some(discovery),
+            discovery,
             self.chain_id,
             gossip_command_tx.clone(),
         );

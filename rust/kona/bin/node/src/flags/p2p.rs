@@ -496,6 +496,7 @@ impl P2PArgs {
             discovery_interval: Duration::from_secs(self.discovery_interval),
             discovery_address,
             discovery_randomize: self.discovery_randomize.map(Duration::from_secs),
+            discovery_enabled: true,
             enr_update: !static_ip,
             gossip_address,
             keypair,

@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use discv5::Enr;
 use kona_gossip::{GossipCommandReceiver, GossipQueryHandle, GossipState};
 use libp2p::TransportError;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -15,12 +16,14 @@ use tokio::{
 use crate::{
     NetworkEngineClient, NodeActor, SignedPayload,
     actors::network::{
-        driver::NetworkDriverError, error::NetworkBuilderError, handler::NetworkHandler,
+        driver::NetworkDriverError,
+        error::NetworkBuilderError,
+        handler::{NetworkHandler, RunningDiscovery},
     },
 };
 
 /// The network actor handles two core networking components of the rollup node:
-/// - *discovery*: Peer discovery over UDP using discv5.
+/// - *discovery*: Peer discovery over UDP using discv5, unless disabled.
 /// - *gossip*: Block gossip over TCP using libp2p.
 #[derive(Debug)]
 pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
@@ -74,6 +77,15 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
     /// Returns a read-only handle to the actor's published gossip state.
     pub fn gossip_query_handle(&self) -> GossipQueryHandle {
         GossipQueryHandle::new(self.gossip_state_tx.subscribe())
+    }
+}
+
+/// Receives the next ENR from `discovery`. Never completes if discovery is disabled, and returns
+/// `None` once it stopped.
+async fn next_enr(discovery: Option<&mut RunningDiscovery>) -> Option<Enr> {
+    match discovery {
+        Some(discovery) => discovery.enr_receiver.recv().await,
+        None => std::future::pending().await,
     }
 }
 
@@ -142,7 +154,7 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 }
                 Ok(())
             }
-            enr = self.handler.enr_receiver.recv() => {
+            enr = next_enr(self.handler.discovery.as_mut()) => {
                 let Some(enr) = enr else {
                     error!(target: "node::p2p", "The enr receiver channel has closed");
                     return Err(NetworkActorError::ChannelClosed);

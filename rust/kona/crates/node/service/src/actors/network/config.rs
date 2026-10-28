@@ -21,6 +21,9 @@ pub struct NetworkConfig {
     pub discovery_interval: Duration,
     /// The interval to remove peers from the discovery service.
     pub discovery_randomize: Option<Duration>,
+    /// Whether to run discovery. Without it, the node binds no UDP socket, and connects only to
+    /// its static peers and the peers that dial it.
+    pub discovery_enabled: bool,
     /// Whether to update the ENR socket when the gossip listen address changes.
     pub enr_update: bool,
     /// The gossip address.
@@ -89,6 +92,7 @@ impl NetworkConfig {
             discovery_address: discovery_listen,
             discovery_interval: Self::DEFAULT_DISCOVERY_INTERVAL,
             discovery_randomize: Self::DEFAULT_DISCOVERY_RANDOMIZE,
+            discovery_enabled: true,
             gossip_address,
             unsafe_block_signer,
             enr_update: true,

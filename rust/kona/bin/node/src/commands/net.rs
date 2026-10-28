@@ -88,7 +88,7 @@ impl NetCommand {
 
         let handler = NetworkBuilder::from(p2p_config).build()?.start().await?;
 
-        let discovery = handler.discovery.clone();
+        let discovery = handler.discovery.as_ref().map(|discovery| discovery.handler.clone());
         let mut network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx },
             handler,
@@ -99,7 +99,7 @@ impl NetCommand {
 
         let rpc = P2pRpc::new(
             network.gossip_query_handle(),
-            Some(discovery),
+            discovery,
             rollup_config.l2_chain_id.id(),
             gossip_command_tx.clone(),
         );
