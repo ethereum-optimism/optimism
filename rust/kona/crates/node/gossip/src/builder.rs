@@ -401,19 +401,14 @@ pub(crate) mod tests {
     fn test_build_passes_settings_to_driver() {
         let static_peer: PeerAddr =
             format!("/ip4/127.0.0.1/tcp/9222/p2p/{}", PeerId::random()).parse().unwrap();
-        let driver = GossipDriverBuilder::new(
-            RollupConfig::default(),
-            Address::ZERO,
-            Multiaddr::empty().with(Protocol::Memory(0)),
-            Keypair::generate_secp256k1(),
-        )
-        .with_peer_monitoring(Some(PeerMonitoring {
-            ban_threshold: -10.0,
-            ban_duration: Duration::from_secs(60),
-        }))
-        .with_static_peers(vec![static_peer.clone()])
-        .build()
-        .expect("build gossip driver");
+        let driver = memory_driver_builder()
+            .with_peer_monitoring(Some(PeerMonitoring {
+                ban_threshold: -10.0,
+                ban_duration: Duration::from_secs(60),
+            }))
+            .with_static_peers(vec![static_peer.clone()])
+            .build()
+            .expect("build gossip driver");
 
         let monitoring = driver.peer_monitoring.as_ref().expect("peer monitoring is set");
         assert_eq!(monitoring.ban_threshold, -10.0);
@@ -451,15 +446,11 @@ pub(crate) mod tests {
             .map(|id| format!("/ip4/127.0.0.1/tcp/9222/p2p/{id}").parse().unwrap())
             .to_vec();
 
-        let driver = GossipDriverBuilder::new(
-            RollupConfig::default(),
-            Address::ZERO,
-            Multiaddr::empty().with(Protocol::Memory(0)),
-            keypair,
-        )
-        .with_static_peers(static_peers)
-        .build()
-        .expect("build gossip driver");
+        let driver =
+            memory_driver_builder_at(keypair, Multiaddr::empty().with(Protocol::Memory(0)))
+                .with_static_peers(static_peers)
+                .build()
+                .expect("build gossip driver");
 
         assert_eq!(driver.static_peers.keys().collect::<Vec<_>>(), vec![&other]);
         assert_eq!(driver.connection_gate.list_protected_peers(), vec![other]);
