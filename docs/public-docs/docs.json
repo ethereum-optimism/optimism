@@ -1193,7 +1193,7 @@
     },
     {
       "source": "/operators/chain-operators/tutorials/adding-precompiles",
-      "destination": "/chain-operators/tutorials/adding-precompiles"
+      "destination": "/chain-operators/tutorials/archive/adding-precompiles"
     },
     {
       "source": "/chain-operators/tutorials/chain-dev-net",
@@ -1758,6 +1758,14 @@
     {
       "source": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup",
       "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
+    },
+    {
+      "source": "/chain-operators/tutorials/rewind-op-geth",
+      "destination": "/node-operators/guides/troubleshooting"
+    },
+    {
+      "source": "/chain-operators/tutorials/adding-precompiles",
+      "destination": "/chain-operators/tutorials/archive/adding-precompiles"
     },
     {
       "source": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup",
@@ -2832,7 +2840,6 @@
               {
                 "group": "Customize your chain",
                 "pages": [
-                  "chain-operators/tutorials/adding-precompiles",
                   "chain-operators/tutorials/modifying-predeploys",
                   "chain-operators/tutorials/adding-derivation-attributes",
                   "chain-operators/tutorials/integrating-da-layer"
@@ -2851,7 +2858,6 @@
               {
                 "group": "Operations",
                 "pages": [
-                  "chain-operators/tutorials/rewind-op-geth",
                   "chain-operators/tutorials/upgrade-chain-to-super-roots"
                 ]
               }
@@ -2923,7 +2929,8 @@
           {
             "group": "Archive",
             "pages": [
-              "chain-operators/tutorials/archive/op-program-prestate"
+              "chain-operators/tutorials/archive/op-program-prestate",
+              "chain-operators/tutorials/archive/adding-precompiles"
             ]
           }
         ]
