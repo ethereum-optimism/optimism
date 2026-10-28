@@ -60,7 +60,7 @@ pub enum GossipCommand {
         /// The peer to protect.
         peer_id: PeerId,
     },
-    /// Unprotect a peer.
+    /// Unprotect a peer. Static peers stay protected.
     UnprotectPeer {
         /// The peer to unprotect.
         peer_id: PeerId,
@@ -85,7 +85,7 @@ impl GossipCommand {
             Self::UnblockSubnet { address } => gossip.connection_gate.unblock_subnet(address),
             Self::ConnectPeer { address } => gossip.dial_multiaddr(address),
             Self::ProtectPeer { peer_id } => gossip.connection_gate.protect_peer(peer_id),
-            Self::UnprotectPeer { peer_id } => gossip.connection_gate.unprotect_peer(peer_id),
+            Self::UnprotectPeer { peer_id } => gossip.unprotect_peer(peer_id),
             Self::DisconnectPeer { peer_id } => gossip.disconnect_peer(peer_id),
         }
     }

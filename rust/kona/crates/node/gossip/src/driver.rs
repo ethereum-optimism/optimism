@@ -380,6 +380,18 @@ where
         self.peerstore.remove(&peer_id).map(|info| info.listen_addrs).unwrap_or_default()
     }
 
+    /// Removes the protection of `peer_id`, unless it is a static peer, which stays protected.
+    ///
+    /// As in op-node, where unprotecting through the API removes only the API's protection, and
+    /// static peers are protected for being static.
+    pub fn unprotect_peer(&mut self, peer_id: PeerId) {
+        if self.is_static_peer(&peer_id) {
+            info!(target: "gossip", %peer_id, "Static peer stays protected");
+            return;
+        }
+        self.connection_gate.unprotect_peer(peer_id);
+    }
+
     /// Returns whether `peer_id` is one of the static peers.
     pub fn is_static_peer(&self, peer_id: &PeerId) -> bool {
         self.static_peers.contains_key(peer_id)
@@ -1302,6 +1314,29 @@ mod tests {
             })
             .collect();
         assert_eq!(durations.iter().map(Vec::len).sum::<usize>(), 1, "{durations:?}");
+    }
+
+    /// The `UnprotectPeer` command leaves a static peer protected, but unprotects others.
+    #[test]
+    fn test_unprotect_peer_keeps_static_peers_protected() {
+        use crate::ConnectionGate;
+        use std::collections::HashSet;
+
+        let (_, _, static_peer) = random_identity();
+        let static_peer_id = static_peer.peer_id();
+        let mut driver = driver_with_static_peer(static_peer);
+        let other_peer = PeerId::random();
+        crate::GossipCommand::ProtectPeer { peer_id: other_peer }.handle(&mut driver);
+        // Both are protected to begin with, so unprotecting has something to remove.
+        let protected: HashSet<_> =
+            driver.connection_gate.list_protected_peers().into_iter().collect();
+        assert_eq!(protected, HashSet::from([static_peer_id, other_peer]));
+
+        for peer_id in [static_peer_id, other_peer] {
+            crate::GossipCommand::UnprotectPeer { peer_id }.handle(&mut driver);
+        }
+
+        assert_eq!(driver.connection_gate.list_protected_peers(), vec![static_peer_id]);
     }
 
     /// A dial that connects is no longer in flight in the gate.
