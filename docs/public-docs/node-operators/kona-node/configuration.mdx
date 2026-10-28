@@ -66,7 +66,7 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--p2p.no-discovery` | `KONA_NODE_P2P_NO_DISCOVERY` | Disable Discv5 (node discovery) | `false` |
+| `--p2p.no-discovery` | `KONA_NODE_P2P_NO_DISCOVERY` | Disable Discv5 (node discovery). Not applied yet: discovery always runs | `false` |
 | `--p2p.priv.path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to hex-encoded 32-byte private key for peer ID | - |
 | `--p2p.priv.raw <HEX>` | `KONA_NODE_P2P_PRIV_RAW` | Hex-encoded 32-byte private key for peer ID | - |
 | `--p2p.advertise.ip <IP>` | `KONA_NODE_P2P_ADVERTISE_IP` | IP to advertise to external peers | - |
@@ -102,7 +102,13 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 
 ### Static peers
 
-`--p2p.static-peers` lists peers that the node connects to directly, without discovery. Use it to keep a sequencer connected to the nodes it trusts, or to run a group of nodes that only know each other from their configuration.
+`--p2p.static-peers` lists peers that the node connects to directly and keeps connected, whatever discovery finds. Use it to make sure that a node, such as a sequencer, stays connected to the nodes it trusts.
+
+<Warning>
+
+Static peers don't turn discovery off. On a chain in the superchain registry, discovery starts from the chain's built-in bootnodes, and from the nodes saved in the bootstore, even with no `--p2p.bootnodes`. So the node still finds other nodes and connects to them, and they can find it. kona-node can't run without discovery yet: `--p2p.no-discovery` doesn't take effect.
+
+</Warning>
 
 Each entry is a TCP multiaddr that ends in the peer's ID:
 
@@ -123,7 +129,7 @@ The node treats its static peers as follows:
 - It dials them at startup, and once a minute dials those that aren't connected. A static peer that disconnects is dialed again about a second later.
 - Static peers are exempt from the redial limit (`--p2p.redial`), are never banned for a low score, and stay protected after `opp2p_unprotectPeer`.
 - A static peer blocked with `opp2p_blockPeer`, or at a blocked address or subnet, isn't dialed until it's unblocked.
-- Discovery never learns about static peers. A node that only peers statically, such as a sequencer, can't be found by other nodes through the nodes it connects to.
+- The node never passes its static peers on through discovery, so other nodes can't find a static peer through it. A static peer can still be found if it runs discovery itself.
 
 <Info>
 
