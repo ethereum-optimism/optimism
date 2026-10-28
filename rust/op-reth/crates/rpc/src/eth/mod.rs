@@ -1,5 +1,6 @@
 //! OP-Reth `eth_` endpoint implementation.
 
+pub mod capabilities;
 pub mod ext;
 pub mod proofs;
 pub mod receipt;
