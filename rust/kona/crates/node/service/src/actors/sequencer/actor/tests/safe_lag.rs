@@ -86,6 +86,13 @@ async fn safe_lag_bounds_new_builds(
 
 #[tokio::test(start_paused = true)]
 async fn safe_head_catchup_resumes_and_each_published_block_rechecks_the_limit() {
+    let logs = tempfile::NamedTempFile::new().unwrap();
+    let subscriber = tracing_subscriber::fmt()
+        .without_time()
+        .with_ansi(false)
+        .with_writer(logs.reopen().unwrap())
+        .finish();
+    let _guard = tracing::subscriber::set_default(subscriber);
     let mut actor = test_actor();
     actor.started = true;
     actor.max_safe_lag = 2;
@@ -135,6 +142,18 @@ async fn safe_head_catchup_resumes_and_each_published_block_rechecks_the_limit()
     step_time(&mut actor).await;
     assert!(actor.in_flight.is_some(), "catch-up must release a second stall too");
     assert!(actor.state().active);
+
+    let output = std::fs::read_to_string(logs.path()).unwrap();
+    let transitions: Vec<_> = output
+        .lines()
+        .filter(|line| line.contains("Safe head lag") || line.contains("Sequencing tick"))
+        .collect();
+    assert_eq!(transitions.len(), 6, "{output}");
+    for cycle in transitions.as_chunks::<3>().0 {
+        assert!(cycle[0].contains("WARN") && cycle[0].contains("pausing"), "{output}");
+        assert!(cycle[1].contains("INFO") && cycle[1].contains("resuming"), "{output}");
+        assert!(cycle[2].contains("INFO") && cycle[2].contains("building block"), "{output}");
+    }
 }
 
 #[tokio::test(start_paused = true)]

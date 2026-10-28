@@ -122,6 +122,8 @@ pub struct SequencerActor<
 
     /// Maximum unsafe-to-safe distance before pausing new builds; zero disables the limit.
     max_safe_lag: u64,
+    /// Whether the safe-lag gate paused new builds on the previous tick.
+    safe_lag_paused: bool,
 
     /// Ticker that paces block-building attempts.
     build_ticker: Interval,
@@ -186,6 +188,7 @@ where
             unsafe_payload_gossip_client,
             clock,
             max_safe_lag,
+            safe_lag_paused: false,
             build_ticker,
             in_flight: None,
             last_seal_duration: Duration::from_secs(0),
@@ -737,7 +740,6 @@ where
                     warn!(target: "sequencer", "Sequencing tick, gossip queue full, not building a block");
                     return Ok(());
                 }
-                info!(target: "sequencer", "Sequencing tick, building block");
                 // Advance the block carried over from the previous tick. A block that was already
                 // committed skips straight to canonicalization. On failure, keep the state the
                 // block was in when it failed so that a retry resumes from there.
@@ -778,9 +780,12 @@ where
                     let safe_head = self.engine_client.get_safe_head().await?;
                     let gap = unsafe_head.block_info.number.saturating_sub(safe_head.block_info.number);
                     if gap >= self.max_safe_lag {
-                        warn!(target: "sequencer", unsafe_number = unsafe_head.block_info.number,
-                            safe_number = safe_head.block_info.number, max_safe_lag = self.max_safe_lag,
-                            "Safe head lag reached limit; pausing new block builds");
+                        if !self.safe_lag_paused {
+                            warn!(target: "sequencer", unsafe_number = unsafe_head.block_info.number,
+                                safe_number = safe_head.block_info.number, max_safe_lag = self.max_safe_lag,
+                                "Safe head lag reached limit; pausing new block builds");
+                            self.safe_lag_paused = true;
+                        }
                         // Keep the actor active and admin commands responsive. Recheck on the
                         // next block tick so safe-head catch-up automatically resumes building.
                         self.build_ticker.reset_after(Duration::from_secs(self.rollup_config.block_time));
@@ -788,6 +793,11 @@ where
                     }
                 }
 
+                if self.safe_lag_paused {
+                    info!(target: "sequencer", "Safe head lag below limit; resuming new block builds");
+                    self.safe_lag_paused = false;
+                }
+                info!(target: "sequencer", "Sequencing tick, building block");
                 // Start the build job for the next L2 block on top of the current unsafe head.
                 match self.build_unsealed_payload(unsafe_head).await {
                     Ok(handle) => self.in_flight = handle.map(InFlightBlock::Building),
