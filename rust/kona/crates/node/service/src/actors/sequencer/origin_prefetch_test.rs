@@ -1,7 +1,13 @@
 use super::*;
 use crate::{L1OriginSelector, OriginSelector};
-use kona_genesis::RollupConfig;
-use kona_protocol::L2BlockInfo;
+use alloy_eips::eip2718::Encodable2718;
+use alloy_primitives::{Address, Log, LogData, TxKind, U256, map::HashMap};
+use kona_derive::{
+    AttributesBuilder, StatefulAttributesBuilder, test_utils::TestSystemConfigL2Fetcher,
+};
+use kona_genesis::{CONFIG_UPDATE_TOPIC, RollupConfig, SystemConfig};
+use kona_protocol::{DEPOSIT_EVENT_ABI_HASH, L2BlockInfo};
+use op_alloy_consensus::{TxDeposit, UserDepositSource};
 use rstest::rstest;
 use std::sync::{
     Mutex,
@@ -13,6 +19,7 @@ struct MemoryL1 {
     blocks: Arc<Mutex<Vec<Header>>>,
     calls: Arc<AtomicUsize>,
     receipt_requests: Arc<Mutex<Vec<B256>>>,
+    receipts: Arc<Mutex<HashMap<B256, Vec<Receipt>>>>,
     stalled: Arc<AtomicBool>,
     stalled_receipts: Arc<AtomicBool>,
     receipt_latency_ms: Arc<AtomicUsize>,
@@ -101,7 +108,13 @@ impl ChainProvider for MemoryL1 {
         {
             std::future::pending::<()>().await;
         }
-        Ok(vec![Receipt::default()])
+        Ok(self
+            .receipts
+            .lock()
+            .unwrap()
+            .get(&hash)
+            .cloned()
+            .unwrap_or_else(|| vec![Receipt::default()]))
     }
     async fn block_info_by_number(&mut self, _number: u64) -> Result<BlockInfo, Self::Error> {
         unreachable!()
@@ -139,6 +152,7 @@ impl Harness {
             blocks: Arc::new(Mutex::new(blocks)),
             calls: Arc::default(),
             receipt_requests: Arc::default(),
+            receipts: Arc::default(),
             stalled: Arc::default(),
             stalled_receipts: Arc::default(),
             receipt_latency_ms: Arc::default(),
@@ -199,6 +213,96 @@ impl Harness {
         ));
         self.fill(true).await.unwrap();
     }
+}
+
+#[tokio::test]
+async fn prefetched_attributes_match_rpc_with_deposit_and_system_config_update() {
+    let mut h = Harness::new(0);
+    let cfg = Arc::new(RollupConfig {
+        block_time: 10,
+        deposit_contract_address: Address::with_last_byte(1),
+        l1_system_config_address: Address::with_last_byte(2),
+        ..Default::default()
+    });
+    let from = Address::with_last_byte(3);
+    let to = Address::with_last_byte(4);
+    // ABI bytes wrapping packed mint, value, gas, isCreation, and calldata.
+    let mut deposit_data = vec![0; 160];
+    deposit_data[24..32].copy_from_slice(&32_u64.to_be_bytes());
+    deposit_data[56..64].copy_from_slice(&76_u64.to_be_bytes());
+    deposit_data[80..96].copy_from_slice(&100_u128.to_be_bytes());
+    deposit_data[96..128].copy_from_slice(&U256::from(42).to_be_bytes::<32>());
+    deposit_data[128..136].copy_from_slice(&100_000_u64.to_be_bytes());
+    deposit_data[137..140].copy_from_slice(&[0xaa, 0xbb, 0xcc]);
+    let deposit = Log {
+        address: cfg.deposit_contract_address,
+        data: LogData::new_unchecked(
+            vec![DEPOSIT_EVENT_ABI_HASH, from.into_word(), to.into_word(), B256::ZERO],
+            deposit_data.into(),
+        ),
+    };
+    let gas_limit = 40_000_000_u64;
+    let mut update_data = vec![0; 96];
+    update_data[24..32].copy_from_slice(&32_u64.to_be_bytes());
+    update_data[56..64].copy_from_slice(&32_u64.to_be_bytes());
+    update_data[88..96].copy_from_slice(&gas_limit.to_be_bytes());
+    let update = Log {
+        address: cfg.l1_system_config_address,
+        data: LogData::new_unchecked(
+            vec![CONFIG_UPDATE_TOPIC, B256::ZERO, B256::with_last_byte(2)],
+            update_data.into(),
+        ),
+    };
+    let epoch = h.l1.at(1).id();
+    h.l1.receipts.lock().unwrap().insert(
+        epoch.hash,
+        vec![Receipt { status: true.into(), logs: vec![update, deposit], ..Default::default() }],
+    );
+    h.initialize().await;
+    h.parent.block_info.timestamp = 10;
+    assert_eq!(h.selector.next_l1_origin(h.parent, false).await.unwrap().id(), epoch);
+
+    let config_fetcher = || {
+        let mut fetcher = TestSystemConfigL2Fetcher::default();
+        fetcher.insert(
+            h.parent.block_info.hash,
+            SystemConfig { gas_limit: 30_000_000, ..Default::default() },
+        );
+        fetcher
+    };
+    let mut prepared = StatefulAttributesBuilder::new(
+        cfg.clone(),
+        Arc::default(),
+        config_fetcher(),
+        h.attributes.clone(),
+        None,
+    );
+    let calls = h.l1.calls.load(Ordering::SeqCst);
+    let actual = prepared.prepare_payload_attributes(h.parent, epoch).await.unwrap();
+    assert_eq!(h.l1.calls.load(Ordering::SeqCst), calls, "prepared build must not issue RPCs");
+    let mut rpc =
+        StatefulAttributesBuilder::new(cfg, Arc::default(), config_fetcher(), h.l1.clone(), None);
+    let expected = rpc.prepare_payload_attributes(h.parent, epoch).await.unwrap();
+    assert_eq!(
+        h.l1.calls.load(Ordering::SeqCst),
+        calls + 2,
+        "RPC build fetches header and receipts"
+    );
+    assert_eq!(actual, expected);
+    assert_eq!(actual.gas_limit, Some(gas_limit));
+    let transactions = actual.transactions.unwrap();
+    assert_eq!(transactions.len(), 2, "L1 info transaction followed by the user deposit");
+    let expected_deposit = TxDeposit {
+        source_hash: UserDepositSource::new(epoch.hash, 1).source_hash(),
+        from,
+        to: TxKind::Call(to),
+        mint: 100,
+        value: U256::from(42),
+        gas_limit: 100_000,
+        input: vec![0xaa, 0xbb, 0xcc].into(),
+        is_system_transaction: false,
+    };
+    assert_eq!(transactions[1].as_ref(), expected_deposit.encoded_2718());
 }
 
 #[tokio::test(start_paused = true)]
