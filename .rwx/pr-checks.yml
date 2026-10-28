@@ -113,11 +113,11 @@ tasks:
     use: tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
-      mise install uv shellcheck@0.9.0
+      mise install uv shellcheck@0.9.0 shfmt
       PATH="$(mise bin-paths | paste -sd: -):$PATH"
       export PATH
       mise install pipx:semgrep@1.178.0
-      mise exec shellcheck@0.9.0 pipx:semgrep@1.178.0 -- sh -c 'printf "%s\n" "$PATH"' >"$RWX_ENV/PATH"
+      mise exec shellcheck@0.9.0 shfmt pipx:semgrep@1.178.0 -- sh -c 'printf "%s\n" "$PATH"' >"$RWX_ENV/PATH"
     timeout: 30m
 
   - key: static-helper-tests
@@ -159,9 +159,9 @@ tasks:
           path: .ci/static-checks/shell-check
 
   - key: shfmt-check
-    use: [code, tools]
+    use: [code, static-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: mise exec just shfmt -- just shfmt-check
+    run: just shfmt-check
     cache: false
     timeout: 10m
 
