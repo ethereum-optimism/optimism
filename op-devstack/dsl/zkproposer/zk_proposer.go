@@ -20,6 +20,7 @@ const (
 	gameProvingFailuresMetric  = "op_zk_proposer_game_proving_error"
 	logBatchesSubmittedMetric  = "op_zk_proposer_log_batches_submitted"
 	spanBisectionsMetric       = "op_zk_proposer_span_bisections"
+	rangeChainSplitsMetric     = "op_zk_proposer_range_chain_splits"
 	metricsDisabledInstruction = "ZK proposer metrics are disabled; pass presets.WithZKProposerOption(sysgo.WithZKMetrics()) when creating the preset"
 )
 
@@ -98,6 +99,17 @@ func SpanBisectionsAtLeast(minimum int) *StateExpectation {
 		description: "span bisections",
 		expected:    minimum,
 		metric:      spanBisectionsMetric,
+		atLeast:     true,
+	}
+}
+
+// RangeChainSplitsAtLeast expects at least minimum single-timestamp range
+// requests split by chain for exceeding a proving limit.
+func RangeChainSplitsAtLeast(minimum int) *StateExpectation {
+	return &StateExpectation{
+		description: "range chain splits",
+		expected:    minimum,
+		metric:      rangeChainSplitsMetric,
 		atLeast:     true,
 	}
 }
