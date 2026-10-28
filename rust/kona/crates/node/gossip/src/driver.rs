@@ -358,7 +358,7 @@ where
     /// Closes every connection to `peer_id`.
     ///
     /// The swarm reports each closed connection, and [`Self::handle_event`] records the connection
-    /// duration and clears the peer's dial once the last one closes.
+    /// duration once the last one closes.
     pub fn disconnect_peer(&mut self, peer_id: PeerId) {
         if self.swarm.disconnect_peer_id(peer_id).is_err() {
             warn!(target: "gossip", %peer_id, "Cannot disconnect a peer that isn't connected");
@@ -755,10 +755,6 @@ where
                 tokio::spawn(async move {
                     pings.lock().await.remove(&peer_id);
                 });
-
-                // If the connection was initiated by us, remove the peer from the current dials
-                // set so that we can dial it again.
-                self.connection_gate.remove_dial(&peer_id);
             }
             SwarmEvent::NewListenAddr { listener_id, address } => {
                 debug!(target: "gossip", reporter_id = ?listener_id, new_address = ?address, "New listen address");
