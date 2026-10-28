@@ -147,7 +147,7 @@ kona-node info --help
 
 ### RPC Trust Configuration
 
-Kona defaults to verifying L1 RPC block hashes (`--l1-trust-rpc=false`) and trusting the local L2 engine (`--l2-trust-rpc=true`), matching op-node. To retain the previous L1 trust behavior, set `--l1-trust-rpc=true` or `KONA_NODE_L1_TRUST_RPC=true`. Both settings can be configured explicitly:
+Kona defaults to verifying L1 RPC block hashes (`--l1-trust-rpc=false`) and trusting the local L2 engine (`--l2-trust-rpc=true`), matching op-node. To retain the previous L1 trust behavior, set `--l1-trust-rpc=true` or `KONA_NODE_L1_TRUST_RPC=true`. Both settings accept a space-separated value (such as `--l1-trust-rpc false`) or an equals sign (`--l1-trust-rpc=false`). A bare flag enables trust. Both settings can be configured explicitly:
 
 ```bash
 # For untrusted/public RPC providers (adds verification)

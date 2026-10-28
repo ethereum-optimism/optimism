@@ -22,7 +22,6 @@ pub struct L1ClientArgs {
         env = "KONA_NODE_L1_TRUST_RPC",
         action = clap::ArgAction::Set,
         num_args = 0..=1,
-        require_equals = true,
         default_missing_value = "true",
         default_value_t = DEFAULT_L1_TRUST_RPC
     )]
@@ -83,7 +82,6 @@ pub struct L2ClientArgs {
         env = "KONA_NODE_L2_TRUST_RPC",
         action = clap::ArgAction::Set,
         num_args = 0..=1,
-        require_equals = true,
         default_missing_value = "true",
         default_value_t = DEFAULT_L2_TRUST_RPC
     )]
@@ -141,18 +139,28 @@ mod tests {
     #[rstest]
     #[case::defaults(&[], false, true)]
     #[case::l1_false(&["--l1-trust-rpc=false"], false, true)]
+    #[case::l1_false_space(&["--l1-trust-rpc", "false"], false, true)]
     #[case::l1_true(&["--l1-trust-rpc=true"], true, true)]
+    #[case::l1_true_space(&["--l1-trust-rpc", "true"], true, true)]
     #[case::l1_bare(&["--l1-trust-rpc"], true, true)]
     #[case::l1_alias_false(&["--l1.trust-rpc=false"], false, true)]
+    #[case::l1_alias_false_space(&["--l1.trust-rpc", "false"], false, true)]
     #[case::l1_alias_true(&["--l1.trust-rpc=true"], true, true)]
+    #[case::l1_alias_true_space(&["--l1.trust-rpc", "true"], true, true)]
     #[case::l1_alias_bare(&["--l1.trust-rpc"], true, true)]
     #[case::l2_false(&["--l2-trust-rpc=false"], false, false)]
+    #[case::l2_false_space(&["--l2-trust-rpc", "false"], false, false)]
     #[case::l2_true(&["--l2-trust-rpc=true"], false, true)]
+    #[case::l2_true_space(&["--l2-trust-rpc", "true"], false, true)]
     #[case::l2_bare(&["--l2-trust-rpc"], false, true)]
     #[case::l2_alias_false(&["--l2.trust-rpc=false"], false, false)]
+    #[case::l2_alias_false_space(&["--l2.trust-rpc", "false"], false, false)]
     #[case::l2_alias_true(&["--l2.trust-rpc=true"], false, true)]
+    #[case::l2_alias_true_space(&["--l2.trust-rpc", "true"], false, true)]
     #[case::l2_alias_bare(&["--l2.trust-rpc"], false, true)]
     #[case::both_false(&["--l1.trust-rpc=false", "--l2.trust-rpc=false"], false, false)]
+    #[case::both_false_space(&["--l1.trust-rpc", "false", "--l2.trust-rpc", "false"], false, false)]
+    #[case::both_bare(&["--l1.trust-rpc", "--l2.trust-rpc"], true, true)]
     fn test_parse_trust_rpc_args(#[case] flags: &[&str], #[case] l1: bool, #[case] l2: bool) {
         // Keep these CLI/default tests independent of the operator's environment.
         let command = ClientArgs::command()
