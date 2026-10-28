@@ -462,10 +462,14 @@ where
             return;
         }
 
+        // A DNS name is resolved here, so that the gate checks the IPs libp2p then dials, rather
+        // than libp2p resolving it again, maybe to an IP the gate didn't see.
+        //
         // Every address is checked before the peer is marked as being dialed, which would make
         // the gate refuse all but the first.
         let addrs: Vec<Multiaddr> = addrs
             .into_iter()
+            .flat_map(|addr| ConnectionGater::resolve_dns_addrs(addr, ConnectionGater::system_resolve))
             .filter(|addr| {
                 if ConnectionGater::peer_id_from_addr(addr) != Some(peer_id) {
                     warn!(target: "gossip", ?peer_id, peer=?addr, "Address is not for the peer being dialed");
@@ -915,6 +919,42 @@ mod tests {
         .expect("build gossip driver");
         driver.duplicate_connection_grace = Duration::from_millis(100);
         driver
+    }
+
+    /// `dial_peer` resolves a DNS name before the gate, so it checks and dials the IP the name
+    /// resolves to, rather than leaving libp2p to resolve the name again.
+    #[tokio::test]
+    async fn test_dial_peer_resolves_dns_names_before_the_gate() {
+        use crate::ConnectionGate;
+
+        let mut driver_1 = tcp_driver();
+        let mut driver_2 = tcp_driver();
+        let peer_2 = *driver_2.local_peer_id();
+        let listen_addr_2 = driver_2.start().await.expect("listen");
+        let port = listen_addr_2
+            .iter()
+            .find_map(|protocol| match protocol {
+                Protocol::Tcp(port) => Some(port),
+                _ => None,
+            })
+            .unwrap();
+        let dns_addr: Multiaddr =
+            format!("/dns4/localhost/tcp/{port}/p2p/{peer_2}").parse().unwrap();
+        let ip_addr: Multiaddr = format!("/ip4/127.0.0.1/tcp/{port}/p2p/{peer_2}").parse().unwrap();
+        driver_1.start().await.expect("listen");
+
+        // `localhost` resolves to a blocked IP, so nothing is dialed.
+        let localhost = "127.0.0.1".parse().unwrap();
+        driver_1.connection_gate.block_addr(localhost);
+        driver_1.dial_peer(peer_2, [dns_addr.clone()]);
+        assert!(!driver_1.connection_gate.current_dials.contains(&peer_2));
+
+        // Unblocked, the resolved address is what's dialed and counted.
+        driver_1.connection_gate.unblock_addr(localhost);
+        driver_1.dial_peer(peer_2, [dns_addr]);
+        let dialed: Vec<_> = driver_1.connection_gate.dialed_addrs.keys().cloned().collect();
+        assert_eq!(dialed, vec![ip_addr]);
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
 
     /// Peers dialing each other over TCP at the same time connect. Dialing from the listen port,
