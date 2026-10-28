@@ -12,7 +12,7 @@ use std::sync::{
 struct MemoryL1 {
     blocks: Arc<Mutex<Vec<Header>>>,
     calls: Arc<AtomicUsize>,
-    receipts: Arc<AtomicUsize>,
+    receipt_requests: Arc<Mutex<Vec<B256>>>,
     stalled: Arc<AtomicBool>,
     stalled_receipts: Arc<AtomicBool>,
     receipt_latency_ms: Arc<AtomicUsize>,
@@ -91,7 +91,7 @@ impl ChainProvider for MemoryL1 {
     }
     async fn receipts_by_hash(&mut self, hash: B256) -> Result<Vec<Receipt>, Self::Error> {
         self.count_call().await;
-        self.receipts.fetch_add(1, Ordering::SeqCst);
+        self.receipt_requests.lock().unwrap().push(hash);
         let latency = self.receipt_latency_ms.load(Ordering::SeqCst);
         if latency != 0 {
             tokio::time::sleep(Duration::from_millis(latency as u64)).await;
@@ -138,7 +138,7 @@ impl Harness {
         let l1 = MemoryL1 {
             blocks: Arc::new(Mutex::new(blocks)),
             calls: Arc::default(),
-            receipts: Arc::default(),
+            receipt_requests: Arc::default(),
             stalled: Arc::default(),
             stalled_receipts: Arc::default(),
             receipt_latency_ms: Arc::default(),
@@ -595,7 +595,12 @@ async fn missing_origin_resets_even_if_the_selector_remembers_it_from_before_a_r
 }
 
 #[tokio::test(start_paused = true)]
-async fn repeated_max_drift_requests_do_not_cancel_the_same_inflight_fetch() {
+#[rstest]
+#[case::selector_first(false)]
+#[case::worker_first(true)]
+async fn repeated_max_drift_requests_do_not_cancel_the_same_inflight_fetch(
+    #[case] worker_first: bool,
+) {
     let mut h = Harness::new(4);
     h.head.send_replace(Some(h.l1.at(0)));
     h.initialize().await;
@@ -603,23 +608,49 @@ async fn repeated_max_drift_requests_do_not_cancel_the_same_inflight_fetch() {
     h.worker.request.borrow_and_update();
     h.worker.retry.tick().await;
     h.parent.block_info.timestamp = 600;
-    h.head.send_replace(Some(h.l1.at(5)));
+    h.head.send_replace(Some(h.l1.at(6)));
+    // Isolate identical-request refreshes from head-update cancellation. The changed validation
+    // stamp still makes fill recheck the new head, with two confirmed successors for lookahead.
+    h.worker.l1_head.borrow_and_update();
     h.l1.receipt_latency_ms.store(3000, Ordering::SeqCst);
-    let origin = tokio::select! {
-        result = async {
+    let origin = {
+        let selection = async {
             for _ in 0..10 {
                 match h.selector.next_l1_origin(h.parent, false).await {
                     Ok(origin) => return origin,
-                    Err(L1OriginSelectorError::Timeout) => {},
+                    Err(L1OriginSelectorError::Timeout) => {}
                     Err(error) => panic!("unexpected selection error: {error}"),
                 }
                 tokio::time::sleep(Duration::from_millis(500)).await;
             }
             panic!("repeated drift waits starved background receipts preparation");
-        } => result,
-        _ = async { loop { h.worker.step().await.unwrap(); } } => unreachable!(),
+        };
+        let prefetch = async {
+            loop {
+                h.worker.step().await.unwrap();
+            }
+        };
+        tokio::pin!(selection, prefetch);
+        if worker_first {
+            tokio::select! {
+                biased;
+                _ = &mut prefetch => unreachable!(),
+                result = &mut selection => result,
+            }
+        } else {
+            tokio::select! {
+                biased;
+                result = &mut selection => result,
+                _ = &mut prefetch => unreachable!(),
+            }
+        }
     };
     assert_eq!(origin, h.l1.at(1));
-    // Genesis was prepared once and the slow successor was not repeatedly restarted.
-    assert_eq!(h.l1.receipts.load(Ordering::SeqCst), 2);
+    // Lookahead can start fetching later origins before selection returns. Count only the slow
+    // successor: retries must not cancel and restart its in-flight receipts request.
+    let receipts = h.l1.receipt_requests.lock().unwrap();
+    assert_eq!(receipts.iter().filter(|hash| **hash == origin.hash).count(), 1);
+    if worker_first {
+        assert!(receipts.contains(&h.l1.at(2).hash), "worker must start later-origin lookahead");
+    }
 }
