@@ -1213,6 +1213,11 @@ mod tests {
         assert!(!driver.connection_gate.current_dials.contains(&peer));
         assert!(driver.connection_gate.dialed_addrs.is_empty());
         assert!(driver.next_static_peer_check.is_some());
+
+        // Once unblocked, the next check dials it.
+        driver.connection_gate.unblock_peer(&peer);
+        driver.dial_static_peers();
+        assert!(driver.connection_gate.current_dials.contains(&peer));
     }
 
     /// Peers scoring below the ban threshold are banned, but a static peer never is.
