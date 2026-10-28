@@ -77,7 +77,7 @@ impl fmt::Display for PeerAddr {
 mod tests {
     use super::*;
 
-    const PEER_ID: &str = "16Uiv2HAmLFhCjjNUXiZA3Hdd3j3qp6rnD6tHkFtsSZmhpV8axfGX";
+    const PEER_ID: &str = "16Uiu2HAmLFhCjjNUXiZA3Hdd3j3qp6rnD6tHkFtsSZmhpV8axfGX";
 
     #[test]
     fn test_group_by_peer() {
