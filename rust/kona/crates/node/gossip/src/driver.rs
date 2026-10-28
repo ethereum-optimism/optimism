@@ -326,17 +326,23 @@ where
     /// instead, and when static peers may be dialed again, [`Event::StaticPeersDue`], for
     /// [`Self::handle_event`] to act on.
     pub async fn next(&mut self) -> Option<SwarmEvent<Event>> {
-        let duplicates = self.next_duplicate_check;
-        let static_peers = self.next_static_peer_check;
-        // `select!` builds the futures of disabled branches too, so each needs some deadline.
-        let now = Instant::now;
-        tokio::select! {
-            event = self.swarm.next() => event,
-            () = tokio::time::sleep_until(duplicates.unwrap_or_else(now)), if duplicates.is_some() => {
-                Some(SwarmEvent::Behaviour(Event::DuplicateConnectionsDue))
-            }
-            () = tokio::time::sleep_until(static_peers.unwrap_or_else(now)), if static_peers.is_some() => {
-                Some(SwarmEvent::Behaviour(Event::StaticPeersDue))
+        loop {
+            self.handler.update_signer();
+            let duplicates = self.next_duplicate_check;
+            let static_peers = self.next_static_peer_check;
+            // `select!` builds the futures of disabled branches too, so each needs some deadline.
+            let now = Instant::now;
+            tokio::select! {
+                // Observe rotations even when no gossip messages arrive. Fixed-address builders
+                // drop the sender, so stop polling a closed channel and retain its last value.
+                _ = self.handler.signer_recv.changed(), if self.handler.signer_recv.has_changed().is_ok() => {}
+                event = self.swarm.next() => return event,
+                () = tokio::time::sleep_until(duplicates.unwrap_or_else(now)), if duplicates.is_some() => {
+                    return Some(SwarmEvent::Behaviour(Event::DuplicateConnectionsDue));
+                }
+                () = tokio::time::sleep_until(static_peers.unwrap_or_else(now)), if static_peers.is_some() => {
+                    return Some(SwarmEvent::Behaviour(Event::StaticPeersDue));
+                }
             }
         }
     }
@@ -782,14 +788,16 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{
-        ConnectionGater, GossipDriver, PeerAddr,
+        SIGNER_GRACE_PERIOD,
         builder::tests::{
             memory_driver, memory_driver_builder, memory_driver_builder_at, poll_until_connected,
         },
+        signer::tests::{address, payload},
     };
-    use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
-    use std::time::Duration;
+    use libp2p::multiaddr::Protocol;
+    use tokio::sync::watch;
 
     /// Polls both drivers' swarms until `done` holds for them, for at most 10 seconds.
     async fn poll_until(
@@ -1405,5 +1413,66 @@ mod tests {
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
         assert!(!driver_1.connection_gate.current_dials.contains(&peer_2));
+    }
+
+    fn driver(signer: watch::Receiver<Address>) -> GossipDriver<ConnectionGater> {
+        GossipDriverBuilder::new(
+            RollupConfig {
+                l2_chain_id: alloy_chains::Chain::optimism_mainnet(),
+                block_time: 2,
+                ..Default::default()
+            },
+            address(1),
+            "/ip4/127.0.0.1/tcp/0".parse().unwrap(),
+            Keypair::generate_secp256k1(),
+        )
+        .with_unsafe_block_signer_receiver(signer)
+        .build()
+        .unwrap()
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn idle_gossip_observes_rotation_before_next_payload() {
+        let (sender, receiver) = watch::channel(address(1));
+        let mut driver = driver(receiver);
+        let mut next = Box::pin(driver.next());
+        assert!(futures::poll!(&mut next).is_pending());
+        sender.send(address(2)).unwrap();
+        assert!(futures::poll!(&mut next).is_pending());
+        drop(next);
+
+        // No gossip arrived during grace. Expiry is measured from the observed update,
+        // not from this first old-key payload.
+        tokio::time::advance(SIGNER_GRACE_PERIOD + Duration::from_nanos(1)).await;
+        assert!(driver.handler.validate_signature(&payload(1)).is_err());
+        assert!(driver.handler.validate_signature(&payload(2)).is_ok());
+    }
+
+    #[tokio::test]
+    async fn closed_signer_channel_retains_its_final_value_without_spinning() {
+        let (sender, receiver) = watch::channel(address(1));
+        let mut driver = driver(receiver);
+        sender.send(address(2)).unwrap();
+        drop(sender);
+        let mut next = Box::pin(driver.next());
+        assert!(futures::poll!(&mut next).is_pending());
+        drop(next);
+        assert!(driver.handler.validate_signature(&payload(2)).is_ok());
+        assert!(driver.handler.validate_signature(&payload(1)).is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn signer_update_preserves_duplicate_connection_deadline() {
+        let (sender, receiver) = watch::channel(address(1));
+        let mut driver = driver(receiver);
+        driver.next_duplicate_check = Some(tokio::time::Instant::now() + Duration::from_secs(1));
+        let mut next = Box::pin(driver.next());
+        assert!(futures::poll!(&mut next).is_pending());
+        sender.send(address(2)).unwrap();
+        assert!(futures::poll!(&mut next).is_pending());
+
+        tokio::time::advance(Duration::from_secs(1)).await;
+        assert!(matches!(next.await, Some(SwarmEvent::Behaviour(Event::DuplicateConnectionsDue))));
+        assert!(driver.handler.validate_signature(&payload(2)).is_ok());
     }
 }

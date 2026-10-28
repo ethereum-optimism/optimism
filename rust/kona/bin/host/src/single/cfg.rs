@@ -188,8 +188,7 @@ impl SingleChainHost {
                 kv_store.clone(),
                 providers,
                 SingleChainHintHandler,
-            )
-            .with_high_level_hint(HintType::L2PayloadWitness);
+            );
 
             task::spawn(async {
                 PreimageServer::new(
@@ -292,6 +291,10 @@ impl SingleChainHost {
 impl OnlineHostBackendCfg for SingleChainHost {
     type HintType = HintType;
     type Providers = SingleChainProviders;
+
+    /// `L2PayloadWitness` bulk-populates the store via `debug_executePayload`, which every
+    /// supported L2 EL (op-reth with proofs-history) serves.
+    const HIGH_LEVEL_HINTS: &'static [HintType] = &[HintType::L2PayloadWitness];
 }
 
 /// The providers required for the single chain host.

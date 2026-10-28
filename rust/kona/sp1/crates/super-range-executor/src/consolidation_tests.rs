@@ -65,6 +65,7 @@ const GENESIS_TIME: u64 = 1_000;
 
 /// A one-timestamp consolidation. The initiating chain's blocks `1..=n` sit below its head
 /// `n + 1`; the executing chain's head executes messages into them; idle chains have empty blocks.
+#[derive(Clone)]
 struct Fixture {
     /// Every preimage of the consolidation except the receipts tries of blocks `1..=n`.
     withheld: PreimageStore,
@@ -82,17 +83,18 @@ impl Fixture {
     /// `messages` are `(block number, log index)` pairs into `blocks`, the receipts of blocks
     /// `1..=n`. Each message carries the origin and payload hash of the log it references.
     fn new(blocks: Vec<Vec<OpReceiptEnvelope>>, messages: &[(u64, u64)]) -> Self {
-        Self::with_idle_chains(blocks, messages, 0)
+        Self::with_idle_chains(blocks, messages, 0, 1)
     }
 
     fn with_idle_chains(
         blocks: Vec<Vec<OpReceiptEnvelope>>,
         messages: &[(u64, u64)],
         idle_chains: u64,
+        executing_block_time: u64,
     ) -> Self {
         let mut witness = PreimageStore::default();
         save(&mut witness, vec![EMPTY_STRING_CODE]);
-        let configs = configs(idle_chains);
+        let configs = configs(idle_chains, executing_block_time);
         for (key, value) in [
             (DEPENDENCY_SET_KEY, serde_json::to_vec(&configs.dependency_set).unwrap()),
             (L2_ROLLUP_CONFIG_KEY, serde_json::to_vec(&configs.rollup_configs).unwrap()),
@@ -300,10 +302,10 @@ impl Fixture {
     }
 }
 
-fn configs(idle_chains: u64) -> ChainConfigs {
+fn configs(idle_chains: u64, executing_block_time: u64) -> ChainConfigs {
     let rollup_config = |chain_id: u64| {
         let mut config = RollupConfig {
-            block_time: 1,
+            block_time: if chain_id == EXECUTING { executing_block_time } else { 1 },
             l1_chain_id: 1,
             l2_chain_id: Chain::from(chain_id),
             ..Default::default()
@@ -389,6 +391,270 @@ fn table_serves_below_head_references_without_their_receipts() {
     let through_table =
         fixture.run_native(fixture.withheld.clone(), fixture.log_commitments(), |_, _| {});
     assert_eq!(through_table, through_receipts);
+}
+
+fn persistent_executing_head_fixture(replaced: bool) -> Fixture {
+    use alloy_consensus::{Sealed, TrieAccount};
+    use alloy_op_evm::{
+        OpEvmFactory, block::OpAlloyReceiptBuilder, post_exec::PostExecEvmFactoryAdapter,
+    };
+    use alloy_primitives::b64;
+    use kona_executor::StatelessL2Builder;
+    use kona_mpt::{Nibbles, NoopTrieProvider, TrieNode};
+    use kona_proof::l2::OracleL2ChainProvider;
+    use kona_protocol::Predeploys;
+    use op_alloy_rpc_types_engine::OpPayloadAttributes;
+
+    let mut fixture = Fixture::with_idle_chains(
+        (0..3).map(|seed| vec![eip1559(logs(seed * 4, 4, 1, 0))]).collect(),
+        &[(1, 0), (3, 0), (1, 0)],
+        0,
+        4,
+    );
+    let config = &fixture.configs.rollup_configs[&EXECUTING];
+    let mut state = TrieNode::Empty;
+    state
+        .insert(
+            &Nibbles::unpack(keccak256(Predeploys::L2_TO_L1_MESSAGE_PASSER)),
+            alloy_rlp::encode(TrieAccount { nonce: 1, ..Default::default() }).into(),
+            &NoopTrieProvider,
+        )
+        .unwrap();
+    save(&mut fixture.withheld, alloy_rlp::encode(&state));
+    let parent = Header {
+        timestamp: GENESIS_TIME,
+        state_root: state.blind(),
+        transactions_root: EMPTY_ROOT_HASH,
+        receipts_root: EMPTY_ROOT_HASH,
+        gas_limit: 30_000_000,
+        base_fee_per_gas: Some(1),
+        extra_data: op_alloy_consensus::encode_jovian_extra_data(
+            b64!("0000000800000002"),
+            config.chain_op_config.post_canyon_params(),
+            0,
+        )
+        .unwrap(),
+        ..Default::default()
+    };
+    let parent_hash = save(&mut fixture.withheld, alloy_rlp::encode(&parent));
+    let provider = OracleL2ChainProvider::new(
+        parent_hash,
+        Arc::new(config.clone()),
+        Arc::new(fixture.withheld.clone()),
+    );
+    let mut builder = StatelessL2Builder::new(
+        config,
+        PostExecEvmFactoryAdapter::new(OpEvmFactory::<alloy_op_evm::OpTx>::default()),
+        OpAlloyReceiptBuilder::default(),
+        provider.clone(),
+        provider,
+        Sealed::new(parent.clone()),
+    );
+    let timestamp = GENESIS_TIME + 4;
+    let mut attrs = OpPayloadAttributes::default();
+    attrs.payload_attributes.timestamp = timestamp;
+    attrs.payload_attributes.suggested_fee_recipient =
+        Address::left_padding_from(&EXECUTING.to_be_bytes());
+    attrs.payload_attributes.parent_beacon_block_root = Some(B256::ZERO);
+    attrs.payload_attributes.withdrawals = Some(Vec::new());
+    attrs.transactions = Some(Vec::new());
+    attrs.no_tx_pool = Some(true);
+    attrs.gas_limit = Some(parent.gas_limit);
+    attrs.eip_1559_params = Some(b64!("0000000800000002"));
+    attrs.min_base_fee = Some(0);
+    let replacement = builder.build_block(attrs).unwrap().header;
+    let replacement_root = builder.compute_output_root().unwrap();
+    save(&mut fixture.withheld, alloy_rlp::encode(replacement.inner()));
+    let output = |witness: &mut PreimageStore, header: &Header| {
+        save(
+            witness,
+            crate::OutputV0 {
+                state_root: header.state_root,
+                message_passer_storage_root: EMPTY_ROOT_HASH,
+                block_hash: header.hash_slow(),
+            }
+            .marshal(),
+        )
+    };
+    assert_eq!(output(&mut fixture.withheld, &replacement), replacement_root);
+    let mut original = replacement.clone().into_inner();
+    if replaced {
+        let mut executing = ChainBuilder::default();
+        executing.add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(B256::ZERO)
+                .with_origin_address(logs(0, 1, 1, 0)[0].address)
+                .with_origin_chain_id(INITIATING)
+                .with_origin_block_number(1)
+                .with_origin_log_index(0)
+                .with_origin_timestamp(GENESIS_TIME + 1),
+        );
+        original.receipts_root = save_receipts(&mut fixture.withheld, &executing.receipts);
+        fixture.references = vec![(fixture.below_head[0].receipts_root, 0)];
+    } else {
+        let encoded = kona_proof::block_on(fixture.withheld.get(PreimageKey::new_keccak256(
+            *fixture.inputs.transitions[0].optimistic_blocks[1].block_hash,
+        )))
+        .unwrap();
+        original.receipts_root = alloy_rlp::decode_exact::<Header>(&encoded).unwrap().receipts_root;
+    }
+    let original_hash = save(&mut fixture.withheld, alloy_rlp::encode(&original));
+    let original_root = output(&mut fixture.withheld, &original);
+    let original = SuperOptimisticBlock {
+        chain_id: U256::from(EXECUTING),
+        block_hash: original_hash,
+        output_root: original_root,
+    };
+    let canonical = if replaced {
+        SuperOptimisticBlock {
+            chain_id: U256::from(EXECUTING),
+            block_hash: replacement.hash(),
+            output_root: replacement_root,
+        }
+    } else {
+        original
+    };
+    let previous_encoded = kona_proof::block_on(
+        fixture.withheld.get(PreimageKey::new_keccak256(*fixture.inputs.previous_super_root)),
+    )
+    .unwrap();
+    let mut previous = SuperRoot::decode(&mut previous_encoded.as_slice()).unwrap();
+    previous.output_roots[1].output_root = output(&mut fixture.withheld, &parent);
+    let mut encoded = Vec::new();
+    previous.encode(&mut encoded);
+    fixture.inputs.previous_super_root = save(&mut fixture.withheld, encoded);
+    fixture.inputs.transitions[0].optimistic_blocks[1] = original;
+    fixture.inputs.transitions[0].claimed_super_root_proof.super_root.output_roots[1].output_root =
+        canonical.output_root;
+    let mut initiating = fixture.inputs.transitions[0].optimistic_blocks[0];
+    for offset in 1..4 {
+        let at = timestamp + offset;
+        let hash = save_header(
+            &mut fixture.withheld,
+            INITIATING,
+            4 + offset,
+            initiating.block_hash,
+            EMPTY_ROOT_HASH,
+        );
+        initiating = SuperOptimisticBlock {
+            chain_id: U256::from(INITIATING),
+            block_hash: hash,
+            output_root: save_output_root(&mut fixture.withheld, hash),
+        };
+        fixture.inputs.transitions.push(SuperConsolidationTransitionInput {
+            optimistic_blocks: vec![initiating, canonical],
+            claimed_super_root_proof: SuperRootProof::new(
+                at,
+                vec![
+                    SuperOutputRoot { chain_id: INITIATING, output_root: initiating.output_root },
+                    SuperOutputRoot { chain_id: EXECUTING, output_root: canonical.output_root },
+                ],
+            ),
+        });
+    }
+    fixture.inputs.span = TimestampSpan::new(timestamp, timestamp + 3).unwrap();
+    fixture
+}
+
+fn consolidation_timestamp(fixture: &Fixture, index: usize) -> Fixture {
+    let mut chunk = fixture.clone();
+    let transition = fixture.inputs.transitions[index].clone();
+    let timestamp = transition.claimed_super_root_proof.super_root.timestamp;
+    if index > 0 {
+        let mut encoded = Vec::new();
+        fixture.inputs.transitions[index - 1]
+            .claimed_super_root_proof
+            .super_root
+            .encode(&mut encoded);
+        chunk.inputs.previous_super_root = save(&mut chunk.withheld, encoded);
+    }
+    chunk.inputs.span = TimestampSpan::new(timestamp, timestamp).unwrap();
+    chunk.inputs.transitions = vec![transition];
+    chunk
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn consolidation_checks_persistent_message_heads_across_idle_timestamps() {
+    for (replaced, persistent_original) in [(false, false), (true, false), (true, true)] {
+        let mut fixture = persistent_executing_head_fixture(replaced);
+        let stored_configs: std::collections::BTreeMap<u64, RollupConfig> = serde_json::from_slice(
+            &fixture.withheld.get(PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to())).await.unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            stored_configs[&EXECUTING].block_time,
+            fixture.configs.rollup_configs[&EXECUTING].block_time
+        );
+        let canonical = fixture.inputs.transitions[1].optimistic_blocks[1];
+        if persistent_original {
+            // Old RPCs retain the denied head; consolidation must check its messages again.
+            let original = fixture.inputs.transitions[0].optimistic_blocks[1];
+            for transition in fixture.inputs.transitions.iter_mut().skip(1) {
+                transition.optimistic_blocks[1] = original;
+            }
+        }
+        let roots = fixture.below_head.iter().map(|block| block.receipts_root).collect::<Vec<_>>();
+        let stdin = build_log_commitment_stdin_from_receipts(&fixture.below_head).unwrap();
+        let batch = kona_sp1_client_utils::log_commitment::log_commitment_public_values(
+            &roots,
+            &stdin.buffer[1],
+        );
+        assert_eq!(batch, fixture.native_batch());
+        let expected =
+            fixture.run_native(fixture.full_witness(), LogCommitmentInputs::default(), |_, _| {});
+        let (native, witness) =
+            collect(&fixture, fixture.full_witness(), std::slice::from_ref(&batch)).await;
+        let native = native.unwrap();
+        assert!(native.missing.is_empty());
+        assert_eq!(native.openings, fixture.openings());
+        assert_eq!(native.outputs, expected);
+        assert_eq!(
+            fixture.run_native(
+                witness,
+                LogCommitmentInputs {
+                    batches: vec![batch.clone()],
+                    openings: native.openings.clone(),
+                },
+                |_, _| {}
+            ),
+            expected
+        );
+        for (index, transition) in native.outputs.transitions.iter().enumerate() {
+            assert_eq!(transition.timestamp, GENESIS_TIME + 4 + index as u64);
+            assert_eq!(
+                transition.super_root,
+                fixture.inputs.transitions[index].claimed_super_root_proof.super_root.hash()
+            );
+            if replaced && (index == 0 || persistent_original) {
+                assert_ne!(transition.optimistic_blocks[1], canonical);
+            } else {
+                assert_eq!(transition.optimistic_blocks[1], canonical);
+            }
+            let chunk = consolidation_timestamp(&fixture, index);
+            let (collected, _) =
+                collect(&chunk, chunk.full_witness(), std::slice::from_ref(&batch)).await;
+            let collected = collected.unwrap();
+            assert_eq!(collected.outputs.transitions, vec![transition.clone()]);
+            let expected_openings = if replaced && !persistent_original && index > 0 {
+                Vec::new()
+            } else {
+                fixture.openings()
+            };
+            assert_eq!(collected.openings, expected_openings);
+        }
+    }
+}
+
+#[test]
+#[should_panic(expected = "no opening of log 0")]
+fn idle_message_head_requires_its_initiating_log_opening() {
+    let fixture = persistent_executing_head_fixture(false);
+    let chunk = consolidation_timestamp(&fixture, 1);
+    chunk.run_native(
+        chunk.withheld.clone(),
+        LogCommitmentInputs { batches: vec![fixture.native_batch()], openings: Vec::new() },
+        |_, _| {},
+    );
 }
 
 /// Pins today's path for a below-head block without an entry.
@@ -889,8 +1155,8 @@ async fn consolidation_estimate_bounds_measured_pgu() {
         (1..=4).flat_map(|number| [(number, 0), (number, 37_500), (number, 74_999)]).collect();
     let entry_cap = (0..MAX_ENTRIES_PER_BATCH as u64).map(|b| vec![eip1559(logs(b, 1, 0, 0))]);
     let shapes = [
-        ("mixed, 2 chains", Fixture::with_idle_chains(mixed.clone(), &mixed_messages, 0)),
-        ("mixed, 6 chains", Fixture::with_idle_chains(mixed, &mixed_messages, 4)),
+        ("mixed, 2 chains", Fixture::with_idle_chains(mixed.clone(), &mixed_messages, 0, 1)),
+        ("mixed, 6 chains", Fixture::with_idle_chains(mixed, &mixed_messages, 4, 1)),
         ("3,239 messages", Fixture::new(vec![vec![eip1559(logs(0, 3_239, 1, 0))]], &many_messages)),
         ("deep trees", Fixture::new(deep_trees, &deep_messages)),
         (
