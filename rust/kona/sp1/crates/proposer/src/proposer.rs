@@ -2147,6 +2147,13 @@ impl Proposer {
                 }
             }
         }
+        progress_addresses_to_clear.extend(
+            state
+                .games
+                .values()
+                .filter(|game| !state.ancestry_eligible(game))
+                .map(|game| game.address),
+        );
         drop(state);
         for address in progress_addresses_to_clear {
             self.proof_engine.clear(address);
@@ -6537,6 +6544,78 @@ mod tests {
         assert!(state.ancestry_eligible(&sibling));
         let cleared = proof_engine.cleared.lock().unwrap().iter().copied().collect::<HashSet<_>>();
         assert_eq!(cleared, blocked_addresses);
+    }
+
+    #[tokio::test]
+    async fn disallowed_ancestor_sync_clears_proofs_outside_anchor_subtree() {
+        let root = game_with(1, u32::MAX, 100);
+        let child = game_with(2, 1, 101);
+        let anchor = game_with(3, 1, 102);
+        let protected = game_with(4, 3, 103);
+        let unrelated = game_with(5, u32::MAX, 104);
+        let mut proposer = test_proposer().await;
+        let engine = Arc::new(RecordingProofEngine::default());
+        proposer.proof_engine = engine.clone();
+        *proposer.state.write().await = state(
+            vec![root.clone(), child.clone(), anchor.clone(), protected.clone(), unrelated],
+            Some(anchor),
+        );
+
+        for _ in 0..2 {
+            *engine.cached.lock().unwrap() = Some(vec![0xaa]);
+            engine.cleared.lock().unwrap().clear();
+            proposer.apply_game_sync_actions(vec![(root.index, true)], Vec::new()).await;
+
+            assert_eq!(
+                engine.cleared.lock().unwrap().iter().copied().collect::<HashSet<_>>(),
+                HashSet::from([root.address, child.address])
+            );
+            assert!(engine.cached.lock().unwrap().is_none());
+            let state = proposer.state.read().await;
+            assert_eq!(state.games.len(), 5);
+            assert!(state.invalid_games.is_empty());
+            assert!(!state.ancestry_eligible(&child));
+            assert!(state.ancestry_eligible(&protected));
+            assert_eq!(state.games[&child.index].status, GameStatus::InProgress);
+        }
+
+        proposer.apply_game_sync_actions(vec![(root.index, false)], Vec::new()).await;
+        assert!(proposer.state.read().await.ancestry_eligible(&child));
+    }
+
+    #[tokio::test]
+    async fn sync_clears_descendant_proofs_after_latest_ancestor_disallowance() {
+        let root = game_with(1, u32::MAX, 100);
+        let child = game_with(2, 1, 101);
+        let sibling = game_with(3, 1, 102);
+        let unrelated = game_with(4, u32::MAX, 103);
+        let mut proposer = test_proposer().await;
+        let engine = Arc::new(RecordingProofEngine {
+            cached: StdMutex::new(Some(vec![0xaa])),
+            ..Default::default()
+        });
+        proposer.proof_engine = engine.clone();
+        proposer.l1_view = Arc::new(RecordingL1View {
+            proof_standing: GameStanding { blacklisted: true, retired: false },
+            ..Default::default()
+        });
+        *proposer.state.write().await =
+            state(vec![root.clone(), child.clone(), sibling.clone(), unrelated], None);
+
+        assert_eq!(
+            proposer.latest_ancestry_eligibility(root.index, root.address, false).await.unwrap(),
+            ActionEligibility::Ineligible
+        );
+        proposer.apply_game_sync_actions(Vec::new(), Vec::new()).await;
+        assert_eq!(
+            engine.cleared.lock().unwrap().iter().copied().collect::<HashSet<_>>(),
+            HashSet::from([root.address, child.address, sibling.address])
+        );
+        assert!(engine.cached.lock().unwrap().is_none());
+        let state = proposer.state.read().await;
+        assert_eq!(state.games.len(), 4);
+        assert!(state.invalid_games.is_empty());
+        assert_eq!(state.games[&child.index].status, GameStatus::InProgress);
     }
 
     mod game_sync_classification {
