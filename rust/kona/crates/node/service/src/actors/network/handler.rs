@@ -41,7 +41,7 @@ impl NetworkHandler {
         if let Err(send_err) = self
             .discovery
             .sender
-            .send(HandlerRequest::BanAddrs { addrs_to_ban: addrs_to_ban.into(), ban_duration })
+            .send(HandlerRequest::BanAddrs { addrs_to_ban, ban_duration })
             .await
         {
             warn!(err = ?send_err, "Impossible to send a request to the discovery handler. The channel connection is dropped.");

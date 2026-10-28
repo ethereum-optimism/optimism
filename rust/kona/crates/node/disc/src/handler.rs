@@ -3,7 +3,7 @@
 use discv5::{Enr, RequestError, kbucket::NodeStatus, metrics::Metrics};
 use enr::NodeId;
 use libp2p::Multiaddr;
-use std::{collections::HashSet, string::String, sync::Arc, time::Duration};
+use std::{collections::HashSet, string::String, time::Duration};
 use tokio::sync::mpsc::Sender;
 
 /// Request message for communicating with the Discv5 discovery service.
@@ -66,7 +66,7 @@ pub enum HandlerRequest {
     /// addresses, useful for blocking malicious or problematic peers.
     BanAddrs {
         /// Set of network addresses to ban.
-        addrs_to_ban: Arc<HashSet<Multiaddr>>,
+        addrs_to_ban: HashSet<Multiaddr>,
         /// Duration for which the addresses should be banned.
         ban_duration: Duration,
     },
