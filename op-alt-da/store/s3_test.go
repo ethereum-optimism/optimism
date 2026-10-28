@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
@@ -56,6 +57,26 @@ func TestS3StoreReportsMissingInputAsNotFound(t *testing.T) {
 
 	_, err := s.Get(context.Background(), []byte{0x00, 0x01})
 	require.ErrorIs(t, err, altda.ErrNotFound)
+}
+
+// A 404 that doesn't come from S3, e.g. a proxy's error page, says nothing about the input.
+func TestS3StoreReportsNonS3NotFoundAsError(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(srv.Close)
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	client, err := minio.New(u.Host, &minio.Options{
+		Creds:  credentials.NewStaticV4("id", "secret", ""),
+		Secure: false,
+		// A known region skips the bucket location lookup, so the 404 answers the object GET.
+		Region: "us-east-1",
+	})
+	require.NoError(t, err)
+	s := NewS3StoreWithClient(client, testBucket)
+
+	_, err = s.Get(context.Background(), []byte{0x00, 0x01})
+	require.Error(t, err)
+	require.NotErrorIs(t, err, altda.ErrNotFound)
 }
 
 // A missing bucket is also an HTTP 404, but it is a misconfiguration, not a missing input.

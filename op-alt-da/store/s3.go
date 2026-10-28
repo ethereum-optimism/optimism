@@ -53,13 +53,21 @@ func (s *S3Store) Get(ctx context.Context, key []byte) ([]byte, error) {
 	// GetObject sends no request; S3 errors such as NoSuchKey surface on the first read.
 	data, err := io.ReadAll(result)
 	if err != nil {
-		if minio.ToErrorResponse(err).Code == "NoSuchKey" {
+		if isMissingKey(err) {
 			return nil, altda.ErrNotFound
 		}
 		return nil, err
 	}
 
 	return data, nil
+}
+
+// isMissingKey reports whether err is S3's answer that the object doesn't exist. minio-go also
+// reports NoSuchKey for any 404 without an S3 error body, such as a proxy's error page; only S3
+// sets a request ID.
+func isMissingKey(err error) bool {
+	resp := minio.ToErrorResponse(err)
+	return resp.Code == "NoSuchKey" && resp.RequestID != ""
 }
 
 func (s *S3Store) Put(ctx context.Context, key []byte, value []byte) error {
