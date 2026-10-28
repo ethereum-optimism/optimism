@@ -3622,6 +3622,42 @@ contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_Test
         assertTrue(restored, "not restored");
     }
 
+    /// @notice Tests that a completion reverts and the deposit stays held when the bridge cannot
+    ///         return its tokens.
+    function test_completeDepositTransaction_restoreFails_reverts() external {
+        bytes memory message = abi.encodeCall(
+            IStandardBridge.finalizeBridgeERC20, (address(0x1001), address(0x1002), alice, bob, 100, hex"")
+        );
+        bytes memory data = abi.encodeCall(
+            ICrossDomainMessenger.relayMessage,
+            (0, address(l1StandardBridge), Predeploys.L2_STANDARD_BRIDGE, 0, 200_000, message)
+        );
+        vm.prank(address(l1CrossDomainMessenger));
+        optimismPortal2.depositTransaction(Predeploys.L2_CROSS_DOMAIN_MESSENGER, 0, 500_000, false, data);
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ERC20,
+            from: AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)),
+            aliased: true,
+            to: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 500_000,
+            isCreation: false,
+            data: data,
+            nonce: 0
+        });
+        vm.mockCallRevert(
+            address(l1StandardBridge), abi.encodeWithSelector(IL1StandardBridge.restoreERC20.selector), ""
+        );
+
+        vm.prank(hook);
+        vm.expectRevert(bytes(""));
+        optimismPortal2.completeDepositTransaction(item);
+
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)));
+    }
+
     /// @notice Tests that the hook can complete a held deposit while the Portal is paused.
     function test_completeDepositTransaction_paused_succeeds() external {
         vm.prank(depositor, depositor);
