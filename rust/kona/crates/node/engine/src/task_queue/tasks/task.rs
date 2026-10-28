@@ -2,7 +2,9 @@
 //!
 //! [`Engine`]: crate::Engine
 
-use super::{BuildTask, ConsolidateTask, FinalizeTask, InsertTask};
+use super::{
+    BuildTask, CanonicalizeTask, CanonicalizeTaskError, ConsolidateTask, FinalizeTask, InsertTask,
+};
 use crate::{
     BuildTaskError, ConsolidateTaskError, EngineState, FinalizeTaskError, InsertTaskError,
     task_queue::{SealTask, SealTaskError},
@@ -41,16 +43,16 @@ pub trait EngineTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity;
 }
 
-/// The interface for an engine task.
+/// The execution contract every engine task implements. [`EngineTask`] dispatches to it.
 #[async_trait]
-pub trait EngineTaskExt {
+pub trait ExecutableEngineTask {
     /// The output type of the task.
     type Output;
 
     /// The error type of the task.
     type Error: EngineTaskError;
 
-    /// Executes the task, taking a shared lock on the engine state and `self`.
+    /// Executes the task with exclusive access to the engine state.
     async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, Self::Error>;
 }
 
@@ -66,6 +68,9 @@ pub enum EngineTaskErrors {
     /// An error that occurred while sealing a block.
     #[error(transparent)]
     Seal(#[from] SealTaskError),
+    /// An error that occurred while canonicalizing a sequenced block.
+    #[error(transparent)]
+    Canonicalize(#[from] CanonicalizeTaskError),
     /// An error that occurred while consolidating the engine state.
     #[error(transparent)]
     Consolidate(#[from] ConsolidateTaskError),
@@ -80,6 +85,7 @@ impl EngineTaskError for EngineTaskErrors {
             Self::Insert(inner) => inner.severity(),
             Self::Build(inner) => inner.severity(),
             Self::Seal(inner) => inner.severity(),
+            Self::Canonicalize(inner) => inner.severity(),
             Self::Consolidate(inner) => inner.severity(),
             Self::Finalize(inner) => inner.severity(),
         }
@@ -95,11 +101,12 @@ pub enum EngineTask {
     Insert(Box<InsertTask>),
     /// Begins building a new block with the given attributes, producing a new payload ID.
     Build(Box<BuildTask>),
-    /// Seals the block with the given payload ID and attributes, inserting it into the execution
-    /// engine.
+    /// Fetches the block with the given payload ID and optionally imports it.
     Seal(Box<SealTask>),
-    /// Performs consolidation on the engine state, reverting to payload attribute processing
-    /// via the [`BuildTask`] if consolidation fails.
+    /// Imports a sequenced payload after its conductor commit has succeeded.
+    Canonicalize(Box<CanonicalizeTask>),
+    /// Performs consolidation on the engine state. If consolidation fails, a block is built from
+    /// the payload attributes and imported instead.
     Consolidate(Box<ConsolidateTask>),
     /// Finalizes an L2 block
     Finalize(Box<FinalizeTask>),
@@ -121,6 +128,7 @@ impl EngineTask {
                 Ok(_) => {}
             },
             Self::Seal(task) => task.execute(state).await?,
+            Self::Canonicalize(task) => task.execute(state).await?,
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,
             Self::Build(task) => {
@@ -133,7 +141,7 @@ impl EngineTask {
 
     const fn task_metrics_label(&self) -> &'static str {
         match self {
-            Self::Insert(_) => crate::Metrics::INSERT_TASK_LABEL,
+            Self::Insert(_) | Self::Canonicalize(_) => crate::Metrics::INSERT_TASK_LABEL,
             Self::Consolidate(_) => crate::Metrics::CONSOLIDATE_TASK_LABEL,
             Self::Build(_) => crate::Metrics::BUILD_TASK_LABEL,
             Self::Seal(_) => crate::Metrics::SEAL_TASK_LABEL,
@@ -149,6 +157,7 @@ impl PartialEq for EngineTask {
             (Self::Insert(_), Self::Insert(_)) |
                 (Self::Build(_), Self::Build(_)) |
                 (Self::Seal(_), Self::Seal(_)) |
+                (Self::Canonicalize(_), Self::Canonicalize(_)) |
                 (Self::Consolidate(_), Self::Consolidate(_)) |
                 (Self::Finalize(_), Self::Finalize(_))
         )
@@ -182,7 +191,12 @@ impl Ord for EngineTask {
             (Self::Consolidate(_), Self::Consolidate(_)) |
             (Self::Build(_), Self::Build(_)) |
             (Self::Seal(_), Self::Seal(_)) |
+            (Self::Canonicalize(_), Self::Canonicalize(_)) |
             (Self::Finalize(_), Self::Finalize(_)) => Ordering::Equal,
+
+            // Finish importing a sequenced block before starting another build.
+            (Self::Canonicalize(_), _) => Ordering::Greater,
+            (_, Self::Canonicalize(_)) => Ordering::Less,
 
             // SealBlock tasks are prioritized over all others
             (Self::Seal(_), _) => Ordering::Greater,
@@ -204,7 +218,7 @@ impl Ord for EngineTask {
 }
 
 #[async_trait]
-impl EngineTaskExt for EngineTask {
+impl ExecutableEngineTask for EngineTask {
     type Output = ();
 
     type Error = EngineTaskErrors;

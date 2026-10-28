@@ -68,13 +68,9 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 
 	env.RunFaultProofProgram(t, bigs.Uint64Strict(l2SafeHead.Number)/2, testCfg.CheckResult, testCfg.InputParams...)
 
-	// Set recover mode on the sequencer:
+	// Set recover mode on the sequencer. Its blocks then carry noTxPool, which forces the engine to
+	// leave out the transactions the test injects.
 	env.Sequencer.ActSetRecoverMode(t, true)
-	// Since recover mode only affects the L2 CL (op-node),
-	// it won't stop the test environment injecting transactions
-	// directly into the engine. So we will force the engine
-	// to ignore such injections if recover mode is enabled.
-	env.Engine.EngineApi.SetForceEmpty(true)
 
 	// Define "lag" as the difference between the current L1 block number and the safe L2 block's L1 origin number.
 	computeLag := func() int {
@@ -156,7 +152,6 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 
 	// Disable recover mode so we can get some user transactions in again.
 	env.Sequencer.ActSetRecoverMode(t, false)
-	env.Engine.EngineApi.SetForceEmpty(false)
 	l2SafeBefore := env.Sequencer.L2Safe()
 	env.Sequencer.ActL2StartBlock(t)
 	env.Bob.L2.ActResetTxOpts(t)

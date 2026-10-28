@@ -34,6 +34,7 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
+import { IChainConfig } from "interfaces/L2/IChainConfig.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -77,6 +78,7 @@ contract L2Genesis is Script {
         address liquidityControllerOwner;
         bytes32 devFeatureBitmap;
         uint256 l2ToL2MessageExpiryPeriod;
+        uint256 settlementChainID;
     }
 
     using ForkUtils for Fork;
@@ -139,6 +141,11 @@ contract L2Genesis is Script {
         require(
             _input.l2ToL2MessageExpiryPeriod == 0 || _isGenesisInteropEnabled(_input),
             "L2Genesis: expiry period override needs interop at genesis"
+        );
+        require(
+            _input.settlementChainID == 0
+                || DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OP_PRIVATE),
+            "L2Genesis: settlement chain ID needs the OP_PRIVATE devFeature bit"
         );
         address deployer = makeAddr("deployer");
         vm.startPrank(deployer);
@@ -305,6 +312,25 @@ contract L2Genesis is Script {
         setL2DevFeatureFlags(_input); // 2D
         // deploy() upgrades ConditionalDeployer and L2DevFeatureFlags, so it must run after both are set.
         _deployPredeploysViaL2CM(_input);
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OP_PRIVATE)) {
+            setChainConfig(_input); // 34
+        }
+    }
+
+    /// @notice Sets the ChainConfig predeploy and writes the chain's settlement chain ID into its
+    ///         storage. ChainConfig has no predeploy record while OP Private is a dev feature, so
+    ///         the L2ContractsManager does not manage it: genesis points its proxy at the code
+    ///         here. This follows safety invariant #1.
+    function setChainConfig(Input memory _input) internal {
+        address impl = Predeploys.predeployToCodeNamespace(Predeploys.CHAIN_CONFIG);
+        vm.etch(impl, DeployUtils.getDeployedCode("ChainConfig"));
+        EIP1967Helper.setAdmin(impl, Predeploys.PROXY_ADMIN);
+        EIP1967Helper.setImplementation(Predeploys.CHAIN_CONFIG, impl);
+        vm.store(
+            Predeploys.CHAIN_CONFIG,
+            IChainConfig(Predeploys.CHAIN_CONFIG).SETTLEMENT_CHAIN_ID_SLOT(),
+            bytes32(_input.settlementChainID)
+        );
     }
 
     /// @notice Builds the implementation records for the temporary L2ContractsManager.

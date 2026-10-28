@@ -1,8 +1,8 @@
 //! A task for finalizing an L2 block.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, FinalizeBlockId, FinalizeTaskError, SynchronizeTask,
-    state::EngineSyncStateUpdate,
+    EngineClient, EngineState, ExecutableEngineTask, FinalizeBlockId, FinalizeTaskError,
+    state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use alloy_eips::BlockId;
 use async_trait::async_trait;
@@ -24,7 +24,7 @@ pub struct FinalizeTask {
 }
 
 #[async_trait]
-impl EngineTaskExt for FinalizeTask {
+impl ExecutableEngineTask for FinalizeTask {
     type Output = ();
 
     type Error = FinalizeTaskError;
@@ -45,7 +45,6 @@ impl EngineTaskExt for FinalizeTask {
             FinalizeBlockId::ByHash(id) => id.hash.into(),
             FinalizeBlockId::ByNumber(n) => n.into(),
         };
-
         let block = self
             .client
             .get_l2_block(lookup)
@@ -68,12 +67,11 @@ impl EngineTaskExt for FinalizeTask {
         }
 
         // Dispatch a forkchoice update.
-        SynchronizeTask::new(
-            self.client.clone(),
-            self.cfg.clone(),
+        synchronize(
+            self.client.as_ref(),
+            state,
             EngineSyncStateUpdate { finalized_head: Some(block_info), ..Default::default() },
         )
-        .execute(state)
         .await?;
 
         info!(

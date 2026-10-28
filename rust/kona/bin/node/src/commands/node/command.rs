@@ -8,7 +8,7 @@ use crate::{
     },
 };
 use alloy_rpc_types_engine::JwtSecret;
-use anyhow::{Result, bail};
+use anyhow::{Context as _, Result, bail};
 use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use kona_cli::{LogConfig, MetricsArgs};
@@ -17,6 +17,7 @@ use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
 use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
+use kona_safedb::{SafeDatabase, SafeDb};
 use op_alloy_provider::ext::engine::OpEngineApi;
 use serde_json::{Value, from_reader, from_value};
 use std::{
@@ -117,6 +118,10 @@ pub struct NodeCommand {
     /// silent state-divergence bug into a startup crash.
     #[arg(long = "interop.dependency-set", env = "KONA_NODE_INTEROP_DEPENDENCY_SET")]
     pub interop_dependency_set: Option<PathBuf>,
+    /// Path of the database recording the L2 safe head reached as of each L1 block, as served
+    /// by `optimism_safeHeadAtL1Block`. Nothing is recorded when unset.
+    #[arg(long = "safedb.path", env = "KONA_NODE_SAFEDB_PATH")]
+    pub safedb_path: Option<PathBuf>,
     /// P2P CLI arguments.
     #[command(flatten)]
     pub p2p_flags: P2PArgs,
@@ -137,6 +142,7 @@ impl Default for NodeCommand {
             l2_config_file: None,
             l1_config_file: None,
             interop_dependency_set: None,
+            safedb_path: None,
             node_mode: NodeMode::Validator,
             p2p_flags: P2PArgs::default(),
             rpc_flags: RpcArgs::default(),
@@ -185,12 +191,14 @@ impl NodeCommand {
                     CliMetrics::P2P_ADVERTISE_TCP_PORT,
                     self.p2p_flags
                         .advertise_tcp_port
+                        .filter(|&p| p != 0)
                         .map_or_else(|| "auto".to_string(), |p| p.to_string())
                 ),
                 (
                     CliMetrics::P2P_ADVERTISE_UDP_PORT,
                     self.p2p_flags
                         .advertise_udp_port
+                        .filter(|&p| p != 0)
                         .map_or_else(|| "auto".to_string(), |p| p.to_string())
                 ),
                 (CliMetrics::P2P_PEERS_LO, self.p2p_flags.peers_lo.to_string()),
@@ -207,7 +215,7 @@ impl NodeCommand {
     }
 
     /// Check if the error is related to JWT signature validation
-    fn is_jwt_signature_error(error: &dyn std::error::Error) -> bool {
+    pub(super) fn is_jwt_signature_error(error: &dyn std::error::Error) -> bool {
         let mut source = Some(error);
         while let Some(err) = source {
             let err_str = err.to_string().to_lowercase();
@@ -224,7 +232,7 @@ impl NodeCommand {
     }
 
     /// Helper to check JWT signature error from `anyhow::Error` (for retry condition)
-    fn is_jwt_signature_error_from_anyhow(error: &anyhow::Error) -> bool {
+    pub(super) fn is_jwt_signature_error_from_anyhow(error: &anyhow::Error) -> bool {
         Self::is_jwt_signature_error(error.as_ref() as &dyn std::error::Error)
     }
 
@@ -310,6 +318,15 @@ impl NodeCommand {
         };
 
         let dependency_set = self.load_dependency_set(&cfg)?;
+        let safe_db = self.open_safe_db()?;
+        let derivation_delegate_config = self.derivation_delegate_args.config();
+        if safe_db.is_some() && derivation_delegate_config.is_some() {
+            bail!(
+                "--safedb.path cannot be combined with derivation delegation: a delegated node \
+                 derives nothing itself, so the record would never be written and would be \
+                 served stale"
+            );
+        }
 
         RollupNodeBuilder::new(
             crate::version::version().to_owned(),
@@ -321,8 +338,9 @@ impl NodeCommand {
             rpc_config,
         )
         .with_sequencer_config(self.sequencer_flags.config())
-        .with_derivation_delegate_config(self.derivation_delegate_args.config())
+        .with_derivation_delegate_config(derivation_delegate_config)
         .with_dependency_set(dependency_set)
+        .with_safe_db(safe_db)
         .build()
         .start()
         .await
@@ -332,6 +350,21 @@ impl NodeCommand {
         })?;
 
         Ok(())
+    }
+
+    /// Opens the safe head database when `--safedb.path` is configured.
+    pub(super) fn open_safe_db(&self) -> Result<Option<Arc<dyn SafeDb>>> {
+        let Some(path) = &self.safedb_path else {
+            return Ok(None);
+        };
+        info!(target: "rollup_node", path = %path.display(), "Opening the safe head database");
+        let db = SafeDatabase::new(path)
+            .inspect_err(|error| {
+                error!(target: "rollup_node", %error, path = %path.display(), "Failed to open the safe head database");
+            })
+            .with_context(|| format!("failed to open the safe head db at {}", path.display()))?;
+        info!(target: "rollup_node", path = %path.display(), "Recording the safe head history");
+        Ok(Some(Arc::new(db)))
     }
 
     /// Loads the interop [`DependencySet`] from `--interop.dependency-set`.
@@ -450,104 +483,5 @@ impl NodeCommand {
             },
             |content| Ok(JwtSecret::from_hex(content)?),
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use anyhow::anyhow;
-
-    #[derive(Debug)]
-    struct MockError {
-        message: String,
-    }
-
-    impl std::fmt::Display for MockError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.message)
-        }
-    }
-
-    impl std::error::Error for MockError {}
-
-    const fn default_flags() -> &'static [&'static str] {
-        &[
-            "--l1-eth-rpc",
-            "http://localhost:8545",
-            "--l1-beacon",
-            "http://localhost:5052",
-            "--l2-engine-rpc",
-            "http://localhost:8551",
-        ]
-    }
-
-    #[test]
-    fn test_node_cli_defaults() {
-        let args = NodeCommand::parse_from(
-            std::iter::once(&"node").chain(default_flags().iter()).copied(),
-        );
-        assert_eq!(args.node_mode, NodeMode::Validator);
-    }
-
-    #[test]
-    fn test_node_cli_missing_l1_eth_rpc() {
-        let err = NodeCommand::try_parse_from(["node"]).unwrap_err();
-        assert!(err.to_string().contains("--l1-eth-rpc"));
-    }
-
-    #[test]
-    fn test_node_cli_missing_l1_beacon() {
-        let err = NodeCommand::try_parse_from(["node", "--l1-eth-rpc", "http://localhost:8545"])
-            .unwrap_err();
-        assert!(err.to_string().contains("--l1-beacon"));
-    }
-
-    #[test]
-    fn test_node_cli_missing_l2_engine_rpc() {
-        let err = NodeCommand::try_parse_from([
-            "node",
-            "--l1-eth-rpc",
-            "http://localhost:8545",
-            "--l1-beacon",
-            "http://localhost:5052",
-        ])
-        .unwrap_err();
-        assert!(err.to_string().contains("--l2-engine-rpc"));
-    }
-
-    #[test]
-    fn test_get_l1_config_from_direct_and_genesis_files() {
-        let documents = [
-            serde_json::json!({"chainId": 123}),
-            serde_json::json!({"config": {"chainId": 123}, "alloc": {}}),
-        ];
-
-        for document in documents {
-            let mut file = tempfile::NamedTempFile::new().unwrap();
-            serde_json::to_writer(&mut file, &document).unwrap();
-
-            let command =
-                NodeCommand { l1_config_file: Some(file.path().into()), ..Default::default() };
-            assert_eq!(command.get_l1_config(123).unwrap().chain_id, 123);
-        }
-    }
-
-    #[test]
-    fn test_is_jwt_signature_error() {
-        let jwt_error = MockError { message: "signature invalid".to_string() };
-        assert!(NodeCommand::is_jwt_signature_error(&jwt_error));
-
-        let other_error = MockError { message: "network timeout".to_string() };
-        assert!(!NodeCommand::is_jwt_signature_error(&other_error));
-    }
-
-    #[test]
-    fn test_is_jwt_signature_error_from_anyhow() {
-        let jwt_anyhow_error = anyhow!("signature invalid");
-        assert!(NodeCommand::is_jwt_signature_error_from_anyhow(&jwt_anyhow_error));
-
-        let other_anyhow_error = anyhow!("network timeout");
-        assert!(!NodeCommand::is_jwt_signature_error_from_anyhow(&other_anyhow_error));
     }
 }

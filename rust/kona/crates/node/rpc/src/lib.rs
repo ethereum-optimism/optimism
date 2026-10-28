@@ -20,13 +20,16 @@ pub use config::RpcBuilder;
 mod p2p;
 pub use p2p::P2pRpc;
 
+mod response;
+pub use response::SafeHeadResponse;
+
 mod output;
 pub use output::OutputResponse;
 
 mod jsonrpsee;
 pub use jsonrpsee::{
     AdminApiServer, HealthzApiServer, MinerApiExtServer, OpAdminApiServer, OpP2PApiServer,
-    RollupNodeApiServer,
+    RollupNodeApiServer, SuperRootApiServer,
 };
 
 #[cfg(feature = "client")]
@@ -34,6 +37,17 @@ pub use jsonrpsee::RollupNodeApiClient;
 
 mod rollup;
 pub use rollup::RollupRpc;
+
+#[cfg(test)]
+mod test_utils;
+
+mod safe_db_error;
+
+mod superroot;
+pub use superroot::{
+    ChainIdAndOutput, DecimalChainId, OutputV0Response, OutputWithRequiredL1,
+    SuperRootAtTimestampResponse, SuperRootResponseData, SuperRootRpc, SuperV1Response,
+};
 
 mod l1_watcher;
 pub use l1_watcher::{L1State, L1WatcherQueries, L1WatcherQuerySender};

@@ -191,7 +191,7 @@ func TestBackupUnsafe(gt *testing.T) {
 	require.NoError(t, err)
 
 	rng := rand.New(rand.NewSource(1234))
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
@@ -354,7 +354,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	require.NoError(t, err)
 
 	rng := rand.New(rand.NewSource(1234))
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
@@ -489,7 +489,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	require.NoError(t, err)
 
 	rng := rand.New(rand.NewSource(1234))
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
@@ -639,7 +639,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	_, _, miner, sequencer, seqEng, verifier, _, batcher := actionsHelpers.SetupReorgTestActors(t, dp, sd, log)
 	l2Cl := seqEng.EthClient()
 	rng := rand.New(rand.NewSource(1234))
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)

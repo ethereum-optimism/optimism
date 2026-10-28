@@ -49,7 +49,7 @@ func TestSequencerBuildsOnRethEngine(gt *testing.T) {
 
 	// A third block that includes a user transaction, exercising the parking buffer:
 	// EthClient().SendTransaction parks it; ActL2IncludeTx drains it via optest_includeNextTx.
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 	cl := engine.EthClient()
 	nonce, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
 	require.NoError(t, err)

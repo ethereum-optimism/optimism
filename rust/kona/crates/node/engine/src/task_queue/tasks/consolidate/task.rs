@@ -1,10 +1,9 @@
 //! A task to consolidate the engine state.
 
 use crate::{
-    ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, ImportedBlockSink,
-    SynchronizeTask,
+    ConsolidateTaskError, EngineClient, EngineState, ExecutableEngineTask, ImportedBlockSink,
     state::EngineSyncStateUpdate,
-    task_queue::{BuildAndSealError, build_and_seal, handle_rejected_attributes},
+    task_queue::{build_and_import, synchronize},
 };
 use alloy_rpc_types_eth::Block;
 use async_trait::async_trait;
@@ -89,41 +88,23 @@ impl ConsolidateTask {
     }
 
     /// This is used when the [`ConsolidateTask`] fails to consolidate the engine state
-    async fn execute_build_and_seal_tasks(
+    async fn build_and_import_attributes(
         &self,
         state: &mut EngineState,
         attributes: &OpAttributesWithParent,
     ) -> Result<(), ConsolidateTaskError> {
-        match build_and_seal(
+        build_and_import(
+            self.client.as_ref(),
+            &self.cfg,
             state,
-            self.client.clone(),
-            self.cfg.clone(),
             attributes.clone(),
-            self.block_sink.clone(),
+            self.block_sink.as_ref(),
         )
-        .await
-        {
-            Err(BuildAndSealError::Build(err)) if err.is_invalid_attributes() => {
-                warn!(target: "engine", %err, "Derived attributes rejected at forkchoiceUpdated");
-                Err(handle_rejected_attributes(
-                    state,
-                    self.client.clone(),
-                    self.cfg.clone(),
-                    attributes,
-                    true,
-                    self.block_sink.clone(),
-                )
-                .await
-                .map_or(
-                    ConsolidateTaskError::BuildTaskFailed(err),
-                    ConsolidateTaskError::SealTaskFailed,
-                ))
-            }
-            result => result.map_err(Into::into),
-        }
+        .await?;
+        Ok(())
     }
 
-    /// This provides symmetric fallback behavior to with `build_and_seal`.
+    /// This provides symmetric fallback behavior with `build_and_import`.
     async fn reconcile_to_safe_head(
         &self,
         state: &mut EngineState,
@@ -139,9 +120,9 @@ impl ConsolidateTask {
         // self-consistent head state. This is required to correctly handle reorgs (where unsafe
         // may be ahead on a non-canonical fork) and to trigger EL sync when the local unsafe head
         // lags behind the safe head.
-        SynchronizeTask::new(
-            Arc::clone(&self.client),
-            self.cfg.clone(),
+        synchronize(
+            self.client.as_ref(),
+            state,
             EngineSyncStateUpdate {
                 unsafe_head: Some(*safe_l2),
                 safe_head: Some(*safe_l2),
@@ -149,7 +130,6 @@ impl ConsolidateTask {
                 ..Default::default()
             },
         )
-        .execute(state)
         .await
         .map_err(|e| {
             warn!(target: "engine", ?e, "Apply safe head failed");
@@ -173,7 +153,7 @@ impl ConsolidateTask {
     ) -> Result<(), ConsolidateTaskError> {
         match &self.input {
             ConsolidateInput::Attributes(attributes) => {
-                self.execute_build_and_seal_tasks(state, attributes).await
+                self.build_and_import_attributes(state, attributes).await
             }
             ConsolidateInput::BlockInfo(safe_l2) => {
                 self.reconcile_to_safe_head(state, safe_l2).await
@@ -241,16 +221,15 @@ impl ConsolidateTask {
                     // The next attributes built are this block's child, and ask for its config.
                     self.block_sink.block_imported(consensus_block, block_info);
 
-                    SynchronizeTask::new(
-                        Arc::clone(&self.client),
-                        self.cfg.clone(),
+                    synchronize(
+                        self.client.as_ref(),
+                        state,
                         EngineSyncStateUpdate {
                             safe_head: Some(block_info),
                             local_safe_head: Some(block_info),
                             ..Default::default()
                         },
                     )
-                    .execute(state)
                     .await
                     .map_err(|e| {
                         warn!(target: "engine", ?e, "Consolidation failed");
@@ -286,7 +265,7 @@ impl ConsolidateTask {
 }
 
 #[async_trait]
-impl EngineTaskExt for ConsolidateTask {
+impl ExecutableEngineTask for ConsolidateTask {
     type Output = ();
 
     type Error = ConsolidateTaskError;
@@ -403,7 +382,7 @@ mod tests {
             ConsolidateInput::Attributes(Box::new(attributes.clone())),
             Arc::new(crate::NoopBlockSink),
         );
-        task.execute_build_and_seal_tasks(&mut state, attributes)
+        task.build_and_import_attributes(&mut state, attributes)
             .await
             .expect_err("the mock never completes a seal")
     }

@@ -86,7 +86,7 @@ func TestDepositGasParity(gt *testing.T) {
 		testedBlockRef := env.Sequencer.L2Unsafe()
 		txs, userTxs := helpers.BlockTxs(t, env.Engine, testedBlockRef.Hash)
 		require.Empty(t, userTxs, "deposit blocks must not contain user transactions")
-		testedBlock, receipts, err := env.Engine.SourceClient().FetchReceipts(t.Ctx(), testedBlockRef.Hash)
+		testedBlock, receipts, err := env.Engine.SourceClient(t, 10).FetchReceipts(t.Ctx(), testedBlockRef.Hash)
 		require.NoError(t, err)
 		require.Len(t, receipts, len(txs), "every deposit must have a receipt")
 

@@ -43,16 +43,20 @@ Returns whether the sequencer is currently active.
 
 ## `admin_startSequencer`
 
-Starts the sequencer.
+Starts the sequencer at the expected local unsafe head. When a conductor is configured, it must report leadership. The request fails if the sequencer is already active, the unsafe head is unavailable, or the supplied hash does not match.
 
 | Client | Method invocation                                   |
 | ------ | --------------------------------------------------- |
-| RPC    | `{"method": "admin_startSequencer"}`                |
+| RPC    | `{"method": "admin_startSequencer", "params": [head]}`                |
+
+### Parameters
+
+- `head` (`bytes32`): Expected unsafe block hash, obtained from `admin_stopSequencer` or the current local unsafe head.
 
 ### Example
 
 ```js
-// > {"jsonrpc":"2.0","id":1,"method":"admin_startSequencer","params":[]}
+// > {"jsonrpc":"2.0","id":1,"method":"admin_startSequencer","params":["0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234"]}
 {"jsonrpc":"2.0","id":1,"result":null}
 ```
 
@@ -115,7 +119,9 @@ Sets the recovery mode for the sequencer.
 
 ## `admin_overrideLeader`
 
-Overrides the leader in the conductor.
+Locally bypasses conductor leadership checks and unsafe-payload commits to the conductor for disaster recovery. The override remains active until the node restarts.
+
+This does not override the conductor's own leadership state. To serve downstream traffic through the conductor's leader-gated RPC proxy, also set its `conductor_overrideLeader` RPC to `true`.
 
 | Client | Method invocation                                   |
 | ------ | --------------------------------------------------- |

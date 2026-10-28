@@ -1,10 +1,11 @@
 //! The [`Engine`] is a task queue that receives and executes [`EngineTask`]s.
 
-use super::EngineTaskExt;
+use super::ExecutableEngineTask;
 use crate::{
     EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTask, SynchronizeTaskError,
-    find_starting_forkchoice, task_queue::EngineTaskErrors,
+    EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTaskError,
+    find_starting_forkchoice,
+    task_queue::{EngineTaskErrors, synchronize},
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -105,8 +106,8 @@ impl Engine {
     }
 
     /// Resets the engine by finding a plausible sync starting point via
-    /// [`find_starting_forkchoice`]. The state will be updated to the starting point, and a
-    /// forkchoice update will be enqueued in order to reorg the execution layer.
+    /// [`find_starting_forkchoice`]. Synchronizes the execution layer and publishes the
+    /// recovered state before returning, even if no tasks are queued.
     pub async fn reset(
         &mut self,
         client: Arc<EngineClient>,
@@ -115,18 +116,19 @@ impl Engine {
         let start = find_starting_forkchoice(&config, client.as_ref()).await?;
 
         // One attempt. The actor retains the reset request and retries transient failures.
-        let synchronize = SynchronizeTask::new(
-            client,
-            config,
+        synchronize(
+            client.as_ref(),
+            &mut self.state,
             EngineSyncStateUpdate {
                 unsafe_head: Some(start.un_safe),
                 local_safe_head: Some(start.safe),
                 safe_head: Some(start.safe),
                 finalized_head: Some(start.finalized),
             },
-        );
-        synchronize.execute(&mut self.state).await?;
+        )
+        .await?;
 
+        self.state_sender.send_replace(self.state);
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
 
         Ok(start.safe)

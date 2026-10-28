@@ -59,7 +59,7 @@ pub use gater::{
 };
 
 mod builder;
-pub use builder::GossipDriverBuilder;
+pub use builder::{GossipDriverBuilder, GossipTransport, TransportBuilder};
 
 mod error;
 pub use error::{DialError, GossipDriverBuilderError, HandlerEncodeError, PublishError};

@@ -1865,9 +1865,12 @@ jobs:
       - go-save-cache:
           namespace: check-nut-locks
 
+  # The generator runs the L2 chain on the op-reth-test-engine binary from the
+  # rust-op-reth-binary workspace, so the job runs on the image that built it
+  # (glibc must match).
   check-nut-prefork-states:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
@@ -1880,6 +1883,8 @@ jobs:
       - run:
           name: check NUT pre-fork states
           command: |
+            export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="$(pwd)/rust/target/release/op-reth-test-engine"
+            test -x "$RUST_BINARY_PATH_OP_RETH_TEST_ENGINE"
             just _check-nut-prefork-states
       - go-save-cache:
           namespace: check-nut-prefork-states
@@ -2686,6 +2691,7 @@ workflows:
             - contracts-bedrock-build
             - prep-superchain
             - prep-go-modules
+            - rust-op-reth-binary
           context:
             - circleci-repo-readonly-authenticated-github-token
       - nut-provenance-verify:
@@ -3157,6 +3163,7 @@ workflows:
                 - ZK_DISPUTE_GAME
                 - BRIDGE_HOOK
                 - BRIDGE_HOOK,ZK_DISPUTE_GAME
+                - OP_PRIVATE
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3327,24 +3334,28 @@ workflows:
             - contracts-bedrock-tests ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests BRIDGE_HOOK: terminal
             - contracts-bedrock-tests BRIDGE_HOOK,ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-tests OP_PRIVATE: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified BRIDGE_HOOK: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified BRIDGE_HOOK,ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified OP_PRIVATE: terminal
             - contracts-bedrock-coverage main: terminal
             - contracts-bedrock-coverage CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP: terminal
             - contracts-bedrock-coverage ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-coverage BRIDGE_HOOK: terminal
             - contracts-bedrock-coverage BRIDGE_HOOK,ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-coverage OP_PRIVATE: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP: terminal
             - contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests-upgrade op-mainnet BRIDGE_HOOK: terminal
             - contracts-bedrock-tests-upgrade op-mainnet BRIDGE_HOOK,ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet OP_PRIVATE: terminal
             - contracts-bedrock-tests-upgrade op-mainnet: terminal
             - contracts-bedrock-tests-upgrade ink-mainnet: terminal
             - contracts-bedrock-tests-upgrade unichain-mainnet: terminal

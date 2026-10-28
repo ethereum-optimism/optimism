@@ -2,7 +2,6 @@ package helpers
 
 import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/gethengine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -15,7 +14,7 @@ type TestFixture struct {
 
 type FaultProofProgramL2Source struct {
 	Node   *helpers.L2Verifier
-	Engine *gethengine.L2Engine
+	Engine *helpers.L2Engine
 }
 
 type FixtureInputs struct {

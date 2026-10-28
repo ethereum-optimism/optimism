@@ -44,7 +44,7 @@ ipnet = { workspace = true, features = ["serde"] }
 
 # Misc
 serde.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 thiserror.workspace = true
 serde_repr.workspace = true
@@ -54,6 +54,7 @@ derive_more = { workspace = true, features = ["display", "deref", "debug"] }
 metrics.workspace = true
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt", "time"] }
 tempfile.workspace = true
 multihash.workspace = true
 serde_json.workspace = true

@@ -1,5 +1,4 @@
 //! Contains the [`RollupNode`] implementation.
-use super::middleware::RpcObservabilityLayer;
 use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
@@ -9,11 +8,12 @@ use crate::{
     QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor, SequencerActor,
     SequencerConfig, SignedPayload, SignerActor, SystemClock,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
-    service::BufferImportedBlocks,
+    service::{BufferImportedBlocks, middleware::RpcObservabilityLayer},
 };
-use alloy_eips::BlockNumberOrTag;
+use alloy_eips::{BlockNumHash, BlockNumberOrTag};
 use alloy_primitives::Address;
-use alloy_provider::RootProvider;
+use alloy_provider::{Provider, RootProvider};
+use backon::{ExponentialBuilder, Retryable};
 use jsonrpsee::{
     RpcModule,
     server::{
@@ -34,7 +34,7 @@ use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
     AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, L1WatcherQueries, OpP2PApiServer,
     P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder, SequencerAdminCommand,
-    SequencerAdminHandle,
+    SequencerAdminHandle, SuperRootApiServer, SuperRootRpc,
 };
 use kona_safedb::SafeDb;
 use op_alloy_network::Optimism;
@@ -49,12 +49,13 @@ const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// Every lookup served from here is for the block being built on top of, which the engine recorded
 /// one step earlier. The size absorbs what lands in between — gossiped unsafe blocks keep
 /// arriving, and on a sequencer the two builders ask about different heads.
-pub(super) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
+pub(in crate::service) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
+
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
 const FINALIZED_STREAM_POLL_INTERVAL: u64 = 60;
 
 /// The admin API is opt-in via `--rpc.enable-admin`, matching op-node.
-fn merge_admin_module(
+pub(super) fn merge_admin_module(
     modules: &mut RpcModule<()>,
     enable_admin: bool,
     admin_rpc: AdminRpc,
@@ -65,60 +66,6 @@ fn merge_admin_module(
             .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use kona_engine::test_utils::test_engine_client;
-    use kona_rpc::HealthzResponse;
-
-    #[test]
-    fn admin_module_registered_only_when_enabled() {
-        for enabled in [false, true] {
-            let mut modules = RpcModule::new(());
-            let admin = AdminRpc::new(None, mpsc::channel(1).0, mpsc::channel(1).0);
-            merge_admin_module(&mut modules, enabled, admin).unwrap();
-            let methods: Vec<_> = modules.method_names().collect();
-            if enabled {
-                for method in [
-                    "admin_postUnsafePayload",
-                    "admin_startSequencer",
-                    "admin_stopSequencer",
-                    "admin_resetDerivationPipeline",
-                ] {
-                    assert!(methods.contains(&method), "missing {method}");
-                }
-            } else {
-                assert!(methods.is_empty(), "admin methods must be disabled by default");
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn registered_endpoints_report_the_binary_version() {
-        for version in ["1.2.3", "0.0.0-dev"] {
-            let config = Arc::new(RollupConfig::default());
-            let (engine, _l1, _l2) = test_engine_client(config.clone());
-            let (_state_tx, state_rx) = watch::channel(EngineState::default());
-            let (l1_tx, _l1_rx) = mpsc::channel(1);
-            let mut rpc =
-                RollupRpc::new(version.to_owned(), config, state_rx, engine.query_client(), l1_tx)
-                    .into_rpc();
-            rpc.merge(HealthzRpc::new(version.to_owned()).into_rpc()).unwrap();
-            assert_eq!(
-                rpc.call::<_, String>("optimism_version", jsonrpsee::rpc_params![]).await.unwrap(),
-                version
-            );
-            assert_eq!(
-                rpc.call::<_, HealthzResponse>("healthz", jsonrpsee::rpc_params![])
-                    .await
-                    .unwrap()
-                    .version,
-                version
-            );
-        }
-    }
 }
 
 /// The configuration for the L1 chain.
@@ -350,16 +297,38 @@ impl RollupNode {
                 .create_pipeline()
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
+            let l1_block_zero = self.l1_block_zero().await?;
             Ok(ConfiguredDerivationActor::Normal(Box::new(
                 DerivationActor::<_, OnlinePipeline>::new(
                     QueuedDerivationEngineClient { engine_actor_request_tx },
                     derivation_actor_request_rx,
                     pipeline,
                     self.safe_db.clone(),
+                    l1_block_zero,
                     derivation_origin_tx,
                 ),
             )))
         }
+    }
+
+    /// Fetches L1 block zero only when `SafeDB` recording is enabled.
+    async fn l1_block_zero(&self) -> Result<BlockNumHash, String> {
+        if self.safe_db.is_none() {
+            return Ok(BlockNumHash::default());
+        }
+        let provider = &self.l1_config.engine_provider;
+        debug!(target: "rollup_node", "Fetching L1 block zero for the safe head database");
+        let block = (|| async { provider.get_block_by_number(BlockNumberOrTag::Number(0)).await })
+            .retry(ExponentialBuilder::default())
+            .notify(|e, delay| {
+                warn!(target: "rollup_node", %e, ?delay, "Failed to fetch L1 block zero; retrying")
+            })
+            .await
+            .map_err(|e| format!("Failed to fetch L1 block zero for the safe head db: {e}"))?
+            .ok_or_else(|| "L1 block zero is missing".to_string())?;
+        let l1_block_zero = BlockNumHash { hash: block.header.hash, number: 0 };
+        info!(target: "rollup_node", l1_hash = %l1_block_zero.hash, "Anchoring the safe head db at L1 block zero");
+        Ok(l1_block_zero)
     }
 
     /// Builds the L1 watcher actor along with its head and finalized block streams.
@@ -444,9 +413,9 @@ impl RollupNode {
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
         sequencer_admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
-    ) -> Option<ConfiguredSequencerActor> {
+    ) -> Result<Option<ConfiguredSequencerActor>, String> {
         if !self.mode().is_sequencer() {
-            return None;
+            return Ok(None);
         }
 
         let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
@@ -457,15 +426,20 @@ impl RollupNode {
         let delayed_origin_selector =
             L1OriginSelector::new(self.config.clone(), delayed_l1_provider);
 
-        let conductor =
-            self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http);
+        let conductor = self
+            .sequencer_config
+            .conductor_rpc_url
+            .clone()
+            .map(|url| ConductorClient::new_http(url, self.sequencer_config.conductor_rpc_timeout))
+            .transpose()
+            .map_err(|error| format!("Failed to build conductor HTTP client: {error}"))?;
 
         let sequencer_engine_client =
             QueuedSequencerEngineClient { engine_actor_request_tx, unsafe_head_rx };
 
         let queued_gossip_client = QueuedUnsafePayloadGossipClient::new(gossip_payload_tx);
 
-        Some(SequencerActor::new(
+        Ok(Some(SequencerActor::new(
             sequencer_admin_command_rx,
             self.create_attributes_builder(),
             conductor,
@@ -476,7 +450,7 @@ impl RollupNode {
             self.config.clone(),
             queued_gossip_client,
             Arc::new(SystemClock),
-        ))
+        )))
     }
 
     /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
@@ -506,13 +480,26 @@ impl RollupNode {
                 RollupRpc::new(
                     self.version.clone(),
                     self.config.clone(),
-                    engine_state_rx,
-                    l2_query_client,
-                    l1_watcher_queries_tx,
+                    engine_state_rx.clone(),
+                    l2_query_client.clone(),
+                    l1_watcher_queries_tx.clone(),
+                    self.safe_db.clone(),
                 )
                 .into_rpc(),
             )
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
+        modules
+            .merge(
+                SuperRootRpc::new(
+                    l2_query_client,
+                    engine_state_rx,
+                    l1_watcher_queries_tx,
+                    self.config.clone(),
+                    self.safe_db.clone(),
+                )
+                .into_rpc(),
+            )
+            .map_err(|e| format!("Failed to register superroot module: {e:?}"))?;
 
         let middleware = tower::ServiceBuilder::new()
             .layer(
@@ -655,7 +642,7 @@ impl RollupNode {
             unsafe_head_rx,
             l1_head_updates_rx,
             sequencer_admin_command_rx,
-        );
+        )?;
         let sequencer_admin = sequencer_actor.as_ref().map(|actor| {
             SequencerAdminHandle::new(actor.admin_state_receiver(), sequencer_admin_command_tx)
         });

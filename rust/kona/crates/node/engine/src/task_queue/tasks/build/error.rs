@@ -1,10 +1,12 @@
-//! Contains error types for the [`crate::SynchronizeTask`].
+//! Contains error types for the [`crate::BuildTask`].
 
 use crate::{EngineTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
-use alloy_rpc_types_engine::{INVALID_PAYLOAD_ATTRIBUTES_ERROR, PayloadId, PayloadStatusEnum};
+use alloy_rpc_types_engine::{
+    INVALID_FORK_CHOICE_STATE_ERROR, INVALID_PAYLOAD_ATTRIBUTES_ERROR, PayloadStatusEnum,
+};
 use alloy_transport::{RpcError, TransportErrorKind};
+use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::mpsc;
 
 /// An error that occurs during payload building within the engine.
 ///
@@ -20,14 +22,14 @@ use tokio::sync::mpsc;
 /// - **Payload Validation**: Invalid payload status responses from the execution layer
 ///
 /// [`BuildTask`]: crate::BuildTask
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum EngineBuildError {
     /// The finalized head is ahead of the unsafe head.
     #[error("Finalized head is ahead of unsafe head")]
     FinalizedAheadOfUnsafe(u64, u64),
     /// The forkchoice update call to the engine api failed.
     #[error("Failed to build payload attributes in the engine. Forkchoice RPC error: {0}")]
-    AttributesInsertionFailed(#[from] RpcError<TransportErrorKind>),
+    AttributesInsertionFailed(#[source] Arc<RpcError<TransportErrorKind>>),
     /// The inserted payload is invalid.
     #[error("The inserted payload is invalid: {0}")]
     InvalidPayload(String),
@@ -42,26 +44,36 @@ pub enum EngineBuildError {
     EngineSyncing,
 }
 
+impl EngineBuildError {
+    /// Whether forkchoiceUpdated rejected the attributes with -38003 or INVALID.
+    pub fn is_invalid_attributes(&self) -> bool {
+        match self {
+            Self::AttributesInsertionFailed(err) => err
+                .as_error_resp()
+                .is_some_and(|resp| resp.code == i64::from(INVALID_PAYLOAD_ATTRIBUTES_ERROR)),
+            Self::InvalidPayload(_) => true,
+            _ => false,
+        }
+    }
+}
+
 /// An error that occurs when running the [`crate::BuildTask`].
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum BuildTaskError {
     /// An error occurred when building the payload attributes in the engine.
-    #[error("An error occurred when building the payload attributes to the engine.")]
-    EngineBuildError(EngineBuildError),
-    /// Error sending the built payload envelope.
     #[error(transparent)]
-    MpscSend(#[from] Box<mpsc::error::SendError<PayloadId>>),
+    EngineBuildError(#[from] EngineBuildError),
+    /// The sequencer build no longer extends the current unsafe head.
+    #[error("Sequencer build parent is stale")]
+    StaleBuild,
 }
 
 impl BuildTaskError {
     /// Whether forkchoiceUpdated rejected the attributes with -38003 or INVALID.
     pub fn is_invalid_attributes(&self) -> bool {
         match self {
-            Self::EngineBuildError(EngineBuildError::AttributesInsertionFailed(err)) => err
-                .as_error_resp()
-                .is_some_and(|resp| resp.code == i64::from(INVALID_PAYLOAD_ATTRIBUTES_ERROR)),
-            Self::EngineBuildError(EngineBuildError::InvalidPayload(_)) => true,
-            _ => false,
+            Self::EngineBuildError(err) => err.is_invalid_attributes(),
+            Self::StaleBuild => false,
         }
     }
 }
@@ -69,6 +81,13 @@ impl BuildTaskError {
 impl EngineTaskError for BuildTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
+            Self::EngineBuildError(EngineBuildError::AttributesInsertionFailed(err))
+                if err.as_error_resp().is_some_and(|resp| {
+                    resp.code == i64::from(INVALID_FORK_CHOICE_STATE_ERROR)
+                }) =>
+            {
+                EngineTaskErrorSeverity::Reset
+            }
             Self::EngineBuildError(EngineBuildError::FinalizedAheadOfUnsafe(_, _)) => {
                 EngineTaskErrorSeverity::Critical
             }
@@ -78,8 +97,8 @@ impl EngineTaskError for BuildTaskError {
                 EngineBuildError::UnexpectedPayloadStatus(_) |
                 EngineBuildError::MissingPayloadId |
                 EngineBuildError::EngineSyncing,
-            ) => EngineTaskErrorSeverity::Temporary,
-            Self::MpscSend(_) => EngineTaskErrorSeverity::Critical,
+            ) |
+            Self::StaleBuild => EngineTaskErrorSeverity::Temporary,
         }
     }
 }

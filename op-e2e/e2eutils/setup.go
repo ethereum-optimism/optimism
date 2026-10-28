@@ -18,6 +18,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
@@ -88,7 +89,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 // SetupData bundles the L1, L2, rollup and deployment configuration data: everything for a full test setup.
 type SetupData struct {
 	L1Cfg         *core.Genesis
-	L2Cfg         *core.Genesis
+	L2Cfg         *opgenesis.Genesis
 	RollupCfg     *rollup.Config
 	DependencySet depset.DependencySet
 	ChainSpec     *rollup.ChainSpec
@@ -305,7 +306,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 
 	return &SetupData{
 		L1Cfg:         l1Genesis,
-		L2Cfg:         l2Genesis.GethGenesis(),
+		L2Cfg:         l2Genesis,
 		RollupCfg:     rollupCfg,
 		ChainSpec:     rollup.NewChainSpec(rollupCfg),
 		DeploymentsL1: l1Deployments,

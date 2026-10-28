@@ -16,13 +16,13 @@ The execution engine is built around several key components:
 
 ## Core Trait Abstractions
 
-### EngineTaskExt
+### ExecutableEngineTask
 
-The `EngineTaskExt` trait defines the interface for all engine tasks:
+The `ExecutableEngineTask` trait defines the interface for all engine tasks:
 
 ```rust
 #[async_trait]
-pub trait EngineTaskExt {
+pub trait ExecutableEngineTask {
     type Output;
     type Error: EngineTaskError;
 
@@ -60,34 +60,18 @@ The engine uses a priority-based task queue (a binary heap ordered by the `Engin
 
 ### Task Priority (Highest to Lowest)
 
-1. **Seal** - Seals blocks that have finished building (sequencer mode)
-2. **Build** - Builds new blocks (sequencer mode)
-3. **Insert** - Inserts unsafe blocks from gossip
-4. **Consolidate** - Advances safe chain via derivation
-5. **Finalize** - Finalizes L2 blocks
+1. **Canonicalize** - Imports sealed blocks after their conductor commit (sequencer mode)
+2. **Seal** - Seals blocks that have finished building (sequencer mode)
+3. **Build** - Builds new blocks (sequencer mode)
+4. **Insert** - Inserts unsafe blocks from gossip
+5. **Consolidate** - Advances safe chain via derivation
+6. **Finalize** - Finalizes L2 blocks
 
-Forkchoice updates are not a standalone queue entry: the `SynchronizeTask` runs as part of the other tasks whenever the forkchoice state needs to move.
+Only the queue executes tasks. A task never runs another task: the steps that several tasks share, such as starting a build, fetching a built payload, inserting a payload, and synchronizing forkchoice, are plain functions that the tasks call.
+
+Forkchoice updates are not a standalone queue entry. Whenever a task moves the unsafe, safe, or finalized head, it calls the shared synchronize step, which sends `engine_forkchoiceUpdated` without payload attributes and tracks whether the execution layer has finished syncing. Its failures are reported as `SynchronizeTaskError`.
 
 ### Task Types
-
-#### SynchronizeTask
-
-Updates the execution layer's forkchoice state. It is invoked by the other tasks rather than queued directly:
-
-```rust
-pub struct SynchronizeTask {
-    /// The engine client.
-    pub client: Arc<EngineClient>,
-    /// The rollup config.
-    pub rollup: Arc<RollupConfig>,
-    /// The sync state update to apply to the engine state.
-    pub state_update: EngineSyncStateUpdate,
-}
-```
-
-Handles:
-- Forkchoice synchronization via `engine_forkchoiceUpdated`
-- EL sync status management
 
 #### BuildTask
 
@@ -101,17 +85,16 @@ pub struct BuildTask {
     pub cfg: Arc<RollupConfig>,
     /// The OpAttributesWithParent to instruct the execution layer to build.
     pub attributes: OpAttributesWithParent,
-    /// The optional sender through which the PayloadId will be sent
-    /// after the block build has been started.
-    pub payload_id_tx: Option<mpsc::Sender<PayloadId>>,
+    /// Reports the payload ID or build rejection to the sequencer.
+    pub payload_id_tx: mpsc::Sender<Result<PayloadId, BuildTaskError>>,
 }
 ```
 
-Handles payload building initiation with `engine_forkchoiceUpdated`.
+Rejects sequencer builds whose parent no longer matches the unsafe head before calling `engine_forkchoiceUpdated`. Build failures reach the sequencer so it can retry with fresh attributes; invalid forkchoice errors also trigger engine recovery. Derivation calls the shared build helper directly and may build on a different parent during a reorg.
 
 #### SealTask
 
-Seals a block started by a `BuildTask`, retrieving the payload with version-specific `engine_getPayload` calls, inserting it, and canonicalizing it:
+Seals a block started by a `BuildTask` in sequencer mode. It checks that the build's parent is still the unsafe head and retrieves the payload with version-specific `engine_getPayload` calls. It does not change forkchoice: the sequencer commits the payload to the conductor before a `CanonicalizeTask` imports it.
 
 ```rust
 pub struct SealTask {
@@ -123,13 +106,15 @@ pub struct SealTask {
     pub payload_id: PayloadId,
     /// The OpAttributesWithParent to instruct the execution layer to build.
     pub attributes: OpAttributesWithParent,
-    /// Whether or not the payload was derived, or created by the sequencer.
-    pub is_attributes_derived: bool,
-    /// An optional sender for the built OpExecutionPayloadEnvelope or the
+    /// An optional sender for the sealed OpExecutionPayloadEnvelope or the
     /// SealTaskError that occurred during processing.
     pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
 }
 ```
+
+#### CanonicalizeTask
+
+Imports a sealed block in sequencer mode once the sequencer has committed it to the conductor, making it the new unsafe head. The conductor commit happens outside the engine queue, so the task first checks that the block's parent is still the unsafe head. A rejected block is not replaced with a deposits-only block, because a replacement would need its own conductor commit. The new unsafe head is published before the result is returned to the sequencer, which then gossips the block.
 
 #### InsertTask
 
@@ -141,10 +126,12 @@ pub struct InsertTask {
     client: Arc<EngineClient>,
     /// The rollup config.
     rollup_config: Arc<RollupConfig>,
-    /// The network payload envelope.
-    envelope: OpExecutionPayloadEnvelope,
+    /// The complete execution payload envelope.
+    payload: OpExecutionPayloadEnvelope,
     /// If the payload is safe this is true.
     is_payload_safe: bool,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    block_sink: Arc<dyn ImportedBlockSink>,
 }
 ```
 
@@ -160,10 +147,12 @@ pub struct ConsolidateTask {
     pub cfg: Arc<RollupConfig>,
     /// The input for consolidation (either attributes or block info).
     pub input: ConsolidateInput,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 ```
 
-If consolidation fails, the task reverts to payload attribute processing via the `BuildTask`.
+If consolidation fails, the task builds a block from the attributes itself, seals it, and imports it as the new safe head. Post-Holocene, if the execution layer rejects that block, it is replaced with a deposits-only block and the derivation pipeline's current channel is flushed.
 
 #### FinalizeTask
 
@@ -318,7 +307,7 @@ The engine always includes metrics instrumentation for:
 
 The trait-based architecture allows for:
 
-- **Custom task implementations** via `EngineTaskExt`
+- **Custom task implementations** via `ExecutableEngineTask`
 - **Custom error handling** via `EngineTaskError`
 - **Custom state management** extensions
 - **Testing and mocking** support

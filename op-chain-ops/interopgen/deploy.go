@@ -374,6 +374,7 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && lagoonAtGenesis(cfg.L2GenesisLagoonTimeOffset)),
 		UseInterop:                               multichainDepSet && lagoonAtGenesis(cfg.L2GenesisLagoonTimeOffset),
 		L2ToL2MessageExpiryPeriod:                new(big.Int),
+		SettlementChainID:                        new(big.Int),
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}
