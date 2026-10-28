@@ -131,6 +131,7 @@ impl GossipCommand {
             bootstore: None,
             gater_config: Default::default(),
             bootnodes: Default::default(),
+            static_peers: Default::default(),
             rollup_config: rollup_config.clone(),
             gossip_signer: None,
             enr_update: true,
