@@ -59,7 +59,7 @@ struct ConductorCommittedBlock {
     /// The number of transactions in the block.
     pub tx_count: u64,
     /// Whether the conductor may have committed this envelope before canonicalization.
-    pub committed_to_conductor: bool,
+    pub committed: bool,
 }
 
 impl ConductorCommittedBlock {
@@ -67,13 +67,13 @@ impl ConductorCommittedBlock {
     fn new(
         envelope: OpExecutionPayloadEnvelope,
         handle: &UnsealedPayloadHandle,
-        committed_to_conductor: bool,
+        committed: bool,
     ) -> Self {
         Self {
             envelope,
             parent: handle.attributes_with_parent.parent,
             tx_count: handle.attributes_with_parent.count_transactions(),
-            committed_to_conductor,
+            committed,
         }
     }
 }
@@ -421,7 +421,7 @@ where
         match canonicalize_err {
             // A committed block on another parent cannot be retried or safely replaced.
             CanonicalizeTaskError::UnsafeHeadChangedSinceBuild => {
-                if block.committed_to_conductor {
+                if block.committed {
                     error!(target: "sequencer", ?err, "Conductor-committed payload no longer extends the unsafe head");
                     return Err(err.into());
                 }
@@ -446,7 +446,7 @@ where
             {
                 warn!(target: "sequencer", ?err, "Invalid forkchoice during canonicalization; resetting engine");
                 self.engine_client.reset_engine_forkchoice().await?;
-                if block.committed_to_conductor {
+                if block.committed {
                     self.in_flight = Some(InFlightBlock::Committed(block));
                 }
                 self.build_ticker.reset_after(Duration::from_secs(1));
@@ -459,7 +459,7 @@ where
                     InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. })
                 ) =>
             {
-                if block.committed_to_conductor {
+                if block.committed {
                     error!(target: "sequencer", ?err, "Engine rejected conductor-committed payload");
                     return Err(err.into());
                 }

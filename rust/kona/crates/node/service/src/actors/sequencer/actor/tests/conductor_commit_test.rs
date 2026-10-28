@@ -391,7 +391,7 @@ async fn canonicalization_retry_keeps_the_committed_payload() {
 #[tokio::test]
 async fn stale_or_invalid_payload_fails_if_conductor_committed(
     #[case] stale: bool,
-    #[case] committed_to_conductor: bool,
+    #[case] committed: bool,
 ) {
     let mut actor = test_actor();
     actor.started = true;
@@ -399,7 +399,7 @@ async fn stale_or_invalid_payload_fails_if_conductor_committed(
         envelope: sealed_payload(2),
         parent: L2BlockInfo::default(),
         tx_count: 0,
-        committed_to_conductor,
+        committed,
     }));
     actor.engine_client.expect_seal_block().times(0);
     actor.engine_client.expect_canonicalize_block().times(1).return_once(move |_, _| {
@@ -417,7 +417,7 @@ async fn stale_or_invalid_payload_fails_if_conductor_committed(
     actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
     actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
     let result = actor.step().await;
-    if committed_to_conductor {
+    if committed {
         assert!(matches!(
             result,
             Err(SequencerActorError::EngineError(EngineClientError::CanonicalizeError(_)))
@@ -489,7 +489,7 @@ async fn invalid_forkchoice_resets_before_retrying_committed_payload(#[case] res
         envelope: payload.clone(),
         parent: L2BlockInfo::default(),
         tx_count: 0,
-        committed_to_conductor: true,
+        committed: true,
     }));
     actor.engine_client.expect_seal_block().times(0);
     let mut sequence = Sequence::new();
@@ -571,7 +571,7 @@ async fn changed_parent_after_reset_cannot_replace_a_conductor_committed_payload
         envelope: sealed_payload(2),
         parent: L2BlockInfo::default(),
         tx_count: 0,
-        committed_to_conductor: true,
+        committed: true,
     }));
     actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
     actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
