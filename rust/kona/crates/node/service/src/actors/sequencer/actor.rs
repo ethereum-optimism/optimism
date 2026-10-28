@@ -262,10 +262,13 @@ where
     }
 
     /// Stops the sequencer in an idempotent fashion.
-    async fn stop_sequencer(&self) -> Result<B256, SequencerAdminAPIError> {
+    async fn stop_sequencer(&mut self) -> Result<B256, SequencerAdminAPIError> {
         info!(target: "sequencer", "Stopping sequencer");
         // Publish before awaiting the unsafe head: sequencing is stopped even if that read fails.
         self.update_state(|state| state.active = false);
+        // Never resume work from a previous sequencing session. Conductor reconciles its stored
+        // head before restarting, including any payload it may already have accepted.
+        self.in_flight = None;
 
         self.engine_client.get_unsafe_head().await.map(|h| h.hash()).map_err(|e| {
             error!(target: "sequencer", err=?e, "Error fetching unsafe head for stop response");
