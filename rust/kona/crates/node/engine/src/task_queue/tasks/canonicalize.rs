@@ -1,7 +1,8 @@
 //! Import a sequenced payload after committing it to the conductor.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskError, EngineTaskExt, ImportedBlockSink, InsertTaskError,
+    EngineClient, EngineState, EngineTaskError, ExecutableEngineTask, ImportedBlockSink,
+    InsertTaskError,
     task_queue::{insert_payload, tasks::task::EngineTaskErrorSeverity},
 };
 use async_trait::async_trait;
@@ -65,7 +66,7 @@ pub struct CanonicalizeTask {
 }
 
 #[async_trait]
-impl EngineTaskExt for CanonicalizeTask {
+impl ExecutableEngineTask for CanonicalizeTask {
     type Output = ();
     type Error = CanonicalizeTaskError;
 

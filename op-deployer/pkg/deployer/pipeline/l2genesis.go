@@ -38,6 +38,10 @@ type l2GenesisOverrides struct {
 	// L2ToL2MessageExpiryPeriod overrides the L2ToL2CrossDomainMessenger's expiry period, in
 	// seconds. Zero keeps the production period. Test networks only; upgrades keep the period.
 	L2ToL2MessageExpiryPeriod uint64 `json:"l2ToL2MessageExpiryPeriod"`
+	// SettlementChainID is the chain's OP Private settlement chain ID, written into the
+	// ChainConfig predeploy: 0 on a public chain, the chain's own ID on a settlement chain, and
+	// its settlement chain's ID on a private chain. It needs the OP_PRIVATE dev feature.
+	SettlementChainID uint64 `json:"settlementChainId"`
 }
 
 type cgtConfig struct {
@@ -105,6 +109,10 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 		return err
 	}
 
+	if err := checkSettlementChainIDOverride(devFeatureBitmap, overrides.SettlementChainID); err != nil {
+		return err
+	}
+
 	if err := script.Run(opcm.L2GenesisInput{
 		L1ChainID:                                new(big.Int).SetUint64(intent.L1ChainID),
 		L2ChainID:                                chainID.Big(),
@@ -137,6 +145,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 		DevFeatureBitmap:           devFeatureBitmap,
 		UseInterop:                 intent.UseInterop,
 		L2ToL2MessageExpiryPeriod:  new(big.Int).SetUint64(overrides.L2ToL2MessageExpiryPeriod),
+		SettlementChainID:          new(big.Int).SetUint64(overrides.SettlementChainID),
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
@@ -260,6 +269,15 @@ func defaultOverrides() l2GenesisOverrides {
 		EnableGovernance:                         false,
 		GovernanceTokenOwner:                     standard.GovernanceTokenOwner,
 	}
+}
+
+// checkSettlementChainIDOverride refuses a settlement chain ID without the OP_PRIVATE dev
+// feature, which genesis would otherwise ignore.
+func checkSettlementChainIDOverride(devFeatureBitmap common.Hash, settlementChainID uint64) error {
+	if settlementChainID != 0 && !devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OPPrivateFlag) {
+		return fmt.Errorf("settlementChainId override %d needs the OP_PRIVATE dev feature", settlementChainID)
+	}
+	return nil
 }
 
 // checkL2ToL2MessageExpiryPeriodOverride refuses an expiry period override for standard intents

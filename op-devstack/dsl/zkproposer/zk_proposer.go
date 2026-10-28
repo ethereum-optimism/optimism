@@ -81,6 +81,16 @@ func LogBatchesSubmitted(expected int) *StateExpectation {
 	}
 }
 
+// LogBatchesSubmittedAtLeast expects at least minimum log-commitment batch proof requests.
+func LogBatchesSubmittedAtLeast(minimum int) *StateExpectation {
+	return &StateExpectation{
+		description: "log batches submitted",
+		expected:    minimum,
+		metric:      logBatchesSubmittedMetric,
+		atLeast:     true,
+	}
+}
+
 // SpanBisectionsAtLeast expects at least minimum proving spans halved for
 // exceeding a proving limit.
 func SpanBisectionsAtLeast(minimum int) *StateExpectation {

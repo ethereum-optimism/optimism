@@ -351,16 +351,21 @@ func sendDeniedMessage(t devtest.T, sys *presets.SimpleInterop, hidden *sysgo.Hi
 	t.Require().NotNil(optimistic.Output, "the optimistic block of chain B must have an output")
 	t.Require().Equal(execMsg.BlockHash(), optimistic.Output.BlockHash,
 		"the supernode must report the denied block as optimistic at its timestamp")
-	t.Require().NotNil(atExec.Data, "the supernode must have validated the executing timestamp")
-	superV1, ok := atExec.Data.Super.(*eth.SuperV1)
-	t.Require().True(ok, "the super root at the executing timestamp must be a SuperV1")
-	chainB := slices.IndexFunc(superV1.Chains, func(c eth.ChainIDAndOutput) bool {
-		return c.ChainID.Cmp(sys.L2ChainB.ChainID()) == 0
-	})
-	t.Require().NotEqual(-1, chainB, "the super root must commit an output for chain B")
-	t.Require().NotEqual(optimistic.OutputRoot, superV1.Chains[chainB].Output,
+	t.Require().NotEqual(optimistic.OutputRoot, verifiedOutput(t, atExec, sys.L2ChainB.ChainID(), execTimestamp),
 		"the super root must commit the replacement's output, not the denied block's")
 	return execTimestamp
+}
+
+func verifiedOutput(t devtest.T, response eth.SuperRootAtTimestampResponse, chainID eth.ChainID, timestamp uint64) eth.Bytes32 {
+	t.Helper()
+	t.Require().NotNil(response.Data, "the supernode must have validated timestamp %d", timestamp)
+	superV1, ok := response.Data.Super.(*eth.SuperV1)
+	t.Require().True(ok, "the super root at timestamp %d must be a SuperV1", timestamp)
+	chain := slices.IndexFunc(superV1.Chains, func(c eth.ChainIDAndOutput) bool {
+		return c.ChainID.Cmp(chainID) == 0
+	})
+	t.Require().NotEqual(-1, chain, "the super root must commit an output for chain %s at timestamp %d", chainID, timestamp)
+	return superV1.Chains[chain].Output
 }
 
 // TestProposerProvesGameSpanningReplacedBlock proves a game whose span holds a
@@ -427,6 +432,54 @@ func TestProposerProvesChunkAgreeingOnReplacedBlockInside(gt *testing.T) {
 	t.Require().Greater(game.L2SequenceNumber(), execTimestamp,
 		"the game must claim past the denied timestamp, so its chunk agrees on it")
 	requireProvenReadingReplacedAgreedOutput(t, proposer, game, hidden)
+}
+
+// TestProposerProvesChunksInsideReplacementIdleGap covers chunk boundaries between idle timestamps after replacement.
+func TestProposerProvesChunksInsideReplacementIdleGap(gt *testing.T) {
+	const rangeSplitCount uint64 = 128
+	for _, testCase := range []struct {
+		name         string
+		agreedOffset uint64
+		batches      *zkproposer.StateExpectation
+	}{
+		{"replacement_in_span", 1, zkproposer.LogBatchesSubmittedAtLeast(1)},
+		{"replacement_at_agreed", 0, zkproposer.LogBatchesSubmitted(0)},
+	} {
+		gt.Run(testCase.name, func(gt *testing.T) {
+			t := devtest.ParallelT(gt)
+			sys, hidden := newReplacedBlockSystem(t,
+				presets.WithL2BlockTimes(map[eth.ChainID]uint64{sysgo.DefaultL2AID: 1, sysgo.DefaultL2BID: 4}),
+				presets.WithZKProposerOption(sysgo.WithZKRangeSplitCount(rangeSplitCount)),
+			)
+			execTimestamp := sendDeniedMessage(t, sys, hidden)
+			sys.SuperRoots.AwaitValidatedTimestamp(execTimestamp + 4)
+			atExec := sys.SuperRoots.SuperRootAtTimestamp(execTimestamp)
+			replacementRoot := verifiedOutput(t, atExec, sys.L2ChainB.ChainID(), execTimestamp)
+			replacementNumber, err := sys.L2ChainB.Escape().RollupConfig().TargetBlockNumber(execTimestamp)
+			t.Require().NoError(err, "chain B block at timestamp %d", execTimestamp)
+			replacement := sys.L2ELB.BlockRefByNumber(replacementNumber)
+			for timestamp := execTimestamp + 1; timestamp < execTimestamp+4; timestamp++ {
+				atIdle := sys.SuperRoots.SuperRootAtTimestamp(timestamp)
+				t.Require().Equal(replacementRoot, verifiedOutput(t, atIdle, sys.L2ChainB.ChainID(), timestamp),
+					"verified chain B output must retain the replacement at timestamp %d", timestamp)
+				optimistic := atIdle.OptimisticAtTimestamp[sys.L2ChainB.ChainID()]
+				t.Require().NotNil(optimistic.Output, "chain B must have an optimistic output at timestamp %d", timestamp)
+				t.Require().Equal(replacementRoot, optimistic.OutputRoot,
+					"the idle optimistic output must be canonical at timestamp %d", timestamp)
+				t.Require().Equal(replacement.Hash, optimistic.Output.BlockHash,
+					"chain B must retain its replacement head at timestamp %d", timestamp)
+			}
+
+			parentTimestamp := execTimestamp - testCase.agreedOffset
+			proposer, game := startProposerOnForeignGame(t, sys, parentTimestamp)
+			t.Require().GreaterOrEqual(game.L2SequenceNumber(), execTimestamp+4,
+				"the proof must include every idle timestamp and the next advancing block")
+			span := game.L2SequenceNumber() - parentTimestamp
+			t.Require().LessOrEqual(span, rangeSplitCount, "each timestamp must be its own proof chunk")
+			requireProvenReadingReplacedAgreedOutput(t, proposer, game, hidden)
+			proposer.VerifyState(testCase.batches)
+		})
+	}
 }
 
 // startProposerOnForeignGame starts a foreign game that claims parentTimestamp,

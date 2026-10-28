@@ -43,16 +43,16 @@ pub trait EngineTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity;
 }
 
-/// The interface for an engine task.
+/// The execution contract every engine task implements. [`EngineTask`] dispatches to it.
 #[async_trait]
-pub trait EngineTaskExt {
+pub trait ExecutableEngineTask {
     /// The output type of the task.
     type Output;
 
     /// The error type of the task.
     type Error: EngineTaskError;
 
-    /// Executes the task, taking a shared lock on the engine state and `self`.
+    /// Executes the task with exclusive access to the engine state.
     async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, Self::Error>;
 }
 
@@ -218,7 +218,7 @@ impl Ord for EngineTask {
 }
 
 #[async_trait]
-impl EngineTaskExt for EngineTask {
+impl ExecutableEngineTask for EngineTask {
     type Output = ();
 
     type Error = EngineTaskErrors;
@@ -241,7 +241,7 @@ impl EngineTaskExt for EngineTask {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::test_engine_client;
+    use crate::{EngineBuildError, SynchronizeTaskError, test_utils::test_engine_client};
     use alloy_consensus::Block;
     use alloy_primitives::Bytes;
     use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};
@@ -249,6 +249,34 @@ mod tests {
     use op_alloy_consensus::OpTxEnvelope;
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
     use std::{sync::Arc, time::Duration};
+
+    // Exercise the nested errors seen by the queue, including a rejected final FCU after
+    // newPayload accepted a derived block. ACCEPTED remains retryable rather than resetting.
+    #[rstest::rstest]
+    #[case::invalid(PayloadStatusEnum::Invalid { validation_error: "invalid block".into() }, EngineTaskErrorSeverity::Reset)]
+    #[case::accepted(PayloadStatusEnum::Accepted, EngineTaskErrorSeverity::Temporary)]
+    fn forkchoice_rejection_severity(
+        #[case] status: PayloadStatusEnum,
+        #[case] expected: EngineTaskErrorSeverity,
+    ) {
+        let build_error = match &status {
+            PayloadStatusEnum::Invalid { validation_error } => {
+                EngineBuildError::InvalidPayload(validation_error.clone())
+            }
+            _ => EngineBuildError::UnexpectedPayloadStatus(status.clone()),
+        };
+        let errors = [
+            ConsolidateTaskError::BuildTaskFailed(BuildTaskError::EngineBuildError(build_error)),
+            ConsolidateTaskError::SealTaskFailed(SealTaskError::PayloadInsertionFailed(Box::new(
+                InsertTaskError::ForkchoiceUpdateFailed(
+                    SynchronizeTaskError::UnexpectedPayloadStatus(status),
+                ),
+            ))),
+        ];
+        for error in errors {
+            assert_eq!(EngineTaskErrors::Consolidate(error).severity(), expected);
+        }
+    }
 
     /// Records the blocks the engine hands over after a successful import.
     #[derive(Debug, Default)]

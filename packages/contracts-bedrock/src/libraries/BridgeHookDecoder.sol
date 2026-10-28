@@ -46,12 +46,12 @@ library BridgeHookDecoder {
 
     /// @notice Resolves the item's initiator, on the source chain, and recipient, on the
     ///         destination chain. These are the bridge call's sender and recipient, or else the
-    ///         sender and target of the innermost authenticated layer. Callers must not assume the
-    ///         array has exactly 2 entries.
+    ///         sender and target of the innermost authenticated layer.
     /// @param _item                   Item to resolve.
     /// @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger.
     /// @param _l1StandardBridge       Address of the L1StandardBridge.
-    /// @return parties_ The initiator and recipient, in that order.
+    /// @return initiator_ Initiator of the item.
+    /// @return recipient_ Recipient of the item.
     function resolveParties(
         BridgeHookTypes.Item memory _item,
         address _l1CrossDomainMessenger,
@@ -59,22 +59,18 @@ library BridgeHookDecoder {
     )
         internal
         pure
-        returns (address[] memory parties_)
+        returns (address initiator_, address recipient_)
     {
-        (address initiator, address recipient, bytes memory bridgeMessage) =
-            _unwrap(_item, _l1CrossDomainMessenger, _l1StandardBridge);
+        bytes memory bridgeMessage;
+        (initiator_, recipient_, bridgeMessage) = _unwrap(_item, _l1CrossDomainMessenger, _l1StandardBridge);
 
         (bool isERC20,,, address erc20From, address erc20To,) = _decodeFinalizeBridgeERC20(bridgeMessage);
-        if (isERC20) {
-            (initiator, recipient) = (erc20From, erc20To);
-        } else {
-            (bool isETH, address ethFrom, address ethTo) = _decodeFinalizeBridgeETH(bridgeMessage);
-            if (isETH) (initiator, recipient) = (ethFrom, ethTo);
-        }
+        if (isERC20) return (erc20From, erc20To);
 
-        parties_ = new address[](2);
-        parties_[0] = initiator;
-        parties_[1] = recipient;
+        (bool isETH, address ethFrom, address ethTo) = _decodeFinalizeBridgeETH(bridgeMessage);
+        if (isETH) return (ethFrom, ethTo);
+
+        return (initiator_, recipient_);
     }
 
     /// @notice Extracts the bridge's message from a token transfer item. Skips the route checks,
@@ -139,21 +135,34 @@ library BridgeHookDecoder {
 
         // The L1 messenger is a contract, so its deposits are always aliased.
         if (_item.direction == BridgeHookTypes.Direction.Deposit && !_item.aliased) {
-            return (sender_, target_, bridgeMessage_);
+            return (sender_, target_, "");
         }
-        if (!_isCallToOther(
-                _item.direction, sender_, target_, _l1CrossDomainMessenger, Predeploys.L2_CROSS_DOMAIN_MESSENGER
-            )) {
-            return (sender_, target_, bridgeMessage_);
+        if (!_isCallToOther({
+                _direction: _item.direction,
+                _sender: sender_,
+                _target: target_,
+                _l1Contract: _l1CrossDomainMessenger,
+                _l2Contract: Predeploys.L2_CROSS_DOMAIN_MESSENGER
+            })) {
+            return (sender_, target_, "");
         }
 
+        // At this point, the messenger sent the item, so it encoded the envelope and set its sender.
         (bool valid, address sender, address target, bytes memory message) = _decodeRelayMessage(_item.data);
-        if (!valid) return (sender_, target_, bridgeMessage_);
+        if (!valid) return (sender_, target_, "");
         (sender_, target_) = (sender, target);
 
-        if (!_isCallToOther(_item.direction, sender_, target_, _l1StandardBridge, Predeploys.L2_STANDARD_BRIDGE)) {
-            return (sender_, target_, bridgeMessage_);
+        if (!_isCallToOther({
+                _direction: _item.direction,
+                _sender: sender_,
+                _target: target_,
+                _l1Contract: _l1StandardBridge,
+                _l2Contract: Predeploys.L2_STANDARD_BRIDGE
+            })) {
+            return (sender_, target_, "");
         }
+
+        // At this point, the bridge sent the message, so it encoded the bridge call.
         bridgeMessage_ = message;
     }
 

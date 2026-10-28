@@ -14,11 +14,40 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 
+/// @title BridgeHookDecoder_AbiDecode_Harness
+/// @notice Decodes calls with `abi.decode`, the reference for the `BridgeHookDecoder` library.
+contract BridgeHookDecoder_AbiDecode_Harness {
+    /// @notice Decodes the sender, target and message of a relayMessage call.
+    function decodeRelayMessage(bytes calldata _data)
+        external
+        pure
+        returns (address sender_, address target_, bytes memory message_)
+    {
+        (, sender_, target_,,, message_) = abi.decode(_data[4:], (uint256, address, address, uint256, uint256, bytes));
+    }
+
+    /// @notice Decodes the tokens and amount of a finalizeBridgeERC20 call.
+    function decodeFinalizeBridgeERC20(bytes calldata _data)
+        external
+        pure
+        returns (address localToken_, address remoteToken_, uint256 amount_)
+    {
+        (localToken_, remoteToken_,,, amount_,) =
+            abi.decode(_data[4:], (address, address, address, address, uint256, bytes));
+    }
+}
+
 /// @title BridgeHookDecoder_TestInit
 /// @notice Reusable setup for the `BridgeHookDecoder` tests.
 contract BridgeHookDecoder_TestInit is Test {
     address internal constant L1_MESSENGER = 0x1111111111111111111111111111111111111111;
     address internal constant L1_BRIDGE = 0x2222222222222222222222222222222222222222;
+
+    BridgeHookDecoder_AbiDecode_Harness internal harness;
+
+    function setUp() public {
+        harness = new BridgeHookDecoder_AbiDecode_Harness();
+    }
 
     /// @notice Returns the messenger on the source chain and the one on the destination chain.
     function _messengers(BridgeHookTypes.Direction _direction)
@@ -386,6 +415,84 @@ contract BridgeHookDecoder_ExtractTokenMessage_Test is BridgeHookDecoder_TestIni
         (bool valid,) = BridgeHookDecoder.extractTokenMessage(item);
         assertFalse(valid);
     }
+
+    /// @notice Tests that the envelope reader matches abi.decode.
+    function testFuzz_extractTokenMessage_matchesAbiDecode_works(
+        BridgeHookTypes.Direction _direction,
+        address _sender,
+        address _target,
+        uint256 _gap,
+        uint256 _length,
+        bytes memory _tail
+    )
+        external
+        view
+    {
+        // Between the bridges, resolveParties reads the bridge call instead of the envelope.
+        (address source, address destination) = _bridges(_direction);
+        vm.assume(_sender != source || _target != destination);
+        // The offset skips the gap to the length word, so both decoders read the fuzzed length.
+        _gap = bound(_gap, 0, 64);
+        _length = bound(_length, 0, _tail.length + 64);
+        bytes memory data = bytes.concat(
+            ICrossDomainMessenger.relayMessage.selector,
+            abi.encode(0, _sender, _target, 0, 0, 0xc0 + _gap),
+            new bytes(_gap),
+            abi.encode(_length),
+            _tail
+        );
+        BridgeHookTypes.Item memory item = _messengerItem(_direction, data);
+        item.asset = BridgeHookTypes.Asset.ERC20;
+
+        (bool valid, bytes memory message) = BridgeHookDecoder.extractTokenMessage(item);
+        (address initiator, address recipient) = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
+
+        try harness.decodeRelayMessage(data) returns (address sender_, address target_, bytes memory message_) {
+            assertTrue(valid, "valid");
+            assertEq(message, message_, "message");
+            assertEq(initiator, sender_, "sender");
+            assertEq(recipient, target_, "target");
+        } catch {
+            assertFalse(valid, "valid");
+        }
+    }
+
+    /// @notice Tests that high bits in the sender and target words are ignored.
+    function testFuzz_extractTokenMessage_dirtyAddressWords_succeeds(
+        BridgeHookTypes.Direction _direction,
+        address _sender,
+        address _target,
+        uint96 _senderHigh,
+        uint96 _targetHigh,
+        bytes memory _message
+    )
+        external
+        pure
+    {
+        vm.assume(_senderHigh != 0 || _targetHigh != 0);
+        (address source, address destination) = _bridges(_direction);
+        vm.assume(_sender != source || _target != destination);
+        bytes memory data = bytes.concat(
+            ICrossDomainMessenger.relayMessage.selector,
+            abi.encode(
+                0,
+                uint256(_senderHigh) << 160 | uint160(_sender),
+                uint256(_targetHigh) << 160 | uint160(_target),
+                0,
+                0,
+                _message
+            )
+        );
+        BridgeHookTypes.Item memory item = _messengerItem(_direction, data);
+        item.asset = BridgeHookTypes.Asset.ERC20;
+
+        (bool valid, bytes memory message) = BridgeHookDecoder.extractTokenMessage(item);
+        (address initiator, address recipient) = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
+        assertTrue(valid, "valid");
+        assertEq(message, _message, "message");
+        assertEq(initiator, _sender, "sender");
+        assertEq(recipient, _target, "target");
+    }
 }
 
 /// @title BridgeHookDecoder_DecodeTokenTransfer_Test
@@ -447,6 +554,45 @@ contract BridgeHookDecoder_DecodeTokenTransfer_Test is BridgeHookDecoder_TestIni
         );
         assertFalse(valid);
     }
+
+    /// @notice Tests that the tokens and amount match abi.decode on every call it accepts.
+    function testFuzz_decodeTokenTransfer_matchesAbiDecode_succeeds(
+        BridgeHookTypes.Direction _direction,
+        address _localToken,
+        address _remoteToken,
+        uint256 _amount,
+        uint256 _gap,
+        uint256 _length,
+        bytes memory _tail
+    )
+        external
+        view
+    {
+        // The offset skips the gap to the length word, so abi.decode reads the fuzzed length.
+        _gap = bound(_gap, 0, 64);
+        _length = bound(_length, 0, _tail.length + 64);
+        bytes memory message = bytes.concat(
+            IStandardBridge.finalizeBridgeERC20.selector,
+            abi.encode(_localToken, _remoteToken, address(0), address(0), _amount, 0xc0 + _gap),
+            new bytes(_gap),
+            abi.encode(_length),
+            _tail
+        );
+        bool isDeposit = _direction == BridgeHookTypes.Direction.Deposit;
+
+        (bool valid, address l1Token, address l2Token, uint256 amount) =
+            BridgeHookDecoder.decodeTokenTransfer(_direction, message);
+
+        // The decoder does not read extraData, so it accepts calls that abi.decode rejects.
+        try harness.decodeFinalizeBridgeERC20(message) returns (
+            address localToken_, address remoteToken_, uint256 amount_
+        ) {
+            assertTrue(valid, "valid");
+            assertEq(l1Token, isDeposit ? remoteToken_ : localToken_, "l1Token");
+            assertEq(l2Token, isDeposit ? localToken_ : remoteToken_, "l2Token");
+            assertEq(amount, amount_, "amount");
+        } catch { }
+    }
 }
 
 /// @title BridgeHookDecoder_ResolveParties_Test
@@ -466,9 +612,9 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
     {
         // An aliased withdrawal is left unspecified.
         bool aliased = _direction == BridgeHookTypes.Direction.Deposit && _aliased;
-        address initiator = aliased ? AddressAliasHelper.undoL1ToL2Alias(_from) : _from;
+        address sender = aliased ? AddressAliasHelper.undoL1ToL2Alias(_from) : _from;
         (address source, address destination) = _messengers(_direction);
-        vm.assume(initiator != source || _to != destination);
+        vm.assume(sender != source || _to != destination);
         BridgeHookTypes.Item memory item;
         item.direction = _direction;
         item.from = _from;
@@ -476,9 +622,9 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
         item.to = _to;
         item.data = _data;
 
-        address[] memory parties = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
-        assertEq(parties[0], initiator, "initiator");
-        assertEq(parties[1], _to, "recipient");
+        (address initiator, address recipient) = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
+        assertEq(initiator, sender, "initiator");
+        assertEq(recipient, _to, "recipient");
     }
 
     /// @notice Tests that a message not between the bridges resolves to its sender and target,
@@ -504,9 +650,9 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
             )
         );
 
-        address[] memory parties = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
-        assertEq(parties[0], _sender, "initiator");
-        assertEq(parties[1], _target, "recipient");
+        (address initiator, address recipient) = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
+        assertEq(initiator, _sender, "initiator");
+        assertEq(recipient, _target, "recipient");
     }
 
     /// @notice Tests that a messenger item whose envelope does not decode resolves to the two
@@ -514,10 +660,10 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
     function testFuzz_resolveParties_envelopeUnreadable_succeeds(BridgeHookTypes.Direction _direction) external pure {
         (address source, address destination) = _messengers(_direction);
 
-        address[] memory parties =
+        (address initiator, address recipient) =
             BridgeHookDecoder.resolveParties(_messengerItem(_direction, ""), L1_MESSENGER, L1_BRIDGE);
-        assertEq(parties[0], source, "initiator");
-        assertEq(parties[1], destination, "recipient");
+        assertEq(initiator, source, "initiator");
+        assertEq(recipient, destination, "recipient");
     }
 
     /// @notice Tests that a token transfer resolves to its sender and recipient.
@@ -533,9 +679,9 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
             _direction, abi.encodeCall(IStandardBridge.finalizeBridgeERC20, (address(0), address(0), _from, _to, 0, ""))
         );
 
-        address[] memory parties = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
-        assertEq(parties[0], _from, "initiator");
-        assertEq(parties[1], _to, "recipient");
+        (address initiator, address recipient) = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
+        assertEq(initiator, _from, "initiator");
+        assertEq(recipient, _to, "recipient");
     }
 
     /// @notice Tests that an ETH transfer between the bridges resolves to its sender and recipient.
@@ -552,9 +698,9 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
             _bridgeItem(_direction, abi.encodeCall(IStandardBridge.finalizeBridgeETH, (_from, _to, _amount, "")));
         item.ethAmount = bound(_amount, 1, type(uint256).max);
 
-        address[] memory parties = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
-        assertEq(parties[0], _from, "initiator");
-        assertEq(parties[1], _to, "recipient");
+        (address initiator, address recipient) = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
+        assertEq(initiator, _from, "initiator");
+        assertEq(recipient, _to, "recipient");
     }
 
     /// @notice Tests that a bridge call that does not decode resolves to the two bridges.
@@ -578,10 +724,10 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
         ];
 
         for (uint256 i; i < messages.length; i++) {
-            address[] memory parties =
+            (address initiator, address recipient) =
                 BridgeHookDecoder.resolveParties(_bridgeItem(_direction, messages[i]), L1_MESSENGER, L1_BRIDGE);
-            assertEq(parties[0], source, vm.toString(i));
-            assertEq(parties[1], destination, vm.toString(i));
+            assertEq(initiator, source, vm.toString(i));
+            assertEq(recipient, destination, vm.toString(i));
         }
     }
 
@@ -596,17 +742,16 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
             )
         );
 
-        address[] memory parties = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
-        assertEq(parties[0], messengerSource, "initiator");
-        assertEq(parties[1], messengerDestination, "recipient");
+        (address initiator, address recipient) = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
+        assertEq(initiator, messengerSource, "initiator");
+        assertEq(recipient, messengerDestination, "recipient");
     }
 }
 
 /// @title BridgeHookDecoder_Uncategorized_Test
 /// @notice Tests properties that hold across the `BridgeHookDecoder` library.
 contract BridgeHookDecoder_Uncategorized_Test is BridgeHookDecoder_TestInit {
-    /// @notice Tests that no function reverts on an arbitrary item, and that resolveParties returns
-    ///         positions 0 and 1.
+    /// @notice Tests that no function reverts on an arbitrary item.
     function testFuzz_decoder_arbitraryInput_works(
         BridgeHookTypes.Item memory _item,
         address _l1Messenger,
@@ -619,7 +764,7 @@ contract BridgeHookDecoder_Uncategorized_Test is BridgeHookDecoder_TestInit {
         BridgeHookDecoder.recognizeTokenTransfer(_item, _l1Messenger, _l1Bridge);
         BridgeHookDecoder.extractTokenMessage(_item);
         BridgeHookDecoder.decodeTokenTransfer(_item.direction, _message);
-        assertGe(BridgeHookDecoder.resolveParties(_item, _l1Messenger, _l1Bridge).length, 2);
+        BridgeHookDecoder.resolveParties(_item, _l1Messenger, _l1Bridge);
     }
 
     /// @notice Tests that no function reverts on any offset and length word inside an envelope

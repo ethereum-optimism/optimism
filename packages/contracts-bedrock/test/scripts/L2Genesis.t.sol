@@ -22,6 +22,7 @@ import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenge
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
+import { IChainConfig } from "interfaces/L2/IChainConfig.sol";
 import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
 import { IBaseFeeVault } from "interfaces/L2/IBaseFeeVault.sol";
 import { IL1FeeVault } from "interfaces/L2/IL1FeeVault.sol";
@@ -295,7 +296,8 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             nativeAssetLiquidityAmount: type(uint248).max,
             liquidityControllerOwner: address(0x000000000000000000000000000000000000000d),
             devFeatureBitmap: bytes32(0),
-            l2ToL2MessageExpiryPeriod: 0
+            l2ToL2MessageExpiryPeriod: 0,
+            settlementChainID: 0
         });
     }
 
@@ -349,6 +351,37 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         _setInputInteropEnabled();
         input.l2ToL2MessageExpiryPeriod = _expiryPeriod;
         vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
+        genesis.run(input);
+    }
+
+    /// @notice Tests that genesis installs the ChainConfig predeploy with the settlement chain ID
+    ///         from the input when the OP_PRIVATE dev feature is on.
+    function testFuzz_run_opPrivateChainConfig_succeeds(uint256 _settlementChainId) external {
+        input.devFeatureBitmap |= DevFeatures.OP_PRIVATE;
+        input.settlementChainID = _settlementChainId;
+        genesis.run(input);
+        assertEq(IChainConfig(Predeploys.CHAIN_CONFIG).settlementChainId(), _settlementChainId, "settlement chain ID");
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.CHAIN_CONFIG),
+            Predeploys.predeployToCodeNamespace(Predeploys.CHAIN_CONFIG),
+            "implementation"
+        );
+    }
+
+    /// @notice Tests that genesis leaves the ChainConfig predeploy out when the OP_PRIVATE dev
+    ///         feature is off.
+    function test_run_opPrivateDisabledNoChainConfig_succeeds() external {
+        genesis.run(input);
+        assertEq(EIP1967Helper.getImplementation(Predeploys.CHAIN_CONFIG), address(0), "implementation");
+        assertEq(Predeploys.predeployToCodeNamespace(Predeploys.CHAIN_CONFIG).code.length, 0, "code");
+    }
+
+    /// @notice Tests that genesis refuses a settlement chain ID when the OP_PRIVATE dev feature is
+    ///         off, instead of ignoring it.
+    function testFuzz_run_settlementChainIdWithoutOpPrivate_reverts(uint256 _settlementChainId) external {
+        _settlementChainId = bound(_settlementChainId, 1, type(uint256).max);
+        input.settlementChainID = _settlementChainId;
+        vm.expectRevert("L2Genesis: settlement chain ID needs the OP_PRIVATE devFeature bit");
         genesis.run(input);
     }
 
