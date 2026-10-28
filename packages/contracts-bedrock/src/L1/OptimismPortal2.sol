@@ -122,10 +122,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Address of the AnchorStateRegistry contract.
     IAnchorStateRegistry public anchorStateRegistry;
 
-    /// @notice Address of the ETHLockbox contract. NOTE that as of v4.1.0 it is not possible to
-    ///         set this value in storage and it is only possible for this value to be set if the
-    ///         chain was first upgraded to v4.0.0. Chains that skip v4.0.0 will not have any
-    ///         ETHLockbox set here.
+    /// @notice Address of the ETHLockbox contract. Set by `initialize` when given a nonzero
+    ///         lockbox and by `migrateToSharedDisputeGame`. Must be nonzero while the ETH_LOCKBOX
+    ///         feature is enabled.
     IETHLockbox public ethLockbox;
 
     /// @custom:legacy
@@ -257,9 +256,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_DisputeGameNotInvalidated();
 
     /// @notice Semantic version.
-    /// @custom:semver 6.0.1
+    /// @custom:semver 6.1.0
     function version() public pure virtual returns (string memory) {
-        return "6.0.1";
+        return "6.1.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
