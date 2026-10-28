@@ -91,13 +91,45 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | Directory to store the bootstore | - |
 | `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | Peer redialing threshold | `500` |
 | `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `60` |
-| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs | - |
+| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs or enode URLs | - |
+| `--p2p.static-peers <MULTIADDR,...>` | `KONA_NODE_P2P_STATIC_PEERS` | Peers to dial at startup and keep connected, see [static peers](#static-peers). Alias: `--p2p.static` | - |
 | `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
 | `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
 | `--p2p.sequencer.key <HEX>` | `KONA_NODE_P2P_SEQUENCER_KEY` | Hex-encoded private key that signs gossiped blocks. A sequencer needs this, `--p2p.sequencer.key.path`, or a remote signer | - |
 | `--p2p.sequencer.key.path <PATH>` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH` | Path to a file with the hex-encoded private key that signs gossiped blocks | - |
 | `--p2p.signer.endpoint <URL>` | `KONA_NODE_P2P_SIGNER_ENDPOINT` | Remote op-signer that signs gossiped blocks. Requires `--p2p.signer.address` | - |
 | `--p2p.signer.address <ADDRESS>` | `KONA_NODE_P2P_SIGNER_ADDRESS` | Address of the remote signer's key | - |
+
+### Static peers
+
+`--p2p.static-peers` lists peers that the node connects to directly, without discovery. Use it to keep a sequencer connected to the nodes it trusts, or to run a group of nodes that only know each other from their configuration.
+
+Each entry is a TCP multiaddr that ends in the peer's ID:
+
+```bash
+kona-node node --p2p.static-peers /dns4/node-1.example.com/tcp/9222/p2p/16Uiu2HAm...,/dns4/node-2.example.com/tcp/9222/p2p/16Uiu2HAk...
+```
+
+- Prefer `/dns4/...` addresses to `/ip4/...` ones. The name is resolved on every dial, so the list keeps working when a peer's IP changes.
+- Repeat the flag, or give it a comma-separated list, as the environment variable needs. Spaces around entries are ignored, and an empty environment variable means no static peers.
+- The node doesn't start if an address isn't TCP or doesn't end in `/p2p/<peer id>`.
+- Several addresses with the same peer ID make one peer, dialed at whichever address connects first.
+- The node ignores entries with its own peer ID, so every node in a group can use the same list.
+
+A peer ID is derived from the node's P2P private key. Give every static peer a fixed key with `--p2p.priv.path` or `--p2p.priv.raw`; without one, a node generates a new key, and so a new peer ID, each time it starts. To find a running node's address, call [`opp2p_self`](/node-operators/kona-node/rpc/p2p#opp2p_self): `addresses` lists its listen addresses with `/p2p/<peer id>` at the end. Replace the IP with the name or address other nodes reach it at. The node also logs its peer ID when it starts listening. To get the peer ID of a key file without running the node, use `op-node p2p priv2id < key.txt`, which works for kona keys too.
+
+The node treats its static peers as follows:
+
+- It dials them at startup, and once a minute dials those that aren't connected. A static peer that disconnects is dialed again about a second later.
+- Static peers are exempt from the redial limit (`--p2p.redial`), are never banned for a low score, and stay protected after `opp2p_unprotectPeer`.
+- A static peer blocked with `opp2p_blockPeer`, or at a blocked address or subnet, isn't dialed until it's unblocked.
+- Discovery never learns about static peers. A node that only peers statically, such as a sequencer, can't be found by other nodes through the nodes it connects to.
+
+<Info>
+
+op-node calls this flag `--p2p.static`, which kona-node accepts too. The environment variable is `KONA_NODE_P2P_STATIC_PEERS`, not `KONA_NODE_P2P_STATIC`.
+
+</Info>
 
 ## RPC Arguments
 
