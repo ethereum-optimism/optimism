@@ -44,6 +44,44 @@ impl Metrics {
     /// Identifier for the gauge that tracks cache memory usage.
     pub const CACHE_MEMORY_USAGE: &str = "kona_providers_cache_memory_bytes";
 
+    // Attribute requests at the RPC boundary so cached L2 responses do not count as RPC calls.
+    #[cfg(feature = "metrics")]
+    pub(crate) fn rpc_call<N: 'static>(l1_method: &'static str, l2_method: Option<&'static str>) {
+        Self::rpc_metric::<N>(
+            Self::CHAIN_PROVIDER_RPC_CALLS,
+            Self::L2_CHAIN_PROVIDER_REQUESTS,
+            l1_method,
+            l2_method,
+        );
+    }
+
+    #[cfg(feature = "metrics")]
+    pub(crate) fn rpc_error<N: 'static>(l1_method: &'static str, l2_method: Option<&'static str>) {
+        Self::rpc_metric::<N>(
+            Self::CHAIN_PROVIDER_RPC_ERRORS,
+            Self::L2_CHAIN_PROVIDER_ERRORS,
+            l1_method,
+            l2_method,
+        );
+    }
+
+    #[cfg(feature = "metrics")]
+    fn rpc_metric<N: 'static>(
+        l1_metric: &'static str,
+        l2_metric: &'static str,
+        l1_method: &'static str,
+        l2_method: Option<&'static str>,
+    ) {
+        use std::any::TypeId;
+        if TypeId::of::<N>() == TypeId::of::<alloy_provider::network::Ethereum>() {
+            kona_macros::inc!(gauge, l1_metric, "method" => l1_method);
+        } else if TypeId::of::<N>() == TypeId::of::<op_alloy_network::Optimism>() &&
+            let Some(method) = l2_method
+        {
+            kona_macros::inc!(gauge, l2_metric, "method" => method);
+        }
+    }
+
     /// Initializes metrics for the Alloy providers.
     ///
     /// This does two things:

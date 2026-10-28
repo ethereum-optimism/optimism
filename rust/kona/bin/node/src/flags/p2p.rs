@@ -6,6 +6,7 @@
 
 use crate::flags::{GlobalArgs, SignerArgs};
 use alloy_primitives::B256;
+use alloy_provider::RootProvider;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
 use clap::Parser;
@@ -16,7 +17,7 @@ use kona_genesis::RollupConfig;
 use kona_gossip::GaterConfig;
 use kona_node_service::NetworkConfig;
 use kona_peers::{BootNode, BootStoreFile, PeerMonitoring, PeerScoreLevel};
-use kona_providers_alloy::AlloyChainProvider;
+use kona_providers_alloy::{AlloyChainProvider, RpcSource};
 use libp2p::identity::Keypair;
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
@@ -327,11 +328,12 @@ impl P2PArgs {
         l1_eth_rpc: Option<Url>,
     ) -> anyhow::Result<alloy_primitives::Address> {
         if let Some(l1_eth_rpc) = l1_eth_rpc {
-            let mut provider = AlloyChainProvider::new_http(l1_eth_rpc, 1024);
+            let rpc = RootProvider::new_http(l1_eth_rpc);
+            let mut provider = AlloyChainProvider::new(RpcSource::new(rpc.clone()));
             let latest_block_num = provider.latest_block_number().await?;
             let block_info = provider.block_info_by_number(latest_block_num).await?;
             return Ok(kona_providers_alloy::unsafe_block_signer(
-                &provider.inner,
+                &rpc,
                 rollup_config.l1_system_config_address,
                 block_info.hash,
             )

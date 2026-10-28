@@ -1,9 +1,12 @@
 //! Contains an online derivation pipeline.
 
 use crate::{
-    AlloyChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider,
+    AlloyChainProvider, BlockSource, BufferedAlloyL2ChainProvider, Cached, OnlineBeaconClient,
+    OnlineBlobProvider, ReceiptSource, RpcSource,
 };
+use alloy_consensus::TxEnvelope;
 use alloy_primitives::B256;
+use alloy_provider::network::Ethereum;
 use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_derive::{
@@ -14,33 +17,44 @@ use kona_derive::{
 use kona_genesis::{L1ChainConfig, RollupConfig, SystemConfig};
 use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
+use op_alloy_consensus::OpTxEnvelope;
+use op_alloy_network::Optimism;
 use std::sync::Arc;
 
 /// An online polled derivation pipeline.
-type OnlinePolledDerivationPipeline = DerivationPipeline<
+type OnlinePolledDerivationPipeline<L1, L2> = DerivationPipeline<
     PolledAttributesQueueStage<
-        OnlineDataProvider,
-        AlloyChainProvider,
-        BufferedAlloyL2ChainProvider,
-        OnlineAttributesBuilder,
+        OnlineDataProvider<L1>,
+        AlloyChainProvider<Cached<L1>>,
+        BufferedAlloyL2ChainProvider<Cached<L2>>,
+        OnlineAttributesBuilder<L1, L2>,
     >,
-    BufferedAlloyL2ChainProvider,
+    BufferedAlloyL2ChainProvider<Cached<L2>>,
 >;
 
 /// An RPC-backed Ethereum data source.
-type OnlineDataProvider =
-    EthereumDataSource<AlloyChainProvider, OnlineBlobProvider<OnlineBeaconClient>>;
+type OnlineDataProvider<L1> =
+    EthereumDataSource<AlloyChainProvider<Cached<L1>>, OnlineBlobProvider<OnlineBeaconClient>>;
 
 /// An RPC-backed payload attributes builder for the `AttributesQueue` stage of the derivation
 /// pipeline.
-type OnlineAttributesBuilder =
-    StatefulAttributesBuilder<AlloyChainProvider, BufferedAlloyL2ChainProvider>;
+type OnlineAttributesBuilder<L1, L2> = StatefulAttributesBuilder<
+    AlloyChainProvider<Cached<L1>>,
+    BufferedAlloyL2ChainProvider<Cached<L2>>,
+>;
 
 /// An online derivation pipeline.
 #[derive(Debug)]
-pub struct OnlinePipeline(OnlinePolledDerivationPipeline);
+pub struct OnlinePipeline<
+    L1: ReceiptSource<Transaction = TxEnvelope> = RpcSource<Ethereum>,
+    L2: BlockSource<Transaction = OpTxEnvelope> = RpcSource<Optimism>,
+>(OnlinePolledDerivationPipeline<L1, L2>);
 
-impl OnlinePipeline {
+impl<L1, L2> OnlinePipeline<L1, L2>
+where
+    L1: ReceiptSource<Transaction = TxEnvelope>,
+    L2: BlockSource<Transaction = OpTxEnvelope>,
+{
     /// Constructs a new derivation pipeline that is initialized.
     ///
     /// `dependency_set` must be `Some` when the rollup config schedules the
@@ -54,8 +68,8 @@ impl OnlinePipeline {
         l2_safe_head: L2BlockInfo,
         _l1_origin: BlockInfo,
         blob_provider: OnlineBlobProvider<OnlineBeaconClient>,
-        chain_provider: AlloyChainProvider,
-        l2_chain_provider: BufferedAlloyL2ChainProvider,
+        chain_provider: AlloyChainProvider<Cached<L1>>,
+        l2_chain_provider: BufferedAlloyL2ChainProvider<Cached<L2>>,
         dependency_set: Option<Arc<DependencySet>>,
     ) -> PipelineResult<Self> {
         let mut pipeline = Self::new_polled(
@@ -85,8 +99,8 @@ impl OnlinePipeline {
         cfg: Arc<RollupConfig>,
         l1_cfg: Arc<L1ChainConfig>,
         blob_provider: OnlineBlobProvider<OnlineBeaconClient>,
-        chain_provider: AlloyChainProvider,
-        l2_chain_provider: BufferedAlloyL2ChainProvider,
+        chain_provider: AlloyChainProvider<Cached<L1>>,
+        l2_chain_provider: BufferedAlloyL2ChainProvider<Cached<L2>>,
         dependency_set: Option<Arc<DependencySet>>,
     ) -> Self {
         let attributes = StatefulAttributesBuilder::new(
@@ -112,21 +126,33 @@ impl OnlinePipeline {
 }
 
 #[async_trait]
-impl SignalReceiver for OnlinePipeline {
+impl<L1, L2> SignalReceiver for OnlinePipeline<L1, L2>
+where
+    L1: ReceiptSource<Transaction = TxEnvelope>,
+    L2: BlockSource<Transaction = OpTxEnvelope>,
+{
     /// Receives a signal from the driver.
     async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
         self.0.signal(signal).await
     }
 }
 
-impl OriginProvider for OnlinePipeline {
+impl<L1, L2> OriginProvider for OnlinePipeline<L1, L2>
+where
+    L1: ReceiptSource<Transaction = TxEnvelope>,
+    L2: BlockSource<Transaction = OpTxEnvelope>,
+{
     /// Returns the optional L1 [`BlockInfo`] origin.
     fn origin(&self) -> Option<BlockInfo> {
         self.0.origin()
     }
 }
 
-impl Iterator for OnlinePipeline {
+impl<L1, L2> Iterator for OnlinePipeline<L1, L2>
+where
+    L1: ReceiptSource<Transaction = TxEnvelope>,
+    L2: BlockSource<Transaction = OpTxEnvelope>,
+{
     type Item = OpAttributesWithParent;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -135,7 +161,11 @@ impl Iterator for OnlinePipeline {
 }
 
 #[async_trait]
-impl Pipeline for OnlinePipeline {
+impl<L1, L2> Pipeline for OnlinePipeline<L1, L2>
+where
+    L1: ReceiptSource<Transaction = TxEnvelope>,
+    L2: BlockSource<Transaction = OpTxEnvelope>,
+{
     /// Peeks at the next [`OpAttributesWithParent`] from the pipeline.
     fn peek(&self) -> Option<&OpAttributesWithParent> {
         self.0.peek()

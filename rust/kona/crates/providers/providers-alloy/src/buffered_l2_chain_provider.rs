@@ -1,13 +1,14 @@
 //! An [`L2ChainProvider`] that prefers locally held blocks over JSON-RPC.
 
-use crate::{AlloyL2ChainProvider, AlloyL2ChainProviderError};
+use crate::{AlloyL2ChainProvider, AlloyL2ChainProviderError, BlockSource, Cached, RpcSource};
 use alloy_primitives::B256;
 use async_trait::async_trait;
 use kona_derive::L2ChainProvider;
 use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{BatchValidationProvider, L2BlockInfo};
 use kona_providers_local::BufferedL2Provider;
-use op_alloy_consensus::OpBlock;
+use op_alloy_consensus::{OpBlock, OpTxEnvelope};
+use op_alloy_network::Optimism;
 use std::sync::Arc;
 
 /// Answers derivation's L2 lookups from blocks the node has already imported, falling back to
@@ -16,22 +17,24 @@ use std::sync::Arc;
 /// Only the hash-keyed lookup is served locally. A height does not identify a block across a
 /// reorg, so the by-number lookups stay on the authoritative RPC.
 #[derive(Debug, Clone)]
-pub struct BufferedAlloyL2ChainProvider {
+pub struct BufferedAlloyL2ChainProvider<S: BlockSource = Cached<RpcSource<Optimism>>> {
     /// Blocks the node has imported.
     buffered: BufferedL2Provider,
     /// The authoritative fallback.
-    rpc: AlloyL2ChainProvider,
+    rpc: AlloyL2ChainProvider<S>,
 }
 
-impl BufferedAlloyL2ChainProvider {
+impl<S: BlockSource<Transaction = OpTxEnvelope>> BufferedAlloyL2ChainProvider<S> {
     /// Creates a new [`BufferedAlloyL2ChainProvider`] over the given local buffer and RPC provider.
-    pub const fn new(buffered: BufferedL2Provider, rpc: AlloyL2ChainProvider) -> Self {
+    pub const fn new(buffered: BufferedL2Provider, rpc: AlloyL2ChainProvider<S>) -> Self {
         Self { buffered, rpc }
     }
 }
 
 #[async_trait]
-impl BatchValidationProvider for BufferedAlloyL2ChainProvider {
+impl<S: BlockSource<Transaction = OpTxEnvelope>> BatchValidationProvider
+    for BufferedAlloyL2ChainProvider<S>
+{
     type Error = AlloyL2ChainProviderError;
 
     async fn l2_block_info_by_number(&mut self, number: u64) -> Result<L2BlockInfo, Self::Error> {
@@ -51,7 +54,9 @@ impl BatchValidationProvider for BufferedAlloyL2ChainProvider {
 }
 
 #[async_trait]
-impl L2ChainProvider for BufferedAlloyL2ChainProvider {
+impl<S: BlockSource<Transaction = OpTxEnvelope>> L2ChainProvider
+    for BufferedAlloyL2ChainProvider<S>
+{
     type Error = AlloyL2ChainProviderError;
 
     async fn system_config_by_l2_hash(
@@ -74,7 +79,6 @@ mod tests {
     use alloy_rpc_client::RpcClient;
     use httpmock::prelude::*;
     use kona_genesis::ChainGenesis;
-    use op_alloy_network::Optimism;
 
     const GENESIS_HASH: B256 = B256::repeat_byte(0xaa);
 
@@ -92,9 +96,13 @@ mod tests {
 
     fn rpc(server: &MockServer, config: Arc<RollupConfig>) -> AlloyL2ChainProvider {
         AlloyL2ChainProvider::new(
-            RootProvider::<Optimism>::new(RpcClient::new_http(server.base_url().parse().unwrap())),
+            Cached::new(
+                RpcSource::new(RootProvider::<Optimism>::new(RpcClient::new_http(
+                    server.base_url().parse().unwrap(),
+                ))),
+                8,
+            ),
             config,
-            8,
         )
     }
 
