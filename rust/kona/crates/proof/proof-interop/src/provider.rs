@@ -34,7 +34,8 @@ pub struct OracleInteropProvider<C> {
     oracle: Arc<C>,
     /// The [`BootInfo`] for the current program execution.
     boot: BootInfo,
-    /// The local safe head block header cache.
+    /// The local safe head of each chain. No node serves the state of a head that consolidation
+    /// replaces, so the provider reads a head's header, receipts and transactions, not its state.
     local_safe_heads: HashMap<u64, Sealed<Header>>,
     /// Canonical headers and hashes, keyed by chain ID and block number.
     headers_by_number: Mutex<BTreeMap<(u64, u64), (B256, Header)>>,
@@ -209,11 +210,15 @@ where
 {
     type Error = OracleProviderError;
 
-    /// Fetch a [Header] by its number.
+    /// Fetch a [Header] by its number, walking back from the chain's local safe head.
+    ///
+    /// The walk never opens the local safe head's state (see `local_safe_heads`). It reaches the
+    /// head's parent by hash, then Isthmus blocks leap back through EIP-2935 history.
     async fn header_by_number(&self, chain_id: u64, number: u64) -> Result<Header, Self::Error> {
         let Some(sealed) = self.local_safe_heads.get(&chain_id) else {
             return Err(PreimageOracleError::Other("Missing local safe header".to_string()).into());
         };
+        let head_hash = sealed.hash();
         if number > sealed.number {
             return Err(OracleProviderError::BlockNumberPastHead(number, sealed.number));
         }
@@ -227,14 +232,13 @@ where
             .next()
             .map(|(_, entry)| entry.clone());
         let (mut current_hash, mut header) = cached.unwrap_or_else(|| {
-            let hash = sealed.hash();
             let header = sealed.inner().clone();
             if number < header.number {
                 self.headers_by_number
                     .lock()
-                    .insert((chain_id, header.number), (hash, header.clone()));
+                    .insert((chain_id, header.number), (head_hash, header.clone()));
             }
-            (hash, header)
+            (head_hash, header)
         });
         if header.number == number {
             return Ok(header);
@@ -244,7 +248,11 @@ where
         let mut linear_fallback = false;
 
         while header.number > number {
-            if rollup_config.is_isthmus_active(header.timestamp) && !linear_fallback {
+            // Never open the local safe head's state; see `local_safe_heads`.
+            if current_hash != head_hash &&
+                rollup_config.is_isthmus_active(header.timestamp) &&
+                !linear_fallback
+            {
                 // If Isthmus is active, the EIP-2935 contract is used to perform leaping lookbacks
                 // through consulting the ring buffer within the contract. If this
                 // lookup fails for any reason, we fall back to linear walk back.
@@ -542,6 +550,12 @@ mod tests {
             preimages.insert(key, header_rlp);
         }
 
+        // Load the safe head header, keyed by its block hash.
+        let safe_head_rlp = hex_to_bytes(&fixture.safe_head_header_rlp);
+        let key: [u8; 32] =
+            PreimageKey::new(*keccak256(&safe_head_rlp), PreimageKeyType::Keccak256).into();
+        preimages.insert(key, safe_head_rlp);
+
         (MockCommsClient { preimages, reads: Default::default() }, fixture)
     }
 
@@ -580,6 +594,30 @@ mod tests {
         rollup_configs.insert(fixture.chain_id, rollup_config);
 
         OracleInteropProvider::new(Arc::new(client), boot_info(rollup_configs), local_safe_heads)
+    }
+
+    /// Builds a provider whose local safe head is a stateless child of the fixture's safe head.
+    fn build_provider_on_optimistic_head(
+        client: MockCommsClient,
+        fixture: &FixtureData,
+    ) -> (OracleInteropProvider<MockCommsClient>, Sealed<Header>) {
+        let mut provider = build_provider(client, fixture);
+        let parent = provider.local_safe_heads()[&fixture.chain_id].clone();
+        let head = Header {
+            number: parent.number + 1,
+            timestamp: parent.timestamp + 2,
+            parent_hash: parent.hash(),
+            state_root: B256::repeat_byte(0xee),
+            ..Default::default()
+        }
+        .seal_slow();
+        provider.replace_local_safe_head(fixture.chain_id, head.clone());
+        (provider, head)
+    }
+
+    fn assert_head_state_unread(reads: &spin::Mutex<Vec<PreimageKey>>, head: &Header) {
+        let state_root = PreimageKey::new(*head.state_root, PreimageKeyType::Keccak256);
+        assert!(!reads.lock().contains(&state_root), "read the local safe head's state");
     }
 
     fn boot_info(rollup_configs: HashMap<u64, RollupConfig>) -> BootInfo {
@@ -699,16 +737,18 @@ mod tests {
     /// Tests the EIP-2935 fast path: looking up a block at the boundary of the 8,191-block
     /// history window using real OP Mainnet trie proof data (1 step).
     ///
-    /// Safe head: block 149,340,000
-    /// Target: block 149,331,809 (exactly 8,191 blocks behind — at the EIP-2935 window boundary)
+    /// Local safe head: an optimistic block on top of block 149,340,000, whose state is absent.
+    /// Target: block 149,331,809 (exactly 8,191 blocks behind the parent — at the EIP-2935 window
+    /// boundary)
     ///
-    /// Exercises the full path: `header_by_number` → Isthmus check → `eip_2935_history_lookup`
-    /// (real state + storage trie traversal) → `header_by_hash` → return.
+    /// Exercises the full path: `header_by_number` → step to the parent by hash →
+    /// `eip_2935_history_lookup` (real state + storage trie traversal under the parent's state) →
+    /// `header_by_hash` → return.
     #[tokio::test(flavor = "multi_thread")]
     async fn test_header_by_number_eip2935_fast_path() {
         let (client, fixture) = load_fixture();
         let reads = client.reads.clone();
-        let provider = build_provider(client, &fixture);
+        let (provider, head) = build_provider_on_optimistic_head(client, &fixture);
         let expected_hash: B256 = fixture.target_block_hash.parse().unwrap();
 
         let header = provider
@@ -718,6 +758,7 @@ mod tests {
 
         assert_eq!(header.hash_slow(), expected_hash);
         assert_eq!(header.number, fixture.target_block_number);
+        assert_head_state_unread(&reads, &head);
         let reads_after_first = reads.lock().len();
         assert!(reads_after_first > 0);
         let cached =
@@ -766,10 +807,11 @@ mod tests {
     /// Tests multi-iteration EIP-2935 lookup: target block is beyond the 8,191-block window,
     /// requiring two EIP-2935 lookups through an intermediate block (2 steps).
     ///
-    /// Safe head: block 149,388,609
-    /// Intermediate: block 149,380,418 (8,191 blocks behind safe head — oldest in window)
-    /// Target: block 149,380,413 (5 blocks before intermediate — 8,196 behind safe head)
+    /// Local safe head: an optimistic block on top of block 149,388,609 (N), whose state is absent.
+    /// Intermediate: block 149,380,418 (8,191 blocks behind N — oldest in window)
+    /// Target: block 149,380,413 (5 blocks before intermediate — 8,196 behind N)
     ///
+    /// The walk first steps from the local safe head to N by hash.
     /// Iteration 1: `eip_2935_history_lookup(N, M)` → target outside window →
     ///   reads slot `N % 8191` from N's state → returns intermediate block hash.
     /// Iteration 2: `eip_2935_history_lookup(I, M)` → target inside window →
@@ -777,7 +819,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_header_by_number_eip2935_multi_iteration() {
         let (client, fixture) = load_multi_iter_fixture();
-        let provider = build_provider(client, &fixture);
+        let reads = client.reads.clone();
+        let (provider, head) = build_provider_on_optimistic_head(client, &fixture);
         let expected_hash: B256 = fixture.target_block_hash.parse().unwrap();
 
         let header = provider
@@ -787,6 +830,25 @@ mod tests {
 
         assert_eq!(header.hash_slow(), expected_hash);
         assert_eq!(header.number, fixture.target_block_number);
+        assert_head_state_unread(&reads, &head);
+    }
+
+    /// Resolving the parent of the local safe head reads only the parent's header, never the head's
+    /// state.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_header_by_number_parent_of_local_safe_head() {
+        let (client, fixture) = load_fixture();
+        let reads = client.reads.clone();
+        let (provider, head) = build_provider_on_optimistic_head(client, &fixture);
+
+        let parent =
+            provider.header_by_number(fixture.chain_id, fixture.safe_head_number).await.unwrap();
+
+        assert_eq!(parent.hash_slow(), head.parent_hash);
+        assert_eq!(
+            *reads.lock(),
+            vec![PreimageKey::new(*head.parent_hash, PreimageKeyType::Keccak256)]
+        );
     }
 
     fn insert_test_header(client: &mut MockCommsClient, header: Header) -> Sealed<Header> {
