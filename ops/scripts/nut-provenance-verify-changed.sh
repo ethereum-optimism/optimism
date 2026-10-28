@@ -10,8 +10,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT}"
 args=(--provider circleci)
 case "${CI_NUT_PROVENANCE_FULL:-false}" in
-  true|1) args+=(--full) ;;
-  false|0) ;;
-  *) echo "CI_NUT_PROVENANCE_FULL must be true/false or 1/0" >&2; exit 1 ;;
+  true | 1) args+=(--full) ;;
+  false | 0) ;;
+  *)
+    echo "CI_NUT_PROVENANCE_FULL must be true/false or 1/0" >&2
+    exit 1
+    ;;
 esac
 exec python3 ops/ci/runtime/nut-provenance.py "${args[@]}"

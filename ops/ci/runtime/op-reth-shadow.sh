@@ -4,7 +4,8 @@ set -euo pipefail
 REPO_ROOT="$(pwd)"
 REPORT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/op-reth-report.py"
 [[ -f rust/Cargo.lock && -d .git || -f rust/Cargo.lock && -f .git ]] || {
-  echo 'Run op-reth-shadow.sh from the repository root.' >&2; exit 1;
+  echo 'Run op-reth-shadow.sh from the repository root.' >&2
+  exit 1
 }
 export CARGO_HOME="${REPO_ROOT}/.ci/rust-cache/cargo"
 export CARGO_TARGET_DIR="${REPO_ROOT}/rust/target"
@@ -21,8 +22,8 @@ finish() {
   local status=$? diagnostics=0
   trap - EXIT
   if [[ "$job" == *-build ]]; then
-    sccache --show-stats --stats-format json >"$report_dir/sccache.json" || diagnostics=$?
-    sccache --stop-server >"$report_dir/sccache-stop.log" 2>&1 || diagnostics=$?
+    sccache --show-stats --stats-format json > "$report_dir/sccache.json" || diagnostics=$?
+    sccache --stop-server > "$report_dir/sccache-stop.log" 2>&1 || diagnostics=$?
   fi
   if [[ "$job" == *-build && "$status" == 0 ]]; then
     python3 "$(dirname "$REPORT")/rust-target-cache.py" commit || diagnostics=$?
@@ -37,7 +38,10 @@ if [[ "$job" == *-build ]]; then
   case "${TARGET_CACHE_MODE:-keep}" in
     keep) ;;
     sccache-only) rm -rf "${REPO_ROOT}/rust/target" ;;
-    *) echo 'TARGET_CACHE_MODE must be keep or sccache-only.' >&2; exit 1 ;;
+    *)
+      echo 'TARGET_CACHE_MODE must be keep or sccache-only.' >&2
+      exit 1
+      ;;
   esac
   mkdir -p "$CARGO_HOME" "$SCCACHE_DIR"
   sccache --start-server
@@ -52,7 +56,7 @@ fi
 case "$job" in
   source)
     just update-superchain-registry-submodule
-    git submodule status superchain-registry >"$report_dir/submodule.txt"
+    git submodule status superchain-registry > "$report_dir/submodule.txt"
     ;;
   release-build)
     (cd rust && mold -run cargo build --locked --profile release \
@@ -85,7 +89,7 @@ case "$job" in
     # binary target-dir remap. Keep the committed config and collect its path.
     junit="$REPO_ROOT/rust/target/nextest/default/junit.xml"
     rm -f "$junit"
-    (cd rust && cargo nextest list "${nextest_args[@]}" --message-format json) >"$report_dir/discovery.json"
+    (cd rust && cargo nextest list "${nextest_args[@]}" --message-format json) > "$report_dir/discovery.json"
     status=0
     (cd rust && RUST_BACKTRACE=1 cargo nextest run "${nextest_args[@]}") \
       2>&1 | tee "$report_dir/tests.log" || status=$?
@@ -99,7 +103,7 @@ case "$job" in
     if [[ "$status" != 0 ]]; then exit "$status"; fi
     exit "$report_status"
     ;;
-  codec-base-build|codec-head-build)
+  codec-base-build | codec-head-build)
     (cd rust && mold -run cargo build --locked --bin op-reth --features dev \
       --manifest-path op-reth/bin/Cargo.toml) 2>&1 | tee "$report_dir/build.log"
     cp rust/target/debug/op-reth "$report_dir/op-reth"
@@ -130,7 +134,10 @@ case "$job" in
     git diff --exit-code -- \
       rust/op-reth/crates/chainspec/res/superchain-configs.tar.sha256 \
       rust/op-reth/crates/chainspec/src/superchain/chain_specs.rs \
-      >"$report_dir/snapshot.diff"
+      > "$report_dir/snapshot.diff"
     ;;
-  *) echo "Unknown op-reth shadow job: $job" >&2; exit 1 ;;
+  *)
+    echo "Unknown op-reth shadow job: $job" >&2
+    exit 1
+    ;;
 esac

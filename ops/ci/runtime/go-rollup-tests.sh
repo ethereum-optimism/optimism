@@ -12,11 +12,11 @@ case "${1:-run}" in
   prepare)
     mkdir -p .ci/go-rollup
     # Keep the command's exit status, then reject errors hidden by go list -e.
-    go list -e -tags=ci -json ./op-node/rollup/... >.ci/go-rollup/go-list.json
+    go list -e -tags=ci -json ./op-node/rollup/... > .ci/go-rollup/go-list.json
     python3 ops/ci/runtime/go-package-shards.py create \
       --prefix "${PACKAGE_PREFIX}" --total "${CI_SHARD_TOTAL}" \
       --timings ops/ci/runtime/go-rollup-timings.json \
-      --output "${MANIFEST}" <.ci/go-rollup/go-list.json
+      --output "${MANIFEST}" < .ci/go-rollup/go-list.json
     ;;
   build)
     export GOCACHE="${REPO_ROOT}/.ci/go-cache/rollup/build"
@@ -38,14 +38,14 @@ case "${1:-run}" in
     python3 ops/ci/runtime/go-package-shards.py select \
       --prefix "${PACKAGE_PREFIX}" --total "${CI_SHARD_TOTAL}" \
       --index "${CI_SHARD_INDEX}" --manifest "${MANIFEST}" \
-      >tmp/testlogs/packages.txt
-    PACKAGES="$(tr '\n' ' ' <tmp/testlogs/packages.txt)"
+      > tmp/testlogs/packages.txt
+    PACKAGES="$(tr '\n' ' ' < tmp/testlogs/packages.txt)"
     if [[ -z "${PACKAGES// /}" ]]; then
       echo "No packages assigned to shard ${CI_SHARD_INDEX}/${CI_SHARD_TOTAL}."
       exit 0
     fi
     echo "Shard ${CI_SHARD_INDEX}/${CI_SHARD_TOTAL} running packages: ${PACKAGES}"
-    PARALLEL="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+    PARALLEL="$(nproc 2> /dev/null || sysctl -n hw.ncpu 2> /dev/null || echo 4)"
     OP_TESTLOG_FILE_LOGGER_OUTDIR="$(realpath tmp/testlogs)"
     export PARALLEL OP_TESTLOG_FILE_LOGGER_OUTDIR
     if [[ "${RWX_COMPILED_GO:-false}" == true ]]; then
@@ -57,10 +57,10 @@ case "${1:-run}" in
         -- python3 ops/ci/runtime/go-compiled-tests.py run
     else
       ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
-      --junitfile="tmp/test-results/results-${CI_SHARD_INDEX}.xml" \
-      --jsonfile="tmp/testlogs/log.json" \
-      --rerun-fails=3 --rerun-fails-max-failures=50 --packages="${PACKAGES}" \
-      -- -count=1 -p=4 -parallel="${PARALLEL}" -timeout="${TEST_TIMEOUT:-40m}" -tags=ci
+        --junitfile="tmp/test-results/results-${CI_SHARD_INDEX}.xml" \
+        --jsonfile="tmp/testlogs/log.json" \
+        --rerun-fails=3 --rerun-fails-max-failures=50 --packages="${PACKAGES}" \
+        -- -count=1 -p=4 -parallel="${PARALLEL}" -timeout="${TEST_TIMEOUT:-40m}" -tags=ci
     fi
     ;;
   *)

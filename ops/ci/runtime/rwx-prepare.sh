@@ -21,11 +21,14 @@ case "${1:-common}" in
   go-runtime) mise install go gotestsum ;;
   go-lint) mise install go golangci-lint ;;
   rust) mise install rust ;;
-  *) echo "Usage: $0 [common|go|go-runtime|go-lint|rust]" >&2; exit 1 ;;
+  *)
+    echo "Usage: $0 [common|go|go-runtime|go-lint|rust]" >&2
+    exit 1
+    ;;
 esac
 mkdir -p "${RWX_ENV}"
-printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "${PATH}" >"${RWX_ENV}/PATH"
+printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "${PATH}" > "${RWX_ENV}/PATH"
 # Later mise exec calls must use this prepared toolset rather than installing
 # unrelated tools from the root configuration in every verdict task.
-printf 'false\n' >"${RWX_ENV}/MISE_AUTO_INSTALL"
-printf 'false\n' >"${RWX_ENV}/MISE_EXEC_AUTO_INSTALL"
+printf 'false\n' > "${RWX_ENV}/MISE_AUTO_INSTALL"
+printf 'false\n' > "${RWX_ENV}/MISE_EXEC_AUTO_INSTALL"

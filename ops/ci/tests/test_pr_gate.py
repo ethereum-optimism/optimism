@@ -235,7 +235,9 @@ class GateTests(unittest.TestCase):
     def test_main_gate_covers_every_original_dependency_and_complete_fixed_shards(self):
         env=self.reports(gate='ci-gate');result,output,record=self.run_aggregate(env,gate='ci-gate')
         _,selections=G.configuration();selection=selections['ci-gate']
-        self.assertEqual(result,0);self.assertEqual(len(selection['requires']),20)
+        # circle-alignment.py pins the manifest to Circle's ci-gate; the selection must keep all of it.
+        self.assertEqual(result,0)
+        self.assertEqual(selection['requires'],[row['name'] for row in self.manifest['gates']['ci-gate']['dependencies']])
         self.assertEqual([row['name'] for row in record['dependencies']],selection['requires'])
         go={row['name']:row['tasks'] for row in self.manifest['gates']['ci-gate']['dependencies'] if row['group']=='main-go'}
         self.assertEqual(go,{'go-tests':['verdict-'+str(i) for i in range(12)],'go-actions-tests':['actions-verdict']})

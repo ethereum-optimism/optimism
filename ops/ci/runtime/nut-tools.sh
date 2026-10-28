@@ -26,5 +26,8 @@ case "${1:-}" in
     [[ "${2:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "${3:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
     retry_install mise install "forge@${2}" "just@${3}"
     ;;
-  *) echo "Usage: $0 solc|generators FORGE_VERSION JUST_VERSION" >&2; exit 1 ;;
+  *)
+    echo "Usage: $0 solc|generators FORGE_VERSION JUST_VERSION" >&2
+    exit 1
+    ;;
 esac

@@ -25,7 +25,7 @@ if [[ "${RWX_COMPILED_CONTRACTS:-false}" == true ]]; then
   # The producer used the exact Just Go build and compiled the convention
   # checker. Verify its provenance before consuming compilation state.
   python3 "${REPO_ROOT}/ops/ci/runtime/rwx-contracts-build.py" verify
-  forge test --junit >"${JUNIT_TEST_PATH}" 2>results/reports/test.log || status=$?
+  forge test --junit > "${JUNIT_TEST_PATH}" 2> results/reports/test.log || status=$?
   cat results/reports/test.log
 else
   just test 2>&1 | tee results/reports/test.log || status=$?

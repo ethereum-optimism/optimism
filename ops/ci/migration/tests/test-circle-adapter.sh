@@ -15,7 +15,7 @@ compare_route() {
   if ! OUTPUT="${TEST_DIR}/circleci.json" TRIGGER_SOURCE="${legacy_trigger}" \
     BRANCH="${branch}" TAG="${tag}" SCHEDULE_NAME="${schedule}" \
     CIRCLE_PROJECT_USERNAME="${repo%%/*}" CIRCLE_PROJECT_REPONAME="${repo#*/}" \
-    bash "${CIRCLECI_SCRIPTS}/compute-workflow-conditions.sh" >"${TEST_DIR}/circleci.log" 2>&1; then
+    bash "${CIRCLECI_SCRIPTS}/compute-workflow-conditions.sh" > "${TEST_DIR}/circleci.log" 2>&1; then
     cat "${TEST_DIR}/circleci.log"
     echo "  FAIL: CircleCI routing adapter exited unsuccessfully"
     return 1
@@ -30,8 +30,8 @@ compare_route() {
 compare_collector() {
   local fixture="$1" mode="$2"
   if [[ "$mode" == detect ]]; then echo '{}' > "${TEST_DIR}/circleci.json"; fi
-    OUTPUT="${TEST_DIR}/circleci.json" CHANGED_FILES_FILE="${SCRIPT_DIR}/fixtures/routing/${fixture}.txt" \
-      bash "${CIRCLECI_SCRIPTS}/collect-params.sh" "${mode}" >/dev/null
+  OUTPUT="${TEST_DIR}/circleci.json" CHANGED_FILES_FILE="${SCRIPT_DIR}/fixtures/routing/${fixture}.txt" \
+    bash "${CIRCLECI_SCRIPTS}/collect-params.sh" "${mode}" > /dev/null
   if [[ "$(jq -S . "${OUTPUT}")" != "$(jq -S . "${TEST_DIR}/circleci.json")" ]]; then
     echo "FAIL: ${fixture} collector compatibility"
     FAIL=$((FAIL + 1))

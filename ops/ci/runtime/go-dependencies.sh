@@ -9,7 +9,8 @@ case "$job" in
   go)
     attempt=0
     until go mod download; do
-      attempt=$((attempt + 1)); [[ "$attempt" -lt 5 ]] || exit 1
+      attempt=$((attempt + 1))
+      [[ "$attempt" -lt 5 ]] || exit 1
       sleep "$((2 ** attempt))"
     done
     just sync-superchain-go
@@ -19,7 +20,7 @@ case "$job" in
     python3 ops/ci/runtime/go-artifacts.py pack go \
       op-core/superchain/bundle/superchain-configs.zip cannon/bin cannon/multicannon/embeds cannon/testdata/bin
     ;;
-  contracts|contracts-e2e)
+  contracts | contracts-e2e)
     git submodule update --init --recursive -- packages/contracts-bedrock/lib
     export FOUNDRY_PROFILE=ci
     # Match Circle's producer. Forge's "test" alias skips .t.sol files while
@@ -74,5 +75,8 @@ case "$job" in
     just reproducible-prestate
     python3 ops/ci/runtime/go-artifacts.py pack prestate rust/kona/prestate-artifacts-*
     ;;
-  *) echo 'Unknown dependency' >&2; exit 1 ;;
+  *)
+    echo 'Unknown dependency' >&2
+    exit 1
+    ;;
 esac

@@ -51,7 +51,7 @@ case "${1:-}" in
     (cd packages/contracts-bedrock && go build -buildvcs=false \
       -o "${REPO_ROOT}/.ci/contracts-prepare/test-validation" ./scripts/checks/test-validation) \
       2>&1 | tee .ci/contracts-prepare/test-validation-build.log
-    git rev-parse HEAD >.ci/contracts-prepare/commit-sha.txt
+    git rev-parse HEAD > .ci/contracts-prepare/commit-sha.txt
     # Deployer.gitCommit() explicitly supports this fallback when Git history
     # is absent (also used by packaged contract builds). Preserve the exact SHA.
     cp .ci/contracts-prepare/commit-sha.txt packages/contracts-bedrock/.gitcommit

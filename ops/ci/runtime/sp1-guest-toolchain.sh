@@ -11,7 +11,7 @@ mise_sp1_version="$(yq -r '.tools."github:succinctlabs/sp1".version // "<missing
 root_manifest_sp1_sdk="$(yq -r '.workspace.dependencies."sp1-sdk".version // "<missing>"' rust/Cargo.toml)"
 guest_manifest_sp1_lib="$(yq -r '.workspace.dependencies."sp1-lib".version // "<missing>"' rust/kona/sp1/programs/Cargo.toml)"
 guest_manifest_sp1_zkvm="$(yq -r '.workspace.dependencies."sp1-zkvm".version // "<missing>"' rust/kona/sp1/programs/Cargo.toml)"
-sp1_tag="$(cd rust/kona/sp1 && just --evaluate SP1_TAG 2>/dev/null || printf '<missing>')"
+sp1_tag="$(cd rust/kona/sp1 && just --evaluate SP1_TAG 2> /dev/null || printf '<missing>')"
 
 lock_data_dir="$(mktemp -d)"
 trap 'rm -rf "$lock_data_dir"' EXIT
@@ -33,13 +33,13 @@ if yq -p=toml -o=json '.package // []' rust/kona/sp1/programs/Cargo.lock > "$loc
   fi
 fi
 
-if [ "$root_manifest_sp1_sdk" != "$mise_sp1_version" ] || \
-  [ "$guest_manifest_sp1_lib" != "$mise_sp1_version" ] || \
-  [ "$guest_manifest_sp1_zkvm" != "$mise_sp1_version" ] || \
-  [ "$root_lock_sp1_sdk" != "$mise_sp1_version" ] || \
-  [ "$guest_lock_sp1_lib" != "$mise_sp1_version" ] || \
-  [ "$guest_lock_sp1_zkvm" != "$mise_sp1_version" ] || \
-  [ "$sp1_tag" != "v${mise_sp1_version}" ]; then
+if [ "$root_manifest_sp1_sdk" != "$mise_sp1_version" ] \
+  || [ "$guest_manifest_sp1_lib" != "$mise_sp1_version" ] \
+  || [ "$guest_manifest_sp1_zkvm" != "$mise_sp1_version" ] \
+  || [ "$root_lock_sp1_sdk" != "$mise_sp1_version" ] \
+  || [ "$guest_lock_sp1_lib" != "$mise_sp1_version" ] \
+  || [ "$guest_lock_sp1_zkvm" != "$mise_sp1_version" ] \
+  || [ "$sp1_tag" != "v${mise_sp1_version}" ]; then
   printf '%s\n' \
     "ERROR: SP1 version drift; mise.toml cargo-prove is canonical." \
     "  mise.toml cargo-prove: ${mise_sp1_version}" \
@@ -53,10 +53,10 @@ if [ "$root_manifest_sp1_sdk" != "$mise_sp1_version" ] || \
   exit 1
 fi
 
-toolchain_dir="$(find "$HOME/.sp1/toolchains" -mindepth 1 -maxdepth 1 -type d -print -quit 2>/dev/null || true)"
+toolchain_dir="$(find "$HOME/.sp1/toolchains" -mindepth 1 -maxdepth 1 -type d -print -quit 2> /dev/null || true)"
 if [ -n "$toolchain_dir" ]; then
   rustup toolchain remove succinct || true
-  if rustup toolchain link succinct "$toolchain_dir" && rustc +succinct --version >/dev/null; then
+  if rustup toolchain link succinct "$toolchain_dir" && rustc +succinct --version > /dev/null; then
     echo "Restored SP1 toolchain from $toolchain_dir"
   else
     echo "Cached SP1 toolchain is invalid; reinstalling"
@@ -66,4 +66,3 @@ else
   install_sp1_toolchain
 fi
 rustc +succinct --version
-

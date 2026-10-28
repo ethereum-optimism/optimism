@@ -10,7 +10,10 @@ case "${CONTRACT_FEATURE}" in
   BRIDGE_HOOK) FEATURE_ENV=DEV_FEATURE__BRIDGE_HOOK ;;
   BRIDGE_HOOK,ZK_DISPUTE_GAME) FEATURE_ENV="DEV_FEATURE__BRIDGE_HOOK DEV_FEATURE__ZK_DISPUTE_GAME" ;;
   OP_PRIVATE) FEATURE_ENV=DEV_FEATURE__OP_PRIVATE ;;
-  *) echo "Unknown standard contract feature: ${CONTRACT_FEATURE}" >&2; exit 1 ;;
+  *)
+    echo "Unknown standard contract feature: ${CONTRACT_FEATURE}" >&2
+    exit 1
+    ;;
 esac
 for name in $(compgen -e); do
   case "${name}" in FOUNDRY_* | DAPP_* | DEV_FEATURE__* | SYS_FEATURE__*) unset "${name}" ;; esac

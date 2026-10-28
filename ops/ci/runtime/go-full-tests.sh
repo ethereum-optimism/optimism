@@ -24,7 +24,7 @@ finish_phase() {
       [[ "$status" -ne 0 ]] || status=1
     fi
   fi
-  python3 - "$phase" "$phase_started" "$status" <<'PYCODE'
+  python3 - "$phase" "$phase_started" "$status" << 'PYCODE'
 import json, os, sys, time
 from pathlib import Path
 phase, started, status = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
@@ -40,7 +40,11 @@ PYCODE
 trap finish_phase EXIT
 case "${1:-run}" in
   discover)
-    case "${CI_SHARD_TOTAL:-12}" in 12) ;; *) echo "Full suite requires 12 shards" >&2; exit 1 ;; esac
+    case "${CI_SHARD_TOTAL:-12}" in 12) ;; *)
+      echo "Full suite requires 12 shards" >&2
+      exit 1
+      ;;
+    esac
     python3 ops/ci/runtime/go-suite.py discover --suite go-tests --total "${CI_SHARD_TOTAL:-12}" --timings ops/ci/runtime/go-tests-timings.json
     ;;
   build)
@@ -53,7 +57,7 @@ case "${1:-run}" in
     python3 ops/ci/runtime/go-compiled-tests.py restore --suite go-tests
     cp .ci/go-tests/{manifest.json,go-list.json,all-packages.txt} tmp/testlogs/
     python3 ops/ci/runtime/go-package-shards.py select --prefix github.com/ethereum-optimism/optimism \
-      --total "$CI_SHARD_TOTAL" --index "$CI_SHARD_INDEX" --manifest .ci/go-tests/manifest.json >tmp/testlogs/packages.txt
+      --total "$CI_SHARD_TOTAL" --index "$CI_SHARD_INDEX" --manifest .ci/go-tests/manifest.json > tmp/testlogs/packages.txt
     export ENABLE_KURTOSIS=true OP_E2E_CANNON_ENABLED=false OP_E2E_USE_HTTP=true ENABLE_ANVIL=true
     export NAT_INTEROP_LOADTEST_TARGET=10 NAT_INTEROP_LOADTEST_TIMEOUT=30s
     export OP_TESTLOG_FILE_LOGGER_OUTDIR="$PWD/tmp/testlogs"
@@ -63,12 +67,15 @@ case "${1:-run}" in
     python3 ops/ci/runtime/go-compiled-tests.py verify --suite go-tests
     cp .ci/go-tests/build/metadata.json tmp/testlogs/compilation.json
     mkdir -p tmp/testlogs/compilation
-    cp .ci/go-tests/build/*.compile.log tmp/testlogs/compilation/ 2>/dev/null || [[ -z "$(cat tmp/testlogs/packages.txt)" ]]
+    cp .ci/go-tests/build/*.compile.log tmp/testlogs/compilation/ 2> /dev/null || [[ -z "$(cat tmp/testlogs/packages.txt)" ]]
     # Keep full output in JSON/per-test artifacts without exhausting live-log quotas.
     ./ops/scripts/gotestsum-split.sh --format=pkgname \
       --junitfile="tmp/test-results/results-${CI_SHARD_INDEX}.xml" --jsonfile=tmp/testlogs/log.json \
       --rerun-fails=3 --rerun-fails-max-failures=50 --raw-command \
       -- python3 ops/ci/runtime/go-compiled-tests.py run --suite go-tests
     ;;
-  *) echo 'Expected discover, build or run' >&2; exit 1 ;;
+  *)
+    echo 'Expected discover, build or run' >&2
+    exit 1
+    ;;
 esac

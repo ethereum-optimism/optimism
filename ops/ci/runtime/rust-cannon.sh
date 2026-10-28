@@ -5,8 +5,11 @@ HELPERS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 job="${1:?Pass env, go, witness, lint, build or offline}"
-case "$job" in env|go|witness|lint|build|offline) ;;
-  *) echo "Unknown Cannon job: $job" >&2; exit 1;;
+case "$job" in env | go | witness | lint | build | offline) ;;
+*)
+  echo "Unknown Cannon job: $job" >&2
+  exit 1
+  ;;
 esac
 report="$ROOT/.ci/rust-workspace/cannon-$job"
 rm -rf "$report"
@@ -16,10 +19,10 @@ finish() {
   local status=$? diagnostics=0
   trap - EXIT
   if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx && "$job" == offline ]]; then
-    sccache --show-stats --stats-format json >"$report/sccache.json" || diagnostics=$?
-    sccache --stop-server >"$report/sccache-stop.log" 2>&1 || diagnostics=$?
+    sccache --show-stats --stats-format json > "$report/sccache.json" || diagnostics=$?
+    sccache --stop-server > "$report/sccache-stop.log" 2>&1 || diagnostics=$?
   fi
-  if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx && ( "$job" == env || "$job" == lint || "$job" == build || "$job" == offline ) && "$status" == 0 ]]; then
+  if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx && ("$job" == env || "$job" == lint || "$job" == build || "$job" == offline) && "$status" == 0 ]]; then
     python3 "$HELPERS/rust-target-cache.py" commit || diagnostics=$?
   fi
   if [[ "$status" == 0 && "$diagnostics" != 0 ]]; then status=$diagnostics; fi
@@ -39,7 +42,7 @@ if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
   if [[ "$job" == env || "$job" == lint || "$job" == build || "$job" == offline ]]; then
     # Stamp COPY inputs before Docker builds as well as bound runtime sources.
     # Normalized checkout mtimes must not make old BuildKit Cargo targets fresh.
-    python3 "$HELPERS/rust-target-cache.py" prepare >"$report/cache-source.json"
+    python3 "$HELPERS/rust-target-cache.py" prepare > "$report/cache-source.json"
   fi
   if [[ "$job" == offline ]]; then
     export CARGO_INCREMENTAL=0 RUSTC_WRAPPER=sccache SCCACHE_DIR="$ROOT/.ci/cannon-cache/sccache"
@@ -51,14 +54,18 @@ if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
 fi
 config=()
 while IFS= read -r value; do config+=("$value"); done < <(python3 "$HELPERS/rust-cannon-report.py" config)
-if [[ "${#config[@]}" != 8 ]]; then echo 'Missing Cannon witness configuration.' >&2; exit 1; fi
+if [[ "${#config[@]}" != 8 ]]; then
+  echo 'Missing Cannon witness configuration.' >&2
+  exit 1
+fi
 verify() { python3 "$HELPERS/rust-cannon-report.py" verify "$report" "$1" "$2"; }
 pull_base() {
   local base attempt=0
   base="$(python3 "$HELPERS/rust-cannon-report.py" base)"
   # Retry only a registry fetch. Compilation/test failures keep their first exit.
   until docker pull "$base"; do
-    attempt=$((attempt + 1)); [[ "$attempt" -lt 5 ]] || return 1
+    attempt=$((attempt + 1))
+    [[ "$attempt" -lt 5 ]] || return 1
     sleep "$((2 ** attempt))"
   done
 }
@@ -80,7 +87,7 @@ capture_elfs() {
   mkdir -p "$report/elfs"
   while read -r binary _; do
     cp "rust/target/mips64-unknown-none/release-client-lto/$binary" "$report/elfs/$binary"
-  done <"$report/variants.log"
+  done < "$report/variants.log"
   python3 "$HELPERS/rust-cannon-report.py" elfs "$report" "$report/elfs"
 }
 build_go() {
@@ -104,7 +111,7 @@ case "$job" in
     stage_at . witness bash rust/kona/bin/client/scripts/fetch-witness-tar.sh "${config[6]}" "${config[7]}"
     python3 "$HELPERS/rust-cannon-report.py" witness "$report"
     ;;
-  lint|build)
+  lint | build)
     prepare_image
     recipe=lint-cannon
     if [[ "$job" == build ]]; then recipe=build-cannon-client; fi

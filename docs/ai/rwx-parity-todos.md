@@ -60,6 +60,15 @@ changed these PR occurrences:
 - Changed routing: `rust_changes_detected` now also matches `op-core/nuts/`
   (#23714).
 
+The October 28 merge of `develop` at `018f03f82fe7e878d78db344f21306717b45f604`
+changed these PR occurrences:
+
+- Added: `shfmt-check` (`ci-gate`, #23326). The native `shfmt-check` task runs
+  the same `just shfmt-check` recipe with the pinned `shfmt`, and its
+  `main-checks` gate mapping is implemented. The pilot's shell scripts are
+  formatted to pass it. Hosted same-SHA parity is not yet verified, so this
+  occurrence has no parity credit.
+
 The completed workload snapshot is `a1aa49aaf3713a8172f3f615f094488fd8e39c3d`;
 its 92 summary hashes and complete provider originals are recoverable through the
 evidence guide. Historical per-stage percentages and closeouts are archived.

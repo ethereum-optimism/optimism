@@ -27,9 +27,9 @@ sudo mkdir -p /usr/local/lib/optimism-ci
 sudo install -m 0755 ops/ci/runtime/op-reth-shadow.sh /usr/local/lib/optimism-ci/op-reth-shadow.sh
 sudo install -m 0755 ops/ci/runtime/rust-target-cache.py /usr/local/lib/optimism-ci/rust-target-cache.py
 sudo install -m 0755 ops/ci/runtime/op-reth-report.py /usr/local/lib/optimism-ci/op-reth-report.py
-printf '%s\n' "$PATH" >"$RWX_ENV/PATH"
-printf '%s\n' "${RUSTUP_HOME:?mise exec must export its Rust toolchain directory}" >"$RWX_ENV/RUSTUP_HOME"
-python3 - <<'PY' >"$RWX_ENV/RUSTUP_TOOLCHAIN"
+printf '%s\n' "$PATH" > "$RWX_ENV/PATH"
+printf '%s\n' "${RUSTUP_HOME:?mise exec must export its Rust toolchain directory}" > "$RWX_ENV/RUSTUP_HOME"
+python3 - << 'PY' > "$RWX_ENV/RUSTUP_TOOLCHAIN"
 import tomllib
 with open('mise.toml', 'rb') as source:
     print(tomllib.load(source)['tools']['rust'][0]['version'])

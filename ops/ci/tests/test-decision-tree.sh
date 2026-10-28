@@ -10,7 +10,7 @@
 # Requires: Bash 4+, jq, yq (same versions used in CI)
 set -euo pipefail
 
-if (( BASH_VERSINFO[0] < 4 )); then
+if ((BASH_VERSINFO[0] < 4)); then
   echo "Routing fixtures require Bash 4+ (CI uses Linux); macOS /bin/bash 3 is unsupported." >&2
   exit 2
 fi
@@ -59,13 +59,13 @@ run_scenario() {
   echo "${json_seed}" > "${OUTPUT}"
   local all_pass=true
   if ! CI_EVENT="${trigger}" CI_BRANCH="${branch}" CI_TAG="${tag}" CI_SCHEDULE_NAME="${schedule}" CI_REPOSITORY="${repo}" \
-    bash "${ROUTING_SCRIPT}" >"${TEST_DIR}/route.log" 2>&1; then
+    bash "${ROUTING_SCRIPT}" > "${TEST_DIR}/route.log" 2>&1; then
     cat "${TEST_DIR}/route.log"
     echo "  FAIL: shared routing policy exited unsuccessfully"
     all_pass=false
   fi
 
-  if declare -F compare_route >/dev/null; then
+  if declare -F compare_route > /dev/null; then
     compare_route "${trigger}" "${branch}" "${tag}" "${schedule}" "${json_seed}" || all_pass=false
   fi
 
@@ -309,7 +309,7 @@ run_scenario \
   "dispatch" "" "" "" \
   '{"c-main_dispatch": true, "c-github-event-type": "pull_request", "c-github-event-action": "labeled", "c-github-event-base64": "retired-fixture"}' \
   release main contracts_feature_tests
-if jq -e 'has("c-github-event-base64") | not' "${OUTPUT}" >/dev/null; then
+if jq -e 'has("c-github-event-base64") | not' "${OUTPUT}" > /dev/null; then
   PASS=$((PASS + 1))
 else
   echo 'FAIL: retired event payload reached continuation parameters'
@@ -325,8 +325,8 @@ run_changed_scenario() {
   local mode
   for mode in detect detect_all; do
     CHANGED_FILES_FILE="${SCRIPT_DIR}/fixtures/routing/${fixture}.txt" \
-      bash "${SCRIPT_DIR}/../runtime/collect-params.sh" "${mode}" >/dev/null
-    if declare -F compare_collector >/dev/null; then
+      bash "${SCRIPT_DIR}/../runtime/collect-params.sh" "${mode}" > /dev/null
+    if declare -F compare_collector > /dev/null; then
       compare_collector "${fixture}" "${mode}"
     fi
   done
@@ -361,7 +361,7 @@ run_scenario "Passthrough parameters survive, detection and dispatch parameters 
   push feat/routing "" "" \
   '{"c-default_docker_image":"example/image:1","c-go-cache-version":"test","c-go_fresh_tests_effective":true,"c-contract_coverage_replay_effective":true,"c-nut_provenance_full_effective":true,"c-selector_upload_replay_effective":true,"c-flaky_report_replay_effective":true,"c-l2_fork_parity_replay_effective":true,"c-l2_fork_parity_block_effective":"157803345","c-main_dispatch":true,"c-only_docs_changes":true}' \
   ci_gate_skip contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
-if jq -e '."c-default_docker_image" == "example/image:1" and ."c-go-cache-version" == "test" and ."c-go_fresh_tests_effective" == true and ."c-contract_coverage_replay_effective" == true and ."c-nut_provenance_full_effective" == true and (has("c-selector_upload_replay_effective") | not) and (has("c-flaky_report_replay_effective") | not) and (has("c-l2_fork_parity_replay_effective") | not) and (has("c-l2_fork_parity_block_effective") | not) and (has("c-main_dispatch") | not) and (has("c-only_docs_changes") | not)' "${OUTPUT}" >/dev/null; then
+if jq -e '."c-default_docker_image" == "example/image:1" and ."c-go-cache-version" == "test" and ."c-go_fresh_tests_effective" == true and ."c-contract_coverage_replay_effective" == true and ."c-nut_provenance_full_effective" == true and (has("c-selector_upload_replay_effective") | not) and (has("c-flaky_report_replay_effective") | not) and (has("c-l2_fork_parity_replay_effective") | not) and (has("c-l2_fork_parity_block_effective") | not) and (has("c-main_dispatch") | not) and (has("c-only_docs_changes") | not)' "${OUTPUT}" > /dev/null; then
   echo "PASS: parameter JSON contract"
   PASS=$((PASS + 1))
 else
@@ -369,7 +369,7 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-if CHANGED_FILES_FILE="${TEST_DIR}/missing.txt" bash "${SCRIPT_DIR}/../runtime/collect-params.sh" detect >/dev/null 2>&1; then
+if CHANGED_FILES_FILE="${TEST_DIR}/missing.txt" bash "${SCRIPT_DIR}/../runtime/collect-params.sh" detect > /dev/null 2>&1; then
   echo "FAIL: missing changed-file input must fail"
   FAIL=$((FAIL + 1))
 else
@@ -383,12 +383,12 @@ large_changes="${TEST_DIR}/large-changes.txt"
 {
   echo 'ops/ci/probe.sh'
   for ((i = 0; i < 10000; i++)); do echo "docs/public-docs/page-${i}.md"; done
-} >"${large_changes}"
-echo '{}' >"${OUTPUT}"
+} > "${large_changes}"
+echo '{}' > "${OUTPUT}"
 for mode in detect detect_all; do
-  CHANGED_FILES_FILE="${large_changes}" bash "${SCRIPT_DIR}/../runtime/collect-params.sh" "${mode}" >/dev/null
+  CHANGED_FILES_FILE="${large_changes}" bash "${SCRIPT_DIR}/../runtime/collect-params.sh" "${mode}" > /dev/null
 done
-if jq -e '."c-rust_changes_detected" == true and ."c-only_docs_changes" == false' "${OUTPUT}" >/dev/null; then
+if jq -e '."c-rust_changes_detected" == true and ."c-only_docs_changes" == false' "${OUTPUT}" > /dev/null; then
   echo 'PASS: large changed-file list retains early matches and nonmatches'
   PASS=$((PASS + 1))
 else

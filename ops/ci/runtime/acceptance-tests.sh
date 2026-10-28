@@ -3,7 +3,10 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 phase="${1:?Pass discover or run}"
-[[ "$CI_SHARD_TOTAL" == 8 ]] || { echo "Acceptance workflow requires exactly eight shards" >&2; exit 1; }
+[[ "$CI_SHARD_TOTAL" == 8 ]] || {
+  echo "Acceptance workflow requires exactly eight shards" >&2
+  exit 1
+}
 export ACCEPTANCE_TEST_JOBS=8 ACCEPTANCE_TEST_PARALLEL=1 ACCEPTANCE_TEST_TIMEOUT=30m LOG_LEVEL=info
 export GOMODCACHE="$PWD/.ci/go-cache/full/modules"
 export GOCACHE="$PWD/.ci/go-cache/acceptance/$phase"
@@ -29,14 +32,17 @@ case "$phase" in
       "$RUST_BINARY_PATH_KONA_NODE" "$RUST_BINARY_PATH_OP_ZK_PROPOSER" \
       "$RUST_BINARY_PATH_OP_RETH" \
       "$RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR"; do
-      test -x "$binary" || { echo "Missing executable runtime dependency: $binary" >&2; exit 1; }
+      test -x "$binary" || {
+        echo "Missing executable runtime dependency: $binary" >&2
+        exit 1
+      }
     done
     # Match Circle's mock verifier setup; real SP1 ELFs are a separate gate.
     unset KONA_SP1_ELF_DIR RUST_JIT_BUILD
     geth_binary="$(mise which geth)"
     test -x "$geth_binary"
     mkdir -p tmp/testlogs/dependencies
-    python3 - "$geth_binary" <<'PYCODE'
+    python3 - "$geth_binary" << 'PYCODE'
 import hashlib, json, subprocess, sys
 from pathlib import Path
 binary = Path(sys.argv[1])
@@ -58,5 +64,8 @@ PYCODE
     trap finish EXIT
     (cd op-acceptance-tests && just acceptance-test)
     ;;
-  *) echo 'Expected discover or run' >&2; exit 1 ;;
+  *)
+    echo 'Expected discover or run' >&2
+    exit 1
+    ;;
 esac

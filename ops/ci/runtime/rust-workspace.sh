@@ -5,13 +5,16 @@ HELPERS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 job="${1:?Pass a Rust workspace job}"
-case "$job" in tests|tests-build|tests-unit|tests-compiler|tests-merge|doctest|docs|clippy|build|features|feature-plan|no-std|udeps|wasm-unknown|wasm-wasi|zepter|typos|deny|registry|interop) ;;
-  *) echo "Unknown Rust workspace job: $job" >&2; exit 1;;
+case "$job" in tests | tests-build | tests-unit | tests-compiler | tests-merge | doctest | docs | clippy | build | features | feature-plan | no-std | udeps | wasm-unknown | wasm-wasi | zepter | typos | deny | registry | interop) ;;
+*)
+  echo "Unknown Rust workspace job: $job" >&2
+  exit 1
+  ;;
 esac
 index="${CI_RUST_PARTITION_INDEX:-${CIRCLE_NODE_INDEX:-0}}"
 total="${CI_RUST_PARTITION_TOTAL:-${CIRCLE_NODE_TOTAL:-10}}"
 if [[ "$job" == features ]]; then
-  if ! [[ "$index" =~ ^(0|[1-9][0-9]*)$ && "$total" =~ ^[1-9][0-9]*$ ]] || (( index >= total )); then
+  if ! [[ "$index" =~ ^(0|[1-9][0-9]*)$ && "$total" =~ ^[1-9][0-9]*$ ]] || ((index >= total)); then
     echo 'Expected a nonnegative feature index below a positive partition total.' >&2
     exit 1
   fi
@@ -29,7 +32,7 @@ if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
   # Trial incremental host checks/test compilation; release and prestate
   # producers keep their existing policy. Registry dependencies still use sccache.
   case "$job" in
-    features|tests-build|tests|tests-unit|tests-compiler|tests-merge)
+    features | tests-build | tests | tests-unit | tests-compiler | tests-merge)
       case "${CI_RUST_INCREMENTAL:-0}" in
         0) ;;
         1)
@@ -40,7 +43,10 @@ if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
           export CARGO_PROFILE_DEV_INCREMENTAL=true CARGO_PROFILE_TEST_INCREMENTAL=true
           export CARGO_PROFILE_FAST_BUILD_INCREMENTAL=true
           ;;
-        *) echo 'CI_RUST_INCREMENTAL must be 0 or 1.' >&2; exit 1 ;;
+        *)
+          echo 'CI_RUST_INCREMENTAL must be 0 or 1.' >&2
+          exit 1
+          ;;
       esac
       ;;
   esac
@@ -53,7 +59,7 @@ if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
     sccache --zero-stats
   fi
 fi
-if [[ "${CI_RUST_PROVIDER:-circleci}" == circleci ]] && command -v sccache >/dev/null; then
+if [[ "${CI_RUST_PROVIDER:-circleci}" == circleci ]] && command -v sccache > /dev/null; then
   sccache --zero-stats
 fi
 report_job="$job"
@@ -65,18 +71,18 @@ finish() {
   if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx && "$job" != tests-merge ]]; then
     # Original verdicts are copied into the report artifact, never compiler caches.
     rm -rf "$ROOT/rust/target/nextest/default"
-    sccache --show-stats --stats-format json >"$report/sccache.json" || diagnostics=$?
-    sccache --stop-server >"$report/sccache-stop.log" 2>&1 || diagnostics=$?
+    sccache --show-stats --stats-format json > "$report/sccache.json" || diagnostics=$?
+    sccache --stop-server > "$report/sccache-stop.log" 2>&1 || diagnostics=$?
     if [[ "$status" == 0 ]]; then
-      python3 "$HELPERS/rust-target-cache.py" commit >"$report/cache-publication.json" || diagnostics=$?
+      python3 "$HELPERS/rust-target-cache.py" commit > "$report/cache-publication.json" || diagnostics=$?
       python3 "$HELPERS/rust-target-cache.py" size | tee "$report/cache-size.json" || diagnostics=$?
       if [[ "$diagnostics" == 0 && "$job" == tests-build ]]; then
         python3 "$HELPERS/rust-workspace-report.py" compiler-artifact "$report" || diagnostics=$?
       fi
     fi
   fi
-  if [[ "${CI_RUST_PROVIDER:-circleci}" == circleci ]] && command -v sccache >/dev/null; then
-    sccache --show-stats --stats-format json >"$report/sccache.json" || diagnostics=$?
+  if [[ "${CI_RUST_PROVIDER:-circleci}" == circleci ]] && command -v sccache > /dev/null; then
+    sccache --show-stats --stats-format json > "$report/sccache.json" || diagnostics=$?
   fi
   if [[ "$status" == 0 && "$diagnostics" != 0 ]]; then status=$diagnostics; fi
   local finish_mode=finish
@@ -92,12 +98,12 @@ stage_at() { python3 "$HELPERS/rust-workspace-report.py" stage-at "$report" "$@"
 json_stage() { python3 "$HELPERS/rust-workspace-report.py" json-stage "$report" "$@"; }
 if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx && "$job" != tests-merge ]]; then
   case "$job" in
-    tests|tests-compiler)
+    tests | tests-compiler)
       python3 "$HELPERS/rust-workspace-report.py" verify-compiler-artifact "${COMPILED_STATE:?COMPILED_STATE must identify the producer compiler manifest}"
       ;;
   esac
   python3 "$HELPERS/op-reth-report.py" prepare-superchain "$report"
-  python3 "$HELPERS/rust-target-cache.py" prepare >"$report/cache-source.json"
+  python3 "$HELPERS/rust-target-cache.py" prepare > "$report/cache-source.json"
 fi
 json_stage workspace cargo metadata --no-deps --locked --all-features --format-version 1
 compiler_tests() {
@@ -138,7 +144,7 @@ case "$job" in
       test_filtered_beacon_blobs_deserializes_on_small_stack --no-run
     python3 "$HELPERS/rust-workspace-report.py" artifact "$report"
     ;;
-  tests|tests-unit)
+  tests | tests-unit)
     rm -f "$ROOT/rust/target/nextest/default/junit.xml"
     args=()
     if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
@@ -183,7 +189,7 @@ case "$job" in
   feature-plan) features "" ;;
   no-std) stage no-std just check-no-std ;;
   udeps) stage udeps just check-udeps ;;
-  wasm-unknown|wasm-wasi)
+  wasm-unknown | wasm-wasi)
     if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
       # Native build scripts must not lazily reopen restored GCC/glibc inputs
       # while Cargo links them concurrently. Preserve byte/inode/read evidence.

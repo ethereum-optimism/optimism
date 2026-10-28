@@ -95,7 +95,10 @@ for attempt in 1 2 3 4 5 6; do
   http_status=$(cat "$attempt_base.http-status.txt")
   if [[ "$curl_status" == 0 && "$http_status" == 200 ]]; then break; fi
   case "$http_status" in
-    400|401|403|404) echo "Error: CircleCI API HTTP $http_status" >&2; exit "$((curl_status == 0 ? 1 : curl_status))" ;;
+    400 | 401 | 403 | 404)
+      echo "Error: CircleCI API HTTP $http_status" >&2
+      exit "$((curl_status == 0 ? 1 : curl_status))"
+      ;;
   esac
   if [[ "$attempt" == 6 ]]; then
     echo "Error: CircleCI API fetch failed after $attempt attempts" >&2

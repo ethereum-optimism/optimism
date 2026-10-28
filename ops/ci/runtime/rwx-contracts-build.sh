@@ -13,7 +13,7 @@ source ../../ops/ci/runtime/contracts-test-env.sh
 # fuzz counterexamples cannot be used by either compilation or verdict tasks.
 rm -rf results cache/test-failures cache/fuzz cache/invariant
 mkdir -p results/reports
-forge config --json >results/reports/foundry-config.json
+forge config --json > results/reports/foundry-config.json
 python3 ../../ops/ci/runtime/contracts-test-report.py prepare results/reports/foundry-config.json
 cp results/reports/foundry-config.json results/reports/test-files.txt ../../.ci/contracts-build/
 forge build 2>&1 | tee ../../.ci/contracts-build/compiler.log

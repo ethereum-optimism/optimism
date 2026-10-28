@@ -48,8 +48,8 @@ fi
 
 echo "==> running Go dumper"
 status=0
-(cd "$repo_root" && go run ./op-node/cmd/interop-deposits-dump) >"$go_out" 2>"$go_err" || status=$?
-if [[ -n "${CI_INTEROP_REPORT_DIR:-}" ]]; then printf '%s\n' "$status" >"$CI_INTEROP_REPORT_DIR/interop-go.exit"; fi
+(cd "$repo_root" && go run ./op-node/cmd/interop-deposits-dump) > "$go_out" 2> "$go_err" || status=$?
+if [[ -n "${CI_INTEROP_REPORT_DIR:-}" ]]; then printf '%s\n' "$status" > "$CI_INTEROP_REPORT_DIR/interop-go.exit"; fi
 if [[ "$status" != 0 ]]; then
   echo "error: Go dumper failed" >&2
   cat "$go_err" >&2
@@ -58,8 +58,8 @@ fi
 
 echo "==> running Rust dumper"
 status=0
-(cd "$repo_root/rust/kona" && cargo run --quiet -p kona-hardforks --example interop-deposits-dump) >"$rust_out" 2>"$rust_err" || status=$?
-if [[ -n "${CI_INTEROP_REPORT_DIR:-}" ]]; then printf '%s\n' "$status" >"$CI_INTEROP_REPORT_DIR/interop-rust.exit"; fi
+(cd "$repo_root/rust/kona" && cargo run --quiet -p kona-hardforks --example interop-deposits-dump) > "$rust_out" 2> "$rust_err" || status=$?
+if [[ -n "${CI_INTEROP_REPORT_DIR:-}" ]]; then printf '%s\n' "$status" > "$CI_INTEROP_REPORT_DIR/interop-rust.exit"; fi
 if [[ "$status" != 0 ]]; then
   echo "error: Rust dumper failed" >&2
   cat "$rust_err" >&2

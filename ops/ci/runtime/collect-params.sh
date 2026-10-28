@@ -20,7 +20,7 @@ ROUTING="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/routing.yml"
 [ -f "${OUTPUT}" ] || echo '{}' > "${OUTPUT}"
 
 to_bool() {
-  case "${1}" in 1|true|True|TRUE) echo "true" ;; *) echo "false" ;; esac
+  case "${1}" in 1 | true | True | TRUE) echo "true" ;; *) echo "false" ;; esac
 }
 
 json=$(cat "${OUTPUT}")
@@ -42,7 +42,7 @@ case "${MODE}" in
     done < <(env | sort)
     ;;
 
-  detect|detect_all)
+  detect | detect_all)
     [[ "${MODE}" == "detect_all" ]] && section=".change_patterns.all" || section=".change_patterns.any"
 
     if [[ -n "${CHANGED_FILES_FILE:-}" ]]; then
@@ -52,7 +52,7 @@ case "${MODE}" in
       fi
       CHANGED=$(cat "${CHANGED_FILES_FILE}")
     else
-      CHANGED=$(git diff --name-only --no-renames "origin/${CI_BASE_REVISION:-develop}...HEAD" 2>/dev/null \
+      CHANGED=$(git diff --name-only --no-renames "origin/${CI_BASE_REVISION:-develop}...HEAD" 2> /dev/null \
         || git diff --name-only --no-renames HEAD~1 HEAD || true)
     fi
     echo "=== Changed files ==="
@@ -66,7 +66,7 @@ case "${MODE}" in
         result=false
       elif [[ "${MODE}" == "detect_all" ]]; then
         # True iff every changed file matches the pattern (i.e., no file fails to match).
-        if grep -qvE "${pattern}" <<<"${CHANGED}"; then
+        if grep -qvE "${pattern}" <<< "${CHANGED}"; then
           result=false
         else
           result=true
@@ -75,7 +75,7 @@ case "${MODE}" in
         # detect: true iff at least one changed file matches the pattern.
         # A pipe plus grep -q can SIGPIPE the writer after an early match.
         # With pipefail that incorrectly reports a non-match on large diffs.
-        if grep -qE "${pattern}" <<<"${CHANGED}"; then
+        if grep -qE "${pattern}" <<< "${CHANGED}"; then
           result=true
         else
           result=false

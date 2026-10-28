@@ -197,6 +197,13 @@
           ]
         },
         {
+          "name": "shfmt-check",
+          "group": "main-checks",
+          "tasks": [
+            "shfmt-check"
+          ]
+        },
+        {
           "name": "go-lint",
           "group": "main-pilot",
           "tasks": [

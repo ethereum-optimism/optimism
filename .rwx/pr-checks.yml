@@ -158,6 +158,13 @@ tasks:
         - key: reports
           path: .ci/static-checks/shell-check
 
+  - key: shfmt-check
+    use: [code, tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: mise exec just shfmt -- just shfmt-check
+    cache: false
+    timeout: 10m
+
   - key: semgrep-test
     use: [code, static-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
@@ -550,7 +557,7 @@ tasks:
   # Exact Main dependency states; unrelated workload failures stay outside this gate.
   - key: main-gate-receipt
     use: [code, tools]
-    after: ${{ (check-generated-mocks-op-node.succeeded || check-generated-mocks-op-node.failed || check-generated-mocks-op-node.skipped) && (check-generated-mocks-op-service.succeeded || check-generated-mocks-op-service.failed || check-generated-mocks-op-service.skipped) && (check-nut-locks.succeeded || check-nut-locks.failed || check-nut-locks.skipped) && (check-op-geth-version.succeeded || check-op-geth-version.failed || check-op-geth-version.skipped) && (l2-chains-sync-check.succeeded || l2-chains-sync-check.failed || l2-chains-sync-check.skipped) && (op-deployer-forge-version.succeeded || op-deployer-forge-version.failed || op-deployer-forge-version.skipped) && (opgeth-ratchet.succeeded || opgeth-ratchet.failed || opgeth-ratchet.skipped) && (semgrep-scan-local.succeeded || semgrep-scan-local.failed || semgrep-scan-local.skipped) && (semgrep-test.succeeded || semgrep-test.failed || semgrep-test.skipped) && (shell-check.succeeded || shell-check.failed || shell-check.skipped) }}
+    after: ${{ (check-generated-mocks-op-node.succeeded || check-generated-mocks-op-node.failed || check-generated-mocks-op-node.skipped) && (check-generated-mocks-op-service.succeeded || check-generated-mocks-op-service.failed || check-generated-mocks-op-service.skipped) && (check-nut-locks.succeeded || check-nut-locks.failed || check-nut-locks.skipped) && (check-op-geth-version.succeeded || check-op-geth-version.failed || check-op-geth-version.skipped) && (l2-chains-sync-check.succeeded || l2-chains-sync-check.failed || l2-chains-sync-check.skipped) && (op-deployer-forge-version.succeeded || op-deployer-forge-version.failed || op-deployer-forge-version.skipped) && (opgeth-ratchet.succeeded || opgeth-ratchet.failed || opgeth-ratchet.skipped) && (semgrep-scan-local.succeeded || semgrep-scan-local.failed || semgrep-scan-local.skipped) && (semgrep-test.succeeded || semgrep-test.failed || semgrep-test.skipped) && (shell-check.succeeded || shell-check.failed || shell-check.skipped) && (shfmt-check.succeeded || shfmt-check.failed || shfmt-check.skipped) }}
     if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt main-checks
     env:
@@ -591,6 +598,9 @@ tasks:
       TASK_SHELL_CHECK_SUCCEEDED: ${{ tasks.shell-check.succeeded }}
       TASK_SHELL_CHECK_FAILED: ${{ tasks.shell-check.failed }}
       TASK_SHELL_CHECK_SKIPPED: ${{ tasks.shell-check.skipped }}
+      TASK_SHFMT_CHECK_SUCCEEDED: ${{ tasks.shfmt-check.succeeded }}
+      TASK_SHFMT_CHECK_FAILED: ${{ tasks.shfmt-check.failed }}
+      TASK_SHFMT_CHECK_SKIPPED: ${{ tasks.shfmt-check.skipped }}
     cache: false
     timeout: 10m
     outputs:
