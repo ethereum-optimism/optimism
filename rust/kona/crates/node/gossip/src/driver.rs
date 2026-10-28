@@ -1280,13 +1280,31 @@ mod tests {
     }
 
     /// Disconnecting a peer with the `DisconnectPeer` command records the connection's duration
-    /// once, when the connection closes.
+    /// when the connection closes, not when the command runs.
+    ///
+    /// Pings record the duration so far too, so the test doesn't count samples. It checks the start
+    /// time instead: recording the duration at close also removes it.
     #[tokio::test]
-    async fn test_disconnect_peer_records_connection_duration_once() {
+    async fn test_disconnect_peer_records_connection_duration_at_close() {
         let recorder = metrics_util::debugging::DebuggingRecorder::new();
         let snapshotter = recorder.snapshotter();
         // For the whole test thread, so that it sees what polling the swarm records too.
         let _recorder = metrics::set_default_local_recorder(&recorder);
+        // Each snapshot empties the histograms, so this returns the durations since the last one.
+        let durations = || -> usize {
+            snapshotter
+                .snapshot()
+                .into_vec()
+                .into_iter()
+                .filter(|(key, ..)| {
+                    key.key().name() == crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS
+                })
+                .map(|(.., value)| match value {
+                    metrics_util::debugging::DebugValue::Histogram(values) => values.len(),
+                    _ => 0,
+                })
+                .sum()
+        };
 
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
@@ -1295,23 +1313,16 @@ mod tests {
         driver_1.start().await.expect("listen");
         driver_1.dial_multiaddr(addr_2);
         poll_until_connected(&mut driver_1, &mut driver_2).await;
+        durations();
 
+        // The command only starts the disconnect: the duration isn't recorded yet.
         crate::GossipCommand::DisconnectPeer { peer_id: peer_2 }.handle(&mut driver_1);
-        poll_one_until(&mut driver_1, |driver_1| !driver_1.is_connected(&peer_2)).await;
+        assert!(driver_1.peer_connection_start.contains_key(&peer_2));
 
-        let durations: Vec<_> = snapshotter
-            .snapshot()
-            .into_vec()
-            .into_iter()
-            .filter(|(key, ..)| {
-                key.key().name() == crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS
-            })
-            .filter_map(|(.., value)| match value {
-                metrics_util::debugging::DebugValue::Histogram(values) => Some(values),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(durations.iter().map(Vec::len).sum::<usize>(), 1, "{durations:?}");
+        // The close records it, and removes the start time, after which pings record nothing.
+        poll_one_until(&mut driver_1, |driver_1| !driver_1.is_connected(&peer_2)).await;
+        assert!(!driver_1.peer_connection_start.contains_key(&peer_2));
+        assert!(durations() >= 1);
     }
 
     /// The `UnprotectPeer` command leaves a static peer protected, but unprotects others.
