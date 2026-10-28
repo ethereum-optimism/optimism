@@ -12,5 +12,5 @@ receipt root before discarding receipt types and blooms. Invalid raw receipts ca
 fall back to JSON receipts, which undergo the same verification. Verification
 failures remain retryable and rejected responses are not cached.
 
-Header lookups and empty-receipt checks share a hash-keyed cache that retains the
-RPC transaction count in both trust modes.
+Header lookups and empty-receipt checks share a hash-keyed header cache in both
+trust modes. Empty-block checks use the header’s transaction root.
