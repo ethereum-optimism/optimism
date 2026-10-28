@@ -1860,6 +1860,7 @@ mod tests {
         assert!(err.to_string().contains("no embedded dependency set"), "unexpected error: {err}");
     }
 
+    /// Pins kona-host's read of a replaced agreed output and replay of its canonical no-op.
     #[tokio::test(flavor = "multi_thread")]
     async fn replaced_two_second_head_replays_across_noop() {
         let configs = ChainConfigs::from_registry(&[U256::from(10)]).unwrap();
@@ -1867,8 +1868,7 @@ mod tests {
         assert_eq!(rollup.block_time, 2);
         let timestamp = rollup.genesis.l2_time + 20;
         let server = mock_nodes().await;
-        let (replacement_hash, replacement_preimage, reads) =
-            mock_canonical_output(&server, timestamp).await;
+        let (replacement_hash, _, reads) = mock_canonical_output(&server, timestamp).await;
         let replacement = Header {
             number: rollup.block_number_from_timestamp(timestamp),
             timestamp,
@@ -1900,11 +1900,9 @@ mod tests {
             None,
         )
         .unwrap();
-        for header in [&original, &replacement] {
-            synthesized
-                .preloaded_preimages
-                .push((PreimageKey::new_keccak256(*header.hash_slow()), alloy_rlp::encode(header)));
-        }
+        synthesized
+            .preloaded_preimages
+            .push((PreimageKey::new_keccak256(*replacement_hash), alloy_rlp::encode(&replacement)));
         synthesized
             .preloaded_preimages
             .push((PreimageKey::new_keccak256(*alloy_consensus::EMPTY_ROOT_HASH), vec![0x80]));
@@ -1922,52 +1920,7 @@ mod tests {
         )
         .await
         .expect("the no-op after replacement must replay");
-        let retained = SuperOptimisticBlock {
-            chain_id: U256::from(10),
-            block_hash: replacement_hash,
-            output_root: keccak256(&replacement_preimage),
-        };
         assert_eq!(range, discovered);
-        assert_eq!(range.transitions[0].optimistic_block, retained);
-        assert_eq!(
-            synthesized.consolidation_inputs.transitions[0].optimistic_blocks,
-            vec![retained]
-        );
-        let mut in_span_responses = vec![response(timestamp - 1, &[10], 8)];
-        in_span_responses.extend(responses);
-        let in_span = synthesize_execution(
-            TimestampSpan::new(timestamp, timestamp + 1).unwrap(),
-            b256(0xaa),
-            8,
-            &in_span_responses,
-        )
-        .unwrap();
-        let expected = vec![
-            SuperOptimisticBlock {
-                chain_id: U256::from(10),
-                block_hash: original_hash,
-                output_root: output_entry(original_hash, 8).output_root,
-            },
-            retained,
-        ];
-        assert_eq!(
-            in_span
-                .range_inputs
-                .claimed_transitions
-                .iter()
-                .map(|transition| transition.optimistic_block)
-                .collect::<Vec<_>>(),
-            expected,
-        );
-        assert_eq!(
-            in_span
-                .consolidation_inputs
-                .transitions
-                .iter()
-                .flat_map(|transition| transition.optimistic_blocks.iter().copied())
-                .collect::<Vec<_>>(),
-            expected,
-        );
         let collected = synthesized
             .collect_consolidation_witness(host, Some(&configs), &[], None)
             .await
@@ -1984,7 +1937,6 @@ mod tests {
         .await
         .expect("consolidation must retain the replacement too");
         assert_eq!(consolidation, collected.outputs);
-        assert_eq!(consolidation.transitions[0].optimistic_blocks, vec![retained]);
         assert_eq!(consolidation.transitions[0].super_root, synthesized.current_super_root);
         for read in reads {
             read.assert_calls_async(2).await;

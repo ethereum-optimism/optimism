@@ -83,17 +83,18 @@ impl Fixture {
     /// `messages` are `(block number, log index)` pairs into `blocks`, the receipts of blocks
     /// `1..=n`. Each message carries the origin and payload hash of the log it references.
     fn new(blocks: Vec<Vec<OpReceiptEnvelope>>, messages: &[(u64, u64)]) -> Self {
-        Self::with_idle_chains(blocks, messages, 0)
+        Self::with_idle_chains(blocks, messages, 0, 1)
     }
 
     fn with_idle_chains(
         blocks: Vec<Vec<OpReceiptEnvelope>>,
         messages: &[(u64, u64)],
         idle_chains: u64,
+        executing_block_time: u64,
     ) -> Self {
         let mut witness = PreimageStore::default();
         save(&mut witness, vec![EMPTY_STRING_CODE]);
-        let configs = configs(idle_chains);
+        let configs = configs(idle_chains, executing_block_time);
         for (key, value) in [
             (DEPENDENCY_SET_KEY, serde_json::to_vec(&configs.dependency_set).unwrap()),
             (L2_ROLLUP_CONFIG_KEY, serde_json::to_vec(&configs.rollup_configs).unwrap()),
@@ -301,10 +302,10 @@ impl Fixture {
     }
 }
 
-fn configs(idle_chains: u64) -> ChainConfigs {
+fn configs(idle_chains: u64, executing_block_time: u64) -> ChainConfigs {
     let rollup_config = |chain_id: u64| {
         let mut config = RollupConfig {
-            block_time: 1,
+            block_time: if chain_id == EXECUTING { executing_block_time } else { 1 },
             l1_chain_id: 1,
             l2_chain_id: Chain::from(chain_id),
             ..Default::default()
@@ -393,23 +394,23 @@ fn table_serves_below_head_references_without_their_receipts() {
 }
 
 fn persistent_executing_head_fixture(replaced: bool) -> Fixture {
-    use alloy_consensus::Sealed;
+    use alloy_consensus::{Sealed, TrieAccount};
     use alloy_op_evm::{
         OpEvmFactory, block::OpAlloyReceiptBuilder, post_exec::PostExecEvmFactoryAdapter,
     };
     use alloy_primitives::b64;
-    use alloy_trie::{Nibbles, TrieAccount};
     use kona_executor::StatelessL2Builder;
-    use kona_mpt::{NoopTrieProvider, TrieNode};
+    use kona_mpt::{Nibbles, NoopTrieProvider, TrieNode};
     use kona_proof::l2::OracleL2ChainProvider;
     use kona_protocol::Predeploys;
     use op_alloy_rpc_types_engine::OpPayloadAttributes;
 
-    let mut fixture = Fixture::new(
+    let mut fixture = Fixture::with_idle_chains(
         (0..3).map(|seed| vec![eip1559(logs(seed * 4, 4, 1, 0))]).collect(),
         &[(1, 0), (3, 0), (1, 0)],
+        0,
+        4,
     );
-    fixture.configs.rollup_configs.get_mut(&EXECUTING).unwrap().block_time = 4;
     let config = &fixture.configs.rollup_configs[&EXECUTING];
     let mut state = TrieNode::Empty;
     state
@@ -576,6 +577,14 @@ fn consolidation_timestamp(fixture: &Fixture, index: usize) -> Fixture {
 async fn consolidation_checks_persistent_message_heads_across_idle_timestamps() {
     for (replaced, persistent_original) in [(false, false), (true, false), (true, true)] {
         let mut fixture = persistent_executing_head_fixture(replaced);
+        let stored_configs: std::collections::BTreeMap<u64, RollupConfig> = serde_json::from_slice(
+            &fixture.withheld.get(PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to())).await.unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            stored_configs[&EXECUTING].block_time,
+            fixture.configs.rollup_configs[&EXECUTING].block_time
+        );
         let canonical = fixture.inputs.transitions[1].optimistic_blocks[1];
         if persistent_original {
             // Old RPCs retain the denied head; consolidation must check its messages again.
@@ -1146,8 +1155,8 @@ async fn consolidation_estimate_bounds_measured_pgu() {
         (1..=4).flat_map(|number| [(number, 0), (number, 37_500), (number, 74_999)]).collect();
     let entry_cap = (0..MAX_ENTRIES_PER_BATCH as u64).map(|b| vec![eip1559(logs(b, 1, 0, 0))]);
     let shapes = [
-        ("mixed, 2 chains", Fixture::with_idle_chains(mixed.clone(), &mixed_messages, 0)),
-        ("mixed, 6 chains", Fixture::with_idle_chains(mixed, &mixed_messages, 4)),
+        ("mixed, 2 chains", Fixture::with_idle_chains(mixed.clone(), &mixed_messages, 0, 1)),
+        ("mixed, 6 chains", Fixture::with_idle_chains(mixed, &mixed_messages, 4, 1)),
         ("3,239 messages", Fixture::new(vec![vec![eip1559(logs(0, 3_239, 1, 0))]], &many_messages)),
         ("deep trees", Fixture::new(deep_trees, &deep_messages)),
         (

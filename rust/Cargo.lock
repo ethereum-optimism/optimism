@@ -8181,7 +8181,6 @@ dependencies = [
  "alloy-provider",
  "alloy-rlp",
  "alloy-rpc-client",
- "alloy-trie",
  "anyhow",
  "async-trait",
  "clap",
