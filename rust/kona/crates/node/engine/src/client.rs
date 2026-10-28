@@ -381,8 +381,8 @@ mod request_observability_tests {
     #[test]
     fn build_requests_log_once_with_task_context_at_info() {
         use crate::{
-            BuildTask, EngineState, EngineTaskExt,
-            test_utils::{RpcMock, TestAttributesBuilder, test_block_info},
+            BuildTask, ExecutableEngineTask,
+            test_utils::{RpcMock, TestAttributesBuilder, TestEngineStateBuilder, test_block_info},
         };
         use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadId, PayloadStatusEnum};
 
@@ -433,9 +433,13 @@ mod request_observability_tests {
                         .with_timestamp(2)
                         .with_transactions(vec![Bytes::from_static(&[0x7e])])
                         .build();
-                    let result = BuildTask::new(Arc::new(engine), config, attributes, None)
-                        .execute(&mut EngineState::default())
-                        .await;
+                    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+                    let mut state = TestEngineStateBuilder::new().with_unsafe_head(parent).build();
+                    BuildTask::new(Arc::new(engine), config, attributes, tx)
+                        .execute(&mut state)
+                        .await
+                        .unwrap();
+                    let result = rx.recv().await.unwrap();
                     if outcome == "valid" {
                         assert_eq!(result.unwrap(), payload_id);
                     } else {

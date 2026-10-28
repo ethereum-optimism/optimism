@@ -98,6 +98,21 @@ Once an output root that includes the `MessagePassed` event is published to L1, 
 
 The next step is to wait the fault challenge period (7 days on mainnet, shorter on test networks), to ensure that the L2 output root used in the proof is legitimate, and that the proof itself is legitimate and not a hack.
 
+### Deleting a proof against an invalid game
+
+<Info>
+  `deleteProvenWithdrawal` ships in Upgrade 21, an L1 contract upgrade that is pending Optimism Governance approval.
+  It is available on a chain only once the upgrade is executed on it.
+</Info>
+
+A proof can never be finalized if its dispute game resolved in favor of the challenger, or if the game is blacklisted in the `AnchorStateRegistry`.
+Anyone can remove such a proof by calling [`OptimismPortal.deleteProvenWithdrawal(bytes32 withdrawalHash, address proofSubmitter)`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L765), which deletes the entry in `provenWithdrawals` and emits a `WithdrawalProofDeleted(withdrawalHash, proofSubmitter)` event.
+The call reverts if no such proof exists, or unless its dispute game resolved in favor of the challenger or is blacklisted.
+
+Deleting a proof does not affect the withdrawal itself.
+The withdrawal can still be proven again against a valid dispute game and then finalized.
+If you index proofs from `WithdrawalProven` and `WithdrawalProvenExtension1` events, also handle `WithdrawalProofDeleted` so you don't report a deleted proof as pending.
+
 ## Withdrawal finalizing transaction
 
 Finally, once the fault challenge period passes, the withdrawal can be finalized and executed on L1.

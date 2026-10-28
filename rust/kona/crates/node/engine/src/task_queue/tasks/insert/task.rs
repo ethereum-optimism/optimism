@@ -1,7 +1,7 @@
 //! A task to insert an unsafe payload into the execution engine.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, ImportedBlockSink, InsertTaskError,
+    EngineClient, EngineState, ExecutableEngineTask, ImportedBlockSink, InsertTaskError,
     state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
@@ -43,7 +43,7 @@ impl InsertTask {
 }
 
 #[async_trait]
-impl EngineTaskExt for InsertTask {
+impl ExecutableEngineTask for InsertTask {
     type Output = L2BlockInfo;
 
     type Error = InsertTaskError;

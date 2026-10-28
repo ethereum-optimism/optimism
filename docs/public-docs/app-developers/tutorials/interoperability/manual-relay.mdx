@@ -3,7 +3,7 @@ title: Relay transactions manually
 description: Learn to relay transactions directly by sending the correct transaction.
 diataxis: tutorial
 ---
-<Info>OP Stack interop is in active development. Some features may be experimental.</Info>
+<Info>OOP Stack interop goes live with the Lagoon hardfork.</Info>
 
 <Note>Messages are relayed automatically in the interop devnet.</Note>
 
@@ -15,26 +15,26 @@ Learn to relay transactions directly by sending the correct transaction.
 
   **Prerequisite technical knowledge**
 
-  * Familiarity with blockchain concepts  
+  * Familiarity with blockchain concepts
   * Familiarity with [Foundry](https://book.getfoundry.sh/getting-started/installation), especially `cast`
 
   **What you'll learn**
 
-  * How to use `cast` to relay transactions when autorelay does not work  
+  * How to use `cast` to relay transactions when autorelay does not work
   * How to relay transactions using JavaScript
 
   **Development environment requirements**
 
-  * Unix-like operating system (Linux, macOS, or WSL for Windows)  
-  * Node.js version 16 or higher  
-  * Git for version control  
-  * Supersim environment configured and running  
+  * Unix-like operating system (Linux, macOS, or WSL for Windows)
+  * Node.js version 16 or higher
+  * Git for version control
+  * Supersim environment configured and running
   * Foundry tools installed (forge, cast, anvil)
 </Accordion>
 
 ### What you'll build
 
-* A program to relay messages using [the JavaScript library](https://www.npmjs.com/package/@eth-optimism/viem)  
+* A program to relay messages using [the JavaScript library](https://www.npmjs.com/package/@eth-optimism/viem)
 * A shell script to relay messages using [`cast`](https://book.getfoundry.sh/cast/)
 
 ## Setup
@@ -43,10 +43,10 @@ These steps are necessary to run the tutorial, regardless of whether you are usi
 
 <Steps>
   <Step title="Run Supersim">
-    This exercise needs to be done on Supersim.  
+    This exercise needs to be done on Supersim.
     You cannot use the devnets because you cannot disable autorelay on them.
 
-    1. Follow [Install Supersim](/app-developers/tutorials/development/supersim/installation).  
+    1. Follow [Install Supersim](/app-developers/tutorials/development/supersim/installation).
     2. Run Supersim *without* `--interop.relay`.
 
     ```sh
@@ -66,13 +66,13 @@ These steps are necessary to run the tutorial, regardless of whether you are usi
     # ...
     ```
 
-    This script installs `Greeter.sol` on chain B and `GreetingSender.sol` on chain A.  
+    This script installs `Greeter.sol` on chain B and `GreetingSender.sol` on chain A.
     These smart contracts let us send a message from chain A that needs to be relayed to chain B.
 
-    Then, the script creates `./manual-relay/sendAndRelay.sh` to manually relay a message from chain A to chain B.  
+    Then, the script creates `./manual-relay/sendAndRelay.sh` to manually relay a message from chain A to chain B.
     That script is [explained below](#manual-relay-using-cast).
 
-    Finally, this script writes out some parameter setting lines that should be executed on the main shell before you continue.  
+    Finally, this script writes out some parameter setting lines that should be executed on the main shell before you continue.
     With a fresh Supersim running, these should be:
 
     ```sh
@@ -117,16 +117,16 @@ These steps are necessary to run the tutorial, regardless of whether you are usi
         getContract,
     } from 'viem'
     import { privateKeyToAccount } from 'viem/accounts'
-    import { supersimL2A, supersimL2B } from '@eth-optimism/viem/chains' 
+    import { supersimL2A, supersimL2B } from '@eth-optimism/viem/chains'
     import { walletActionsL2, publicActionsL2 } from '@eth-optimism/viem'
-    
+
     import { readFileSync } from 'fs';
-    
+
     const greeterData = JSON.parse(readFileSync('../onchain/out/Greeter.sol/Greeter.json'))
     const greetingSenderData = JSON.parse(readFileSync('../onchain/out/Greeter.sol/Greeter.json'))
-    
+
     const account = privateKeyToAccount(process.env.PRIVATE_KEY)
-    
+
     const walletA = createWalletClient({
         chain: supersimL2A,
         transport: http(),
@@ -134,7 +134,7 @@ These steps are necessary to run the tutorial, regardless of whether you are usi
     }).extend(publicActions)
         .extend(publicActionsL2())
     //    .extend(walletActionsL2())
-    
+
     const walletB = createWalletClient({
         chain: supersimL2B,
         transport: http(),
@@ -142,33 +142,33 @@ These steps are necessary to run the tutorial, regardless of whether you are usi
     }).extend(publicActions)
     //    .extend(publicActionsL2())
         .extend(walletActionsL2())
-    
+
     const greeter = getContract({
         address: process.env.GREETER_B_ADDRESS,
         abi: greeterData.abi,
         client: walletB
     })
-    
+
     const greetingSender = getContract({
         address: process.env.GREETER_A_ADDRESS,
         abi: greetingSenderData.abi,
         client: walletA
     })
-    
+
     const txnBHash = await greeter.write.setGreeting(
         ["Greeting directly to chain B"])
     await walletB.waitForTransactionReceipt({hash: txnBHash})
-    
+
     const greeting1 = await greeter.read.greet()
     console.log(`Chain B Greeting: ${greeting1}`)
-    
+
     const txnAHash = await greetingSender.write.setGreeting(
         ["Greeting through chain A"])
     const receiptA = await walletA.waitForTransactionReceipt({hash: txnAHash})
-    
+
     const greeting2 = await greeter.read.greet()
     console.log(`Greeting before the relay transaction: ${greeting2}`)
-    
+
     const sentMessages = await walletA.interop.getCrossDomainMessages({
       logs: receiptA.logs,
     })
@@ -177,11 +177,11 @@ These steps are necessary to run the tutorial, regardless of whether you are usi
       log: sentMessage.log,
     })
     const relayMsgTxnHash = await walletB.interop.relayCrossDomainMessage(relayMessageParams)
-    
+
     const receiptRelay = await walletB.waitForTransactionReceipt({
       hash: relayMsgTxnHash,
     })
-    
+
     const greeting3 = await greeter.read.greet()
     console.log(`Greeting after the relay transaction: ${greeting3}`)
     ```
@@ -189,7 +189,7 @@ These steps are necessary to run the tutorial, regardless of whether you are usi
     <Accordion title="Explanation">
 
       ```javascript
-      import { supersimL2A, supersimL2B } from '@eth-optimism/viem/chains' 
+      import { supersimL2A, supersimL2B } from '@eth-optimism/viem/chains'
       import { walletActionsL2, publicActionsL2 } from '@eth-optimism/viem'
       ```
     </Accordion>
@@ -217,7 +217,7 @@ These steps are necessary to run the tutorial, regardless of whether you are usi
 
 ## Manual relay using `cast`
 
-You can see an example of how to manually relay using `cast` in `manual-relay/sendAndRelay.sh`.  
+You can see an example of how to manually relay using `cast` in `manual-relay/sendAndRelay.sh`.
 It is somewhat complicated, so the setup creates one that is tailored to your environment.
 
 Run the script:

@@ -166,7 +166,9 @@ where
             }
         }
 
-        self.send_derivation_actor_safe_head_if_updated().await?;
+        // The reset signal includes the recovered safe head. Derivation adopts it and resumes
+        // while handling that message, so an intervening L1 update cannot overtake confirmation.
+        self.last_engine_safe_head_sent = l2_safe_head;
 
         Ok(())
     }
@@ -319,7 +321,7 @@ where
                     self.client.clone(),
                     self.rollup.clone(),
                     attributes,
-                    Some(result_tx),
+                    result_tx,
                 )));
                 self.engine.enqueue(task);
             }

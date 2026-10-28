@@ -49,7 +49,7 @@ where
     /// The attributes sent to the engine and not yet confirmed as a safe head.
     pub(super) attributes_awaiting_confirmation: Option<OpAttributesWithParent>,
     /// The recent safe heads an L1 reorg may keep, with the L1 data they depend on.
-    safe_head_history: SafeHeadHistory,
+    pub(super) safe_head_history: SafeHeadHistory,
 }
 
 impl<DerivationEngineClient_, PipelineSignalReceiver>
@@ -251,15 +251,9 @@ where
                     self.derivation_state_machine
                         .update(&DerivationStateUpdate::SignalProcessed)?;
                 }
-                // The engine reports its safe head only when it changes, so a reset that keeps
-                // the confirmed safe head, as one after a shallow L1 reorg usually does, gets no
-                // report. Resume from it instead of waiting for the next L1 head.
-                if let Signal::Reset(reset) = *signal &&
-                    reset.l2_safe_head ==
-                        self.derivation_state_machine.last_confirmed_safe_head() &&
-                    self.derivation_state_machine.current_state() ==
-                        DerivationState::AwaitingUpdateAfterSignal
-                {
+                if let Signal::Reset(reset) = *signal {
+                    // Adopt the reset head and resume in this request. A separate confirmation
+                    // could arrive after an L1 update has already resumed derivation.
                     self.derivation_state_machine.update(
                         &DerivationStateUpdate::NewAttributesConfirmed(Box::new(
                             reset.l2_safe_head,

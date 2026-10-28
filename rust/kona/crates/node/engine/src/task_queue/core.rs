@@ -1,6 +1,6 @@
 //! The [`Engine`] is a task queue that receives and executes [`EngineTask`]s.
 
-use super::EngineTaskExt;
+use super::ExecutableEngineTask;
 use crate::{
     DerivedSafeHead, EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
     EngineTaskErrorSeverity, L2ForkchoiceState, Metrics, SyncStartError, SynchronizeTaskError,

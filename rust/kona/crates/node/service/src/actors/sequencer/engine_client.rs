@@ -104,7 +104,7 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
         payload_id_rx.recv().await.ok_or_else(|| {
             error!(target: "block_engine", "Failed to receive payload for initiated block build");
             EngineClientError::ResponseError("response channel closed.".to_string())
-        })
+        })?.map_err(EngineClientError::StartBuildError)
     }
 
     async fn seal_block(

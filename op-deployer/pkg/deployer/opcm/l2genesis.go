@@ -38,6 +38,10 @@ type L2GenesisInput struct {
 	LiquidityControllerOwner                 common.Address
 	DevFeatureBitmap                         common.Hash
 	L2ToL2MessageExpiryPeriod                *big.Int
+	// SettlementChainID is written into the ChainConfig predeploy when the OP_PRIVATE dev feature
+	// is on: 0 on a public chain, the chain's own ID on a settlement chain, and its settlement
+	// chain's ID on a private chain.
+	SettlementChainID *big.Int
 }
 
 type L2GenesisScript script.DeployScriptWithoutOutput[L2GenesisInput]

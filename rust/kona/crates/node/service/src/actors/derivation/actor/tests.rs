@@ -20,6 +20,85 @@ use std::{collections::VecDeque, sync::Arc};
 use tempfile::TempDir;
 use tokio::sync::{mpsc, watch};
 
+/// Reset must adopt the engine's head and resume without waiting for another queue message.
+/// A later L1 update must remain valid after the reset exhausts available data.
+#[rstest]
+#[case::unchanged(RESUME_HEAD)]
+#[case::rewound(DERIVED_HEAD)]
+#[tokio::test]
+async fn reset_adopts_safe_head_and_resumes_atomically(#[case] previous_head: u64) {
+    let (request_tx, request_rx) = mpsc::channel(2);
+    let mut actor = DerivationActor::new(
+        MockDerivationEngineClient::new(),
+        request_rx,
+        StubPipeline {
+            rollup_config: Arc::new(RollupConfig::default()),
+            origin: BlockInfo::default(),
+            step_result: StepResult::StepFailed(PipelineError::Eof.temp()),
+            reset_error: None,
+        },
+        None,
+        l1_block(0).id(),
+        watch::channel(None).0,
+    );
+    request_tx
+        .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(l2_block(
+            previous_head,
+        ))))
+        .await
+        .unwrap();
+    actor.step().await.unwrap();
+
+    request_tx
+        .send(DerivationActorRequest::ProcessEngineSignalRequest(Box::new(Signal::Reset(
+            kona_derive::ResetSignal { l2_safe_head: l2_block(RESUME_HEAD) },
+        ))))
+        .await
+        .unwrap();
+    request_tx
+        .send(DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::new(l1_block(
+            DERIVED_FROM_L1,
+        ))))
+        .await
+        .unwrap();
+    actor.step().await.unwrap();
+    assert_eq!(actor.derivation_state_machine.last_confirmed_safe_head(), l2_block(RESUME_HEAD));
+    assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingL1Data);
+    actor.step().await.unwrap();
+    assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingL1Data);
+}
+
+/// An L1 update following reset cannot make a delayed reset acknowledgement consume the newly
+/// derived block's outstanding confirmation or its safe-head database record.
+#[tokio::test]
+async fn reset_keeps_new_attributes_pending_across_an_l1_update() {
+    let mut node = RecordingActor::new(engine_client_accepting_attributes());
+    node.actor.pipeline.attributes.clear();
+    node.complete_el_sync_at(DERIVED_HEAD).await;
+    node.signal(Signal::Reset(kona_derive::ResetSignal { l2_safe_head: l2_block(RESUME_HEAD) }))
+        .await;
+    assert_eq!(
+        node.actor.derivation_state_machine.last_confirmed_safe_head(),
+        l2_block(RESUME_HEAD)
+    );
+    assert_eq!(
+        node.actor.derivation_state_machine.current_state(),
+        DerivationState::AwaitingSafeHeadConfirmation
+    );
+    let pending = node.actor.attributes_awaiting_confirmation.clone().unwrap();
+    node.handle(DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::new(l1_block(
+        DERIVED_FROM_L1 + 1,
+    ))))
+    .await;
+    assert_eq!(node.actor.attributes_awaiting_confirmation, Some(pending));
+    node.confirm_safe_head(DERIVED_HEAD).await;
+    assert_eq!(node.db.last_entry().unwrap(), record(DERIVED_FROM_L1, DERIVED_HEAD));
+    assert_eq!(
+        node.actor.derivation_state_machine.current_state(),
+        DerivationState::AwaitingL1Data
+    );
+}
+
 /// A pipeline stub that returns `step_result` once, then yields. Origin advances increment
 /// its L1 block number, and a reset moves it to the safe head's L1 origin.
 #[derive(Debug)]
@@ -466,13 +545,12 @@ impl RecordingActor {
         self.confirm_safe_head(DERIVED_HEAD).await;
     }
 
-    /// Resets to [`RESUME_HEAD`] and lets the engine report it as the new safe head.
+    /// Resets to [`RESUME_HEAD`], adopting the head and resuming in the same request.
     async fn reset_to_resume_head(&mut self) {
         self.signal(Signal::Reset(kona_derive::ResetSignal {
             l2_safe_head: l2_block(RESUME_HEAD),
         }))
         .await;
-        self.confirm_safe_head(RESUME_HEAD).await;
     }
 }
 
@@ -525,26 +603,14 @@ async fn an_l1_reorg_hands_the_engine_the_recent_safe_heads(
 /// offers nothing that may depend on data below the reset.
 #[tokio::test]
 async fn a_reset_to_an_unrecorded_safe_head_clears_the_history() {
-    let mut engine_client = engine_client_accepting_attributes();
-    let mut sequence = mockall::Sequence::new();
-    for expected in [vec![derived_head()], vec![]] {
-        engine_client
-            .expect_reset_engine_after_l1_reorg()
-            .withf(move |heads| *heads == expected)
-            .times(1)
-            .in_sequence(&mut sequence)
-            .returning(|_| Ok(()));
-    }
-    let mut node = RecordingActor::new(engine_client);
-    node.actor.pipeline.derived_from = l1_block(DERIVED_FROM_L1 + 1);
-    node.actor.pipeline.reorg_when_exhausted = true;
+    let mut node = RecordingActor::new(engine_client_accepting_attributes());
     node.derive_and_confirm_one_block().await;
+    assert_eq!(node.actor.safe_head_history.newest_first(), vec![derived_head()]);
 
     node.signal(Signal::Reset(kona_derive::ResetSignal { l2_safe_head: l2_block(RESUME_HEAD) }))
         .await;
-    // Reorg again before deriving anything.
-    node.actor.pipeline.attributes.clear();
-    node.handle(DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::default())).await;
+
+    assert_eq!(node.actor.safe_head_history.newest_first(), vec![]);
 }
 
 /// At EL sync completion, the safe head's L1 data is unknown beyond the end of its sequencing
@@ -560,42 +626,24 @@ async fn el_sync_completion_floors_the_history_at_the_sequencing_window() {
     node.derive_and_confirm_one_block().await;
 }
 
-/// The engine reports its safe head only when it changes. After a reset that keeps the confirmed
-/// safe head, derivation resumes at once, deriving and recording the next block. After a reset
-/// to another head, it waits for the engine to report that head.
-#[rstest]
-#[case::keeps_the_confirmed_safe_head(DERIVED_HEAD, true)]
-#[case::moves_the_safe_head(RESUME_HEAD, false)]
+/// After a reset that keeps the confirmed safe head, derivation resumes from it and records the
+/// next block it derives.
 #[tokio::test]
-async fn a_reset_that_keeps_the_confirmed_safe_head_resumes_derivation(
-    #[case] reset_to: u64,
-    #[case] resumes: bool,
-) {
+async fn a_reset_to_the_confirmed_safe_head_records_the_next_block() {
     let mut node = RecordingActor::new(engine_client_accepting_attributes());
     node.derive_and_confirm_one_block().await;
     let next_l1 = DERIVED_FROM_L1 + 1;
-    node.actor.pipeline.attributes.push_back(OpAttributesWithParent {
-        attributes: OpPayloadAttributes::default(),
-        parent: l2_block(reset_to),
-        derived_from: Some(l1_block(next_l1)),
-        is_last_in_span: true,
-    });
+    node.actor.pipeline.attributes.push_back(attributes_after(DERIVED_HEAD, next_l1));
 
-    node.signal(Signal::Reset(kona_derive::ResetSignal { l2_safe_head: l2_block(reset_to) })).await;
+    node.signal(Signal::Reset(kona_derive::ResetSignal { l2_safe_head: l2_block(DERIVED_HEAD) }))
+        .await;
 
-    if resumes {
-        assert_eq!(
-            node.actor.derivation_state_machine.current_state(),
-            DerivationState::AwaitingSafeHeadConfirmation
-        );
-        node.confirm_safe_head(DERIVED_HEAD + 1).await;
-        assert_eq!(node.db.last_entry().unwrap(), record(next_l1, DERIVED_HEAD + 1));
-    } else {
-        assert_eq!(
-            node.actor.derivation_state_machine.current_state(),
-            DerivationState::AwaitingUpdateAfterSignal
-        );
-    }
+    assert_eq!(
+        node.actor.derivation_state_machine.current_state(),
+        DerivationState::AwaitingSafeHeadConfirmation
+    );
+    node.confirm_safe_head(DERIVED_HEAD + 1).await;
+    assert_eq!(node.db.last_entry().unwrap(), record(next_l1, DERIVED_HEAD + 1));
 }
 
 /// Attributes for the child of `parent`, derived from L1 block `derived_from`.
