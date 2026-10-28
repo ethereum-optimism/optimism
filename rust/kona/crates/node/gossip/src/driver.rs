@@ -782,7 +782,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        ConnectionGater, GossipDriver, StaticPeer,
+        ConnectionGater, GossipDriver, PeerAddr,
         builder::tests::{
             memory_driver, memory_driver_builder, memory_driver_builder_at, poll_until_connected,
         },
@@ -1078,7 +1078,7 @@ mod tests {
         let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
 
         let static_peers = [unused_memory_addr(peer_2), addr_2]
-            .map(|addr| StaticPeer::try_from(addr).unwrap())
+            .map(|addr| PeerAddr::try_from(addr).unwrap())
             .to_vec();
         let mut driver_1 =
             memory_driver_builder().with_static_peers(static_peers).build().expect("build");
@@ -1128,17 +1128,17 @@ mod tests {
     /// A random identity and memory address for a peer, with the static peer address they make,
     /// chosen up front so the peer can be listed as a static peer before it starts, or restart at
     /// the same address.
-    fn random_identity() -> (libp2p_identity::Keypair, Multiaddr, StaticPeer) {
+    fn random_identity() -> (libp2p_identity::Keypair, Multiaddr, PeerAddr) {
         let keypair = libp2p_identity::Keypair::generate_secp256k1();
         let addr = Multiaddr::empty().with(Protocol::Memory(rand::random::<u64>()));
         let static_peer =
-            StaticPeer::try_from(addr.clone().with(Protocol::P2p(keypair.public().to_peer_id())))
+            PeerAddr::try_from(addr.clone().with(Protocol::P2p(keypair.public().to_peer_id())))
                 .unwrap();
         (keypair, addr, static_peer)
     }
 
     /// A driver whose only static peer is `static_peer`, dialed again every [`REDIAL_INTERVAL`].
-    fn driver_with_static_peer(static_peer: StaticPeer) -> GossipDriver<ConnectionGater> {
+    fn driver_with_static_peer(static_peer: PeerAddr) -> GossipDriver<ConnectionGater> {
         memory_driver_builder()
             .with_static_peers(vec![static_peer])
             .with_static_peer_redial_interval(REDIAL_INTERVAL)

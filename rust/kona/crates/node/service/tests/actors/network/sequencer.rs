@@ -7,7 +7,7 @@ use crate::actors::{
         builder::{TestNetworkBuilder, signer_address},
     },
 };
-use kona_gossip::StaticPeer;
+use kona_gossip::PeerAddr;
 use libp2p::identity::Keypair;
 
 /// Test that we can properly gossip blocks to the sequencer.
@@ -128,7 +128,7 @@ async fn test_hub_relays_blocks_between_spokes() -> anyhow::Result<()> {
 
     // The hub lists no static peers, and gets a random key.
     let hub = builder.build(vec![]).await;
-    let hub_peer = StaticPeer::try_from(hub.listen_addr().await?)?;
+    let hub_peer = PeerAddr::try_from(hub.listen_addr().await?)?;
 
     // Static peers and the keypair only apply to the next node built, so they are set per spoke.
     let builder = builder.with_static_peers(vec![hub_peer.clone()]);

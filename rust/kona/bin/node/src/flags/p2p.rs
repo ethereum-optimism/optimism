@@ -13,7 +13,7 @@ use enr::k256;
 use kona_derive::ChainProvider;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
-use kona_gossip::{GaterConfig, StaticPeer};
+use kona_gossip::{GaterConfig, PeerAddr};
 use kona_node_service::NetworkConfig;
 use kona_peers::{BootNode, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_providers_alloy::AlloyChainProvider;
@@ -73,12 +73,12 @@ fn parse_bootnode(raw: &str) -> Result<BootNode, String> {
 /// The node only gossips over TCP, so any other transport could never be dialed. DNS names are
 /// resolved when dialing, not here, so a peer whose name does not resolve yet does not stop the
 /// node from starting.
-fn parse_static_peer(addr: &str) -> Result<StaticPeer, String> {
+fn parse_static_peer(addr: &str) -> Result<PeerAddr, String> {
     let addr = addr.trim();
     if addr.is_empty() {
         return Err("Static peer must not be empty".to_string());
     }
-    let peer: StaticPeer = addr.parse().map_err(|e| format!("{:#}", anyhow::Error::new(e)))?;
+    let peer: PeerAddr = addr.parse().map_err(|e| format!("{:#}", anyhow::Error::new(e)))?;
     let mut protocols = peer.addr().iter();
     let host = protocols.next();
     let tcp = protocols.next();
@@ -280,7 +280,7 @@ pub struct P2PArgs {
         env = "KONA_NODE_P2P_STATIC_PEERS",
         value_parser = parse_static_peer
     )]
-    pub static_peers: Vec<StaticPeer>,
+    pub static_peers: Vec<PeerAddr>,
 
     /// Optionally enable topic scoring.
     ///

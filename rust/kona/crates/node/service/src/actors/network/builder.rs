@@ -4,7 +4,7 @@ use alloy_primitives::Address;
 use discv5::Config as Discv5Config;
 use kona_disc::{Discv5Builder, LocalNode};
 use kona_genesis::RollupConfig;
-use kona_gossip::{GaterConfig, GossipDriverBuilder, GossipTransport, StaticPeer};
+use kona_gossip::{GaterConfig, GossipDriverBuilder, GossipTransport, PeerAddr};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use libp2p::{Multiaddr, identity::Keypair};
 use std::time::Duration;
@@ -112,7 +112,7 @@ impl NetworkBuilder {
     }
 
     /// Sets the peers to dial at startup and keep connected.
-    pub fn with_static_peers(self, static_peers: Vec<StaticPeer>) -> Self {
+    pub fn with_static_peers(self, static_peers: Vec<PeerAddr>) -> Self {
         Self { gossip: self.gossip.with_static_peers(static_peers), ..self }
     }
 

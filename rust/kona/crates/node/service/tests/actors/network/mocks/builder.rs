@@ -13,7 +13,7 @@ use alloy_primitives::Address;
 use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
-use kona_gossip::{GossipTransport, StaticPeer};
+use kona_gossip::{GossipTransport, PeerAddr};
 use kona_node_service::{
     EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, SignerActor,
 };
@@ -54,7 +54,7 @@ pub(crate) struct TestNetworkBuilder {
     /// The ID of the next node built, which prefixes its logs.
     next_node_id: usize,
     /// The static peers of the next node built.
-    static_peers: Vec<StaticPeer>,
+    static_peers: Vec<PeerAddr>,
 }
 
 impl TestNetworkBuilder {
@@ -95,7 +95,7 @@ impl TestNetworkBuilder {
 
     /// Gives the next node built, and only that one, these static peers, which it dials at
     /// startup. The nodes built after it have none, unless this is called again.
-    pub(crate) fn with_static_peers(mut self, static_peers: Vec<StaticPeer>) -> Self {
+    pub(crate) fn with_static_peers(mut self, static_peers: Vec<PeerAddr>) -> Self {
         self.static_peers = static_peers;
         self
     }

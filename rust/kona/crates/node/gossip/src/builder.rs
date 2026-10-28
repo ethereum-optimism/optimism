@@ -17,7 +17,7 @@ use tokio::sync::watch;
 
 use crate::{
     Behaviour, BlockHandler, ConnectionGate, GaterConfig, GossipDriver, GossipDriverBuilderError,
-    StaticPeer,
+    PeerAddr,
 };
 
 /// How long a connection with no open streams stays open, unless set with
@@ -71,7 +71,7 @@ pub struct GossipDriverBuilder {
     /// The transport the swarm listens and dials on. TCP by default.
     transport: GossipTransport,
     /// The peers to dial at startup and keep connected.
-    static_peers: Vec<StaticPeer>,
+    static_peers: Vec<PeerAddr>,
     /// How often static peers that aren't connected are dialed again, once a minute if not set.
     static_peer_redial_interval: Option<Duration>,
     /// How soon a static peer is dialed again after its connection closes, a second if not set.
@@ -114,7 +114,7 @@ impl GossipDriverBuilder {
     }
 
     /// Sets the peers to dial at startup and keep connected.
-    pub fn with_static_peers(mut self, static_peers: Vec<StaticPeer>) -> Self {
+    pub fn with_static_peers(mut self, static_peers: Vec<PeerAddr>) -> Self {
         self.static_peers = static_peers;
         self
     }
@@ -215,7 +215,7 @@ impl GossipDriverBuilder {
         } = self;
 
         let timeout = timeout.unwrap_or(DEFAULT_IDLE_CONNECTION_TIMEOUT);
-        let mut static_peers = crate::static_peer::group_by_peer(static_peers);
+        let mut static_peers = crate::peer_addr::group_by_peer(static_peers);
         // Lets a cluster share one list.
         if let Some(addrs) = static_peers.remove(&keypair.public().to_peer_id()) {
             info!(target: "gossip", ?addrs, "Static peer list contains this node's own ID, ignoring it");
@@ -399,7 +399,7 @@ pub(crate) mod tests {
     /// The settings the driver reads at runtime reach it, not just the builder.
     #[test]
     fn test_build_passes_settings_to_driver() {
-        let static_peer: StaticPeer =
+        let static_peer: PeerAddr =
             format!("/ip4/127.0.0.1/tcp/9222/p2p/{}", PeerId::random()).parse().unwrap();
         let driver = GossipDriverBuilder::new(
             RollupConfig::default(),

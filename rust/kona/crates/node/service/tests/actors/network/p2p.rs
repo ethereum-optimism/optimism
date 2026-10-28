@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::actors::network::mocks::{TestNetworkError, builder::TestNetworkBuilder};
 use discv5::Enr;
 use enr::NodeId;
-use kona_gossip::StaticPeer;
+use kona_gossip::PeerAddr;
 use kona_rpc::OpP2PApiServer;
 
 /// Two nodes connect through discovery: the second bootstraps from the first's ENR, and its
@@ -83,7 +83,7 @@ async fn test_static_peer_connects_at_startup() -> anyhow::Result<()> {
     let mut builder = TestNetworkBuilder::new().in_memory();
     let node_1 = builder.build(vec![]).await;
 
-    let static_peer = StaticPeer::try_from(node_1.listen_addr().await?)?;
+    let static_peer = PeerAddr::try_from(node_1.listen_addr().await?)?;
     let mut builder = builder.with_static_peers(vec![static_peer]);
     let node_2 = builder.build(vec![]).await;
 
@@ -113,7 +113,7 @@ async fn test_static_peer_is_not_discoverable() -> anyhow::Result<()> {
 
     // S runs discovery too, but with no bootnodes, so it can only be found through other nodes.
     let static_node = builder.build(vec![]).await;
-    let static_peer = StaticPeer::try_from(static_node.listen_addr().await?)?;
+    let static_peer = PeerAddr::try_from(static_node.listen_addr().await?)?;
 
     let mut builder = builder.with_static_peers(vec![static_peer]);
     let node_1 = builder.build(vec![]).await;

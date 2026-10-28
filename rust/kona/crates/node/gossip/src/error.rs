@@ -123,9 +123,9 @@ pub enum DialError {
     },
 }
 
-/// Error parsing a [`StaticPeer`](crate::StaticPeer) address.
+/// Error parsing a [`PeerAddr`](crate::PeerAddr) address.
 #[derive(Debug, Error)]
-pub enum StaticPeerError {
+pub enum PeerAddrError {
     /// The address is not a multiaddr.
     #[error("Invalid multiaddr")]
     InvalidMultiaddr(#[source] libp2p::multiaddr::Error),
