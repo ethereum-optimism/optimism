@@ -8,7 +8,8 @@
 
 mod metrics;
 mod source;
-pub use source::{BlockSource, Cached, ReceiptSource};
+mod verify;
+pub use source::{BlockSource, Cached, ReceiptSource, Verifying};
 
 mod rpc_source;
 pub use rpc_source::RpcSource;
@@ -41,3 +42,6 @@ pub use pipeline::OnlinePipeline;
 
 mod runtime_config;
 pub use runtime_config::unsafe_block_signer;
+
+#[cfg(test)]
+mod test_utils;

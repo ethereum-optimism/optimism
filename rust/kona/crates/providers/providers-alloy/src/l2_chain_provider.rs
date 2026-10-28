@@ -142,10 +142,7 @@ impl<S: BlockSource<Transaction = OpTxEnvelope>> BatchValidationProvider
     type Error = AlloyL2ChainProviderError;
 
     async fn l2_block_info_by_number(&mut self, number: u64) -> Result<L2BlockInfo, Self::Error> {
-        let block = self
-            .block_by_number(number)
-            .await
-            .map_err(|_| AlloyL2ChainProviderError::BlockNotFound(number))?;
+        let block = self.block_by_number(number).await?;
         L2BlockInfo::from_block_and_genesis(&block, &self.rollup_config.genesis)
             .map_err(|_| AlloyL2ChainProviderError::L2BlockInfoConstruction(number))
     }
@@ -179,14 +176,15 @@ impl<S: BlockSource<Transaction = OpTxEnvelope>> L2ChainProvider for AlloyL2Chai
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Verifying;
 
-    fn untrusted_provider(
+    fn verifying_provider(
         inner: RootProvider<Optimism>,
         config: Arc<RollupConfig>,
         cache_size: usize,
-    ) -> AlloyL2ChainProvider<Cached<RpcSource<Optimism>>> {
+    ) -> AlloyL2ChainProvider<Cached<Verifying<RpcSource<Optimism>>>> {
         AlloyL2ChainProvider::new(
-            Cached::new(RpcSource::new_with_trust(inner, false), cache_size),
+            Cached::new(Verifying::new(RpcSource::new(inner)), cache_size),
             config,
         )
     }
@@ -288,7 +286,7 @@ mod tests {
             },
             ..Default::default()
         });
-        let mut provider = untrusted_provider(
+        let mut provider = verifying_provider(
             RootProvider::<Optimism>::new(RpcClient::new_http(server.base_url().parse().unwrap())),
             config.clone(),
             8,
@@ -299,5 +297,120 @@ mod tests {
             matches!(err, AlloyL2ChainProviderError::Transport(_)),
             "expected the hash mismatch to be rejected, got {err:?}"
         );
+    }
+    #[tokio::test]
+    async fn untrusted_block_bodies_are_verified_before_caching() {
+        use crate::test_utils::{optimism_transactions, rpc_block};
+        use alloy_consensus::{Header, proofs::calculate_transaction_root};
+        use alloy_transport::mock::Asserter;
+
+        let transactions = optimism_transactions();
+        let header = Header {
+            number: 42,
+            transactions_root: calculate_transaction_root(&transactions),
+            ..Default::default()
+        };
+        let hash = header.hash_slow();
+        let valid = rpc_block(header.clone(), &transactions);
+        let mut missing = valid.clone();
+        missing["transactions"].as_array_mut().unwrap().pop();
+        let mut reordered = valid.clone();
+        reordered["transactions"].as_array_mut().unwrap().swap(0, 1);
+        let mut forged_hash = valid.clone();
+        // PostExec's RPC decoder deliberately stores the supplied hash without recomputing it.
+        forged_hash["transactions"][5]["hash"] =
+            serde_json::to_value(B256::repeat_byte(0xab)).unwrap();
+        let mut altered = valid.clone();
+        altered["transactions"][4]["input"] = serde_json::json!("0xdeadbeef");
+
+        for by_number in [false, true] {
+            for invalid in [&missing, &reordered, &forged_hash, &altered] {
+                let asserter = Asserter::new();
+                asserter.push_success(invalid);
+                asserter.push_success(&valid);
+                let mut provider = verifying_provider(
+                    RootProvider::<Optimism>::new(RpcClient::mocked(asserter)),
+                    Arc::new(RollupConfig::default()),
+                    8,
+                );
+                let result = if by_number {
+                    provider.block_by_number(42).await
+                } else {
+                    provider.block_by_hash(hash).await
+                };
+                let error = result.unwrap_err();
+                assert!(matches!(error, AlloyL2ChainProviderError::Transport(_)), "{error:?}");
+                assert!(
+                    error.to_string().contains("root mismatch") ||
+                        error.to_string().contains("hash mismatch"),
+                    "{error:?}"
+                );
+                assert!(provider.source.blocks.is_empty());
+                // A rejected by-number response must not poison a later by-hash lookup either.
+                let accepted = if by_number {
+                    provider.block_by_number(42).await.unwrap()
+                } else {
+                    provider.block_by_hash(hash).await.unwrap()
+                };
+                assert_eq!(accepted.body.transactions, transactions);
+                assert_eq!(
+                    provider.block_by_hash(hash).await.unwrap().body.transactions,
+                    transactions
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn untrusted_number_lookup_checks_header_hash_and_number() {
+        use crate::test_utils::rpc_block;
+        use alloy_consensus::Header;
+        use alloy_transport::mock::Asserter;
+        let valid = rpc_block::<op_alloy_consensus::OpTxEnvelope>(
+            Header { number: 42, ..Default::default() },
+            &[],
+        );
+        let mut forged = valid.clone();
+        forged["hash"] = serde_json::to_value(B256::repeat_byte(0xab)).unwrap();
+        for (response, number) in [(&forged, 42), (&valid, 43)] {
+            let asserter = Asserter::new();
+            asserter.push_success(response);
+            let mut provider = verifying_provider(
+                RootProvider::<Optimism>::new(RpcClient::mocked(asserter)),
+                Arc::new(RollupConfig::default()),
+                8,
+            );
+            assert!(matches!(
+                provider.block_by_number(number).await,
+                Err(AlloyL2ChainProviderError::Transport(_))
+            ));
+            assert!(provider.source.blocks.is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn trusted_l2_bodies_keep_the_existing_behavior() {
+        use crate::test_utils::rpc_block;
+        use alloy_consensus::Header;
+        use alloy_transport::mock::Asserter;
+
+        async fn check<S: BlockSource<Transaction = OpTxEnvelope>>(source: S, expected_ok: bool) {
+            let mut provider = AlloyL2ChainProvider::new(
+                Cached::new(source, 8),
+                Arc::new(RollupConfig::default()),
+            );
+            assert_eq!(provider.block_by_number(0).await.is_ok(), expected_ok);
+        }
+
+        for transactions_root in [alloy_consensus::EMPTY_ROOT_HASH, B256::repeat_byte(1)] {
+            let response =
+                rpc_block::<OpTxEnvelope>(Header { transactions_root, ..Default::default() }, &[]);
+            let asserter = Asserter::new();
+            asserter.push_success(&response);
+            asserter.push_success(&response);
+            let rpc = RpcSource::new(RootProvider::<Optimism>::new(RpcClient::mocked(asserter)));
+            check(rpc.clone(), true).await;
+            check(Verifying::new(rpc), transactions_root == alloy_consensus::EMPTY_ROOT_HASH).await;
+        }
     }
 }

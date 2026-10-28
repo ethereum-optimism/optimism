@@ -31,13 +31,11 @@ pub enum SourceError {
     /// An empty raw receipt response was returned for a block that contains transactions.
     #[error(
         "debug_getRawReceipts returned no receipts for non-empty L1 block {hash} \
-         (transaction count: {transaction_count}, transactions root: {transactions_root})"
+         (transactions root: {transactions_root})"
     )]
     EmptyRawReceiptsForNonEmptyBlock {
         /// The requested L1 block hash.
         hash: B256,
-        /// The transaction count reported by `eth_getBlockByHash`.
-        transaction_count: usize,
         /// The transaction root in the block header.
         transactions_root: B256,
     },
