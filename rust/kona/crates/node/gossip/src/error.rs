@@ -63,6 +63,10 @@ pub enum GossipDriverBuilderError {
     /// An error when building the gossip behaviour.
     #[error("error building gossip behaviour")]
     BehaviourError(#[from] BehaviourError),
+    /// gossipsub rejected the peer scoring parameters, for example for a block time under a
+    /// second. gossipsub only gives the reason as a string.
+    #[error("invalid peer scoring parameters: {0}")]
+    InvalidPeerScoring(String),
     /// An error when setting up the sync request/response protocol.
     #[error("error setting up sync request/response protocol")]
     SetupSyncReqRespError(#[source] libp2p::swarm::InvalidProtocol),

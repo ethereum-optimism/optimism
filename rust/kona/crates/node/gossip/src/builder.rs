@@ -258,10 +258,12 @@ impl GossipDriverBuilder {
                 let params = level
                     .to_params(handler.topics(), topic_scoring, block_time)
                     .unwrap_or_default();
-                match behaviour.gossipsub.with_peer_score(params, PeerScoreLevel::thresholds()) {
-                    Ok(_) => debug!(target: "scoring", "Peer scoring enabled successfully"),
-                    Err(e) => warn!(target: "scoring", "Peer scoring failed: {}", e),
-                }
+                // op-node doesn't start with invalid parameters either.
+                behaviour
+                    .gossipsub
+                    .with_peer_score(params, PeerScoreLevel::thresholds())
+                    .map_err(GossipDriverBuilderError::InvalidPeerScoring)?;
+                debug!(target: "scoring", "Peer scoring enabled successfully");
             }
         }
 
@@ -369,7 +371,8 @@ pub(crate) mod tests {
         keypair: Keypair,
         addr: Multiaddr,
     ) -> GossipDriverBuilder {
-        // Peer scoring divides by the block time, so it can't be the default 0.
+        // Peer scoring decays scores once a block, and gossipsub rejects a decay interval under a
+        // second, so a driver with peer scoring can't be built with the default block time of 0.
         let rollup_config = RollupConfig { block_time: 2, ..Default::default() };
         GossipDriverBuilder::new(rollup_config, Address::ZERO, addr, keypair)
             .with_transport(memory_transport())
@@ -418,6 +421,23 @@ pub(crate) mod tests {
             driver.static_peers,
             HashMap::from([(static_peer.peer_id(), vec![static_peer.addr().clone()])])
         );
+    }
+
+    /// Peer scoring parameters that gossipsub rejects fail the build, rather than leave the node
+    /// running without scoring.
+    #[test]
+    fn test_build_rejects_invalid_peer_scoring() {
+        // A block time of 0 makes the scores decay every 0 s.
+        let err = GossipDriverBuilder::new(
+            RollupConfig::default(),
+            Address::ZERO,
+            Multiaddr::empty().with(Protocol::Memory(0)),
+            Keypair::generate_secp256k1(),
+        )
+        .with_peer_scoring(PeerScoreLevel::Light)
+        .build()
+        .unwrap_err();
+        assert!(matches!(err, GossipDriverBuilderError::InvalidPeerScoring(_)), "{err:?}");
     }
 
     /// The node's own ID is dropped from the static peers, and the others are protected from the
