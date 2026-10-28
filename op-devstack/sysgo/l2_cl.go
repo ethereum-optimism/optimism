@@ -14,9 +14,11 @@ type L2CLNode interface {
 }
 
 type L2CLConfig struct {
-	// SyncMode to run, if this is a sequencer
+	// SyncMode for op-node, if this is a sequencer. Kona accepts the recognized
+	// modes as compatibility inputs and uses its native adaptive EL sync behavior.
 	SequencerSyncMode nodeSync.Mode
-	// SyncMode to run, if this is a verifier
+	// SyncMode for op-node, if this is a verifier. As above, this does not select
+	// a native sync mode in Kona.
 	VerifierSyncMode nodeSync.Mode
 
 	// SafeDBPath is the path to the safe DB to use. Disabled if empty.
