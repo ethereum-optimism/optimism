@@ -2,8 +2,13 @@ use std::time::Duration;
 
 use crate::actors::{
     generator::{block_builder::PayloadVersion, seed::SEED_GENERATOR_BUILDER},
-    network::mocks::builder::TestNetworkBuilder,
+    network::mocks::{
+        TestNetworkError,
+        builder::{TestNetworkBuilder, signer_address},
+    },
 };
+use kona_gossip::StaticPeer;
+use libp2p::identity::Keypair;
 
 /// Test that we can properly gossip blocks to the sequencer.
 #[tokio::test(flavor = "multi_thread")]
@@ -105,6 +110,58 @@ async fn test_sequencer_network_propagation() -> anyhow::Result<()> {
             .ok_or_else(|| anyhow::anyhow!("No block received"))?;
 
         assert_eq!(block, envelope);
+    }
+
+    Ok(())
+}
+
+/// A hub relays blocks between spokes that only know the hub: each spoke's only static peer is the
+/// hub, the hub lists none, and nobody has bootnodes, so discovery finds nobody. The spokes never
+/// connect to each other, so a block from one can only reach the other through the hub.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_hub_relays_blocks_between_spokes() -> anyhow::Result<()> {
+    // Every node accepts and relays only the sequencer's blocks: spoke A will sign with this key.
+    let sequencer_keypair = Keypair::generate_secp256k1();
+    let mut builder = TestNetworkBuilder::new()
+        .in_memory()
+        .with_unsafe_block_signer(signer_address(&sequencer_keypair));
+
+    // The hub lists no static peers, and gets a random key.
+    let hub = builder.build(vec![]).await;
+    let hub_peer = StaticPeer::try_from(hub.listen_addr().await?)?;
+
+    // Static peers and the keypair only apply to the next node built, so they are set per spoke.
+    let builder = builder.with_static_peers(vec![hub_peer.clone()]);
+    let mut builder = builder.with_custom_keypair(sequencer_keypair);
+    let spoke_a = builder.build(vec![]).await;
+
+    // Spoke B gets a random key.
+    let mut builder = builder.with_static_peers(vec![hub_peer]);
+    let mut spoke_b = builder.build(vec![]).await;
+
+    // Publish only once the block can travel the whole way, from A to the hub and on to B.
+    spoke_a.gossips_blocks_with_retries(&hub).await?;
+    hub.gossips_blocks_with_retries(&spoke_b).await?;
+
+    let envelope =
+        SEED_GENERATOR_BUILDER.next_generator().random_valid_payload(PayloadVersion::V1)?;
+    spoke_a.gossip_payload_tx.send(envelope.clone()).await?;
+
+    let block = tokio::time::timeout(Duration::from_secs(10), spoke_b.blocks_rx.recv())
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("No block received"))?;
+    assert_eq!(block, envelope);
+
+    // The spokes are only connected to the hub, and discovery found nobody.
+    for (spoke, other) in [(&spoke_a, &spoke_b), (&spoke_b, &spoke_a)] {
+        assert!(matches!(
+            spoke.is_connected_to(other).await,
+            Err(TestNetworkError::PeerNotConnected)
+        ));
+        assert_eq!(spoke.peers().await?.peers.len(), 1);
+    }
+    for node in [&hub, &spoke_a, &spoke_b] {
+        assert!(node.discovery_table().await?.is_empty());
     }
 
     Ok(())
