@@ -68,6 +68,30 @@ class RpcProxyTests(unittest.TestCase):
                          [b'original capacity denial',b'original unavailable',response])
         self.assertEqual([json.loads((self.directory/f'request-0-attempt-{i}.metadata.json').read_bytes())['http_status'] for i in range(1,4)],[429,503,200])
 
+    def test_truncated_upstream_frame_is_retried_and_retained(self):
+        # A provider closed a chunked response mid-frame; http.client raised
+        # IncompleteRead, which escaped the handler and dropped forge's request.
+        response=b'{"jsonrpc":"2.0","id":2,"result":"0xa"}'
+        observed=[]
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version='HTTP/1.1'
+            def do_POST(self):
+                self.rfile.read(int(self.headers['Content-Length']));observed.append(True)
+                if len(observed)==1:
+                    self.wfile.write(b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n');self.close_connection=True;return
+                self.send_response(200);self.send_header('Content-Length',str(len(response)));self.end_headers();self.wfile.write(response)
+            def log_message(self,*_):pass
+        server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        worker=threading.Thread(target=server.serve_forever,daemon=True);worker.start()
+        self.addCleanup(server.server_close);self.addCleanup(worker.join,5);self.addCleanup(server.shutdown)
+        upstream='http://127.0.0.1:'+str(server.server_port)+'/'
+        with P.serve(self.directory,upstream,wait=lambda _:None,clock=lambda:0) as endpoint:
+            self.assertEqual(self.request(endpoint,b'{"jsonrpc":"2.0","id":2,"method":"eth_getBlockByNumber","params":["0x1",false]}'),(200,response))
+        self.assertEqual(len(observed),2)
+        first=json.loads((self.directory/'request-0-attempt-1.metadata.json').read_bytes())
+        self.assertEqual((first['http_status'],first['error']),(None,'IncompleteRead'))
+        self.assertEqual((self.directory/'request-0-attempt-2.json').read_bytes(),response)
+
     def test_authenticated_502_keeps_wire_frames_and_redacts_before_sealing(self):
         secret=b'short-secret'
         body=b'{"jsonrpc":"2.0","id":19,"method":"eth_call","params":["short-secret"]}'

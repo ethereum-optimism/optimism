@@ -2,6 +2,7 @@
 """Pace fork RPC transport and retain every attempt, redacting private inputs."""
 from contextlib import contextmanager
 import hashlib
+import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -53,7 +54,9 @@ class Transport:
                 except urllib.error.HTTPError as failure:
                     try: status, raw, error = failure.code, failure.read(), 'HTTP ' + str(failure.code)
                     finally: failure.close()
-                except OSError as failure: error = type(failure).__name__
+                # A truncated or malformed upstream frame raises HTTPException,
+                # which is not an OSError; retry it like any other transport loss.
+                except (OSError, http.client.HTTPException) as failure: error = type(failure).__name__
                 response_path = self.directory / ('request-' + str(number) + '-attempt-' + str(attempt) + '.json')
                 # The client receives the original frame. Evidence is redacted
                 # before hashing: authenticated providers may echo credentials.
