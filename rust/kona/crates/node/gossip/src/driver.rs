@@ -257,20 +257,22 @@ where
         self.sync_protocol_handler();
 
         match self.swarm.listen_on(self.addr.clone()) {
-            Ok(id) => loop {
+            Ok(id) => {
                 self.listener_id = Some(id);
-                if let SwarmEvent::NewListenAddr { address, listener_id } =
-                    self.swarm.select_next_some().await &&
-                    id == listener_id
-                {
-                    info!(target: "gossip", peer_id = %self.local_peer_id(), "Swarm now listening on: {address}");
+                loop {
+                    if let SwarmEvent::NewListenAddr { address, listener_id } =
+                        self.swarm.select_next_some().await &&
+                        id == listener_id
+                    {
+                        info!(target: "gossip", peer_id = %self.local_peer_id(), "Swarm now listening on: {address}");
 
-                    self.addr = address.clone();
-                    self.dial_static_peers();
+                        self.addr = address.clone();
+                        self.dial_static_peers();
 
-                    return Ok(address);
+                        return Ok(address);
+                    }
                 }
-            },
+            }
             Err(err) => {
                 error!(target: "gossip", "Fail to listen on {}: {err}", self.addr);
                 Err(err)
