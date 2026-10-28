@@ -57,7 +57,10 @@ impl Cli {
     /// entries, see [`ignore_empty_list_envs`].
     pub fn parse_args() -> Self {
         let matches = ignore_empty_list_envs(Self::command()).get_matches();
-        Self::from_arg_matches(&matches).unwrap_or_else(|e| e.exit())
+        // Formatted with the command, as `Parser::parse` does, for the usage and styling.
+        Self::from_arg_matches(&matches)
+            .map_err(|e| e.format(&mut Self::command()))
+            .unwrap_or_else(|e| e.exit())
     }
 
     /// Runs the CLI.
