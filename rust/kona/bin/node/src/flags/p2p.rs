@@ -103,7 +103,8 @@ fn parse_static_peer(addr: &str) -> Result<PeerAddr, String> {
 /// P2P CLI Flags
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 pub struct P2PArgs {
-    /// Disable Discv5 (node discovery).
+    /// Disable Discv5 (node discovery). The node then binds no UDP port, ignores its bootnodes,
+    /// and connects only to its static peers and the peers that dial it.
     #[arg(long = "p2p.no-discovery", default_value = "false", env = "KONA_NODE_P2P_NO_DISCOVERY")]
     pub no_discovery: bool,
     /// Read the hex-encoded 32-byte private key for the peer ID from this txt file.
@@ -325,20 +326,27 @@ impl Default for P2PArgs {
 }
 
 impl P2PArgs {
-    fn check_ports_inner(ip_addr: IpAddr, tcp_port: u16, udp_port: u16) -> Result<()> {
-        if tcp_port == 0 {
-            return Ok(());
-        }
-        if udp_port == 0 {
-            return Ok(());
-        }
-        let tcp_socket = std::net::TcpListener::bind((ip_addr, tcp_port));
-        let udp_socket = std::net::UdpSocket::bind((ip_addr, udp_port));
-        if let Err(e) = tcp_socket {
+    /// Checks if the listen ports are available on the system.
+    ///
+    /// A port of `0` is not checked, and neither is the UDP port if discovery is disabled, since
+    /// the node then doesn't bind it.
+    ///
+    /// ## Errors
+    ///
+    /// - If the TCP port is already in use.
+    /// - If the UDP port is already in use.
+    pub fn check_ports(&self) -> Result<()> {
+        let (ip, tcp_port, udp_port) = (self.listen_ip, self.listen_tcp_port, self.listen_udp_port);
+        if tcp_port != 0 &&
+            let Err(e) = std::net::TcpListener::bind((ip, tcp_port))
+        {
             tracing::error!(target: "p2p::flags", tcp_port, "Error binding TCP socket: {e}");
             anyhow::bail!("Error binding TCP socket on port {tcp_port}: {e}");
         }
-        if let Err(e) = udp_socket {
+        if !self.no_discovery &&
+            udp_port != 0 &&
+            let Err(e) = std::net::UdpSocket::bind((ip, udp_port))
+        {
             tracing::error!(target: "p2p::flags", udp_port, "Error binding UDP socket: {e}");
             anyhow::bail!("Error binding UDP socket on port {udp_port}: {e}");
         }
@@ -346,16 +354,21 @@ impl P2PArgs {
         Ok(())
     }
 
-    /// Checks if the listen ports are available on the system.
-    ///
-    /// If either of the ports are `0`, this check is skipped.
-    ///
-    /// ## Errors
-    ///
-    /// - If the TCP port is already in use.
-    /// - If the UDP port is already in use.
-    pub fn check_ports(&self) -> Result<()> {
-        Self::check_ports_inner(self.listen_ip, self.listen_tcp_port, self.listen_udp_port)
+    /// Returns what an operator should know about how the node can find peers with these flags.
+    fn peering_warnings(&self) -> Vec<&'static str> {
+        let mut warnings = Vec::new();
+        if self.no_discovery {
+            if self.static_peers.is_empty() {
+                warnings.push(
+                    "Discovery is disabled and no static peers are set: the node only connects \
+                     to peers that dial it, or that are added with opp2p_connectPeer",
+                );
+            }
+            if !self.bootnodes.is_empty() {
+                warnings.push("Discovery is disabled, so the bootnodes are ignored");
+            }
+        }
+        warnings
     }
 
     /// Returns the private key as specified in the raw cli flag or via file path.
@@ -426,6 +439,10 @@ impl P2PArgs {
         args: &GlobalArgs,
         l1_rpc: Option<Url>,
     ) -> anyhow::Result<NetworkConfig> {
+        for warning in self.peering_warnings() {
+            tracing::warn!(target: "p2p::flags", "{warning}");
+        }
+
         // Note: the advertised address is contained in the ENR for external peers from the
         // discovery layer to use.
 
@@ -496,7 +513,7 @@ impl P2PArgs {
             discovery_interval: Duration::from_secs(self.discovery_interval),
             discovery_address,
             discovery_randomize: self.discovery_randomize.map(Duration::from_secs),
-            discovery_enabled: true,
+            discovery_enabled: !self.no_discovery,
             enr_update: !static_ip,
             gossip_address,
             keypair,
@@ -615,6 +632,63 @@ mod tests {
     fn test_p2p_args_no_discovery() {
         let args = MockCommand::parse_from(["test", "--p2p.no-discovery"]);
         assert!(args.p2p.no_discovery);
+    }
+
+    /// The TCP port is always checked, and the UDP port only if discovery binds it.
+    #[test]
+    fn test_check_ports_skips_udp_without_discovery() {
+        let ip = std::net::Ipv4Addr::LOCALHOST;
+        let port = |addr: std::io::Result<SocketAddr>| addr.unwrap().port().to_string();
+        let udp = std::net::UdpSocket::bind((ip, 0)).unwrap();
+        let tcp = std::net::TcpListener::bind((ip, 0)).unwrap();
+        let (taken_udp, taken_tcp) = (port(udp.local_addr()), port(tcp.local_addr()));
+        let free_tcp = port(std::net::TcpListener::bind((ip, 0)).unwrap().local_addr());
+        let check = |tcp_port: &str, no_discovery: bool| {
+            let mut args = vec!["test", "--p2p.listen.ip", "127.0.0.1"];
+            args.extend(["--p2p.listen.tcp", tcp_port, "--p2p.listen.udp", &taken_udp]);
+            if no_discovery {
+                args.push("--p2p.no-discovery");
+            }
+            MockCommand::parse_from(args).p2p.check_ports()
+        };
+
+        assert!(check(&free_tcp, false).is_err());
+        assert!(check(&free_tcp, true).is_ok());
+        assert!(check(&taken_tcp, true).is_err());
+        // A TCP port of 0 no longer skips the UDP check.
+        assert!(check("0", false).is_err());
+    }
+
+    /// Without discovery, the node warns if nothing gives it peers, and that bootnodes go unused.
+    #[test]
+    fn test_peering_warnings() {
+        let static_peer = format!("/ip4/10.0.0.1/tcp/9222/p2p/{}", PeerId::random());
+        let warnings = |args: &[&str]| {
+            let args = MockCommand::parse_from(std::iter::once("test").chain(args.iter().copied()));
+            args.p2p.peering_warnings()
+        };
+
+        assert!(warnings(&[]).is_empty());
+        assert!(warnings(&["--p2p.bootnodes", ENODE_1]).is_empty());
+        assert!(warnings(&["--p2p.no-discovery", "--p2p.static-peers", &static_peer]).is_empty());
+
+        let no_peers = warnings(&["--p2p.no-discovery"]);
+        assert!(
+            matches!(no_peers.as_slice(), [w] if w.contains("no static peers")),
+            "{no_peers:?}"
+        );
+
+        let bootnodes = warnings(&[
+            "--p2p.no-discovery",
+            "--p2p.static-peers",
+            &static_peer,
+            "--p2p.bootnodes",
+            ENODE_1,
+        ]);
+        assert!(
+            matches!(bootnodes.as_slice(), [w] if w.contains("bootnodes are ignored")),
+            "{bootnodes:?}"
+        );
     }
 
     #[test]
