@@ -32,7 +32,7 @@ use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, BlockSource, BufferedAlloyL2ChainProvider, Cached,
-    OnlineBeaconClient, OnlineBlobProvider, OnlinePipeline, ReceiptSource, RpcSource,
+    OnlineBeaconClient, OnlineBlobProvider, OnlinePipeline, ReceiptSource, RpcSource, Verifying,
 };
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
@@ -612,12 +612,14 @@ impl RollupNode {
     /// next `select!`. Actors may log channel-closed errors while peers are torn down
     /// concurrently; this is expected and not a sign of an unclean exit.
     pub async fn start(&self) -> Result<(), String> {
-        let l1 = RpcSource::new_with_trust(
-            self.l1_config.engine_provider.clone(),
-            self.l1_config.trust_rpc,
-        );
-        let l2 = RpcSource::new_with_trust(self.l2_provider.clone(), self.l2_trust_rpc);
-        self.start_with_sources(l1, l2).await
+        let l1 = RpcSource::new(self.l1_config.engine_provider.clone());
+        let l2 = RpcSource::new(self.l2_provider.clone());
+        match (self.l1_config.trust_rpc, self.l2_trust_rpc) {
+            (true, true) => self.start_with_sources(l1, l2).await,
+            (true, false) => self.start_with_sources(l1, Verifying::new(l2)).await,
+            (false, true) => self.start_with_sources(Verifying::new(l1), l2).await,
+            (false, false) => self.start_with_sources(Verifying::new(l1), Verifying::new(l2)).await,
+        }
     }
 
     /// Starts actors after the RPC source types have been selected.

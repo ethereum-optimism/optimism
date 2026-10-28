@@ -1,11 +1,12 @@
-//! Consensus-data sources composed as fetching and caching layers.
+//! Consensus-data sources composed as fetching, verification, and caching layers.
 
 #[cfg(feature = "metrics")]
 use crate::Metrics;
-use crate::SourceError;
+use crate::{SourceError, verify};
 use alloy_consensus::{Block, Header, ReceiptEnvelope, transaction::TxHashRef};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::B256;
+use alloy_transport::RpcError;
 use async_trait::async_trait;
 use lru::LruCache;
 use std::{fmt::Debug, num::NonZeroUsize, sync::Arc};
@@ -46,6 +47,78 @@ pub trait BlockSource: Clone + Debug + Send + Sync {
 pub trait ReceiptSource: BlockSource {
     /// Fetches the block's receipts in transaction order.
     async fn receipts_by_hash(&mut self, hash: B256) -> Result<Vec<ReceiptEnvelope>, SourceError>;
+}
+
+/// Authenticates each response against its requested identifier and consensus roots.
+#[derive(Debug, Clone)]
+pub struct Verifying<S> {
+    pub(crate) inner: S,
+}
+
+impl<S> Verifying<S> {
+    /// Wraps a source. Every applicable response is verified unconditionally.
+    pub const fn new(inner: S) -> Self {
+        Self { inner }
+    }
+}
+
+#[async_trait]
+impl<S: BlockSource> BlockSource for Verifying<S> {
+    type Transaction = S::Transaction;
+
+    async fn header_by_hash(&mut self, hash: B256) -> Result<Header, SourceError> {
+        let header = self.inner.header_by_hash(hash).await?;
+        verify::header_hash(&header, hash).map_err(RpcError::local_usage)?;
+        Ok(header)
+    }
+
+    async fn header_by_number(&mut self, number: u64) -> Result<(B256, Header), SourceError> {
+        let (hash, header) = self.inner.header_by_number(number).await?;
+        verify::header_hash(&header, hash).map_err(RpcError::local_usage)?;
+        verify::block_number(&header, number).map_err(RpcError::local_usage)?;
+        Ok((hash, header))
+    }
+
+    async fn block_by_hash(
+        &mut self,
+        hash: B256,
+    ) -> Result<Arc<Block<Self::Transaction>>, SourceError> {
+        let block = self.inner.block_by_hash(hash).await?;
+        verify::header_hash(&block.header, hash).map_err(RpcError::local_usage)?;
+        verify::transactions(&block.header, &block.body.transactions)
+            .map_err(RpcError::local_usage)?;
+        Ok(block)
+    }
+
+    async fn block_by_number(
+        &mut self,
+        number: u64,
+    ) -> Result<(B256, Arc<Block<Self::Transaction>>), SourceError> {
+        let (hash, block) = self.inner.block_by_number(number).await?;
+        verify::block_number(&block.header, number).map_err(RpcError::local_usage)?;
+        verify::header_hash(&block.header, hash).map_err(RpcError::local_usage)?;
+        verify::transactions(&block.header, &block.body.transactions)
+            .map_err(RpcError::local_usage)?;
+        Ok((hash, block))
+    }
+
+    async fn chain_id(&mut self) -> Result<u64, SourceError> {
+        self.inner.chain_id().await
+    }
+
+    async fn latest_block_number(&mut self) -> Result<u64, SourceError> {
+        self.inner.latest_block_number().await
+    }
+}
+
+#[async_trait]
+impl<S: ReceiptSource> ReceiptSource for Verifying<S> {
+    async fn receipts_by_hash(&mut self, hash: B256) -> Result<Vec<ReceiptEnvelope>, SourceError> {
+        let receipts = self.inner.receipts_by_hash(hash).await?;
+        let header = self.header_by_hash(hash).await?;
+        verify::receipts(&header, &receipts).map_err(RpcError::local_usage)?;
+        Ok(receipts)
+    }
 }
 
 /// Hash-keyed caches over an already selected source.

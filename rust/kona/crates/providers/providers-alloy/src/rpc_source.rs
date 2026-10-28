@@ -13,35 +13,18 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-/// Fetches consensus data with the existing optional hash-lookup header checks.
+/// Fetches consensus data without authenticating the RPC's claims.
 #[derive(Debug, Clone)]
 pub struct RpcSource<N: Network = Ethereum> {
     inner: RootProvider<N>,
-    trust_rpc: bool,
     // Shared across clones; only Ethereum's ReceiptSource implementation uses this capability.
     pub(crate) raw_receipts_supported: Arc<AtomicBool>,
 }
 
 impl<N: Network> RpcSource<N> {
-    /// Wraps a trusted Alloy RPC client.
+    /// Wraps an Alloy RPC client. No trust decision is made here.
     pub fn new(inner: RootProvider<N>) -> Self {
-        Self::new_with_trust(inner, true)
-    }
-
-    /// Wraps a client, preserving the existing header checks for hash-based lookups.
-    pub fn new_with_trust(inner: RootProvider<N>, trust_rpc: bool) -> Self {
-        Self { inner, trust_rpc, raw_receipts_supported: Arc::new(AtomicBool::new(true)) }
-    }
-
-    fn check_header_hash(&self, header: &Header, expected: B256) -> Result<(), SourceError> {
-        if !self.trust_rpc && header.hash_slow() != expected {
-            return Err(alloy_transport::RpcError::local_usage_str(&format!(
-                "Header hash mismatch: expected {expected:?}, got {:?}",
-                header.hash_slow()
-            ))
-            .into());
-        }
-        Ok(())
+        Self { inner, raw_receipts_supported: Arc::new(AtomicBool::new(true)) }
     }
 }
 
@@ -69,9 +52,7 @@ where
                 Metrics::rpc_error::<N>("header_by_hash", Some("l2_block_by_hash"));
             })?
             .ok_or(SourceError::BlockNotFound(hash.into()))?;
-        let header = block.header.into_consensus();
-        self.check_header_hash(&header, hash)?;
-        Ok(header)
+        Ok(block.header.into_consensus())
     }
 
     async fn header_by_number(&mut self, number: u64) -> Result<(B256, Header), SourceError> {
@@ -105,9 +86,7 @@ where
                 Metrics::rpc_error::<N>("block_by_hash", Some("l2_block_by_hash"));
             })?
             .ok_or(SourceError::BlockNotFound(hash.into()))?;
-        let block = block.into_consensus().map_transactions(|tx| tx.as_ref().clone());
-        self.check_header_hash(&block.header, hash)?;
-        Ok(Arc::new(block))
+        Ok(Arc::new(block.into_consensus().map_transactions(|tx| tx.as_ref().clone())))
     }
 
     async fn block_by_number(
@@ -147,7 +126,7 @@ where
 impl RpcSource<Ethereum> {
     /// Fetches raw consensus-encoded receipts and decodes their EIP-2718 envelopes.
     pub(crate) async fn raw_receipts_by_hash(
-        &self,
+        &mut self,
         hash: B256,
     ) -> Result<Vec<ReceiptEnvelope>, SourceError> {
         let raw_receipts: Option<Vec<Bytes>> =
@@ -172,19 +151,11 @@ impl RpcSource<Ethereum> {
     }
 
     /// Verifies that an empty raw receipt response belongs to an existing empty block.
-    async fn check_empty_raw_receipts(&self, hash: B256) -> Result<(), SourceError> {
-        let block = self
-            .inner
-            .get_block_by_hash(hash)
-            .await?
-            .ok_or(SourceError::BlockNotFound(hash.into()))?;
-        let transaction_count = block.transactions.len();
-        let header = block.header.into_consensus();
-        self.check_header_hash(&header, hash)?;
-        if transaction_count != 0 || !header.transaction_root_is_empty() {
+    async fn check_empty_raw_receipts(&mut self, hash: B256) -> Result<(), SourceError> {
+        let header = self.header_by_hash(hash).await?;
+        if !header.transaction_root_is_empty() {
             return Err(SourceError::EmptyRawReceiptsForNonEmptyBlock {
                 hash,
-                transaction_count,
                 transactions_root: header.transactions_root,
             });
         }
@@ -321,6 +292,7 @@ impl ReceiptSource for RpcSource<Ethereum> {
                     );
                     Err(error)
                 }
+                Err(error @ SourceError::EmptyRawReceiptsForNonEmptyBlock { .. }) => Err(error),
                 Err(raw_error) => self.fallback_receipts_by_hash(hash, raw_error).await,
             }
         } else {
