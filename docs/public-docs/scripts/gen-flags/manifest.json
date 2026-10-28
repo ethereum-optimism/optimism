@@ -12,7 +12,7 @@
     "tag": "op-conductor/v0.9.4"
   },
   "op-node": {
-    "sha256": "0e82f12b9b28e329349bbf7daeb06a8d073c2b6345ae9e5e0531ac710b9f0fa1",
+    "sha256": "15f60cc71942ba2f8685ccda2492a408cdcca3c814ee7c9128468412447018d0",
     "tag": "op-node/v1.19.3"
   },
   "op-proposer": {

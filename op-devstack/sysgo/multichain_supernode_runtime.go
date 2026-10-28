@@ -929,15 +929,14 @@ func startTestSequencerForL2Chains(
 		}
 		ensemble.Sequencers[seqID] = &workconfig.SequencerEntry{
 			Full: &fullseq.Config{
-				ChainID:             target.chainID,
-				Builder:             bid,
-				Signer:              sid,
-				Committer:           cid,
-				Publisher:           pid,
-				SequencerConfDepth:  2,
-				SequencerEnabled:    true,
-				SequencerStopped:    false,
-				SequencerMaxSafeLag: 0,
+				ChainID:            target.chainID,
+				Builder:            bid,
+				Signer:             sid,
+				Committer:          cid,
+				Publisher:          pid,
+				SequencerConfDepth: 2,
+				SequencerEnabled:   true,
+				SequencerStopped:   false,
 			},
 		}
 

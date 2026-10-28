@@ -760,15 +760,14 @@ func startTestSequencerForRPCs(
 	}
 	ensemble.Sequencers[seqIDL2] = &workconfig.SequencerEntry{
 		Full: &fullseq.Config{
-			ChainID:             l2ChainID,
-			Builder:             bidL2,
-			Signer:              sidL2,
-			Committer:           cidL2,
-			Publisher:           pidL2,
-			SequencerConfDepth:  2,
-			SequencerEnabled:    true,
-			SequencerStopped:    false,
-			SequencerMaxSafeLag: 0,
+			ChainID:            l2ChainID,
+			Builder:            bidL2,
+			Signer:             sidL2,
+			Committer:          cidL2,
+			Publisher:          pidL2,
+			SequencerConfDepth: 2,
+			SequencerEnabled:   true,
+			SequencerStopped:   false,
 		},
 	}
 
