@@ -3254,7 +3254,7 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_T
     function testFuzz_depositTransaction_hookReverts_reverts(bytes memory _revertData) external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         forceSetBridgeHook(hook);
-        vm.mockCallRevert(hook, abi.encodeWithSelector(IBridgeHook.screenDeposit.selector), _revertData);
+        vm.mockCallRevert(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), _revertData);
 
         vm.expectRevert(_revertData);
         vm.prank(depositor, depositor);
@@ -3289,7 +3289,7 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_T
     function test_depositTransaction_identicalDeposits_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         forceSetBridgeHook(hook);
-        vm.mockCall(hook, abi.encodeWithSelector(IBridgeHook.screenDeposit.selector), abi.encode(false));
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(false));
 
         vm.startPrank(depositor, depositor);
         optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
@@ -3318,7 +3318,7 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_T
     function test_depositTransaction_l1paoBypassesHook_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         forceSetBridgeHook(hook);
-        vm.expectCall(hook, abi.encodeWithSelector(IBridgeHook.screenDeposit.selector), 0);
+        vm.expectCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), 0);
 
         vm.expectEmit(address(optimismPortal2));
         emitTransactionDeposited(proxyAdminOwner, bob, 0, 0, 100_000, false, hex"aa");
@@ -3336,8 +3336,8 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_T
     function test_depositTransaction_l1paoThroughMessenger_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         forceSetBridgeHook(hook);
-        vm.mockCall(hook, abi.encodeWithSelector(IBridgeHook.screenDeposit.selector), abi.encode(true));
-        vm.expectCall(hook, abi.encodeWithSelector(IBridgeHook.screenDeposit.selector), 1);
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(true));
+        vm.expectCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), 1);
 
         vm.prank(proxyAdminOwner, proxyAdminOwner);
         l1CrossDomainMessenger.sendMessage(bob, hex"aa", 100_000);
@@ -3347,7 +3347,7 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_T
     function test_depositTransaction_countResetsPerBlock_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         forceSetBridgeHook(hook);
-        vm.mockCall(hook, abi.encodeWithSelector(IBridgeHook.screenDeposit.selector), abi.encode(true));
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(true));
 
         vm.startPrank(depositor, depositor);
         optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
@@ -3364,7 +3364,7 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_T
     function testFuzz_depositTransaction_overPublishedLimit_reverts(uint64 _published) external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         forceSetBridgeHook(hook);
-        vm.mockCall(hook, abi.encodeWithSelector(IBridgeHook.screenDeposit.selector), abi.encode(true));
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(true));
         uint64 max = systemConfig.resourceConfig().maxResourceLimit;
         _published = uint64(bound(_published, max - 100_000 + 1, max));
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "publishedGas");
@@ -3379,7 +3379,7 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_T
     function test_depositTransaction_countAfterRemoval_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         forceSetBridgeHook(hook);
-        vm.mockCall(hook, abi.encodeWithSelector(IBridgeHook.screenDeposit.selector), abi.encode(true));
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(true));
         vm.prank(depositor, depositor);
         optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
         vm.prank(proxyAdminOwner);
@@ -3400,7 +3400,7 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_T
 
     /// @notice Tests that without a hook a deposit never reads the L1PAO and writes only the meter.
     function test_depositTransaction_noHook_succeeds() external {
-        vm.expectCall(address(proxyAdmin), abi.encodeWithSignature("owner()"), 0);
+        vm.expectCall(address(proxyAdmin), abi.encodeCall(proxyAdmin.owner, ()), 0);
 
         vm.startStateDiffRecording();
         vm.prank(depositor, depositor);
@@ -3618,7 +3618,7 @@ contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_Reen
         // A bridge hook is not supported alongside a custom gas token.
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         forceSetBridgeHook(hook);
-        vm.mockCall(hook, abi.encodeWithSelector(IBridgeHook.screenDeposit.selector), abi.encode(false));
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(false));
     }
 
     /// @notice Tests that a completed deposit is locked and emitted exactly as if it had passed.
@@ -3833,9 +3833,7 @@ contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_Reen
             data: data,
             nonce: 0
         });
-        vm.mockCallRevert(
-            address(l1StandardBridge), abi.encodeWithSelector(IL1StandardBridge.restoreERC20.selector), ""
-        );
+        vm.mockCallRevert(address(l1StandardBridge), abi.encodePacked(IL1StandardBridge.restoreERC20.selector), "");
 
         vm.prank(hook);
         vm.expectRevert(bytes(""));
