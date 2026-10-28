@@ -1,7 +1,7 @@
 //! Block Handler
 
 use crate::{
-    HandlerEncodeError,
+    HandlerEncodeError, UnsafeBlockSigner,
     config::snappy_decompressed_len_within_bound,
     payload::{GossipPayloadVersion, SignedGossipPayload},
 };
@@ -32,7 +32,9 @@ pub struct BlockHandler {
     /// The rollup config used to validate the block.
     pub rollup_config: RollupConfig,
     /// A [`Receiver`] to monitor changes to the unsafe block signer.
-    pub signer_recv: Receiver<Address>,
+    pub(crate) signer_recv: Receiver<Address>,
+    /// Verifies signatures and owns the grace period for the previous unsafe block signer.
+    pub(crate) signer: UnsafeBlockSigner,
     /// The libp2p topic for pre Canyon/Shangai blocks.
     pub blocks_v1_topic: IdentTopic,
     /// The libp2p topic for Canyon/Delta blocks.
@@ -124,15 +126,23 @@ impl BlockHandler {
     /// Requires the chain ID and a receiver channel for the unsafe block signer.
     pub fn new(rollup_config: RollupConfig, signer_recv: Receiver<Address>) -> Self {
         let chain_id = rollup_config.l2_chain_id.id();
+        let signer = UnsafeBlockSigner::new(*signer_recv.borrow());
         Self {
             rollup_config,
             signer_recv,
+            signer,
             blocks_v1_topic: IdentTopic::new(format!("/optimism/{chain_id}/0/blocks")),
             blocks_v2_topic: IdentTopic::new(format!("/optimism/{chain_id}/1/blocks")),
             blocks_v3_topic: IdentTopic::new(format!("/optimism/{chain_id}/2/blocks")),
             blocks_v4_topic: IdentTopic::new(format!("/optimism/{chain_id}/3/blocks")),
             seen_hashes: BTreeMap::new(),
         }
+    }
+
+    /// Applies the latest signer address without restarting grace on an unchanged value.
+    /// Watch notifications can coalesce; the handler only knows updates it has observed.
+    pub(crate) fn update_signer(&mut self) {
+        self.signer.new_signer(*self.signer_recv.borrow_and_update());
     }
 
     /// Returns the topic using the specified timestamp and optional [`RollupConfig`].
