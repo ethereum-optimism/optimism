@@ -40,6 +40,9 @@ type L2CLConfig struct {
 	// SequencerMaxSafeLag caps the gap between unsafe and safe L2 heads;
 	// the sequencer stalls block production when the gap is exceeded. 0 disables.
 	SequencerMaxSafeLag uint64
+
+	// AltDAServerURL is the DA server the node reads alt-DA inputs from. Empty disables alt-DA.
+	AltDAServerURL string
 }
 
 func L2CLSequencer() L2CLOption {

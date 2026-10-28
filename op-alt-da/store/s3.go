@@ -1,4 +1,5 @@
-package main
+// Package store provides altda.KVStore implementations backed by a local directory or an S3 bucket.
+package store
 
 import (
 	"bytes"
@@ -20,7 +21,7 @@ type S3Config struct {
 }
 
 type S3Store struct {
-	cfg    S3Config
+	bucket string
 	client *minio.Client
 }
 
@@ -32,24 +33,29 @@ func NewS3Store(cfg S3Config) (*S3Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	return NewS3StoreWithClient(client, cfg.Bucket), nil
+}
+
+// NewS3StoreWithClient returns a store that keeps inputs in bucket, reaching S3 through client.
+func NewS3StoreWithClient(client *minio.Client, bucket string) *S3Store {
 	return &S3Store{
-		cfg:    cfg,
+		bucket: bucket,
 		client: client,
-	}, nil
+	}
 }
 
 func (s *S3Store) Get(ctx context.Context, key []byte) ([]byte, error) {
-	result, err := s.client.GetObject(ctx, s.cfg.Bucket, hex.EncodeToString(key), minio.GetObjectOptions{})
+	result, err := s.client.GetObject(ctx, s.bucket, hex.EncodeToString(key), minio.GetObjectOptions{})
 	if err != nil {
-		errResponse := minio.ToErrorResponse(err)
-		if errResponse.Code == "NoSuchKey" {
-			return nil, altda.ErrNotFound
-		}
 		return nil, err
 	}
 	defer result.Close()
+	// GetObject sends no request; S3 errors such as NoSuchKey surface on the first read.
 	data, err := io.ReadAll(result)
 	if err != nil {
+		if minio.ToErrorResponse(err).Code == "NoSuchKey" {
+			return nil, altda.ErrNotFound
+		}
 		return nil, err
 	}
 
@@ -57,7 +63,7 @@ func (s *S3Store) Get(ctx context.Context, key []byte) ([]byte, error) {
 }
 
 func (s *S3Store) Put(ctx context.Context, key []byte, value []byte) error {
-	_, err := s.client.PutObject(ctx, s.cfg.Bucket, hex.EncodeToString(key), bytes.NewReader(value), int64(len(value)), minio.PutObjectOptions{})
+	_, err := s.client.PutObject(ctx, s.bucket, hex.EncodeToString(key), bytes.NewReader(value), int64(len(value)), minio.PutObjectOptions{})
 
 	return err
 }
