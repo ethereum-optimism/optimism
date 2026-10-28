@@ -107,8 +107,10 @@ If startup fails after an unclean shutdown, options include:
 *   **Stage unwind** — roll back to the last consistent stage checkpoint:
 
     ```bash
-    op-reth stage unwind to-block <BLOCK_NUMBER> --datadir=<path>
+    op-reth stage unwind --datadir=<path> --chain=<chain> to-block <BLOCK_NUMBER>
     ```
+
+    `--datadir` is an option on [`op-reth stage unwind`](/node-operators/op-reth/cli/op-reth/stage/unwind) rather than the `to-block` subcommand, so it must precede `to-block`. Always pass your node's `--chain` value as well (it defaults to `optimism`, which is OP Mainnet).
 
 *   **Full resync** — as a last resort, delete the datadir and resync from genesis or a [snapshot](https://datadirs.optimism.io/).
 
