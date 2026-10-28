@@ -7,6 +7,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
+import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Contracts
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
@@ -15,12 +16,16 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Features } from "src/libraries/Features.sol";
+import { Bytes } from "src/libraries/Bytes.sol";
+import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
 import "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 
 contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
     Vm internal vm;
@@ -267,5 +272,131 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal2_Invarian
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
 
         assertEq(address(bob).balance, bobBalanceBefore + _defaultTx.value);
+    }
+}
+
+/// @notice Bridge hook that also deposits. Tracks the gas the Portal publishes in each block.
+contract OptimismPortal2_HookDepositor is StdUtils {
+    Vm internal vm;
+    IOptimismPortal2 internal portal;
+    uint256 internal initializedSlot;
+
+    /// @notice Verdict that the next screen returns.
+    bool internal pass;
+
+    /// @notice Deposits this hook holds.
+    BridgeHookTypes.Item[] internal held;
+
+    /// @notice Gas limits of the TransactionDeposited events emitted in each block.
+    mapping(uint256 => uint256) public published;
+
+    constructor(Vm _vm, IOptimismPortal2 _portal, uint256 _initializedSlot) {
+        vm = _vm;
+        portal = _portal;
+        initializedSlot = _initializedSlot;
+    }
+
+    /// @notice Adds the gas of each TransactionDeposited event emitted by the call to this block.
+    modifier recordPublished() {
+        vm.recordLogs();
+        _;
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i; i < logs.length; i++) {
+            if (
+                logs[i].emitter == address(portal)
+                    && logs[i].topics[0] == keccak256("TransactionDeposited(address,address,uint256,bytes)")
+            ) {
+                // opaqueData packs mint (32 bytes), value (32 bytes), then the gas limit (8 bytes).
+                bytes memory opaqueData = abi.decode(logs[i].data, (bytes));
+                published[block.number] += uint64(bytes8(Bytes.slice(opaqueData, 64, 8)));
+            }
+        }
+    }
+
+    function screenDeposit(BridgeHookTypes.Item calldata) external view returns (bool) {
+        return pass;
+    }
+
+    function holdDeposit(BridgeHookTypes.Item calldata _item) external payable {
+        held.push(_item);
+    }
+
+    function deposit(uint64 _gasLimit, bool _hold) external recordPublished {
+        pass = !_hold;
+        portal.depositTransaction(address(1), 0, _boundGasLimit(_gasLimit), false, hex"");
+    }
+
+    function depositAsL1PAO(uint64 _gasLimit) external recordPublished {
+        uint64 gasLimit = _boundGasLimit(_gasLimit);
+        vm.prank(portal.proxyAdminOwner());
+        portal.depositTransaction(address(1), 0, gasLimit, false, hex"");
+    }
+
+    function complete(uint256 _index) external recordPublished {
+        if (held.length == 0) return;
+        _index = bound(_index, 0, held.length - 1);
+        portal.completeDepositTransaction(held[_index]);
+        held[_index] = held[held.length - 1];
+        held.pop();
+    }
+
+    function setHook() external {
+        // initialize only runs on a cleared initialized slot, as in an upgrade.
+        vm.store(address(portal), bytes32(initializedSlot), bytes32(0));
+        // vm.prank would apply to the first getter call in the arguments, not to initialize.
+        vm.startPrank(portal.proxyAdminOwner());
+        portal.initialize(
+            portal.systemConfig(),
+            portal.anchorStateRegistry(),
+            IETHLockbox(address(0)),
+            portal.proofMaturityDelaySeconds(),
+            IBridgeHook(address(this))
+        );
+        vm.stopPrank();
+    }
+
+    function removeHook() external {
+        vm.prank(portal.proxyAdminOwner());
+        portal.removeHook();
+    }
+
+    function roll() external {
+        vm.roll(block.number + 1);
+    }
+
+    function _boundGasLimit(uint64 _gasLimit) internal view returns (uint64) {
+        return
+            uint64(bound(_gasLimit, portal.minimumGasLimit(0), portal.systemConfig().resourceConfig().maxResourceLimit));
+    }
+}
+
+contract OptimismPortal2_PublishedGas_Invariant is CommonTest {
+    OptimismPortal2_HookDepositor internal actor;
+
+    function setUp() public override {
+        super.setUp();
+        actor = new OptimismPortal2_HookDepositor(
+            vm, optimismPortal2, ForgeArtifacts.getSlot("OptimismPortal2", "_initialized").slot
+        );
+
+        targetContract(address(actor));
+
+        bytes4[] memory selectors = new bytes4[](6);
+        selectors[0] = actor.deposit.selector;
+        selectors[1] = actor.depositAsL1PAO.selector;
+        selectors[2] = actor.complete.selector;
+        selectors[3] = actor.setHook.selector;
+        selectors[4] = actor.removeHook.selector;
+        selectors[5] = actor.roll.selector;
+        targetSelector(FuzzSelector({ addr: address(actor), selectors: selectors }));
+    }
+
+    /// @custom:invariant A block never publishes more deposit gas than `maxResourceLimit`.
+    ///
+    ///                   Calls mix deposits, holds, completions, L1PAO deposits and hook changes.
+    ///                   Checks only the current block. Its total grows only while it is current,
+    ///                   and this check runs after every call.
+    function invariant_publishedGas_neverAboveLimit() external view {
+        assertLe(actor.published(block.number), systemConfig.resourceConfig().maxResourceLimit);
     }
 }
