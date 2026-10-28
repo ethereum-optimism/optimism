@@ -34,8 +34,8 @@ pub struct OracleInteropProvider<C> {
     oracle: Arc<C>,
     /// The [`BootInfo`] for the current program execution.
     boot: BootInfo,
-    /// The local safe head of each chain. A head can be an optimistic block that consolidation
-    /// replaces, so the provider reads its header, receipts and transactions, never its state.
+    /// The local safe head of each chain. No node serves the state of a head that consolidation
+    /// replaces, so the provider reads a head's header, receipts and transactions, not its state.
     local_safe_heads: HashMap<u64, Sealed<Header>>,
     /// Canonical headers and hashes, keyed by chain ID and block number.
     headers_by_number: Mutex<BTreeMap<(u64, u64), (B256, Header)>>,
@@ -212,9 +212,8 @@ where
 
     /// Fetch a [Header] by its number, walking back from the chain's local safe head.
     ///
-    /// The walk never reads the local safe head's state: the head can be an optimistic block that
-    /// consolidation replaces, and no node serves state for a replaced block. The first step goes
-    /// to the head's parent by hash; from there, Isthmus blocks leap back through EIP-2935 history.
+    /// The walk never opens the local safe head's state (see `local_safe_heads`). It reaches the
+    /// head's parent by hash, then Isthmus blocks leap back through EIP-2935 history.
     async fn header_by_number(&self, chain_id: u64, number: u64) -> Result<Header, Self::Error> {
         let Some(sealed) = self.local_safe_heads.get(&chain_id) else {
             return Err(PreimageOracleError::Other("Missing local safe header".to_string()).into());
@@ -249,9 +248,7 @@ where
         let mut linear_fallback = false;
 
         while header.number > number {
-            // The local safe head can be an optimistic block that consolidation replaces, and no
-            // node serves state for a replaced block. Step from the head to its parent by hash, so
-            // EIP-2935 lookups only open the state of the head's canonical ancestors.
+            // Never open the local safe head's state; see `local_safe_heads`.
             if current_hash != head_hash &&
                 rollup_config.is_isthmus_active(header.timestamp) &&
                 !linear_fallback
@@ -599,9 +596,7 @@ mod tests {
         OracleInteropProvider::new(Arc::new(client), boot_info(rollup_configs), local_safe_heads)
     }
 
-    /// Builds a provider whose local safe head is an optimistic block on top of the fixture's safe
-    /// head. The optimistic block's state is absent from the oracle, as no node serves state for a
-    /// block that consolidation replaces.
+    /// Builds a provider whose local safe head is a stateless child of the fixture's safe head.
     fn build_provider_on_optimistic_head(
         client: MockCommsClient,
         fixture: &FixtureData,
@@ -769,7 +764,6 @@ mod tests {
         let cached =
             provider.header_by_number(fixture.chain_id, fixture.target_block_number).await.unwrap();
         assert_eq!(header, cached);
-        assert_head_state_unread(&reads, &head);
         assert_eq!(
             reads.lock().len(),
             reads_after_first,
