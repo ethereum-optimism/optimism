@@ -9,7 +9,7 @@ audit-source:
 diataxis: explanation
 ---
 
-<Info>OP Stack interop is in active development. Some features may be experimental.</Info>
+<Info>OP Stack interop goes live with the Lagoon hardfork. Some features may be experimental.</Info>
 
 [A chain reorganization, or "reorg",](https://www.alchemy.com/overviews/what-is-a-reorg#what-happens-to-reorgs-after-the-merge) happens when validators disagree on the most accurate version of the blockchain.
 If not handled correctly, reorgs in a cross-chain context could result in a [double-spend problem](https://en.wikipedia.org/wiki/Double-spending).
@@ -159,11 +159,11 @@ graph LR
     A101-.->B302
     A101-.->B301
     A101b-.->B302b
-    A101b-.->B301b    
+    A101b-.->B301b
     B300-.->A100
     B302-.->C203
-    B302b-.->C203b    
-    C200-.->B301    
+    B302b-.->C203b
+    C200-.->B301
     class C200 finalized
     class A100,B300,C201,C202 safe
     class A101b,A102b,A103b,B301b,B302b,B303b,C203b safe
@@ -186,7 +186,7 @@ A block can also be canonically invalidated outright. If verifiers determine tha
 
 Functionally this is equivalent to equivocation, and the dependency rules above handle it the same way: only unsafe blocks (and any chain of blocks depending on them transitively) are reshaped, and any block that had already reached the safe label is untouched.
 
-{/* 
+{/*
 ### L2 reorg
 
 An L2 reorg could happen after the sequencer is decentralized.

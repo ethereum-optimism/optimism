@@ -402,6 +402,13 @@
           ]
         },
         {
+          "name": "contracts-bedrock-tests OP_PRIVATE",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-standard-OP_PRIVATE"
+          ]
+        },
+        {
           "name": "contracts-bedrock-tests-heavy-fuzz-modified main",
           "group": "contracts-suites",
           "tasks": [
@@ -441,6 +448,13 @@
           "group": "contracts-suites",
           "tasks": [
             "verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-heavy-fuzz-modified OP_PRIVATE",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-modified-OP_PRIVATE"
           ]
         },
         {
@@ -486,6 +500,13 @@
           ]
         },
         {
+          "name": "contracts-bedrock-coverage OP_PRIVATE",
+          "group": "contracts-coverage",
+          "tasks": [
+            "verdict-OP_PRIVATE"
+          ]
+        },
+        {
           "name": "contracts-bedrock-tests-upgrade op-mainnet main",
           "group": "contracts-upgrades",
           "tasks": [
@@ -525,6 +546,13 @@
           "group": "contracts-upgrades",
           "tasks": [
             "verdict-feature-BRIDGE_HOOK_ZK_DISPUTE_GAME"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade op-mainnet OP_PRIVATE",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-feature-OP_PRIVATE"
           ]
         },
         {

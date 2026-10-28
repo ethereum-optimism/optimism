@@ -157,7 +157,7 @@ class GateParityTests(unittest.TestCase):
         self.write(self.github_path,{'sha':self.sha,'checks':[
             {'name':'RWX: '+row['check_name'],'state':'success','link':'https://cloud.rwx.com/optimism/runs/'+self.env['RWX_RUN_ID']+'/latest/contracts-gate-status'},
             {'name':'ci/circleci: '+gate,'state':'success','link':'https://circleci.com/gh/ethereum-optimism/optimism/100'}]})
-        result=self.compare();self.assertEqual(result['state'],'passed');self.assertEqual(result['native']['workload_tasks'],29)
+        result=self.compare();self.assertEqual(result['state'],'passed');self.assertEqual(result['native']['workload_tasks'],len(names))
         self.assertEqual(result['dependencies'],names)
 
     def test_resealed_revision_selection_retry_and_full_source_inputs(self):

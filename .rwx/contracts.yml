@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [compile-standard-main, compile-standard-CUSTOM_GAS_TOKEN, compile-standard-OPTIMISM_PORTAL_INTEROP, compile-standard-ZK_DISPUTE_GAME, compile-modified-main, compile-modified-CUSTOM_GAS_TOKEN, compile-modified-OPTIMISM_PORTAL_INTEROP, compile-modified-ZK_DISPUTE_GAME, compile-standard-BRIDGE_HOOK, compile-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME, compile-modified-BRIDGE_HOOK, compile-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME]
+    target: [compile-standard-main, compile-standard-CUSTOM_GAS_TOKEN, compile-standard-OPTIMISM_PORTAL_INTEROP, compile-standard-ZK_DISPUTE_GAME, compile-modified-main, compile-modified-CUSTOM_GAS_TOKEN, compile-modified-OPTIMISM_PORTAL_INTEROP, compile-modified-ZK_DISPUTE_GAME, compile-standard-BRIDGE_HOOK, compile-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME, compile-standard-OP_PRIVATE, compile-modified-BRIDGE_HOOK, compile-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME, compile-modified-OP_PRIVATE]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -280,6 +280,18 @@ tasks:
       suite: standard
       feature: BRIDGE_HOOK,ZK_DISPUTE_GAME
 
+  - key: compile-standard-OP_PRIVATE
+    use: [source, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-standard-OP_PRIVATE-${{ init.cache-epoch }}
+      suite: standard
+      feature: OP_PRIVATE
+
   - key: verdict-standard-ZK_DISPUTE_GAME
     use: [source, go-tools, contract-tools, go-modules, compile-standard-ZK_DISPUTE_GAME]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-ZK_DISPUTE_GAME.tasks.build.values.eligible == 'true' }}
@@ -315,6 +327,18 @@ tasks:
       cache-key: contract-suites-runtime-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME-${{ init.cache-epoch }}
       suite: standard
       feature: BRIDGE_HOOK,ZK_DISPUTE_GAME
+
+  - key: verdict-standard-OP_PRIVATE
+    use: [source, go-tools, contract-tools, go-modules, compile-standard-OP_PRIVATE]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-OP_PRIVATE.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/standard-OP_PRIVATE/prepare
+      cache-key: contract-suites-runtime-standard-OP_PRIVATE-${{ init.cache-epoch }}
+      suite: standard
+      feature: OP_PRIVATE
 
   - key: compile-modified-main
     use: [modified-baseline, go-tools, contract-tools, go-modules]
@@ -433,6 +457,19 @@ tasks:
       suite: modified
       feature: BRIDGE_HOOK,ZK_DISPUTE_GAME
 
+  - key: compile-modified-OP_PRIVATE
+    use: [modified-baseline, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-modified-OP_PRIVATE-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: OP_PRIVATE
+
   - key: verdict-modified-ZK_DISPUTE_GAME
     use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-ZK_DISPUTE_GAME]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-ZK_DISPUTE_GAME.tasks.build.values.eligible == 'true' }}
@@ -472,9 +509,22 @@ tasks:
       suite: modified
       feature: BRIDGE_HOOK,ZK_DISPUTE_GAME
 
+  - key: verdict-modified-OP_PRIVATE
+    use: [modified-baseline, go-tools, contract-tools, go-modules, compile-modified-OP_PRIVATE]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-OP_PRIVATE.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/modified-OP_PRIVATE/prepare
+      cache-key: contract-suites-runtime-modified-OP_PRIVATE-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
+      suite: modified
+      feature: OP_PRIVATE
+
   - key: contracts-gate-receipt
     use: [code, tools]
-    after: ${{ (verdict-modified-BRIDGE_HOOK.succeeded || verdict-modified-BRIDGE_HOOK.failed || verdict-modified-BRIDGE_HOOK.skipped) && (verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME.succeeded || verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME.failed || verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME.skipped) && (verdict-modified-CUSTOM_GAS_TOKEN.succeeded || verdict-modified-CUSTOM_GAS_TOKEN.failed || verdict-modified-CUSTOM_GAS_TOKEN.skipped) && (verdict-modified-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-modified-OPTIMISM_PORTAL_INTEROP.failed || verdict-modified-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-modified-ZK_DISPUTE_GAME.succeeded || verdict-modified-ZK_DISPUTE_GAME.failed || verdict-modified-ZK_DISPUTE_GAME.skipped) && (verdict-modified-main.succeeded || verdict-modified-main.failed || verdict-modified-main.skipped) && (verdict-standard-BRIDGE_HOOK.succeeded || verdict-standard-BRIDGE_HOOK.failed || verdict-standard-BRIDGE_HOOK.skipped) && (verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME.succeeded || verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME.failed || verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME.skipped) && (verdict-standard-CUSTOM_GAS_TOKEN.succeeded || verdict-standard-CUSTOM_GAS_TOKEN.failed || verdict-standard-CUSTOM_GAS_TOKEN.skipped) && (verdict-standard-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-standard-OPTIMISM_PORTAL_INTEROP.failed || verdict-standard-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-standard-ZK_DISPUTE_GAME.succeeded || verdict-standard-ZK_DISPUTE_GAME.failed || verdict-standard-ZK_DISPUTE_GAME.skipped) && (verdict-standard-main.succeeded || verdict-standard-main.failed || verdict-standard-main.skipped) }}
+    after: ${{ (verdict-modified-BRIDGE_HOOK.succeeded || verdict-modified-BRIDGE_HOOK.failed || verdict-modified-BRIDGE_HOOK.skipped) && (verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME.succeeded || verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME.failed || verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME.skipped) && (verdict-modified-CUSTOM_GAS_TOKEN.succeeded || verdict-modified-CUSTOM_GAS_TOKEN.failed || verdict-modified-CUSTOM_GAS_TOKEN.skipped) && (verdict-modified-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-modified-OPTIMISM_PORTAL_INTEROP.failed || verdict-modified-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-modified-OP_PRIVATE.succeeded || verdict-modified-OP_PRIVATE.failed || verdict-modified-OP_PRIVATE.skipped) && (verdict-modified-ZK_DISPUTE_GAME.succeeded || verdict-modified-ZK_DISPUTE_GAME.failed || verdict-modified-ZK_DISPUTE_GAME.skipped) && (verdict-modified-main.succeeded || verdict-modified-main.failed || verdict-modified-main.skipped) && (verdict-standard-BRIDGE_HOOK.succeeded || verdict-standard-BRIDGE_HOOK.failed || verdict-standard-BRIDGE_HOOK.skipped) && (verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME.succeeded || verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME.failed || verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME.skipped) && (verdict-standard-CUSTOM_GAS_TOKEN.succeeded || verdict-standard-CUSTOM_GAS_TOKEN.failed || verdict-standard-CUSTOM_GAS_TOKEN.skipped) && (verdict-standard-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-standard-OPTIMISM_PORTAL_INTEROP.failed || verdict-standard-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-standard-OP_PRIVATE.succeeded || verdict-standard-OP_PRIVATE.failed || verdict-standard-OP_PRIVATE.skipped) && (verdict-standard-ZK_DISPUTE_GAME.succeeded || verdict-standard-ZK_DISPUTE_GAME.failed || verdict-standard-ZK_DISPUTE_GAME.skipped) && (verdict-standard-main.succeeded || verdict-standard-main.failed || verdict-standard-main.skipped) }}
     if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt contracts-suites
     env:
@@ -503,6 +553,9 @@ tasks:
       TASK_VERDICT_MODIFIED_OPTIMISM_PORTAL_INTEROP_SUCCEEDED: ${{ tasks.verdict-modified-OPTIMISM_PORTAL_INTEROP.succeeded }}
       TASK_VERDICT_MODIFIED_OPTIMISM_PORTAL_INTEROP_FAILED: ${{ tasks.verdict-modified-OPTIMISM_PORTAL_INTEROP.failed }}
       TASK_VERDICT_MODIFIED_OPTIMISM_PORTAL_INTEROP_SKIPPED: ${{ tasks.verdict-modified-OPTIMISM_PORTAL_INTEROP.skipped }}
+      TASK_VERDICT_MODIFIED_OP_PRIVATE_SUCCEEDED: ${{ tasks.verdict-modified-OP_PRIVATE.succeeded }}
+      TASK_VERDICT_MODIFIED_OP_PRIVATE_FAILED: ${{ tasks.verdict-modified-OP_PRIVATE.failed }}
+      TASK_VERDICT_MODIFIED_OP_PRIVATE_SKIPPED: ${{ tasks.verdict-modified-OP_PRIVATE.skipped }}
       TASK_VERDICT_MODIFIED_ZK_DISPUTE_GAME_SUCCEEDED: ${{ tasks.verdict-modified-ZK_DISPUTE_GAME.succeeded }}
       TASK_VERDICT_MODIFIED_ZK_DISPUTE_GAME_FAILED: ${{ tasks.verdict-modified-ZK_DISPUTE_GAME.failed }}
       TASK_VERDICT_MODIFIED_ZK_DISPUTE_GAME_SKIPPED: ${{ tasks.verdict-modified-ZK_DISPUTE_GAME.skipped }}
@@ -515,6 +568,9 @@ tasks:
       TASK_VERDICT_STANDARD_OPTIMISM_PORTAL_INTEROP_SUCCEEDED: ${{ tasks.verdict-standard-OPTIMISM_PORTAL_INTEROP.succeeded }}
       TASK_VERDICT_STANDARD_OPTIMISM_PORTAL_INTEROP_FAILED: ${{ tasks.verdict-standard-OPTIMISM_PORTAL_INTEROP.failed }}
       TASK_VERDICT_STANDARD_OPTIMISM_PORTAL_INTEROP_SKIPPED: ${{ tasks.verdict-standard-OPTIMISM_PORTAL_INTEROP.skipped }}
+      TASK_VERDICT_STANDARD_OP_PRIVATE_SUCCEEDED: ${{ tasks.verdict-standard-OP_PRIVATE.succeeded }}
+      TASK_VERDICT_STANDARD_OP_PRIVATE_FAILED: ${{ tasks.verdict-standard-OP_PRIVATE.failed }}
+      TASK_VERDICT_STANDARD_OP_PRIVATE_SKIPPED: ${{ tasks.verdict-standard-OP_PRIVATE.skipped }}
       TASK_VERDICT_STANDARD_ZK_DISPUTE_GAME_SUCCEEDED: ${{ tasks.verdict-standard-ZK_DISPUTE_GAME.succeeded }}
       TASK_VERDICT_STANDARD_ZK_DISPUTE_GAME_FAILED: ${{ tasks.verdict-standard-ZK_DISPUTE_GAME.failed }}
       TASK_VERDICT_STANDARD_ZK_DISPUTE_GAME_SKIPPED: ${{ tasks.verdict-standard-ZK_DISPUTE_GAME.skipped }}

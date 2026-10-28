@@ -48,6 +48,18 @@ full inventory refresh must still recount every workflow.
 - Outside the PR denominator: `contracts-bedrock-build-tests-develop` (#23619)
   runs only on `develop`.
 
+The October 28 merge of `develop` at `68335987fb2780078740c22bed83c771161b3b7f`
+changed these PR occurrences:
+
+- Added: the `OP_PRIVATE` contract feature (#23657) in
+  `contracts-bedrock-tests`, `contracts-bedrock-tests-heavy-fuzz-modified`,
+  `contracts-bedrock-coverage` and `contracts-bedrock-tests-upgrade op-mainnet`
+  (`required-contracts-ci`). The four native verdict tasks and their gate
+  mappings are implemented. Hosted same-SHA parity is not yet verified, so these
+  occurrences have no parity credit.
+- Changed routing: `rust_changes_detected` now also matches `op-core/nuts/`
+  (#23714).
+
 The completed workload snapshot is `a1aa49aaf3713a8172f3f615f094488fd8e39c3d`;
 its 92 summary hashes and complete provider originals are recoverable through the
 evidence guide. Historical per-stage percentages and closeouts are archived.

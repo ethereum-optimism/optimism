@@ -237,3 +237,16 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 		})
 	}
 }
+
+func TestSettlementChainIDOverride(t *testing.T) {
+	intent := &state.Intent{L1ContractsLocator: &artifacts.Locator{}}
+	chainIntent := &state.ChainIntent{DeployOverrides: map[string]any{"settlementChainId": 1337}}
+	overrides, _, err := calculateL2GenesisOverrides(intent, chainIntent)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1337), overrides.SettlementChainID, "a chain override sets the settlement chain ID")
+
+	opPrivate := devfeatures.EnableDevFeature(common.Hash{}, devfeatures.OPPrivateFlag)
+	require.NoError(t, checkSettlementChainIDOverride(opPrivate, 1337))
+	require.NoError(t, checkSettlementChainIDOverride(common.Hash{}, 0), "a public chain needs no dev feature")
+	require.ErrorContains(t, checkSettlementChainIDOverride(common.Hash{}, 1337), "needs the OP_PRIVATE dev feature")
+}

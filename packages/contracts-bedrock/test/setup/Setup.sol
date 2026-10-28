@@ -446,7 +446,8 @@ abstract contract Setup is FeatureFlags {
                 nativeAssetLiquidityAmount: deploy.cfg().nativeAssetLiquidityAmount(),
                 liquidityControllerOwner: deploy.cfg().liquidityControllerOwner(),
                 devFeatureBitmap: devFeatureBitmap,
-                l2ToL2MessageExpiryPeriod: 0
+                l2ToL2MessageExpiryPeriod: 0,
+                settlementChainID: 0
             })
         );
 

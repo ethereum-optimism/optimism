@@ -109,8 +109,9 @@ class UpgradeTests(unittest.TestCase):
             row['creation_bytecode'].pop('out/Fixture.json')
             with self.assertRaisesRegex(ValueError, 'artifact binding'): UP.deployable(row)
 
-    def test_all_nine_occurrences_have_distinct_identity_including_both_op_main(self):
-        self.assertEqual(len(UP.VARIANTS), 9)
+    def test_every_feature_and_chain_occurrence_has_distinct_identity_including_both_op_main(self):
+        features = ['main', *UP.FEATURES]
+        self.assertEqual(set(UP.VARIANTS), {'feature-' + f for f in features} | {'chain-op', 'chain-ink', 'chain-unichain'})
         self.assertEqual(UP.VARIANTS['chain-op'], UP.VARIANTS['feature-main'])
         with patch.dict(os.environ, {'CI_BRANCH': 'pilot', 'FOUNDRY_MATCH_TEST': 'partial',
                          'FOUNDRY_FUZZ_RUNS': '0', 'DEV_FEATURE__UNRELATED': 'true', 'ETH_RPC_URL': 'ambient'}, clear=True):
@@ -129,6 +130,9 @@ class UpgradeTests(unittest.TestCase):
             UP.configure('feature-BRIDGE_HOOK')
             self.assertNotIn('DEV_FEATURE__ZK_DISPUTE_GAME', os.environ)
             self.assertEqual(os.environ['DEV_FEATURE__BRIDGE_HOOK'], 'true')
+            UP.configure('feature-OP_PRIVATE')
+            enabled = {k: v for k, v in os.environ.items() if k.startswith(('DEV_FEATURE__', 'SYS_FEATURE__'))}
+            self.assertEqual(enabled, {'DEV_FEATURE__OP_PRIVATE': 'true'})
             with self.assertRaises(KeyError): UP.configure('feature-BRIDGE_HOOK_CUSTOM_GAS_TOKEN')
 
     def test_rpc_identity_checks_actual_chain_height_hash_and_availability(self):

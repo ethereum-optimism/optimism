@@ -8,6 +8,31 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 )
 
+func TestKonaSafeDBEnvFromOptions(t *testing.T) {
+	safeDBOption := func(path string) L2CLOption {
+		return L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, config *L2CLConfig) {
+			config.SafeDBPath = path
+		})
+	}
+	for _, testCase := range []struct {
+		name    string
+		options []L2CLOption
+		wantEnv []string
+	}{
+		{name: "disabled by default"},
+		{name: "enabled", options: []L2CLOption{safeDBOption("/tmp/safe-head.db")}, wantEnv: []string{"KONA_NODE_SAFEDB_PATH=/tmp/safe-head.db"}},
+		{name: "nil option ignored", options: []L2CLOption{nil, safeDBOption("/tmp/safe-head.db")}, wantEnv: []string{"KONA_NODE_SAFEDB_PATH=/tmp/safe-head.db"}},
+		{name: "later option replaces path", options: []L2CLOption{safeDBOption("/tmp/first.db"), safeDBOption("/tmp/second.db")}, wantEnv: []string{"KONA_NODE_SAFEDB_PATH=/tmp/second.db"}},
+		{name: "later option disables database", options: []L2CLOption{safeDBOption("/tmp/safe-head.db"), safeDBOption("")}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			environment := konaSafeDBEnvFromOptions(devtest.SerialT(t), ComponentTarget{}, testCase.options)
+
+			require.Equal(t, testCase.wantEnv, environment)
+		})
+	}
+}
+
 func TestMixedL2ELOptsFromEnv(t *testing.T) {
 	for _, tc := range []struct {
 		name       string

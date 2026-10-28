@@ -20,6 +20,9 @@ const BLS12_MAX_PAIRING_SIZE_ISTHMUS: usize = 235_008;
 /// The max pairing size for BLS12-381 input after the Jovian Hardfork.
 const BLS12_MAX_PAIRING_SIZE_JOVIAN: usize = 156_672;
 
+/// The max pairing size for BLS12-381 input after the Lagoon Hardfork.
+const BLS12_MAX_PAIRING_SIZE_LAGOON: usize = 130_560;
+
 /// Performs an FPVM-accelerated BLS12-381 pairing check after the Isthmus Hardfork.
 pub(crate) fn fpvm_bls12_pairing<H, O>(
     input: &[u8],
@@ -81,6 +84,27 @@ where
     if input.len() > BLS12_MAX_PAIRING_SIZE_JOVIAN {
         return Err(PrecompileHalt::Other(
             alloc::format!("Pairing input length must be at most {BLS12_MAX_PAIRING_SIZE_JOVIAN}")
+                .into(),
+        ));
+    }
+
+    fpvm_bls12_pairing(input, gas_limit, hint_writer, oracle_reader)
+}
+
+/// Performs an FPVM-accelerated BLS12-381 pairing check after the Lagoon Hardfork.
+pub(crate) fn fpvm_bls12_pairing_lagoon<H, O>(
+    input: &[u8],
+    gas_limit: u64,
+    hint_writer: &H,
+    oracle_reader: &O,
+) -> EthPrecompileResult
+where
+    H: HintWriterClient + Send + Sync,
+    O: PreimageOracleClient + Send + Sync,
+{
+    if input.len() > BLS12_MAX_PAIRING_SIZE_LAGOON {
+        return Err(PrecompileHalt::Other(
+            alloc::format!("Pairing input length must be at most {BLS12_MAX_PAIRING_SIZE_LAGOON}")
                 .into(),
         ));
     }

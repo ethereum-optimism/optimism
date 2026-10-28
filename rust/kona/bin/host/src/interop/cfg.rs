@@ -236,9 +236,7 @@ impl InteropHost {
                 kv_store.clone(),
                 providers,
                 InteropHintHandler,
-            )
-            .with_high_level_hint(HintType::L2BlockData)
-            .with_high_level_hint(HintType::L2PayloadWitness);
+            );
 
             task::spawn(async {
                 PreimageServer::new(
@@ -374,6 +372,11 @@ impl InteropHost {
 impl OnlineHostBackendCfg for InteropHost {
     type HintType = HintType;
     type Providers = InteropProviders;
+
+    /// `L2PayloadWitness` bulk-populates the store via `debug_executePayload`.
+    /// `L2BlockData` re-executes a replaced optimistic block and bulk-populates its preimages.
+    const HIGH_LEVEL_HINTS: &'static [HintType] =
+        &[HintType::L2PayloadWitness, HintType::L2BlockData];
 }
 
 /// The providers required for the single chain host.

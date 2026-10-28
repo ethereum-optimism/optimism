@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [compile-feature-main, compile-feature-CUSTOM_GAS_TOKEN, compile-feature-OPTIMISM_PORTAL_INTEROP, compile-feature-ZK_DISPUTE_GAME, compile-chain-op, compile-chain-ink, compile-chain-unichain, compile-feature-BRIDGE_HOOK, compile-feature-BRIDGE_HOOK_ZK_DISPUTE_GAME]
+    target: [compile-feature-main, compile-feature-CUSTOM_GAS_TOKEN, compile-feature-OPTIMISM_PORTAL_INTEROP, compile-feature-ZK_DISPUTE_GAME, compile-chain-op, compile-chain-ink, compile-chain-unichain, compile-feature-BRIDGE_HOOK, compile-feature-BRIDGE_HOOK_ZK_DISPUTE_GAME, compile-feature-OP_PRIVATE]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -259,6 +259,16 @@ tasks:
       cache-key: contract-upgrades-feature-BRIDGE_HOOK_ZK_DISPUTE_GAME-${{ init.cache-epoch }}
       variant: feature-BRIDGE_HOOK,ZK_DISPUTE_GAME
 
+  - key: compile-feature-OP_PRIVATE
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-key: contract-upgrades-feature-OP_PRIVATE-${{ init.cache-epoch }}
+      variant: feature-OP_PRIVATE
+
   - key: verdict-feature-ZK_DISPUTE_GAME
     use: [code, go-tools, contract-tools, go-modules, compile-feature-ZK_DISPUTE_GAME, rpc-check]
     if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
@@ -294,6 +304,18 @@ tasks:
       pinned-block: .ci/contract-upgrades/preflight/block.json
       cache-key: contract-upgrades-rpc-feature-BRIDGE_HOOK_ZK_DISPUTE_GAME-${{ init.cache-epoch }}
       variant: feature-BRIDGE_HOOK,ZK_DISPUTE_GAME
+
+  - key: verdict-feature-OP_PRIVATE
+    use: [code, go-tools, contract-tools, go-modules, compile-feature-OP_PRIVATE, rpc-check]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    call: ${{ run.dir }}/packages/contract-upgrades-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-upgrades/feature-OP_PRIVATE/prepare
+      pinned-block: .ci/contract-upgrades/preflight/block.json
+      cache-key: contract-upgrades-rpc-feature-OP_PRIVATE-${{ init.cache-epoch }}
+      variant: feature-OP_PRIVATE
 
   - key: compile-chain-op
     use: [code, go-tools, contract-tools, go-modules]
@@ -363,7 +385,7 @@ tasks:
 
   - key: contracts-gate-receipt
     use: [code, tools]
-    after: ${{ (verdict-chain-ink.succeeded || verdict-chain-ink.failed || verdict-chain-ink.skipped) && (verdict-chain-op.succeeded || verdict-chain-op.failed || verdict-chain-op.skipped) && (verdict-chain-unichain.succeeded || verdict-chain-unichain.failed || verdict-chain-unichain.skipped) && (verdict-feature-BRIDGE_HOOK.succeeded || verdict-feature-BRIDGE_HOOK.failed || verdict-feature-BRIDGE_HOOK.skipped) && (verdict-feature-BRIDGE_HOOK_ZK_DISPUTE_GAME.succeeded || verdict-feature-BRIDGE_HOOK_ZK_DISPUTE_GAME.failed || verdict-feature-BRIDGE_HOOK_ZK_DISPUTE_GAME.skipped) && (verdict-feature-CUSTOM_GAS_TOKEN.succeeded || verdict-feature-CUSTOM_GAS_TOKEN.failed || verdict-feature-CUSTOM_GAS_TOKEN.skipped) && (verdict-feature-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-feature-OPTIMISM_PORTAL_INTEROP.failed || verdict-feature-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-feature-ZK_DISPUTE_GAME.succeeded || verdict-feature-ZK_DISPUTE_GAME.failed || verdict-feature-ZK_DISPUTE_GAME.skipped) && (verdict-feature-main.succeeded || verdict-feature-main.failed || verdict-feature-main.skipped) }}
+    after: ${{ (verdict-chain-ink.succeeded || verdict-chain-ink.failed || verdict-chain-ink.skipped) && (verdict-chain-op.succeeded || verdict-chain-op.failed || verdict-chain-op.skipped) && (verdict-chain-unichain.succeeded || verdict-chain-unichain.failed || verdict-chain-unichain.skipped) && (verdict-feature-BRIDGE_HOOK.succeeded || verdict-feature-BRIDGE_HOOK.failed || verdict-feature-BRIDGE_HOOK.skipped) && (verdict-feature-BRIDGE_HOOK_ZK_DISPUTE_GAME.succeeded || verdict-feature-BRIDGE_HOOK_ZK_DISPUTE_GAME.failed || verdict-feature-BRIDGE_HOOK_ZK_DISPUTE_GAME.skipped) && (verdict-feature-CUSTOM_GAS_TOKEN.succeeded || verdict-feature-CUSTOM_GAS_TOKEN.failed || verdict-feature-CUSTOM_GAS_TOKEN.skipped) && (verdict-feature-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-feature-OPTIMISM_PORTAL_INTEROP.failed || verdict-feature-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-feature-OP_PRIVATE.succeeded || verdict-feature-OP_PRIVATE.failed || verdict-feature-OP_PRIVATE.skipped) && (verdict-feature-ZK_DISPUTE_GAME.succeeded || verdict-feature-ZK_DISPUTE_GAME.failed || verdict-feature-ZK_DISPUTE_GAME.skipped) && (verdict-feature-main.succeeded || verdict-feature-main.failed || verdict-feature-main.skipped) }}
     if: ${{ init.cache-warm != 'true' }}
     run: python3 ops/ci/runtime/pr-gate.py receipt contracts-upgrades
     env:
@@ -395,6 +417,9 @@ tasks:
       TASK_VERDICT_FEATURE_OPTIMISM_PORTAL_INTEROP_SUCCEEDED: ${{ tasks.verdict-feature-OPTIMISM_PORTAL_INTEROP.succeeded }}
       TASK_VERDICT_FEATURE_OPTIMISM_PORTAL_INTEROP_FAILED: ${{ tasks.verdict-feature-OPTIMISM_PORTAL_INTEROP.failed }}
       TASK_VERDICT_FEATURE_OPTIMISM_PORTAL_INTEROP_SKIPPED: ${{ tasks.verdict-feature-OPTIMISM_PORTAL_INTEROP.skipped }}
+      TASK_VERDICT_FEATURE_OP_PRIVATE_SUCCEEDED: ${{ tasks.verdict-feature-OP_PRIVATE.succeeded }}
+      TASK_VERDICT_FEATURE_OP_PRIVATE_FAILED: ${{ tasks.verdict-feature-OP_PRIVATE.failed }}
+      TASK_VERDICT_FEATURE_OP_PRIVATE_SKIPPED: ${{ tasks.verdict-feature-OP_PRIVATE.skipped }}
       TASK_VERDICT_FEATURE_ZK_DISPUTE_GAME_SUCCEEDED: ${{ tasks.verdict-feature-ZK_DISPUTE_GAME.succeeded }}
       TASK_VERDICT_FEATURE_ZK_DISPUTE_GAME_FAILED: ${{ tasks.verdict-feature-ZK_DISPUTE_GAME.failed }}
       TASK_VERDICT_FEATURE_ZK_DISPUTE_GAME_SKIPPED: ${{ tasks.verdict-feature-ZK_DISPUTE_GAME.skipped }}
