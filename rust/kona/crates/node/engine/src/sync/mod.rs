@@ -23,8 +23,9 @@ use crate::EngineClient;
 ///
 ///   - The *unsafe L2 block*: This is the highest L2 block, at or above the finalized one, whose L1
 ///     origin is canonical: the L1 node has that block at that height.
-///   - The *safe L2 block*: This is the highest L2 block whose epoch's sequencing window is
-///     complete within the canonical L1 chain (as known to the rollup node).
+///   - The *safe L2 block*: This is the highest L2 block, at or below the previous safe one, whose
+///     epoch's sequencing window is complete within the canonical L1 chain (as known to the rollup
+///     node).
 ///   - The *finalized L2 block*: This is the L2 block which is known to be fully derived from
 ///     finalized L1 block data.
 pub async fn find_starting_forkchoice(
@@ -51,7 +52,10 @@ pub async fn find_starting_forkchoice(
     );
 
     // Search for the highest `safe` block that's L1 origin is at least older than the sequencing
-    // window, relative to the L1 origin of the `unsafe` block.
+    // window, relative to the L1 origin of the `unsafe` block, and that is no higher than the
+    // previous safe head: blocks above it were never derived, and may never be. Like op-node's
+    // `FindL2Heads`.
+    let previous_safe = current_fc.safe.block_info.number;
     let mut safe_cursor = current_fc.un_safe;
     loop {
         info!(
@@ -64,9 +68,10 @@ pub async fn find_starting_forkchoice(
         let is_behind_sequence_window =
             current_fc.un_safe.l1_origin.number.saturating_sub(cfg.seq_window_size) >
                 safe_cursor.l1_origin.number;
+        let is_derived = safe_cursor.block_info.number <= previous_safe;
         let is_finalized = safe_cursor.block_info.hash == current_fc.finalized.block_info.hash;
         let is_genesis = safe_cursor.block_info.hash == cfg.genesis.l2.hash;
-        if is_behind_sequence_window || is_finalized || is_genesis {
+        if (is_behind_sequence_window && is_derived) || is_finalized || is_genesis {
             info!(
                 target: "sync_start",
                 l2_safe = %safe_cursor.block_info.number,
@@ -238,6 +243,28 @@ mod cold_start_tests {
             assert_eq!(forkchoice.un_safe, chain.info(18));
             assert_eq!(forkchoice.safe, chain.info(18));
         }
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// The safe head never moves up. With a sequencing window of 2, block 22 (L1 origin 102) is
+    /// the first block below the unsafe head (L1 origin 105) more than a window behind it, but
+    /// derivation has only reached block 20, so the search keeps going down to block 20.
+    #[tokio::test]
+    async fn cold_start_keeps_the_safe_head_at_or_below_the_previous_one() {
+        let config = Arc::new(RollupConfig { seq_window_size: 2, ..Default::default() });
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let chain = TestChain::new();
+        chain.expect_heads(&l2, 18, 20, 26);
+        expect_l1_block(&l1, 105, 106);
+        for number in (20..26).rev() {
+            chain.expect_by_hash(&l2, number);
+        }
+
+        let forkchoice = find_starting_forkchoice(&config, &client).await.unwrap();
+
+        assert_eq!(forkchoice.un_safe, chain.info(26));
+        assert_eq!(forkchoice.safe, chain.info(20));
         l1.assert_finished();
         l2.assert_finished();
     }
