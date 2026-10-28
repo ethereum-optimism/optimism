@@ -466,9 +466,9 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
     {
         // An aliased withdrawal is left unspecified.
         bool aliased = _direction == BridgeHookTypes.Direction.Deposit && _aliased;
-        address initiator = aliased ? AddressAliasHelper.undoL1ToL2Alias(_from) : _from;
+        address sender = aliased ? AddressAliasHelper.undoL1ToL2Alias(_from) : _from;
         (address source, address destination) = _messengers(_direction);
-        vm.assume(initiator != source || _to != destination);
+        vm.assume(sender != source || _to != destination);
         BridgeHookTypes.Item memory item;
         item.direction = _direction;
         item.from = _from;
@@ -476,9 +476,9 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
         item.to = _to;
         item.data = _data;
 
-        address[] memory parties = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
-        assertEq(parties[0], initiator, "initiator");
-        assertEq(parties[1], _to, "recipient");
+        (address initiator, address recipient) = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
+        assertEq(initiator, sender, "initiator");
+        assertEq(recipient, _to, "recipient");
     }
 
     /// @notice Tests that a message not between the bridges resolves to its sender and target,
@@ -504,9 +504,9 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
             )
         );
 
-        address[] memory parties = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
-        assertEq(parties[0], _sender, "initiator");
-        assertEq(parties[1], _target, "recipient");
+        (address initiator, address recipient) = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
+        assertEq(initiator, _sender, "initiator");
+        assertEq(recipient, _target, "recipient");
     }
 
     /// @notice Tests that a messenger item whose envelope does not decode resolves to the two
@@ -514,10 +514,10 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
     function testFuzz_resolveParties_envelopeUnreadable_succeeds(BridgeHookTypes.Direction _direction) external pure {
         (address source, address destination) = _messengers(_direction);
 
-        address[] memory parties =
+        (address initiator, address recipient) =
             BridgeHookDecoder.resolveParties(_messengerItem(_direction, ""), L1_MESSENGER, L1_BRIDGE);
-        assertEq(parties[0], source, "initiator");
-        assertEq(parties[1], destination, "recipient");
+        assertEq(initiator, source, "initiator");
+        assertEq(recipient, destination, "recipient");
     }
 
     /// @notice Tests that a token transfer resolves to its sender and recipient.
@@ -533,9 +533,9 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
             _direction, abi.encodeCall(IStandardBridge.finalizeBridgeERC20, (address(0), address(0), _from, _to, 0, ""))
         );
 
-        address[] memory parties = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
-        assertEq(parties[0], _from, "initiator");
-        assertEq(parties[1], _to, "recipient");
+        (address initiator, address recipient) = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
+        assertEq(initiator, _from, "initiator");
+        assertEq(recipient, _to, "recipient");
     }
 
     /// @notice Tests that an ETH transfer between the bridges resolves to its sender and recipient.
@@ -552,9 +552,9 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
             _bridgeItem(_direction, abi.encodeCall(IStandardBridge.finalizeBridgeETH, (_from, _to, _amount, "")));
         item.ethAmount = bound(_amount, 1, type(uint256).max);
 
-        address[] memory parties = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
-        assertEq(parties[0], _from, "initiator");
-        assertEq(parties[1], _to, "recipient");
+        (address initiator, address recipient) = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
+        assertEq(initiator, _from, "initiator");
+        assertEq(recipient, _to, "recipient");
     }
 
     /// @notice Tests that a bridge call that does not decode resolves to the two bridges.
@@ -578,10 +578,10 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
         ];
 
         for (uint256 i; i < messages.length; i++) {
-            address[] memory parties =
+            (address initiator, address recipient) =
                 BridgeHookDecoder.resolveParties(_bridgeItem(_direction, messages[i]), L1_MESSENGER, L1_BRIDGE);
-            assertEq(parties[0], source, vm.toString(i));
-            assertEq(parties[1], destination, vm.toString(i));
+            assertEq(initiator, source, vm.toString(i));
+            assertEq(recipient, destination, vm.toString(i));
         }
     }
 
@@ -596,17 +596,16 @@ contract BridgeHookDecoder_ResolveParties_Test is BridgeHookDecoder_TestInit {
             )
         );
 
-        address[] memory parties = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
-        assertEq(parties[0], messengerSource, "initiator");
-        assertEq(parties[1], messengerDestination, "recipient");
+        (address initiator, address recipient) = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
+        assertEq(initiator, messengerSource, "initiator");
+        assertEq(recipient, messengerDestination, "recipient");
     }
 }
 
 /// @title BridgeHookDecoder_Uncategorized_Test
 /// @notice Tests properties that hold across the `BridgeHookDecoder` library.
 contract BridgeHookDecoder_Uncategorized_Test is BridgeHookDecoder_TestInit {
-    /// @notice Tests that no function reverts on an arbitrary item, and that resolveParties returns
-    ///         positions 0 and 1.
+    /// @notice Tests that no function reverts on an arbitrary item.
     function testFuzz_decoder_arbitraryInput_works(
         BridgeHookTypes.Item memory _item,
         address _l1Messenger,
@@ -619,7 +618,7 @@ contract BridgeHookDecoder_Uncategorized_Test is BridgeHookDecoder_TestInit {
         BridgeHookDecoder.recognizeTokenTransfer(_item, _l1Messenger, _l1Bridge);
         BridgeHookDecoder.extractTokenMessage(_item);
         BridgeHookDecoder.decodeTokenTransfer(_item.direction, _message);
-        assertGe(BridgeHookDecoder.resolveParties(_item, _l1Messenger, _l1Bridge).length, 2);
+        BridgeHookDecoder.resolveParties(_item, _l1Messenger, _l1Bridge);
     }
 
     /// @notice Tests that no function reverts on any offset and length word inside an envelope
