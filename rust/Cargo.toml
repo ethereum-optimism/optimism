@@ -654,7 +654,7 @@ lz4_flex = { version = "0.12", default-features = false }
 miniz_oxide = "0.9.0"
 snap = "1.1.1"
 tar-no-std = { version = "0.4.2", default-features = false }
-zstd = "0.13"
+zstd = "0.14"
 
 # ==================== NETWORKING ====================
 discv5 = "0.12.0"
