@@ -924,17 +924,15 @@ where
             .block_number()
             .unwrap_or_default();
 
-        let maybe_pre_bedrock_historical_rpc = historical_rpc
-            .filter(|_| bedrock_block > 0)
-            .map(|historical_rpc| -> eyre::Result<_> {
+        let maybe_pre_bedrock_historical_rpc = match historical_rpc {
+            Some(historical_rpc) if bedrock_block > 0 => {
                 info!(target: "reth::cli", %bedrock_block, ?historical_rpc, "Using historical RPC endpoint pre bedrock");
                 let provider = ctx.node.provider().clone();
                 let client = HistoricalRpcClient::new(&historical_rpc)?;
-                let layer = HistoricalRpc::new(provider, client, bedrock_block);
-                Ok(layer)
-            })
-            .transpose()?
-            ;
+                Some(HistoricalRpc::new(provider, client, bedrock_block))
+            }
+            _ => None,
+        };
 
         let rpc_add_ons = rpc_add_ons.option_layer_rpc_middleware(maybe_pre_bedrock_historical_rpc);
 
