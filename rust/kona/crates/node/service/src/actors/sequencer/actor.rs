@@ -511,11 +511,15 @@ where
         let l1_origin = match self.origin_selector.next_l1_origin(unsafe_head, recovery_mode).await
         {
             Ok(l1_origin) => l1_origin,
-            Err(L1OriginSelectorError::OriginNotFound(hash)) => {
+            Err(L1OriginSelectorError::Closed) => return Err(SequencerActorError::ChannelClosed),
+            Err(
+                err @ (L1OriginSelectorError::OriginNotFound(_) |
+                L1OriginSelectorError::NextOriginOrphaned),
+            ) => {
                 warn!(
                     target: "sequencer",
-                    %hash,
-                    "L1 origin block not found, resetting engine"
+                    ?err,
+                    "L1 origin is missing or orphaned, resetting engine"
                 );
                 self.engine_client.reset_engine_forkchoice().await?;
                 return Ok(None);
@@ -792,7 +796,9 @@ where
                         Err(_) => self.build_ticker.reset_immediately(),
                     };
                 } else {
-                    self.build_ticker.reset_immediately();
+                    // Origin/attributes preparation can fail without any I/O. Bound retries,
+                    // including repeated engine resets, instead of spinning on an empty build.
+                    self.build_ticker.reset_after(Duration::from_secs(1));
                 }
                 Ok(())
             }
