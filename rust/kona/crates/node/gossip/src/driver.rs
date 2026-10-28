@@ -323,26 +323,26 @@ where
     /// Attempts to select the next event from the Swarm.
     ///
     /// When duplicate connections may be closed, it returns [`Event::DuplicateConnectionsDue`]
-    /// instead, and when static peers may be dialed again, [`Event::StaticPeersDue`], for
-    /// [`Self::handle_event`] to act on.
+    /// instead, when static peers may be dialed again, [`Event::StaticPeersDue`], and when the
+    /// unsafe block signer changed, [`Event::SignerChanged`], for [`Self::handle_event`] to act on.
     pub async fn next(&mut self) -> Option<SwarmEvent<Event>> {
-        loop {
-            self.handler.update_signer();
-            let duplicates = self.next_duplicate_check;
-            let static_peers = self.next_static_peer_check;
-            // `select!` builds the futures of disabled branches too, so each needs some deadline.
-            let now = Instant::now;
-            tokio::select! {
-                // Observe rotations even when no gossip messages arrive. Fixed-address builders
-                // drop the sender, so stop polling a closed channel and retain its last value.
-                _ = self.handler.signer_recv.changed(), if self.handler.signer_recv.has_changed().is_ok() => {}
-                event = self.swarm.next() => return event,
-                () = tokio::time::sleep_until(duplicates.unwrap_or_else(now)), if duplicates.is_some() => {
-                    return Some(SwarmEvent::Behaviour(Event::DuplicateConnectionsDue));
-                }
-                () = tokio::time::sleep_until(static_peers.unwrap_or_else(now)), if static_peers.is_some() => {
-                    return Some(SwarmEvent::Behaviour(Event::StaticPeersDue));
-                }
+        let duplicates = self.next_duplicate_check;
+        let static_peers = self.next_static_peer_check;
+        // `select!` builds the futures of disabled branches too, so each needs some deadline.
+        let now = Instant::now;
+        tokio::select! {
+            // Observe rotations even when no gossip messages arrive. Fixed-address builders
+            // drop the sender, so stop polling a closed channel, which would otherwise report a
+            // change on every call.
+            Ok(()) = self.handler.signer_recv.changed(), if self.handler.signer_recv.has_changed().is_ok() => {
+                Some(SwarmEvent::Behaviour(Event::SignerChanged))
+            }
+            event = self.swarm.next() => event,
+            () = tokio::time::sleep_until(duplicates.unwrap_or_else(now)), if duplicates.is_some() => {
+                Some(SwarmEvent::Behaviour(Event::DuplicateConnectionsDue))
+            }
+            () = tokio::time::sleep_until(static_peers.unwrap_or_else(now)), if static_peers.is_some() => {
+                Some(SwarmEvent::Behaviour(Event::StaticPeersDue))
             }
         }
     }
@@ -578,6 +578,7 @@ where
             Event::Gossipsub(e) => return self.handle_gossipsub_event(*e),
             Event::DuplicateConnectionsDue => self.close_duplicate_connections(),
             Event::StaticPeersDue => self.dial_static_peers(),
+            Event::SignerChanged => self.handler.update_signer(),
             Event::Ping(libp2p::ping::Event { peer, result, .. }) => {
                 trace!(target: "gossip", ?peer, ?result, "Ping received");
 
@@ -1435,11 +1436,10 @@ mod tests {
     async fn idle_gossip_observes_rotation_before_next_payload() {
         let (sender, receiver) = watch::channel(address(1));
         let mut driver = driver(receiver);
-        let mut next = Box::pin(driver.next());
-        assert!(futures::poll!(&mut next).is_pending());
         sender.send(address(2)).unwrap();
-        assert!(futures::poll!(&mut next).is_pending());
-        drop(next);
+        let event = driver.next().await.expect("signer change");
+        assert!(matches!(event, SwarmEvent::Behaviour(Event::SignerChanged)));
+        driver.handle_event(event);
 
         // No gossip arrived during grace. Expiry is measured from the observed update,
         // not from this first old-key payload.
@@ -1454,9 +1454,11 @@ mod tests {
         let mut driver = driver(receiver);
         sender.send(address(2)).unwrap();
         drop(sender);
+        // A closed channel has nothing more to report, rather than a change on every call.
         let mut next = Box::pin(driver.next());
         assert!(futures::poll!(&mut next).is_pending());
         drop(next);
+        // Validation still reads the final value.
         assert!(driver.handler.validate_signature(&payload(2)).is_ok());
         assert!(driver.handler.validate_signature(&payload(1)).is_err());
     }
@@ -1465,14 +1467,15 @@ mod tests {
     async fn signer_update_preserves_duplicate_connection_deadline() {
         let (sender, receiver) = watch::channel(address(1));
         let mut driver = driver(receiver);
-        driver.next_duplicate_check = Some(tokio::time::Instant::now() + Duration::from_secs(1));
-        let mut next = Box::pin(driver.next());
-        assert!(futures::poll!(&mut next).is_pending());
+        driver.next_duplicate_check = Some(Instant::now() + Duration::from_secs(1));
         sender.send(address(2)).unwrap();
-        assert!(futures::poll!(&mut next).is_pending());
+        let event = driver.next().await.expect("signer change");
+        assert!(matches!(event, SwarmEvent::Behaviour(Event::SignerChanged)));
+        driver.handle_event(event);
 
         tokio::time::advance(Duration::from_secs(1)).await;
-        assert!(matches!(next.await, Some(SwarmEvent::Behaviour(Event::DuplicateConnectionsDue))));
+        let event = driver.next().await;
+        assert!(matches!(event, Some(SwarmEvent::Behaviour(Event::DuplicateConnectionsDue))));
         assert!(driver.handler.validate_signature(&payload(2)).is_ok());
     }
 }

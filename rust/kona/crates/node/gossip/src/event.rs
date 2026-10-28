@@ -45,6 +45,11 @@ pub enum Event {
     ///
     /// Emitted by [`crate::GossipDriver::next`] itself, not by the swarm's behaviour.
     StaticPeersDue,
+
+    /// The unsafe block signer changed, so the rotation's grace period can start.
+    ///
+    /// Emitted by [`crate::GossipDriver::next`] itself, not by the swarm's behaviour.
+    SignerChanged,
 }
 
 impl From<ping::Event> for Event {
