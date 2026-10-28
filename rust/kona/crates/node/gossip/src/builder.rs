@@ -215,7 +215,7 @@ impl GossipDriverBuilder {
         } = self;
 
         let timeout = timeout.unwrap_or(DEFAULT_IDLE_CONNECTION_TIMEOUT);
-        let mut static_peers = crate::peer_addr::group_by_peer(static_peers);
+        let mut static_peers = PeerAddr::group_by_peer(static_peers);
         // Lets a cluster share one list.
         if let Some(addrs) = static_peers.remove(&keypair.public().to_peer_id()) {
             info!(target: "gossip", ?addrs, "Static peer list contains this node's own ID, ignoring it");

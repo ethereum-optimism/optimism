@@ -27,6 +27,21 @@ impl PeerAddr {
     pub const fn peer_id(&self) -> PeerId {
         self.peer_id
     }
+
+    /// Groups peer addresses by peer ID, so several addresses for one peer make one peer. An
+    /// address listed twice is kept once.
+    pub(crate) fn group_by_peer(
+        peers: impl IntoIterator<Item = Self>,
+    ) -> HashMap<PeerId, Vec<Multiaddr>> {
+        let mut grouped: HashMap<PeerId, Vec<Multiaddr>> = HashMap::new();
+        for peer in peers {
+            let addrs = grouped.entry(peer.peer_id).or_default();
+            if !addrs.contains(&peer.addr) {
+                addrs.push(peer.addr);
+            }
+        }
+        grouped
+    }
 }
 
 impl TryFrom<Multiaddr> for PeerAddr {
@@ -50,21 +65,6 @@ impl FromStr for PeerAddr {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         s.parse::<Multiaddr>().map_err(PeerAddrError::InvalidMultiaddr)?.try_into()
     }
-}
-
-/// Groups peer addresses by peer ID, so several addresses for one peer make one peer. An address
-/// listed twice is kept once.
-pub(crate) fn group_by_peer(
-    peers: impl IntoIterator<Item = PeerAddr>,
-) -> HashMap<PeerId, Vec<Multiaddr>> {
-    let mut grouped: HashMap<PeerId, Vec<Multiaddr>> = HashMap::new();
-    for peer in peers {
-        let addrs = grouped.entry(peer.peer_id).or_default();
-        if !addrs.contains(&peer.addr) {
-            addrs.push(peer.addr);
-        }
-    }
-    grouped
 }
 
 impl fmt::Display for PeerAddr {
@@ -93,7 +93,7 @@ mod tests {
             peer("10.0.0.3", peer_2),
         ];
 
-        let grouped = group_by_peer(peers.clone());
+        let grouped = PeerAddr::group_by_peer(peers.clone());
 
         let expected = HashMap::from([
             (peer_1, vec![peers[0].addr.clone(), peers[1].addr.clone()]),
