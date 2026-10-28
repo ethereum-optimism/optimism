@@ -3513,7 +3513,8 @@ impl Proposer {
         }
     }
 
-    /// Rechecks a game's cached ancestry at one latest L1 block, deferring across anchor changes.
+    /// Rechecks a game's cached ancestry against one latest L1 block.
+    /// Defers on an anchor change or a `ChallengerWins` link; a disallowed link is ineligible.
     /// Proofs may cross a non-ZK anchor only after sync clears the old cached anchor.
     async fn latest_ancestry_eligibility(
         &self,
@@ -4230,6 +4231,7 @@ impl Proposer {
 
         match self.pre_submit_checks(game_address).await? {
             ActionEligibility::Eligible => {}
+            // Keep the cached proof for reuse after sync.
             ActionEligibility::Deferred => return Ok(TaskSuccess::Completed),
             ActionEligibility::Ineligible => {
                 self.proof_engine.clear(game_address);
@@ -5419,7 +5421,7 @@ mod tests {
         async fn game_status(&self, game: Address, block: BlockId) -> anyhow::Result<u8> {
             self.record("game_status");
             self.record_block("game_status", block);
-            let barrier = { self.game_status_barrier.lock().unwrap().take() };
+            let barrier = self.game_status_barrier.lock().unwrap().take();
             if let Some(barrier) = barrier {
                 // Rendezvous on entry, then wait for the test to release the response.
                 barrier.wait().await;
@@ -7758,13 +7760,15 @@ mod tests {
         *proposer.state.write().await = state(vec![parent.clone(), game.clone()], None);
 
         let first = proposer.prove_game(game.address).await.unwrap();
-        assert!(matches!(first, TaskSuccess::Completed));
+        assert_eq!(first, TaskSuccess::Completed);
         assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
         assert!(actions.calls.lock().is_empty());
+        assert!(engine.cached.lock().unwrap().is_some());
+        assert!(engine.cleared.lock().unwrap().is_empty());
 
         proposer.sync_anchor_game(parent.address).await;
         let second = proposer.prove_game(game.address).await.unwrap();
-        assert!(matches!(second, TaskSuccess::Completed));
+        assert_eq!(second, TaskSuccess::Completed);
         assert_eq!(engine.calls.lock().unwrap().len(), 2);
         assert_eq!(actions.calls.lock().len(), 1);
         assert_eq!(
@@ -7815,7 +7819,7 @@ mod tests {
         *proposer.state.write().await = state(vec![parent.clone(), game.clone()], None);
         proposer.state.write().await.cursor = Cursor::from(game.index);
 
-        assert!(matches!(proposer.prove_game(game.address).await.unwrap(), TaskSuccess::Completed));
+        assert_eq!(proposer.prove_game(game.address).await.unwrap(), TaskSuccess::Completed);
         assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
         assert!(engine.cached.lock().unwrap().is_some());
         assert!(engine.cleared.lock().unwrap().is_empty());
@@ -7906,7 +7910,7 @@ mod tests {
             proposer.sync_anchor_game(parent.address).await;
             barrier.wait().await;
         });
-        assert!(matches!(first.unwrap(), TaskSuccess::Completed));
+        assert_eq!(first.unwrap(), TaskSuccess::Completed);
         assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
         assert!(engine.cached.lock().unwrap().is_some());
         assert!(engine.cleared.lock().unwrap().is_empty());
@@ -7917,12 +7921,75 @@ mod tests {
             anchor_game: parent.address,
             ..Default::default()
         });
-        assert!(matches!(proposer.prove_game(game.address).await.unwrap(), TaskSuccess::Completed));
+        assert_eq!(proposer.prove_game(game.address).await.unwrap(), TaskSuccess::Completed);
         assert_eq!(engine.calls.lock().unwrap().len(), 2);
         assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
         assert_eq!(actions.calls.lock().len(), 1);
         assert_eq!(*engine.cleared.lock().unwrap(), vec![game.address]);
         assert!(engine.cached.lock().unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn ineligible_game_during_anchor_sync_clears_cached_proof() {
+        for evict_game in [false, true] {
+            let starting_root = B256::repeat_byte(0x11);
+            let root_claim = B256::repeat_byte(0x22);
+            let parent = Game {
+                status: GameStatus::DefenderWins,
+                proposal_status: ProposalStatus::Resolved,
+                ..game_with(1, u32::MAX, 100)
+            };
+            let game = game_with(2, 1, 101);
+            let proof_inputs = ProofInputs {
+                l1_head: B256::repeat_byte(0x33),
+                l1_head_number: 20,
+                starting_root,
+                starting_sequence_number: 100,
+                root_claim,
+                sequence_number: 101,
+                ..Default::default()
+            };
+            let barrier = Arc::new(Barrier::new(2));
+            let mut proposer = test_proposer().await;
+            proposer.l1_view = Arc::new(RecordingL1View {
+                proof_inputs,
+                game_statuses: HashMap::from([(parent.address, GameStatus::DefenderWins as u8)]),
+                game_status_barrier: StdMutex::new(Some(barrier.clone())),
+                ..Default::default()
+            });
+            proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+                horizon: ProposalHorizon { safe_timestamp: 101, finalized_timestamp: 101 },
+                roots: vec![
+                    (100, super_root_at_timestamp(100, starting_root, 12, 10)),
+                    (101, super_root_at_timestamp(101, root_claim, 12, 10)),
+                ],
+            });
+            let engine =
+                Arc::new(RecordingProofEngine { proof: vec![0xaa, 0xbb], ..Default::default() });
+            let actions = Arc::new(RecordingActionExecutor::default());
+            proposer.proof_engine = engine.clone();
+            proposer.action_executor = actions.clone();
+            *proposer.state.write().await = state(vec![parent.clone(), game.clone()], None);
+
+            let (result, ()) = tokio::join!(proposer.prove_game(game.address), async {
+                barrier.wait().await;
+                proposer.sync_anchor_game(parent.address).await;
+                {
+                    let mut state = proposer.state.write().await;
+                    if evict_game {
+                        state.games.remove(&game.index);
+                    } else {
+                        state.games.get_mut(&game.index).unwrap().disallowed = true;
+                    }
+                }
+                barrier.wait().await;
+            });
+            assert_eq!(result.unwrap(), TaskSuccess::Completed);
+            assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
+            assert_eq!(*engine.cleared.lock().unwrap(), vec![game.address]);
+            assert!(engine.cached.lock().unwrap().is_none());
+            assert!(actions.calls.lock().is_empty());
+        }
     }
 
     #[tokio::test]
