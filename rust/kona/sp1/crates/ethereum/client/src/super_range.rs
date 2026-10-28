@@ -715,29 +715,31 @@ mod tests {
     }
 
     #[test]
-    fn range_outputs_reject_invalid_later_claim_after_noop() {
-        let (mut inputs, mut oracle, configs) = progressing_range_fixture();
-        let last_claim = inputs.claimed_transitions.last_mut().unwrap();
-        let mut preimage = block_on(
-            oracle.get(PreimageKey::new_keccak256(*last_claim.optimistic_block.output_root)),
-        )
-        .unwrap();
-        // Preserve the block hash and V0 structure: only execution can reject this state root.
-        preimage[32] ^= 1;
-        let invalid_root = alloy_primitives::keccak256(&preimage);
-        oracle.save_preimage(PreimageKey::new_keccak256(*invalid_root), preimage).unwrap();
-        last_claim.optimistic_block.output_root = invalid_root;
-        let err = block_on(build_range_outputs(
-            inputs,
-            Arc::new(oracle),
-            kona_sp1_client_utils::BlobStore::default(),
-            Some(&configs),
-        ))
-        .unwrap_err();
-        assert!(
-            err.to_string().contains("Failed to validate L2 block #2"),
-            "unexpected error: {err}"
-        );
+    fn range_outputs_reject_invalid_claims_during_and_after_noop() {
+        for (index, expected_error) in [
+            (1, "no-op super-range transition changed output root"),
+            (2, "Failed to validate L2 block #2"),
+        ] {
+            let (mut inputs, mut oracle, configs) = progressing_range_fixture();
+            let claim = &mut inputs.claimed_transitions[index];
+            let mut preimage = block_on(
+                oracle.get(PreimageKey::new_keccak256(*claim.optimistic_block.output_root)),
+            )
+            .unwrap();
+            // Keep the block hash so a hash mismatch cannot reject the claim.
+            preimage[32] ^= 1;
+            let invalid_root = alloy_primitives::keccak256(&preimage);
+            oracle.save_preimage(PreimageKey::new_keccak256(*invalid_root), preimage).unwrap();
+            claim.optimistic_block.output_root = invalid_root;
+            let err = block_on(build_range_outputs(
+                inputs,
+                Arc::new(oracle),
+                kona_sp1_client_utils::BlobStore::default(),
+                Some(&configs),
+            ))
+            .unwrap_err();
+            assert!(err.to_string().contains(expected_error), "unexpected error: {err}");
+        }
     }
 
     fn rollup_configs(chain_ids: &[u64]) -> BTreeMap<u64, RollupConfig> {

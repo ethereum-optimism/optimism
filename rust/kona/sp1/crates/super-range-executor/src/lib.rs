@@ -1860,6 +1860,89 @@ mod tests {
         assert!(err.to_string().contains("no embedded dependency set"), "unexpected error: {err}");
     }
 
+    /// Pins kona-host's read of a replaced agreed output and replay of its canonical no-op.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn replaced_two_second_head_replays_across_noop() {
+        let configs = ChainConfigs::from_registry(&[U256::from(10)]).unwrap();
+        let rollup = &configs.rollup_configs[&10];
+        assert_eq!(rollup.block_time, 2);
+        let timestamp = rollup.genesis.l2_time + 20;
+        let server = mock_nodes().await;
+        let (replacement_hash, _, reads) = mock_canonical_output(&server, timestamp).await;
+        let replacement = Header {
+            number: rollup.block_number_from_timestamp(timestamp),
+            timestamp,
+            state_root: b256(0x11),
+            receipts_root: alloy_consensus::EMPTY_ROOT_HASH,
+            ..Default::default()
+        };
+        assert_eq!(replacement.hash_slow(), replacement_hash);
+        let original = Header { extra_data: Bytes::from_static(b"invalid"), ..replacement.clone() };
+        let original_hash = original.hash_slow();
+        let mut responses = [timestamp, timestamp + 1]
+            .map(|at| response_with_block_hash(at, &[10], 8, |_| replacement_hash));
+        responses[0]
+            .optimistic_at_timestamp
+            .insert(ChainId(U256::from(10)), output_entry(original_hash, 8));
+        let mut synthesized = synthesize_execution(
+            TimestampSpan::new(timestamp + 1, timestamp + 1).unwrap(),
+            b256(0xaa),
+            8,
+            &responses,
+        )
+        .unwrap();
+        let host = build_interop_host(
+            &mock_host_inputs(&server),
+            synthesized.range_inputs.l1_head,
+            &synthesized.previous_super_root_proof_bytes,
+            synthesized.current_super_root,
+            timestamp + 1,
+            None,
+        )
+        .unwrap();
+        synthesized
+            .preloaded_preimages
+            .push((PreimageKey::new_keccak256(*replacement_hash), alloy_rlp::encode(&replacement)));
+        synthesized
+            .preloaded_preimages
+            .push((PreimageKey::new_keccak256(*alloy_consensus::EMPTY_ROOT_HASH), vec![0x80]));
+        let (witness, discovered) = synthesized
+            .collect_range_witness(host.clone(), Some(&configs))
+            .await
+            .expect("native witness collection must accept the canonical no-op output");
+        let range = replay_range(
+            true,
+            false,
+            &synthesized.range_inputs,
+            witness.clone(),
+            None,
+            Some(&configs),
+        )
+        .await
+        .expect("the no-op after replacement must replay");
+        assert_eq!(range, discovered);
+        let collected = synthesized
+            .collect_consolidation_witness(host, Some(&configs), &[], None)
+            .await
+            .expect("native consolidation collection must accept the canonical no-op output");
+        let consolidation = replay_consolidation(
+            true,
+            false,
+            &synthesized.consolidation_inputs,
+            collected.witness,
+            &Default::default(),
+            None,
+            Some(&configs),
+        )
+        .await
+        .expect("consolidation must retain the replacement too");
+        assert_eq!(consolidation, collected.outputs);
+        assert_eq!(consolidation.transitions[0].super_root, synthesized.current_super_root);
+        for read in reads {
+            read.assert_calls_async(2).await;
+        }
+    }
+
     #[test]
     fn synthesize_execution_orders_chains_and_preloads_outputs() {
         let previous = response(100, &[10, 20], 7);
@@ -2050,7 +2133,13 @@ mod tests {
         timestamp: u64,
     ) -> (B256, Vec<u8>, [httpmock::Mock<'_>; 2]) {
         let number = kona_registry::ROLLUP_CONFIGS[&10].block_number_from_timestamp(timestamp);
-        let header = Header { number, timestamp, state_root: b256(0x11), ..Default::default() };
+        let header = Header {
+            number,
+            timestamp,
+            state_root: b256(0x11),
+            receipts_root: alloy_consensus::EMPTY_ROOT_HASH,
+            ..Default::default()
+        };
         let storage_root = b256(0x22);
         let header_read = server
             .mock_async(|when, then| {
