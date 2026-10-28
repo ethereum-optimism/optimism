@@ -4,7 +4,9 @@ use backon::{ExponentialBuilder, RetryableWithContext};
 use derive_more::Debug;
 use discv5::{Config, Discv5, Enr};
 use enr::NodeId;
-use kona_peers::{BootNode, BootNodes, BootStore, BootStoreFile, EnrValidation, enr_to_multiaddr};
+use kona_peers::{
+    BootNode, BootNodes, BootStore, BootStoreFile, EnrValidation, peer_id_to_node_id,
+};
 use tokio::{
     sync::mpsc::channel,
     task::JoinHandle,
@@ -289,17 +291,15 @@ impl Discv5Driver {
                                     warn!(target: "discovery", "Failed to send table infos: {:?}", e);
                                 }
                             },
-                            HandlerRequest::BanAddrs{addrs_to_ban, ban_duration} => {
-                                let enrs = self.disc.table_entries_enr();
-
-                                for enr in enrs {
-                                    let Some(multi_addr) = enr_to_multiaddr(&enr) else {
+                            HandlerRequest::BanPeers{peer_ids, ban_duration} => {
+                                // By node ID, which the peer ID's key gives: the addresses a peer
+                                // listens on needn't match the ones its ENR advertises.
+                                for peer_id in peer_ids {
+                                    let Some(node_id) = peer_id_to_node_id(&peer_id) else {
+                                        warn!(target: "discovery", %peer_id, "Cannot ban a peer whose ID holds no secp256k1 key");
                                         continue;
                                     };
-
-                                    if addrs_to_ban.contains(&multi_addr) {
-                                        self.disc.ban_node(&enr.node_id(), Some(ban_duration));
-                                    }
+                                    self.disc.ban_node(&node_id, Some(ban_duration));
                                 }
                             },
                         }
@@ -458,6 +458,42 @@ mod tests {
             .await
             .expect("driver should finish startup")
             .expect("driver should not stop during startup");
+    }
+
+    /// `BanPeers` bans a peer by its libp2p peer ID, which discovery turns into the node ID of the
+    /// same key: banning a node also removes it from the table.
+    #[tokio::test]
+    async fn test_ban_peers_bans_by_peer_id() {
+        let key = CombinedKey::generate_secp256k1();
+        let mut builder = Enr::builder();
+        builder.ip4(Ipv4Addr::LOCALHOST).udp4(30303).tcp4(9222);
+        let enr = builder.build(&key).unwrap();
+        // The libp2p peer ID of the same key, at the end of its gossip address.
+        let peer_id = match kona_peers::enr_to_multiaddr(&enr).unwrap().pop() {
+            Some(libp2p::multiaddr::Protocol::P2p(peer_id)) => peer_id,
+            other => panic!("address doesn't end in a peer ID: {other:?}"),
+        };
+
+        let driver = offline_driver();
+        driver.disc.add_enr(enr.clone()).unwrap();
+        let (handler, _enr_recv, _task) = driver.spawn();
+        wait_until_started(&handler).await;
+        let table = |handler: &Discv5Handler| {
+            let reply = handler.table_enrs();
+            async move { tokio::time::timeout(Duration::from_secs(5), reply).await.unwrap().unwrap() }
+        };
+        assert!(table(&handler).await.iter().any(|e| e.node_id() == enr.node_id()));
+
+        handler
+            .sender
+            .send(HandlerRequest::BanPeers {
+                peer_ids: [peer_id].into(),
+                ban_duration: Duration::from_secs(60),
+            })
+            .await
+            .unwrap();
+
+        assert!(!table(&handler).await.iter().any(|e| e.node_id() == enr.node_id()));
     }
 
     /// [`Discv5Driver::start`]: the task stops when every [`Discv5Handler`] clone and the ENR

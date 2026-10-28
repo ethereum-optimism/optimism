@@ -21,71 +21,28 @@ pub struct NetworkHandler {
 impl NetworkHandler {
     pub(super) async fn handle_peer_monitoring(&mut self) {
         // Inspect peer scores and ban peers that are below the threshold.
-        let Some(ban_peers) = self.gossip.peer_monitoring.as_ref() else {
+        let Some(ban_duration) = self.gossip.peer_monitoring.as_ref().map(|m| m.ban_duration)
+        else {
             return;
         };
 
-        // We iterate over all connected peers and check their scores.
-        // We collect a list of peers to remove
-        let peers_to_remove = self
-            .gossip
-            .swarm
-            .connected_peers()
-            .filter_map(|peer_id| {
-                // If the score is not available, we use a default value of 0.
-                let score =
-                    self.gossip.swarm.behaviour().gossipsub.peer_score(peer_id).unwrap_or_default();
+        // Record the score of every connected peer in the metrics.
+        for peer_id in self.gossip.swarm.connected_peers() {
+            metrics::histogram!(kona_gossip::Metrics::PEER_SCORES)
+                .record(self.gossip.peer_score(peer_id));
+        }
 
-                // Record the peer score in the metrics.
-                metrics::histogram!(kona_gossip::Metrics::PEER_SCORES).record(score);
+        // Disconnect the peers, and ban them in discovery too, so it doesn't find them again.
+        let peer_ids: HashSet<_> = self.gossip.peers_to_ban().into_iter().collect();
+        if peer_ids.is_empty() {
+            return;
+        }
+        for peer_id in &peer_ids {
+            self.gossip.ban_peer(*peer_id);
+        }
 
-                if score < ban_peers.ban_threshold {
-                    return Some(*peer_id);
-                }
-
-                None
-            })
-            .collect::<Vec<_>>();
-
-        // We remove the addresses from the gossip layer.
-        let addrs_to_ban = peers_to_remove
-            .into_iter()
-            .filter_map(|peer_to_remove| {
-                // In that case, we ban the peer. This means...
-                // 1. We remove the peer from the network gossip.
-                // 2. We ban the peer from the discv5 service.
-                if self.gossip.swarm.disconnect_peer_id(peer_to_remove).is_err() {
-                    warn!(peer = ?peer_to_remove, "Trying to disconnect a non-existing peer from the gossip driver.");
-                }
-
-                        // Record the duration of the peer connection.
-                        if let Some(start_time) = self.gossip.peer_connection_start.remove(&peer_to_remove) {
-                            let peer_duration = start_time.elapsed();
-                            metrics::histogram!(kona_gossip::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS).record(peer_duration.as_secs_f64());
-                        }
-
-                if let Some(info) = self.gossip.peerstore.remove(&peer_to_remove) {
-                    use kona_gossip::ConnectionGate;
-                    self.gossip.connection_gate.remove_dial(&peer_to_remove);
-                    let score = self.gossip.swarm.behaviour().gossipsub.peer_score(&peer_to_remove).unwrap_or_default();
-                    metrics::gauge!(kona_gossip::Metrics::BANNED_PEERS, "peer_id" => peer_to_remove.to_string(), "score" => score.to_string()).increment(1);
-                    return Some(info.listen_addrs);
-                }
-
-                None
-            })
-            .flatten()
-            .collect::<HashSet<_>>();
-
-        // We send a request to the discovery handler to ban the set of addresses.
-        if let Err(send_err) = self
-            .discovery
-            .sender
-            .send(HandlerRequest::BanAddrs {
-                addrs_to_ban: addrs_to_ban.into(),
-                ban_duration: ban_peers.ban_duration,
-            })
-            .await
+        if let Err(send_err) =
+            self.discovery.sender.send(HandlerRequest::BanPeers { peer_ids, ban_duration }).await
         {
             warn!(err = ?send_err, "Impossible to send a request to the discovery handler. The channel connection is dropped.");
         }

@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use crate::actors::network::mocks::builder::TestNetworkBuilder;
+use crate::actors::network::mocks::{TestNetworkError, builder::TestNetworkBuilder};
+use discv5::Enr;
+use enr::NodeId;
+use kona_gossip::PeerAddr;
 use kona_rpc::OpP2PApiServer;
 
 /// Two nodes connect through discovery: the second bootstraps from the first's ENR, and its
@@ -69,6 +72,78 @@ async fn test_memory_network_conn() -> anyhow::Result<()> {
 
     assert!(node_1.discovery_table().await?.is_empty());
     assert!(node_2.discovery_table().await?.is_empty());
+
+    Ok(())
+}
+
+/// A node dials its static peers at startup, with no `ConnectPeer` command and no discovery: the
+/// in-memory nodes have no bootnodes.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_static_peer_connects_at_startup() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().in_memory();
+    let node_1 = builder.build(vec![]).await;
+
+    let static_peer = PeerAddr::try_from(node_1.listen_addr().await?)?;
+    let mut builder = builder.with_static_peers(vec![static_peer]);
+    let node_2 = builder.build(vec![]).await;
+
+    node_2.is_connected_to_with_retries(&node_1).await?;
+    node_1.is_connected_to_with_retries(&node_2).await?;
+
+    assert!(node_1.discovery_table().await?.is_empty());
+    assert!(node_2.discovery_table().await?.is_empty());
+
+    Ok(())
+}
+
+/// Returns the node IDs of the ENRs in a discovery table.
+fn node_ids(table: &[Enr]) -> Vec<NodeId> {
+    table.iter().map(Enr::node_id).collect()
+}
+
+/// A static peer never becomes discoverable, over real TCP and UDP: D1 and D2 find each other
+/// through discovery, and S is a static peer of D1 only, with no bootnodes. However long discovery
+/// runs, S stays out of every discovery table, and D2 never connects to it.
+///
+/// This holds because nothing feeds the peers libp2p connects to into discovery. A sequencer that
+/// peers only statically stays hidden from the rest of the network.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_static_peer_is_not_discoverable() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().with_discovery_interval(Duration::from_millis(100));
+
+    // S runs discovery too, but with no bootnodes, so it can only be found through other nodes.
+    let static_node = builder.build(vec![]).await;
+    let static_peer = PeerAddr::try_from(static_node.listen_addr().await?)?;
+
+    let mut builder = builder.with_static_peers(vec![static_peer]);
+    let node_1 = builder.build(vec![]).await;
+    let node_2 = builder.build(vec![node_1.peer_enr().await?]).await;
+
+    node_1.is_connected_to_with_retries(&static_node).await?;
+    node_1.is_connected_to_with_retries(&node_2).await?;
+    node_2.is_connected_to_with_retries(&node_1).await?;
+
+    // Give discovery many rounds to pass S on, if it ever would.
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    let (static_id, id_1, id_2) =
+        (static_node.node_id().await?, node_1.node_id().await?, node_2.node_id().await?);
+
+    // D1 and D2 found each other through discovery, which S takes no part in.
+    let table_1 = node_ids(&node_1.discovery_table().await?);
+    let table_2 = node_ids(&node_2.discovery_table().await?);
+    assert!(table_1.contains(&id_2));
+    assert!(table_2.contains(&id_1));
+    assert!(!table_1.contains(&static_id));
+    assert!(!table_2.contains(&static_id));
+    assert!(static_node.discovery_table().await?.is_empty());
+
+    // S's only connection is the one D1 dialed as its static peer.
+    assert!(matches!(
+        node_2.is_connected_to(&static_node).await,
+        Err(TestNetworkError::PeerNotConnected)
+    ));
+    assert_eq!(static_node.peers().await?.peers.len(), 1);
 
     Ok(())
 }

@@ -80,11 +80,7 @@ impl<G: ConnectionGate> GossipDriver<G> {
             external_addresses: self.swarm.external_addresses().cloned().collect(),
             peerstore: self.peerstore.clone(),
             connected_peers: self.swarm.connected_peers().copied().collect(),
-            peer_scores: self
-                .peerstore
-                .keys()
-                .map(|peer| (*peer, gossipsub.peer_score(peer).unwrap_or_default()))
-                .collect(),
+            peer_scores: self.peerstore.keys().map(|peer| (*peer, self.peer_score(peer))).collect(),
             gossip_peers,
             topic_peer_counts,
             block_topics,

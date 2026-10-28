@@ -13,7 +13,7 @@ use alloy_primitives::Address;
 use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
-use kona_gossip::GossipTransport;
+use kona_gossip::{GossipTransport, PeerAddr};
 use kona_node_service::{
     EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, SignerActor,
 };
@@ -37,7 +37,7 @@ use tracing::{Instrument, error, info_span};
 pub(crate) struct TestNetworkBuilder {
     /// The chain ID every node built by this builder uses.
     chain_id: u64,
-    /// The address gossiped blocks must be signed by.
+    /// The block signer of the nodes built from now on: they only accept blocks it signed.
     unsafe_block_signer: Address,
     /// The keypair for the next node built, if it must not be random.
     custom_keypair: Option<Keypair>,
@@ -53,6 +53,8 @@ pub(crate) struct TestNetworkBuilder {
     discovery_interval: Option<Duration>,
     /// The ID of the next node built, which prefixes its logs.
     next_node_id: usize,
+    /// The static peers of the next node built.
+    static_peers: Vec<PeerAddr>,
 }
 
 impl TestNetworkBuilder {
@@ -71,6 +73,7 @@ impl TestNetworkBuilder {
             in_memory: false,
             discovery_interval: None,
             next_node_id: 0,
+            static_peers: Vec::new(),
         }
     }
 
@@ -90,23 +93,38 @@ impl TestNetworkBuilder {
         self
     }
 
-    /// Sets a sequencer keypair for the network.
-    /// The next network built will be the sequencer's network. This will set the unsafe block
-    /// signer to the sequencer's address and the custom keypair to the sequencer's keypair.
-    /// This amounts to calling [`Self::with_unsafe_block_signer`] and [`Self::with_custom_keypair`]
-    /// sequentially.
-    pub(crate) fn set_sequencer(mut self) -> Self {
-        let sequencer_keypair = Keypair::generate_secp256k1();
-        let secp256k1_key = sequencer_keypair.clone().try_into_secp256k1()
-        .map_err(|e| anyhow::anyhow!("Impossible to convert keypair to secp256k1. This is a bug since we only support secp256k1 keys: {e}")).unwrap()
-        .secret().to_bytes();
-        let local_node_key = k256::ecdsa::SigningKey::from_bytes(&secp256k1_key.into())
-        .map_err(|e| anyhow::anyhow!("Impossible to convert keypair to k256 signing key. This is a bug since we only support secp256k1 keys: {e}")).unwrap();
-
-        self.custom_keypair = Some(sequencer_keypair);
-        self.unsafe_block_signer = Address::from_private_key(&local_node_key);
-
+    /// Gives the next node built, and only that one, these static peers, which it dials at
+    /// startup. The nodes built after it have none, unless this is called again.
+    pub(crate) fn with_static_peers(mut self, static_peers: Vec<PeerAddr>) -> Self {
+        self.static_peers = static_peers;
         self
+    }
+
+    /// Makes every node built from now on accept, and relay, only blocks signed by `signer`.
+    /// Nodes built before keep the signer they were built with.
+    pub(crate) const fn with_unsafe_block_signer(mut self, signer: Address) -> Self {
+        self.unsafe_block_signer = signer;
+        self
+    }
+
+    /// Gives the next node built, and only that one, this keypair instead of a random one. The
+    /// nodes built after it get random keypairs again.
+    pub(crate) fn with_custom_keypair(mut self, keypair: Keypair) -> Self {
+        self.custom_keypair = Some(keypair);
+        self
+    }
+
+    /// Makes the next node built the sequencer: it gets a new keypair to sign blocks with, and
+    /// every node built from now on, the sequencer included, accepts only blocks signed with it.
+    ///
+    /// So build the sequencer next, then the nodes that should accept its blocks. A node that must
+    /// be built before the sequencer, such as a hub it lists as a static peer, needs
+    /// [`Self::with_unsafe_block_signer`] and [`Self::with_custom_keypair`] separately, which is
+    /// what this calls.
+    pub(crate) fn set_sequencer(self) -> Self {
+        let sequencer_keypair = Keypair::generate_secp256k1();
+        self.with_unsafe_block_signer(signer_address(&sequencer_keypair))
+            .with_custom_keypair(sequencer_keypair)
     }
 
     /// Builds and starts one node, which bootstraps discovery from `bootnodes`.
@@ -154,7 +172,8 @@ impl TestNetworkBuilder {
             LocalNode::new(local_node_key, node_addr, 0, 0),
             discovery_config,
         )
-        .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into());
+        .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into())
+        .with_static_peers(std::mem::take(&mut self.static_peers));
         if let Some(interval) = self.discovery_interval {
             builder = builder.with_discovery_interval(interval);
         }
@@ -235,6 +254,16 @@ impl TestNetworkBuilder {
             handle,
         }
     }
+}
+
+/// The address a node with `keypair` signs blocks as.
+pub(crate) fn signer_address(keypair: &Keypair) -> Address {
+    let secp256k1_key = keypair.clone().try_into_secp256k1()
+        .map_err(|e| anyhow::anyhow!("Impossible to convert keypair to secp256k1. This is a bug since we only support secp256k1 keys: {e}")).unwrap()
+        .secret().to_bytes();
+    let signing_key = k256::ecdsa::SigningKey::from_bytes(&secp256k1_key.into())
+        .map_err(|e| anyhow::anyhow!("Impossible to convert keypair to k256 signing key. This is a bug since we only support secp256k1 keys: {e}")).unwrap();
+    Address::from_private_key(&signing_key)
 }
 
 /// The target of the span around each test node's tasks.
