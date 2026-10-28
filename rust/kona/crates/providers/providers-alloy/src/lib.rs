@@ -7,8 +7,16 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod metrics;
+mod source;
+pub use source::{BlockSource, Cached, ReceiptSource};
+
+mod rpc_source;
+pub use rpc_source::RpcSource;
+
+mod source_error;
 pub use beacon_client::BeaconClientError;
 pub use metrics::Metrics;
+pub use source_error::{SourceError, SourceError as AlloyChainProviderError};
 
 mod beacon_client;
 pub use beacon_client::{
@@ -20,7 +28,7 @@ mod blobs;
 pub use blobs::{BlobWithCommitmentAndProof, BoxedBlob, OnlineBlobProvider};
 
 mod chain_provider;
-pub use chain_provider::{AlloyChainProvider, AlloyChainProviderError};
+pub use chain_provider::AlloyChainProvider;
 
 mod l2_chain_provider;
 pub use l2_chain_provider::{AlloyL2ChainProvider, AlloyL2ChainProviderError};

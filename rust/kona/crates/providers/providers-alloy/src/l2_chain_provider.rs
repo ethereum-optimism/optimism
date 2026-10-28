@@ -1,10 +1,7 @@
-//! Providers that use alloy provider types on the backend.
-
-#[cfg(feature = "metrics")]
-use crate::Metrics;
-use alloy_consensus::Header;
+//! L2 derivation adapter over a cached consensus-data source.
+use crate::{BlockSource, Cached, RpcSource, SourceError};
 use alloy_primitives::{B256, Bytes};
-use alloy_provider::{Provider, RootProvider};
+use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_engine::JwtSecret;
 use alloy_transport::{RpcError, TransportErrorKind};
@@ -18,124 +15,47 @@ use http_body_util::Full;
 use kona_derive::{L2ChainProvider, PipelineError, PipelineErrorKind, ResetError};
 use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{BatchValidationProvider, L2BlockInfo, to_system_config};
-use lru::LruCache;
-use op_alloy_consensus::OpBlock;
+use op_alloy_consensus::{OpBlock, OpTxEnvelope};
 use op_alloy_network::Optimism;
-use std::{num::NonZeroUsize, sync::Arc};
+use std::sync::Arc;
 use tower::ServiceBuilder;
 
-/// The [`AlloyL2ChainProvider`] is a concrete implementation of the [`L2ChainProvider`] trait,
-/// providing data over Ethereum JSON-RPC using an alloy provider as the backend.
+/// Converts accepted L2 blocks into derivation's block info and system configuration.
 #[derive(Debug, Clone)]
-pub struct AlloyL2ChainProvider {
-    /// The inner Ethereum JSON-RPC provider.
-    inner: RootProvider<Optimism>,
-    /// Whether to trust the RPC without verification.
-    trust_rpc: bool,
-    /// The rollup configuration.
+pub struct AlloyL2ChainProvider<S: BlockSource = Cached<RpcSource<Optimism>>> {
+    source: S,
     rollup_config: Arc<RollupConfig>,
-    /// The `block_by_hash` LRU cache. Blocks are cached by hash only: a height does not identify
-    /// a block across a reorg, so `block_by_number` always asks the RPC.
-    block_by_hash_cache: LruCache<B256, Arc<OpBlock>>,
 }
 
-impl AlloyL2ChainProvider {
-    /// Creates a new [`AlloyL2ChainProvider`] with the given alloy provider and [`RollupConfig`].
-    ///
-    /// ## Panics
-    /// - Panics if `cache_size` is zero.
-    pub fn new(
-        inner: RootProvider<Optimism>,
-        rollup_config: Arc<RollupConfig>,
-        cache_size: usize,
-    ) -> Self {
-        Self::new_with_trust(inner, rollup_config, cache_size, true)
+impl<S: BlockSource<Transaction = OpTxEnvelope>> AlloyL2ChainProvider<S> {
+    /// Creates an L2 provider over the selected source and wrappers.
+    pub const fn new(source: S, rollup_config: Arc<RollupConfig>) -> Self {
+        Self { source, rollup_config }
     }
 
-    /// Creates a new [`AlloyL2ChainProvider`] with the given alloy provider, [`RollupConfig`], and
-    /// trust setting.
-    ///
-    /// ## Panics
-    /// - Panics if `cache_size` is zero.
-    pub fn new_with_trust(
-        inner: RootProvider<Optimism>,
-        rollup_config: Arc<RollupConfig>,
-        cache_size: usize,
-        trust_rpc: bool,
-    ) -> Self {
-        Self {
-            inner,
-            trust_rpc,
-            rollup_config,
-            block_by_hash_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
-        }
-    }
-
-    /// Fetches the [`OpBlock`] with the given hash, caching the result.
     async fn block_by_hash(
         &mut self,
         hash: B256,
     ) -> Result<Arc<OpBlock>, AlloyL2ChainProviderError> {
-        if let Some(block) = self.block_by_hash_cache.get(&hash) {
-            return Ok(Arc::clone(block));
-        }
-
-        kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_REQUESTS, "method" => "l2_block_by_hash");
-
-        let block = self
-            .inner
-            .get_block_by_hash(hash)
-            .full()
-            .await
-            .map_err(|e| {
-                kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_ERRORS, "method" => "l2_block_by_hash");
-                AlloyL2ChainProviderError::Transport(e)
-            })?
-            .ok_or(AlloyL2ChainProviderError::BlockHashNotFound(hash))?;
-
-        let block = block.into_consensus().map_transactions(|t| t.inner.inner.into_inner());
-        self.verify_block_hash(&block.header, hash)?;
-
-        let block = Arc::new(block);
-        self.block_by_hash_cache.put(hash, Arc::clone(&block));
-        Ok(block)
+        Ok(self.source.block_by_hash(hash).await?)
     }
 
     /// Returns the chain ID.
-    pub async fn chain_id(&mut self) -> Result<u64, RpcError<TransportErrorKind>> {
-        self.inner.get_chain_id().await
+    pub async fn chain_id(&mut self) -> Result<u64, SourceError> {
+        self.source.chain_id().await
     }
 
     /// Returns the latest L2 block number.
-    pub async fn latest_block_number(&mut self) -> Result<u64, RpcError<TransportErrorKind>> {
-        self.inner.get_block_number().await
+    pub async fn latest_block_number(&mut self) -> Result<u64, SourceError> {
+        self.source.latest_block_number().await
     }
+}
 
-    /// Verifies that a header hashes to the expected hash when `trust_rpc` is false.
+impl AlloyL2ChainProvider {
+    /// Creates a trusting provider with an authenticated HTTP client.
     ///
-    /// The hash an endpoint reports alongside a block is its own claim, so it is recomputed from
-    /// the header rather than taken at face value: otherwise an endpoint could echo back the hash
-    /// it was asked for while serving different header fields.
-    fn verify_block_hash(
-        &self,
-        header: &Header,
-        expected_hash: B256,
-    ) -> Result<(), RpcError<TransportErrorKind>> {
-        if self.trust_rpc {
-            return Ok(());
-        }
-
-        let actual_hash = header.hash_slow();
-        if actual_hash != expected_hash {
-            return Err(RpcError::local_usage_str(&format!(
-                "Block hash mismatch: expected {expected_hash:?}, got {actual_hash:?}"
-            )));
-        }
-
-        Ok(())
-    }
-
-    /// Creates a new [`AlloyL2ChainProvider`] from the provided [`reqwest::Url`].
+    /// # Panics
+    /// Panics if `cache_size` is zero.
     pub fn new_http(
         url: reqwest::Url,
         rollup_config: Arc<RollupConfig>,
@@ -143,16 +63,13 @@ impl AlloyL2ChainProvider {
         jwt: JwtSecret,
     ) -> Self {
         let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
-
-        let auth_layer = AuthLayer::new(jwt);
-        let service = ServiceBuilder::new().layer(auth_layer).service(hyper_client);
-
-        let layer_transport = HyperClient::with_service(service);
-        let http_hyper = Http::with_client(layer_transport, url);
-        let rpc_client = RpcClient::new(http_hyper, false);
-
-        let rpc = RootProvider::<Optimism>::new(rpc_client);
-        Self::new(rpc, rollup_config, cache_size)
+        let service = ServiceBuilder::new().layer(AuthLayer::new(jwt)).service(hyper_client);
+        let transport = HyperClient::with_service(service);
+        let client = RpcClient::new(Http::with_client(transport, url), false);
+        Self::new(
+            Cached::new(RpcSource::new(RootProvider::<Optimism>::new(client)), cache_size),
+            rollup_config,
+        )
     }
 }
 
@@ -203,8 +120,25 @@ impl From<AlloyL2ChainProviderError> for PipelineErrorKind {
     }
 }
 
+impl From<SourceError> for AlloyL2ChainProviderError {
+    fn from(error: SourceError) -> Self {
+        match error {
+            SourceError::Transport(error) => Self::Transport(error),
+            SourceError::BlockNotFound(alloy_eips::BlockId::Hash(hash)) => {
+                Self::BlockHashNotFound(hash.block_hash)
+            }
+            SourceError::BlockNotFound(alloy_eips::BlockId::Number(number)) => Self::BlockNotFound(
+                number.as_number().expect("sources request explicit block numbers"),
+            ),
+            error => Self::Transport(RpcError::local_usage(error)),
+        }
+    }
+}
+
 #[async_trait]
-impl BatchValidationProvider for AlloyL2ChainProvider {
+impl<S: BlockSource<Transaction = OpTxEnvelope>> BatchValidationProvider
+    for AlloyL2ChainProvider<S>
+{
     type Error = AlloyL2ChainProviderError;
 
     async fn l2_block_info_by_number(&mut self, number: u64) -> Result<L2BlockInfo, Self::Error> {
@@ -223,29 +157,12 @@ impl BatchValidationProvider for AlloyL2ChainProvider {
     }
 
     async fn block_by_number(&mut self, number: u64) -> Result<Arc<OpBlock>, Self::Error> {
-        kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_REQUESTS, "method" => "l2_block_ref_by_number");
-
-        let block = Arc::new(
-            self.inner
-                .get_block_by_number(number.into())
-                .full()
-                .await
-                .map_err(|e| {
-                    kona_macros::inc!(gauge, Metrics::L2_CHAIN_PROVIDER_ERRORS, "method" => "l2_block_ref_by_number");
-                    AlloyL2ChainProviderError::Transport(e)
-                })?
-                .ok_or(AlloyL2ChainProviderError::BlockNotFound(number))?
-                .into_consensus()
-                .map_transactions(|t| t.inner.inner.into_inner()),
-        );
-
-        self.block_by_hash_cache.put(block.header.hash_slow(), Arc::clone(&block));
-        Ok(block)
+        Ok(self.source.block_by_number(number).await?.1)
     }
 }
 
 #[async_trait]
-impl L2ChainProvider for AlloyL2ChainProvider {
+impl<S: BlockSource<Transaction = OpTxEnvelope>> L2ChainProvider for AlloyL2ChainProvider<S> {
     type Error = AlloyL2ChainProviderError;
 
     async fn system_config_by_l2_hash(
@@ -262,6 +179,18 @@ impl L2ChainProvider for AlloyL2ChainProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn untrusted_provider(
+        inner: RootProvider<Optimism>,
+        config: Arc<RollupConfig>,
+        cache_size: usize,
+    ) -> AlloyL2ChainProvider<Cached<RpcSource<Optimism>>> {
+        AlloyL2ChainProvider::new(
+            Cached::new(RpcSource::new_with_trust(inner, false), cache_size),
+            config,
+        )
+    }
+
     use alloy_rpc_client::RpcClient;
     use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
     use httpmock::prelude::*;
@@ -313,9 +242,13 @@ mod tests {
                 .body(block_response(old.clone()));
         });
         let mut provider = AlloyL2ChainProvider::new(
-            RootProvider::<Optimism>::new(RpcClient::new_http(server.base_url().parse().unwrap())),
+            Cached::new(
+                RpcSource::new(RootProvider::<Optimism>::new(RpcClient::new_http(
+                    server.base_url().parse().unwrap(),
+                ))),
+                8,
+            ),
             Arc::new(RollupConfig::default()),
-            8,
         );
         assert_eq!(provider.block_by_number(0).await.unwrap().header.hash_slow(), old.hash_slow());
 
@@ -355,11 +288,10 @@ mod tests {
             },
             ..Default::default()
         });
-        let mut provider = AlloyL2ChainProvider::new_with_trust(
+        let mut provider = untrusted_provider(
             RootProvider::<Optimism>::new(RpcClient::new_http(server.base_url().parse().unwrap())),
             config.clone(),
             8,
-            false, // l2.trust-rpc=false
         );
 
         let err = provider.system_config_by_l2_hash(requested, config).await.unwrap_err();

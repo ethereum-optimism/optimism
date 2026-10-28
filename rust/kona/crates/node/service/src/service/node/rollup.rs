@@ -13,6 +13,7 @@ use crate::{
     },
     service::{BufferImportedBlocks, middleware::RpcObservabilityLayer},
 };
+use alloy_consensus::TxEnvelope;
 use alloy_eips::{BlockNumHash, BlockNumberOrTag};
 use alloy_primitives::Address;
 use alloy_provider::{Provider, RootProvider};
@@ -30,8 +31,8 @@ use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use kona_providers_alloy::{
-    AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
-    OnlineBlobProvider, OnlinePipeline,
+    AlloyChainProvider, AlloyL2ChainProvider, BlockSource, BufferedAlloyL2ChainProvider, Cached,
+    OnlineBeaconClient, OnlineBlobProvider, OnlinePipeline, ReceiptSource, RpcSource,
 };
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
@@ -40,6 +41,7 @@ use kona_rpc::{
     SequencerAdminHandle, SuperRootApiServer, SuperRootRpc,
 };
 use kona_safedb::SafeDb;
+use op_alloy_consensus::OpTxEnvelope;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{ops::Not as _, sync::Arc, time::Duration};
@@ -124,9 +126,11 @@ pub struct RollupNode {
 /// This type selects the concrete derivation actor implementation
 /// based on `RollupNode` configuration.
 ///
-/// It is not intended to be generic or reusable outside the
-/// `RollupNode` wiring logic.
-enum ConfiguredDerivationActor {
+/// Its source parameters preserve the startup trust choice within `RollupNode` wiring.
+enum ConfiguredDerivationActor<
+    L1: ReceiptSource<Transaction = TxEnvelope> + 'static,
+    L2: BlockSource<Transaction = OpTxEnvelope> + 'static,
+> {
     Delegate(
         Box<
             DelegateDerivationActor<
@@ -136,18 +140,20 @@ enum ConfiguredDerivationActor {
             >,
         >,
     ),
-    Normal(Box<DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>>),
+    Normal(Box<DerivationActor<QueuedDerivationEngineClient, OnlinePipeline<L1, L2>>>),
 }
 
 #[async_trait::async_trait]
-impl NodeActor for ConfiguredDerivationActor
+impl<L1, L2> NodeActor for ConfiguredDerivationActor<L1, L2>
 where
+    L1: ReceiptSource<Transaction = TxEnvelope> + 'static,
+    L2: BlockSource<Transaction = OpTxEnvelope> + 'static,
     DelegateDerivationActor<
         QueuedDerivationEngineClient,
         DerivationDelegateClient,
         AlloyChainProvider,
     >: NodeActor<Error = DerivationError>,
-    DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>:
+    DerivationActor<QueuedDerivationEngineClient, OnlinePipeline<L1, L2>>:
         NodeActor<Error = DerivationError>,
 {
     type Error = DerivationError;
@@ -163,9 +169,24 @@ where
 /// Concrete type of the engine actor used by `RollupNode`.
 type ConfiguredEngineActor = EngineActor<QueuedEngineDerivationClient>;
 
+/// Providers constructed once after startup selects the concrete RPC source types.
+#[derive(Debug, Clone)]
+struct DerivationProviders<L1, L2>
+where
+    L1: ReceiptSource<Transaction = TxEnvelope>,
+    L2: BlockSource<Transaction = OpTxEnvelope>,
+{
+    l1: AlloyChainProvider<Cached<L1>>,
+    l2: BufferedAlloyL2ChainProvider<Cached<L2>>,
+}
+
+/// Attributes builder over prepared L1 inputs and the L2 source selected at startup.
+type ConfiguredAttributesBuilder<L2> =
+    StatefulAttributesBuilder<PreparedAttributesProvider, BufferedAlloyL2ChainProvider<Cached<L2>>>;
+
 /// Concrete type of the sequencer actor used by `RollupNode`.
-type ConfiguredSequencerActor = SequencerActor<
-    StatefulAttributesBuilder<PreparedAttributesProvider, BufferedAlloyL2ChainProvider>,
+type ConfiguredSequencerActor<L2> = SequencerActor<
+    ConfiguredAttributesBuilder<L2>,
     ConductorClient,
     L1OriginSelector<PreparedOriginProvider>,
     QueuedSequencerEngineClient,
@@ -173,9 +194,14 @@ type ConfiguredSequencerActor = SequencerActor<
 >;
 
 /// Optional sequencing actors, constructed together with their shared preparation channel.
-struct ConfiguredSequencer {
-    actor: ConfiguredSequencerActor,
-    prefetcher: OriginPrefetcher<crate::DelayedL1OriginSelectorProvider, AlloyChainProvider>,
+struct ConfiguredSequencer<L1, L2>
+where
+    L1: ReceiptSource<Transaction = TxEnvelope>,
+    L2: BlockSource<Transaction = OpTxEnvelope>,
+{
+    actor: ConfiguredSequencerActor<L2>,
+    prefetcher:
+        OriginPrefetcher<crate::DelayedL1OriginSelectorProvider, AlloyChainProvider<Cached<L1>>>,
 }
 
 impl RollupNode {
@@ -195,21 +221,37 @@ impl RollupNode {
         self.rpc_builder.clone()
     }
 
-    /// Returns the sequencer builder for the node.
-    fn create_attributes_builder(
+    /// Adds caches and derivation adapters to the sources chosen at startup.
+    fn derivation_providers<L1, L2>(
+        &self,
+        l1_source: L1,
+        l2_source: L2,
+    ) -> DerivationProviders<L1, L2>
+    where
+        L1: ReceiptSource<Transaction = TxEnvelope>,
+        L2: BlockSource<Transaction = OpTxEnvelope>,
+    {
+        DerivationProviders {
+            l1: AlloyChainProvider::new(Cached::new(l1_source, DERIVATION_PROVIDER_CACHE_SIZE)),
+            l2: BufferedAlloyL2ChainProvider::new(
+                self.l2_block_buffer.clone(),
+                AlloyL2ChainProvider::new(
+                    Cached::new(l2_source, DERIVATION_PROVIDER_CACHE_SIZE),
+                    self.config.clone(),
+                ),
+            ),
+        }
+    }
+
+    /// Returns the sequencer builder over prepared L1 inputs.
+    fn create_attributes_builder<L2>(
         &self,
         l1_derivation_provider: PreparedAttributesProvider,
-    ) -> StatefulAttributesBuilder<PreparedAttributesProvider, BufferedAlloyL2ChainProvider> {
-        let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
-            self.l2_block_buffer.clone(),
-            AlloyL2ChainProvider::new_with_trust(
-                self.l2_provider.clone(),
-                self.config.clone(),
-                DERIVATION_PROVIDER_CACHE_SIZE,
-                self.l2_trust_rpc,
-            ),
-        );
-
+        l2_derivation_provider: BufferedAlloyL2ChainProvider<Cached<L2>>,
+    ) -> ConfiguredAttributesBuilder<L2>
+    where
+        L2: BlockSource<Transaction = OpTxEnvelope>,
+    {
         StatefulAttributesBuilder::new(
             self.config.clone(),
             self.l1_config.chain_config.clone(),
@@ -219,29 +261,20 @@ impl RollupNode {
         )
     }
 
-    async fn create_pipeline(&self) -> Result<OnlinePipeline, BlobProviderError> {
-        // Create the caching L1/L2 EL providers for derivation.
-        let l1_derivation_provider = AlloyChainProvider::new_with_trust(
-            self.l1_config.engine_provider.clone(),
-            DERIVATION_PROVIDER_CACHE_SIZE,
-            self.l1_config.trust_rpc,
-        );
-        let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
-            self.l2_block_buffer.clone(),
-            AlloyL2ChainProvider::new_with_trust(
-                self.l2_provider.clone(),
-                self.config.clone(),
-                DERIVATION_PROVIDER_CACHE_SIZE,
-                self.l2_trust_rpc,
-            ),
-        );
-
+    async fn create_pipeline<L1, L2>(
+        &self,
+        providers: DerivationProviders<L1, L2>,
+    ) -> Result<OnlinePipeline<L1, L2>, BlobProviderError>
+    where
+        L1: ReceiptSource<Transaction = TxEnvelope> + 'static,
+        L2: BlockSource<Transaction = OpTxEnvelope> + 'static,
+    {
         Ok(OnlinePipeline::new_polled(
             self.config.clone(),
             self.l1_config.chain_config.clone(),
             OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await?,
-            l1_derivation_provider,
-            l2_derivation_provider,
+            providers.l1,
+            providers.l2,
             self.dependency_set.clone(),
         ))
     }
@@ -278,18 +311,23 @@ impl RollupNode {
 
     /// Selects between the standard and delegate derivation actor implementations and constructs
     /// the chosen one.
-    async fn build_derivation_actor(
+    async fn build_derivation_actor<L1, L2>(
         &self,
+        providers: DerivationProviders<L1, L2>,
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
-    ) -> Result<ConfiguredDerivationActor, String> {
+    ) -> Result<ConfiguredDerivationActor<L1, L2>, String>
+    where
+        L1: ReceiptSource<Transaction = TxEnvelope> + 'static,
+        L2: BlockSource<Transaction = OpTxEnvelope> + 'static,
+    {
         if let Some(provider) = self.derivation_delegate_provider.clone() {
             // L1 Provider for sanity checking Derivation Delegation
-            let l1_provider = AlloyChainProvider::new(
-                self.l1_config.engine_provider.clone(),
+            let l1_provider = AlloyChainProvider::new(Cached::new(
+                RpcSource::new(self.l1_config.engine_provider.clone()),
                 DERIVATION_PROVIDER_CACHE_SIZE,
-            );
+            ));
             Ok(ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::new(
                 QueuedDerivationEngineClient { engine_actor_request_tx },
                 derivation_actor_request_rx,
@@ -299,20 +337,21 @@ impl RollupNode {
             ))))
         } else {
             let pipeline = self
-                .create_pipeline()
+                .create_pipeline(providers)
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
             let l1_block_zero = self.l1_block_zero().await?;
-            Ok(ConfiguredDerivationActor::Normal(Box::new(
-                DerivationActor::<_, OnlinePipeline>::new(
-                    QueuedDerivationEngineClient { engine_actor_request_tx },
-                    derivation_actor_request_rx,
-                    pipeline,
-                    self.safe_db.clone(),
-                    l1_block_zero,
-                    derivation_origin_tx,
-                ),
-            )))
+            Ok(ConfiguredDerivationActor::Normal(Box::new(DerivationActor::<
+                _,
+                OnlinePipeline<L1, L2>,
+            >::new(
+                QueuedDerivationEngineClient { engine_actor_request_tx },
+                derivation_actor_request_rx,
+                pipeline,
+                self.safe_db.clone(),
+                l1_block_zero,
+                derivation_origin_tx,
+            ))))
         }
     }
 
@@ -411,23 +450,24 @@ impl RollupNode {
     }
 
     /// Builds the sequencer actor when the node is in sequencer mode; otherwise returns `None`.
-    fn build_sequencer(
+    fn build_sequencer<L1, L2>(
         &self,
+        providers: DerivationProviders<L1, L2>,
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
         sequencer_admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
-    ) -> Result<Option<ConfiguredSequencer>, String> {
+    ) -> Result<Option<ConfiguredSequencer<L1, L2>>, String>
+    where
+        L1: ReceiptSource<Transaction = TxEnvelope> + 'static,
+        L2: BlockSource<Transaction = OpTxEnvelope> + 'static,
+    {
         if !self.mode().is_sequencer() {
             return Ok(None);
         }
 
-        let chain = AlloyChainProvider::new_with_trust(
-            self.l1_config.engine_provider.clone(),
-            DERIVATION_PROVIDER_CACHE_SIZE,
-            self.l1_config.trust_rpc,
-        );
+        let chain = providers.l1;
         let OriginPreparation {
             prefetcher,
             origins: delayed_l1_provider,
@@ -456,7 +496,7 @@ impl RollupNode {
 
         let actor = SequencerActor::new(
             sequencer_admin_command_rx,
-            self.create_attributes_builder(attributes_provider),
+            self.create_attributes_builder(attributes_provider, providers.l2),
             conductor,
             sequencer_engine_client,
             self.sequencer_config.sequencer_stopped.not(),
@@ -572,6 +612,21 @@ impl RollupNode {
     /// next `select!`. Actors may log channel-closed errors while peers are torn down
     /// concurrently; this is expected and not a sign of an unclean exit.
     pub async fn start(&self) -> Result<(), String> {
+        let l1 = RpcSource::new_with_trust(
+            self.l1_config.engine_provider.clone(),
+            self.l1_config.trust_rpc,
+        );
+        let l2 = RpcSource::new_with_trust(self.l2_provider.clone(), self.l2_trust_rpc);
+        self.start_with_sources(l1, l2).await
+    }
+
+    /// Starts actors after the RPC source types have been selected.
+    async fn start_with_sources<L1, L2>(&self, l1_source: L1, l2_source: L2) -> Result<(), String>
+    where
+        L1: ReceiptSource<Transaction = TxEnvelope> + 'static,
+        L2: BlockSource<Transaction = OpTxEnvelope> + 'static,
+    {
+        let providers = self.derivation_providers(l1_source, l2_source);
         // Single umbrella cancellation token owned by the spawn_and_wait! macro.
         let cancellation = CancellationToken::new();
 
@@ -611,6 +666,7 @@ impl RollupNode {
 
         let derivation = self
             .build_derivation_actor(
+                providers.clone(),
                 engine_actor_request_tx.clone(),
                 derivation_actor_request_rx,
                 derivation_origin_tx,
@@ -653,6 +709,7 @@ impl RollupNode {
         )?;
 
         let sequencing = self.build_sequencer(
+            providers,
             engine_actor_request_tx.clone(),
             gossip_payload_tx,
             unsafe_head_rx,

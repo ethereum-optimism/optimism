@@ -33,6 +33,7 @@ reqwest = { workspace = true, features = ["query"] }
 alloy-consensus.workspace = true
 alloy-rpc-types-engine.workspace = true
 alloy-rpc-client.workspace = true
+alloy-rpc-types-eth.workspace = true
 alloy-provider = { workspace = true, features = ["ipc", "ws", "reqwest"] }
 alloy-primitives = { workspace = true, features = ["map"] }
 # Alloy's `ws` feature enables embedded WebPKI roots. Also load platform roots so private CAs work.
@@ -68,5 +69,4 @@ metrics = [ "dep:metrics", "kona-derive/metrics", "kona-providers-local/metrics"
 [dev-dependencies]
 tokio.workspace = true
 kona-protocol = { workspace = true, features = ["test-utils"] }
-alloy-rpc-types-eth.workspace = true
 httpmock.workspace = true
