@@ -478,10 +478,12 @@ mod tests {
         driver.disc.add_enr(enr.clone()).unwrap();
         let (handler, _enr_recv, _task) = driver.spawn();
         wait_until_started(&handler).await;
-        let table = |handler: &Discv5Handler| {
-            let reply = handler.table_enrs();
-            async move { tokio::time::timeout(Duration::from_secs(5), reply).await.unwrap().unwrap() }
-        };
+        async fn table(handler: &Discv5Handler) -> Vec<Enr> {
+            tokio::time::timeout(Duration::from_secs(5), handler.table_enrs())
+                .await
+                .unwrap()
+                .unwrap()
+        }
         assert!(table(&handler).await.iter().any(|e| e.node_id() == enr.node_id()));
 
         handler
@@ -578,7 +580,9 @@ mod tests {
         // request and stopping would only fail some of the time.
         for _ in 0..20 {
             let (handler, enr_recv, _task) = offline_driver().spawn();
-            let reply = handler.peer_count();
+            // Send through the channel, since a handler's request is only sent once awaited.
+            let (tx, reply) = tokio::sync::oneshot::channel();
+            handler.sender.send(HandlerRequest::PeerCount(tx)).await.unwrap();
             drop(handler);
             drop(enr_recv);
 
