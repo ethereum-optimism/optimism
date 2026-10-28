@@ -447,11 +447,11 @@ contract BridgeHookDecoder_ExtractTokenMessage_Test is BridgeHookDecoder_TestIni
         (bool valid, bytes memory message) = BridgeHookDecoder.extractTokenMessage(item);
         (address initiator, address recipient) = BridgeHookDecoder.resolveParties(item, L1_MESSENGER, L1_BRIDGE);
 
-        try harness.decodeRelayMessage(data) returns (address sender, address target, bytes memory expected) {
+        try harness.decodeRelayMessage(data) returns (address sender_, address target_, bytes memory message_) {
             assertTrue(valid, "valid");
-            assertEq(message, expected, "message");
-            assertEq(initiator, sender, "sender");
-            assertEq(recipient, target, "target");
+            assertEq(message, message_, "message");
+            assertEq(initiator, sender_, "sender");
+            assertEq(recipient, target_, "target");
         } catch {
             assertFalse(valid, "valid");
         }
@@ -585,12 +585,12 @@ contract BridgeHookDecoder_DecodeTokenTransfer_Test is BridgeHookDecoder_TestIni
 
         // The decoder does not read extraData, so it accepts calls that abi.decode rejects.
         try harness.decodeFinalizeBridgeERC20(message) returns (
-            address localToken, address remoteToken, uint256 expectedAmount
+            address localToken_, address remoteToken_, uint256 amount_
         ) {
             assertTrue(valid, "valid");
-            assertEq(l1Token, isDeposit ? remoteToken : localToken, "l1Token");
-            assertEq(l2Token, isDeposit ? localToken : remoteToken, "l2Token");
-            assertEq(amount, expectedAmount, "amount");
+            assertEq(l1Token, isDeposit ? remoteToken_ : localToken_, "l1Token");
+            assertEq(l2Token, isDeposit ? localToken_ : remoteToken_, "l2Token");
+            assertEq(amount, amount_, "amount");
         } catch { }
     }
 }
