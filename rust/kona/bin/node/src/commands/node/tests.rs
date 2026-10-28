@@ -124,7 +124,7 @@ fn a_safe_database_is_rejected_where_the_node_derives_nothing() {
     let error = following.check_safe_db_supported(&public).unwrap_err().to_string();
     assert!(error.contains("derivation delegation"), "{error}");
     let error = with_safe_db.check_safe_db_supported(&private).unwrap_err().to_string();
-    assert!(error.contains("OP Private private chain"), "{error}");
+    assert!(error.contains("OP Private chains"), "{error}");
 }
 
 #[test]

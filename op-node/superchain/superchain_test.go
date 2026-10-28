@@ -95,12 +95,8 @@ func TestRollupConfigFromRegistry(t *testing.T) {
 func TestRollupConfigFromRegistry_AllFieldsSet(t *testing.T) {
 	cfg := rollupConfigFromRegistry(fullyPopulatedChainConfig(), registry.Superchain{L1: registry.L1Config{ChainID: 1}})
 
-	// Fields that never come from the registry.
-	notFromRegistry := map[string]bool{
-		// OP Private chains are not in the superchain registry, so their settlement chain ID
-		// is never set from it.
-		"SettlementChainID": true,
-	}
+	// The registry has no settlement chain ID yet.
+	notFromRegistry := map[string]bool{"SettlementChainID": true}
 
 	v := reflect.ValueOf(*cfg)
 	typ := v.Type()

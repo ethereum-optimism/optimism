@@ -35,8 +35,7 @@ where
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
 
-    /// Derivation delegate provider. `None` is follow mode with nothing to follow (an OP Private
-    /// private chain with no follow source): the safe and finalized heads are never updated.
+    /// Derivation delegate provider. With `None`, the safe and finalized heads are never updated.
     derivation_delegate_provider: Option<DelegateProvider>,
     /// L1 provider for validating L1 info for derivation delegation.
     l1_provider: L1Provider,

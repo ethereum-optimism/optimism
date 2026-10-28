@@ -193,9 +193,7 @@ type Config struct {
 	// epoch.
 	PectraBlobScheduleTime *uint64 `json:"pectra_blob_schedule_time,omitempty"`
 
-	// SettlementChainID is the chain's OP Private settlement chain ID: 0 (absent) on a public
-	// chain, the chain's own ID on a settlement chain, and its settlement chain's ID on a private
-	// chain. kona-node acts on it; op-node only parses it.
+	// SettlementChainID is the OP Private settlement chain ID: 0 if public, own ID if a settlement chain, else its settlement chain's ID.
 	SettlementChainID uint64 `json:"settlement_chain_id,omitempty"`
 }
 

@@ -719,9 +719,7 @@ type L2CoreDeployConfig struct {
 	// default. It can be removed once all networks have this value set in their storage.
 	SystemConfigStartBlock uint64 `json:"systemConfigStartBlock"`
 
-	// SettlementChainID is the chain's OP Private settlement chain ID, written into both the
-	// ChainConfig predeploy and the rollup config: 0 on a public chain, the chain's own ID on a
-	// settlement chain, and its settlement chain's ID on a private chain.
+	// SettlementChainID is written into the ChainConfig predeploy and the rollup config.
 	SettlementChainID uint64 `json:"settlementChainId,omitempty"`
 }
 

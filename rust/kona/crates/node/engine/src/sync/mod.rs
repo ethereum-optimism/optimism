@@ -73,9 +73,7 @@ pub async fn find_starting_forkchoice(
         }
     }
 
-    // An OP Private private chain derives nothing from L1, so an expired sequencing window says
-    // nothing about which blocks are safe: keep the safe head the execution layer persisted
-    // (genesis unless a follow source advanced it), capped at the unsafe head.
+    // Private chains don't derive from L1: keep the persisted safe head, capped at unsafe.
     if cfg.is_private_chain() {
         if current_fc.finalized.block_info.number > current_fc.un_safe.block_info.number {
             let genesis = engine_client
@@ -217,8 +215,7 @@ mod test {
             Block::new(header, BlockTransactions::Full(vec![tx]))
         }
 
-        /// Genesis, block 1 with L1 origin 1, and block 2 with L1 origin 100: block 2's origin
-        /// is far past the 4-block sequencing window of block 1's origin.
+        /// Genesis, block 1 (L1 origin 1) and block 2 (L1 origin 100, past the 4-block window).
         fn chain(settlement_chain_id: u64) -> (Arc<RollupConfig>, [L2Block; 3]) {
             let genesis = L2Block::new(
                 Header::new(alloy_consensus::Header::default()),
@@ -240,9 +237,7 @@ mod test {
             Some(Block::default())
         }
 
-        /// The sequencing-window search would walk the unsafe chain back to block 1. A private
-        /// chain keeps the persisted genesis safe head without reading any older block (the mock
-        /// panics on any request not scripted here).
+        /// A private chain keeps the persisted genesis safe head and reads no older block.
         #[tokio::test]
         async fn keeps_the_persisted_safe_head_past_the_sequencing_window() {
             let (cfg, [genesis, _, two]) = chain(1337);
@@ -265,7 +260,7 @@ mod test {
             l2.assert_finished();
         }
 
-        /// The same chain on a public chain still takes the safe head from the sequencing window.
+        /// A public chain still takes its safe head from the sequencing window.
         #[tokio::test]
         async fn a_public_chain_still_searches_the_sequencing_window() {
             let (cfg, [genesis, one, two]) = chain(0);
@@ -289,8 +284,7 @@ mod test {
             l2.assert_finished();
         }
 
-        /// When block 2's L1 origin is reorged out, the unsafe head rewinds to block 1, below the
-        /// persisted safe and finalized heads, which fall back to genesis.
+        /// If an L1 reorg rewinds unsafe below safe and finalized, both fall back to genesis.
         #[tokio::test]
         async fn caps_persisted_heads_at_the_rewound_unsafe_head() {
             let (cfg, [genesis, one, two]) = chain(1337);

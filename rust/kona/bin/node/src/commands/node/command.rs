@@ -346,8 +346,7 @@ impl NodeCommand {
         Ok(())
     }
 
-    /// Rejects `--safedb.path` on a node that derives nothing itself, so the record would never
-    /// be written and would be served stale.
+    /// Rejects `--safedb.path` on nodes that don't derive, since nothing would write it.
     pub(super) fn check_safe_db_supported(&self, cfg: &RollupConfig) -> Result<()> {
         if self.safedb_path.is_none() {
             return Ok(());
@@ -361,8 +360,7 @@ impl NodeCommand {
         }
         if cfg.is_private_chain() {
             bail!(
-                "--safedb.path is not supported on an OP Private private chain: the node never \
-                 derives from L1, so the record would never be written and would be served stale"
+                "--safedb.path is not supported on OP Private chains, which don't derive from L1"
             );
         }
         Ok(())

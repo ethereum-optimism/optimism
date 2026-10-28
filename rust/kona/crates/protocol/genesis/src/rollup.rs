@@ -91,8 +91,8 @@ pub struct RollupConfig {
     /// `chain_op_config` is the chain-specific EIP1559 config for the rollup.
     #[cfg_attr(feature = "serde", serde(default = "BaseFeeConfig::optimism"))]
     pub chain_op_config: BaseFeeConfig,
-    /// The OP Private settlement chain ID: 0 on a public chain, the chain's own ID on a
-    /// settlement chain, and its settlement chain's ID on a private chain.
+    /// OP Private settlement chain ID: 0 if public, own ID if a settlement chain, else its
+    /// settlement chain's ID.
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_zero"))]
     pub settlement_chain_id: u64,
 }
@@ -168,7 +168,7 @@ impl Default for RollupConfig {
 }
 
 impl RollupConfig {
-    /// Returns true if this is an OP Private private chain, which never derives from L1.
+    /// Returns true for an OP Private private chain.
     pub const fn is_private_chain(&self) -> bool {
         self.settlement_chain_id != 0 && self.settlement_chain_id != self.l2_chain_id.id()
     }
