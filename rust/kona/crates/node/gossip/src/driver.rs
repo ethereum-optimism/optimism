@@ -15,12 +15,8 @@ use libp2p::{
 use libp2p_identity::Keypair;
 use libp2p_stream::IncomingStreams;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::{Duration, Instant},
-};
-use tokio::sync::Mutex;
+use std::{collections::HashMap, sync::Arc, time::Duration};
+use tokio::{sync::Mutex, time::Instant};
 
 use crate::{
     Behaviour, BlockHandler, ConnectionGate, ConnectionGater, Event, GossipDriverBuilder, Handler,
@@ -73,7 +69,7 @@ pub struct GossipDriver<G: ConnectionGate> {
     /// Set when the driver starts with static peers, and after each check to one
     /// [`Self::static_peer_redial_interval`] later. Brought forward to
     /// [`Self::static_peer_reconnect_delay`] from now when the connection to a static peer closes.
-    next_static_peer_check: Option<tokio::time::Instant>,
+    next_static_peer_check: Option<Instant>,
     /// Tracks ping times for peers.
     pub ping: Arc<Mutex<HashMap<PeerId, Duration>>>,
     /// The open connections to each peer, used to close duplicate connections.
@@ -89,7 +85,7 @@ pub struct GossipDriver<G: ConnectionGate> {
     ///
     /// Set when a duplicate connection is established, and after each check to the earliest
     /// duplicate still in its grace period. `None` until the next duplicate is established.
-    next_duplicate_check: Option<tokio::time::Instant>,
+    next_duplicate_check: Option<Instant>,
     /// The listener [`Self::start`] added, removed again when the driver is dropped.
     listener_id: Option<ListenerId>,
 }
@@ -125,7 +121,7 @@ pub(crate) struct PeerConnection {
     /// The peer that dialed the connection, this node or the other one.
     dialer: PeerId,
     /// When the connection was established.
-    established: tokio::time::Instant,
+    established: Instant,
 }
 
 impl<G> GossipDriver<G>
@@ -303,13 +299,11 @@ where
             info!(target: "gossip", %peer_id, ?addrs, "Dialing static peer");
             self.dial_peer(peer_id, addrs);
         }
-        self.update_next_static_peer_check(
-            tokio::time::Instant::now() + self.static_peer_redial_interval,
-        );
+        self.update_next_static_peer_check(Instant::now() + self.static_peer_redial_interval);
     }
 
     /// Makes the next static peer check happen by `at`, keeping an earlier one.
-    fn update_next_static_peer_check(&mut self, at: tokio::time::Instant) {
+    fn update_next_static_peer_check(&mut self, at: Instant) {
         self.next_static_peer_check =
             Some(self.next_static_peer_check.map_or(at, |check| check.min(at)));
     }
@@ -333,7 +327,7 @@ where
         let duplicates = self.next_duplicate_check;
         let static_peers = self.next_static_peer_check;
         // `select!` builds the futures of disabled branches too, so each needs some deadline.
-        let now = tokio::time::Instant::now;
+        let now = Instant::now;
         tokio::select! {
             event = self.swarm.next() => event,
             () = tokio::time::sleep_until(duplicates.unwrap_or_else(now)), if duplicates.is_some() => {
@@ -516,7 +510,7 @@ where
     fn close_duplicate_connections(&mut self) {
         self.next_duplicate_check = None;
         let local_peer_id = *self.local_peer_id();
-        let now = tokio::time::Instant::now();
+        let now = Instant::now();
         let mut pending = Vec::new();
         let mut duplicates = Vec::new();
         for (peer_id, connections) in &self.connections {
@@ -551,7 +545,7 @@ where
     }
 
     /// Moves the next duplicate connection check to `at`, if that is earlier.
-    fn update_next_duplicate_check(&mut self, at: tokio::time::Instant) {
+    fn update_next_duplicate_check(&mut self, at: Instant) {
         self.next_duplicate_check =
             Some(self.next_duplicate_check.map_or(at, |check| check.min(at)));
     }
@@ -676,8 +670,7 @@ where
                 } else {
                     peer_id
                 };
-                let connection =
-                    PeerConnection { dialer, established: tokio::time::Instant::now() };
+                let connection = PeerConnection { dialer, established: Instant::now() };
                 self.connections.entry(peer_id).or_default().insert(connection_id, connection);
                 if num_established.get() > 1 {
                     self.update_next_duplicate_check(
@@ -727,7 +720,7 @@ where
 
                 if self.static_peers.contains_key(&peer_id) {
                     self.update_next_static_peer_check(
-                        tokio::time::Instant::now() + self.static_peer_reconnect_delay,
+                        Instant::now() + self.static_peer_reconnect_delay,
                     );
                 }
 
