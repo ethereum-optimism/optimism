@@ -68,7 +68,11 @@ class LocalPackageTests(unittest.TestCase):
                                  ['discovery-' + variant + '.build'])
         leaf = tasks('packages/acceptance-verdict.yml')['run']
         self.assertIs(leaf['cache'], False)
-        self.assertIn('!.ci/go-cache', leaf['filter'])
+        # Compiler state stays out; the producer's module cache stays in, as in Circle.
+        self.assertTrue({'!.ci/go-cache/full/build', '!.ci/go-cache/full/dependencies',
+                         '!.ci/go-cache/acceptance/run', '!.ci/go-cache/acceptance/discover'} <= set(leaf['filter']))
+        self.assertFalse([rule for rule in leaf['filter']
+                          if '.ci/go-cache/full/modules'.startswith(rule.lstrip('!').rstrip('/'))])
         self.assertIn('!.ci/rust-cache', leaf['filter'])
         self.assertIn('!rust/target', leaf['filter'])
 

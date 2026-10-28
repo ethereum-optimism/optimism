@@ -81,4 +81,5 @@ tasks:
       artifacts:
         - key: reports
           path: .ci/acceptance/reports
-    filter: ['!.ci/go-cache', '!.ci/rust-cache', '!rust/target', '!packages/contracts-bedrock/cache', '!packages/contracts-bedrock/artifacts', '!packages/contracts-bedrock/forge-artifacts', '!op-deployer/pkg/deployer/artifacts/forge-artifacts', '!.ci/go-cache/acceptance/discover']
+    # Keep the producer's module cache so tests do not refetch modules; exclude compiler state.
+    filter: ['!.ci/go-cache/full/build', '!.ci/go-cache/full/dependencies', '!.ci/go-cache/acceptance/run', '!.ci/rust-cache', '!rust/target', '!packages/contracts-bedrock/cache', '!packages/contracts-bedrock/artifacts', '!packages/contracts-bedrock/forge-artifacts', '!op-deployer/pkg/deployer/artifacts/forge-artifacts', '!.ci/go-cache/acceptance/discover']
