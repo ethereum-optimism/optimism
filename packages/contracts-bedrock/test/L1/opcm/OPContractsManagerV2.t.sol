@@ -1019,19 +1019,39 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(uint256(vm.load(address(delayedWeth), bytes32(uint256(6)))), wethDelayBefore);
     }
 
-    /// @notice Tests that the upgrade keeps the bridge hook a chain already has, since the OPCM
-    ///         passes a zero hook to the portal's initialize.
-    function test_upgrade_bridgeHookUnchanged_succeeds() public {
-        if (systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) vm.skip(true);
+    /// @notice Tests that the upgrade keeps a chain's bridge hook state: the hook, held deposits,
+    ///         the deposit nonce and the published count.
+    function test_upgrade_bridgeHookStateUnchanged_succeeds() public {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
-        // The pre-upgrade portal has no hook getter, so the hook is written straight into its storage slot.
+        // The pre-upgrade portal has no code for this state, so the test writes it into storage.
         address hook = makeAddr("bridgeHook");
-        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "bridgeHook");
-        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(hook))));
+        bytes32 id = keccak256("held");
+        // The count packs gas (low 8 bytes) and its block (next 8 bytes). The block is an earlier
+        // one because _countAlreadyPublished keeps a count for the current block, which would hide
+        // a wrong call from initialize.
+        bytes32 published = bytes32((block.number - 1) << 64 | 300_000);
+        uint256 nonceSlot = ForgeArtifacts.getSlot("OptimismPortal2", "depositNonce").slot;
+        uint256 publishedSlot = ForgeArtifacts.getSlot("OptimismPortal2", "publishedGas").slot;
+        vm.store(
+            address(optimismPortal2),
+            bytes32(ForgeArtifacts.getSlot("OptimismPortal2", "bridgeHook").slot),
+            bytes32(uint256(uint160(hook)))
+        );
+        vm.store(
+            address(optimismPortal2),
+            keccak256(abi.encode(id, ForgeArtifacts.getSlot("OptimismPortal2", "heldDeposits").slot)),
+            bytes32(uint256(1))
+        );
+        vm.store(address(optimismPortal2), bytes32(nonceSlot), bytes32(uint256(7)));
+        vm.store(address(optimismPortal2), bytes32(publishedSlot), published);
 
         runCurrentUpgradeV2(chainPAO);
 
         assertEq(address(optimismPortal2.bridgeHook()), hook, "bridge hook changed");
+        assertTrue(optimismPortal2.heldDeposits(id), "held deposit changed");
+        assertEq(vm.load(address(optimismPortal2), bytes32(nonceSlot)), bytes32(uint256(7)), "nonce changed");
+        assertEq(vm.load(address(optimismPortal2), bytes32(publishedSlot)), published, "count changed");
     }
 
     /// @notice Tests that overriding to a disabled game type reverts during upgrade.
