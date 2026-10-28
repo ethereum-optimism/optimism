@@ -86,14 +86,7 @@ impl GossipCommand {
             Self::ConnectPeer { address } => gossip.dial_multiaddr(address),
             Self::ProtectPeer { peer_id } => gossip.connection_gate.protect_peer(peer_id),
             Self::UnprotectPeer { peer_id } => gossip.connection_gate.unprotect_peer(peer_id),
-            Self::DisconnectPeer { peer_id } => {
-                if let Err(e) = gossip.swarm.disconnect_peer_id(peer_id) {
-                    warn!(target: "p2p::rpc", "Failed to disconnect peer {}: {:?}", peer_id, e);
-                } else if let Some(start_time) = gossip.peer_connection_start.remove(&peer_id) {
-                    metrics::histogram!(crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS)
-                        .record(start_time.elapsed().as_secs_f64());
-                }
-            }
+            Self::DisconnectPeer { peer_id } => gossip.disconnect_peer(peer_id),
         }
     }
 }

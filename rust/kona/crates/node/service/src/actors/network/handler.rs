@@ -32,37 +32,10 @@ impl NetworkHandler {
                 .record(self.gossip.peer_score(peer_id));
         }
 
-        let peers_to_remove = self.gossip.peers_to_ban();
-
-        // We remove the addresses from the gossip layer.
-        let addrs_to_ban = peers_to_remove
-            .into_iter()
-            .filter_map(|peer_to_remove| {
-                // In that case, we ban the peer. This means...
-                // 1. We remove the peer from the network gossip.
-                // 2. We ban the peer from the discv5 service.
-                if self.gossip.swarm.disconnect_peer_id(peer_to_remove).is_err() {
-                    warn!(peer = ?peer_to_remove, "Trying to disconnect a non-existing peer from the gossip driver.");
-                }
-
-                        // Record the duration of the peer connection.
-                        if let Some(start_time) = self.gossip.peer_connection_start.remove(&peer_to_remove) {
-                            let peer_duration = start_time.elapsed();
-                            metrics::histogram!(kona_gossip::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS).record(peer_duration.as_secs_f64());
-                        }
-
-                if let Some(info) = self.gossip.peerstore.remove(&peer_to_remove) {
-                    use kona_gossip::ConnectionGate;
-                    self.gossip.connection_gate.remove_dial(&peer_to_remove);
-                    let score = self.gossip.peer_score(&peer_to_remove);
-                    metrics::gauge!(kona_gossip::Metrics::BANNED_PEERS, "peer_id" => peer_to_remove.to_string(), "score" => score.to_string()).increment(1);
-                    return Some(info.listen_addrs);
-                }
-
-                None
-            })
-            .flatten()
-            .collect::<HashSet<_>>();
+        // Disconnect the peers, and ban the addresses they listen on in discovery too.
+        let peers_to_ban = self.gossip.peers_to_ban();
+        let addrs_to_ban: HashSet<_> =
+            peers_to_ban.into_iter().flat_map(|peer_id| self.gossip.ban_peer(peer_id)).collect();
 
         // We send a request to the discovery handler to ban the set of addresses.
         if let Err(send_err) = self

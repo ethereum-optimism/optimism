@@ -361,6 +361,31 @@ where
         self.swarm.behaviour().gossipsub.peer_score(peer_id).unwrap_or_default()
     }
 
+    /// Closes every connection to `peer_id`.
+    ///
+    /// The swarm reports each closed connection, and [`Self::handle_event`] records the connection
+    /// duration and clears the peer's dial once the last one closes.
+    pub fn disconnect_peer(&mut self, peer_id: PeerId) {
+        if self.swarm.disconnect_peer_id(peer_id).is_err() {
+            warn!(target: "gossip", %peer_id, "Cannot disconnect a peer that isn't connected");
+        }
+    }
+
+    /// Disconnects a peer banned for its score, and returns the addresses it listens on, for
+    /// discovery to ban as well.
+    pub fn ban_peer(&mut self, peer_id: PeerId) -> Vec<Multiaddr> {
+        // The score that got the peer banned, read before the peer is disconnected.
+        let score = self.peer_score(&peer_id);
+        metrics::gauge!(
+            crate::Metrics::BANNED_PEERS,
+            "peer_id" => peer_id.to_string(),
+            "score" => score.to_string()
+        )
+        .increment(1);
+        self.disconnect_peer(peer_id);
+        self.peerstore.remove(&peer_id).map(|info| info.listen_addrs).unwrap_or_default()
+    }
+
     /// Returns whether `peer_id` is one of the static peers.
     pub fn is_static_peer(&self, peer_id: &PeerId) -> bool {
         self.static_peers.contains_key(peer_id)
@@ -1225,6 +1250,65 @@ mod tests {
         }
 
         assert_eq!(driver_1.peers_to_ban(), vec![peer_3]);
+    }
+
+    /// Banning a peer disconnects it and returns the addresses it listens on, and the connection
+    /// is cleaned up once it closes.
+    #[tokio::test]
+    async fn test_ban_peer() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+        let peer_2 = *driver_2.local_peer_id();
+        let listen_addr_2 = driver_2.start().await.expect("listen");
+        driver_1.start().await.expect("listen");
+
+        driver_1.dial_multiaddr(listen_addr_2.clone().with(Protocol::P2p(peer_2)));
+        // Identify tells the node where the peer listens.
+        poll_until(&mut driver_1, &mut driver_2, |driver_1, _| {
+            driver_1.peerstore.contains_key(&peer_2)
+        })
+        .await;
+
+        assert_eq!(driver_1.ban_peer(peer_2), vec![listen_addr_2]);
+
+        poll_one_until(&mut driver_1, |driver_1| !driver_1.is_connected(&peer_2)).await;
+        assert!(!driver_1.peer_connection_start.contains_key(&peer_2));
+        assert!(!driver_1.peerstore.contains_key(&peer_2));
+    }
+
+    /// Disconnecting a peer with the `DisconnectPeer` command records the connection's duration
+    /// once, when the connection closes.
+    #[tokio::test]
+    async fn test_disconnect_peer_records_connection_duration_once() {
+        let recorder = metrics_util::debugging::DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        // For the whole test thread, so that it sees what polling the swarm records too.
+        let _recorder = metrics::set_default_local_recorder(&recorder);
+
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+        let peer_2 = *driver_2.local_peer_id();
+        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        driver_1.start().await.expect("listen");
+        driver_1.dial_multiaddr(addr_2);
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+
+        crate::GossipCommand::DisconnectPeer { peer_id: peer_2 }.handle(&mut driver_1);
+        poll_one_until(&mut driver_1, |driver_1| !driver_1.is_connected(&peer_2)).await;
+
+        let durations: Vec<_> = snapshotter
+            .snapshot()
+            .into_vec()
+            .into_iter()
+            .filter(|(key, ..)| {
+                key.key().name() == crate::Metrics::GOSSIP_PEER_CONNECTION_DURATION_SECONDS
+            })
+            .filter_map(|(.., value)| match value {
+                metrics_util::debugging::DebugValue::Histogram(values) => Some(values),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(durations.iter().map(Vec::len).sum::<usize>(), 1, "{durations:?}");
     }
 
     /// A dial that connects is no longer in flight in the gate.
