@@ -853,8 +853,10 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_TestInit 
             disputeGameFactory.create(GameType.wrap(gameType), Claim.wrap(bytes32(i)), abi.encode(i));
         }
 
-        // Ensure that the correct number of games are returned.
-        uint256 start = _numGames == 0 ? 0 : _numGames - 1;
+        // Ensure that the correct number of games are returned. Search from the newest game:
+        // on a fork the factory already holds the chain's own games before the new ones.
+        uint256 gameCount = disputeGameFactory.gameCount();
+        uint256 start = gameCount == 0 ? 0 : gameCount - 1;
         IDisputeGameFactory.GameSearchResult[] memory games =
             disputeGameFactory.findLatestGames(GameType.wrap(0), start, _n);
         assertEq(games.length, _n);
