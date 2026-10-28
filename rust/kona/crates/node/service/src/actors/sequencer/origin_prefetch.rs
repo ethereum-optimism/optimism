@@ -125,7 +125,13 @@ impl L1OriginSelectorProvider for PreparedOriginProvider {
             return Ok(None);
         }
         let window = self.window.borrow();
-        if window.orphaned.is_some_and(|origin| origin.number.saturating_add(1) == number) {
+        let request = *self.request.borrow();
+        if window.orphaned.is_some_and(|origin| {
+            origin.number.checked_add(1) == Some(number) &&
+                request.is_some_and(|request| {
+                    origin == request.parent || origin == request.selected
+                })
+        }) {
             return Err(L1OriginSelectorError::NextOriginOrphaned);
         }
         Ok(window.blocks.iter().find(|block| block.info.number == number).map(|block| block.info))
@@ -221,13 +227,15 @@ impl<C> OriginPreparation<C> {
             ),
         };
         let attributes = PreparedAttributesProvider { window: window_rx };
+        let mut retry = tokio::time::interval(Duration::from_secs(1));
+        retry.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         let worker = OriginPrefetcher {
             origins: DelayedL1OriginSelectorProvider::new(rpc, l1_head.clone(), confirmation_depth),
             chain,
             request,
             window,
             l1_head,
-            retry: tokio::time::interval(Duration::from_secs(1)),
+            retry,
             fetch_timeout: Duration::from_secs(10),
         };
         Self { prefetcher: worker, origins: provider, attributes }

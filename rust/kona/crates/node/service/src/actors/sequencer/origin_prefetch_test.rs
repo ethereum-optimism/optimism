@@ -266,6 +266,64 @@ async fn receipts_must_be_ready_before_origin_is_published() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn recovery_waits_for_available_successor_below_max_drift() {
+    let mut h = Harness::new(4);
+    h.head.send_replace(Some(h.l1.at(0)));
+    h.initialize().await;
+    h.parent.block_info.timestamp = 10;
+    h.head.send_replace(Some(h.l1.at(5)));
+    // Normal sequencing can reuse the current origin without waiting for preparation.
+    assert_eq!(h.selector.next_l1_origin(h.parent, false).await.unwrap(), h.l1.at(0));
+    let origin = tokio::select! {
+        result = h.selector.next_l1_origin(h.parent, true) => result.unwrap(),
+        _ = async { loop { h.worker.step().await.unwrap(); } } => unreachable!(),
+    };
+    assert_eq!(origin, h.l1.at(1));
+    assert!(h.attributes.get(origin.hash).is_ok());
+}
+
+#[tokio::test(start_paused = true)]
+async fn recovery_wait_for_stalled_successor_is_bounded_below_max_drift() {
+    let mut h = Harness::new(4);
+    h.head.send_replace(Some(h.l1.at(0)));
+    h.initialize().await;
+    h.parent.block_info.timestamp = 10;
+    h.head.send_replace(Some(h.l1.at(5)));
+    h.l1.stalled.store(true, Ordering::SeqCst);
+    let start = tokio::time::Instant::now();
+    let result = tokio::select! {
+        result = h.selector.next_l1_origin(h.parent, true) => result,
+        _ = async { loop { h.worker.step().await.unwrap(); } } => unreachable!(),
+    };
+    assert!(matches!(result, Err(L1OriginSelectorError::Timeout)));
+    assert_eq!(start.elapsed(), Duration::from_millis(500));
+}
+
+#[tokio::test]
+async fn orphaned_marker_for_another_hash_at_the_same_height_does_not_reject_successor() {
+    let mut h = Harness::new(0);
+    h.initialize().await;
+    h.worker.window.send_modify(|window| {
+        window.orphaned = Some(BlockNumHash { number: 0, hash: B256::with_last_byte(99) });
+    });
+    h.parent.block_info.timestamp = 10;
+    assert_eq!(h.selector.next_l1_origin(h.parent, false).await.unwrap(), h.l1.at(1));
+}
+
+#[tokio::test(start_paused = true)]
+async fn prefetch_retries_do_not_burst_after_a_stall() {
+    let mut h = Harness::new(0);
+    tokio::time::advance(Duration::from_secs(10)).await;
+    let start = tokio::time::Instant::now();
+    h.worker.retry.tick().await;
+    assert_eq!(start.elapsed(), Duration::ZERO);
+    h.worker.retry.tick().await;
+    assert_eq!(start.elapsed(), Duration::from_secs(1));
+    h.worker.retry.tick().await;
+    assert_eq!(start.elapsed(), Duration::from_secs(2));
+}
+
+#[tokio::test(start_paused = true)]
 async fn stalled_rpc_is_off_path_and_max_drift_wait_is_bounded() {
     let mut h = Harness::new(4);
     h.head.send_replace(Some(h.l1.at(0)));

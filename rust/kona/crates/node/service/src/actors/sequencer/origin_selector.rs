@@ -65,11 +65,12 @@ impl<P: L1OriginSelectorProvider + Send + Sync> OriginSelector for L1OriginSelec
 
         let current = self.current.ok_or(L1OriginSelectorError::Pending)?;
         if self.next.is_none() &&
-            unsafe_head.block_info.timestamp + self.cfg.block_time >
-                current.timestamp + self.cfg.max_sequencer_drift(current.timestamp)
+            (is_recovery_mode ||
+                unsafe_head.block_info.timestamp + self.cfg.block_time >
+                    current.timestamp + self.cfg.max_sequencer_drift(current.timestamp))
         {
-            // Only at max drift may selection wait for L1. The worker still owns the I/O;
-            // a stalled RPC cannot hold up sequencing or admin requests indefinitely.
+            // Recovery mode eagerly adopts available origins, even below max drift. The worker
+            // still owns the I/O; a stalled RPC cannot block sequencing or admin indefinitely.
             tokio::time::timeout(Duration::from_millis(500), self.l1.refresh())
                 .await
                 .map_err(|_| L1OriginSelectorError::Timeout)??;
@@ -198,11 +199,12 @@ impl<P: L1OriginSelectorProvider> L1OriginSelector<P> {
 
 /// An error produced by the [`L1OriginSelector`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum L1OriginSelectorError {
     /// The background prefetcher has not prepared the requested origin yet.
     #[error("L1 origin preparation is pending")]
     Pending,
-    /// The bounded max-drift wait expired.
+    /// The bounded recovery-mode or max-drift wait expired.
     #[error("L1 origin fetch timed out")]
     Timeout,
     /// The background prefetcher stopped; sequencing cannot safely continue.
@@ -245,7 +247,7 @@ pub trait L1OriginSelectorProvider: Debug + Sync {
         Ok(())
     }
 
-    /// Refresh unavailable L1 data at the max-drift boundary.
+    /// Refresh unavailable L1 data during recovery or at the max-drift boundary.
     async fn refresh(&self) -> Result<(), L1OriginSelectorError> {
         Ok(())
     }

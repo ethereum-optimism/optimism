@@ -796,7 +796,9 @@ where
                         Err(_) => self.build_ticker.reset_immediately(),
                     };
                 } else {
-                    self.build_ticker.reset_immediately();
+                    // Origin/attributes preparation can fail without any I/O. Bound retries,
+                    // including repeated engine resets, instead of spinning on an empty build.
+                    self.build_ticker.reset_after(Duration::from_secs(1));
                 }
                 Ok(())
             }

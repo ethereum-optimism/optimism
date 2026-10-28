@@ -1,6 +1,6 @@
 use super::{SlowSealEngine, TEST_START, TestActor, test_actor, test_actor_with_engine};
 use crate::{
-    NodeActor, SequencerActorError, SequencerEngineClient,
+    L1OriginSelectorError, NodeActor, SequencerActorError, SequencerEngineClient,
     actors::{MockOriginSelector, MockSequencerEngineClient, MockUnsafePayloadGossipClient},
 };
 use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadId};
@@ -471,4 +471,39 @@ async fn failed_origin_prefetcher_terminates_sequencer() {
         actor.get_next_payload_l1_origin(L2BlockInfo::default()).await,
         Err(SequencerActorError::ChannelClosed)
     ));
+}
+
+#[rstest]
+#[case::pending(|| L1OriginSelectorError::Pending, false)]
+#[case::timeout(|| L1OriginSelectorError::Timeout, false)]
+#[case::orphaned(|| L1OriginSelectorError::NextOriginOrphaned, true)]
+#[case::missing(|| L1OriginSelectorError::OriginNotFound(Default::default()), true)]
+#[case::unavailable(|| L1OriginSelectorError::NotEnoughData(Default::default()), false)]
+#[case::attributes(|| L1OriginSelectorError::Attributes("unavailable".into()), false)]
+#[tokio::test(start_paused = true)]
+async fn unavailable_origin_backs_off_and_keeps_admin_responsive(
+    #[case] error: fn() -> L1OriginSelectorError,
+    #[case] resets_engine: bool,
+) {
+    let (mut actor, commands) = super::test_actor_with_config(true, false, None);
+    actor.started = true;
+    actor.engine_client.expect_get_unsafe_head().times(3).returning(|| Ok(Default::default()));
+    actor.engine_client.expect_start_build_block().times(0);
+    actor
+        .engine_client
+        .expect_reset_engine_forkchoice()
+        .times(if resets_engine { 3 } else { 0 })
+        .returning(|| Ok(()));
+    actor.origin_selector.expect_next_l1_origin().times(3).returning(move |_, _| Err(error()));
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+
+    assert_eq!(step_time(&mut actor).await, Duration::ZERO);
+    let (tx, rx) = oneshot::channel();
+    commands.send(SequencerAdminCommand::SetRecoveryMode(true, tx)).await.unwrap();
+    assert_eq!(step_time(&mut actor).await, Duration::ZERO);
+    rx.await.unwrap().unwrap();
+    assert!(actor.state().recovery_mode);
+    assert_eq!(step_time(&mut actor).await, Duration::from_secs(1));
+    assert_eq!(step_time(&mut actor).await, Duration::from_secs(1));
+    assert!(actor.in_flight.is_none());
 }
