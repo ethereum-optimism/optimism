@@ -224,6 +224,16 @@ where
                     self.derivation_state_machine
                         .update(&DerivationStateUpdate::SignalProcessed)?;
                 }
+                if let Signal::Reset(reset) = *signal {
+                    // Adopt the reset head and resume in this request. A separate confirmation
+                    // could arrive after an L1 update has already resumed derivation.
+                    self.derivation_state_machine.update(
+                        &DerivationStateUpdate::NewAttributesConfirmed(Box::new(
+                            reset.l2_safe_head,
+                        )),
+                    )?;
+                    self.attempt_derivation().await?;
+                }
             }
             DerivationActorRequest::ProcessFinalizedL1Block(finalized_l1_block) => {
                 // Attempt to finalize the block. If successful, notify engine.

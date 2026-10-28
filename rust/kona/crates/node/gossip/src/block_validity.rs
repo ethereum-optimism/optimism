@@ -121,24 +121,11 @@ impl BlockHandler {
     /// Validates that the signature authenticates the exact encoded envelope bytes and was
     /// produced by the configured unsafe block signer.
     pub(crate) fn validate_signature(
-        &self,
+        &mut self,
         payload: &SignedGossipPayload,
     ) -> Result<(), BlockInvalidError> {
-        let message = payload.payload_hash().signature_message(self.rollup_config.l2_chain_id.id());
-        let expected = *self.signer_recv.borrow();
-        let received = match payload.recover_signer(&message) {
-            Ok(received) => received,
-            Err(_) => {
-                metrics::counter!(Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_signature").increment(1);
-                return Err(BlockInvalidError::Signature);
-            }
-        };
-        if received != expected {
-            metrics::counter!(Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_signer")
-                .increment(1);
-            return Err(BlockInvalidError::Signer { expected, received });
-        }
-        Ok(())
+        self.update_signer();
+        self.signer.accepts(payload, self.rollup_config.l2_chain_id.id())
     }
 
     /// Determines if a block is valid.
@@ -559,7 +546,7 @@ pub(crate) mod tests {
         let message = valid.payload_hash().signature_message(10);
         let signer = signature.recover_address_from_prehash(&message).unwrap();
         let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let handler = BlockHandler::new(
+        let mut handler = BlockHandler::new(
             RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
             unsafe_signer,
         );

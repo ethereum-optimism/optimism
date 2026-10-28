@@ -192,6 +192,10 @@ pub struct ProposerConfig {
     /// Encoded stdin bytes that one range, consolidation, or log-commitment request may upload.
     pub max_stdin_bytes: StdinByteLimit,
 
+    /// Testing only: most chains one range request may prove; `None` is no limit. Needs the mock
+    /// proof provider.
+    pub testing_max_range_chains: Option<NonZeroUsize>,
+
     /// Maximum concurrent child (range/consolidation) proofs within one
     /// game's defense.
     pub max_concurrent_range_proofs: NonZeroUsize,
@@ -359,6 +363,12 @@ impl ProposerConfig {
         let superroot_rpcs_name = env_var("SUPERROOT_RPCS");
         let superroot_rpcs = parse_url_list(&required_env("SUPERROOT_RPCS")?)
             .with_context(|| format!("invalid {superroot_rpcs_name}"))?;
+        let testing_max_range_chains = parsed_optional_env("TESTING_MAX_RANGE_CHAINS")?;
+        anyhow::ensure!(
+            testing_max_range_chains.is_none() || proof_provider == ProofProviderKind::Mock,
+            "{} is testing only and needs {proof_provider_name}=mock",
+            env_var("TESTING_MAX_RANGE_CHAINS")
+        );
         Ok(Self {
             l1_rpc: parsed_required_env("L1_RPC")?,
             superroot_rpcs,
@@ -382,6 +392,7 @@ impl ProposerConfig {
             dependency_set_path: optional_env("DEPENDENCY_SET_PATH").map(PathBuf::from),
             range_split_count: parsed_env_or("RANGE_SPLIT_COUNT", RangeSplitCount::default())?,
             max_stdin_bytes: parsed_env_or("MAX_STDIN_BYTES", StdinByteLimit::default())?,
+            testing_max_range_chains,
             max_concurrent_range_proofs: parsed_env_or(
                 "MAX_CONCURRENT_RANGE_PROOFS",
                 NonZeroUsize::MIN,
@@ -1099,6 +1110,23 @@ mod tests {
                 );
             }
             remove_proposer_env("MAX_STDIN_BYTES");
+            assert_eq!(config.testing_max_range_chains, None);
+            set_proposer_env("TESTING_MAX_RANGE_CHAINS", "1");
+            assert_eq!(
+                ProposerConfig::from_env(None).unwrap().testing_max_range_chains,
+                NonZeroUsize::new(1)
+            );
+            set_proposer_env("PROOF_PROVIDER", "network");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(err.contains("is testing only"), "unexpected: {err}");
+            set_proposer_env("PROOF_PROVIDER", "mock");
+            set_proposer_env("TESTING_MAX_RANGE_CHAINS", "0");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(
+                err.contains("invalid OP_ZK_PROPOSER_TESTING_MAX_RANGE_CHAINS"),
+                "unexpected: {err}"
+            );
+            remove_proposer_env("TESTING_MAX_RANGE_CHAINS");
             assert_eq!(config.range_split_count.to_usize(), 16);
             set_proposer_env("RANGE_SPLIT_COUNT", "128");
             assert_eq!(ProposerConfig::from_env(None).unwrap().range_split_count.to_usize(), 128);
