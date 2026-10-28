@@ -4,6 +4,7 @@ use std::{str::FromStr, time::Duration};
 
 use backon::{ExponentialBuilder, Retryable};
 use discv5::Enr;
+use enr::NodeId;
 use kona_gossip::{GossipCommand, GossipCommandSender, PeerDump, PeerInfo};
 use kona_node_service::NetworkActorError;
 use kona_rpc::{OpP2PApiServer, P2pRpc};
@@ -154,8 +155,13 @@ impl TestNetwork {
     }
 
     /// Returns the ENRs in this node's discovery table, as `opp2p_discoveryTable` does.
-    pub(super) async fn discovery_table(&self) -> Result<Vec<String>, TestNetworkError> {
-        Ok(self.p2p_rpc.opp2p_discovery_table().await?)
+    pub(super) async fn discovery_table(&self) -> Result<Vec<Enr>, TestNetworkError> {
+        self.p2p_rpc
+            .opp2p_discovery_table()
+            .await?
+            .iter()
+            .map(|enr| Enr::from_str(enr).map_err(TestNetworkError::InvalidEnr))
+            .collect()
     }
 
     /// Returns this node's own ENR.
@@ -169,5 +175,10 @@ impl TestNetwork {
     /// Returns this node's own peer ID.
     pub(super) async fn peer_id(&self) -> Result<String, TestNetworkError> {
         Ok(self.peer_info().await?.peer_id)
+    }
+
+    /// Returns this node's own discovery node ID, from its ENR.
+    pub(super) async fn node_id(&self) -> Result<NodeId, TestNetworkError> {
+        Ok(self.peer_enr().await?.node_id())
     }
 }
