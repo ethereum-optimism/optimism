@@ -148,12 +148,8 @@ where
             }
         }
 
-        // Reset puts derivation into AwaitingUpdateAfterSignal even if the head is unchanged.
-        // Always confirm the recovered head so it can resume without another L1 update.
-        self.derivation_client.send_new_engine_safe_head(l2_safe_head).await.map_err(|e| {
-            error!(target: "engine", ?e, "Failed to confirm reset safe head to derivation");
-            EngineError::ChannelClosed
-        })?;
+        // The reset signal includes the recovered safe head. Derivation adopts it and resumes
+        // while handling that message, so an intervening L1 update cannot overtake confirmation.
         self.last_engine_safe_head_sent = l2_safe_head;
 
         Ok(())

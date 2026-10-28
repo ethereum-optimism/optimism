@@ -122,15 +122,15 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
                 break;
             }
         }
-        let DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(confirmed) =
-            derivation_rx.recv().await.unwrap()
-        else {
-            panic!("reset must confirm even an unchanged safe head");
-        };
-        assert_eq!(*confirmed, genesis);
         while state_rx.borrow_and_update().sync_state.safe_head() != recovered {
             state_rx.changed().await.unwrap();
         }
+        let DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(confirmed) =
+            derivation_rx.recv().await.unwrap()
+        else {
+            panic!("expected confirmation of the recovered block");
+        };
+        assert_eq!(*confirmed, recovered, "reset must not send a separate stale confirmation");
     })
     .await
     .expect("derivation must reset and safe processing must resume");
@@ -230,18 +230,21 @@ async fn admin_reset_recovers_and_completes_original_request(
         derivation_rx.recv().await.unwrap(),
         DerivationActorRequest::ProcessL1HeadUpdateRequest(_)
     ));
-    assert!(matches!(
-        derivation_rx.recv().await.unwrap(),
-        DerivationActorRequest::ProcessEngineSignalRequest(_)
-    ));
-    assert!(matches!(
-        derivation_rx.recv().await.unwrap(),
-        DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(_)
-    ));
+    let DerivationActorRequest::ProcessEngineSignalRequest(signal) =
+        derivation_rx.recv().await.unwrap()
+    else {
+        panic!("expected reset signal carrying the recovered safe head");
+    };
+    assert!(matches!(*signal, kona_derive::Signal::Reset(reset)
+        if reset.l2_safe_head == published.sync_state.local_safe_head()));
     assert!(matches!(
         derivation_rx.recv().await.unwrap(),
         DerivationActorRequest::ProcessEngineSyncCompletionRequest(_)
     ));
+    assert!(
+        derivation_rx.try_recv().is_err(),
+        "reset must not send a separate safe-head acknowledgement"
+    );
     tasks.abort_all();
     l1.assert_finished();
     l2.assert_finished();
