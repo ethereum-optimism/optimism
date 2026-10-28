@@ -58,6 +58,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     event ProofMaturityDelaySecondsSet(uint256 proofMaturityDelaySeconds);
     event BridgeHookSet(IBridgeHook indexed bridgeHook);
     event BridgeHookRemoved(IBridgeHook indexed bridgeHook);
+    event DepositHeld(bytes32 indexed id);
     event PortalMigrated(
         IETHLockbox oldLockbox,
         IETHLockbox newLockbox,

@@ -180,6 +180,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param bridgeHook The removed bridge hook.
     event BridgeHookRemoved(IBridgeHook indexed bridgeHook);
 
+    /// @notice Emitted when the bridge hook holds a deposit.
+    /// @param id Identifier of the held deposit.
+    event DepositHeld(bytes32 indexed id);
+
     /// @notice Emitted when the proof maturity delay is set.
     /// @param proofMaturityDelaySeconds The new proof maturity delay in seconds.
     event ProofMaturityDelaySecondsSet(uint256 proofMaturityDelaySeconds);
@@ -867,6 +871,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             });
             bytes memory message = _recognize(item);
             if (!bridgeHook.screenDeposit(item)) {
+                emit DepositHeld(BridgeHookHashing.hashItem(item));
                 _commitHold(item, message, heldDeposits);
                 bridgeHook.holdDeposit{ value: msg.value }(item);
                 return;

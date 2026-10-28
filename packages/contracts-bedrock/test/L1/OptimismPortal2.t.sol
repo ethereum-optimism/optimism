@@ -2855,6 +2855,8 @@ contract OptimismPortal2_DeleteProvenWithdrawal_Test is OptimismPortal2_TestInit
 /// @title OptimismPortal2_DepositTransaction_Test
 /// @notice Test contract for OptimismPortal2 `depositTransaction` function.
 contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
+    event DepositHeld(bytes32 indexed id);
+
     /// @notice Tests that `depositTransaction` reverts when the destination address is non-zero
     ///         for a contract creation deposit.
     function test_depositTransaction_contractCreation_reverts() external {
@@ -3151,7 +3153,8 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
         assertEq(blockNum, block.number);
     }
 
-    /// @notice Tests that a held deposit is committed, its ETH goes to the hook and nothing is emitted.
+    /// @notice Tests that a held deposit is committed, its ETH goes to the hook and only DepositHeld is
+    ///         emitted.
     function testFuzz_depositTransaction_hookHolds_succeeds(
         address _to,
         uint256 _value,
@@ -3189,12 +3192,15 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
         vm.mockCall(hook, abi.encodeCall(IBridgeHook.screenDeposit, (item)), abi.encode(false));
         vm.expectCall(hook, _mint, abi.encodeCall(IBridgeHook.holdDeposit, (item)));
 
+        vm.expectEmit(address(optimismPortal2));
+        emit DepositHeld(BridgeHookHashing.hashItem(item));
+
         vm.deal(depositor, _mint);
         vm.recordLogs();
         vm.prank(depositor, depositor);
         optimismPortal2.depositTransaction{ value: _mint }(_to, _value, _gasLimit, _isCreation, _data);
 
-        assertEq(vm.getRecordedLogs().length, 0);
+        assertEq(vm.getRecordedLogs().length, 1);
         assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)));
         assertEq(hook.balance, _mint);
         (uint64 gas, uint64 blockNum) = publishedCount();
