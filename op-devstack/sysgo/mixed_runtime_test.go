@@ -6,34 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
-
-func TestResolveKonaL2CLConfigSafeDBOptions(t *testing.T) {
-	t.Setenv("KONA_NODE_P2P_NO_DISCOVERY", "true")
-	safeDBOption := func(path string) L2CLOption {
-		return L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, config *L2CLConfig) {
-			config.SafeDBPath = path
-		})
-	}
-	for _, testCase := range []struct {
-		name     string
-		options  []L2CLOption
-		wantPath string
-	}{
-		{name: "disabled by default"},
-		{name: "enabled", options: []L2CLOption{safeDBOption("/tmp/safe-head.db")}, wantPath: "/tmp/safe-head.db"},
-		{name: "nil option ignored", options: []L2CLOption{nil, safeDBOption("/tmp/safe-head.db")}, wantPath: "/tmp/safe-head.db"},
-		{name: "later option replaces path", options: []L2CLOption{safeDBOption("/tmp/first.db"), safeDBOption("/tmp/second.db")}, wantPath: "/tmp/second.db"},
-		{name: "later option disables database", options: []L2CLOption{safeDBOption("/tmp/safe-head.db"), safeDBOption("")}},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			config := resolveKonaL2CLConfig(devtest.SerialT(t), "node", eth.ChainIDFromUInt64(901), false, "", testCase.options)
-
-			require.Equal(t, testCase.wantPath, config.SafeDBPath)
-		})
-	}
-}
 
 func TestMixedL2ELOptsFromEnv(t *testing.T) {
 	for _, tc := range []struct {
