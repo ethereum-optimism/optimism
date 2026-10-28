@@ -60,7 +60,12 @@ async fn build_reports_outcome_and_does_not_retry_rejected_attributes(
         tx,
     )));
     let mut state = TestEngineStateBuilder::new().with_unsafe_head(parent).build();
-    task.execute(&mut state).await.unwrap();
+    let result = task.execute(&mut state).await;
+    if matches!(&status, Some(PayloadStatusEnum::Invalid { .. })) {
+        assert_eq!(result.unwrap_err().severity(), EngineTaskErrorSeverity::Reset);
+    } else {
+        result.unwrap();
+    }
     match (status, rx.recv().await.unwrap()) {
         (Some(PayloadStatusEnum::Valid), Ok(id)) => assert_eq!(Some(id), payload_id),
         (

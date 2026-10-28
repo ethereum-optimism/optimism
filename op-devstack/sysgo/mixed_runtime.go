@@ -377,6 +377,16 @@ func konaSafeDBEnv(safeDBPath string) []string {
 	return []string{"KONA_NODE_SAFEDB_PATH=" + safeDBPath}
 }
 
+func konaSafeDBEnvFromOptions(testContext devtest.T, target ComponentTarget, options []L2CLOption) []string {
+	config := DefaultL2CLConfig()
+	for _, option := range options {
+		if option != nil {
+			option.Apply(testContext, target, config)
+		}
+	}
+	return konaSafeDBEnv(config.SafeDBPath)
+}
+
 func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {
 	out := make([]MixedSingleChainNodeRefs, 0, len(nodes))
 	for _, node := range nodes {
