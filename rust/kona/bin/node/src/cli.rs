@@ -135,11 +135,20 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    /// A list flag, bound to an environment variable no other test uses.
+    /// A list flag under a subcommand, as the p2p list flags are under `node` and `net`, bound to
+    /// an environment variable no other test uses.
     #[derive(Parser, Debug)]
     struct ListCommand {
-        #[arg(long, value_delimiter = ',', env = "KONA_NODE_TEST_EMPTY_LIST_ENV", value_parser = parse_entry)]
-        list: Vec<String>,
+        #[command(subcommand)]
+        subcommand: ListSubcommand,
+    }
+
+    #[derive(Subcommand, Debug)]
+    enum ListSubcommand {
+        Run {
+            #[arg(long, value_delimiter = ',', env = "KONA_NODE_TEST_EMPTY_LIST_ENV", value_parser = parse_entry)]
+            list: Vec<String>,
+        },
     }
 
     /// Accepts any entry but an empty one, like the bootnode and static peer parsers.
@@ -155,9 +164,11 @@ mod tests {
         // SAFETY: only this test reads or writes this variable.
         unsafe { std::env::set_var("KONA_NODE_TEST_EMPTY_LIST_ENV", env) };
         let matches = ignore_empty_list_envs(ListCommand::command())
-            .try_get_matches_from(["test"])
+            .try_get_matches_from(["test", "run"])
             .map_err(|e| e.to_string())?;
-        Ok(ListCommand::from_arg_matches(&matches).map_err(|e| e.to_string())?.list)
+        let ListSubcommand::Run { list } =
+            ListCommand::from_arg_matches(&matches).map_err(|e| e.to_string())?.subcommand;
+        Ok(list)
     }
 
     /// An empty environment variable is an empty list. Other values are split on commas, and an
