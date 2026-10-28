@@ -373,10 +373,8 @@ impl OnlineHostBackendCfg for InteropHost {
     type HintType = HintType;
     type Providers = InteropProviders;
 
-    /// `L2PayloadWitness` bulk-populates the store via `debug_executePayload`, which every
-    /// supported L2 EL (op-reth with proofs-history) serves. Being a per-config default, it also
-    /// applies to the nested backend that re-executes a replaced optimistic block.
-    /// `L2BlockData` re-executes that block and bulk-populates its preimages.
+    /// `L2PayloadWitness` bulk-populates the store via `debug_executePayload`.
+    /// `L2BlockData` re-executes a replaced optimistic block and bulk-populates its preimages.
     const HIGH_LEVEL_HINTS: &'static [HintType] =
         &[HintType::L2PayloadWitness, HintType::L2BlockData];
 }

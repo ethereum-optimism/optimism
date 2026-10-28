@@ -8,7 +8,7 @@ use kona_preimage::{
     errors::{PreimageOracleError, PreimageOracleResult},
 };
 use kona_proof::{Hint, errors::HintParsingError};
-use std::{collections::HashSet, hash::Hash, str::FromStr, sync::Arc, time::Duration};
+use std::{hash::Hash, str::FromStr, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 use tracing::{debug, error, trace};
 
@@ -31,10 +31,7 @@ pub trait OnlineHostBackendCfg {
     /// The providers that are used to fetch data in response to hints.
     type Providers: Send + Sync;
 
-    /// Hint types that every [`OnlineHostBackend`] for this configuration treats as "high-level",
-    /// unless replaced with [`OnlineHostBackend::override_high_level_hints`]. The latest hint of a
-    /// high-level type is retained and tried first on every `get_preimage` attempt instead of being
-    /// overwritten by the next fine-grained hint, so it suits hints that bulk-populate the store.
+    /// Hint types treated as high-level (see `OnlineHostBackend::last_high_level_hint`).
     const HIGH_LEVEL_HINTS: &'static [Self::HintType];
 }
 
@@ -70,9 +67,6 @@ where
     kv: SharedKeyValueStore,
     /// The providers that are used to fetch data in response to hints.
     providers: C::Providers,
-    /// Hint types treated as "high-level" (see [`Self::last_high_level_hint`]). Seeded from
-    /// [`OnlineHostBackendCfg::HIGH_LEVEL_HINTS`].
-    high_level_hint_types: HashSet<C::HintType>,
     /// The latest high-level hint. High-level hints bulk-populate the key-value store, so rather
     /// than being fetched once on receipt the latest is retained and tried before
     /// [`Self::last_hint`] on every [`Self::get_preimage`] attempt: cleared once it succeeds (its
@@ -97,22 +91,10 @@ where
             cfg,
             kv,
             providers,
-            high_level_hint_types: C::HIGH_LEVEL_HINTS.iter().cloned().collect(),
             last_high_level_hint: Arc::new(RwLock::new(None)),
             last_hint: Arc::new(RwLock::new(None)),
             _hint_handler: std::marker::PhantomData,
         }
-    }
-
-    /// Replaces the per-config [`OnlineHostBackendCfg::HIGH_LEVEL_HINTS`] with `hints`: the latest
-    /// hint of each of these types is retained and tried first by the `get_preimage` retry loop,
-    /// rather than being fetched once and discarded.
-    pub fn override_high_level_hints(
-        mut self,
-        hints: impl IntoIterator<Item = C::HintType>,
-    ) -> Self {
-        self.high_level_hint_types = hints.into_iter().collect();
-        self
     }
 }
 
@@ -129,7 +111,7 @@ where
         let parsed_hint = hint
             .parse::<Hint<C::HintType>>()
             .map_err(|e| PreimageOracleError::HintParseFailed(e.to_string()))?;
-        if self.high_level_hint_types.contains(&parsed_hint.ty) {
+        if C::HIGH_LEVEL_HINTS.contains(&parsed_hint.ty) {
             debug!(target: "host_backend", "High-level hint received; retaining {hint}");
             self.last_high_level_hint.write().await.replace(parsed_hint);
         } else {
@@ -454,32 +436,6 @@ mod tests {
         assert_eq!(
             backend.last_hint.read().await.as_ref().map(|h| h.ty.clone()),
             Some(TestHint::LowLevel)
-        );
-    }
-
-    /// `override_high_level_hints` replaces the per-config defaults rather than extending them, so
-    /// a type listed in [`OnlineHostBackendCfg::HIGH_LEVEL_HINTS`] but not in the override is
-    /// routed as fine-grained.
-    #[tokio::test]
-    async fn override_high_level_hints_replaces_defaults() {
-        let (_key, target) = target_key();
-        let backend = new_backend(TestProviders {
-            target,
-            value: Vec::new(),
-            high_level_fail_until: 0,
-            high_level_stores_target: false,
-            high_level_attempts: Arc::new(AtomicUsize::new(0)),
-            low_level_stores_target: false,
-            low_level_attempts: Arc::new(AtomicUsize::new(0)),
-        })
-        .override_high_level_hints([]);
-
-        backend.route_hint("high 00".to_string()).await.unwrap();
-
-        assert!(backend.last_high_level_hint.read().await.is_none());
-        assert_eq!(
-            backend.last_hint.read().await.as_ref().map(|h| h.ty.clone()),
-            Some(TestHint::HighLevel)
         );
     }
 }

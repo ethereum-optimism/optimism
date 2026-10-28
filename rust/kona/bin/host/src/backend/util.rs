@@ -13,9 +13,9 @@ use tokio::sync::RwLock;
 /// Fetches a block's execution witness via `debug_executePayload`.
 ///
 /// Any failure — including "method not found" — is returned as an error rather than swallowed. The
-/// `L2PayloadWitness` hint is high-level by default for every host config (see
-/// `OnlineHostBackendCfg::HIGH_LEVEL_HINTS`), so the `get_preimage` loop retries it; retrying is
-/// cheap and lets the fetch recover if the node is upgraded.
+/// `L2PayloadWitness` hint is high-level (see `OnlineHostBackendCfg::HIGH_LEVEL_HINTS`), so the
+/// `get_preimage` loop retries it; retrying is cheap and lets the fetch recover if the node is
+/// upgraded.
 pub(crate) async fn fetch_execution_witness(
     client: ClientRef<'_>,
     parent_block_hash: B256,

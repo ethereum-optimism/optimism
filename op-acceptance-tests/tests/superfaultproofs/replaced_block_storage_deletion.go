@@ -17,19 +17,13 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// deletionSlots is the number of storage slots the deletion contract's constructor fills.
-// The runtime code zeroes every slot but slot 0, so the storage trie collapses onto slot 0's
-// leaf, which no executed transaction reads or writes.
+// deletionSlots is the number of storage slots the deletion contract's constructor fills. The
+// runtime code zeroes every slot but slot 0, so the storage trie collapses onto slot 0's leaf,
+// which is off every account and storage proof path.
 const deletionSlots = 32
 
-// RunReplacedBlockStorageDeletionTest proves the consolidation of a replaced block whose
-// transactions delete storage.
-//
-// Chain B's block at endTimestamp zeroes 31 of a contract's 32 storage slots and carries an
-// invalid executing message, so the supernode replaces it. Consolidating the replaced block makes
-// the host re-execute it in a nested backend. Applying the deletions collapses the contract's
-// storage trie onto slot 0's leaf; that leaf is off every account and storage proof path, so the
-// host can only serve it from the block's execution witness.
+// RunReplacedBlockStorageDeletionTest proves the consolidation of a replaced block whose storage
+// deletions need a trie node that only the block's execution witness provides.
 func RunReplacedBlockStorageDeletionTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
 	chains := replacedBlockChains(t, sys)
 
