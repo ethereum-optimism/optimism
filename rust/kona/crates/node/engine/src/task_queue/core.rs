@@ -49,8 +49,8 @@ impl Ord for QueuedTask {
 ///
 /// Tasks within the queue are also considered fallible. If they fail with a temporary error,
 /// they are not popped from the queue, the error is returned, and they are retried on the
-/// next call to [`Engine::drain`]. A task that fails with a flush error has already replaced its
-/// block, so it is popped before the error is returned.
+/// next call to [`Engine::drain`]. A flush or rejection completes the task (by replacing the
+/// block or rolling back the batch), so it is popped before the error is returned.
 #[derive(Debug)]
 pub struct Engine {
     /// The state of the engine.
@@ -128,6 +128,8 @@ impl Engine {
         )
         .await?;
 
+        self.state.pending_safe_head = None;
+        self.state.need_fcu_call_backup_unsafe_reorg = false;
         self.state_sender.send_replace(self.state);
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
 
@@ -142,7 +144,7 @@ impl Engine {
 
     /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
     /// an error along the way, the error is returned and the task is not popped from the queue (in
-    /// case it must be retried), unless it is a flush error.
+    /// case it must be retried), unless it is a flush or batch rejection.
     pub async fn drain(&mut self) -> Result<(), EngineTaskErrors> {
         // Drain tasks in order of priority, halting on errors for a retry to be attempted.
         loop {
@@ -152,10 +154,13 @@ impl Engine {
             let Some(task) = &self.active else { break };
             let result = task.execute(&mut self.state).await;
 
-            // A flush reports that the task replaced its block with a deposits-only block, so the
-            // task is done; retrying it would replace that block again.
+            // Flush and reject complete the task. Retrying would replay an already replaced
+            // block or the same deterministically invalid batch.
             if let Err(err) = &result &&
-                err.severity() != EngineTaskErrorSeverity::Flush
+                !matches!(
+                    err.severity(),
+                    EngineTaskErrorSeverity::Flush | EngineTaskErrorSeverity::Reject
+                )
             {
                 return result;
             }

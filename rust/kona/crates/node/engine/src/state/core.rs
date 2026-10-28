@@ -130,27 +130,33 @@ pub struct EngineState {
     /// The sync state of the engine.
     pub sync_state: EngineSyncState,
 
+    /// Successfully processed prefix of the current pre-Holocene span. Safe labels remain at the
+    /// last completed batch until the entire span succeeds.
+    pub pending_safe_head: Option<L2BlockInfo>,
+
     /// Whether or not the EL has finished syncing.
     pub el_sync_finished: bool,
 
-    /// Track when the rollup node changes the forkchoice to restore previous
-    /// known unsafe chain. e.g. Unsafe Reorg caused by Invalid span batch.
-    /// This update does not retry except engine returns non-input error
-    /// because engine may forgot backupUnsafeHead or backupUnsafeHead is not part
-    /// of the chain.
+    /// A derived pre-Holocene batch was rejected. Retain the rollback across temporary
+    /// forkchoice failures, without submitting the rejected attributes again.
     pub need_fcu_call_backup_unsafe_reorg: bool,
 }
 
 impl EngineState {
+    /// The parent for the next derived block, including any uncommitted span prefix.
+    pub fn derivation_parent(&self) -> L2BlockInfo {
+        self.pending_safe_head.unwrap_or_else(|| self.sync_state.local_safe_head())
+    }
+
     /// Returns if consolidation is needed.
     ///
     /// [Consolidation] is only performed by a rollup node when the unsafe head
-    /// is ahead of the safe head. When the two are equal, consolidation isn't
+    /// is ahead of the derivation parent. When the two are equal, consolidation isn't
     /// required and the [`crate::BuildTask`] can be used to build the block.
     ///
     /// [Consolidation]: https://specs.optimism.io/protocol/derivation.html#l1-consolidation-payload-attributes-matching
     pub fn needs_consolidation(&self) -> bool {
-        self.sync_state.safe_head() != self.sync_state.unsafe_head()
+        self.derivation_parent() != self.sync_state.unsafe_head()
     }
 }
 

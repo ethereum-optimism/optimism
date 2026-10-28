@@ -291,6 +291,13 @@ where
             );
             return Ok(());
         }
+        // Before Holocene a valid prefix is only pending-safe: a later block can invalidate
+        // the entire span. Holocene makes each singular block safe independently.
+        if !attributes.is_last_in_span &&
+            !attributes.is_holocene_active(self.pipeline.rollup_config())
+        {
+            return Ok(());
+        }
         if let (Some(database), Some(derived_from)) = (&self.safe_db, attributes.derived_from) {
             debug!(target: "derivation", l1_block = derived_from.number, safe_head = safe_head.block_info.number, "Recording safe head");
             database.safe_head_updated(safe_head, derived_from.id()).inspect_err(|error| {

@@ -17,7 +17,8 @@ pub(in crate::task_queue) enum BuildAndImportError {
     Seal(#[from] SealTaskError),
 }
 
-/// Builds a block from derived `attributes`, seals it, and imports it as the new safe head.
+/// Builds and imports derived `attributes` as the next derivation parent. Only the last block
+/// in a pre-Holocene span advances the completed safe head.
 ///
 /// Build and import run inside the same engine task, so no other task can move the unsafe head in
 /// between, and no staleness check is needed. A derivation-driven reorg legitimately builds on a
@@ -50,7 +51,7 @@ pub(in crate::task_queue) async fn build_and_import(
         target: "engine",
         l2_number = new_block_ref.block_info.number,
         l2_time = new_block_ref.block_info.timestamp,
-        "Built and imported new safe block",
+        "Built and imported derived block",
     );
 
     Ok(())
@@ -72,7 +73,9 @@ async fn insert_payload_with_holocene_fallback(
     payload: OpExecutionPayloadEnvelope,
     block_sink: &dyn ImportedBlockSink,
 ) -> Result<L2BlockInfo, SealTaskError> {
-    match insert_payload(engine, cfg, state, payload, true, block_sink).await {
+    // Holocene validates singular blocks independently, including blocks inside a span.
+    let completes_batch = attributes.is_last_in_span || attributes.is_holocene_active(cfg);
+    match insert_payload(engine, cfg, state, payload, completes_batch, block_sink).await {
         Err(err @ InsertTaskError::UnexpectedPayloadStatus(_)) => {
             warn!(target: "engine", %err, "Payload rejected at newPayload");
             Err(handle_rejected_attributes(engine, cfg, state, attributes, block_sink)
@@ -83,7 +86,10 @@ async fn insert_payload_with_holocene_fallback(
             error!(target: "engine", "Payload import failed: {e}");
             Err(Box::new(e).into())
         }
-        Ok(new_block_ref) => Ok(new_block_ref),
+        Ok(new_block_ref) => {
+            state.pending_safe_head = (!completes_batch).then_some(new_block_ref);
+            Ok(new_block_ref)
+        }
     }
 }
 
@@ -100,7 +106,7 @@ async fn handle_rejected_attributes(
         error!(target: "engine", "Critical: the engine rejected deposits-only attributes");
         return Some(SealTaskError::DepositOnlyPayloadFailed);
     }
-    if !cfg.is_holocene_active(attributes.attributes().payload_attributes.timestamp) {
+    if !attributes.is_holocene_active(cfg) {
         return None;
     }
     warn!(target: "engine", "Replacing rejected derived attributes with deposits only");
@@ -109,6 +115,7 @@ async fn handle_rejected_attributes(
             .await
         {
             Ok(block) => {
+                state.pending_safe_head = None;
                 info!(
                     target: "engine",
                     l2_number = block.block_info.number,
@@ -375,12 +382,21 @@ mod tests {
     }
 
     /// Derived blocks are imported as the new safe head in the same operation that builds them.
+    #[rstest]
+    #[case::completed_batch(true, false)]
+    #[case::holocene_prefix(false, true)]
     #[tokio::test]
-    async fn build_and_import_inserts_the_block_as_the_safe_head() {
+    async fn build_and_import_inserts_the_block_as_the_safe_head(
+        #[case] last_in_span: bool,
+        #[case] holocene: bool,
+    ) {
         use super::super::canonicalize::tests::{PayloadFixture, RecordingSink, payload_fixture};
         use alloy_rpc_types_engine::{ExecutionPayloadEnvelopeV2, ExecutionPayloadFieldV2};
 
-        let PayloadFixture { payload: expected, cfg } = payload_fixture();
+        let PayloadFixture { payload: expected, mut cfg } = payload_fixture();
+        if holocene {
+            Arc::make_mut(&mut cfg).hardforks.holocene_time = Some(10);
+        }
         let op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope::V1(payload) = expected.clone()
         else {
             panic!("fixture must be V1");
@@ -405,8 +421,15 @@ mod tests {
         l2.expect("engine_forkchoiceUpdatedV3", ForkchoiceUpdated::new(valid()));
         let sink = RecordingSink::default();
         let mut state = EngineState::default();
-        let attributes =
-            TestAttributesBuilder::new().with_parent(kona_protocol::L2BlockInfo::default()).build();
+        let mut attributes = TestAttributesBuilder::new()
+            .with_parent(kona_protocol::L2BlockInfo::default())
+            .with_timestamp(0)
+            .build();
+        attributes.is_last_in_span = last_in_span;
+        if holocene {
+            attributes.derived_from =
+                Some(kona_protocol::BlockInfo { timestamp: 10, ..Default::default() });
+        }
 
         build_and_import(&engine, &cfg, &mut state, attributes, &sink).await.unwrap();
 

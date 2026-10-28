@@ -9,6 +9,9 @@ use thiserror::Error;
 /// An error that occurs when running the [`crate::ConsolidateTask`].
 #[derive(Debug, Error)]
 pub enum ConsolidateTaskError {
+    /// The invalid batch has been discarded and forkchoice restored to the completed boundary.
+    #[error("Rejected invalid pre-Holocene batch")]
+    BatchRejected,
     /// The unsafe L2 block is missing.
     #[error("Unsafe L2 block is missing {0}")]
     MissingUnsafeL2Block(u64),
@@ -38,6 +41,7 @@ impl From<BuildAndImportError> for ConsolidateTaskError {
 impl EngineTaskError for ConsolidateTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
+            Self::BatchRejected => EngineTaskErrorSeverity::Reject,
             Self::MissingUnsafeL2Block(_) => EngineTaskErrorSeverity::Reset,
             Self::FailedToFetchUnsafeL2Block => EngineTaskErrorSeverity::Temporary,
             Self::BuildTaskFailed(inner) => inner.severity(),

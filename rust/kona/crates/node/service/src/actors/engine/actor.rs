@@ -20,6 +20,10 @@ use tokio::{
 #[path = "queue_tests.rs"]
 mod queue_tests;
 
+#[cfg(test)]
+#[path = "rejection_tests.rs"]
+mod rejection_tests;
+
 /// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
 /// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of
 /// the [`Ord`] implementation of [`EngineTask`].
@@ -32,8 +36,8 @@ where
     derivation_client: DerivationClient,
     /// Whether the EL sync is complete. This should only ever go from false to true.
     el_sync_complete: bool,
-    /// The last local-safe head sent to the derivation actor.
-    last_engine_safe_head_sent: L2BlockInfo,
+    /// The last derivation parent sent to the derivation actor.
+    last_derivation_parent_sent: L2BlockInfo,
     /// A channel to use to relay the current unsafe head.
     /// ## Note
     /// This is `Some` when the node is in sequencer mode, and `None` when the node is in validator
@@ -80,7 +84,7 @@ where
             derivation_client,
             el_sync_complete: false,
             engine,
-            last_engine_safe_head_sent: L2BlockInfo::default(),
+            last_derivation_parent_sent: L2BlockInfo::default(),
             rollup: config,
             unsafe_head_tx,
             inbound_request_rx,
@@ -148,7 +152,7 @@ where
             }
         }
 
-        self.send_derivation_actor_safe_head_if_updated().await?;
+        self.send_derivation_parent_if_updated(false).await?;
 
         Ok(())
     }
@@ -170,6 +174,7 @@ where
 
     /// Drains the inner [`Engine`] task queue and attempts to update the safe head.
     async fn drain(&mut self) -> Result<(), EngineError> {
+        let mut batch_rejected = false;
         match self.engine.drain().await {
             Ok(_) => {
                 trace!(target: "engine", "[ENGINE] tasks drained");
@@ -185,6 +190,11 @@ where
                         warn!(target: "engine", ?err, "Received reset request");
                         self.begin_reset();
                         return Ok(());
+                    }
+                    EngineTaskErrorSeverity::Reject => {
+                        // Acknowledge even a first-block rejection, where the parent did not move.
+                        // No pipeline signal: retain later batches in the current channel.
+                        batch_rejected = true;
                     }
                     EngineTaskErrorSeverity::Flush => {
                         // This error is encountered when the engine API rejects a derived
@@ -212,7 +222,7 @@ where
             }
         }
 
-        self.send_derivation_actor_safe_head_if_updated().await?;
+        self.send_derivation_parent_if_updated(batch_rejected).await?;
 
         if !self.el_sync_complete && self.engine.state().el_sync_finished {
             if self.engine.state().sync_state.finalized_head() == L2BlockInfo::default() {
@@ -240,24 +250,23 @@ where
             })?
     }
 
-    /// Sends the [`crate::DerivationActor`] the local-safe head if it changed since the last send.
-    ///
-    /// Derivation continues from, and records, the head that L1 data made safe. That is the
-    /// local-safe label; the safe label can lag it by cross-chain verification.
-    async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), EngineError> {
-        let local_safe_head = self.engine.state().sync_state.local_safe_head();
-        if local_safe_head == self.last_engine_safe_head_sent {
-            info!(target: "engine", safe_head = ?local_safe_head, "Local-safe head unchanged");
+    /// Confirms the next derivation parent, including an uncommitted pre-Holocene span prefix.
+    /// Only completed batches may be recorded or finalized by derivation. Force an acknowledgement
+    /// on rejection even if the parent did not change, so derivation can try the next batch.
+    async fn send_derivation_parent_if_updated(&mut self, force: bool) -> Result<(), EngineError> {
+        let parent = self.engine.state().derivation_parent();
+        if !force && parent == self.last_derivation_parent_sent {
+            info!(target: "engine", ?parent, "Derivation parent unchanged");
             return Ok(());
         }
 
-        self.derivation_client.send_new_engine_safe_head(local_safe_head).await.map_err(|e| {
+        self.derivation_client.send_new_engine_safe_head(parent).await.map_err(|e| {
             error!(target: "engine", ?e, "Failed to send new engine safe head");
             EngineError::ChannelClosed
         })?;
 
-        info!(target: "engine", safe_head = ?local_safe_head, "Sent local-safe head to derivation");
-        self.last_engine_safe_head_sent = local_safe_head;
+        info!(target: "engine", ?parent, "Sent parent to derivation");
+        self.last_derivation_parent_sent = parent;
 
         Ok(())
     }

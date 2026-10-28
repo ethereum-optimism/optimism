@@ -14,7 +14,8 @@ pub trait EngineDerivationClient: Debug + Send + Sync {
     /// Note: Does not wait for the derivation client to process this message.
     async fn notify_sync_completed(&self, safe_head: L2BlockInfo) -> DerivationClientResult<()>;
 
-    /// Sends the new engine `safe_head` to the [`crate::DerivationActor`].
+    /// Confirms the derivation parent, which may be a pending-safe span prefix. The derivation
+    /// actor records and finalizes this head only after its batch succeeds.
     /// Note: Does not wait for the derivation client to process this message.
     async fn send_new_engine_safe_head(&self, safe_head: L2BlockInfo)
     -> DerivationClientResult<()>;

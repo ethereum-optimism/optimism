@@ -1,6 +1,7 @@
 //! Optimism Payload attributes that reference the parent L2 block.
 
 use crate::{BlockInfo, L2BlockInfo};
+use kona_genesis::RollupConfig;
 use op_alloy_consensus::OpTxType;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 
@@ -60,6 +61,16 @@ impl OpAttributesWithParent {
         self.is_last_in_span
     }
 
+    /// Whether Holocene batch rules apply. Derived batches activate these rules at their L1
+    /// inclusion block, independently of the L2 payload timestamp. Attributes without an L1
+    /// source use the payload timestamp.
+    pub fn is_holocene_active(&self, cfg: &RollupConfig) -> bool {
+        let timestamp = self
+            .derived_from
+            .map_or(self.attributes.payload_attributes.timestamp, |origin| origin.timestamp);
+        cfg.is_holocene_active(timestamp)
+    }
+
     /// Returns `true` if all transactions in the payload are deposits.
     pub fn is_deposits_only(&self) -> bool {
         self.attributes
@@ -96,6 +107,26 @@ impl OpAttributesWithParent {
 mod tests {
     use super::*;
     use alloc::vec;
+
+    #[rstest::rstest]
+    #[case::l2_ahead_of_inclusion(99, 102, false)]
+    #[case::l2_behind_inclusion(100, 98, true)]
+    fn holocene_batch_rules_follow_l1_inclusion(
+        #[case] inclusion_timestamp: u64,
+        #[case] payload_timestamp: u64,
+        #[case] expected: bool,
+    ) {
+        let mut cfg = RollupConfig::default();
+        cfg.hardforks.holocene_time = Some(100);
+        let mut attributes = OpAttributesWithParent::new(
+            OpPayloadAttributes::default(),
+            L2BlockInfo::default(),
+            Some(BlockInfo { timestamp: inclusion_timestamp, ..Default::default() }),
+            false,
+        );
+        attributes.attributes.payload_attributes.timestamp = payload_timestamp;
+        assert_eq!(attributes.is_holocene_active(&cfg), expected);
+    }
 
     #[test]
     fn test_op_attributes_with_parent() {

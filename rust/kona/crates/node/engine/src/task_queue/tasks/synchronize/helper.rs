@@ -34,7 +34,11 @@ pub(in crate::task_queue) async fn synchronize(
     // We shouldn't retry the synchronization here. Since the `sync_state` is only updated inside
     // `synchronize` (except inside the ConsolidateTask, when the block is not the last in the
     // batch) - the engine would get stuck retrying the synchronization.
-    if state.sync_state != Default::default() && state.sync_state == new_sync_state {
+    // A rejected build may have changed the EL's head even if our labels did not change.
+    if !state.need_fcu_call_backup_unsafe_reorg &&
+        state.sync_state != Default::default() &&
+        state.sync_state == new_sync_state
+    {
         debug!(target: "engine", ?new_sync_state, "No forkchoice update needed");
         return Ok(());
     }
@@ -77,6 +81,10 @@ pub(in crate::task_queue) async fn synchronize(
             }
         }
         // If we're not building a new payload, we're driving EL sync.
+        PayloadStatusEnum::Syncing if state.need_fcu_call_backup_unsafe_reorg => {
+            // Do not acknowledge the rejected batch until the EL has accepted the rollback.
+            return Err(SynchronizeTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Syncing));
+        }
         PayloadStatusEnum::Syncing => {
             debug!(target: "engine", "Attempting to update forkchoice state while EL syncing")
         }

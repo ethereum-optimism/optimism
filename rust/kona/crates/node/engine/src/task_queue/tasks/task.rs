@@ -29,6 +29,9 @@ pub enum EngineTaskErrorSeverity {
     /// The error indicates that the engine should be reset.
     #[display("reset")]
     Reset,
+    /// The invalid batch was rolled back; drop the task and continue derivation without a reset.
+    #[display("reject")]
+    Reject,
     /// The error indicates that the engine should be flushed.
     #[display("flush")]
     Flush,

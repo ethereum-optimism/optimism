@@ -2,9 +2,11 @@
 
 use crate::{
     ConsolidateTaskError, EngineClient, EngineState, ExecutableEngineTask, ImportedBlockSink,
+    InsertTaskError, SealTaskError,
     state::EngineSyncStateUpdate,
     task_queue::{build_and_import, synchronize},
 };
+use alloy_rpc_types_engine::PayloadStatusEnum;
 use alloy_rpc_types_eth::Block;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
@@ -52,13 +54,14 @@ impl ConsolidateInput {
         }
     }
 
-    /// Returns true if this is `Attributes` and `attributes.is_last_in_span` is true.
-    const fn is_attributes_last_in_span(&self) -> bool {
-        matches!(
-            self,
-            Self::Attributes(attributes)
-                if attributes.is_last_in_span
-        )
+    /// Whether this input completes a batch (delegated block info is already safe).
+    fn completes_batch(&self, cfg: &RollupConfig) -> bool {
+        match self {
+            Self::Attributes(attributes) => {
+                attributes.is_last_in_span || attributes.is_holocene_active(cfg)
+            }
+            Self::BlockInfo(_) => true,
+        }
     }
 }
 
@@ -93,15 +96,48 @@ impl ConsolidateTask {
         state: &mut EngineState,
         attributes: &OpAttributesWithParent,
     ) -> Result<(), ConsolidateTaskError> {
-        build_and_import(
+        let result = build_and_import(
             self.client.as_ref(),
             &self.cfg,
             state,
             attributes.clone(),
             self.block_sink.as_ref(),
         )
+        .await
+        .map_err(ConsolidateTaskError::from);
+        let rejected = match &result {
+            Err(ConsolidateTaskError::BuildTaskFailed(err)) => err.is_invalid_attributes(),
+            Err(ConsolidateTaskError::SealTaskFailed(SealTaskError::PayloadInsertionFailed(
+                err,
+            ))) => {
+                matches!(
+                    **err,
+                    InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. })
+                )
+            }
+            _ => false,
+        };
+        if rejected && !attributes.is_deposits_only() && !attributes.is_holocene_active(&self.cfg) {
+            state.need_fcu_call_backup_unsafe_reorg = true;
+            return self.reject_batch(state).await;
+        }
+        result
+    }
+
+    /// Restore a consistent forkchoice at the last completed batch. The pipeline keeps its
+    /// L1/channel cursor; `BatchQueue` discards the rest of the span when it sees the old parent.
+    async fn reject_batch(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
+        let checkpoint = state.sync_state.local_safe_head();
+        synchronize(
+            self.client.as_ref(),
+            state,
+            EngineSyncStateUpdate { unsafe_head: Some(checkpoint), ..Default::default() },
+        )
         .await?;
-        Ok(())
+        state.pending_safe_head = None;
+        state.need_fcu_call_backup_unsafe_reorg = false;
+        warn!(target: "engine", %checkpoint, "Rejected invalid batch and restored completed boundary");
+        Err(ConsolidateTaskError::BatchRejected)
     }
 
     /// This provides symmetric fallback behavior with `build_and_import`.
@@ -136,6 +172,7 @@ impl ConsolidateTask {
             e
         })?;
 
+        state.pending_safe_head = None;
         info!(
             target: "engine",
             hash = %safe_l2.block_info.hash,
@@ -194,25 +231,20 @@ impl ConsolidateTask {
             let consensus_block =
                 block.into_consensus().map_transactions(|t| t.inner.inner.into_inner());
             match L2BlockInfo::from_block_and_genesis(&consensus_block, &self.cfg.genesis) {
-                // Only issue a forkchoice update if the attributes are the last in the span
-                // batch. This is an optimization to avoid sending a FCU
-                // call for every block in the span batch.
-                Ok(block_info) if !self.input.is_attributes_last_in_span() => {
+                // Before Holocene, keep the prefix pending and advertise it as safe only once
+                // the span completes. Holocene accepts each singular block independently.
+                Ok(block_info) if !self.input.completes_batch(&self.cfg) => {
                     // The next attributes built are this block's child, and ask for its config.
                     self.block_sink.block_imported(consensus_block, block_info);
 
-                    // Apply a transient update to the safe head.
-                    state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
-                        safe_head: Some(block_info),
-                        local_safe_head: Some(block_info),
-                        ..Default::default()
-                    });
+                    // Only the derivation parent moves until the entire span succeeds.
+                    state.pending_safe_head = Some(block_info);
 
                     info!(
                         target: "engine",
                         hash = %block_info.block_info.hash,
                         number = block_info.block_info.number,
-                        "Updated safe head via L1 consolidation"
+                        "Updated pending-safe head via L1 consolidation"
                     );
 
                     return Ok(());
@@ -235,6 +267,7 @@ impl ConsolidateTask {
                         warn!(target: "engine", ?e, "Consolidation failed");
                         e
                     })?;
+                    state.pending_safe_head = None;
 
                     info!(
                         target: "engine",
@@ -281,8 +314,11 @@ impl ExecutableEngineTask for ConsolidateTask {
     //   injected safe head is ahead of the EngineActor's unsafe head, we reconcile the unsafe chain
     //   up to the safe head instead of consolidating.
     async fn execute(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
+        if state.need_fcu_call_backup_unsafe_reorg {
+            return self.reject_batch(state).await;
+        }
         let safe_head_number = match &self.input {
-            ConsolidateInput::Attributes { .. } => state.sync_state.safe_head().block_info.number,
+            ConsolidateInput::Attributes { .. } => state.derivation_parent().block_info.number,
             ConsolidateInput::BlockInfo(safe_block_info) => safe_block_info.block_info.number,
         };
         if safe_head_number < state.sync_state.unsafe_head().block_info.number {
@@ -335,6 +371,14 @@ mod tests {
         });
         let (client, l1, l2) = test_engine_client(cfg.clone());
         l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0x0", true]), block);
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            alloy_rpc_types_engine::ForkchoiceUpdated::new(
+                alloy_rpc_types_engine::PayloadStatus::from_status(
+                    alloy_rpc_types_engine::PayloadStatusEnum::Valid,
+                ),
+            ),
+        );
         let client = Arc::new(client);
 
         let safe_l2 = L2BlockInfo {
@@ -388,11 +432,21 @@ mod tests {
     }
 
     // An FCU rejection with -38003 (invalid payload attributes) triggers deposits-only recovery.
+    #[rstest::rstest]
     #[tokio::test]
-    async fn attributes_rejected_at_fcu_are_replaced_with_deposits_only() {
+    async fn attributes_rejected_at_fcu_are_replaced_with_deposits_only(
+        #[values(false, true)] l2_before_activation: bool,
+    ) {
         let deposit = alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01]);
-        let attributes = derived(vec![deposit.clone(), alloy_primitives::Bytes::from(vec![0x02])]);
-        let cfg = holocene_cfg();
+        let mut attributes =
+            derived(vec![deposit.clone(), alloy_primitives::Bytes::from(vec![0x02])]);
+        let mut cfg = holocene_cfg();
+        if l2_before_activation {
+            Arc::make_mut(&mut cfg).hardforks.holocene_time = Some(10);
+            attributes.attributes.payload_attributes.timestamp = 2;
+            attributes.derived_from =
+                Some(kona_protocol::BlockInfo { timestamp: 10, ..Default::default() });
+        }
         let (client, l1, l2) = test_engine_client(cfg.clone());
         l2.expect_error_code("engine_forkchoiceUpdatedV3", -38003);
         let forkchoice = crate::test_utils::TestEngineStateBuilder::new()
@@ -459,24 +513,156 @@ mod tests {
         assert_eq!(err.severity(), crate::EngineTaskErrorSeverity::Temporary);
     }
 
-    // Before Holocene, nothing replaces rejected attributes, so the task keeps the rejection.
+    // Before Holocene, rejected attributes roll back and release the next batch.
+    #[rstest::rstest]
+    #[case::inactive(None)]
+    #[case::l2_ahead_of_inclusion(Some(1))]
     #[tokio::test]
-    async fn attributes_rejected_at_fcu_before_holocene_are_not_replaced() {
-        let attributes = derived(vec![
+    async fn attributes_rejected_at_fcu_before_holocene_are_not_replaced(
+        #[case] holocene_time: Option<u64>,
+    ) {
+        let mut attributes = derived(vec![
             alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01]),
             alloy_primitives::Bytes::from(vec![0x02]),
         ]);
+        attributes.derived_from = Some(kona_protocol::BlockInfo::default());
         let mut cfg = RollupConfig::default();
         cfg.hardforks.ecotone_time = Some(0);
+        cfg.hardforks.holocene_time = holocene_time;
         let cfg = Arc::new(cfg);
         let (client, l1, l2) = test_engine_client(cfg.clone());
         l2.expect_error_code("engine_forkchoiceUpdatedV3", -38003);
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            alloy_rpc_types_engine::ForkchoiceUpdated::new(
+                alloy_rpc_types_engine::PayloadStatus::from_status(
+                    alloy_rpc_types_engine::PayloadStatusEnum::Valid,
+                ),
+            ),
+        );
         let err = build_derived(Arc::new(client), cfg, &attributes).await;
         l1.assert_finished();
         l2.assert_finished();
-        assert!(
-            matches!(&err, ConsolidateTaskError::BuildTaskFailed(build) if build.is_invalid_attributes()),
-            "got {err:?}"
+        assert!(matches!(err, ConsolidateTaskError::BatchRejected), "got {err:?}");
+    }
+}
+
+#[cfg(test)]
+mod span_tests {
+    use super::*;
+    use crate::{
+        NoopBlockSink,
+        test_utils::{TestEngineStateBuilder, test_block_info, test_engine_client},
+    };
+    use alloy_consensus::transaction::Recovered;
+    use alloy_eips::{BlockNumHash, Encodable2718};
+    use alloy_primitives::{Address, Sealed};
+    use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
+    use kona_protocol::L1BlockInfoBedrock;
+    use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
+    use op_alloy_rpc_types_engine::OpPayloadAttributes;
+
+    /// Consolidation advances the derivation parent per block, while only a completed span may
+    /// move safe labels or be advertised as safe in an FCU. This differs from rebuilding blocks.
+    #[rstest::rstest]
+    #[case::pre_holocene(false)]
+    #[case::holocene_l2_behind_inclusion(true)]
+    #[tokio::test]
+    async fn consolidated_span_promotion_obeys_the_inclusion_fork(#[case] holocene: bool) {
+        let header = alloy_consensus::Header { number: 1, ..Default::default() };
+        let mut cfg = RollupConfig::default();
+        cfg.genesis.l2 = BlockNumHash::new(1, header.hash_slow());
+        cfg.hardforks.holocene_time = Some(10);
+        let cfg = Arc::new(cfg);
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        let client = Arc::new(client);
+        let boundary = L2BlockInfo::default();
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(test_block_info(5))
+            .with_safe_head(boundary)
+            .with_finalized_head(boundary)
+            .build();
+        // Keep local-safe at the completed boundary too.
+        state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
+            local_safe_head: Some(boundary),
+            ..Default::default()
+        });
+        let mut attributes = OpAttributesWithParent::new(
+            OpPayloadAttributes {
+                gas_limit: Some(0),
+                transactions: Some(vec![]),
+                ..Default::default()
+            },
+            boundary,
+            Some(kona_protocol::BlockInfo {
+                timestamp: if holocene { 10 } else { 0 },
+                ..Default::default()
+            }),
+            false,
         );
+        // The fixture pins block 1 to genesis, so decoding requires no L1-info deposit.
+        let rpc_block = alloy_rpc_types_eth::Block::<Transaction>::new(
+            alloy_rpc_types_eth::Header::new(header.clone()),
+            alloy_rpc_types_eth::BlockTransactions::Full(vec![]),
+        );
+        l2.expect("eth_getBlockByNumber", &rpc_block);
+        if holocene {
+            l2.expect(
+                "engine_forkchoiceUpdatedV3",
+                ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+            );
+        }
+        let mut task =
+            ConsolidateTask::new(client, cfg, attributes.clone().into(), Arc::new(NoopBlockSink));
+        task.consolidate(&mut state).await.unwrap();
+        let prefix = state.derivation_parent();
+        assert_eq!(prefix.hash(), header.hash_slow());
+        let expected_safe = if holocene { prefix } else { boundary };
+        assert_eq!(state.sync_state.local_safe_head(), expected_safe);
+        assert_eq!(state.sync_state.safe_head(), expected_safe);
+        assert_eq!(state.pending_safe_head.is_none(), holocene);
+        let deposit = OpTxEnvelope::Deposit(Sealed::new(TxDeposit {
+            input: L1BlockInfoBedrock::default().encode_calldata(),
+            ..Default::default()
+        }));
+        let last_header = alloy_consensus::Header {
+            number: 2,
+            timestamp: 2,
+            parent_hash: prefix.hash(),
+            ..Default::default()
+        };
+        let last_hash = last_header.hash_slow();
+        attributes.parent = prefix;
+        attributes.attributes.payload_attributes.timestamp = 2;
+        attributes.attributes.transactions = Some(vec![deposit.encoded_2718().into()]);
+        attributes.is_last_in_span = true;
+        task.input = attributes.into();
+        l2.expect(
+            "eth_getBlockByNumber",
+            alloy_rpc_types_eth::Block::new(
+                alloy_rpc_types_eth::Header::new(last_header),
+                alloy_rpc_types_eth::BlockTransactions::Full(vec![Transaction::from_transaction(
+                    Recovered::new_unchecked(deposit, Address::ZERO),
+                    Default::default(),
+                )]),
+            ),
+        );
+        l2.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([
+                alloy_rpc_types_engine::ForkchoiceState {
+                    safe_block_hash: last_hash,
+                    ..state.sync_state.create_forkchoice_state()
+                },
+                null
+            ]),
+            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+        );
+        task.consolidate(&mut state).await.unwrap();
+        assert_eq!(state.sync_state.local_safe_head().hash(), last_hash);
+        assert_eq!(state.sync_state.safe_head().hash(), last_hash);
+        assert_eq!(state.pending_safe_head, None);
+        l1.assert_finished();
+        l2.assert_finished();
     }
 }
