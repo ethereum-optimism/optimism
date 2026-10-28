@@ -79,29 +79,24 @@ fn parse_static_peer(addr: &str) -> Result<PeerAddr, String> {
         return Err("Static peer must not be empty".to_string());
     }
     let peer: PeerAddr = addr.parse().map_err(|e| format!("{:#}", anyhow::Error::new(e)))?;
-    let mut protocols = peer.addr().iter();
-    let host = protocols.next();
-    let tcp = protocols.next();
-    if !matches!(
-        host,
-        Some(
+    let protocols: Vec<_> = peer.addr().iter().collect();
+    let shape = match protocols.as_slice() {
+        [
             Protocol::Ip4(_) |
-                Protocol::Ip6(_) |
-                Protocol::Dns(_) |
-                Protocol::Dns4(_) |
-                Protocol::Dns6(_)
-        )
-    ) {
-        return Err("Address must start with /ip4, /ip6, /dns, /dns4 or /dns6".to_string());
-    }
-    match tcp {
-        Some(Protocol::Tcp(0)) => return Err("TCP port must not be 0".to_string()),
-        Some(Protocol::Tcp(_)) => {}
-        _ => return Err("Address must have a /tcp/<port> after the host".to_string()),
-    }
-    if !matches!(protocols.next(), Some(Protocol::P2p(_))) {
-        return Err("Address must end in /tcp/<port>/p2p/<peer id>".to_string());
-    }
+            Protocol::Ip6(_) |
+            Protocol::Dns(_) |
+            Protocol::Dns4(_) |
+            Protocol::Dns6(_),
+            rest @ ..,
+        ] => match rest {
+            [Protocol::Tcp(0), ..] => Err("TCP port must not be 0"),
+            [Protocol::Tcp(_), Protocol::P2p(_)] => Ok(()),
+            [Protocol::Tcp(_), ..] => Err("Address must end in /tcp/<port>/p2p/<peer id>"),
+            _ => Err("Address must have a /tcp/<port> after the host"),
+        },
+        _ => Err("Address must start with /ip4, /ip6, /dns, /dns4 or /dns6"),
+    };
+    shape.map_err(str::to_string)?;
     Ok(peer)
 }
 
@@ -779,6 +774,11 @@ mod tests {
             (format!("/ip4/127.0.0.1/tcp/0/p2p/{id}"), "must not be 0"),
             (format!("/memory/1/p2p/{id}"), "must start with /ip4"),
             (format!("/ip4/127.0.0.1/tcp/9222/ws/p2p/{id}"), "must end in /tcp/<port>/p2p"),
+            // Anything after the peer ID.
+            (
+                format!("/ip4/127.0.0.1/tcp/9222/p2p/{id}/p2p/{}", PeerId::random()),
+                "must end in /tcp/<port>/p2p",
+            ),
             // A UDP port next to the TCP one, in either order.
             (format!("/ip4/127.0.0.1/tcp/9222/udp/9223/p2p/{id}"), "must end in /tcp/<port>/p2p"),
             (format!("/ip4/127.0.0.1/udp/9223/tcp/9222/p2p/{id}"), "must have a /tcp/<port>"),
