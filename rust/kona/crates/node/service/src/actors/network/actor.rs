@@ -149,10 +149,10 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 };
                 // Discovery hands over the ENRs of connected peers again and again.
                 let gossip = &mut self.handler.gossip;
-                if let Some((peer_id, addr)) = gossip.enr_to_multiaddr(&enr) &&
-                    !gossip.is_connected(&peer_id)
+                if let Some(peer) = gossip.enr_to_peer_addr(&enr) &&
+                    !gossip.is_connected(&peer.peer_id())
                 {
-                    gossip.dial_peer(peer_id, [addr]);
+                    gossip.dial_peer(peer.peer_id(), [peer.addr().clone()]);
                 }
                 Ok(())
             }

@@ -20,7 +20,7 @@ use tokio::{sync::Mutex, time::Instant};
 
 use crate::{
     Behaviour, BlockHandler, ConnectionGate, ConnectionGater, Event, GossipDriverBuilder, Handler,
-    PublishError,
+    PeerAddr, PublishError,
 };
 
 /// A driver for a [`Swarm`] instance.
@@ -414,11 +414,11 @@ where
             .collect()
     }
 
-    /// Returns the peer ID and gossip address that an [`Enr`] from discovery gives, for
+    /// Returns the address to dial the peer that an [`Enr`] from discovery describes, for
     /// [`Self::dial_peer`].
     ///
     /// Returns `None` for an ENR of another OP Stack chain, or one without a TCP socket.
-    pub fn enr_to_multiaddr(&self, enr: &Enr) -> Option<(PeerId, Multiaddr)> {
+    pub fn enr_to_peer_addr(&self, enr: &Enr) -> Option<PeerAddr> {
         let chain_id = self.handler.rollup_config.l2_chain_id.id();
         let validation = EnrValidation::validate(enr, chain_id);
         if validation.is_invalid() {
@@ -431,8 +431,7 @@ where
             return None;
         };
         // `enr_to_multiaddr` ends the address in the peer ID.
-        let peer_id = ConnectionGater::peer_id_from_addr(&addr)?;
-        Some((peer_id, addr))
+        PeerAddr::try_from(addr).ok()
     }
 
     /// Dials the given [`Multiaddr`], which must end in the peer's `/p2p/<peer id>`.
@@ -1107,19 +1106,17 @@ mod tests {
     /// An ENR from discovery gives the peer ID and TCP address to dial, if it is for this chain
     /// and has a TCP port.
     #[test]
-    fn test_enr_to_multiaddr() {
+    fn test_enr_to_peer_addr() {
         let driver = memory_driver();
         let chain_id = driver.handler.rollup_config.l2_chain_id.id();
         let keypair = libp2p_identity::Keypair::generate_secp256k1();
         let peer_id = keypair.public().to_peer_id();
 
-        let expected: Multiaddr = format!("/ip4/127.0.0.1/tcp/9222/p2p/{peer_id}").parse().unwrap();
-        assert_eq!(
-            driver.enr_to_multiaddr(&enr(&keypair, chain_id, true)),
-            Some((peer_id, expected))
-        );
-        assert_eq!(driver.enr_to_multiaddr(&enr(&keypair, chain_id + 1, true)), None);
-        assert_eq!(driver.enr_to_multiaddr(&enr(&keypair, chain_id, false)), None);
+        let peer_addr = driver.enr_to_peer_addr(&enr(&keypair, chain_id, true)).unwrap();
+        assert_eq!(peer_addr.peer_id(), peer_id);
+        assert_eq!(peer_addr.to_string(), format!("/ip4/127.0.0.1/tcp/9222/p2p/{peer_id}"));
+        assert_eq!(driver.enr_to_peer_addr(&enr(&keypair, chain_id + 1, true)), None);
+        assert_eq!(driver.enr_to_peer_addr(&enr(&keypair, chain_id, false)), None);
     }
 
     /// How often static peers are dialed again in tests.
