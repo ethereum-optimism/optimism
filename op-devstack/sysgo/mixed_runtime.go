@@ -298,9 +298,14 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				el,
 				spec.CLKey,
 				spec.ELKey,
-				spec.IsSequencer,
-				depSet,
-				konaSafeDBEnv(safeDBPath)...,
+				konaNodeStartConfig{
+					DependencySet: depSet,
+					L2CLConfig: resolveKonaL2CLConfig(t, spec.CLKey, l2Net.ChainID(), spec.IsSequencer, "", []L2CLOption{
+						L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+							cfg.SafeDBPath = safeDBPath
+						}),
+					}),
+				},
 			)
 		default:
 			require.FailNowf("unsupported CL kind", "unsupported mixed CL kind %q", spec.CLKind)
@@ -366,15 +371,6 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		L2Batcher:     l2Batcher,
 		TestSequencer: newTestSequencerRuntime(testSequencer, cfg.TestSequencerName),
 	}
-}
-
-// konaSafeDBEnv returns the environment that points kona-node at a safe head database, or
-// nothing when the node runs without one.
-func konaSafeDBEnv(safeDBPath string) []string {
-	if safeDBPath == "" {
-		return nil
-	}
-	return []string{"KONA_NODE_SAFEDB_PATH=" + safeDBPath}
 }
 
 func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {
@@ -561,9 +557,7 @@ func startMixedKonaNode(
 	l2EL L2ELNode,
 	clKey string,
 	elKey string,
-	isSequencer bool,
-	depSet coredepset.DependencySet,
-	extraEnv ...string,
+	startCfg konaNodeStartConfig,
 ) *KonaNode {
 	tempKonaDir := t.TempDirWithPrefix("l2-cl-kona-" + NewComponentTarget(clKey, l2Net.ChainID()).String())
 
@@ -587,7 +581,6 @@ func startMixedKonaNode(
 		"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
 		"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
 		"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
-		propagateEnvVarOrDefault("KONA_NODE_P2P_NO_DISCOVERY", "true"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
 		// Acceptance tests drive the sequencer via the admin API (StartSequencer, etc.), which
@@ -603,15 +596,15 @@ func startMixedKonaNode(
 	// When Interop/Lagoon is scheduled, kona-node refuses to start without an interop
 	// dependency set (to avoid silent state divergence at activation). Mirror the depset
 	// op-node receives by serializing it to JSON — the format matches what kona expects.
-	if depSet != nil {
-		depSetData, err := json.Marshal(depSet)
+	if startCfg.DependencySet != nil {
+		depSetData, err := json.Marshal(startCfg.DependencySet)
 		t.Require().NoError(err, "must marshal interop dependency set")
 		tempDepSetPath := filepath.Join(tempKonaDir, "interop-depset.json")
 		t.Require().NoError(os.WriteFile(tempDepSetPath, depSetData, 0o640), "must write interop dependency set")
 		envVars = append(envVars, "KONA_NODE_INTEROP_DEPENDENCY_SET="+tempDepSetPath)
 	}
 
-	if isSequencer {
+	if startCfg.L2CLConfig.IsSequencer {
 		p2pKey, err := keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
 		t.Require().NoError(err, "need p2p key for sequencer")
 		p2pKeyHex := "0x" + hex.EncodeToString(crypto.FromECDSA(p2pKey))
@@ -625,7 +618,7 @@ func startMixedKonaNode(
 	} else {
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
-	envVars = append(envVars, extraEnv...)
+	envVars = append(envVars, konaL2CLEnv(startCfg.L2CLConfig, startCfg.SequencerStopped)...)
 
 	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",

@@ -20,7 +20,7 @@ func TestKonaL2CLEnvSupportedOptions(t *testing.T) {
 		t.Run(fmt.Sprintf("sequencer=%t", isSequencer), func(t *testing.T) {
 			dt := devtest.SerialT(t)
 			require.Equal(t, []string{"KONA_NODE_P2P_NO_DISCOVERY=true"},
-				konaL2CLEnv(dt, "node", chainID, isSequencer, "", nil))
+				konaL2CLEnv(resolveKonaL2CLConfig(dt, "node", chainID, isSequencer, "", nil), false))
 			opts := []L2CLOption{
 				nil,
 				L2CLOptionFn(func(_ devtest.T, target ComponentTarget, cfg *L2CLConfig) {
@@ -33,7 +33,7 @@ func TestKonaL2CLEnvSupportedOptions(t *testing.T) {
 			require.Equal(t, []string{
 				"KONA_NODE_P2P_NO_DISCOVERY=false",
 				"KONA_NODE_SAFEDB_PATH=/tmp/safe-head.db",
-			}, konaL2CLEnv(dt, "node", chainID, isSequencer, "", opts))
+			}, konaL2CLEnv(resolveKonaL2CLConfig(dt, "node", chainID, isSequencer, "", opts), false))
 		})
 	}
 }
@@ -45,13 +45,13 @@ func TestKonaL2CLEnvDiscovery(t *testing.T) {
 			dt := devtest.SerialT(t)
 			chainID := eth.ChainIDFromUInt64(901)
 			require.Equal(t, []string{"KONA_NODE_P2P_NO_DISCOVERY=" + ambient},
-				konaL2CLEnv(dt, "node", chainID, false, "", nil))
+				konaL2CLEnv(resolveKonaL2CLConfig(dt, "node", chainID, false, "", nil), false))
 			for _, noDiscovery := range []bool{false, true} {
 				opts := []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 					cfg.NoDiscovery = noDiscovery
 				})}
 				require.Equal(t, []string{fmt.Sprintf("KONA_NODE_P2P_NO_DISCOVERY=%t", noDiscovery)},
-					konaL2CLEnv(dt, "node", chainID, false, "", opts))
+					konaL2CLEnv(resolveKonaL2CLConfig(dt, "node", chainID, false, "", opts), false))
 			}
 		})
 	}
@@ -64,14 +64,14 @@ func TestKonaL2CLEnvFollowSource(t *testing.T) {
 	require.Equal(t, []string{
 		"KONA_NODE_P2P_NO_DISCOVERY=true",
 		"KONA_NODE_L2_FOLLOW_SOURCE=http://initial:8545",
-	}, konaL2CLEnv(dt, "node", chainID, false, "http://initial:8545", nil))
+	}, konaL2CLEnv(resolveKonaL2CLConfig(dt, "node", chainID, false, "http://initial:8545", nil), false))
 	// Apply callbacks in order, with the same initial follow source as op-node.
 	require.Equal(t, []string{
 		"KONA_NODE_P2P_NO_DISCOVERY=true",
 		"KONA_NODE_L2_FOLLOW_SOURCE=http://last:8545",
-	}, konaL2CLEnv(dt, "node", chainID, false, "http://initial:8545", []L2CLOption{
+	}, konaL2CLEnv(resolveKonaL2CLConfig(dt, "node", chainID, false, "http://initial:8545", []L2CLOption{
 		L2CLFollowSource("http://first:8545"), L2CLFollowSource("http://last:8545"),
-	}))
+	}), false))
 }
 
 func TestKonaL2CLEnvAcceptsSyncModeCompatibilityInputs(t *testing.T) {
@@ -91,7 +91,7 @@ func TestKonaL2CLEnvAcceptsSyncModeCompatibilityInputs(t *testing.T) {
 				// Neither compatibility mode emits a flag pretending to select a
 				// native mode: Kona always drives EL sync through Engine API responses.
 				require.Equal(t, []string{"KONA_NODE_P2P_NO_DISCOVERY=true"},
-					konaL2CLEnv(devtest.SerialT(t), "node", eth.ChainIDFromUInt64(901), isSequencer, "", opts))
+					konaL2CLEnv(resolveKonaL2CLConfig(devtest.SerialT(t), "node", eth.ChainIDFromUInt64(901), isSequencer, "", opts), false))
 			})
 		}
 	}
@@ -107,7 +107,7 @@ func TestKonaL2CLEnvConductor(t *testing.T) {
 		"KONA_NODE_P2P_NO_DISCOVERY=true",
 		"KONA_NODE_CONDUCTOR_RPC=http://conductor:8547",
 		"KONA_NODE_CONDUCTOR_RPC_TIMEOUT=7",
-	}, konaL2CLEnv(devtest.SerialT(t), "node", eth.ChainIDFromUInt64(901), true, "", opts))
+	}, konaL2CLEnv(resolveKonaL2CLConfig(devtest.SerialT(t), "node", eth.ChainIDFromUInt64(901), true, "", opts), false))
 }
 
 // Capture setup assertions without failing the enclosing regression test.
@@ -123,7 +123,7 @@ func (t *rejectedKonaOptionTest) Errorf(format string, args ...any) {
 	panic("Kona option rejected")
 }
 
-func TestKonaL2CLEnvRejectsUnsupportedOptions(t *testing.T) {
+func TestKonaL2CLConfigRejectsUnsupportedOptions(t *testing.T) {
 	t.Setenv("KONA_NODE_P2P_NO_DISCOVERY", "true")
 	for _, tc := range []struct {
 		name        string
@@ -149,7 +149,7 @@ func TestKonaL2CLEnvRejectsUnsupportedOptions(t *testing.T) {
 			dt := &rejectedKonaOptionTest{T: devtest.SerialT(t)}
 			opts := []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) { tc.apply(cfg) })}
 			require.PanicsWithValue(t, "Kona option rejected", func() {
-				konaL2CLEnv(dt, "node", eth.ChainIDFromUInt64(901), tc.isSequencer, "", opts)
+				resolveKonaL2CLConfig(dt, "node", eth.ChainIDFromUInt64(901), tc.isSequencer, "", opts)
 			})
 			require.Contains(t, dt.failure, tc.message)
 		})
@@ -177,4 +177,38 @@ func TestKonaOptionsRejectedBeforeStartup(t *testing.T) {
 			require.Contains(t, dt.failure, "unsupported L2CL option for kona-node")
 		})
 	}
+}
+
+func TestKonaL2CLEnvSequencerStopped(t *testing.T) {
+	for _, testCase := range []struct {
+		environment []string
+		name        string
+		stopped     bool
+	}{
+		{environment: []string{"KONA_NODE_P2P_NO_DISCOVERY=false"}, name: "running"},
+		{environment: []string{"KONA_NODE_P2P_NO_DISCOVERY=false", "KONA_NODE_SEQUENCER_STOPPED=true"}, name: "stopped", stopped: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := DefaultL2CLConfig()
+			cfg.IsSequencer = true
+			require.Equal(t, testCase.environment, konaL2CLEnv(cfg, testCase.stopped))
+		})
+	}
+}
+
+func TestResolveKonaL2CLConfig(t *testing.T) {
+	t.Setenv("KONA_NODE_P2P_NO_DISCOVERY", "true")
+	chainID := eth.ChainIDFromUInt64(901)
+	expected := DefaultL2CLConfig()
+	expected.FollowSource = "http://source:8545"
+	expected.IsSequencer = true
+	expected.NoDiscovery = false
+	expected.ConductorRPC = "http://conductor:8547"
+	expected.ConductorRPCTimeout = 7 * time.Second
+	options := []L2CLOption{L2CLOptionFn(func(_ devtest.T, target ComponentTarget, cfg *L2CLConfig) {
+		require.Equal(t, NewComponentTarget("node", chainID), target)
+		require.Equal(t, "http://initial:8545", cfg.FollowSource)
+		*cfg = *expected
+	})}
+	require.Equal(t, expected, resolveKonaL2CLConfig(devtest.SerialT(t), "node", chainID, true, "http://initial:8545", options))
 }
