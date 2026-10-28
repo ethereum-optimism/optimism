@@ -514,7 +514,7 @@ SHELL_SCRIPTS := "find . -type f -name '*.sh' -not -path '*/node_modules/*' -not
 
 # Runs shellcheck and checks shell script formatting.
 shellcheck: shfmt-check
-  {{SHELL_SCRIPTS}} -exec sh -c 'echo "Checking $1"; shellcheck "$1"' _ {} \;
+  {{SHELL_SCRIPTS}} -print0 | xargs -0 shellcheck
 
 # Fails if any shell script is not formatted with shfmt.
 shfmt-check:

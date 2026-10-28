@@ -87,15 +87,14 @@ process_network_dir() {
     chain_id=$(yq -r '.chain_id' "$toml_file")
     chain_name="$(basename "${toml_file%.*}")"
 
+    # Skip these chains:
+    #   28882: Boba Sepolia
+    #   288: Boba Mainnet
+    #   42220: Celo Mainnet. Non-standard genesis format (forked from Ethereum, then converted to L2).
     if [[ -z "$chain_id" ||
-
       "$chain_id" -eq 28882 ||
-
       "$chain_id" -eq 288 ||
-
-      "$chain_id" -eq 42220 ]]; then # Boba Sepolia
-      # Boba Mainnet
-      # Celo Mainnet: non-standard genesis format (forked from Ethereum, then converted to L2)
+      "$chain_id" -eq 42220 ]]; then
       echo "Skipping $network_name/$chain_name ($chain_id)"
       rm "$toml_file"
       rm -f "genesis/$network_name/$chain_name.json.zst"
