@@ -31,42 +31,26 @@ const deletionSlots = 32
 // storage trie onto slot 0's leaf; that leaf is off every account and storage proof path, so the
 // host can only serve it from the block's execution witness.
 func RunReplacedBlockStorageDeletionTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
-	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
-	t.Require().NotNil(sys.TestSequencer, "test sequencer is required to co-include the deletions with the invalid message")
-
-	chains := orderedChains(sys)
-	t.Require().Len(chains, 2)
-	t.Require().Equal(chains[0].ID, sys.L2ChainA.ChainID())
-	t.Require().Equal(chains[1].ID, sys.L2ChainB.ChainID())
+	chains := replacedBlockChains(t, sys)
 
 	// Deploy before freezeChains stops the sequencers.
 	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
 	deleter := deployContract(t, bob, storageDeletionInitCode().Hex())
 
 	freezeChains(chains)
-
 	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
-	startTimestamp := endTimestamp - 1
-	advanceUnsafeToTimestamp(t, sys, chains, startTimestamp)
-	advanceSafeToCurrentUnsafe(t, chains[0])
-	advanceSafeToCurrentUnsafe(t, chains[1])
-	sys.SuperRoots.AwaitValidatedTimestamp(startTimestamp)
-
-	unsafeA := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
-	unsafeB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
-	t.Require().Equal(endTimestamp, unsafeA.Time+chains[0].Cfg.BlockTime)
-	t.Require().Equal(endTimestamp, unsafeB.Time+chains[1].Cfg.BlockTime)
+	parentA, parentB := advanceToReplacedBlockParents(t, sys, chains, endTimestamp)
 
 	// Chain A's block at endTimestamp is empty, so the message chain B executes below references
 	// a log that never exists.
-	sys.TestSequencer.SequenceBlock(t, chains[0].ID, unsafeA.Hash)
+	sys.TestSequencer.SequenceBlock(t, chains[0].ID, parentA.Hash)
 	t.Require().Equal(endTimestamp, sys.L2ELA.BlockRefByLabel(eth.Unsafe).Time)
 
 	payload := crypto.Keccak256([]byte("replaced block storage deletion fabricated msg"))
 	invalidMsg := messages.Message{
 		Identifier: messages.Identifier{
 			Origin:      deleter,
-			BlockNumber: unsafeA.Number + 1,
+			BlockNumber: parentA.Number + 1,
 			LogIndex:    0,
 			Timestamp:   endTimestamp,
 			ChainID:     chains[0].ID,
@@ -74,31 +58,20 @@ func RunReplacedBlockStorageDeletionTest(t devtest.T, sys *presets.SimpleInterop
 		PayloadHash: crypto.Keccak256Hash(payload),
 	}
 	deleteTx := txplan.NewPlannedTx(bob.Plan(), txplan.WithTo(&deleter), txplan.WithGasLimit(500_000))
-	sys.TestSequencer.SequenceBlockWithPlannedTxs(t, unsafeB.Hash, bob,
+	sys.TestSequencer.SequenceBlockWithPlannedTxs(t, parentB.Hash, bob,
 		deleteTx, dsl.SubmitExecForMessage(invalidMsg, bob))
-	replacedNum := unsafeB.Number + 1
+	replacedNum := parentB.Number + 1
 	t.Require().Equal(endTimestamp, sys.L2ELB.BlockRefByLabel(eth.Unsafe).Time)
 
 	// The deletions are in the block that will be replaced.
 	requireStorageSlot(t, sys.L2ELB, deleter, 0, replacedNum, 1)
 	requireStorageSlot(t, sys.L2ELB, deleter, 1, replacedNum, 0)
 
-	advanceSafeToCurrentUnsafe(t, chains[0])
-	advanceSafeToCurrentUnsafe(t, chains[1])
-	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
-	sys.L2CLB.Reached(safety.CrossSafe, replacedNum, 60)
-
-	queryAPI := sys.SuperRoots.QueryAPI()
-	requireBlockReplaced(t, sys.L2ELB, queryAPI, chains[1].ID, replacedNum, endTimestamp)
+	awaitSecondChainBlockReplaced(t, sys, chains, parentA, parentB, endTimestamp)
 	// The replacement dropped the deletions.
 	requireStorageSlot(t, sys.L2ELB, deleter, 1, replacedNum, 2)
 
-	l1Head := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
-	runScenarioProofs(t, &sys.SingleChainInterop, chains, &scenarioProofData{
-		fpvmTransitions:    replacedBlockTransitions(t, chains, queryAPI, startTimestamp, endTimestamp, l1Head),
-		fpvmStartTimestamp: startTimestamp,
-		zkCheckpoint:       newZKCheckpointForRunners(t, &sys.SingleChainInterop, endTimestamp, true, runners),
-	}, runners...)
+	proveReplacedBlockConsolidation(t, sys, chains, endTimestamp, runners...)
 }
 
 // storageDeletionInitCode returns init code that sets slot i to i+1 for every i below
@@ -122,13 +95,61 @@ func requireStorageSlot(t devtest.T, el *dsl.L2ELNode, addr common.Address, slot
 		"slot %d of %s at block %d", slot, addr, blockNum)
 }
 
-// requireBlockReplaced asserts that the canonical block at blockNum is not the supernode's
-// optimistic block at timestamp. Otherwise the host finds the disputed optimistic block canonical
-// and skips the nested re-execution this scenario exists to exercise.
-func requireBlockReplaced(t devtest.T, el *dsl.L2ELNode, queryAPI apis.SupernodeQueryAPI, chainID eth.ChainID, blockNum uint64, timestamp uint64) {
-	optimistic := optimisticBlockAtTimestamp(t, queryAPI, chainID, timestamp)
-	t.Require().NotEqualf(optimistic.BlockHash, el.BlockRefByNumber(blockNum).Hash,
-		"chain %s block %d at timestamp %d must have been replaced", chainID, blockNum, timestamp)
+// replacedBlockChains returns the two interop chains of a scenario that replaces a block on the
+// second chain.
+func replacedBlockChains(t devtest.T, sys *presets.SimpleInterop) []*chain {
+	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
+	t.Require().NotNil(sys.TestSequencer, "test sequencer is required to build the replaced block")
+
+	chains := orderedChains(sys)
+	t.Require().Len(chains, 2)
+	t.Require().Equal(chains[0].ID, sys.L2ChainA.ChainID())
+	t.Require().Equal(chains[1].ID, sys.L2ChainB.ChainID())
+	return chains
+}
+
+// advanceToReplacedBlockParents advances both frozen chains to their last block before
+// endTimestamp, makes it safe and waits for the supernode to validate it. It returns those blocks,
+// the parents of the blocks the test sequences at endTimestamp.
+func advanceToReplacedBlockParents(t devtest.T, sys *presets.SimpleInterop, chains []*chain, endTimestamp uint64) (parentA, parentB eth.L2BlockRef) {
+	advanceUnsafeToTimestamp(t, sys, chains, endTimestamp-1)
+	advanceSafeToCurrentUnsafe(t, chains[0])
+	advanceSafeToCurrentUnsafe(t, chains[1])
+	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp - 1)
+
+	parentA = chains[0].EL.BlockRefByLabel(eth.Unsafe)
+	parentB = chains[1].EL.BlockRefByLabel(eth.Unsafe)
+	t.Require().Equal(endTimestamp, parentA.Time+chains[0].Cfg.BlockTime)
+	t.Require().Equal(endTimestamp, parentB.Time+chains[1].Cfg.BlockTime)
+	return parentA, parentB
+}
+
+// awaitSecondChainBlockReplaced makes the blocks after parentA and parentB safe, waits for the
+// supernode to validate endTimestamp, and asserts that it replaced the second chain's block.
+func awaitSecondChainBlockReplaced(t devtest.T, sys *presets.SimpleInterop, chains []*chain, parentA, parentB eth.L2BlockRef, endTimestamp uint64) {
+	advanceSafeToCurrentUnsafe(t, chains[0])
+	advanceSafeToCurrentUnsafe(t, chains[1])
+	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
+	chains[0].CLNode.Reached(safety.CrossSafe, parentA.Number+1, 60)
+	chains[1].CLNode.Reached(safety.CrossSafe, parentB.Number+1, 60)
+
+	optimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[1].ID, endTimestamp)
+	t.Require().NotEqualf(optimistic.BlockHash, chains[1].EL.BlockRefByNumber(parentB.Number+1).Hash,
+		"chain %s block %d at timestamp %d must have been replaced; otherwise the host finds the "+
+			"disputed optimistic block canonical and skips the nested re-execution",
+		chains[1].ID, parentB.Number+1, endTimestamp)
+}
+
+// proveReplacedBlockConsolidation runs every proof runner over the transitions from
+// endTimestamp-1 to endTimestamp, where the second chain's block at endTimestamp was replaced.
+func proveReplacedBlockConsolidation(t devtest.T, sys *presets.SimpleInterop, chains []*chain, endTimestamp uint64, runners ...ProofRunner) {
+	queryAPI := sys.SuperRoots.QueryAPI()
+	l1Head := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
+	runScenarioProofs(t, &sys.SingleChainInterop, chains, &scenarioProofData{
+		fpvmTransitions:    replacedBlockTransitions(t, chains, queryAPI, endTimestamp-1, endTimestamp, l1Head),
+		fpvmStartTimestamp: endTimestamp - 1,
+		zkCheckpoint:       newZKCheckpointForRunners(t, &sys.SingleChainInterop, endTimestamp, true, runners),
+	}, runners...)
 }
 
 // replacedBlockTransitions returns the transitions from startTimestamp to endTimestamp, where
