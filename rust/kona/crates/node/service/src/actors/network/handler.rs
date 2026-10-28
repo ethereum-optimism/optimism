@@ -32,17 +32,17 @@ impl NetworkHandler {
                 .record(self.gossip.peer_score(peer_id));
         }
 
-        // Disconnect the peers, and ban the addresses they listen on in discovery too.
-        let peers_to_ban = self.gossip.peers_to_ban();
-        let addrs_to_ban: HashSet<_> =
-            peers_to_ban.into_iter().flat_map(|peer_id| self.gossip.ban_peer(peer_id)).collect();
+        // Disconnect the peers, and ban them in discovery too, so it doesn't find them again.
+        let peer_ids: HashSet<_> = self.gossip.peers_to_ban().into_iter().collect();
+        if peer_ids.is_empty() {
+            return;
+        }
+        for peer_id in &peer_ids {
+            self.gossip.ban_peer(*peer_id);
+        }
 
-        // We send a request to the discovery handler to ban the set of addresses.
-        if let Err(send_err) = self
-            .discovery
-            .sender
-            .send(HandlerRequest::BanAddrs { addrs_to_ban, ban_duration })
-            .await
+        if let Err(send_err) =
+            self.discovery.sender.send(HandlerRequest::BanPeers { peer_ids, ban_duration }).await
         {
             warn!(err = ?send_err, "Impossible to send a request to the discovery handler. The channel connection is dropped.");
         }

@@ -367,9 +367,9 @@ where
         }
     }
 
-    /// Disconnects a peer banned for its score, and returns the addresses it listens on, for
-    /// discovery to ban as well.
-    pub fn ban_peer(&mut self, peer_id: PeerId) -> Vec<Multiaddr> {
+    /// Disconnects a peer banned for its score, and forgets what identify told about it. Discovery
+    /// bans the peer separately, by its ID.
+    pub fn ban_peer(&mut self, peer_id: PeerId) {
         // The score that got the peer banned, read before the peer is disconnected.
         let score = self.peer_score(&peer_id);
         metrics::gauge!(
@@ -379,7 +379,7 @@ where
         )
         .increment(1);
         self.disconnect_peer(peer_id);
-        self.peerstore.remove(&peer_id).map(|info| info.listen_addrs).unwrap_or_default()
+        self.peerstore.remove(&peer_id);
     }
 
     /// Removes the protection of `peer_id`, unless it is a static peer, which stays protected.
@@ -1257,8 +1257,8 @@ mod tests {
         assert_eq!(driver_1.peers_to_ban(), vec![peer_3]);
     }
 
-    /// Banning a peer disconnects it and returns the addresses it listens on, and the connection
-    /// is cleaned up once it closes.
+    /// Banning a peer disconnects it and forgets its identify info, and the connection is cleaned
+    /// up once it closes.
     #[tokio::test]
     async fn test_ban_peer() {
         let mut driver_1 = memory_driver();
@@ -1268,17 +1268,17 @@ mod tests {
         driver_1.start().await.expect("listen");
 
         driver_1.dial_multiaddr(listen_addr_2.clone().with(Protocol::P2p(peer_2)));
-        // Identify tells the node where the peer listens.
+        // Wait for identify, so there is identify info to forget.
         poll_until(&mut driver_1, &mut driver_2, |driver_1, _| {
             driver_1.peerstore.contains_key(&peer_2)
         })
         .await;
 
-        assert_eq!(driver_1.ban_peer(peer_2), vec![listen_addr_2]);
+        driver_1.ban_peer(peer_2);
+        assert!(!driver_1.peerstore.contains_key(&peer_2));
 
         poll_one_until(&mut driver_1, |driver_1| !driver_1.is_connected(&peer_2)).await;
         assert!(!driver_1.peer_connection_start.contains_key(&peer_2));
-        assert!(!driver_1.peerstore.contains_key(&peer_2));
     }
 
     /// Disconnecting a peer with the `DisconnectPeer` command records the connection's duration

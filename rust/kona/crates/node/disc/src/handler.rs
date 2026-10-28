@@ -2,7 +2,7 @@
 
 use discv5::{Enr, RequestError, kbucket::NodeStatus, metrics::Metrics};
 use enr::NodeId;
-use libp2p::Multiaddr;
+use libp2p::{Multiaddr, PeerId};
 use std::{collections::HashSet, string::String, time::Duration};
 use tokio::sync::mpsc::Sender;
 
@@ -60,14 +60,14 @@ pub enum HandlerRequest {
     /// for all peers in the discovery table.
     TableInfos(tokio::sync::oneshot::Sender<Vec<(NodeId, Enr, NodeStatus)>>),
 
-    /// Ban specific network addresses for a duration.
+    /// Ban peers for a duration, by their libp2p peer IDs.
     ///
-    /// Prevents the discovery service from interacting with the specified
-    /// addresses, useful for blocking malicious or problematic peers.
-    BanAddrs {
-        /// Set of network addresses to ban.
-        addrs_to_ban: HashSet<Multiaddr>,
-        /// Duration for which the addresses should be banned.
+    /// Prevents the discovery service from interacting with the peers' nodes, whether or not they
+    /// are in its table, useful for blocking malicious or problematic peers.
+    BanPeers {
+        /// The peers to ban.
+        peer_ids: HashSet<PeerId>,
+        /// Duration for which the peers should be banned.
         ban_duration: Duration,
     },
 }
