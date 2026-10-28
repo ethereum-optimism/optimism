@@ -250,6 +250,18 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
     }
 
     /// @notice Tests that `callWithMinGas` does not reserve `NEW_ACCOUNT_STATE_GAS` for value to an
+    ///         account with only a nonce, which EIP-8037 does not treat as new.
+    /// forge-config: default.isolate = false
+    function test_callWithMinGas_valueToNoncedAccount_succeeds() external {
+        address target = makeAddr("nonced");
+        vm.setNonce(target, 1);
+        vm.expectCallMinGas(target, 1, 100_000 - 2300, hex"");
+        (bool success,) = _callWithMinGasBelowNewAccountGas(target, 1);
+        assertTrue(success);
+        assertEq(target.balance, 1);
+    }
+
+    /// @notice Tests that `callWithMinGas` does not reserve `NEW_ACCOUNT_STATE_GAS` for value to an
     ///         account with code.
     /// forge-config: default.isolate = false
     function test_callWithMinGas_valueToContract_succeeds() external {
@@ -279,11 +291,11 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
             // run before testing this with forge test or forge snapshot, forge clean should be run
             // first so that it recompiles the contracts using the foundry.toml optimizer settings.
             if (Config.isUnoptimized()) {
-                // 66_378 is the exact amount of gas required with the optimizer disabled.
-                expected = 66_378;
+                // 66_358 is the exact amount of gas required with the optimizer disabled.
+                expected = 66_358;
             } else {
-                // 66_007 is the exact amount of gas required with optimizer enabled.
-                expected = 66_007;
+                // 65_987 is the exact amount of gas required with optimizer enabled.
+                expected = 65_987;
             }
 
             if (i < expected) {
@@ -316,11 +328,11 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
             // run before testing this with forge test or forge snapshot, forge clean should be run
             // first so that it recompiles the contracts using the foundry.toml optimizer settings.
             if (Config.isUnoptimized()) {
-                // 15_279_077 is the exact amount of gas required with the optimizer disabled.
-                expected = 15_279_077;
+                // 15_279_057 is the exact amount of gas required with the optimizer disabled.
+                expected = 15_279_057;
             } else {
-                // 15_278_706 is the exact amount of gas required with optimizer enabled.
-                expected = 15_278_706;
+                // 15_278_686 is the exact amount of gas required with optimizer enabled.
+                expected = 15_278_686;
             }
 
             if (i < expected) {

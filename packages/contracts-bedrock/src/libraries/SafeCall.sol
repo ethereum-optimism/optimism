@@ -116,9 +116,8 @@ library SafeCall {
     /// @param _minGas   The minimum amount of gas that may be passed to the call
     /// @param _value    Amount of value to pass to the call
     /// @param _calldata Calldata to pass to the call
-    /// @dev Sending value to an account with no code and no balance also requires
-    ///      `NEW_ACCOUNT_STATE_GAS`. An account with a nonzero nonce is not empty, in which case that
-    ///      gas goes unused.
+    /// @dev Sending value to an account with no code, balance or nonce also requires
+    ///      `NEW_ACCOUNT_STATE_GAS`. `EXTCODEHASH` returns zero for exactly those accounts.
     function callWithMinGas(
         address _target,
         uint256 _minGas,
@@ -129,8 +128,7 @@ library SafeCall {
         returns (bool)
     {
         bool _success;
-        uint256 newAccountGas =
-            _value != 0 && _target.code.length == 0 && _target.balance == 0 ? NEW_ACCOUNT_STATE_GAS : 0;
+        uint256 newAccountGas = _value != 0 && _target.codehash == bytes32(0) ? NEW_ACCOUNT_STATE_GAS : 0;
         bool _hasMinGas = hasMinGas(_minGas, newAccountGas);
         assembly {
             // Assertion: gasleft() >= (_minGas * 64) / 63 + 40_000 + newAccountGas
