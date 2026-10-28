@@ -35,6 +35,14 @@ pub struct P2pRpc {
     commands: GossipCommandSender,
 }
 
+/// Logs a failure the client can't fix, and returns it as an internal error that names the
+/// operation that failed and why.
+fn internal_error(operation: &str, err: impl std::fmt::Display) -> ErrorObject<'static> {
+    let message = format!("{operation}: {err}");
+    warn!(target: "p2p::rpc", "{message}");
+    ErrorObject::owned(ErrorCode::InternalError.code(), message, None::<()>)
+}
+
 /// The error op-node's `opp2p_discoveryTable` returns when discovery is disabled.
 fn discovery_disabled() -> ErrorObject<'static> {
     // The code op-node's server assigns to a plain error.
@@ -48,15 +56,13 @@ impl OpP2PApiServer for P2pRpc {
         let peer_id = gossip.local_peer_id;
         let chain_id = self.chain_id;
         // Like op-node, from the libp2p key, which is discovery's key too.
-        let node_id = peer_id_to_node_id(&peer_id)
-            .ok_or_else(|| ErrorObject::from(ErrorCode::InternalError))?;
+        let node_id = peer_id_to_node_id(&peer_id).ok_or_else(|| {
+            internal_error("peer_id_to_node_id", "local peer ID holds no secp256k1 key")
+        })?;
         let enr = match &self.discovery {
-            Some(discovery) => Some(
-                discovery
-                    .local_enr()
-                    .await
-                    .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?,
-            ),
+            Some(discovery) => {
+                Some(discovery.local_enr().await.map_err(|e| internal_error("local_enr", e))?)
+            }
             None => None,
         };
         let mut addresses = gossip
@@ -107,7 +113,7 @@ impl OpP2PApiServer for P2pRpc {
                 .peer_count()
                 .await
                 .inspect_err(|e| {
-                    warn!(target: "p2p_rpc", "Failed to receive peer count: {e:?}");
+                    warn!(target: "p2p::rpc", "Failed to receive peer count: {e:?}");
                 })
                 .ok(),
             None => None,
@@ -117,21 +123,18 @@ impl OpP2PApiServer for P2pRpc {
 
     async fn opp2p_peers(&self, connected: bool) -> RpcResult<PeerDump> {
         let gossip = self.gossip_snapshot()?;
-        let total_connected = gossip
-            .connected_peers
-            .len()
-            .try_into()
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
+        let total_connected = gossip.connected_peers.len();
+        let total_connected =
+            total_connected.try_into().map_err(|e| internal_error("u32::try_from", e))?;
         let peer_ids: Vec<PeerId> = if connected {
             gossip.connected_peers.iter().copied().collect()
         } else {
             gossip.peerstore.keys().copied().collect()
         };
         let table_infos = match &self.discovery {
-            Some(discovery) => discovery
-                .table_infos()
-                .await
-                .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?,
+            Some(discovery) => {
+                discovery.table_infos().await.map_err(|e| internal_error("table_infos", e))?
+            }
             None => Vec::new(),
         };
         let pings = gossip.pings().await;
@@ -238,15 +241,13 @@ impl OpP2PApiServer for P2pRpc {
     async fn opp2p_peer_stats(&self) -> RpcResult<PeerStats> {
         let gossip = self.gossip_snapshot()?;
         let table = match &self.discovery {
-            Some(discovery) => discovery
-                .peer_count()
-                .await
-                .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?,
+            Some(discovery) => {
+                discovery.peer_count().await.map_err(|e| internal_error("peer_count", e))?
+            }
             None => 0,
         };
-        let to_u32 = |count: usize| {
-            count.try_into().map_err(|_| ErrorObject::from(ErrorCode::InternalError))
-        };
+        let to_u32 =
+            |count: usize| count.try_into().map_err(|e| internal_error("u32::try_from", e));
         let block_topics = gossip
             .block_topics
             .iter()
@@ -272,7 +273,7 @@ impl OpP2PApiServer for P2pRpc {
             .table_enrs()
             .await
             .map(|enrs| enrs.into_iter().map(|enr| enr.to_string()).collect())
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+            .map_err(|e| internal_error("table_enrs", e))
     }
 
     async fn opp2p_block_peer(&self, peer_id: String) -> RpcResult<()> {
@@ -350,13 +351,7 @@ impl OpP2PApiServer for P2pRpc {
                 )
             })?;
 
-        self.apply_command(GossipCommand::ConnectPeer { address: ma }).await.map_err(|_| {
-            ErrorObject::borrowed(
-                ErrorCode::InternalError.code(),
-                "Failed to send connect peer request",
-                None,
-            )
-        })?;
+        self.apply_command(GossipCommand::ConnectPeer { address: ma }).await?;
 
         // We need to wait until both peers are connected to each other to return from this method.
         // We try with an exponential backoff and return an error if we fail to connect to the peer.
@@ -425,12 +420,12 @@ impl P2pRpc {
         self.commands
             .send((command, applied_tx))
             .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
-        applied_rx.await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+            .map_err(|e| internal_error("apply_command", e))?;
+        applied_rx.await.map_err(|e| internal_error("apply_command", e))
     }
 
     fn gossip_snapshot(&self) -> RpcResult<Arc<GossipState>> {
-        self.gossip.snapshot().map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+        self.gossip.snapshot().map_err(|e| internal_error("gossip_snapshot", e))
     }
 }
 
@@ -552,14 +547,11 @@ mod tests {
         fixture.state_tx.send_replace(Arc::new(state));
         assert_eq!(clone.opp2p_list_blocked_peers().await.unwrap(), vec![blocked.to_string()]);
         drop(fixture.state_tx);
-        assert_eq!(
-            clone.opp2p_list_blocked_peers().await.unwrap_err().code(),
-            ErrorCode::InternalError.code()
-        );
-        assert_eq!(
-            clone.opp2p_peer_count().await.unwrap_err().code(),
-            ErrorCode::InternalError.code()
-        );
+        let stopped = (ErrorCode::InternalError.code(), "gossip_snapshot: channel closed");
+        let err = clone.opp2p_list_blocked_peers().await.unwrap_err();
+        assert_eq!((err.code(), err.message()), stopped);
+        let err = clone.opp2p_peer_count().await.unwrap_err();
+        assert_eq!((err.code(), err.message()), stopped);
     }
 
     #[tokio::test]
@@ -572,9 +564,10 @@ mod tests {
         let count = fixture.rpc.opp2p_peer_count().await.unwrap();
         assert_eq!(count.connected_discovery, None);
         assert_eq!(count.connected_gossip, 1);
+        let err = fixture.rpc.opp2p_peer_stats().await.unwrap_err();
         assert_eq!(
-            fixture.rpc.opp2p_peer_stats().await.unwrap_err().code(),
-            ErrorCode::InternalError.code()
+            (err.code(), err.message()),
+            (ErrorCode::InternalError.code(), "peer_count: discovery service stopped")
         );
     }
 
