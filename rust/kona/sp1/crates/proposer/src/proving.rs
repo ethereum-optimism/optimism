@@ -3011,6 +3011,38 @@ mod tests {
         assert_eq!(cache.request_counts().get(&("range", "terminal")), None);
     }
 
+    /// Pins an unexecutable one-chain half kept terminal until a retry signal, so that preflight
+    /// rejects the next attempt instead of resubmitting it.
+    #[tokio::test]
+    async fn unexecutable_chain_half_is_sticky() {
+        let cache = InMemoryProofProgress::default();
+        let game_address = Address::repeat_byte(0x4b);
+        let progress = cache.load_or_create(game_address, game_identity());
+        let prover = ScriptedRangeProver::new(|chains, node| {
+            if chains == chain_ids(&[10]) {
+                return Ok(fixture_range(0, chains));
+            }
+            *node.request.lock() = RequestState::Terminal(ProofTerminalState::Unexecutable);
+            Err(unexecutable())
+        });
+        let span = ChunkSpan { agreed: 99, claimed: 100 };
+
+        let err =
+            prove_range(&prover, span, &chain_ids(&[10, 20]), None, &progress.chunks[0].range)
+                .await
+                .err()
+                .unwrap();
+
+        assert!(err.downcast_ref::<ProofWaitError>().is_some(), "{err:#}");
+        assert!(!is_unprovable(&err));
+        assert_eq!(prover.calls(), [chain_ids(&[10, 20]), chain_ids(&[10]), chain_ids(&[20])]);
+        let err = progress.check_terminal_requests().unwrap_err();
+        assert!(err.to_string().contains("chunk 0 range"), "{err}");
+        assert_eq!(cache.request_counts().get(&("range", "terminal")), Some(&1));
+        assert_eq!(cache.retry_terminal_requests(game_address), 1);
+        progress.check_terminal_requests().unwrap();
+    }
+
     /// Pins a range of several timestamps failing unsplit, so that its span is bisected instead.
     #[tokio::test]
     async fn multi_timestamp_range_is_not_split_by_chain() {
