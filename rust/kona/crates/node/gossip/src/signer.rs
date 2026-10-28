@@ -10,6 +10,8 @@ pub const SIGNER_GRACE_PERIOD: Duration = Duration::from_secs(3 * 60 * 60);
 
 /// Verifies gossip signatures against the current signer and its immediate predecessor.
 /// Owned by the block handler; a verified current signature ends grace early.
+/// Clearing the current signer disables acceptance; a subsequent nonzero signer does not
+/// restore grace for the signer that preceded the zero address.
 #[derive(Debug, Clone)]
 pub struct UnsafeBlockSigner {
     current: Address,
@@ -31,6 +33,13 @@ impl UnsafeBlockSigner {
         self.previous = self.current;
         self.current = current;
         self.changed_at = Instant::now();
+        info!(
+            target: "gossip",
+            previous = %self.previous,
+            current = %self.current,
+            grace_period = ?SIGNER_GRACE_PERIOD,
+            "Unsafe block signer rotated"
+        );
     }
 
     /// Authenticates the exact envelope bytes and applies the rotation grace period.
@@ -47,13 +56,28 @@ impl UnsafeBlockSigner {
         })?;
         if self.current != Address::ZERO {
             if received == self.current {
-                self.previous = Address::ZERO;
+                if self.previous != Address::ZERO {
+                    info!(
+                        target: "gossip",
+                        previous = %self.previous,
+                        current = %self.current,
+                        "Current unsafe block signer confirmed, ending grace for previous signer"
+                    );
+                    self.previous = Address::ZERO;
+                }
                 return Ok(());
             }
             if self.previous != Address::ZERO &&
                 received == self.previous &&
                 self.changed_at.elapsed() <= SIGNER_GRACE_PERIOD
             {
+                info!(
+                    target: "gossip",
+                    previous = %self.previous,
+                    current = %self.current,
+                    hash = ?payload.payload_hash(),
+                    "Accepted block from previous unsafe block signer during grace period"
+                );
                 return Ok(());
             }
         }

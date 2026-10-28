@@ -32,9 +32,9 @@ pub struct BlockHandler {
     /// The rollup config used to validate the block.
     pub rollup_config: RollupConfig,
     /// A [`Receiver`] to monitor changes to the unsafe block signer.
-    pub signer_recv: Receiver<Address>,
+    pub(crate) signer_recv: Receiver<Address>,
     /// Verifies signatures and owns the grace period for the previous unsafe block signer.
-    pub signer: UnsafeBlockSigner,
+    pub(crate) signer: UnsafeBlockSigner,
     /// The libp2p topic for pre Canyon/Shangai blocks.
     pub blocks_v1_topic: IdentTopic,
     /// The libp2p topic for Canyon/Delta blocks.
