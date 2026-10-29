@@ -7,6 +7,7 @@ import { Script } from "forge-std/Script.sol";
 // Contracts
 import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { MockComplianceModule } from "scripts/deploy/mocks/MockComplianceModule.sol";
+import { MockOptimismPortal2 } from "scripts/deploy/mocks/MockOptimismPortal2.sol";
 import { MockPolicy } from "scripts/deploy/mocks/MockPolicy.sol";
 
 // Interfaces
@@ -46,11 +47,17 @@ contract DeployComplianceMocks is Script {
         address owner;
         /// @notice Address allowed to clear and revoke verdicts. The off-chain Verdict Writer.
         address screener;
+        /// @notice Whether to also replace the Portal's implementation with the mock, which
+        ///         screens deposits and withdrawals through the hook. Leave false once the real
+        ///         Portal's hook paths have landed.
+        bool useMockPortal;
     }
 
     struct Output {
         MockPolicy policy;
         MockComplianceModule module;
+        /// @notice The implementation the Portal was left on. The original unless useMockPortal.
+        address portalImpl;
     }
 
     /// @notice The Portal's configuration, read before the implementation is swapped out.
@@ -59,6 +66,8 @@ contract DeployComplianceMocks is Script {
         IAnchorStateRegistry anchorStateRegistry;
         IETHLockbox ethLockbox;
         uint256 proofMaturityDelaySeconds;
+        uint256 minProofMaturityDelaySeconds;
+        uint256 maxProofMaturityDelaySeconds;
         address implementation;
     }
 
@@ -91,6 +100,8 @@ contract DeployComplianceMocks is Script {
             anchorStateRegistry: _input.portal.anchorStateRegistry(),
             ethLockbox: _input.portal.ethLockbox(),
             proofMaturityDelaySeconds: _input.portal.proofMaturityDelaySeconds(),
+            minProofMaturityDelaySeconds: _input.portal.minProofMaturityDelaySeconds(),
+            maxProofMaturityDelaySeconds: _input.portal.maxProofMaturityDelaySeconds(),
             implementation: _input.proxyAdmin.getProxyImplementation(address(_input.portal))
         });
     }
@@ -115,6 +126,18 @@ contract DeployComplianceMocks is Script {
     function wireBridgeHook(Input memory _input, PortalConfig memory _config, Output memory _output) public {
         address portal = address(_input.portal);
 
+        _output.portalImpl = _config.implementation;
+        if (_input.useMockPortal) {
+            // Same constructor arguments as the implementation being replaced, so the proof
+            // maturity bounds the Portal was deployed with are preserved. Read into locals
+            // first: vm.broadcast applies to the next call, and a staticcall would consume it.
+            uint256 minDelay = _config.minProofMaturityDelaySeconds;
+            uint256 maxDelay = _config.maxProofMaturityDelaySeconds;
+
+            vm.broadcast(msg.sender);
+            _output.portalImpl = address(new MockOptimismPortal2(minDelay, maxDelay));
+        }
+
         vm.broadcast(msg.sender);
         StorageSetter storageSetter = new StorageSetter();
 
@@ -133,7 +156,7 @@ contract DeployComplianceMocks is Script {
         _input.proxyAdmin
             .upgradeAndCall(
                 payable(portal),
-                _config.implementation,
+                _output.portalImpl,
                 abi.encodeCall(
                     IOptimismPortal2.initialize,
                     (
@@ -172,7 +195,11 @@ contract DeployComplianceMocks is Script {
         // The Portal must be back on the implementation it started with, and everything
         // initialize was handed must be unchanged.
         require(
-            _input.proxyAdmin.getProxyImplementation(address(_input.portal)) == _config.implementation,
+            _input.proxyAdmin.getProxyImplementation(address(_input.portal)) == _output.portalImpl,
+            "DeployComplianceMocks: wrong implementation"
+        );
+        require(
+            _input.useMockPortal || _output.portalImpl == _config.implementation,
             "DeployComplianceMocks: implementation changed"
         );
         require(_input.portal.systemConfig() == _config.systemConfig, "DeployComplianceMocks: systemConfig changed");
