@@ -4,15 +4,15 @@ use kona_disc::Discv5Driver;
 use kona_gossip::{ConnectionGater, GossipDriver, PEER_SCORE_INSPECT_FREQUENCY};
 use libp2p::{Multiaddr, TransportError, multiaddr::Protocol};
 
-use crate::actors::network::handler::NetworkHandler;
+use crate::actors::network::handler::{NetworkHandler, RunningDiscovery};
 
 /// A network driver. This is the driver that is used to start the network.
 #[derive(Debug)]
 pub struct NetworkDriver {
     /// The gossip driver.
     pub gossip: GossipDriver<ConnectionGater>,
-    /// The discovery driver.
-    pub discovery: Discv5Driver,
+    /// The discovery driver, or `None` if discovery is disabled.
+    pub discovery: Option<Discv5Driver>,
     /// Whether to update the ENR socket after the libp2p Swarm is started.
     /// This is set to true by default.
     /// This may be set to false if the node is configured to use a static advertised address (when
@@ -37,7 +37,9 @@ impl NetworkDriver {
         // Start the libp2p Swarm
         let gossip_listen_addr = self.gossip.start().await?;
 
-        if self.enr_update {
+        if self.enr_update &&
+            let Some(discovery) = &mut self.discovery
+        {
             // Update the local ENR socket to the gossip listen address.
             // Parse the multiaddr to a socket address.
             let ip_address = gossip_listen_addr
@@ -60,20 +62,21 @@ impl NetworkDriver {
                     NetworkDriverError::InvalidGossipListenAddr(gossip_listen_addr.clone())
                 })?;
 
-            self.discovery.disc.update_local_enr_socket(SocketAddr::new(ip_address, port), true);
+            discovery.disc.update_local_enr_socket(SocketAddr::new(ip_address, port), true);
         }
 
         // Start the discovery service.
-        let (handler, enr_receiver) = self.discovery.start();
+        let discovery = self.discovery.map(|discovery| {
+            let (handler, enr_receiver) = discovery.start();
+            RunningDiscovery { handler, enr_receiver }
+        });
+        if discovery.is_none() {
+            info!(target: "node::p2p", "Discovery is disabled");
+        }
 
         // We are checking the peer scores every [`PEER_SCORE_INSPECT_FREQUENCY`] seconds.
         let peer_score_inspector = tokio::time::interval(*PEER_SCORE_INSPECT_FREQUENCY);
 
-        Ok(NetworkHandler {
-            gossip: self.gossip,
-            discovery: handler,
-            enr_receiver,
-            peer_score_inspector,
-        })
+        Ok(NetworkHandler { gossip: self.gossip, discovery, peer_score_inspector })
     }
 }

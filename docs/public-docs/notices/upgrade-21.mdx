@@ -83,10 +83,94 @@ The validator adds assertions for the new lockbox and pause configuration and ha
 * OP Enterprise Fully Managed chains: Optimism handles the upgrade, and no action is required for the contract upgrade itself.
 * OP Enterprise Self Managed chains: you must already be on Upgrade 20. Open a PR in superchain-ops with your Upgrade 21 task, and the OP Labs team will review it. Contact your Optimism point of contact if you need support.
 * All other chains: you must already be on Upgrade 20. Upgrade your L1 contracts with OPCM.
+* Update `op-challenger` to [v1.11.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.11.0) and, on a permissionless chain, configure the new absolute prestate, as described in [Update the absolute prestate](#update-the-absolute-prestate).
 
 <Info>
   See [Pausing the bridge](/op-stack/security/pause) for how chain-specific pause identifiers work and how to pause a chain.
 </Info>
+
+#### Update the absolute prestate
+
+Upgrade 21 has no hardfork, but it ships a new absolute prestate built from [`kona-client/v1.9.0`](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.9.0).
+[`op-challenger` v1.11.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.11.0) bundles the matching `kona-host` v1.9.0, so updating `op-challenger` is the only off-chain component change.
+No other OP Stack component needs a new version for the prestate.
+
+* **Permissioned chains** do not use an absolute prestate for `SUPER_PERMISSIONED` games. Update `op-challenger` and no other prestate work is required.
+* **Permissionless chains in the superchain registry** (OP, Ink, Unichain, and Soneium, on both Sepolia and Mainnet) are covered by the standard prestate, which Optimism sets onchain as part of the governed upgrade. Update `op-challenger` and confirm it can fetch the new prestate.
+* **Permissionless chains outside the superchain registry** are not covered by the standard prestate. Build your own, host it for `op-challenger`, and set it onchain as part of your OPCM upgrade by following the steps below.
+
+<Steps>
+  <Step title="Build or verify the absolute prestate">
+    <Tabs>
+      <Tab title="Standard chain configuration">
+        `kona-client` v1.9.0 publishes two hashes in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml):
+
+        * **`cannon64-kona-interop`**: `0x03b985a286da46ca88c0a965a53942daade9ffe1ae6b854a8f2d083df1cfaf59`. Used by `SUPER_CANNON_KONA` games after Upgrade 20.
+        * **`cannon64-kona`**: `0x033c000916b4a88cfffeceddd6cf0f4be3897a89195941e5a7c3f8209b4dbb6e`.
+
+        Check out `kona-client/v1.9.0` in the monorepo, reproduce both prestates, and read the hashes:
+
+        ```bash
+        just reproducible-prestate-kona
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json  # cannon64-kona-interop
+        jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json          # cannon64-kona
+        ```
+
+        Confirm the output matches the published hashes.
+      </Tab>
+
+      <Tab title="Custom chain configuration">
+        First, stage your chain data as described in [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate).
+        Check out `kona-client/v1.9.0` and, from the root of the monorepo, build the prestates with the same custom configuration:
+
+        ```bash
+        KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/custom-configs \
+          just reproducible-prestate-kona
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json
+        ```
+
+        Confirm your chain is embedded in the build. A build that silently drops your chain produces the standard hash instead:
+
+        ```bash
+        gunzip -c rust/kona/prestate-artifacts-cannon-interop/prestate.bin.gz | strings | grep "<your-chain-name>"
+        ```
+
+        Run the `grep` once per chain in your `chainList.json`, and confirm every chain matches at least once.
+        Rebuild from a clean checkout with the same inputs and confirm the hash is identical.
+        A custom prestate hash is specific to its embedded chain configuration and does not appear in `standard-prestates.toml`.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Upload the new preimage file">
+    Upload the new preimage file to wherever you store your other absolute preimage files. This is the location `--prestates-url` or `--cannon-kona-prestates-url` points at. `op-challenger` fetches the file from there when it needs to play a game.
+
+    The build writes a copy named after the absolute prestate hash, for example `0x<hash>.bin.gz`. Keep that filename when you upload it.
+    Keep the Upgrade 20 prestate file in place so `op-challenger` can finish games created before the upgrade.
+    A custom prestate must be hosted at a URL reachable by every challenger that participates on the chain.
+  </Step>
+
+  <Step title="Update op-challenger">
+    Update `op-challenger` to [v1.11.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.11.0) before the L1 contract upgrade.
+    Your existing game types and prestate URL flags carry over unchanged.
+    Review the release notes before upgrading: v1.11.0 renames `list-games` and `list-claims` output fields, rejects unusable `--run` entries in `run-trace`, and refuses to start `kona-host` with a missing or invalid dependency set file.
+
+    If you do not use the standard OP Labs `op-challenger` Docker image, set the `kona-host` binary path, built from `kona-host/v1.9.0`:
+
+    ```bash
+    OP_CHALLENGER_CANNON_KONA_SERVER=/path/to/kona-host
+    # or
+    --cannon-kona-server=/path/to/kona-host
+    ```
+  </Step>
+
+  <Step title="Set the new prestate onchain">
+    Pass your new hash as the `absolutePrestate` in the dispute game configuration of your OPCM upgrade input, so the upgrade transaction registers it in the `DisputeGameFactory`.
+    Simulate and validate the expected output before executing the transaction.
+
+    After the upgrade, confirm the onchain prestate matches your build. The prestate lives in the first 32 bytes of `gameArgs(<gameType>)` on the `DisputeGameFactory`, or on a created game instance. `absolutePrestate()` on the bare implementation returns zero.
+  </Step>
+</Steps>
 
 ### Node operators
 

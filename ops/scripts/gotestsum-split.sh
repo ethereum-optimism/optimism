@@ -26,8 +26,11 @@ for arg in "$@"; do
     break
   fi
   case "$arg" in
-    --jsonfile=*) json_file="${arg#--jsonfile=}" ; break ;;
-    --jsonfile)   next_is_jsonfile=true ;;
+    --jsonfile=*)
+      json_file="${arg#--jsonfile=}"
+      break
+      ;;
+    --jsonfile) next_is_jsonfile=true ;;
   esac
 done
 

@@ -268,13 +268,6 @@ var (
 		EnvVars:  prefixEnvVars("SEQUENCER_STOPPED"),
 		Category: SequencerCategory,
 	}
-	SequencerMaxSafeLagFlag = &cli.Uint64Flag{
-		Name:     "sequencer.max-safe-lag",
-		Usage:    "Maximum number of L2 blocks for restricting the distance between L2 safe and unsafe. Disabled if 0.",
-		EnvVars:  prefixEnvVars("SEQUENCER_MAX_SAFE_LAG"),
-		Value:    0,
-		Category: SequencerCategory,
-	}
 	SequencerL1Confs = &cli.Uint64Flag{
 		Name:     "sequencer.l1-confs",
 		Usage:    "Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1 origin.",
@@ -468,7 +461,6 @@ var optionalFlags = []cli.Flag{
 	VerifierL1Confs,
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,
-	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
 	SequencerRecoverMode,
 	SequencerSealingDurationFlag,

@@ -301,7 +301,9 @@ mod tests {
 
     /// Replaced blocks by chain and hash.
     #[derive(Default)]
-    struct FakeReplaced(BTreeMap<(u64, B256), Replaced>);
+    struct FakeReplaced {
+        blocks: BTreeMap<(u64, B256), Replaced>,
+    }
 
     #[async_trait]
     impl ReplacedBlockSource for FakeReplaced {
@@ -311,7 +313,7 @@ mod tests {
             parent: B256,
             hash: B256,
         ) -> Result<OptimisticBlockReceipts> {
-            match self.0.get(&(chain_id, hash)) {
+            match self.blocks.get(&(chain_id, hash)) {
                 Some(replaced) if replaced.parent == parent => Ok(replaced.block.clone()),
                 _ => anyhow::bail!("unknown replaced block"),
             }
@@ -496,7 +498,7 @@ mod tests {
         let denied_header = header(3, 12, &executing.receipts);
         let denied = denied_header.hash_slow();
         let block = OptimisticBlockReceipts { header: denied_header, receipts: executing.receipts };
-        replaced.0.insert((B, denied), Replaced { parent: b2, block });
+        replaced.blocks.insert((B, denied), Replaced { parent: b2, block });
         let responses = SPAN
             .iter()
             .map(|&timestamp| {
@@ -534,6 +536,40 @@ mod tests {
             scan.timestamps.iter().map(|t| t.references.iter().copied().collect()).collect();
         assert_eq!(references, [vec![(A, 10)], vec![], vec![], vec![]]);
         assert_eq!(scan.blocks.keys().copied().collect::<Vec<_>>(), [(A, 10)]);
+    }
+
+    #[tokio::test]
+    async fn scan_retains_persistent_head_references_across_chunk_starts() {
+        for agreed in 0..4 {
+            let mut l2 = FakeL2::default();
+            let responses = span(&mut l2, vec![message(A, 10, 10), message(A, 10, 10)]);
+            let scan = scan_span(&l2, &FakeReplaced::default(), &responses[agreed..], &configs())
+                .await
+                .unwrap();
+            assert_eq!(
+                scan.timestamps.iter().map(|step| step.timestamp).collect::<Vec<_>>(),
+                SPAN[agreed + 1..],
+            );
+            for step in &scan.timestamps {
+                assert_eq!(step.chains, 2);
+                assert_eq!(step.replaced_chains, 0);
+                assert_eq!(step.messages, 2);
+                assert_eq!(step.references, BTreeSet::from([(A, 10)]));
+            }
+            let initiating = &l2.by_number[&(A, 10)];
+            assert_eq!(
+                scan.blocks,
+                BTreeMap::from([(
+                    (A, 10),
+                    ReferencedBlock {
+                        chain_id: A,
+                        number: 10,
+                        hash: initiating.hash_slow(),
+                        receipts_root: initiating.receipts_root,
+                    }
+                )])
+            );
+        }
     }
 
     /// Pins an error, not a scan without the replaced head's references, when the replaced-block

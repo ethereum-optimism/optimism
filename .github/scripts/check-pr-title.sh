@@ -57,7 +57,7 @@ if [[ ! "${scope_list}" =~ ${scope_list_regex} ]]; then
 fi
 
 conventional_types=(build chore feat fix perf refactor revert style test upkeep)
-IFS=',' read -ra scopes <<<"${scope_list}"
+IFS=',' read -ra scopes <<< "${scope_list}"
 for scope in "${scopes[@]}"; do
   scope_lc="${scope,,}"
   for conventional_type in "${conventional_types[@]}"; do

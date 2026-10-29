@@ -8,6 +8,7 @@ import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 // Libraries
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
@@ -25,8 +26,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         **WARNING**: Do not bridge an ERC721 that was originally deployed on Optimism. This
 ///         bridge ONLY supports ERC721s originally deployed on Ethereum.
 contract L2ERC721Bridge is ProxyAdminOwnedBase, ERC721Bridge, ISemver {
-    /// @custom:semver 1.10.1
-    string public constant version = "1.10.1";
+    /// @custom:semver 1.11.0
+    string public constant version = "1.11.0";
 
     /// @notice Constructs the L2ERC721Bridge contract.
     constructor() ERC721Bridge() {
@@ -68,10 +69,7 @@ contract L2ERC721Bridge is ProxyAdminOwnedBase, ERC721Bridge, ISemver {
 
         // Note that supportsInterface makes a callback to the _localToken address which is user
         // provided.
-        require(
-            ERC165Checker.supportsInterface(_localToken, type(IOptimismMintableERC721).interfaceId),
-            "L2ERC721Bridge: local token interface is not compliant"
-        );
+        require(_isOptimismMintableERC721(_localToken), "L2ERC721Bridge: local token interface is not compliant");
 
         require(
             _remoteToken == IOptimismMintableERC721(_localToken).remoteToken(),
@@ -127,5 +125,15 @@ contract L2ERC721Bridge is ProxyAdminOwnedBase, ERC721Bridge, ISemver {
 
         // slither-disable-next-line reentrancy-events
         emit ERC721BridgeInitiated(_localToken, remoteToken, _from, _to, _tokenId, _extraData);
+    }
+
+    /// @notice Checks whether a token answers any interface ID that OptimismMintableERC721 tokens
+    ///         have been built with.
+    /// @param _token Address of the token to check.
+    /// @return True if the token answers one of the interface IDs.
+    function _isOptimismMintableERC721(address _token) internal view returns (bool) {
+        return ERC165Checker.supportsInterface(_token, Constants.OPTIMISM_MINTABLE_ERC721_INTERFACE_ID)
+            || ERC165Checker.supportsInterface(_token, Constants.BEDROCK_OPTIMISM_MINTABLE_ERC721_INTERFACE_ID)
+            || ERC165Checker.supportsInterface(_token, Constants.PRE_BEDROCK_OPTIMISM_MINTABLE_ERC721_INTERFACE_ID);
     }
 }

@@ -54,7 +54,6 @@ pub use gate::ConnectionGate; // trait
 mod gater;
 pub use gater::{
     ConnectionGater, // implementation
-    DialInfo,
     GaterConfig,
 };
 
@@ -62,12 +61,20 @@ mod builder;
 pub use builder::{GossipDriverBuilder, GossipTransport, TransportBuilder};
 
 mod error;
-pub use error::{DialError, GossipDriverBuilderError, HandlerEncodeError, PublishError};
+pub use error::{
+    DialError, GossipDriverBuilderError, HandlerEncodeError, PeerAddrError, PublishError,
+};
 
 mod event;
 pub use event::Event;
 
+mod peer_addr;
+pub use peer_addr::PeerAddr;
+
 mod payload;
+
+mod signer;
+pub use signer::{SIGNER_GRACE_PERIOD, UnsafeBlockSigner};
 
 mod handler;
 pub use handler::{BlockHandler, Handler};
