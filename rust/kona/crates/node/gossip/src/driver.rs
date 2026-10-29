@@ -103,6 +103,9 @@ impl<G: ConnectionGate> Drop for GossipDriver<G> {
 /// [`GossipDriver::duplicate_connection_grace`].
 const DUPLICATE_CONNECTION_GRACE: Duration = Duration::from_secs(10);
 
+/// How long a peer has to send a sync request and take the response, as op-node's read deadline.
+const SYNC_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// How often static peers that aren't connected are dialed again by default, as in op-node.
 const STATIC_PEER_REDIAL_INTERVAL: Duration = Duration::from_secs(60);
 
@@ -195,6 +198,9 @@ where
     /// This is a mock handler that supports the `payload_by_number` protocol.
     /// It always returns: not found (1), version (0). `<https://specs.optimism.io/protocol/rollup-node-p2p.html#payload_by_number>`
     ///
+    /// It reads only the 8-byte request, and drops a stream that takes longer than
+    /// [`SYNC_REQUEST_TIMEOUT`] to send it and take the response.
+    ///
     /// ## Note
     ///
     /// This is used to ensure op-nodes are not penalizing kona-nodes for not supporting it.
@@ -216,26 +222,37 @@ where
                 info!(target: "gossip", "Received a sync request from {peer_id}, spawning a new task to handle it");
 
                 tokio::spawn(async move {
-                    let mut buffer = Vec::new();
-                    let Ok(bytes_received) = inbound_stream.read_to_end(&mut buffer).await else {
-                        error!(target: "gossip", "Failed to read the sync request from {peer_id}");
-                        return;
+                    let exchange = async {
+                        // The request is the block number, a little-endian u64. Read only those
+                        // 8 bytes, as op-node did, so a peer that keeps sending can't make the
+                        // node buffer the rest.
+                        let mut request = [0; 8];
+                        inbound_stream.read_exact(&mut request).await?;
+                        let number = u64::from_le_bytes(request);
+                        debug!(target: "gossip", %peer_id, number, "Received inbound sync request");
+
+                        // We return: not found (1), version (0). `<https://specs.optimism.io/protocol/rollup-node-p2p.html#payload_by_number>`
+                        // Response format: <response> = <res><version><payload>
+                        // No payload is returned.
+                        const OUTPUT: [u8; 2] = hex!("0100");
+                        inbound_stream.write_all(&OUTPUT).await?;
+
+                        // Send our FIN after the response, then drop the stream. yamux gives the
+                        // peer no more credit, so one that keeps sending stalls once it has used
+                        // up the stream's window, and yamux answers anything more with a reset.
+                        inbound_stream.close().await
                     };
-
-                    debug!(target: "gossip", bytes_received = bytes_received, peer_id = ?peer_id, payload = ?buffer, "Received inbound sync request");
-
-                    // We return: not found (1), version (0). `<https://specs.optimism.io/protocol/rollup-node-p2p.html#payload_by_number>`
-                    // Response format: <response> = <res><version><payload>
-                    // No payload is returned.
-                    const OUTPUT: [u8; 2] = hex!("0100");
-
-                    // We only write that we're not supporting the sync request.
-                    if let Err(e) = inbound_stream.write_all(&OUTPUT).await {
-                        error!(target: "gossip", err = ?e, "Failed to write the sync response to {peer_id}");
-                        return;
-                    };
-
-                    debug!(target: "gossip", bytes_sent = OUTPUT.len(), peer_id = ?peer_id, "Sent outbound sync response");
+                    match tokio::time::timeout(SYNC_REQUEST_TIMEOUT, exchange).await {
+                        Ok(Ok(())) => {
+                            debug!(target: "gossip", %peer_id, "Sent outbound sync response");
+                        }
+                        Ok(Err(err)) => {
+                            error!(target: "gossip", %peer_id, ?err, "Failed to serve the sync request");
+                        }
+                        Err(_) => {
+                            warn!(target: "gossip", %peer_id, "Timed out serving the sync request");
+                        }
+                    }
                 });
             }
         });
@@ -969,16 +986,9 @@ mod tests {
         assert_eq!(reason.to_string(), "listener failed");
     }
 
-    /// A peer can't push an endless sync request into the node. A request is an 8-byte block
-    /// number, but a peer that never closes the stream could otherwise keep sending, and the node
-    /// would buffer every byte until it ran out of memory.
-    ///
-    /// The peer sends up to 128 MiB on one stream without closing it. The node must stop taking
-    /// the bytes, by failing the writes or by leaving them blocked, well before all of them are in.
-    #[tokio::test]
-    async fn test_sync_request_size_is_bounded() {
-        const MIB: usize = 1 << 20;
-        const LIMIT_MIB: usize = 128;
+    /// Connects two drivers, opens a sync request stream from the second to the first, and runs
+    /// `peer` on it, the way a peer would, while polling both drivers.
+    async fn with_sync_stream<T>(peer: impl AsyncFnOnce(libp2p::Stream) -> T) -> T {
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
         let peer_1 = *driver_1.local_peer_id();
@@ -992,15 +1002,9 @@ mod tests {
             StreamProtocol::try_from_owned(format!("/opstack/req/payload_by_number/{chain_id}/0/"))
                 .expect("protocol");
         let mut control = driver_2.swarm.behaviour().sync_req_resp.new_control();
-        let mut sent = 0;
-        let send = async {
-            let mut stream = control.open_stream(peer_1, protocol).await?;
-            let chunk = vec![0; MIB];
-            while sent < LIMIT_MIB * MIB {
-                stream.write_all(&chunk).await?;
-                sent += chunk.len();
-            }
-            Ok::<_, Box<dyn std::error::Error>>(())
+        let run = async {
+            let stream = control.open_stream(peer_1, protocol).await.expect("open stream");
+            peer(stream).await
         };
         let poll = async {
             loop {
@@ -1010,19 +1014,72 @@ mod tests {
                 }
             }
         };
-        let outcome = tokio::time::timeout(Duration::from_secs(5), async {
-            tokio::select! {
-                outcome = send => outcome,
-                () = poll => unreachable!("the drivers never stop"),
+        tokio::select! {
+            out = run => out,
+            () = poll => unreachable!("the drivers never stop"),
+        }
+    }
+
+    /// A sync request gets the "not found" response, and the node then closes the stream.
+    #[tokio::test]
+    async fn test_sync_request_gets_not_found() {
+        let response = with_sync_stream(async |mut stream| {
+            stream.write_all(&42u64.to_le_bytes()).await.expect("send the request");
+            let mut response = Vec::new();
+            stream.read_to_end(&mut response).await.expect("read the response");
+            response
+        });
+        let response = tokio::time::timeout(Duration::from_secs(10), response).await;
+        assert_eq!(response.expect("response in time"), [1, 0]);
+    }
+
+    /// A peer can't push an endless sync request into the node. A request is an 8-byte block
+    /// number, but a peer that never closes the stream could otherwise keep sending, and the node
+    /// would buffer every byte until it ran out of memory.
+    ///
+    /// The peer sends up to 128 MiB on one stream without closing it. The node must stop taking
+    /// the bytes, by failing the writes or by leaving them blocked, well before all of them are in.
+    #[tokio::test]
+    async fn test_sync_request_size_is_bounded() {
+        const KIB: usize = 1 << 10;
+        const LIMIT: usize = 128 << 20;
+        let mut sent = 0;
+        let send = with_sync_stream(async |mut stream| {
+            let chunk = vec![0; 64 * KIB];
+            while sent < LIMIT {
+                stream.write_all(&chunk).await?;
+                sent += chunk.len();
             }
+            Ok::<_, std::io::Error>(())
+        });
+        let outcome = tokio::time::timeout(Duration::from_secs(5), send).await;
+
+        assert!(
+            sent < LIMIT,
+            "the node took all {} MiB of one sync request ({outcome:?})",
+            sent >> 20
+        );
+    }
+
+    /// A peer that opens a sync stream and never sends a request has the stream closed after
+    /// [`SYNC_REQUEST_TIMEOUT`], instead of holding it open for as long as the connection lasts.
+    #[tokio::test(start_paused = true)]
+    async fn test_silent_sync_request_times_out() {
+        // A second more than the timeout, so it isn't a ping or idle timeout closing the
+        // connection instead.
+        let (waited, read) = with_sync_stream(async |mut stream| {
+            let start = Instant::now();
+            let mut response = Vec::new();
+            let read = stream.read_to_end(&mut response);
+            let read =
+                tokio::time::timeout(SYNC_REQUEST_TIMEOUT + Duration::from_secs(1), read).await;
+            (start.elapsed(), read.map(|read| read.map(|_| response)))
         })
         .await;
 
-        assert!(
-            sent < LIMIT_MIB * MIB,
-            "the node took all {} MiB of one sync request ({outcome:?})",
-            sent / MIB
-        );
+        let read = read.expect("the node closes the stream in time");
+        assert!(waited >= SYNC_REQUEST_TIMEOUT, "closed after {waited:?}");
+        assert!(read.expect("the stream ends without an error").is_empty());
     }
 
     /// Two peers that dial each other at the same time end up with one connection, the one dialed
