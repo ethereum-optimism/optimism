@@ -18,6 +18,7 @@ import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Claim, GameStatus, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { Features } from "src/libraries/Features.sol";
+import { PortalAllowlist } from "src/libraries/PortalAllowlist.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -255,10 +256,16 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when a dispute game has not been permanently invalidated.
     error OptimismPortal_DisputeGameNotInvalidated();
 
+    /// @notice Thrown when a deposit is made by an address not in the depositor allowlist.
+    error OptimismPortal_DepositorNotAllowed();
+
+    /// @notice Thrown when a withdrawal is proven or finalized by an address not in the allowlist.
+    error OptimismPortal_WithdrawerNotAllowed();
+
     /// @notice Semantic version.
-    /// @custom:semver 6.1.0
+    /// @custom:semver 6.1.0+deposit-allowlist
     function version() public pure virtual returns (string memory) {
-        return "6.1.0";
+        return "6.1.0+deposit-allowlist";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -397,6 +404,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     {
         // Cannot prove withdrawal transactions while the system is paused.
         _assertNotPaused();
+
+        // Only allowlisted addresses can prove withdrawals.
+        if (!PortalAllowlist.isAllowed(msg.sender)) {
+            revert OptimismPortal_WithdrawerNotAllowed();
+        }
 
         // Make sure that the target address is safe.
         if (_isUnsafeTarget(_tx.target)) {
@@ -583,6 +595,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Cannot finalize withdrawal transactions while the system is paused.
         _assertNotPaused();
 
+        // Only allowlisted addresses can finalize withdrawals.
+        if (!PortalAllowlist.isAllowed(msg.sender)) {
+            revert OptimismPortal_WithdrawerNotAllowed();
+        }
+
         // Cannot finalize withdrawal with value when custom gas token mode is enabled.
         if (_isUsingCustomGasToken()) {
             if (_tx.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
@@ -749,6 +766,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         payable
         metered(_gasLimit)
     {
+        // This check will prevent deposits from being made by addresses that are not allowed to make deposits.
+        // It will also prevent calls from the L1CrossDomainMessenger, and prevents the L1StandardBridge
+        // from depositing ETH and minting tokens on L2.
+        // The proxy admin owner is always allowed so that L2 contract upgrades can be deposited.
+        if (!PortalAllowlist.isAllowed(msg.sender) && msg.sender != proxyAdminOwner()) {
+            revert OptimismPortal_DepositorNotAllowed();
+        }
+
         if (_isUsingCustomGasToken()) {
             if (msg.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
         }
