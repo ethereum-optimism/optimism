@@ -116,8 +116,8 @@ async fn test_sequencer_network_propagation() -> anyhow::Result<()> {
 }
 
 /// A hub relays blocks between spokes that only know the hub: each spoke's only static peer is the
-/// hub, the hub lists none, and nobody has bootnodes, so discovery finds nobody. The spokes never
-/// connect to each other, so a block from one can only reach the other through the hub.
+/// hub, the hub lists none, and nobody runs discovery. The spokes never connect to each other, so
+/// a block from one can only reach the other through the hub.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_hub_relays_blocks_between_spokes() -> anyhow::Result<()> {
     // Every node accepts and relays only the sequencer's blocks: spoke A will sign with this key.
@@ -152,7 +152,7 @@ async fn test_hub_relays_blocks_between_spokes() -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("No block received"))?;
     assert_eq!(block, envelope);
 
-    // The spokes are only connected to the hub, and discovery found nobody.
+    // The spokes are only connected to the hub.
     for (spoke, other) in [(&spoke_a, &spoke_b), (&spoke_b, &spoke_a)] {
         assert!(matches!(
             spoke.is_connected_to(other).await,
@@ -161,7 +161,7 @@ async fn test_hub_relays_blocks_between_spokes() -> anyhow::Result<()> {
         assert_eq!(spoke.peers().await?.peers.len(), 1);
     }
     for node in [&hub, &spoke_a, &spoke_b] {
-        assert!(node.discovery_table().await?.is_empty());
+        assert!(node.has_discovery_disabled().await);
     }
 
     Ok(())

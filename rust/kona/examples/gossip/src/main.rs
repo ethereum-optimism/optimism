@@ -123,6 +123,7 @@ impl GossipCommand {
             .build(),
             discovery_interval: Duration::from_secs(self.interval),
             discovery_randomize: None,
+            discovery_enabled: true,
             keypair: Keypair::generate_secp256k1(),
             gossip_config: Default::default(),
             scoring: Default::default(),

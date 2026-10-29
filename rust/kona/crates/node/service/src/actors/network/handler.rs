@@ -10,12 +10,19 @@ use tokio::sync::mpsc;
 pub struct NetworkHandler {
     /// The gossip driver.
     pub gossip: GossipDriver<ConnectionGater>,
-    /// The discovery handler.
-    pub discovery: Discv5Handler,
-    /// The receiver for the ENRs.
-    pub enr_receiver: mpsc::Receiver<Enr>,
+    /// The discovery service, or `None` if discovery is disabled.
+    pub discovery: Option<RunningDiscovery>,
     /// The peer score inspector. Is used to ban peers that are below a given threshold.
     pub peer_score_inspector: tokio::time::Interval,
+}
+
+/// A discovery service that was started.
+#[derive(Debug)]
+pub struct RunningDiscovery {
+    /// The handler to send requests to the discovery service.
+    pub handler: Discv5Handler,
+    /// The receiver of the ENRs it discovers.
+    pub enr_receiver: mpsc::Receiver<Enr>,
 }
 
 impl NetworkHandler {
@@ -41,8 +48,12 @@ impl NetworkHandler {
             self.gossip.ban_peer(*peer_id);
         }
 
-        if let Err(send_err) =
-            self.discovery.sender.send(HandlerRequest::BanPeers { peer_ids, ban_duration }).await
+        if let Some(discovery) = &self.discovery &&
+            let Err(send_err) = discovery
+                .handler
+                .sender
+                .send(HandlerRequest::BanPeers { peer_ids, ban_duration })
+                .await
         {
             warn!(err = ?send_err, "Impossible to send a request to the discovery handler. The channel connection is dropped.");
         }

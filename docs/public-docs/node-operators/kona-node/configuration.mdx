@@ -5,6 +5,7 @@ diataxis: reference
 ---
 
 import KonaNodePorts from "/snippets/kona-node-ports.mdx"
+import { Unreleased } from "/snippets/unreleased.mdx"
 
 This document lists all CLI flags for the `kona-node node` subcommand, grouped by category. All flags can be provided as command-line arguments or via environment variables.
 
@@ -66,7 +67,7 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--p2p.no-discovery` | `KONA_NODE_P2P_NO_DISCOVERY` | Disable Discv5 (node discovery). Not applied yet: discovery always runs | `false` |
+| `--p2p.no-discovery` | `KONA_NODE_P2P_NO_DISCOVERY` | Disable Discv5 (node discovery), see [running without discovery](#running-without-discovery) | `false` |
 | `--p2p.priv.path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | Path to hex-encoded 32-byte private key for peer ID | - |
 | `--p2p.priv.raw <HEX>` | `KONA_NODE_P2P_PRIV_RAW` | Hex-encoded 32-byte private key for peer ID | - |
 | `--p2p.advertise.ip <IP>` | `KONA_NODE_P2P_ADVERTISE_IP` | IP to advertise to external peers | - |
@@ -106,7 +107,7 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 
 <Warning>
 
-Static peers don't turn discovery off. On a chain in the superchain registry, discovery starts from the chain's built-in bootnodes, and from the nodes saved in the bootstore, even with no `--p2p.bootnodes`. So the node still finds other nodes and connects to them, and they can find it. kona-node can't run without discovery yet: `--p2p.no-discovery` doesn't take effect.
+Static peers don't turn discovery off. On a chain in the superchain registry, discovery starts from the chain's built-in bootnodes, even with no `--p2p.bootnodes`, and the node dials the peers saved in its bootstore. So the node still finds other nodes and connects to them, and they can find it. To connect only to static peers, also set `--p2p.no-discovery`, see [running without discovery](#running-without-discovery).
 
 </Warning>
 
@@ -136,6 +137,34 @@ The node treats its static peers as follows:
 op-node calls this flag `--p2p.static`, which kona-node accepts too. The environment variable is `KONA_NODE_P2P_STATIC_PEERS`, not `KONA_NODE_P2P_STATIC`.
 
 </Info>
+
+### Running without discovery
+
+<Unreleased component="kona-node" />
+
+With `--p2p.no-discovery`, the node doesn't run Discv5:
+
+- It binds no UDP port, so `--p2p.listen.udp` may be in use by another process, and publishes no ENR.
+- It ignores `--p2p.bootnodes`, the chain's built-in bootnodes and the bootstore.
+- It connects only to its [static peers](#static-peers), to peers that dial it, and to peers added with [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer). Other nodes can't find it, so only the nodes given its address dial it.
+
+It still exchanges blocks over gossip with the peers it's connected to. A node can relay blocks between peers that aren't connected to each other, such as the hub of a group whose members list only the hub as a static peer.
+
+The P2P RPC methods still answer. As op-node's do when discovery is off, [`opp2p_self`](/node-operators/kona-node/rpc/p2p#opp2p_self) returns no ENR, [`opp2p_peerStats`](/node-operators/kona-node/rpc/p2p#opp2p_peerstats) returns a `table` of `0`, and [`opp2p_discoveryTable`](/node-operators/kona-node/rpc/p2p#opp2p_discoverytable) returns the error `discovery disabled`. [`opp2p_peerCount`](/node-operators/kona-node/rpc/p2p#opp2p_peercount), which op-node doesn't have, returns `null` for `connectedDiscovery`, and [`opp2p_peers`](/node-operators/kona-node/rpc/p2p#opp2p_peers) returns no ENR and a `chainID` of `0` for each peer. op-conductor's health check reads `connected` from `opp2p_peerStats`, which counts static peers.
+
+With discovery on, the node stops if discovery fails to start or stops later, even if it has static peers.
+
+The node finds its peers as follows:
+
+| Discovery | Bootnodes | Static peers | Behavior |
+|-----------|-----------|--------------|----------|
+| On | None, chain in the registry | Any | Connects to the peers it finds from the chain's built-in bootnodes, to the peers saved in its bootstore, and to its static peers. |
+| On | None, chain not in the registry | Any | Connects to the peers saved in its bootstore, if any, and to its static peers. Otherwise it finds nobody until other nodes bootstrap from it, as the first bootnode of a new network does. |
+| On | Set | Any | Connects to the peers it finds from the bootnodes given and the built-in ones, to the peers saved in its bootstore, and to its static peers. |
+| Off | Ignored | Set | Connects only to its static peers and the peers that dial it. A static peer that's down is dialed again once a minute, so a node can start before its peers. |
+| Off | Ignored | None | Connects only to peers that dial it, or that are added with `opp2p_connectPeer`, as the hub of a group does. |
+
+With discovery off, the node logs a warning at startup if no static peers are set, and if bootnodes are set, since it ignores them.
 
 ## RPC Arguments
 

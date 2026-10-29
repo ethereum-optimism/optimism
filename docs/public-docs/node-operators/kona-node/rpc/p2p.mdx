@@ -9,7 +9,7 @@ The `p2p` api provides methods for interacting with Kona's P2P stack.
 
 ### `opp2p_self`
 
-Returns information about the local node in the form of `PeerInfo`.
+Returns information about the local node in the form of `PeerInfo`. A node running [without discovery](/node-operators/kona-node/configuration#running-without-discovery) returns no `ENR`.
 
 | Client | Method invocation          |
 | ------ | -------------------------- |
@@ -24,7 +24,7 @@ Returns information about the local node in the form of `PeerInfo`.
 
 ### `opp2p_peerCount`
 
-Returns the count of connected peers for both discovery and gossip networks.
+Returns the count of connected peers for both discovery and gossip networks. A node running [without discovery](/node-operators/kona-node/configuration#running-without-discovery) returns `null` for `connectedDiscovery`.
 
 | Client | Method invocation               |
 | ------ | ------------------------------- |
@@ -39,7 +39,7 @@ Returns the count of connected peers for both discovery and gossip networks.
 
 ### `opp2p_peers`
 
-Returns information about peers. If `connected` parameter is true, only returns connected peers.
+Returns information about peers. If `connected` parameter is true, only returns connected peers. A node running [without discovery](/node-operators/kona-node/configuration#running-without-discovery) returns no `ENR` and a `chainID` of `0` for its peers.
 
 | Client | Method invocation                                     |
 | ------ | ----------------------------------------------------- |
@@ -58,7 +58,7 @@ Returns information about peers. If `connected` parameter is true, only returns 
 
 ### `opp2p_peerStats`
 
-Returns statistical information about peers including connection counts and topic subscriptions.
+Returns statistical information about peers including connection counts and topic subscriptions. A node running [without discovery](/node-operators/kona-node/configuration#running-without-discovery) returns a `table` of `0`.
 
 | Client | Method invocation                |
 | ------ | -------------------------------- |
@@ -73,7 +73,7 @@ Returns statistical information about peers including connection counts and topi
 
 ### `opp2p_discoveryTable`
 
-Returns the discovery table entries as a list of ENR strings.
+Returns the discovery table entries as a list of ENR strings. A node running [without discovery](/node-operators/kona-node/configuration#running-without-discovery) returns the error `discovery disabled`, as op-node does.
 
 | Client | Method invocation                     |
 | ------ | ------------------------------------- |

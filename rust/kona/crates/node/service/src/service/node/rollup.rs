@@ -633,7 +633,7 @@ impl RollupNode {
             .await
             .map_err(|e| format!("Failed to start network: {e:?}"))?;
 
-        let discovery = handler.discovery.clone();
+        let discovery = handler.discovery.as_ref().map(|discovery| discovery.handler.clone());
         let network = NetworkActor::new(
             QueuedNetworkEngineClient { engine_actor_request_tx: engine_actor_request_tx.clone() },
             handler,
@@ -642,7 +642,12 @@ impl RollupNode {
             signed_payload_rx,
         );
 
-        let p2p_rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx);
+        let p2p_rpc = P2pRpc::new(
+            network.gossip_query_handle(),
+            discovery,
+            self.config.l2_chain_id.id(),
+            gossip_command_tx,
+        );
 
         let l1_watcher = self.build_l1_watcher(
             derivation_actor_request_tx,
