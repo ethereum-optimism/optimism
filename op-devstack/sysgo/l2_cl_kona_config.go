@@ -47,6 +47,7 @@ func resolveKonaL2CLConfig(t devtest.T, key string, chainID eth.ChainID, isSeque
 	unsupported.SequencerSyncMode = baseCfg.SequencerSyncMode
 	unsupported.VerifierSyncMode = baseCfg.VerifierSyncMode
 	unsupported.SafeDBPath = ""
+	unsupported.VerifierL1Confs = 0
 	unsupported.NoDiscovery = baseCfg.NoDiscovery
 	unsupported.FollowSource = ""
 	if isSequencer {
@@ -64,7 +65,10 @@ func resolveKonaL2CLConfig(t devtest.T, key string, chainID eth.ChainID, isSeque
 }
 
 func konaL2CLEnv(cfg *L2CLConfig, sequencerStopped bool) []string {
-	extraEnv := []string{fmt.Sprintf("KONA_NODE_P2P_NO_DISCOVERY=%t", cfg.NoDiscovery)}
+	extraEnv := []string{
+		fmt.Sprintf("KONA_NODE_P2P_NO_DISCOVERY=%t", cfg.NoDiscovery),
+		fmt.Sprintf("KONA_NODE_VERIFIER_L1_CONFS=%d", cfg.VerifierL1Confs),
+	}
 	if cfg.SafeDBPath != "" {
 		extraEnv = append(extraEnv, "KONA_NODE_SAFEDB_PATH="+cfg.SafeDBPath)
 	}

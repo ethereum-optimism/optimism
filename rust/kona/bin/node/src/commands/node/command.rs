@@ -122,6 +122,10 @@ pub struct NodeCommand {
     /// by `optimism_safeHeadAtL1Block`. Nothing is recorded when unset.
     #[arg(long = "safedb.path", env = "KONA_NODE_SAFEDB_PATH")]
     pub safedb_path: Option<PathBuf>,
+    /// Number of L1 blocks to keep behind the L1 head before deriving L2 data.
+    /// Reorgs are supported, but may be slow to recover from.
+    #[arg(long = "verifier.l1-confs", env = "KONA_NODE_VERIFIER_L1_CONFS", default_value_t = 0)]
+    pub verifier_l1_confs: u64,
     /// P2P CLI arguments.
     #[command(flatten)]
     pub p2p_flags: P2PArgs,
@@ -143,6 +147,7 @@ impl Default for NodeCommand {
             l1_config_file: None,
             interop_dependency_set: None,
             safedb_path: None,
+            verifier_l1_confs: 0,
             node_mode: NodeMode::Validator,
             p2p_flags: P2PArgs::default(),
             rpc_flags: RpcArgs::default(),
@@ -341,6 +346,7 @@ impl NodeCommand {
         .with_derivation_delegate_config(derivation_delegate_config)
         .with_dependency_set(dependency_set)
         .with_safe_db(safe_db)
+        .with_verifier_l1_confs(self.verifier_l1_confs)
         .build()
         .start()
         .await

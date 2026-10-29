@@ -51,6 +51,7 @@ thiserror.workspace = true
 async-trait.workspace = true
 tower.workspace = true
 http-body-util.workspace = true
+tokio = { workspace = true, features = ["sync"] }
 
 c-kzg.workspace = true
 tracing.workspace = true
