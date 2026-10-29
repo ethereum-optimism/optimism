@@ -38,6 +38,9 @@ type L2CLConfig struct {
 
 	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
 	OffsetELSafe time.Duration
+
+	// AltDAServerURL is the DA server the node reads alt-DA inputs from. Empty disables alt-DA.
+	AltDAServerURL string
 }
 
 func L2CLSequencer() L2CLOption {

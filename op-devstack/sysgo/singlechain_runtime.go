@@ -159,6 +159,10 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 	jwtPath, jwtSecret := writeJWTSecret(t)
 
+	if cfg.AltDAStore != nil {
+		cfg = withAltDA(t, cfg)
+	}
+
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
 	if cfg.EnableTimeTravel {

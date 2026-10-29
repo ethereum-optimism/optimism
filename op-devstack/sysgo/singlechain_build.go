@@ -322,6 +322,15 @@ func startL2CLNode(
 
 	logger := t.Logger().New("component", "l2cl-"+startCfg.Key)
 
+	var altDACfg altda.CLIConfig
+	if cfg.AltDAServerURL != "" {
+		altDACfg = altda.CLIConfig{
+			Enabled:      true,
+			DAServerURL:  cfg.AltDAServerURL,
+			VerifyOnRead: true,
+		}
+	}
+
 	// Build P2P config through the same path as sysgo op-node setup.
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 	for _, f := range opNodeFlags.P2PFlags(opNodeFlags.EnvVarPrefix) {
@@ -420,7 +429,7 @@ func startL2CLNode(
 		ConductorEnabled:                false,
 		ConductorRpc:                    nil,
 		ConductorRpcTimeout:             0,
-		AltDA:                           altda.CLIConfig{},
+		AltDA:                           altDACfg,
 		IgnoreMissingPectraBlobSchedule: false,
 		ExperimentalOPStackAPI:          true,
 	}
