@@ -2494,10 +2494,8 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice Super root prestate for super cannon games.
     Claim superPrestate = Claim.wrap(bytes32(keccak256("superPrestate")));
 
-    /// @notice Function requires interop portal.
     function setUp() public override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Deploy two chains via OPCMv2 for migration testing.
         chainContracts1 = _deployChainForMigration(1000001);
@@ -3685,23 +3683,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             GameTypes.SUPER_CANNON_KONA.raw(),
             "ASR respected game type not SUPER_CANNON_KONA"
         );
-    }
-
-    /// @notice Tests that the migration function reverts when the OPTIMISM_PORTAL_INTEROP dev
-    ///         feature is not enabled.
-    function test_migrate_interopNotEnabled_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-
-        // Mock the container's isDevFeatureEnabled to return false for OPTIMISM_PORTAL_INTEROP,
-        // simulating a container that was deployed without the interop dev feature.
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.OPTIMISM_PORTAL_INTEROP)),
-            abi.encode(false)
-        );
-
-        // Execute the migration, expect revert.
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropNotEnabled.selector);
     }
 
     /// @notice Builds the dispute game configs for upgrading a migrated super-permissioned
