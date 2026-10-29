@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/eip1559"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/solabi"
 )
 
@@ -41,7 +42,7 @@ var (
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
 // Updates are applied individually, and any malformed or invalid updates are ignored.
 // Any errors encountered during the update process are returned as a joined error.
-func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*types.Receipt, cfg *rollup.Config, l1Time uint64) error {
+func UpdateSystemConfigWithL1Receipts(logger log.Logger, sysCfg *eth.SystemConfig, receipts []*types.Receipt, cfg *rollup.Config, l1Time uint64) error {
 	var result error
 	for i, rec := range receipts {
 		if rec.Status != types.ReceiptStatusSuccessful {
@@ -51,7 +52,7 @@ func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*type
 			// copy sysConfig to an update structure to preserve the original in case of error
 			updated := *sysCfg
 			if log.Address == cfg.L1SystemConfigAddress && len(log.Topics) > 0 && log.Topics[0] == ConfigUpdateEventABIHash {
-				err := ProcessSystemConfigUpdateLogEvent(&updated, log, cfg, l1Time)
+				err := ProcessSystemConfigUpdateLogEvent(logger, &updated, log, cfg, l1Time)
 				if err == nil {
 					// apply the updated structure
 					*sysCfg = updated
@@ -74,7 +75,7 @@ func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*type
 //	    UpdateType indexed updateType,
 //	    bytes data
 //	);
-func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.Log, rollupCfg *rollup.Config, l1Time uint64) error {
+func ProcessSystemConfigUpdateLogEvent(logger log.Logger, destSysCfg *eth.SystemConfig, ev *types.Log, rollupCfg *rollup.Config, l1Time uint64) error {
 	if len(ev.Topics) != 3 {
 		return fmt.Errorf("expected 3 event topics (event identity, indexed version, indexed updateType), got %d", len(ev.Topics))
 	}
@@ -98,6 +99,9 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return err
 		}
 		destSysCfg.BatcherAddr = addr
+		if logger != nil {
+			logger.Info("System config updated: batcher address", "batcher", addr)
+		}
 		return nil
 	case SystemConfigUpdateFeeScalars:
 		overhead, scalar, err := parseSystemConfigUpdateFeeScalars(ev.Data)
@@ -112,9 +116,15 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			destSysCfg.Scalar = scalar
 			// zero out the overhead, it will not affect the state-transition after Ecotone
 			destSysCfg.Overhead = eth.Bytes32{}
+			if logger != nil {
+				logger.Info("System config updated: fee scalar", "scalar", scalar)
+			}
 		} else {
 			destSysCfg.Overhead = overhead
 			destSysCfg.Scalar = scalar
+			if logger != nil {
+				logger.Info("System config updated: fee scalars", "overhead", overhead, "scalar", scalar)
+			}
 		}
 		return nil
 	case SystemConfigUpdateGasLimit:
@@ -123,6 +133,9 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return err
 		}
 		destSysCfg.GasLimit = gasLimit
+		if logger != nil {
+			logger.Info("System config updated: gas limit", "gasLimit", gasLimit)
+		}
 		return nil
 	case SystemConfigUpdateEIP1559Params:
 		params, err := parseSystemConfigUpdateEIP1559Params(ev.Data)
@@ -130,6 +143,9 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return err
 		}
 		copy(destSysCfg.EIP1559Params[:], params[24:32])
+		if logger != nil {
+			logger.Info("System config updated: EIP-1559 params", "params", destSysCfg.EIP1559Params)
+		}
 		return nil
 	case SystemConfigUpdateOperatorFeeParams:
 		params, err := parseSystemConfigUpdateOperatorFeeParams(ev.Data)
@@ -137,9 +153,15 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return err
 		}
 		destSysCfg.OperatorFeeParams = params
+		if logger != nil {
+			logger.Info("System config updated: operator fee params", "params", params)
+		}
 		return nil
 	case SystemConfigUpdateUnsafeBlockSigner:
 		// Ignored in derivation. This configurable applies to runtime configuration outside of the derivation.
+		if logger != nil {
+			logger.Info("System config updated: unsafe block signer (ignored in derivation)")
+		}
 		return nil
 	case SystemConfigUpdateMinBaseFee:
 		minBaseFee, err := parseSystemConfigUpdateMinBaseFee(ev.Data)
@@ -147,6 +169,9 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return err
 		}
 		destSysCfg.MinBaseFee = minBaseFee
+		if logger != nil {
+			logger.Info("System config updated: min base fee", "minBaseFee", minBaseFee)
+		}
 		return nil
 	case SystemConfigUpdateDAFootprintGasScalar:
 		daFootprintGasScalar, err := parseSystemConfigUpdateDAFootprintGasScalar(ev.Data)
@@ -154,6 +179,9 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return err
 		}
 		destSysCfg.DAFootprintGasScalar = daFootprintGasScalar
+		if logger != nil {
+			logger.Info("System config updated: DA footprint gas scalar", "daFootprintGasScalar", daFootprintGasScalar)
+		}
 		return nil
 	default:
 		return fmt.Errorf("%w: %s", ErrUnknownEventType, updateType)
