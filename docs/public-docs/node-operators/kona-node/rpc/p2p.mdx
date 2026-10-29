@@ -39,7 +39,7 @@ Returns the count of connected peers for both discovery and gossip networks. A n
 
 ### `opp2p_peers`
 
-Returns information about peers. If `connected` parameter is true, only returns connected peers.
+Returns information about peers. If `connected` parameter is true, only returns connected peers. A node running [without discovery](/node-operators/kona-node/configuration#running-without-discovery) returns no `ENR` and a `chainID` of `0` for its peers.
 
 | Client | Method invocation                                     |
 | ------ | ----------------------------------------------------- |
