@@ -1,6 +1,5 @@
 # Optional shadow checks. CircleCI remains responsible for the required gates.
-# Pushes include Bailiff's human-authorized external-fork branches and GitHub's
-# gh-readonly-queue branches. Avoid a second pull_request trigger for those SHAs.
+# pr-gates.yml calls this definition for develop and opt-in rwx/* pushes.
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}

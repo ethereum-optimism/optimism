@@ -20,6 +20,9 @@ ROUTING_FILES = (
 )
 
 
+CONSUMED = ("c-run_main", "c-run_rust_ci", "c-run_rust_e2e_ci", "c-run_contracts_feature_tests")
+
+
 class RwxMetadataTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -91,7 +94,10 @@ class RwxMetadataTests(unittest.TestCase):
         self.assertEqual((self.values / "run-main").read_text().strip(), str(main).lower())
         self.assertEqual((self.values / "run-rust-ci").read_text().strip(), str(rust).lower())
         params = json.loads((self.checkout / ".ci/pipeline-parameters.json").read_text())
-        self.assertEqual((self.values / "run-rust-e2e-ci").read_text().strip(), str(params.get('c-run_rust_e2e_ci', False)).lower())
+        # Route tasks and gate aggregates read these as booleans, never as absent keys.
+        for name in CONSUMED:
+            self.assertIs(type(params[name]), bool, name)
+        self.assertEqual((self.values / "run-rust-e2e-ci").read_text().strip(), str(params['c-run_rust_e2e_ci']).lower())
         return params
 
     def test_docs_only(self):
@@ -126,7 +132,7 @@ class RwxMetadataTests(unittest.TestCase):
         self.write("op-node/example.go")
         self.commit("op-node/example.go")
         params = self.assert_routes(True, False)
-        self.assertFalse(params.get("c-run_contracts_feature_tests", False))
+        self.assertIs(params["c-run_contracts_feature_tests"], False)
         self.assertTrue(params["c-run_contracts_feature_tests_short"])
         self.write("rust/kona/example.rs")
         self.commit("rust/kona/example.rs")
@@ -166,7 +172,7 @@ class RwxMetadataTests(unittest.TestCase):
 
     def test_tag_routes_release(self):
         params = self.assert_routes(False, False, CI_BRANCH="", CI_TAG="v1.0.0")
-        self.assertEqual(params, {"c-run_release": True})
+        self.assertEqual(params, {"c-run_release": True, **dict.fromkeys(CONSUMED, False)})
 
     def test_non_push_events_are_rejected(self):
         result = self.run_metadata(CI_EVENT="schedule")

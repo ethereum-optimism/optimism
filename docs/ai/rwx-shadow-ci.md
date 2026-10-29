@@ -14,10 +14,13 @@ CircleCI runs.
 | Cache rebuild | Every definition with `on.cache-rebuild` | Branch is `develop`; RWX starts these to re-warm caches |
 | CLI | Every definition | An operator runs `rwx run` |
 
-Contributor PRs never start a run and never get an RWX status check. Fork PRs
-cannot push to this repository, and only people with write access can push an
-`rwx/*` branch. To try a change in RWX before it merges, push the same commit to
-a branch named `rwx/<topic>`.
+Contributor PRs never start a run. Fork PRs cannot push to this repository, and
+only people with write access can push an `rwx/*` branch. To try your own change
+in RWX before it merges, push it to a branch named `rwx/<topic>`. RWX then posts
+its optional checks on that commit, including on any PR that shows it.
+
+Never push a commit you have not reviewed, such as a fork PR's head, to an
+`rwx/*` branch: RWX runs it with the branch's vault access.
 
 RWX reads the definitions from the pushed commit. A trigger change therefore
 takes effect for the next push that contains it.
@@ -57,12 +60,18 @@ CircleCI. Branches compare against `develop`.
 
 ## Gates
 
-`ops/ci/runtime/pr-gates.json` lists the prerequisites of each CircleCI gate and
-the RWX task that shadows each one. `ops/ci/migration/circle-alignment.py` fails
-when a CircleCI gate's `requires:` list no longer matches. Update `pr-gates.json`
-in the same PR as the CircleCI gate change. The RWX checks
-(`optimism-rwx-pr-coordinator` and the `optimism-*-shadow` checks) are not
-required by any ruleset.
+`ops/ci/runtime/pr-gates.json` lists the prerequisites of `ci-gate`,
+`required-contracts-ci` and `required-rust-ci`, and the RWX task that shadows
+each one. `ops/ci/migration/circle-alignment.py`, which runs in RWX's
+`ci-unit-tests` task, fails when one of those gates' `requires:` lists no longer
+matches. After a CircleCI gate change, update `pr-gates.json`.
+
+`required-rust-e2e` is shadowed by `.rwx/rust-e2e.yml`, whose job list lives in
+`ops/ci/runtime/rust-e2e.py`. No check compares that list with CircleCI's; update
+it by hand when the CircleCI job list changes.
+
+The RWX checks (`optimism-rwx-pr-coordinator` and the `optimism-*-shadow`
+checks) are not required by any ruleset.
 
 ## Caches and credentials
 

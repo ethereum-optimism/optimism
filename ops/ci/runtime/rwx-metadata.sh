@@ -87,7 +87,10 @@ fi
 TRIGGER_SOURCE=webhook BRANCH="${CI_BRANCH}" TAG="${CI_TAG}" SCHEDULE_NAME="" \
   CIRCLE_PROJECT_USERNAME=ethereum-optimism CIRCLE_PROJECT_REPONAME=optimism OUTPUT="${PARAMS}" \
   bash .circleci/scripts/compute-workflow-conditions.sh
-cp "${PARAMS}" .ci/pipeline-parameters.json
+# The policy writes only the workflows it enables. RWX route tasks and gate
+# aggregates require these four flags as booleans, so write false explicitly.
+jq '{"c-run_main": false, "c-run_rust_ci": false, "c-run_rust_e2e_ci": false, "c-run_contracts_feature_tests": false} + .' \
+  "${PARAMS}" > .ci/pipeline-parameters.json
 
 jq -r '."c-run_main" // false' .ci/pipeline-parameters.json > "${RWX_VALUES}/run-main"
 jq -r '."c-run_rust_ci" // false' .ci/pipeline-parameters.json > "${RWX_VALUES}/run-rust-ci"
