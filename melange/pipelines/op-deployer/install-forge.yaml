@@ -39,7 +39,7 @@ pipeline:
       printf '%s  %s\n' "$checksum" "$work/$archive" | sha256sum -c -
       tar -xzf "$work/$archive" -C "$work"
 
-      # op-deployer runs forge, and anvil for `op-deployer continue`.
+      # op-deployer runs forge, and anvil for `op-deployer prepare` and `continue`.
       for tool in forge anvil; do
         tool_path="$(find "$work" -type f -name "$tool" | head -n1)"
         if [ -z "$tool_path" ] || [ ! -x "$tool_path" ]; then
