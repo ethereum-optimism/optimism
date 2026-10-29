@@ -12,6 +12,7 @@ to.
 | --- | --- | --- |
 | `MockComplianceModule.sol` | `IComplianceModule`, which includes `IBridgeHook` | Takes custody of held items, owns the verdict registry, initiates completion |
 | `MockPolicy.sol` | `IPolicy` | Decides what is held. Operator-driven, so the devnet is scriptable |
+| `MockOptimismPortal2.sol` | n/a, replaces the Portal implementation | Optional. Calls the hook on every deposit and withdrawal, so the paths work before the real Portal's do |
 
 Deployed by `scripts/deploy/DeployComplianceMocks.s.sol`, which also points a live Portal's
 `bridgeHook` at the module.
@@ -24,9 +25,13 @@ script makes is either `onlyOwner` on the ProxyAdmin or an owner-gated setter on
 ```
 forge script scripts/deploy/DeployComplianceMocks.s.sol \
   --rpc-url $L1_RPC --broadcast --private-key $L1PAO_KEY \
-  --sig 'run((address,address,address,address))' \
-  "($PORTAL,$PROXY_ADMIN,$L1PAO,$SCREENER)"
+  --sig 'run((address,address,address,address,bool))' \
+  "($PORTAL,$PROXY_ADMIN,$L1PAO,$SCREENER,$USE_MOCK_PORTAL)"
 ```
+
+`USE_MOCK_PORTAL` decides whether the Portal keeps its own implementation or is swapped for
+`MockOptimismPortal2`. Set it `true` while the real hook paths are still in review, and `false`
+once they have landed.
 
 The script refuses to run twice. Re-pointing an existing hook means removing it first, which is
 a deliberate decision rather than something a redeploy should do silently.
@@ -49,22 +54,26 @@ given is read off the Portal first, so the call changes nothing but the hook.
 
 ## What the screener sees
 
-### Today
+The real Portal does not call the hook yet. Its `screenDeposit` / `screenWithdrawal` call
+sites arrive with ethereum-optimism/optimism#23736 and the withdrawal path behind it, and
+`completeDepositTransaction` / `completeWithdrawalTransaction` are empty stubs until then.
 
-The real Portal does not call the hook yet. Its `screenDeposit` / `screenWithdrawal` call sites
-arrive with ethereum-optimism/optimism#23736 and the withdrawal path behind it, and
-`completeDepositTransaction` / `completeWithdrawalTransaction` are empty stubs until the same
-change lands. So right now:
+**With `useMockPortal` false**, the module and policy are deployed, wired and reachable, and
+the verdict write path works, but no `Held` is ever emitted because nothing holds anything. The
+only effect on the chain is that the module joins the Portal's unsafe-target set, so a
+withdrawal cannot target it.
 
-- The module and policy are deployed, wired, and reachable at stable addresses.
-- The verdict write path works end to end.
-- No `Held` is emitted, because nothing holds anything.
-- A completion emits `Completed` and changes nothing on the Portal.
+**With `useMockPortal` true**, the full event stream below is live immediately. The mock Portal
+screens every deposit and withdrawal through the hook, holds what the policy says to hold, and
+completes on the committed terms. It verifies no merkle proofs and consults no dispute game, so
+`setProofMaturityDelaySeconds` accepts zero and a withdrawal can be proven and finalized in
+seconds.
 
-Setting `bridgeHook` has exactly one effect on the chain today: the module joins the Portal's
-unsafe-target set, so a withdrawal cannot target it.
+The mock Portal's storage mirrors the real Portal's slot for slot, including a spacer for every
+field it does not use, so installing it behind the live proxy preserves the chain's state and
+upgrading back to the real implementation finds that state intact.
 
-### Once the Portal paths land
+### The events
 
 | Event | Emitted by | When |
 | --- | --- | --- |
