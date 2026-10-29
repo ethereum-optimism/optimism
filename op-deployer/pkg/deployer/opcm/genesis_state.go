@@ -107,7 +107,7 @@ func (g *GenesisState) run(client *forge.Client, fn func(client *forge.Client, f
 	// forge isolates the top-level calls of a script unless the config turns it off, and the
 	// contracts bundle turns it on for its tests. An isolated call runs as a transaction, so a call
 	// that the script pranks bumps the nonce of the pranked address, such as the L2 depositor, and
-	// leaves it in the state. The Go script host does not isolate calls.
+	// leaves it in the state. The genesis of earlier releases has no such account.
 	env := []string{
 		"OP_DEPLOYER_STATE_IN=" + stateIn,
 		"OP_DEPLOYER_STATE_OUT=" + stateOut,
