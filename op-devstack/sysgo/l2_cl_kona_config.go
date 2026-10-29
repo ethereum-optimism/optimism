@@ -39,7 +39,6 @@ func resolveKonaL2CLConfig(t devtest.T, key string, chainID eth.ChainID, isSeque
 		syncMode = cfg.SequencerSyncMode
 	}
 	t.Require().Contains(nodeSync.Modes, syncMode, "unknown effective sync mode for kona-node")
-	t.Require().Zero(cfg.SequencerMaxSafeLag, "kona-node does not enforce SequencerMaxSafeLag yet")
 	t.Require().False(cfg.SafeDBPath != "" && cfg.FollowSource != "", "kona-node cannot record safe heads while delegating derivation to a follow source")
 
 	baseCfg := *DefaultL2CLConfig()

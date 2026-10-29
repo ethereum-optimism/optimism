@@ -63,15 +63,14 @@ func TestBackend(t *testing.T) {
 	require.NoError(t, ensemble.AddCommitter(noopcommitter.NewCommitter(committerID, logger)))
 	require.NoError(t, ensemble.AddPublisher(nooppublisher.NewPublisher(publisherID, logger)))
 	seqCfg := &fullseq.Config{
-		ChainID:             eth.ChainIDFromUInt64(123),
-		Builder:             builderID,
-		Signer:              signerID,
-		Committer:           committerID,
-		Publisher:           publisherID,
-		SequencerConfDepth:  0,
-		SequencerEnabled:    false,
-		SequencerStopped:    false,
-		SequencerMaxSafeLag: 0,
+		ChainID:            eth.ChainIDFromUInt64(123),
+		Builder:            builderID,
+		Signer:             signerID,
+		Committer:          committerID,
+		Publisher:          publisherID,
+		SequencerConfDepth: 0,
+		SequencerEnabled:   false,
+		SequencerStopped:   false,
 	}
 	sequencer, err := seqCfg.Start(context.Background(), sequencerID, &work.ServiceOpts{
 		StartOpts: &work.StartOpts{

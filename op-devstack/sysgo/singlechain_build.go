@@ -386,11 +386,10 @@ func startL2CLNode(
 			BeaconAddr: l1CL.beaconHTTPAddr,
 		},
 		Driver: driver.Config{
-			SequencerEnabled:    cfg.IsSequencer,
-			SequencerStopped:    startCfg.SequencerStopped,
-			SequencerConfDepth:  2,
-			VerifierConfDepth:   cfg.VerifierL1Confs,
-			SequencerMaxSafeLag: cfg.SequencerMaxSafeLag,
+			SequencerEnabled:   cfg.IsSequencer,
+			SequencerStopped:   startCfg.SequencerStopped,
+			SequencerConfDepth: 2,
+			VerifierConfDepth:  cfg.VerifierL1Confs,
 		},
 		Rollup:        *l2Net.rollupCfg,
 		DependencySet: startCfg.DependencySet,
@@ -572,15 +571,14 @@ func startTestSequencer(
 	}
 	ensemble.Sequencers[seqIDL2] = &workconfig.SequencerEntry{
 		Full: &fullseq.Config{
-			ChainID:             l2ChainID,
-			Builder:             bidL2,
-			Signer:              sidL2,
-			Committer:           cidL2,
-			Publisher:           pidL2,
-			SequencerConfDepth:  2,
-			SequencerEnabled:    true,
-			SequencerStopped:    false,
-			SequencerMaxSafeLag: 0,
+			ChainID:            l2ChainID,
+			Builder:            bidL2,
+			Signer:             sidL2,
+			Committer:          cidL2,
+			Publisher:          pidL2,
+			SequencerConfDepth: 2,
+			SequencerEnabled:   true,
+			SequencerStopped:   false,
 		},
 	}
 
