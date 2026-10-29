@@ -92,15 +92,15 @@ type ZKDisputeGameConfig struct {
 	ChallengerBond       *big.Int    `json:"challengerBond"`
 }
 
-// EncodableUpgradeInput is an intermediate struct that matches the encoder expectation for the UpgradeInputV2 struct.
-type EncodableUpgradeInput struct {
+// encodableUpgradeInput is an intermediate struct that matches the encoder expectation for the UpgradeInputV2 struct.
+type encodableUpgradeInput struct {
 	SystemConfig       common.Address
-	DisputeGameConfigs []EncodableDisputeGameConfig
+	DisputeGameConfigs []encodableDisputeGameConfig
 	ExtraInstructions  []ExtraInstruction
 }
 
-// EncodableDisputeGameConfig is an intermediate struct that matches the encoder expectation.
-type EncodableDisputeGameConfig struct {
+// encodableDisputeGameConfig is an intermediate struct that matches the encoder expectation.
+type encodableDisputeGameConfig struct {
 	Enabled  bool
 	InitBond *big.Int
 	GameType uint32
@@ -109,7 +109,7 @@ type EncodableDisputeGameConfig struct {
 
 // UpgradeCalldata returns the calldata of OPContractsManagerV2.upgrade with this input.
 func (u *UpgradeInputV2) UpgradeCalldata() ([]byte, error) {
-	encodableConfigs := make([]EncodableDisputeGameConfig, len(u.DisputeGameConfigs))
+	encodableConfigs := make([]encodableDisputeGameConfig, len(u.DisputeGameConfigs))
 
 	// Validate and encode each game config.
 	// We iterate over the game configs in the upgrade input config and encode them into the encodable configs.
@@ -190,7 +190,7 @@ func (u *UpgradeInputV2) UpgradeCalldata() ([]byte, error) {
 			gameArgs = gameArgs[4:]
 		}
 
-		encodableConfigs[i] = EncodableDisputeGameConfig{
+		encodableConfigs[i] = encodableDisputeGameConfig{
 			Enabled:  gameConfig.Enabled,
 			InitBond: gameConfig.InitBond,
 			GameType: uint32(gameConfig.GameType),
@@ -199,7 +199,7 @@ func (u *UpgradeInputV2) UpgradeCalldata() ([]byte, error) {
 	}
 
 	// Create encodable input
-	encodableInput := EncodableUpgradeInput{
+	encodableInput := encodableUpgradeInput{
 		SystemConfig:       u.SystemConfig,
 		DisputeGameConfigs: encodableConfigs,
 		ExtraInstructions:  u.ExtraInstructions,

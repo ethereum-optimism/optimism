@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"os"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -64,7 +66,20 @@ func TestUpgradeInputV2_UpgradeCalldata(t *testing.T) {
 	require.Equal(t, upgradeSelector+expected, hex.EncodeToString(data))
 }
 
-func TestUpgradeInputV2UpgradeCalldata_GameTypeConfigValidation(t *testing.T) {
+// upgradeFn is hand-written, so tie it to the contract's ABI. The selector hashes the full
+// tuple type, so it changes whenever the UpgradeInput struct layout does.
+func TestUpgradeInputV2_UpgradeCalldata_SelectorMatchesABISnapshot(t *testing.T) {
+	f, err := os.Open("../../../../packages/contracts-bedrock/snapshots/abi/OPContractsManagerV2.json")
+	require.NoError(t, err)
+	defer f.Close()
+	parsed, err := abi.JSON(f)
+	require.NoError(t, err)
+	method, ok := parsed.Methods["upgrade"]
+	require.True(t, ok, "OPContractsManagerV2 ABI snapshot has no upgrade method")
+	require.Equal(t, method.ID, upgradeFn.Selector[:])
+}
+
+func TestUpgradeInputV2_UpgradeCalldata_GameTypeConfigValidation(t *testing.T) {
 	tests := []struct {
 		name          string
 		gameConfig    DisputeGameConfig
@@ -336,7 +351,7 @@ func TestUpgradeInputV2UpgradeCalldata_GameTypeConfigValidation(t *testing.T) {
 	}
 }
 
-func TestUpgradeInputV2UpgradeCalldata_DisabledGames(t *testing.T) {
+func TestUpgradeInputV2_UpgradeCalldata_DisabledGames(t *testing.T) {
 	tests := []struct {
 		name        string
 		gameConfigs []DisputeGameConfig
@@ -457,7 +472,7 @@ func TestUpgradeInputV2UpgradeCalldata_DisabledGames(t *testing.T) {
 	}
 }
 
-func TestUpgradeInputV2UpgradeCalldata_GameArgsEncoding(t *testing.T) {
+func TestUpgradeInputV2_UpgradeCalldata_GameArgsEncoding(t *testing.T) {
 	t.Run("FaultDisputeGameConfig encodes correctly", func(t *testing.T) {
 		absolutePrestate := common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
 		input := &UpgradeInputV2{

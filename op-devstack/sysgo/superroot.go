@@ -82,6 +82,11 @@ func delegateCallWithSetCode(
 	ctx := t.Ctx()
 	sender := crypto.PubkeyToAddress(privateKey.PublicKey)
 
+	// A delegatecall to an address without code succeeds and does nothing.
+	code, err := client.CodeAt(ctx, target, nil)
+	require.NoError(err, "failed to read code at delegatecall target %s", target)
+	require.NotEmpty(code, "delegatecall target %s has no code", target)
+
 	// Deploy DelegateCallProxy as code reference for SetCode delegation
 	chainID, err := client.ChainID(ctx)
 	require.NoError(err)
