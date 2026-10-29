@@ -1,6 +1,6 @@
 //! Commands that mutate the gossip network.
 
-use crate::{ConnectionGate, GossipDriver};
+use crate::{ConnectPeerError, ConnectionGate, GossipDriver};
 use ipnet::IpNet;
 use libp2p::{Multiaddr, PeerId};
 use std::net::IpAddr;
@@ -47,13 +47,18 @@ pub enum GossipCommand {
     },
     /// Connect to a peer.
     ConnectPeer {
-        /// The address to dial.
+        /// The address to dial, ending in the peer's `/p2p/<peer id>`.
         address: Multiaddr,
+        /// Told once the peer connects, or why it didn't. Told at once if the peer is already
+        /// connected.
+        reply: oneshot::Sender<Result<(), ConnectPeerError>>,
     },
     /// Disconnect a peer.
     DisconnectPeer {
         /// The peer to disconnect.
         peer_id: PeerId,
+        /// Told once the peer's last connection closes, or at once if it isn't connected.
+        reply: oneshot::Sender<()>,
     },
     /// Protect a peer from disconnection.
     ProtectPeer {
@@ -77,10 +82,12 @@ impl GossipCommand {
             Self::UnblockAddr { address } => gossip.unblock_addr(address),
             Self::BlockSubnet { address } => gossip.block_subnet(address),
             Self::UnblockSubnet { address } => gossip.unblock_subnet(address),
-            Self::ConnectPeer { address } => gossip.dial_multiaddr(address),
+            Self::ConnectPeer { address, reply } => gossip.connect_peer(address, reply),
             Self::ProtectPeer { peer_id } => gossip.connection_gate.protect_peer(peer_id),
             Self::UnprotectPeer { peer_id } => gossip.unprotect_peer(peer_id),
-            Self::DisconnectPeer { peer_id } => gossip.disconnect_peer(peer_id),
+            Self::DisconnectPeer { peer_id, reply } => {
+                gossip.disconnect_peer_with_reply(peer_id, reply)
+            }
         }
     }
 }

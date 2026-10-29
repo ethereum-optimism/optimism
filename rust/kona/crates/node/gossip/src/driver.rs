@@ -16,11 +16,11 @@ use libp2p::{
 use libp2p_identity::Keypair;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{collections::HashMap, net::IpAddr, time::Duration};
-use tokio::time::Instant;
+use tokio::{sync::oneshot, time::Instant};
 
 use crate::{
-    Behaviour, BlockHandler, ConnectionGate, ConnectionGater, Event, GossipDriverBuilder, Handler,
-    PeerAddr, PublishError, StartError,
+    Behaviour, BlockHandler, ConnectPeerError, ConnectionGate, ConnectionGater, Event,
+    GossipDriverBuilder, Handler, PeerAddr, PublishError, StartError,
 };
 
 /// A driver for a [`Swarm`] instance.
@@ -60,6 +60,10 @@ pub struct GossipDriver<G: ConnectionGate> {
     next_static_peer_check: Option<Instant>,
     /// The latest ping round-trip time to each connected peer.
     pub(crate) ping: HashMap<PeerId, Duration>,
+    /// The replies to `ConnectPeer` commands, told once their peer connects or the dial fails.
+    pending_connects: HashMap<PeerId, Vec<oneshot::Sender<Result<(), ConnectPeerError>>>>,
+    /// The replies to `DisconnectPeer` commands, told once their peer's last connection closes.
+    pending_disconnects: HashMap<PeerId, Vec<oneshot::Sender<()>>>,
     /// The open connections to each peer, used to close duplicate connections.
     pub(crate) connections: HashMap<PeerId, HashMap<ConnectionId, PeerConnection>>,
     /// How long a duplicate connection stays open before it is closed.
@@ -142,6 +146,8 @@ where
             next_static_peer_check: None,
             listener_id: None,
             ping: HashMap::new(),
+            pending_connects: HashMap::new(),
+            pending_disconnects: HashMap::new(),
             connections: Default::default(),
             duplicate_connection_grace: DUPLICATE_CONNECTION_GRACE,
             next_duplicate_check: None,
@@ -312,6 +318,43 @@ where
     pub fn disconnect_peer(&mut self, peer_id: PeerId) {
         if self.swarm.disconnect_peer_id(peer_id).is_err() {
             warn!(target: "gossip", %peer_id, "Cannot disconnect a peer that isn't connected");
+        }
+    }
+
+    /// Dials the peer at `addr`, which must end in its `/p2p/<peer id>`, and tells `reply` once
+    /// the peer connects or the dial fails. A peer that is already connected is told at once.
+    pub fn connect_peer(
+        &mut self,
+        addr: Multiaddr,
+        reply: oneshot::Sender<Result<(), ConnectPeerError>>,
+    ) {
+        let Some(peer_id) = ConnectionGater::peer_id_from_addr(&addr) else {
+            let _ = reply.send(Err(ConnectPeerError::InvalidMultiaddr { addr }));
+            return;
+        };
+        if self.is_connected(&peer_id) {
+            let _ = reply.send(Ok(()));
+            return;
+        }
+        self.pending_connects.entry(peer_id).or_default().push(reply);
+        self.dial_peer(peer_id, [addr]);
+    }
+
+    /// Disconnects `peer_id`, and tells `reply` once its last connection closes. A peer that
+    /// isn't connected is told at once.
+    pub fn disconnect_peer_with_reply(&mut self, peer_id: PeerId, reply: oneshot::Sender<()>) {
+        if !self.is_connected(&peer_id) {
+            let _ = reply.send(());
+            return;
+        }
+        self.pending_disconnects.entry(peer_id).or_default().push(reply);
+        self.disconnect_peer(peer_id);
+    }
+
+    /// Tells the `ConnectPeer` commands waiting for `peer_id` the outcome of its dial.
+    fn reply_to_connects(&mut self, peer_id: &PeerId, outcome: Result<(), ConnectPeerError>) {
+        for reply in self.pending_connects.remove(peer_id).into_iter().flatten() {
+            let _ = reply.send(outcome.clone());
         }
     }
 
@@ -694,12 +737,21 @@ where
                 metrics::gauge!(crate::Metrics::GOSSIP_PEER_COUNT).set(peer_count as f64);
 
                 self.peer_connection_start.entry(peer_id).or_insert_with(Instant::now);
+                self.reply_to_connects(&peer_id, Ok(()));
             }
             SwarmEvent::OutgoingConnectionError { peer_id: _peer_id, error, .. } => {
                 debug!(target: "gossip", "Outgoing connection error: {:?}", error);
                 // Remove the peer from current_dials so it can be dialed again
                 if let Some(peer_id) = _peer_id {
                     self.connection_gate.remove_dial(&peer_id);
+                    // Our dial can fail after the peer has connected to us, for example when
+                    // both dialed at once.
+                    let outcome = if self.is_connected(&peer_id) {
+                        Ok(())
+                    } else {
+                        Err(ConnectPeerError::DialFailed(error.to_string()))
+                    };
+                    self.reply_to_connects(&peer_id, outcome);
                 }
                 metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "outgoing_error")
                     .increment(1);
@@ -750,6 +802,9 @@ where
                 }
 
                 self.ping.remove(&peer_id);
+                for reply in self.pending_disconnects.remove(&peer_id).into_iter().flatten() {
+                    let _ = reply.send(());
+                }
             }
             SwarmEvent::NewListenAddr { listener_id, address } => {
                 debug!(target: "gossip", reporter_id = ?listener_id, new_address = ?address, "New listen address");
@@ -1491,7 +1546,8 @@ mod tests {
         durations();
 
         // The command only starts the disconnect: the duration isn't recorded yet.
-        crate::GossipCommand::DisconnectPeer { peer_id: peer_2 }.handle(&mut driver_1);
+        let reply = oneshot::channel().0;
+        crate::GossipCommand::DisconnectPeer { peer_id: peer_2, reply }.handle(&mut driver_1);
         assert!(driver_1.peer_connection_start.contains_key(&peer_2));
 
         // The close records it, and removes the start time, after which pings record nothing.

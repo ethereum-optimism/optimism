@@ -62,8 +62,8 @@ pub use builder::{GossipDriverBuilder, GossipTransport, TransportBuilder};
 
 mod error;
 pub use error::{
-    DialError, GossipDriverBuilderError, HandlerEncodeError, PeerAddrError, PublishError,
-    StartError,
+    ConnectPeerError, DialError, GossipDriverBuilderError, HandlerEncodeError, PeerAddrError,
+    PublishError, StartError,
 };
 
 mod event;

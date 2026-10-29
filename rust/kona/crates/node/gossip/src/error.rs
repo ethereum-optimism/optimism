@@ -83,6 +83,21 @@ pub enum StartError {
     ListenerClosed(#[source] Option<std::io::Error>),
 }
 
+/// Why a peer that the [`crate::GossipCommand::ConnectPeer`] command dialed didn't connect.
+#[derive(Debug, Clone, Error)]
+pub enum ConnectPeerError {
+    /// The address doesn't end in the peer's `/p2p/<peer id>`.
+    #[error("Failed to extract PeerId from Multiaddr: {addr}")]
+    InvalidMultiaddr {
+        /// The address that was given.
+        addr: Multiaddr,
+    },
+    /// The swarm couldn't connect, for example because the peer refused the connection. Holds the
+    /// swarm's error message.
+    #[error("{0}")]
+    DialFailed(String),
+}
+
 /// An error type representing reasons why a peer cannot be dialed.
 #[derive(Debug, Clone, Error)]
 pub enum DialError {

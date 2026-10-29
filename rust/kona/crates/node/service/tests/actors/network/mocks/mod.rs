@@ -156,8 +156,10 @@ impl TestNetwork {
     pub(super) async fn connect_to(&self, other: &Self) -> Result<(), TestNetworkError> {
         let address = other.listen_addr().await?;
         let (applied_tx, applied_rx) = tokio::sync::oneshot::channel();
+        // Nobody waits for the reply: the caller watches for the connection itself.
+        let reply = tokio::sync::oneshot::channel().0;
         self.gossip_command_tx
-            .send((GossipCommand::ConnectPeer { address }, applied_tx))
+            .send((GossipCommand::ConnectPeer { address, reply }, applied_tx))
             .await
             .map_err(|_| TestNetworkError::CommandNotApplied)?;
         applied_rx.await.map_err(|_| TestNetworkError::CommandNotApplied)

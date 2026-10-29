@@ -7,7 +7,6 @@
 
 use alloy_primitives::map::HashMap;
 use async_trait::async_trait;
-use backon::{ExponentialBuilder, Retryable};
 use enr::{NodeId, k256::ecdsa};
 use ipnet::IpNet;
 use jsonrpsee::{
@@ -22,6 +21,7 @@ use kona_gossip::{
 use kona_peers::{OpStackEnr, peer_id_to_node_id};
 use libp2p::{PeerId, multiaddr::Protocol};
 use std::{net::IpAddr, str::FromStr, sync::Arc, time::Duration};
+use tokio::sync::oneshot;
 
 use crate::OpP2PApiServer;
 
@@ -53,10 +53,20 @@ fn internal_error(operation: &str, err: impl std::fmt::Display) -> ErrorObject<'
 /// missing.
 const SNAPSHOT_MAX_AGE: Duration = Duration::from_secs(1);
 
+/// How long `opp2p_connectPeer` waits for the peer to connect, as op-node does.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How long `opp2p_disconnectPeer` waits for the peer's connections to close.
+const DISCONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// An error with the code op-node's server assigns to a plain Go error, and its message.
+fn plain_error(message: String) -> ErrorObject<'static> {
+    ErrorObject::owned(-32000, message, None::<()>)
+}
+
 /// The error op-node's `opp2p_discoveryTable` returns when discovery is disabled.
 fn discovery_disabled() -> ErrorObject<'static> {
-    // The code op-node's server assigns to a plain error.
-    ErrorObject::owned(-32000, "discovery disabled", None::<()>)
+    plain_error("discovery disabled".to_owned())
 }
 
 #[async_trait]
@@ -347,75 +357,39 @@ impl OpP2PApiServer for P2pRpc {
         self.apply_command(GossipCommand::UnprotectPeer { peer_id }).await
     }
 
-    async fn opp2p_connect_peer(&self, _peer: String) -> RpcResult<()> {
-        use std::str::FromStr;
-        let ma = libp2p::Multiaddr::from_str(&_peer).map_err(|_| {
+    async fn opp2p_connect_peer(&self, peer: String) -> RpcResult<()> {
+        let address = libp2p::Multiaddr::from_str(&peer).map_err(|_| {
             ErrorObject::borrowed(ErrorCode::InvalidParams.code(), "Invalid multiaddr", None)
         })?;
-
-        let peer_id = ma
-            .iter()
-            .find_map(|component| match component {
-                libp2p::multiaddr::Protocol::P2p(peer_id) => Some(peer_id),
-                _ => None,
-            })
-            .ok_or_else(|| {
-                ErrorObject::borrowed(
-                    ErrorCode::InvalidParams.code(),
-                    "Impossible to extract peer ID from multiaddr",
-                    None,
-                )
-            })?;
-
-        self.apply_command(GossipCommand::ConnectPeer { address: ma }).await?;
-
-        // We need to wait until both peers are connected to each other to return from this method.
-        // We try with an exponential backoff and return an error if we fail to connect to the peer.
-        let is_connected = async || {
-            let peers = self.opp2p_peers(true).await?;
-            Ok::<bool, ErrorObject<'_>>(peers.peers.contains_key(&peer_id.to_string()))
-        };
-
-        if !is_connected
-            .retry(ExponentialBuilder::default().with_total_delay(Some(Duration::from_secs(10))))
-            .await?
-        {
+        if !address.iter().any(|component| matches!(component, Protocol::P2p(_))) {
             return Err(ErrorObject::borrowed(
                 ErrorCode::InvalidParams.code(),
-                "Peer not connected",
+                "Impossible to extract peer ID from multiaddr",
                 None,
             ));
         }
 
-        Ok(())
+        let (reply, outcome) = oneshot::channel();
+        self.apply_command(GossipCommand::ConnectPeer { address, reply }).await?;
+        match tokio::time::timeout(CONNECT_TIMEOUT, outcome).await {
+            Ok(Ok(Ok(()))) => Ok(()),
+            Ok(Ok(Err(err))) => Err(plain_error(err.to_string())),
+            Ok(Err(err)) => Err(internal_error("connect_peer", err)),
+            Err(_) => Err(plain_error("timed out connecting to the peer".to_owned())),
+        }
     }
 
     async fn opp2p_disconnect_peer(&self, peer_id: String) -> RpcResult<()> {
         let peer_id: PeerId =
             peer_id.parse().map_err(|_| ErrorObject::from(ErrorCode::InvalidParams))?;
 
-        self.apply_command(GossipCommand::DisconnectPeer { peer_id }).await?;
-
-        // We need to wait until both peers are fully disconnected to each other to return from this
-        // method. We try with an exponential backoff and return an error if we fail to
-        // disconnect from the peer.
-        let is_not_connected = async || {
-            let peers = self.opp2p_peers(true).await?;
-            Ok::<bool, ErrorObject<'_>>(!peers.peers.contains_key(&peer_id.to_string()))
-        };
-
-        if !is_not_connected
-            .retry(ExponentialBuilder::default().with_total_delay(Some(Duration::from_secs(10))))
-            .await?
-        {
-            return Err(ErrorObject::borrowed(
-                ErrorCode::InvalidParams.code(),
-                "Peers are still connected",
-                None,
-            ));
+        let (reply, closed) = oneshot::channel();
+        self.apply_command(GossipCommand::DisconnectPeer { peer_id, reply }).await?;
+        match tokio::time::timeout(DISCONNECT_TIMEOUT, closed).await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(err)) => Err(internal_error("disconnect_peer", err)),
+            Err(_) => Err(plain_error("timed out disconnecting the peer".to_owned())),
         }
-
-        Ok(())
     }
 }
 
