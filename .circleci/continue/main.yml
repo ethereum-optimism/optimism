@@ -2233,6 +2233,20 @@ jobs:
       # does not need a separate `go mod download`.
       - go-restore-cache:
           namespace: op-acceptance-tests
+      - run:
+          name: Run SafeDB resync tests with op-geth
+          command: |
+            if [ "${CIRCLE_NODE_INDEX:-0}" != "0" ]; then
+              exit 0
+            fi
+            mkdir -p op-acceptance-tests/logs/safedb-op-geth op-acceptance-tests/results
+            DEVSTACK_L2EL_KIND=op-geth LOG_LEVEL=info gotestsum \
+              --format testname \
+              --jsonfile op-acceptance-tests/logs/safedb-op-geth/raw_go_events.log \
+              --junitfile op-acceptance-tests/results/safedb-op-geth.xml \
+              -- -count=1 -p=1 -parallel=1 -timeout=10m \
+              ./op-acceptance-tests/tests/safeheaddb_elsync \
+              ./op-acceptance-tests/tests/safeheaddb_clsync
       # Run the acceptance tests (if the devnet is running)
       - run:
           name: Run acceptance tests

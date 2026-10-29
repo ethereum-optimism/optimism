@@ -5,6 +5,124 @@ diataxis: reference
 
 The `optimism` API provides methods for interacting with Kona's rollup state and configuration.
 
+## `optimism_safeHeadAtL1Block`
+
+Returns the most recent recorded L2 safe head whose derivation source L1 block is at or before the requested L1 block. Enable persistence with `--safedb.path` or `KONA_NODE_SAFEDB_PATH`.
+
+### Parameters
+
+- `l1BlockNumber` (`string`): An L1 block number encoded as a hexadecimal quantity, such as `"0x64"`. Block tags are not supported.
+
+### Returns
+
+An object containing:
+
+- `l1Block`: The recorded derivation source L1 block, with `hash` and `number` fields.
+- `safeHead`: The corresponding L2 safe head, with `hash` and `number` fields.
+
+Both block numbers in the response are JSON integers. The recorded L1 block can precede the requested block because records are sparse. A request above the recorded tip returns the latest record; it does not establish that derivation has processed the requested L1 block.
+
+### Errors
+
+| Condition | Code | Message |
+| --- | --- | --- |
+| No record exists at or before the requested L1 block | `-32000` | `not found` |
+| SafeDB is disabled | `-32000` | Contains `safe head database not enabled` |
+| Invalid parameter encoding | `-32602` | Invalid parameters |
+
+A disabled database is distinct from an enabled database with no matching record. Database read failures also return an RPC error; callers must not interpret a failed lookup as proof of historical safety.
+
+### Example
+
+```json
+{"id":1,"jsonrpc":"2.0","method":"optimism_safeHeadAtL1Block","params":["0x64"]}
+```
+
+An illustrative response:
+
+```json
+{
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "l1Block": {
+      "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "number": 98
+    },
+    "safeHead": {
+      "hash": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "number": 42
+    }
+  }
+}
+```
+
+## `superroot_atTimestamp`
+
+Returns a pre-interop, single-chain super root and its L1 derivation requirements. This method uses the `superroot` namespace rather than the `optimism` namespace. SafeDB must be enabled and contain the relevant history for a non-genesis block that is locally safe.
+
+### Parameters
+
+- `timestamp` (`string`): An L2 timestamp encoded as a hexadecimal quantity. The rollup configuration maps the timestamp to an L2 block number.
+
+### Returns
+
+The response reports derivation progress even when the requested block is not yet locally safe:
+
+- `chain_ids`: The single chain ID, encoded as a decimal string.
+- `current_l1`: The derivation cursor, with `hash` and `number` fields. Every L1 block strictly below this cursor has been fully processed. Consumers checking an L1 scope `X` must wait for `current_l1.number > X`.
+- `finalized_timestamp`: The finalized L2 head timestamp, as a JSON integer.
+- `local_safe_timestamp`: The locally safe L2 head timestamp, as a JSON integer.
+- `optimistic_at_timestamp`: A map keyed by decimal chain ID. Once the requested block is locally safe, its entry contains `output`, `output_root`, and the SafeDB-backed `required_l1` block.
+- `safe_timestamp`: The safe L2 head timestamp, as a JSON integer.
+
+When the block is locally safe, `data` contains:
+
+- `super`: The version 1 preimage, containing `chains` and a hexadecimal `timestamp`. Each chain entry contains `ChainID` as a decimal string and `Output` as an output-root hash.
+- `super_root`: The super-root hash.
+- `verified_required_l1`: The SafeDB-backed L1 block required to derive the output. For the single-chain response, it equals that chain's `required_l1`.
+
+The `output` preimage contains `blockHash`, `messagePasserStorageRoot`, and `stateRoot`. L1 block references contain a hash and a JSON integer block number. Genesis has a zero L1 requirement.
+
+When the requested block is above local-safe, `optimistic_at_timestamp` is empty and `data` is omitted. Consumers must wait for a response containing the requested output rather than treating a progress-only response as a verified super root.
+
+### Errors
+
+- A timestamp before L2 genesis returns `-32602`.
+- History not yet recorded returns `-32000` with a message containing `l1 at safe head not found`.
+- History before the available range returns `-32000` with a message containing `l1 at safe head history unavailable`. Waiting for more derivation does not restore that missing historical range.
+- A disabled database returns `-32000` with a message containing `safe head database not enabled` when a non-genesis historical lookup is required.
+- If history changes repeatedly while the output is read, the request returns `-32000` with `safe head history changed during query; retry`.
+- Database and engine read failures return RPC errors rather than an unverified root.
+
+SafeDB lookup messages for this method include the operation prefix `l1AtSafeHead@<blockNumber>`. They differ from the bare `not found` message returned by `optimism_safeHeadAtL1Block`.
+
+### Example
+
+```json
+{"id":1,"jsonrpc":"2.0","method":"superroot_atTimestamp","params":["0x6553f100"]}
+```
+
+An illustrative progress-only response when the requested block is not yet locally safe:
+
+```json
+{
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "chain_ids": ["901"],
+    "current_l1": {
+      "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "number": 100
+    },
+    "finalized_timestamp": 1699999900,
+    "local_safe_timestamp": 1699999998,
+    "optimistic_at_timestamp": {},
+    "safe_timestamp": 1699999998
+  }
+}
+```
+
 ## `optimism_outputAtBlock`
 
 Returns the output root at a specific block number, including the L2 block reference, withdrawal storage root, state root, and sync status.
