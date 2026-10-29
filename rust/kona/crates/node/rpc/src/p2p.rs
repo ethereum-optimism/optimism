@@ -113,7 +113,7 @@ impl OpP2PApiServer for P2pRpc {
                 .peer_count()
                 .await
                 .inspect_err(|e| {
-                    warn!(target: "p2p::rpc", "Failed to receive peer count: {e:?}");
+                    warn!(target: "p2p::rpc", "Failed to receive peer count: {e}");
                 })
                 .ok(),
             None => None,
@@ -123,9 +123,11 @@ impl OpP2PApiServer for P2pRpc {
 
     async fn opp2p_peers(&self, connected: bool) -> RpcResult<PeerDump> {
         let gossip = self.gossip_snapshot()?;
-        let total_connected = gossip.connected_peers.len();
-        let total_connected =
-            total_connected.try_into().map_err(|e| internal_error("u32::try_from", e))?;
+        let total_connected = gossip
+            .connected_peers
+            .len()
+            .try_into()
+            .map_err(|e| internal_error("u32::try_from", e))?;
         let peer_ids: Vec<PeerId> = if connected {
             gossip.connected_peers.iter().copied().collect()
         } else {
