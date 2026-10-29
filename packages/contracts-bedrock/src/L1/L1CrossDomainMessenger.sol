@@ -9,6 +9,7 @@ import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Features } from "src/libraries/Features.sol";
+import "src/libraries/GasConstants.sol" as GasConstants;
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -59,8 +60,41 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     address private spacer_253_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 3.1.0
-    string public constant version = "3.1.0";
+    /// @custom:semver 3.2.0
+    string public constant version = "3.2.0";
+
+    /// @notice See `GasConstants.L1_RELAY_RESERVED_GAS`.
+    uint64 internal constant LOCAL_RELAY_RESERVED_GAS = GasConstants.L1_RELAY_RESERVED_GAS;
+
+    /// @notice See `GasConstants.L1_RELAY_GAS_CHECK_BUFFER`.
+    uint64 internal constant LOCAL_RELAY_GAS_CHECK_BUFFER = GasConstants.L1_RELAY_GAS_CHECK_BUFFER;
+
+    /// @notice See `GasConstants.L2_RELAY_CONSTANT_OVERHEAD`.
+    uint64 internal constant REMOTE_RELAY_CONSTANT_OVERHEAD = GasConstants.L2_RELAY_CONSTANT_OVERHEAD;
+
+    /// @notice See `GasConstants.RELAY_CALL_OVERHEAD`.
+    uint64 internal constant REMOTE_RELAY_CALL_OVERHEAD = GasConstants.RELAY_CALL_OVERHEAD;
+
+    /// @notice See `GasConstants.L2_RELAY_RESERVED_GAS`.
+    uint64 internal constant REMOTE_RELAY_RESERVED_GAS = GasConstants.L2_RELAY_RESERVED_GAS;
+
+    /// @notice See `GasConstants.L2_RELAY_GAS_CHECK_BUFFER`.
+    uint64 internal constant REMOTE_RELAY_GAS_CHECK_BUFFER = GasConstants.L2_RELAY_GAS_CHECK_BUFFER;
+
+    // Public getters kept for ABI compatibility. They report the remote budgets that `baseGas` uses;
+    // this contract reads the `LOCAL_` and `REMOTE_` constants directly.
+
+    /// @inheritdoc CrossDomainMessenger
+    uint64 public constant override RELAY_CONSTANT_OVERHEAD = REMOTE_RELAY_CONSTANT_OVERHEAD;
+
+    /// @inheritdoc CrossDomainMessenger
+    uint64 public constant override RELAY_CALL_OVERHEAD = REMOTE_RELAY_CALL_OVERHEAD;
+
+    /// @inheritdoc CrossDomainMessenger
+    uint64 public constant override RELAY_RESERVED_GAS = REMOTE_RELAY_RESERVED_GAS;
+
+    /// @inheritdoc CrossDomainMessenger
+    uint64 public constant override RELAY_GAS_CHECK_BUFFER = REMOTE_RELAY_GAS_CHECK_BUFFER;
 
     /// @notice Contract of the SystemConfig.
     ISystemConfig public systemConfig;
@@ -158,6 +192,18 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     }
 
     /// @inheritdoc CrossDomainMessenger
+    function baseGas(bytes memory _message, uint32 _minGasLimit) public pure override returns (uint64) {
+        return _baseGas({
+            _message: _message,
+            _minGasLimit: _minGasLimit,
+            _relayConstantOverhead: REMOTE_RELAY_CONSTANT_OVERHEAD,
+            _relayCallOverhead: REMOTE_RELAY_CALL_OVERHEAD,
+            _relayReservedGas: REMOTE_RELAY_RESERVED_GAS,
+            _relayGasCheckBuffer: REMOTE_RELAY_GAS_CHECK_BUFFER
+        });
+    }
+
+    /// @inheritdoc CrossDomainMessenger
     function _sendMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal override {
         portal.depositTransaction{ value: _value }({
             _to: _to, _value: _value, _gasLimit: _gasLimit, _isCreation: false, _data: _data
@@ -172,5 +218,15 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     /// @inheritdoc CrossDomainMessenger
     function _isUnsafeTarget(address _target) internal view override returns (bool) {
         return _target == address(this) || _target == address(portal);
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function _localRelayReservedGas() internal pure override returns (uint64) {
+        return LOCAL_RELAY_RESERVED_GAS;
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function _localRelayGasCheckBuffer() internal pure override returns (uint64) {
+        return LOCAL_RELAY_GAS_CHECK_BUFFER;
     }
 }

@@ -104,6 +104,8 @@ abstract contract L2ToL2CrossDomainMessenger_TestInit is Test {
 ///         contract.
 contract L2ToL2CrossDomainMessenger_CrossDomainMessageSender_Test is L2ToL2CrossDomainMessenger_TestInit {
     /// @notice Tests that the `crossDomainMessageSender` function returns the correct value.
+    ///         Not isolated: transient storage set by one top-level call must persist into the next.
+    /// forge-config: default.isolate = false
     function testFuzz_crossDomainMessageSender_succeeds(address _sender) external {
         // Set `entered` to non-zero value to prevent NotEntered revert
         l2ToL2CrossDomainMessenger.setEntered(1);
@@ -132,6 +134,8 @@ contract L2ToL2CrossDomainMessenger_CrossDomainMessageSender_Test is L2ToL2Cross
 /// @notice Tests the `crossDomainMessageSource` function of the `L2ToL2CrossDomainMessenger` contract.
 contract L2ToL2CrossDomainMessenger_CrossDomainMessageSource_Test is L2ToL2CrossDomainMessenger_TestInit {
     /// @notice Tests that the `crossDomainMessageSource` function returns the correct value.
+    ///         Not isolated: transient storage set by one top-level call must persist into the next.
+    /// forge-config: default.isolate = false
     function testFuzz_crossDomainMessageSource_succeeds(uint256 _source) external {
         // Set `entered` to non-zero value to prevent NotEntered revert
         l2ToL2CrossDomainMessenger.setEntered(1);
@@ -160,6 +164,8 @@ contract L2ToL2CrossDomainMessenger_CrossDomainMessageSource_Test is L2ToL2Cross
 /// @notice Tests the `crossDomainMessageContext` function of the `L2ToL2CrossDomainMessenger` contract.
 contract L2ToL2CrossDomainMessenger_CrossDomainMessageContext_Test is L2ToL2CrossDomainMessenger_TestInit {
     /// @notice Tests that the `crossDomainMessageContext` function returns the correct value.
+    ///         Not isolated: transient storage set by one top-level call must persist into the next.
+    /// forge-config: default.isolate = false
     function testFuzz_crossDomainMessageContext_succeeds(address _sender, uint256 _source) external {
         // Set `entered` to non-zero value to prevent NotEntered revert
         l2ToL2CrossDomainMessenger.setEntered(1);
@@ -413,6 +419,8 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
 
     /// @notice Tests that the `relayMessage` function succeeds and stores the correct metadata in
     ///         transient storage.
+    ///         Not isolated: transient storage set by one top-level call must persist into the next.
+    /// forge-config: default.isolate = false
     function testFuzz_relayMessage_metadataStore_succeeds(
         uint256 _source,
         uint256 _nonce,
@@ -533,6 +541,8 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
     }
 
     /// @notice Tests that the `relayMessage` function reverts when reentrancy is attempted.
+    ///         Not isolated: transient storage set by one top-level call must persist into the next.
+    /// forge-config: default.isolate = false
     function testFuzz_relayMessage_reentrant_reverts(
         uint256 _source1, // source passed to `relayMessage` by the initial call.
         address _sender1, // sender passed to `relayMessage` by the initial call.
