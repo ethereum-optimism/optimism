@@ -382,7 +382,9 @@ func (u *EOA) SendInvalidExecMessage(initMsg *InitMessage) *ExecMessage {
 	}
 
 	// The Fn just returns the pre-built trigger
-	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](txplan.Combine(u.Plan(),
+		// The supernode can replace the block within seconds; poll faster than the default backoff.
+		txplan.WithRetryInclusion(u.el.stackEL().EthClient(), 60, retry.Fixed(250*time.Millisecond))))
 	tx.Content.DependOn(&initMsg.Tx.Result)
 	tx.Content.Fn(func(ctx context.Context) (*txintent.ExecTrigger, error) {
 		return execTrigger, nil
