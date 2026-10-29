@@ -6,27 +6,25 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum/go-ethereum/log"
 )
 
 func TestDynamicLogHandler_SetLogLevel(t *testing.T) {
 	h := new(testRecorder)
-	d := NewDynamicLogHandler(log.LevelInfo, h)
-	logger := log.NewLogger(d)
+	d := NewDynamicLogHandler(LevelInfo, h)
+	logger := NewLogger(d)
 	logger.Info("hello world") // y
 	logger.Error("error!")     // y
 	logger.Debug("debugging")  // n
 
 	// increase log level
-	d.SetLogLevel(log.LevelDebug)
+	d.SetLogLevel(LevelDebug)
 
 	logger.Info("hello again")        // y
 	logger.Debug("can see debug now") // y
 	logger.Trace("but no trace")      // n
 
 	// and decrease log level
-	d.SetLogLevel(log.LevelWarn)
+	d.SetLogLevel(LevelWarn)
 	logger.Warn("visible warning")           // y
 	logger.Info("info should be hidden now") // n
 	logger.Error("another error")            // y
@@ -42,19 +40,19 @@ func TestDynamicLogHandler_SetLogLevel(t *testing.T) {
 
 func TestDynamicLogHandler_WithAttrs(t *testing.T) {
 	h := new(testRecorder)
-	d := NewDynamicLogHandler(log.LevelInfo, h)
-	logger := log.NewLogger(d)
+	d := NewDynamicLogHandler(LevelInfo, h)
+	logger := NewLogger(d)
 	logwith := logger.With("a", 1) // derived logger
 
 	// increase log level
-	d.SetLogLevel(log.LevelDebug)
+	d.SetLogLevel(LevelDebug)
 
 	logwith.Info("info0")   // y
 	logwith.Debug("debug0") // y
 	logwith.Trace("trace0") // n
 
 	// and decrease log level
-	d.SetLogLevel(log.LevelWarn)
+	d.SetLogLevel(LevelWarn)
 
 	logwith.Info("info1")   // n
 	logwith.Warn("warn1")   // y

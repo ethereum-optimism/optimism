@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var _ CommonEnricher = (*AnchorStateRegistryEnricher)(nil)

@@ -14,12 +14,12 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )
 
@@ -30,6 +30,13 @@ var (
 	backoffPeriod                                    = 1 * time.Second // backoff when chains aren't ready
 	errorBackoffPeriod                               = 2 * time.Second // backoff on errors
 )
+
+// ErrRewindPastBackfill halts the activity when a rewind would remove the
+// first verified timestamp of a node that cold-started after activation. That
+// rewind clears every logsDB, which deletes the cold-start backfill below the
+// first verified timestamp. Backfill runs only at cold start, so the node would
+// keep verifying without it and invalidate valid blocks.
+var ErrRewindPastBackfill = errors.New("rewind would delete cold-start log backfill")
 
 // DefaultLogBackfillDepth matches the interop message expiry window so backfill
 // covers every initiating message that could still be referenced by an
@@ -429,6 +436,13 @@ func (i *Interop) progress() (time.Duration, error) {
 				"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
 			return 0, fmt.Errorf("interop halted due to unavailable history: %w", err)
 		}
+		if errors.Is(err, ErrRewindPastBackfill) {
+			i.metrics.ActivityErrors.WithLabelValues("interop", "rewind_past_backfill").Inc()
+			i.metrics.InteropActivityState.Set(InteropStateHalted)
+			i.log.Error("interop activity halted: L1 reorg reached the first verified timestamp", "err", err,
+				"remediation", "delete VerifiedAtTimestamp.db and the chain-<id> logs DB directories from the data dir, then restart; cold start re-runs log backfill")
+			return 0, fmt.Errorf("interop halted to preserve log backfill: %w", err)
+		}
 		i.metrics.ActivityErrors.WithLabelValues("interop", "progress").Inc()
 		i.log.Error("failed to progress and record interop", "err", err)
 		return errorBackoffPeriod, nil
@@ -493,12 +507,14 @@ func checkPreconditions(obs RoundObservation) *StepOutput {
 		output := StepOutput{Decision: DecisionWait}
 		return &output
 	}
-	if !obs.ChainsReady {
-		output := StepOutput{Decision: DecisionWait}
-		return &output
-	}
+	// A rewind takes priority over waiting. The frontier is often unavailable
+	// exactly because the L1 reorg pulled local-safe back.
 	if obs.L1NeedsRewind {
 		output := StepOutput{Decision: DecisionRewind}
+		return &output
+	}
+	if !obs.ChainsReady {
+		output := StepOutput{Decision: DecisionWait}
 		return &output
 	}
 	if !obs.L1Consistent {
@@ -620,18 +636,10 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 		return obs, nil
 	}
 
-	ready, err := i.checkChainsReady(obs.NextTimestamp)
-	if err != nil {
-		if errors.Is(err, ethereum.NotFound) {
-			obs.ChainsReady = false
-			return obs, nil
-		}
-		return obs, err
-	}
-	obs.ChainsReady = true
-	obs.BlocksAtTS = ready.blocks
-	obs.L1Heads = ready.l1Heads
-
+	// Check the accepted L1 inclusion before the frontier. An L1 reorg can pull
+	// local-safe back below the last verified timestamp, which makes the next
+	// frontier unavailable. The accepted state is stale in that case and must
+	// be rewound, not left in place while the round waits.
 	if obs.LastVerified != nil {
 		same, err := i.l1Checker.SameL1Chain(i.ctx, []eth.BlockID{obs.LastVerified.L1Inclusion})
 		if err != nil {
@@ -643,6 +651,18 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 			return obs, nil
 		}
 	}
+
+	ready, err := i.checkChainsReady(obs.NextTimestamp)
+	if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			obs.ChainsReady = false
+			return obs, nil
+		}
+		return obs, err
+	}
+	obs.ChainsReady = true
+	obs.BlocksAtTS = ready.blocks
+	obs.L1Heads = ready.l1Heads
 
 	// Check the new frontier independently from the accepted L1 head. If the
 	// accepted head is still canonical but a frontier L1 head is stale, waiting
@@ -952,6 +972,11 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		return RewindPlan{}, err
 	}
 	if lastTS <= first {
+		// Backfill is clamped to activation, so a node that started verifying
+		// at activation holds no backfill to lose.
+		if i.logBackfillDepth > 0 && first > i.activationTimestamp {
+			return RewindPlan{}, fmt.Errorf("%w: first verified timestamp %d", ErrRewindPastBackfill, first)
+		}
 		if plan.ResetAllChainsTo != nil {
 			payloads, err := i.captureRewindPayloadsAtTimestamp(*plan.ResetAllChainsTo)
 			if err != nil {

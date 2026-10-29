@@ -15,13 +15,13 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // L1Miner wraps a L1Replica with instrumented block building ability.
@@ -106,7 +106,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			root := crypto.Keccak256Hash([]byte("fake-beacon-block-root"), header.Number.Bytes())
 			header.ParentBeaconRoot = &root
 
-			// Copied from op-e2e/actions/helpers/engineapi/block_processor.go
+			// Process the EIP-4788 beacon root at the start of the block.
 			// TODO(client-pod#826)
 			// Unfortunately this is not part of any Geth environment setup,
 			// we just have to apply it, like how the Geth block-builder worker does.
@@ -147,7 +147,7 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 		getPendingIndex := func(from common.Address) uint64 {
 			return s.pendingIndices[from]
 		}
-		tx := firstValidTx(t, from, getPendingIndex, s.Eth.TxPool().ContentFrom, s.EthClient().NonceAt)
+		tx := FirstValidTx(t, from, getPendingIndex, s.Eth.TxPool().ContentFrom, s.EthClient().NonceAt)
 		s.IncludeTx(t, tx)
 		s.pendingIndices[from] = s.pendingIndices[from] + 1 // won't retry the tx
 	}

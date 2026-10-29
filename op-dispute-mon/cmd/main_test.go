@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-core/superchain"
+	"github.com/ethereum-optimism/optimism/op-core/superchain/bundle"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -155,7 +155,7 @@ func TestGameFactoryAddress(t *testing.T) {
 func TestNetwork(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		opSepoliaChainId := uint64(11155420)
-		opSepolia, err := superchain.GetChain(opSepoliaChainId)
+		opSepolia, err := bundle.GetChain(opSepoliaChainId)
 		require.NoError(t, err)
 		opSepoliaCfg, err := opSepolia.Config()
 		require.NoError(t, err)

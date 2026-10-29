@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -294,6 +295,46 @@ func (n *L2Network) DepositContractAddr() common.Address {
 func (n *L2Network) DeriveData(blocks int) (channels []derive.ChannelID, channelFrames map[derive.ChannelID][]derive.Frame, l2Txs map[common.Address][]*ethtypes.Transaction) {
 	channels, channelFrames, l2Txs, _ = n.deriveData(blocks)
 	return
+}
+
+// WaitForBatchTransaction waits for and returns the first transaction to this network's batch
+// inbox included after the given L1 block number, along with its L1 inclusion block.
+// Transactions are matched by batch-inbox recipient; the sender is not checked.
+func (n *L2Network) WaitForBatchTransaction(afterL1Block uint64) (*ethtypes.Transaction, eth.BlockInfo) {
+	ctx, cancel := context.WithTimeout(n.ctx, 2*DefaultTimeout)
+	defer cancel()
+
+	l1Client := n.PrimaryL1EL().EthClient()
+	batchInbox := n.inner.RollupConfig().BatchInboxAddress
+	nextBlock := afterL1Block + 1
+	var batchTx *ethtypes.Transaction
+	var inclusionBlock eth.BlockInfo
+	err := wait.For(ctx, 200*time.Millisecond, func() (bool, error) {
+		head, err := l1Client.InfoByLabel(ctx, eth.Unsafe)
+		if err != nil {
+			n.log.Debug("Failed to get L1 unsafe head while waiting for batch transaction", "chain", n.ChainID(), "err", err)
+			return false, nil
+		}
+		for nextBlock <= head.NumberU64() {
+			info, txs, err := l1Client.InfoAndTxsByNumber(ctx, nextBlock)
+			if err != nil {
+				n.log.Debug("Failed to get L1 block while waiting for batch transaction", "chain", n.ChainID(), "l1_block", nextBlock, "err", err)
+				return false, nil
+			}
+			for _, tx := range txs {
+				if tx.To() != nil && *tx.To() == batchInbox {
+					batchTx = tx
+					inclusionBlock = info
+					n.log.Info("Batch transaction found", "chain", n.ChainID(), "l1_block", nextBlock, "tx", tx.Hash())
+					return true, nil
+				}
+			}
+			nextBlock++
+		}
+		return false, nil
+	})
+	n.require.NoError(err, "Expected a batch transaction after L1 block %d (scanned through %d)", afterL1Block, nextBlock-1)
+	return batchTx, inclusionBlock
 }
 
 // DeriveSpanBatches monitors upcoming L1 blocks and returns the span batches submitted in them.

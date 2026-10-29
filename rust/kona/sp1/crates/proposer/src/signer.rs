@@ -9,57 +9,34 @@ use std::{str::FromStr, sync::Arc};
 
 use alloy_consensus::TxEnvelope;
 use alloy_eips::Decodable2718;
-use alloy_network::{Ethereum, EthereumWallet, TransactionBuilder};
+use alloy_network::{Ethereum, EthereumWallet, NetworkTransactionBuilder};
 use alloy_primitives::{Address, Bytes};
-use alloy_provider::{Provider, ProviderBuilder, Web3Signer};
+use alloy_provider::{Provider, ProviderBuilder, RootProvider};
 use alloy_rpc_types_eth::{TransactionReceipt, TransactionRequest};
 use alloy_signer_local::PrivateKeySigner;
 use alloy_transport_http::reqwest::Url;
 use anyhow::{Context, Result};
+use kona_sources::ReloadingRpcClient;
+use kona_sp1_host_utils::tls::ClientTls;
 use tokio::{sync::Mutex, time::Duration};
 
-use crate::env_var;
+use crate::{
+    env_var,
+    tx_sender::{self, FeeCaps},
+};
 
-/// Number of L1 confirmations required before a transaction is considered included.
-pub const NUM_CONFIRMATIONS: u64 = 3;
-
-/// Optional operator caps on EIP-1559 fee fields, applied after fee
-/// estimation (see [`clamp_fee_caps`]). Unset caps leave the estimate.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct FeeCaps {
-    /// Cap on max fee per gas, in wei.
-    pub max_fee_per_gas: Option<u128>,
-    /// Cap on max priority fee per gas, in wei.
-    pub max_priority_fee_per_gas: Option<u128>,
-}
-
-/// Clamps a filled request's EIP-1559 fee fields to the configured caps,
-/// then restores the `priority <= max_fee` invariant. Fields the filler
-/// left unset are untouched (legacy/pre-1559 requests pass through).
-pub const fn clamp_fee_caps(request: &mut TransactionRequest, caps: FeeCaps) {
-    if let (Some(cap), Some(fee)) = (caps.max_fee_per_gas, request.max_fee_per_gas) &&
-        fee > cap
-    {
-        request.max_fee_per_gas = Some(cap);
-    }
-    if let (Some(cap), Some(prio)) =
-        (caps.max_priority_fee_per_gas, request.max_priority_fee_per_gas) &&
-        prio > cap
-    {
-        request.max_priority_fee_per_gas = Some(cap);
-    }
-    if let (Some(fee), Some(prio)) = (request.max_fee_per_gas, request.max_priority_fee_per_gas) &&
-        prio > fee
-    {
-        request.max_priority_fee_per_gas = Some(fee);
-    }
-}
-
-#[derive(Clone, Debug)]
 /// The type of signer to use for signing transactions.
+#[derive(Clone, Debug)]
 pub enum Signer {
-    /// The signer URL and address.
-    Web3Signer(Url, Address),
+    /// The op-signer endpoint, address it signs for, and optional mTLS client.
+    Web3Signer {
+        /// op-signer JSON-RPC endpoint.
+        url: Url,
+        /// Address op-signer uses for L1 transactions.
+        address: Address,
+        /// op-signer client over mutual TLS; see [`ReloadingRpcClient`] for reloading.
+        mtls: Option<ReloadingRpcClient>,
+    },
     /// The local signer.
     LocalSigner(PrivateKeySigner),
 }
@@ -68,14 +45,19 @@ impl Signer {
     /// Returns the L1 address transactions are signed with.
     pub const fn address(&self) -> Address {
         match self {
-            Self::Web3Signer(_, address) => *address,
+            Self::Web3Signer { address, .. } => *address,
             Self::LocalSigner(signer) => signer.address(),
         }
     }
 
-    /// Creates a new Web3 signer with the given URL and address.
-    pub const fn new_web3_signer(url: Url, address: Address) -> Self {
-        Self::Web3Signer(url, address)
+    /// Creates a new Web3 signer with the given URL, address, and optional mTLS material.
+    pub fn new_web3_signer(url: Url, address: Address, tls: Option<ClientTls>) -> Result<Self> {
+        anyhow::ensure!(
+            tls.is_none() || url.scheme() == "https",
+            "Web3Signer URL must use HTTPS when TLS material is configured"
+        );
+        let mtls = tls.map(|tls| tls.rpc_client(url.clone())).transpose()?;
+        Ok(Self::Web3Signer { url, address, mtls })
     }
 
     /// Creates a new local signer from a private key string.
@@ -85,10 +67,11 @@ impl Signer {
         Ok(Self::LocalSigner(private_key))
     }
 
-    /// Builds a signer from the environment. `KONA_SP1_PROPOSER_SIGNER_URL` and
-    /// `KONA_SP1_PROPOSER_SIGNER_ADDRESS` select [`Signer::Web3Signer`]; otherwise,
-    /// `KONA_SP1_PROPOSER_PRIVATE_KEY` selects [`Signer::LocalSigner`]. Setting only one
-    /// `Web3Signer` variable is an error instead of falling back to the local key.
+    /// Builds a signer from the environment. `OP_ZK_PROPOSER_SIGNER_URL` and
+    /// `OP_ZK_PROPOSER_SIGNER_ADDRESS` select [`Signer::Web3Signer`]; optional signer
+    /// TLS variables configure mutual TLS. Otherwise, `OP_ZK_PROPOSER_PRIVATE_KEY`
+    /// selects [`Signer::LocalSigner`]. Setting only one `Web3Signer` variable, or setting
+    /// the local key alongside the `Web3Signer`, is an error.
     pub async fn from_env() -> Result<Self> {
         let signer_url_name = env_var("SIGNER_URL");
         let signer_address_name = env_var("SIGNER_ADDRESS");
@@ -97,16 +80,23 @@ impl Signer {
         let signer_address = std::env::var(&signer_address_name).ok();
         match (signer_url, signer_address) {
             (Some(url), Some(address)) => {
+                anyhow::ensure!(
+                    std::env::var_os(&private_key_name).is_none(),
+                    "{private_key_name} and {signer_url_name} are mutually exclusive; configure \
+                     either the local key or the Web3Signer"
+                );
                 let signer_url = Url::parse(&url)
                     .with_context(|| format!("Failed to parse {signer_url_name}"))?;
                 let signer_address = Address::from_str(&address)
                     .with_context(|| format!("Failed to parse {signer_address_name}"))?;
+                let tls = ClientTls::from_env(crate::ENV_VAR_PREFIX, "SIGNER")?;
                 tracing::info!(
-                    url = %crate::config::redacted_url(&signer_url),
+                    url = %kona_sources::redacted_url(&signer_url),
                     address = %signer_address,
+                    mtls = tls.is_some(),
                     "Using Web3Signer ({signer_url_name} + {signer_address_name})"
                 );
-                Ok(Self::new_web3_signer(signer_url, signer_address))
+                Self::new_web3_signer(signer_url, signer_address, tls)
             }
             (Some(_), None) => {
                 anyhow::bail!(
@@ -121,6 +111,12 @@ impl Signer {
                 )
             }
             (None, None) => {
+                let tls = ClientTls::from_env(crate::ENV_VAR_PREFIX, "SIGNER")?;
+                anyhow::ensure!(
+                    tls.is_none(),
+                    "{signer_url_name} and {signer_address_name} must be set when signer TLS \
+                     material is configured"
+                );
                 let private_key_str = std::env::var(&private_key_name).map_err(|_| {
                     anyhow::anyhow!(
                         "None of the required signer configurations are set in environment:\n\
@@ -139,88 +135,34 @@ impl Signer {
         }
     }
 
-    /// Sends a transaction request, signed by the configured `signer`, with a caller-supplied
-    /// confirmation timeout (in seconds). The filled request's fee fields are
-    /// clamped to `fee_caps` before signing (see [`clamp_fee_caps`]).
-    pub async fn send_transaction_request_with_timeout(
+    /// Signs a fully populated EIP-1559 request with the local key or through op-signer's
+    /// `eth_signTransaction`.
+    pub(crate) async fn sign_transaction(
         &self,
-        l1_rpc: Url,
-        mut transaction_request: TransactionRequest,
-        timeout_secs: u64,
-        fee_caps: FeeCaps,
-    ) -> Result<TransactionReceipt> {
+        mut request: TransactionRequest,
+    ) -> Result<TxEnvelope> {
         match self {
-            Self::Web3Signer(signer_url, signer_address) => {
-                // Set the from address to the signer address.
-                transaction_request.set_from(*signer_address);
-
-                // Fill the transaction request with all of the relevant gas and nonce information.
-                let provider = ProviderBuilder::new().network::<Ethereum>().connect_http(l1_rpc);
-                let filled_tx = provider.fill(transaction_request).await?;
-
-                // Sign the transaction request using the Web3Signer.
-                let web3_provider =
-                    ProviderBuilder::new().network::<Ethereum>().connect_http(signer_url.clone());
-                let signer = Web3Signer::new(web3_provider.clone(), *signer_address);
-
-                let mut tx = filled_tx.as_builder().unwrap().clone();
-                tx.normalize_data();
-                clamp_fee_caps(&mut tx, fee_caps);
-
-                let raw: Bytes =
-                    signer.provider().client().request("eth_signTransaction", (tx,)).await?;
-
-                let tx_envelope = TxEnvelope::decode_2718(&mut raw.as_ref()).context(
-                    "eth_signTransaction returned bytes that do not decode as a signed envelope",
-                )?;
-
-                let receipt = provider
-                    .send_tx_envelope(tx_envelope)
+            Self::Web3Signer { url, mtls, .. } => {
+                request.normalize_data();
+                let provider: RootProvider = mtls.as_ref().map_or_else(
+                    || ProviderBuilder::default().connect_http(url.clone()),
+                    |mtls| ProviderBuilder::default().connect_client(mtls.client()),
+                );
+                let raw: Bytes = provider
+                    .client()
+                    .request("eth_signTransaction", (request,))
                     .await
-                    .context("Failed to send transaction")?
-                    .with_required_confirmations(NUM_CONFIRMATIONS)
-                    .with_timeout(Some(Duration::from_secs(timeout_secs)))
-                    .get_receipt()
-                    .await?;
-
-                Ok(receipt)
+                    .context("eth_signTransaction failed")?;
+                TxEnvelope::decode_2718(&mut raw.as_ref()).context(
+                    "eth_signTransaction returned bytes that do not decode as a signed envelope",
+                )
             }
             Self::LocalSigner(private_key) => {
-                let provider = ProviderBuilder::new()
-                    .network::<Ethereum>()
-                    .wallet(EthereumWallet::new(private_key.clone()))
-                    .connect_http(l1_rpc.clone());
-
-                // Ensure the request has a `from` address so the wallet filler can sign it.
-                transaction_request.set_from(private_key.address());
-                // The proposer never deploys contracts; a request without a
-                // `to` address is a bug upstream of the signer.
-                anyhow::ensure!(
-                    transaction_request.to.is_some(),
-                    "transaction request has no `to` address"
-                );
-
-                // Fill on a separate wallet-less provider so the fee estimates
-                // can be clamped: the wallet provider signs during fill,
-                // returning an envelope, and a signed envelope cannot be
-                // clamped. The wallet provider then re-fills the already-set
-                // fields as no-ops and signs.
-                let fill_provider =
-                    ProviderBuilder::new().network::<Ethereum>().connect_http(l1_rpc);
-                let filled = fill_provider.fill(transaction_request).await?;
-                let mut request = filled.as_builder().expect("wallet-less fill").clone();
-                clamp_fee_caps(&mut request, fee_caps);
-
-                let receipt = provider
-                    .send_transaction(request)
-                    .await
-                    .context("Failed to send transaction")?
-                    .with_required_confirmations(NUM_CONFIRMATIONS)
-                    .with_timeout(Some(Duration::from_secs(timeout_secs)))
-                    .get_receipt()
-                    .await?;
-
-                Ok(receipt)
+                let wallet = EthereumWallet::new(private_key.clone());
+                Ok(<TransactionRequest as NetworkTransactionBuilder<Ethereum>>::build(
+                    request, &wallet,
+                )
+                .await?)
             }
         }
     }
@@ -246,91 +188,177 @@ impl SignerLock {
         self.cached_address
     }
 
-    /// Sends a transaction request with a caller-supplied confirmation timeout (in seconds).
-    /// Transactions are serialized via a Mutex to prevent nonce conflicts.
-    pub async fn send_transaction_request_with_timeout(
+    /// Sends `request` through [`tx_sender`] while holding the signer lock.
+    pub async fn send_transaction<P: Provider>(
         &self,
-        l1_rpc: Url,
-        transaction_request: TransactionRequest,
-        timeout_secs: u64,
+        provider: &P,
+        request: TransactionRequest,
+        timeout: Duration,
         fee_caps: FeeCaps,
     ) -> Result<TransactionReceipt> {
         let signer = self.inner.lock().await;
-        signer
-            .send_transaction_request_with_timeout(
-                l1_rpc,
-                transaction_request,
-                timeout_secs,
-                fee_caps,
-            )
-            .await
+        tx_sender::send_transaction(provider, &signer, request, timeout, fee_caps).await
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{FeeCaps, clamp_fee_caps};
-    use alloy_rpc_types_eth::TransactionRequest;
+    use std::{env, path::Path};
 
-    fn filled_request(max_fee: u128, max_priority: u128) -> TransactionRequest {
-        TransactionRequest {
-            max_fee_per_gas: Some(max_fee),
-            max_priority_fee_per_gas: Some(max_priority),
+    use alloy_eips::Encodable2718;
+    use alloy_network::{Ethereum, EthereumWallet, NetworkTransactionBuilder};
+    use alloy_primitives::{Bytes, TxKind, U256};
+    use alloy_rpc_types_eth::{TransactionInput, TransactionRequest};
+    use alloy_signer_local::PrivateKeySigner;
+    use httpmock::{MockServer, prelude::POST};
+    use serde_json::json;
+    use serial_test::serial;
+
+    use super::{Address, Signer};
+
+    /// op-signer receives every field it needs to sign, with calldata in `data`, and its
+    /// envelope comes back decoded.
+    #[tokio::test]
+    async fn web3_signer_requests_a_complete_transaction() {
+        let key = PrivateKeySigner::random();
+        let to = Address::repeat_byte(0x11);
+        let request = TransactionRequest {
+            from: Some(key.address()),
+            to: Some(TxKind::Call(to)),
+            value: Some(U256::from(5)),
+            input: TransactionInput::new(Bytes::from_static(&[0xab, 0xcd])),
+            nonce: Some(7),
+            gas: Some(100_000),
+            chain_id: Some(1),
+            max_fee_per_gas: Some(21_000_000_000),
+            max_priority_fee_per_gas: Some(1_000_000_000),
             ..Default::default()
+        };
+        let signed = <TransactionRequest as NetworkTransactionBuilder<Ethereum>>::build(
+            request.clone(),
+            &EthereumWallet::new(key.clone()),
+        )
+        .await
+        .unwrap();
+
+        let server = MockServer::start_async().await;
+        let op_signer = server
+            .mock_async(|when, then| {
+                when.method(POST).json_body_includes(
+                    json!({
+                        "method": "eth_signTransaction",
+                        "params": [{
+                            "from": key.address(),
+                            "to": to,
+                            "value": "0x5",
+                            "data": "0xabcd",
+                            "nonce": "0x7",
+                            "gas": "0x186a0",
+                            "chainId": "0x1",
+                            "maxFeePerGas": "0x4e3b29200",
+                            "maxPriorityFeePerGas": "0x3b9aca00",
+                        }],
+                    })
+                    .to_string(),
+                );
+                let raw = Bytes::from(signed.encoded_2718());
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(json!({"jsonrpc": "2.0", "id": 0, "result": raw}).to_string());
+            })
+            .await;
+
+        let signer =
+            Signer::new_web3_signer(server.url("/").parse().unwrap(), key.address(), None).unwrap();
+        let envelope = signer.sign_transaction(request).await.unwrap();
+        op_signer.assert_async().await;
+        assert_eq!(envelope, signed);
+    }
+
+    fn clear_signer_env() {
+        for suffix in [
+            "PRIVATE_KEY",
+            "SIGNER_URL",
+            "SIGNER_ADDRESS",
+            "SIGNER_TLS_CA",
+            "SIGNER_TLS_CERT",
+            "SIGNER_TLS_KEY",
+        ] {
+            // SAFETY: The environment-mutating tests in this module are serialized.
+            unsafe { env::remove_var(crate::env_var(suffix)) };
         }
     }
 
-    #[test]
-    fn clamps_both_fees_to_caps() {
-        let mut request = filled_request(100, 50);
-        clamp_fee_caps(
-            &mut request,
-            FeeCaps { max_fee_per_gas: Some(60), max_priority_fee_per_gas: Some(10) },
-        );
-        assert_eq!(request.max_fee_per_gas, Some(60));
-        assert_eq!(request.max_priority_fee_per_gas, Some(10));
+    fn set_signer_env(suffix: &str, value: impl AsRef<std::ffi::OsStr>) {
+        // SAFETY: The environment-mutating tests in this module are serialized.
+        unsafe { env::set_var(crate::env_var(suffix), value) };
     }
 
-    #[test]
-    fn unset_caps_leave_estimates() {
-        let mut request = filled_request(100, 50);
-        clamp_fee_caps(&mut request, FeeCaps::default());
-        assert_eq!(request.max_fee_per_gas, Some(100));
-        assert_eq!(request.max_priority_fee_per_gas, Some(50));
+    #[tokio::test]
+    #[serial]
+    async fn loads_web3_signer_with_tls_material() {
+        clear_signer_env();
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../host/testdata/mtls");
+        set_signer_env("SIGNER_URL", "https://localhost:8545");
+        set_signer_env("SIGNER_ADDRESS", Address::ZERO.to_string());
+        set_signer_env("SIGNER_TLS_CA", fixtures.join("ca.crt"));
+        set_signer_env("SIGNER_TLS_CERT", fixtures.join("client.crt"));
+        set_signer_env("SIGNER_TLS_KEY", fixtures.join("client.key"));
+
+        let signer = Signer::from_env().await.unwrap();
+        let Signer::Web3Signer { url, address, mtls } = signer else {
+            panic!("expected Web3Signer")
+        };
+        assert_eq!(url.as_str(), "https://localhost:8545/");
+        assert_eq!(address, Address::ZERO);
+        assert!(mtls.is_some());
+        clear_signer_env();
     }
 
-    #[test]
-    fn caps_above_estimates_change_nothing() {
-        let mut request = filled_request(100, 50);
-        clamp_fee_caps(
-            &mut request,
-            FeeCaps { max_fee_per_gas: Some(200), max_priority_fee_per_gas: Some(80) },
-        );
-        assert_eq!(request.max_fee_per_gas, Some(100));
-        assert_eq!(request.max_priority_fee_per_gas, Some(50));
+    #[tokio::test]
+    #[serial]
+    async fn rejects_http_web3_signer_with_tls_material() {
+        clear_signer_env();
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../host/testdata/mtls");
+        set_signer_env("SIGNER_URL", "http://localhost:8545");
+        set_signer_env("SIGNER_ADDRESS", Address::ZERO.to_string());
+        set_signer_env("SIGNER_TLS_CA", fixtures.join("ca.crt"));
+        set_signer_env("SIGNER_TLS_CERT", fixtures.join("client.crt"));
+        set_signer_env("SIGNER_TLS_KEY", fixtures.join("client.key"));
+
+        let error = Signer::from_env().await.unwrap_err().to_string();
+        assert!(error.contains("must use HTTPS"), "{error}");
+        clear_signer_env();
     }
 
-    #[test]
-    fn priority_reclamped_when_fee_cap_undercuts_it() {
-        // Only the max fee is capped, below the estimated priority fee: the
-        // priority fee must follow it down to keep priority <= max_fee.
-        let mut request = filled_request(100, 50);
-        clamp_fee_caps(
-            &mut request,
-            FeeCaps { max_fee_per_gas: Some(30), max_priority_fee_per_gas: None },
-        );
-        assert_eq!(request.max_fee_per_gas, Some(30));
-        assert_eq!(request.max_priority_fee_per_gas, Some(30));
+    #[tokio::test]
+    #[serial]
+    async fn rejects_tls_material_without_web3_signer() {
+        clear_signer_env();
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../host/testdata/mtls");
+        set_signer_env("PRIVATE_KEY", "unused");
+        set_signer_env("SIGNER_TLS_CA", fixtures.join("ca.crt"));
+        set_signer_env("SIGNER_TLS_CERT", fixtures.join("client.crt"));
+        set_signer_env("SIGNER_TLS_KEY", fixtures.join("client.key"));
+
+        let error = Signer::from_env().await.unwrap_err().to_string();
+        assert!(error.contains(&crate::env_var("SIGNER_URL")), "{error}");
+        assert!(error.contains(&crate::env_var("SIGNER_ADDRESS")), "{error}");
+        clear_signer_env();
     }
 
-    #[test]
-    fn unfilled_fields_untouched() {
-        let mut request = TransactionRequest::default();
-        clamp_fee_caps(
-            &mut request,
-            FeeCaps { max_fee_per_gas: Some(1), max_priority_fee_per_gas: Some(1) },
-        );
-        assert_eq!(request.max_fee_per_gas, None);
-        assert_eq!(request.max_priority_fee_per_gas, None);
+    #[tokio::test]
+    #[serial]
+    async fn rejects_local_key_with_web3_signer() {
+        clear_signer_env();
+        set_signer_env("PRIVATE_KEY", "unused");
+        set_signer_env("SIGNER_URL", "https://localhost:8545");
+        set_signer_env("SIGNER_ADDRESS", Address::ZERO.to_string());
+
+        let error = Signer::from_env().await.unwrap_err().to_string();
+        assert!(error.contains(&crate::env_var("PRIVATE_KEY")), "{error}");
+        assert!(error.contains(&crate::env_var("SIGNER_URL")), "{error}");
+        assert!(error.contains("mutually exclusive"), "{error}");
+        clear_signer_env();
     }
 }

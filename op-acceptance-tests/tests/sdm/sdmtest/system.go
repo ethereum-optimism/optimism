@@ -1,5 +1,5 @@
-// Package sdmtest holds reusable SDM acceptance-test building blocks: the fixture-producer and
-// stock-verifier topology, a dense repeated-slot workload, and structural replay/refund RPC
+// Package sdmtest holds reusable SDM acceptance-test building blocks: the fixed-policy producer
+// and stock-verifier topology, a dense repeated-slot workload, and structural replay/refund RPC
 // helpers.
 //
 // It is a non-test (importable) package precisely so the same fixtures can drive SDM acceptance
@@ -18,6 +18,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
+const fixedPolicyArg = "--testing.sdm-fixed-policy"
+
+// FixedPolicyOpRethOption enables op-reth's hidden deterministic SDM test policy. When a target is
+// supplied, calls to it make the policy return an excessive refund for fault-containment tests.
+func FixedPolicyOpRethOption(excessiveRefundTarget string) sysgo.OpRethOption {
+	if excessiveRefundTarget != "" {
+		return sysgo.OpRethWithExtraArgs(fixedPolicyArg + "=" + excessiveRefundTarget)
+	}
+	return sysgo.OpRethWithExtraArgs(fixedPolicyArg)
+}
+
 // RethSystem bundles the DSL frontends an SDM acceptance test drives: an op-reth sequencer, a
 // stock op-reth verifier, the batcher, and an L2 funder, all on a single Interop/SDM chain.
 type RethSystem struct {
@@ -31,18 +42,16 @@ type RethSystem struct {
 	FunderL2     *dsl.FunderEOA
 }
 
-// NewFixtureSingleChainFaultProofSystem creates the single-chain super-fault-proof system with
-// the test-only fixture selected for its sequencer. The no-supernode preset already applies
-// OpRethOptions to the sequencer target; its super roots and all proof consumers remain stock.
-// VerifySDMFixture checks the running process, so this fails if fixture selection stops at preset
-// option validation or is applied to the wrong target.
-func NewFixtureSingleChainFaultProofSystem(t devtest.T) *presets.SingleChainInterop {
+// NewFixedPolicySingleChainFaultProofSystem creates the single-chain super-fault-proof system
+// with the test-only fixed policy enabled on its sequencer. The no-supernode preset applies
+// OpRethOptions only to the sequencer target; its super roots and all proof consumers remain stock.
+func NewFixedPolicySingleChainFaultProofSystem(t devtest.T) *presets.SingleChainInterop {
 	sysgo.SkipOnOpGeth(t, "SDM PostExec is op-reth only")
 
 	sys := presets.NewSingleChainInteropNoSupernode(t,
-		presets.WithOpRethOption(sysgo.OpRethWithBinary("op-reth-sdm-fixture")),
+		presets.WithOpRethOption(FixedPolicyOpRethOption("")),
 	)
-	VerifySDMFixture(t, sys.L2ELA)
+	VerifyOpReth(t, sys.L2ELA)
 	SetSDMEnabled(t, sys.L2ELA, true)
 	return sys
 }
@@ -122,14 +131,6 @@ func VerifyOpReth(t devtest.T, l2EL *dsl.L2ELNode) string {
 		"FATAL: Detected op-geth (%q) but this test requires op-reth.", clientVersion,
 	)
 
-	return clientVersion
-}
-
-// VerifySDMFixture checks that an execution layer is the explicitly test-only fixture binary.
-func VerifySDMFixture(t devtest.T, l2EL *dsl.L2ELNode) string {
-	clientVersion := VerifyOpReth(t, l2EL)
-	t.Require().Contains(strings.ToLower(clientVersion), "op-reth-sdm-fixture",
-		"SDM producer must be the test-only fixture binary, got %q", clientVersion)
 	return clientVersion
 }
 

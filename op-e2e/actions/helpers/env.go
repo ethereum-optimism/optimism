@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
@@ -13,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -104,7 +104,7 @@ func (env Env) L2UserEnv(t Testing) *BasicUserEnv[*L2Bindings] {
 	l2EthCl := env.SeqEngine.EthClient()
 	return &BasicUserEnv[*L2Bindings]{
 		EthCl:          l2EthCl,
-		Signer:         types.LatestSigner(env.SetupData.L2Cfg.Config),
+		Signer:         types.LatestSignerForChainID(env.SetupData.L2Cfg.Config.ChainID),
 		AddressCorpora: env.AddressCorpora,
 		Bindings:       NewL2Bindings(t, l2EthCl, env.SeqEngine.GethClient()),
 	}

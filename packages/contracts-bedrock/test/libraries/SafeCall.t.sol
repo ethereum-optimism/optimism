@@ -154,7 +154,7 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
         SimpleSafeCaller caller = new SimpleSafeCaller();
 
         for (uint64 i = 40_000; i < 100_000; i++) {
-            uint256 snapshot = vm.snapshot();
+            uint256 snapshot = vm.snapshotState();
 
             // The values below are best gotten by setting the value to a high number and running
             // the test with a verbosity of `-vvv` then setting the value to the value (gas arg) of
@@ -182,7 +182,7 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
                 assertTrue(caller.makeSafeCall(i, 25_000));
             }
 
-            assertTrue(vm.revertTo(snapshot));
+            assertTrue(vm.revertToState(snapshot));
         }
     }
 
@@ -191,7 +191,7 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
         SimpleSafeCaller caller = new SimpleSafeCaller();
 
         for (uint64 i = 15_200_000; i < 15_300_000; i++) {
-            uint256 snapshot = vm.snapshot();
+            uint256 snapshot = vm.snapshotState();
 
             // The values below are best gotten by setting the value to a high number and running
             // the test with a verbosity of `-vvv` then setting the value to the value (gas arg) of
@@ -219,7 +219,7 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
                 assertTrue(caller.makeSafeCall(i, 15_000_000));
             }
 
-            assertTrue(vm.revertTo(snapshot));
+            assertTrue(vm.revertToState(snapshot));
         }
     }
 }

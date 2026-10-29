@@ -12,8 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 const (

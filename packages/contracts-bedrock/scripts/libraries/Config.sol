@@ -331,6 +331,16 @@ library Config {
         return vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", false);
     }
 
+    /// @notice Returns true if the development feature BRIDGE_HOOK is enabled.
+    function devFeatureBridgeHook() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__BRIDGE_HOOK", false);
+    }
+
+    /// @notice Returns true if the development feature OP_PRIVATE is enabled.
+    function devFeatureOpPrivate() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__OP_PRIVATE", false);
+    }
+
     /// @notice Returns true if the development feature ZK_DISPUTE_GAME is enabled.
     function devFeatureZkDisputeGame() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__ZK_DISPUTE_GAME", false);

@@ -3,12 +3,11 @@ package finality
 import (
 	"context"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type AltDABackend interface {

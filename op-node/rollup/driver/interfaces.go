@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"time"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	opnodemetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -18,6 +19,7 @@ type Metrics interface {
 	RecordPipelineReset()
 	RecordFollowSourceRequest(result string)
 	RecordPublishingError()
+	RecordDroppedPublish()
 	RecordDerivationError()
 
 	RecordL1Ref(name string, ref eth.L1BlockRef)
@@ -100,6 +102,9 @@ type SyncStatusTracker interface {
 type Network interface {
 	// SignAndPublishL2Payload is called by the driver whenever there is a new payload to publish, synchronously with the driver main loop.
 	SignAndPublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
+	// GossipTimestampThreshold is the age past which peers reject a block, so a
+	// publisher can decline to spend a retry budget on one that is already too old.
+	GossipTimestampThreshold() time.Duration
 }
 
 type SequencerStateListener interface {

@@ -6,6 +6,10 @@ See [go-dev.md](go-dev.md) for Go workflow, [rust-dev.md](rust-dev.md) for the R
 kona-client workflow, and [contract-dev.md](contract-dev.md) for the Solidity dispute game
 contracts.
 
+kona-client is the only fault proof program. op-program was deleted in
+ethereum-optimism/optimism#21271 and is not supported. Do not compare against op-program or
+ask for op-program changes.
+
 ## Scope
 
 - `cannon/` — MIPS32 VM that executes kona-client in single-step mode.
@@ -24,6 +28,8 @@ contracts.
 - **Kona-SP1 acceptance boundary**: tests exercise the shipping super-root path through the
   `super-range` and `super-aggregation` programs. Single-chain coverage uses a dependency set of
   size one.
+- **Kona-SP1 proof limits**: if an honest kona-sp1 proof exceeds a resource limit, the proposer
+  loses its `ZKDisputeGame`. See [kona-sp1-proof-limits.md](kona-sp1-proof-limits.md).
 
 ## Invariants
 
@@ -67,16 +73,32 @@ mise x -- just forge-build --skip test
 mise x -- just copy-contract-artifacts
 ```
 
-**Plain Go action tests** (`op-e2e/actions/...`) then run directly:
+**Plain Go action tests** (`op-e2e/actions/...`) run their L2 execution engine as an
+`op-reth-test-engine` subprocess, so they also need that binary. `just test-actions` (from
+`op-e2e`) builds it and points the tests at it. Run directly, `go test` uses
+`RUST_BINARY_PATH_OP_RETH_TEST_ENGINE` if set, otherwise the newest release or debug build in the
+cargo target directory, and otherwise fails with instructions. Build it once:
 
 ```bash
+# from rust/ — release build, lands in rust/target/release/ (or under CARGO_TARGET_DIR)
+mise x -- just build-op-reth-test-engine
+# from the repo root
 go test ./op-e2e/actions/upgrades/ -run TestName -count=1
 ```
 
+Alternatively `RUST_JIT_BUILD=1` has the tests run the release build themselves; a cold build
+takes long, so give `go test` a `-timeout` that covers it (e.g. `-timeout 60m`).
+
 **Kona fault-proof action tests** (`rust/kona/tests/proofs/...`, e.g.
-`TestActivationBlockNUTBundle`) additionally run kona-client through the native `kona-host`
-binary, so they need it built and `KONA_HOST_PATH` pointing at it. These tests are excluded
-from the normal `go test ./...` suite — they only run under kona-host.
+`TestActivationBlockNUTBundle`) run their L2 chain on the same `op-reth-test-engine` and
+additionally run kona-client through the native `kona-host` binary, which reads the L2 chain from
+the engine over its IPC socket. So they need both binaries built, and `KONA_HOST_PATH` pointing at
+kona-host. These tests are excluded from the normal `go test ./...` suite — they only run under
+kona-host.
+
+A kona-host run that does not finish within 10 minutes fails the test. The host retries a
+preimage it cannot fetch indefinitely, and the engine's `debug_dbGet` serves contract code only,
+so a trie node missing from an execution witness shows up as that timeout.
 
 > [!NOTE]
 > These tests cover **op-node as well as kona-client**. The chain is built and derived by op-node
@@ -86,14 +108,18 @@ from the normal `go test ./...` suite — they only run under kona-host.
 > consensus-layer implementations of the state transition.
 
 ```bash
-# build the native host (release; heavy build)
-cargo build --release --manifest-path rust/Cargo.toml --bin kona-host
+# build the native host and the engine (release; heavy builds) from rust/, where the toolchain is pinned
+cd rust
+mise x -- cargo build --release --bin kona-host
+mise x -- just build-op-reth-test-engine
 
-# run, pointing KONA_HOST_PATH at the binary
-cd rust/kona/tests/proofs
+# run, pointing the harness at both binaries (without RUST_BINARY_PATH_OP_RETH_TEST_ENGINE it
+# falls back to the most recently built engine under rust/target)
+cd kona/tests/proofs
 KONA_HOST_PATH="$(git rev-parse --show-toplevel)/rust/target/release/kona-host" \
+RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="$(git rev-parse --show-toplevel)/rust/target/release/op-reth-test-engine" \
   go test -run TestActivationBlockNUTBundle -count=1 .
 ```
 
-Or let the justfile build kona-host and run in one step (still needs the contracts built
+Or let the justfile build both binaries and run in one step (still needs the contracts built
 above): from `rust/kona/tests`, `just action-tests-single TestActivationBlockNUTBundle`.

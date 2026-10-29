@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
 )
 
@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	logger := oplog.NewLogger(os.Stderr, oplog.DefaultCLIConfig())
+	logger := logcli.NewLogger(os.Stderr, logcli.DefaultCLIConfig())
 	pkg := devtest.NewP(context.Background(), logger, func(_ bool) {
 		panic(packageInitResult{code: 1})
 	}, func() {

@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 

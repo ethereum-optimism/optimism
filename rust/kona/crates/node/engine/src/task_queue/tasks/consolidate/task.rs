@@ -1,15 +1,16 @@
 //! A task to consolidate the engine state.
 
 use crate::{
-    ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, ImportedBlockSink,
-    SynchronizeTask, state::EngineSyncStateUpdate, task_queue::build_and_seal,
+    ConsolidateTaskError, EngineClient, EngineState, ExecutableEngineTask, ImportedBlockSink,
+    state::EngineSyncStateUpdate,
+    task_queue::{build_and_import, synchronize},
 };
 use alloy_rpc_types_eth::Block;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types::Transaction;
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 /// Input for consolidation - either derived attributes or safe L2 block
 #[derive(Debug, Clone)]
@@ -64,9 +65,9 @@ impl ConsolidateInput {
 /// The [`ConsolidateTask`] attempts to consolidate the engine state
 /// using the specified payload attributes or block info.
 #[derive(Debug, Clone)]
-pub struct ConsolidateTask<EngineClient_: EngineClient> {
+pub struct ConsolidateTask {
     /// The engine client.
-    pub client: Arc<EngineClient_>,
+    pub client: Arc<EngineClient>,
     /// The [`RollupConfig`].
     pub cfg: Arc<RollupConfig>,
     /// The input for consolidation (either attributes or block info).
@@ -75,10 +76,10 @@ pub struct ConsolidateTask<EngineClient_: EngineClient> {
     pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 
-impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
+impl ConsolidateTask {
     /// Creates a new [`ConsolidateTask`] with the specified input
     pub const fn new(
-        client: Arc<EngineClient_>,
+        client: Arc<EngineClient>,
         cfg: Arc<RollupConfig>,
         input: ConsolidateInput,
         block_sink: Arc<dyn ImportedBlockSink>,
@@ -87,25 +88,23 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
     }
 
     /// This is used when the [`ConsolidateTask`] fails to consolidate the engine state
-    async fn execute_build_and_seal_tasks(
+    async fn build_and_import_attributes(
         &self,
         state: &mut EngineState,
         attributes: &OpAttributesWithParent,
     ) -> Result<(), ConsolidateTaskError> {
-        build_and_seal(
+        build_and_import(
+            self.client.as_ref(),
+            &self.cfg,
             state,
-            self.client.clone(),
-            self.cfg.clone(),
             attributes.clone(),
-            true,
-            self.block_sink.clone(),
+            self.block_sink.as_ref(),
         )
         .await?;
-
         Ok(())
     }
 
-    /// This provides symmetric fallback behavior to with `build_and_seal`.
+    /// This provides symmetric fallback behavior with `build_and_import`.
     async fn reconcile_to_safe_head(
         &self,
         state: &mut EngineState,
@@ -117,15 +116,13 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
             "Apply safe head"
         );
 
-        let fcu_start = Instant::now();
-
         // We intentionally set the unsafe head to safe_l2 to ensure the engine observes a
         // self-consistent head state. This is required to correctly handle reorgs (where unsafe
         // may be ahead on a non-canonical fork) and to trigger EL sync when the local unsafe head
         // lags behind the safe head.
-        SynchronizeTask::new(
-            Arc::clone(&self.client),
-            self.cfg.clone(),
+        synchronize(
+            self.client.as_ref(),
+            state,
             EngineSyncStateUpdate {
                 unsafe_head: Some(*safe_l2),
                 safe_head: Some(*safe_l2),
@@ -133,20 +130,16 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                 ..Default::default()
             },
         )
-        .execute(state)
         .await
         .map_err(|e| {
             warn!(target: "engine", ?e, "Apply safe head failed");
             e
         })?;
 
-        let fcu_duration = fcu_start.elapsed();
-
         info!(
             target: "engine",
             hash = %safe_l2.block_info.hash,
             number = safe_l2.block_info.number,
-            fcu_duration = ?fcu_duration,
             "Updated safe head via follow safe"
         );
 
@@ -160,7 +153,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
     ) -> Result<(), ConsolidateTaskError> {
         match &self.input {
             ConsolidateInput::Attributes(attributes) => {
-                self.execute_build_and_seal_tasks(state, attributes).await
+                self.build_and_import_attributes(state, attributes).await
             }
             ConsolidateInput::BlockInfo(safe_l2) => {
                 self.reconcile_to_safe_head(state, safe_l2).await
@@ -169,12 +162,16 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
     }
 
     /// Attempts consolidation on the engine state.
+    #[tracing::instrument(
+        name = "consolidate",
+        target = "engine",
+        level = "info",
+        skip_all,
+        fields(number = self.input.l2_block_number())
+    )]
     pub async fn consolidate(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
-        let global_start = Instant::now();
-
         // Fetch the unsafe L2 block
         let block_num = self.input.l2_block_number();
-        let fetch_start = Instant::now();
         let block = match self.client.l2_block_by_label(block_num.into()).await {
             Ok(Some(block)) => block,
             Ok(None) => {
@@ -182,11 +179,9 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                 return Err(ConsolidateTaskError::MissingUnsafeL2Block(block_num));
             }
             Err(_) => {
-                warn!(target: "engine", "Failed to fetch unsafe l2 block for consolidation");
                 return Err(ConsolidateTaskError::FailedToFetchUnsafeL2Block);
             }
         };
-        let block_fetch_duration = fetch_start.elapsed();
         let block_hash = block.header.hash;
 
         if self.input.is_consistent_with_block(&self.cfg, &block) {
@@ -206,8 +201,6 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                     // The next attributes built are this block's child, and ask for its config.
                     self.block_sink.block_imported(consensus_block, block_info);
 
-                    let total_duration = global_start.elapsed();
-
                     // Apply a transient update to the safe head.
                     state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
                         safe_head: Some(block_info),
@@ -219,8 +212,6 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                         target: "engine",
                         hash = %block_info.block_info.hash,
                         number = block_info.block_info.number,
-                        ?total_duration,
-                        ?block_fetch_duration,
                         "Updated safe head via L1 consolidation"
                     );
 
@@ -230,34 +221,25 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
                     // The next attributes built are this block's child, and ask for its config.
                     self.block_sink.block_imported(consensus_block, block_info);
 
-                    let fcu_start = Instant::now();
-
-                    SynchronizeTask::new(
-                        Arc::clone(&self.client),
-                        self.cfg.clone(),
+                    synchronize(
+                        self.client.as_ref(),
+                        state,
                         EngineSyncStateUpdate {
                             safe_head: Some(block_info),
                             local_safe_head: Some(block_info),
                             ..Default::default()
                         },
                     )
-                    .execute(state)
                     .await
                     .map_err(|e| {
                         warn!(target: "engine", ?e, "Consolidation failed");
                         e
                     })?;
 
-                    let fcu_duration = fcu_start.elapsed();
-                    let total_duration = global_start.elapsed();
-
                     info!(
                         target: "engine",
                         hash = %block_info.block_info.hash,
                         number = block_info.block_info.number,
-                        ?total_duration,
-                        ?block_fetch_duration,
-                        fcu_duration = ?fcu_duration,
                         "Updated safe head via L1 consolidation"
                     );
 
@@ -283,7 +265,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
 }
 
 #[async_trait]
-impl<EngineClient_: EngineClient> EngineTaskExt for ConsolidateTask<EngineClient_> {
+impl ExecutableEngineTask for ConsolidateTask {
     type Output = ();
 
     type Error = ConsolidateTaskError;
@@ -314,8 +296,10 @@ impl<EngineClient_: EngineClient> EngineTaskExt for ConsolidateTask<EngineClient
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ImportedBlockSink, test_utils::MockEngineClient};
-    use alloy_eips::{BlockNumHash, BlockNumberOrTag};
+    use crate::{
+        EngineTaskError, ImportedBlockSink, SealTaskError, test_utils::test_engine_client,
+    };
+    use alloy_eips::BlockNumHash;
     use alloy_primitives::B256;
     use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
     use kona_genesis::ChainGenesis;
@@ -338,7 +322,8 @@ mod tests {
         // must reach the sink rather than being dropped.
         let header = RpcHeader::new(alloy_consensus::Header::default());
         let block_hash = header.hash;
-        let block = RpcBlock::new(header, BlockTransactions::Full(vec![]));
+        let block: RpcBlock<op_alloy_rpc_types::Transaction> =
+            RpcBlock::new(header, BlockTransactions::Full(vec![]));
 
         // Pin genesis to this block so its L2BlockInfo needs no L1-info deposit.
         let cfg = Arc::new(RollupConfig {
@@ -348,12 +333,9 @@ mod tests {
             },
             ..Default::default()
         });
-        let client = Arc::new(
-            MockEngineClient::builder()
-                .with_config(cfg.clone())
-                .with_l2_block_by_label(BlockNumberOrTag::Number(0), block)
-                .build(),
-        );
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0x0", true]), block);
+        let client = Arc::new(client);
 
         let safe_l2 = L2BlockInfo {
             block_info: BlockInfo { hash: block_hash, number: 0, ..Default::default() },
@@ -366,5 +348,135 @@ mod tests {
         task.consolidate(&mut EngineState::default()).await.unwrap();
 
         assert_eq!(sink.0.lock().unwrap().as_slice(), &[block_hash]);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    const DEPOSIT: u8 = op_alloy_consensus::DEPOSIT_TX_TYPE_ID;
+
+    fn holocene_cfg() -> Arc<RollupConfig> {
+        let mut cfg = RollupConfig::default();
+        cfg.hardforks.ecotone_time = Some(0);
+        cfg.hardforks.holocene_time = Some(0);
+        Arc::new(cfg)
+    }
+
+    fn derived(transactions: Vec<alloy_primitives::Bytes>) -> OpAttributesWithParent {
+        crate::test_utils::TestAttributesBuilder::new()
+            .with_parent(crate::test_utils::test_block_info(10))
+            .with_transactions(transactions)
+            .build()
+    }
+
+    async fn build_derived(
+        client: Arc<EngineClient>,
+        cfg: Arc<RollupConfig>,
+        attributes: &OpAttributesWithParent,
+    ) -> ConsolidateTaskError {
+        let mut state = crate::test_utils::TestEngineStateBuilder::new()
+            .with_unsafe_head(attributes.parent)
+            .build();
+        let task = ConsolidateTask::new(
+            client,
+            cfg,
+            ConsolidateInput::Attributes(Box::new(attributes.clone())),
+            Arc::new(crate::NoopBlockSink),
+        );
+        task.build_and_import_attributes(&mut state, attributes)
+            .await
+            .expect_err("the mock never completes a seal")
+    }
+
+    // An FCU rejection with -38003 (invalid payload attributes) triggers deposits-only recovery.
+    #[tokio::test]
+    async fn attributes_rejected_at_fcu_are_replaced_with_deposits_only() {
+        let deposit = alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01]);
+        let attributes = derived(vec![deposit.clone(), alloy_primitives::Bytes::from(vec![0x02])]);
+        let cfg = holocene_cfg();
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_error_code("engine_forkchoiceUpdatedV3", -38003);
+        let forkchoice = crate::test_utils::TestEngineStateBuilder::new()
+            .with_unsafe_head(attributes.parent)
+            .build()
+            .sync_state
+            .create_forkchoice_state();
+        l2.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([forkchoice, attributes.as_deposits_only().attributes]),
+            alloy_rpc_types_engine::ForkchoiceUpdated {
+                payload_status: alloy_rpc_types_engine::PayloadStatus::from_status(
+                    alloy_rpc_types_engine::PayloadStatusEnum::Valid,
+                ),
+                payload_id: Some(alloy_rpc_types_engine::PayloadId::new([1; 8])),
+            },
+        );
+        l2.expect_error("engine_getPayloadV3");
+        let err = build_derived(Arc::new(client), cfg, &attributes).await;
+        l1.assert_finished();
+        l2.assert_finished();
+        // The mock fails the replacement's getPayload.
+        assert!(
+            matches!(
+                err,
+                ConsolidateTaskError::SealTaskFailed(
+                    SealTaskError::DepositOnlyPayloadReattemptFailed
+                )
+            ),
+            "got {err:?}",
+        );
+    }
+
+    // An internal error at FCU is a failure of the execution layer, not of the batch.
+    #[tokio::test]
+    async fn internal_error_at_fcu_is_retried_not_replaced() {
+        let attributes = derived(vec![
+            alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01]),
+            alloy_primitives::Bytes::from(vec![0x02]),
+        ]);
+        let cfg = holocene_cfg();
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_error("engine_forkchoiceUpdatedV3");
+        let err = build_derived(Arc::new(client), cfg, &attributes).await;
+        l1.assert_finished();
+        l2.assert_finished();
+        assert!(matches!(err, ConsolidateTaskError::BuildTaskFailed(_)), "got {err:?}");
+        assert_eq!(err.severity(), crate::EngineTaskErrorSeverity::Temporary);
+    }
+
+    #[tokio::test]
+    async fn transport_failure_at_fcu_is_retried_not_replaced() {
+        let attributes = derived(vec![
+            alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01]),
+            alloy_primitives::Bytes::from(vec![0x02]),
+        ]);
+        let cfg = holocene_cfg();
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_transport_error("engine_forkchoiceUpdatedV3");
+        let err = build_derived(Arc::new(client), cfg, &attributes).await;
+        l1.assert_finished();
+        l2.assert_finished();
+        assert!(matches!(err, ConsolidateTaskError::BuildTaskFailed(_)), "got {err:?}");
+        assert_eq!(err.severity(), crate::EngineTaskErrorSeverity::Temporary);
+    }
+
+    // Before Holocene, nothing replaces rejected attributes, so the task keeps the rejection.
+    #[tokio::test]
+    async fn attributes_rejected_at_fcu_before_holocene_are_not_replaced() {
+        let attributes = derived(vec![
+            alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01]),
+            alloy_primitives::Bytes::from(vec![0x02]),
+        ]);
+        let mut cfg = RollupConfig::default();
+        cfg.hardforks.ecotone_time = Some(0);
+        let cfg = Arc::new(cfg);
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_error_code("engine_forkchoiceUpdatedV3", -38003);
+        let err = build_derived(Arc::new(client), cfg, &attributes).await;
+        l1.assert_finished();
+        l2.assert_finished();
+        assert!(
+            matches!(&err, ConsolidateTaskError::BuildTaskFailed(build) if build.is_invalid_attributes()),
+            "got {err:?}"
+        );
     }
 }

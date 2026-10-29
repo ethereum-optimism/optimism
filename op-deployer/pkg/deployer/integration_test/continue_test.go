@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -28,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -560,26 +560,29 @@ func newContinuationEnvWithIntentMutator(
 	require.NoError(t, err)
 
 	impls, err := bootstrap.Implementations(ctx, bootstrap.ImplementationsConfig{
-		L1RPCUrl:                        l1RPC,
-		PrivateKey:                      privateKey,
-		ArtifactsLocator:                loc,
-		MIPSVersion:                     int(standard.MIPSVersion),
-		WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
-		MinProposalSizeBytes:            standard.MinProposalSizeBytes,
-		ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
-		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
-		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-		DevFeatureBitmap:                devFeatureBitmap,
-		SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
-		L1ProxyAdminOwner:               intent.Chains[0].Roles.L1ProxyAdminOwner,
-		SuperchainProxyAdmin:            bstrap.SuperchainProxyAdmin,
-		CacheDir:                        cacheDir,
-		Logger:                          lgr,
-		Challenger:                      intent.Chains[0].Roles.Challenger,
-		FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
-		FaultGameSplitDepth:             standard.DisputeSplitDepth,
-		FaultGameClockExtension:         standard.DisputeClockExtension,
-		FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
+		L1RPCUrl:                           l1RPC,
+		PrivateKey:                         privateKey,
+		ArtifactsLocator:                   loc,
+		MIPSVersion:                        int(standard.MIPSVersion),
+		MinWithdrawalDelaySeconds:          standard.MinWithdrawalDelaySeconds,
+		MaxWithdrawalDelaySeconds:          standard.MaxWithdrawalDelaySeconds,
+		MinProposalSizeBytes:               standard.MinProposalSizeBytes,
+		ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
+		MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
+		MaxProofMaturityDelaySeconds:       standard.MaxProofMaturityDelaySeconds,
+		MinDisputeGameFinalityDelaySeconds: standard.MinDisputeGameFinalityDelaySeconds,
+		MaxDisputeGameFinalityDelaySeconds: standard.MaxDisputeGameFinalityDelaySeconds,
+		DevFeatureBitmap:                   devFeatureBitmap,
+		SuperchainConfigProxy:              bstrap.SuperchainConfigProxy,
+		L1ProxyAdminOwner:                  intent.Chains[0].Roles.L1ProxyAdminOwner,
+		SuperchainProxyAdmin:               bstrap.SuperchainProxyAdmin,
+		CacheDir:                           cacheDir,
+		Logger:                             lgr,
+		Challenger:                         intent.Chains[0].Roles.Challenger,
+		FaultGameMaxGameDepth:              standard.DisputeMaxGameDepth,
+		FaultGameSplitDepth:                standard.DisputeSplitDepth,
+		FaultGameClockExtension:            standard.DisputeClockExtension,
+		FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
 	})
 	require.NoError(t, err)
 
@@ -596,12 +599,11 @@ func newContinuationEnvWithIntentMutator(
 	require.NoError(t, intent.WriteToFile(filepath.Join(workdir, "intent.toml")))
 	require.NoError(t, pipeline.WriteState(workdir, st))
 	require.NoError(t, deployer.Prepare(ctx, deployer.PrepareConfig{
-		Workdir:           workdir,
-		Logger:            lgr,
-		PrivateKey:        privateKey,
-		L1RPCUrl:          l1RPC,
-		CacheDir:          cacheDir,
-		GenesisTimeOffset: standard.MinGenesisTimeOffsetSeconds,
+		Workdir:    workdir,
+		Logger:     lgr,
+		PrivateKey: privateKey,
+		L1RPCUrl:   l1RPC,
+		CacheDir:   cacheDir,
 	}))
 
 	prepared, err := pipeline.ReadState(workdir)

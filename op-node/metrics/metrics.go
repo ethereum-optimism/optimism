@@ -39,6 +39,11 @@ type Metricer interface {
 	RecordSuperAuthorityReorgSignal(reason string)
 	RecordSequencingError()
 	RecordPublishingError()
+	RecordDroppedPublish()
+	RecordSequencerInsertTime(stage string, duration time.Duration)
+	RecordSequencerPublishHandoff(duration time.Duration)
+	RecordPublishQueueLen(length int)
+	RecordPublishDelay(duration time.Duration)
 	RecordDerivationError()
 	RecordEmittedEvent(eventName string, emitter string)
 	RecordProcessedEvent(eventName string, deriver string, duration time.Duration)
@@ -68,7 +73,6 @@ type Metricer interface {
 	RecordFrame()
 	// P2P Metrics
 	SetPeerScores(allScores []store.PeerScores)
-	ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
 	RecordPeerUnban()
 	RecordIPUnban()
 	RecordDial(allow bool)
@@ -98,15 +102,12 @@ type Metrics struct {
 	DerivationErrors *metrics.Event
 	SequencingErrors *metrics.Event
 	PublishingErrors *metrics.Event
+	DroppedPublishes *metrics.Event
 	SequencerActive  prometheus.Gauge
 
 	*event.EventMetricsTracker
 
 	DerivedBatches metrics.EventVec
-
-	P2PReqDurationSeconds *prometheus.HistogramVec
-	P2PReqTotal           *prometheus.CounterVec
-	P2PPayloadByNumber    *prometheus.GaugeVec
 
 	SequencerInconsistentL1Origin *metrics.Event
 	SequencerResets               *metrics.Event
@@ -117,7 +118,26 @@ type Metrics struct {
 	SequencerBuildingDiffTotal           prometheus.Counter
 
 	SequencerSealingDurationSeconds prometheus.Histogram
-	SequencerSealingTotal           prometheus.Counter
+
+	// SequencerInsertDurationSeconds splits the sequencer's block insert by engine
+	// call, so the two candidate publish points can be priced independently: a
+	// publish after newPayload pays only "newpayload", one after the whole insert
+	// pays "total".
+	SequencerInsertDurationSeconds *prometheus.HistogramVec
+	// SequencerPublishHandoffSeconds is how long the sequencer's own goroutine
+	// spends handing a sealed block to the publisher. It must stay near zero: this
+	// is the hot path, and time spent here comes out of the next block's build
+	// window.
+	SequencerPublishHandoffSeconds prometheus.Histogram
+	// PublishQueueLen is the number of sealed blocks awaiting publication.
+	PublishQueueLen prometheus.Gauge
+	// PublishDelaySeconds is seal-to-published, the delay peers actually see.
+	PublishDelaySeconds prometheus.Histogram
+	// UnsafePayloadArrivalDelaySeconds is how far behind its own timestamp a
+	// gossiped block arrives. Measured on the receiving node, this is the only
+	// metric that shows what peers experience end to end.
+	UnsafePayloadArrivalDelaySeconds prometheus.Histogram
+	SequencerSealingTotal            prometheus.Counter
 
 	UnsafePayloadsBufferLen     prometheus.Gauge
 	UnsafePayloadsBufferMemSize prometheus.Gauge
@@ -216,6 +236,7 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 		DerivationErrors: metrics.NewEvent(factory, ns, "", "derivation_errors", "derivation errors"),
 		SequencingErrors: metrics.NewEvent(factory, ns, "", "sequencing_errors", "sequencing errors"),
 		PublishingErrors: metrics.NewEvent(factory, ns, "", "publishing_errors", "p2p publishing errors"),
+		DroppedPublishes: metrics.NewEvent(factory, ns, "", "dropped_publishes", "sealed blocks that never reached peers"),
 		SequencerActive: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "sequencer_active",
@@ -322,38 +343,6 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 			Help:      "Number of compressed bytes added to the channel",
 		}),
 
-		P2PReqDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: ns,
-			Subsystem: "p2p",
-			Name:      "req_duration_seconds",
-			Buckets:   []float64{},
-			Help:      "Duration of P2P requests",
-		}, []string{
-			"p2p_role", // "client" or "server"
-			"p2p_method",
-			"result_code",
-		}),
-
-		P2PReqTotal: factory.NewCounterVec(prometheus.CounterOpts{
-			Namespace: ns,
-			Subsystem: "p2p",
-			Name:      "req_total",
-			Help:      "Number of P2P requests",
-		}, []string{
-			"p2p_role", // "client" or "server"
-			"p2p_method",
-			"result_code",
-		}),
-
-		P2PPayloadByNumber: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: "p2p",
-			Name:      "payload_by_number",
-			Help:      "Payload by number requests",
-		}, []string{
-			"p2p_role", // "client" or "server"
-		}),
-
 		L1RequestDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: ns,
 			Name:      "l1_request_seconds",
@@ -385,6 +374,44 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 			Namespace: ns,
 			Name:      "sequencer_sealing_total",
 			Help:      "Number of sequencer block sealing jobs",
+		}),
+
+		SequencerInsertDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "sequencer_insert_seconds",
+			// Starts far finer than sequencer_sealing_seconds: a sub-millisecond
+			// insert would sit entirely inside that histogram's first (5ms) bucket,
+			// which cannot tell "nearly free" from "5ms" - the distinction the
+			// publish-ordering decision turns on. Tops out at payloadProcessTimeout,
+			// so +Inf means a real timeout.
+			Buckets: []float64{
+				.00005, .0001, .00025, .0005, .001, .0025, .005, .01, .025, .05,
+				.1, .25, .5, 1, 2.5, 5, 10},
+			Help: "Histogram of sequencer block insert time, by engine call",
+		}, []string{"stage"}),
+		SequencerPublishHandoffSeconds: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "sequencer_publish_handoff_seconds",
+			Buckets: []float64{
+				.000001, .000005, .00001, .00005, .0001, .0005, .001, .005, .01, .1, 1},
+			Help: "Histogram of time the sequencer spends handing a block to the publisher",
+		}),
+		PublishQueueLen: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "publish_queue_len",
+			Help:      "Number of sealed blocks awaiting publication to peers",
+		}),
+		PublishDelaySeconds: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "publish_delay_seconds",
+			Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10, 30, 60},
+			Help:      "Histogram of time from queueing a block to publishing it to peers",
+		}),
+		UnsafePayloadArrivalDelaySeconds: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "unsafe_payload_arrival_delay_seconds",
+			Buckets:   []float64{.05, .1, .2, .3, .5, .75, 1, 1.5, 2, 3, 5, 10, 30},
+			Help:      "Histogram of how far behind its timestamp a gossiped unsafe block arrives",
 		}),
 
 		AltDAMetrics: altda.MakeMetrics(ns, factory),
@@ -483,12 +510,44 @@ func (m *Metrics) RecordPublishingError() {
 	m.PublishingErrors.Record()
 }
 
+// RecordDroppedPublish counts sealed blocks that never reached peers, whether
+// evicted from a full publish queue or given up on after repeated failures. On
+// publishing_errors alone a final failure is indistinguishable from a retried one.
+func (m *Metrics) RecordDroppedPublish() {
+	m.DroppedPublishes.Record()
+}
+
+// RecordSequencerInsertTime records one phase of a sequencer block insert. The
+// stages are observed separately and "total" is observed in its own right:
+// summing buckets across label values pools the observations rather than
+// convolving the distributions, so it would not yield the p99 of the sum.
+func (m *Metrics) RecordSequencerInsertTime(stage string, duration time.Duration) {
+	m.SequencerInsertDurationSeconds.WithLabelValues(stage).Observe(duration.Seconds())
+}
+
+func (m *Metrics) RecordSequencerPublishHandoff(duration time.Duration) {
+	m.SequencerPublishHandoffSeconds.Observe(duration.Seconds())
+}
+
+func (m *Metrics) RecordPublishQueueLen(length int) {
+	m.PublishQueueLen.Set(float64(length))
+}
+
+func (m *Metrics) RecordPublishDelay(duration time.Duration) {
+	m.PublishDelaySeconds.Observe(duration.Seconds())
+}
+
 func (m *Metrics) RecordDerivationError() {
 	m.DerivationErrors.Record()
 }
 
 func (m *Metrics) RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
 	m.UnsafePayloads.Record()
+	// How late the block is against its own timestamp. Depends on clock skew
+	// between the sequencer and this node, so it is meaningful in aggregate and
+	// for before/after on one node, not as an absolute.
+	blockTime := time.Unix(int64(payload.ExecutionPayload.Timestamp), 0)
+	m.UnsafePayloadArrivalDelaySeconds.Observe(time.Since(blockTime).Seconds())
 	m.RecordRef("l2", "received_payload", uint64(payload.ExecutionPayload.BlockNumber), uint64(payload.ExecutionPayload.Timestamp), payload.ExecutionPayload.BlockHash)
 }
 
@@ -609,13 +668,6 @@ func (m *Metrics) Document() []metrics.DocumentedMetric {
 	return m.factory.Document()
 }
 
-func (m *Metrics) ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration) {
-	code := strconv.FormatUint(uint64(resultCode), 10)
-	m.P2PReqTotal.WithLabelValues("server", "payload_by_number", code).Inc()
-	m.P2PReqDurationSeconds.WithLabelValues("server", "payload_by_number", code).Observe(float64(duration) / float64(time.Second))
-	m.P2PPayloadByNumber.WithLabelValues("server").Set(float64(num))
-}
-
 func (m *Metrics) RecordChannelInputBytes(inputCompressedBytes int) {
 	m.ChannelInputBytes.Add(float64(inputCompressedBytes))
 }
@@ -696,6 +748,21 @@ func (n *noopMetricer) RecordSequencingError() {
 func (n *noopMetricer) RecordPublishingError() {
 }
 
+func (n *noopMetricer) RecordDroppedPublish() {
+}
+
+func (n *noopMetricer) RecordSequencerInsertTime(stage string, duration time.Duration) {
+}
+
+func (n *noopMetricer) RecordSequencerPublishHandoff(duration time.Duration) {
+}
+
+func (n *noopMetricer) RecordPublishQueueLen(length int) {
+}
+
+func (n *noopMetricer) RecordPublishDelay(duration time.Duration) {
+}
+
 func (n *noopMetricer) RecordDerivationError() {
 }
 
@@ -758,9 +825,6 @@ func (n *noopMetricer) RecordSequencerSealingTime(duration time.Duration) {
 
 func (n *noopMetricer) Document() []metrics.DocumentedMetric {
 	return nil
-}
-
-func (n *noopMetricer) ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration) {
 }
 
 func (n *noopMetricer) RecordChannelInputBytes(int) {

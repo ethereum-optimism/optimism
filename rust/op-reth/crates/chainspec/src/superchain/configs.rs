@@ -5,6 +5,7 @@ use alloc::{
     vec::Vec,
 };
 use alloy_genesis::Genesis;
+use alloy_primitives::ChainId;
 use miniz_oxide::inflate::decompress_to_vec_zlib_with_limit;
 use tar_no_std::{CorruptDataError, TarArchiveRef};
 
@@ -28,6 +29,31 @@ pub(crate) enum SuperchainConfigError {
     FileNotFound(String),
     #[error("Error decompressing file: {0}")]
     DecompressError(String),
+}
+
+/// Returns whether a chain ID appears in the embedded superchain registry.
+///
+/// This checks chain metadata, including chains without a bundled genesis, and does not
+/// decompress genesis allocations. The built-in dev chain is not a registry entry.
+///
+/// # Panics
+///
+/// Panics if the embedded registry archive or chain metadata is invalid.
+pub fn is_superchain_chain_id(chain_id: ChainId) -> bool {
+    let archive = TarArchiveRef::new(SUPER_CHAIN_CONFIGS_TAR_BYTES)
+        .expect("embedded superchain registry archive must be valid");
+    archive
+        .entries()
+        .filter(|entry| {
+            let filename = entry.filename();
+            let filename = filename.as_str().expect("registry filename must be UTF-8");
+            filename.starts_with("configs/") && !filename.ends_with("/superchain.json")
+        })
+        .any(|entry| {
+            let metadata: ChainMetadata = serde_json::from_slice(entry.data())
+                .expect("embedded superchain chain metadata must be valid");
+            metadata.chain_id == chain_id
+        })
 }
 
 /// Reads the [`Genesis`] from the superchain config tar file for a superchain.
@@ -96,6 +122,33 @@ mod tests {
     };
     use reth_optimism_primitives::L2_TO_L1_MESSAGE_PASSER_ADDRESS;
     use tar_no_std::TarArchiveRef;
+
+    #[test]
+    fn test_is_superchain_chain_id() {
+        for chain_id in [10, 130, 11155420, 1301] {
+            assert!(is_superchain_chain_id(chain_id), "missing registry chain {chain_id}");
+        }
+        for chain_id in [901, 902, 903, crate::OP_DEV.chain.id(), u64::MAX] {
+            assert!(!is_superchain_chain_id(chain_id), "unexpected registry chain {chain_id}");
+        }
+    }
+
+    #[test]
+    fn test_is_superchain_chain_id_covers_all_registry_entries() {
+        let archive = TarArchiveRef::new(SUPER_CHAIN_CONFIGS_TAR_BYTES).unwrap();
+        let mut checked = 0;
+        for entry in archive.entries() {
+            let filename = entry.filename();
+            let filename = filename.as_str().unwrap();
+            if !filename.starts_with("configs/") || filename.ends_with("/superchain.json") {
+                continue;
+            }
+            let metadata: ChainMetadata = serde_json::from_slice(entry.data()).unwrap();
+            assert!(is_superchain_chain_id(metadata.chain_id));
+            checked += 1;
+        }
+        assert!(checked > 0);
+    }
 
     #[test]
     fn test_read_superchain_genesis() {

@@ -124,7 +124,7 @@ impl Decodable for OpStackEnr {
 mod tests {
     use super::*;
     use alloy_primitives::{Bytes, bytes};
-    use discv5::enr::CombinedKey;
+    use enr::CombinedKey;
 
     #[test]
     #[cfg(feature = "arbitrary")]

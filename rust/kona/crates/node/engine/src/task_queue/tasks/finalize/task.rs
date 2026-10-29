@@ -1,22 +1,22 @@
 //! A task for finalizing an L2 block.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, FinalizeBlockId, FinalizeTaskError, SynchronizeTask,
-    state::EngineSyncStateUpdate,
+    EngineClient, EngineState, ExecutableEngineTask, FinalizeBlockId, FinalizeTaskError,
+    state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use alloy_eips::BlockId;
 use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 /// The [`FinalizeTask`] fetches the [`L2BlockInfo`] identified by `block_id`, updates the
 /// [`EngineState`], and dispatches a forkchoice update to finalize the block.
 #[derive(Debug, Clone, Constructor)]
-pub struct FinalizeTask<EngineClient_: EngineClient> {
+pub struct FinalizeTask {
     /// The engine client.
-    pub client: Arc<EngineClient_>,
+    pub client: Arc<EngineClient>,
     /// The rollup config.
     pub cfg: Arc<RollupConfig>,
     /// Identifier of the L2 block to finalize.
@@ -24,7 +24,7 @@ pub struct FinalizeTask<EngineClient_: EngineClient> {
 }
 
 #[async_trait]
-impl<EngineClient_: EngineClient> EngineTaskExt for FinalizeTask<EngineClient_> {
+impl ExecutableEngineTask for FinalizeTask {
     type Output = ();
 
     type Error = FinalizeTaskError;
@@ -45,8 +45,6 @@ impl<EngineClient_: EngineClient> EngineTaskExt for FinalizeTask<EngineClient_> 
             FinalizeBlockId::ByHash(id) => id.hash.into(),
             FinalizeBlockId::ByNumber(n) => n.into(),
         };
-
-        let block_fetch_start = Instant::now();
         let block = self
             .client
             .get_l2_block(lookup)
@@ -68,25 +66,18 @@ impl<EngineClient_: EngineClient> EngineTaskExt for FinalizeTask<EngineClient_> 
             return Err(FinalizeTaskError::BlockNotFound(id.number));
         }
 
-        let block_fetch_duration = block_fetch_start.elapsed();
-
         // Dispatch a forkchoice update.
-        let fcu_start = Instant::now();
-        SynchronizeTask::new(
-            self.client.clone(),
-            self.cfg.clone(),
+        synchronize(
+            self.client.as_ref(),
+            state,
             EngineSyncStateUpdate { finalized_head: Some(block_info), ..Default::default() },
         )
-        .execute(state)
         .await?;
-        let fcu_duration = fcu_start.elapsed();
 
         info!(
             target: "engine",
             hash = %block_info.block_info.hash,
             number = block_info.block_info.number,
-            ?block_fetch_duration,
-            ?fcu_duration,
             "Updated finalized head"
         );
 

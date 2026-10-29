@@ -11,10 +11,13 @@
 #
 # Inputs (set by the config.yml step environment):
 #   BRANCH, TRIGGER_SOURCE, TAG, SCHEDULE_NAME
+# Built-in CircleCI inputs:
+#   CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME
 #
 # Helpers (workflow-helpers.sh):
 #   run <wf...>            enable workflows by literal name
 #   run_group <sec> <key>  enable the workflows listed under routing.yml sec.key
+#   skip_group <sec>       disable the workflows listed under routing.yml sec
 #   is_true <x>            true if c-x is true in the JSON
 #   param <x>              raw value of c-x from the JSON
 #   finalize               strip intermediate params, keep c-run_* + passthrough
@@ -132,26 +135,17 @@ case "${TRIGGER_SOURCE}" in
   # API triggers: dispatch flags select workflows (routing.yml api_dispatch).
   api)
     run release
-    # main_dispatch only fires for genuine API dispatches, not github-event triggers.
-    if is_true main_dispatch && [[ "$(param github-event-type)" == "__not_set__" ]]; then
-      run_group api_dispatch main_dispatch
-    fi
-    # Simple dispatch flags: each enables its workflows when the flag is set.
-    # main_dispatch and labeled_pr have bespoke conditions, handled separately.
+    # Each dispatch flag enables its workflows when the flag is set.
     for flag in $(yq -r '.api_dispatch | keys | .[]' "${ROUTING}"); do
-      # Keep this skip-list in sync with bespoke api_dispatch conditions.
-      case "${flag}" in
-        main_dispatch | labeled_pr) continue ;;
-      esac
       if is_true "${flag}"; then
         run_group api_dispatch "${flag}"
       fi
     done
-    # GitHub "pull_request labeled" event triggers issue-close automation.
-    if [[ "$(param github-event-type)" == "pull_request" && "$(param github-event-action)" == "labeled" ]]; then
-      run_group api_dispatch labeled_pr
-    fi
     ;;
 esac
+
+if [[ "${CIRCLE_PROJECT_USERNAME:-}/${CIRCLE_PROJECT_REPONAME:-}" != "ethereum-optimism/optimism" ]]; then
+  skip_group public_repo_only
+fi
 
 finalize

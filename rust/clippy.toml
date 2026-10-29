@@ -1,4 +1,4 @@
-msrv = "1.95"
+msrv = "1.99"
 too-large-for-stack = 128
 doc-valid-idents = [
     "P2P",
@@ -16,3 +16,10 @@ doc-valid-idents = [
     "MessagePack",
 ]
 allow-dbg-in-tests = true
+# Reading the system clock directly bypasses tokio's clock, which tests pause and advance. Only
+# enforced where `clippy::disallowed_methods` is enabled: it is allowed in the workspace lints and
+# warned on in `kona-node-service`'s actors.
+disallowed-methods = [
+    { path = "std::time::SystemTime::now", reason = "read wall-clock time from an injected `Clock`" },
+    { path = "std::time::Instant::now", reason = "use `tokio::time::Instant`, which follows tokio's clock" },
+]

@@ -14,6 +14,7 @@ import (
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
@@ -49,10 +50,12 @@ func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	alloc := *actionsHelpers.DefaultAlloc
 	alloc.L2Alloc = make(map[common.Address]types.Account)
 	alloc.L2Alloc[aa] = types.Account{
-		Code: store42Program.Bytes(),
+		Code:    store42Program.Bytes(),
+		Balance: new(big.Int),
 	}
 	alloc.L2Alloc[bb] = types.Account{
-		Code: callBobProgram.Bytes(),
+		Code:    callBobProgram.Bytes(),
+		Balance: new(big.Int),
 	}
 
 	testCfg.Allocs = &alloc
@@ -104,7 +107,7 @@ func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	err = cl.SendTransaction(t.Ctx(), tx)
 	require.NoError(gt, err, "failed to send set code tx")
 
-	_, err = env.Engine.EngineApi.IncludeTx(tx, env.Alice.Address())
+	err = env.Engine.IncludeTxErr(t, tx, env.Alice.Address())
 	require.NoError(t, err, "failed to include set code tx")
 
 	env.Sequencer.ActL2EndBlock(t)
@@ -138,10 +141,9 @@ func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.Sequencer.ActL1HeadSignal(t)
 	env.Sequencer.ActL2PipelineFull(t)
 
-	latestBlock, err := cl.BlockByNumber(t.Ctx(), nil)
-	require.NoError(t, err, "error fetching latest block")
+	latestHeader := env.Engine.LatestHeader(t)
 
-	env.RunFaultProofProgramFromGenesis(t, latestBlock.NumberU64(), testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(latestHeader.Number), testCfg.CheckResult, testCfg.InputParams...)
 }
 
 // TestInvalidSetCodeTxBatch tests that batches that include SetCodeTxs are dropped before Isthmus
@@ -183,8 +185,9 @@ func testInvalidSetCodeTxBatch(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	sequencer.ActL2PipelineFull(t)
 
 	l2safe := sequencer.L2Safe()
-	s2block := env.Engine.L2Chain().GetBlockByHash(l2safe.Hash)
-	require.Len(t, s2block.Transactions(), 1, "safe head should only contain l1 info deposit")
+	deposits, userTxs := helpers.BlockTxs(t, env.Engine, l2safe.Hash)
+	require.Len(t, deposits, 1, "safe head should only contain l1 info deposit")
+	require.Empty(t, userTxs, "safe head should only contain l1 info deposit")
 	require.Equal(t, u1, l2safe, "expected last block to be reorgd out due to setcode tx")
 
 	recs := env.Logs.FindLogs(testlog.NewMessageFilter("sequencers may not embed any SetCode transactions before Isthmus"))
@@ -223,10 +226,12 @@ func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *help
 	alloc := *actionsHelpers.DefaultAlloc
 	alloc.L2Alloc = make(map[common.Address]types.Account)
 	alloc.L2Alloc[aa] = types.Account{
-		Code: store42Program.Bytes(),
+		Code:    store42Program.Bytes(),
+		Balance: new(big.Int),
 	}
 	alloc.L2Alloc[bb] = types.Account{
-		Code: callBobProgram.Bytes(),
+		Code:    callBobProgram.Bytes(),
+		Balance: new(big.Int),
 	}
 
 	testCfg.Allocs = &alloc
@@ -285,8 +290,9 @@ func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *help
 	sequencer.ActL2PipelineFull(t)
 
 	l2safe := sequencer.L2Safe()
-	s2block := env.Engine.L2Chain().GetBlockByHash(l2safe.Hash)
-	require.Len(t, s2block.Transactions(), 0, "safe head should not contain either tx")
+	deposits, userTxs := helpers.BlockTxs(t, env.Engine, l2safe.Hash)
+	require.Empty(t, deposits, "safe head should not contain either tx")
+	require.Empty(t, userTxs, "safe head should not contain either tx")
 	require.Equal(t, u1, l2safe, "expected last block to be reorgd out due to setcode tx")
 
 	// find a log with the error message as an attr

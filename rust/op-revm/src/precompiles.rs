@@ -35,7 +35,8 @@ impl OpPrecompiles {
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => granite(),
             OpSpecId::ISTHMUS => isthmus(),
             OpSpecId::JOVIAN => jovian(),
-            OpSpecId::KARST | OpSpecId::LAGOON => karst(),
+            OpSpecId::KARST => karst(),
+            OpSpecId::LAGOON => lagoon(),
         };
 
         Self { inner: EthPrecompiles { precompiles, spec: SpecId::default() }, spec }
@@ -48,7 +49,7 @@ impl OpPrecompiles {
     }
 }
 
-/// UPSTREAM-MIRROR(set): revm-precompile@41.0.0 `revm_precompile::Precompiles`
+/// UPSTREAM-MIRROR(set): revm-precompile@43.0.2 `revm_precompile::Precompiles`
 ///
 /// Fjord extends the upstream Cancun set with P256 verification. Re-check the
 /// inherited address set and gas parameters on each bump.
@@ -63,7 +64,7 @@ pub fn fjord() -> &'static Precompiles {
     })
 }
 
-/// UPSTREAM-MIRROR(set): revm-precompile@41.0.0 `revm_precompile::Precompiles`
+/// UPSTREAM-MIRROR(set): revm-precompile@43.0.2 `revm_precompile::Precompiles`
 ///
 /// Granite replaces the inherited pairing implementation.
 /// Returns precompiles for Granite spec.
@@ -77,7 +78,7 @@ pub fn granite() -> &'static Precompiles {
     })
 }
 
-/// UPSTREAM-MIRROR(set): revm-precompile@41.0.0 `revm_precompile::Precompiles`
+/// UPSTREAM-MIRROR(set): revm-precompile@43.0.2 `revm_precompile::Precompiles`
 ///
 /// Isthmus extends the inherited set with Prague BLS precompiles and OP pricing.
 /// Returns precompiles for isthmus spec.
@@ -97,7 +98,7 @@ pub fn isthmus() -> &'static Precompiles {
     })
 }
 
-/// UPSTREAM-MIRROR(set): revm-precompile@41.0.0 `revm_precompile::Precompiles`
+/// UPSTREAM-MIRROR(set): revm-precompile@43.0.2 `revm_precompile::Precompiles`
 ///
 /// Karst replaces the inherited Osaka-sensitive precompiles.
 /// Returns precompiles for karst spec.
@@ -117,7 +118,24 @@ pub fn karst() -> &'static Precompiles {
     })
 }
 
-/// UPSTREAM-MIRROR(set): revm-precompile@41.0.0 `revm_precompile::Precompiles`
+/// UPSTREAM-MIRROR(set): revm-precompile@43.0.2 `revm_precompile::Precompiles`
+///
+/// Lagoon replaces the BLS12-381 MSM and pairing precompiles with lower input limits.
+/// Returns precompiles for lagoon spec.
+pub fn lagoon() -> &'static Precompiles {
+    static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
+    INSTANCE.get_or_init(|| {
+        let mut precompiles = karst().clone();
+        precompiles.extend([
+            bls12_381::LAGOON_G1_MSM,
+            bls12_381::LAGOON_G2_MSM,
+            bls12_381::LAGOON_PAIRING,
+        ]);
+        precompiles
+    })
+}
+
+/// UPSTREAM-MIRROR(set): revm-precompile@43.0.2 `revm_precompile::Precompiles`
 ///
 /// Jovian replaces variable-input precompiles in the inherited set.
 /// Returns precompiles for jovian spec.
@@ -280,6 +298,21 @@ pub mod bls12_381 {
     /// Max input size for the pairing precompile after the Jovian Hardfork.
     pub const JOVIAN_PAIRING_MAX_INPUT_SIZE: usize = 156_672;
 
+    /// Max input size for the g1 msm precompile after the Lagoon Hardfork: 817 points.
+    ///
+    /// The Lagoon limits keep the transaction that uploads a maximum-size input to the L1
+    /// `PreimageOracle` (`loadPrecompilePreimagePart`) under the 128 KiB transaction size limit
+    /// of the geth and reth mempools. The Jovian MSM limits exceed the largest calldata that a
+    /// Glamsterdam L1 transaction can carry, and the Jovian pairing limit exceeds the mempool
+    /// limit.
+    pub const LAGOON_G1_MSM_MAX_INPUT_SIZE: usize = 130_720;
+
+    /// Max input size for the g2 msm precompile after the Lagoon Hardfork: 454 points.
+    pub const LAGOON_G2_MSM_MAX_INPUT_SIZE: usize = 130_752;
+
+    /// Max input size for the pairing precompile after the Lagoon Hardfork: 340 pairs.
+    pub const LAGOON_PAIRING_MAX_INPUT_SIZE: usize = 130_560;
+
     /// G1 msm precompile.
     pub const ISTHMUS_G1_MSM: Precompile =
         Precompile::new(PrecompileId::Bls12G1Msm, G1_MSM_ADDRESS, isthmus_g1_msm_precompile);
@@ -300,12 +333,25 @@ pub mod bls12_381 {
     pub const JOVIAN_PAIRING: Precompile =
         Precompile::new(PrecompileId::Bls12Pairing, PAIRING_ADDRESS, jovian_pairing_precompile);
 
+    /// G1 msm precompile after the Lagoon Hardfork.
+    pub const LAGOON_G1_MSM: Precompile =
+        Precompile::new(PrecompileId::Bls12G1Msm, G1_MSM_ADDRESS, lagoon_g1_msm_precompile);
+    /// G2 msm precompile after the Lagoon Hardfork.
+    pub const LAGOON_G2_MSM: Precompile =
+        Precompile::new(PrecompileId::Bls12G2Msm, G2_MSM_ADDRESS, lagoon_g2_msm_precompile);
+    /// Pairing precompile after the Lagoon Hardfork.
+    pub const LAGOON_PAIRING: Precompile =
+        Precompile::new(PrecompileId::Bls12Pairing, PAIRING_ADDRESS, lagoon_pairing_precompile);
+
     eth_precompile_fn!(isthmus_g1_msm_precompile, run_g1_msm_isthmus);
     eth_precompile_fn!(isthmus_g2_msm_precompile, run_g2_msm_isthmus);
     eth_precompile_fn!(isthmus_pairing_precompile, run_pair_isthmus);
     eth_precompile_fn!(jovian_g1_msm_precompile, run_g1_msm_jovian);
     eth_precompile_fn!(jovian_g2_msm_precompile, run_g2_msm_jovian);
     eth_precompile_fn!(jovian_pairing_precompile, run_pair_jovian);
+    eth_precompile_fn!(lagoon_g1_msm_precompile, run_g1_msm_lagoon);
+    eth_precompile_fn!(lagoon_g2_msm_precompile, run_g2_msm_lagoon);
+    eth_precompile_fn!(lagoon_pairing_precompile, run_pair_lagoon);
 
     /// Run the g1 msm precompile with Optimism input limit.
     pub fn run_g1_msm_isthmus(input: &[u8], gas_limit: u64) -> EthPrecompileResult {
@@ -362,6 +408,36 @@ pub mod bls12_381 {
         if input.len() > JOVIAN_PAIRING_MAX_INPUT_SIZE {
             return Err(PrecompileHalt::Other(
                 "Pairing input length too long for OP Stack input size limitation after the Jovian Hardfork".into(),
+            ));
+        }
+        precompile::bls12_381::pairing::pairing(input, gas_limit)
+    }
+
+    /// Run the g1 msm precompile with Optimism input limit after the Lagoon Hardfork.
+    pub fn run_g1_msm_lagoon(input: &[u8], gas_limit: u64) -> EthPrecompileResult {
+        if input.len() > LAGOON_G1_MSM_MAX_INPUT_SIZE {
+            return Err(PrecompileHalt::Other(
+                "G1MSM input length too long for OP Stack input size limitation after the Lagoon Hardfork".into(),
+            ));
+        }
+        precompile::bls12_381::g1_msm::g1_msm(input, gas_limit)
+    }
+
+    /// Run the g2 msm precompile with Optimism input limit after the Lagoon Hardfork.
+    pub fn run_g2_msm_lagoon(input: &[u8], gas_limit: u64) -> EthPrecompileResult {
+        if input.len() > LAGOON_G2_MSM_MAX_INPUT_SIZE {
+            return Err(PrecompileHalt::Other(
+                "G2MSM input length too long for OP Stack input size limitation after the Lagoon Hardfork".into(),
+            ));
+        }
+        precompile::bls12_381::g2_msm::g2_msm(input, gas_limit)
+    }
+
+    /// Run the pairing precompile with Optimism input limit after the Lagoon Hardfork.
+    pub fn run_pair_lagoon(input: &[u8], gas_limit: u64) -> EthPrecompileResult {
+        if input.len() > LAGOON_PAIRING_MAX_INPUT_SIZE {
+            return Err(PrecompileHalt::Other(
+                "Pairing input length too long for OP Stack input size limitation after the Lagoon Hardfork".into(),
             ));
         }
         precompile::bls12_381::pairing::pairing(input, gas_limit)
@@ -478,6 +554,50 @@ mod tests {
 
         let res = bn254_pair_precompile.execute(&input, u64::MAX, 0).unwrap();
         assert!(matches!(res.status, PrecompileStatus::Halt(PrecompileHalt::Bn254PairLength)));
+    }
+
+    /// Lagoon accepts BLS12-381 MSM and pairing inputs up to its limits and halts one element
+    /// above them. Karst keeps the Jovian limits, so it accepts the same oversized input.
+    #[test]
+    fn test_lagoon_bls12_381_input_limits() {
+        let lagoon = OpPrecompiles::new_with_spec(OpSpecId::LAGOON);
+        let karst = OpPrecompiles::new_with_spec(OpSpecId::KARST);
+
+        for (address, max_input_size, element_len) in [
+            (
+                bls12_381_const::G1_MSM_ADDRESS,
+                bls12_381::LAGOON_G1_MSM_MAX_INPUT_SIZE,
+                bls12_381_const::G1_MSM_INPUT_LENGTH,
+            ),
+            (
+                bls12_381_const::G2_MSM_ADDRESS,
+                bls12_381::LAGOON_G2_MSM_MAX_INPUT_SIZE,
+                bls12_381_const::G2_MSM_INPUT_LENGTH,
+            ),
+            (
+                bls12_381_const::PAIRING_ADDRESS,
+                bls12_381::LAGOON_PAIRING_MAX_INPUT_SIZE,
+                bls12_381_const::PAIRING_INPUT_LENGTH,
+            ),
+        ] {
+            let lagoon_precompile = lagoon.precompiles().get(&address).unwrap();
+            let karst_precompile = karst.precompiles().get(&address).unwrap();
+
+            let at_limit = vec![0u8; max_input_size];
+            let res = lagoon_precompile.execute(&at_limit, u64::MAX, 0).unwrap();
+            assert!(res.status.is_success(), "{address}: input at the limit: {:?}", res.status);
+
+            let over_limit = vec![0u8; max_input_size + element_len];
+            let res = lagoon_precompile.execute(&over_limit, u64::MAX, 0).unwrap();
+            assert!(
+                matches!(&res.status, PrecompileStatus::Halt(PrecompileHalt::Other(msg)) if msg.contains("after the Lagoon Hardfork")),
+                "{address}: input one element over the limit: {:?}",
+                res.status
+            );
+
+            let res = karst_precompile.execute(&over_limit, u64::MAX, 0).unwrap();
+            assert!(res.status.is_success(), "{address}: Karst input: {:?}", res.status);
+        }
     }
 
     #[test]

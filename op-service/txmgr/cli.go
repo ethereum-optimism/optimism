@@ -14,10 +14,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli/v2"
 )
@@ -307,7 +307,7 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 		},
 		&cli.Uint64Flag{
 			Name:    CellProofTimeFlagName,
-			Usage:   "Enables cell proofs in blob transactions for Fusaka (EIP-7742) compatibility from the provided unix timestamp. Should be set to the L1 Fusaka time. May be left blank for Ethereum Mainnet, Sepolia, Holesky, or Hoodi L1s.",
+			Usage:   "Enables cell proofs in blob transactions for Fusaka (EIP-7742) compatibility from the provided unix timestamp. Should be set to the L1 Fusaka time. May be left blank for Ethereum Mainnet, Sepolia, or Hoodi L1s.",
 			EnvVars: prefixEnvVars("TXMGR_CELL_PROOF_TIME"),
 			Value:   defaults.CellProofTime,
 		},

@@ -5,16 +5,23 @@ use clap::Parser;
 use futures::future::OptionFuture;
 use jsonrpsee::{RpcModule, core::async_trait, server::Server};
 use kona_cli::LogConfig;
-use kona_gossip::P2pRpcRequest;
 use kona_node_service::{
     EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor,
 };
 use kona_registry::scr_rollup_config_by_alloy_ident;
 use kona_rpc::{OpP2PApiServer, P2pRpc, RpcBuilder};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 use url::Url;
+
+const BLOCK_CHANNEL_CAPACITY: usize = 1024;
+const GOSSIP_COMMAND_CHANNEL_CAPACITY: usize = 1024;
+const ADMIN_RPC_CHANNEL_CAPACITY: usize = 1024;
+const GOSSIP_PAYLOAD_CHANNEL_CAPACITY: usize = 256;
+const PEER_COUNT_POLL_INTERVAL: Duration = Duration::from_secs(2);
+const PEER_COUNT_QUERY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The `net` Subcommand
 ///
@@ -71,25 +78,26 @@ impl NetCommand {
         self.p2p.check_ports()?;
         let p2p_config = self.p2p.config(rollup_config, args, self.l1_eth_rpc).await?;
 
-        let (block_tx, mut block_rx) = mpsc::channel(1024);
-        let (signer_tx, signer_rx) = mpsc::channel(16);
-        let (rpc, p2p_rpc_rx) = mpsc::channel(1024);
-        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
-        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
-        // signer_tx, admin_rpc_tx, gossip_payload_tx are not used by this single-purpose binary —
-        // they exist solely to satisfy NetworkActor::new and are held to keep the channels open.
-        let _unused_senders = (signer_tx, admin_rpc_tx, gossip_payload_tx);
+        let (block_tx, mut block_rx) = mpsc::channel(BLOCK_CHANNEL_CAPACITY);
+        let (gossip_command_tx, gossip_command_rx) = mpsc::channel(GOSSIP_COMMAND_CHANNEL_CAPACITY);
+        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(ADMIN_RPC_CHANNEL_CAPACITY);
+        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(GOSSIP_PAYLOAD_CHANNEL_CAPACITY);
+        // admin_rpc_tx and gossip_payload_tx are not used by this single-purpose binary — they
+        // exist solely to satisfy NetworkActor::new and are held to keep the channels open.
+        let _unused_senders = (admin_rpc_tx, gossip_payload_tx);
 
         let handler = NetworkBuilder::from(p2p_config).build()?.start().await?;
 
+        let discovery = handler.discovery.clone();
         let mut network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx },
             handler,
-            signer_rx,
-            p2p_rpc_rx,
+            gossip_command_rx,
             admin_rpc_rx,
             gossip_payload_rx,
         );
+
+        let rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx.clone());
 
         // Spawn the actor; the loop below polls the p2p RPC interface on an interval.
         tokio::spawn(async move {
@@ -103,15 +111,15 @@ impl NetCommand {
 
         info!(target: "net", "Network started, receiving blocks.");
 
-        // On an interval, use the rpc tx to request stats about the p2p network.
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
+        // On an interval, read gossip state and query discovery for peer counts.
+        let mut interval = tokio::time::interval(PEER_COUNT_POLL_INTERVAL);
 
         let handle = if let Some(config) = rpc_config {
             info!(target: "net", socket = ?config.socket, "Starting RPC server");
 
             // Setup the RPC server with the P2P RPC Module
             let mut launcher = RpcModule::new(());
-            launcher.merge(P2pRpc::new(rpc.clone()).into_rpc())?;
+            launcher.merge(rpc.clone().into_rpc())?;
 
             let server = Server::builder().build(config.socket).await?;
             Some(server.start(launcher))
@@ -125,29 +133,13 @@ impl NetCommand {
                 Some(payload) = block_rx.recv() => {
                     info!(target: "net", "Received unsafe payload: {:?}", payload.block_hash());
                 }
-                _ = interval.tick(), if !rpc.is_closed() => {
-                    let (otx, mut orx) = tokio::sync::oneshot::channel();
-                    if let Err(e) = rpc.send(P2pRpcRequest::PeerCount(otx)).await {
-                        warn!(target: "net", "Failed to send network rpc request: {:?}", e);
-                        continue;
-                    }
-                    tokio::time::timeout(tokio::time::Duration::from_secs(5), async move {
-                        loop {
-                            match orx.try_recv() {
-                                Ok((d, g)) => {
-                                    let d = d.unwrap_or_default();
-                                    info!(target: "net", "Peer counts: Discovery={} | Swarm={}", d, g);
-                                    break;
-                                }
-                                Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {
-                                    /* Keep trying to receive */
-                                }
-                                Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {
-                                    break;
-                                }
-                            }
+                _ = interval.tick(), if !gossip_command_tx.is_closed() => {
+                    match tokio::time::timeout(PEER_COUNT_QUERY_TIMEOUT, rpc.opp2p_peer_count()).await? {
+                        Ok(count) => {
+                            info!(target: "net", "Peer counts: Discovery={} | Swarm={}", count.connected_discovery.unwrap_or_default(), count.connected_gossip);
                         }
-                    }).await.unwrap();
+                        Err(e) => warn!(target: "net", "Failed to query peer counts: {e:?}"),
+                    }
                 }
                 _ = OptionFuture::from(handle.clone().map(|h| h.stopped())) => {
                     warn!(target: "net", "RPC server stopped");

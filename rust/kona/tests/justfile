@@ -141,16 +141,19 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
 # Run action tests for the single-chain client program on the native target.
 #
 # Runs every Test* in rust/kona/tests/proofs/. These tests run only here (under
-# kona-host); the runner sets KONA_HOST_PATH and the package is excluded from the
-# monorepo go-tests suite.
+# kona-host); the runner sets KONA_HOST_PATH and RUST_BINARY_PATH_OP_RETH_TEST_ENGINE
+# and the package is excluded from the monorepo go-tests suite.
 action-tests-single test_name='.*' *args='': action-tests-build (action-tests-single-run test_name "0" args)
 
-# Build action tests for host program
+# Build the host program and the L2 execution engine the action tests run on
 action-tests-build:
   #!/bin/bash
+  set -euo pipefail
 
   echo "Building host program for the native target"
   just --justfile "{{SOURCE}}/../justfile" build-native --release --bin kona-host
+  echo "Building op-reth-test-engine"
+  just --justfile "{{SOURCE}}/../../justfile" build-op-reth-test-engine
 
 # Run action tests for the single-chain client program on the native target
 action-tests-single-run test_name='.*' parallel="0" *args='':
@@ -162,6 +165,12 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
   fi
 
   echo "KONA_HOST_PATH: $KONA_HOST_PATH"
+
+  if [ -z "${RUST_BINARY_PATH_OP_RETH_TEST_ENGINE:-}" ]; then
+    export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="{{SOURCE}}/../../target/release/op-reth-test-engine"
+  fi
+
+  echo "RUST_BINARY_PATH_OP_RETH_TEST_ENGINE: $RUST_BINARY_PATH_OP_RETH_TEST_ENGINE"
 
   # GitHub actions patch - do not print logs.
   # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
@@ -191,8 +200,6 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
     export NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
     export NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
 
-    # Op-program-only tests opt themselves out at runtime via helpers.SkipIfKona(t),
-    # so no name-based exclusion is needed here.
     go test -list '{{test_name}}' . \
         | {{SOURCE}}/../../../ops/scripts/shard-tests.sh > /tmp/tests_shard.txt
 
@@ -227,7 +234,8 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
 
 # Run the kona-sp1 super-range guest in SP1 execute mode against the action-test chain.
 #
-# Builds the guest ELFs (Dockerized SP1 toolchain) and the super-range-executor binary, then runs
+# Builds the guest ELFs (Dockerized SP1 toolchain), the super-range-executor binary and
+# op-reth-test-engine (the L2 execution engine), then runs
 # the SP1 execute action tests with KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH and KONA_SP1_ELF_DIR
 # set — the same two variables the op-acceptance-tests full-ELF suite reads. Tests skip when the
 # executor path is unset.
@@ -236,7 +244,7 @@ action-tests-sp1 test_name='TestSP1.*':
   set -euo pipefail
 
   echo "Building SP1 guest ELFs (Dockerized SP1 toolchain)..."
-  ( cd {{SOURCE}}/../sp1 && just build-elfs )
+  ( cd {{SOURCE}}/../sp1 && just build-elfs test-config-fallback )
   export KONA_SP1_ELF_DIR="{{SOURCE}}/../sp1/elf"
   echo "KONA_SP1_ELF_DIR: $KONA_SP1_ELF_DIR"
 
@@ -245,6 +253,11 @@ action-tests-sp1 test_name='TestSP1.*':
 
   export KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="{{SOURCE}}/../../target/release/kona-sp1-super-range-executor"
   echo "KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH: $KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH"
+
+  echo "Building op-reth-test-engine..."
+  just --justfile "{{SOURCE}}/../../justfile" build-op-reth-test-engine
+  export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="{{SOURCE}}/../../target/release/op-reth-test-engine"
+  echo "RUST_BINARY_PATH_OP_RETH_TEST_ENGINE: $RUST_BINARY_PATH_OP_RETH_TEST_ENGINE"
 
   cd {{SOURCE}}/proofs
   go test -count=1 -timeout=60m -run "{{test_name}}" .

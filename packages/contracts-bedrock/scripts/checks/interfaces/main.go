@@ -30,9 +30,12 @@ var excludeContracts = []string{
 	// OZ v4/v5 Ownable mismatch: IOwnable has v5 errors, AddressManager uses v4 Ownable
 	"IAddressManager",
 
+	// ERC-165 interfaces that bridges check deployed tokens against. Must never become ABI mirrors,
+	// since any change to their functions changes the interface ID and strands existing tokens.
+	"IOptimismMintableERC20", "ILegacyMintableERC20",
+
 	// TODO: Interfaces that need to be fixed
-	"IInitializable", "IOptimismMintableERC20", "ILegacyMintableERC20",
-	"KontrolCheatsBase", "IResolvedDelegateProxy",
+	"IInitializable", "KontrolCheatsBase", "IResolvedDelegateProxy",
 }
 
 // excludeSourceContracts is a list of contracts that are allowed to not have interfaces

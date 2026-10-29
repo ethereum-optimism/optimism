@@ -1119,6 +1119,8 @@ mod tests {
                     (String::from("holoceneTime"), 0.into()),
                     (String::from("isthmusTime"), 0.into()),
                     (String::from("jovianTime"), 0.into()),
+                    (String::from("karstTime"), 0.into()),
+                    (String::from("lagoonTime"), 0.into()),
                 ]
                 .into_iter()
                 .collect(),
@@ -1157,7 +1159,9 @@ mod tests {
             EthereumHardfork::Prague.boxed(),
             OpHardfork::Isthmus.boxed(),
             OpHardfork::Jovian.boxed(),
-            // OpHardfork::Lagoon.boxed(),
+            EthereumHardfork::Osaka.boxed(),
+            OpHardfork::Karst.boxed(),
+            OpHardfork::Lagoon.boxed(),
         ];
 
         for (expected, actual) in expected_hardforks.iter().zip(hardforks.iter()) {

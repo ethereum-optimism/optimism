@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/config"
@@ -15,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-faucet/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type APIRouter interface {

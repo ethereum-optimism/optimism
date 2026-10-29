@@ -25,8 +25,7 @@ abstract contract WETH98_TestInit is Test {
     function setUp() public {
         weth = IWETH98(
             DeployUtils.create1({
-                _name: "WETH98",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IWETH98.__constructor__, ()))
+                _name: "WETH98", _args: DeployUtils.encodeConstructor(abi.encodeCall(IWETH98.__constructor__, ()))
             })
         );
         alice = makeAddr("alice");

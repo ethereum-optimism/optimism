@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // QuadraticStrategy implements quadratic throttling for more aggressive scaling

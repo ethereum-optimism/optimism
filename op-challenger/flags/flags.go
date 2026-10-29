@@ -13,14 +13,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -180,7 +180,7 @@ var (
 	})
 	CannonL2CustomFlag = &cli.BoolFlag{
 		Name: "cannon-l2-custom",
-		Usage: "Notify the op-program host that the L2 chain uses custom config to be loaded via the preimage oracle. " +
+		Usage: "Notify the cannon server that the L2 chain uses custom config to be loaded via the preimage oracle. " +
 			"WARNING: This is incompatible with on-chain testing and must only be used for testing purposes.",
 		EnvVars: prefixEnvVars("CANNON_L2_CUSTOM"),
 		Value:   false,
@@ -304,7 +304,7 @@ var optionalFlags = []cli.Flag{
 }
 
 func init() {
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, logcli.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, PreStatesURLFlag.Flags()...)
 	optionalFlags = append(optionalFlags, RollupConfigFlag.Flags()...)
 	optionalFlags = append(optionalFlags, L1GenesisFlag.Flags()...)
@@ -335,8 +335,8 @@ func checkSuperRootProviderFlags(ctx *cli.Context) error {
 }
 
 func CheckCannonBaseFlags(ctx *cli.Context, enabledTypes []gameTypes.GameType) error {
-	// Permissioned games never reach step() so do not run op-program or load the
-	// absolute prestate; both are only required when an enabled game type can reach step().
+	// Permissioned games never reach step() so do not run the fault proof program or load
+	// the absolute prestate; both are only required when an enabled game type can reach step().
 	canReachStep := slices.ContainsFunc(enabledTypes, func(t gameTypes.GameType) bool {
 		return slices.Contains(gameTypes.CannonFamilyGameTypes, t) && !t.IsPermissioned()
 	})

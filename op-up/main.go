@@ -27,12 +27,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -145,14 +145,12 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool
 }
 
 func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
-	logHandler := oplog.NewLogHandler(stderr, oplog.DefaultCLIConfig())
+	logHandler := logcli.NewLogHandler(stderr, logcli.DefaultCLIConfig())
 	logHandler = logfilter.WrapFilterHandler(logHandler)
 	logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute())
 	logHandler = logfilter.WrapContextHandler(logHandler)
-	logger := log.NewLogger(logHandler)
-	oplog.SetGlobalLogHandler(logHandler)
-	logger.SetContext(ctx)
-	return logger
+	logcli.SetGlobalLogHandler(logHandler)
+	return log.NewLogger(logHandler).WithContext(ctx)
 }
 
 func newMinimalSystem(t *testingT) (sys *presets.Minimal, err error) {
@@ -670,8 +668,7 @@ func (t *testingT) Tracer() trace.Tracer {
 
 // WithCtx implements devtest.T.
 func (t *testingT) WithCtx(ctx context.Context) devtest.T {
-	logger := t.logger.New()
-	logger.SetContext(ctx)
+	logger := t.logger.WithContext(ctx)
 	out := &testingT{
 		state:  t.state,
 		ctx:    ctx,

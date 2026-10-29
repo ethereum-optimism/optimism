@@ -18,7 +18,7 @@
 #![warn(unused_crate_dependencies)]
 
 use clap::Parser;
-use discv5::enr::CombinedKey;
+use enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::{Discv5Builder, LocalNode};
 use std::net::{IpAddr, Ipv4Addr};

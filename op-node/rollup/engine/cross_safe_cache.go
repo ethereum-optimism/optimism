@@ -3,9 +3,8 @@ package engine
 import (
 	"context"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // crossSafeCache caches the most recently resolved cross-safe head so that

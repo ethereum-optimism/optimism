@@ -11,9 +11,10 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
@@ -28,6 +29,7 @@ type RPC interface {
 
 type rpcConfig struct {
 	gethRPCOptions   []rpc.ClientOption
+	recorder         jsonrpc.Recorder
 	httpPollInterval time.Duration
 	backoffAttempts  int
 	limit            float64
@@ -106,11 +108,12 @@ func WithLazyDial() RPCOption {
 	}
 }
 
-// WithRPCRecorder makes the RPC client use the given RPC recorder.
+// WithRPCRecorder makes the RPC client report its requests and their responses to the given
+// recorder, if it is not nil. Subscriptions are not recorded.
 // Warning: this overwrites any previous recorder choice.
-func WithRPCRecorder(recorder rpc.Recorder) RPCOption {
+func WithRPCRecorder(recorder jsonrpc.Recorder) RPCOption {
 	return func(cfg *rpcConfig) {
-		cfg.gethRPCOptions = append(cfg.gethRPCOptions, rpc.WithRecorder(recorder))
+		cfg.recorder = recorder
 	}
 }
 
@@ -231,6 +234,9 @@ func wrapClient(c *rpc.Client, cfg rpcConfig) RPC {
 	var wrapped RPC
 	wrapped = &BaseRPCClient{c: c, callTimeout: cfg.callTimeout, batchCallTimeout: cfg.batchCallTimeout}
 
+	if cfg.recorder != nil {
+		wrapped = newRecordingRPC(wrapped, cfg.recorder)
+	}
 	if cfg.limit != 0 {
 		wrapped = NewRateLimitingClient(wrapped, rate.Limit(cfg.limit), cfg.burst)
 	}

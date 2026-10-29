@@ -186,13 +186,7 @@ library ForgeArtifacts {
     }
 
     /// @notice Returns the storage slot for a given contract and slot name
-    function getSlot(
-        string memory _contractName,
-        string memory _slotName
-    )
-        internal
-        returns (StorageSlot memory slot_)
-    {
+    function getSlot(string memory _contractName, string memory _slotName) internal returns (StorageSlot memory slot_) {
         string memory storageLayout = getStorageLayout(_contractName);
         bytes memory rawSlot = vm.parseJson(
             Process.bash(

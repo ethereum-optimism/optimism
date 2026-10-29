@@ -13,15 +13,13 @@ import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
 import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 
-import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
-
 // Libraries
+import { Constants } from "src/libraries/Constants.sol";
 import { Features } from "src/libraries/Features.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.sol";
 
@@ -31,12 +29,9 @@ contract L2ContractsManager is ISemver {
     /// @notice Thrown when the upgrade or deploy function is called outside of a DELEGATECALL context.
     error L2ContractsManager_OnlyDelegatecall();
 
-    /// @notice Thrown when the fullConfig input and dev feature flags are not compatible.
-    error L2ContractsManager_FeatureFlagMismatch();
-
     /// @notice The semantic version of the L2ContractsManager contract.
-    /// @custom:semver 1.14.0
-    string public constant version = "1.14.0";
+    /// @custom:semver 1.17.0
+    string public constant version = "1.17.0";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
@@ -97,6 +92,8 @@ contract L2ContractsManager is ISemver {
     address internal immutable SUPERCHAIN_ETH_BRIDGE_IMPL;
     /// @notice ETHLiquidity implementation.
     address internal immutable ETH_LIQUIDITY_IMPL;
+    /// @notice UndeliveredMessageExporter implementation.
+    address internal immutable UNDELIVERED_MESSAGE_EXPORTER_IMPL;
     /// @notice NativeAssetLiquidity implementation.
     address internal immutable NATIVE_ASSET_LIQUIDITY_IMPL;
     /// @notice LiquidityController implementation.
@@ -140,6 +137,8 @@ contract L2ContractsManager is ISemver {
             L2ContractsManagerUtils.findImpl(_implementations, "L2ToL2CrossDomainMessenger");
         SUPERCHAIN_ETH_BRIDGE_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "SuperchainETHBridge");
         ETH_LIQUIDITY_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "ETHLiquidity");
+        UNDELIVERED_MESSAGE_EXPORTER_IMPL =
+            L2ContractsManagerUtils.findImpl(_implementations, "UndeliveredMessageExporter");
         NATIVE_ASSET_LIQUIDITY_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "NativeAssetLiquidity");
         LIQUIDITY_CONTROLLER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "LiquidityController");
         CONDITIONAL_DEPLOYER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "ConditionalDeployer");
@@ -170,7 +169,7 @@ contract L2ContractsManager is ISemver {
     /// @notice Loads the full configuration for the L2 Predeploys.
     /// @return fullConfig_ The full configuration.
     function _loadFullConfig() internal view returns (L2ContractsManagerTypes.FullConfig memory fullConfig_) {
-        // First we read the system customization and dev feature flags from the state.
+        // First we read the system customization flags from the state.
         // Because the L2CM's upgrade function does not accept arguments, these values must be set from outside of the
         // Network Upgrade Transactions bundle. The expectation is that they will be set at the start of a
         // hard fork block, within the consensus client's code.
@@ -188,11 +187,9 @@ contract L2ContractsManager is ISemver {
         } catch {
             fullConfig_.isInterop = false;
         }
-        // The INTEROP system customization can only be enabled if the dev feature is also enabled.
-        // The dev feature gates whether interop code was deployed; the system customization controls activation.
-        if (fullConfig_.isInterop && !_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            revert L2ContractsManager_FeatureFlagMismatch();
-        }
+        // The INTEROP feature alone gates the interop predeploys. The upgrade does not consult the
+        // L2 dev feature bitmap: existing chains activate interop at the Lagoon hard fork without
+        // ever having set that bitmap at genesis.
 
         // L2CrossDomainMessenger
         fullConfig_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({
@@ -240,6 +237,20 @@ contract L2ContractsManager is ISemver {
                 gasPayingTokenName: liquidityController.gasPayingTokenName(),
                 gasPayingTokenSymbol: liquidityController.gasPayingTokenSymbol()
             });
+        }
+
+        // L2ToL2CrossDomainMessenger
+        // Uses try/catch because expiryPeriod() does not exist on messengers from before the expiry
+        // period was configurable, or on a chain whose messenger is not deployed yet. Those, and a
+        // messenger that returns 0, get the production period.
+        // eip150-safe
+        try IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod() returns (
+            uint256 expiryPeriod_
+        ) {
+            fullConfig_.l2ToL2MessageExpiryPeriod = expiryPeriod_;
+        } catch { }
+        if (fullConfig_.l2ToL2MessageExpiryPeriod == 0) {
+            fullConfig_.l2ToL2MessageExpiryPeriod = Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD;
         }
     }
 
@@ -400,6 +411,19 @@ contract L2ContractsManager is ISemver {
             _isDeploy
         );
 
+        // L2ToL2CrossDomainMessenger (only on interop networks)
+        if (_config.isInterop) {
+            L2ContractsManagerUtils.upgradeToAndCall(
+                Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+                L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL,
+                STORAGE_SETTER_IMPL,
+                abi.encodeCall(IL2ToL2CrossDomainMessenger.initialize, (_config.l2ToL2MessageExpiryPeriod)),
+                INITIALIZABLE_SLOT_OZ_V5,
+                0,
+                _isDeploy
+            );
+        }
+
         // Non-initializable predeploys.
         L2ContractsManagerUtils.upgradeTo(Predeploys.GAS_PRICE_ORACLE, GAS_PRICE_ORACLE_IMPL, _isDeploy);
         // L1BlockAttributes and L2ToL1MessagePasser have different implementations for custom gas token networks.
@@ -417,43 +441,28 @@ contract L2ContractsManager is ISemver {
             L2ContractsManagerUtils.upgradeTo(Predeploys.NATIVE_ASSET_LIQUIDITY, NATIVE_ASSET_LIQUIDITY_IMPL, _isDeploy);
         }
 
-        // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
+        // Interop predeploys are gated behind the INTEROP system feature.
         if (_config.isInterop) {
             L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL, _isDeploy);
-            L2ContractsManagerUtils.upgradeTo(
-                Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL, _isDeploy
-            );
             L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_ETH_BRIDGE, SUPERCHAIN_ETH_BRIDGE_IMPL, _isDeploy);
             L2ContractsManagerUtils.upgradeTo(Predeploys.ETH_LIQUIDITY, ETH_LIQUIDITY_IMPL, _isDeploy);
+            L2ContractsManagerUtils.upgradeTo(
+                Predeploys.UNDELIVERED_MESSAGE_EXPORTER, UNDELIVERED_MESSAGE_EXPORTER_IMPL, _isDeploy
+            );
         }
         L2ContractsManagerUtils.upgradeTo(Predeploys.SCHEMA_REGISTRY, SCHEMA_REGISTRY_IMPL, _isDeploy);
         L2ContractsManagerUtils.upgradeTo(Predeploys.EAS, EAS_IMPL, _isDeploy);
         L2ContractsManagerUtils.upgradeTo(Predeploys.CONDITIONAL_DEPLOYER, CONDITIONAL_DEPLOYER_IMPL, _isDeploy);
     }
 
-    /// @notice Checks if a development feature is enabled by reading from the L2DevFeatureFlags predeploy.
-    ///         If the L2DevFeatureFlags Predeploy is not available on-chain, i.e. it has no implementation,
-    ///         it defaults to false.
-    /// @param _feature The feature to check.
-    /// @return True if the L2DevFeatureFlags is available and _feature is enabled, false otherwise.
-    function _isDevFeatureEnabled(bytes32 _feature) internal view returns (bool) {
-        address flagsImpl =
-            IL2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
-        if (flagsImpl.code.length == 0) return false;
-        return IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).isDevFeatureEnabled(_feature);
-    }
-
     /// @notice Returns the implementation addresses for each predeploy upgraded by the L2ContractsManager.
     /// @return implementations_ The implementation addresses for each predeploy upgraded by the L2ContractsManager.
-    function getImplementations()
-        external
-        view
-        returns (L2ContractsManagerTypes.ImplRecord[] memory implementations_)
-    {
-        implementations_ = new L2ContractsManagerTypes.ImplRecord[](26);
+    function getImplementations() external view returns (L2ContractsManagerTypes.ImplRecord[] memory implementations_) {
+        implementations_ = new L2ContractsManagerTypes.ImplRecord[](27);
         implementations_[0] = L2ContractsManagerTypes.ImplRecord({ name: "StorageSetter", impl: STORAGE_SETTER_IMPL });
-        implementations_[1] =
-            L2ContractsManagerTypes.ImplRecord({ name: "L2CrossDomainMessenger", impl: L2_CROSS_DOMAIN_MESSENGER_IMPL });
+        implementations_[1] = L2ContractsManagerTypes.ImplRecord({
+            name: "L2CrossDomainMessenger", impl: L2_CROSS_DOMAIN_MESSENGER_IMPL
+        });
         implementations_[2] =
             L2ContractsManagerTypes.ImplRecord({ name: "GasPriceOracle", impl: GAS_PRICE_ORACLE_IMPL });
         implementations_[3] =
@@ -461,8 +470,7 @@ contract L2ContractsManager is ISemver {
         implementations_[4] =
             L2ContractsManagerTypes.ImplRecord({ name: "SequencerFeeVault", impl: SEQUENCER_FEE_WALLET_IMPL });
         implementations_[5] = L2ContractsManagerTypes.ImplRecord({
-            name: "OptimismMintableERC20Factory",
-            impl: OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL
+            name: "OptimismMintableERC20Factory", impl: OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL
         });
         implementations_[6] =
             L2ContractsManagerTypes.ImplRecord({ name: "L2ERC721Bridge", impl: L2_ERC721_BRIDGE_IMPL });
@@ -471,12 +479,10 @@ contract L2ContractsManager is ISemver {
         implementations_[9] =
             L2ContractsManagerTypes.ImplRecord({ name: "L2ToL1MessagePasser", impl: L2_TO_L1_MESSAGE_PASSER_IMPL });
         implementations_[10] = L2ContractsManagerTypes.ImplRecord({
-            name: "L2ToL1MessagePasserCGT",
-            impl: L2_TO_L1_MESSAGE_PASSER_CGT_IMPL
+            name: "L2ToL1MessagePasserCGT", impl: L2_TO_L1_MESSAGE_PASSER_CGT_IMPL
         });
         implementations_[11] = L2ContractsManagerTypes.ImplRecord({
-            name: "OptimismMintableERC721Factory",
-            impl: OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL
+            name: "OptimismMintableERC721Factory", impl: OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL
         });
         implementations_[12] = L2ContractsManagerTypes.ImplRecord({ name: "L2ProxyAdmin", impl: PROXY_ADMIN_IMPL });
         implementations_[13] = L2ContractsManagerTypes.ImplRecord({ name: "BaseFeeVault", impl: BASE_FEE_VAULT_IMPL });
@@ -488,19 +494,21 @@ contract L2ContractsManager is ISemver {
         implementations_[17] = L2ContractsManagerTypes.ImplRecord({ name: "EAS", impl: EAS_IMPL });
         implementations_[18] = L2ContractsManagerTypes.ImplRecord({ name: "CrossL2Inbox", impl: CROSS_L2_INBOX_IMPL });
         implementations_[19] = L2ContractsManagerTypes.ImplRecord({
-            name: "L2ToL2CrossDomainMessenger",
-            impl: L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL
+            name: "L2ToL2CrossDomainMessenger", impl: L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL
         });
         implementations_[20] =
             L2ContractsManagerTypes.ImplRecord({ name: "SuperchainETHBridge", impl: SUPERCHAIN_ETH_BRIDGE_IMPL });
         implementations_[21] = L2ContractsManagerTypes.ImplRecord({ name: "ETHLiquidity", impl: ETH_LIQUIDITY_IMPL });
-        implementations_[22] =
-            L2ContractsManagerTypes.ImplRecord({ name: "NativeAssetLiquidity", impl: NATIVE_ASSET_LIQUIDITY_IMPL });
+        implementations_[22] = L2ContractsManagerTypes.ImplRecord({
+            name: "UndeliveredMessageExporter", impl: UNDELIVERED_MESSAGE_EXPORTER_IMPL
+        });
         implementations_[23] =
-            L2ContractsManagerTypes.ImplRecord({ name: "LiquidityController", impl: LIQUIDITY_CONTROLLER_IMPL });
+            L2ContractsManagerTypes.ImplRecord({ name: "NativeAssetLiquidity", impl: NATIVE_ASSET_LIQUIDITY_IMPL });
         implementations_[24] =
-            L2ContractsManagerTypes.ImplRecord({ name: "ConditionalDeployer", impl: CONDITIONAL_DEPLOYER_IMPL });
+            L2ContractsManagerTypes.ImplRecord({ name: "LiquidityController", impl: LIQUIDITY_CONTROLLER_IMPL });
         implementations_[25] =
+            L2ContractsManagerTypes.ImplRecord({ name: "ConditionalDeployer", impl: CONDITIONAL_DEPLOYER_IMPL });
+        implementations_[26] =
             L2ContractsManagerTypes.ImplRecord({ name: "L2DevFeatureFlags", impl: L2_DEV_FEATURE_FLAGS_IMPL });
     }
 }

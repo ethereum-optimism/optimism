@@ -7,9 +7,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gethevent "github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -29,7 +30,7 @@ func (api *testSubscribeAPI) Bar(ctx context.Context) (*rpc.Subscription, error)
 }
 
 func (api *testSubscribeAPI) GreetName(ctx context.Context, name string) (*rpc.Subscription, error) {
-	return nil, &rpc.JsonError{
+	return nil, &jsonrpc.Error{
 		Code:    -100_000,
 		Message: "hello " + name,
 		Data:    nil,

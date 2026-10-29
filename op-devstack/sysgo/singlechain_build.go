@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -30,7 +29,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -60,45 +60,6 @@ type testSequencer struct {
 	jwtSecret  [32]byte
 	controlRPC map[eth.ChainID]string
 	service    *sequencer.Service
-}
-
-func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*L1Network, *L2Network) {
-	wb := &worldBuilder{
-		p:       t,
-		logger:  t.Logger(),
-		require: t.Require(),
-		keys:    keys,
-		builder: intentbuilder.New(),
-	}
-
-	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
-	applyConfigCommons(t, keys, DefaultL1ID, wb.builder)
-	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2AID, wb.builder)
-	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
-	wb.Build()
-
-	t.Require().Len(wb.l2Chains, 1, "expected exactly one L2 chain in single-chain world")
-	l2ID := wb.l2Chains[0]
-	l1ID := eth.ChainIDFromUInt64(wb.output.AppliedIntent.L1ChainID)
-
-	l1Net := &L1Network{
-		name:      "l1",
-		chainID:   l1ID,
-		genesis:   wb.outL1Genesis,
-		blockTime: 6,
-	}
-	l2Net := &L2Network{
-		name:       "l2a",
-		chainID:    l2ID,
-		l1ChainID:  l1ID,
-		genesis:    wb.outL2Genesis[l2ID],
-		rollupCfg:  wb.outL2RollupCfg[l2ID],
-		deployment: wb.outL2Deployment[l2ID],
-		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
-		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
-		keys:       keys,
-	}
-	return l1Net, l2Net
 }
 
 func applyConfigLocalContractSources(t devtest.T, _ devkeys.Keys, builder intentbuilder.Builder, artifactsPath string) {
@@ -139,10 +100,8 @@ func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [3
 		// binary override look like it took effect on a node that never saw it.
 		t.Require().Empty(opts, "op-reth options cannot be applied to EL kind %q", k)
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
-	case MixedL2ELOpRethV2:
-		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v2", opts...)
-	case "", MixedL2ELOpReth: // unset (default) or explicit op-reth v1
-		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1", opts...)
+	case "", MixedL2ELOpReth: // unset (default) or explicit op-reth
+		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, opts...)
 	default:
 		t.Require().FailNow("unsupported L2 EL kind", "unknown DEVSTACK_L2EL_KIND %q", k)
 		return nil // unreachable
@@ -170,15 +129,49 @@ func startL2CLForKey(
 ) L2CLNode {
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
-		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
+		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, konaNodeStartConfig{
+			L2CLConfig: resolveKonaL2CLConfig(t, clKey, l2Net.ChainID(), isSequencer, followSource, l2CLOpts),
+		})
 	default: // op-node
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,
 			IsSequencer:    isSequencer,
 			NoDiscovery:    true,
-			EnableReqResp:  true,
 			L2FollowSource: followSource,
 			L2CLOptions:    l2CLOpts,
+		})
+	}
+}
+
+// startStoppedSequencerCL starts the env-selected sequencer CL in the stopped
+// state required while a conductor cluster is being assembled.
+func startStoppedSequencerCL(
+	t devtest.T,
+	keys devkeys.Keys,
+	l1Net *L1Network,
+	l2Net *L2Network,
+	l1EL L1ELNode,
+	l1CL *L1CLNode,
+	l2EL L2ELNode,
+	jwtSecret [32]byte,
+	key string,
+	l2CLOpts []L2CLOption,
+) L2CLNode {
+	switch devstackL2CLKind() {
+	case MixedL2CLKona:
+		return startMixedKonaNode(
+			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, key, key, konaNodeStartConfig{
+				L2CLConfig:       resolveKonaL2CLConfig(t, key, l2Net.ChainID(), true, "", l2CLOpts),
+				SequencerStopped: true,
+			},
+		)
+	default: // op-node
+		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
+			Key:              key,
+			IsSequencer:      true,
+			NoDiscovery:      true,
+			L2CLOptions:      l2CLOpts,
+			SequencerStopped: true,
 		})
 	}
 }
@@ -270,7 +263,6 @@ type l2CLNodeStartConfig struct {
 	Key            string
 	IsSequencer    bool
 	NoDiscovery    bool
-	EnableReqResp  bool
 	L2FollowSource string
 	DependencySet  depset.DependencySet
 	L2CLOptions    []L2CLOption
@@ -307,7 +299,6 @@ func startL2CLNode(
 	cfg := DefaultL2CLConfig()
 	cfg.IsSequencer = startCfg.IsSequencer
 	cfg.NoDiscovery = startCfg.NoDiscovery
-	cfg.EnableReqRespSync = startCfg.EnableReqResp
 	cfg.FollowSource = startCfg.L2FollowSource
 	if len(startCfg.L2CLOptions) > 0 {
 		l2CLTarget := NewComponentTarget(startCfg.Key, l2Net.ChainID())
@@ -364,7 +355,6 @@ func startL2CLNode(
 	p2pConfig, err := p2pcli.NewConfig(cliCtx, l2Net.rollupCfg.BlockTime)
 	require.NoError(err, "failed to load p2p config")
 	p2pConfig.NoDiscovery = cfg.NoDiscovery
-	p2pConfig.EnableReqRespSync = cfg.EnableReqRespSync
 	// Devstack chain timestamps are synthetic: genesis is set in the past and the
 	// chain may lag many seconds behind wallclock during startup (or many minutes
 	// during long tests like dispute games). The production-default 60s gossip
@@ -434,6 +424,14 @@ func startL2CLNode(
 		AltDA:                           altda.CLIConfig{},
 		IgnoreMissingPectraBlobSchedule: false,
 		ExperimentalOPStackAPI:          true,
+	}
+	if cfg.ConductorRPC != "" {
+		require.Positive(cfg.ConductorRPCTimeout, "conductor RPC timeout must be positive")
+		nodeCfg.ConductorEnabled = true
+		nodeCfg.ConductorRpcTimeout = cfg.ConductorRPCTimeout
+		nodeCfg.ConductorRpc = func(context.Context) (string, error) {
+			return cfg.ConductorRPC, nil
+		}
 	}
 	l2CL := &OpNode{
 		name:     startCfg.Key,
@@ -605,9 +603,9 @@ func startTestSequencer(
 		PprofConfig: oppprof.CLIConfig{
 			ListenEnabled: false,
 		},
-		LogConfig: oplog.CLIConfig{
+		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelDebug,
-			Format: oplog.FormatText,
+			Format: log.FormatText,
 		},
 		RPC: oprpc.CLIConfig{
 			ListenAddr:  "127.0.0.1",

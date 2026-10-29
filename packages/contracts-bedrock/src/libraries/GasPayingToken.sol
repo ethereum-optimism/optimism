@@ -30,7 +30,8 @@ library GasPayingToken {
     bytes32 internal constant GAS_PAYING_TOKEN_SLOT = bytes32(uint256(keccak256("opstack.gaspayingtoken")) - 1);
 
     /// @notice The storage slot that contains the ERC20 `name()` of the gas paying token
-    bytes32 internal constant GAS_PAYING_TOKEN_NAME_SLOT = bytes32(uint256(keccak256("opstack.gaspayingtokenname")) - 1);
+    bytes32 internal constant GAS_PAYING_TOKEN_NAME_SLOT =
+        bytes32(uint256(keccak256("opstack.gaspayingtokenname")) - 1);
 
     /// @notice the storage slot that contains the ERC20 `symbol()` of the gas paying token
     bytes32 internal constant GAS_PAYING_TOKEN_SYMBOL_SLOT =

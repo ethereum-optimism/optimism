@@ -20,10 +20,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type TxSender interface {
@@ -205,7 +205,9 @@ func (a *Agent) Act(ctx context.Context) error {
 	}
 
 	actions, err := a.solver.CalculateNextActions(ctx, game)
-	if err != nil {
+	if errors.Is(err, gameTypes.ErrNotInSync) {
+		a.log.Warn("Local node not sufficiently up to date", "err", err)
+	} else if err != nil {
 		a.log.Error("Failed to calculate all required moves", "err", err)
 	}
 

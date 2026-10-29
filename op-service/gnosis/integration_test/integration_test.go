@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum"
@@ -32,7 +32,7 @@ func TestGnosisClient(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create Safe gnosis
-	lgr := log.NewLogger(os.Stdout, log.DefaultCLIConfig())
+	lgr := logcli.NewLogger(os.Stdout, logcli.DefaultCLIConfig())
 	rpcUrl, ethClient := devnet.DefaultAnvilRPC(t, lgr)
 	safeAddress, testContractAddr := deploySafeContracts(t, rpcUrl, privateKey)
 

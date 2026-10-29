@@ -163,7 +163,7 @@ type MultiChainRuntime struct {
 	SyncTester         *SyncTesterRuntime
 }
 
-// StartZKProposer starts the configured kona-sp1-proposer. It is intended for
+// StartZKProposer starts the configured op-zk-proposer. It is intended for
 // tests that seed dispute games with WithoutHonestProposer before allowing the
 // proposer to observe them.
 func (r *MultiChainRuntime) StartZKProposer(t devtest.T) *ZKProposerRuntime {

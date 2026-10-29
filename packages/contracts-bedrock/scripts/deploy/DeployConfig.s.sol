@@ -73,6 +73,12 @@ contract DeployConfig is Script {
     uint256 public systemConfigStartBlock;
     uint256 public proofMaturityDelaySeconds;
     uint256 public disputeGameFinalityDelaySeconds;
+    uint256 public minProofMaturityDelaySeconds;
+    uint256 public maxProofMaturityDelaySeconds;
+    uint256 public minDisputeGameFinalityDelaySeconds;
+    uint256 public maxDisputeGameFinalityDelaySeconds;
+    uint256 public minWithdrawalDelaySeconds;
+    uint256 public maxWithdrawalDelaySeconds;
     uint256 public respectedGameType;
     bool public useAltDA;
     string public daCommitmentType;
@@ -170,8 +176,17 @@ contract DeployConfig is Script {
         enableGovernance = _readOr(_json, "$.enableGovernance", false);
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
 
-        proofMaturityDelaySeconds = _readOr(_json, "$.proofMaturityDelaySeconds", uint256(0));
-        disputeGameFinalityDelaySeconds = _readOr(_json, "$.disputeGameFinalityDelaySeconds", uint256(0));
+        // Per-chain withdrawal delays default to the standard values; a zero would be rejected at
+        // initialize() time.
+        proofMaturityDelaySeconds = _readOr(_json, "$.proofMaturityDelaySeconds", uint256(604800));
+        disputeGameFinalityDelaySeconds = _readOr(_json, "$.disputeGameFinalityDelaySeconds", uint256(302400));
+        // Implementation bounds for the per-chain withdrawal delays.
+        minProofMaturityDelaySeconds = _readOr(_json, "$.minProofMaturityDelaySeconds", uint256(86400));
+        maxProofMaturityDelaySeconds = _readOr(_json, "$.maxProofMaturityDelaySeconds", uint256(604800));
+        minDisputeGameFinalityDelaySeconds = _readOr(_json, "$.minDisputeGameFinalityDelaySeconds", uint256(43200));
+        maxDisputeGameFinalityDelaySeconds = _readOr(_json, "$.maxDisputeGameFinalityDelaySeconds", uint256(302400));
+        minWithdrawalDelaySeconds = _readOr(_json, "$.minWithdrawalDelaySeconds", uint256(43200));
+        maxWithdrawalDelaySeconds = _readOr(_json, "$.maxWithdrawalDelaySeconds", uint256(604800));
         respectedGameType = _readOr(_json, "$.respectedGameType", uint256(0));
 
         faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
@@ -240,7 +255,7 @@ contract DeployConfig is Script {
     function l2OutputOracleStartingTimestamp() public returns (uint256) {
         if (_l2OutputOracleStartingTimestamp < 0) {
             bytes32 tag = l1StartingBlockTag();
-            string memory cmd = string.concat("cast block ", vm.toString(tag), " --json | jq .timestamp");
+            string memory cmd = string.concat("cast block ", vm.toString(tag), " --json | jq '(.data // .).timestamp'");
             string memory res = Process.bash(cmd);
             return stdJson.readUint(res, "");
         }
@@ -376,6 +391,12 @@ contract DeployConfig is Script {
         systemConfigStartBlock = 0;
         proofMaturityDelaySeconds = 604800;
         disputeGameFinalityDelaySeconds = 302400;
+        minProofMaturityDelaySeconds = 86400;
+        maxProofMaturityDelaySeconds = 604800;
+        minDisputeGameFinalityDelaySeconds = 43200;
+        maxDisputeGameFinalityDelaySeconds = 302400;
+        minWithdrawalDelaySeconds = 43200;
+        maxWithdrawalDelaySeconds = 604800;
         respectedGameType = 0;
         useAltDA = false;
         daCommitmentType = "KeccakCommitment";
@@ -421,7 +442,7 @@ contract DeployConfig is Script {
     }
 
     function _getBlockByTag(string memory _tag) internal returns (bytes32) {
-        string memory cmd = string.concat("cast block ", _tag, " --json | jq -r .hash");
+        string memory cmd = string.concat("cast block ", _tag, " --json | jq -r '(.data // .).hash'");
         bytes memory res = bytes(Process.bash(cmd));
         return abi.decode(res, (bytes32));
     }
@@ -430,11 +451,7 @@ contract DeployConfig is Script {
         return _jsonInp.readBoolOr(_key, _defaultValue);
     }
 
-    function _readOr(
-        string memory _jsonInp,
-        string memory _key,
-        uint256 _defaultValue
-    )
+    function _readOr(string memory _jsonInp, string memory _key, uint256 _defaultValue)
         internal
         view
         returns (uint256)
@@ -442,11 +459,7 @@ contract DeployConfig is Script {
         return (vm.keyExistsJson(_jsonInp, _key) && !_isNull(_json, _key)) ? _jsonInp.readUint(_key) : _defaultValue;
     }
 
-    function _readOr(
-        string memory _jsonInp,
-        string memory _key,
-        address _defaultValue
-    )
+    function _readOr(string memory _jsonInp, string memory _key, address _defaultValue)
         internal
         view
         returns (address)
@@ -475,11 +488,7 @@ contract DeployConfig is Script {
         return (vm.keyExistsJson(_jsonInp, _key) && !_isNull(_json, _key)) ? _jsonInp.readInt(_key) : _defaultValue;
     }
 
-    function _readOr(
-        string memory _jsonInp,
-        string memory _key,
-        bytes32 _defaultValue
-    )
+    function _readOr(string memory _jsonInp, string memory _key, bytes32 _defaultValue)
         internal
         view
         returns (bytes32)

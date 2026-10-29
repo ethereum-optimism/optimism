@@ -12,7 +12,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -23,6 +22,7 @@ import (
 	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 var (
@@ -488,6 +488,13 @@ func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", fork))
 	}
+}
+
+// IsForkActive reports whether fork is active at timestamp on a chain whose L2 genesis is at
+// genesisTime.
+func (d *UpgradeScheduleDeployConfig) IsForkActive(fork rollup.ForkName, genesisTime, timestamp uint64) bool {
+	activation := offsetToUpgradeTime((*hexutil.Uint64)(d.ForkTimeOffset(fork)), genesisTime)
+	return activation != nil && timestamp >= *activation
 }
 
 func (d *UpgradeScheduleDeployConfig) SetForkTimeOffset(fork rollup.ForkName, offset *uint64) {
@@ -1252,23 +1259,23 @@ type L1Deployments struct {
 func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deployments {
 	return &L1Deployments{
 		AddressManager:                    contracts.AddressManagerImpl,
-		DisputeGameFactory:                contracts.DisputeGameFactoryImpl,
+		DisputeGameFactory:                contracts.Implementations.DisputeGameFactoryImpl,
 		DisputeGameFactoryProxy:           contracts.DisputeGameFactoryProxy,
-		L1CrossDomainMessenger:            contracts.L1CrossDomainMessengerImpl,
+		L1CrossDomainMessenger:            contracts.Implementations.L1CrossDomainMessengerImpl,
 		L1CrossDomainMessengerProxy:       contracts.L1CrossDomainMessengerProxy,
-		L1ERC721Bridge:                    contracts.L1Erc721BridgeImpl,
+		L1ERC721Bridge:                    contracts.Implementations.L1Erc721BridgeImpl,
 		L1ERC721BridgeProxy:               contracts.L1Erc721BridgeProxy,
-		L1StandardBridge:                  contracts.L1StandardBridgeImpl,
+		L1StandardBridge:                  contracts.Implementations.L1StandardBridgeImpl,
 		L1StandardBridgeProxy:             contracts.L1StandardBridgeProxy,
 		L2OutputOracleProxy:               contracts.L2OutputOracleProxy,
-		OptimismMintableERC20Factory:      contracts.OptimismMintableErc20FactoryImpl,
+		OptimismMintableERC20Factory:      contracts.Implementations.OptimismMintableErc20FactoryImpl,
 		OptimismMintableERC20FactoryProxy: contracts.OptimismMintableErc20FactoryProxy,
-		OptimismPortal:                    contracts.OptimismPortalImpl,
+		OptimismPortal:                    contracts.Implementations.OptimismPortalImpl,
 		OptimismPortalProxy:               contracts.OptimismPortalProxy,
-		ETHLockbox:                        contracts.EthLockboxImpl,
+		ETHLockbox:                        contracts.Implementations.EthLockboxImpl,
 		ETHLockboxProxy:                   contracts.EthLockboxProxy,
 		ProxyAdmin:                        contracts.OpChainProxyAdminImpl,
-		SystemConfig:                      contracts.SystemConfigImpl,
+		SystemConfig:                      contracts.Implementations.SystemConfigImpl,
 		SystemConfigProxy:                 contracts.SystemConfigProxy,
 		DataAvailabilityChallenge:         contracts.AltDAChallengeImpl,
 		DataAvailabilityChallengeProxy:    contracts.AltDAChallengeProxy,

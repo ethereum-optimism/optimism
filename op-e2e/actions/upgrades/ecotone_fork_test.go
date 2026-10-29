@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -22,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -258,10 +258,10 @@ func TestEcotoneBeforeL1(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 
 	// Genesis block has ecotone properties
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 
 	// Blocks post fork have Ecotone properties
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 }

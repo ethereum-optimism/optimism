@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -95,7 +95,7 @@ func pcdSuperRootFromArtifacts(artifacts []pcdChainArtifacts) (common.Hash, uint
 		})
 	}
 
-	// The aggregation follows (*SuperRootMigrator).calculateSuperRoot in op-chain-ops/script/check_super_root.go.
+	// The aggregation follows (*Migrator).calculateSuperRoot in op-chain-ops/superroot.
 	return common.Hash(eth.SuperRoot(eth.NewSuperV1(genesisTime, chainOutputs...))), genesisTime, nil
 }
 
@@ -108,12 +108,12 @@ func pcdOutputRoot(header *types.Header) eth.Bytes32 {
 	})
 }
 
-func readPCDGenesis(path string) (*core.Genesis, error) {
+func readPCDGenesis(path string) (*opgenesis.Genesis, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read PCD genesis %s: %w", path, err)
 	}
-	var genesis core.Genesis
+	var genesis opgenesis.Genesis
 	if err := json.Unmarshal(data, &genesis); err != nil {
 		return nil, fmt.Errorf("decode PCD genesis %s: %w", path, err)
 	}

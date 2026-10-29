@@ -128,10 +128,7 @@ library ChainAssertions {
 
         // Check that the contract is initialized
         DeployUtils.assertInitialized({
-            _contractAddress: address(_messenger),
-            _isProxy: _isProxy,
-            _slot: 0,
-            _offset: 20
+            _contractAddress: address(_messenger), _isProxy: _isProxy, _slot: 0, _offset: 20
         });
 
         if (_isProxy) {
@@ -206,14 +203,22 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the DelayedWETH is setup correctly
-    function checkDelayedWETHImpl(IDelayedWETH _weth, uint256 _faultGameWithdrawalDelay) internal view {
+    function checkDelayedWETHImpl(
+        IDelayedWETH _weth,
+        uint256 _minWithdrawalDelaySeconds,
+        uint256 _maxWithdrawalDelaySeconds
+    )
+        internal
+        view
+    {
         console.log("Running chain assertions on the DelayedWETH implementation at %s", address(_weth));
         require(address(_weth) != address(0), "CHECK-DWETH-10");
 
         // Check that the contract is initialized
         DeployUtils.assertInitialized({ _contractAddress: address(_weth), _isProxy: false, _slot: 0, _offset: 0 });
 
-        require(_weth.delay() == _faultGameWithdrawalDelay, "CHECK-DWETH-50");
+        require(_weth.minDelay() == _minWithdrawalDelaySeconds, "CHECK-DWETH-50");
+        require(_weth.maxDelay() == _maxWithdrawalDelaySeconds, "CHECK-DWETH-60");
     }
 
     /// @notice Asserts that the OptimismMintableERC20Factory is setup correctly
@@ -254,7 +259,9 @@ library ChainAssertions {
         Types.ContractSet memory _contracts,
         ISuperchainConfig _superchainConfig,
         address _opChainProxyAdminOwner,
-        bool _isProxy
+        bool _isProxy,
+        uint256 _minProofMaturityDelaySeconds,
+        uint256 _maxProofMaturityDelaySeconds
     )
         internal
         view
@@ -285,9 +292,15 @@ library ChainAssertions {
             require(portal.l2Sender() == address(0), "CHECK-OP2-110");
             require(address(portal.ethLockbox()) == address(0), "CHECK-OP2-120");
         }
+        // TODO(optimism-private#744): No deploy path sets a bridge hook yet.
+        require(address(portal.bridgeHook()) == address(0), "CHECK-OP2-125");
         // This slot is the custom gas token _balance and this check ensures
         // that it stays unset for forwards compatibility with custom gas token.
         require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "CHECK-OP2-130");
+
+        // The proof maturity delay bounds are immutables, so they read the same through the proxy.
+        require(portal.minProofMaturityDelaySeconds() == _minProofMaturityDelaySeconds, "CHECK-OP2-140");
+        require(portal.maxProofMaturityDelaySeconds() == _maxProofMaturityDelaySeconds, "CHECK-OP2-150");
     }
 
     /// @notice Asserts that the ETHLockbox is setup correctly
@@ -320,10 +333,7 @@ library ChainAssertions {
 
         // Check that the contract is initialized
         DeployUtils.assertInitialized({
-            _contractAddress: address(superchainConfig),
-            _isProxy: _isProxy,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(superchainConfig), _isProxy: _isProxy, _slot: 0, _offset: 0
         });
 
         if (_isProxy) {
@@ -396,7 +406,9 @@ library ChainAssertions {
         IAnchorStateRegistry _anchorStateRegistryProxy,
         bool _isProxy,
         GameType _expectedRespectedGameType,
-        Proposal memory _expectedAnchor
+        Proposal memory _expectedAnchor,
+        uint256 _minDisputeGameFinalityDelaySeconds,
+        uint256 _maxDisputeGameFinalityDelaySeconds
     )
         internal
     {
@@ -406,10 +418,7 @@ library ChainAssertions {
         }
 
         DeployUtils.assertInitialized({
-            _contractAddress: address(_anchorStateRegistryProxy),
-            _isProxy: _isProxy,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(_anchorStateRegistryProxy), _isProxy: _isProxy, _slot: 0, _offset: 0
         });
 
         // The below check cannot be done in the standard validator because the assertion only applies at deploy time.
@@ -418,6 +427,16 @@ library ChainAssertions {
         require(_anchorStateRegistryProxy.respectedGameType().raw() == _expectedRespectedGameType.raw(), "ANCHORP-30");
         require(actualAnchor.root.raw() == _expectedAnchor.root.raw(), "ANCHORP-40");
         require(actualAnchor.l2SequenceNumber == _expectedAnchor.l2SequenceNumber, "ANCHORP-50");
+
+        // The finality delay bounds are immutables, so they read the same through the proxy.
+        require(
+            _anchorStateRegistryProxy.minDisputeGameFinalityDelaySeconds() == _minDisputeGameFinalityDelaySeconds,
+            "ANCHORP-60"
+        );
+        require(
+            _anchorStateRegistryProxy.maxDisputeGameFinalityDelaySeconds() == _maxDisputeGameFinalityDelaySeconds,
+            "ANCHORP-70"
+        );
     }
 
     /// @notice Asserts that the ZKDisputeGame implementation is setup correctly.

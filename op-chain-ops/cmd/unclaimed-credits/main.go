@@ -16,11 +16,11 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )
 
@@ -46,8 +46,8 @@ var (
 )
 
 func unclaimedCreditsApp(ctx *cli.Context) error {
-	logger := oplog.NewLogger(os.Stderr, oplog.DefaultCLIConfig())
-	oplog.SetGlobalLogHandler(logger.Handler())
+	logger := logcli.NewLogger(os.Stderr, logcli.DefaultCLIConfig())
+	logcli.SetGlobalLogHandler(logger.Handler())
 
 	rpcUrl := ctx.String(l1EthRpcFlag.Name)
 	if rpcUrl == "" {

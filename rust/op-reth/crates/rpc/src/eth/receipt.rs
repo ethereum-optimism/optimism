@@ -11,7 +11,7 @@ use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_node_api::NodePrimitives;
 use reth_optimism_evm::RethL1BlockInfo;
 use reth_optimism_forks::OpHardforks;
-use reth_primitives_traits::{BlockBody, SealedBlock};
+use reth_primitives_traits::{BlockBody, SealedBlock, SealedHeaderFor};
 use reth_rpc_eth_api::{
     RpcConvert,
     helpers::LoadReceipt,
@@ -48,7 +48,17 @@ where
         BlockReader<Block = N::Block> + ChainSpecProvider<ChainSpec: OpHardforks> + Debug + 'static,
 {
     type RpcReceipt = OpTransactionReceipt;
+    type RpcLog = Log;
     type Error = OpEthApiError;
+
+    fn convert_log(
+        &self,
+        log: Log,
+        _receipt: &N::Receipt,
+        _header: &SealedHeaderFor<N>,
+    ) -> Result<Self::RpcLog, Self::Error> {
+        Ok(log)
+    }
 
     fn convert_receipts(
         &self,

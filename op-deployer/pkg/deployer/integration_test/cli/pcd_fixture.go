@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -21,18 +22,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
-
-const pcdGenesisTimeOffset = standard.MinGenesisTimeOffsetSeconds
 
 type pcdChainArtifacts struct {
 	chainID     common.Hash
@@ -198,7 +196,6 @@ func (f *pcdJourneyFixture) runPrepare() *state.State {
 	f.runner.ExpectSuccessWithNetwork(f.t, []string{
 		"prepare",
 		"--workdir", f.workdir,
-		"--genesis-time-offset", strconv.FormatUint(pcdGenesisTimeOffset, 10),
 	}, nil)
 	st, err := pipeline.ReadState(f.workdir)
 	require.NoError(f.t, err)
@@ -225,7 +222,7 @@ func (f *pcdJourneyFixture) runInspect() []pcdChainArtifacts {
 			artifacts.chainID.Hex(),
 		}, nil)
 		require.FileExists(f.t, artifacts.genesisPath)
-		var genesis core.Genesis
+		var genesis opgenesis.Genesis
 		f.readJSON(artifacts.genesisPath, &genesis)
 
 		f.runner.ExpectSuccess(f.t, []string{

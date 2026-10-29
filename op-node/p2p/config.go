@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
@@ -23,6 +22,7 @@ import (
 	cmgr "github.com/libp2p/go-libp2p/p2p/net/connmgr"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 var DefaultBootnodes = []string{
@@ -64,7 +64,6 @@ type SetupP2P interface {
 	BanThreshold() float64
 	BanDuration() time.Duration
 	GossipSetupConfigurables
-	ReqRespSyncEnabled() bool
 }
 
 // ScoringParams defines the various types of peer scoring parameters.
@@ -135,8 +134,6 @@ type Config struct {
 	// Underlying store that hosts connection-gater and peerstore data.
 	Store ds.Batching
 
-	EnableReqRespSync bool
-
 	EnablePingService bool
 }
 
@@ -173,10 +170,6 @@ func (conf *Config) BanThreshold() float64 {
 
 func (conf *Config) BanDuration() time.Duration {
 	return conf.BanningDuration
-}
-
-func (conf *Config) ReqRespSyncEnabled() bool {
-	return conf.EnableReqRespSync
 }
 
 func (conf *Config) GetGossipTimestampThreshold() time.Duration {

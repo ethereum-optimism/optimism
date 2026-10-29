@@ -14,15 +14,15 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/client"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-wheel/engine"
@@ -39,7 +39,7 @@ var (
 		Name:    "geth-log-level",
 		Usage:   "Set the global geth logging level",
 		EnvVars: prefixEnvVars("GETH_LOG_LEVEL"),
-		Value:   oplog.NewLevelFlagValue(log.LevelError),
+		Value:   logcli.NewLevelFlagValue(log.LevelError),
 	}
 	EngineEndpoint = &cli.StringFlag{
 		Name:     "engine",
@@ -110,7 +110,7 @@ var (
 func withEngineFlags(flags ...cli.Flag) []cli.Flag {
 	return append(append(flags,
 		EngineEndpoint, EngineJWT, EngineJWTPath, EngineOpenEndpoint, EngineVersion),
-		oplog.CLIFlags(envVarPrefix)...)
+		logcli.CLIFlags(envVarPrefix)...)
 }
 
 func ParseBuildingArgs(ctx *cli.Context) *engine.BlockBuildingSettings {
@@ -141,9 +141,9 @@ func EngineAction(fn func(ctx *cli.Context, client *sources.EngineAPIClient, lgr
 }
 
 func initLogger(ctx *cli.Context) log.Logger {
-	logCfg := oplog.ReadCLIConfig(ctx)
-	lgr := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
-	oplog.SetGlobalLogHandler(lgr.Handler())
+	logCfg := logcli.ReadCLIConfig(ctx)
+	lgr := logcli.NewLogger(logcli.AppOut(ctx), logCfg)
+	logcli.SetGlobalLogHandler(lgr.Handler())
 	return lgr
 }
 
@@ -196,7 +196,7 @@ func initVersionProvider(ctx *cli.Context, lgr log.Logger) (sources.EngineVersio
 	if err != nil {
 		return nil, err
 	}
-	return rollupFromGethConfig(cfg), nil
+	return rollupFromChainConfig(cfg), nil
 }
 
 func initOpenEngineRPC(ctx *cli.Context, lgr log.Logger) (client.RPC, error) {
@@ -208,13 +208,13 @@ func initOpenEngineRPC(ctx *cli.Context, lgr log.Logger) (client.RPC, error) {
 	return rpc, nil
 }
 
-// rollupFromGethConfig returns a very incomplete rollup config with only the
+// rollupFromChainConfig returns a very incomplete rollup config with only the
 // L2ChainID and (most) fork activation timestamps set.
 //
 // Because Delta was a pure CL fork, its time isn't set either.
 //
 // This incomplete [rollup.Config] can be used as a [sources.EngineVersionProvider].
-func rollupFromGethConfig(cfg *params.ChainConfig) *rollup.Config {
+func rollupFromChainConfig(cfg *opparams.ChainConfig) *rollup.Config {
 	return &rollup.Config{
 		L2ChainID: cfg.ChainID,
 

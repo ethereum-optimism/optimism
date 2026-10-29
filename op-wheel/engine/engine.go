@@ -13,13 +13,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
@@ -29,7 +29,7 @@ const (
 	methodDebugSetHead        = "debug_setHead"
 )
 
-func GetChainConfig(ctx context.Context, open client.RPC) (cfg *params.ChainConfig, err error) {
+func GetChainConfig(ctx context.Context, open client.RPC) (cfg *opparams.ChainConfig, err error) {
 	err = open.CallContext(ctx, &cfg, methodDebugChainConfig)
 	return
 }
@@ -368,7 +368,7 @@ func CopyPayload(ctx context.Context, number uint64, copyFrom client.RPC, copyTo
 }
 
 func blockAsPayloadEnv(block *types.Block, evp sources.EngineVersionProvider) (*eth.ExecutionPayloadEnvelope, error) {
-	var config params.ChainConfig
+	var config opparams.ChainConfig
 	// hack: if we're calling at least FCUV2, get empty withdrawals by setting Canyon before the block time
 	if v := evp.ForkchoiceUpdatedVersion(&eth.PayloadAttributes{Timestamp: hexutil.Uint64(block.Time())}); v != eth.FCUV1 {
 		config.CanyonTime = new(uint64)

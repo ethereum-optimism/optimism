@@ -10,12 +10,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -90,24 +88,52 @@ func addGameTypesForRuntime(
 	keys devkeys.Keys,
 	enabledGameTypes []gameTypes.GameType,
 	l1ChainID eth.ChainID,
-	l1ELRPC string,
+	l1EL L1ELNode,
 	l2Net *L2Network,
-	l2CL L2CLNode,
 ) {
 	require := t.Require()
 	require.NotNil(l2Net, "l2 network must exist")
 	require.NotNil(l2Net.deployment, "l2 deployment must exist")
 	require.NotEqual(common.Address{}, l2Net.opcmImpl, "missing OPCM implementation address")
 
-	rpcClient, err := rpc.DialContext(t.Ctx(), l1ELRPC)
+	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
 	require.NoError(err)
 	defer rpcClient.Close()
 	client := ethclient.NewClient(rpcClient)
 
 	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
+	extraInstructions := []embedded.ExtraInstruction{
+		{
+			Key:  "overrides.cfg.startingRespectedGameType",
+			Data: encodeStartingRespectedGameType(t, superPermissionedGameType),
+		},
+	}
+
+	// Download the contracts artifacts for the upgrade.
+	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
+	require.NoError(err, "failed to download artifacts")
+
+	configs := disputeGameConfigsForRuntime(t, keys, l2Net.ChainID(), enabledGameTypes)
+
+	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
+		Prank: l1PAO,
+		Opcm:  l2Net.opcmImpl,
+		UpgradeInputV2: &embedded.UpgradeInputV2{
+			SystemConfig:       l2Net.deployment.SystemConfigProxyAddr(),
+			DisputeGameConfigs: configs,
+			ExtraInstructions:  extraInstructions,
+		},
+	})
+}
+
+// disputeGameConfigsForRuntime returns the 6 dispute game configs OPCMv2 requires, in order. Game types in
+// enabledGameTypes are enabled; the rest are disabled.
+func disputeGameConfigsForRuntime(t devtest.T, keys devkeys.Keys, l2ChainID eth.ChainID, enabledGameTypes []gameTypes.GameType) []embedded.DisputeGameConfig {
+	require := t.Require()
+
 	// Operator roles are scoped to the OP chain, even though the game contracts use them on L1.
-	chainOps := devkeys.ChainOperatorKeys(l2Net.ChainID().ToBig())
+	chainOps := devkeys.ChainOperatorKeys(l2ChainID.ToBig())
 	proposer, err := keys.Address(chainOps(devkeys.ProposerRole))
 	require.NoError(err, "failed to get proposer address")
 	challenger, err := keys.Address(chainOps(devkeys.ChallengerRole))
@@ -122,33 +148,6 @@ func addGameTypesForRuntime(
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 	superCannonKonaPrestate := PrestateForGameType(t, gameTypes.SuperCannonKonaGameType)
 	dummyCannonPrestate := common.HexToHash(sharedchallenger.DummyPermissionedPrestate)
-	startingAnchorRoot := opcm.DefaultStartingAnchorRoot
-	if enabled[gameTypes.SuperCannonKonaGameType] {
-		superrootTime := awaitSuperrootTime(t, l2CL)
-		startingAnchorRoot = opcm.StartingAnchorRoot{
-			Root:          common.Hash(getSuperRoot(t, l2CL.UserRPC(), superrootTime)),
-			L2BlockNumber: new(big.Int).SetUint64(superrootTime),
-		}
-	}
-	extraInstructions := []embedded.ExtraInstruction{
-		{
-			Key: "overrides.cfg.startingAnchorRoot",
-			Data: encodeStartingAnchorRoot(
-				t,
-				eth.Bytes32(startingAnchorRoot.Root),
-				bigs.Uint64Strict(startingAnchorRoot.L2BlockNumber),
-			),
-		},
-		{
-			Key:  "overrides.cfg.startingRespectedGameType",
-			Data: encodeStartingRespectedGameType(t, superPermissionedGameType),
-		},
-	}
-
-	// Download the contracts artifacts for the upgrade.
-	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
-	require.NoError(err, "failed to download artifacts")
-
 	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
 	if enabled[gameTypes.ZKDisputeGameType] {
 		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime()
@@ -206,16 +205,7 @@ func addGameTypesForRuntime(
 			configs[i].InitBond = new(big.Int)
 		}
 	}
-
-	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
-		Prank: l1PAO,
-		Opcm:  l2Net.opcmImpl,
-		UpgradeInputV2: &embedded.UpgradeInputV2{
-			SystemConfig:       l2Net.deployment.SystemConfigProxyAddr(),
-			DisputeGameConfigs: configs,
-			ExtraInstructions:  extraInstructions,
-		},
-	})
+	return configs
 }
 
 // ZKDisputeGameConfigForRuntime returns a ZKDisputeGameConfig for use in devstack/test environments.

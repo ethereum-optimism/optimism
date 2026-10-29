@@ -1,6 +1,6 @@
 [package]
 name = "reth-optimism-node"
-version = "1.11.3"
+version = "2.0.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -15,6 +15,7 @@ workspace = true
 reth-chainspec.workspace = true
 ## ensure secp256k1 recovery with rayon support is activated
 reth-primitives-traits = { workspace = true, features = ["secp256k1", "rayon"] }
+reth-basic-payload-builder.workspace = true
 reth-payload-builder.workspace = true
 reth-consensus.workspace = true
 reth-node-api.workspace = true
@@ -31,6 +32,7 @@ reth-node-core.workspace = true
 reth-rpc-engine-api.workspace = true
 
 reth-rpc-api.workspace = true
+reth-rpc-builder.workspace = true
 reth-db.workspace = true
 reth-db-api.workspace = true
 reth-chain-state.workspace = true
@@ -81,7 +83,6 @@ serde.workspace = true
 eyre.workspace = true
 url.workspace = true
 futures-util.workspace = true
-tracing.workspace = true
 
 # test-utils dependencies
 reth-e2e-test-utils = { workspace = true, optional = true }
@@ -94,13 +95,13 @@ reth-db = { workspace = true, features = ["test-utils"] }
 reth-db-common.workspace = true
 reth-node-builder = { workspace = true, features = ["test-utils"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
-reth-tasks.workspace = true
 reth-payload-util.workspace = true
 reth-revm = { workspace = true, features = ["std"] }
 reth-rpc.workspace = true
 reth-rpc-eth-api.workspace = true
 reth-rpc-eth-types.workspace = true
 reth-stages-types.workspace = true
+reth-storage-overlay.workspace = true
 reth-trie-db.workspace = true
 
 alloy-network.workspace = true

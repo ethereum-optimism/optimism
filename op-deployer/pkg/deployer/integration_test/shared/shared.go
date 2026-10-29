@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -24,13 +23,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -284,11 +283,6 @@ func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy c
 		},
 	}
 
-	// Sort by game type (required by OPCM)
-	sort.Slice(disputeGameConfigs, func(i, j int) bool {
-		return disputeGameConfigs[i].GameType < disputeGameConfigs[j].GameType
-	})
-
 	return embedded.UpgradeOPChainInput{
 		Prank: prank,
 		Opcm:  opcmAddr,
@@ -458,7 +452,7 @@ type ImpersonationBroadcaster struct {
 	rpcClient *rpc.Client
 	from      common.Address
 	chainID   *big.Int
-	bcasts    []script.Broadcast
+	bcasts    []broadcaster.Broadcast
 	mtx       sync.Mutex
 }
 
@@ -472,7 +466,7 @@ func NewImpersonationBroadcaster(lgr log.Logger, client *ethclient.Client, rpcCl
 	}
 }
 
-func (b *ImpersonationBroadcaster) Hook(bcast script.Broadcast) {
+func (b *ImpersonationBroadcaster) Hook(bcast broadcaster.Broadcast) {
 	b.mtx.Lock()
 	b.bcasts = append(b.bcasts, bcast)
 	b.mtx.Unlock()
@@ -493,7 +487,7 @@ func (b *ImpersonationBroadcaster) Broadcast(ctx context.Context) ([]broadcaster
 		result := broadcaster.BroadcastResult{Broadcast: bcast}
 
 		var to *common.Address
-		if bcast.Type == script.BroadcastCall {
+		if bcast.Type == broadcaster.BroadcastCall {
 			to = &bcast.To
 		}
 

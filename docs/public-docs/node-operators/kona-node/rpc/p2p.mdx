@@ -274,7 +274,7 @@ Protects a peer from being disconnected due to connection limits or other automa
 
 ### `opp2p_unprotectPeer`
 
-Removes protection from a peer, allowing it to be disconnected by automatic pruning mechanisms.
+Removes protection from a peer, allowing it to be disconnected by automatic pruning mechanisms. A [static peer](/node-operators/kona-node/configuration#static-peers) stays protected.
 
 | Client | Method invocation                                      |
 | ------ | ------------------------------------------------------ |
@@ -314,7 +314,7 @@ Attempts to establish a connection to a specific peer using a multiaddress.
 
 ### `opp2p_disconnectPeer`
 
-Disconnects from a specific peer by peer ID.
+Disconnects from a specific peer by peer ID. A [static peer](/node-operators/kona-node/configuration#static-peers) is dialed again about a second later.
 
 | Client | Method invocation                                       |
 | ------ | ------------------------------------------------------- |

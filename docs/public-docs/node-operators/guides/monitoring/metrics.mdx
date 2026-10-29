@@ -26,8 +26,6 @@ A complete list of available metrics is below:
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------ | --------- |
 | op\_node\_default\_info                                    | Pseudo-metric tracking version and config info                                                   | version      | gauge     |
 | op\_node\_default\_up                                      | 1 if the op node has finished starting up                                                        |              | gauge     |
-| op\_node\_default\_rpc\_server\_requests\_total            | Total requests to the RPC server                                                                 | method       | counter   |
-| op\_node\_default\_rpc\_server\_request\_duration\_seconds | Histogram of RPC server request durations                                                        | method       | histogram |
 | op\_node\_default\_rpc\_client\_requests\_total            | Total RPC requests initiated by the opnode's RPC client                                          | method       | counter   |
 | op\_node\_default\_rpc\_client\_request\_duration\_seconds | Histogram of RPC client request durations                                                        | method       | histogram |
 | op\_node\_default\_rpc\_client\_responses\_total           | Total RPC request responses received by the opnode's RPC client                                  | method,error | counter   |

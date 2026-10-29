@@ -685,7 +685,7 @@ fn post_exec_receipt_zeroes_tx_scoped_l1_fee_fields() {
     // Block-scoped: identical value *and* presence to the regular receipt in the same block.
     let expected = regular_fields.l1_block_info;
     assert_eq!(l1_gas_price, expected.l1_gas_price, "l1GasPrice is block-scoped");
-    assert_eq!(l1_fee_scalar, expected.l1_fee_scalar, "l1FeeScalar is block-scoped");
+    assert_eq!(l1_fee_scalar, None, "l1FeeScalar was removed in Ecotone");
     assert_eq!(l1_base_fee_scalar, expected.l1_base_fee_scalar, "l1BaseFeeScalar is block-scoped");
     assert_eq!(l1_blob_base_fee, expected.l1_blob_base_fee, "l1BlobBaseFee is block-scoped");
     assert_eq!(

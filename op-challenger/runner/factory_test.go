@@ -8,9 +8,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,13 +25,16 @@ func TestServerExecutorForGameType(t *testing.T) {
 		{gameTypes.CannonKonaGameType, &vm.KonaExecutor{}},
 		{gameTypes.SuperCannonKonaGameType, &vm.KonaSuperExecutor{}},
 	}
+	covered := make([]gameTypes.GameType, 0, len(tests))
 	for _, test := range tests {
+		covered = append(covered, test.gameType)
 		t.Run(test.gameType.String(), func(t *testing.T) {
 			got, err := serverExecutorForGameType(logger, test.gameType)
 			require.NoError(t, err)
 			require.IsType(t, test.want, got)
 		})
 	}
+	require.ElementsMatch(t, gameTypes.TraceGameTypes, covered, "every run-trace game type needs an executor case")
 }
 
 func TestServerExecutorForGameType_UnknownGameType(t *testing.T) {

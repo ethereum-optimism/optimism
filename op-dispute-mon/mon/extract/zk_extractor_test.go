@@ -13,10 +13,10 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -68,6 +68,36 @@ func TestExtractorZKSnapshotValidation(t *testing.T) {
 		require.Equal(t, []string{"metadata", "l1-head", "agreement", "challenger", "anchor", "parent", "bond-metadata", "mode", "withdrawals", "credits", "balance"}, *trace)
 	})
 
+	t.Run("resolved game with undecided distribution reads finality", func(t *testing.T) {
+		caller := validZKCaller()
+		caller.metadata.Status = gameTypes.GameStatusDefenderWon
+		caller.challenger.ProposalStatus = contracts.ProposalStatusResolved
+		caller.finalized = true
+		extractor, trace := newZKExtractor(t, caller, parentStatus(gameTypes.GameStatusDefenderWon), &testZKAgreement{})
+		blockHash := common.Hash{0xcc}
+
+		game, err := extractor.enrichGame(t.Context(), blockHash, zkMetadata())
+		require.NoError(t, err)
+		require.True(t, game.(*monTypes.ZKGameData).Finalized)
+		require.Equal(t, "finality", (*trace)[len(*trace)-1])
+		require.Equal(t, caller.anchorStateRegistry, caller.finalityRegistry)
+		require.Equal(t, zkMetadata().Proxy, caller.finalityGame)
+		require.Equal(t, rpcblock.ByHash(blockHash), caller.blocks[len(caller.blocks)-1])
+	})
+
+	t.Run("resolved game with decided distribution skips finality", func(t *testing.T) {
+		caller := validZKCaller()
+		caller.metadata.Status = gameTypes.GameStatusDefenderWon
+		caller.challenger.ProposalStatus = contracts.ProposalStatusResolved
+		caller.mode = faultTypes.NormalDistributionMode
+		extractor, trace := newZKExtractor(t, caller, parentStatus(gameTypes.GameStatusDefenderWon), &testZKAgreement{})
+
+		game, err := extractor.enrichGame(t.Context(), common.Hash{0xcc}, zkMetadata())
+		require.NoError(t, err)
+		require.False(t, game.(*monTypes.ZKGameData).Finalized)
+		require.NotContains(t, *trace, "finality")
+	})
+
 	tests := []struct {
 		name      string
 		configure func(*testZKCaller)
@@ -103,6 +133,15 @@ func TestExtractorZKSnapshotValidation(t *testing.T) {
 			parent:  parentStatus(gameTypes.GameStatusInProgress),
 			wantErr: "terminal ZK child has in-progress parent 7",
 		},
+		{
+			name: "finality read",
+			configure: func(c *testZKCaller) {
+				c.metadata.Status = gameTypes.GameStatusDefenderWon
+				c.challenger.ProposalStatus = contracts.ProposalStatusResolved
+				c.finalityErr = errors.New("registry unavailable")
+			},
+			wantErr: "failed to fetch ZK game finality",
+		},
 	}
 
 	for _, test := range tests {
@@ -125,7 +164,7 @@ func TestExtractorZKSnapshotValidation(t *testing.T) {
 func TestExtractorRejectsZKCallerWithoutCapabilities(t *testing.T) {
 	caller := &anchorOnlyCaller{}
 	extractor := NewExtractor(
-		testlog.Logger(t, log.LvlDebug),
+		testlog.Logger(t, log.LevelDebug),
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
 		new(stubGamesWaitingForRootSourceMetrics),
 		func(context.Context, gameTypes.GameMetadata) (GameCaller, error) { return caller, nil },
@@ -137,6 +176,7 @@ func TestExtractorRejectsZKCallerWithoutCapabilities(t *testing.T) {
 		nil,
 		&testZKAgreement{},
 		nil,
+		nil,
 	)
 
 	game, err := extractor.enrichGame(t.Context(), common.Hash{0xaa}, zkMetadata())
@@ -147,7 +187,7 @@ func TestExtractorRejectsZKCallerWithoutCapabilities(t *testing.T) {
 func TestCommonEnrichersSkipZKOwnedReads(t *testing.T) {
 	caller := &anchorOnlyCaller{}
 	game := &monTypes.CommonGameData{GameMetadata: gameTypes.GameMetadata{GameType: uint32(gameTypes.ZKDisputeGameType)}}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 
 	require.NoError(t, NewAnchorStateRegistryEnricher(logger).Enrich(t.Context(), rpcblock.Latest, caller, game))
 	require.Zero(t, caller.calls)
@@ -250,7 +290,7 @@ func TestExtractorZKLagPublishesCurrentEndpointHealthFromCachedSnapshot(t *testi
 	root := caller.metadata.ProposedRoot
 	provider := &zkSuperRootProvider{response: zkResponse(101, &root)}
 	agreement := NewZKAgreementEnricher(
-		testlog.Logger(t, log.LvlDebug),
+		testlog.Logger(t, log.LevelDebug),
 		&stubOutputMetrics{},
 		[]SuperRootProvider{provider},
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
@@ -386,6 +426,11 @@ type testZKCaller struct {
 	bondRecipients      []common.Address
 	bondMetadataCalls   int
 	balanceErr          error
+	mode                faultTypes.BondDistributionMode
+	finalized           bool
+	finalityErr         error
+	finalityRegistry    common.Address
+	finalityGame        common.Address
 }
 
 func validZKCaller() *testZKCaller {
@@ -440,7 +485,7 @@ func (c *testZKCaller) GetBondMetadata(_ context.Context, block rpcblock.Block) 
 func (c *testZKCaller) GetBondDistributionMode(_ context.Context, block rpcblock.Block) (faultTypes.BondDistributionMode, error) {
 	*c.trace = append(*c.trace, "mode")
 	c.blocks = append(c.blocks, block)
-	return faultTypes.UndecidedDistributionMode, nil
+	return c.mode, nil
 }
 
 func (c *testZKCaller) GetWithdrawals(_ context.Context, block rpcblock.Block, recipients ...common.Address) ([]*contracts.WithdrawalRequest, error) {
@@ -469,6 +514,13 @@ func (c *testZKCaller) GetBalanceAndDelay(_ context.Context, block rpcblock.Bloc
 	*c.trace = append(*c.trace, "balance")
 	c.blocks = append(c.blocks, block)
 	return big.NewInt(100), time.Hour, common.Address{0xdd}, c.balanceErr
+}
+
+func (c *testZKCaller) IsGameFinalized(_ context.Context, block rpcblock.Block, game common.Address) (bool, error) {
+	*c.trace = append(*c.trace, "finality")
+	c.blocks = append(c.blocks, block)
+	c.finalityGame = game
+	return c.finalized, c.finalityErr
 }
 
 type testZKAgreement struct {
@@ -519,7 +571,7 @@ func newZKExtractor(t *testing.T, caller *testZKCaller, parent ParentGameStatusF
 		return parent(ctx, index, block)
 	}
 	return NewExtractor(
-		testlog.Logger(t, log.LvlDebug),
+		testlog.Logger(t, log.LevelDebug),
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
 		new(stubGamesWaitingForRootSourceMetrics),
 		func(context.Context, gameTypes.GameMetadata) (GameCaller, error) { return caller, nil },
@@ -533,6 +585,10 @@ func newZKExtractor(t *testing.T, caller *testZKCaller, parent ParentGameStatusF
 		nil,
 		agreement,
 		NewBondDataEnricher(),
+		func(registry common.Address) GameFinalityChecker {
+			caller.finalityRegistry = registry
+			return caller
+		},
 	), trace
 }
 

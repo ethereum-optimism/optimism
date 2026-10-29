@@ -8,9 +8,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -211,7 +211,7 @@ func TestEngineController_Rewind(t *testing.T) {
 				l2.newPayloadStatuses = []*eth.PayloadStatusV1{nil, {Status: eth.ExecutionInvalid}}
 			}
 
-			ec := &simpleEngineController{l2: &l2, rollup: &rollupConfig, log: testlog.Logger(t, log.LvlDebug)}
+			ec := &simpleEngineController{l2: &l2, rollup: &rollupConfig, log: testlog.Logger(t, log.LevelDebug)}
 			if tc.missingEngineClient {
 				ec.l2 = nil
 			}

@@ -50,6 +50,19 @@
       ],
       "runner_profile": "large"
     },
+    "kona-zkvm-canary": {
+      "config": "melange/kona-zkvm-canary.yaml",
+      "source": {
+        "repository": "ethereum-optimism/optimism",
+        "path": "."
+      },
+      "source_submodules": "recursive",
+      "use_gha_cache": true,
+      "cache_key_files": [
+        "rust/Cargo.lock"
+      ],
+      "runner_profile": "large"
+    },
     "multicannon": {
       "config": "melange/multicannon.yaml"
     },
@@ -292,7 +305,7 @@
       ],
       "smoke_test": "kona-client --help"
     },
-    "kona-sp1-proposer": {
+    "op-zk-proposer": {
       "type": "rust",
       "needs_melange": [
         "op-stack-rust"
@@ -301,14 +314,14 @@
         "rust/**"
       ],
       "nexus_paths": [
-        "apko/kona-sp1-proposer.yaml"
+        "apko/op-zk-proposer.yaml"
       ],
-      "smoke_test": "kona-sp1-proposer --version"
+      "smoke_test": "op-zk-proposer --version"
     },
     "kona-zkvm-canary": {
       "type": "rust",
       "needs_melange": [
-        "op-stack-rust"
+        "kona-zkvm-canary"
       ],
       "paths": [
         "rust/**"

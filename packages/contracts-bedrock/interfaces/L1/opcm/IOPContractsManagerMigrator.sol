@@ -31,11 +31,11 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when attempting to migrate a CGT chain.
     error OPContractsManagerMigrator_CustomGasTokenNotSupported();
 
+    /// @notice Thrown when attempting to migrate a chain whose portal has a bridge hook.
+    error OPContractsManagerMigrator_BridgeHookNotSupported();
+
     /// @notice Thrown when the chainSystemConfigs array is empty.
     error OPContractsManagerMigrator_NoChains();
-
-    /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
-    error OPContractsManagerMigrator_InteropNotEnabled();
 
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
@@ -64,6 +64,10 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when a permissionless fault game config has a zero absolute prestate.
     error OPContractsManagerMigrator_InvalidAbsolutePrestate();
 
+    /// @notice Thrown when a ZK_DISPUTE_GAME config has a zero absolute prestate, a zero or
+    ///         greater-than-uint32-max challenge or prove duration, or a zero challenger bond.
+    error OPContractsManagerMigrator_InvalidZKDisputeGameConfig();
+
     /// @notice Thrown when a dispute game config is for a game type that does not use super roots.
     error OPContractsManagerMigrator_InvalidGameType();
 
@@ -72,6 +76,9 @@ interface IOPContractsManagerMigrator {
     error OPContractsManagerMigrator_DisputeGameNotEnabled();
 
     error OPContractsManagerMigrator_InvalidStartingAnchorRoot();
+
+    error OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch();
+    error OPContractsManagerMigrator_WithdrawalDelayMismatch();
 
     error SemverComp_InvalidSemverParts();
 

@@ -10,9 +10,9 @@ import (
 	types2 "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -77,7 +77,7 @@ func (s *SuperNodeTraceProvider) getPreimageBytesAtTimestampBoundary(ctx context
 		// CurrentL1 is the L1 block currently being processed; L1[<CurrentL1] is
 		// fully verified. We need the game's l1Head fully verified, so require
 		// CurrentL1 > l1Head — otherwise wait for further sync.
-		return nil, types2.ErrNotInSync
+		return nil, s.notInSync(root.CurrentL1)
 	}
 	if root.Data == nil {
 		// No block at this timestamp so it must be invalid
@@ -87,6 +87,11 @@ func (s *SuperNodeTraceProvider) getPreimageBytesAtTimestampBoundary(ctx context
 		return eth.InvalidTransition, nil
 	}
 	return root.Data.Super.Marshal(), nil
+}
+
+// notInSync reports that the super root source has not yet fully processed the game's L1 head.
+func (s *SuperNodeTraceProvider) notInSync(currentL1 eth.BlockID) error {
+	return types2.NotInSyncError("super root source (superroot_atTimestamp)", currentL1.Number, s.l1Head.Number)
 }
 
 func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types.Position) ([]byte, error) {
@@ -105,7 +110,7 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 		return nil, fmt.Errorf("failed to retrieve previous super root at timestamp %v: %w", timestamp, err)
 	}
 	if prevRoot.CurrentL1.Number <= s.l1Head.Number {
-		return nil, types2.ErrNotInSync
+		return nil, s.notInSync(prevRoot.CurrentL1)
 	}
 	if prevRoot.Data == nil {
 		// No block at this timestamp so it must be invalid
@@ -122,7 +127,7 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 		return nil, fmt.Errorf("failed to retrieve next super root at timestamp %v: %w", nextTimestamp, err)
 	}
 	if nextRoot.CurrentL1.Number <= s.l1Head.Number {
-		return nil, types2.ErrNotInSync
+		return nil, s.notInSync(nextRoot.CurrentL1)
 	}
 
 	prevSuper := prevRoot.Data.Super

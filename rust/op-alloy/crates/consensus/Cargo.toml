@@ -46,6 +46,7 @@ modular-bitfield = { workspace = true, optional = true }
 
 [dev-dependencies]
 rand.workspace = true
+rstest.workspace = true
 bincode = { workspace = true }
 serde_json.workspace = true
 alloy-signer.workspace = true

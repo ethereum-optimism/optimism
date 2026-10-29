@@ -2,6 +2,7 @@ package sdm
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sdm/sdmtest"
 	sdmpkg "github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
@@ -69,8 +70,8 @@ func TestSDMOptInIsInertOnStockOpReth(gt *testing.T) {
 
 func TestSDMFixturePayloadReceiptAndAccounting(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newFixtureSDMRethSystem(t)
-	sdmtest.VerifySDMFixture(t, sys.L2EL)
+	sys := newFixedPolicySDMRethSystem(t)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
 	sdmtest.VerifyOpReth(t, sys.L2ELVerifier)
 
 	block, included, targetBlockNum := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
@@ -95,8 +96,8 @@ func TestSDMFixturePayloadReceiptAndAccounting(gt *testing.T) {
 
 func TestSDMFixtureOperatorOptInControlsProduction(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newFixtureSDMRethSystem(t)
-	sdmtest.VerifySDMFixture(t, sys.L2EL)
+	sys := newFixedPolicySDMRethSystem(t)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
 
 	sdmtest.SetSDMEnabled(t, sys.L2EL, false)
 	offBlock, offReceipt := submitFixtureProbe(t, sys)
@@ -117,12 +118,83 @@ func TestSDMFixtureOperatorOptInControlsProduction(gt *testing.T) {
 	t.Require().False(present, "second opt-in off receipt must omit opGasRefund")
 }
 
+// TestSDMFixtureExcessiveRefundDoesNotHaltSequencer regression-tests a producer-liveness failure:
+// before refund sanitization, an otherwise valid transaction whose test policy returned u64::MAX
+// aborted every payload build and left the unsafe head stalled. The producer must instead zero the
+// invalid refund, include the transaction, and keep building verifier-accepted blocks.
+func TestSDMFixtureExcessiveRefundDoesNotHaltSequencer(gt *testing.T) {
+	const excessiveRefundTarget = "0x000000000000000000000000000000000000f00d"
+
+	t := devtest.SerialT(gt)
+	sys := newExcessiveRefundSDMRethSystem(t, excessiveRefundTarget)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
+	sdmtest.VerifyOpReth(t, sys.L2ELVerifier)
+
+	// Fund through an ordinary transaction before sending the targeted fault. This proves the
+	// sequencer is healthy before the faulty policy output is exercised.
+	alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
+	faulty := txplan.NewPlannedTx(
+		alice.Plan(),
+		txplan.WithTo(sdmtest.AddrPtr(common.HexToAddress(excessiveRefundTarget))),
+		txplan.WithValue(eth.OneHundredthEther),
+	)
+	_, err := faulty.Submitted.Eval(t.Ctx())
+	t.Require().NoError(err, "fault-injection transaction must enter the sequencer txpool")
+
+	// Check sustained production rather than eventual catch-up: the original failure retried the
+	// same pool transaction on every payload attempt, so no new unsafe block was produced.
+	err = sys.L2EL.KeptAdvancingFn(eth.Unsafe, 12*time.Second, 5*time.Second)()
+	t.Require().NoError(err, "a faulty SDM over-refund must not stall unsafe block production")
+
+	receipt, err := faulty.Included.Eval(t.Ctx())
+	t.Require().NoError(err, "fault-injection transaction must be included after its refund is zeroed")
+	t.Require().Equal(types.ReceiptStatusSuccessful, receipt.Status)
+	blockNum := bigs.Uint64Strict(receipt.BlockNumber)
+	block := sdmtest.GetBlockWithTxs(t, sys.L2EL, blockNum)
+	postExecTx, _ := sdmpkg.FindPostExecTransaction(block)
+	t.Require().Nil(postExecTx, "a block with only an invalid refund must omit the post-exec transaction")
+
+	refund, present := getOPGasRefund(t, sys.L2EL, receipt.TxHash)
+	t.Require().False(present, "zeroed transaction receipt must omit opGasRefund")
+	t.Require().Zero(refund, "zeroed transaction must not receive a refund")
+	receiptGasUsed := getReceiptGasUsed(t, sys.L2EL, receipt.TxHash)
+	t.Require().Greater(receiptGasUsed, uint64(0),
+		"zeroing an invalid refund must preserve the transaction's EVM gas used")
+
+	replay := sdmtest.ReplayBlockWithSDM(t, sys.L2EL, blockNum)
+	var replayed *sdmpkg.ReplaySDMTx
+	for i := range replay.Txs {
+		if replay.Txs[i].TxHash == receipt.TxHash {
+			replayed = &replay.Txs[i]
+			break
+		}
+	}
+	t.Require().NotNil(replayed, "structural replay must include the unrefunded transaction")
+	t.Require().Nil(replayed.OPGasRefundPayload,
+		"zeroed refund must not produce a post-exec payload entry")
+	t.Require().Equal(replayed.RawGasUsed, replayed.CanonicalGasUsed,
+		"zeroed refund must leave canonical gas equal to pre-refund EVM gas")
+	t.Require().Equal(receiptGasUsed, replayed.CanonicalGasUsed,
+		"receipt gas must match the unrefunded canonical gas")
+	t.Require().Empty(replay.Mismatches, "stock replay must accept the unrefunded payload")
+
+	targetRef := sys.L2EL.BlockRefByNumber(blockNum)
+	sys.L2ELVerifier.Reached(eth.Unsafe, blockNum, 60)
+	verifierRef := sys.L2ELVerifier.BlockRefByNumber(blockNum)
+	t.Require().Equal(targetRef.Hash, verifierRef.Hash,
+		"stock verifier must accept the block with the invalid refund zeroed")
+}
+
+// submitFixtureProbe sends one StateBloat call and returns its block. A plain transfer would not do:
+// it spends exactly its EIP-7623 floor, so the producer clips any refund on it to its zero net
+// saving and the fixture's one-gas refund never appears.
 func submitFixtureProbe(t devtest.T, sys *sdmtest.RethSystem) (*sdmpkg.RPCBlock, *types.Receipt) {
 	alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
+	stateBloatAddr := sdmtest.DeployContract(t, alice, sdmpkg.StateBloatBin)
 	probe := txplan.NewPlannedTx(
 		alice.Plan(),
-		txplan.WithTo(sdmtest.AddrPtr(common.HexToAddress("0x000000000000000000000000000000000000dEaD"))),
-		txplan.WithValue(eth.OneHundredthEther),
+		txplan.WithTo(sdmtest.AddrPtr(stateBloatAddr)),
+		txplan.WithData(sdmpkg.EncodeRun(1)),
 	)
 	receipt, err := probe.Included.Eval(t.Ctx())
 	t.Require().NoError(err, "fixture probe transaction must be included")
@@ -153,12 +225,12 @@ func TestSDMPostExecBlockDerivesAndChainProgresses(gt *testing.T) {
 func testSDMPostExecBlockDerivesAndChainProgresses(t devtest.T, batchType string, singular bool) {
 	var sys *sdmtest.RethSystem
 	if singular {
-		sys = newFixtureSDMRethSystem(t, withSingularBatcher)
+		sys = newFixedPolicySDMRethSystem(t, withSingularBatcher)
 	} else {
 		// Use the default SpanBatch path to verify post-exec txs derive after batching.
-		sys = newFixtureSDMRethSystem(t)
+		sys = newFixedPolicySDMRethSystem(t)
 	}
-	sdmtest.VerifySDMFixture(t, sys.L2EL)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
 	sdmtest.VerifyOpReth(t, sys.L2ELVerifier)
 
 	block, included, targetBlockNum := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
@@ -288,7 +360,7 @@ func testSDMPostExecBlockDerivesAndChainProgresses(t devtest.T, batchType string
 func TestSDMPostExecBlockDerivesOnIsolatedVerifier(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := newSDMRethSystemWithIsolatedVerifier(t)
-	sdmtest.VerifySDMFixture(t, sys.L2EL)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
 	sdmtest.VerifyOpReth(t, sys.L2ELVerifier)
 
 	// Produce a PostExec block on the sequencer, plus a sentinel after it so derivation must carry

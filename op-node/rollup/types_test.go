@@ -17,13 +17,13 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -156,7 +156,7 @@ func TestValidateL1Config(t *testing.T) {
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x01}
 	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL1Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err := config.ValidateL1Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.NoError(t, err)
 }
 
@@ -166,7 +166,7 @@ func TestValidateL1ConfigInvalidChainIdFails(t *testing.T) {
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x01}
 	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	err := config.ValidateL1Config(context.TODO(), logger, &mockClient)
 	assert.Error(t, err)
 	config.L1ChainID = big.NewInt(99)
@@ -180,7 +180,7 @@ func TestValidateL1ConfigInvalidGenesisHashFails(t *testing.T) {
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x00}
 	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	err := config.ValidateL1Config(context.TODO(), logger, &mockClient)
 	assert.Error(t, err)
 	config.Genesis.L1.Hash = [32]byte{0x02}
@@ -200,7 +200,7 @@ func TestCheckL1ChainID(t *testing.T) {
 }
 
 func TestCheckL1BlockRefByNumber(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	config := randConfig()
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x01}
@@ -217,6 +217,17 @@ func TestCheckL1BlockRefByNumber(t *testing.T) {
 	mockClient.err = errors.New("block not found")
 	err = config.CheckL1GenesisBlockHash(context.Background(), logger, &mockClient)
 	assert.NoError(t, err)
+
+	// A history-pruned execution engine can no longer serve the genesis block; the configured
+	// genesis hash is authoritative, so the check is skipped rather than failing.
+	mockClient.err = historyPrunedRPCError{}
+	err = config.CheckL1GenesisBlockHash(context.Background(), logger, &mockClient)
+	assert.NoError(t, err)
+
+	// Any other fetch error still fails the check.
+	mockClient.err = errors.New("connection refused")
+	err = config.CheckL1GenesisBlockHash(context.Background(), logger, &mockClient)
+	assert.Error(t, err)
 }
 
 // TestRandomConfigDescription tests that the description works for different variations of a random rollup config.
@@ -491,7 +502,7 @@ func TestValidateL2Config(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, false)
 	assert.NoError(t, err)
 }
 
@@ -501,10 +512,10 @@ func TestValidateL2ConfigInvalidChainIdFails(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, false)
 	assert.Error(t, err)
 	config.L2ChainID = big.NewInt(99)
-	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
+	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, false)
 	assert.Error(t, err)
 }
 
@@ -514,10 +525,10 @@ func TestValidateL2ConfigInvalidGenesisHashFails(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x00}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, false)
 	assert.Error(t, err)
 	config.Genesis.L2.Hash = [32]byte{0x02}
-	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
+	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, false)
 	assert.Error(t, err)
 }
 
@@ -527,10 +538,10 @@ func TestValidateL2ConfigInvalidGenesisHashSkippedWhenRequested(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x00}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, true)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, true)
 	assert.NoError(t, err)
 	config.Genesis.L2.Hash = [32]byte{0x02}
-	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, true)
+	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, true)
 	assert.NoError(t, err)
 }
 
@@ -550,29 +561,29 @@ func TestCheckL2BlockRefByNumber(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err := config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.NoError(t, err)
 	mockClient.Hash = common.Hash{0x02}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.Error(t, err)
 	mockClient.Hash = common.Hash{0x00}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.Error(t, err)
 
 	// A history-pruned execution engine can no longer serve the genesis block; the configured
 	// genesis hash is authoritative, so the check is skipped rather than failing.
 	mockClient = mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, err: historyPrunedRPCError{}}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.NoError(t, err)
 
 	// A NotFound result is likewise tolerated.
 	mockClient = mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, err: ethereum.NotFound}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.NoError(t, err)
 
 	// Any other fetch error still fails the check.
 	mockClient = mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, err: errors.New("connection refused")}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.Error(t, err)
 }
 
@@ -1078,7 +1089,7 @@ func TestConfigImplementsBlockType(t *testing.T) {
 }
 
 func TestConfig_ProbablyMissingPectraBlobSchedule(t *testing.T) {
-	hol, sep := params.HoleskyChainConfig, params.SepoliaChainConfig
+	sep := params.SepoliaChainConfig
 
 	for _, tt := range []struct {
 		name                   string
@@ -1094,21 +1105,9 @@ func TestConfig_ProbablyMissingPectraBlobSchedule(t *testing.T) {
 			l1chainID:              sep.ChainID,
 		},
 		{
-			name:                   "holesky-ok",
-			pectraBlobScheduleTime: u64ptr(1742486400), // sepolia superchain
-			l2genesisTime:          1691802540,         // op-sepolia
-			l1chainID:              hol.ChainID,
-		},
-		{
 			name:          "sepolia-missing",
 			l2genesisTime: 1691802540, // op-sepolia
 			l1chainID:     sep.ChainID,
-			expMissing:    true,
-		},
-		{
-			name:          "holesky-missing",
-			l2genesisTime: 1691802540, // op-sepolia
-			l1chainID:     hol.ChainID,
 			expMissing:    true,
 		},
 		{
@@ -1117,9 +1116,9 @@ func TestConfig_ProbablyMissingPectraBlobSchedule(t *testing.T) {
 			l1chainID:     sep.ChainID,
 		},
 		{
-			name:          "holesky-young-genesis",
-			l2genesisTime: *hol.PragueTime + 1,
-			l1chainID:     hol.ChainID,
+			name:          "holesky-missing-ok",
+			l2genesisTime: 1691802540,
+			l1chainID:     big.NewInt(17000),
 		},
 		{
 			name:          "other-missing-ok",

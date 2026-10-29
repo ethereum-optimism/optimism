@@ -13,9 +13,9 @@ import (
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -316,7 +316,7 @@ func setupBondMetricsTest(t *testing.T) (*Bonds, *stubBondMetrics, *testlog.Capt
 }
 
 func setupBondMetricsTestWithHonestActors(t *testing.T, honestActors monTypes.HonestActors) (*Bonds, *stubBondMetrics, *testlog.CapturingHandler) {
-	logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 	metricer := &stubBondMetrics{
 		credits:  make(map[metrics.CreditExpectation]int),
 		recorded: make(map[common.Address]Collateral),

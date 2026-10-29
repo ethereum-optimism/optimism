@@ -90,8 +90,9 @@ contract UpgradeOPChain is Script {
     /// @param _prank The address of the dummy caller contract.
     /// @param _upgradeInput The upgrade input.
     function _upgrade(address _prank, bytes memory _upgradeInput) internal {
-        bytes memory data =
-            abi.encodeCall(OPContractsManagerV2.upgrade, abi.decode(_upgradeInput, (OPContractsManagerV2.UpgradeInput)));
+        bytes memory data = abi.encodeCall(
+            OPContractsManagerV2.upgrade, abi.decode(_upgradeInput, (OPContractsManagerV2.UpgradeInput))
+        );
         (bool success, bytes memory returnData) = _prank.call(data);
         if (!success) {
             assembly {

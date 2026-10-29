@@ -26,13 +26,18 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    `rust/Cargo.toml`. Reuse or clone that source, ensure a remote points to
    `https://github.com/paradigmxyz/reth`, then fetch upstream `main`, tags, the
    old pin, and the selected target. Validate reused remotes before diffing.
+   Skim upstream fixes newer than the candidate target (the forward sweep in
+   `docs/ai/reth-update-review.md`) so a retarget decision comes before the
+   adaptation work.
 
 2. **Isolate.** Work in a fresh git worktree (or jj workspace) based on latest
    `develop` — never on the main checkout's working copy. Run `mise trust` in the
    new directory.
 
 3. **Execute the guide's procedure**, including the current-pin audit and
-   `cd rust && just mirrors stale` before verification. Work every stale mirror
+   `cd rust && just mirrors stale` before verification. If fork patches
+   survive the audit, the pin moves to a tag on a new `op-*` fork branch (the
+   guide's "The reth fork"). Work every stale mirror
    and iterate the compile loop to green; don't ask the user to confirm each
    adaptation.
 
@@ -40,9 +45,15 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    it into `rust/UPDATING-RETH.md` before review.
 
 5. **Review and resolve.** Commit a review candidate and run code, security, and
-   the **`reth-update-reviewer` agent** (`docs/ai/reth-update-review.md`).
-   Complete its all-severities triage and selected investigations. Fix findings,
-   then rerun every matching reviewer until the candidate is clean.
+   the **`reth-update-reviewer` agent** (`docs/ai/reth-update-review.md`),
+   including its partitioned full-range sweep over every bumped family; the
+   mirror funnel alone does not clear a bump. Include its forward sweep for
+   upstream fixes newer than the target, and get the user's decision:
+   cherry-pick the fixes onto the fork branch (UPDATING-RETH, "The reth
+   fork", then back to step 3 here), or retarget to a newer upstream release or commit (back to
+   step 1 here with the new target, reusing the worktree). Complete its
+   all-severities triage and selected investigations. Fix findings, then
+   rerun every matching reviewer until the candidate is clean.
 
 6. **Final verification.** Verify everything the guide lists on the reviewed
    head. On memory-constrained machines, use
@@ -52,3 +63,8 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
 7. **Ship.** Use one commit (`rust: update reth to <version>`) describing the pin
    move, shared-dependency sync, and API adaptations. Push only the verified
    reviewed head, then open the PR to `develop` with verification results.
+   Open the companion optimism-premium PR in draft (guide step 10). A fork
+   pin must be a tag, not a `rev`, before the PR merges.
+
+8. **After merge.** Repin the premium PR to the merge commit (the guide's
+   "After the monorepo PR merges").

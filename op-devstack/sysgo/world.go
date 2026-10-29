@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -40,9 +41,19 @@ func applyConfigDeployerOptions(t devtest.T, keys devkeys.Keys, builder intentbu
 	}
 }
 
-func buildSingleChainWorldWithInterop(t devtest.T, keys devkeys.Keys, lagoonAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*L1Network, *L2Network, coredepset.DependencySet, config.FullConfigSetMerged) {
-	_, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInteropAndState(t, keys, lagoonAtGenesis, localContractArtifactsPath, deployerOpts...)
-	return l1Net, l2Net, depSet, fullCfgSet
+func genesisAnchorGameType(cfg PresetConfig) *gameTypes.GameType {
+	var outputRootGame *gameTypes.GameType
+	for _, games := range [][]gameTypes.GameType{cfg.AddedGameTypes, cfg.RespectedGameTypes} {
+		for _, game := range games {
+			switch game {
+			case gameTypes.SuperCannonKonaGameType, gameTypes.ZKDisputeGameType:
+				return &game
+			case gameTypes.CannonKonaGameType:
+				outputRootGame = &game
+			}
+		}
+	}
+	return outputRootGame
 }
 
 type interopMigrationState struct {
@@ -66,8 +77,9 @@ func newInteropMigrationState(wb *worldBuilder) *interopMigrationState {
 	return state
 }
 
-func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, lagoonAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, coredepset.DependencySet, config.FullConfigSetMerged) {
+func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, lagoonAtGenesis bool, localContractArtifactsPath string, anchorGameType *gameTypes.GameType, startL1 func(*L1Network) (*L1Geth, *L1CLNode), deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, coredepset.DependencySet, config.FullConfigSetMerged) {
 	wb := newWorldBuilder(t, keys)
+	wb.genesisAnchorGameType = anchorGameType
 	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
 	applyConfigCommons(t, keys, DefaultL1ID, wb.builder)
 	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2AID, wb.builder)
@@ -75,18 +87,11 @@ func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, la
 		applyConfigInteropAtGenesis(wb.builder)
 	}
 	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
-	wb.Build()
+	l1Net := wb.Build(startL1)
 
 	t.Require().Len(wb.l2Chains, 1, "expected exactly one L2 chain")
 	l2ID := wb.l2Chains[0]
-	l1ID := eth.ChainIDFromUInt64(wb.output.AppliedIntent.L1ChainID)
-
-	l1Net := &L1Network{
-		name:      "l1",
-		chainID:   l1ID,
-		genesis:   wb.outL1Genesis,
-		blockTime: 6,
-	}
+	l1ID := l1Net.ChainID()
 	l2Net := &L2Network{
 		name:       "l2a",
 		chainID:    l2ID,

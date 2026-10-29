@@ -11,8 +11,10 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -158,6 +160,72 @@ func TestBeaconHTTPClientConfigSpecOverride(t *testing.T) {
 	resp, err := b.ConfigSpec(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, eth.Uint64String(7), resp.Data.SecondsPerSlot)
+}
+
+func TestL1BeaconClientSlotDurationFromSpec(t *testing.T) {
+	const genesisTime, timestamp = 10, 34
+	tests := []struct {
+		name     string
+		spec     string
+		wantSlot uint64
+		wantErr  string
+	}{
+		{
+			name:     "only SLOT_DURATION_MS",
+			spec:     `{"SLOT_DURATION_MS":"6000"}`,
+			wantSlot: 4,
+		},
+		{
+			name:     "only SECONDS_PER_SLOT",
+			spec:     `{"SECONDS_PER_SLOT":"12"}`,
+			wantSlot: 2,
+		},
+		{
+			name:     "SLOT_DURATION_MS takes precedence",
+			spec:     `{"SECONDS_PER_SLOT":"12","SLOT_DURATION_MS":"6000"}`,
+			wantSlot: 4,
+		},
+		{
+			name:     "zero SLOT_DURATION_MS falls back",
+			spec:     `{"SECONDS_PER_SLOT":"12","SLOT_DURATION_MS":"0"}`,
+			wantSlot: 2,
+		},
+		{
+			name:    "neither",
+			spec:    `{"SLOTS_PER_EPOCH":"32"}`,
+			wantErr: "neither SLOT_DURATION_MS nor SECONDS_PER_SLOT",
+		},
+		{
+			name:    "both zero",
+			spec:    `{"SECONDS_PER_SLOT":"0","SLOT_DURATION_MS":"0"}`,
+			wantErr: "neither SLOT_DURATION_MS nor SECONDS_PER_SLOT",
+		},
+		{
+			name:    "SLOT_DURATION_MS not whole seconds",
+			spec:    `{"SECONDS_PER_SLOT":"1","SLOT_DURATION_MS":"1500"}`,
+			wantErr: "SLOT_DURATION_MS 1500 is not a whole number of seconds",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			c := client_mocks.NewHTTP(t)
+			genesisBody := fmt.Sprintf(`{"data":{"genesis_time":"%d"}}`, genesisTime)
+			c.EXPECT().Get(ctx, genesisMethod, mock.Anything, mock.Anything).
+				Return(&http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(genesisBody))}, nil)
+			c.EXPECT().Get(ctx, specMethod, mock.Anything, mock.Anything).
+				Return(&http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"data":` + tt.spec + `}`))}, nil)
+			cl := NewL1BeaconClient(NewBeaconHTTPClient(c), L1BeaconClientConfig{})
+
+			slot, err := cl.timeToSlot(ctx, timestamp)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSlot, slot)
+		})
+	}
 }
 
 func TestClientPoolSingle(t *testing.T) {

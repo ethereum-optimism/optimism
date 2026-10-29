@@ -88,7 +88,7 @@ impl OpPayloadTransactions<OpPooledTransaction> for CustomTxPriority {
 /// Builds the node with custom transaction priority service within default payload builder.
 fn build_components<Node>(
     chain_id: ChainId,
-) -> OpNodeComponentBuilder<Node, OpPayloadBuilder<CustomTxPriority>>
+) -> OpNodeComponentBuilder<Node, BasicPayloadServiceBuilder<OpPayloadBuilder<CustomTxPriority>>>
 where
     Node: FullNodeTypes<Types: OpNodeTypes>,
 {

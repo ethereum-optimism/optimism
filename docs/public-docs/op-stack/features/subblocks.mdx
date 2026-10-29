@@ -18,8 +18,9 @@ Subblocks split that window: the sequencer publishes what it has executed so far
 
 Two properties follow from that, and both matter to anyone consuming the stream.
 
-*   **A subblock sequence is append-only.** The final sealed block is the concatenation of every subblock in the sequence, in order.
+*   **A subblock sequence is append-only.** The sealed block's transaction list is the concatenation of every subblock in the sequence, in order.
     Transactions already emitted in a subblock are never reordered or dropped from the block that seals them.
+    On a chain running [Lagoon](/op-stack/protocol/hardforks/lagoon), the sealed block may also end with a post-execution transaction that the stream carries separately — see [the post-execution transaction](#the-post-execution-transaction).
 *   **A subblock is a projection, not a commitment.** It reports the transactions executed so far. It does not prove the resulting state.
 
 The first subblock in a sequence carries the block's deposit transactions, because those execute before any transaction from the mempool is considered.
@@ -31,7 +32,8 @@ Heavy execution in one interval leaves less time for the ones after it, so the n
 ## What a subblock payload carries
 
 The payload is wire compatible with the Flashblocks format that preceded it, and the type is still named `ExecutionPayloadFlashblockDeltaV1`.
-No field was added or removed. Four fields are present but set to their zero value:
+No field was removed, and the only addition is the optional `post_exec_tx` described [below](#the-post-execution-transaction).
+Four fields are present but set to their zero value:
 
 | Field | Value on the stream |
 | --- | --- |
@@ -54,6 +56,26 @@ A block hash commits to the state root, so it cannot be final either.
 
 A node that consumes the stream does not need the zeroed fields.
 It executes the subblock's transactions against its own view of the chain and serves the result under the `pending` block tag, so `eth_call` and `eth_getBalance` answer correctly without any root on the wire.
+
+### The post-execution transaction
+
+From the [Lagoon network upgrade](/op-stack/protocol/hardforks/lagoon), a block may end with a *post-execution transaction* of type `0x7D`, which carries sequencer-provided consensus data such as per-transaction gas refunds.
+The stream carries it in `diff.post_exec_tx`, holding the transaction's encoded bytes, and never inside `diff.transactions`.
+
+It sits outside `transactions` because it is not fixed the way a transaction already streamed is.
+It is computed from everything the block has executed so far, so the sequencer recomputes it for each subblock, and each subblock's value replaces the previous one.
+Putting a value that still changes into an append-only list would publish a transaction that a later subblock contradicts.
+
+So if you read the stream directly, treat `diff.post_exec_tx` as mutable rather than as one more streamed transaction.
+
+Concatenating `diff.transactions` across a block's subblocks gives you the sealed block's transaction list, excluding the final `0x7D` transaction if one is present.
+
+
+<Info>
+  The [Lagoon post-exec specification](https://specs.optimism.io/protocol/lagoon/post-exec.html#subblocks) is normative for this field and is the reference to build against.
+  It specifies why the field lives in `diff`, when it is absent, which subblock's value is canonical, that `transactions` may be empty, and why no receipt is streamed for it — each rule paired with its rationale and with what a consumer may assume.
+  The [Subblocks specification](https://specs.optimism.io/protocol/subblocks.html#post-execution-transactions) covers the same field from the stream's side.
+</Info>
 
 ## Architecture
 
@@ -147,6 +169,7 @@ For availability information, see [Enabling Subblocks](/chain-operators/guides/f
   <Accordion title="What does a pre-confirmation response contain?">
     The transactions executed so far in the block, their receipts, and the cumulative `gas_used`, `receipts_root`, and `logs_bloom`.
     It does not contain a usable `state_root` or `block_hash` — both are zeroed, as described in [what a subblock payload carries](#what-a-subblock-payload-carries).
+    It also does not contain the block's [post-execution transaction](#the-post-execution-transaction) or a receipt for it; that transaction is streamed separately in `diff.post_exec_tx`.
   </Accordion>
 </AccordionGroup>
 

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
@@ -20,7 +21,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/log"
 
 	challenger "github.com/ethereum-optimism/optimism/op-challenger"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -44,7 +45,7 @@ type EndpointProvider interface {
 type System interface {
 	RollupCfgs() []*rollup.Config
 	L1Genesis() *core.Genesis
-	L2Geneses() []*core.Genesis
+	L2Geneses() []*opgenesis.Genesis
 }
 type Helper struct {
 	log     log.Logger

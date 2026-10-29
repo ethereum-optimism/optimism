@@ -25,7 +25,6 @@ type Metricer interface {
 	RecordCrossSafetyViolation(executingChainID string, initiatingChainID string)
 
 	opmetrics.RefMetricer
-	opmetrics.RPCMetricer
 }
 
 type Metrics struct {
@@ -34,7 +33,6 @@ type Metrics struct {
 	factory  opmetrics.Factory
 
 	opmetrics.RefMetrics
-	opmetrics.RPCMetrics
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
@@ -71,7 +69,6 @@ func NewMetrics(procName string) *Metrics {
 		factory:  factory,
 
 		RefMetrics: opmetrics.MakeRefMetrics(ns, factory),
-		RPCMetrics: opmetrics.MakeRPCMetrics(ns, factory),
 
 		info: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,

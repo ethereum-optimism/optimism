@@ -4,20 +4,20 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/internal/syncstatus"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
-	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
 var _ activity.RPCActivity = (*Activity)(nil)
 
 type Activity struct {
-	log    gethlog.Logger
+	log    oplog.Logger
 	chains map[eth.ChainID]cc.ChainContainer
 }
 
-func New(log gethlog.Logger, chains map[eth.ChainID]cc.ChainContainer) *Activity {
+func New(log oplog.Logger, chains map[eth.ChainID]cc.ChainContainer) *Activity {
 	return &Activity{
 		log:    log,
 		chains: chains,

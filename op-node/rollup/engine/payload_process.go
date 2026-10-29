@@ -33,7 +33,7 @@ func (ev PayloadProcessEvent) String() string {
 }
 
 func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProcessEvent) {
-	insertStarted, err := e.processNewPayload(ctx, ev.Envelope, ev.Ref, ev.DerivedFrom)
+	insertStarted, _, err := e.processNewPayload(ctx, ev.Envelope, ev.Ref, ev.DerivedFrom)
 	if err != nil {
 		return
 	}
@@ -49,9 +49,11 @@ func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProce
 
 // processNewPayload handles the SuperAuthority check and NewPayload RPC call.
 // It does NOT acquire e.mu (caller is responsible).
-// Returns the insert start time on success, or an error.
+// Returns the instants engine_newPayload started and returned, or an error. The
+// second is what lets a caller price the newPayload call on its own, separately
+// from the forkchoice update that follows it.
 // Emits error events for other listeners, but does NOT emit PayloadSuccessEvent (caller's job).
-func (e *EngineController) processNewPayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, derivedFrom eth.L1BlockRef) (time.Time, error) {
+func (e *EngineController) processNewPayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, derivedFrom eth.L1BlockRef) (time.Time, time.Time, error) {
 	rpcCtx, cancel := context.WithTimeout(e.ctx, payloadProcessTimeout)
 	defer cancel()
 
@@ -79,17 +81,18 @@ func (e *EngineController) processNewPayload(ctx context.Context, envelope *eth.
 					"blockHash", payload.BlockHash,
 				)
 			}
-			return time.Time{}, ErrPayloadDenied
+			return time.Time{}, time.Time{}, ErrPayloadDenied
 		}
 	}
 
 	insertStart := time.Now()
 	status, err := e.engine.NewPayload(rpcCtx,
 		envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
+	newPayloadDone := time.Now()
 	if err != nil {
 		insertErr := fmt.Errorf("failed to insert execution payload: %w", err)
 		e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: insertErr})
-		return time.Time{}, insertErr
+		return time.Time{}, time.Time{}, insertErr
 	}
 	switch status.Status {
 	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
@@ -97,20 +100,20 @@ func (e *EngineController) processNewPayload(ctx context.Context, envelope *eth.
 		// at the time of the forkchoiceUpdated engine-API call, nor during getPayload.
 		if derivedFrom != (eth.L1BlockRef{}) && e.rollupCfg.IsHolocene(derivedFrom.Time) {
 			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ref.ParentID(), derivedFrom)
-			return time.Time{}, ErrPayloadInvalid
+			return time.Time{}, time.Time{}, ErrPayloadInvalid
 		}
 
 		e.emitter.Emit(ctx, PayloadInvalidEvent{
 			Envelope: envelope,
 			Err:      eth.NewPayloadErr(envelope.ExecutionPayload, status),
 		})
-		return time.Time{}, ErrPayloadInvalid
+		return time.Time{}, time.Time{}, ErrPayloadInvalid
 	case eth.ExecutionValid:
-		return insertStart, nil
+		return insertStart, newPayloadDone, nil
 	default:
 		statusErr := eth.NewPayloadErr(envelope.ExecutionPayload, status)
 		e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: statusErr})
-		return time.Time{}, statusErr
+		return time.Time{}, time.Time{}, statusErr
 	}
 }
 
@@ -134,10 +137,18 @@ func (e *EngineController) ProcessPayload(ctx context.Context, envelope *eth.Exe
 		e.requestForkchoiceUpdate(ctx)
 		return ErrStaleBuild
 	}
-	insertStarted, err := e.processNewPayload(ctx, envelope, ref, eth.L1BlockRef{})
+	insertStarted, newPayloadDone, err := e.processNewPayload(ctx, envelope, ref, eth.L1BlockRef{})
 	if err != nil {
 		return err
 	}
+	// Priced separately because the two candidate publish points pay different
+	// amounts: publishing once newPayload reports the block valid pays only
+	// "newpayload", while publishing after the whole insert pays "total".
+	e.metrics.RecordSequencerInsertTime("newpayload", newPayloadDone.Sub(insertStarted))
 	e.finalizePayload(ctx, ref, false, eth.L1BlockRef{}, envelope, buildStarted, insertStarted)
+	// "forkchoice" is everything after newPayload that a post-insert publish waits
+	// on: the unsafe-head update and the concluding forkchoice call.
+	e.metrics.RecordSequencerInsertTime("forkchoice", time.Since(newPayloadDone))
+	e.metrics.RecordSequencerInsertTime("total", time.Since(insertStarted))
 	return nil
 }

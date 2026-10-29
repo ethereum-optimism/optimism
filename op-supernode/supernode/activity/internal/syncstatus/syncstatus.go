@@ -5,11 +5,11 @@ import (
 	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
-	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
-func Aggregate(ctx context.Context, log gethlog.Logger, chains map[eth.ChainID]cc.ChainContainer) (eth.SuperNodeSyncStatusResponse, error) {
+func Aggregate(ctx context.Context, log oplog.Logger, chains map[eth.ChainID]cc.ChainContainer) (eth.SuperNodeSyncStatusResponse, error) {
 	var (
 		statuses              map[eth.ChainID]eth.SyncStatus
 		minCurrentL1          eth.BlockID

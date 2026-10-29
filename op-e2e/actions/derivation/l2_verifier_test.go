@@ -7,11 +7,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -44,7 +44,7 @@ func TestL2Verifier_SequenceWindow(gt *testing.T) {
 			expectedL1Origin = l1Head - sd.RollupCfg.SeqWindowSize
 		}
 		require.Equal(t, expectedL1Origin, verifier.SyncStatus().SafeL2.L1Origin.Number, "L1 origin is forced in, given enough L1 blocks pass by")
-		require.LessOrEqual(t, miner.L1Chain().GetBlockByNumber(expectedL1Origin).Time(), engine.L2Chain().CurrentBlock().Time, "L2 time higher than L1 origin time")
+		require.LessOrEqual(t, miner.L1Chain().GetBlockByNumber(expectedL1Origin).Time(), engine.LatestHeader(t).Time, "L2 time higher than L1 origin time")
 	}
 	tip2N := verifier.SyncStatus()
 

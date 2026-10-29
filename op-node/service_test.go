@@ -4,23 +4,21 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/flags"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
 
 func syncConfigCliApp() *cli.App {
-	syncConfigFlags := append([]cli.Flag{
+	syncConfigFlags := []cli.Flag{
 		flags.SequencerEnabledFlag,
 		flags.L2EngineSyncEnabled,
 		flags.SyncModeFlag,
-		flags.SyncModeReqRespFlag,
 		flags.SyncModeOffsetELSafeFlag,
 		flags.L2FollowSource,
 		flags.L2EngineKind,
 		flags.SkipSyncStartCheck,
-	}, flags.P2PFlags("")..., // For p2p.sync.req-resp
-	)
+	}
 	return &cli.App{
 		Flags: syncConfigFlags,
 		Action: func(c *cli.Context) error {

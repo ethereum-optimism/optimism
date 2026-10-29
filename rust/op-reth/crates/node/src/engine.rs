@@ -22,7 +22,7 @@ use reth_optimism_payload_builder::{
     OpExecData, OpExecutionPayloadValidator, OpPayloadAttrs, OpPayloadTypes,
 };
 use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpBlock};
-use reth_primitives_traits::{Block, RecoveredBlock, SealedBlock, SignedTransaction};
+use reth_primitives_traits::{Block, RecoveredBlock, SealedBlock, SealedHeader, SignedTransaction};
 use reth_provider::{ProviderResult, StateProviderBox, StateProviderFactory};
 use reth_trie_common::{HashedPostState, KeyHasher};
 use std::{marker::PhantomData, sync::Arc};
@@ -136,6 +136,7 @@ where
         &self,
         state_updates: impl FnOnce() -> &'a HashedPostState,
         block: &RecoveredBlock<Self::Block>,
+        _parent_header: &SealedHeader<<Self::Block as Block>::Header>,
         parent_state: impl FnOnce() -> ProviderResult<StateProviderBox>,
     ) -> Result<(), InsertBlockErrorKind> {
         if self.chain_spec().is_isthmus_active_at_timestamp(block.timestamp()) {
@@ -186,20 +187,7 @@ where
             <Types as PayloadTypes>::PayloadAttributes,
         >,
     ) -> Result<(), EngineObjectValidationError> {
-        validate_withdrawals_presence(
-            self.chain_spec(),
-            version,
-            payload_or_attrs.message_validation_kind(),
-            payload_or_attrs.timestamp(),
-            payload_or_attrs.withdrawals().is_some(),
-        )?;
-        validate_parent_beacon_block_root_presence(
-            self.chain_spec(),
-            version,
-            payload_or_attrs.message_validation_kind(),
-            payload_or_attrs.timestamp(),
-            payload_or_attrs.parent_beacon_block_root().is_some(),
-        )
+        validate_op_version_specific_fields(self.chain_spec(), version, payload_or_attrs)
     }
 
     fn ensure_well_formed_attributes(
@@ -207,55 +195,99 @@ where
         version: EngineApiMessageVersion,
         attributes: &<Types as PayloadTypes>::PayloadAttributes,
     ) -> Result<(), EngineObjectValidationError> {
-        validate_version_specific_fields(
-            self.chain_spec(),
-            version,
-            PayloadOrAttributes::<OpExecData, OpPayloadAttrs>::PayloadAttributes(attributes),
-        )?;
-
-        if attributes.gas_limit.is_none() {
-            return Err(EngineObjectValidationError::InvalidParams(
-                "MissingGasLimitInPayloadAttributes".to_string().into(),
-            ));
-        }
-
-        if self
-            .chain_spec()
-            .is_holocene_active_at_timestamp(attributes.payload_attributes.timestamp)
-        {
-            let (elasticity, denominator) =
-                attributes.decode_eip_1559_params().ok_or_else(|| {
-                    EngineObjectValidationError::InvalidParams(
-                        "MissingEip1559ParamsInPayloadAttributes".to_string().into(),
-                    )
-                })?;
-
-            if elasticity != 0 && denominator == 0 {
-                return Err(EngineObjectValidationError::InvalidParams(
-                    "Eip1559ParamsDenominatorZero".to_string().into(),
-                ));
-            } else if denominator != 0 && elasticity == 0 {
-                return Err(EngineObjectValidationError::InvalidParams(
-                    "Eip1559ParamsElasticityZero".to_string().into(),
-                ));
-            }
-        }
-
-        if self.chain_spec().is_jovian_active_at_timestamp(attributes.payload_attributes.timestamp)
-        {
-            if attributes.min_base_fee.is_none() {
-                return Err(EngineObjectValidationError::InvalidParams(
-                    "MissingMinBaseFeeInPayloadAttributes".to_string().into(),
-                ));
-            }
-        } else if attributes.min_base_fee.is_some() {
-            return Err(EngineObjectValidationError::InvalidParams(
-                "MinBaseFeeNotAllowedBeforeJovian".to_string().into(),
-            ));
-        }
-
-        Ok(())
+        ensure_well_formed_payload_attributes(self.chain_spec(), version, attributes)
     }
+}
+
+/// Checks that an execution payload or payload attributes sent with an engine API call of message
+/// version `version` carry withdrawals and a parent beacon block root exactly when `version` and
+/// the forks active at their timestamp require them, and that the timestamp falls in a fork
+/// `version` supports.
+///
+/// These are the checks [`OpEngineValidator`] runs on the payload of an `engine_newPayload` call,
+/// taking `version` from the method called. They read no state.
+pub fn validate_op_version_specific_fields<ChainSpec: OpHardforks>(
+    chain_spec: &ChainSpec,
+    version: EngineApiMessageVersion,
+    payload_or_attrs: PayloadOrAttributes<'_, OpExecData, OpPayloadAttrs>,
+) -> Result<(), EngineObjectValidationError> {
+    validate_withdrawals_presence(
+        chain_spec,
+        version,
+        payload_or_attrs.message_validation_kind(),
+        payload_or_attrs.timestamp(),
+        payload_or_attrs.withdrawals().is_some(),
+    )?;
+    validate_parent_beacon_block_root_presence(
+        chain_spec,
+        version,
+        payload_or_attrs.message_validation_kind(),
+        payload_or_attrs.timestamp(),
+        payload_or_attrs.parent_beacon_block_root().is_some(),
+    )
+}
+
+/// Checks that payload attributes sent with an `engine_forkchoiceUpdated` call of message version
+/// `version` are well formed for the forks active at their timestamp:
+///
+/// - the engine API's version-specific fields (withdrawals, parent beacon block root, slot number)
+///   are present exactly when `version` and the active forks require them, and the timestamp falls
+///   in a fork `version` supports;
+/// - a gas limit is set;
+/// - from Holocene, EIP-1559 parameters are set, with elasticity and denominator either both zero
+///   or both non-zero;
+/// - from Jovian, a minimum base fee is set; before Jovian, none is.
+///
+/// These are the checks [`OpEngineValidator`] runs on the attributes of an
+/// `engine_forkchoiceUpdated` call, taking `version` from the method called. They read no state.
+pub fn ensure_well_formed_payload_attributes<ChainSpec: OpHardforks>(
+    chain_spec: &ChainSpec,
+    version: EngineApiMessageVersion,
+    attributes: &OpPayloadAttrs,
+) -> Result<(), EngineObjectValidationError> {
+    validate_version_specific_fields(
+        chain_spec,
+        version,
+        PayloadOrAttributes::<OpExecData, OpPayloadAttrs>::PayloadAttributes(attributes),
+    )?;
+
+    if attributes.gas_limit.is_none() {
+        return Err(EngineObjectValidationError::InvalidParams(
+            "MissingGasLimitInPayloadAttributes".to_string().into(),
+        ));
+    }
+
+    if chain_spec.is_holocene_active_at_timestamp(attributes.payload_attributes.timestamp) {
+        let (elasticity, denominator) = attributes.decode_eip_1559_params().ok_or_else(|| {
+            EngineObjectValidationError::InvalidParams(
+                "MissingEip1559ParamsInPayloadAttributes".to_string().into(),
+            )
+        })?;
+
+        if elasticity != 0 && denominator == 0 {
+            return Err(EngineObjectValidationError::InvalidParams(
+                "Eip1559ParamsDenominatorZero".to_string().into(),
+            ));
+        } else if denominator != 0 && elasticity == 0 {
+            return Err(EngineObjectValidationError::InvalidParams(
+                "Eip1559ParamsElasticityZero".to_string().into(),
+            ));
+        }
+    }
+
+    if chain_spec.is_jovian_active_at_timestamp(attributes.payload_attributes.timestamp) {
+        if attributes.min_base_fee.is_none() {
+            return Err(EngineObjectValidationError::InvalidParams(
+                "MissingMinBaseFeeInPayloadAttributes".to_string().into(),
+            ));
+        }
+    } else if attributes.min_base_fee.is_some() {
+        return Err(EngineObjectValidationError::InvalidParams(
+            "MinBaseFeeNotAllowedBeforeJovian".to_string().into(),
+        ));
+    }
+
+    Ok(())
 }
 
 /// Validates the presence of the `withdrawals` field according to the payload timestamp.
@@ -310,7 +342,10 @@ mod test {
 
     use crate::{OpNode, engine};
     use alloy_consensus::{BlockBody, Header};
-    use alloy_op_hardforks::OP_SEPOLIA_JOVIAN_TIMESTAMP;
+    use alloy_op_hardforks::{
+        OP_SEPOLIA_CANYON_TIMESTAMP, OP_SEPOLIA_ECOTONE_TIMESTAMP, OP_SEPOLIA_HOLOCENE_TIMESTAMP,
+        OP_SEPOLIA_JOVIAN_TIMESTAMP, OP_SEPOLIA_KARST_TIMESTAMP,
+    };
     use alloy_primitives::{Address, B64, B256, b64};
     use alloy_rpc_types_engine::PayloadAttributes;
     use op_alloy_rpc_types_engine::OpPayloadAttributes;
@@ -503,6 +538,80 @@ mod test {
         assert_invalid_params_error!(result, "MissingMinBaseFeeInPayloadAttributes");
     }
 
+    /// Attributes that are well formed for the OP Sepolia forks active at `timestamp`.
+    fn well_formed_attributes(timestamp: u64) -> OpPayloadAttrs {
+        let mut attributes = get_attributes(None, None, timestamp);
+        let spec = OP_SEPOLIA.as_ref();
+        if !spec.is_canyon_active_at_timestamp(timestamp) {
+            attributes.0.payload_attributes.withdrawals = None;
+        }
+        if !spec.is_ecotone_active_at_timestamp(timestamp) {
+            attributes.0.payload_attributes.parent_beacon_block_root = None;
+        }
+        if spec.is_holocene_active_at_timestamp(timestamp) {
+            attributes.0.eip_1559_params = Some(b64!("0000000000000000"));
+        }
+        if spec.is_jovian_active_at_timestamp(timestamp) {
+            attributes.0.min_base_fee = Some(0);
+        }
+        attributes
+    }
+
+    fn ensure_well_formed_on_sepolia(
+        version: EngineApiMessageVersion,
+        attributes: &OpPayloadAttrs,
+    ) -> Result<(), EngineObjectValidationError> {
+        ensure_well_formed_payload_attributes(OP_SEPOLIA.as_ref(), version, attributes)
+    }
+
+    #[test]
+    fn ensure_well_formed_payload_attributes_accepts_well_formed_attributes() {
+        for (timestamp, version) in [
+            (OP_SEPOLIA_CANYON_TIMESTAMP - 1, EngineApiMessageVersion::V1),
+            (OP_SEPOLIA_CANYON_TIMESTAMP, EngineApiMessageVersion::V2),
+            (OP_SEPOLIA_ECOTONE_TIMESTAMP, EngineApiMessageVersion::V3),
+            (OP_SEPOLIA_HOLOCENE_TIMESTAMP, EngineApiMessageVersion::V3),
+            (OP_SEPOLIA_JOVIAN_TIMESTAMP, EngineApiMessageVersion::V3),
+            (OP_SEPOLIA_KARST_TIMESTAMP, EngineApiMessageVersion::V3),
+        ] {
+            let result = ensure_well_formed_on_sepolia(version, &well_formed_attributes(timestamp));
+            assert!(result.is_ok(), "timestamp {timestamp}, {version:?}: {result:?}");
+        }
+    }
+
+    #[test]
+    fn ensure_well_formed_payload_attributes_rejects_each_rule() {
+        let mut attributes = well_formed_attributes(OP_SEPOLIA_ECOTONE_TIMESTAMP);
+        attributes.0.payload_attributes.parent_beacon_block_root = None;
+        assert!(matches!(
+            ensure_well_formed_on_sepolia(EngineApiMessageVersion::V3, &attributes),
+            Err(EngineObjectValidationError::PayloadAttributes(
+                VersionSpecificValidationError::NoParentBeaconBlockRootPostCancun
+            ))
+        ));
+
+        let mut attributes = well_formed_attributes(OP_SEPOLIA_CANYON_TIMESTAMP);
+        attributes.0.gas_limit = None;
+        assert_invalid_params_error!(
+            ensure_well_formed_on_sepolia(EngineApiMessageVersion::V2, &attributes),
+            "MissingGasLimitInPayloadAttributes"
+        );
+
+        let mut attributes = well_formed_attributes(OP_SEPOLIA_HOLOCENE_TIMESTAMP);
+        attributes.0.eip_1559_params = Some(b64!("0000000000000008"));
+        assert_invalid_params_error!(
+            ensure_well_formed_on_sepolia(EngineApiMessageVersion::V3, &attributes),
+            "Eip1559ParamsDenominatorZero"
+        );
+
+        let mut attributes = well_formed_attributes(OP_SEPOLIA_JOVIAN_TIMESTAMP);
+        attributes.0.min_base_fee = None;
+        assert_invalid_params_error!(
+            ensure_well_formed_on_sepolia(EngineApiMessageVersion::V3, &attributes),
+            "MissingMinBaseFeeInPayloadAttributes"
+        );
+    }
+
     fn isthmus_block(
         parent_hash: B256,
         withdrawals_root: B256,
@@ -541,6 +650,9 @@ mod test {
             &validator,
             || &hashed_state,
             &block,
+            // The validator reads the parent *state*, not the parent header; any sealed
+            // header satisfies the signature.
+            &SealedHeader::new(Header::default(), unavailable_parent),
             || NoopProvider::default().latest(),
         );
 

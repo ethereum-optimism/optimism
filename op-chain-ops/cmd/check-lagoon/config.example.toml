@@ -13,6 +13,9 @@ relay-timeout = "2m"
 # Number of A->B->A round-trips to perform.
 iterations = 3
 
+# --- Used only by top-level `all` ---
+json = false
+
 # --- Used only by `failsafe` ---
 # How long to wait for the initiating message to propagate before the blocked relay.
 propagation-wait = "6s"
@@ -21,3 +24,22 @@ propagation-wait = "6s"
 [filter]
 admin-rpc = ["http://localhost:8420", "http://localhost:8421"]
 jwt-secret = ["0x<32-byte-hex-secret-1>", "0x<32-byte-hex-secret-2>"]
+
+# --- Used by `sdm` subcommands; top-level `all` reads the account, fund, rollup-rpc-a/b, contract-a/b, and opt-in keys ---
+[sdm]
+l2 = "http://localhost:9545"
+l2-verifier = ""
+rollup-rpc = ""
+rollup-rpc-a = ""
+rollup-rpc-b = ""
+# Required by `sdm all`; top-level `all` derives one when empty.
+account = ""
+l2-fund-amount = "20000000000000000"
+contract = ""
+contract-a = ""
+contract-b = ""
+# Enable the producer's SDM opt-in for the duration of the check if it is off.
+opt-in = false
+json = false
+# `sdm block` and `sdm verifier` only.
+block = 0

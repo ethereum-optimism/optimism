@@ -5,10 +5,8 @@ use reth_chainspec::EthChainSpec;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
-use reth_optimism_node::args::{ProofsHistoryStorageArgs, ProofsStorageVersion};
-use reth_optimism_trie::{
-    OpProofsBackfillProvider, OpProofsBackfillStore, db::MdbxProofsStorageV2,
-};
+use reth_optimism_node::args::ProofsHistoryStorageArgs;
+use reth_optimism_trie::{OpProofsBackfillProvider, OpProofsBackfillStore, db::MdbxProofsStorage};
 use std::sync::Arc;
 use tracing::info;
 
@@ -37,23 +35,15 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> SnapshotDropCommand<C> {
         let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
         info!(target: "reth::cli", "Dropping OP proofs snapshot at: {:?}", storage_path);
 
-        match self.history.storage_version {
-            ProofsStorageVersion::V1 => Err(eyre::eyre!(
-                "Snapshot is not supported for V1 proofs storage. \
-                 Re-run with --proofs-history.storage-version v2."
-            )),
-            ProofsStorageVersion::V2 => {
-                let storage = MdbxProofsStorageV2::new(&storage_path)
-                    .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorageV2: {e}"))?;
+        let storage = MdbxProofsStorage::new(&storage_path)
+            .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorage: {e}"))?;
 
-                let sp = storage.backfill_provider()?;
-                sp.clear_snapshot()?;
-                OpProofsBackfillProvider::commit(sp)?;
+        let sp = storage.backfill_provider()?;
+        sp.clear_snapshot()?;
+        OpProofsBackfillProvider::commit(sp)?;
 
-                info!(target: "reth::cli", "Snapshot dropped");
-                Ok(())
-            }
-        }
+        info!(target: "reth::cli", "Snapshot dropped");
+        Ok(())
     }
 }
 

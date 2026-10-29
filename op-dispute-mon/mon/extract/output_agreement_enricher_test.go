@@ -12,10 +12,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
@@ -637,7 +637,7 @@ func (e testRPCError) Error() string  { return e.msg }
 func (e testRPCError) ErrorCode() int { return e.code }
 
 func setupOutputValidatorTest(t *testing.T) (*OutputAgreementEnricher, *stubRollupClient, *stubOutputMetrics) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	client := &stubRollupClient{
 		currentL1:   math.MaxUint64,
 		safeHeadNum: 99999999999,
@@ -648,7 +648,7 @@ func setupOutputValidatorTest(t *testing.T) (*OutputAgreementEnricher, *stubRoll
 }
 
 func setupMultiNodeTest(t *testing.T, numNodes int) (*OutputAgreementEnricher, []*stubRollupClient, *stubOutputMetrics) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	clients := make([]*stubRollupClient, numNodes)
 	rollupClients := make([]OutputRollupClient, numNodes)
 	for i := range clients {

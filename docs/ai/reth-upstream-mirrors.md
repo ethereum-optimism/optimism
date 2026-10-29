@@ -27,7 +27,7 @@ function.
 | --- | --- |
 | `<kind>` | one of the five below — it says what "re-verify" means here |
 | `<crate>` | crates.io package name (`revm-handler`, `alloy-evm`), or `reth` for the git-pinned family |
-| `<version>` | exact resolved semver for crates.io; for `reth`, the pin token: `rev:<sha7>`, `v<semver>`, or `pre-<pr>` for something upstream has since deleted |
+| `<version>` | exact resolved semver for crates.io; for `reth`, the pin token: `rev:<sha7>`, `v<semver>`, a fork tag `op-<base>-<n>`, or `pre-<pr>` for something upstream has since deleted |
 | `<symbol>` | full upstream path, so the checker and the reader can both find it |
 
 Put the tag on the smallest item that owns the duplication — the method, not the `impl`
@@ -69,6 +69,11 @@ Statuses: `current`, `stale` (review it), `frozen` (an intentionally old
 `port`), and the tag errors `ahead`, `unknown-crate`, `ambiguous-version`, and
 `malformed`.
 
+A crate can resolve to several incompatible versions at once, when an unrelated
+dependency pulls an older line. The version a tag is checked against is then the
+one inside the range `rust/Cargo.toml` asks for — what our own crates build
+against. `ambiguous-version` is reported only when that still leaves a choice.
+
 ## Using it on a bump
 
 1. Bump the pin and refresh the lockfiles as usual (`rust/UPDATING-RETH.md`).
@@ -102,7 +107,7 @@ release contains them merely because they have merged upstream.
 
 Two practical consequences:
 
-- Diff against **what we build** — the pinned rev in the fork. That is the code our mirrors
+- Diff against **what we build** — the pinned fork tag or rev. That is the code our mirrors
   have to match.
 - If a mirrored symbol lives in a file a cherry-pick touches, say so in the review.
   Diff the pinned fork's behavior, not just its upstream base.
@@ -129,9 +134,11 @@ So the split above: CI **blocks** only on tag bugs, which are unambiguous defect
 be waved through by editing a version. Staleness is surfaced as a worklist and reviewed
 like any other finding.
 
-For crates.io mirrors and reth release tags, the `ahead` check catches an
-overshot ordered version. Git revisions have no manifest-level ordering, so the
-checker cannot detect an “ahead” rev. The reviewer-side control is mandatory for
+For crates.io mirrors, reth release tags and fork tags, the `ahead` check
+catches an overshot ordered version. Fork tags order by counter on the same
+base and by release on different release bases. Git revisions and fork tags on
+different commit bases have no ordering, so the checker cannot detect an “ahead”
+one. The reviewer-side control is mandatory for
 every source: inspect each tag change relative to the merge base and require the
 corresponding upstream diff or an explicit explanation.
 

@@ -13,9 +13,9 @@ import (
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -285,7 +285,7 @@ func newEnrichedGameData(proxy common.Address, timestamp uint64) *monTypes.Fault
 }
 
 func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast, []*mockMonitor) {
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
 		return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 	}

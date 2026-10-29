@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
@@ -131,8 +130,6 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
 	testProposer := common.Address{'P'}
 
-	startingAnchorRoot, err := opcm.EncodeStartingAnchorRoot(opcm.DefaultStartingAnchorRoot)
-	require.NoError(t, err)
 	gameTypeTy, err := abi.NewType("uint32", "", nil)
 	require.NoError(t, err)
 	startingRespectedGameType, err := (abi.Arguments{{Type: gameTypeTy}}).Pack(uint32(embedded.GameTypeSuperCannonKona))
@@ -166,7 +163,6 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 				{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeZKDisputeGame},
 			},
 			ExtraInstructions: []embedded.ExtraInstruction{
-				{Key: "overrides.cfg.startingAnchorRoot", Data: startingAnchorRoot},
 				{Key: "overrides.cfg.startingRespectedGameType", Data: startingRespectedGameType},
 			},
 		},

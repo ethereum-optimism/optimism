@@ -223,11 +223,7 @@ abstract contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_Te
     }
 
     /// @notice Helper to return a pseudo-random super root proof with the specified l2SequenceNumber
-    function _dummySuper(uint64 _l2SequenceNumber)
-        internal
-        view
-        returns (Types.SuperRootProof memory superRootProof_)
-    {
+    function _dummySuper(uint64 _l2SequenceNumber) internal view returns (Types.SuperRootProof memory superRootProof_) {
         Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](1);
         outputRoots[0] = Types.OutputRootWithChainId({ chainId: 5, root: keccak256(abi.encode(gasleft())) });
         superRootProof_.version = bytes1(uint8(1));
@@ -285,14 +281,12 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     ISuperFaultDisputeGame.__constructor__,
-                    (
-                        ISuperFaultDisputeGame.GameConstructorParams({
+                    (ISuperFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: _maxGameDepth,
                             splitDepth: _maxGameDepth + 1,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days)
-                        })
-                    )
+                        }))
                 )
             )
         });
@@ -309,14 +303,12 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     ISuperFaultDisputeGame.__constructor__,
-                    (
-                        ISuperFaultDisputeGame.GameConstructorParams({
+                    (ISuperFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: maxGameDepth,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days)
-                        })
-                    )
+                        }))
                 )
             )
         });
@@ -333,14 +325,12 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     ISuperFaultDisputeGame.__constructor__,
-                    (
-                        ISuperFaultDisputeGame.GameConstructorParams({
+                    (ISuperFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: 2 ** 3,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days)
-                        })
-                    )
+                        }))
                 )
             )
         });
@@ -365,14 +355,12 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     ISuperFaultDisputeGame.__constructor__,
-                    (
-                        ISuperFaultDisputeGame.GameConstructorParams({
+                    (ISuperFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: 16,
                             splitDepth: 8,
                             clockExtension: Duration.wrap(_clockExtension),
                             maxClockDuration: Duration.wrap(_maxClockDuration)
-                        })
-                    )
+                        }))
                 )
             )
         });
@@ -2031,6 +2019,50 @@ contract SuperFaultDisputeGame_ClaimCredit_Test is SuperFaultDisputeGame_TestIni
         assertEq(bob.balance, bobBalanceBefore + secondBond);
     }
 
+    /// @notice Tests that claimCredit can still unlock credit while the system is paused if the
+    ///         game was closed before the pause, and that the withdrawal stays blocked until
+    ///         the system is unpaused.
+    function test_claimCredit_pausedAfterClose_succeeds() public {
+        // Bond a claim so alice has credit to claim.
+        address alice = address(0xa11ce);
+        uint256 bond = _getRequiredBond(0);
+        vm.deal(alice, bond);
+        (,,,, Claim disputed,,) = gameProxy.claimData(0);
+        vm.prank(alice);
+        gameProxy.attack{ value: bond }(disputed, 0, _dummyClaim());
+
+        // Resolve, finalize, and close the game. Alice counters the root claim and wins its bond.
+        vm.warp(block.timestamp + 3 days + 12 hours);
+        gameProxy.resolveClaim(1, 0);
+        gameProxy.resolveClaim(0, 0);
+        gameProxy.resolve();
+        vm.warp(block.timestamp + 3.5 days + 1 seconds);
+        gameProxy.closeGame();
+        uint256 credit = gameProxy.normalModeCredit(alice);
+        assertGt(credit, bond);
+
+        // Pause the system with the Superchain-wide identifier (address(0)).
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        // The first claim unlocks the credit despite the pause.
+        gameProxy.claimCredit(alice);
+        assertTrue(gameProxy.hasUnlockedCredit(alice));
+        (uint256 unlocked,) = delayedWeth.withdrawals(address(gameProxy), alice);
+        assertEq(unlocked, credit);
+
+        // The withdrawal reverts while paused, even after the delay.
+        vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
+        vm.expectRevert("DelayedWETH: contract is paused");
+        gameProxy.claimCredit(alice);
+
+        // Once unpaused, the withdrawal succeeds.
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.unpause(address(0));
+        gameProxy.claimCredit(alice);
+        assertEq(alice.balance, credit);
+    }
+
     /// @notice Static unit test asserting that credit may not be drained past allowance through
     ///         reentrancy.
     function test_claimCredit_claimAlreadyResolved_reverts() public {
@@ -2169,6 +2201,17 @@ contract SuperFaultDisputeGame_CloseGame_Test is SuperFaultDisputeGame_TestInit 
     /// @notice Tests that closeGame reverts if the game is not resolved
     function test_closeGame_gameNotResolved_reverts() public {
         vm.expectRevert(GameNotResolved.selector);
+        gameProxy.closeGame();
+    }
+
+    /// @notice Tests that closeGame reverts if the system is paused before the game is closed.
+    function test_closeGame_gamePaused_reverts() public {
+        // Pause the system with the Superchain-wide identifier (address(0)).
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        // Attempting to close the game should now revert.
+        vm.expectRevert(GamePaused.selector);
         gameProxy.closeGame();
     }
 

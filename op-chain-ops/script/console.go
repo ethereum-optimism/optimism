@@ -11,7 +11,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 //go:generate go run ./consolegen --abi-txt=console2.txt --out=console2_gen.go

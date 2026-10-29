@@ -45,18 +45,7 @@ contract DefaultCallbackHandler is ERC1155TokenReceiver, ERC777TokensRecipient, 
         return 0x150b7a02;
     }
 
-    function tokensReceived(
-        address,
-        address,
-        address,
-        uint256,
-        bytes calldata,
-        bytes calldata
-    )
-        external
-        pure
-        override
-    {
+    function tokensReceived(address, address, address, uint256, bytes calldata, bytes calldata) external pure override {
         // We implement this for completeness, doesn't really have any value
     }
 
@@ -149,13 +138,7 @@ contract CompatibilityFallbackHandler is DefaultCallbackHandler, ISignatureValid
      * @param targetContract Address of the contract containing the code to execute.
      * @param calldataPayload Calldata that should be sent to the target contract (encoded method name and arguments).
      */
-    function simulate(
-        address targetContract,
-        bytes calldata calldataPayload
-    )
-        external
-        returns (bytes memory response)
-    {
+    function simulate(address targetContract, bytes calldata calldataPayload) external returns (bytes memory response) {
         // Suppress compiler warnings about not using parameters, while allowing
         // parameters to keep names for documentation purposes. This does not
         // generate code.

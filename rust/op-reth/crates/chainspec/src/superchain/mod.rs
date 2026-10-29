@@ -6,6 +6,7 @@ mod chain_specs;
 mod configs;
 
 pub use chain_specs::*;
+pub use configs::is_superchain_chain_id;
 
 #[cfg(test)]
 mod tests {

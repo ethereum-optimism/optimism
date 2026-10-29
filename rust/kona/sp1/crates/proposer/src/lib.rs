@@ -6,7 +6,7 @@
 //! live in [`proving`]; SP1 proof providers live in [`prover`].
 
 /// Prefix for all proposer-owned environment variables.
-pub const ENV_VAR_PREFIX: &str = "KONA_SP1_PROPOSER";
+pub const ENV_VAR_PREFIX: &str = "OP_ZK_PROPOSER";
 
 /// Builds a proposer-owned environment-variable name.
 pub fn env_var(suffix: &str) -> String {
@@ -21,8 +21,10 @@ pub mod prover;
 pub mod proving;
 pub mod signer;
 pub mod superroot;
+pub mod tx_sender;
 
 mod adapters;
+mod log_proofs;
 mod ports;
 mod verifier;
 

@@ -62,7 +62,7 @@ const fn literals(r: u32, size: u32) -> u32 {
     if r != 0 { size + r + 1 } else { size }
 }
 
-fn cmp(input: &[u8], p: u32, q: u32, r: u32) -> u32 {
+const fn cmp(input: &[u8], p: u32, q: u32, r: u32) -> u32 {
     let mut l = 0;
     let mut r = r - q;
     while l < r {

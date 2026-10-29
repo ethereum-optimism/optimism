@@ -80,6 +80,12 @@ build-op-reth:
 build-op-reth-debug:
   cargo build --bin op-reth
 
+# Build op-reth-test-engine, the execution engine the Go engine tests spawn (they find the build
+# in the target directory, or set RUST_BINARY_PATH_OP_RETH_TEST_ENGINE to it). The package is not
+# a workspace default member, so `-p` is required for `cargo` to resolve the binary.
+build-op-reth-test-engine:
+  cargo build --release -p op-reth-test-engine
+
 # Build lokahi. The package is not a workspace default member, so `-p`
 # is required for `cargo` to resolve the binary.
 build-lokahi:
@@ -114,7 +120,7 @@ test-docs:
 
 # Run tests in the nested SP1 guest program workspace
 test-sp1-guest:
-  cargo test --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --locked
+  cargo test --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --locked --all-features
 
 ############################### Lint ################################
 
@@ -235,14 +241,16 @@ check-no-self-embed:
   #!/usr/bin/env bash
   set -euo pipefail
   cd kona/sp1
-  # The leaf guest must not depend on the range-vkey crate: it would embed its own vkey
-  # (SUPER_RANGE_VKEY = f(super-range ELF)), closing a build cycle.
-  f=programs/super-range/Cargo.toml
-  test -f "$f"
-  if grep -q kona-sp1-range-vkeys "$f"; then
-    echo "error: $f must not depend on kona-sp1-range-vkeys (build cycle)" >&2
-    exit 1
-  fi
+  # A guest must not depend on the crate that embeds its own vkey (SUPER_RANGE_VKEY =
+  # f(super-range ELF), LOG_COMMITMENT_VKEY = f(log-commitment ELF)): that closes a build cycle.
+  for pair in super-range:kona-sp1-range-vkeys log-commitment:kona-sp1-log-commitment-vkey; do
+    f="programs/${pair%%:*}/Cargo.toml"
+    test -f "$f"
+    if grep -q "${pair#*:}" "$f"; then
+      echo "error: $f must not depend on ${pair#*:} (build cycle)" >&2
+      exit 1
+    fi
+  done
 # Runs before the `--locked` clippy so a kona-only dependency change produces a
 # clear fix hint instead of cargo's cryptic "cannot update the lock file because
 # --locked was passed" error.
@@ -316,6 +324,9 @@ check-sp1-guest-precompile-patches:
   # The aggregation guest verifies proofs but does not execute L2 EVM precompiles.
   verify_program_patches kona-sp1-super-aggregation "${common_patches[@]}"
 
+  # The log-commitment guest hashes every log with keccak.
+  verify_program_patches kona-sp1-log-commitment "${common_patches[@]}"
+
 # Resolves without --locked (minimal change), so it only touches entries that
 # actually moved rather than bumping unrelated guest deps.
 # Refresh the SP1 guest Cargo.lock after changing kona crates it depends on
@@ -330,13 +341,19 @@ fmt-fix-sp1-guest: _sync-sp1-guest-lints
 
 lint-clippy-sp1-guest:
   cargo clippy --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --all-features --all-targets --locked -- -D warnings
+  cargo clippy --manifest-path {{SP1_GUEST_MANIFEST}} --locked -p kona-sp1-super-range --all-targets --no-default-features -- -D warnings
 
-# fmt-check + clippy + test the standalone range-vkeys crate (in neither workspace, so nothing
-# else covers it). Requires elf/vkeys.toml and is invoked only after the guest ELFs are built.
-check-range-vkeys:
-  cargo +{{NIGHTLY}} fmt --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all -- --check
-  cargo clippy --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all-targets --locked -- -D warnings
-  cargo test --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --locked
+# fmt-check + clippy + test the standalone vkey crates (in neither workspace, so nothing else
+# covers them). Requires elf/vkeys.toml and is invoked only after the guest ELFs are built.
+check-vkey-crates:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  for crate in range-vkeys log-commitment-vkey; do
+    manifest="kona/sp1/crates/${crate}/Cargo.toml"
+    cargo +{{NIGHTLY}} fmt --manifest-path "$manifest" --all -- --check
+    cargo clippy --manifest-path "$manifest" --all-targets --locked -- -D warnings
+    cargo test --manifest-path "$manifest" --locked
+  done
 
 # Lint Rust documentation
 lint-docs:
@@ -398,7 +415,8 @@ rust-review base='':
 
 ############################ no_std #################################
 
-# Check no_std compatibility for proof, protocol, alloy, and op-alloy crates
+# Check no_std compatibility for proof, protocol, alloy, and op-alloy crates, plus the host-target
+# no_std build of op-reth's evm crate, whose reth dependencies do not build for riscv.
 check-no-std:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -443,6 +461,16 @@ check-no-std:
     echo "Successfully checked no_std build for: $package"
   done
 
+  host_no_std_packages=(
+    reth-optimism-evm
+  )
+
+  for package in "${host_no_std_packages[@]}"; do
+    echo "Checking host-target no_std build for: $package"
+    cargo check -p "$package" --no-default-features
+    echo "Successfully checked host-target no_std build for: $package"
+  done
+
 ########################### Benchmarks ##############################
 
 # Run benchmarks (compile only)
@@ -451,9 +479,9 @@ bench:
 
 ########################## Misc tools ###############################
 
-# Audit dependencies for licenses, advisories, and bans
+# Audit dependencies for licenses, bans, and sources (advisories are tracked via image scanning)
 deny:
-  cargo deny --all-features check all
+  cargo deny --all-features check bans licenses sources
 
 # Check for unused dependencies (requires nightly + cargo-udeps)
 check-udeps:

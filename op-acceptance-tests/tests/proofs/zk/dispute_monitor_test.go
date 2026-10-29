@@ -14,6 +14,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+// disputeMonitorFinalityDelay stays well above the L1 block time, so a resolved game remains inside
+// the finality delay until the test advances L1 past it.
+const disputeMonitorFinalityDelay = 5 * time.Minute
+
 func TestZKDisputeMonitorSkipsLaggedGameUntilRootSourceCatchesUp(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := newDisputeMonitorSystem(t)
@@ -130,12 +134,13 @@ func TestZKDisputeMonitorValidTerminalProposalAfterDeadline(gt *testing.T) {
 		disputemon.HonestActorWonBonds(proposer.Address(), new(big.Int)),
 		disputemon.HonestActorPendingWithdrawals(proposer.Address(), new(big.Int)),
 		disputemon.PendingZKResolutions(0),
-		disputemon.PendingZKBondDistributions(1),
+		disputemon.PendingZKBondDistributions(0),
 		disputemon.AnchorStateL2SequenceNumber(registryAddress, anchorSequence),
 	)
 
 	weth := factory.DelayedWETH(game.WETHAddress())
-	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(presets.DefaultZKFinalityDelay/time.Second)+1)
+	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(disputeMonitorFinalityDelay/time.Second)+1)
+	monitor.VerifyState(disputemon.PendingZKBondDistributions(1))
 	game.ClaimCredit(resolver, proposer.Address())
 	withdrawal := weth.Withdrawal(game.Address, proposer.Address())
 	t.Require().Equal(totalBonds, withdrawal.Amount)
@@ -217,7 +222,7 @@ func TestZKDisputeMonitorCanonicalChildOfInvalidParent(gt *testing.T) {
 		disputemon.IncorrectChallengerAhead(1),
 		disputemon.ExactNonWithdrawableCredits(1),
 		disputemon.PendingZKResolutions(1),
-		disputemon.PendingZKBondDistributions(1),
+		disputemon.PendingZKBondDistributions(0),
 	)
 
 	t.Require().Equal(gameTypes.GameStatusChallengerWon, child.Resolve(resolver))
@@ -229,14 +234,18 @@ func TestZKDisputeMonitorCanonicalChildOfInvalidParent(gt *testing.T) {
 		disputemon.NoWithdrawalRequests(parent),
 		disputemon.FullyCollateralized(parent, totalBonds),
 		disputemon.PendingZKResolutions(0),
-		disputemon.PendingZKBondDistributions(2),
+		disputemon.PendingZKBondDistributions(0),
 	)
+
+	advanceL1To(&sys.SingleChainInterop, child.ResolvedAt()+uint64(disputeMonitorFinalityDelay/time.Second)+1)
+	monitor.VerifyState(disputemon.PendingZKBondDistributions(2))
 }
 
 func newDisputeMonitorSystem(t devtest.T) *presets.SimpleInterop {
 	return presets.NewSimpleInterop(
 		t,
 		presets.WithZK(),
+		presets.WithDisputeGameFinalityDelaySeconds(uint64(disputeMonitorFinalityDelay/time.Second)),
 		presets.WithoutHonestProposer(),
 		presets.WithoutHonestChallenger(),
 	)

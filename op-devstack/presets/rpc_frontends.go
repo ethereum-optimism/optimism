@@ -422,11 +422,12 @@ var _ stack.Conductor = (*conductorFrontend)(nil)
 
 func newPresetConductor(t devtest.T, name string, chainID eth.ChainID, rpcCl *gethrpc.Client, consensusEndpoint string) *conductorFrontend {
 	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
+	rpcClient := opclient.NewBaseRPCClient(rpcCl)
 	return &conductorFrontend{
 		presetCommon:      newPresetCommon(t, name),
 		chainID:           chainID,
-		api:               conductorRpc.NewAPIClient(rpcCl),
-		rpcClient:         opclient.NewBaseRPCClient(rpcCl),
+		api:               conductorRpc.NewAPIClient(rpcClient),
+		rpcClient:         rpcClient,
 		consensusEndpoint: consensusEndpoint,
 	}
 }
@@ -509,7 +510,7 @@ func (r *syncTesterFrontend) API() apis.SyncTester {
 func (r *syncTesterFrontend) APIWithSession(sessionID string) apis.SyncTester {
 	require := r.T().Require()
 	require.NoError(synctester.IsValidSessionID(sessionID))
-	rpcCl, err := opclient.NewRPC(r.T().Ctx(), r.Logger(), r.addr+"/"+sessionID, opclient.WithLazyDial())
+	rpcCl, err := opclient.NewRPC(r.T().Ctx(), r.Logger(), r.addr+"/"+sessionID, rpcOpts()...)
 	require.NoError(err, "sync tester failed to initialize rpc per session")
 	return sources.NewSyncTesterClient(rpcCl)
 }

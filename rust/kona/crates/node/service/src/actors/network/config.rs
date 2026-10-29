@@ -3,7 +3,7 @@
 use alloy_primitives::Address;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
-use kona_gossip::GaterConfig;
+use kona_gossip::{GaterConfig, PeerAddr};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_sources::BlockSigner;
 use libp2p::{Multiaddr, identity::Keypair};
@@ -43,9 +43,12 @@ pub struct NetworkConfig {
     pub gater_config: GaterConfig,
     /// An optional list of bootnode ENRs to start the node with.
     pub bootnodes: BootNodes,
+    /// The peers to dial at startup and keep connected.
+    pub static_peers: Vec<PeerAddr>,
     /// The [`RollupConfig`].
     pub rollup_config: RollupConfig,
-    /// A signer for gossip payloads.
+    /// Signs the sequencer's blocks for gossip. Required in sequencer mode. It is used by the
+    /// [`SignerActor`](crate::SignerActor), not by the network itself.
     pub gossip_signer: Option<BlockSigner>,
 }
 
@@ -59,11 +62,14 @@ impl NetworkConfig {
         // will be overridden by the discovery service builder.
         let mut builder = discv5::ConfigBuilder::new(listen_config);
 
+        // When a node sees too few new inbound sessions, discv5's auto-NAT strips `ip`/`udp` from
+        // the ENR, leaving `tcp` without an address, and ignores IP votes for 6h, which takes
+        // reachable nodes off the network. op-node has no equivalent, and discv5 before 0.12
+        // never ran it.
+        builder.auto_nat_listen_duration(None);
+
         if static_ip {
             builder.disable_enr_update();
-
-            // If we have a static IP, we don't want to use any kind of NAT discovery mechanism.
-            builder.auto_nat_listen_duration(None);
         }
 
         builder.build()
@@ -79,7 +85,7 @@ impl NetworkConfig {
     ) -> Self {
         Self {
             rollup_config,
-            discovery_config: discv5::ConfigBuilder::new((&discovery_listen).into()).build(),
+            discovery_config: Self::discv5_config((&discovery_listen).into(), false),
             discovery_address: discovery_listen,
             discovery_interval: Self::DEFAULT_DISCOVERY_INTERVAL,
             discovery_randomize: Self::DEFAULT_DISCOVERY_RANDOMIZE,
@@ -88,6 +94,7 @@ impl NetworkConfig {
             enr_update: true,
             keypair: Keypair::generate_secp256k1(),
             bootnodes: Default::default(),
+            static_peers: Default::default(),
             bootstore: Default::default(),
             gater_config: Default::default(),
             gossip_config: Default::default(),
@@ -96,5 +103,40 @@ impl NetworkConfig {
             monitor_peers: Default::default(),
             gossip_signer: Default::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::{IpAddr, Ipv4Addr};
+
+    fn listen() -> discv5::ListenConfig {
+        discv5::ListenConfig::from_ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 0)
+    }
+
+    #[test]
+    fn discv5_config_disables_auto_nat() {
+        for static_ip in [false, true] {
+            let config = NetworkConfig::discv5_config(listen(), static_ip);
+            assert_eq!(config.auto_nat_listen_duration, None, "static_ip = {static_ip}");
+        }
+    }
+
+    #[test]
+    fn new_disables_auto_nat() {
+        let local_node = LocalNode::new(
+            enr::k256::ecdsa::SigningKey::from_bytes(&[1u8; 32].into()).unwrap(),
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
+            0,
+            0,
+        );
+        let config = NetworkConfig::new(
+            RollupConfig::default(),
+            local_node,
+            Multiaddr::empty(),
+            Address::ZERO,
+        );
+        assert_eq!(config.discovery_config.auto_nat_listen_duration, None);
     }
 }

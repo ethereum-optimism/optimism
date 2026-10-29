@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -21,7 +20,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -45,9 +45,8 @@ import (
 type MixedL2ELKind string
 
 const (
-	MixedL2ELOpGeth   MixedL2ELKind = "op-geth"
-	MixedL2ELOpReth   MixedL2ELKind = "op-reth"
-	MixedL2ELOpRethV2 MixedL2ELKind = "op-reth-proof-v2"
+	MixedL2ELOpGeth MixedL2ELKind = "op-geth"
+	MixedL2ELOpReth MixedL2ELKind = "op-reth"
 )
 
 type MixedL2CLKind string
@@ -182,6 +181,9 @@ type MixedSingleChainNodeSpec struct {
 	// override (OpRethWithBinary) or a flag a single node should receive while its peers reject it.
 	// Ignored for non-op-reth EL kinds.
 	OpRethOpts []OpRethOption
+	// EnableSafeDB gives this node's CL a safe head database in a fresh temp dir, so it records
+	// the L2 safe head reached as of each L1 block and serves it over optimism_safeHeadAtL1Block.
+	EnableSafeDB bool
 }
 
 type MixedSingleChainPresetConfig struct {
@@ -235,13 +237,18 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	var l1Net *L1Network
 	var l2Net *L2Network
 	var depSet coredepset.DependencySet
-	if cfg.InteropAtGenesis {
-		l1Net, l2Net, depSet, _ = buildSingleChainWorldWithInterop(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
-	} else {
-		l1Net, l2Net = buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
-	}
 	jwtPath, jwtSecret := writeJWTSecret(t)
-	l1EL, l1CL := startInProcessL1(t, l1Net, jwtPath)
+	var l1EL *L1Geth
+	var l1CL *L1CLNode
+	startL1 := func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
+		l1EL, l1CL = startInProcessL1(t, l1Net, jwtPath)
+		return l1EL, l1CL
+	}
+	if cfg.InteropAtGenesis {
+		_, l1Net, l2Net, depSet, _ = buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
+	} else {
+		_, l1Net, l2Net, _, _ = buildSingleChainWorld(t, keys, false, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
+	}
 
 	metricsRegistrar := mixedNoopMetricsRegistrar{}
 
@@ -258,11 +265,14 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		case MixedL2ELOpGeth:
 			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
 		case MixedL2ELOpReth:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", nodeOpRethOpts...)
-		case MixedL2ELOpRethV2:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v2", nodeOpRethOpts...)
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, nodeOpRethOpts...)
 		default:
 			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
+		}
+
+		safeDBPath := ""
+		if spec.EnableSafeDB {
+			safeDBPath = t.TempDirWithPrefix("safedb-" + NewComponentTarget(spec.CLKey, l2Net.ChainID()).String())
 		}
 
 		var cl L2CLNode
@@ -272,8 +282,10 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				Key:           spec.CLKey,
 				IsSequencer:   spec.IsSequencer,
 				NoDiscovery:   true,
-				EnableReqResp: true,
 				DependencySet: depSet,
+				L2CLOptions: []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+					cfg.SafeDBPath = safeDBPath
+				})},
 			})
 		case MixedL2CLKona:
 			cl = startMixedKonaNode(
@@ -286,8 +298,14 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				el,
 				spec.CLKey,
 				spec.ELKey,
-				spec.IsSequencer,
-				depSet,
+				konaNodeStartConfig{
+					DependencySet: depSet,
+					L2CLConfig: resolveKonaL2CLConfig(t, spec.CLKey, l2Net.ChainID(), spec.IsSequencer, "", []L2CLOption{
+						L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+							cfg.SafeDBPath = safeDBPath
+						}),
+					}),
+				},
 			)
 		default:
 			require.FailNowf("unsupported CL kind", "unsupported mixed CL kind %q", spec.CLKind)
@@ -375,7 +393,6 @@ func buildMixedOpRethNode(
 	jwtPath string,
 	jwtSecret [32]byte,
 	metricsRegistrar L2MetricsRegistrar,
-	storageVersion string,
 	opts ...OpRethOption,
 ) *OpReth {
 	tempDir := t.TempDirWithPrefix("l2-el-" + NewComponentTarget(key, l2Net.ChainID()).String())
@@ -450,8 +467,8 @@ func buildMixedOpRethNode(
 		"--datadir=" + dataDirPath,
 		"--chain=" + chainConfigPath,
 	}
-	err = exec.Command(execPath, initArgs...).Run()
-	t.Require().NoError(err, "must init op-reth node")
+	initOut, err := exec.Command(execPath, initArgs...).CombinedOutput()
+	t.Require().NoError(err, "must init op-reth node: %s", string(initOut))
 
 	if !opRethCfg.DisableProofsHistory {
 		proofHistoryDir := filepath.Join(tempDir, "proof-history")
@@ -462,13 +479,6 @@ func buildMixedOpRethNode(
 			"--datadir=" + dataDirPath,
 			"--chain=" + chainConfigPath,
 			"--proofs-history.storage-path=" + proofHistoryDir,
-			"--proofs-history.storage-version=" + storageVersion,
-		}
-		// `op-proofs init` now runs snapshot-accelerated backfill by default,
-		// which V1 storage does not support — the command rejects v1 + backfill
-		// upfront. Opt out explicitly when targeting v1.
-		if storageVersion == "v1" {
-			initProofsArgs = append(initProofsArgs, "--proofs-history.skip-backfill")
 		}
 		initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
 		t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
@@ -478,7 +488,6 @@ func buildMixedOpRethNode(
 			"--proofs-history",
 			"--proofs-history.window=10000",
 			"--proofs-history.storage-path="+proofHistoryDir,
-			"--proofs-history.storage-version="+storageVersion,
 		)
 	}
 
@@ -506,10 +515,9 @@ func startMixedOpRethNode(
 	jwtPath string,
 	jwtSecret [32]byte,
 	metricsRegistrar L2MetricsRegistrar,
-	storageVersion string,
 	opts ...OpRethOption,
 ) *OpReth {
-	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar, storageVersion, opts...)
+	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar, opts...)
 	t.Logger().Info("Starting op-reth", "name", key, "chain", l2Net.ChainID())
 	node.Start()
 	t.Cleanup(node.Stop)
@@ -527,11 +535,10 @@ func startMixedOpRethNodeWithInteropURL(
 	jwtSecret [32]byte,
 	metricsRegistrar L2MetricsRegistrar,
 	interopURL string,
-	storageVersion string,
 	opts ...OpRethOption,
 ) *OpReth {
 	opts = append(opts, OpRethWithInteropURL(interopURL))
-	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar, storageVersion, opts...)
+	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar, opts...)
 	t.Logger().Info("Starting op-reth with interop filter URL",
 		"name", key, "chain", l2Net.ChainID(), "interopURL", interopURL)
 	node.Start()
@@ -550,8 +557,7 @@ func startMixedKonaNode(
 	l2EL L2ELNode,
 	clKey string,
 	elKey string,
-	isSequencer bool,
-	depSet coredepset.DependencySet,
+	startCfg konaNodeStartConfig,
 ) *KonaNode {
 	tempKonaDir := t.TempDirWithPrefix("l2-cl-kona-" + NewComponentTarget(clKey, l2Net.ChainID()).String())
 
@@ -575,10 +581,8 @@ func startMixedKonaNode(
 		"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
 		"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
 		"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
-		propagateEnvVarOrDefault("KONA_NODE_P2P_NO_DISCOVERY", "true"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
-		propagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
 		// Acceptance tests drive the sequencer via the admin API (StartSequencer, etc.), which
 		// kona only registers when admin is enabled. op-node's devstack node enables it too.
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ENABLE_ADMIN", "true"),
@@ -592,15 +596,15 @@ func startMixedKonaNode(
 	// When Interop/Lagoon is scheduled, kona-node refuses to start without an interop
 	// dependency set (to avoid silent state divergence at activation). Mirror the depset
 	// op-node receives by serializing it to JSON — the format matches what kona expects.
-	if depSet != nil {
-		depSetData, err := json.Marshal(depSet)
+	if startCfg.DependencySet != nil {
+		depSetData, err := json.Marshal(startCfg.DependencySet)
 		t.Require().NoError(err, "must marshal interop dependency set")
 		tempDepSetPath := filepath.Join(tempKonaDir, "interop-depset.json")
 		t.Require().NoError(os.WriteFile(tempDepSetPath, depSetData, 0o640), "must write interop dependency set")
 		envVars = append(envVars, "KONA_NODE_INTEROP_DEPENDENCY_SET="+tempDepSetPath)
 	}
 
-	if isSequencer {
+	if startCfg.L2CLConfig.IsSequencer {
 		p2pKey, err := keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
 		t.Require().NoError(err, "need p2p key for sequencer")
 		p2pKeyHex := "0x" + hex.EncodeToString(crypto.FromECDSA(p2pKey))
@@ -614,6 +618,7 @@ func startMixedKonaNode(
 	} else {
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
+	envVars = append(envVars, konaL2CLEnv(startCfg.L2CLConfig, startCfg.SequencerStopped)...)
 
 	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",
@@ -782,9 +787,9 @@ func startTestSequencerForRPCs(
 		PprofConfig: oppprof.CLIConfig{
 			ListenEnabled: false,
 		},
-		LogConfig: oplog.CLIConfig{
+		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelDebug,
-			Format: oplog.FormatText,
+			Format: log.FormatText,
 		},
 		RPC: oprpc.CLIConfig{
 			ListenAddr:  "127.0.0.1",

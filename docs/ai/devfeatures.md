@@ -15,15 +15,17 @@ Active flags:
 
 | Flag | Gates |
 |------|-------|
-| `OptimismPortalInterop` | Interop migration functions on OptimismPortal2 |
+| `OptimismPortalInterop` | Interop predeploys on L2 at genesis |
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `ZKDisputeGame` | ZK dispute game system |
+| `BridgeHook` | Bridge hook configuration on OptimismPortal2, currently planned only for the compliance module |
+| `OPPrivate` | The OP Private `ChainConfig` predeploy in L2 genesis, holding the chain's settlement chain ID (op-deployer chain override `settlementChainId`) |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade — **enabled by default** |
 
 
 The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `SuperRootGamesMigration`, which is enabled by default on both the Go and Solidity sides. The bitmap no longer acts as a circuit breaker for it; removal is tracked in #21662.
 
-**Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` all need updating; there is no compile-time link between them.
+**Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` (plus each new matrix job, by name, in the `required-contracts-ci` gate's `requires`) all need updating; there is no compile-time link between them.
 
 ## B. Inputs — where operators supply the bitmap
 
@@ -42,11 +44,11 @@ The bitmap has **two operator-facing input surfaces**, both in op-deployer:
    - All of the following applies only when `apply` deploys new implementations. With a predeployed OPCM (`opcmAddress` set), the implementations already exist and `ValidateInputs` rejects `sp1Verifier` outright, so those operators must not set the override.
    - A live ZK-enabled `apply` selects the same release-approved verifier as bootstrap on Ethereum mainnet and Sepolia; other L1 networks must set `globalDeployOverrides.sp1Verifier`, which always wins where it is set. Enabling ZK stays an explicit operator choice — the default only picks the verifier, never the feature.
    - Both surfaces read the mapping from `standard.SP1VerifierFor`, so bootstrap and apply can never drift.
-   - `op-deployer/pkg/deployer/standard/sp1-verifier.json` records, per chain, the `VERIFIER_HASH()` of that verifier, the PLONK circuit it accepts proofs for; `standard.SP1VerifierHashFor` reads it. `TestApplyDefaultsSP1VerifierOnSepolia` holds it to the chain, `VerifyOPCM` re-checks it at release, and `kona-sp1-proposer`'s release-pin test holds the linked sp1-sdk to it, so bumping sp1-sdk to a new circuit fails CI until the address and the file move together. The proposer also derives the hash from its SDK at runtime and pauses creation and skips proving for any adapter whose verifier hash differs.
+   - `op-deployer/pkg/deployer/standard/sp1-verifier.json` records, per chain, the `VERIFIER_HASH()` of that verifier, the PLONK circuit it accepts proofs for; `standard.SP1VerifierHashFor` reads it. `TestApplyDefaultsSP1VerifierOnSepolia` holds it to the chain, `VerifyOPCM` re-checks it at release, and `op-zk-proposer`'s release-pin test holds the linked sp1-sdk to it, so bumping sp1-sdk to a new circuit fails CI until the address and the file move together. The proposer also derives the hash from its SDK at runtime and pauses creation and skips proving for any adapter whose verifier hash differs.
    - The selected raw verifier is recorded in deployment state (`State.SP1Verifier`) and never written back into intent. A resumed deployment reuses the recorded address rather than re-resolving the default, so upgrading op-deployer mid-deployment cannot swap the verifier under a chain.
    - Genesis deployments never select the release verifier: it does not exist in a generated genesis. They must set `sp1Verifier` explicitly, or the op-devstack builder can opt into deploying a test raw verifier during genesis.
 
-There is no other production operator-facing surface. `op-node`, `op-program`, `kona`, and rollup config do not take a bitmap at runtime.
+There is no other production operator-facing surface. `op-node`, `kona`, and rollup config do not take a bitmap at runtime.
 
 ### Developer-only: `op-node/rollup/toggles.go`
 
@@ -68,8 +70,10 @@ A separate, **test-only** assembler exists for Foundry tests and fork scripts. I
 
 - `DEV_FEATURE__OPTIMISM_PORTAL_INTEROP`
 - `DEV_FEATURE__ZK_DISPUTE_GAME`
+- `DEV_FEATURE__BRIDGE_HOOK`
+- `DEV_FEATURE__OP_PRIVATE`
 
-Interop and ZK are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
+Interop, ZK, bridge hook and OP Private are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
 
 - `test/setup/FeatureFlags.sol` — `resolveFeaturesFromEnv()` OR-s each enabled flag into `devFeatureBitmap`
 - `test/setup/ForkL1Live.s.sol` — branches on individual `Config.devFeature*` returns
@@ -97,20 +101,20 @@ From op-deployer the bitmap fans out two ways:
 1. **Into L2 genesis state** — `scripts/L2Genesis.s.sol` (Foundry script) writes the bitmap into the **`L2DevFeatureFlags` predeploy at `0x42...2D`** via `setDevFeatureBitmap()`. Only `DEPOSITOR_ACCOUNT` can write; effectively write-once at genesis.
 2. **Into L1 implementation deployment** — `scripts/deploy/DeployImplementations.s.sol` consults the bitmap to decide which implementation contracts to deploy / configure.
 
-It does **not** flow to op-node, op-program, or kona at runtime. They learn about feature activation through other channels (hardfork timestamps in rollup config, primarily).
+It does **not** flow to op-node or kona at runtime. They learn about feature activation through other channels (hardfork timestamps in rollup config, primarily).
 
 ## E. Activation — who reads it and what they gate
 
-**On L2 (Solidity)**, readers consult either the in-memory bitmap (during deploy scripts) or the `L2DevFeatureFlags` predeploy (at runtime):
+**On L2 (Solidity)**, readers consult the in-memory bitmap during deploy scripts:
 
-- `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. Gates whether the interop predeploys (`CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, `SuperchainETHBridge`, `ETHLiquidity`, all under `OptimismPortalInterop`) are considered "real" predeploys.
+- `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. Gates whether the interop predeploys (`CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, `SuperchainETHBridge`, `ETHLiquidity`, `UndeliveredMessageExporter`, all under `OptimismPortalInterop`) are considered "real" predeploys.
 - `scripts/L2Genesis.s.sol` — gates which predeploys get installed at genesis.
-- `L2ContractsManager._isDevFeatureEnabled()` in `src/L2/L2ContractsManager.sol` — at runtime, calls `IL2DevFeatureFlags.isDevFeatureEnabled(...)` on the predeploy to decide whether to execute upgrade flows.
+- `L2ContractsManager` does **not** read the bitmap. Its upgrade gates the interop predeploys on the `INTEROP` system feature in `L1Block`, so chains that never set the bitmap at genesis can still activate interop at Lagoon.
 
 **On Go**, the bitmap is essentially deploy-time-only:
 
 - The interop cross-check in `buildDevFeatureBitmap()` noted above.
-- No runtime callers. (op-node / op-program use hardfork timestamps, not the bitmap.)
+- No runtime callers. (op-node uses hardfork timestamps, not the bitmap.)
 
 **The L2DevFeatureFlags predeploy API** (`src/L2/L2DevFeatureFlags.sol`):
 
@@ -120,7 +124,7 @@ It does **not** flow to op-node, op-program, or kona at runtime. They learn abou
 
 ## F. Hardfork interaction
 
-Interop and ZK use the bitmap as their per-chain provisioning switch and have no parallel hardfork timestamp. Super-root migration also has no parallel hardfork timestamp, but it is default-on in the predicate, so its bitmap bit no longer acts as a circuit breaker. Network-wide activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when** L2ContractsManager upgrade transactions execute across the network.
+ZK uses the bitmap as its per-chain provisioning switch and has no parallel hardfork timestamp. Interop uses the bitmap only at genesis. Existing chains activate interop at the Lagoon hardfork through the `INTEROP` system feature (see section E). Super-root migration also has no parallel hardfork timestamp, but it is default-on in the predicate, so its bitmap bit no longer acts as a circuit breaker. Network-wide activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when** L2ContractsManager upgrade transactions execute across the network.
 
 ## G. Lifecycle direction
 
@@ -138,7 +142,6 @@ Interop and ZK use the bitmap as their per-chain provisioning switch and have no
 | Release-approved SP1 verifier | `op-deployer/pkg/deployer/standard/standard.go` |
 | Genesis writer | `packages/contracts-bedrock/scripts/L2Genesis.s.sol` |
 | L2 storage | `packages/contracts-bedrock/src/L2/L2DevFeatureFlags.sol` |
-| L2 runtime reader | `packages/contracts-bedrock/src/L2/L2ContractsManager.sol` |
 | Predeploy gating | `packages/contracts-bedrock/src/libraries/Predeploys.sol` |
 | L2CM hardfork gate | `op-node/rollup/toggles.go` |
 | Test-only feature controls | `packages/contracts-bedrock/scripts/libraries/Config.sol` |

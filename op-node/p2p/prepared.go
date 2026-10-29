@@ -9,13 +9,13 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/metrics"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // Prepared provides a p2p host and discv5 service that is already set up.
@@ -24,8 +24,6 @@ type Prepared struct {
 	HostP2P   host.Host
 	LocalNode *enode.LocalNode
 	UDPv5     *discover.UDPv5
-
-	EnableReqRespSync bool
 }
 
 var _ SetupP2P = (*Prepared)(nil)
@@ -88,10 +86,6 @@ func (p *Prepared) BanDuration() time.Duration {
 
 func (p *Prepared) Disabled() bool {
 	return false
-}
-
-func (p *Prepared) ReqRespSyncEnabled() bool {
-	return p.EnableReqRespSync
 }
 
 func (p *Prepared) GetGossipTimestampThreshold() time.Duration {

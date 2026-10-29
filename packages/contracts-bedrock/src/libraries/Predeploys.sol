@@ -114,6 +114,13 @@ library Predeploys {
     /// @notice Address of the L2DevFeatureFlags predeploy.
     address internal constant L2_DEV_FEATURE_FLAGS = 0x420000000000000000000000000000000000002d;
 
+    /// @notice Address of the UndeliveredMessageExporter predeploy.
+    address internal constant UNDELIVERED_MESSAGE_EXPORTER = 0x4200000000000000000000000000000000000030;
+
+    /// @notice Address of the ChainConfig predeploy, which holds the chain's OP Private settlement
+    ///         chain ID.
+    address internal constant CHAIN_CONFIG = 0x4200000000000000000000000000000000000031;
+
     /// @notice Implementation variant selector.
     /// @dev Values are array indexes into `PredeployRecord.variants`.
     enum VariantKind {
@@ -236,11 +243,14 @@ library Predeploys {
     }
 
     /// @notice Returns true if the predeploy is upgradeable. In this context, upgradeable means that the predeploy
-    ///         is in the predeploy namespace and it is proxied.
+    ///         is in the predeploy namespace and it is proxied. The non-proxied predeploys are
+    ///         listed by hand instead of looked up in `getAllRecords()`, so that callers do not
+    ///         compile in the whole record table. The list must match the records with
+    ///         `isProxied = false`; `Predeploys_IsUpgradeable_Test` checks this.
     /// @param _proxy The address of the predeploy.
     /// @return isUpgradeable_ True if the predeploy is upgradeable, false otherwise.
     function isUpgradeable(address _proxy) internal pure returns (bool isUpgradeable_) {
-        isUpgradeable_ = isPredeployNamespace(_proxy) && !notProxied(_proxy);
+        isUpgradeable_ = isPredeployNamespace(_proxy) && _proxy != WETH && _proxy != GOVERNANCE_TOKEN;
     }
 
     /// @notice Returns all predeploy implementation records.
@@ -257,17 +267,21 @@ library Predeploys {
     ///        3. scripts/L2Genesis.s.sol
     ///           - Add a `setXxx()` setter function.
     ///           - Call it from `setPredeployImplementations()`.
+    ///        4. If the predeploy is not proxied, exclude it in `isUpgradeable()` above.
     ///      Non-proxied records (isProxied = false) are appended at the end and must be skipped
     ///      by consumers that operate on proxy/implementation slots (NUT bundle, setPredeployProxies).
     ///      Deprecated records (isDeprecated = true) are appended after non-proxied records and must
     ///      be skipped by consumers that perform proxy setup, NUT bundles, or upgrade checks.
     function getAllRecords() internal pure returns (PredeployRecord[] memory records_) {
-        records_ = new PredeployRecord[](28);
+        records_ = new PredeployRecord[](29);
 
-        // ── Core predeploys ────────────────────────────────────────────────────────────────
+        // ── Core predeploys
+        // ────────────────────────────────────────────────────────────────
         records_[0] = PredeployRecord({
             proxy: L2_CROSS_DOMAIN_MESSENGER,
-            variants: _variants("L2CrossDomainMessenger", "L2CrossDomainMessenger.sol:L2CrossDomainMessenger", 3_129_000),
+            variants: _variants(
+                "L2CrossDomainMessenger", "L2CrossDomainMessenger.sol:L2CrossDomainMessenger", 3_129_000
+            ),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
@@ -304,7 +318,9 @@ library Predeploys {
         records_[4] = PredeployRecord({
             proxy: OPTIMISM_MINTABLE_ERC20_FACTORY,
             variants: _variants(
-                "OptimismMintableERC20Factory", "OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory", 4_193_000
+                "OptimismMintableERC20Factory",
+                "OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory",
+                4_193_000
             ),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
@@ -314,7 +330,7 @@ library Predeploys {
         });
         records_[5] = PredeployRecord({
             proxy: L2_ERC721_BRIDGE,
-            variants: _variants("L2ERC721Bridge", "L2ERC721Bridge.sol:L2ERC721Bridge", 2_367_000),
+            variants: _variants("L2ERC721Bridge", "L2ERC721Bridge.sol:L2ERC721Bridge", 2_380_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
@@ -416,7 +432,8 @@ library Predeploys {
             isDeprecated: false
         });
 
-        // ── Interop predeploys ─────────────────────────────────────────────────────────────
+        // ── Interop predeploys
+        // ─────────────────────────────────────────────────────────────
         // Interop requires both the INTEROP sys feature and the OPTIMISM_PORTAL_INTEROP dev
         // feature. Both gates mirror the full condition checked in L2Genesis.
         records_[15] = PredeployRecord({
@@ -431,7 +448,7 @@ library Predeploys {
         records_[16] = PredeployRecord({
             proxy: L2_TO_L2_CROSS_DOMAIN_MESSENGER,
             variants: _variants(
-                "L2ToL2CrossDomainMessenger", "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger", 1_611_000
+                "L2ToL2CrossDomainMessenger", "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger", 2_378_000
             ),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,
@@ -441,7 +458,7 @@ library Predeploys {
         });
         records_[17] = PredeployRecord({
             proxy: SUPERCHAIN_ETH_BRIDGE,
-            variants: _variants("SuperchainETHBridge", "SuperchainETHBridge.sol:SuperchainETHBridge", 757_000),
+            variants: _variants("SuperchainETHBridge", "SuperchainETHBridge.sol:SuperchainETHBridge", 1_175_000),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,
             isInterop: true,
@@ -450,7 +467,7 @@ library Predeploys {
         });
         records_[18] = PredeployRecord({
             proxy: ETH_LIQUIDITY,
-            variants: _variants("ETHLiquidity", "ETHLiquidity.sol:ETHLiquidity", 423_000),
+            variants: _variants("ETHLiquidity", "ETHLiquidity.sol:ETHLiquidity", 750_000),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,
             isInterop: true,
@@ -458,8 +475,21 @@ library Predeploys {
             isDeprecated: false
         });
 
-        // ── CGT predeploys ─────────────────────────────────────────────────────────────────
         records_[19] = PredeployRecord({
+            proxy: UNDELIVERED_MESSAGE_EXPORTER,
+            variants: _variants(
+                "UndeliveredMessageExporter", "UndeliveredMessageExporter.sol:UndeliveredMessageExporter", 650_000
+            ),
+            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
+            isCustomGasToken: false,
+            isInterop: true,
+            isProxied: true,
+            isDeprecated: false
+        });
+
+        // ── CGT predeploys
+        // ─────────────────────────────────────────────────────────────────
+        records_[20] = PredeployRecord({
             proxy: NATIVE_ASSET_LIQUIDITY,
             variants: _variants("NativeAssetLiquidity", "NativeAssetLiquidity.sol:NativeAssetLiquidity", 392_000),
             devFeatureGate: bytes32(0),
@@ -468,7 +498,7 @@ library Predeploys {
             isProxied: true,
             isDeprecated: false
         });
-        records_[20] = PredeployRecord({
+        records_[21] = PredeployRecord({
             proxy: LIQUIDITY_CONTROLLER,
             variants: _variants("LiquidityController", "LiquidityController.sol:LiquidityController", 1_870_000),
             devFeatureGate: bytes32(0),
@@ -477,7 +507,7 @@ library Predeploys {
             isProxied: true,
             isDeprecated: false
         });
-        records_[21] = PredeployRecord({
+        records_[22] = PredeployRecord({
             proxy: CONDITIONAL_DEPLOYER,
             variants: _variants("ConditionalDeployer", "ConditionalDeployer.sol:ConditionalDeployer", 600_000),
             devFeatureGate: bytes32(0),
@@ -486,7 +516,7 @@ library Predeploys {
             isProxied: true,
             isDeprecated: false
         });
-        records_[22] = PredeployRecord({
+        records_[23] = PredeployRecord({
             proxy: L2_DEV_FEATURE_FLAGS,
             variants: _variants("L2DevFeatureFlags", "L2DevFeatureFlags.sol:L2DevFeatureFlags", 332_000),
             devFeatureGate: bytes32(0),
@@ -496,10 +526,11 @@ library Predeploys {
             isDeprecated: false
         });
 
-        // ── Non-proxied predeploys ─────────────────────────────────────────────────────────
+        // ── Non-proxied predeploys
+        // ─────────────────────────────────────────────────────────
         // These are etched directly (no Proxy wrapper, no implementation slot).
         // Excluded from NUT bundles and proxy setup. deployGasLimit is unused.
-        records_[23] = PredeployRecord({
+        records_[24] = PredeployRecord({
             proxy: WETH,
             variants: _variants("WETH", "WETH.sol:WETH", 0),
             devFeatureGate: bytes32(0),
@@ -508,7 +539,7 @@ library Predeploys {
             isProxied: false,
             isDeprecated: false
         });
-        records_[24] = PredeployRecord({
+        records_[25] = PredeployRecord({
             proxy: GOVERNANCE_TOKEN,
             variants: _variants("GovernanceToken", "GovernanceToken.sol:GovernanceToken", 0),
             devFeatureGate: bytes32(0),
@@ -518,10 +549,11 @@ library Predeploys {
             isDeprecated: false
         });
 
-        // ── Deprecated predeploys ──────────────────────────────────────────────────────────
+        // ── Deprecated predeploys
+        // ──────────────────────────────────────────────────────────
         // Present on-chain for backwards compatibility but excluded from proxy setup loops,
         // NUT bundles, and upgrade checks. Handled by individual setters in L2Genesis.
-        records_[25] = PredeployRecord({
+        records_[26] = PredeployRecord({
             proxy: LEGACY_MESSAGE_PASSER,
             variants: _variants("LegacyMessagePasser", "LegacyMessagePasser.sol:LegacyMessagePasser", 0),
             devFeatureGate: bytes32(0),
@@ -530,7 +562,7 @@ library Predeploys {
             isProxied: true,
             isDeprecated: true
         });
-        records_[26] = PredeployRecord({
+        records_[27] = PredeployRecord({
             proxy: DEPLOYER_WHITELIST,
             variants: _variants("DeployerWhitelist", "DeployerWhitelist.sol:DeployerWhitelist", 0),
             devFeatureGate: bytes32(0),
@@ -539,7 +571,7 @@ library Predeploys {
             isProxied: true,
             isDeprecated: true
         });
-        records_[27] = PredeployRecord({
+        records_[28] = PredeployRecord({
             proxy: L1_BLOCK_NUMBER,
             variants: _variants("L1BlockNumber", "L1BlockNumber.sol:L1BlockNumber", 0),
             devFeatureGate: bytes32(0),

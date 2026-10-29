@@ -129,7 +129,7 @@ fn run_extends_window_backward_with_storage_writes() {
     // tests:
     //   - `V2HashedStorageChangeSets` / `V2HashedStoragesHistory` writes during `prepend_block`
     //     (the slot value changes every block).
-    //   - Storage-side reconstruction via `V2StorageCursor` at each historical block during the
+    //   - Storage-side reconstruction via `MdbxStorageCursor` at each historical block during the
     //     in-job `StateRoot::overlay_root` validation.
     let (provider_factory, storage, latest_num, latest_hash) =
         build_chain_with_storage_writes_and_initialize_storage(5);
@@ -213,7 +213,7 @@ fn backfill_then_forward_write_preserves_state_roots() {
             let block_executor = evm_config.batch_executor(db);
             let exec = block_executor.execute(&block).unwrap();
             let hashed_state =
-                LatestStateProviderRef::new(&provider).hashed_post_state(&exec.state);
+                LatestStateProviderRef::new(&provider).hashed_post_state(&exec.state).unwrap();
             let (state_root, trie_updates) = LatestStateProviderRef::new(&provider)
                 .state_root_with_updates(hashed_state.clone())
                 .unwrap();

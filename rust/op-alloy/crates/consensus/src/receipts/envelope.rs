@@ -10,6 +10,15 @@ use alloy_eips::{
 use alloy_primitives::{Bloom, Log, logs_bloom};
 use alloy_rlp::{BufMut, Decodable, Encodable, length_of_length};
 
+/// UPSTREAM-MIRROR(copy): alloy-consensus@2.4.2 `alloy_consensus::ReceiptEnvelope`
+///
+/// Same per-transaction-type envelope over [`ReceiptWithBloom`], with the OP `PostExec` (0x7d)
+/// and `Deposit` (0x7e) variants added and EIP-4844 dropped. The shared Ethereum variants must
+/// keep upstream's EIP-2718/RLP dispatch and JSON representation, so re-diff the variant list,
+/// the encode/decode arms and the serde attributes. One deliberate difference: JSON stays as
+/// strict as the derive and rejects a receipt without a `type` field, where upstream defaults it
+/// to legacy for Geth-derived chains that omit the field; no OP client does.
+///
 /// Receipt envelope, as defined in [EIP-2718], modified for OP Stack chains.
 ///
 /// This enum distinguishes between tagged and untagged legacy receipts, as the

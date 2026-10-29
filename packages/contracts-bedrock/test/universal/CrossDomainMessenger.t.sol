@@ -29,10 +29,11 @@ contract CrossDomainMessenger_ExternalRelay_Harness is Test {
     }
 
     /// @notice Internal helper function to relay a message and perform assertions.
-    function _internalRelay(address _innerSender) internal {
+    function reenterMessenger(address _innerSender) external payable {
         address initialSender = l1CrossDomainMessenger.xDomainMessageSender();
 
-        bytes memory callMessage = getCallData();
+        bytes memory callMessage =
+            abi.encodeCall(CrossDomainMessenger_ExternalRelay_Harness.reenterMessenger, (_innerSender));
 
         bytes32 hash = Hashing.hashCrossDomainMessage({
             _nonce: Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
@@ -56,25 +57,10 @@ contract CrossDomainMessenger_ExternalRelay_Harness is Test {
             _message: callMessage
         });
 
+        // Assert that the inner message hash is failed.
         assertTrue(l1CrossDomainMessenger.failedMessages(hash));
         assertFalse(l1CrossDomainMessenger.successfulMessages(hash));
         assertEq(initialSender, l1CrossDomainMessenger.xDomainMessageSender());
-    }
-
-    /// @notice externalCallWithMinGas is called by the CrossDomainMessenger.
-    function externalCallWithMinGas() external payable {
-        for (uint256 i = 0; i < 10; i++) {
-            address _innerSender;
-            unchecked {
-                _innerSender = address(uint160(uint256(uint160(fuzzedSender)) + i));
-            }
-            _internalRelay(_innerSender);
-        }
-    }
-
-    /// @notice Helper function to get the callData for an `externalCallWithMinGas
-    function getCallData() public pure returns (bytes memory) {
-        return abi.encodeCall(CrossDomainMessenger_ExternalRelay_Harness.externalCallWithMinGas, ());
     }
 
     /// @notice Helper function to set the fuzzed sender
@@ -89,11 +75,11 @@ abstract contract CrossDomainMessenger_TestInit is CommonTest {
     // Storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
 
-    CrossDomainMessenger_ExternalRelay_Harness public er;
+    CrossDomainMessenger_ExternalRelay_Harness public externalRelay;
 
     function setUp() public override {
         super.setUp();
-        er = new CrossDomainMessenger_ExternalRelay_Harness(l1CrossDomainMessenger, address(optimismPortal2));
+        externalRelay = new CrossDomainMessenger_ExternalRelay_Harness(l1CrossDomainMessenger, address(optimismPortal2));
     }
 }
 
@@ -104,16 +90,16 @@ contract CrossDomainMessenger_RelayMessage_Test is CrossDomainMessenger_TestInit
     ///      `relayMessage` function. The `relayMessage` function will then use `SafeCall`'s
     ///      `callWithMinGas` to call the target with call data packed in the `callMessage`. For
     ///      this test, the `callWithMinGas` will call the mock `ExternalRelay` test contract
-    ///      defined above, executing the `externalCallWithMinGas` function which will try to
+    ///      defined above, executing the `reenterMessenger` function which will try to
     ///      re-enter the `CrossDomainMessenger`'s `relayMessage` function, resulting in that
     ///      message being recorded as failed.
     function testFuzz_relayMessageReenter_succeeds(address _sender, uint256 _gasLimit) external {
         vm.assume(_sender != Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
-        er.setFuzzedSender(_sender);
-        address target = address(er);
-        bytes memory callMessage = er.getCallData();
+        address target = address(externalRelay);
+        bytes memory callMessage =
+            abi.encodeCall(CrossDomainMessenger_ExternalRelay_Harness.reenterMessenger, (_sender));
 
         vm.expectCall(target, callMessage);
 
@@ -140,6 +126,8 @@ contract CrossDomainMessenger_RelayMessage_Test is CrossDomainMessenger_TestInit
             _message: callMessage
         });
 
+        // Assert that the outer message hash is successful.
+        // The ExternalRelay harness makes the assertion that the inner message hash is failed.
         assertTrue(l1CrossDomainMessenger.successfulMessages(hash));
         assertEq(l1CrossDomainMessenger.failedMessages(hash), false);
 
@@ -186,10 +174,8 @@ contract CrossDomainMessenger_BaseGas_Test is CommonTest {
 
         // Calculate the expected floor cost
         uint64 expectedFloorCost = l1CrossDomainMessenger.TX_BASE_GAS()
-            + (
-                uint64(largeMessage.length + l1CrossDomainMessenger.ENCODING_OVERHEAD())
-                    * l1CrossDomainMessenger.FLOOR_CALLDATA_OVERHEAD()
-            );
+            + (uint64(largeMessage.length + l1CrossDomainMessenger.ENCODING_OVERHEAD())
+                * l1CrossDomainMessenger.FLOOR_CALLDATA_OVERHEAD());
 
         // Verify that the result is at least the floor cost
         assertTrue(baseGasResult >= expectedFloorCost, "baseGas should return at least the floor cost");
@@ -205,25 +191,19 @@ contract CrossDomainMessenger_BaseGas_Test is CommonTest {
 
         // Calculate the expected floor cost
         uint64 floorCost = l1CrossDomainMessenger.TX_BASE_GAS()
-            + (
-                uint64(smallMessage.length + l1CrossDomainMessenger.ENCODING_OVERHEAD())
-                    * l1CrossDomainMessenger.FLOOR_CALLDATA_OVERHEAD()
-            );
+            + (uint64(smallMessage.length + l1CrossDomainMessenger.ENCODING_OVERHEAD())
+                * l1CrossDomainMessenger.FLOOR_CALLDATA_OVERHEAD());
 
         // Calculate the expected execution gas (simplified version of what's in the contract)
         uint64 executionGas = l1CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD()
             + l1CrossDomainMessenger.RELAY_CALL_OVERHEAD() + l1CrossDomainMessenger.RELAY_RESERVED_GAS()
             + l1CrossDomainMessenger.RELAY_GAS_CHECK_BUFFER()
-            + (
-                (highGasLimit * l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR())
-                    / l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR()
-            );
+            + ((highGasLimit * l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR())
+                / l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR());
 
         uint64 expectedExecutionGasWithOverhead = l1CrossDomainMessenger.TX_BASE_GAS() + executionGas
-            + (
-                uint64(smallMessage.length + l1CrossDomainMessenger.ENCODING_OVERHEAD())
-                    * l1CrossDomainMessenger.MIN_GAS_CALLDATA_OVERHEAD()
-            );
+            + (uint64(smallMessage.length + l1CrossDomainMessenger.ENCODING_OVERHEAD())
+                * l1CrossDomainMessenger.MIN_GAS_CALLDATA_OVERHEAD());
 
         // Verify that the result is the execution gas (which should be higher than floor cost)
         assertTrue(
@@ -245,16 +225,12 @@ contract CrossDomainMessenger_BaseGas_Test is CommonTest {
         uint64 executionGas = l1CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD()
             + l1CrossDomainMessenger.RELAY_CALL_OVERHEAD() + l1CrossDomainMessenger.RELAY_RESERVED_GAS()
             + l1CrossDomainMessenger.RELAY_GAS_CHECK_BUFFER()
-            + (
-                (_minGasLimit * l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR())
-                    / l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR()
-            );
+            + ((_minGasLimit * l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR())
+                / l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR());
 
         uint64 executionGasWithOverhead = executionGas
-            + (
-                uint64(_message.length + l1CrossDomainMessenger.ENCODING_OVERHEAD())
-                    * l1CrossDomainMessenger.MIN_GAS_CALLDATA_OVERHEAD()
-            );
+            + (uint64(_message.length + l1CrossDomainMessenger.ENCODING_OVERHEAD())
+                * l1CrossDomainMessenger.MIN_GAS_CALLDATA_OVERHEAD());
 
         // The result should be at least the maximum of the two calculations
         uint64 expectedMinimum = uint64(

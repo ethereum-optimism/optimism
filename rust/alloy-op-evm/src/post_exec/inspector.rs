@@ -93,11 +93,16 @@ pub struct PostExecCompositeInspector<I, R = super::NullRefundPolicy> {
 impl<I, R: Default> PostExecCompositeInspector<I, R> {
     /// Creates a new composite inspector with a default-constructed refund inspector.
     pub fn new(inner: I) -> Self {
-        Self { inner, post_exec: R::default() }
+        Self::new_with_post_exec(inner, R::default())
     }
 }
 
 impl<I, R> PostExecCompositeInspector<I, R> {
+    /// Creates a new composite inspector with the provided refund inspector.
+    pub const fn new_with_post_exec(inner: I, post_exec: R) -> Self {
+        Self { inner, post_exec }
+    }
+
     /// Returns the wrapped user inspector.
     pub const fn inner(&self) -> &I {
         &self.inner
@@ -120,14 +125,22 @@ impl<I, R: super::PostExecRefundInspector> PostExecCompositeInspector<I, R> {
         self.post_exec.begin_tx(ctx);
     }
 
-    /// Snapshot refund state to carry across subblock executors.
-    pub fn refund_snapshot(&self) -> R::Snapshot {
-        self.post_exec.snapshot()
+    /// Returns the refund policy.
+    pub const fn refund_policy(&self) -> &R {
+        &self.post_exec
     }
 
-    /// Seed refund state captured from a prior subblock.
-    pub fn seed_refund_snapshot(&mut self, state: R::Snapshot) {
-        self.post_exec.restore(state);
+    /// Mark the refund policy's block-scoped state before a candidate transaction.
+    pub fn refund_checkpoint(&mut self) -> R::Checkpoint {
+        self.post_exec.checkpoint()
+    }
+
+    /// Roll the refund policy's block-scoped state back to `checkpoint`.
+    pub fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: R::Checkpoint,
+    ) -> Result<(), super::RevertToCheckpointError> {
+        self.post_exec.revert_to_checkpoint(checkpoint)
     }
 
     /// Notes an account touch that happened outside opcode stepping.

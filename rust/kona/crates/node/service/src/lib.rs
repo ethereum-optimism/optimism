@@ -16,24 +16,22 @@ pub use service::{
 
 mod actors;
 pub use actors::{
-    BlockStream, BuildRequest, Conductor, ConductorClient, ConductorError,
-    DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
+    BlockStream, BuildRequest, CanonicalizeRequest, Clock, Conductor, ConductorClient,
+    ConductorError, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationClientError, DerivationClientResult,
     DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
     DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
     DerivationStateTransitionError, DerivationStateUpdate, EngineActor, EngineActorRequest,
     EngineClientError, EngineClientResult, EngineConfig, EngineDerivationClient, EngineError,
-    EngineRpcActor, EngineRpcRequest, JsonrpseeServerLauncher, L1OriginSelector,
-    L1OriginSelectorError, L1OriginSelectorProvider, L1WatcherActor, L1WatcherActorError,
-    L1WatcherChain, L1WatcherDerivationClient, NetworkActor, NetworkActorError, NetworkBuilder,
-    NetworkBuilderError, NetworkConfig, NetworkDriver, NetworkDriverError, NetworkEngineClient,
-    NetworkHandler, NodeActor, OriginSelector, QueuedDerivationEngineClient,
-    QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
-    QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor, RpcActorError, RpcServerHandle,
-    RpcServerLauncher, SealRequest, SequencerActor, SequencerActorError, SequencerAdminQuery,
-    SequencerConfig, SequencerEngineClient, UnsafePayloadGossipClient,
-    UnsafePayloadGossipClientError,
+    L1OriginSelector, L1OriginSelectorError, L1OriginSelectorProvider, L1WatcherActor,
+    L1WatcherActorError, L1WatcherChain, L1WatcherDerivationClient, NetworkActor,
+    NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig, NetworkDriver,
+    NetworkDriverError, NetworkEngineClient, NetworkHandler, NodeActor, OriginSelector,
+    QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient,
+    QueuedNetworkEngineClient, QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient,
+    ResetRequest, RpcActor, RpcActorError, SealRequest, SequencerActor, SequencerActorError,
+    SequencerConfig, SequencerEngineClient, SignedPayload, SignerActor, SignerActorError,
+    SystemClock, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
 };
 
 mod metrics;

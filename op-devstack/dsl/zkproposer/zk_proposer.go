@@ -10,14 +10,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	devtestmetrics "github.com/ethereum-optimism/optimism/op-devstack/devtest/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 const (
 	metricPollInterval         = 100 * time.Millisecond
 	stateWaitTimeout           = 10 * time.Minute
-	defenseTasksSpawnedMetric  = "kona_sp1_proposer_games_defense_spawned"
-	gameProvingFailuresMetric  = "kona_sp1_proposer_game_proving_error"
+	defenseTasksSpawnedMetric  = "op_zk_proposer_games_defense_spawned"
+	gameProvingFailuresMetric  = "op_zk_proposer_game_proving_error"
+	logBatchesSubmittedMetric  = "op_zk_proposer_log_batches_submitted"
+	spanBisectionsMetric       = "op_zk_proposer_span_bisections"
+	rangeChainSplitsMetric     = "op_zk_proposer_range_chain_splits"
 	metricsDisabledInstruction = "ZK proposer metrics are disabled; pass presets.WithZKProposerOption(sysgo.WithZKMetrics()) when creating the preset"
 )
 
@@ -26,7 +29,7 @@ type Runtime interface {
 	MetricsClient() client.HTTP
 }
 
-// ZKProposer verifies the observable state of a running kona-sp1-proposer.
+// ZKProposer verifies the observable state of a running op-zk-proposer.
 type ZKProposer struct {
 	t       devtest.T
 	log     log.Logger
@@ -43,11 +46,12 @@ func New(t devtest.T, runtime Runtime) *ZKProposer {
 	return &ZKProposer{t: t, log: t.Logger(), metrics: metricsClient}
 }
 
-// StateExpectation describes one exact proposer-state observation.
+// StateExpectation describes one proposer-state observation.
 type StateExpectation struct {
 	description string
 	expected    int
 	metric      string
+	atLeast     bool
 }
 
 // DefenseTasksSpawned expects the exact number of spawned defense tasks.
@@ -65,6 +69,48 @@ func ProvingFailures(expected int) *StateExpectation {
 		description: "proving failures",
 		expected:    expected,
 		metric:      gameProvingFailuresMetric,
+	}
+}
+
+// LogBatchesSubmitted expects the exact number of log-commitment batch proof
+// requests.
+func LogBatchesSubmitted(expected int) *StateExpectation {
+	return &StateExpectation{
+		description: "log batches submitted",
+		expected:    expected,
+		metric:      logBatchesSubmittedMetric,
+	}
+}
+
+// LogBatchesSubmittedAtLeast expects at least minimum log-commitment batch proof requests.
+func LogBatchesSubmittedAtLeast(minimum int) *StateExpectation {
+	return &StateExpectation{
+		description: "log batches submitted",
+		expected:    minimum,
+		metric:      logBatchesSubmittedMetric,
+		atLeast:     true,
+	}
+}
+
+// SpanBisectionsAtLeast expects at least minimum proving spans halved for
+// exceeding a proving limit.
+func SpanBisectionsAtLeast(minimum int) *StateExpectation {
+	return &StateExpectation{
+		description: "span bisections",
+		expected:    minimum,
+		metric:      spanBisectionsMetric,
+		atLeast:     true,
+	}
+}
+
+// RangeChainSplitsAtLeast expects at least minimum single-timestamp range
+// requests split by chain for exceeding a proving limit.
+func RangeChainSplitsAtLeast(minimum int) *StateExpectation {
+	return &StateExpectation{
+		description: "range chain splits",
+		expected:    minimum,
+		metric:      rangeChainSplitsMetric,
+		atLeast:     true,
 	}
 }
 
@@ -106,18 +152,24 @@ func (p *ZKProposer) verifyState(ctx context.Context, expectations ...*StateExpe
 					p.log.Info("ZK proposer state observation unavailable",
 						"expectation", expectation.description,
 						"expected", expectation.expected,
+						"at_least", expectation.atLeast,
 						"err", err)
 				} else {
 					p.log.Info("Observed ZK proposer state",
 						"expectation", expectation.description,
 						"expected", expectation.expected,
+						"at_least", expectation.atLeast,
 						"observed", observed)
 				}
 			}
 			if err != nil {
 				return fmt.Errorf("%s: %w", expectation.description, err)
 			}
-			if observed != float64(expectation.expected) {
+			if expectation.atLeast {
+				if observed < float64(expectation.expected) {
+					return fmt.Errorf("%s expected at least %d but observed %v", expectation.description, expectation.expected, observed)
+				}
+			} else if observed != float64(expectation.expected) {
 				return fmt.Errorf("%s expected %d but observed %v", expectation.description, expectation.expected, observed)
 			}
 		}

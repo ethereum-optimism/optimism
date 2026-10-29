@@ -42,6 +42,18 @@ func TestCheckPreconditions(t *testing.T) {
 			want: ptrDecision(DecisionRewind),
 		},
 		{
+			// An L1 reorg pulls local-safe back below the next frontier
+			// timestamp. The stale accepted state must be rewound, not held
+			// while the round waits (ethereum-optimism/optimism#22845).
+			name: "rewind beats wait when chains are not ready",
+			obs: RoundObservation{
+				ChainsReady:   false,
+				L1Consistent:  false,
+				L1NeedsRewind: true,
+			},
+			want: ptrDecision(DecisionRewind),
+		},
+		{
 			name: "wait when frontier L1 inconsistent",
 			obs: RoundObservation{
 				ChainsReady:  true,

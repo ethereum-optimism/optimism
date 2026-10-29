@@ -10,9 +10,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -127,7 +127,7 @@ func TestCheckWithdrawals(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			now := time.Unix(nowUnix, 0)
 			cl := clock.NewDeterministicClock(now)
-			logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+			logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 			metrics := &stubWithdrawalsMetrics{
 				matching:  make(map[common.Address]int),
 				divergent: make(map[common.Address]int),
@@ -202,7 +202,7 @@ func TestCheckWithdrawals(t *testing.T) {
 func TestWithdrawalNotInitiated(t *testing.T) {
 	now := time.Unix(nowUnix, 0)
 	cl := clock.NewDeterministicClock(now)
-	logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 	metrics := &stubWithdrawalsMetrics{
 		matching:  make(map[common.Address]int),
 		divergent: make(map[common.Address]int),
@@ -253,7 +253,7 @@ func TestZKWithdrawalMaturityIsInclusive(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			metrics := &stubWithdrawalsMetrics{matching: make(map[common.Address]int), divergent: make(map[common.Address]int)}
 			monitor := NewWithdrawalMonitor(
-				testlog.Logger(t, log.LvlInfo),
+				testlog.Logger(t, log.LevelInfo),
 				clock.NewDeterministicClock(time.Unix(test.now, 0)),
 				metrics,
 				monTypes.NewHonestActors([]common.Address{honest}),
@@ -282,7 +282,7 @@ func TestZKCreditWithoutRequestIsNotWithdrawable(t *testing.T) {
 	honest := common.Address{0x01}
 	metrics := &stubWithdrawalsMetrics{matching: make(map[common.Address]int), divergent: make(map[common.Address]int)}
 	monitor := NewWithdrawalMonitor(
-		testlog.Logger(t, log.LvlInfo),
+		testlog.Logger(t, log.LevelInfo),
 		clock.NewDeterministicClock(time.Unix(1000, 0)),
 		metrics,
 		monTypes.NewHonestActors([]common.Address{honest}),
@@ -319,7 +319,7 @@ func TestZKWithdrawalMatchingRequiresAnObligation(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			metrics := &stubWithdrawalsMetrics{matching: make(map[common.Address]int), divergent: make(map[common.Address]int)}
 			monitor := NewWithdrawalMonitor(
-				testlog.Logger(t, log.LvlInfo),
+				testlog.Logger(t, log.LevelInfo),
 				clock.NewDeterministicClock(time.Unix(1000, 0)),
 				metrics,
 				nil,
@@ -347,7 +347,7 @@ func TestFaultWithdrawalMaturityRemainsExclusive(t *testing.T) {
 	honest := common.Address{0x01}
 	metrics := &stubWithdrawalsMetrics{matching: make(map[common.Address]int), divergent: make(map[common.Address]int)}
 	monitor := NewWithdrawalMonitor(
-		testlog.Logger(t, log.LvlInfo),
+		testlog.Logger(t, log.LevelInfo),
 		clock.NewDeterministicClock(time.Unix(110, 0)),
 		metrics,
 		monTypes.NewHonestActors([]common.Address{honest}),

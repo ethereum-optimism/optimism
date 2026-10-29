@@ -5,9 +5,9 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +20,7 @@ func TestCheckMixedSafety(t *testing.T) {
 		{NodeEndpointSafeCount: 0, NodeEndpointUnsafeCount: 0}, // No safety checks
 	}
 	metrics := &stubMixedSafetyMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewMixedSafetyMonitor(logger, metrics)
 	monitor.CheckMixedSafety(games)
 	require.Equal(t, 2, metrics.recordedCount)

@@ -3,17 +3,17 @@ package flags
 import (
 	"flag"
 
-	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
 type TestConfig struct {
-	LogConfig log.CLIConfig
+	LogConfig logcli.CLIConfig
 }
 
 func ReadTestConfig() TestConfig {
 	flag.Parse()
 
-	cfg := log.ReadTestCLIConfig()
+	cfg := logcli.ReadTestCLIConfig()
 
 	return TestConfig{
 		LogConfig: cfg,

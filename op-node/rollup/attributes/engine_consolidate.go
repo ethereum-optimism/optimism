@@ -8,12 +8,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-core/eip1559"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 var (
@@ -216,7 +216,7 @@ func logL1InfoTxns(rollupCfg *rollup.Config, l log.Logger, l2Number, l2Timestamp
 		"unsafe_l1_time", unsafeInfo.Time, "unsafe_seq_num", unsafeInfo.SequenceNumber,
 		"unsafe_l1_basefee", unsafeInfo.BaseFee, "unsafe_batcher_addr", unsafeInfo.BatcherAddr,
 	)
-	if bytes.HasPrefix(safeTxValue.Data(), types.EcotoneL1AttributesSelector) {
+	if bytes.HasPrefix(safeTxValue.Data(), derive.L1InfoFuncEcotoneBytes4) {
 		l.Error("L1 Info transaction differs",
 			"safe_l1_blob_basefee", safeInfo.BlobBaseFee,
 			"safe_l1_basefee_scalar", safeInfo.BaseFeeScalar,

@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -64,31 +64,34 @@ func TestInProcessAnchorProposalTransport(t *testing.T) {
 
 		l1Host.SetTxOrigin(l2Cfg.Deployer)
 		output, err := opcmScripts.DeployOPChain.Run(opcm.DeployOPChainInput{
-			OpChainProxyAdminOwner:       worldCfg.Superchain.ProxyAdminOwner,
-			SystemConfigOwner:            l2Cfg.SystemConfigOwner,
-			Batcher:                      l2Cfg.BatchSenderAddress,
-			UnsafeBlockSigner:            l2Cfg.P2PSequencerAddress,
-			Proposer:                     l2Cfg.Proposer,
-			Challenger:                   l2Cfg.Challenger,
-			BasefeeScalar:                l2Cfg.GasPriceOracleBaseFeeScalar,
-			BlobBaseFeeScalar:            l2Cfg.GasPriceOracleBlobBaseFeeScalar,
-			L2ChainId:                    new(big.Int).SetUint64(l2Cfg.L2ChainID),
-			Opcm:                         superDeployment.OpcmV2,
-			SaltMixer:                    l2Cfg.SaltMixer,
-			GasLimit:                     l2Cfg.GasLimit,
-			DisputeGameType:              l2Cfg.DisputeGameType,
-			DisputeAbsolutePrestate:      l2Cfg.DisputeAbsolutePrestate,
-			StartingAnchorRoot:           proposal,
-			CannonAbsolutePrestate:       l2Cfg.DisputeAbsolutePrestate,
-			DisputeMaxGameDepth:          new(big.Int).SetUint64(l2Cfg.DisputeMaxGameDepth),
-			DisputeSplitDepth:            new(big.Int).SetUint64(l2Cfg.DisputeSplitDepth),
-			DisputeClockExtension:        l2Cfg.DisputeClockExtension,
-			DisputeMaxClockDuration:      l2Cfg.DisputeMaxClockDuration,
-			AllowCustomDisputeParameters: true,
-			OperatorFeeScalar:            l2Cfg.GasPriceOracleOperatorFeeScalar,
-			OperatorFeeConstant:          l2Cfg.GasPriceOracleOperatorFeeConstant,
-			SuperchainConfig:             superDeployment.SuperchainConfigProxy,
-			UseCustomGasToken:            l2Cfg.UseCustomGasToken,
+			OpChainProxyAdminOwner:          worldCfg.Superchain.ProxyAdminOwner,
+			SystemConfigOwner:               l2Cfg.SystemConfigOwner,
+			Batcher:                         l2Cfg.BatchSenderAddress,
+			UnsafeBlockSigner:               l2Cfg.P2PSequencerAddress,
+			Proposer:                        l2Cfg.Proposer,
+			Challenger:                      l2Cfg.Challenger,
+			BasefeeScalar:                   l2Cfg.GasPriceOracleBaseFeeScalar,
+			BlobBaseFeeScalar:               l2Cfg.GasPriceOracleBlobBaseFeeScalar,
+			L2ChainId:                       new(big.Int).SetUint64(l2Cfg.L2ChainID),
+			Opcm:                            superDeployment.OpcmV2,
+			SaltMixer:                       l2Cfg.SaltMixer,
+			GasLimit:                        l2Cfg.GasLimit,
+			DisputeGameType:                 l2Cfg.DisputeGameType,
+			DisputeAbsolutePrestate:         l2Cfg.DisputeAbsolutePrestate,
+			StartingAnchorRoot:              proposal,
+			CannonAbsolutePrestate:          l2Cfg.DisputeAbsolutePrestate,
+			DisputeMaxGameDepth:             new(big.Int).SetUint64(l2Cfg.DisputeMaxGameDepth),
+			DisputeSplitDepth:               new(big.Int).SetUint64(l2Cfg.DisputeSplitDepth),
+			DisputeClockExtension:           l2Cfg.DisputeClockExtension,
+			DisputeMaxClockDuration:         l2Cfg.DisputeMaxClockDuration,
+			AllowCustomDisputeParameters:    true,
+			OperatorFeeScalar:               l2Cfg.GasPriceOracleOperatorFeeScalar,
+			OperatorFeeConstant:             l2Cfg.GasPriceOracleOperatorFeeConstant,
+			SuperchainConfig:                superDeployment.SuperchainConfigProxy,
+			UseCustomGasToken:               l2Cfg.UseCustomGasToken,
+			ProofMaturityDelaySeconds:       new(big.Int).SetUint64(l2Cfg.ProofMaturityDelaySeconds),
+			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(l2Cfg.DisputeGameFinalityDelaySeconds),
+			WithdrawalDelaySeconds:          new(big.Int).SetUint64(l2Cfg.WithdrawalDelaySeconds),
 		})
 		require.NoError(t, err)
 

@@ -1,4 +1,5 @@
-// Shared helpers for the docs lint scripts (validate-nav.ts, validate-redirects.ts).
+// Shared helpers for the docs lint scripts (validate-nav.ts, validate-redirects.ts,
+// validate-reference.ts).
 //
 // Both scripts are deterministic, dependency-free (Node builtins only), and
 // runnable with either `tsx` (pnpm devDependency, like the generator scripts)
@@ -82,26 +83,57 @@ export function loadDocsJson(docsRoot: string): DocsJson {
   return JSON.parse(raw) as DocsJson;
 }
 
+// Every Mintlify navigation container key that can hold pages or further
+// containers. `versions` is handled separately (see collectNavPages).
+const NAV_CONTAINER_KEYS = ["tabs", "anchors", "dropdowns", "products", "menu", "groups", "pages"];
+
 /**
  * Collect every page entry from the Mintlify navigation tree, in order.
- * Page entries are strings; containers are objects carrying `tabs`, `groups`,
- * or `pages` arrays. Returned paths are normalized (no leading slash).
+ * Page entries are strings; containers are objects carrying one of the
+ * NAV_CONTAINER_KEYS arrays or a `versions` array. Returned paths are
+ * normalized (no leading slash).
+ *
+ * Versions: sibling versions of one container (the versioned component
+ * references under the Reference tab) may legitimately list the same page —
+ * a page shared across versions renders once at one URL, and the switcher
+ * keeps the reader on it. Such a page is therefore collected once per
+ * `versions` array, not once per version, so the duplicate-entry check does
+ * not fire on it. The same page listed twice *within* one version, or in two
+ * unrelated places, is still reported as a duplicate.
  */
 export function collectNavPages(navigation: unknown): string[] {
   const pages: string[] = [];
-  const walk = (node: unknown): void => {
+  const walk = (node: unknown, sink: string[]): void => {
     if (typeof node === "string") {
-      pages.push(normalizePath(node));
+      sink.push(normalizePath(node));
       return;
     }
-    if (node !== null && typeof node === "object") {
-      for (const key of ["tabs", "groups", "pages"]) {
-        const children = (node as Record<string, unknown>)[key];
-        if (Array.isArray(children)) children.forEach(walk);
+    if (node === null || typeof node !== "object") return;
+    const obj = node as Record<string, unknown>;
+    if (Array.isArray(obj.versions)) {
+      const seenAcrossVersions = new Set<string>();
+      for (const version of obj.versions) {
+        const inVersion: string[] = [];
+        walk(version, inVersion);
+        const seenInVersion = new Set<string>();
+        for (const p of inVersion) {
+          if (seenInVersion.has(p)) {
+            sink.push(p); // duplicate within one version: keep it, so N1 reports it
+            continue;
+          }
+          seenInVersion.add(p);
+          if (seenAcrossVersions.has(p)) continue; // shared across sibling versions: count once
+          seenAcrossVersions.add(p);
+          sink.push(p);
+        }
       }
     }
+    for (const key of NAV_CONTAINER_KEYS) {
+      const children = obj[key];
+      if (Array.isArray(children)) children.forEach((child) => walk(child, sink));
+    }
   };
-  walk(navigation);
+  walk(navigation, pages);
   return pages;
 }
 

@@ -19,7 +19,7 @@ use kona_genesis::RollupConfig;
 use kona_p2p::{LocalNode, Config};
 use kona_node_service::{NetworkActor};
 use libp2p::Multiaddr;
-use discv5::enr::CombinedKey;
+use enr::CombinedKey;
 
 #[tokio::main]
 async fn main() {

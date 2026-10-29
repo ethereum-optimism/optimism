@@ -11,9 +11,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -188,7 +188,7 @@ func TestClaimMonitor_CheckClaims(t *testing.T) {
 }
 
 func newTestClaimMonitor(t *testing.T) (*ClaimMonitor, *clock.DeterministicClock, *stubClaimMetrics, *testlog.CapturingHandler) {
-	logger, handler := testlog.CaptureLogger(t, log.LvlInfo)
+	logger, handler := testlog.CaptureLogger(t, log.LevelInfo)
 	cl := clock.NewDeterministicClock(frozen)
 	metrics := &stubClaimMetrics{}
 	honestActors := types.NewHonestActors([]common.Address{

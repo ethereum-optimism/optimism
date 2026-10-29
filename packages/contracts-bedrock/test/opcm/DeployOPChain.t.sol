@@ -47,13 +47,23 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
 
     // DeployImplementations default inputs.
     // - superchainConfigProxy is set during `setUp` since it is an output of DeploySuperchain.
-    uint256 withdrawalDelaySeconds = 100;
+    uint256 minWithdrawalDelaySeconds = 1;
+    uint256 maxWithdrawalDelaySeconds = 604800;
     uint256 minProposalSizeBytes = 126_000;
     uint256 challengePeriodSeconds = 86_400;
-    uint256 proofMaturityDelaySeconds = 400;
-    uint256 disputeGameFinalityDelaySeconds = 500;
+    // Implementation bounds admit the short per-chain delays used below.
+    uint256 minProofMaturityDelaySeconds = 1;
+    uint256 maxProofMaturityDelaySeconds = 604800;
+    uint256 minDisputeGameFinalityDelaySeconds = 1;
+    uint256 maxDisputeGameFinalityDelaySeconds = 302400;
 
     // DeployOPChain default inputs.
+    // - per-chain withdrawal delays, stored on the portal and the AnchorStateRegistry proxies.
+    //   Inside the standard range so the StandardValidator accepts the deployment, but not the
+    //   defaults, so the assertions prove the input landed.
+    uint256 proofMaturityDelaySeconds = 172_800;
+    uint256 disputeGameFinalityDelaySeconds = 86_400;
+    uint256 withdrawalDelaySeconds = 86_400;
     // - opcm is set during `setUp` since it is an output of DeployImplementations.
     address opChainProxyAdminOwner = makeAddr("opChainProxyAdminOwner");
     address systemConfigOwner = makeAddr("systemConfigOwner");
@@ -79,8 +89,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     Claim cannonKonaAbsolutePrestate = Claim.wrap(0x035ef680a6fa34c50d8d8169075b5d133ecd7b38fe2b2a83cc76fc81ae5d7c52);
     // Arbitrary non-placeholder anchor root for the permissionless deploy tests.
     Proposal permissionlessAnchorRoot = Proposal({
-        root: Hash.wrap(0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47),
-        l2SequenceNumber: 1234
+        root: Hash.wrap(0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47), l2SequenceNumber: 1234
     });
     uint256 disputeMaxGameDepth = 73;
     uint256 disputeSplitDepth = 30;
@@ -103,20 +112,21 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
         // 1) DeploySuperchain
         DeploySuperchain.Output memory dso = deploySuperchain.run(
             DeploySuperchain.Input({
-                superchainProxyAdminOwner: superchainProxyAdminOwner,
-                guardian: guardian,
-                paused: paused
+                superchainProxyAdminOwner: superchainProxyAdminOwner, guardian: guardian, paused: paused
             })
         );
 
         // 2) DeployImplementations (produces OPCM)
         DeployImplementations.Output memory dio = deployImplementations.run(
             DeployImplementations.Input({
-                withdrawalDelaySeconds: withdrawalDelaySeconds,
+                minWithdrawalDelaySeconds: minWithdrawalDelaySeconds,
+                maxWithdrawalDelaySeconds: maxWithdrawalDelaySeconds,
                 minProposalSizeBytes: minProposalSizeBytes,
                 challengePeriodSeconds: challengePeriodSeconds,
-                proofMaturityDelaySeconds: proofMaturityDelaySeconds,
-                disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds,
+                minProofMaturityDelaySeconds: minProofMaturityDelaySeconds,
+                maxProofMaturityDelaySeconds: maxProofMaturityDelaySeconds,
+                minDisputeGameFinalityDelaySeconds: minDisputeGameFinalityDelaySeconds,
+                maxDisputeGameFinalityDelaySeconds: maxDisputeGameFinalityDelaySeconds,
                 mipsVersion: StandardConstants.MIPS_VERSION,
                 faultGameV2MaxGameDepth: 73,
                 faultGameV2SplitDepth: 30,
@@ -164,7 +174,10 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
             operatorFeeScalar: 0,
             operatorFeeConstant: 0,
             superchainConfig: superchainConfig,
-            useCustomGasToken: useCustomGasToken
+            useCustomGasToken: useCustomGasToken,
+            proofMaturityDelaySeconds: proofMaturityDelaySeconds,
+            disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds,
+            withdrawalDelaySeconds: withdrawalDelaySeconds
         });
     }
 
@@ -378,11 +391,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             Types.SuperRootProof({ version: bytes1(uint8(1)), timestamp: type(uint64).max, outputRoots: outputRoots });
 
         vm.prank(proposer, proposer);
-        IDisputeGame game = doo.disputeGameFactoryProxy.create(
-            GameTypes.SUPER_PERMISSIONED,
-            Claim.wrap(Hashing.hashSuperRootProof(proof)),
-            Encoding.encodeSuperRootProof(proof)
-        );
+        IDisputeGame game = doo.disputeGameFactoryProxy
+            .create(
+                GameTypes.SUPER_PERMISSIONED,
+                Claim.wrap(Hashing.hashSuperRootProof(proof)),
+                Encoding.encodeSuperRootProof(proof)
+            );
         assertTrue(asr.isGameRespected(game), "fallback game must be respected");
     }
 
@@ -485,8 +499,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             }),
             false,
             IOPContractsManagerStandardValidator.ValidationOverrides({
-                l1PAOMultisig: opChainProxyAdminOwner,
-                challenger: challenger
+                l1PAOMultisig: opChainProxyAdminOwner, challenger: challenger
             })
         );
     }
@@ -576,6 +589,17 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             address(deployOPChainInput.superchainConfig),
             "superchainConfig mismatch"
         );
+
+        // Per-chain withdrawal delays land in proxy storage.
+        assertEq(
+            doo.optimismPortalProxy.proofMaturityDelaySeconds(), proofMaturityDelaySeconds, "proofMaturityDelaySeconds"
+        );
+        assertEq(
+            doo.anchorStateRegistryProxy.disputeGameFinalityDelaySeconds(),
+            disputeGameFinalityDelaySeconds,
+            "disputeGameFinalityDelaySeconds"
+        );
+        assertEq(doo.delayedWETHPermissionlessGameProxy.delay(), withdrawalDelaySeconds, "withdrawalDelaySeconds");
 
         bool isSuperRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         GameType permType = _permissionedGameType();
@@ -695,6 +719,42 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
         deployOPChainInput.opcm = eoaAddress;
         // nosemgrep: sol-safety-expectrevert-no-args
         vm.expectRevert();
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_zeroProofMaturityDelaySeconds_reverts() public {
+        deployOPChainInput.proofMaturityDelaySeconds = 0;
+        vm.expectRevert("DeployOPChainInput: proofMaturityDelaySeconds not set");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_zeroDisputeGameFinalityDelaySeconds_reverts() public {
+        deployOPChainInput.disputeGameFinalityDelaySeconds = 0;
+        vm.expectRevert("DeployOPChainInput: disputeGameFinalityDelaySeconds not set");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_withdrawalDelaySecondsOutOfBounds_reverts() public {
+        deployOPChainInput.withdrawalDelaySeconds = maxWithdrawalDelaySeconds + 1;
+        vm.expectRevert("DeployOPChainInput: withdrawalDelaySeconds out of bounds");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_zeroWithdrawalDelaySeconds_reverts() public {
+        deployOPChainInput.withdrawalDelaySeconds = 0;
+        vm.expectRevert("DeployOPChainInput: withdrawalDelaySeconds not set");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_proofMaturityDelaySecondsOutOfBounds_reverts() public {
+        deployOPChainInput.proofMaturityDelaySeconds = maxProofMaturityDelaySeconds + 1;
+        vm.expectRevert("DeployOPChainInput: proofMaturityDelaySeconds out of bounds");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_disputeGameFinalityDelaySecondsOutOfBounds_reverts() public {
+        deployOPChainInput.disputeGameFinalityDelaySeconds = maxDisputeGameFinalityDelaySeconds + 1;
+        vm.expectRevert("DeployOPChainInput: disputeGameFinalityDelaySeconds out of bounds");
         deployOPChain.run(deployOPChainInput);
     }
 

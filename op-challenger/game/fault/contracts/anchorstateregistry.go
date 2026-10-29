@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	methodGetAnchorRoot  = "getAnchorRoot"
-	methodSetAnchorState = "setAnchorState"
+	methodGetAnchorRoot   = "getAnchorRoot"
+	methodIsGameFinalized = "isGameFinalized"
+	methodSetAnchorState  = "setAnchorState"
 )
 
 type AnchorStateRegistryContract struct {
@@ -44,6 +45,16 @@ func (a *AnchorStateRegistryContract) GetAnchorRoot(ctx context.Context, block r
 		return common.Hash{}, nil, fmt.Errorf("failed to retrieve anchor root: %w", err)
 	}
 	return result.GetHash(0), result.GetBigInt(1), nil
+}
+
+// IsGameFinalized reports whether game is resolved and past the registry's finality delay.
+func (a *AnchorStateRegistryContract) IsGameFinalized(ctx context.Context, block rpcblock.Block, game common.Address) (bool, error) {
+	defer a.metrics.StartContractRequest("IsGameFinalized")()
+	result, err := a.multiCaller.SingleCall(ctx, block, a.contract.Call(methodIsGameFinalized, game))
+	if err != nil {
+		return false, fmt.Errorf("failed to retrieve game finality: %w", err)
+	}
+	return result.GetBool(0), nil
 }
 
 func (a *AnchorStateRegistryContract) SetAnchorStateTx(ctx context.Context, game common.Address) (txmgr.TxCandidate, error) {

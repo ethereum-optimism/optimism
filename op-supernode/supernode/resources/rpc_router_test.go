@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	gethlog "github.com/ethereum/go-ethereum/log"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 func rpcEchoHandler(t *testing.T, name string) http.Handler {
@@ -19,7 +19,7 @@ func rpcEchoHandler(t *testing.T, name string) http.Handler {
 }
 
 func TestDispatchToCorrectChain(t *testing.T) {
-	l := gethlog.Root()
+	l := oplog.Root()
 	router := NewRouter(l, RouterConfig{})
 	router.SetHandler("10", rpcEchoHandler(t, "10"))
 	router.SetHandler("20", rpcEchoHandler(t, "20"))
@@ -36,7 +36,7 @@ func TestDispatchToCorrectChain(t *testing.T) {
 }
 
 func TestPathRewriting(t *testing.T) {
-	l := gethlog.Root()
+	l := oplog.Root()
 	router := NewRouter(l, RouterConfig{})
 	router.SetHandler("10", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(r.URL.Path))
@@ -50,7 +50,7 @@ func TestPathRewriting(t *testing.T) {
 }
 
 func TestUnknownChain(t *testing.T) {
-	l := gethlog.Root()
+	l := oplog.Root()
 	router := NewRouter(l, RouterConfig{})
 	router.SetHandler("10", http.NotFoundHandler())
 	rec := httptest.NewRecorder()
@@ -62,7 +62,7 @@ func TestUnknownChain(t *testing.T) {
 }
 
 func TestRouterHoldsUntilReady(t *testing.T) {
-	l := gethlog.Root()
+	l := oplog.Root()
 	router := NewRouter(l, RouterConfig{GateTimeout: time.Second})
 
 	var ready atomic.Bool
@@ -106,7 +106,7 @@ func TestRouterHoldsUntilReady(t *testing.T) {
 }
 
 func TestRouterGateRespectsContextDeadline(t *testing.T) {
-	l := gethlog.Root()
+	l := oplog.Root()
 	router := NewRouter(l, RouterConfig{GateTimeout: 5 * time.Second})
 
 	var handlerCalled atomic.Bool
@@ -142,7 +142,7 @@ func TestRouterGateRespectsContextDeadline(t *testing.T) {
 }
 
 func TestRouterHandlerSwapDuringHold(t *testing.T) {
-	l := gethlog.Root()
+	l := oplog.Root()
 	router := NewRouter(l, RouterConfig{GateTimeout: time.Second})
 
 	var ready atomic.Bool
@@ -185,7 +185,7 @@ func TestRouterHandlerSwapDuringHold(t *testing.T) {
 }
 
 func TestRouterNoReadinessCheckDispatches(t *testing.T) {
-	l := gethlog.Root()
+	l := oplog.Root()
 	router := NewRouter(l, RouterConfig{})
 
 	router.SetHandler("10", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -202,7 +202,7 @@ func TestRouterNoReadinessCheckDispatches(t *testing.T) {
 }
 
 func TestRouterRemoveHandlerDrainsWaiter(t *testing.T) {
-	l := gethlog.Root()
+	l := oplog.Root()
 	router := NewRouter(l, RouterConfig{GateTimeout: time.Second})
 
 	router.SetHandler("10", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -237,7 +237,7 @@ func TestRouterRemoveHandlerDrainsWaiter(t *testing.T) {
 }
 
 func TestRouterGateTimeoutBackstop(t *testing.T) {
-	l := gethlog.Root()
+	l := oplog.Root()
 	router := NewRouter(l, RouterConfig{GateTimeout: 100 * time.Millisecond})
 
 	var handlerCalled atomic.Bool

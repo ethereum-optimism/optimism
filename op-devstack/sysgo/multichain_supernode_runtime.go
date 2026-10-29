@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -11,9 +12,9 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -29,7 +30,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -149,7 +151,7 @@ func startSupernodeELWithInteropURL(
 		return l2EL
 	default: // op-reth
 		return startMixedOpRethNodeWithInteropURL(
-			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, "v1", ResolveMixedL2ELOpts(t)...)
+			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, ResolveMixedL2ELOpts(t)...)
 	}
 }
 
@@ -159,9 +161,6 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorldWithInteropAndState(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
-	validateSimpleInteropPresetConfig(t, cfg, l2Net)
-
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
@@ -169,7 +168,14 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 		timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = timeTravelClock
 	}
-	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
+	var l1EL *L1Geth
+	var l1CL *L1CLNode
+	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorld(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
+		func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
+			l1EL, l1CL = startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
+			return l1EL, l1CL
+		}, cfg.DeployerOptions...)
+	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 	l2EL := startSupernodeEL(t, l2Net, jwtPath, jwtSecret)
 
 	var depSetStatic *depset.StaticConfigDependencySet
@@ -260,16 +266,6 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	wb, l1Net, l2Nets := buildMultiL2RuntimeWorld(
-		t,
-		keys,
-		enableInterop,
-		delaySeconds,
-		cfg.LocalContractArtifactsPath,
-		chainSpecs,
-		cfg.DeployerOptions...,
-	)
-	migration := newInteropMigrationState(wb)
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
@@ -277,7 +273,22 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 		timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = timeTravelClock
 	}
-	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
+	var l1EL *L1Geth
+	var l1CL *L1CLNode
+	require.NoError(checkL2ToL2MessageExpiryPeriod(cfg, enableInterop, delaySeconds))
+	deployerOpts := cfg.DeployerOptions
+	if cfg.L2ToL2MessageExpiryPeriod != 0 {
+		deployerOpts = append(slices.Clone(deployerOpts), withL2ToL2MessageExpiryPeriod(cfg.L2ToL2MessageExpiryPeriod))
+	}
+	wb, l1Net, l2Nets := buildMultiL2RuntimeWorld(
+		t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath,
+		chainSpecs, genesisAnchorGameType(cfg),
+		func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
+			l1EL, l1CL = startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
+			return l1EL, l1CL
+		}, deployerOpts...,
+	)
+	migration := newInteropMigrationState(wb)
 	if cfg.PreGenesisSuperGame != nil {
 		preparePreGenesisSuperGame(t, keys, wb, l1Net, l1EL, migration, cfg.PreGenesisSuperGame, l2Nets...)
 	}
@@ -363,7 +374,6 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 				Key:              "sequencer",
 				IsSequencer:      true,
 				NoDiscovery:      true,
-				EnableReqResp:    true,
 				DependencySet:    runtimeDepSet,
 				L2FollowSource:   supernodeCLs[i].UserRPC(),
 				L2CLOptions:      cfg.GlobalL2CLOptions,
@@ -420,14 +430,17 @@ func buildMultiL2RuntimeWorld(
 	delaySeconds uint64,
 	localContractArtifactsPath string,
 	chainSpecs []runtimeChainSpec,
+	anchorGameType *gameTypes.GameType,
+	startL1 func(*L1Network) (*L1Geth, *L1CLNode),
 	deployerOpts ...DeployerOption,
 ) (*worldBuilder, *L1Network, []*L2Network) {
 	wb := &worldBuilder{
-		p:       t,
-		logger:  t.Logger(),
-		require: t.Require(),
-		keys:    keys,
-		builder: intentbuilder.New(),
+		p:                     t,
+		logger:                t.Logger(),
+		require:               t.Require(),
+		keys:                  keys,
+		builder:               intentbuilder.New(),
+		genesisAnchorGameType: anchorGameType,
 	}
 
 	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
@@ -454,16 +467,10 @@ func buildMultiL2RuntimeWorld(
 		}
 	}
 	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
-	wb.Build()
+	l1Net := wb.Build(startL1)
 
 	t.Require().Len(wb.l2Chains, len(chainSpecs), "unexpected L2 chain count")
-	l1ID := eth.ChainIDFromUInt64(wb.output.AppliedIntent.L1ChainID)
-	l1Net := &L1Network{
-		name:      "l1",
-		chainID:   l1ID,
-		genesis:   wb.outL1Genesis,
-		blockTime: 6,
-	}
+	l1ID := l1Net.ChainID()
 	l2Nets := make([]*L2Network, len(chainSpecs))
 	for i, chainSpec := range chainSpecs {
 		l2Nets[i] = l2NetworkFromWorldBuilder(t, wb, l1ID, chainSpec, keys)
@@ -506,7 +513,6 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 		Key:            name,
 		IsSequencer:    false,
 		NoDiscovery:    true,
-		EnableReqResp:  false,
 		L2FollowSource: chain.CL.UserRPC(),
 		DependencySet:  runtime.DependencySet,
 		// Follow nodes catch up to their follow source via EL sync.
@@ -558,7 +564,6 @@ func startSharedSupernode(
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
 			false,
-			true,
 			sequencerP2PKeyHex,
 		)
 		cfg := &opnodeconfig.Config{
@@ -670,7 +675,6 @@ func startSingleChainSharedSupernode(
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
 			false,
-			true,
 			sequencerP2PKeyHex,
 		)
 		cfg := &opnodeconfig.Config{
@@ -951,9 +955,9 @@ func startTestSequencerForL2Chains(
 	cfg := &sequencerConfig.Config{
 		MetricsConfig: opmetrics.CLIConfig{Enabled: false},
 		PprofConfig:   oppprof.CLIConfig{ListenEnabled: false},
-		LogConfig: oplog.CLIConfig{
+		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelDebug,
-			Format: oplog.FormatText,
+			Format: log.FormatText,
 		},
 		RPC: oprpc.CLIConfig{
 			ListenAddr:  "127.0.0.1",

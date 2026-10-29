@@ -1,7 +1,7 @@
 [workspace.package]
 edition = "2024"
 license = "MIT OR Apache-2.0"
-rust-version = "1.95"
+rust-version = "1.99"
 authors = ["Op Stack Contributors"]
 homepage = "https://github.com/ethereum-optimism/optimism"
 repository = "https://github.com/ethereum-optimism/optimism"
@@ -20,6 +20,7 @@ members = [
   "kona/crates/providers/*",
   "kona/crates/utilities/*",
   "kona/examples/*",
+  "kona/sp1/crates/bls12-381-check",
   "kona/sp1/crates/build-info",
   "kona/sp1/crates/client",
   "kona/sp1/crates/elfs",
@@ -27,6 +28,7 @@ members = [
   "kona/sp1/crates/host",
   "kona/sp1/crates/super-range-executor",
   "kona/sp1/crates/proposer",
+  "kona/sp1/crates/spn-wallet",
   "kona/sp1/crates/zkvm-canary",
 
   # Op-Alloy
@@ -47,7 +49,6 @@ members = [
   "op-reth/crates/primitives/",
   "op-reth/crates/reth/",
   "op-reth/crates/rpc/",
-  "op-reth/crates/sdm-fixture-node/",
   "op-reth/crates/storage/",
   "op-reth/crates/exex/",
   "op-reth/crates/trie/",
@@ -66,7 +67,7 @@ members = [
   # Revm execution-environment integration tests
   "revm-ee-tests/",
 
-  # In-test OP execution layer for op-e2e/actions parity
+  # Ephemeral OP execution layer the op-e2e action tests run against
   "op-reth-test-engine/",
 
   # Shared build/version metadata (op-reth + kona-node)
@@ -116,6 +117,8 @@ cloned_instead_of_copied = "warn"
 collection_is_never_read = "warn"
 dbg_macro = "warn"
 derive_partial_eq_without_eq = "warn"
+double_must_use = "allow"
+redundant_field_names = "allow"
 doc_markdown = "warn"
 empty_line_after_doc_comments = "warn"
 empty_line_after_outer_attr = "warn"
@@ -180,6 +183,8 @@ zero_sized_map_values = "warn"
 as_ptr_cast_mut = "allow"
 cognitive_complexity = "allow"
 debug_assert_with_mut_call = "allow"
+# Enabled per module where the system clock is banned; see `clippy.toml`.
+disallowed_methods = "allow"
 fallible_impl_from = "allow"
 future_not_send = "allow"
 needless_collect = "allow"
@@ -315,7 +320,7 @@ kona-sp1-elfs = { path = "kona/sp1/crates/elfs" }
 kona-sp1-ethereum-client-utils = { path = "kona/sp1/crates/ethereum/client" }
 kona-sp1-host-utils = { path = "kona/sp1/crates/host" }
 kona-sp1-super-range-executor = { path = "kona/sp1/crates/super-range-executor" }
-kona-sp1-proposer = { path = "kona/sp1/crates/proposer" }
+op-zk-proposer = { path = "kona/sp1/crates/proposer" }
 kona-zkvm-canary = { path = "kona/sp1/crates/zkvm-canary" }
 
 # ==================== OP-RETH INTERNAL CRATES ====================
@@ -350,161 +355,171 @@ alloy-op-evm = { version = "0.32.0", path = "alloy-op-evm/", default-features = 
 alloy-op-hardforks = { version = "0.5.0", path = "alloy-op-hardforks/", default-features = false }
 
 # ==================== RETH CRATES (crates.io) ====================
-reth-codecs = { version = "0.5.0", default-features = false, features = [
+reth-codecs = { version = "0.7.0", default-features = false, features = [
   "alloy",
 ] }
-reth-codecs-derive = "0.5.0"
-reth-primitives-traits = { version = "0.5.0", default-features = false }
-reth-rpc-traits = { version = "0.5.0", default-features = false }
-reth-zstd-compressors = { version = "0.5.0", default-features = false }
+reth-codecs-derive = "0.7.0"
+reth-primitives-traits = { version = "0.7.1", default-features = false }
+reth-rpc-traits = { version = "0.7.0", default-features = false }
+reth-zstd-compressors = { version = "0.7.0", default-features = false }
 
 # ==================== RETH CRATES (git) ====================
-reth = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-basic-payload-builder = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-chain-state = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-chainspec = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-cli = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-cli-commands = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-cli-runner = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-cli-util = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-consensus = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-consensus-common = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-db = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-db-api = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-db-common = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-downloaders = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-e2e-test-utils = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-engine-local = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-engine-primitives = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-errors = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-eth-wire = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-eth-wire-types = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-ethereum = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-ethereum-cli = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-ethereum-consensus = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-ethereum-forks = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-ethereum-primitives = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-evm = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-evm-ethereum = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-exex = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-exex-test-utils = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-execution-errors = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-execution-types = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-fs-util = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-metrics = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-network = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-network-api = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-network-peers = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-node-api = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-node-builder = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-node-core = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-node-ethereum = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-node-events = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-node-metrics = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-payload-builder = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-payload-builder-primitives = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-payload-primitives = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-payload-util = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-payload-validator = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-provider = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-prune = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-prune-types = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-revm = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-rpc = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-rpc-api = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-rpc-builder = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-rpc-engine-api = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-rpc-eth-api = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-rpc-eth-types = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-rpc-server-types = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-stages = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-stages-types = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-static-file = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-static-file-types = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-storage-api = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-storage-errors = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-tasks = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-tracing = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-transaction-pool = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-trie = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
-reth-trie-common = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
-reth-trie-db = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
+reth = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-basic-payload-builder = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-chain-state = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-chainspec = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-cli = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-cli-commands = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-cli-runner = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-cli-util = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-consensus = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-consensus-common = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-db = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-db-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-db-common = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-downloaders = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-e2e-test-utils = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-engine-local = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-engine-primitives = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-engine-tree = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-errors = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-eth-wire = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-eth-wire-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-ethereum = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-ethereum-cli = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-ethereum-consensus = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-ethereum-forks = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-ethereum-primitives = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-evm = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-evm-ethereum = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-exex = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-exex-test-utils = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-execution-errors = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-execution-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-fs-util = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-ipc = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-metrics = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-network = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-network-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-network-peers = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-node-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-node-builder = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-node-core = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-node-ethereum = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-node-events = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-node-metrics = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-payload-builder = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-payload-builder-primitives = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-payload-primitives = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-payload-util = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-payload-validator = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-provider = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-prune = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-prune-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-revm = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-rpc = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-rpc-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-rpc-builder = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-rpc-engine-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-rpc-eth-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-rpc-eth-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-rpc-server-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-stages = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-stages-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-static-file = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-static-file-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-storage-api = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-storage-errors = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-storage-overlay = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-tasks = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-tracing = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-transaction-pool = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-trie = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
+reth-trie-common = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-trie-db = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
 
 # ==================== REVM (latest: op-reth versions) ====================
-revm = { version = "41.0.0", default-features = false }
-revm-bytecode = { version = "41.0.0", default-features = false }
-revm-database = { version = "41.0.0", default-features = false }
-revm-state = { version = "41.0.0", default-features = false }
-revm-primitives = { version = "41.0.0", default-features = false }
-revm-interpreter = { version = "41.0.0", default-features = false }
-revm-database-interface = { version = "41.0.0", default-features = false }
+revm = { version = "43.0.2", default-features = false }
+revm-bytecode = { version = "43.0.0", default-features = false }
+revm-database = { version = "43.0.0", default-features = false }
+revm-state = { version = "43.0.0", default-features = false }
+revm-primitives = { version = "43.0.0", default-features = false }
+revm-interpreter = { version = "43.0.1", default-features = false }
+revm-database-interface = { version = "43.0.0", default-features = false }
 op-revm = { version = "20.0.0", path = "op-revm/", default-features = false }
-revm-inspectors = "0.41.0"
+revm-inspectors = "0.43.0"
 
 # ==================== ALLOY ====================
 alloy-chains = { version = "0.2.33", default-features = false }
-alloy-dyn-abi = "1.6.0"
+alloy-dyn-abi = "1.6.1"
 alloy-eip2124 = { version = "0.2.0", default-features = false }
-alloy-eip7928 = { version = "0.4.5", default-features = false }
-alloy-evm = { version = "0.37.0", default-features = false }
-alloy-primitives = { version = "1.6.0", default-features = false, features = [
+alloy-eip7928 = { version = "0.4.10", default-features = false }
+alloy-evm = { version = "0.39.0", default-features = false }
+alloy-primitives = { version = "1.6.1", default-features = false, features = [
   "map-foldhash",
 ] }
 alloy-rlp = { version = "0.3.16", default-features = false, features = [
   "core-net",
 ] }
-alloy-sol-macro = "1.6.0"
-alloy-sol-types = { version = "1.6.0", default-features = false }
+alloy-sol-macro = "1.6.1"
+alloy-sol-types = { version = "1.6.1", default-features = false }
 alloy-trie = { version = "0.9.4", default-features = false }
 
-alloy-hardforks = { version = "0.4.7", default-features = false }
+alloy-hardforks = { version = "0.4.8", default-features = false }
 
-alloy-consensus = { version = "2.1.1", default-features = false }
-alloy-contract = { version = "2.1.1", default-features = false }
-alloy-eips = { version = "2.1.1", default-features = false }
-alloy-genesis = { version = "2.1.1", default-features = false }
-alloy-json-rpc = { version = "2.1.1", default-features = false }
-alloy-network = { version = "2.1.1", default-features = false }
-alloy-network-primitives = { version = "2.1.1", default-features = false }
-alloy-node-bindings = { version = "2.1.1", default-features = false }
-alloy-provider = { version = "2.1.1", features = [
+alloy-consensus = { version = "2.4.2", default-features = false }
+alloy-contract = { version = "2.4.2", default-features = false }
+alloy-eips = { version = "2.4.2", default-features = false }
+alloy-genesis = { version = "2.4.2", default-features = false }
+alloy-json-rpc = { version = "2.4.2", default-features = false }
+alloy-network = { version = "2.4.2", default-features = false }
+alloy-network-primitives = { version = "2.4.2", default-features = false }
+alloy-node-bindings = { version = "2.4.2", default-features = false }
+alloy-provider = { version = "2.4.2", features = [
   "reqwest",
   "debug-api",
 ], default-features = false }
-alloy-pubsub = { version = "2.1.1", default-features = false }
-alloy-rpc-client = { version = "2.1.1", default-features = false }
-alloy-rpc-types = { version = "2.1.1", features = [
+alloy-pubsub = { version = "2.4.2", default-features = false }
+alloy-rpc-client = { version = "2.4.2", default-features = false }
+alloy-rpc-types = { version = "2.4.2", features = [
   "eth",
 ], default-features = false }
-alloy-rpc-types-admin = { version = "2.1.1", default-features = false }
-alloy-rpc-types-anvil = { version = "2.1.1", default-features = false }
-alloy-rpc-types-beacon = { version = "2.1.1", default-features = false }
-alloy-rpc-types-debug = { version = "2.1.1", default-features = false }
-alloy-rpc-types-engine = { version = "2.1.1", default-features = false }
-alloy-rpc-types-eth = { version = "2.1.1", default-features = false }
-alloy-rpc-types-mev = { version = "2.1.1", default-features = false }
-alloy-rpc-types-trace = { version = "2.1.1", default-features = false }
-alloy-rpc-types-txpool = { version = "2.1.1", default-features = false }
-alloy-serde = { version = "2.1.1", default-features = false }
-alloy-signer = { version = "2.1.1", default-features = false }
-alloy-signer-local = { version = "2.1.1", default-features = false }
-alloy-transport = { version = "2.1.1" }
-alloy-transport-http = { version = "2.1.1", features = [
+alloy-rpc-types-admin = { version = "2.4.2", default-features = false }
+alloy-rpc-types-anvil = { version = "2.4.2", default-features = false }
+alloy-rpc-types-beacon = { version = "2.4.2", default-features = false }
+alloy-rpc-types-debug = { version = "2.4.2", default-features = false }
+alloy-rpc-types-engine = { version = "2.4.2", default-features = false }
+alloy-rpc-types-eth = { version = "2.4.2", default-features = false }
+alloy-rpc-types-mev = { version = "2.4.2", default-features = false }
+alloy-rpc-types-trace = { version = "2.4.2", default-features = false }
+alloy-rpc-types-txpool = { version = "2.4.2", default-features = false }
+alloy-serde = { version = "2.4.2", default-features = false }
+alloy-signer = { version = "2.4.2", default-features = false }
+# sp1-sdk's dynamic_signer builder method uses alloy-signer 1.x, distinct from the workspace's 2.x.
+sp1-alloy-signer = { package = "alloy-signer", version = "1.0", default-features = false }
+alloy-signer-local = { version = "2.4.2", default-features = false }
+alloy-signer-gcp = { version = "2.4.2", default-features = false }
+alloy-transport = { version = "2.4.2" }
+alloy-transport-http = { version = "2.4.2", features = [
   "reqwest-rustls-tls",
 ], default-features = false }
-alloy-transport-ipc = { version = "2.1.1", default-features = false }
-alloy-transport-ws = { version = "2.1.1", default-features = false }
+alloy-transport-ipc = { version = "2.4.2", default-features = false }
+alloy-transport-ws = { version = "2.4.2", default-features = false }
 
 # ==================== OP-ALLOY (from crates.io) ====================
 op-alloy = { version = "2.0.0", path = "op-alloy/crates/op-alloy", default-features = false }
 op-alloy-flz = { version = "0.13.1", default-features = false }
 
 # ==================== SP1 ====================
-sp1-core-executor = { version = "6.8.0", default-features = false }
-sp1-sdk = { version = "6.8.0", default-features = false, features = [
+sp1-core-executor = { version = "6.10.0", default-features = false }
+sp1-sdk = { version = "6.10.0", default-features = false, features = [
   "network",
 ] }
-sp1-verifier = { version = "6.8.0", default-features = false, features = ["full"] }
+sp1-verifier = { version = "6.10.0", default-features = false, features = ["full"] }
+# spn-wallet talks to SPN through sp1-sdk's generated gRPC client, so these must stay on the
+# tonic/prost versions sp1-sdk compiles against.
+tonic = { version = "0.14.6", default-features = false }
+prost = { version = "0.14", default-features = false }
 
 # ==================== ASYNC ====================
 async-channel = "2.5"
@@ -541,16 +556,37 @@ jsonrpsee-types = "0.26.0"
 
 # ==================== CRYPTO ====================
 c-kzg = { version = "2.1.5", default-features = false }
-enr = { version = "0.13", default-features = false }
+enr = { version = "0.14", default-features = false, features = ["k256", "ed25519"] }
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
-kzg-rs = { version = "0.2.6", features = ["rkyv", "serde"] }
+kzg-rs = { version = "0.2.9", features = ["rkyv", "serde"] }
+# Pinned to kzg-rs's exact version. `experimental` is needed for EIP-2537 MAP_FP_TO_G1 / MAP_FP2_TO_G2.
+sp1_bls12_381 = { version = "=0.8.0-sp1-6.10.0", default-features = false, features = [
+  "groups",
+  "pairings",
+  "alloc",
+  "experimental",
+] }
 sha2 = { version = "0.10.9", default-features = false }
 secp256k1 = { version = "0.31.1", default-features = false }
 ark-ff = { version = "0.5.0", default-features = false }
-ark-bls12-381 = { version = "0.5.0", default-features = false }
+# `scalar_field` gates `Fr`, which kona-proof uses for blob point evaluation. Declare it
+# explicitly: it used to arrive via feature unification with revm-precompile, which has since
+# moved to ark-bls12-381 0.6.
+ark-bls12-381 = { version = "0.5.0", default-features = false, features = [
+  "scalar_field",
+] }
+# ark 0.6 (revm-precompile's EIP-2537 backend); used only to test kona-sp1's EIP-2537 precompiles.
+ark-bls12-381-0-6 = { package = "ark-bls12-381", version = "0.6.0", default-features = false, features = [
+  "curve",
+] }
+ark-ec-0-6 = { package = "ark-ec", version = "0.6.0", default-features = false }
+ark-ff-0-6 = { package = "ark-ff", version = "0.6.0", default-features = false }
+ark-serialize-0-6 = { package = "ark-serialize", version = "0.6.0", default-features = false }
 
 # ==================== SERIALIZATION ====================
 bincode = { version = "2.0.1", features = ["serde"] }
+# The SP1 SDK encodes uploaded stdin with bincode 1.
+bincode1 = { package = "bincode", version = "1.3.3" }
 ethereum_ssz = "0.10"
 ethereum_ssz_derive = "0.10"
 rkyv = "0.8.15"
@@ -590,7 +626,6 @@ opentelemetry_sdk = { version = "0.32.1", features = ["logs", "trace", "rt-tokio
 # ==================== TESTING ====================
 arbitrary = { version = "1.4.2", features = ["derive"] }
 arbtest = "0.3.2"
-assert_matches = "1.5.0"
 criterion = { package = "codspeed-criterion-compat", version = "2.10" }
 httpmock = "0.8.3"
 insta = "1.46"
@@ -619,14 +654,14 @@ lz4_flex = { version = "0.12", default-features = false }
 miniz_oxide = "0.9.0"
 snap = "1.1.1"
 tar-no-std = { version = "0.4.2", default-features = false }
-zstd = "0.13"
+zstd = "0.14"
 
 # ==================== NETWORKING ====================
-discv5 = "0.10.2"
+discv5 = "0.12.0"
 ipnet = "2.11.0"
-libp2p = { git = "https://github.com/libp2p/rust-libp2p", rev = "efc2bfc156b592838c7d469dab345714069619d6" }
-libp2p-stream = { git = "https://github.com/libp2p/rust-libp2p", rev = "efc2bfc156b592838c7d469dab345714069619d6" }
-libp2p-identity = "0.2.13"
+libp2p = "0.57.0"
+libp2p-stream = "0.5.0-alpha"
+libp2p-identity = "0.3.0"
 openssl = "0.10.75"
 
 # ==================== MISC ====================
@@ -696,11 +731,13 @@ reqwest = { version = "0.13.2", default-features = false, features = ["query"] }
 ringbuffer = "0.16.0"
 rustc-hash = { version = "2.1", default-features = false }
 rustls = { version = "0.23", default-features = false }
+rustls-platform-verifier = { version = "0.6.2", default-features = false }
 rustls-pemfile = { version = "2.2", default-features = false }
 schnellru = "0.2"
 shellexpand = "3.1.1"
 shlex = "1.3"
 smallvec = "1"
+socket2 = "0.6.5"
 spin = "0.10.0"
 strum = { version = "0.27", default-features = false }
 strum_macros = "0.27"

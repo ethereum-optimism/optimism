@@ -5,9 +5,9 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,7 +19,7 @@ func TestCheckNodeEndpointErrorCount_NoErrors(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointErrorCountMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointErrorCountMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrorCount(games)
@@ -40,7 +40,7 @@ func TestCheckNodeEndpointErrorCount_SingleGameWithErrors(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointErrorCountMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointErrorCountMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrorCount(games)
@@ -65,7 +65,7 @@ func TestCheckNodeEndpointErrorCount_MultipleGamesWithErrors(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointErrorCountMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointErrorCountMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrorCount(games)
@@ -95,7 +95,7 @@ func TestCheckNodeEndpointErrorCount_MixedGamesWithAndWithoutErrors(t *testing.T
 	}
 
 	metrics := &stubNodeEndpointErrorCountMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointErrorCountMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrorCount(games)
@@ -108,7 +108,7 @@ func TestCheckNodeEndpointErrorCount_EmptyGamesList(t *testing.T) {
 	games := []*types.CommonGameData{}
 
 	metrics := &stubNodeEndpointErrorCountMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointErrorCountMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrorCount(games)
@@ -133,7 +133,7 @@ func TestCheckNodeEndpointErrorCount_HighVolumeErrors(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointErrorCountMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointErrorCountMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrorCount(games)

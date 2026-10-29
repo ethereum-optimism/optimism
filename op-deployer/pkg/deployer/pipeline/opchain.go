@@ -215,12 +215,15 @@ func RecordOPChainDeployment(st *state.State, result OPChainDeploymentResult) er
 func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (state.ChainProofParams, error) {
 	return jsonutil.MergeJSON(
 		state.ChainProofParams{
-			DisputeGameType:         standard.DisputeGameType,
-			DisputeAbsolutePrestate: standard.DisputeAbsolutePrestate,
-			DisputeMaxGameDepth:     standard.DisputeMaxGameDepth,
-			DisputeSplitDepth:       standard.DisputeSplitDepth,
-			DisputeClockExtension:   standard.DisputeClockExtension,
-			DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
+			DisputeGameType:                 standard.DisputeGameType,
+			DisputeAbsolutePrestate:         standard.DisputeAbsolutePrestate,
+			DisputeMaxGameDepth:             standard.DisputeMaxGameDepth,
+			DisputeSplitDepth:               standard.DisputeSplitDepth,
+			DisputeClockExtension:           standard.DisputeClockExtension,
+			DisputeMaxClockDuration:         standard.DisputeMaxClockDuration,
+			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
+			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
 		},
 		intent.GlobalDeployOverrides,
 		chain.DeployOverrides,
@@ -269,11 +272,10 @@ type InitialDeployRequirements struct {
 	RequiresPrestate bool
 }
 
-// IsSuperGameType reports whether the given dispute game type is SUPER_CANNON_KONA.
-// SUPER_PERMISSIONED is deliberately excluded as it's a derived fallback and
-// can never appear here as a chain's resolved DisputeGameType.
+// IsSuperGameType reports whether the initial game uses a super root.
 func IsSuperGameType(gameType uint32) bool {
-	return embedded.GameType(gameType) == embedded.GameTypeSuperCannonKona
+	return embedded.GameType(gameType) == embedded.GameTypeSuperCannonKona ||
+		embedded.GameType(gameType) == embedded.GameTypeSuperPermissioned
 }
 
 // DeploymentUsesSuperRoots reports whether the starting anchors are SuperV1 roots over the
@@ -431,7 +433,7 @@ func BuildContinuationDCI(chainID common.Hash, st *state.State) (opcm.DeployOPCh
 	}
 
 	startingAnchorRoot := opcm.DefaultStartingAnchorProposal()
-	if requirements.Permissionless {
+	if requirements.Permissionless || chainState.StartingAnchorRoot != nil {
 		if chainState.StartingAnchorRoot == nil || chainState.StartingAnchorRoot.Root == (common.Hash{}) {
 			return opcm.DeployOPChainInput{}, fmt.Errorf(
 				"chain %s has no valid starting anchor proposal committed. Rerun the proposal-producing stage",
@@ -536,31 +538,34 @@ func BuildDeployOPChainInput(
 	}
 
 	return opcm.DeployOPChainInput{
-		OpChainProxyAdminOwner:       roles.L1ProxyAdminOwner,
-		SystemConfigOwner:            roles.SystemConfigOwner,
-		Batcher:                      roles.Batcher,
-		UnsafeBlockSigner:            roles.UnsafeBlockSigner,
-		Proposer:                     roles.Proposer,
-		Challenger:                   roles.Challenger,
-		BasefeeScalar:                standard.BasefeeScalar,
-		BlobBaseFeeScalar:            standard.BlobBaseFeeScalar,
-		L2ChainId:                    l2ChainID.Big(),
-		Opcm:                         opcmAddr,
-		SaltMixer:                    saltMixer,
-		GasLimit:                     gasLimit,
-		DisputeGameType:              proofParams.DisputeGameType,
-		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
-		StartingAnchorRoot:           startingAnchorRoot,
-		CannonAbsolutePrestate:       cannonAbsolutePrestate,
-		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
-		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
-		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)
-		DisputeMaxClockDuration:      proofParams.DisputeMaxClockDuration, // 3.5 days (input in seconds)
-		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
-		OperatorFeeScalar:            chain.OperatorFeeScalar,
-		OperatorFeeConstant:          chain.OperatorFeeConstant,
-		SuperchainConfig:             superchainConfig,
-		UseCustomGasToken:            chain.IsCustomGasTokenEnabled(),
+		OpChainProxyAdminOwner:          roles.L1ProxyAdminOwner,
+		SystemConfigOwner:               roles.SystemConfigOwner,
+		Batcher:                         roles.Batcher,
+		UnsafeBlockSigner:               roles.UnsafeBlockSigner,
+		Proposer:                        roles.Proposer,
+		Challenger:                      roles.Challenger,
+		BasefeeScalar:                   standard.BasefeeScalar,
+		BlobBaseFeeScalar:               standard.BlobBaseFeeScalar,
+		L2ChainId:                       l2ChainID.Big(),
+		Opcm:                            opcmAddr,
+		SaltMixer:                       saltMixer,
+		GasLimit:                        gasLimit,
+		DisputeGameType:                 proofParams.DisputeGameType,
+		DisputeAbsolutePrestate:         proofParams.DisputeAbsolutePrestate,
+		StartingAnchorRoot:              startingAnchorRoot,
+		CannonAbsolutePrestate:          cannonAbsolutePrestate,
+		DisputeMaxGameDepth:             new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
+		DisputeSplitDepth:               new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
+		DisputeClockExtension:           proofParams.DisputeClockExtension,   // 3 hours (input in seconds)
+		DisputeMaxClockDuration:         proofParams.DisputeMaxClockDuration, // 3.5 days (input in seconds)
+		AllowCustomDisputeParameters:    proofParams.DangerouslyAllowCustomDisputeParameters,
+		OperatorFeeScalar:               chain.OperatorFeeScalar,
+		OperatorFeeConstant:             chain.OperatorFeeConstant,
+		SuperchainConfig:                superchainConfig,
+		UseCustomGasToken:               chain.IsCustomGasTokenEnabled(),
+		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.ProofMaturityDelaySeconds),
+		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.DisputeGameFinalityDelaySeconds),
+		WithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
 	}
 }
 

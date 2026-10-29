@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/holiman/uint256"
-
-	elog "github.com/ethereum/go-ethereum/log"
 )
 
 const (
@@ -69,7 +67,7 @@ func builtinReplaceMs(_ []string, attr slog.Attr, logfmt bool) slog.Attr {
 		}
 	case slog.LevelKey:
 		if l, ok := attr.Value.Any().(slog.Level); ok {
-			attr = slog.Any("lvl", elog.LevelString(l))
+			attr = slog.Any("lvl", LevelString(l))
 			return attr
 		}
 	}

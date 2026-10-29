@@ -1,6 +1,6 @@
 # Go Service Development
 
-Guidance for AI agents working with Go code in the Optimism monorepo. See [dev-workflow.md](dev-workflow.md) for tool versions, PR workflow, and other cross-language guidance.
+Guidance for AI agents working with Go code in the Optimism monorepo. See [dev-workflow.md](dev-workflow.md) for shared code simplicity principles, tool versions, and PR workflow.
 
 ## Build System
 
@@ -14,16 +14,19 @@ just ./op-node/op-node
 just build-go
 ```
 
-### The `op-core/superchain` bundle
+### The embedded registry bundle (`op-core/superchain/bundle`)
 
-`op-core/superchain` `//go:embed`s `superchain-configs.zip`, which is **gitignored** (only
-its `.sha256` is committed). Any package that transitively imports it — op-node and several
-binaries, plus `op-e2e`, `op-acceptance-tests`, op-deployer, and the kona/op-reth Go
+`op-core/superchain/bundle` `//go:embed`s `superchain-configs.zip`, which is **gitignored**
+(only its `.sha256` is committed). Any package that transitively imports it — op-node and
+several binaries, plus `op-e2e`, `op-acceptance-tests`, op-deployer, and the kona/op-reth Go
 tests — won't compile until the bundle is built:
 
 ```
-op-core/superchain/chain.go:NN: pattern superchain-configs.zip: no matching files found
+op-core/superchain/bundle/bundle.go:NN: pattern superchain-configs.zip: no matching files found
 ```
+
+`op-core/superchain` itself embeds nothing: it holds the registry's config types and a loader
+for a bundle's bytes. Import `bundle` only for the registry built into the monorepo.
 
 The `just` targets handle this: `just build-go`, `just go-tests`, and `just lint-go` all
 depend on `build-superchain-go`, which builds the bundle from the superchain-registry
@@ -39,10 +42,10 @@ Because the zip is usually already on disk, a missing-bundle problem is invisibl
 and only surfaces in CI's clean checkout (see [ci-ops.md](ci-ops.md)).
 
 The set of packages allowed to reach the bundle is pinned by `TestBundleReachability`
-(`op-core/superchain/deps_test.go`): a new transitive edge into `op-core/superchain` from a
-package outside its `bundleAllowed` allowlist fails that test. Each allowlist entry is a
-package downstream Go modules cannot import, so extend the list only for genuine
-registry consumers.
+(`op-core/superchain/bundle/deps_test.go`): a new transitive edge into
+`op-core/superchain/bundle` from a package outside its `bundleAllowed` allowlist fails that
+test. Each allowlist entry is a package downstream Go modules cannot import, so extend the
+list only for genuine registry consumers.
 
 ### Running Tests
 
@@ -67,6 +70,14 @@ cd <service> && just generate-mocks
 
 ## Conventions
 
+Apply the [shared code simplicity principles](dev-workflow.md#code-simplicity-and-design) with
+these Go-specific conventions:
+
+- **Prefer concrete dependencies.** Introduce an interface when a real boundary requires it, rather
+  than wrapping a single implementation only to forward its methods. Keep `nil` where absence has
+  domain meaning; supply required dependencies at construction.
+- **Let packages provide naming context.** Prefer `derivation.Trusted` over
+  `derivation.TrustedDerivation`.
 - **OP type encodings**: a change to an OP type's wire format, hash rule, or codec accept-set has to agree with `rust/op-alloy` (the types op-reth and kona consume), not just op-geth — see [Cross-implementation parity](opgeth-decoupling.md#cross-implementation-parity).
 - **Pointers to values**: use `ptr.New(v)` from `github.com/ethereum-optimism/optimism/op-service/ptr` to take the address of a literal or expression — common for optional `*uint64` config fields like fork-activation times (`cfg.SomeTime = ptr.New(uint64(123))`). Don't define a local `ptr`/`ptrTo` helper; the shared one avoids per-package duplicates, and a local `func ptr` collides with importing the `ptr` package in the same package.
 
@@ -96,4 +107,11 @@ Run these checks before committing Go changes. Fix all issues — CI enforces ze
 2. **Test** — run tests for changed packages:
    ```bash
    cd <service> && just test
+   ```
+
+3. **op-geth ratchet** — if the change uses a go-ethereum API it didn't use before, check that
+   the API exists upstream, not only in op-geth (see
+   [opgeth-decoupling.md §19](opgeth-decoupling.md#19-ci-ratchet--continuously-rehearsing-the-cutover)):
+   ```bash
+   just opgeth-ratchet
    ```

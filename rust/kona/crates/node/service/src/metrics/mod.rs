@@ -5,6 +5,15 @@
 pub struct Metrics;
 
 impl Metrics {
+    /// Parsed server RPC calls and notifications, by registered method name and request kind.
+    pub const RPC_REQUESTS: &str = "kona_node_rpc_requests_total";
+
+    /// Failed server RPC calls, by registered method name and JSON-RPC error code.
+    pub const RPC_ERRORS: &str = "kona_node_rpc_errors_total";
+
+    /// Server RPC call duration in seconds, including failed calls.
+    pub const RPC_REQUEST_DURATION: &str = "kona_node_rpc_request_duration_seconds";
+
     /// Identifier for the counter that tracks the number of times the L1 has reorganized.
     pub const L1_REORG_COUNT: &str = "kona_node_l1_reorg_count";
 
@@ -16,6 +25,9 @@ impl Metrics {
 
     /// Identifier for the counter that tracks sequencer state flags.
     pub const SEQUENCER_STATE: &str = "kona_node_sequencer_state";
+
+    /// Engine API build rejections that can indicate a CL/EL configuration disagreement.
+    pub const SEQUENCER_BUILD_REJECTIONS: &str = "kona_node_sequencer_build_rejections_total";
 
     /// Gauge for the sequencer's attributes builder duration.
     pub const SEQUENCER_ATTRIBUTES_BUILDER_DURATION: &str =
@@ -42,15 +54,21 @@ impl Metrics {
     /// This does two things:
     /// * Describes various metrics.
     /// * Initializes metrics to 0 so they can be queried immediately.
-    #[cfg(feature = "metrics")]
     pub fn init() {
         Self::describe();
         Self::zero();
     }
 
     /// Describes metrics used in [`kona-node-service`][crate].
-    #[cfg(feature = "metrics")]
     pub fn describe() {
+        metrics::describe_counter!(Self::RPC_REQUESTS, "Parsed JSON-RPC calls and notifications");
+        metrics::describe_counter!(Self::RPC_ERRORS, "Failed JSON-RPC calls");
+        metrics::describe_histogram!(
+            Self::RPC_REQUEST_DURATION,
+            metrics::Unit::Seconds,
+            "JSON-RPC call duration, including failed calls"
+        );
+
         // L1 reorg count
         metrics::describe_counter!(Self::L1_REORG_COUNT, metrics::Unit::Count, "L1 reorg count");
 
@@ -65,6 +83,12 @@ impl Metrics {
 
         // Sequencer state
         metrics::describe_counter!(Self::SEQUENCER_STATE, "Tracks sequencer state flags");
+
+        metrics::describe_counter!(
+            Self::SEQUENCER_BUILD_REJECTIONS,
+            metrics::Unit::Count,
+            "Engine API build rejections that can indicate a CL/EL configuration disagreement"
+        );
 
         // Sequencer attributes builder duration
         metrics::describe_gauge!(
@@ -100,15 +124,15 @@ impl Metrics {
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
     /// metrics.
-    #[cfg(feature = "metrics")]
     pub fn zero() {
         // L1 reorg reset count
-        kona_macros::set!(counter, Self::L1_REORG_COUNT, 0);
+        metrics::counter!(Self::L1_REORG_COUNT).absolute(0);
 
         // Derivation critical error
-        kona_macros::set!(counter, Self::DERIVATION_CRITICAL_ERROR, 0);
+        metrics::counter!(Self::DERIVATION_CRITICAL_ERROR).absolute(0);
 
         // Sequencer: reset total transactions sequenced
-        kona_macros::set!(counter, Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED, 0);
+        metrics::counter!(Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED).absolute(0);
+        metrics::counter!(Self::SEQUENCER_BUILD_REJECTIONS).absolute(0);
     }
 }

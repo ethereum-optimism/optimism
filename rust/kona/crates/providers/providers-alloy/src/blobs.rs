@@ -56,7 +56,9 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
         let slot_interval = beacon_client
             .slot_interval()
             .await
-            .map(|r| r.data.seconds_per_slot)
+            .map_err(|e| BlobProviderError::Backend(e.to_string()))?
+            .data
+            .slot_duration_secs()
             .map_err(|e| BlobProviderError::Backend(e.to_string()))?;
         Ok(Self { beacon_client, genesis_time, slot_interval })
     }
@@ -204,7 +206,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{APIConfigResponse, APIGenesisResponse};
+    use crate::{APIConfigResponse, APIGenesisResponse, OnlineBeaconClient, SlotDurationError};
+    use httpmock::prelude::*;
+    use serde_json::json;
 
     use super::*;
 
@@ -233,6 +237,76 @@ mod tests {
         ) -> Result<Vec<BoxedBlob>, Self::Error> {
             unreachable!("initialization does not fetch blobs")
         }
+    }
+
+    async fn init_with_spec(
+        spec: serde_json::Value,
+    ) -> Result<OnlineBlobProvider<OnlineBeaconClient>, BlobProviderError> {
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(GET).path("/eth/v1/beacon/genesis");
+            then.status(200).json_body(json!({ "data": { "genesis_time": "10" } }));
+        });
+        server.mock(|when, then| {
+            when.method(GET).path("/eth/v1/config/spec");
+            then.status(200).json_body(json!({ "data": spec }));
+        });
+        OnlineBlobProvider::init(OnlineBeaconClient::new_http(server.base_url())).await
+    }
+
+    #[tokio::test]
+    async fn init_reads_slot_duration_ms() {
+        let provider = init_with_spec(json!({ "SLOT_DURATION_MS": "6000" })).await.unwrap();
+        assert_eq!(provider.slot_interval, 6);
+    }
+
+    #[tokio::test]
+    async fn init_reads_seconds_per_slot() {
+        let provider = init_with_spec(json!({ "SECONDS_PER_SLOT": "12" })).await.unwrap();
+        assert_eq!(provider.slot_interval, 12);
+    }
+
+    #[tokio::test]
+    async fn init_prefers_slot_duration_ms() {
+        let provider =
+            init_with_spec(json!({ "SECONDS_PER_SLOT": "12", "SLOT_DURATION_MS": "6000" }))
+                .await
+                .unwrap();
+        assert_eq!(provider.slot_interval, 6);
+    }
+
+    #[tokio::test]
+    async fn init_falls_back_on_zero_slot_duration_ms() {
+        let provider = init_with_spec(json!({ "SECONDS_PER_SLOT": "12", "SLOT_DURATION_MS": "0" }))
+            .await
+            .unwrap();
+        assert_eq!(provider.slot_interval, 12);
+    }
+
+    #[tokio::test]
+    async fn init_rejects_missing_slot_duration() {
+        for spec in [
+            json!({ "SLOTS_PER_EPOCH": "32" }),
+            json!({ "SECONDS_PER_SLOT": "0", "SLOT_DURATION_MS": "0" }),
+        ] {
+            let err = init_with_spec(spec).await.unwrap_err();
+            assert_eq!(
+                err,
+                BlobProviderError::Backend(SlotDurationError::Missing.to_string()),
+                "unexpected error: {err}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn init_rejects_sub_second_slot_duration_ms() {
+        let err = init_with_spec(json!({ "SECONDS_PER_SLOT": "1", "SLOT_DURATION_MS": "1500" }))
+            .await
+            .unwrap_err();
+        assert_eq!(
+            err,
+            BlobProviderError::Backend(SlotDurationError::NotWholeSeconds(1500).to_string())
+        );
     }
 
     #[tokio::test]

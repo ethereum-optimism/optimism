@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 
@@ -17,7 +16,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -59,8 +59,8 @@ func Main(version string) cliapp.LifecycleAction {
 			return nil, fmt.Errorf("invalid config: %w", err)
 		}
 
-		l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.LogConfig)
-		oplog.SetGlobalLogHandler(l.Handler())
+		l := logcli.NewLogger(logcli.AppOut(cliCtx), cfg.LogConfig)
+		logcli.SetGlobalLogHandler(l.Handler())
 		opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 
 		l.Info("Initializing op-interop-filter", "version", version)
@@ -159,10 +159,11 @@ func (s *Service) initMetricsServer(cfg *Config) error {
 
 func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 	// Calculate start timestamp once for all components.
+	// History up to startTimestamp is assumed valid; everything after it is cross-validated.
 	// Chain ingesters will start ingesting from (startTimestamp - backfillDuration)
 	// and report Ready() once they reach startTimestamp.
-	// Cross-validator initializes to startTimestamp and waits for chains to catch up.
-	startTimestamp := uint64(clock.SystemClock.Now().Unix())
+	// Cross-validator initializes to startTimestamp and validates every later timestamp.
+	startTimestamp := uint64(clock.SystemClock.Now().Add(-cfg.AssumeValidBefore).Unix())
 
 	chains := make(map[eth.ChainID]ChainIngester)
 

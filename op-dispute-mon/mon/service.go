@@ -13,7 +13,6 @@ import (
 	rpcclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
@@ -24,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -246,6 +246,9 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.faultEnrichers(bondEnricher),
 		extract.NewZKAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
 		bondEnricher,
+		func(addr common.Address) extract.GameFinalityChecker {
+			return contracts.NewAnchorStateRegistryContract(s.metrics, addr, s.l1Caller)
+		},
 	)
 	forecast := NewForecast(s.logger, s.metrics)
 	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl, s.honestActors)

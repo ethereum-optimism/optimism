@@ -14,9 +14,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 
 	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 )
 

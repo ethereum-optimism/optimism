@@ -2,11 +2,15 @@
 
 Use this method for every specification-driven area reviewer.
 Each area guide defines its scope, code mapping, domain checks, and run triggers.
+Each agent description states the reviewer scope, so that a selector can match a change to it.
+Select a reviewer when a change can alter behavior in its scope, wherever the changed code is.
+Mapped paths are strong signals, not a complete trigger list.
 
 ## Authority
 
 Use the current published OP Stack specification as the protocol source of truth.
 Resolve published pages to source files in the `ethereum-optimism/specs` repository.
+Before the review, make sure the specification source is the latest `origin/main` commit of `ethereum-optimism/specs`.
 Record the exact specification commit used by the review.
 
 Report each verified difference against that commit.
@@ -133,6 +137,7 @@ Reject a candidate when:
 - The path is test-only or outside the area boundary.
 - The difference changes only an internal name, and both implementations reject at the same stage.
 - The specification permits every observed outcome, and there is no cross-client divergence or consensus/safety impact. Otherwise, retain the candidate and apply the divergence/specification-gap reporting rules below.
+- The trigger needs an unsupported configuration, such as two L2 upgrades that activate at the same post-genesis timestamp. See [One upgrade per activation timestamp](../public-docs/op-stack/protocol/network-upgrades.mdx#one-upgrade-per-activation-timestamp).
 - The evidence does not prove an observable effect.
 
 Use focused tests or small reproductions when practical.

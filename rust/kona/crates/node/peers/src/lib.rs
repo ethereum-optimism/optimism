@@ -31,14 +31,15 @@ mod any;
 pub use any::{AnyNode, DialOptsError};
 
 mod boot;
-pub use boot::BootNode;
+pub use boot::{BootNode, BootNodeParseError};
 
 mod record;
 pub use record::{NodeRecord, NodeRecordParseError};
 
 mod utils;
 pub use utils::{
-    PeerIdConversionError, enr_to_multiaddr, local_id_to_p2p_id, peer_id_to_secp256k1_pubkey,
+    PeerIdConversionError, enr_to_multiaddr, local_id_to_p2p_id, peer_id_to_node_id,
+    peer_id_to_secp256k1_pubkey,
 };
 
 mod monitoring;

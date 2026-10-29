@@ -14,21 +14,16 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
 	"github.com/ethereum-optimism/optimism/op-service/tasks"
-)
-
-const (
-	proofsHistoryVersionV1      = "v1"
-	defaultProofsHistoryVersion = "v2"
 )
 
 // Config carries the op-e2e-level EL knobs that translate onto the op-reth CLI.
@@ -39,8 +34,6 @@ type Config struct {
 	// SequencerHTTP, when non-empty, wires op-reth to forward transactions to the
 	// sequencer via --rollup.sequencer-http (sentry tx-forwarding).
 	SequencerHTTP string
-	// ProofsHistoryVersion selects the proof-history storage version; defaults to v2.
-	ProofsHistoryVersion string
 	// DataDir is the base directory for the op-reth datadir/logs/proof-history.
 	// Callers should pass t.TempDir() so the test framework owns cleanup even if
 	// the test panics before Close.
@@ -101,14 +94,9 @@ func (i *Instance) Close() error {
 // InitL2 initializes the op-reth databases, starts the node, and waits for its
 // RPC endpoints. Set exactly one genesis source: genesis or cfg.GenesisJSONPath.
 // The caller must create cfg.DataDir with t.TempDir().
-func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Genesis, jwtPath string, cfg Config) (*Instance, error) {
+func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *opgenesis.Genesis, jwtPath string, cfg Config) (*Instance, error) {
 	if (genesis == nil) == (cfg.GenesisJSONPath == "") {
 		return nil, errors.New("set exactly one of genesis or GenesisJSONPath")
-	}
-
-	proofsVersion := cfg.ProofsHistoryVersion
-	if proofsVersion == "" {
-		proofsVersion = defaultProofsHistoryVersion
 	}
 
 	execPath, err := rustbin.Spec{
@@ -160,12 +148,6 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		"--datadir=" + dataDir,
 		"--chain=" + chainConfigPath,
 		"--proofs-history.storage-path=" + proofHistoryDir,
-		"--proofs-history.storage-version=" + proofsVersion,
-	}
-	// `proofs init` runs snapshot-accelerated backfill by default, which v1
-	// storage does not support, so opt out explicitly for v1 (mirrors sysgo).
-	if proofsVersion == proofsHistoryVersionV1 {
-		proofsInitArgs = append(proofsInitArgs, "--proofs-history.skip-backfill")
 	}
 	if err := runToCompletion(ctx, execPath, proofsInitArgs...); err != nil {
 		return nil, fmt.Errorf("op-reth proofs init: %w", err)
@@ -194,7 +176,6 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		"--proofs-history",
 		"--proofs-history.window=10000",
 		"--proofs-history.storage-path=" + proofHistoryDir,
-		"--proofs-history.storage-version=" + proofsVersion,
 		"--with-unused-ports",
 		"--ws",
 		"--ws.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner",

@@ -176,11 +176,6 @@
             "type": "address"
           },
           {
-            "internalType": "uint256",
-            "name": "withdrawalDelaySeconds",
-            "type": "uint256"
-          },
-          {
             "internalType": "contract ISuperchainConfig",
             "name": "superchainConfig",
             "type": "address"
@@ -394,11 +389,6 @@
             "internalType": "address",
             "name": "l1PAOMultisig",
             "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "withdrawalDelaySeconds",
-            "type": "uint256"
           },
           {
             "internalType": "contract ISuperchainConfig",

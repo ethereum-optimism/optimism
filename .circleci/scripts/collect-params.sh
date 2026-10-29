@@ -19,7 +19,7 @@ ROUTING="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/routing.yml"
 [ -f "${OUTPUT}" ] || echo '{}' > "${OUTPUT}"
 
 to_bool() {
-  case "${1}" in 1|true|True|TRUE) echo "true" ;; *) echo "false" ;; esac
+  case "${1}" in 1 | true | True | TRUE) echo "true" ;; *) echo "false" ;; esac
 }
 
 json=$(cat "${OUTPUT}")
@@ -41,11 +41,11 @@ case "${MODE}" in
     done < <(env | sort)
     ;;
 
-  detect|detect_all)
+  detect | detect_all)
     [[ "${MODE}" == "detect_all" ]] && section=".change_patterns.all" || section=".change_patterns.any"
 
-    CHANGED=$(git diff --name-only "origin/${BASE_REVISION}...HEAD" 2>/dev/null \
-      || git diff --name-only HEAD~1 HEAD || true)
+    CHANGED=$(git diff --name-only --no-renames "origin/${BASE_REVISION}...HEAD" 2> /dev/null \
+      || git diff --name-only --no-renames HEAD~1 HEAD || true)
     echo "=== Changed files ==="
     echo "${CHANGED:-<none>}"
     echo "====================="
@@ -53,18 +53,20 @@ case "${MODE}" in
     while IFS= read -r name; do
       [[ -n "${name}" ]] || continue
       pattern=$(yq -r "${section}.\"${name}\"" "${ROUTING}")
+      # Here-strings, not pipes: `grep -q` exits on the first hit, and under pipefail the
+      # writer's SIGPIPE would turn a large file list into a false result.
       if [ -z "${CHANGED}" ]; then
         result=false
       elif [[ "${MODE}" == "detect_all" ]]; then
         # True iff every changed file matches the pattern (i.e., no file fails to match).
-        if echo "${CHANGED}" | grep -qvE "${pattern}"; then
+        if grep -qvE "${pattern}" <<< "${CHANGED}"; then
           result=false
         else
           result=true
         fi
       else
         # detect: true iff at least one changed file matches the pattern.
-        if echo "${CHANGED}" | grep -qE "${pattern}"; then
+        if grep -qE "${pattern}" <<< "${CHANGED}"; then
           result=true
         else
           result=false

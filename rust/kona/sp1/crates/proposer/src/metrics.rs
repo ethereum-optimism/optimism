@@ -1,116 +1,134 @@
 //! Prometheus metrics for the proposer.
 
-use alloy_primitives::U256;
+use std::time::Duration;
+
+use alloy_primitives::{Address, U256};
+use alloy_rpc_types_eth::TransactionReceipt;
 use kona_sp1_host_utils::metrics::MetricsGauge;
-use metrics::{counter, describe_counter};
+use metrics::{counter, describe_counter, describe_gauge, gauge};
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter};
+
+use crate::{
+    proving::{PROOF_REQUEST_KINDS, PROOF_REQUEST_STATES, ProofRequestCounts},
+    tx_sender::PUBLISH_ERROR_REASONS,
+};
 
 /// All proposer metrics gauges.
 #[derive(Debug, Clone, Copy, Display, EnumIter, EnumMessage)]
 pub enum ProposerGauge {
     /// Whether the proposer process has started.
-    #[strum(
-        serialize = "kona_sp1_proposer_up",
-        message = "Whether the proposer process has started"
-    )]
+    #[strum(serialize = "op_zk_proposer_up", message = "Whether the proposer process has started")]
     Up,
     /// Signer balance in ETH; `NaN` when the balance cannot be read.
     #[strum(
-        serialize = "kona_sp1_proposer_signer_balance_eth",
+        serialize = "op_zk_proposer_signer_balance_eth",
         message = "Signer balance in ETH; NaN when unavailable"
     )]
     SignerBalanceEth,
+    /// Latest (mined) nonce of the L1 transaction signer; `NaN` when it cannot be read.
+    #[strum(
+        serialize = "op_zk_proposer_signer_nonce",
+        message = "Latest mined nonce of the L1 signer; NaN when unavailable"
+    )]
+    SignerNonce,
+    /// Pending nonce of the L1 transaction signer. Above `signer_nonce` while transactions wait
+    /// in the mempool; `NaN` when it cannot be read.
+    #[strum(
+        serialize = "op_zk_proposer_signer_pending_nonce",
+        message = "Pending nonce of the L1 signer, including mempool transactions; NaN when unavailable"
+    )]
+    SignerPendingNonce,
     /// Spendable prover-network balance in PROVE; absent in mock mode.
     #[strum(
-        serialize = "kona_sp1_proposer_prove_balance",
+        serialize = "op_zk_proposer_prove_balance",
         message = "Spendable prover-network balance in PROVE; NaN when unavailable"
     )]
     ProveBalance,
     /// Minimum defense deadline minus L1 time; positive infinity with no outstanding defense.
     #[strum(
-        serialize = "kona_sp1_proposer_defense_deadline_remaining_seconds",
+        serialize = "op_zk_proposer_defense_deadline_remaining_seconds",
         message = "Minimum outstanding defense time in seconds; +Inf with no defense, NaN when unavailable"
     )]
     DefenseDeadlineRemainingSeconds,
     // Proposer metrics
     /// Highest super-root timestamp proposable under the configured safety level.
     #[strum(
-        serialize = "kona_sp1_proposer_max_proposable_sequence_number",
+        serialize = "op_zk_proposer_max_proposable_sequence_number",
         message = "Highest super-root timestamp proposable under the configured safety level"
     )]
     MaxProposableSequenceNumber,
     /// Super-root timestamp of the latest game created by the proposer.
     #[strum(
-        serialize = "kona_sp1_proposer_latest_game_l2_sequence_number",
+        serialize = "op_zk_proposer_latest_game_l2_sequence_number",
         message = "Latest game L2 sequence number (super-root timestamp)"
     )]
     LatestGameL2SequenceNumber,
     /// Super-root timestamp of the current anchor game.
     #[strum(
-        serialize = "kona_sp1_proposer_anchor_game_l2_sequence_number",
+        serialize = "op_zk_proposer_anchor_game_l2_sequence_number",
         message = "Anchor game L2 sequence number (super-root timestamp)"
     )]
     AnchorGameL2SequenceNumber,
     /// Factory index of the canonical head game (-1 when cleared).
     #[strum(
-        serialize = "kona_sp1_proposer_canonical_head_game_index",
+        serialize = "op_zk_proposer_canonical_head_game_index",
         message = "Canonical head game index (-1 when cleared)"
     )]
     CanonicalHeadGameIndex,
     /// Factory index of the current anchor game (-1 when cleared).
     #[strum(
-        serialize = "kona_sp1_proposer_anchor_game_index",
+        serialize = "op_zk_proposer_anchor_game_index",
         message = "Anchor game index (-1 when cleared)"
     )]
     AnchorGameIndex,
     /// Total number of games created by the proposer.
     #[strum(
-        serialize = "kona_sp1_proposer_games_created",
+        serialize = "op_zk_proposer_games_created",
         message = "Total number of games created by the proposer"
     )]
     GamesCreated,
     /// Total number of games resolved by the proposer.
     #[strum(
-        serialize = "kona_sp1_proposer_games_resolved",
+        serialize = "op_zk_proposer_games_resolved",
         message = "Total number of games resolved by the proposer"
     )]
     GamesResolved,
     /// Total number of games whose bonds were claimed by the proposer.
     #[strum(
-        serialize = "kona_sp1_proposer_games_bonds_claimed",
+        serialize = "op_zk_proposer_games_bonds_claimed",
         message = "Total number of games that bonds were claimed by the proposer"
     )]
     GamesBondsClaimed,
     // Error metrics
     /// Total number of game creation errors encountered by the proposer.
     #[strum(
-        serialize = "kona_sp1_proposer_game_creation_error",
+        serialize = "op_zk_proposer_game_creation_error",
         message = "Total number of game creation errors encountered by the proposer"
     )]
     GameCreationError,
     /// Total number of game resolution errors encountered by the proposer.
     #[strum(
-        serialize = "kona_sp1_proposer_game_resolution_error",
+        serialize = "op_zk_proposer_game_resolution_error",
         message = "Total number of game resolution errors encountered by the proposer"
     )]
     GameResolutionError,
     /// Total number of bond claiming errors encountered by the proposer.
     #[strum(
-        serialize = "kona_sp1_proposer_bond_claiming_error",
+        serialize = "op_zk_proposer_bond_claiming_error",
         message = "Total number of bond claiming errors encountered by the proposer"
     )]
     BondClaimingError,
     /// Total number of metrics reporting errors encountered by the proposer.
     #[strum(
-        serialize = "kona_sp1_proposer_metrics_error",
+        serialize = "op_zk_proposer_metrics_error",
         message = "Total number of metrics errors encountered by the proposer"
     )]
     MetricsError,
     /// Total number of creation cycles skipped because the registered
     /// prestate is not in the known set.
     #[strum(
-        serialize = "kona_sp1_proposer_unknown_registered_prestate",
+        serialize = "op_zk_proposer_unknown_registered_prestate",
         message = "Total number of creation cycles skipped on an unknown registered prestate"
     )]
     UnknownRegisteredPrestate,
@@ -118,7 +136,7 @@ pub enum ProposerGauge {
     /// or validated, either during sync (game held as pending) or during a
     /// proving task (task fails and retries next cycle).
     #[strum(
-        serialize = "kona_sp1_proposer_super_root_unavailable",
+        serialize = "op_zk_proposer_super_root_unavailable",
         message = "Total number of times a game's super-root data was unavailable (sync or proving)"
     )]
     SuperRootUnavailable,
@@ -126,7 +144,7 @@ pub enum ProposerGauge {
     /// aborts the sync cycle; status-read failures are contained to the
     /// affected game.
     #[strum(
-        serialize = "kona_sp1_proposer_game_sync_error",
+        serialize = "op_zk_proposer_game_sync_error",
         message = "Total number of per-game sync failures"
     )]
     GameSyncError,
@@ -134,48 +152,55 @@ pub enum ProposerGauge {
     /// first complete walk). A flat value while the factory's latest index
     /// grows means discovery is stuck (see `game_sync_error`).
     #[strum(
-        serialize = "kona_sp1_proposer_sync_cursor",
+        serialize = "op_zk_proposer_sync_cursor",
         message = "Highest factory index processed by the sync walk (-1 when unset)"
     )]
     SyncCursor,
     /// Latest game index observed on the factory at the pinned block (-1
     /// when the factory has no games).
     #[strum(
-        serialize = "kona_sp1_proposer_factory_latest_game_index",
+        serialize = "op_zk_proposer_factory_latest_game_index",
         message = "Latest game index on the factory at the pinned block (-1 when empty)"
     )]
     FactoryLatestGameIndex,
     // Proving metrics (defense and fast finality)
     /// Total number of games proven by the proposer.
     #[strum(
-        serialize = "kona_sp1_proposer_games_proven",
+        serialize = "op_zk_proposer_games_proven",
         message = "Total number of games proven by the proposer"
     )]
     GamesProven,
     /// Total number of defense proving tasks spawned.
     #[strum(
-        serialize = "kona_sp1_proposer_games_defense_spawned",
+        serialize = "op_zk_proposer_games_defense_spawned",
         message = "Total number of defense proving tasks spawned"
     )]
     GamesDefenseSpawned,
     /// Total number of fast finality proving tasks spawned (games proven
-    /// while still unchallenged; see `KONA_SP1_PROPOSER_FAST_FINALITY_MODE`).
+    /// while still unchallenged; see `OP_ZK_PROPOSER_FAST_FINALITY_MODE`).
     #[strum(
-        serialize = "kona_sp1_proposer_games_fast_finality_spawned",
+        serialize = "op_zk_proposer_games_fast_finality_spawned",
         message = "Total number of fast finality proving tasks spawned"
     )]
     GamesFastFinalitySpawned,
     /// Duration of the most recent successful game proving run, in seconds.
     #[strum(
-        serialize = "kona_sp1_proposer_proving_duration_seconds",
+        serialize = "op_zk_proposer_proving_duration_seconds",
         message = "Duration of the most recent successful game proving run in seconds"
     )]
     ProvingDurationSeconds,
+    /// Duration of the most recent L1 send that got a receipt, from the start of the send
+    /// through confirmation, in seconds.
+    #[strum(
+        serialize = "op_zk_proposer_tx_send_duration_seconds",
+        message = "Duration of the most recent L1 send that reached the required confirmations, in seconds"
+    )]
+    TxSendDurationSeconds,
     /// Total number of times a proving deadline was observed approaching
     /// (within half of `maxProveDuration` for defense tasks, half of
     /// `maxChallengeDuration` for fast finality tasks).
     #[strum(
-        serialize = "kona_sp1_proposer_deadline_approaching",
+        serialize = "op_zk_proposer_deadline_approaching",
         message = "Total number of approaching-deadline observations"
     )]
     DeadlineApproaching,
@@ -183,55 +208,82 @@ pub enum ProposerGauge {
     // Retryable terminal outcomes may purchase replacement proofs.
     /// Total number of game proving task failures.
     #[strum(
-        serialize = "kona_sp1_proposer_game_proving_error",
+        serialize = "op_zk_proposer_game_proving_error",
         message = "Total number of game proving task failures"
     )]
     GameProvingError,
     /// Total number of proof polling attempts stopped after exceeding the
     /// overall proving timeout.
     #[strum(
-        serialize = "kona_sp1_proposer_proving_timeout_error",
+        serialize = "op_zk_proposer_proving_timeout_error",
         message = "Total number of proof polling attempts that exceeded the proving timeout"
     )]
     ProvingTimeoutError,
     /// Total number of proof requests cancelled because no prover picked
     /// them up within the auction timeout (mainnet only).
     #[strum(
-        serialize = "kona_sp1_proposer_auction_timeout_error",
+        serialize = "op_zk_proposer_auction_timeout_error",
         message = "Total number of proof requests cancelled on auction timeout"
     )]
     AuctionTimeoutError,
     /// Total number of proof requests that exceeded their server-side
     /// deadline.
     #[strum(
-        serialize = "kona_sp1_proposer_deadline_exceeded_error",
+        serialize = "op_zk_proposer_deadline_exceeded_error",
         message = "Total number of proof requests past their server-side deadline"
     )]
     DeadlineExceededError,
     /// Total number of SP1 network API calls that hit the per-call timeout.
     #[strum(
-        serialize = "kona_sp1_proposer_network_call_timeout",
+        serialize = "op_zk_proposer_network_call_timeout",
         message = "Total number of SP1 network API call timeouts"
     )]
     NetworkCallTimeout,
     /// Total number of challenged games skipped because their prestate is
     /// unknown (artifacts not loadable) or poisoned.
     #[strum(
-        serialize = "kona_sp1_proposer_unknown_prestate_challenged",
+        serialize = "op_zk_proposer_unknown_prestate_challenged",
         message = "Total number of challenged games with an unknown or poisoned prestate"
     )]
     UnknownPrestateChallenged,
-    /// Total number of prestates whose aggregation ELF failed verification
-    /// against the on-chain prestate hash during proving-key setup.
+    /// Total number of prestates that failed vkey verification (prestate
+    /// hash or pinned vkeys) during proving-key setup.
     #[strum(
-        serialize = "kona_sp1_proposer_prestate_vkey_mismatch",
+        serialize = "op_zk_proposer_prestate_vkey_mismatch",
         message = "Total number of prestates failing vkey verification"
     )]
     PrestateVkeyMismatch,
+    /// Total number of log-commitment batch proof requests submitted. Unlike
+    /// `proof_requests`, it keeps counting after a game's progress clears.
+    #[strum(
+        serialize = "op_zk_proposer_log_batches_submitted",
+        message = "Total number of log-commitment batch proof requests submitted"
+    )]
+    LogBatchesSubmitted,
+    /// Total number of log-commitment batch proofs that failed, each failing its game attempt.
+    #[strum(
+        serialize = "op_zk_proposer_log_batch_error",
+        message = "Total number of failed log-commitment batch proofs"
+    )]
+    LogBatchError,
+    /// Total number of proving spans halved because they exceeded a size, estimate or execution
+    /// limit.
+    #[strum(
+        serialize = "op_zk_proposer_span_bisections",
+        message = "Total number of proving spans bisected for exceeding a proving limit"
+    )]
+    SpanBisections,
+    /// Total number of single-timestamp range requests split by chain because they exceeded a
+    /// size or execution limit.
+    #[strum(
+        serialize = "op_zk_proposer_range_chain_splits",
+        message = "Total number of single-timestamp range requests split by chain for exceeding a proving limit"
+    )]
+    RangeChainSplits,
     /// Total number of games found permanently unprovable (claim data
     /// diverged or required L1 beyond the game's L1 head).
     #[strum(
-        serialize = "kona_sp1_proposer_game_unprovable",
+        serialize = "op_zk_proposer_game_unprovable",
         message = "Total number of permanently unprovable games"
     )]
     GameUnprovable,
@@ -239,7 +291,16 @@ pub enum ProposerGauge {
 
 impl MetricsGauge for ProposerGauge {}
 
-const DEADLINE_PASSED: &str = "kona_sp1_proposer_deadline_passed_total";
+const DEADLINE_PASSED: &str = "op_zk_proposer_deadline_passed_total";
+const PROOF_REQUESTS: &str = "op_zk_proposer_proof_requests";
+const SPN_REQUESTER: &str = "op_zk_proposer_spn_requester_info";
+const TX_SENDS: &str = "op_zk_proposer_tx_sends_total";
+const TX_PUBLISH_ERRORS: &str = "op_zk_proposer_tx_publish_errors_total";
+const TX_FEE_BUMPS: &str = "op_zk_proposer_tx_fee_bumps_total";
+const TX_FEES: &str = "op_zk_proposer_tx_fees_gwei_total";
+
+/// Outcomes of an L1 send: confirmed with status 1, confirmed with status 0, or no receipt.
+const TX_SEND_OUTCOMES: [&str; 3] = ["confirmed", "reverted", "failed"];
 
 /// Registers metrics after installing the recorder, without treating unread balances as zero.
 pub fn register_metrics(network: bool) {
@@ -248,6 +309,8 @@ pub fn register_metrics(network: bool) {
         let initial = match metric {
             ProposerGauge::ProveBalance if !network => continue,
             ProposerGauge::SignerBalanceEth |
+            ProposerGauge::SignerNonce |
+            ProposerGauge::SignerPendingNonce |
             ProposerGauge::ProveBalance |
             ProposerGauge::DefenseDeadlineRemainingSeconds => f64::NAN,
             _ => 0.0,
@@ -261,11 +324,74 @@ pub fn register_metrics(network: bool) {
     for window in ["defense", "fast_finality"] {
         counter!(DEADLINE_PASSED, "window" => window).increment(0);
     }
+    describe_gauge!(
+        PROOF_REQUESTS,
+        "SPN proof requests of games being proven, by request kind and state"
+    );
+    record_proof_requests(&ProofRequestCounts::new());
+    describe_counter!(TX_SENDS, "L1 sends by outcome: confirmed, reverted or failed (no receipt)");
+    for outcome in TX_SEND_OUTCOMES {
+        counter!(TX_SENDS, "outcome" => outcome).increment(0);
+    }
+    describe_counter!(
+        TX_PUBLISH_ERRORS,
+        "L1 publishes that returned an error or no answer, and fee bumps that failed, by reason; no_response may still have reached the pool"
+    );
+    for reason in PUBLISH_ERROR_REASONS {
+        counter!(TX_PUBLISH_ERRORS, "reason" => reason).increment(0);
+    }
+    describe_counter!(TX_FEE_BUMPS, "Fee-bumped replacement L1 transactions sent to the node");
+    counter!(TX_FEE_BUMPS).increment(0);
+    describe_counter!(
+        TX_FEES,
+        "L1 fees (gas_used * effective_gas_price) of confirmed or reverted sends, in whole gwei"
+    );
+    counter!(TX_FEES).increment(0);
+}
+
+/// Publishes the SPN requester address as a label so dashboards can link to its requests.
+pub fn record_spn_requester(requester: Address) {
+    describe_gauge!(SPN_REQUESTER, "SPN requester address the proposer signs proof requests as");
+    gauge!(SPN_REQUESTER, "address" => format!("{requester:#x}")).set(1.0);
+}
+
+/// Sets every kind and state series, so a state that empties reads 0 instead of its last value.
+pub(crate) fn record_proof_requests(counts: &ProofRequestCounts) {
+    for kind in PROOF_REQUEST_KINDS {
+        for state in PROOF_REQUEST_STATES {
+            let count = counts.get(&(kind, state)).copied().unwrap_or_default();
+            gauge!(PROOF_REQUESTS, "kind" => kind, "state" => state).set(count as f64);
+        }
+    }
 }
 
 pub(crate) fn record_deadline_passed(is_defense: bool) {
     let window = if is_defense { "defense" } else { "fast_finality" };
     counter!(DEADLINE_PASSED, "window" => window).increment(1);
+}
+
+/// Records the result of one L1 send. `elapsed` covers the whole send.
+pub(crate) fn record_tx_send(result: &anyhow::Result<TransactionReceipt>, elapsed: Duration) {
+    let Ok(receipt) = result else {
+        counter!(TX_SENDS, "outcome" => "failed").increment(1);
+        return;
+    };
+    let outcome = if receipt.status() { "confirmed" } else { "reverted" };
+    counter!(TX_SENDS, "outcome" => outcome).increment(1);
+    ProposerGauge::TxSendDurationSeconds.set(elapsed.as_secs_f64());
+    let fee_gwei = u128::from(receipt.gas_used) * receipt.effective_gas_price / 1_000_000_000;
+    counter!(TX_FEES).increment(u64::try_from(fee_gwei).unwrap_or(u64::MAX));
+}
+
+/// Counts a publish that returned an error or no answer, or a failed fee bump; `reason` is one
+/// of [`PUBLISH_ERROR_REASONS`].
+pub(crate) fn record_tx_publish_error(reason: &'static str) {
+    counter!(TX_PUBLISH_ERRORS, "reason" => reason).increment(1);
+}
+
+/// Counts a fee-bumped replacement that is about to be sent.
+pub(crate) fn record_tx_fee_bump() {
+    counter!(TX_FEE_BUMPS).increment(1);
 }
 
 /// Converts an 18-decimal ETH or PROVE balance to whole tokens.

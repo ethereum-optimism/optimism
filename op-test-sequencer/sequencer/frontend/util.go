@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
 
@@ -14,11 +15,11 @@ func toJsonError(err error) error {
 	if err == nil {
 		return nil
 	}
-	var x *rpc.JsonError
+	var x rpc.Error
 	if errors.As(err, &x) {
 		return x
 	}
-	return &rpc.JsonError{
+	return &jsonrpc.Error{
 		Code:    seqtypes.ErrUnknownKind.Code,
 		Message: err.Error(),
 	}

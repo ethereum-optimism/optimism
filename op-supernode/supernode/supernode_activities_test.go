@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	rpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -114,7 +114,7 @@ func TestRunnableActivityGating(t *testing.T) {
 func TestRPCActivityRegistration(t *testing.T) {
 	t.Parallel()
 	s := &Supernode{
-		log:        gethlog.New(),
+		log:        oplog.New(),
 		version:    "test",
 		activities: []activity.Activity{&rpcAct{}},
 	}

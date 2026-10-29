@@ -4,7 +4,7 @@ description: Understand how the CrossChainPingPong example contract uses the L2T
 diataxis: explanation
 ---
 
-<Info>OP Stack interop is in active development. Some features may be experimental.</Info>
+<Info>OP Stack interop goes live with the Lagoon hardfork.</Info>
 This page explains the design of the `CrossChainPingPong.sol` example contract and how it integrates the `L2ToL2CrossDomainMessenger` to make crosschain contract calls. For more info, view the [source code](https://github.com/ethereum-optimism/supersim/blob/main/contracts/src/pingpong/CrossChainPingPong.sol).
 
 ## High level overview
@@ -20,7 +20,7 @@ This page explains the design of the `CrossChainPingPong.sol` example contract a
 sequenceDiagram
     participant Chain1 as Chain 1
     participant Chain2 as Chain 2
-    
+
     Note over Chain1: 🚀 Game Starts (starting chain)
     Note over Chain1: 🏓 Hit Ball
     Chain1->>Chain2: 📤 Send PingPongBall {rallyCount: 1, lastHitter: Chain1}

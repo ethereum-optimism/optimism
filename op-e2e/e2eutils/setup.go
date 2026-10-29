@@ -13,17 +13,18 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/stretchr/testify/require"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 var testingJWTSecret = [32]byte{123}
@@ -88,7 +89,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 // SetupData bundles the L1, L2, rollup and deployment configuration data: everything for a full test setup.
 type SetupData struct {
 	L1Cfg         *core.Genesis
-	L2Cfg         *core.Genesis
+	L2Cfg         *opgenesis.Genesis
 	RollupCfg     *rollup.Config
 	DependencySet depset.DependencySet
 	ChainSpec     *rollup.ChainSpec
@@ -316,15 +317,28 @@ func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.System
 	return deployConfig.GenesisSystemConfig()
 }
 
+// Environment variables read by ApplyDeployConfigForks. Setting one to "true" activates that L2 fork
+// and every earlier one at genesis.
+const (
+	EnvUseDelta    = "OP_E2E_USE_DELTA"
+	EnvUseEcotone  = "OP_E2E_USE_ECOTONE"
+	EnvUseFjord    = "OP_E2E_USE_FJORD"
+	EnvUseGranite  = "OP_E2E_USE_GRANITE"
+	EnvUseHolocene = "OP_E2E_USE_HOLOCENE"
+	EnvUseIsthmus  = "OP_E2E_USE_ISTHMUS"
+	EnvUseJovian   = "OP_E2E_USE_JOVIAN"
+	EnvUseKarst    = "OP_E2E_USE_KARST"
+)
+
 func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
-	isKarst := os.Getenv("OP_E2E_USE_KARST") == "true"
-	isJovian := isKarst || os.Getenv("OP_E2E_USE_JOVIAN") == "true"
-	isIsthmus := isJovian || os.Getenv("OP_E2E_USE_ISTHMUS") == "true"
-	isHolocene := isIsthmus || os.Getenv("OP_E2E_USE_HOLOCENE") == "true"
-	isGranite := isHolocene || os.Getenv("OP_E2E_USE_GRANITE") == "true"
-	isFjord := isGranite || os.Getenv("OP_E2E_USE_FJORD") == "true"
-	isEcotone := isFjord || os.Getenv("OP_E2E_USE_ECOTONE") == "true"
-	isDelta := isEcotone || os.Getenv("OP_E2E_USE_DELTA") == "true"
+	isKarst := os.Getenv(EnvUseKarst) == "true"
+	isJovian := isKarst || os.Getenv(EnvUseJovian) == "true"
+	isIsthmus := isJovian || os.Getenv(EnvUseIsthmus) == "true"
+	isHolocene := isIsthmus || os.Getenv(EnvUseHolocene) == "true"
+	isGranite := isHolocene || os.Getenv(EnvUseGranite) == "true"
+	isFjord := isGranite || os.Getenv(EnvUseFjord) == "true"
+	isEcotone := isFjord || os.Getenv(EnvUseEcotone) == "true"
+	isDelta := isEcotone || os.Getenv(EnvUseDelta) == "true"
 	if isDelta {
 		deployConfig.L2GenesisDeltaTimeOffset = new(hexutil.Uint64)
 	}

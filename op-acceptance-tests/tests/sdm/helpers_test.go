@@ -45,6 +45,10 @@ func getReceiptGasUsed(t devtest.T, l2EL *dsl.L2ELNode, txHash common.Hash) uint
 }
 
 func assertFixtureBlockOracle(t devtest.T, sys *sdmtest.RethSystem, block *sdmpkg.RPCBlock, blockNum uint64) {
+	conformance, err := sdmpkg.ValidatePostExecConformance(t.Ctx(), sys.L2EL.Escape().L2EthClient().RPC(), blockNum)
+	t.Require().NoError(err, "shared check-lagoon SDM conformance checks must pass")
+	t.Require().Equal(block.Hash, conformance.Block.Hash, "shared conformance block hash must match fixture block")
+
 	postExecTx, postExecPos := sdmpkg.FindPostExecTransaction(block)
 	t.Require().NotNil(postExecTx, "fixture block must contain a post-exec tx")
 	t.Require().Equal(len(block.Transactions)-1, postExecPos, "fixture post-exec tx must be trailing")
@@ -133,6 +137,11 @@ func assertFixtureBlockOracle(t devtest.T, sys *sdmtest.RethSystem, block *sdmpk
 }
 
 func assertFixtureVerifierReceipts(t devtest.T, sys *sdmtest.RethSystem, block *sdmpkg.RPCBlock) {
+	producer, err := sdmpkg.ValidatePostExecConformance(t.Ctx(), sys.L2EL.Escape().L2EthClient().RPC(), uint64(block.Number))
+	t.Require().NoError(err, "producer conformance must pass before verifier comparison")
+	err = sdmpkg.ValidateVerifierAgreement(t.Ctx(), producer, sys.L2ELVerifier.Escape().L2EthClient().RPC())
+	t.Require().NoError(err, "shared check-lagoon producer/verifier agreement must pass")
+
 	verifierBlock := sdmtest.GetBlockWithTxs(t, sys.L2ELVerifier, uint64(block.Number))
 	t.Require().Equal(block.Hash, verifierBlock.Hash, "stock verifier fixture block hash must match")
 	t.Require().Len(verifierBlock.Transactions, len(block.Transactions),

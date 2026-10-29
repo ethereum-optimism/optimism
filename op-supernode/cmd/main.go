@@ -16,12 +16,12 @@ import (
 	opnodeflags "github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -31,7 +31,7 @@ var (
 )
 
 func main() {
-	oplog.SetupDefaults()
+	logcli.SetupDefaults()
 
 	// First parse the chains only args
 	// NOTE there is not yet any support for specifying
@@ -66,8 +66,8 @@ func main() {
 		}
 
 		// Create the logger for the app
-		l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.LogConfig)
-		oplog.SetGlobalLogHandler(l.Handler())
+		l := logcli.NewLogger(logcli.AppOut(cliCtx), cfg.LogConfig)
+		logcli.SetGlobalLogHandler(l.Handler())
 
 		// Validate the environment variables for the app
 		opservice.ValidateEnvVars(flags.EnvVarPrefix, dynamicFlags, l)

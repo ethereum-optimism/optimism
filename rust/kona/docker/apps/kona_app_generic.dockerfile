@@ -21,7 +21,7 @@ RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 instal
   libprotobuf-dev
 
 # Install rust
-ENV RUST_VERSION=1.95
+ENV RUST_VERSION=1.99.1
 RUN curl https://sh.rustup.rs -sSf --retry 5 --retry-all-errors --retry-delay 2 | bash -s -- -y --default-toolchain ${RUST_VERSION} --profile minimal
 ENV PATH="/root/.cargo/bin:${PATH}"
 
@@ -106,7 +106,7 @@ COPY --from=app-setup /workspace .
 
 # Only binaries that embed contract ABI snapshots select this builder variant.
 FROM builder-base AS builder-contract-abis
-# The kona-sp1-proposer contract bindings embed ABI snapshots using paths that
+# The op-zk-proposer contract bindings embed ABI snapshots using paths that
 # resolve from the rust workspace to the repository-level packages directory.
 COPY --from=contracts-bedrock-abis / /packages/contracts-bedrock/snapshots/abi
 

@@ -8,7 +8,7 @@ use alloy_primitives::{Address, Bytes};
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use op_revm::{
     OpSpecId,
-    precompiles::{fjord, granite, isthmus, jovian, karst},
+    precompiles::{fjord, granite, isthmus, jovian, karst, lagoon},
 };
 use revm::{
     context::{Cfg, ContextTr},
@@ -52,7 +52,8 @@ where
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => granite(),
             OpSpecId::ISTHMUS => isthmus(),
             OpSpecId::JOVIAN => jovian(),
-            OpSpecId::KARST | OpSpecId::LAGOON => karst(),
+            OpSpecId::KARST => karst(),
+            OpSpecId::LAGOON => lagoon(),
         };
 
         let accelerated_precompiles = match spec {
@@ -63,7 +64,8 @@ where
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => accelerated_granite::<H, O>(),
             OpSpecId::ISTHMUS => accelerated_isthmus::<H, O>(),
             OpSpecId::JOVIAN => accelerated_jovian::<H, O>(),
-            OpSpecId::KARST | OpSpecId::LAGOON => accelerated_karst::<H, O>(),
+            OpSpecId::KARST => accelerated_karst::<H, O>(),
+            OpSpecId::LAGOON => accelerated_lagoon::<H, O>(),
         };
 
         Self {
@@ -96,7 +98,7 @@ where
         true
     }
 
-    /// UPSTREAM-MIRROR(copy): revm-handler@41.0.0 `revm_handler::EthPrecompiles::run`
+    /// UPSTREAM-MIRROR(copy): revm-handler@43.0.2 `revm_handler::EthPrecompiles::run`
     ///
     /// FPVM acceleration replaces dispatch, while output conversion delegates to revm. Re-check
     /// input materialization, execution errors, and gas/reservoir propagation across both paths.
@@ -301,6 +303,36 @@ where
     base.push(AcceleratedPrecompile::new(
         bn254::pair::ADDRESS,
         super::bn128_pair::fpvm_bn128_pair_karst::<H, O>,
+    ));
+
+    base
+}
+
+/// The accelerated precompiles for the lagoon spec.
+fn accelerated_lagoon<H, O>() -> Vec<AcceleratedPrecompile<H, O>>
+where
+    H: HintWriterClient + Send + Sync,
+    O: PreimageOracleClient + Send + Sync,
+{
+    let mut base = accelerated_karst::<H, O>();
+
+    base.retain(|p| {
+        p.address != bls12_381_const::G1_MSM_ADDRESS &&
+            p.address != bls12_381_const::G2_MSM_ADDRESS &&
+            p.address != bls12_381_const::PAIRING_ADDRESS
+    });
+
+    base.push(AcceleratedPrecompile::new(
+        bls12_381_const::G1_MSM_ADDRESS,
+        super::bls12_g1_msm::fpvm_bls12_g1_msm_lagoon::<H, O>,
+    ));
+    base.push(AcceleratedPrecompile::new(
+        bls12_381_const::G2_MSM_ADDRESS,
+        super::bls12_g2_msm::fpvm_bls12_g2_msm_lagoon::<H, O>,
+    ));
+    base.push(AcceleratedPrecompile::new(
+        bls12_381_const::PAIRING_ADDRESS,
+        super::bls12_pair::fpvm_bls12_pairing_lagoon::<H, O>,
     ));
 
     base
@@ -683,8 +715,8 @@ mod test {
             "KARST should use karst() precompiles"
         );
         assert!(
-            core::ptr::eq(lagoon_provider.inner.precompiles, karst()),
-            "LAGOON should use karst() precompiles"
+            core::ptr::eq(lagoon_provider.inner.precompiles, lagoon()),
+            "LAGOON should use lagoon() precompiles"
         );
     }
 
@@ -713,6 +745,56 @@ mod test {
                 matches!(karst_res, Err(revm::precompile::PrecompileHalt::Bn254PairLength)),
                 "KARST should reject input > 57_600 bytes with Bn254PairLength"
             );
+        })
+        .await;
+    }
+
+    /// The accelerated BLS12-381 MSM and pairing precompiles at LAGOON accept inputs up to
+    /// op-revm's Lagoon limits and reject inputs one element above them, as op-reth does.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_lagoon_bls12_381_enforces_lagoon_limits() {
+        use crate::fpvm_evm::precompiles::test_utils::test_accelerated_precompile;
+        use op_revm::precompiles::bls12_381::{
+            LAGOON_G1_MSM_MAX_INPUT_SIZE, LAGOON_G2_MSM_MAX_INPUT_SIZE,
+            LAGOON_PAIRING_MAX_INPUT_SIZE,
+        };
+        use revm::precompile::bls12_381_const::{
+            G1_MSM_INPUT_LENGTH, G2_MSM_INPUT_LENGTH, PAIRING_INPUT_LENGTH,
+        };
+
+        test_accelerated_precompile(|hint_writer, oracle_reader| {
+            let lagoon_provider = OpFpvmPrecompiles::new_with_spec(
+                OpSpecId::LAGOON,
+                hint_writer.clone(),
+                oracle_reader.clone(),
+            );
+
+            for (address, max_input_size, element_len) in [
+                (bls12_381_const::G1_MSM_ADDRESS, LAGOON_G1_MSM_MAX_INPUT_SIZE, G1_MSM_INPUT_LENGTH),
+                (bls12_381_const::G2_MSM_ADDRESS, LAGOON_G2_MSM_MAX_INPUT_SIZE, G2_MSM_INPUT_LENGTH),
+                (
+                    bls12_381_const::PAIRING_ADDRESS,
+                    LAGOON_PAIRING_MAX_INPUT_SIZE,
+                    PAIRING_INPUT_LENGTH,
+                ),
+            ] {
+                let lagoon_fn = lagoon_provider
+                    .accelerated_precompiles
+                    .get(&address)
+                    .copied()
+                    .expect("LAGOON must accelerate the BLS12-381 MSM and pairing precompiles");
+
+                let at_limit = vec![0u8; max_input_size];
+                let res = lagoon_fn(&at_limit, u64::MAX, hint_writer, oracle_reader);
+                assert!(res.is_ok(), "{address}: input at the limit: {res:?}");
+
+                let over_limit = vec![0u8; max_input_size + element_len];
+                let res = lagoon_fn(&over_limit, u64::MAX, hint_writer, oracle_reader);
+                assert!(
+                    matches!(&res, Err(revm::precompile::PrecompileHalt::Other(msg)) if msg.contains("must be at most")),
+                    "{address}: input one element over the limit: {res:?}"
+                );
+            }
         })
         .await;
     }

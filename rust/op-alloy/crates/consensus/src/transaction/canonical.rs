@@ -7,11 +7,10 @@ use alloy_eips::{
 
 /// Decodes an EIP-2718 transaction and requires `bytes` to be its canonical encoding.
 ///
-/// Plain `decode_2718_exact` accepts inputs that re-encode differently, such as a typed
-/// transaction body without its type byte or a legacy transaction carrying a `0x00` tag. Where the
-/// bytes are consensus input they must be rejected rather than normalised, so anything that does
-/// not round-trip is an error. The re-encode is one linear pass per transaction, far cheaper than
-/// the signer recovery that follows it.
+/// Plain `decode_2718_exact` accepts inputs that re-encode differently, such as a legacy
+/// transaction carrying a `0x00` tag. Where the bytes are consensus input they must be rejected
+/// rather than normalised, so anything that does not round-trip is an error. The re-encode is one
+/// linear pass per transaction, far cheaper than the signer recovery that follows it.
 pub fn decode_2718_canonical<T: Decodable2718 + Encodable2718>(bytes: &[u8]) -> Eip2718Result<T> {
     let tx = T::decode_2718_exact(bytes)?;
     // Length first: it is free and skips the re-encode allocation on a mismatch.

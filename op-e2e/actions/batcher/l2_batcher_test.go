@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -78,7 +78,7 @@ func NormalBatcher(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	cl := seqEngine.EthClient()
 	n, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
 	require.NoError(t, err)
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 	tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
 		ChainID:   sd.L2Cfg.Config.ChainID,
 		Nonce:     n,
@@ -464,17 +464,17 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		}
 		sequencer.ActL1HeadSignal(t)
 		sequencer.ActL2StartBlock(t)
-		baseFee := engine.L2Chain().CurrentBlock().BaseFee // this will go quite high, since so many consecutive blocks are filled at capacity.
+		baseFee := engine.LatestHeader(t).BaseFee // this will go quite high, since so many consecutive blocks are filled at capacity.
 		// fill the block with large L2 txs from alice
 		for n := aliceNonce; ; n++ {
 			require.NoError(t, err)
-			signer := types.LatestSigner(sd.L2Cfg.Config)
+			signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 			data := make([]byte, 120_000) // very large L2 txs, as large as the tx-pool will accept
 			_, err := rng.Read(data[:])   // fill with random bytes, to make compression ineffective
 			require.NoError(t, err)
 			gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
 			require.NoError(t, err)
-			if gas > engine.EngineApi.RemainingBlockGas() {
+			if gas > engine.RemainingBlockGas(t) {
 				break
 			}
 			tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{

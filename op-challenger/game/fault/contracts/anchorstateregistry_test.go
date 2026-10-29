@@ -34,6 +34,21 @@ func TestAnchorStateRegistry_GetAnchorRoot(t *testing.T) {
 	require.Zerof(t, expectedSeq.Cmp(seq), "expected: %v actual: %v", expectedSeq, seq)
 }
 
+func TestAnchorStateRegistry_IsGameFinalized(t *testing.T) {
+	asrAddr := common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
+	gameAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
+	block := rpcblock.ByNumber(482)
+	for _, finalized := range []bool{true, false} {
+		stubRpc := batchingTest.NewAbiBasedRpc(t, asrAddr, snapshots.LoadAnchorStateRegistryABI())
+		asr := NewAnchorStateRegistryContract(contractMetrics.NoopContractMetrics, asrAddr, batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize))
+		stubRpc.SetResponse(asrAddr, methodIsGameFinalized, block, []interface{}{gameAddr}, []interface{}{finalized})
+
+		actual, err := asr.IsGameFinalized(context.Background(), block, gameAddr)
+		require.NoError(t, err)
+		require.Equal(t, finalized, actual)
+	}
+}
+
 func TestAnchorStateRegistry_SetAnchorStateTx(t *testing.T) {
 	asrAddr := common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
 	gameAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")

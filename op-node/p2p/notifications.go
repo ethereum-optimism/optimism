@@ -5,8 +5,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
-
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type NotificationsMetricer interface {

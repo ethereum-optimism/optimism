@@ -52,6 +52,8 @@ func TestStandardBinary_ForgeBins(t *testing.T) {
 }
 
 func TestStandardBinary_Downloads(t *testing.T) {
+	t.Setenv("PATH", "")
+
 	expChecksum, err := os.ReadFile("testdata/foundry.tgz.sha256")
 	require.NoError(t, err)
 

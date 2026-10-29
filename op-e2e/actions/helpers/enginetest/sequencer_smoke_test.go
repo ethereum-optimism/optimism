@@ -1,0 +1,109 @@
+package enginetest
+
+import (
+	"math/big"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+)
+
+// TestSequencerBuildsOnRethEngine runs the op-node sequencer from helpers.SetupSequencerTest against
+// the op-reth-test-engine. It drives the action-test block-building loop (ActL2StartBlock,
+// ActL2IncludeTx, ActL2EndBlock) and checks that the engine builds, seals, imports and advances L2
+// blocks, including one with a user transaction, reading the chain back through the engine's eth
+// client.
+func TestSequencerBuildsOnRethEngine(gt *testing.T) {
+	// Holocene keeps the fork surface simple: post-Cancun eip1559Params extraData, but no Isthmus
+	// withdrawals-root or requests-hash.
+	gt.Setenv(e2eutils.EnvUseHolocene, "true")
+
+	// SubTest (not NewDefaultTesting) avoids t.Parallel, which t.Setenv forbids.
+	t := helpers.SubTest(gt)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
+	logger := testlog.Logger(t, log.LevelInfo)
+
+	miner, engine, sequencer := helpers.SetupSequencerTest(t, sd, logger)
+	miner.ActL1SetFeeRecipient(common.Address{'A'})
+	sequencer.ActL2PipelineFull(t)
+
+	// Genesis is the starting head.
+	require.EqualValues(t, 0, bigs.Uint64Strict(engine.LatestHeader(t).Number))
+
+	// Two deposit-only (empty) blocks: the sequencer opens a payload (FCU-with-attrs), the engine
+	// seals it (getPayload), op-node imports it (newPayload) and advances the head (FCU).
+	sequencer.ActL2EmptyBlock(t)
+	sequencer.ActL2EmptyBlock(t)
+	require.EqualValues(t, 2, bigs.Uint64Strict(engine.LatestHeader(t).Number))
+
+	// A third block that includes a user transaction, exercising the parking buffer:
+	// EthClient().SendTransaction parks it; ActL2IncludeTx drains it via optest_includeNextTx.
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
+	cl := engine.EthClient()
+	nonce, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
+	require.NoError(t, err)
+	baseFee := engine.LatestHeader(t).BaseFee
+	tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
+		ChainID:   sd.L2Cfg.Config.ChainID,
+		Nonce:     nonce,
+		GasTipCap: big.NewInt(2 * params.GWei),
+		GasFeeCap: new(big.Int).Add(baseFee, big.NewInt(2*params.GWei)),
+		Gas:       params.TxGas,
+		To:        &dp.Addresses.Bob,
+		Value:     e2eutils.Ether(1),
+	})
+	bobBefore, err := cl.BalanceAt(t.Ctx(), dp.Addresses.Bob, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, cl.SendTransaction(t.Ctx(), tx))
+	sequencer.ActL2StartBlock(t)
+	engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+	sequencer.ActL2EndBlock(t)
+
+	head := engine.LatestHeader(t)
+	require.EqualValues(t, 3, bigs.Uint64Strict(head.Number))
+
+	// The user tx was executed: Alice's nonce advanced and Bob received the ether.
+	aliceNonce, err := cl.NonceAt(t.Ctx(), dp.Addresses.Alice, nil)
+	require.NoError(t, err)
+	require.EqualValues(t, nonce+1, aliceNonce, "Alice's tx was included")
+
+	bobAfter, err := cl.BalanceAt(t.Ctx(), dp.Addresses.Bob, nil)
+	require.NoError(t, err)
+	require.Equal(t, e2eutils.Ether(1), new(big.Int).Sub(bobAfter, bobBefore), "Bob received 1 ether")
+
+	// The sealed block carries the L1-info deposit plus Alice's transaction.
+	block, err := cl.BlockByNumber(t.Ctx(), head.Number)
+	require.NoError(t, err)
+	require.Len(t, block.Transactions(), 2, "L1-info deposit + Alice's user tx")
+	require.Equal(t, uint8(optypes.DepositTxType), block.Transactions()[0].Type(), "block leads with the L1-info deposit")
+
+	// op-node's real receipt fetcher validates the receipts-root by re-encoding the fetched
+	// receipts (the deposit's nonce/version and the user receipt) and comparing to the header, so it
+	// checks that the OP-enriched receipt RPC returns consensus-encodable receipts.
+	src := engine.SourceClient(t, 10)
+	info, receipts, err := src.FetchReceipts(t.Ctx(), head.Hash())
+	require.NoError(t, err, "FetchReceipts must validate the receipts-root against the header")
+	require.Equal(t, head.Hash(), info.Hash())
+	require.Len(t, receipts, 2)
+	require.Equal(t, uint8(optypes.DepositTxType), receipts[0].Type, "first receipt is the L1-info deposit")
+	require.Equal(t, types.ReceiptStatusSuccessful, receipts[1].Status, "Alice's tx succeeded")
+	require.EqualValues(t, params.TxGas, receipts[1].GasUsed, "Alice's transfer used the intrinsic gas")
+
+	// The direct eth_getTransactionReceipt path also returns Alice's receipt.
+	rcpt, err := cl.TransactionReceipt(t.Ctx(), tx.Hash())
+	require.NoError(t, err)
+	require.Equal(t, types.ReceiptStatusSuccessful, rcpt.Status)
+	require.Equal(t, head.Hash(), rcpt.BlockHash)
+}

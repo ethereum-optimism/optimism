@@ -7,8 +7,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
@@ -22,7 +22,6 @@ type Metricer interface {
 	RecordUp()
 
 	opmetrics.RefMetricer
-	opmetrics.RPCMetricer
 	txmetrics.TxMetricer
 
 	StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer
@@ -36,7 +35,6 @@ type Metrics struct {
 	factory  opmetrics.Factory
 
 	opmetrics.RefMetrics
-	opmetrics.RPCMetrics
 	txmetrics.TxMetrics
 
 	info  prometheus.GaugeVec
@@ -61,7 +59,6 @@ func NewMetrics(procName string) *Metrics {
 		factory:  factory,
 
 		RefMetrics: opmetrics.MakeRefMetrics(ns, factory),
-		RPCMetrics: opmetrics.MakeRPCMetrics(ns, factory),
 		TxMetrics:  txmetrics.MakeTxMetrics(ns, factory),
 
 		info: *factory.NewGaugeVec(prometheus.GaugeOpts{

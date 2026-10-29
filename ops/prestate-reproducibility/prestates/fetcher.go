@@ -25,21 +25,26 @@ func LoadReleases(overrideFile string) (*Prestates, error) {
 		}
 		data = d
 	} else {
-		d, err := fetchStandardPrestates()
+		d, err := FetchStandardPrestates()
 		if err != nil {
 			return nil, err
 		}
 		data = d
 	}
+	return ParseReleases(data)
+}
+
+// ParseReleases parses a standard-prestates TOML document.
+func ParseReleases(data []byte) (*Prestates, error) {
 	var standardPrestates Prestates
-	err := toml.Unmarshal(data, &standardPrestates)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse standard prestates from %v: %w", standardPrestatesUrl, err)
+	if err := toml.Unmarshal(data, &standardPrestates); err != nil {
+		return nil, fmt.Errorf("failed to parse standard prestates: %w", err)
 	}
 	return &standardPrestates, nil
 }
 
-func fetchStandardPrestates() ([]byte, error) {
+// FetchStandardPrestates downloads standard-prestates.toml from the superchain-registry main branch.
+func FetchStandardPrestates() ([]byte, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	return retry.Do(context.Background(), 3, retry.Fixed(2*time.Second), func() ([]byte, error) {
 		resp, err := client.Get(standardPrestatesUrl)

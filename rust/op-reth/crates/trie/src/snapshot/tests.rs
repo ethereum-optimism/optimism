@@ -1,7 +1,7 @@
 //! End-to-end tests for [`SnapshotInitJob`].
 //!
 //! Reuses chain-construction helpers from [`crate::backfill::tests`] to
-//! produce a real reth-side chain + initialized v2 proofs storage, then drives
+//! produce a real reth-side chain + initialized proofs storage, then drives
 //! the snapshot init job and asserts the resulting state.
 //!
 //! The job's own [`SnapshotInitJob::validate_state_root`] is the strongest
@@ -14,7 +14,7 @@
 
 use super::{SnapshotError, SnapshotInitJob};
 use crate::{
-    BackfillJob, InitializationJob, MdbxProofsStorageV2, OpProofsBackfillProvider,
+    BackfillJob, InitializationJob, MdbxProofsStorage, OpProofsBackfillProvider,
     OpProofsBackfillStore, OpProofsProviderRO, OpProofsSnapshotInitProvider,
     OpProofsSnapshotProviderRO, OpProofsStore, RethTrieStorageLayout, SnapshotInitStatus,
     test_utils::{
@@ -37,7 +37,7 @@ use std::sync::Arc;
 /// Count rows the history-aware `account_trie_cursor` would yield at
 /// `target_block` — i.e., the number of entries the snapshot job's
 /// `drain_account_trie` sees as input.
-fn count_source_account_trie(storage: &Arc<MdbxProofsStorageV2>, target_block: u64) -> usize {
+fn count_source_account_trie(storage: &Arc<MdbxProofsStorage>, target_block: u64) -> usize {
     let provider = storage.provider_ro().expect("ro");
     let mut cursor = provider.account_trie_cursor(target_block).expect("cursor");
     let mut n = 0usize;
@@ -51,7 +51,7 @@ fn count_source_account_trie(storage: &Arc<MdbxProofsStorageV2>, target_block: u
 
 /// Count rows in the destination `V2AccountsTrieSnapshot` table via the
 /// snapshot reader cursor.
-fn count_snapshot_account_trie(storage: &Arc<MdbxProofsStorageV2>) -> usize {
+fn count_snapshot_account_trie(storage: &Arc<MdbxProofsStorage>) -> usize {
     let sp = storage.snapshot_provider_ro().expect("ro");
     let mut cursor = sp.snapshot_account_trie_cursor().expect("cursor");
     let mut n = 0usize;
@@ -380,7 +380,7 @@ fn snapshot_init_resumes_from_partial_building_at_matching_anchor() {
     assert_eq!(post, target);
 }
 
-fn widen_window<F>(provider_factory: &F, storage: Arc<MdbxProofsStorageV2>, target_earliest: u64)
+fn widen_window<F>(provider_factory: &F, storage: Arc<MdbxProofsStorage>, target_earliest: u64)
 where
     F: DatabaseProviderFactory<
         Provider: reth_provider::DBProvider

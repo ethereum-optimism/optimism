@@ -51,6 +51,35 @@ func RequireNoTransitiveImportExcept(t testing.TB, pattern string, allowed []str
 		strings.Join(staleAllowed, "\n"))
 }
 
+// RequireNoTransitiveImportUnder asserts that no package matched by pattern
+// transitively imports a package at or under prefix, other than itself. With
+// the module path as prefix, it keeps a package a leaf of the module: free to
+// be imported by any other package without risking an import cycle.
+func RequireNoTransitiveImportUnder(t testing.TB, pattern, prefix string) {
+	t.Helper()
+	chains, err := findChainsUnder(pattern, prefix)
+	require.NoError(t, err)
+	require.Empty(t, chains, "forbidden transitive import(s):\n%s", strings.Join(chains, "\n"))
+}
+
+func findChainsUnder(pattern, prefix string) ([]string, error) {
+	roots, err := loadRoots(pattern)
+	if err != nil {
+		return nil, err
+	}
+	var chains []string
+	for _, root := range roots {
+		chain := firstForbiddenChain(root, func(path string) bool {
+			return path != root.PkgPath && (path == prefix || strings.HasPrefix(path, prefix+"/"))
+		})
+		if chain != "" {
+			chains = append(chains, chain)
+		}
+	}
+	sort.Strings(chains)
+	return chains, nil
+}
+
 // findForbiddenChainsExcept walks each matched root package separately, so a
 // package is judged on its own closure rather than one shared traversal.
 func findForbiddenChainsExcept(pattern string, allowed []string, forbidden ...string) (offenders, staleAllowed []string, err error) {
@@ -72,7 +101,10 @@ func findForbiddenChainsExcept(pattern string, allowed []string, forbidden ...st
 		}
 		seenRoot[root.PkgPath] = struct{}{}
 
-		chain := firstForbiddenChain(root, forbiddenSet)
+		chain := firstForbiddenChain(root, func(path string) bool {
+			_, ok := forbiddenSet[path]
+			return ok
+		})
 		if chain == "" {
 			continue
 		}
@@ -109,7 +141,7 @@ func matchAllowed(pkg string, allowed []string) (string, bool) {
 }
 
 // firstForbiddenChain returns an offending import chain rooted at root, or "".
-func firstForbiddenChain(root *packages.Package, forbidden map[string]struct{}) string {
+func firstForbiddenChain(root *packages.Package, isForbidden func(path string) bool) string {
 	seen := make(map[string]bool)
 	var found string
 	var walk func(p *packages.Package, trail []string)
@@ -119,7 +151,7 @@ func firstForbiddenChain(root *packages.Package, forbidden map[string]struct{}) 
 		}
 		seen[p.ID] = true
 		trail = append(trail, p.PkgPath)
-		if _, ok := forbidden[p.PkgPath]; ok {
+		if isForbidden(p.PkgPath) {
 			found = strings.Join(trail, " -> ")
 			return
 		}

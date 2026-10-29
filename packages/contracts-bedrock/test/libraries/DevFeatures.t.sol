@@ -17,7 +17,8 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
     bytes32 internal constant FEATURES_AB_INVERTED = ~FEATURES_AB;
     bytes32 internal constant EMPTY_FEATURES =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
-    bytes32 internal constant ALL_FEATURES = bytes32(0x1111111111111111111111111111111111111111111111111111111111111111);
+    bytes32 internal constant ALL_FEATURES =
+        bytes32(0x1111111111111111111111111111111111111111111111111111111111111111);
 
     /// @notice Tests that a single feature matches itself exactly.
     function test_isDevFeatureEnabled_singleFeatureExactMatch_succeeds() public pure {

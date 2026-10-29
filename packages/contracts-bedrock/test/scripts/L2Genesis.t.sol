@@ -11,15 +11,18 @@ import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
+import { IChainConfig } from "interfaces/L2/IChainConfig.sol";
 import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
 import { IBaseFeeVault } from "interfaces/L2/IBaseFeeVault.sol";
 import { IL1FeeVault } from "interfaces/L2/IL1FeeVault.sol";
@@ -76,11 +79,9 @@ abstract contract L2Genesis_TestInit is Test {
             assertEq(Predeploys.PROXY_ADMIN, EIP1967Helper.getAdmin(addr));
 
             // If it's not a supported predeploy, skip next checks.
-            if (
-                !Predeploys.isSupportedPredeploy(
+            if (!Predeploys.isSupportedPredeploy(
                     addr, uint256(LATEST_FORK), input.useCustomGasToken, input.useInterop, input.devFeatureBitmap
-                )
-            ) {
+                )) {
                 continue;
             }
 
@@ -294,7 +295,9 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             gasPayingTokenSymbol: "",
             nativeAssetLiquidityAmount: type(uint248).max,
             liquidityControllerOwner: address(0x000000000000000000000000000000000000000d),
-            devFeatureBitmap: bytes32(0)
+            devFeatureBitmap: bytes32(0),
+            l2ToL2MessageExpiryPeriod: 0,
+            settlementChainID: 0
         });
     }
 
@@ -319,6 +322,67 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     function testInterop() internal view {
         assertGt(Predeploys.CROSS_L2_INBOX.code.length, 0, "CrossL2Inbox must have code");
         assertGt(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER.code.length, 0, "L2ToL2CrossDomainMessenger must have code");
+    }
+
+    /// @notice Tests that genesis initializes the messenger with the production expiry period of
+    ///         8 days when the input sets none.
+    function test_run_defaultL2ToL2MessageExpiryPeriod_succeeds() external {
+        _setInputInteropEnabled();
+        genesis.run(input);
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), 691200);
+        assertEq(
+            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(),
+            Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
+        );
+    }
+
+    /// @notice Tests that genesis initializes the messenger with the expiry period the input sets.
+    function testFuzz_run_l2ToL2MessageExpiryPeriod_succeeds(uint256 _expiryPeriod) external {
+        _expiryPeriod = bound(_expiryPeriod, 1, 365 days);
+        _setInputInteropEnabled();
+        input.l2ToL2MessageExpiryPeriod = _expiryPeriod;
+        genesis.run(input);
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), _expiryPeriod);
+    }
+
+    /// @notice Tests that genesis refuses an expiry period above 365 days.
+    function testFuzz_run_l2ToL2MessageExpiryPeriodTooLong_reverts(uint256 _expiryPeriod) external {
+        _expiryPeriod = bound(_expiryPeriod, 365 days + 1, type(uint256).max);
+        _setInputInteropEnabled();
+        input.l2ToL2MessageExpiryPeriod = _expiryPeriod;
+        vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
+        genesis.run(input);
+    }
+
+    /// @notice Tests that genesis installs the ChainConfig predeploy with the settlement chain ID
+    ///         from the input when the OP_PRIVATE dev feature is on.
+    function testFuzz_run_opPrivateChainConfig_succeeds(uint256 _settlementChainId) external {
+        input.devFeatureBitmap |= DevFeatures.OP_PRIVATE;
+        input.settlementChainID = _settlementChainId;
+        genesis.run(input);
+        assertEq(IChainConfig(Predeploys.CHAIN_CONFIG).settlementChainId(), _settlementChainId, "settlement chain ID");
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.CHAIN_CONFIG),
+            Predeploys.predeployToCodeNamespace(Predeploys.CHAIN_CONFIG),
+            "implementation"
+        );
+    }
+
+    /// @notice Tests that genesis leaves the ChainConfig predeploy out when the OP_PRIVATE dev
+    ///         feature is off.
+    function test_run_opPrivateDisabledNoChainConfig_succeeds() external {
+        genesis.run(input);
+        assertEq(EIP1967Helper.getImplementation(Predeploys.CHAIN_CONFIG), address(0), "implementation");
+        assertEq(Predeploys.predeployToCodeNamespace(Predeploys.CHAIN_CONFIG).code.length, 0, "code");
+    }
+
+    /// @notice Tests that genesis refuses a settlement chain ID when the OP_PRIVATE dev feature is
+    ///         off, instead of ignoring it.
+    function testFuzz_run_settlementChainIdWithoutOpPrivate_reverts(uint256 _settlementChainId) external {
+        _settlementChainId = bound(_settlementChainId, 1, type(uint256).max);
+        input.settlementChainID = _settlementChainId;
+        vm.expectRevert("L2Genesis: settlement chain ID needs the OP_PRIVATE devFeature bit");
+        genesis.run(input);
     }
 
     /// @notice Tests that the run function succeeds when interop is enabled.
@@ -445,6 +509,15 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         input.useInterop = true;
         // devFeatureBitmap left at 0 — OPTIMISM_PORTAL_INTEROP bit not set
         vm.expectRevert("L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree");
+        genesis.run(input);
+    }
+
+    /// @notice Tests that run refuses a messenger expiry period override when interop is not active
+    ///         at genesis, where it would have no effect.
+    function testFuzz_run_l2ToL2MessageExpiryPeriodWithoutInterop_reverts(uint256 _period) external {
+        _period = bound(_period, 1, type(uint256).max);
+        input.l2ToL2MessageExpiryPeriod = _period;
+        vm.expectRevert("L2Genesis: expiry period override needs interop at genesis");
         genesis.run(input);
     }
 

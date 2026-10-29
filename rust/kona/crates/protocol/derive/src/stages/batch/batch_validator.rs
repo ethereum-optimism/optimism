@@ -239,14 +239,13 @@ where
         };
 
         // The batch must be a single batch - this stage does not support span batches.
-        let Batch::Single(mut next_batch) = next_batch else {
+        let Batch::Single(next_batch) = next_batch else {
             error!(
                 target: "batch_validator",
                 "BatchValidator received a batch that is not a SingleBatch"
             );
             return Err(PipelineError::InvalidBatchType.crit());
         };
-        next_batch.parent_hash = parent.block_info.hash;
 
         // Check the validity of the single batch before forwarding it.
         match next_batch.check_batch(
@@ -537,6 +536,52 @@ mod test {
         // Grab the next batch.
         let produced_batch = bv.next_batch(parent).await.unwrap();
         assert_eq!(batch, produced_batch);
+    }
+
+    #[tokio::test]
+    async fn test_batch_validator_next_batch_parent_hash_mismatch() {
+        let trace_store: TraceStorage = Default::default();
+        let layer = CollectingLayer::new(trace_store.clone());
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let cfg = Arc::new(RollupConfig {
+            hardforks: HardForkConfig { holocene_time: Some(0), ..Default::default() },
+            block_time: 2,
+            max_sequencer_drift: 700,
+            ..Default::default()
+        });
+        let batch = SingleBatch {
+            parent_hash: B256::repeat_byte(0xaa),
+            epoch_num: 2,
+            epoch_hash: B256::default(),
+            timestamp: 4,
+            transactions: Vec::new(),
+        };
+        let parent = L2BlockInfo {
+            l1_origin: BlockNumHash { number: 0, ..Default::default() },
+            block_info: BlockInfo {
+                hash: B256::repeat_byte(0xbb),
+                timestamp: 2,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let batch_vec = vec![PipelineResult::Ok(Batch::Single(batch))];
+        let mut mock = TestNextBatchProvider::new(batch_vec);
+        mock.origin = Some(BlockInfo { number: 1, ..Default::default() });
+        let mut bv = BatchValidator::new(cfg, mock);
+        bv.reset(BlockNumHash { number: 1, ..Default::default() }, SystemConfig::default())
+            .await
+            .unwrap();
+        bv.l1_blocks.push(BlockInfo { number: 1, ..Default::default() });
+
+        assert_eq!(bv.next_batch(parent).await.unwrap_err(), PipelineError::NotEnoughData.temp());
+        assert!(bv.prev.flushed);
+        let logs = trace_store.get_by_level(Level::WARN);
+        assert_eq!(logs.len(), 1);
+        assert!(logs[0].contains("parent hash does not match L2 safe head"));
     }
 
     #[tokio::test]

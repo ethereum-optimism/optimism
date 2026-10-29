@@ -30,6 +30,7 @@ alloy-signer-local.workspace = true
 op-alloy-rpc-types-engine.workspace = true
 
 # Misc
+backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
 tracing.workspace = true
 thiserror.workspace = true
 derive_more.workspace = true
@@ -38,13 +39,14 @@ derive_more.workspace = true
 url.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-rustls.workspace = true
-tokio = { workspace = true, features = ["full"] }
+rustls = { workspace = true, features = ["aws_lc_rs"] }
+rustls-platform-verifier.workspace = true
 notify.workspace = true
 
 [features]
 default = []
 
 [dev-dependencies]
-tokio.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+tempfile.workspace = true
 serde_json.workspace = true

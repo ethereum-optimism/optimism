@@ -50,6 +50,8 @@ pub struct PostExecPayload {
     /// payloads in different blocks produce distinct transaction hashes.
     pub block_number: u64,
     /// Initial SDM gas refund entries keyed by transaction index.
+    ///
+    /// Version 1 requires this list to be non-empty and ordered by strictly increasing index.
     pub gas_refund_entries: Vec<SDMGasEntry>,
 }
 
@@ -115,13 +117,70 @@ pub enum PostExecPayloadValidationError {
         /// Containing block number.
         block_number: u64,
     },
+    /// The payload has more refund entries than preceding block transactions they could target.
+    #[error(
+        "post-exec payload has at least {entry_count} gas refund entries but only {preceding_transaction_count} preceding transactions"
+    )]
+    TooManyGasRefundEntries {
+        /// Number of refund entries in the payload; a lower bound when the producer stopped
+        /// decoding at the first excess entry.
+        entry_count: usize,
+        /// Number of transactions preceding the final `PostExec` transaction.
+        preceding_transaction_count: usize,
+    },
+    /// The post-exec transaction's payload failed to decode or carried trailing bytes.
+    #[error("post-exec transaction at index {tx_index} carries a malformed payload")]
+    MalformedPostExecPayload {
+        /// Post-exec tx index.
+        tx_index: u64,
+    },
+    /// The post-exec payload names a version this node does not support.
+    #[error("post-exec payload version {version} is not supported")]
+    UnsupportedPostExecPayloadVersion {
+        /// Version byte carried by the payload.
+        version: u8,
+    },
 }
 
 impl PostExecPayloadValidationError {
+    /// Every label value [`Self::as_reason`] can return, one per variant, derived from
+    /// [`Self::as_reason`] itself so the strings cannot drift. Nothing checks this array is
+    /// complete — a new variant compiles without touching it; the reminder to extend it lives
+    /// on [`Self::as_reason`], the match a new variant cannot skip.
+    pub const ALL_REASONS: [&'static str; 7] = [
+        Self::UnexpectedPostExecTx { tx_index: 0 }.as_reason(),
+        Self::MultiplePostExecTxs { first_index: 0, duplicate_index: 0 }.as_reason(),
+        Self::PostExecTxNotLast { tx_index: 0, last_index: 0 }.as_reason(),
+        Self::BlockNumberMismatch { payload_block_number: 0, block_number: 0 }.as_reason(),
+        Self::TooManyGasRefundEntries { entry_count: 0, preceding_transaction_count: 0 }
+            .as_reason(),
+        Self::MalformedPostExecPayload { tx_index: 0 }.as_reason(),
+        Self::UnsupportedPostExecPayloadVersion { version: 0 }.as_reason(),
+    ];
+
     /// Returns this error as an owned string.
     #[must_use]
     pub fn into_string(self) -> String {
         self.to_string()
+    }
+
+    /// The failed rule as a stable label value, independent of the display text.
+    ///
+    /// Adding an arm here? Add the variant to [`Self::ALL_REASONS`] too — nothing else
+    /// enforces that the new reason gets registered at zero.
+    #[must_use]
+    pub const fn as_reason(self) -> &'static str {
+        match self {
+            Self::UnexpectedPostExecTx { .. } => "unexpected_post_exec_tx",
+            Self::MultiplePostExecTxs { .. } => "multiple_post_exec_txs",
+            Self::PostExecTxNotLast { .. } => "post_exec_tx_not_last",
+            Self::BlockNumberMismatch { .. } => "block_number_mismatch",
+            Self::TooManyGasRefundEntries { .. } => "too_many_gas_refund_entries",
+            Self::MalformedPostExecPayload { .. } => "malformed_post_exec_payload",
+            Self::UnsupportedPostExecPayloadVersion { .. } => {
+                "unsupported_post_exec_payload_version"
+            }
+        }
     }
 }
 
@@ -186,13 +245,99 @@ where
         });
     }
 
+    if let Some(parsed) = parsed
+        .as_ref()
+        .filter(|parsed| parsed.payload.gas_refund_entries.len() > parsed.tx_index as usize)
+    {
+        return Err(PostExecPayloadValidationError::TooManyGasRefundEntries {
+            entry_count: parsed.payload.gas_refund_entries.len(),
+            preceding_transaction_count: parsed.tx_index as usize,
+        });
+    }
+
     Ok(parsed)
+}
+
+/// Total SDM gas refunded by `entries`, saturating on overflow.
+pub fn total_gas_refund(entries: &[SDMGasEntry]) -> u64 {
+    entries.iter().map(|entry| entry.gas_refund).fold(0, u64::saturating_add)
+}
+
+/// Validate the placement and entry count of an encoded `PostExec` payload without allocating its
+/// entry vector.
+///
+/// This is a contextual preflight for raw block transaction lists. The full transaction count is
+/// known before individual envelopes are decoded, while a standalone `0x7D` decoder has no block
+/// context. At most one `PostExec` transaction may appear and it must be final. Every refund entry
+/// must target a distinct preceding transaction, so the final transaction's index is also the
+/// maximum valid entry count.
+pub fn validate_post_exec_entry_count(
+    transactions: &[Bytes],
+) -> Result<(), PostExecPayloadValidationError> {
+    let mut post_exec = None;
+
+    for (tx_index, encoded) in transactions.iter().enumerate() {
+        if encoded.first().copied() != Some(POST_EXEC_TX_TYPE_ID) {
+            continue;
+        }
+        if let Some((first_index, _)) = post_exec {
+            return Err(PostExecPayloadValidationError::MultiplePostExecTxs {
+                first_index: first_index as u64,
+                duplicate_index: tx_index as u64,
+            });
+        }
+        post_exec = Some((tx_index, encoded));
+    }
+
+    let Some((tx_index, encoded)) = post_exec else { return Ok(()) };
+    let last_index = transactions.len() - 1;
+    if tx_index != last_index {
+        return Err(PostExecPayloadValidationError::PostExecTxNotLast {
+            tx_index: tx_index as u64,
+            last_index: last_index as u64,
+        });
+    }
+
+    let malformed =
+        PostExecPayloadValidationError::MalformedPostExecPayload { tx_index: tx_index as u64 };
+    let mut encoded_payload = &encoded[1..];
+    let mut payload = Header::decode_bytes(&mut encoded_payload, true).map_err(|_| malformed)?;
+    let version = u8::decode(&mut payload).map_err(|_| malformed)?;
+    if version != POST_EXEC_PAYLOAD_VERSION {
+        return Err(PostExecPayloadValidationError::UnsupportedPostExecPayloadVersion { version });
+    }
+    let _block_number = u64::decode(&mut payload).map_err(|_| malformed)?;
+    let mut encoded_entries = Header::decode_bytes(&mut payload, true).map_err(|_| malformed)?;
+    let mut entry_count = 0usize;
+
+    while !encoded_entries.is_empty() {
+        if entry_count == tx_index {
+            // The remaining entries are not decoded, so this count is a lower bound.
+            return Err(PostExecPayloadValidationError::TooManyGasRefundEntries {
+                entry_count: entry_count + 1,
+                preceding_transaction_count: tx_index,
+            });
+        }
+        let _entry = SDMGasEntry::decode(&mut encoded_entries).map_err(|_| malformed)?;
+        entry_count += 1;
+    }
+
+    if !payload.is_empty() || !encoded_payload.is_empty() {
+        return Err(malformed);
+    }
+
+    Ok(())
 }
 
 impl PostExecPayload {
     /// Look up refund for a given tx index.
     pub fn gas_refund_for_idx(&self, index: u64) -> Option<u64> {
         self.gas_refund_entries.iter().find(|e| e.index == index).map(|e| e.gas_refund)
+    }
+
+    /// Total SDM gas refunded by this payload, saturating on overflow.
+    pub fn total_gas_refund(&self) -> u64 {
+        total_gas_refund(&self.gas_refund_entries)
     }
 
     /// RLP-encode the payload into bytes.

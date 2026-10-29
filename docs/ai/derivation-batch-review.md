@@ -60,7 +60,8 @@ At minimum, check Delta, Fjord, Holocene, and any later fork that changes transa
 
 ## When to run this reviewer
 
-Run this reviewer when a change touches any mapped path or its dependencies.
+Run this reviewer when a change can alter a behavior in the scope above.
+A change in a mapped path or its dependencies is a strong signal.
 Also run it for these changes:
 
 - A Kona client release that contains mapped changes.

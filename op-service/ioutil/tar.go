@@ -7,12 +7,19 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 )
 
+// Untar extracts tr into outDir, which must already exist. All writes go through an
+// os.Root, so they stay inside outDir even if an entry name gets past sanitizeTarPath.
 func Untar(outDir string, tr *tar.Reader) error {
+	root, err := os.OpenRoot(outDir)
+	if err != nil {
+		return fmt.Errorf("failed to open output directory: %w", err)
+	}
+	defer root.Close()
+
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
@@ -26,31 +33,29 @@ func Untar(outDir string, tr *tar.Reader) error {
 		if err != nil {
 			return fmt.Errorf("invalid file path %q: %w", hdr.Name, err)
 		}
-		dst := path.Join(outDir, cleanedName)
 
-		dirName := path.Dir(dst)
-		if err := os.MkdirAll(dirName, 0o755); err != nil {
+		if err := root.MkdirAll(filepath.Dir(cleanedName), 0o755); err != nil {
 			return fmt.Errorf("failed to create directory: %w", err)
 		}
 
 		if hdr.FileInfo().IsDir() {
-			if err := os.MkdirAll(dst, 0o755); err != nil {
+			if err := root.MkdirAll(cleanedName, 0o755); err != nil {
 				return fmt.Errorf("failed to create directory: %w", err)
 			}
-			if err := os.Chtimes(dst, hdr.AccessTime, hdr.ModTime); err != nil {
+			if err := root.Chtimes(cleanedName, hdr.AccessTime, hdr.ModTime); err != nil {
 				return fmt.Errorf("failed to set directory times: %w", err)
 			}
 			continue
 		}
 
-		if err := untarFile(dst, tr, hdr); err != nil {
+		if err := untarFile(root, cleanedName, tr, hdr); err != nil {
 			return fmt.Errorf("failed to untar file: %w", err)
 		}
 	}
 }
 
-func untarFile(dst string, tr *tar.Reader, hdr *tar.Header) error {
-	f, err := os.Create(dst)
+func untarFile(root *os.Root, name string, tr *tar.Reader, hdr *tar.Header) error {
+	f, err := root.Create(name)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
@@ -63,7 +68,7 @@ func untarFile(dst string, tr *tar.Reader, hdr *tar.Header) error {
 	if err := buf.Flush(); err != nil {
 		return fmt.Errorf("failed to flush buffer: %w", err)
 	}
-	if err := os.Chtimes(dst, hdr.AccessTime, hdr.ModTime); err != nil {
+	if err := root.Chtimes(name, hdr.AccessTime, hdr.ModTime); err != nil {
 		return fmt.Errorf("failed to set file times: %w", err)
 	}
 	return nil
@@ -71,29 +76,25 @@ func untarFile(dst string, tr *tar.Reader, hdr *tar.Header) error {
 
 // sanitizeTarPath ensures the path is safe to extract within the specified output directory.
 func sanitizeTarPath(tarPath, outDir string) (string, error) {
-	cleaned := filepath.Clean(tarPath)
+	absBase, err := filepath.Abs(outDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve base directory: %w", err)
+	}
 
+	cleaned := filepath.Clean(tarPath)
 	if filepath.IsAbs(cleaned) {
 		return "", errors.New("absolute paths are not allowed")
 	}
 
-	if strings.Contains(cleaned, "..") {
-		return "", errors.New("path traversal detected")
-	}
-
 	cleaned = strings.TrimLeft(cleaned, "/\\")
-
-	if strings.HasPrefix(cleaned, "..") {
-		return "", errors.New("path traversal detected")
-	}
-
-	fullPath := filepath.Join(outDir, cleaned)
-	relPath, err := filepath.Rel(outDir, fullPath)
+	destPath := filepath.Join(absBase, cleaned)
+	absDest, err := filepath.Abs(destPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to compute relative path: %w", err)
+		return "", fmt.Errorf("failed to resolve destination path: %w", err)
 	}
 
-	if strings.HasPrefix(relPath, "..") {
+	basePrefix := absBase + string(os.PathSeparator)
+	if !strings.HasPrefix(absDest, basePrefix) && absDest != absBase {
 		return "", errors.New("path traversal detected")
 	}
 

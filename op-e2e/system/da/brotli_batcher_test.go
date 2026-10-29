@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/stretchr/testify/require"
 
@@ -23,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 func setupAliceAccount(t *testing.T, cfg e2esys.SystemConfig, sys *e2esys.System, ethPrivKey *ecdsa.PrivateKey) {

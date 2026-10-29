@@ -1,6 +1,6 @@
 [package]
 name = "reth-optimism-payload-builder"
-version = "1.11.3"
+version = "2.0.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -28,7 +28,7 @@ reth-payload-validator.workspace = true
 reth-metrics.workspace = true
 
 # op-reth
-reth-optimism-evm.workspace = true
+reth-optimism-evm = { workspace = true, features = ["std"] }
 reth-optimism-forks.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["reth-codec"] }
 reth-optimism-txpool.workspace = true
@@ -45,6 +45,7 @@ alloy-rpc-types-engine.workspace = true
 alloy-rpc-types-debug.workspace = true
 alloy-consensus.workspace = true
 alloy-evm.workspace = true
+alloy-op-evm.workspace = true
 
 # misc
 derive_more.workspace = true
@@ -54,6 +55,10 @@ sha2.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
+alloy-rpc-types-eth.workspace = true
+metrics-exporter-prometheus.workspace = true
+metrics-util.workspace = true
+reth-node-metrics.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
-alloy-rpc-types-eth.workspace = true
+rstest.workspace = true

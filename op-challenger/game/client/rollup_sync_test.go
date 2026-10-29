@@ -70,6 +70,10 @@ func TestSyncStatusProvider(t *testing.T) {
 			validator := NewRollupSyncStatusValidator(provider)
 			err := validator.ValidateNodeSynced(context.Background(), test.gameL1Head)
 			require.ErrorIs(t, err, test.expected)
+			if errors.Is(test.expected, types.ErrNotInSync) {
+				require.ErrorContains(t, err, "rollup node (optimism_syncStatus)", "should identify which node is behind")
+				require.ErrorContains(t, err, "game L1 head 100")
+			}
 		})
 	}
 }

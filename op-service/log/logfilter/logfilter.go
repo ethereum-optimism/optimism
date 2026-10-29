@@ -47,14 +47,14 @@ Example usage:
 	// Apply to a handler
 	handler := logfilter.WrapFilterHandler(originalHandler)
 	handler.Set(filter)
-	logger := log.New(handler) // `log` references the go-ethereum log package
+	logger := log.NewLogger(handler) // `log` references op-service/log
 
 	logger.Info("general operation") // shown
 	logger.Debug("debug operation") // muted
 
 	ctx := context.Background()
 	ctx = logfilter.AddLogAttrToContext(ctx, "component", slog.String("database"))
-	databaseLogger := logger.SetContext(ctx)
+	databaseLogger := logger.WithContext(ctx)
 
 	databaseLogger.Info("database operation") // shown
 	databaseLogger.Debug("debug operation") // shown

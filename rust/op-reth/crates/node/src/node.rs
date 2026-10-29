@@ -3,14 +3,20 @@
 use crate::{
     OpEngineApiBuilder, OpEngineTypes,
     args::RollupArgs,
+    derived_payload_service::DerivedPayloadServiceBuilder,
     engine::OpEngineValidator,
+    payload_service::OpPayloadServiceBuilder,
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
 use alloy_primitives::Sealed;
-use op_alloy_consensus::{OpPooledTransaction, TxPostExec, interop::SafetyLevel};
+use eyre::ErrReport;
+use futures_util::FutureExt;
+use op_alloy_consensus::{OpPooledTransaction, OpTransaction, TxPostExec, interop::SafetyLevel};
 use reth_chainspec::{
     BaseFeeParams, ChainSpecProvider, EthChainSpec, EthereumHardforks, ForkCondition, Hardforks,
 };
+use reth_db::DatabaseEnv;
+use reth_db_api::database_metrics::DatabaseMetrics;
 use reth_evm::ConfigureEvm;
 use reth_network::{
     NetworkConfig, NetworkHandle, NetworkManager, NetworkPrimitives, PeersInfo,
@@ -21,10 +27,11 @@ use reth_node_api::{
     NodePrimitives, PayloadAttributesBuilder, PayloadTypes, PrimitivesTy, TxTy,
 };
 use reth_node_builder::{
-    BuilderContext, DebugNode, Node, NodeAdapter, NodeComponentsBuilder,
+    BuilderContext, DebugNode, Node, NodeAdapter, NodeBuilder, NodeComponentsBuilder,
+    WithLaunchContext,
     components::{
-        BasicPayloadServiceBuilder, ComponentsBuilder, ConsensusBuilder, ExecutorBuilder,
-        NetworkBuilder, PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides,
+        ComponentsBuilder, ConsensusBuilder, ExecutorBuilder, NetworkBuilder,
+        PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides,
     },
     node::{FullNodeTypes, NodeTypes},
     rpc::{
@@ -33,9 +40,11 @@ use reth_node_builder::{
         RethRpcMiddleware, RethRpcServerHandles, RpcAddOns, RpcContext, RpcHandle,
     },
 };
+use reth_node_core::args::RpcStateCacheArgs;
 use reth_optimism_chainspec::{OpChainSpec, OpHardfork};
 use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_evm::{ConfigurePostExecEvm, OpEvmConfig, OpRethReceiptBuilder};
+use reth_optimism_exex::OpProofsExEx;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpBuiltPayload, OpExecData, OpPayloadBuilderAttributes, OpPayloadPrimitives,
@@ -45,23 +54,34 @@ use reth_optimism_payload_builder::{
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
 use reth_optimism_rpc::{
     SequencerClient,
-    eth::{OpEthApiBuilder, ext::OpEthExtApi},
+    debug::{DebugApiExt, DebugApiOverrideServer},
+    eth::{
+        OpEthApiBuilder,
+        capabilities::{OpEthCapabilities, OpEthCapabilitiesApiServer},
+        ext::OpEthExtApi,
+        proofs::{EthApiExt, EthApiOverrideServer},
+    },
     historical::{HistoricalRpc, HistoricalRpcClient},
     miner::{MinerApiExtServer, OpMinerExtApi},
     witness::{DebugExecutionWitnessApiServer, OpDebugPostExecApiServer, OpDebugWitnessApi},
 };
 use reth_optimism_storage::OpStorage;
+use reth_optimism_trie::{OpProofsStorage, db::MdbxProofsStorage};
 use reth_optimism_txpool::{
     OpPool, OpPooledTx, interop::InteropFailsafe, interop_filter::InteropFilterClient,
 };
 use reth_primitives_traits::header::HeaderMut;
-use reth_provider::{CanonStateSubscriptions, providers::ProviderFactoryBuilder};
+use reth_provider::{
+    CanonStateSubscriptions, DatabaseProviderFactory, StorageSettingsCache,
+    providers::ProviderFactoryBuilder,
+};
 use reth_rpc_api::{
     DebugApiServer, EthConfigApiServer, L2EthApiExtServer,
     eth::{RpcTypes, helpers::config::EthConfigHandler},
 };
+use reth_rpc_builder::{TransportRpcModules, auth::AuthRpcModule};
 use reth_rpc_server_types::RethRpcModule;
-use reth_tracing::tracing::{debug, info};
+use reth_tracing::tracing::{debug, info, warn};
 use reth_transaction_pool::{
     CoinbaseTipOrdering, EthPoolTransaction, PoolPooledTx, PoolTransaction, TransactionOrdering,
     TransactionPool, TransactionValidationTaskExecutor, TransactionValidator,
@@ -69,6 +89,7 @@ use reth_transaction_pool::{
 };
 use reth_trie_common::KeccakKeyHasher;
 use std::{marker::PhantomData, sync::Arc};
+use tokio::time::sleep;
 use url::Url;
 
 use reth_optimism_payload_builder::OpPayloadAttrs;
@@ -191,7 +212,7 @@ where
 }
 
 /// Type configuration for a regular Optimism node.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct OpNode {
     /// Additional Optimism args
@@ -215,21 +236,32 @@ pub struct OpNode {
     pub interop_failsafe: InteropFailsafe,
 }
 
-/// A [`ComponentsBuilder`] with its generic arguments set to a stack of Optimism specific builders.
-pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBuilder<
+/// The component builder used by the stock node configuration.
+///
+/// A payload service builder that replaces the default must be wrapped in
+/// [`DerivedPayloadServiceBuilder`].
+pub type OpNodeComponentBuilder<
+    Node,
+    PayloadServiceBuilder = DerivedPayloadServiceBuilder<OpPayloadServiceBuilder>,
+> = ComponentsBuilder<
     Node,
     OpPoolBuilder,
-    BasicPayloadServiceBuilder<Payload>,
+    PayloadServiceBuilder,
     OpNetworkBuilder,
     OpExecutorBuilder,
     OpConsensusBuilder,
 >;
 
+impl Default for OpNode {
+    fn default() -> Self {
+        Self::new(RollupArgs::default())
+    }
+}
+
 impl OpNode {
     /// Creates a new instance of the Optimism node type.
     pub fn new(args: RollupArgs) -> Self {
-        let operator_sdm_opt_in = OperatorSdmOptIn::default();
-        operator_sdm_opt_in.set(args.operator_sdm_opt_in);
+        let operator_sdm_opt_in = OperatorSdmOptIn::configured(args.operator_sdm_opt_in);
         Self {
             args,
             da_config: OpDAConfig::default(),
@@ -291,13 +323,17 @@ impl OpNode {
     /// Returns the payload builder stock components install.
     ///
     /// Exposed so a wrapper node that replaces only the payload *service* still builds payloads
-    /// from the same configured builder.
+    /// from the same configured builder. That payload service must be wrapped in
+    /// [`DerivedPayloadServiceBuilder`].
     pub fn payload_builder(&self) -> OpPayloadBuilder {
         OpPayloadBuilder::new(self.args.compute_pending_block)
             .with_builder_config(self.builder_config())
     }
 
     /// Returns the components for the given [`RollupArgs`].
+    ///
+    /// The payload service is wrapped in [`DerivedPayloadServiceBuilder`], which a node that
+    /// assembles its own components must keep.
     pub fn components<Node>(&self) -> OpNodeComponentBuilder<Node>
     where
         Node: FullNodeTypes<Types: OpNodeTypes>,
@@ -307,7 +343,10 @@ impl OpNode {
             .node_types::<Node>()
             .executor(OpExecutorBuilder::default())
             .pool(self.standard_pool_builder())
-            .payload(BasicPayloadServiceBuilder::new(self.payload_builder()))
+            .payload(DerivedPayloadServiceBuilder::new(OpPayloadServiceBuilder::new(
+                self.payload_builder(),
+                self.args.testing_sdm_fixed_policy,
+            )))
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
     }
@@ -368,18 +407,115 @@ impl OpNode {
     }
 }
 
+/// Launches an OP node, optionally installing proof history, then waits for it to exit.
+///
+/// Fails if the engine config enables state masking, which op-reth does not support.
+pub async fn launch_node(
+    builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
+    node: OpNode,
+) -> eyre::Result<(), ErrReport> {
+    // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
+    // callers that build a `NodeConfig` without that CLI.
+    eyre::ensure!(
+        builder.config().engine.num_state_masking_blocks() == 0,
+        "--engine.num-state-masking-blocks must be 0 on op-reth: state masking is not supported"
+    );
+
+    let builder = if node.args.proofs_history {
+        // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
+        // [`ProofsHistoryStorageArgs::resolve_storage_path`].
+        let path = node.args.history.resolve_storage_path(builder.config().datadir().as_ref());
+        let window = node.args.proofs_history_window.window;
+        let verification_interval = node.args.proofs_history_verification_interval;
+
+        info!(target: "reth::cli", "Using on-disk storage for proofs history");
+        let mdbx = Arc::new(
+            MdbxProofsStorage::new(&path)
+                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+        );
+        if mdbx.holds_only_legacy_v1_data()? {
+            eyre::bail!(
+                "Proofs storage at {} only holds legacy v1 data. Delete the proofs storage \
+                 directory (or use a fresh --proofs-history.storage-path), then run \
+                 'op-reth proofs init --proofs-history.storage-path <PATH>'.",
+                path.display()
+            );
+        }
+        let storage: OpProofsStorage<Arc<MdbxProofsStorage>> = mdbx.clone().into();
+        let storage_exec = storage.clone();
+
+        builder
+            .node(node)
+            .on_node_started(move |node| {
+                let metrics_report_interval = node.config.metrics.push_gateway_interval;
+                node.task_executor.spawn_critical_task(
+                    "op-proofs-storage-metrics",
+                    async move {
+                        info!(
+                            target: "reth::cli",
+                            ?metrics_report_interval,
+                            "Starting op-proofs-storage metrics task"
+                        );
+
+                        loop {
+                            sleep(metrics_report_interval).await;
+                            mdbx.report_metrics();
+                        }
+                    },
+                );
+                Ok(())
+            })
+            .install_exex("proofs-history", async move |exex_context| {
+                Ok(OpProofsExEx::builder(exex_context, storage_exec)
+                    .with_proofs_history_window(window)
+                    .with_verification_interval(verification_interval)
+                    .build()
+                    .run()
+                    .boxed())
+            })
+            .extend_rpc_modules(move |ctx| {
+                info!(target: "reth::cli", "Installing proofs-history RPC overrides (eth_getProof, debug_executePayload)");
+                let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+                let auth_api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+                let debug_ext = DebugApiExt::new(
+                    ctx.node().provider().clone(),
+                    ctx.registry.eth_api().clone(),
+                    storage,
+                    ctx.node().task_executor().clone(),
+                    ctx.node().evm_config().clone(),
+                );
+                let eth_replaced = ctx.modules.replace_configured(api_ext.into_rpc())?;
+                let auth_eth_replaced =
+                    ctx.auth_module.replace_auth_methods(auth_api_ext.into_rpc())?;
+                let debug_replaced = ctx.modules.replace_configured(debug_ext.into_rpc())?;
+                info!(target: "reth::cli", eth_replaced, auth_eth_replaced, debug_replaced, "Proofs-history RPC overrides installed");
+                Ok(())
+            })
+    } else {
+        builder.node(node)
+    };
+
+    let handle = builder.launch_with_debug_capabilities().await?;
+    match handle.node.provider.database_provider_ro() {
+        Ok(provider) if !provider.cached_storage_settings().is_v2() => {
+            warn!(
+                target: "reth::cli",
+                "Storage V1 is deprecated and will be removed in January 2027. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
+            );
+        }
+        Ok(_) => {}
+        Err(err) => {
+            warn!(target: "reth::cli", %err, "Failed to check whether Storage V1 deprecation applies");
+        }
+    }
+    handle.node_exit_future.await
+}
+
 impl<N> Node<N> for OpNode
 where
     N: FullNodeTypes<Types: OpFullNodeTypes + OpNodeTypes>,
 {
-    type ComponentsBuilder = ComponentsBuilder<
-        N,
-        OpPoolBuilder,
-        BasicPayloadServiceBuilder<OpPayloadBuilder>,
-        OpNetworkBuilder,
-        OpExecutorBuilder,
-        OpConsensusBuilder,
-    >;
+    type ComponentsBuilder = OpNodeComponentBuilder<N>;
 
     type AddOns = OpAddOns<
         NodeAdapter<N, <Self::ComponentsBuilder as NodeComponentsBuilder<N>>::Components>,
@@ -667,6 +803,65 @@ where
     }
 }
 
+/// RPC methods an OP node does not serve, on any transport.
+///
+/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_eth_api::EthApi`
+///
+/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_api::DebugApi`
+///
+/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_api::EngineEthApi`
+///
+/// Upstream installs these methods as part of the full `eth` and `debug` APIs, and the auth-port
+/// `eth` namespace.
+/// `eth_getMultiProof` has no OP users and a proofs-history node could not answer it consistently
+/// from its pruned state window. The block access list methods are explicitly disabled because OP
+/// execution data does not carry EIP-7928 BALs and reconstruction has not been tested against
+/// OP-specific state transitions. Do not expose them until that behavior is tested; re-check this
+/// list whenever upstream changes the `EthApi`, `DebugApi` or `EngineEthApi` method set.
+const UNSERVED_RPC_METHODS: &[&str] = &[
+    "eth_getMultiProof",
+    "eth_getBlockAccessListByBlockHash",
+    "eth_getBlockAccessListByBlockNumber",
+    "eth_getBlockAccessList",
+    "eth_getBlockAccessListRaw",
+    "debug_getRawBlockAccessList",
+];
+
+/// Rejects the RPC cache options that compute EIP-7928 block access lists by re-executing blocks.
+///
+/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_node_core::args::RpcStateCacheArgs`
+///
+/// Upstream replays every new canonical block to compute its BAL with `--rpc-cache.prewarm-bals`
+/// until a block carries a `block_access_list_hash`, which OP blocks never do, and transaction
+/// tracing positions its replay state from computed BALs cached with
+/// `--rpc-cache.cache-computed-bals`. Both rely on the BAL reconstruction that
+/// [`UNSERVED_RPC_METHODS`] withholds, so an OP node refuses to start with either. The other
+/// block access list options only tune BAL handling that OP blocks never trigger.
+///
+/// op-reth's CLI already rejects every block access list option (`DENIED_ARGS` in
+/// `reth-optimism-cli`), and these two have no environment variable, so this check only fires for
+/// code that builds a `NodeConfig` without that CLI. Add new upstream BAL flags to `DENIED_ARGS`,
+/// and here too if they re-execute blocks or feed tracing.
+fn ensure_no_computed_bals(cache: &RpcStateCacheArgs) -> eyre::Result<()> {
+    eyre::ensure!(
+        cache.prewarm_bals.is_none(),
+        "--rpc-cache.prewarm-bals is not supported on OP chains: OP blocks carry no EIP-7928 block access lists"
+    );
+    eyre::ensure!(
+        !cache.cache_computed_bals,
+        "--rpc-cache.cache-computed-bals is not supported on OP chains: OP blocks carry no EIP-7928 block access lists"
+    );
+    Ok(())
+}
+
+/// Removes [`UNSERVED_RPC_METHODS`] from the http/ws/ipc modules and from the auth module.
+fn remove_unserved_rpc_methods(modules: &mut TransportRpcModules, auth_module: &mut AuthRpcModule) {
+    for &method in UNSERVED_RPC_METHODS {
+        modules.remove_method_from_configured(method);
+        auth_module.remove_auth_method(method);
+    }
+}
+
 impl<N, EthB, PVB, EB, EVB, RpcMiddleware> NodeAddOns<N>
     for OpAddOns<N, EthB, PVB, EB, EVB, RpcMiddleware>
 where
@@ -698,6 +893,8 @@ where
         self,
         ctx: reth_node_api::AddOnsContext<'_, N>,
     ) -> eyre::Result<Self::Handle> {
+        ensure_no_computed_bals(&ctx.config.rpc.rpc_state_cache)?;
+
         let Self {
             rpc_add_ons,
             da_config,
@@ -719,25 +916,23 @@ where
         let eth_config =
             EthConfigHandler::new(ctx.node.provider().clone(), ctx.node.evm_config().clone());
 
-        let maybe_pre_bedrock_historical_rpc = historical_rpc
-            .and_then(|historical_rpc| {
-                ctx.node
-                    .provider()
-                    .chain_spec()
-                    .op_fork_activation(OpHardfork::Bedrock)
-                    .block_number()
-                    .filter(|activation| *activation > 0)
-                    .map(|bedrock_block| (historical_rpc, bedrock_block))
-            })
-            .map(|(historical_rpc, bedrock_block)| -> eyre::Result<_> {
+        let bedrock_block = ctx
+            .node
+            .provider()
+            .chain_spec()
+            .op_fork_activation(OpHardfork::Bedrock)
+            .block_number()
+            .unwrap_or_default();
+
+        let maybe_pre_bedrock_historical_rpc = match historical_rpc {
+            Some(historical_rpc) if bedrock_block > 0 => {
                 info!(target: "reth::cli", %bedrock_block, ?historical_rpc, "Using historical RPC endpoint pre bedrock");
                 let provider = ctx.node.provider().clone();
                 let client = HistoricalRpcClient::new(&historical_rpc)?;
-                let layer = HistoricalRpc::new(provider, client, bedrock_block);
-                Ok(layer)
-            })
-            .transpose()?
-            ;
+                Some(HistoricalRpc::new(provider, client, bedrock_block))
+            }
+            _ => None,
+        };
 
         let rpc_add_ons = rpc_add_ons.option_layer_rpc_middleware(maybe_pre_bedrock_historical_rpc);
 
@@ -779,6 +974,11 @@ where
                     container;
 
                 modules.merge_if_module_configured(RethRpcModule::Eth, eth_config.into_rpc())?;
+                // replaces upstream's `eth_capabilities`
+                modules.add_or_replace_if_module_configured(
+                    RethRpcModule::Eth,
+                    OpEthCapabilities::new(registry.eth_api().clone(), bedrock_block).into_rpc(),
+                )?;
 
                 debug!(target: "reth::cli", "Installing debug payload witness rpc endpoint");
                 modules.merge_if_module_configured(
@@ -825,6 +1025,11 @@ where
                         tx_conditional_ext.into_rpc(),
                     )?;
                 }
+
+                // Runs before the `extend_rpc_modules` hooks, so a method an override there
+                // re-declares — see `reth_optimism_rpc::eth::proofs::EthApiOverride` — is put
+                // back and stays served.
+                remove_unserved_rpc_methods(modules, auth_module);
 
                 Ok(())
             })
@@ -1462,6 +1667,8 @@ where
 }
 
 /// A basic optimism payload service builder
+///
+/// A payload service built from it must be wrapped in [`DerivedPayloadServiceBuilder`].
 #[derive(Debug, Default, Clone)]
 pub struct OpPayloadBuilder<Txs = ()> {
     /// By default the pending block equals the latest block
@@ -1704,7 +1911,7 @@ where
     Node: FullNodeTypes<
         Types: NodeTypes<
             ChainSpec: OpHardforks,
-            Primitives: NodePrimitives<Receipt: DepositReceipt>,
+            Primitives: NodePrimitives<Receipt: DepositReceipt, SignedTx: OpTransaction>,
         >,
     >,
 {
@@ -1746,6 +1953,93 @@ pub type OpNetworkPrimitives = BasicNetworkPrimitives<OpPrimitives, OpPooledTran
 #[cfg(test)]
 mod tests {
     use super::*;
+    use jsonrpsee::{RpcModule, types::ErrorObjectOwned};
+    use reth_rpc_api::IntoEngineApiRpcModule;
+
+    /// Lets a plain [`RpcModule`] stand in for the engine API when building an [`AuthRpcModule`].
+    struct TestEngineModule(RpcModule<()>);
+
+    impl IntoEngineApiRpcModule for TestEngineModule {
+        fn into_rpc_module(self) -> RpcModule<()> {
+            self.0
+        }
+    }
+
+    fn module_serving_unserved_methods() -> RpcModule<()> {
+        let mut module = RpcModule::new(());
+        for &method in UNSERVED_RPC_METHODS {
+            module.register_method(method, |_, _, _| Ok::<_, ErrorObjectOwned>(())).unwrap();
+        }
+        module
+    }
+
+    /// The methods reach an OP node only because upstream installs them, so pin which ones the
+    /// node drops rather than only that the removal runs.
+    #[test]
+    fn eth_get_multi_proof_is_unserved() {
+        assert!(UNSERVED_RPC_METHODS.contains(&"eth_getMultiProof"));
+    }
+
+    #[test]
+    fn block_access_list_methods_are_unserved() {
+        for method in [
+            "eth_getBlockAccessListByBlockHash",
+            "eth_getBlockAccessListByBlockNumber",
+            "eth_getBlockAccessList",
+            "eth_getBlockAccessListRaw",
+            "debug_getRawBlockAccessList",
+        ] {
+            assert!(UNSERVED_RPC_METHODS.contains(&method), "{method} is served");
+        }
+    }
+
+    #[test]
+    fn computed_bal_cache_options_are_rejected() {
+        ensure_no_computed_bals(&RpcStateCacheArgs::default()).unwrap();
+
+        for prewarm_bals in [0, 64] {
+            let cache =
+                RpcStateCacheArgs { prewarm_bals: Some(prewarm_bals), ..Default::default() };
+            assert!(ensure_no_computed_bals(&cache).is_err(), "prewarm {prewarm_bals} accepted");
+        }
+
+        let cache = RpcStateCacheArgs { cache_computed_bals: true, ..Default::default() };
+        assert!(ensure_no_computed_bals(&cache).is_err());
+    }
+
+    #[test]
+    fn unserved_methods_are_removed_from_every_transport() {
+        let mut modules = TransportRpcModules::default()
+            .with_http(module_serving_unserved_methods())
+            .with_ws(module_serving_unserved_methods())
+            .with_ipc(module_serving_unserved_methods());
+        let mut auth_module =
+            AuthRpcModule::new(TestEngineModule(module_serving_unserved_methods()));
+
+        remove_unserved_rpc_methods(&mut modules, &mut auth_module);
+
+        for (transport, methods) in [
+            ("http", modules.http_methods(|_| true)),
+            ("ws", modules.ws_methods(|_| true)),
+            ("ipc", modules.ipc_methods(|_| true)),
+        ] {
+            let served = methods.expect("transport is configured");
+            for &method in UNSERVED_RPC_METHODS {
+                assert!(
+                    !served.method_names().any(|name| name == method),
+                    "{method} is still served over {transport}"
+                );
+            }
+        }
+
+        let auth_methods = auth_module.module_mut();
+        for &method in UNSERVED_RPC_METHODS {
+            assert!(
+                !auth_methods.method_names().any(|name| name == method),
+                "{method} is still served over the auth server"
+            );
+        }
+    }
 
     #[test]
     fn standard_pool_builder_forwards_base_config() {

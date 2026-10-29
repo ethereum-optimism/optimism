@@ -3,8 +3,9 @@ package consensus
 import (
 	"io"
 
-	"github.com/ethereum/go-ethereum/log"
 	hclog "github.com/hashicorp/go-hclog"
+
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type raftLogSink struct {

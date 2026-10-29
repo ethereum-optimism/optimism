@@ -8,7 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -59,7 +59,7 @@ type CLIConfig struct {
 
 	RPCConfig oprpc.CLIConfig
 
-	LogConfig oplog.CLIConfig
+	LogConfig logcli.CLIConfig
 
 	MetricsConfig opmetrics.CLIConfig
 
@@ -141,7 +141,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		TxMgrConfig:                  txmgr.ReadCLIConfig(ctx),
 		AllowNonFinalized:            ctx.Bool(flags.AllowNonFinalizedFlag.Name),
 		RPCConfig:                    oprpc.ReadCLIConfig(ctx),
-		LogConfig:                    oplog.ReadCLIConfig(ctx),
+		LogConfig:                    logcli.ReadCLIConfig(ctx),
 		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
 		DGFAddress:                   ctx.String(flags.DisputeGameFactoryAddressFlag.Name),

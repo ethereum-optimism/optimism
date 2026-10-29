@@ -10,6 +10,7 @@ import (
 	"time"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -23,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	nodesync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -30,10 +32,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -83,7 +83,7 @@ func bootPCDFromArtifacts(t *testing.T, cfg pcdBootConfig) pcdBootResult {
 
 	genesisData, err := os.ReadFile(cfg.genesisPath)
 	require.NoErrorf(t, err, "read committed genesis artifact %s", cfg.genesisPath)
-	var genesis core.Genesis
+	var genesis opgenesis.Genesis
 	require.NoErrorf(t, json.Unmarshal(genesisData, &genesis), "decode committed genesis artifact %s", cfg.genesisPath)
 	expectedGenesisHash := genesis.ToBlock().Hash()
 

@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/fsnotify/fsnotify"
 )
 

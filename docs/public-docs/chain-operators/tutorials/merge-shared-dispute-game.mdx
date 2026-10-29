@@ -12,7 +12,9 @@ import { SuperchainOpsPrereqs } from "/snippets/superchain-ops-prereqs.mdx"
 
 <Warning>This guide depends on the interop feature, which is still in development. Do not follow it on production chains.</Warning>
 
-This runbook walks you through merging two existing OP Stack chains into a shared dispute game by calling `OPContractsManagerMigrator.migrate` (`opcm.migrate`). After migration, both chains share a newly deployed `DisputeGameFactory`, `AnchorStateRegistry`, and `ETHLockbox`. New proposals are super-root claims defended on the shared factory; the per-chain dispute game factories are emptied of implementations and exist only to let still-in-flight games resolve so their bonds can be reclaimed.
+<Info>This guide requires `op-contracts/v9.0.0`, which ships in Upgrade 21. Upgrade 21 is pending Optimism Governance approval, and a chain can follow this guide only once the upgrade is executed on it.</Info>
+
+This runbook walks you through merging two existing OP Stack chains into a shared dispute game by calling `OPContractsManagerV2.migrate` (`opcm.migrate`). `OPContractsManagerV2.migrate` checks each chain's release and then delegates to `OPContractsManagerMigrator`, so most of the reverts listed below carry the `OPContractsManagerMigrator_` prefix. After migration, both chains share a newly deployed `DisputeGameFactory`, `AnchorStateRegistry`, and `ETHLockbox`. New proposals are super-root claims defended on the shared factory; the per-chain dispute game factories are emptied of implementations and exist only to let still-in-flight games resolve so their bonds can be reclaimed.
 
 By the end you will have one `op-proposer` proposing super-root claims to the shared factory against an `op-supernode` that derives both chains, one `op-challenger` defending super-root games on the shared factory, one `op-dispute-mon` watching it, and per-chain `op-challenger` and `op-dispute-mon` "drain" instances — each using that shared op-supernode's `/<chainID>/` endpoint — winding down the retired games on the old per-chain factories.
 
@@ -31,7 +33,8 @@ This runbook assumes:
 * Both chains run permissionless fault proofs with `SUPER_CANNON_KONA` (game type `9`) as the respected game type today.
 * The per-chain `op-proposer`, `op-challenger`, and `op-dispute-mon` instances stood up by the [single-chain super-roots upgrade](/chain-operators/tutorials/upgrade-chain-to-super-roots) are running for both chains. The per-chain challengers and monitors keep running through migration cutover and the subsequent drain window.
 * A separate `op-supernode` instance is in sync and derives **exactly `chainA` and `chainB`** (and no other chains) in the same process. This is the supernode the new shared `op-proposer`, `op-challenger`, and `op-dispute-mon` point at after migration; it must not double as a multi-chain supernode for any other chain or interop cluster.
-* Both chains have already been upgraded to a release that exposes `OPContractsManagerMigrator.migrate` and have `Features.ETH_LOCKBOX` enabled on their `SystemConfig`. `ETH_LOCKBOX` is turned on automatically by `OPContractsManagerV2.upgrade()`; that pre-upgrade is a prerequisite for this runbook. `Features.INTEROP` must still be **disabled** going in, `migrate()` enables it.
+* Both chains have already been upgraded to `op-contracts/v9.0.0` or later, which Upgrade 21 ships and which exposes `OPContractsManagerV2.migrate`, and have `Features.ETH_LOCKBOX` enabled on their `SystemConfig`. `ETH_LOCKBOX` is turned on automatically by `OPContractsManagerV2.upgrade()`; that pre-upgrade is a prerequisite for this runbook. `Features.INTEROP` must still be **disabled** going in, `migrate()` enables it.
+* The OPCM you call `migrate` on is the one that last upgraded each chain, or has the same major version and at least the same minor version as that OPCM. `migrate` reverts with `OPContractsManagerV2_InvalidUpgradeSequence` otherwise.
 
 ### Install Required Tooling
 
@@ -41,7 +44,7 @@ This runbook assumes:
 
 Collect everything below before you start. Replace `<chainA>` and `<chainB>` placeholders with the actual values for each chain. Anywhere this runbook says `<X>` it means a value you must capture.
 
-**Per-chain identity, addresses, and roles.** For each chain, open the entry under `superchain/configs/<network>/<chain-name>.toml` in `superchain-registry` and read `chain_id`, `addresses.SystemConfigProxy`, and `addresses.L1StandardBridgeProxy`. Pass those two proxies to [`op-fetcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-fetcher) to resolve the rest in a single L1 call, writing the JSON to a file you can reference later:
+**Per-chain identity, addresses, and roles.** For each chain, open the entry under `superchain/configs/<network>/<chain-name>.toml` in `superchain-registry` and read `chain_id`, `addresses.SystemConfigProxy`, and `addresses.L1StandardBridgeProxy`. Pass those two proxies to [`op-fetcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-fetcher) to resolve the rest from L1, writing the JSON to a file you can reference later:
 
 ```bash
 op-fetcher fetch \
@@ -73,7 +76,7 @@ The portal-derived lookups return the chain's current `DisputeGameFactory`, `Anc
 
 | Item | Source |
 | --- | --- |
-| `OPCM` address for the migrate-feature container | The same OPCM the chains ran for the prerequisite `OPCMv2.upgrade()`. This run is what enables `Features.ETH_LOCKBOX` on each `SystemConfig`. `Features.INTEROP` is not set by the upgrade; `migrate()` sets it. The container must have `OPTIMISM_PORTAL_INTEROP` set in `devFeatureBitmap`, which gates `migrate()` itself; without it `migrate()` reverts with `OPContractsManagerMigrator_InteropNotEnabled`. |
+| `OPCM` address | The same OPCM the chains ran for the prerequisite `OPCMv2.upgrade()`. This run is what enables `Features.ETH_LOCKBOX` on each `SystemConfig`. `Features.INTEROP` is not set by the upgrade; `migrate()` sets it. |
 | `SUPER_CANNON_KONA` absolute prestate hash | `validation/standard/standard-prestates.toml` in `superchain-registry`. Use the entry with `type="cannon64-kona-interop"` for the OPCM release version. |
 | Prestate artifact URL | The `cannon-kona-prestates-url` server, with the kona-interop prestate uploaded ahead of the migration. |
 | Shared `op-supernode` RPC URL | Your infrastructure team. The instance must derive **exactly `chainA` and `chainB`** (and no other chains). The shared `op-proposer`, `op-challenger`, and `op-dispute-mon` for the merged factory all point at this same instance. The per-chain services will be pointed to chain-specific endpoints under this URL. |
@@ -97,6 +100,17 @@ Run every check below. Each one corresponds to an invariant the migrator enforce
   # Expect: no output (identical).
   ```
 
+* **Confirm the same finality delay and `DelayedWETH` delay across both chains.** `migrate` reverts with `OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch` or `OPContractsManagerMigrator_WithdrawalDelayMismatch` otherwise.
+
+  ```bash
+  cast call <oldASR_chainA> 'disputeGameFinalityDelaySeconds()(uint256)' --rpc-url $L1_RPC
+  cast call <oldASR_chainB> 'disputeGameFinalityDelaySeconds()(uint256)' --rpc-url $L1_RPC
+  for SC in <SystemConfig_chainA> <SystemConfig_chainB>; do
+      cast call "$(cast call $SC 'delayedWETH()(address)' --rpc-url $L1_RPC)" 'delay()(uint256)' --rpc-url $L1_RPC
+  done
+  # Expect: the two finality delays match, and the two DelayedWETH delays match.
+  ```
+
 * **Confirm `Features.INTEROP` is disabled and `Features.ETH_LOCKBOX` is enabled on both chains.** `migrate()` is the only thing that sets `INTEROP` on L1, so a chain that already has it on is already in an interop set; `_validateChainSystemConfigs` reverts with `OPContractsManagerMigrator_ChainAlreadyMigrated` when INTEROP is already on, so **do not** enable `INTEROP` yourself via `SystemConfig.setFeature`, doing so permanently blocks the migration. `ETH_LOCKBOX` flips on automatically during the prerequisite `OPCMv2.upgrade()`; if either `ETH_LOCKBOX` check below returns `false`, run that prerequisite upgrade first. `Features` constants are short-string `bytes32` values, so feed them through `cast format-bytes32-string`.
 
   ```bash
@@ -107,6 +121,8 @@ Run every check below. Each one corresponds to an invariant the migrator enforce
   done
   # Expect: both INTEROP lines end in false, both ETH_LOCKBOX lines end in true.
   ```
+
+* **Clear any scoped pause before the prerequisite upgrade.** `OPCMv2.upgrade()` turns on `ETH_LOCKBOX`, and `SystemConfig.setFeature` refuses to do that while the portal is under a scoped pause. Enabling the lockbox moves the pause check from the portal's address to the lockbox's address, so without that guard the chain would come out of the upgrade unpaused. If either portal is paused, the Guardian has to unpause it first.
 
 * **Confirm neither chain runs in Custom Gas Token mode.** `_migratePortal` reverts with `OPContractsManagerMigrator_CustomGasTokenNotSupported` for any CGT chain.
 
@@ -213,22 +229,30 @@ Capture two values:
 * `super_root` (a `bytes32` hash from `.data.super_root`)—passed as `Proposal.root` in `startingAnchorRoot`.
 * `timestamp` (the uint64 you passed in)—passed as `Proposal.l2SequenceNumber`. For super games this field is the timestamp itself, not a block number.
 
+**Get a second person to recompute these values before anyone signs.** Nothing on-chain can tell a correct anchor from a wrong one. `migrate` only rejects a zero `startingAnchorRoot` or a zero `absolutePrestate`. A super root taken at the wrong timestamp passes both checks and becomes the starting point for every super-root game on both chains.
+
+Someone other than the task author should:
+
+* Ask a separately run `op-supernode` for the super root at the same `timestamp`. It must derive the same two chains.
+* Look up the `SUPER_CANNON_KONA` prestate in `standard-prestates.toml` for this OPCM release.
+* Compare both results with the values in the task's `config.toml`.
+
 ## Build the superchain-ops Task
 
-Author a new task directory under `superchain-ops/src/tasks/<network>/<NNN-name>/` using the `OPCMMigrateInterop` template, which wraps `OPContractsManagerMigrator.migrate(MigrateInput)` and runs `OPContractsManagerMigrationValidator` over the resulting state.
+Author a new task directory under `superchain-ops/src/tasks/<network>/<NNN-name>/` using the `OPCMMigrateInterop` template, which wraps `OPContractsManagerV2.migrate(MigrateInput)` and runs `OPContractsManagerMigrationValidator` over the resulting state.
 
 ### Configure config.toml
 
 ```toml
 l2chains = [
-    {name = "<chainA name>t stat", chainId = <chainA id>},
+    {name = "<chainA name>", chainId = <chainA id>},
     {name = "<chainB name>", chainId = <chainB id>},
 ]
 
 templateName = "OPCMMigrateInterop"
 
 [addresses]
-OPCM = "0x<OPCM address with OPTIMISM_PORTAL_INTEROP enabled>"
+OPCM = "0x<OPCM address>"
 
 # One stanza per chain, both required.
 [[migrateChains]]
@@ -275,6 +299,8 @@ Run the task in simulation mode against an L1 fork from inside the task director
 cd superchain-ops/src/tasks/<network>/<NNN-name>
 just simulate
 ```
+
+The validator only proves that the result matches the expectations. Take each chain's legacy addresses from the pre-migration `op-fetcher` files you saved in [Gather the Required Inputs](#gather-the-required-inputs). Take the expected shared `DelayedWETH` from chain A's `SystemConfig.delayedWETH()` before migrating. The shared lockbox, factory, and `AnchorStateRegistry` are deployed with CREATE2 using a salt that includes the execution block's timestamp, so compute their addresses from those inputs rather than reading them from the portals after the simulated migration. If you read them back instead, the validator compares the result with itself and always passes.
 
 The validator behind `OPContractsManagerMigrationValidator` returns a comma-separated string of error codes when something is structurally wrong. The default expectation is no errors—`expectedValidationErrors = ""` and a clean simulation. The codes you may see fall into the families below. Resolve every code rather than copy-pasting it into `expectedValidationErrors`; a code added to that field must have an inline TOML comment explaining why it is structurally expected for this migration.
 
@@ -487,7 +513,7 @@ Run these checks once the new proposer is stable.
 * **Confirm the shared `op-challenger` is defending super-root games.** The challenger does not break metrics down by game type, so verify by way of the startup log (every configured trace type, including `super-cannon-kona` and `super-permissioned`, must be listed as registered) and by ongoing logs (no scheduler or game-poll errors as super games appear on the shared factory). The aggregate `op_challenger_tracked_games{status="in_progress"}` becomes non-zero as super games are created and remains non-zero while games are in progress.
 * **Confirm the shared `op-dispute-mon` reports super-root games.** On the shared instance, `op_dispute_mon_games{game_type="super-cannon-kona"}` and `op_dispute_mon_games{game_type="super-permissioned"}` are non-zero once games are created. `op_dispute_mon_failed_games` stays near zero; a non-zero value typically points at missing `--supernode-rpc` or supernode unavailability.
 * **Confirm new pre-migration games cannot be created.** Optionally call `DisputeGameFactory.create` with one of the cleared game types on either per-chain factory and confirm it reverts.
-* **Watch for the first super-game finalization.** The first anchor update typically lands roughly seven days after the first super-root game is created (game duration plus `DISPUTE_GAME_FINALITY_DELAY_SECONDS`). Do not block the rollout on this—schedule a follow-up to re-run `getAnchorRoot()` after that window and confirm it returns the new game's claim instead of the starting anchor.
+* **Watch for the first super-game finalization.** The first anchor update typically lands roughly seven days after the first super-root game is created (game duration plus `disputeGameFinalityDelaySeconds()`). Do not block the rollout on this—schedule a follow-up to re-run `getAnchorRoot()` after that window and confirm it returns the new game's claim instead of the starting anchor.
 
 ## Tear Down After the Drain
 
@@ -496,6 +522,44 @@ A per-chain instance is safe to retire when its `op_dispute_mon_games{game_type=
 For each chain when both conditions hold, stop the per-chain `op-challenger` and `op-dispute-mon` instances.
 
 Once both chains are drained, the steady-state operational footprint is one `op-proposer`, one `op-challenger`, and one `op-dispute-mon`, all pointed at the shared factory and a single supernode that derives both chains.
+
+## Operational Cautions After Migration
+
+After migration, both chains share one `ETHLockbox`, one `AnchorStateRegistry`, and one pause identifier. Most mistakes in this section come from treating a shared contract as if it still belonged to one chain. Nothing on-chain blocks them, so walk through them with everyone who operates either chain.
+
+### Pause the Set Through the Shared Lockbox
+
+The set now has a single pause identifier: the shared lockbox address, `$SHARED_LOCKBOX`. Pausing it halts both chains.
+
+The old identifiers still accept a pause. Calling `pause` with either chain's old `OptimismPortal2` or old `ETHLockbox` address still emits `Paused`, but nothing is really paused. Point the Guardian's tooling at `$SHARED_LOCKBOX` before you need it.
+
+A pause expires on its own. After that, `paused` reads `false`, but calling `pause` on the same identifier reverts with `SuperchainConfig_AlreadyPaused`. Call `extend` to pause it again.
+
+### Guardian Actions Reach Both Chains
+
+`updateRetirementTimestamp`, `setRespectedGameType`, and `blacklistDisputeGame` on `$SHARED_ASR` apply to both chains at once.
+
+The retired per-chain registries still take the same calls from the same Guardian. The calls succeed and change nothing for live withdrawals. During an incident, check the address before you sign.
+
+### Do Not Call `migrateToSharedDisputeGame` by Hand
+
+Nothing on-chain retires the old contracts. Each chain's old `ETHLockbox` still authorizes its portal, so a manual `OptimismPortal2.migrateToSharedDisputeGame` call that points a portal back at its old lockbox and `<oldASR_chainX>` passes every check. The chain leaves the set, but its ETH stays in the shared lockbox, where the other chain can still withdraw it. The chain's withdrawals now draw from its empty old lockbox and revert with `ETHLockbox_InsufficientBalance`. It also can't prove new withdrawals, because its old `AnchorStateRegistry` points at a factory with no game implementations.
+
+### Upgrade Both Chains Together
+
+Both chains run on the same shared contracts, so they upgrade as a pair. Once the shared contracts are on a newer release, running an older OPCM on either chain fails with `OPContractsManagerUtils_DowngradeNotAllowed`.
+
+Upgrading one chain also reconfigures the other. `upgrade` registers every game type on the shared `DisputeGameFactory` again from that upgrade's `disputeGameConfigs`. So a task scoped to one chain sets the implementations, prestates, bonds, and respected game type for the whole set. Follow three rules when authoring an upgrade task:
+
+* Read each member's `disputeGameConfigs` from the shared factory and copy them. **Never write them per chain.**
+* Don't decide whether `SUPER_CANNON_KONA` is enabled by checking for a `CANNON_KONA` implementation on the factory. A shared factory never has `CANNON_KONA`, so with `startingRespectedGameType = 5` that check disables the set's permissionless game for both chains.
+* After upgrading both chains, run the `StandardValidator` against each one, not only the chain the task named, and confirm both pass.
+
+### Treat INTEROP and the ProxyAdmin Owner as Fixed
+
+`Features.INTEROP` can't be turned off, and `SystemConfig.setFeature` reverts if you try. That closes the obvious way out of a set. It also means a chain whose `INTEROP` was enabled by hand before migration needs an administrative upgrade to clear the dev flag before it can be migrated.
+
+Both chains also need the same `ProxyAdmin` owner. `ETHLockbox.authorizePortal`, `ETHLockbox.migrateLiquidity`, and upgrades that touch the shared contracts all check that the owner is shared. If you change the owner on one chain, those calls revert for that chain until the owners match again.
 
 ## Next Steps
 

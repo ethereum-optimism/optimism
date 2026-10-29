@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	fconf "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/config"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -17,7 +17,7 @@ const (
 type Config struct {
 	Version string
 
-	LogConfig     oplog.CLIConfig
+	LogConfig     logcli.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
@@ -36,7 +36,7 @@ func (c *Config) Check() error {
 func DefaultCLIConfig() *Config {
 	return &Config{
 		Version:       "dev",
-		LogConfig:     oplog.DefaultCLIConfig(),
+		LogConfig:     logcli.DefaultCLIConfig(),
 		MetricsConfig: opmetrics.DefaultCLIConfig(),
 		PprofConfig:   oppprof.DefaultCLIConfig(),
 		RPC:           oprpc.DefaultCLIConfig(),

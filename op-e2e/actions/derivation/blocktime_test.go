@@ -9,10 +9,10 @@ import (
 	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -59,7 +59,7 @@ func BatchInLastPossibleBlocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 	sd, _, miner, sequencer, sequencerEngine, _, _, batcher := actionsHelpers.SetupReorgTestActors(t, dp, sd, log)
 
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 	cl := sequencerEngine.EthClient()
 	aliceNonce := uint64(0) // manual nonce management to avoid geth pending-tx nonce non-determinism flakiness
 	aliceTx := func() {
@@ -177,7 +177,7 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 	sd, _, miner, sequencer, sequencerEngine, verifier, _, batcher := actionsHelpers.SetupReorgTestActors(t, dp, sd, log)
 
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 	cl := sequencerEngine.EthClient()
 
 	aliceNonce := uint64(0) // manual nonce, avoid pending-tx nonce management, that causes flakes

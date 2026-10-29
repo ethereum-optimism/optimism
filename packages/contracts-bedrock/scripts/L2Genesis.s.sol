@@ -24,6 +24,7 @@ import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -33,6 +34,7 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
+import { IChainConfig } from "interfaces/L2/IChainConfig.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -75,6 +77,8 @@ contract L2Genesis is Script {
         uint256 nativeAssetLiquidityAmount;
         address liquidityControllerOwner;
         bytes32 devFeatureBitmap;
+        uint256 l2ToL2MessageExpiryPeriod;
+        uint256 settlementChainID;
     }
 
     using ForkUtils for Fork;
@@ -131,6 +135,17 @@ contract L2Genesis is Script {
             _input.useInterop
                 == DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP),
             "L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree"
+        );
+        // The messenger only takes a non-production expiry period when interop is active at
+        // genesis; a later activation initializes it with the production period.
+        require(
+            _input.l2ToL2MessageExpiryPeriod == 0 || _isGenesisInteropEnabled(_input),
+            "L2Genesis: expiry period override needs interop at genesis"
+        );
+        require(
+            _input.settlementChainID == 0
+                || DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OP_PRIVATE),
+            "L2Genesis: settlement chain ID needs the OP_PRIVATE devFeature bit"
         );
         address deployer = makeAddr("deployer");
         vm.startPrank(deployer);
@@ -232,11 +247,9 @@ contract L2Genesis is Script {
             vm.etch(addr, code);
             EIP1967Helper.setAdmin(addr, Predeploys.PROXY_ADMIN);
 
-            if (
-                Predeploys.isSupportedPredeploy(
+            if (Predeploys.isSupportedPredeploy(
                     addr, _input.fork, _input.useCustomGasToken, _input.useInterop, _input.devFeatureBitmap
-                )
-            ) {
+                )) {
                 address implementation = Predeploys.predeployToCodeNamespace(addr);
                 EIP1967Helper.setImplementation(addr, implementation);
             }
@@ -283,6 +296,7 @@ contract L2Genesis is Script {
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainETHBridge(); // 24
             setETHLiquidity(); // 25
+            setUndeliveredMessageExporter(); // 30
         }
         if (_input.useCustomGasToken) {
             setLiquidityController(_input); // 29
@@ -298,6 +312,25 @@ contract L2Genesis is Script {
         setL2DevFeatureFlags(_input); // 2D
         // deploy() upgrades ConditionalDeployer and L2DevFeatureFlags, so it must run after both are set.
         _deployPredeploysViaL2CM(_input);
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OP_PRIVATE)) {
+            setChainConfig(_input); // 34
+        }
+    }
+
+    /// @notice Sets the ChainConfig predeploy and writes the chain's settlement chain ID into its
+    ///         storage. ChainConfig has no predeploy record while OP Private is a dev feature, so
+    ///         the L2ContractsManager does not manage it: genesis points its proxy at the code
+    ///         here. This follows safety invariant #1.
+    function setChainConfig(Input memory _input) internal {
+        address impl = Predeploys.predeployToCodeNamespace(Predeploys.CHAIN_CONFIG);
+        vm.etch(impl, DeployUtils.getDeployedCode("ChainConfig"));
+        EIP1967Helper.setAdmin(impl, Predeploys.PROXY_ADMIN);
+        EIP1967Helper.setImplementation(Predeploys.CHAIN_CONFIG, impl);
+        vm.store(
+            Predeploys.CHAIN_CONFIG,
+            IChainConfig(Predeploys.CHAIN_CONFIG).SETTLEMENT_CHAIN_ID_SLOT(),
+            bytes32(_input.settlementChainID)
+        );
     }
 
     /// @notice Builds the implementation records for the temporary L2ContractsManager.
@@ -333,15 +366,15 @@ contract L2Genesis is Script {
         config_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({
             otherMessenger: ICrossDomainMessenger(_input.l1CrossDomainMessengerProxy)
         });
-        config_.standardBridge =
-            L2ContractsManagerTypes.StandardBridgeConfig({ otherBridge: IStandardBridge(_input.l1StandardBridgeProxy) });
+        config_.standardBridge = L2ContractsManagerTypes.StandardBridgeConfig({
+            otherBridge: IStandardBridge(_input.l1StandardBridgeProxy)
+        });
         config_.erc721Bridge =
             L2ContractsManagerTypes.ERC721BridgeConfig({ otherBridge: IERC721Bridge(_input.l1ERC721BridgeProxy) });
         config_.mintableERC20Factory =
             L2ContractsManagerTypes.MintableERC20FactoryConfig({ bridge: Predeploys.L2_STANDARD_BRIDGE });
         config_.mintableERC721Factory = L2ContractsManagerTypes.MintableERC721FactoryConfig({
-            bridge: Predeploys.L2_ERC721_BRIDGE,
-            remoteChainID: _input.l1ChainID
+            bridge: Predeploys.L2_ERC721_BRIDGE, remoteChainID: _input.l1ChainID
         });
         config_.sequencerFeeVault = L2ContractsManagerTypes.FeeVaultConfig({
             recipient: _input.sequencerFeeVaultRecipient,
@@ -368,6 +401,9 @@ contract L2Genesis is Script {
             gasPayingTokenName: _input.gasPayingTokenName,
             gasPayingTokenSymbol: _input.gasPayingTokenSymbol
         });
+        config_.l2ToL2MessageExpiryPeriod = _input.l2ToL2MessageExpiryPeriod == 0
+            ? Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
+            : _input.l2ToL2MessageExpiryPeriod;
         config_.isCustomGasToken = _input.useCustomGasToken;
         config_.isInterop = _isGenesisInteropEnabled(_input);
     }
@@ -610,12 +646,12 @@ contract L2Genesis is Script {
     }
 
     /// @notice This predeploy is following the safety invariant #1.
-    ///         This contract has no initializer.
     function setL2ToL2CrossDomainMessenger() internal {
         Predeploys.assertGates(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
         );
-        _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        address impl = _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        IL2ToL2CrossDomainMessenger(impl).initialize({ _expiryPeriod: Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD });
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -634,14 +670,20 @@ contract L2Genesis is Script {
     }
 
     /// @notice This predeploy is following the safety invariant #1.
+    function setUndeliveredMessageExporter() internal {
+        Predeploys.assertGates(
+            Predeploys.UNDELIVERED_MESSAGE_EXPORTER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
+        );
+        _setImplementationCode(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
     function setLiquidityController(Input memory _input) internal {
         Predeploys.assertGates(Predeploys.LIQUIDITY_CONTROLLER, bytes32(0), true, false);
         address impl = _setImplementationCode(Predeploys.LIQUIDITY_CONTROLLER);
 
         ILiquidityController(impl).initialize({
-            _owner: _input.liquidityControllerOwner,
-            _gasPayingTokenName: "",
-            _gasPayingTokenSymbol: ""
+            _owner: _input.liquidityControllerOwner, _gasPayingTokenName: "", _gasPayingTokenSymbol: ""
         });
     }
 

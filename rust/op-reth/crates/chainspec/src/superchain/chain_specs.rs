@@ -38,6 +38,7 @@ create_superchain_specs!(
     ("celo-sep", "sepolia"),
     ("cyber", "sepolia"),
     ("funki", "sepolia"),
+    ("giwa", "sepolia"),
     ("ink", "sepolia"),
     ("lisk", "sepolia"),
     ("metal", "sepolia"),
@@ -55,4 +56,5 @@ create_superchain_specs!(
     ("worldchain", "sepolia"),
     ("zora", "sepolia"),
     ("sepolia-devnet-2", "sepolia-devnet-2"),
+    ("sepolia-devnet-3", "sepolia-devnet-3"),
 );

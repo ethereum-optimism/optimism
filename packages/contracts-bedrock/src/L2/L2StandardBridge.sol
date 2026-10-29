@@ -73,8 +73,7 @@ contract L2StandardBridge is ProxyAdminOwnedBase, StandardBridge, ISemver {
     function initialize(StandardBridge _otherBridge) external initializer {
         _assertOnlyProxyAdminOrProxyAdminOwner();
         __StandardBridge_init({
-            _messenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
-            _otherBridge: _otherBridge
+            _messenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge: _otherBridge
         });
     }
 

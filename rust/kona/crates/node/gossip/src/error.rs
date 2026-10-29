@@ -1,7 +1,6 @@
 //! Error types for the gossip networking module.
 
 use crate::BehaviourError;
-use derive_more::From;
 use libp2p::{Multiaddr, PeerId};
 use std::net::IpAddr;
 use thiserror::Error;
@@ -50,23 +49,30 @@ pub enum HandlerEncodeError {
 }
 
 /// An error type for the [`crate::GossipDriverBuilder`].
-#[derive(Debug, Clone, PartialEq, Eq, From, Error)]
+#[derive(Debug, Error)]
 pub enum GossipDriverBuilderError {
-    /// A TCP error.
-    #[error("TCP error")]
-    TcpError,
-    /// An error when setting the behaviour on the swarm builder.
-    #[error("error setting behaviour on swarm builder")]
-    WithBehaviourError,
+    /// An error when setting up the TCP transport.
+    #[error("error setting up TCP transport")]
+    TcpError(#[source] libp2p::noise::Error),
+    /// An error when setting up DNS resolution on the transport.
+    #[error("error setting up DNS resolution")]
+    DnsError(#[source] std::io::Error),
+    /// An error when building a [`crate::GossipTransport::Other`] transport.
+    #[error("error building the transport")]
+    OtherTransportError(#[source] libp2p::TransportBuilderError),
     /// An error when building the gossip behaviour.
     #[error("error building gossip behaviour")]
-    BehaviourError(BehaviourError),
+    BehaviourError(#[from] BehaviourError),
+    /// gossipsub rejected the peer scoring parameters, for example for a block time under a
+    /// second. gossipsub only gives the reason as a string.
+    #[error("invalid peer scoring parameters: {0}")]
+    InvalidPeerScoring(String),
     /// An error when setting up the sync request/response protocol.
     #[error("error setting up sync request/response protocol")]
-    SetupSyncReqRespError,
+    SetupSyncReqRespError(#[source] libp2p::swarm::InvalidProtocol),
     /// The sync request/response protocol has already been accepted.
     #[error("sync request/response protocol already accepted")]
-    SyncReqRespAlreadyAccepted,
+    SyncReqRespAlreadyAccepted(#[source] libp2p_stream::AlreadyRegistered),
 }
 
 /// An error type representing reasons why a peer cannot be dialed.
@@ -115,4 +121,18 @@ pub enum DialError {
         /// The IP address that belongs to a blocked subnet range
         ip: IpAddr,
     },
+}
+
+/// Error parsing a [`PeerAddr`](crate::PeerAddr) address.
+#[derive(Debug, Error)]
+pub enum PeerAddrError {
+    /// The address is not a multiaddr.
+    #[error("Invalid multiaddr")]
+    InvalidMultiaddr(#[source] libp2p::multiaddr::Error),
+    /// The address does not end in `/p2p/<peer id>`.
+    #[error("Address does not end in /p2p/<peer id>")]
+    MissingPeerId,
+    /// The address is only a `/p2p/<peer id>`, with nothing to dial.
+    #[error("Address has nothing to dial before /p2p/<peer id>")]
+    MissingAddress,
 }

@@ -11,11 +11,11 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 func DefaultScriptHost(
@@ -44,7 +44,7 @@ func ScriptHost(
 		nil,
 		scriptCtx,
 		append([]script.HostOption{
-			script.WithBroadcastHook(bcaster.Hook),
+			script.WithBroadcastHook(func(b script.Broadcast) { bcaster.Hook(toBroadcast(b)) }),
 			script.WithIsolatedBroadcasts(),
 			script.WithCreate2Deployer(),
 		}, additionalOpts...)...,
@@ -55,6 +55,20 @@ func ScriptHost(
 	}
 
 	return h, nil
+}
+
+// toBroadcast converts a broadcast of the Go script host into a broadcaster.Broadcast.
+func toBroadcast(b script.Broadcast) broadcaster.Broadcast {
+	return broadcaster.Broadcast{
+		From:    b.From,
+		To:      b.To,
+		Input:   b.Input,
+		Value:   b.Value,
+		Salt:    b.Salt,
+		GasUsed: b.GasUsed,
+		Type:    broadcaster.BroadcastType(b.Type),
+		Nonce:   b.Nonce,
+	}
 }
 
 func DefaultForkedScriptHost(

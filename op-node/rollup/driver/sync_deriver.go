@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type SyncDeriver struct {
@@ -197,8 +197,10 @@ func (s *SyncDeriver) onEngineConfirmedReset(ctx context.Context, x engine.Engin
 	// and don't confirm the engine-reset with the derivation pipeline.
 	// The pipeline will re-trigger a reset as necessary.
 	if s.SafeHeadNotifs != nil {
-		if err := s.SafeHeadNotifs.SafeHeadReset(x.CrossSafe); err != nil {
-			s.Log.Error("Failed to warn safe-head notifier of safe-head reset", "safe", x.CrossSafe)
+		// The safedb records local-safe heads, and derivation resumes from
+		// local-safe, so that is where it must truncate to.
+		if err := s.SafeHeadNotifs.SafeHeadReset(x.LocalSafe); err != nil {
+			s.Log.Error("Failed to warn safe-head notifier of safe-head reset", "safe", x.LocalSafe)
 			return
 		}
 		if s.SafeHeadNotifs.Enabled() && x.LocalSafe.ID() == s.Config.Genesis.L2 {
@@ -230,18 +232,9 @@ func (s *SyncDeriver) onResetEvent(ctx context.Context, x rollup.ResetEvent) {
 }
 
 func (s *SyncDeriver) tryBackupUnsafeReorg() {
-	// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
-	// this was a no-op(except correcting invalid state when backupUnsafe is empty but TryBackupUnsafeReorg called).
-	fcuCalled, err := s.Engine.TryBackupUnsafeReorg(s.Ctx)
-	// Dealing with legacy here: it used to skip over the error-handling if fcuCalled was false.
-	// But that combination is not actually a code-path in TryBackupUnsafeReorg.
-	// We should drop fcuCalled, and make the function emit events directly,
-	// once there are no more synchronous callers.
-	if !fcuCalled && err != nil {
-		s.Log.Crit("unexpected TryBackupUnsafeReorg error after no FCU call", "err", err)
-	}
-	if err != nil {
-		// If we needed to perform a network call, then we should yield even if we did not encounter an error.
+	// Map a failed restore of the unsafe head from backupUnsafe to its event. TryBackupUnsafeReorg
+	// should emit these events directly once there are no more synchronous callers.
+	if err := s.Engine.TryBackupUnsafeReorg(s.Ctx); err != nil {
 		if errors.Is(err, derive.ErrReset) {
 			s.Emitter.Emit(s.Ctx, rollup.ResetEvent{Err: err})
 		} else if errors.Is(err, derive.ErrTemporary) {

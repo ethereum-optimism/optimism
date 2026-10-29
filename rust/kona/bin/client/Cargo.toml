@@ -56,6 +56,8 @@ thiserror.workspace = true
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
 kona-preimage = { workspace = true, features = ["std"] }
+# Package-scoped test builds otherwise get the no_std busy-poll `block_on`.
+kona-proof = { workspace = true, features = ["std"] }
 sha2.workspace = true
 
 [features]

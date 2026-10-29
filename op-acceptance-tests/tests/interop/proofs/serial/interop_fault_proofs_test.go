@@ -39,6 +39,12 @@ func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 	sfp.RunConsolidateValidCrossChainMessageTest(t, sys, proofRunners()...)
 }
 
+func TestInteropFaultProofs_ConsolidateBelowHeadMessage(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunConsolidateBelowHeadMessageTest(t, sys, proofRunners()...)
+}
+
 func TestInteropFaultProofs_DepositMessage(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
@@ -73,6 +79,24 @@ func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	sfp.RunInvalidBlockTest(t, sys, proofRunners()...)
+}
+
+func TestInteropFaultProofs_ReplacedBlockStorageDeletion(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunReplacedBlockStorageDeletionTest(t, sys, proofRunners()...)
+}
+
+func TestInteropFaultProofs_ReplacedBlockSameChainMessage(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunReplacedBlockSameChainMessageTest(t, sys, proofRunners()...)
+}
+
+func TestInteropFaultProofs_ReplacedBlockCrossChainMessage(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunReplacedBlockCrossChainMessageTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_IntraBlock(gt *testing.T) {

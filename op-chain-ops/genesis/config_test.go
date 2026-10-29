@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/stretchr/testify/require"
@@ -18,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -268,6 +268,18 @@ func TestUpgradeScheduleDeployConfig_ForkGettersAndSetters(t *testing.T) {
 		d.SetForkTimeOffset(fork, &offset)
 		require.Equal(t, offset, *d.ForkTimeOffset(fork))
 	}
+}
+
+func TestUpgradeScheduleDeployConfig_IsForkActive(t *testing.T) {
+	var d UpgradeScheduleDeployConfig
+	genesis := uint64(1000)
+	d.ActivateForkAtOffset(forks.Isthmus, 50)
+
+	require.True(t, d.IsForkActive(forks.Holocene, genesis, genesis), "fork at genesis")
+	require.False(t, d.IsForkActive(forks.Isthmus, genesis, genesis), "before offset")
+	require.False(t, d.IsForkActive(forks.Isthmus, genesis, genesis+49), "just before offset")
+	require.True(t, d.IsForkActive(forks.Isthmus, genesis, genesis+50), "at offset")
+	require.False(t, d.IsForkActive(forks.Jovian, genesis, genesis+1_000_000), "unscheduled")
 }
 
 func TestUpgradeScheduleDeployConfig_ActivateForkAtOffset(t *testing.T) {

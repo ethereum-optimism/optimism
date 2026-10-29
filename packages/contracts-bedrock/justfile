@@ -72,10 +72,13 @@ clean:
 ########################################################
 
 # Runs standard contract tests.
+# With JUNIT_TEST_PATH set, the run also fails if the report records zero executed tests,
+# because Forge exits 0 when test filters match nothing.
 test *ARGS: build-go-ffi
   #!/bin/bash
   if [ -n "$JUNIT_TEST_PATH" ]; then
-    forge test {{ARGS}} --junit > "$JUNIT_TEST_PATH"
+    forge test {{ARGS}} --junit > "$JUNIT_TEST_PATH" || exit $?
+    ./scripts/checks/check-junit-tests-ran.sh "$JUNIT_TEST_PATH"
   else
     forge test {{ARGS}}
   fi
@@ -138,10 +141,12 @@ prepare-upgrade-env *ARGS : build-go-ffi
   --match-path "test/{L1,dispute,cannon}/**"
 
 # Runs upgrade path variant of contract tests.
+# With JUNIT_TEST_PATH set, the run also fails if the report records zero executed tests.
 test-upgrade *ARGS:
   #!/bin/bash
   if [ -n "$JUNIT_TEST_PATH" ]; then
-    just prepare-upgrade-env "forge test {{ARGS}} --junit > \"$JUNIT_TEST_PATH\""
+    just prepare-upgrade-env "forge test {{ARGS}} --junit > \"$JUNIT_TEST_PATH\"" || exit $?
+    ./scripts/checks/check-junit-tests-ran.sh "$JUNIT_TEST_PATH"
   else
     just prepare-upgrade-env "forge test {{ARGS}}"
   fi

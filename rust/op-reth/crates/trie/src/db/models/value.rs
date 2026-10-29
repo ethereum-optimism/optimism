@@ -11,9 +11,8 @@ use serde::{Deserialize, Serialize};
 
 /// Account state before a block, keyed by hashed address.
 ///
-/// This is the hashed-address equivalent of reth's
-/// `AccountBeforeTx`, designed for our v2 `AccountChangeSets`
-/// table where keys are `keccak256(address)`.
+/// This is the hashed-address equivalent of reth's `AccountBeforeTx`, designed for the
+/// `V2HashedAccountChangeSets` table where keys are `keccak256(address)`.
 ///
 /// Layout: `[hashed_address: 32 bytes][account: Compact-encoded or empty]`
 ///

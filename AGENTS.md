@@ -33,6 +33,8 @@ The rollup node software and associated services, including:
 - **op-conductor**: High-availability sequencer service
 - **op-supernode**: Multi-chain consensus-layer host that runs multiple OP Stack chains in a single process and performs in-process cross-chain safety verification
 
+The Go module is moving off the op-geth fork to upstream go-ethereum. If a Go change uses a new go-ethereum API — an import, field, method or changed signature — run `just opgeth-ratchet` before pushing. The required CI check of the same name fails on any op-geth-only use that is not in its allowlist. To avoid such a use, see [docs/ai/opgeth-decoupling.md](docs/ai/opgeth-decoupling.md).
+
 ### Smart Contracts (`packages/contracts-bedrock`)
 
 Solidity smart contracts for the OP Stack, including the core protocol contracts deployed on L1 and L2.
@@ -86,11 +88,13 @@ Some subdirectories have their own CLAUDE.md with domain-specific conventions. R
 - `op-acceptance-tests/` — read before working in that area; links to [docs/ai/acceptance-tests.md](docs/ai/acceptance-tests.md)
 - `op-node/rollup/derive/` — read before working in that area; links to [docs/ai/derivation.md](docs/ai/derivation.md)
 - `rust/kona/crates/protocol/` — read before working in that area; links to [docs/ai/derivation.md](docs/ai/derivation.md)
+- `rust/kona/sp1/` — read before working in that area; links to [docs/ai/kona-sp1-proof-limits.md](docs/ai/kona-sp1-proof-limits.md)
 - `.circleci/` and `.github/` — read before editing CI config; links to [docs/ai/ci-config-review.md](docs/ai/ci-config-review.md)
 
 ## Additional Documentation
 
-More detailed guidance for AI agents can be found in:
+Before writing or refactoring code, read [docs/ai/dev-workflow.md](docs/ai/dev-workflow.md)
+and the relevant language guide below. More detailed guidance for AI agents can be found in:
 
 - [docs/ai/ci-ops.md](docs/ai/ci-ops.md) - CI/CD operations
 - [docs/ai/ci-config-review.md](docs/ai/ci-config-review.md) - Reviewing changes to CI config (`.circleci/`, `.github/workflows/`): gate coverage, required checks, path filtering, caching, plus general CircleCI/GHA best practices
@@ -98,17 +102,21 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/contract-dev.md](docs/ai/contract-dev.md) - Smart contract development
 - [docs/ai/standard-validator-review.md](docs/ai/standard-validator-review.md) - Reviewing `StandardValidator` for assertions it should make but doesn't: cross-game symmetry, diff-driven coverage, read-versus-assert, plus the false-positive traps (pass-through getters, implementation-pinned immutables) that make naive gap-hunting noisy. Pairs with the `standard-validator-reviewer` agent
 - [docs/ai/deletion-review.md](docs/ai/deletion-review.md) - Reviewing diffs that delete externally observable names or state writes: the whole-tree reference sweep (docs examples, dashboards, CI config) and proving *when* surviving writers of shared state fire, not just that they exist. Pairs with the `deletion-reviewer` agent
+- [docs/ai/safedb-review.md](docs/ai/safedb-review.md) - Reviewing changes to a safe head database (op-node's or kona's): the behaviour contract both must keep, the six invariants, why a gap in recorded history returns a later L1 block instead of an error, and why local-safe and cross-safe being equal in most test modes hides a label error. Pairs with the `safedb-reviewer` agent
 - [docs/ai/dispute-game-investigation.md](docs/ai/dispute-game-investigation.md) - Investigating fault dispute games: challenger disagreements, excessive moves, self-contradiction, proposal validity, diagnosing the responsible op-node, and the bond outcome (read-only)
 - [docs/ai/flake-prevention.md](docs/ai/flake-prevention.md) - Guidance for preventing flaky tests
-- [docs/ai/dev-workflow.md](docs/ai/dev-workflow.md) - General development workflow: pinned tools via mise, Just usage, pre-PR checks, and CI caveats
+- [docs/ai/dev-workflow.md](docs/ai/dev-workflow.md) - Shared code simplicity principles and development workflow: pinned tools via mise, Just usage, pre-PR checks, and CI caveats
 - [docs/ai/go-dev.md](docs/ai/go-dev.md) - Go service development
 - [docs/ai/rust-dev.md](docs/ai/rust-dev.md) - Rust development (kona, op-reth, alloy crates)
 - [docs/ai/reth-update-review.md](docs/ai/reth-update-review.md) - Reviewing reth/revm/alloy dependency bumps: the risk guide for upstream changes that should force a change in our in-tree op- forks but produce no diff (silent overrides, new defaults/variants, sync drift, consensus-critical math). Pairs with the `reth-update-reviewer` agent
 - [docs/ai/derivation.md](docs/ai/derivation.md) - Derivation pipeline development (op-node, kona-node)
 - [docs/ai/spec-driven-review.md](docs/ai/spec-driven-review.md) - Shared method and evidence contract for specification-driven reviewer agents
 - [docs/ai/derivation-batch-review.md](docs/ai/derivation-batch-review.md) - Reviewing batch decoding and validation against protocol specifications. Pairs with the `derivation-batch-reviewer` agent
+- [docs/ai/interop-review.md](docs/ai/interop-review.md) - Reviewing interop message verification and safety promotion. Pairs with the `interop-reviewer` agent
+- [docs/ai/deposit-review.md](docs/ai/deposit-review.md) - Reviewing deposit derivation, execution, and receipts against protocol specifications. Pairs with the `deposit-reviewer` agent
 - [docs/ai/execution-layer.md](docs/ai/execution-layer.md) - Execution layer development (op-reth / EVM, fees, deposits)
 - [docs/ai/fault-proofs.md](docs/ai/fault-proofs.md) - Fault proof system (Cannon, kona-client, dispute games)
+- [docs/ai/kona-sp1-proof-limits.md](docs/ai/kona-sp1-proof-limits.md) - Kona-SP1 proof-generation limits (witness encoding, input region, memory, PGU) and a method to compute the proof cost of guest code: if an honest proof exceeds a limit, the proposer loses its `ZKDisputeGame`. Pairs with the `kona-sp1-cost-reviewer` agent
 - [docs/ai/devfeatures.md](docs/ai/devfeatures.md) - The `DevFeatures` bitmap system gating in-development smart contract features: where the bitmap is supplied, composed, propagated, and read. Only relevant for contract development and op-deployer — not needed for client (op-node / op-reth / kona) work
 - [docs/ai/acceptance-tests.md](docs/ai/acceptance-tests.md) - Building and running acceptance tests locally
 - [docs/ai/writing-acceptance-tests.md](docs/ai/writing-acceptance-tests.md) - Writing new acceptance tests: DSL patterns, naming, what to avoid

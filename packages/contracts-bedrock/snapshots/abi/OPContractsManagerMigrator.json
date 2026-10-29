@@ -107,6 +107,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_BridgeHookNotSupported",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_ChainAlreadyMigrated",
     "type": "error"
   },
@@ -122,17 +127,17 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_DisputeGameNotEnabled",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "OPContractsManagerMigrator_DuplicateL2ChainId",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "OPContractsManagerMigrator_InteropNotEnabled",
     "type": "error"
   },
   {
@@ -162,6 +167,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidZKDisputeGameConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_NoChains",
     "type": "error"
   },
@@ -183,6 +193,11 @@
   {
     "inputs": [],
     "name": "OPContractsManagerMigrator_SystemPaused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_WithdrawalDelayMismatch",
     "type": "error"
   },
   {

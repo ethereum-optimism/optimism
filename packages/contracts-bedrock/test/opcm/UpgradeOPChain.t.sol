@@ -47,10 +47,7 @@ contract UpgradeOPChainInput_TestV2 is Test {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](1);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: enabled,
-            initBond: initBond,
-            gameType: GameType.wrap(gameType),
-            gameArgs: gameArgs
+            enabled: enabled, initBond: initBond, gameType: GameType.wrap(gameType), gameArgs: gameArgs
         });
 
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
@@ -174,10 +171,7 @@ contract UpgradeOPChain_TestV2 is Test {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](1);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: enabled,
-            initBond: initBond,
-            gameType: GameType.wrap(gameType),
-            gameArgs: gameArgs
+            enabled: enabled, initBond: initBond, gameType: GameType.wrap(gameType), gameArgs: gameArgs
         });
 
         OPContractsManagerV2.UpgradeInput memory upgradeInput = OPContractsManagerV2.UpgradeInput({
@@ -202,10 +196,7 @@ contract UpgradeOPChain_TestV2 is Test {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](1);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 1 ether,
-            gameType: GameType.wrap(0),
-            gameArgs: abi.encode("test")
+            enabled: true, initBond: 1 ether, gameType: GameType.wrap(0), gameArgs: abi.encode("test")
         });
 
         OPContractsManagerV2.UpgradeInput memory upgradeInput = OPContractsManagerV2.UpgradeInput({
@@ -215,7 +206,7 @@ contract UpgradeOPChain_TestV2 is Test {
         });
         uoci.set(uoci.upgradeInput.selector, upgradeInput);
 
-        vm.mockCallRevert(prank, OPContractsManagerV2.upgrade.selector, abi.encode("UpgradeOPChain: upgrade failed"));
+        vm.mockCallRevert(prank, OPContractsManagerV2.upgrade.selector, bytes("UpgradeOPChain: upgrade failed"));
 
         vm.expectRevert("UpgradeOPChain: upgrade failed");
         upgradeOPChain.run(uoci);

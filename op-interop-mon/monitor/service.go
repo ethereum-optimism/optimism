@@ -15,12 +15,11 @@ import (
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var ErrAlreadyStopped = errors.New("already stopped")
@@ -312,7 +311,6 @@ func (ms *InteropMonitorService) initRPCServer(cfg *CLIConfig) error {
 		cfg.RPCConfig.ListenPort,
 		ms.Version,
 		oprpc.WithLogger(ms.Log),
-		oprpc.WithRPCRecorder(ms.Metrics.NewRecorder("main")),
 	)
 	if cfg.RPCConfig.EnableAdmin {
 		ms.Log.Info("admin rpc enabled, but no admin APIs are available")

@@ -34,14 +34,17 @@ var (
 	l2DevFeatureFlagsAddr   = common.HexToAddress("0x420000000000000000000000000000000000002D")
 
 	l2DevFeatureBitmapSlot = common.HexToHash("0xc8bc8f9195cfb2d040744aac63412d02ffc186ea9bd519039edc4666ee9032bc")
-	ozV5InitializableSlot  = common.HexToHash("0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00")
+	// bytes32(uint256(keccak256("chainconfig.settlementchainid")) - 1)
+	settlementChainIDSlot = common.HexToHash("0x519bd363f00ade2be7cab3da84f88ba43e7e22819543246b4a737af4e3553f4f")
+	ozV5InitializableSlot = common.HexToHash("0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00")
 )
 
 type allocMode struct {
-	name             string
-	customGasToken   bool
-	devFeatureBitmap common.Hash
-	configure        func(t *testing.T, intent *state.Intent)
+	name              string
+	customGasToken    bool
+	devFeatureBitmap  common.Hash
+	settlementChainID uint64
+	configure         func(t *testing.T, intent *state.Intent)
 }
 
 type generatedL2Genesis struct {
@@ -88,7 +91,33 @@ func allocModes(t *testing.T) []allocMode {
 				}
 			},
 		},
+		{
+			name:              "op-private",
+			devFeatureBitmap:  devfeatures.OPPrivateFlag,
+			settlementChainID: 1337,
+			configure: func(t *testing.T, intent *state.Intent) {
+				intent.GlobalDeployOverrides = map[string]any{
+					"devFeatureBitmap": devfeatures.OPPrivateFlag,
+				}
+				intent.Chains[0].DeployOverrides = map[string]any{
+					"settlementChainId": 1337,
+				}
+			},
+		},
+		{
+			name:             "op-private+public",
+			devFeatureBitmap: devfeatures.OPPrivateFlag,
+			configure: func(t *testing.T, intent *state.Intent) {
+				intent.GlobalDeployOverrides = map[string]any{
+					"devFeatureBitmap": devfeatures.OPPrivateFlag,
+				}
+			},
+		},
 	}
+}
+
+func opPrivateEnabled(mode allocMode) bool {
+	return devfeatures.IsDevFeatureEnabled(mode.devFeatureBitmap, devfeatures.OPPrivateFlag)
 }
 
 func enableCustomGasToken(t *testing.T, intent *state.Intent) {
@@ -183,6 +212,10 @@ func assertInactivePredeploys(t *testing.T, gen generatedL2Genesis) {
 	assertInactiveProxy(t, gen, predeploys.L2toL2CrossDomainMessengerAddr)
 	assertInactiveProxy(t, gen, predeploys.SuperchainETHBridgeAddr)
 	assertInactiveProxy(t, gen, predeploys.ETHLiquidityAddr)
+	assertInactiveProxy(t, gen, predeploys.UndeliveredMessageExporterAddr)
+	if !opPrivateEnabled(gen.mode) {
+		assertInactiveProxy(t, gen, predeploys.ChainConfigAddr)
+	}
 }
 
 func activePredeploys(mode allocMode) []common.Address {
@@ -210,6 +243,9 @@ func activePredeploys(mode allocMode) []common.Address {
 	}
 	if mode.customGasToken {
 		proxies = append(proxies, predeploys.LiquidityControllerAddr, predeploys.NativeAssetLiquidityAddr)
+	}
+	if opPrivateEnabled(mode) {
+		proxies = append(proxies, predeploys.ChainConfigAddr)
 	}
 	return proxies
 }
@@ -304,6 +340,11 @@ func assertProxyConfig(t *testing.T, gen generatedL2Genesis) {
 	)
 
 	checkStorageSlot(t, gen.allocs, l2DevFeatureFlagsAddr, l2DevFeatureBitmapSlot, gen.mode.devFeatureBitmap)
+
+	if opPrivateEnabled(gen.mode) {
+		assertUintSlot(t, gen, predeploys.ChainConfigAddr, settlementChainIDSlot,
+			new(big.Int).SetUint64(gen.mode.settlementChainID))
+	}
 
 	if gen.mode.customGasToken {
 		assertAddressSlot(t, gen, predeploys.LiquidityControllerAddr, slot(51), gasToken.LiquidityControllerOwner)

@@ -26,7 +26,8 @@ First select a tag string based on the guidance in [Monorepo Contracts Release V
 1. Create release notes in GitHub:
    - Go to the [Releases page](https://github.com/ethereum-optimism/optimism/releases), enter or select `<tag-string>`
      from the dropdown.
-1. Populate the release notes. If the tag is a release candidate, check the `Set as a pre-release`  option, and uncheck the
+1. Populate the release notes in the house style. The `release-notes` skill in `.claude/skills/release-notes/` describes the style and the tools.
+   If the tag is a release candidate, check the `Set as a pre-release`  option, and uncheck the
    `Set as the latest release` option.
 1. Deploy the OPCM using the following op-deployer just recipes (which call the `op-deployer bootstrap implementations` [command](https://devdocs.optimism.io/op-deployer/user-guide/bootstrap.html)),
    this will write the addresses of the deployed contracts to `stdout` (or to disk if you provide an `--outfile` argument).

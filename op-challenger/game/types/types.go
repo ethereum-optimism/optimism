@@ -14,6 +14,12 @@ var (
 	ErrInvalidPrestate = errors.New("absolute prestate does not match")
 )
 
+// NotInSyncError wraps ErrNotInSync with the node that is behind (e.g. "rollup node (optimism_syncStatus)"),
+// the L1 block it has reached, and the game L1 head it must get past before the game can be played.
+func NotInSyncError(source string, currentL1, gameL1Head uint64) error {
+	return fmt.Errorf("%w: %s current L1 block %v must be above game L1 head %v", ErrNotInSync, source, currentL1, gameL1Head)
+}
+
 type GameStatus uint8
 
 const (

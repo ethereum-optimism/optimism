@@ -10,10 +10,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
 const (
@@ -39,13 +39,13 @@ var Flags = []cli.Flag{
 }
 
 func main() {
-	oplog.SetupDefaults()
+	logcli.SetupDefaults()
 
 	app := cli.NewApp()
 	app.Name = "check-output-root"
 	app.Usage = "Calculates a output root from an L2 EL endpoint."
 	// Combine specific flags with log flags
-	app.Flags = append(Flags, oplog.CLIFlags("CHECK_OUTPUT_ROOT")...)
+	app.Flags = append(Flags, logcli.CLIFlags("CHECK_OUTPUT_ROOT")...)
 
 	app.Action = func(c *cli.Context) error {
 		ctx := ctxinterrupt.WithCancelOnInterrupt(c.Context)

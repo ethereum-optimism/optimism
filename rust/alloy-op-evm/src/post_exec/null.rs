@@ -7,7 +7,10 @@ use revm::{
     interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
 };
 
-use super::{PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext};
+use super::{
+    PostExecExecutedTx, PostExecRefundInspector, PostExecRefundPolicyFactory, PostExecTxContext,
+    RevertToCheckpointError,
+};
 
 /// The public production post-exec refund policy.
 ///
@@ -18,7 +21,7 @@ use super::{PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext};
 pub struct NullRefundPolicy;
 
 impl PostExecRefundInspector for NullRefundPolicy {
-    type Snapshot = ();
+    type Checkpoint = ();
 
     fn begin_tx(&mut self, _ctx: PostExecTxContext) {}
 
@@ -68,9 +71,22 @@ impl PostExecRefundInspector for NullRefundPolicy {
 
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-    fn snapshot(&self) -> Self::Snapshot {}
+    fn checkpoint(&mut self) -> Self::Checkpoint {}
 
-    fn restore(&mut self, _snapshot: Self::Snapshot) {}
+    fn revert_to_checkpoint(
+        &mut self,
+        _checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
+        Ok(())
+    }
+}
+
+impl PostExecRefundPolicyFactory for NullRefundPolicy {
+    type Policy = Self;
+
+    fn create(&self) -> Self::Policy {
+        *self
+    }
 }
 
 #[cfg(test)]
@@ -85,7 +101,7 @@ mod tests {
             policy.begin_tx(PostExecTxContext { tx_index: 1, kind });
             policy.note_account_touch(Address::ZERO);
             assert_eq!(policy.finish_tx(), PostExecExecutedTx::default());
-            policy.restore(());
+            policy.revert_to_checkpoint(()).expect("the null policy reverts");
         }
     }
 }

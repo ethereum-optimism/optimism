@@ -111,9 +111,7 @@ contract DeployPeriphery is Script {
     /// @notice Deploy the Faucet contract.
     function deployFaucet() public broadcast returns (address addr_) {
         addr_ = _deployCreate2({
-            _name: "Faucet",
-            _creationCode: type(Faucet).creationCode,
-            _constructorParams: abi.encode(cfg.faucetAdmin())
+            _name: "Faucet", _creationCode: type(Faucet).creationCode, _constructorParams: abi.encode(cfg.faucetAdmin())
         });
 
         Faucet faucet = Faucet(payable(addr_));
@@ -175,27 +173,21 @@ contract DeployPeriphery is Script {
     /// @notice Deploy CheckTrue contract.
     function deployCheckTrue() public broadcast returns (address addr_) {
         addr_ = _deployCreate2({
-            _name: "CheckTrue",
-            _creationCode: type(CheckTrue).creationCode,
-            _constructorParams: hex""
+            _name: "CheckTrue", _creationCode: type(CheckTrue).creationCode, _constructorParams: hex""
         });
     }
 
     /// @notice Deploy CheckBalanceLow contract.
     function deployCheckBalanceLow() public broadcast returns (address addr_) {
         addr_ = _deployCreate2({
-            _name: "CheckBalanceLow",
-            _creationCode: type(CheckBalanceLow).creationCode,
-            _constructorParams: hex""
+            _name: "CheckBalanceLow", _creationCode: type(CheckBalanceLow).creationCode, _constructorParams: hex""
         });
     }
 
     /// @notice Deploy CheckSecrets contract.
     function deployCheckSecrets() public broadcast returns (address addr_) {
         addr_ = _deployCreate2({
-            _name: "CheckSecrets",
-            _creationCode: type(CheckSecrets).creationCode,
-            _constructorParams: hex""
+            _name: "CheckSecrets", _creationCode: type(CheckSecrets).creationCode, _constructorParams: hex""
         });
     }
 

@@ -6,7 +6,6 @@ import (
 
 type noopMetrics struct {
 	opmetrics.NoopRefMetrics
-	opmetrics.NoopRPCMetrics
 }
 
 var NoopMetrics Metricer = new(noopMetrics)

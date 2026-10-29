@@ -13,10 +13,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -269,9 +269,10 @@ func (cfg *Config) CheckL1ChainID(ctx context.Context, client L1Client) error {
 func (cfg *Config) CheckL1GenesisBlockHash(ctx context.Context, logger log.Logger, client L1Client) error {
 	l1GenesisBlockRef, err := client.L1BlockRefByNumber(ctx, cfg.Genesis.L1.Number)
 	if err != nil {
-		if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) {
-			// Genesis block isn't available to check, so just accept it and hope for the best
-			logger.Warn("L1 genesis block not found, skipping validity check")
+		if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) || isHistoryPrunedErr(err) {
+			// Genesis block isn't available to check, either because it was never found or
+			// because history expiry has pruned it, so just accept it and hope for the best
+			logger.Warn("L1 genesis block not available, skipping validity check", "err", err)
 			return nil
 		}
 		return fmt.Errorf("failed to get L1 genesis blockhash: %w", err)
@@ -399,27 +400,22 @@ func (cfg *Config) HasOptimismWithdrawalsRoot(timestamp uint64) bool {
 // ProbablyMissingPectraBlobSchedule returns whether the chain is likely missing the Pectra blob
 // schedule fix.
 // A chain probably needs the Pectra blob schedule fix if:
-// - its L1 in Holesky or Sepolia, and
+// - its L1 is Sepolia, and
 // - its genesis is before the L1's Prague activation.
 func (cfg *Config) ProbablyMissingPectraBlobSchedule() bool {
 	if cfg.PectraBlobScheduleTime != nil {
 		return false
 	}
 
-	var pragueTime uint64
-	if cfg.L1ChainID.Cmp(params.HoleskyChainConfig.ChainID) == 0 {
-		pragueTime = *params.HoleskyChainConfig.PragueTime
-	} else if cfg.L1ChainID.Cmp(params.SepoliaChainConfig.ChainID) == 0 {
-		pragueTime = *params.SepoliaChainConfig.PragueTime
-	} else {
-		// Only Holesky and Sepolia chains may have run into the
-		// Pectra blob schedule bug.
+	// Of the L1s still running, only Sepolia chains may have run into the Pectra blob schedule
+	// bug.
+	if cfg.L1ChainID.Cmp(params.SepoliaChainConfig.ChainID) != 0 {
 		return false
 	}
 
 	// Only chains whose genesis was before the L1's prague activation need
 	// the Pectra blob schedule fix.
-	return pragueTime >= cfg.Genesis.L2Time
+	return *params.SepoliaChainConfig.PragueTime >= cfg.Genesis.L2Time
 }
 
 // validateAltDAConfig checks the two approaches to configuring alt-da mode.

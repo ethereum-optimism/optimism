@@ -1,6 +1,4 @@
-#[cfg(feature = "metrics")]
-use std::time::Instant;
-use std::time::SystemTime;
+use std::time::{Instant, SystemTime};
 
 use alloy_primitives::{Address, B256};
 use alloy_rpc_types_engine::{ExecutionPayloadV3, PayloadError};
@@ -9,9 +7,7 @@ use libp2p::gossipsub::MessageAcceptance;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpExecutionPayloadV4, OpPayloadError};
 
 use super::BlockHandler;
-#[cfg(feature = "metrics")]
-use crate::Metrics;
-use crate::payload::SignedGossipPayload;
+use crate::{Metrics, payload::SignedGossipPayload};
 
 /// Error that can occur when validating a block.
 #[derive(Debug, thiserror::Error)]
@@ -72,6 +68,30 @@ pub enum BlockInvalidError {
     },
 }
 
+impl BlockInvalidError {
+    /// The fixed reason label used by block validation metrics.
+    const fn metric_reason(&self) -> &'static str {
+        match self {
+            Self::Timestamp { current, received } => {
+                if *received > *current + 5 {
+                    "timestamp_future"
+                } else {
+                    "timestamp_past"
+                }
+            }
+            Self::BlockHash { .. } => "invalid_hash",
+            Self::Signature => "invalid_signature",
+            Self::Signer { .. } => "invalid_signer",
+            Self::TooManyBlocks { .. } => "too_many_blocks",
+            Self::BlockSeen { .. } => "block_seen",
+            Self::InvalidBlock(_) | Self::BaseFeePerGasOverflow(_) => "invalid_block",
+            Self::BlobGasUsed => "blob_gas_used",
+            Self::ExcessBlobGas => "excess_blob_gas",
+            Self::WithdrawalsRoot => "withdrawals_root",
+        }
+    }
+}
+
 impl From<BlockInvalidError> for MessageAcceptance {
     fn from(value: BlockInvalidError) -> Self {
         // We only want to ignore blocks that we have already seen.
@@ -101,25 +121,11 @@ impl BlockHandler {
     /// Validates that the signature authenticates the exact encoded envelope bytes and was
     /// produced by the configured unsafe block signer.
     pub(crate) fn validate_signature(
-        &self,
+        &mut self,
         payload: &SignedGossipPayload,
     ) -> Result<(), BlockInvalidError> {
-        let message = payload.payload_hash().signature_message(self.rollup_config.l2_chain_id.id());
-        let expected = *self.signer_recv.borrow();
-        let received = match payload.recover_signer(&message) {
-            Ok(received) => received,
-            Err(_) => {
-                #[cfg(feature = "metrics")]
-                kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_signature");
-                return Err(BlockInvalidError::Signature);
-            }
-        };
-        if received != expected {
-            #[cfg(feature = "metrics")]
-            kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_signer");
-            return Err(BlockInvalidError::Signer { expected, received });
-        }
-        Ok(())
+        self.update_signer();
+        self.signer.accepts(payload, self.rollup_config.l2_chain_id.id())
     }
 
     /// Determines if a block is valid.
@@ -134,11 +140,9 @@ impl BlockHandler {
         envelope: &OpExecutionPayloadEnvelope,
     ) -> Result<(), BlockInvalidError> {
         // Start timing for the validation duration
-        #[cfg(feature = "metrics")]
         let validation_start = Instant::now();
 
         // Record block version distribution
-        #[cfg(feature = "metrics")]
         {
             let version = match envelope {
                 OpExecutionPayloadEnvelope::V1(_) => "v1",
@@ -146,52 +150,26 @@ impl BlockHandler {
                 OpExecutionPayloadEnvelope::V3 { .. } => "v3",
                 OpExecutionPayloadEnvelope::V4 { .. } => "v4",
             };
-            kona_macros::inc!(counter, Metrics::BLOCK_VERSION, "version" => version);
+            metrics::counter!(Metrics::BLOCK_VERSION, "version" => version).increment(1);
         }
 
         let validation_result = self.validate_block_internal(envelope);
 
         // Record validation duration
-        #[cfg(feature = "metrics")]
         {
             let duration = validation_start.elapsed();
-            kona_macros::record!(
-                histogram,
-                Metrics::BLOCK_VALIDATION_DURATION_SECONDS,
-                duration.as_secs_f64()
-            );
+            metrics::histogram!(Metrics::BLOCK_VALIDATION_DURATION_SECONDS)
+                .record(duration.as_secs_f64());
         }
 
         // Record success/failure metrics
         match &validation_result {
             Ok(()) => {
-                #[cfg(feature = "metrics")]
-                kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_SUCCESS);
+                metrics::counter!(Metrics::BLOCK_VALIDATION_SUCCESS).increment(1);
             }
-            Err(_err) => {
-                #[cfg(feature = "metrics")]
-                {
-                    let reason = match _err {
-                        BlockInvalidError::Timestamp { current, received } => {
-                            if *received > *current + 5 {
-                                "timestamp_future"
-                            } else {
-                                "timestamp_past"
-                            }
-                        }
-                        BlockInvalidError::BlockHash { .. } => "invalid_hash",
-                        BlockInvalidError::Signature => "invalid_signature",
-                        BlockInvalidError::Signer { .. } => "invalid_signer",
-                        BlockInvalidError::TooManyBlocks { .. } => "too_many_blocks",
-                        BlockInvalidError::BlockSeen { .. } => "block_seen",
-                        BlockInvalidError::InvalidBlock(_) |
-                        BlockInvalidError::BaseFeePerGasOverflow(_) => "invalid_block",
-                        BlockInvalidError::BlobGasUsed => "blob_gas_used",
-                        BlockInvalidError::ExcessBlobGas => "excess_blob_gas",
-                        BlockInvalidError::WithdrawalsRoot => "withdrawals_root",
-                    };
-                    kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_FAILED, "reason" => reason);
-                }
+            Err(err) => {
+                metrics::counter!(Metrics::BLOCK_VALIDATION_FAILED, "reason" => err.metric_reason())
+                    .increment(1);
             }
         }
 
@@ -568,7 +546,7 @@ pub(crate) mod tests {
         let message = valid.payload_hash().signature_message(10);
         let signer = signature.recover_address_from_prehash(&message).unwrap();
         let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let handler = BlockHandler::new(
+        let mut handler = BlockHandler::new(
             RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
             unsafe_signer,
         );
@@ -655,7 +633,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    #[cfg(feature = "metrics")]
     fn test_metrics_instrumentation() {
         use crate::Metrics;
         Metrics::init();

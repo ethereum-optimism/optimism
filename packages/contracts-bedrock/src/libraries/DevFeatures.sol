@@ -23,12 +23,14 @@ pragma solidity ^0.8.0;
 ///        5. Add CI coverage in `.circleci/continue/main.yml` under the `&features_matrix` anchor.
 ///           Add combination rows when this feature interacts with another feature. Document
 ///           intentionally unsupported combinations near the matrix. Do not register dev features in
-///           `setup-features.system_features.default`.
+///           `setup-features.system_features.default`. List each new matrix job by name in the
+///           `requires` of `required-contracts-ci`, or the job runs without gating the merge.
 ///
 ///      For the parallel SYSTEM feature checklist, see
 ///      packages/contracts-bedrock/src/libraries/Features.sol.
 library DevFeatures {
-    /// @notice The feature that enables the Interop migration functions on the OptimismPortal2 contract.
+    /// @notice The feature that enables the interop predeploys on L2 at genesis. L2ContractsManager
+    ///         upgrades gate the interop predeploys on the INTEROP system feature instead.
     bytes32 public constant OPTIMISM_PORTAL_INTEROP =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000001);
 
@@ -45,6 +47,12 @@ library DevFeatures {
     /// @notice The feature that enables the super root games migration path in OPCM upgrade.
     bytes32 public constant SUPER_ROOT_GAMES_MIGRATION =
         bytes32(0x0000000000000000000000000000000000000000000000000000000010000000);
+
+    /// @notice The feature that enables bridge hook configuration on OptimismPortal2.
+    bytes32 public constant BRIDGE_HOOK = bytes32(0x0000000000000000000000000000000000000000000000000000000100000000);
+
+    /// @notice The feature that enables OP Private.
+    bytes32 public constant OP_PRIVATE = bytes32(0x0000000000000000000000000000000000000000000000000000001000000000);
 
     /// @notice Checks if a feature is enabled in a bitmap. Note that this function does not check
     ///         that the input feature represents a single feature and the bitwise AND operation

@@ -8,9 +8,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -124,7 +124,7 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 			require.NoError(t, m.processBlocks())
 
 			// Try to get transaction data to fill channels
-			_, err := m.TxData(eth.BlockID{}, false, pubInfo{})
+			_, err := m.TxData(testL1Head(0), false, pubInfo{})
 			// It's okay if there's no data ready (io.EOF)
 			if err != nil && err.Error() != "EOF" {
 				require.NoError(t, err)

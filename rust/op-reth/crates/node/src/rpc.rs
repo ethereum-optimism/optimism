@@ -23,8 +23,8 @@
 //! use reth_provider::providers::BlockchainProvider;
 //! use reth_rpc::TraceApi;
 //! use reth_rpc_eth_types::{EthConfig, EthStateCache};
+//! use reth_storage_overlay::OverlayManager;
 //! use reth_tasks::{RuntimeBuilder, pool::BlockingTaskGuard};
-//! use reth_trie_db::ChangesetCache;
 //! use std::sync::Arc;
 //!
 //! #[tokio::main]
@@ -39,7 +39,7 @@
 //!         .with_loaded_toml_config(sepolia)
 //!         .unwrap()
 //!         .attach(Arc::new(db))
-//!         .with_provider_factory::<_, OpEvmConfig>(ChangesetCache::new(), None, &[])
+//!         .with_provider_factory::<_, OpEvmConfig>(OverlayManager::default(), None, &[])
 //!         .await
 //!         .unwrap()
 //!         .with_genesis()

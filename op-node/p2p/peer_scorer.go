@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-	log "github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	peer "github.com/libp2p/go-libp2p/core/peer"
 )

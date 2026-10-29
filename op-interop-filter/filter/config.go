@@ -8,11 +8,12 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/flags"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 )
@@ -25,8 +26,9 @@ type Config struct {
 	RollupConfigs               map[eth.ChainID]*rollup.Config // Rollup configs keyed by chain ID
 	DataDir                     string
 	BackfillDuration            time.Duration
-	MessageExpiryWindow         uint64 // Message expiry window in seconds (default: 7 days)
-	MessageExpiryWindowExplicit bool   // True if explicitly set via flag
+	MessageExpiryWindow         uint64        // Message expiry window in seconds (default: 7 days)
+	MessageExpiryWindowExplicit bool          // True if explicitly set via flag
+	AssumeValidBefore           time.Duration // History older than now minus this is assumed valid on startup
 	JWTSecretPath               string
 	RPCAddr                     string // Address for public RPC server
 	RPCPort                     int    // Port for public RPC server (default: 8545)
@@ -42,7 +44,7 @@ type Config struct {
 	RPCConcurrency              int           // Max concurrent RPC requests per chain (default: 100)
 	FetchConcurrency            int           // Number of blocks to fetch concurrently (default: 64)
 
-	LogConfig     oplog.CLIConfig
+	LogConfig     logcli.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
 }
@@ -63,8 +65,21 @@ func (c *Config) Check() error {
 	if c.BackfillDuration <= 0 {
 		result = errors.Join(result, errors.New("backfill-duration must be positive"))
 	}
+	if c.AssumeValidBefore < 0 {
+		result = errors.Join(result, errors.New("assume-valid-before must not be negative"))
+	}
+	// Keeps the validation anchor inside the backfilled history of any logs DB.
+	if c.AssumeValidBefore >= c.BackfillDuration {
+		result = errors.Join(result, errors.New("assume-valid-before must be less than backfill-duration"))
+	}
 	if c.MessageExpiryWindow == 0 {
 		result = errors.Join(result, errors.New("message-expiry-window must be positive"))
+	}
+	// The protocol window is at most 7 days (see the Expiry Window section of the interop
+	// specification), so the filter must not admit older messages.
+	if c.MessageExpiryWindow > depset.MessageExpiryTimeSecondsInterop {
+		result = errors.Join(result, fmt.Errorf("message-expiry-window %ds exceeds protocol window %ds",
+			c.MessageExpiryWindow, depset.MessageExpiryTimeSecondsInterop))
 	}
 	if c.PollInterval <= 0 {
 		result = errors.Join(result, errors.New("poll-interval must be positive"))
@@ -99,9 +114,22 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		return nil, fmt.Errorf("backfill-duration (%s) exceeds current timestamp", backfillDuration)
 	}
 
+	assumeValidBefore := ctx.Duration(flags.AssumeValidBeforeFlag.Name)
+	if assumeValidBefore < 0 {
+		return nil, fmt.Errorf("assume-valid-before must not be negative, got %s", assumeValidBefore)
+	}
+	// Keeps the validation anchor inside the backfilled history of any logs DB.
+	if assumeValidBefore >= backfillDuration {
+		return nil, fmt.Errorf("assume-valid-before (%s) must be less than backfill-duration (%s)", assumeValidBefore, backfillDuration)
+	}
+
 	messageExpiryWindow := ctx.Duration(flags.MessageExpiryWindowFlag.Name)
 	if messageExpiryWindow <= 0 {
 		return nil, fmt.Errorf("message-expiry-window must be positive, got %s", messageExpiryWindow)
+	}
+	// Check the duration before it is truncated to whole seconds below.
+	if maxWindow := time.Duration(depset.MessageExpiryTimeSecondsInterop) * time.Second; messageExpiryWindow > maxWindow {
+		return nil, fmt.Errorf("message-expiry-window %s exceeds protocol window %s", messageExpiryWindow, maxWindow)
 	}
 
 	pollInterval := ctx.Duration(flags.PollIntervalFlag.Name)
@@ -145,6 +173,7 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		BackfillDuration:            backfillDuration,
 		MessageExpiryWindow:         uint64(messageExpiryWindow.Seconds()),
 		MessageExpiryWindowExplicit: ctx.IsSet(flags.MessageExpiryWindowFlag.Name),
+		AssumeValidBefore:           assumeValidBefore,
 		JWTSecretPath:               ctx.String(flags.JWTSecretFlag.Name),
 		RPCAddr:                     ctx.String(flags.RPCAddrFlag.Name),
 		RPCPort:                     ctx.Int(flags.RPCPortFlag.Name),
@@ -159,7 +188,7 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		LegacyCheckAccessListFormat: ctx.Bool(flags.SupportLegacyCheckAccessListFormatFlag.Name),
 		RPCConcurrency:              rpcConcurrency,
 		FetchConcurrency:            fetchConcurrency,
-		LogConfig:                   oplog.ReadCLIConfig(ctx),
+		LogConfig:                   logcli.ReadCLIConfig(ctx),
 		MetricsConfig:               opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                 oppprof.ReadCLIConfig(ctx),
 	}, nil

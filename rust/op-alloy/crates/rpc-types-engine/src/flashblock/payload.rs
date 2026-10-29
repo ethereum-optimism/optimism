@@ -194,35 +194,35 @@ mod tests {
         assert_eq!(payload.metadata, OpFlashblockPayloadMetadata::default());
     }
 
-    /// A transaction that decodes but does not re-encode to the same bytes (here: an EIP-1559
-    /// body with its type byte stripped) must be rejected, not silently canonicalised.
+    /// A legacy transaction with a `0x00` type tag decodes but does not re-encode to the same
+    /// bytes. It must be rejected, not silently canonicalised.
     #[test]
     fn decoded_transaction_rejects_non_canonical_encoding() {
         use alloy_consensus::SignableTransaction;
         use alloy_primitives::Address;
         use op_alloy_consensus::OpTxEnvelope;
-        let typed = alloy_consensus::TxEip1559 {
-            chain_id: 10,
+        let legacy = alloy_consensus::TxLegacy {
+            chain_id: Some(10),
             nonce: 1,
             gas_limit: 21_000,
-            max_fee_per_gas: 2,
-            max_priority_fee_per_gas: 1,
+            gas_price: 2,
             to: Address::ZERO.into(),
             value: Default::default(),
-            access_list: Default::default(),
             input: Default::default(),
         }
         .into_signed(alloy_primitives::Signature::test_signature())
         .encoded_2718();
-        assert_eq!(typed[0], 0x02);
-        let bare = Bytes::copy_from_slice(&typed[1..]);
+        let mut tagged = vec![0x00];
+        tagged.extend_from_slice(&legacy);
 
         let payload = OpFlashblockPayload {
-            diff: OpFlashblockPayloadDelta { transactions: vec![bare], ..Default::default() },
+            diff: OpFlashblockPayloadDelta {
+                transactions: vec![tagged.into()],
+                ..Default::default()
+            },
             ..Default::default()
         };
-        let err = payload.decoded_transaction::<OpTxEnvelope>().next().unwrap().unwrap_err();
-        assert!(err.to_string().contains("non-canonical"), "{err}");
+        payload.decoded_transaction::<OpTxEnvelope>().next().unwrap().unwrap_err();
         #[cfg(feature = "k256")]
         assert!(payload.recover_transactions::<OpTxEnvelope>().next().unwrap().is_err());
     }

@@ -1,5 +1,5 @@
 [package]
-name = "kona-sp1-proposer"
+name = "op-zk-proposer"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
@@ -16,9 +16,12 @@ workspace = true
 [dependencies]
 # workspace (kona-sp1)
 kona-sp1-client-utils.workspace = true
+kona-sp1-ethereum-client-utils.workspace = true
 kona-sp1-host-utils.workspace = true
 kona-sp1-super-range-executor.workspace = true
+kona-interop.workspace = true
 kona-registry.workspace = true
+kona-sources.workspace = true
 
 # sp1
 sp1-sdk.workspace = true
@@ -34,12 +37,14 @@ alloy-rpc-client.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-signer-local.workspace = true
 alloy-sol-types = { workspace = true, features = ["json"] }
-alloy-transport-http.workspace = true
+alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls"] }
 alloy-contract.workspace = true
+op-alloy-consensus.workspace = true
 
 # general
 anyhow.workspace = true
 bincode.workspace = true
+bincode1.workspace = true
 parking_lot.workspace = true
 sha2.workspace = true
 metrics.workspace = true
@@ -52,16 +57,23 @@ strum_macros.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 thiserror.workspace = true
+tempfile.workspace = true
 flate2.workspace = true
 jsonrpsee = { workspace = true, features = ["http-client"] }
 
 [dev-dependencies]
 kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
+kona-genesis.workspace = true
+kona-interop = { workspace = true, features = ["test-utils"] }
+alloy-json-rpc.workspace = true
+alloy-transport.workspace = true
+httpmock.workspace = true
 metrics-exporter-prometheus.workspace = true
 serde_json = { workspace = true, features = ["std"] }
-tempfile.workspace = true
+serial_test.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
+tower.workspace = true
 
 [[bin]]
-name = "kona-sp1-proposer"
-path = "src/bin/kona-sp1-proposer.rs"
+name = "op-zk-proposer"
+path = "src/bin/op-zk-proposer.rs"

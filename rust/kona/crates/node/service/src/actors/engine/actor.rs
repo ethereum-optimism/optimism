@@ -1,52 +1,39 @@
 use crate::{
-    BuildRequest, EngineClientError, EngineDerivationClient, EngineError, NodeActor, ResetRequest,
-    SealRequest,
+    BuildRequest, CanonicalizeRequest, EngineDerivationClient, EngineError, NodeActor, SealRequest,
 };
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildSealCoupling, BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient,
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask,
-    ImportedBlockSink, InsertTask, SealTask,
+    BuildTask, CanonicalizeTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient,
+    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink,
+    InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
-use tokio::sync::{mpsc, watch};
+use tokio::{
+    sync::{mpsc, watch},
+    time::{self, Duration, Instant},
+};
 
-/// A request handled by the [`EngineActor`].
-#[derive(Debug)]
-pub enum EngineActorRequest {
-    /// Request to start building a block.
-    Build(Box<BuildRequest>),
-    /// Request to process a Safe signal, which can be derived attributes or delegated block info.
-    ProcessSafeL2Signal(ConsolidateInput),
-    /// Request to process the finalized L2 block identified by the provided [`FinalizeBlockId`].
-    ProcessFinalizedL2Block(Box<FinalizeBlockId>),
-    /// Request to process a received unsafe L2 block.
-    ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
-    /// Request to reset the forkchoice.
-    Reset(Box<ResetRequest>),
-    /// Request to seal a block.
-    Seal(Box<SealRequest>),
-}
+#[cfg(test)]
+#[path = "queue_tests.rs"]
+mod queue_tests;
 
 /// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
 /// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of
 /// the [`Ord`] implementation of [`EngineTask`].
 #[derive(Debug)]
-pub struct EngineActor<EngineClient_, DerivationClient>
+pub struct EngineActor<DerivationClient>
 where
-    EngineClient_: EngineClient,
     DerivationClient: EngineDerivationClient,
 {
     /// The client used to send messages to the [`crate::DerivationActor`].
     derivation_client: DerivationClient,
     /// Whether the EL sync is complete. This should only ever go from false to true.
     el_sync_complete: bool,
-    /// The last safe head update sent.
-    last_safe_head_sent: L2BlockInfo,
+    /// The last local-safe head sent to the derivation actor.
+    last_engine_safe_head_sent: L2BlockInfo,
     /// A channel to use to relay the current unsafe head.
     /// ## Note
     /// This is `Some` when the node is in sequencer mode, and `None` when the node is in validator
@@ -56,27 +43,34 @@ where
     /// The [`RollupConfig`] used to build tasks.
     rollup: Arc<RollupConfig>,
     /// An [`EngineClient`] used for creating engine tasks.
-    client: Arc<EngineClient_>,
+    client: Arc<EngineClient>,
     /// The [`Engine`] task queue.
-    engine: Engine<EngineClient_>,
+    engine: Engine,
     /// The inbound request channel.
     inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
     /// Where to hand every imported block, so the derivation providers can read it locally
     /// instead of fetching it back from the execution layer.
     block_sink: Arc<dyn ImportedBlockSink>,
+    /// A reset is retained until successful; RPC failure must not lose the request.
+    reset_pending: bool,
+    /// Callers waiting for the retained reset to finish.
+    reset_waiters: Vec<mpsc::Sender<crate::EngineClientResult<()>>>,
+    /// Earliest next attempt after a dependency failure.
+    retry_at: Instant,
+    /// Exponentially increasing retry delay, capped to keep recovery responsive.
+    retry_delay: Duration,
 }
 
-impl<EngineClient_, DerivationClient> EngineActor<EngineClient_, DerivationClient>
+impl<DerivationClient> EngineActor<DerivationClient>
 where
-    EngineClient_: EngineClient + 'static,
     DerivationClient: EngineDerivationClient + 'static,
 {
     /// Constructs a new [`EngineActor`] from the params.
     pub fn new(
-        client: Arc<EngineClient_>,
+        client: Arc<EngineClient>,
         config: Arc<RollupConfig>,
         derivation_client: DerivationClient,
-        engine: Engine<EngineClient_>,
+        engine: Engine,
         unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
         inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
         block_sink: Arc<dyn ImportedBlockSink>,
@@ -86,18 +80,63 @@ where
             derivation_client,
             el_sync_complete: false,
             engine,
-            last_safe_head_sent: L2BlockInfo::default(),
+            last_engine_safe_head_sent: L2BlockInfo::default(),
             rollup: config,
             unsafe_head_tx,
             inbound_request_rx,
             block_sink,
+            reset_pending: false,
+            reset_waiters: Vec::new(),
+            retry_at: Instant::now(),
+            retry_delay: Duration::from_millis(100),
         }
+    }
+
+    fn defer_retry(&mut self) {
+        self.retry_at = Instant::now() + self.retry_delay;
+        self.retry_delay = (self.retry_delay * 2).min(Duration::from_secs(5));
+    }
+
+    fn begin_reset(&mut self) {
+        if !self.reset_pending {
+            self.engine.clear();
+            self.reset_pending = true;
+            self.retry_at = Instant::now();
+        }
+    }
+
+    async fn attempt_reset(&mut self) -> Result<(), EngineError> {
+        match self.reset().await {
+            Ok(()) => {
+                self.reset_pending = false;
+                self.retry_delay = Duration::from_millis(100);
+                if !self.el_sync_complete && self.engine.state().el_sync_finished {
+                    self.mark_el_sync_complete_and_notify_derivation_actor().await?;
+                }
+            }
+            Err(EngineError::EngineReset(err)) if err.is_temporary() => {
+                warn!(target: "engine", ?err, "Reset dependency unavailable; retaining reset");
+                self.defer_retry();
+            }
+            Err(err) => return Err(err),
+        }
+        Ok(())
     }
 
     /// Resets the inner [`Engine`] and propagates the reset to the derivation actor.
     async fn reset(&mut self) -> Result<(), EngineError> {
         // Reset the engine.
         let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
+        // The sequencer must observe the same reset head as RPC readers before its reset
+        // acknowledgement can release a queued start command.
+        self.publish_unsafe_head();
+
+        // Derivation may be awaiting this reply with its inbound queue full of L1 updates.
+        // Release those callers before awaiting delivery to that same queue. They transition
+        // to AwaitingSignal before consuming the queued reset signal below.
+        for waiter in self.reset_waiters.drain(..) {
+            let _ = waiter.try_send(Ok(()));
+        }
 
         // Signal the derivation actor to reset.
         let signal = Signal::Reset(ResetSignal { l2_safe_head });
@@ -109,9 +148,26 @@ where
             }
         }
 
-        self.send_derivation_actor_safe_head_if_updated().await?;
+        // The reset signal includes the recovered safe head. Derivation adopts it and resumes
+        // while handling that message, so an intervening L1 update cannot overtake confirmation.
+        self.last_engine_safe_head_sent = l2_safe_head;
 
         Ok(())
+    }
+
+    /// Publishes the current unsafe head to the sequencer without waiting on derivation.
+    fn publish_unsafe_head(&self) {
+        if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
+            unsafe_head_tx.send_if_modified(|current_head| {
+                let new_head = self.engine.state().sync_state.unsafe_head();
+                if *current_head == new_head {
+                    false
+                } else {
+                    *current_head = new_head;
+                    true
+                }
+            });
+        }
     }
 
     /// Drains the inner [`Engine`] task queue and attempts to update the safe head.
@@ -119,6 +175,7 @@ where
         match self.engine.drain().await {
             Ok(_) => {
                 trace!(target: "engine", "[ENGINE] tasks drained");
+                self.retry_delay = Duration::from_millis(100);
             }
             Err(err) => {
                 match err.severity() {
@@ -128,13 +185,15 @@ where
                     }
                     EngineTaskErrorSeverity::Reset => {
                         warn!(target: "engine", ?err, "Received reset request");
-                        self.reset().await?;
+                        self.begin_reset();
+                        return Ok(());
                     }
                     EngineTaskErrorSeverity::Flush => {
-                        // This error is encountered when the payload is marked INVALID
-                        // by the engine api. Post-holocene, the payload is replaced by
-                        // a "deposits-only" block and re-executed. At the same time,
-                        // the channel and any remaining buffered batches are flushed.
+                        // This error is encountered when the engine API rejects a derived
+                        // payload: its attributes at forkchoiceUpdated, or the payload at
+                        // newPayload. Post-holocene, the payload is replaced by a
+                        // "deposits-only" block. At the same time, the channel and any
+                        // remaining buffered batches are flushed.
                         warn!(target: "engine", ?err, "Invalid payload, Flushing derivation pipeline.");
                         match self.derivation_client.send_signal(Signal::FlushChannel).await {
                             Ok(_) => {
@@ -148,6 +207,8 @@ where
                     }
                     EngineTaskErrorSeverity::Temporary => {
                         trace!(target: "engine", ?err, "Temporary error draining engine tasks");
+                        self.defer_retry();
+                        return Ok(());
                     }
                 }
             }
@@ -156,7 +217,11 @@ where
         self.send_derivation_actor_safe_head_if_updated().await?;
 
         if !self.el_sync_complete && self.engine.state().el_sync_finished {
-            self.mark_el_sync_complete_and_notify_derivation_actor().await?;
+            if self.engine.state().sync_state.finalized_head() == L2BlockInfo::default() {
+                self.begin_reset();
+            } else {
+                self.mark_el_sync_complete_and_notify_derivation_actor().await?;
+            }
         }
 
         Ok(())
@@ -167,17 +232,8 @@ where
     ) -> Result<(), EngineError> {
         self.el_sync_complete = true;
 
-        // Reset the engine if the sync state does not already know about a finalized block.
-        if self.engine.state().sync_state.finalized_head() == L2BlockInfo::default() {
-            // If the sync status is finished, we can reset the engine and start derivation.
-            info!(target: "engine", "Performing initial engine reset");
-            self.reset().await?;
-        } else {
-            info!(target: "engine", "finalized head is not default, so not resetting");
-        }
-
         self.derivation_client
-            .notify_sync_completed(self.engine.state().sync_state.safe_head())
+            .notify_sync_completed(self.engine.state().sync_state.local_safe_head())
             .await
             .map(|_| Ok(()))
             .map_err(|e| {
@@ -186,54 +242,59 @@ where
             })?
     }
 
-    /// Attempts to send the [`crate::DerivationActor`] the safe head if updated.
+    /// Sends the [`crate::DerivationActor`] the local-safe head if it changed since the last send.
+    ///
+    /// Derivation continues from, and records, the head that L1 data made safe. That is the
+    /// local-safe label; the safe label can lag it by cross-chain verification.
     async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), EngineError> {
-        let engine_safe_head = self.engine.state().sync_state.safe_head();
-        if engine_safe_head == self.last_safe_head_sent {
-            info!(target: "engine", safe_head = ?engine_safe_head, "Safe head unchanged");
-            // This was already sent, so do not send it.
+        let local_safe_head = self.engine.state().sync_state.local_safe_head();
+        if local_safe_head == self.last_engine_safe_head_sent {
+            info!(target: "engine", safe_head = ?local_safe_head, "Local-safe head unchanged");
             return Ok(());
         }
 
-        self.derivation_client.send_new_engine_safe_head(engine_safe_head).await.map_err(|e| {
+        self.derivation_client.send_new_engine_safe_head(local_safe_head).await.map_err(|e| {
             error!(target: "engine", ?e, "Failed to send new engine safe head");
             EngineError::ChannelClosed
         })?;
 
-        info!(target: "engine", safe_head = ?engine_safe_head, "Attempted L2 Safe Head Update");
-        self.last_safe_head_sent = engine_safe_head;
+        info!(target: "engine", safe_head = ?local_safe_head, "Sent local-safe head to derivation");
+        self.last_engine_safe_head_sent = local_safe_head;
 
         Ok(())
     }
 }
 
 #[async_trait]
-impl<EngineClient_, DerivationClient> NodeActor for EngineActor<EngineClient_, DerivationClient>
+impl<DerivationClient> NodeActor for EngineActor<DerivationClient>
 where
-    EngineClient_: EngineClient + 'static,
     DerivationClient: EngineDerivationClient + 'static,
 {
     type Error = EngineError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        // Attempt to drain all outstanding tasks from the engine queue before adding new ones.
-        self.drain()
-            .await
-            .inspect_err(|err| error!(target: "engine", ?err, "Failed to drain engine tasks"))?;
-
-        // If the unsafe head has updated, propagate it to the outbound channels.
-        if let Some(unsafe_head_tx) = self.unsafe_head_tx.as_ref() {
-            unsafe_head_tx.send_if_modified(|val| {
-                let new_head = self.engine.state().sync_state.unsafe_head();
-                (*val != new_head).then(|| *val = new_head).is_some()
-            });
+        if Instant::now() >= self.retry_at {
+            if self.reset_pending {
+                self.attempt_reset().await?;
+            } else {
+                self.drain().await?;
+            }
         }
 
+        // If the unsafe head has updated, propagate it to the outbound channels.
+        self.publish_unsafe_head();
+
         // Wait for the next processing request.
-        let request = self.inbound_request_rx.recv().await.ok_or_else(|| {
-            error!(target: "engine", "Engine processing request receiver closed unexpectedly");
-            EngineError::ChannelClosed
-        })?;
+        // Retry without needing a new inbound message, while still accepting requests during
+        // backoff. Bound queued work so a prolonged outage cannot grow memory without limit.
+        let request = tokio::select! {
+            request = self.inbound_request_rx.recv(),
+                if self.engine.len() < 1024 && self.reset_waiters.len() < 1024 => {
+                request.ok_or(EngineError::ChannelClosed)?
+            }
+            _ = time::sleep_until(self.retry_at),
+                if self.reset_pending || !self.engine.is_empty() => return Ok(()),
+        };
 
         match request {
             EngineActorRequest::Build(build_request) => {
@@ -242,7 +303,7 @@ where
                     self.client.clone(),
                     self.rollup.clone(),
                     attributes,
-                    Some(result_tx),
+                    result_tx,
                 )));
                 self.engine.enqueue(task);
             }
@@ -278,19 +339,20 @@ where
             EngineActorRequest::Reset(reset_request) => {
                 warn!(target: "engine", "Received reset request");
 
-                let reset_res = self.reset().await;
-
-                // Send the result.
-                let response_payload = reset_res
-                    .as_ref()
-                    .map(|_| ())
-                    .map_err(|e| EngineClientError::ResetForkchoiceError(e.to_string()));
-                if reset_request.result_tx.send(response_payload).await.is_err() {
-                    warn!(target: "engine", "Sending reset response failed");
-                    // If there was an error and we couldn't notify the caller to handle it,
-                    // return the error.
-                    reset_res?;
-                }
+                self.begin_reset();
+                self.reset_waiters.push(reset_request.result_tx);
+            }
+            EngineActorRequest::Canonicalize(request) => {
+                let CanonicalizeRequest { payload, parent, result_tx } = *request;
+                self.engine.enqueue(EngineTask::Canonicalize(Box::new(CanonicalizeTask::new(
+                    self.client.clone(),
+                    self.rollup.clone(),
+                    payload,
+                    parent,
+                    result_tx,
+                    self.unsafe_head_tx.clone(),
+                    Arc::clone(&self.block_sink),
+                ))));
             }
             EngineActorRequest::Seal(seal_request) => {
                 let SealRequest { payload_id, attributes, result_tx } = *seal_request;
@@ -299,11 +361,7 @@ where
                     self.rollup.clone(),
                     payload_id,
                     attributes,
-                    // The payload is not derived in this case.
-                    false,
-                    BuildSealCoupling::Detached,
                     Some(result_tx),
-                    Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
             }

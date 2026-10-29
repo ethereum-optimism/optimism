@@ -14,13 +14,13 @@ import (
 	e2ecfg "github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,7 +49,16 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 		if testCfg.Hardfork == nil {
 			t.Fatalf("HF not set")
 		}
-		dp.DeployConfig.ActivateForkAtGenesis(forks.Name(testCfg.Hardfork.Name))
+		hardfork := forks.Name(testCfg.Hardfork.Name)
+		if hardfork == forks.Bedrock {
+			// Bedrock is implicit and has no activation offset. Disable only the
+			// schedulable mainline L2 forks, preserving independent fork settings.
+			for _, fork := range forks.From(forks.Regolith) {
+				dp.DeployConfig.SetForkTimeOffset(fork, nil)
+			}
+		} else {
+			dp.DeployConfig.ActivateForkAtGenesis(hardfork)
+		}
 
 		for _, override := range deployConfigOverrides {
 			override(dp.DeployConfig)
@@ -63,13 +72,11 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 
 	sd := e2eutils.Setup(t, dp, genesisAlloc)
 
-	jwtPath := e2eutils.WriteDefaultJWT(t)
-
 	miner := helpers.NewL1Miner(t, log.New("role", "l1-miner"), sd.L1Cfg)
 
 	l1Cl, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindStandard))
 	require.NoError(t, err)
-	engine := helpers.NewL2Engine(t, log.New("role", "sequencer-engine"), sd.L2Cfg, jwtPath, helpers.EngineWithP2P())
+	engine := helpers.NewL2Engine(t, log.New("role", "sequencer-engine"), sd.L2Cfg)
 	l2EngineCl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
@@ -102,7 +109,7 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	}
 	l2UserEnv := &helpers.BasicUserEnv[*helpers.L2Bindings]{
 		EthCl:          l2EthCl,
-		Signer:         types.LatestSigner(sd.L2Cfg.Config),
+		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       helpers.NewL2Bindings(t, l2EthCl, engine.GethClient()),
 	}
@@ -159,16 +166,12 @@ func WithL1Head(head common.Hash) FixtureInputParam {
 	}
 }
 
-// WithL2RPCTracker sets the L2RPCTracker to observe L2 JSON-RPC calls made by the program host.
-func WithL2RPCTracker(tracker *L2RPCTracker) FixtureInputParam {
-	return func(f *FixtureInputs) {
-		f.L2RPCTracker = tracker
-	}
-}
-
 // WithCorruptClaim instructs the SP1 super-range executor to corrupt the claim the guest sees,
 // after witness collection has run on the honest one, so the guest rejects it. Used for the
-// invalid-claim (soundness) test path. Has no effect on the native fault-proof program.
+// invalid-claim (soundness) test path. Has no effect on the native fault-proof program. Not
+// supported with WithSP1NativeCore: the native replay panics on the corrupted root's missing
+// preimage (exit 101), which the harness would report as a test failure, so runProgram rejects
+// the combination. Keep invalid-claim tests on the SP1 execute path.
 func WithCorruptClaim() FixtureInputParam {
 	return func(f *FixtureInputs) {
 		f.CorruptClaim = true
@@ -178,7 +181,8 @@ func WithCorruptClaim() FixtureInputParam {
 // WithSP1NativeCore instructs the SP1 super-range executor to collect the witnesses and then
 // replay them through the shared native cores instead of executing the SP1 ELF. This is useful for
 // broad, faster kona-sp1 coverage; keep at least one default SP1 execute test for ELF/IO smoke
-// coverage. Has no effect on the native fault-proof program.
+// coverage. Like the guest, the native replay panics on a preimage missing from the witness. Has no
+// effect on the native fault-proof program.
 func WithSP1NativeCore() FixtureInputParam {
 	return func(f *FixtureInputs) {
 		f.SP1NativeCore = true

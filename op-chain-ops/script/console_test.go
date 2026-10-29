@@ -11,9 +11,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -45,7 +45,7 @@ func TestConsole(t *testing.T) {
 	_, err = p.Run(input)
 	require.NoError(t, err)
 
-	for i, l := range *captLog.Logs {
+	for i, l := range captLog.FindLogs() {
 		t.Logf("log %d", i)
 		l.Attrs(func(attr slog.Attr) bool {
 			t.Logf("attr: k: %s, v: %s", attr.Key, attr.Value.String())

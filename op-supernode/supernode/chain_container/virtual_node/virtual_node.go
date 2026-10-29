@@ -12,7 +12,7 @@ import (
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	gethlog "github.com/ethereum/go-ethereum/log"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/google/uuid"
 )
 
@@ -21,7 +21,7 @@ import (
 const VIRTUAL_NODE_CHAIN_ID_LABEL = "virtual_node_chain_id"
 
 // defaultInnerNodeFactory is the default factory that creates a real op-node
-func defaultInnerNodeFactory(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error) {
+func defaultInnerNodeFactory(ctx context.Context, cfg *opnodecfg.Config, log oplog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error) {
 	var overrides rollupNode.InitializationOverrides
 	if initOverload != nil {
 		overrides = *initOverload
@@ -57,7 +57,7 @@ type innerNode interface {
 	SyncStatus() *eth.SyncStatus
 }
 
-type innerNodeFactory func(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error)
+type innerNodeFactory func(ctx context.Context, cfg *opnodecfg.Config, log oplog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error)
 
 type VNState int32
 
@@ -68,7 +68,7 @@ const (
 )
 
 type simpleVirtualNode struct {
-	log        gethlog.Logger
+	log        oplog.Logger
 	vnID       string
 	appVersion string
 
@@ -86,7 +86,7 @@ func generateVirtualNodeID() string {
 	return uuid.New().String()[:4]
 }
 
-func NewVirtualNode(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) *simpleVirtualNode {
+func NewVirtualNode(cfg *opnodecfg.Config, log oplog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) *simpleVirtualNode {
 	vnID := generateVirtualNodeID()
 	l := log.New("chain_id", cfg.Rollup.L2ChainID.String(), "vn_id", vnID)
 	vn := &simpleVirtualNode{

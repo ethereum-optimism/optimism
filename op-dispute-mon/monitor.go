@@ -3,10 +3,9 @@ package monitor
 import (
 	"context"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 func Main(ctx context.Context, logger log.Logger, cfg *config.Config, options ...mon.ServiceOption) (*mon.Service, error) {

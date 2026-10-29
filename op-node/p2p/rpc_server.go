@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	decredSecp "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
@@ -20,7 +21,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )

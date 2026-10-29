@@ -11,17 +11,18 @@
 
 extern crate alloc;
 
-use alloc::sync::Arc;
+use alloc::{string::ToString, sync::Arc};
 use alloy_consensus::{BlockHeader, Header};
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory};
 use alloy_op_evm::{
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
     evm_env_for_op_block, evm_env_for_op_next_block,
 };
+use alloy_primitives::B256;
 use core::fmt::Debug;
 use op_alloy_consensus::{
-    EIP1559ParamError, OpTransaction as OpConsensusTransaction,
-    parse_post_exec_payload_from_transactions,
+    EIP1559ParamError, OpTransaction as OpConsensusTransaction, PostExecPayloadValidationError,
+    parse_post_exec_payload_from_transactions, validate_post_exec_entry_count,
 };
 use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
@@ -35,19 +36,18 @@ use revm::context::BlockEnv;
 #[allow(unused_imports)]
 use {
     alloy_eips::Decodable2718,
-    alloy_primitives::{Bytes, U256},
+    alloy_primitives::Bytes,
     op_alloy_rpc_types_engine::OpExecutionData,
     reth_evm::{EvmEnvFor, ExecutionCtxFor},
     reth_primitives_traits::{TxTy, WithEncoded},
     reth_storage_errors::any::AnyError,
-    revm::{
-        context::CfgEnv, context_interface::block::BlobExcessGasAndPrice,
-        primitives::hardfork::SpecId,
-    },
 };
 
 #[cfg(feature = "std")]
-use reth_evm::{ConfigureEngineEvm, ExecutableTxIterator};
+use {
+    alloy_op_evm::evm_env_for_op_payload,
+    reth_evm::{ConfigureEngineEvm, ExecutableTxIterator},
+};
 
 mod config;
 pub use config::{OpNextBlockEnvAttributes, revm_spec, revm_spec_by_timestamp_after_bedrock};
@@ -71,13 +71,16 @@ pub use alloy_op_evm::{
     PreRefundGasUsed,
     post_exec::{
         NullRefundPolicy, PostExecEvmFactoryAdapter, PostExecExecutedTx, PostExecExecutorExt,
-        PostExecRefundEvent, PostExecRefundInspector, PostExecRefundKind, PostExecTxContext,
-        PostExecTxKind,
+        PostExecRefundEvent, PostExecRefundInspector, PostExecRefundKind,
+        PostExecRefundPolicyFactory, PostExecTxContext, PostExecTxKind, RevertToCheckpointError,
     },
 };
 
 mod post_exec_ext;
 pub use post_exec_ext::*;
+
+mod sdm_metrics;
+pub use sdm_metrics::report_post_exec_validation_failure;
 
 /// Optimism-related EVM configuration.
 #[derive(Debug)]
@@ -121,6 +124,7 @@ impl<ChainSpec, N: NodePrimitives, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, E
         receipt_builder: R,
         evm_factory: EvmFactory,
     ) -> Self {
+        sdm_metrics::register_sdm_metrics_at_zero();
         Self {
             block_assembler: OpBlockAssembler::new(chain_spec.clone()),
             executor_factory: OpBlockExecutorFactory::new(receipt_builder, chain_spec, evm_factory),
@@ -157,16 +161,45 @@ fn post_exec_mode_from_transactions<'a, I, T>(
     transactions: I,
     block_number: u64,
     sdm_active: bool,
-) -> Result<PostExecMode, EIP1559ParamError>
+) -> PostExecMode
 where
     I: IntoIterator<Item = &'a T>,
     T: OpConsensusTransaction + 'a,
 {
-    parse_post_exec_payload_from_transactions(transactions, block_number, sdm_active)
-        .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)
-        .map(|parsed| {
-            parsed.map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload))
-        })
+    match parse_post_exec_payload_from_transactions(transactions, block_number, sdm_active) {
+        Ok(parsed) => parsed
+            .inspect(|_| sdm_metrics::report_post_exec_validation_ok())
+            .map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload)),
+        Err(error) => {
+            sdm_metrics::report_post_exec_validation_failure(block_number, error);
+            PostExecMode::Invalid(error.to_string())
+        }
+    }
+}
+
+/// Runs the encoded-transaction preflight for an Engine API payload; a rejection is counted
+/// under its failed rule before the parse ever runs, so the preflight's reasons reach the same
+/// counters as the parse path's.
+#[cfg(feature = "std")]
+pub(crate) fn preflight_post_exec_payload(
+    transactions: &[Bytes],
+    block_number: u64,
+) -> Result<(), PostExecPayloadValidationError> {
+    validate_post_exec_entry_count(transactions).inspect_err(|error| {
+        sdm_metrics::report_post_exec_validation_failure(block_number, *error);
+    })
+}
+
+/// Runs the encoded-transaction preflight for payload-builder attributes
+/// (`forkchoiceUpdated` with transactions); a rejection is logged against the parent block hash
+/// and counted under the failed rule and as a failed validation.
+pub fn validate_post_exec_attributes(
+    transactions: &[Bytes],
+    parent_hash: B256,
+) -> Result<(), PostExecPayloadValidationError> {
+    validate_post_exec_entry_count(transactions).inspect_err(|error| {
+        sdm_metrics::report_post_exec_attributes_rejection(parent_hash, *error);
+    })
 }
 
 impl<ChainSpec, N, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory>
@@ -222,7 +255,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@rev:8d359d0 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream `ConfigureEvm` plumbing with OP environments and execution context.
 impl<ChainSpec, N, R, EvmF> ConfigureEvm for OpEvmConfig<ChainSpec, N, R, EvmF>
@@ -304,7 +337,7 @@ where
             block.body().transactions(),
             block.header().number(),
             self.is_sdm_active_at_timestamp(block.header().timestamp()),
-        )?;
+        );
 
         Ok(self.context_for_block_with_post_exec_mode(block, Some(post_exec_mode)))
     }
@@ -322,9 +355,12 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@rev:8d359d0 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream payload-to-EVM configuration with OP payload and fork semantics.
+/// `tx_iterator_for_payload` recovers senders directly; upstream routes the same recovery through
+/// an optional `SenderRecoveryCache`, which only memoizes `try_recover` and so returns the same
+/// signer.
 #[cfg(feature = "std")]
 impl<ChainSpec, N, R> ConfigureEngineEvm<OpExecutionData> for OpEvmConfig<ChainSpec, N, R>
 where
@@ -348,57 +384,42 @@ where
         &self,
         payload: &OpExecutionData,
     ) -> Result<EvmEnvFor<Self>, Self::Error> {
-        let timestamp = payload.payload.timestamp();
-        let block_number = payload.payload.block_number();
-
-        let spec = revm_spec_by_timestamp_after_bedrock(self.chain_spec(), timestamp);
-
-        let cfg_env = CfgEnv::new()
-            .with_chain_id(self.chain_spec().chain().id())
-            .with_spec_and_mainnet_gas_params(spec);
-
-        let blob_excess_gas_and_price = spec
-            .into_eth_spec()
-            .is_enabled_in(SpecId::CANCUN)
-            .then_some(BlobExcessGasAndPrice { excess_blob_gas: 0, blob_gasprice: 1 });
-
-        let block_env = BlockEnv {
-            number: U256::from(block_number),
-            beneficiary: payload.payload.as_v1().fee_recipient,
-            timestamp: U256::from(timestamp),
-            difficulty: if spec.into_eth_spec() >= SpecId::MERGE {
-                U256::ZERO
-            } else {
-                payload.payload.as_v1().prev_randao.into()
-            },
-            prevrandao: (spec.into_eth_spec() >= SpecId::MERGE)
-                .then(|| payload.payload.as_v1().prev_randao),
-            gas_limit: payload.payload.as_v1().gas_limit,
-            basefee: payload.payload.as_v1().base_fee_per_gas.to(),
-            // EIP-4844 excess blob gas of this block, introduced in Cancun
-            blob_excess_gas_and_price,
-            slot_num: 0,
-        };
-
-        Ok(EvmEnv { cfg_env, block_env })
+        Ok(evm_env_for_op_payload(
+            &payload.payload,
+            self.chain_spec(),
+            self.chain_spec().chain().id(),
+        ))
     }
 
     fn context_for_payload<'a>(
         &self,
         payload: &'a OpExecutionData,
     ) -> Result<ExecutionCtxFor<'a, Self>, Self::Error> {
-        let transactions = payload
-            .payload
-            .transactions()
-            .iter()
-            .map(|encoded| TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref()))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
-        let post_exec_mode = post_exec_mode_from_transactions(
-            transactions.iter(),
-            payload.payload.block_number(),
-            self.is_sdm_active_at_timestamp(payload.payload.timestamp()),
-        )?;
+        let block_number = payload.payload.block_number();
+        let post_exec_mode = preflight_post_exec_payload(payload.payload.transactions(), block_number)
+            .map_err(|error| error.to_string())
+            .and_then(|()| {
+                payload
+                    .payload
+                    .transactions()
+                    .iter()
+                    .map(|encoded| TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref()))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|error| {
+                        tracing::warn!(block_number, %error, "payload rejected: transaction failed to decode");
+                        // Defensive: the engine's payload-to-block conversion normally reports
+                        // decoding failures first. Use Invalid to retain validation classification
+                        // here even for non-PostExec transactions; the reason identifies the source.
+                        format!("transaction envelope decoding failed: {error}")
+                    })
+            })
+            .map_or_else(PostExecMode::Invalid, |transactions| {
+                post_exec_mode_from_transactions(
+                    transactions.iter(),
+                    block_number,
+                    self.is_sdm_active_at_timestamp(payload.payload.timestamp()),
+                )
+            });
 
         Ok(OpBlockExecutionCtx {
             parent_hash: payload.payload.parent_hash(),
@@ -415,8 +436,13 @@ where
         &self,
         payload: &OpExecutionData,
     ) -> Result<impl ExecutableTxIterator<Self>, Self::Error> {
+        // Background conversion can start before context_for_payload runs. Keep the raw
+        // entry-count guard here too, but defer errors to iterator items so the execution
+        // context can reject the block with PostExecMode::Invalid.
+        let preflight = validate_post_exec_entry_count(payload.payload.transactions());
         let transactions = payload.payload.transactions().clone();
-        let convert = |encoded: Bytes| {
+        let convert = move |encoded: Bytes| {
+            preflight.map_err(AnyError::new)?;
             let tx = TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref())
                 .map_err(AnyError::new)?;
             let signer = tx.try_recover().map_err(AnyError::new)?;
@@ -435,10 +461,11 @@ mod tests {
     use alloy_eips::eip7685::Requests;
     use alloy_genesis::Genesis;
     use alloy_primitives::{
-        Address, B256, LogData, bytes,
+        Address, B256, LogData, U256, bytes,
         map::{AddressMap, B256Map, HashMap},
     };
-    use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
+    use op_alloy_consensus::{SDMGasEntry, TxDeposit, build_post_exec_tx};
+    use op_alloy_rpc_types_engine::OpExecutionPayload;
     use op_revm::OpSpecId;
     use reth_chainspec::ChainSpec;
     use reth_evm::execute::ProviderError;
@@ -449,6 +476,7 @@ mod tests {
     use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
     use reth_primitives_traits::{Account, RecoveredBlock, SealedBlock};
     use revm::{
+        context::CfgEnv,
         database::{BundleState, CacheDB},
         database_interface::EmptyDBTyped,
         inspector::NoOpInspector,
@@ -507,26 +535,28 @@ mod tests {
         SealedBlock::new_unhashed(Block::<OpTransactionSigned> {
             header: Header { number, timestamp, ..Default::default() },
             body: BlockBody {
-                transactions: vec![OpTransactionSigned::PostExec(
-                    build_post_exec_tx(
-                        tx_block_number,
-                        vec![SDMGasEntry { index: 0, gas_refund: 1 }],
-                    )
-                    .seal_slow(),
-                )],
+                transactions: vec![
+                    OpTransactionSigned::Deposit(TxDeposit::default().seal_slow()),
+                    OpTransactionSigned::PostExec(
+                        build_post_exec_tx(
+                            tx_block_number,
+                            vec![SDMGasEntry { index: 0, gas_refund: 1 }],
+                        )
+                        .seal_slow(),
+                    ),
+                ],
                 ..Default::default()
             },
         })
     }
 
-    // Covers Interop-driven SDM activation for imported blocks: pre-Interop blocks reject 0x7d,
-    // Lagoon-active blocks enter Verify mode, and malformed payload anchors are rejected.
+    // Valid payloads enter Verify mode; parser failures become `Invalid` for the executor.
     #[test]
     fn context_for_block_applies_sdm_post_exec_mode() {
-        let disabled_err = test_evm_config()
+        let disabled_ctx = test_evm_config()
             .context_for_block(&block_with_post_exec_tx(7, 123, 7))
-            .expect_err("SDM disabled rejects 0x7d");
-        assert!(matches!(disabled_err, EIP1559ParamError::InvalidPostExecPayload));
+            .expect("infallible");
+        assert!(matches!(disabled_ctx.post_exec_mode, PostExecMode::Invalid(_)));
 
         let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
         let ctx = evm_config
@@ -538,10 +568,106 @@ mod tests {
         assert_eq!(payload.block_number, 7);
         assert_eq!(payload.gas_refund_entries, vec![SDMGasEntry { index: 0, gas_refund: 1 }]);
 
-        let mismatch_err = evm_config
-            .context_for_block(&block_with_post_exec_tx(7, 123, 8))
-            .expect_err("payload block number mismatch is invalid");
-        assert!(matches!(mismatch_err, EIP1559ParamError::InvalidPostExecPayload));
+        let mismatch_ctx =
+            evm_config.context_for_block(&block_with_post_exec_tx(7, 123, 8)).expect("infallible");
+        assert!(matches!(mismatch_ctx.post_exec_mode, PostExecMode::Invalid(_)));
+    }
+
+    #[test]
+    fn context_for_payload_defers_parse_failure() {
+        let block = block_with_post_exec_tx(7, 123, 8).into_block();
+        let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+        let execution_data = OpExecutionData::new(payload, sidecar);
+        let context = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0))
+            .context_for_payload(&execution_data)
+            .expect("infallible");
+
+        assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
+    }
+
+    #[test]
+    fn context_for_payload_defers_malformed_post_exec_bytes() {
+        let block = block_with_post_exec_tx(7, 123, 7).into_block();
+        let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+        let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
+
+        let unsupported_version = op_alloy_consensus::PostExecPayload {
+            version: op_alloy_consensus::POST_EXEC_PAYLOAD_VERSION + 1,
+            block_number: 7,
+            gas_refund_entries: vec![SDMGasEntry { index: 0, gas_refund: 1 }],
+        };
+        let mut encoded_version = vec![op_alloy_consensus::POST_EXEC_TX_TYPE_ID];
+        encoded_version.extend_from_slice(&unsupported_version.to_rlp_bytes());
+        for encoded in [bytes!("7dc0"), encoded_version.into()] {
+            let mut payload = payload.clone();
+            *payload.as_v1_mut().transactions.last_mut().expect("block includes PostExec") =
+                encoded;
+            let execution_data = OpExecutionData::new(payload, sidecar.clone());
+            let context = evm_config.context_for_payload(&execution_data).expect("infallible");
+            assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
+            assert!(evm_config.tx_iterator_for_payload(&execution_data).is_ok());
+        }
+    }
+
+    #[test]
+    fn context_for_payload_defers_non_post_exec_decode_failure() {
+        let mut block = block_with_post_exec_tx(7, 123, 7).into_block();
+        block.body.transactions.pop();
+        let (mut payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+        payload.as_v1_mut().transactions[0] = bytes!("02c0");
+        let execution_data = OpExecutionData::new(payload, sidecar);
+        let evm_config = test_evm_config();
+        assert!(!evm_config.is_sdm_active_at_timestamp(123));
+
+        let context = evm_config.context_for_payload(&execution_data).expect("infallible");
+        let PostExecMode::Invalid(reason) = context.post_exec_mode else {
+            panic!("expected Invalid mode for an undecodable non-PostExec transaction");
+        };
+        assert!(reason.starts_with("transaction envelope decoding failed: "));
+        assert!(evm_config.tx_iterator_for_payload(&execution_data).is_ok());
+    }
+
+    #[test]
+    fn tx_iterator_for_payload_preflights_post_exec_entries() {
+        use reth_evm::{ConvertTx, ExecutableTxTuple};
+
+        let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
+        for entry_count in [1, 2, 1024] {
+            let mut block = block_with_post_exec_tx(7, 123, 7).into_block();
+            *block.body.transactions.last_mut().unwrap() = OpTransactionSigned::PostExec(
+                build_post_exec_tx(7, vec![SDMGasEntry { index: 0, gas_refund: 1 }; entry_count])
+                    .seal_slow(),
+            );
+            let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+            let execution_data = OpExecutionData::new(payload, sidecar);
+            let context = evm_config.context_for_payload(&execution_data).expect("infallible");
+            let iterator = evm_config
+                .tx_iterator_for_payload(&execution_data)
+                .expect("preflight failures are deferred to iterator items");
+            let (transactions, convert) = iterator.into_parts();
+
+            if entry_count == 1 {
+                assert!(matches!(context.post_exec_mode, PostExecMode::Verify(_)));
+                for encoded in transactions {
+                    assert!(convert.convert(encoded).is_ok());
+                }
+            } else {
+                assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
+                // Preflight stops at the first excess entry, so the count is a lower bound.
+                let expected_reason = PostExecPayloadValidationError::TooManyGasRefundEntries {
+                    entry_count: 2,
+                    preceding_transaction_count: 1,
+                }
+                .to_string();
+                // Even the valid deposit must fail preflight: the background converter must
+                // not decode any envelopes from a payload with an oversized refund list.
+                for encoded in transactions {
+                    let error =
+                        convert.convert(encoded).err().expect("preflight rejects conversion");
+                    assert_eq!(error.to_string(), expected_reason);
+                }
+            }
+        }
     }
 
     #[test]

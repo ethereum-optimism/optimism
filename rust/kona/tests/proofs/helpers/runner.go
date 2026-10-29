@@ -5,7 +5,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -63,9 +63,8 @@ func WithSuperDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpers.L2
 
 		f.L2Sources = []*FaultProofProgramL2Source{
 			{
-				Node:        l2,
-				Engine:      l2Eng,
-				ChainConfig: l2Eng.L2Chain().Config(),
+				Node:   l2,
+				Engine: l2Eng,
 			},
 		}
 	}
@@ -113,6 +112,10 @@ func runProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, run P
 	// RunFaultProofProgram is a mistake that would silently pass. Fail loudly.
 	require.False(t, (fixtureInputs.CorruptClaim || fixtureInputs.SP1NativeCore) && !allowSP1Options,
 		"SP1-only fixture options are only honored by RunSP1SuperRangeProgram; the native fault-proof program ignores them")
+	// Native-core replay panics on the corrupted claim's missing preimage (exit 101) instead of
+	// exiting 1, which the oracle server reports as a failure rather than ErrClaimNotValid.
+	require.False(t, fixtureInputs.CorruptClaim && fixtureInputs.SP1NativeCore,
+		"WithCorruptClaim is not supported with WithSP1NativeCore; keep invalid-claim tests on the SP1 execute path")
 
 	// Run the program from the state transition from L2 block l2ClaimBlockNum - 1 -> l2ClaimBlockNum.
 	workDir := t.TempDir()
@@ -128,21 +131,9 @@ func runProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, run P
 	rollupCfgs := make([]*rollup.Config, 0, len(fixtureInputs.L2Sources))
 	l1chainConfig := l1.L1Chain().Config()
 	l2Endpoints := make([]string, 0, len(fixtureInputs.L2Sources))
-	var closeProxies []func()
-	defer func() {
-		for _, closeFn := range closeProxies {
-			closeFn()
-		}
-	}()
 	for _, source := range fixtureInputs.L2Sources {
 		rollupCfgs = append(rollupCfgs, source.Node.RollupCfg)
-		endpoint := source.Engine.HTTPEndpoint()
-		if fixtureInputs.L2RPCTracker != nil {
-			proxyURL, closeFn := fixtureInputs.L2RPCTracker.StartProxy(endpoint)
-			closeProxies = append(closeProxies, closeFn)
-			endpoint = proxyURL
-		}
-		l2Endpoints = append(l2Endpoints, endpoint)
+		l2Endpoints = append(l2Endpoints, source.Engine.RPCEndpoint())
 	}
 
 	err := run(t, workDir, rollupCfgs, l1chainConfig, l1.HTTPEndpoint(), fakeBeacon.BeaconAddr(), l2Endpoints, *fixtureInputs)

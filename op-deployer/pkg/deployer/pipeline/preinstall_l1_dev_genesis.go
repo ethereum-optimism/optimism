@@ -11,7 +11,7 @@ func PreinstallL1DevGenesis(env *Env, intent *state.Intent, st *state.State) err
 	lgr := env.Logger.New("stage", "preinstall-l1-dev-genesis")
 	lgr.Info("Adding preinstalls to L1 dev genesis")
 
-	if err := opcm.InsertPreinstalls(env.L1ScriptHost); err != nil {
+	if err := opcm.InsertL1Preinstalls(env.L1ScriptHost); err != nil {
 		return fmt.Errorf("failed to add preinstalls to L1 dev state: %w", err)
 	}
 	env.L1ScriptHost.Wipe(env.Deployer)

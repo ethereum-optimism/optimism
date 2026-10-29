@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-karst/karsttest"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
@@ -24,7 +23,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -64,7 +64,7 @@ var (
 
 func makeFlags() []cli.Flag {
 	flags := []cli.Flag{EndpointL2, AccountKey}
-	return append(flags, oplog.CLIFlags(prefix)...)
+	return append(flags, logcli.CLIFlags(prefix)...)
 }
 
 // checkEnv bundles the resolved per-invocation inputs that every subcommand
@@ -84,8 +84,8 @@ func (e *checkEnv) close() {
 }
 
 func resolveEnv(c *cli.Context) (*checkEnv, error) {
-	logCfg := oplog.ReadCLIConfig(c)
-	logger := oplog.NewLogger(c.App.Writer, logCfg)
+	logCfg := logcli.ReadCLIConfig(c)
+	logger := logcli.NewLogger(c.App.Writer, logCfg)
 
 	c.Context = ctxinterrupt.WithCancelOnInterrupt(c.Context)
 	l2Cl, err := ethclient.DialContext(c.Context, c.String(EndpointL2.Name))

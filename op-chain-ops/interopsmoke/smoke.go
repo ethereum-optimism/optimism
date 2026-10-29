@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -37,7 +36,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -373,14 +373,12 @@ func firstLogFrom(logs []*types.Log, origin common.Address) int {
 }
 
 func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
-	logHandler := oplog.NewLogHandler(stderr, oplog.DefaultCLIConfig())
+	logHandler := logcli.NewLogHandler(stderr, logcli.DefaultCLIConfig())
 	logHandler = logfilter.WrapFilterHandler(logHandler)
 	logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute())
 	logHandler = logfilter.WrapContextHandler(logHandler)
-	logger := log.NewLogger(logHandler)
-	oplog.SetGlobalLogHandler(logHandler)
-	logger.SetContext(ctx)
-	return logger
+	logcli.SetGlobalLogHandler(logHandler)
+	return log.NewLogger(logHandler).WithContext(ctx)
 }
 
 func newSmokeEnv(ctx context.Context, stderr io.Writer, l2AURL, l2BURL, privateKey string) (*smokeEnv, func(), error) {
@@ -474,6 +472,20 @@ func resolveSmokeKey(privateKey string) (*ecdsa.PrivateKey, common.Address, erro
 		return nil, common.Address{}, fmt.Errorf("parse private key: %w", err)
 	}
 	return privKey, crypto.PubkeyToAddress(privKey.PublicKey), nil
+}
+
+// RunAll runs the full Interop smoke suite without a CLI context.
+func RunAll(ctx context.Context, stderr io.Writer, l2AURL, l2BURL, privateKey string) error {
+	env, cleanup, err := newSmokeEnv(ctx, stderr, l2AURL, l2BURL, privateKey)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	fmt.Fprintf(stderr, "Chain A RPC: %s (chain ID %s)\n", env.chainA.url, env.chainA.chainID)
+	fmt.Fprintf(stderr, "Chain B RPC: %s (chain ID %s)\n", env.chainB.url, env.chainB.chainID)
+	fmt.Fprintf(stderr, "Interop Sender Address: %s\n\n", env.userA.address)
+	return smokeAll(env)
 }
 
 func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error) error {

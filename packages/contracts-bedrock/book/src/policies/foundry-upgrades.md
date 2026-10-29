@@ -12,6 +12,16 @@ critical dependency in our supply chain, and if compromised can have severe cons
 **Important**: New Foundry versions must not be introduced to any part of the codebase without
 going through the formal version update proposal process outlined in this document.
 
+## Threats This Policy Addresses
+
+Foundry is used to build and test contracts and to prepare deployment and governance transactions.
+A new version can introduce:
+
+- Malicious behavior through a compromised release or distribution channel, such as altered contract
+  artifacts or transactions, or disclosure of credentials available to the tool.
+- Unintentional changes to EVM simulation, test behavior, or script output that cause us to accept
+  incorrect results or prepare incorrect transactions.
+
 ## Update Process
 
 1. **Minimum Delay Period**: A new Foundry version must be at least 3 months old before it can be
