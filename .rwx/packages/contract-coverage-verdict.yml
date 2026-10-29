@@ -27,7 +27,6 @@ tasks:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_BRANCH: ${{ params.branch }}
       CI_CONTRACT_PROVIDER: rwx
-      CI_CONTRACT_COVERAGE_REPLAY: 'true'
       COMPILED: ${{ params.compiled }}
       ARCHIVE_PREFLIGHT: ${{ params.archive-preflight }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}

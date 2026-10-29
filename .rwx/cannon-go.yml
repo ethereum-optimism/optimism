@@ -132,8 +132,6 @@ tasks:
     run: |
       RWX_LIVE_CONTRACT_DEPENDENCIES_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_go_dependencies.py'
       RWX_LIVE_CANNON_GO_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_cannon_go.py'
-      RWX_LIVE_CANNON_GO_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_cannon_go.py'
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_cannon_go.py'
     cache: false
     timeout: 15m
     outputs:

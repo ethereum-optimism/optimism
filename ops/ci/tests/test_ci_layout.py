@@ -33,6 +33,28 @@ class LayoutTests(unittest.TestCase):
                                 if isinstance(value,ast.Constant) and isinstance(value.value,str):
                                     self.assertFalse(value.value.startswith(('compare-','migration/')),str(path))
 
+    def test_every_test_file_runs_in_some_rwx_task(self):
+        # No task fails for a test file that no task runs. Match the two forms
+        # the definitions use: unittest discovery and a direct script run.
+        import fnmatch,json,re
+        commands=[]
+        def walk(node):
+            if isinstance(node,dict):
+                for key,value in node.items():
+                    if key=='run' and isinstance(value,str):commands.append(value)
+                    else:walk(value)
+            elif isinstance(node,list):
+                for value in node:walk(value)
+        for path in sorted((ROOT/'.rwx').rglob('*.yml')):
+            walk(json.loads(subprocess.check_output(['yq','-o=json','explode(.)',str(path)],text=True)))
+        tests=sorted(p.relative_to(ROOT).as_posix() for d in (CI/'tests',CI/'migration/tests') for p in d.glob('test_*.py'))
+        run=set()
+        for command in commands:
+            for directory,pattern in re.findall(r"discover -s (\S+) -p '([^']+)'",command):
+                run.update(t for t in tests if Path(t).parent.as_posix()==directory and fnmatch.fnmatch(Path(t).name,pattern))
+            run.update(re.findall(r'(ops/ci/(?:migration/)?tests/test_\w+\.py)',command))
+        self.assertEqual(sorted(set(tests)-run),[])
+
     def test_filtered_sp1_import_succeeds_after_migration_is_removed(self):
         import json
         config=json.loads(subprocess.check_output(['yq','-o=json','.',str(ROOT/'.rwx/sp1-guest.yml')],text=True))

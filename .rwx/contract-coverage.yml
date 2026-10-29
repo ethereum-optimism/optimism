@@ -169,8 +169,6 @@ tasks:
     run: |
       cd project
       RWX_LIVE_CONTRACT_COVERAGE_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_contract_coverage.py'
-      RWX_LIVE_CONTRACT_COVERAGE_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_contract_coverage.py'
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_contract_coverage.py'
     env:
       RWX_COVERAGE_FIXTURE_RETAIN_DIR: .ci/coverage-fixture-evidence
     cache: false

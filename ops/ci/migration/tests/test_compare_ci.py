@@ -27,7 +27,7 @@ class ComparisonTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.metadata = {
-            "provider": "circleci", "sha": SHA, "branch": "codex/rwx-contracts-shadow",
+            "provider": "circleci", "sha": SHA, "branch": "rwx/example",
             "routing_context": {"kind": "pr-branch", "base_branch": "develop"},
             "trigger": {"type": "webhook", "evidence": "synthetic unit fixture"},
             "workload": "go-rollup", "profile": "ci", "features": ["main"],
@@ -254,6 +254,26 @@ class ComparisonTest(unittest.TestCase):
         right["metadata"]["provider"] = "rwx"
         left, _ = self.pair()
         self.assertEqual(CI.compare(left, right)["status"], "different")
+
+    def test_go_build_events_identified_by_import_path_keep_the_package_verdict(self):
+        # Go 1.24+ emits build events with ImportPath and no Package field.
+        passing = [{"ImportPath": PREFIX + " [" + PREFIX + ".test]", "Action": "build-output", "Output": "# compiling\n"},
+                   {"Action": "run", "Package": PREFIX, "Test": "TestSynthetic"},
+                   {"Action": "pass", "Package": PREFIX, "Test": "TestSynthetic"},
+                   {"Action": "pass", "Package": PREFIX}]
+        data = CI.normalize(self.collection([self.go_stream("go.json", passing)]), self.root)
+        self.assertEqual([case["outcome"] for case in data["cases"]], ["pass"])
+        self.assertFalse(data["package_failures"])
+        broken = PREFIX + "/broken"
+        failed = passing + [{"ImportPath": broken + " [" + broken + ".test]", "Action": "build-output", "Output": "x.go:1: undefined: y\n"},
+                            {"ImportPath": broken + " [" + broken + ".test]", "Action": "build-fail"},
+                            {"Action": "start", "Package": broken},
+                            {"Action": "fail", "Package": broken, "FailedBuild": broken + " [" + broken + ".test]"}]
+        discovery = {"packages": [PREFIX, broken], "complete": True, "provenance": "synthetic manifest"}
+        data = CI.normalize(self.collection([self.go_stream("go.json", failed)], discovery=discovery), self.root)
+        self.assertEqual(data["package_failures"], [{"source_id": "go.json", "suite": broken}])
+        with self.assertRaisesRegex(ValueError, "ImportPath"):
+            CI.normalize(self.collection([self.go_stream("go.json", [{"Action": "build-fail"}] + passing)]), self.root)
 
     def test_truncated_or_ambiguous_go_events_are_rejected(self):
         streams = [[{"Action": "run", "Package": PREFIX, "Test": "TestSynthetic"}],

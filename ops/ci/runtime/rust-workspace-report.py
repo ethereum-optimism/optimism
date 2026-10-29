@@ -130,14 +130,18 @@ def unit_report(directory):
     return report
 
 
+# Libtest appends this mode to should_panic, compile_fail and no_run verdicts
+# (TestDesc::test_mode). Its --list identities never carry the mode.
+TEST_MODE = r' - (should panic|compile fail|compile)$'
+
+
 def libtest_report(directory, phase):
     listing = (directory / (phase + '-list.log')).read_text()
     log = (directory / (phase + '.log')).read_text()
     settings_path = directory / 'settings.json'
     settings = json.loads(settings_path.read_text()) if settings_path.exists() else {}
     def identity(name):
-        # Rustdoc decorates no_run verdicts but not their --list identities.
-        name = re.sub(r'(\(line \d+\)) - compile$', r'\1', name)
+        name = re.sub(TEST_MODE, '', name)
         home = settings.get('cargo_home')
         if home and name.startswith(home + '/'):
             name = '<cargo>/' + name[len(home) + 1:]
@@ -155,7 +159,9 @@ def libtest_report(directory, phase):
         if match:
             original, result = match.groups()
             name = identity(original)
-            if re.search(r'\(line \d+\) - compile$', original):
+            mode = re.search(TEST_MODE, original)
+            # Rustdoc compiles compile_fail and no_run doctests but never executes them.
+            if mode and mode[1] in ('compile fail', 'compile'):
                 compile_only.add(name)
             if name in actual:
                 raise ValueError(f'Duplicate {phase} verdict: {name}')
@@ -180,49 +186,6 @@ def libtest_report(directory, phase):
 def commands(text):
     # Authoritative unpartitioned cargo-hack dry-run output, including manifests.
     return [m.group(1) for m in re.finditer(r'(?:^|running `)(cargo (?:check|build) [^\n`]+)', text, re.M)]
-
-
-def feature_report(directory):
-    report = {}
-    settings = json.loads((directory / 'settings.json').read_text())
-    workspace = json.loads((directory / 'workspace.json').read_text())
-    root = Path(settings['workspace_root']) / 'rust'
-    packages = {str(Path(p['manifest_path']).relative_to(root)): p['name'] for p in workspace['packages']}
-    index, total = settings['feature_partition_index'], settings['feature_partitions']
-    for phase in ('features', 'feature-tests'):
-        plan = []
-        for line in commands((directory / (phase + '-list.log')).read_text()):
-            args = shlex.split(line)
-            location = args.index('--manifest-path')
-            package = packages[args[location + 1]]
-            del args[location:location + 2]
-            plan.append({'crate': package, 'argv': args})
-        identities = [json.dumps(c, sort_keys=True) for c in plan]
-        if not plan or len(identities) != len(set(identities)):
-            raise ValueError(f'Empty or duplicate {phase} commands')
-        width = (len(plan) + total - 1) // total
-        expected = set(range(index * width + 1, min((index + 1) * width, len(plan)) + 1))
-        actual, seen, errors = [], set(), []
-        pattern = r'info: (running|skipping) `(cargo (?:check|build)(?: [^`]+)?)` on ([^\s]+) \((\d+)/(\d+)\)'
-        for match in re.finditer(pattern, (directory / (phase + '.log')).read_text()):
-            action, cargo, package, number, count = match.groups()
-            number = int(number)
-            identity = {'crate': package, 'argv': shlex.split(cargo)}
-            if number in seen or int(count) != len(plan) or not 1 <= number <= len(plan):
-                errors.append(f'Duplicate or invalid command index: {number}/{count}')
-                continue
-            seen.add(number)
-            if identity != plan[number - 1] or (action == 'running') != (number in expected):
-                errors.append(f'Wrong command or partition ownership at {number}')
-            if action == 'running':
-                actual.append({'index': number, **identity})
-        missing = sorted(set(range(1, len(plan) + 1)) - seen)
-        report[phase] = {'command_count': len(plan), 'partition_index': index, 'partitions': total,
-                         'planned': [{'index': n, **plan[n - 1]} for n in sorted(expected)],
-                         'executed': actual, 'missing': missing, 'errors': errors}
-    write(directory / 'feature-coverage.json', report)
-    if any(v['missing'] or v['errors'] for v in report.values()):
-        raise ValueError('Incomplete feature command execution')
 
 
 def no_std_report(directory):
@@ -313,52 +276,6 @@ def registry_report(directory):
                                                'fresh_build_script': True})
     if any(p['before'] != p['after'] for p in pairs.values()):
         raise ValueError('Regenerated registry snapshots differ from committed inputs')
-
-
-def interop_report(directory):
-    for language in ('go', 'rust'):
-        if (directory / f'interop-{language}.exit').read_text().strip() != '0':
-            raise ValueError(f'Interop {language} dumper did not succeed')
-        # Retain stderr even when it contains no diagnostics.
-        digest(directory / f'interop-{language}.stderr')
-    go = (directory / 'interop-go.stdout').read_bytes()
-    rust = (directory / 'interop-rust.stdout').read_bytes()
-    if not go or go != rust:
-        raise ValueError('Interop dump outputs are empty or differ')
-    cases, variants = [], []
-    current, index, fields = None, None, []
-    required = ['source_hash', 'from', 'to', 'mint', 'value', 'gas_limit', 'is_system_tx', 'data']
-    def complete_tx():
-        if index is not None and fields != required:
-            raise ValueError('Missing or extra Interop deposit fields')
-    for line in go.decode().splitlines():
-        if line.startswith('activate='):
-            complete_tx()
-            current = line.removeprefix('activate=')
-            variants.append(current)
-            index, fields = None, []
-        elif line.startswith('gas='):
-            if not re.fullmatch(r'gas=0x[0-9a-f]{16}', line) or index is not None:
-                raise ValueError('Invalid Interop activation gas')
-            cases.append(f'activate={current}/gas')
-        elif re.fullmatch(r'--- tx \d+ ---', line):
-            complete_tx()
-            next_index = int(line.split()[2])
-            if next_index != (0 if index is None else index + 1):
-                raise ValueError('Missing or duplicate Interop deposit')
-            index, fields = next_index, []
-            cases.append(f'activate={current}/tx={index}')
-        elif '=' in line and index is not None:
-            fields.append(line.split('=', 1)[0])
-        else:
-            raise ValueError('Unrecognized Interop dump record')
-    complete_tx()
-    if variants != ['false', 'true'] or any(f'activate={v}/gas' not in cases or
-        f'activate={v}/tx=0' not in cases for v in variants) or len(cases) != len(set(cases)):
-        raise ValueError('Incomplete Interop activation selection')
-    write(directory / 'interop-coverage.json', {'cases': cases, 'byte_identical': True,
-                                               'stdout_sha256': digest(directory / 'interop-go.stdout')})
-    return cases
 
 
 def check_junit(directory, job, cases, passed):
@@ -475,11 +392,6 @@ def finish(directory, status, merged=False):
                 reports.append(check())
             except (ValueError, KeyError, OSError, ET.ParseError) as error:
                 errors.append(f'{name}: {error}')
-    if job == 'features':
-        try:
-            feature_report(directory)
-        except (ValueError, OSError) as error:
-            errors.append(str(error))
     if job == 'no-std':
         try:
             no_std_report(directory)
@@ -493,8 +405,6 @@ def finish(directory, status, merged=False):
                 cases = wasm_report(directory, job)
             elif job == 'registry':
                 registry_report(directory)
-            elif job == 'interop':
-                cases = interop_report(directory)
         except (ValueError, KeyError, OSError) as error:
             errors.append(str(error))
     stages = {p.stem.removesuffix('.stage'): json.loads(p.read_text()) for p in directory.glob('*.stage.json')}
@@ -504,8 +414,7 @@ def finish(directory, status, merged=False):
         'tests-compiler': ['beacon-list', 'beacon', 'doctests-list', 'doctests'],
         'tests': ['unit-list', 'unit', 'beacon-list', 'beacon', 'doctests-list', 'doctests'],
         'doctest': ['doctests-list', 'doctests'], 'docs': ['docs'], 'clippy': ['clippy'],
-        'build': ['build'], 'features': ['features-list', 'features', 'feature-tests-list', 'feature-tests'],
-        'feature-plan': ['features-list', 'feature-tests-list'], 'no-std': ['no-std'], 'udeps': ['udeps'],
+        'build': ['build'], 'features': ['features', 'feature-tests'], 'no-std': ['no-std'], 'udeps': ['udeps'],
         'wasm-unknown': ['wasm-target', 'wasm-list', 'wasm'], 'wasm-wasi': ['wasm-target', 'wasm-list', 'wasm'],
         'zepter': ['zepter'], 'typos': ['typos'], 'deny': ['deny'],
         'registry': ['registry-clean', 'registry', 'registry-diff'],

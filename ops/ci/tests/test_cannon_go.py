@@ -56,12 +56,16 @@ class DiscoveryTests(unittest.TestCase):
         self.assertIsNone(settings['package_parallelism'])
         with self.assertRaises(ValueError): G.settings('rwx', True, False, 16)
 
-    def test_circle_boolean_environment_and_cli_flags_preserve_freshness(self):
-        for value, expected in [('true', True), ('1', True), ('false', False), ('0', False)]:
-            parser = argparse.ArgumentParser(); parser.add_argument('--fresh-tests', type=G.boolean, default=value)
-            self.assertIs(parser.parse_args([]).fresh_tests, expected)
-            self.assertIs(parser.parse_args(['--fresh-tests', value]).fresh_tests, expected)
-        with self.assertRaises(argparse.ArgumentTypeError): G.boolean('unrecognized')
+    def test_freshness_is_an_explicit_literal_flag(self):
+        self.assertIs(G.boolean('true'), True)
+        self.assertIs(G.boolean('false'), False)
+        for value in ('1', '0', 'True', 'unrecognized'):
+            with self.subTest(value=value), self.assertRaises(argparse.ArgumentTypeError): G.boolean(value)
+        # Freshness has no environment default; an omitted flag fails before any stage.
+        result = subprocess.run([sys.executable, str(SCRIPTS / 'cannon-go.py'), '--provider', 'rwx'],
+                                env={**os.environ, 'CI_GO_FRESH_TESTS': 'true'}, capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn('--fresh-tests', result.stderr)
 
 
 class _LiveTestsFixtures:
@@ -83,10 +87,10 @@ class _LiveTestsFixtures:
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
-        for argv in (['init', '-q', '-b', 'codex/rwx-ci-pilot'], ['config', 'user.email', 'fixture@example.invalid'], ['config', 'user.name', 'CI Fixture'], ['add', '.'], ['commit', '-qm', 'complete Cannon fixture']):
+        for argv in (['init', '-q', '-b', 'feature/example'], ['config', 'user.email', 'fixture@example.invalid'], ['config', 'user.name', 'CI Fixture'], ['add', '.'], ['commit', '-qm', 'complete Cannon fixture']):
             subprocess.run(['git', *argv], cwd=self.root, check=True)
         self.sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=self.root, text=True).strip()
-        self.environment = {**os.environ, 'CI': 'true', 'CI_COMMIT_SHA': self.sha, 'CI_BRANCH': 'codex/rwx-ci-pilot', 'CI_GO_FRESH_TESTS': '1', 'GOCACHE': str(self.root / '.ci/compiler'), 'GOMODCACHE': str(self.root / '.ci/go-cache/pr-checks/modules')}
+        self.environment = {**os.environ, 'CI': 'true', 'CI_COMMIT_SHA': self.sha, 'CI_BRANCH': 'feature/example', 'GOCACHE': str(self.root / '.ci/compiler'), 'GOMODCACHE': str(self.root / '.ci/go-cache/pr-checks/modules')}
         self.report = self.root / '.ci/cannon-go/run'
         module = self.root / '.ci/go-cache/pr-checks/modules/fixture'
         module.parent.mkdir(parents=True)
@@ -100,9 +104,7 @@ class _LiveTestsFixtures:
         self.dependencies = self.root / '.ci/go-tests/dependencies'
 
     def args(self, provider='circleci'):
-        argv = [sys.executable, str(self.root / 'ops/ci/runtime/cannon-go.py'), '--provider', provider]
-        if provider == 'rwx':
-            argv += ['--fresh-tests', 'true']
+        argv = [sys.executable, str(self.root / 'ops/ci/runtime/cannon-go.py'), '--provider', provider, '--fresh-tests', 'true']
         if provider == 'rwx':
             argv += ['--module-artifact', str(self.dependencies / 'go-modules'), '--contract-artifact', str(self.dependencies / 'contracts')]
         return argv

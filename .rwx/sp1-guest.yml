@@ -146,12 +146,9 @@ tasks:
   - key: helper-tests
     use: [code, toolchain]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: |
-      RWX_LIVE_SP1_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_sp1_guest.py'
-      RWX_LIVE_SP1_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_sp1_guest.py'
+    run: RWX_LIVE_SP1_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_sp1_guest.py'
     env:
       SP1_GUEST_ARTIFACT: ${{ tasks.build.artifacts.dependency }}
-      SP1_GUEST_REPORT: ${{ tasks.check.artifacts.reports }}
     cache: false
     timeout: 15m
     outputs:

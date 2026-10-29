@@ -51,17 +51,35 @@ class UpgradeTests(unittest.TestCase):
         for value in ({}, {'error': 'compile failed'}, {'test/A.t.sol': {'A': ['test_a()', 'test_a()']}}, {'test/A.t.sol': {'A': [None]}}):
             with self.subTest(value=value), self.assertRaises(ValueError): UP.selection(value)
 
-    def test_complete_junit_preserves_skip_and_rejects_missing_duplicate_failure_or_all_skip(self):
+    def test_complete_junit_preserves_skip_and_rejects_missing_duplicate_or_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / 'junit.xml'; selected = [['test/A.t.sol:A', 'test_a()'], ['test/A.t.sol:A', 'test_skip()']]
             original = '<testsuite><testcase classname="test/A.t.sol:A" name="test_a()"/><testcase classname="test/A.t.sol:A" name="test_skip()"><skipped>feature disabled</skipped></testcase></testsuite>'
             p.write_text(original); result = UP.junit(p, selected)
             self.assertEqual(result['outcomes'], {'pass': 1, 'skip': 1}); self.assertEqual(result['cases'][1]['skip_reason']['text'], 'feature disabled')
             for value in (original.replace('test_a()', 'extra()'), original.replace('test_skip()', 'test_a()'),
-                          original.replace('name="test_a()"/>', 'name="test_a()"><failure>original failure</failure></testcase>'),
-                          original.replace('name="test_a()"/>', 'name="test_a()"><skipped/></testcase>')):
+                          original.replace('name="test_a()"/>', 'name="test_a()"><failure>original failure</failure></testcase>')):
                 p.write_text(value)
                 with self.subTest(value=value), self.assertRaises(ValueError): UP.junit(p, selected)
+
+    def test_every_selected_test_skipped_counts_as_executed(self):
+        # check-junit-tests-ran.sh counts skips as executed; a feature guard can skip
+        # every test that a modified-file selection picks.
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / 'junit.xml'; selected = [['test/A.t.sol:A', 'test_a()'], ['test/A.t.sol:A', 'test_skip()']]
+            p.write_text('<testsuite><testcase classname="test/A.t.sol:A" name="test_a()"><skipped/></testcase>'
+                         '<testcase classname="test/A.t.sol:A" name="test_skip()"><skipped>feature disabled</skipped></testcase></testsuite>')
+            self.assertEqual(UP.junit(p, selected)['outcomes'], {'skip': 2})
+            p.write_text('<testsuite name="test/A.t.sol:A"><testcase name="setUp()"><skipped message="feature disabled"/></testcase></testsuite>')
+            self.assertEqual(UP.junit(p, selected)['outcomes'], {'skip': 2})
+
+    def test_no_executable_selected_test_is_an_empty_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / 'junit.xml'; p.write_text('<testsuites/>')
+            selected = [('test/Parent.t.sol:Parent', 'test_inherited()')]
+            bindings = {'test/Parent.t.sol:Parent': {'creation_bytecode': {'artifact': {'bytes': 0, 'sha256': UP.hashlib.sha256(b'').hexdigest()}},
+                                                    'artifacts': {'artifact': 'bound'}}}
+            with self.assertRaisesRegex(ValueError, 'empty'): UP.junit(p, selected, bindings)
 
     def test_setup_skip_expands_only_the_bound_contract_and_retains_original(self):
         with tempfile.TemporaryDirectory() as tmp:

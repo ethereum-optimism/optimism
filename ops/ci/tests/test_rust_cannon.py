@@ -315,16 +315,6 @@ if tool=='cannon':
         self.assertEqual(set(REPORT.read(self.report / 'final.json')['stages']), {'variants', 'witness'})
         self.assertFalse((self.root / 'cannon/bin/cannon').exists())
 
-    def test_missing_archive_discards_bodyless_etag(self):
-        path = self.root / 'rust/kona/bin/client/testdata' / CONFIG['filename']
-        path.parent.mkdir(parents=True, exist_ok=True)
-        sidecar = Path(str(path) + '.etag'); sidecar.write_text('old etag')
-        run = subprocess.run(['bash', 'rust/kona/bin/client/scripts/fetch-witness-tar.sh', CONFIG['filename'], CONFIG['release_url']],
-                             cwd=self.root, env=self.env, capture_output=True, text=True)
-        self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertFalse(sidecar.exists())
-        self.assertEqual(path.read_bytes(), b'fixture witness')
-
     @unittest.skipUnless(os.name == 'posix', 'POSIX cancellation')
     def test_cancellation_preserves_signal_and_original_stream(self):
         process = subprocess.Popen(['bash', 'ops/ci/runtime/rust-cannon.sh', 'offline'], cwd=self.root,

@@ -39,7 +39,7 @@ func TestFresh(t *testing.T) {
             for args in (['init','-q'],['add','.'],['-c','user.name=CI fixture','-c','user.email=fixture@example.invalid','commit','-qm','native Go fixture']):
                 subprocess.run(['git',*args],cwd=root,check=True)
             sha=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
-            env=dict(os.environ,CI_COMMIT_SHA=sha,CI_BRANCH='codex/rwx-ci-pilot',CI_SHARD_INDEX='0',CI_SHARD_TOTAL='1',PARALLEL='8',TEST_TIMEOUT='40m')
+            env=dict(os.environ,CI_COMMIT_SHA=sha,CI_BRANCH='feature/example',CI_SHARD_INDEX='0',CI_SHARD_TOTAL='1',PARALLEL='8',TEST_TIMEOUT='40m')
             def execute(args,**extra):
                 result=subprocess.run(args,cwd=root,env=env|extra,capture_output=True,text=True,timeout=120)
                 return result

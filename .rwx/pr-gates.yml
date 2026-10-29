@@ -1,8 +1,9 @@
-# Genuine optional PR gates; Circle continues to own every required gate.
+# Optional shadow gates; CircleCI owns every required gate. GitHub pushes start
+# this run only on develop and on opt-in rwx/* branches, never on contributor PRs.
 on:
   github:
     push:
-      if: ${{ event.git.branch == 'codex/rwx-ci-pilot' || event.git.branch == 'develop' }}
+      if: ${{ event.git.branch == 'develop' || starts-with(event.git.branch, 'rwx/') }}
       init:
         commit-sha: ${{ event.git.sha }}
         branch: ${{ event.git.branch }}
@@ -116,19 +117,22 @@ tasks:
         - key: routing
           path: .ci/pipeline-parameters.json
 
-  - key: helper-tests
+  # Unit tests for the shared ops/ci helpers. Each workload's helper-tests task
+  # runs that workload's tests with its toolchains. A change under .rwx/ or
+  # ops/ci/ selects every workload, so every ops/ci test runs on such a change;
+  # test_ci_layout.py fails when no RWX task runs a test file.
+  - key: ci-unit-tests
     use: [code, tools]
     run: |
       python3 -m unittest discover -s ops/ci/tests -p 'test_pr_gate.py' -v
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_pr_gate_parity.py' -v
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_circle_alignment.py' -v
-      python3 ops/ci/migration/circle-alignment.py
       python3 -m unittest discover -s ops/ci/tests -p 'test_rwx_local_packages.py' -v
       python3 -m unittest discover -s ops/ci/tests -p 'test_ci_report.py' -v
       python3 -m unittest discover -s ops/ci/tests -p 'test_ci_source.py' -v
       python3 -m unittest discover -s ops/ci/tests -p 'test_ci_layout.py' -v
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_report_evidence.py' -v
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_circle_alignment.py' -v
       python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_ci.py' -v
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_imports.py' -v
+      python3 ops/ci/migration/circle-alignment.py
     cache: false
     timeout: 10m
     outputs:

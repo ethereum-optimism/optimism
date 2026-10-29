@@ -1,44 +1,57 @@
 #!/usr/bin/env python3
 """Collect the original acceptance reports even when the shared runner fails."""
+from collections import Counter
 import importlib.util
 import json
-from collections import Counter
+import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def collect(destination):
+def helper(name):
+    spec = importlib.util.spec_from_file_location(name.replace('-', '_'), Path(__file__).with_name(name + '.py'))
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    return module
+
+
+MANIFEST = helper('acceptance-manifest')
+PROJECT = helper('go-report')
+
+
+def collect(destination, discovery, index, total):
     runs = sorted((ROOT / 'op-acceptance-tests/logs').glob('testrun-*'))
     if len(runs) != 1:
         raise ValueError('Expected exactly one acceptance test invocation')
     logs = runs[0]
-    originals = list(logs.glob('raw_go_events*.log'))
-    if len(originals) != 1 or not originals[0].stat().st_size:
-        raise ValueError('Missing original acceptance JSON')
     destination.mkdir(parents=True, exist_ok=True)
     shutil.copytree(logs, destination / 'logs', dirs_exist_ok=True)
-    results = ROOT / 'op-acceptance-tests/results'
-    if not list(results.glob('*.xml')):
-        raise ValueError('Missing acceptance JUnit')
-    shutil.copytree(results, destination / 'junit', dirs_exist_ok=True)
-    shutil.copyfile(originals[0], destination / 'original.json')
     dependencies = ROOT / 'tmp/testlogs/dependencies'
     if dependencies.exists():
         shutil.copytree(dependencies, destination / 'dependencies', dirs_exist_ok=True)
-    spec = importlib.util.spec_from_file_location('report', Path(__file__).with_name('go-report.py'))
-    report = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(report)
-    report.project(destination / 'original.json', destination / 'native.json')
-    selection = json.loads((logs / 'discovery/selection.json').read_text())
-    expected = {(t['package'], t['name']) for t in selection['assigned_tests']}
+    names = set(MANIFEST.select(discovery / 'manifest.json', index, total))
+    tests = json.loads((discovery / 'manifest.json').read_text())['tests']
+    expected = {(t['package'], t['name']) for t in tests if t['name'] in names}
     terminals = Counter()
-    for event in report.events(destination / 'original.json'):
-        name = event.get('Test', '')
-        if name and '/' not in name and event.get('Action') in ('pass', 'skip', 'fail'):
-            terminals[(event['Package'], name)] += 1
+    # The recipe runs nothing for an empty assignment. Any other shard must report.
+    if expected:
+        original = logs / f'raw_go_events-{index}.log'
+        if not original.is_file() or not original.stat().st_size:
+            raise ValueError('Missing original acceptance JSON')
+        shutil.copyfile(original, destination / 'original.json')
+        PROJECT.project(destination / 'original.json', destination / 'native.json')
+        junit = ROOT / f'op-acceptance-tests/results/results-{index}.xml'
+        if not junit.is_file() or not junit.stat().st_size:
+            raise ValueError('Missing acceptance JUnit')
+        (destination / 'junit').mkdir(exist_ok=True)
+        shutil.copyfile(junit, destination / 'junit' / junit.name)
+        for event in PROJECT.events(destination / 'original.json'):
+            name = event.get('Test', '')
+            if name and '/' not in name and event.get('Action') in ('pass', 'skip', 'fail'):
+                terminals[(event['Package'], name)] += 1
     coverage = {'expected': len(expected), 'observed': len(terminals),
                 'missing': sorted(expected - terminals.keys()),
                 'extra': sorted(terminals.keys() - expected),
@@ -50,7 +63,8 @@ def collect(destination):
 
 if __name__ == '__main__':
     try:
-        collect(Path(sys.argv[1]))
-    except (ValueError, OSError) as error:
+        collect(Path(sys.argv[1]), Path(os.environ['CI_ACCEPTANCE_DISCOVERY']),
+                os.environ['CI_SHARD_INDEX'], os.environ['CI_SHARD_TOTAL'])
+    except (ValueError, OSError, KeyError, subprocess.CalledProcessError) as error:
         print(f'ERROR: {error}', file=sys.stderr)
         sys.exit(1)

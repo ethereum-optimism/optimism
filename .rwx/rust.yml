@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [tests-cache, tests-build, build, clippy, docs, no-std, udeps, feature-plan, features-build-0, features-build-1, features-build-2, features-build-3, features-build-4, features-build-5, features-build-6, features-build-7, features-build-8, features-build-9, wasm-unknown, wasm-wasi, registry, cannon-env, cannon-go, cannon-witness, cannon-build]
+    target: [tests-cache, tests-build, build, clippy, docs, no-std, udeps, features-build-0, features-build-1, features-build-2, features-build-3, features-build-4, features-build-5, features-build-6, features-build-7, features-build-8, features-build-9, wasm-unknown, wasm-wasi, registry, cannon-env, cannon-go, cannon-witness, cannon-build]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -34,6 +34,11 @@ defaults:
   runner:
     cpus: 2
     memory: 8gb
+
+aliases:
+  rust-env: &rust-env
+    CI_RUST_PROVIDER: rwx
+    CI_COMMIT_SHA: ${{ init.commit-sha }}
 
 tasks:
   - key: code
@@ -98,11 +103,8 @@ tasks:
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_compiler_baseline.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_dependencies.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rwx_materialize_linker.py'
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_rust_workspace.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_target_cache.py'
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_rust_extra.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_cannon.py'
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_rust_cannon.py'
     cache: false
     timeout: 10m
     outputs:
@@ -165,21 +167,6 @@ tasks:
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
     timeout: 15m
-
-  - key: feature-plan
-    use: head-source
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/runtime/rust-workspace.sh feature-plan
-    env: &rust-env
-      CI_RUST_PROVIDER: rwx
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-    cache: false
-    timeout: 15m
-    outputs:
-      filesystem: false
-      artifacts:
-        - key: report
-          path: .ci/rust-workspace/feature-plan
 
   # Anchor compiler preparation at the last compiler/configuration change.
   # Ordinary source edits reuse these immutable task results without granting

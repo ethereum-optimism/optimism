@@ -50,8 +50,12 @@ metadata = {'geth_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
             'geth_version': subprocess.check_output([str(binary), 'version'], text=True).strip()}
 Path('tmp/testlogs/dependencies/runtime-tools.json').write_text(json.dumps(metadata, indent=2) + '\n')
 PYCODE
-    export ACCEPTANCE_TEST_HIDE_FAILURE_OUTPUT=true
     export LD_PRELOAD=libeatmydata.so
+    # The unchanged recipe shards through ops/scripts/shard-tests.sh. Its
+    # `circleci tests split` call reaches the shim, which prints this shard's
+    # assignment from the discovery manifest in CI_ACCEPTANCE_DISCOVERY.
+    export CIRCLE_NODE_INDEX="$CI_SHARD_INDEX" CIRCLE_NODE_TOTAL="$CI_SHARD_TOTAL"
+    export PATH="$PWD/ops/ci/runtime/acceptance-circleci:$PATH"
     mkdir -p .ci/acceptance/reports
     finish() {
       local status=$?

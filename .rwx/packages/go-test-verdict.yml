@@ -32,6 +32,8 @@ tasks:
       git submodule sync --recursive
       git submodule update --init --recursive --jobs 8
       git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+      # The go and contracts restores also supply op-deployer's embedded files
+      # (superchain configs, forge artifacts) for tests that build it at runtime.
       for dependency in go contracts kona op-reth prestate; do
         case "$dependency" in
           go) artifact="$GO_ARTIFACT" ;;

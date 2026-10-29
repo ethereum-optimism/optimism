@@ -18,7 +18,6 @@ UP, ROOT, CONTRACTS = CS.UP, CS.ROOT, CS.CONTRACTS
 PHASES = ('ordinary', 'upgrade')
 UPGRADE_CONTRACT = 'OPContractsManager.*_Upgrade_Test'
 RPC_INPUT = 'OP_CI_MAINNET_L1_ARCHIVE_RPC_URL'
-FFI_REPLAY_INPUT = 'OP_CI_FFI_REPLAY_SEED'
 DISCOVERY = {'ordinary': ['forge', 'test', '--list', '--json'],
              'upgrade': ['forge', 'test', '--list', '--json', '--match-contract', UPGRADE_CONTRACT, '--match-path', UP.MATCH]}
 # These are the two commands executed, in this order and with short-circuiting,
@@ -38,43 +37,34 @@ def configure(feature):
     if feature not in CS.FEATURES: raise ValueError('Unknown contract coverage feature')
     branch = os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH')
     if not branch: raise ValueError('Missing tested coverage branch')
-    replay = os.environ.get('CI_CONTRACT_COVERAGE_REPLAY', 'false').lower()
-    if replay not in ('false', 'true', '0', '1'): raise ValueError('Invalid coverage replay benchmark parameter')
     if os.environ.get('CI_CONTRACT_PROFILE', 'cicoverage') != 'cicoverage':
         raise ValueError('Coverage profile differs from the original workflow matrix')
     for name in list(os.environ):
         if name.startswith(('FOUNDRY_', 'DAPP_', 'DEV_FEATURE__', 'SYS_FEATURE__')): del os.environ[name]
     for name in ('ETH_RPC_URL', 'FORK_RPC_URL', 'FORK_BLOCK_NUMBER', 'L2_FORK_RPC_URL', 'L2_FORK_BLOCK_NUMBER',
-                 'ETH_RPC_JWT', 'ETH_RPC_HEADERS', 'ETHERSCAN_API_KEY', 'MAINNET_RPC_URL', FFI_REPLAY_INPUT):
+                 'ETH_RPC_JWT', 'ETH_RPC_HEADERS', 'ETHERSCAN_API_KEY', 'MAINNET_RPC_URL'):
         os.environ.pop(name, None)
-    seed = '0x' + hashlib.sha256((UP.revision() + ':' + feature + ':contract-coverage').encode()).hexdigest() \
-           if replay in ('true', '1') else None
     os.environ.update(FORK_TEST='false', L2_FORK_TEST='false', L2CM_ACTIVATION_TEST='false', CI='true', NO_COLOR='1')
-    if seed: os.environ[FFI_REPLAY_INPUT] = seed
     if feature != 'main':
         for variable in UP.FEATURES[feature].split(): os.environ[variable] = 'true'
-    return branch, seed
+    return branch
 
 
-def coverage_profile(seed):
+def coverage_profile():
     os.environ['FOUNDRY_PROFILE'] = 'cicoverage'
-    if seed: os.environ['FOUNDRY_FUZZ_SEED'] = seed
 
 
-def validate_config(config, seed):
+def validate_config(config):
     if (config['fuzz']['runs'], config['invariant']['runs'], config['invariant']['depth']) != (1, 1, 1) or \
        config.get('optimizer') is not False or config.get('compilation_restrictions') or config.get('threads') != 16 or \
        any(config.get(k) for k in ('match_test', 'no_match_test', 'match_contract', 'no_match_contract', 'match_path', 'no_match_path', 'skip')):
         raise ValueError('Unexpected effective original coverage workload settings')
-    if (int(config['fuzz']['seed'], 16) if config['fuzz'].get('seed') else None) != (int(seed, 16) if seed else None):
-        raise ValueError('Coverage benchmark seed differs from effective configuration')
 
 
 def prepare(directory, feature):
-    branch, seed = configure(feature)
+    branch = configure(feature)
     settings = {'source_sha': UP.revision(), 'feature': feature, 'branch': branch, 'profile': 'cicoverage',
-                'source_build_profile': 'default', 'benchmark_seed': seed, 'rpc_input_name': RPC_INPUT,
-                'ffi_replay_seed': seed, 'ffi_replay_policy': 'chacha8-arguments-v1',
+                'source_build_profile': 'default', 'rpc_input_name': RPC_INPUT,
                 'authority': ['just', 'coverage-lcov-all'], 'phases': PHASES,
                 'provider': os.environ.get('CI_CONTRACT_PROVIDER', 'circleci'), 'workspace_root': str(ROOT),
                 'forge': UP.command('forge', '--version'), 'go': UP.command('go', 'version'), 'just': UP.command('just', '--version'),
@@ -104,10 +94,10 @@ def prepare(directory, feature):
                               ('go-ffi', ['just', 'build-go-ffi'], False), ('source-build', ['just', 'build-source'], False)]:
         status = UP.stage(directory, name, argv, json_output=as_json)
         if status: return status
-    coverage_profile(seed)
+    coverage_profile()
     status = UP.stage(directory, 'foundry-config', ['forge', 'config', '--json'], json_output=True)
     if status: return status
-    config = json.loads((directory / 'foundry-config.json').read_text()); validate_config(config, seed)
+    config = json.loads((directory / 'foundry-config.json').read_text()); validate_config(config)
     # test --list emits minimal artifacts when tests have not been fully built;
     # they omit compiler method identifiers and metadata. A real build supplies
     # the authoritative signature/abstract-bytecode bindings without tests.
@@ -137,12 +127,12 @@ def prepare(directory, feature):
 
 def restore(directory, prepared, feature):
     UP.originals(prepared, PREPARED, 'rwx/contract-coverage-prepare')
-    old = json.loads((prepared / 'settings.json').read_text()); branch, seed = configure(feature)
+    old = json.loads((prepared / 'settings.json').read_text()); branch = configure(feature)
     files = CS.file_selection((prepared / 'files.log').read_text())
-    if (old['source_sha'], old['feature'], old['branch'], old['profile'], old['benchmark_seed'], old['workspace_root'], old['input_sha256'],
+    if (old['source_sha'], old['feature'], old['branch'], old['profile'], old['workspace_root'], old['input_sha256'],
         old.get('runtime_output_paths')) != \
-       (UP.revision(), feature, branch, 'cicoverage', seed, str(ROOT), CS.inputs(), CS.runtime_outputs(files)):
-        raise ValueError('Stale coverage source, profile, benchmark seed or runtime fixture role')
+       (UP.revision(), feature, branch, 'cicoverage', str(ROOT), CS.inputs(), CS.runtime_outputs(files)):
+        raise ValueError('Stale coverage source, profile or runtime fixture role')
     for key, argv in [('forge', ['forge', '--version']), ('go', ['go', 'version']), ('just', ['just', '--version'])]:
         if old[key] != UP.command(*argv): raise ValueError('Coverage runtime toolchain differs from preparation')
     if UP.SUBMODULES.revisions((prepared / 'submodules.txt').read_text()) != UP.SUBMODULES.revisions(UP.command('git', 'submodule', 'status', '--recursive')):
@@ -158,7 +148,7 @@ def restore(directory, prepared, feature):
     shutil.copy2(prepared / 'final.json', directory / 'preparation-manifest.json')
     shutil.copy2(prepared / 'settings.json', directory / 'preparation-settings.json')
     old.update(rwx_run_id=os.environ.get('RWX_RUN_ID'), rwx_task_attempt=os.environ.get('RWX_TASK_ATTEMPT_NUMBER'))
-    UP.write(directory / 'settings.json', old); coverage_profile(seed)
+    UP.write(directory / 'settings.json', old); coverage_profile()
     if UP.stage(directory, 'runtime-config', ['forge', 'config', '--json'], json_output=True):
         raise ValueError('Missing runtime coverage configuration')
     if json.loads((directory / 'runtime-config.json').read_text()) != json.loads((directory / 'foundry-config.json').read_text()):

@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shlex
 import signal
 import shutil
 import subprocess
@@ -105,31 +106,19 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(report['cases'][0]['name'], '<cargo>/git/pin/src/lib.rs - Thing (line 4)')
         self.assertTrue(report['cases'][0]['compile_only'])
 
-    def test_feature_plan_must_execute_exactly_once(self):
-        (self.root / 'settings.json').write_text(json.dumps({'workspace_root': str(self.root),
-            'feature_partition_index': 0, 'feature_partitions': 10}))
-        (self.root / 'workspace.json').write_text(json.dumps({'packages': [
-            {'name': 'crate', 'manifest_path': str(self.root / 'rust/crate/Cargo.toml')}]}))
-        for phase in ('features', 'feature-tests'):
-            (self.root / (phase + '-list.log')).write_text('cargo check --manifest-path crate/Cargo.toml --all-features\n')
-            (self.root / (phase + '.log')).write_text('info: running `cargo check --all-features` on crate (1/1)\n')
-        REPORT.feature_report(self.root)
-        (self.root / 'features.log').write_text('')
-        with self.assertRaisesRegex(ValueError, 'Incomplete'):
-            REPORT.feature_report(self.root)
-
-    def test_feature_partitions_validate_skips_and_empty_assignments(self):
-        (self.root / 'workspace.json').write_text(json.dumps({'packages': [
-            {'name': 'crate', 'manifest_path': str(self.root / 'rust/crate/Cargo.toml')}]}))
-        (self.root / 'settings.json').write_text(json.dumps({'workspace_root': str(self.root),
-            'feature_partition_index': 1, 'feature_partitions': 10}))
-        for phase in ('features', 'feature-tests'):
-            (self.root / (phase + '-list.log')).write_text('cargo check --manifest-path crate/Cargo.toml\n')
-            (self.root / (phase + '.log')).write_text('info: skipping `cargo check` on crate (1/1)\n')
-        REPORT.feature_report(self.root)
-        (self.root / 'features.log').write_text('info: running `cargo check` on crate (1/1)\n')
-        with self.assertRaisesRegex(ValueError, 'Incomplete'):
-            REPORT.feature_report(self.root)
+    def test_libtest_modes_keep_list_identities(self):
+        # Pinned rustc 1.99 decorates these verdicts, never their --list identities.
+        for phase, name, mode, compile_only in (('beacon', 'tests::panics', 'should panic', False),
+                                                ('doctests', 'src/lib.rs - value (line 17)', 'should panic', False),
+                                                ('doctests', 'src/lib.rs - value (line 12)', 'compile fail', True),
+                                                ('doctests', 'src/lib.rs - value (line 7)', 'compile', True)):
+            with self.subTest(mode=mode, name=name):
+                (self.root / (phase + '-list.log')).write_text(name + ': test\n\n1 test, 0 benchmarks\n')
+                (self.root / (phase + '.log')).write_text(f'running 1 test\ntest {name} - {mode} ... ok\n')
+                report = REPORT.libtest_report(self.root, phase)
+                self.assertEqual((report['missing'], report['extra']), ([], []))
+                self.assertEqual(report['cases'], [dict(suite=phase, name=name, outcome='pass',
+                                                        retries=0, compile_only=compile_only)])
 
     def test_corrupt_and_stale_archive_rejected(self):
         archive = self.root / 'tests.tar.zst'
@@ -265,78 +254,56 @@ class ExtraReportTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             REPORT.registry_report(self.root)
 
-    def interop_files(self):
-        dump = ''
-        for variant in ('false', 'true'):
-            dump += f'activate={variant}\ngas=0x0000000000000001\n--- tx 0 ---\n'
-            dump += ''.join(f'{field}=original\n' for field in
-                ('source_hash', 'from', 'to', 'mint', 'value', 'gas_limit', 'is_system_tx', 'data'))
-        for language in ('go', 'rust'):
-            (self.root / f'interop-{language}.stdout').write_text(dump)
-            (self.root / f'interop-{language}.stderr').write_text('original diagnostic\n')
-            (self.root / f'interop-{language}.exit').write_text('0\n')
-
-    def test_interop_requires_byte_equality_and_complete_cases(self):
-        self.interop_files()
-        self.assertEqual(len(REPORT.interop_report(self.root)), 4)
-        (self.root / 'interop-rust.stdout').write_text('different\n')
-        with self.assertRaisesRegex(ValueError, 'differ'):
-            REPORT.interop_report(self.root)
-        self.interop_files()
-        for language in ('go', 'rust'):
-            path = self.root / f'interop-{language}.stdout'
-            path.write_text(path.read_text().replace('data=original\n', ''))
-        with self.assertRaisesRegex(ValueError, 'fields'):
-            REPORT.interop_report(self.root)
-
-    def test_interop_dumper_failure_is_not_an_empty_match(self):
-        self.interop_files()
-        (self.root / 'interop-go.exit').write_text('7\n')
-        with self.assertRaisesRegex(ValueError, 'did not succeed'):
-            REPORT.interop_report(self.root)
-        self.interop_files()
-        for language in ('go', 'rust'):
-            (self.root / f'interop-{language}.stdout').write_text('')
-        with self.assertRaisesRegex(ValueError, 'empty'):
-            REPORT.interop_report(self.root)
+    def test_interop_verdict_is_the_original_script_exit(self):
+        # The unchanged script compares its dumps itself and retains neither of them.
+        REPORT.write(self.root / 'settings.json', {'job': 'interop'})
+        for name in ('workspace', 'superchain-go', 'interop'):
+            REPORT.write(self.root / (name + '.stage.json'), {'exit_code': 0})
+        self.assertEqual(REPORT.finish(self.root, 0), 0)
+        self.assertNotIn('failure', (self.root / 'checks.junit.xml').read_text())
+        REPORT.write(self.root / 'interop.stage.json', {'exit_code': 1})
+        self.assertEqual(REPORT.finish(self.root, 1), 1)
+        self.assertIn('failure', (self.root / 'checks.junit.xml').read_text())
+        (self.root / 'interop.stage.json').unlink()
+        self.assertTrue(REPORT.finish(self.root, 0))
 
 
-class InteropScriptTests(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        (self.root / 'go.mod').touch()
-        (self.root / 'rust/kona').mkdir(parents=True)
-        (self.root / 'ops/scripts').mkdir(parents=True)
-        self.script = self.root / 'ops/scripts/test-interop-deposits-diff.sh'
-        shutil.copyfile(SCRIPTS.parents[1] / 'scripts/test-interop-deposits-diff.sh', self.script)
-        self.bin = self.root / 'bin'
-        self.bin.mkdir()
-
-    def run_diff(self, go_status=0, rust_status=0, different=False):
-        for name, status in (('go', go_status), ('cargo', rust_status)):
-            path = self.bin / name
-            text = 'different' if name == 'cargo' and different else 'original stdout'
-            path.write_text(f'#!/usr/bin/env bash\nprintf "%s\\n" "{text}"\nprintf "%s\\n" "{name} original stderr" >&2\nexit {status}\n')
-            path.chmod(0o755)
-        return subprocess.run(['bash', str(self.script)], env=os.environ | {
-            'PATH': str(self.bin) + os.pathsep + os.environ['PATH'],
-            'CI_INTEROP_REPORT_DIR': str(self.root / 'report')}, capture_output=True, text=True)
-
-    def test_complete_original_streams_survive_success_and_diff_failure(self):
-        self.assertEqual(self.run_diff().returncode, 0)
-        self.assertEqual(self.run_diff(different=True).returncode, 1)
-        for language in ('go', 'rust'):
-            self.assertIn('original stderr', (self.root / f'report/interop-{language}.stderr').read_text())
-            self.assertEqual((self.root / f'report/interop-{language}.exit').read_text(), '0\n')
-        self.assertEqual((self.root / 'report/interop-rust.stdout').read_text(), 'different\n')
-
-    def test_original_dumper_exit_is_retained(self):
-        self.assertEqual(self.run_diff(go_status=7).returncode, 2)
-        self.assertEqual((self.root / 'report/interop-go.exit').read_text(), '7\n')
-        self.assertEqual(self.run_diff(rust_status=9).returncode, 2)
-        self.assertEqual((self.root / 'report/interop-rust.exit').read_text(), '9\n')
+class FeatureCommandTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('just'), 'requires the pinned just tool')
+    def test_partitions_pass_circle_recipe_arguments_with_one_lockfile_seed(self):
+        """Run the shared shell; Just dry-runs the unchanged recipes, so arity errors fail."""
+        repo = Path(__file__).resolve().parents[3]
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for name in ('ops/ci/runtime/rust-workspace.sh', 'ops/ci/runtime/rust-workspace-report.py',
+                         'ops/ci/runtime/ci-report.py', 'mise.toml', 'rust/justfile',
+                         'rust/.config/nextest.toml', 'rust/.cargo/config.toml'):
+                (root / name).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(repo / name, root / name)
+            (root / 'rust/Cargo.lock').write_text('version = 4\n')
+            (root / 'superchain-registry').mkdir()
+            (root / 'superchain-registry/README').write_text('fixture submodule identity')
+            for args in (['init', '-q'], ['add', '.'], ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture']):
+                subprocess.run(['git', *args], cwd=root, check=True, capture_output=True)
+            shims = root / 'bin'
+            shims.mkdir()
+            for name, body in (('just', 'exec ' + shlex.quote(shutil.which('just')) + ' --dry-run "$@"'),
+                               ('cargo', 'true'), ('rustc', 'true'), ('sccache', 'true')):
+                (shims / name).write_text('#!/usr/bin/env bash\n' + body + '\n')
+                (shims / name).chmod(0o755)
+            env = os.environ | {'PATH': str(shims) + os.pathsep + os.environ['PATH'], 'CI_RUST_PROVIDER': 'circleci',
+                                'CI_COMMIT_SHA': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()}
+            seed = REPORT.digest(root / 'rust/Cargo.lock')
+            for index, total, partition in (('2', '10', '3/10'), ('0', '1', '')):
+                with self.subTest(total=total):
+                    result = subprocess.run(['bash', 'ops/ci/runtime/rust-workspace.sh', 'features'], cwd=root, env=env | {
+                        'CI_RUST_PARTITION_INDEX': index, 'CI_RUST_PARTITION_TOTAL': total}, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    report = root / '.ci/rust-workspace' / ('features-' + index)
+                    for stage, recipe in (('features', 'hack'), ('feature-tests', 'hack-tests-default')):
+                        record = json.loads((report / (stage + '.stage.json')).read_text())
+                        self.assertEqual((record['argv'], record['cwd']), (['just', recipe, partition, 'true', seed], 'rust'))
+                        self.assertEqual('--partition ' + partition in (report / (stage + '.log')).read_text(), bool(partition))
 
 
 class HostLinkerReportTests(unittest.TestCase):
@@ -669,7 +636,7 @@ pub fn compile_only() {}
             (root / 'rust/providers/tests').mkdir()
             (root / 'rust/providers/tests/e2e_testsuite.rs').write_text('#[test] fn fixture() {}\n')
             # Exercise the real CLI tests against an archived non-test binary.
-            # Its compile-time target path is absent on the unit worker.
+            # The unit worker restores it at its compile-time target path.
             shutil.copyfile(repo / 'rust/lokahi/tests/cli.rs', root / 'rust/providers/tests/cli.rs')
             (root / 'rust/providers/src/bin').mkdir()
             (root / 'rust/providers/src/bin/lokahi.rs').write_text('''fn main() {
@@ -790,12 +757,15 @@ pub fn compile_only() {}
             self.assertEqual(fresh.returncode, 0, fresh.stdout + fresh.stderr)
             # A binary-only worker starts without producer targets and must
             # never inspect the compiler archive, even on its first execution.
+            # It extracts only the test archive and compiles nothing.
             shutil.rmtree(root / 'rust/target')
             unit = run('tests-unit', {'COMPILED_TARGET': str(corrupt)})
             self.assertEqual(unit.returncode, 0, unit.stdout + unit.stderr)
             self.assertFalse((root / '.ci/rust-workspace/tests-unit/cache-restore.log').exists())
-            self.assertFalse((root / 'rust/target/debug/deps').exists())
-            self.assertFalse((root / 'rust/target/debug/lokahi').exists())
+            self.assertTrue((root / 'rust/target/debug/lokahi').is_file())
+            self.assertFalse((root / 'rust/target/debug/.fingerprint').exists())
+            self.assertFalse((root / 'rust/target/debug/incremental').exists())
+            self.assertFalse([p for p in (root / '.ci/rust-workspace/tests-unit').rglob('*') if p.name == 'lokahi'])
             self.assertFalse((root / '.ci/rust-workspace/tests-unit/beacon.log').exists())
             shutil.rmtree(root / 'rust/target')
             shutil.copytree(snapshot, root / 'rust/target')
@@ -856,8 +826,8 @@ pub fn compile_only() {}
             # Circle's reusable template defaults to a single unpartitioned node.
             single = run('features', {'CI_RUST_PARTITION_INDEX': '0', 'CI_RUST_PARTITION_TOTAL': '1'})
             self.assertEqual(single.returncode, 0, single.stdout + single.stderr)
-            coverage = json.loads((root / '.ci/rust-workspace/features-0/feature-coverage.json').read_text())
-            self.assertTrue(all(c['command_count'] == len(c['executed']) for c in coverage.values()))
+            for phase in ('features', 'feature-tests'):
+                self.assertIn('without partition', (feature_report/(phase+'.log')).read_text())
 
 
 if __name__ == '__main__':

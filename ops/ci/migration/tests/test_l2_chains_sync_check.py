@@ -1,4 +1,4 @@
-"""Migration-only comparisons using permanent execution fixture mechanics."""
+"""Exercise the transitional L2 chains sync check with the Main check fixtures."""
 import importlib.util
 from pathlib import Path
 import sys
@@ -25,8 +25,7 @@ class MainTests(T._MainTestsFixtures, unittest.TestCase):
     def install_helpers(self, root):
         super().install_helpers(root)
         target=root/'ops/ci/migration'; target.mkdir()
-        for name in ('l2-chains-sync-check.py','report-evidence.py'):
-            shutil.copy2(Path(__file__).resolve().parents[1]/name,target/name)
+        shutil.copy2(Path(__file__).resolve().parents[1]/'l2-chains-sync-check.py',target/'l2-chains-sync-check.py')
 
     @unittest.skipUnless(os.environ.get('RWX_LIVE_MAIN_FIXTURE') == '1', 'Opt-in pinned original Main adapters')
     def test_real_l2_and_forge_adapters_preserve_nested_cwd_and_report_after_failure(self):
@@ -48,7 +47,7 @@ class MainTests(T._MainTestsFixtures, unittest.TestCase):
             sha = self.commit(root)
             for job in ('l2-chains-sync-check', 'op-deployer-forge-version'):
                 if job == 'l2-chains-sync-check':
-                    result = subprocess.run([sys.executable, str(root/'ops/ci/migration/l2-chains-sync-check.py')], cwd=root/'op-deployer', env={**os.environ,'CI_COMMIT_SHA':sha,'CI_BRANCH':'codex/rwx-ci-pilot','CI_CHECK_PROVIDER':'circleci'}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                    result = subprocess.run([sys.executable, str(root/'ops/ci/migration/l2-chains-sync-check.py')], cwd=root/'op-deployer', env={**os.environ,'CI_COMMIT_SHA':sha,'CI_BRANCH':'feature/example','CI_CHECK_PROVIDER':'rwx'}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                     report=root/'.ci/main-checks/l2-chains-sync-check'
                 else:
                     result, report = self.run_adapter(root, job, sha)
@@ -64,15 +63,6 @@ class MainTests(T._MainTestsFixtures, unittest.TestCase):
             self.assertIn("Forge versions don't match", (report / 'check.log').read_text())
             self.assertNotEqual(json.loads((report / 'final.json').read_text())['exit_code'], 0)
             self.assertIn('<failure', (report / 'check.junit.xml').read_text())
-
-    @unittest.skipUnless(os.environ.get('RWX_LIVE_MAIN_FIXTURE') == '1', 'Opt-in original Go/Mockery generation')
-    def test_real_mock_generation_executes_freshly_and_detects_stale_committed_mock(self):
-        self.exercise_mock_original_reports()
-
-    def verify_mock_reports(self, originals, sha):
-        spec=importlib.util.spec_from_file_location('comparison',Path(__file__).resolve().parents[1]/'compare-main-checks.py')
-        comparison=importlib.util.module_from_spec(spec); spec.loader.exec_module(comparison)
-        self.assertTrue(comparison.compare(originals,'check-generated-mocks-op-node',sha)['verified_parity'])
 
     def test_l2_selection_keeps_every_chain_and_rejects_missing_or_duplicate_matrix(self):
         config = {'workflows': {'scheduled-daily-tests': {'jobs': [{'contracts-bedrock-tests-l2-fork': {'matrix': {'parameters': {'fork_op_chain': ['op-mainnet', 'new-chain']}}}}]}}}

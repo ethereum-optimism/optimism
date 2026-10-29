@@ -134,7 +134,6 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     run: |
       python3 -m unittest discover -s ops/ci/tests -p 'test*l2*.py'
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test*l2*.py'
     cache: false
     timeout: 10m
     outputs: {filesystem: false}

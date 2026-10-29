@@ -30,6 +30,22 @@ class Reports(unittest.TestCase):
         data['results']['.semgrep/rules/test.yaml']['checks']['rule']['matches']['/work/.semgrep/tests/test.py']['reported_lines']=[]
         with self.assertRaisesRegex(ValueError,'annotations'):C.machine_report('semgrep-test',data,'/work')
 
+    def test_semgrep_findings_are_printable_from_the_json_report(self):
+        scan={'results':[{'check_id':'rules.no-panic','path':'op-node/a.go','start':{'line':3,'col':5},
+                          'extra':{'message':'Do not\n  panic'}}],
+              'errors':[{'type':'Syntax error','message':'bad token'}]}
+        self.assertEqual(C.findings('semgrep-scan-local',scan),
+                         ['op-node/a.go:3:5: rules.no-panic: Do not panic','Semgrep error: Syntax error: bad token'])
+        self.assertEqual(C.findings('semgrep-scan-local',{'results':[],'errors':[]}),[])
+        rule_tests={'config_with_errors':['.semgrep/rules/broken.yaml'],'results':{'.semgrep/rules/test.yaml':{'checks':{
+            'passing':{'passed':True,'errors':[],'matches':{}},
+            'failing':{'passed':False,'errors':['unexpected'],'matches':{'t.py':{'expected_lines':[2],'reported_lines':[]}}}}}}}
+        self.assertEqual(C.findings('semgrep-test',rule_tests),
+                         ['Semgrep configuration error: .semgrep/rules/broken.yaml',
+                          'Semgrep rule test failed: .semgrep/rules/test.yaml: failing',
+                          '  t.py: expected lines [2], reported lines []','  error: unexpected'])
+        self.assertIn('no JSON report',C.findings('semgrep-test',None)[0])
+
 
 class _LiveToolsFixtures:
 
@@ -55,7 +71,7 @@ class _LiveToolsFixtures:
 
     def run_check(self, root, job, provider='rwx', evidence_label=None):
         sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
-        env = dict(os.environ, CI_BRANCH='pilot', CI_COMMIT_SHA=sha, CI_CHECK_PROVIDER=provider, RWX_RUN_ID='a' * 32, RWX_TASK_ATTEMPT_NUMBER='1')
+        env = dict(os.environ, CI_BRANCH='feature/example', CI_COMMIT_SHA=sha, CI_CHECK_PROVIDER=provider, RWX_RUN_ID='a' * 32, RWX_TASK_ATTEMPT_NUMBER='1')
         child = subprocess.run(['python3', str(root / 'ops/ci/runtime/static-checks.py'), job], cwd=root, env=env, capture_output=True, text=True, timeout=90)
         d = root / '.ci/static-checks' / job
         if child.returncode and os.environ.get('RWX_STATIC_FIXTURE_RETAIN_DIR'):
@@ -107,7 +123,7 @@ class LiveTools(_LiveToolsFixtures, unittest.TestCase):
         (root / 'known-issue.py').write_text('forbidden(0)\n')
         self.commit(root)
         subprocess.run(['git', 'branch', 'develop'], cwd=root, check=True)
-        subprocess.run(['git', 'checkout', '-qb', 'pilot'], cwd=root, check=True)
+        subprocess.run(['git', 'checkout', '-qb', 'feature/example'], cwd=root, check=True)
         (root / 'source.py').write_text('allowed(1)\n')
         self.commit(root)
         for job in ('semgrep-test', 'semgrep-scan-local'):
@@ -126,6 +142,7 @@ class LiveTools(_LiveToolsFixtures, unittest.TestCase):
         failed, d, _ = self.run_check(root, 'semgrep-scan-local', evidence_label='semgrep-initial-failure')
         self.assertNotEqual(failed.returncode, 0)
         self.assertEqual(json.loads((d / 'check.json').read_text())['results'][0]['check_id'], 'semgrep.rules.original-rule')
+        self.assertIn('source.py:1:1: semgrep.rules.original-rule: original diagnostic', failed.stderr)
         self.assertEqual(json.loads((d / 'check.stage.json').read_text())['exit_code'], 1)
         self.assertNotEqual(json.loads((d / 'final.json').read_text())['exit_code'], 0)
         subprocess.run(['git', 'branch', '-D', 'develop'], cwd=root, check=True, capture_output=True)

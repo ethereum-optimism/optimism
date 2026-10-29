@@ -4,9 +4,8 @@ import argparse
 import importlib.util
 from pathlib import Path
 
-_SPEC = importlib.util.spec_from_file_location('report_evidence', Path(__file__).with_name('report-evidence.py'))
-E=importlib.util.module_from_spec(_SPEC);_SPEC.loader.exec_module(E)
-G=E.helper('pr-gate')
+_SPEC = importlib.util.spec_from_file_location('pr_gate', Path(__file__).resolve().parents[1] / 'runtime' / 'pr-gate.py')
+G=importlib.util.module_from_spec(_SPEC);_SPEC.loader.exec_module(G)
 MAPPING=Path(__file__).with_name('circle-gates.json')
 
 

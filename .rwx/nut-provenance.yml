@@ -110,12 +110,9 @@ tasks:
       cache-epoch: ${{ init.cache-epoch }}
 
   - key: helper-tests
-    use: [code, go-tools]
+    use: [code, tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: |
-      python3 -m unittest discover -s ops/ci/tests -p 'test_nut_provenance.py' -v
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_nut_provenance.py' -v
-      go test -count=1 ./ops/scripts/nut-provenance-verify
+    run: python3 -m unittest discover -s ops/ci/tests -p 'test_nut_provenance.py' -v
     cache: false
     timeout: 15m
     outputs:

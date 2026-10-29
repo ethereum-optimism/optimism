@@ -163,9 +163,7 @@ tasks:
   - key: helper-tests
     use: [code, go-tools, contract-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: |
-      RWX_LIVE_NUT_PREFORK_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_nut_prefork.py'
-      RWX_LIVE_NUT_PREFORK_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_nut_prefork.py'
+    run: RWX_LIVE_NUT_PREFORK_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_nut_prefork.py'
     cache: false
     timeout: 15m
     outputs:
@@ -211,8 +209,6 @@ tasks:
         filter:
           workspace: [.ci/go-cache/nut-prefork/build]
           system: []
-      test-results:
-        - path: .ci/nut-prefork/run/native.junit.xml
       artifacts:
         - key: reports
           path: .ci/nut-prefork/run

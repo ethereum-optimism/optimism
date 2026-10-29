@@ -74,6 +74,15 @@ class AcceptanceManifestTest(unittest.TestCase):
         self.listing.write_text(self.listing.read_text() + '\n')
         with self.assertRaises(ValueError): ACCEPTANCE.select(path, 0, 8)
 
+    def test_selection_requires_the_runner_listing_to_match_every_discovered_identity(self):
+        path = self.root / 'manifest.json'
+        path.write_text(json.dumps(ACCEPTANCE.create(self.package_file, self.listing, 8)))
+        listed = ['TestShared', 'TestBase', 'TestShared', 'TestInterop']
+        self.assertEqual(ACCEPTANCE.select(path, 0, 8, listed), ACCEPTANCE.select(path, 0, 8))
+        # A package lost its TestShared, a test is new, or a test is gone.
+        for changed in (listed[1:], listed + ['TestNew'], listed[:-1]):
+            with self.assertRaises(ValueError): ACCEPTANCE.select(path, 0, 8, changed)
+
     def test_empty_shard_and_new_test_remain_valid(self):
         manifest = ACCEPTANCE.create(self.package_file, self.listing, 8)
         path = self.root / 'manifest.json'

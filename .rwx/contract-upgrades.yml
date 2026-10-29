@@ -156,7 +156,6 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     run: |
       RWX_LIVE_FORGE_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_contract_upgrades.py'
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_contract_upgrades.py'
     cache: false
     timeout: 10m
     outputs:

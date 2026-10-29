@@ -5,7 +5,7 @@ HELPERS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 job="${1:?Pass a Rust workspace job}"
-case "$job" in tests | tests-build | tests-unit | tests-compiler | tests-merge | doctest | docs | clippy | build | features | feature-plan | no-std | udeps | wasm-unknown | wasm-wasi | zepter | typos | deny | registry | interop) ;;
+case "$job" in tests | tests-build | tests-unit | tests-compiler | tests-merge | doctest | docs | clippy | build | features | no-std | udeps | wasm-unknown | wasm-wasi | zepter | typos | deny | registry | interop) ;;
 *)
   echo "Unknown Rust workspace job: $job" >&2
   exit 1
@@ -116,20 +116,6 @@ docs() {
   stage doctests-list cargo test --doc --workspace --locked --all-features -- --list
   stage doctests just test-docs
 }
-features() {
-  local partition="$1" phase
-  for phase in features feature-tests; do
-    local recipe=hack
-    if [[ "$phase" == feature-tests ]]; then recipe=hack-tests-default; fi
-    # In the pinned cargo-hack, dry-run printing does not advance partition
-    # progress. Discover the whole plan, then verify live global indices.
-    stage "$phase-list" just "$recipe" "" true "$seed" true
-    if [[ "$job" != feature-plan ]]; then
-      stage "$phase" just "$recipe" "$partition" true "$seed"
-    fi
-  done
-}
-seed="$(sha256sum rust/Cargo.lock | cut -d' ' -f1)"
 case "$job" in
   tests-build)
     stage archive mold -run cargo nextest archive --workspace --all-features --locked --archive-file "$report/tests.tar.zst"
@@ -150,11 +136,12 @@ case "$job" in
     if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
       producer="${TEST_ARCHIVE:?TEST_ARCHIVE must identify the compiled producer artifact}"
       python3 "$HELPERS/rust-workspace-report.py" verify-artifact "$producer"
-      mkdir -p "$report/unpacked"
-      tar --zstd -xf "$producer/tests.tar.zst" -C "$report/unpacked"
-      args=(--binaries-metadata "$report/unpacked/target/nextest/binaries-metadata.json"
-        --cargo-metadata "$report/unpacked/target/nextest/cargo-metadata.json"
-        --target-dir-remap "$report/unpacked/target" --workspace-remap "$ROOT/rust")
+      # Extract at the producer's target directory. Every RWX task in this run
+      # has the same workspace path, so nextest's recorded paths and compile-time
+      # paths such as env!("CARGO_BIN_EXE_lokahi") resolve without a remap.
+      tar --zstd -xf "$producer/tests.tar.zst" -C "$ROOT/rust"
+      args=(--binaries-metadata "$ROOT/rust/target/nextest/binaries-metadata.json"
+        --cargo-metadata "$ROOT/rust/target/nextest/cargo-metadata.json")
     else
       args=(--workspace --all-features)
     fi
@@ -168,7 +155,6 @@ case "$job" in
     if [[ -f "$ROOT/rust/target/nextest/default/junit.xml" ]]; then
       cp "$ROOT/rust/target/nextest/default/junit.xml" "$report/junit.xml"
     fi
-    rm -rf "$report/unpacked"
     if [[ "$status" != 0 ]]; then exit "$status"; fi
     if [[ "$job" == tests-unit ]]; then exit 0; fi
     compiler_tests
@@ -184,9 +170,15 @@ case "$job" in
   clippy) stage clippy cargo clippy --workspace --all-targets --all-features --locked ;;
   build) stage build mold -run cargo build --profile dev --workspace --features default ;;
   features)
-    if [[ "$total" == 1 ]]; then features ""; else features "$((index + 1))/$total"; fi
+    # Circle's recipes and partition argument. One seed shuffles every partition.
+    # The ancestor compiler producer has the same manifests and Cargo.lock, so
+    # its partition holds the same crates.
+    partition=""
+    if [[ "$total" != 1 ]]; then partition="$((index + 1))/$total"; fi
+    seed="$(sha256sum rust/Cargo.lock | cut -d' ' -f1)"
+    stage features just hack "$partition" true "$seed"
+    stage feature-tests just hack-tests-default "$partition" true "$seed"
     ;;
-  feature-plan) features "" ;;
   no-std) stage no-std just check-no-std ;;
   udeps) stage udeps just check-udeps ;;
   wasm-unknown | wasm-wasi)
@@ -224,7 +216,6 @@ case "$job" in
       export GOPATH="$ROOT/.ci/interop-go/gopath" GOCACHE="$ROOT/.ci/interop-go/build"
       mkdir -p "$GOPATH" "$GOCACHE"
     fi
-    export CI_INTEROP_REPORT_DIR="$report"
     stage_at . superchain-go just build-superchain-go
     stage_at . interop bash ops/scripts/test-interop-deposits-diff.sh
     ;;

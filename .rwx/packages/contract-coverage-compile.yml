@@ -20,7 +20,6 @@ tasks:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_BRANCH: ${{ params.branch }}
       CI_CONTRACT_PROVIDER: rwx
-      CI_CONTRACT_COVERAGE_REPLAY: 'true'
       CI_CONTRACT_FEATURE: ${{ params.feature }}
     tool-cache: ${{ params.cache-key }}
     timeout: 60m

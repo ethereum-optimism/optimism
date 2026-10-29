@@ -1,2 +1,0 @@
-docs/public-docs/intro.md
-new-service/handler.go

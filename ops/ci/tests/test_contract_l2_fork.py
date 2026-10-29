@@ -22,10 +22,10 @@ class L2Tests(unittest.TestCase):
         self.directory=Path(self.tmp.name)
 
     def test_complete_ci_profile_clears_ambient_filters_features_and_rpc(self):
-        with mock.patch.dict(os.environ, {'CI_BRANCH':'codex/rwx-ci-pilot','FOUNDRY_PROFILE':'liteci','FOUNDRY_FUZZ_RUNS':'1',
+        with mock.patch.dict(os.environ, {'CI_BRANCH':'feature/example','FOUNDRY_PROFILE':'liteci','FOUNDRY_FUZZ_RUNS':'1',
              'FOUNDRY_MATCH_TEST':'partial','FOUNDRY_NO_RPC_RATE_LIMIT':'true',
              'DEV_FEATURE__UNRELATED':'true','ETH_RPC_URL':'ambient','L2_FORK_CHAIN':'other'},clear=True):
-            self.assertEqual(L.configure(),'codex/rwx-ci-pilot')
+            self.assertEqual(L.configure(),'feature/example')
             self.assertEqual(os.environ['FOUNDRY_PROFILE'],'ci');self.assertEqual(os.environ['L2_FORK_TEST'],'true')
             for name in ('FOUNDRY_FUZZ_RUNS','FOUNDRY_MATCH_TEST','FOUNDRY_NO_RPC_RATE_LIMIT',
                          'DEV_FEATURE__UNRELATED','ETH_RPC_URL','L2_FORK_CHAIN'):
@@ -44,7 +44,7 @@ class L2Tests(unittest.TestCase):
 request=urllib.request.Request(os.environ['L2_FORK_RPC_URL'],data=b'{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}',headers={'Content-Type':'application/json'})
 with urllib.request.urlopen(request,timeout=5) as response:chain=json.load(response)['result']
 print(json.dumps({'rpc':os.environ['L2_FORK_RPC_URL'],'chain':chain,'modules':os.environ['GOMODCACHE']}))'''
-        with mock.patch.dict(os.environ,{'CI_BRANCH':'codex/rwx-ci-pilot','BASH_ENV':str(initialization),
+        with mock.patch.dict(os.environ,{'CI_BRANCH':'feature/example','BASH_ENV':str(initialization),
              'L2_FORK_RPC_URL':upstream,'GOMODCACHE':'initialized job modules'}), \
              mock.patch.object(L.UP,'CONTRACTS',self.directory):
             L.configure()
@@ -90,24 +90,15 @@ print(json.dumps({'rpc':os.environ['L2_FORK_RPC_URL'],'chain':chain,'modules':os
         (self.directory/'rpc-0-attempt-1.json').write_text('{}')
         with self.assertRaisesRegex(ValueError,'corrupt original'):L.original(self.directory)
 
-    def test_shared_pilot_snapshot_avoids_independently_selected_heads_and_preserves_other_refs(self):
+    def test_latest_reads_the_current_head_on_every_branch(self):
         url,observations=self.server()
-        root=self.directory/'source';(root/'ops/ci/runtime').mkdir(parents=True)
-        snapshot=root/'ops/ci/runtime/pilot-l2-fork-block.txt';snapshot.write_text('66\n')
-        with mock.patch.object(L,'RPC',url),mock.patch.object(L,'ROOT',root),mock.patch.object(L.UP,'revision',return_value='a'*40):
-            with mock.patch.dict(os.environ,{'CI_BRANCH':'codex/rwx-ci-pilot'},clear=True):
-                chosen=L.preflight(self.directory,'latest')
-            self.assertEqual(chosen['requested'],'66')
-            self.assertEqual(len(observations),5)
-            self.assertNotIn('eth_blockNumber',[row['request']['method'] for row in observations])
-            other=self.directory/'develop';other.mkdir()
-            with mock.patch.dict(os.environ,{'CI_BRANCH':'develop'},clear=True):
-                chosen=L.preflight(other,'latest')
-            self.assertEqual(chosen['requested'],'latest');self.assertEqual(observations[5]['request']['method'],'eth_blockNumber')
-            snapshot.write_text('66; untrusted\n')
-            invalid=self.directory/'invalid';invalid.mkdir()
-            with mock.patch.dict(os.environ,{'CI_BRANCH':'codex/rwx-ci-pilot'},clear=True),self.assertRaisesRegex(ValueError,'snapshot'):
-                L.preflight(invalid,'latest')
+        with mock.patch.object(L,'RPC',url),mock.patch.object(L.UP,'revision',return_value='a'*40):
+            for i,branch in enumerate(('develop','rwx/example')):
+                directory=self.directory/str(i);directory.mkdir()
+                with mock.patch.dict(os.environ,{'CI_BRANCH':branch},clear=True):
+                    chosen=L.preflight(directory,'latest')
+                self.assertEqual(chosen['requested'],'latest')
+            self.assertEqual([row['request']['method'] for row in observations].count('eth_blockNumber'),2)
 
     def test_unsealed_block_only_mount_is_rejected_before_any_test_command(self):
         mounted=self.directory/'mounted';mounted.mkdir();pinned=mounted/'block.json';L.write(pinned,{'number':66})
@@ -151,7 +142,7 @@ print(json.dumps({'rpc':os.environ['L2_FORK_RPC_URL'],'chain':chain,'modules':os
         prepared=self.directory/'prepared';prepared.mkdir();runtime=self.directory/'runtime';runtime.mkdir()
         root=self.directory/'source';(root/'packages/contracts-bedrock').mkdir(parents=True)
         file=root/'packages/contracts-bedrock/original.bin';file.write_bytes(b'compiled original')
-        settings={'source_sha':'a'*40,'profile':'ci','branch':'codex/rwx-ci-pilot','rwx_run_id':'b'*32,'rwx_task_attempt':'1'}
+        settings={'source_sha':'a'*40,'profile':'ci','branch':'feature/example','rwx_run_id':'b'*32,'rwx_task_attempt':'1'}
         modules=' '+('d'*40)+' packages/contracts-bedrock/lib/forge-std (fixture)\n'
         L.write(prepared/'settings.json',settings);(prepared/'submodules.txt').write_text(modules)
         L.write(prepared/'foundry-config.json',{'fuzz':{'runs':128},'invariant':{'runs':64,'depth':32}})

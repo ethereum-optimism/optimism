@@ -98,7 +98,7 @@ def validate(manifest, total):
     return manifest
 
 
-def select(path, index, total):
+def select(path, index, total, listed=None):
     manifest = validate(json.loads(path.read_text()), total)
     index = SHARDS.shard_number(index)
     if index >= manifest['total']:
@@ -111,35 +111,28 @@ def select(path, index, total):
     for name, field in [('packages.json', 'packages_sha256'), ('listing.json', 'listing_sha256')]:
         if sha256(path.with_name(name)) != manifest.get(field):
             raise ValueError('Acceptance discovery changed')
+    # The runner lists one line per discovered identity, so a shared name repeats per package.
+    if listed is not None and sorted(listed) != sorted(t['name'] for t in manifest['tests']):
+        raise ValueError('Runner test listing differs from acceptance discovery')
     return sorted(manifest['shards'][index])
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['create', 'names', 'select', 'record'])
+    parser.add_argument('command', choices=['create', 'select'])
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--total', default='8')
     parser.add_argument('--index', default='0')
-    parser.add_argument('--assigned', type=Path)
+    parser.add_argument('--listed', type=Path)
     args = parser.parse_args()
     path = args.directory / 'manifest.json'
-    if args.command in ('create', 'names'):
+    if args.command == 'create':
         manifest = create(args.directory / 'packages.json', args.directory / 'listing.json', args.total)
         validate(manifest, args.total)
         path.write_text(json.dumps(manifest, indent=2) + '\n')
-        if args.command == 'names':
-            print('\n'.join(sorted({t['name'] for t in manifest['tests']})))
     else:
-        manifest = validate(json.loads(path.read_text()), args.total)
-        if args.command == 'select':
-            print('\n'.join(select(path, args.index, args.total)), end='\n' if manifest['shards'][int(args.index)] else '')
-        else:
-            names = args.assigned.read_text().splitlines() if args.assigned else sorted({t['name'] for t in manifest['tests']})
-            if len(names) != len(set(names)) or not set(names) <= {t['name'] for t in manifest['tests']}:
-                raise ValueError('Invalid effective acceptance selection')
-            record = {**manifest, 'shard_index': int(args.index), 'assigned_names': names,
-                      'assigned_tests': [t for t in manifest['tests'] if t['name'] in names]}
-            (args.directory / 'selection.json').write_text(json.dumps(record, indent=2) + '\n')
+        listed = args.listed.read_text().splitlines() if args.listed else None
+        sys.stdout.write(''.join(name + '\n' for name in select(path, args.index, args.total, listed)))
 
 
 if __name__ == '__main__':

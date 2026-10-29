@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Run the complete Kontrol summary/build workload with sealed original outputs."""
 import argparse
-import json
 import os
 from pathlib import Path
 import re
@@ -30,7 +29,7 @@ SOURCES = ('mise.toml', 'packages/contracts-bedrock/justfile', 'packages/contrac
     'packages/contracts-bedrock/test/kontrol/scripts/common.sh',
     'packages/contracts-bedrock/test/kontrol/scripts/json/clean_json.py',
     'packages/contracts-bedrock/test/kontrol/scripts/json/reverse_key_values.py',
-    'ops/ci/runtime/kontrol-image.json', 'ops/ci/runtime/kontrol-image.py', 'ops/ci/runtime/kontrol-build.py')
+    'ops/ci/runtime/kontrol-image.json', 'ops/ci/runtime/kontrol-image.py')
 COMMANDS = {'summaries': ['just', 'kontrol-summary-full'], 'proofs': ['just', 'forge-build', './test/kontrol/proofs']}
 COMPILER_ENV = ('FOUNDRY_OPTIMIZER', 'FOUNDRY_OPTIMIZER_RUNS', 'FOUNDRY_VIA_IR', 'FOUNDRY_SOLC_VERSION',
                 'FOUNDRY_EVM_VERSION', 'FOUNDRY_BYTECODE_HASH', 'FOUNDRY_CBOR_METADATA', 'FOUNDRY_REMAPPINGS',
@@ -49,28 +48,6 @@ def copy_files(directory, names):
 
 
 def seal(directory): return {str(p.relative_to(directory)): S.digest(p) for p in sorted(directory.rglob('*')) if p.is_file()}
-
-
-def capture(phase):
-    target = Path(os.environ['KONTROL_CI_REPORT_DIR']).resolve()
-    if not target.is_relative_to(ROOT / '.ci') or phase not in ('deployment', 'load-inputs', 'generated'):
-        raise ValueError('Invalid isolated Kontrol capture destination or phase')
-    variant = 'fault-proofs' if os.environ.get('KONTROL_FP_DEPLOYMENT') == 'true' else 'default'
-    names_file = 'packages/contracts-bedrock/deployments/kontrol' + ('-fp' if variant == 'fault-proofs' else '') + '.json'
-    names = ['packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json', names_file]
-    if phase != 'deployment': names += [names_file + 'Reversed']
-    if phase == 'generated': names += GENERATED[variant]
-    directory = target / 'variants' / variant / phase
-    if directory.exists(): raise ValueError('Duplicate Kontrol variant or capture phase')
-    directory.mkdir(parents=True)
-    copy_files(directory / 'files', names)
-    summary = 'DeploymentSummary' + ('FaultProofs' if variant == 'fault-proofs' else '')
-    load = ['kontrol', 'load-state', '--from-state-diff', summary, 'snapshots/state-diff/Kontrol-31337.json',
-            '--contract-names', names_file.removeprefix('packages/contracts-bedrock/') + 'Reversed',
-            '--output-dir', 'test/kontrol/proofs/utils', '--license', 'MIT']
-    S.write(directory / 'manifest.json', {'variant': variant, 'phase': phase, 'source_sha': command('git', 'rev-parse', 'HEAD'),
-        'profile': os.environ.get('FOUNDRY_PROFILE', 'default'), 'load_state_argv': load,
-        'files': seal(directory / 'files')})
 
 
 def collect_compiler(directory):
@@ -137,26 +114,21 @@ def execute(provider, contract_artifact=None):
         if status: raise ValueError('Kontrol effective compiler configuration failed')
         selected = select(); S.write(directory / 'selection.json', selected)
         copy_files(directory / 'source', [*SOURCES, *selected['proof_sources']])
-        os.environ['KONTROL_CI_REPORT_DIR'] = str(directory)
+        # Circle's two commands. Their exit statuses are the verdict.
         for name, argv in COMMANDS.items():
             status = S.stage(directory, name, argv, cwd=str(CONTRACTS), stdin=subprocess.DEVNULL)
             collect_compiler(directory / (name + '-compiler'))
             if status: raise ValueError('Original Kontrol workload failed: ' + name)
-        if sorted(p.name for p in (directory / 'variants').iterdir()) != selected['variants']:
-            raise ValueError('Missing or extra original Kontrol summary variant')
-        for variant in selected['variants']:
-            if sorted(p.name for p in (directory / 'variants' / variant).iterdir()) != ['deployment','generated','load-inputs']:
-                raise ValueError('Missing, duplicate or extra original Kontrol summary phase')
-            if G.read(directory / 'variants' / variant / 'generated/manifest.json')['source_sha'] != sha:
-                raise ValueError('Stale original Kontrol summary source')
         after = G.inputs(); S.write(directory / 'inputs-after.json', after)
         allowed = set(sum(GENERATED.values(), []))
         changes = {name: {'before': before[name], 'after': after[name]} for name in before if before[name] != after.get(name)}
         if before.keys() != after.keys() or set(changes) - allowed or command('git','rev-parse','HEAD') != sha:
             raise ValueError('Kontrol generation changed unrelated tracked source inputs')
         IMAGE.inspect()
+        # Retain the final summaries. The state diff is not per variant: the fault-proofs run
+        # overwrites the default run's state diff.
         copy_files(directory / 'generated', sum(GENERATED.values(), []))
-        S.write(directory / 'coverage.json', {'tests':0, 'variants':selected['variants'], 'proof_sources':len(selected['proof_sources']),
+        S.write(directory / 'coverage.json', {'tests':0, 'proof_sources':len(selected['proof_sources']),
             'generated_files':4, 'tracked_generated_changes':changes, 'complete_original_commands':True})
         status = 0
     except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
@@ -182,9 +154,7 @@ def execute(provider, contract_artifact=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument('--provider', choices=('circleci','rwx')); mode.add_argument('--capture', choices=('deployment','load-inputs','generated'))
+    parser.add_argument('--provider', choices=('circleci','rwx'), required=True)
     parser.add_argument('--contract-artifact', type=Path)
     args = parser.parse_args()
-    if args.capture: capture(args.capture)
-    else: sys.exit(execute(args.provider,args.contract_artifact))
+    sys.exit(execute(args.provider,args.contract_artifact))

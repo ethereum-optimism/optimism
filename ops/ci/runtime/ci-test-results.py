@@ -144,16 +144,22 @@ def go_cases(path, source, metadata):
         except ValueError as error:
             raise ValueError(f"Go JSON line {line_number}: {error}") from error
         json_object(event, "Go event")
+        action = event.get("Action")
+        if action not in ("start", "run", "pause", "cont", "output", "pass", "fail", "skip", "build-output", "build-fail"):
+            raise ValueError(f"unknown Go event action {action!r}")
+        if action in ("build-output", "build-fail"):
+            # Go 1.24+ reports build events by ImportPath (for example "p [p.test]"),
+            # not Package. The package's own fail event, with FailedBuild, carries
+            # the verdict, so the terminal-verdict checks below still apply.
+            required_text(event.get("ImportPath"), "Go build event ImportPath")
+            continue
         suite = required_text(event.get("Package"), "Go event Package")
         if not in_scope(suite, metadata):
             continue
         observed_packages.add(suite)
-        action = event.get("Action")
-        if action not in ("start", "run", "pause", "cont", "output", "pass", "fail", "skip", "build-output", "build-fail"):
-            raise ValueError(f"unknown Go event action {action!r}")
         name = event.get("Test")
         if not name:
-            if action in ("pass", "fail", "skip", "build-fail"):
+            if action in ("pass", "fail", "skip"):
                 package_terminals.append((suite, action))
             continue
         required_text(name, "Go event Test")
@@ -184,7 +190,7 @@ def go_cases(path, source, metadata):
     if observed_packages != set(final_packages):
         raise ValueError("Go JSON has packages without terminal verdicts")
     source["observed_packages"] = sorted(observed_packages)
-    failures = [suite for suite, action in final_packages.items() if action in ("fail", "build-fail")]
+    failures = [suite for suite, action in final_packages.items() if action == "fail"]
     package_history = {}
     for suite, action in package_terminals:
         package_history.setdefault(suite, []).append(action)

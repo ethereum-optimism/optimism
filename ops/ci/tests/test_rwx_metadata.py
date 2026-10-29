@@ -1,4 +1,4 @@
-"""Exercise RWX routing with real Git histories and local CLI patches."""
+"""Exercise RWX routing through CircleCI's routing scripts with real Git histories."""
 
 import json
 import os
@@ -9,7 +9,15 @@ import tempfile
 import unittest
 
 
-SCRIPTS = Path(__file__).resolve().parents[1] / 'runtime'
+ROOT = Path(__file__).resolve().parents[3]
+# The adapter reads CircleCI's routing data and policy without modifying them.
+ROUTING_FILES = (
+    "ops/ci/runtime/rwx-metadata.sh",
+    ".circleci/routing.yml",
+    ".circleci/scripts/collect-params.sh",
+    ".circleci/scripts/compute-workflow-conditions.sh",
+    ".circleci/scripts/workflow-helpers.sh",
+)
 
 
 class RwxMetadataTests(unittest.TestCase):
@@ -23,23 +31,16 @@ class RwxMetadataTests(unittest.TestCase):
         self.upstream.mkdir()
         self.git("init", "--initial-branch=develop", cwd=self.upstream)
         self.configure_git(self.upstream)
-        destination = self.upstream / "ops/ci/runtime"
-        destination.mkdir(parents=True)
-        for name in (
-            "rwx-metadata.sh",
-            "collect-params.sh",
-            "compute-workflow-conditions.sh",
-            "workflow-helpers.sh",
-            "routing.yml",
-        ):
-            shutil.copyfile(SCRIPTS / name, destination / name)
-        (self.upstream / ".gitignore").write_text(".ci/\n", encoding="utf-8")
+        for name in ROUTING_FILES:
+            destination = self.upstream / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / name, destination)
         self.write("docs/public-docs/example.md", "original\n", self.upstream)
         self.git("add", ".", cwd=self.upstream)
         self.git("commit", "-m", "initial", cwd=self.upstream)
         self.git("clone", str(self.upstream), str(self.checkout), cwd=self.root)
         self.configure_git(self.checkout)
-        self.git("switch", "-c", "codex/test")
+        self.git("switch", "-c", "rwx/example")
 
     def git(self, *args, cwd=None):
         return subprocess.run(
@@ -65,9 +66,11 @@ class RwxMetadataTests(unittest.TestCase):
 
     def run_metadata(self, **overrides):
         env = dict(os.environ)
+        for name in ("BRANCH", "TAG", "TRIGGER_SOURCE", "SCHEDULE_NAME", "BASE_REVISION", "OUTPUT"):
+            env.pop(name, None)
         env.update(
             CI_EVENT="push",
-            CI_BRANCH="codex/test",
+            CI_BRANCH="rwx/example",
             CI_TAG="",
             CI_COMMIT_SHA=self.git("rev-parse", "HEAD"),
             CI_BASE_REVISION="develop",
@@ -100,13 +103,13 @@ class RwxMetadataTests(unittest.TestCase):
     def test_cache_warming_has_a_successful_route_but_selects_no_verdicts(self):
         self.write("op-node/rollup/example.go")
         self.commit("op-node/rollup/example.go")
-        for branch in ("develop", "codex/rwx-ci-pilot"):
+        params = self.assert_routes(False, False, CI_CACHE_WARM="true", CI_BRANCH="develop")
+        self.assertTrue(params["cache-rebuild"])
+        self.assertFalse(params["c-run_contracts_feature_tests"])
+        self.assertFalse(params["c-run_rust_e2e_ci"])
+        for branch in ("rwx/example", "external-fork/untrusted"):
             with self.subTest(branch=branch):
-                params = self.assert_routes(False, False, CI_CACHE_WARM="true", CI_BRANCH=branch)
-                self.assertTrue(params["cache-rebuild"])
-                self.assertFalse(params["c-run_contracts_feature_tests"])
-                self.assertFalse(params["c-run_rust_e2e_ci"])
-        self.assertNotEqual(self.run_metadata(CI_CACHE_WARM="true", CI_BRANCH="external-fork/untrusted").returncode, 0)
+                self.assertNotEqual(self.run_metadata(CI_CACHE_WARM="true", CI_BRANCH=branch).returncode, 0)
 
     def test_cache_warming_still_rejects_a_different_checked_out_sha(self):
         result = self.run_metadata(CI_CACHE_WARM="true", CI_BRANCH="develop", CI_COMMIT_SHA="a" * 40)
@@ -119,38 +122,56 @@ class RwxMetadataTests(unittest.TestCase):
         self.commit("docs/public-docs/example.md", "new-component/main.go")
         self.assert_routes(True, False)
 
-    def test_rwx_config_runs_all_relevant_suites(self):
-        self.write(".rwx/pilot.yml")
-        self.commit(".rwx/pilot.yml")
-        params = self.assert_routes(True, True)
-        self.assertTrue(params["c-run_contracts_feature_tests"])
-
-    def test_cli_patch_includes_untracked_configuration(self):
-        self.write("docs/public-docs/example.md")
-        self.commit("docs/public-docs/example.md")
-        self.write(".rwx/pilot.yml")
+    def test_code_routes_like_circleci(self):
+        self.write("op-node/example.go")
+        self.commit("op-node/example.go")
+        params = self.assert_routes(True, False)
+        self.assertFalse(params.get("c-run_contracts_feature_tests", False))
+        self.assertTrue(params["c-run_contracts_feature_tests_short"])
+        self.write("rust/kona/example.rs")
+        self.commit("rust/kona/example.rs")
         self.assert_routes(True, True)
 
-    def test_cli_patch_includes_tracked_code(self):
+    def test_rwx_and_ops_ci_changes_run_all_suites(self):
+        for name in (".rwx/pr-gates.yml", "ops/ci/runtime/example.py"):
+            with self.subTest(name=name):
+                self.write(name)
+                self.commit(name)
+                params = self.assert_routes(True, True)
+                self.assertTrue(params["c-run_contracts_feature_tests"])
+                self.assertTrue(params["c-run_rust_e2e_ci"])
+
+    def test_cli_patch_runs_all_suites(self):
         self.write("docs/public-docs/example.md")
         self.commit("docs/public-docs/example.md")
-        self.write("ops/ci/runtime/routing.yml", (SCRIPTS / "routing.yml").read_text() + "\n")
+        # An uncommitted docs edit is still unseen by the committed diff, so it
+        # selects every workload rather than the docs-only shortcut.
+        self.write("docs/public-docs/example.md", "uncommitted\n")
         self.assert_routes(True, True)
+        self.git("checkout", "--", "docs/public-docs/example.md")
+        self.write("new-component/untracked.go")
+        self.assert_routes(True, True)
+
+    def test_generated_ci_directory_is_not_a_cli_patch(self):
+        self.write("docs/public-docs/example.md")
+        self.commit("docs/public-docs/example.md")
+        self.write(".ci/previous/report.json", "{}\n")
+        self.assert_routes(False, False)
 
     def test_develop_empty_diff_runs_full_postmerge_set(self):
         self.git("switch", "develop")
         params = self.assert_routes(True, True, CI_BRANCH="develop")
         self.assertTrue(params["c-run_kona_publish_prestates"])
-
-    def test_merge_queue_forces_contracts_for_code_changes(self):
-        self.write("op-node/example.go")
-        self.commit("op-node/example.go")
-        params = self.assert_routes(True, False, CI_BRANCH="gh-readonly-queue/develop/pr-1")
         self.assertTrue(params["c-run_contracts_feature_tests"])
 
     def test_tag_routes_release(self):
         params = self.assert_routes(False, False, CI_BRANCH="", CI_TAG="v1.0.0")
         self.assertEqual(params, {"c-run_release": True})
+
+    def test_non_push_events_are_rejected(self):
+        result = self.run_metadata(CI_EVENT="schedule")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.values.exists())
 
     def test_wrong_sha_fails_before_reporting_values(self):
         result = self.run_metadata(CI_COMMIT_SHA="0" * 40)
@@ -169,10 +190,10 @@ class RwxMetadataTests(unittest.TestCase):
             "clone", "--depth=1", self.upstream.as_uri(), str(self.checkout), cwd=self.root
         )
         self.configure_git(self.checkout)
-        self.git("switch", "-c", "codex/test")
+        self.git("switch", "-c", "rwx/example")
         self.write("docs/public-docs/example.md")
         self.commit("docs/public-docs/example.md")
-        self.git("push", "origin", "HEAD:refs/heads/codex/test")
+        self.git("push", "origin", "HEAD:refs/heads/rwx/example")
         self.assert_routes(False, False)
         self.assertEqual(self.git("rev-parse", "--is-shallow-repository"), "false")
 

@@ -334,7 +334,7 @@ def restore_artifact(directory, settings):
 
 
 def normalize_name(name, root, cargo_home):
-    name=re.sub(r'(\(line \d+\)) - compile$',r'\1',name)
+    name=re.sub(S.TEST_MODE,'',name)
     return name.replace(root,'<workspace>').replace(cargo_home,'<cargo>')
 
 

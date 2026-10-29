@@ -44,7 +44,7 @@ tasks:
         esac
         python3 ops/ci/runtime/go-artifacts.py restore "$dependency" "$artifact"
       done
-      export CI_ACCEPTANCE_MANIFEST="$PWD/$CI_ACCEPTANCE_MANIFEST"
+      export CI_ACCEPTANCE_DISCOVERY="$PWD/$CI_ACCEPTANCE_DISCOVERY"
       mise exec -- bash ops/ci/runtime/acceptance-tests.sh run
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
@@ -55,7 +55,7 @@ tasks:
       DEVSTACK_L1_FORK: fusaka
       DEVSTACK_L2CL_KIND: ${{ params.cl-kind }}
       DEVSTACK_L2EL_KIND: op-reth
-      CI_ACCEPTANCE_MANIFEST: ${{ params.discovery }}
+      CI_ACCEPTANCE_DISCOVERY: ${{ params.discovery }}
       GO_ARTIFACT: ${{ params.go-artifact }}
       CONTRACT_ARTIFACT: ${{ params.contract-artifact }}
       KONA_ARTIFACT: ${{ params.kona-artifact }}

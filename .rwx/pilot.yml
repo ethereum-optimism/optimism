@@ -94,9 +94,7 @@ tasks:
   - key: routing-tests
     use: [code, tools]
     run: |
-      mise exec -- bash ops/ci/tests/test-decision-tree.sh
       mise exec -- python -m unittest discover -s ops/ci/tests -p 'test_rwx_metadata.py'
-      mise exec -- python ops/ci/migration/tests/test_compare_ci.py
     cache: false
     timeout: 10m
     outputs:

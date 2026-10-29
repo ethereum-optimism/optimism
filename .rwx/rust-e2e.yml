@@ -13,6 +13,8 @@ on:
       target-cache-mode: keep
   github:
     push:
+      # Never on contributor PRs: develop and opt-in rwx/* branches only.
+      if: ${{ event.git.branch == 'develop' || starts-with(event.git.branch, 'rwx/') }}
       init:
         commit-sha: ${{ event.git.sha }}
         branch: ${{ event.git.branch }}
@@ -128,8 +130,6 @@ tasks:
       RWX_LIVE_GO_FIXTURE=1 RWX_LIVE_FORGE_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_rust_e2e.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_e2e_release.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_rust_e2e_gate.py'
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_rust_e2e.py'
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_contract_artifacts.py'
       python3 -m unittest discover -s ops/ci/tests -p 'test_go_artifacts.py'
     cache: false
     timeout: 10m

@@ -17,14 +17,12 @@ C = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(C)
 
 
 class ReportTests(unittest.TestCase):
-    def test_replay_controls_ffi_entropy_and_unseeded_runs_clear_it(self):
-        with patch.dict(os.environ, {'CI_BRANCH':'pilot', 'CI_CONTRACT_COVERAGE_REPLAY':'true',
-                                    C.FFI_REPLAY_INPUT:'inherited'}, clear=True), patch.object(C.UP,'revision',return_value='a'*40):
-            _, seed=C.configure('main')
-            self.assertEqual(os.environ[C.FFI_REPLAY_INPUT],seed)
-            os.environ['CI_CONTRACT_COVERAGE_REPLAY']='false'
-            self.assertIsNone(C.configure('main')[1])
-            self.assertNotIn(C.FFI_REPLAY_INPUT,os.environ)
+    def test_configure_runs_circleci_settings_without_ambient_seed_or_rpc(self):
+        with patch.dict(os.environ, {'CI_BRANCH':'feature/example', 'FOUNDRY_FUZZ_SEED':'0x02',
+                                    'ETH_RPC_URL':'ambient'}, clear=True):
+            self.assertEqual(C.configure('main'),'feature/example')
+            for name in ('FOUNDRY_FUZZ_SEED','ETH_RPC_URL'): self.assertNotIn(name,os.environ)
+            self.assertEqual(os.environ['CI'],'true')
 
     def test_merged_campaign_retains_every_predicate_and_original_anchor(self):
         log = 'Ran 1 test for test/A.t.sol:A\n[PASS]\nA invariants:\n[PASS] invariant_value\n[PASS] invariant_valuePositive\n' \
@@ -87,14 +85,13 @@ class ReportTests(unittest.TestCase):
                     text.replace('BRF:0\n', ''), text.replace('FNF:1', 'FNF:invalid')):
             with self.subTest(bad=bad), self.assertRaises(ValueError): C.lcov(bad)
 
-    def test_effective_profile_filters_and_seed_are_verified(self):
-        value = {'fuzz': {'runs': 1, 'seed': '0x02'}, 'invariant': {'runs': 1, 'depth': 1},
+    def test_effective_profile_and_filters_are_verified(self):
+        value = {'fuzz': {'runs': 1}, 'invariant': {'runs': 1, 'depth': 1},
                  'optimizer': False, 'threads': 16, 'compilation_restrictions': []}
-        C.validate_config(value, '0x02')
+        C.validate_config(value)
         for key, changed in [('threads', 2), ('optimizer', True), ('match_test', 'partial')]:
             wrong = dict(value, **{key: changed})
-            with self.subTest(key=key), self.assertRaises(ValueError): C.validate_config(wrong, '0x02')
-        with self.assertRaises(ValueError): C.validate_config(value, None)
+            with self.subTest(key=key), self.assertRaises(ValueError): C.validate_config(wrong)
 
 
 class _LiveCoverageTestsFixtures:
@@ -162,7 +159,7 @@ class _LiveCoverageTestsFixtures:
             self.addCleanup(server.shutdown)
             url = 'http://127.0.0.1:' + str(server.server_address[1]) + '/very-private-ci-test-secret'
             marker = Path(tmp) / 'marker'
-            env = dict(os.environ, CI_BRANCH='pilot', CI_COMMIT_SHA=sha, CI_CONTRACT_COVERAGE_REPLAY='true', CI_COVERAGE_FIXTURE_MARKER=str(marker), OP_CI_MAINNET_L1_ARCHIVE_RPC_URL=url)
+            env = dict(os.environ, CI_BRANCH='feature/example', CI_COMMIT_SHA=sha, CI_COVERAGE_FIXTURE_MARKER=str(marker), OP_CI_MAINNET_L1_ARCHIVE_RPC_URL=url)
             retained_failures = 0
 
             def invoke(mode, provider='circleci', prepared=None, block=None, failing=False, available=True, invariant_failing=False):

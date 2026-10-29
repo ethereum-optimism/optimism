@@ -70,6 +70,26 @@ class SelectionTests(unittest.TestCase):
             (path/'vkeys-log-commitment-vkey-workspace.json').unlink()
             with self.assertRaises(FileNotFoundError): G.vkey_views(path, names=names)
 
+    def test_libtest_modes_keep_list_identities(self):
+        # Pinned rustc 1.99 decorates these verdicts, never their --list identities.
+        metadata = {'workspace_members': ['m'], 'packages': [{'id': 'm', 'name': 'modes', 'targets': [
+            {'name': 'modes', 'kind': ['lib'], 'test': True, 'doctest': True}]}]}
+        unit, doc = '     Running unittests src/lib.rs (target/debug/deps/modes-0123456789abcdef)\n', '   Doc-tests modes\n'
+        listing = (unit + 'tests::panics: test\n\n1 test, 0 benchmarks\n' + doc +
+                   'src/lib.rs - value (line 12): test\nsrc/lib.rs - value (line 7): test\n\n2 tests, 0 benchmarks\n')
+        log = (unit + '\nrunning 1 test\ntest tests::panics - should panic ... ok\n' + doc +
+               '\nrunning 2 tests\ntest src/lib.rs - value (line 7) - compile ... ok\n'
+               'test src/lib.rs - value (line 12) - compile fail ... ok\n')
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)
+            (path/'guest-list.log').write_text(listing); (path/'guest.log').write_text(log)
+            G.S.write(path/'guest.stage.json', {'exit_code': 0})
+            record = G.coverage(path, 'guest', metadata, {'workspace_root': '/fixture', 'cargo_home': '/fixture-cargo'})
+        self.assertEqual((record['missing'], record['extra'], record['outcomes']), ([], [], {'pass': 3}))
+        self.assertEqual({(c['suite'], c['name']) for c in record['cases']},
+                         {('modes:modes:unit', 'tests::panics'), ('modes:modes:doc', 'src/lib.rs - value (line 7)'),
+                          ('modes:modes:doc', 'src/lib.rs - value (line 12)')})
+
     def test_runtime_does_not_recover_manifested_empty_logs(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)

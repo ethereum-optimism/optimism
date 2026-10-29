@@ -33,17 +33,16 @@ class _LiveTestsFixtures:
         for path in SCRIPTS.glob('*.py'):
             shutil.copy2(path, scripts / path.name)
         shutil.copy2(SCRIPTS / 'kontrol-image.json', scripts / 'kontrol-image.json')
-        self.env = {**os.environ, 'CI': 'true', 'CI_BRANCH': 'codex/rwx-ci-pilot', 'RWX_RUN_ID': os.environ.get('RWX_RUN_ID', 'isolated-kontrol-fixture'), 'RWX_TASK_ATTEMPT_NUMBER': '1'}
-        for name in (*K.ENVIRONMENT, 'KONTROL_CI_REPORT_DIR'):
+        self.env = {**os.environ, 'CI': 'true', 'CI_BRANCH': 'feature/example', 'RWX_RUN_ID': os.environ.get('RWX_RUN_ID', 'isolated-kontrol-fixture'), 'RWX_TASK_ATTEMPT_NUMBER': '1'}
+        for name in K.ENVIRONMENT:
             self.env.pop(name, None)
         files = {'mise.toml': (K.ROOT / 'mise.toml').read_text(), '.gitignore': '.ci/\ntmp/\npackages/contracts-bedrock/forge-artifacts/\npackages/contracts-bedrock/cache/\npackages/contracts-bedrock/artifacts/\npackages/contracts-bedrock/deployments/\npackages/contracts-bedrock/snapshots/\nop-deployer/pkg/deployer/artifacts/forge-artifacts/\n', 'packages/contracts-bedrock/foundry.toml': '[profile.default]\nsrc="src"\nscript="scripts"\nout="forge-artifacts"\nsolc="0.8.15"\nevm_version="london"\noptimizer=true\noptimizer_runs=200\nast=true\nbuild_info_path="artifacts/build-info"\nextra_output=["metadata","storageLayout"]\nremappings=["forge-std/=lib/forge-std/src/"]\nfs_permissions=[{access="read-write",path="."},{access="read-write",path="../../.ci"}]\n[profile.ci.fuzz]\nruns=128\n', 'packages/contracts-bedrock/src/FixtureStorage.sol': '// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;\ncontract FixtureStorage { uint256 public value; constructor(uint256 initial) { value=initial; } }\n', 'packages/contracts-bedrock/scripts/deploy/Deploy.s.sol': '// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;\nimport {Vm} from "forge-std/Vm.sol";\nimport {VmSafe} from "forge-std/Vm.sol";\nimport {StateDiff} from "../libraries/StateDiff.sol";\nimport {FixtureStorage} from "../../src/FixtureStorage.sol";\ncontract Deploy {\n Vm private constant vm=Vm(address(uint160(uint256(keccak256("hevm cheat code")))));\n function runWithStateDiff() public {\n  bool fp=vm.envOr("KONTROL_FP_DEPLOYMENT",false);\n  vm.startStateDiffRecording();\n  FixtureStorage deployed=new FixtureStorage(fp ? 84 : 42);\n  VmSafe.AccountAccess[] memory accesses=vm.stopAndReturnStateDiff();\n  string memory json=StateDiff.encodeAccountAccesses(accesses);\n  vm.writeJson(json,string.concat(vm.projectRoot(),"/snapshots/state-diff/31337.json"));\n  string memory names=vm.serializeAddress("contracts","FixtureStorage",address(deployed));\n  vm.writeJson(names,vm.envString("DEPLOYMENT_OUTFILE"));\n  vm.writeLine("../../.ci/fresh-marker",fp ? "fault-proofs" : "default");\n }\n}\n', K.PROOFS + '/FutureProof.sol': '// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;\nimport {DeploymentSummary} from "./utils/DeploymentSummary.sol";\ncontract FutureProof is DeploymentSummary { function futureProof() public pure returns(uint256) {return 42;} }\n'}
         original = (K.CONTRACTS / 'justfile').read_text()
         build = original[original.index('forge-build *ARGS:'):original.index('# Developer build command')]
         summaries = original[original.index('# Generates default Kontrol summary.'):original.index('# Generates ABI snapshots')]
         files['packages/contracts-bedrock/justfile'] = build + '\n' + summaries
-        for variant, names in K.GENERATED.items():
-            for name in names:
-                files[name] = '// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;\ncontract ' + Path(name).stem + ' {}\n'
+        self.placeholders = {name: '// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;\ncontract ' + Path(name).stem + ' {}\n' for name in sum(K.GENERATED.values(), [])}
+        files.update(self.placeholders)
         files['packages/contracts-bedrock/scripts/Artifacts.s.sol'] = '// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\ncontract Artifacts {}\n'
         deployer = (K.ROOT / 'op-deployer/justfile').read_text()
         files['op-deployer/justfile'] = deployer[deployer.index('copy-contract-artifacts:\n'):deployer.index('_LDFLAGSSTRING :=')]
@@ -69,6 +68,7 @@ class _LiveTestsFixtures:
         self.run_command([sys.executable, 'ops/ci/runtime/kontrol-contracts.py'], self.root)
         self.artifact = self.root / '.ci/go-tests/dependencies/contracts-kontrol'
         self.report = self.root / '.ci/kontrol-build/run'
+        self.marker = self.root / '.ci/fresh-marker'
 
     def run_command(self, argv, cwd, **extra):
         result = subprocess.run(argv, cwd=cwd, env={**self.env, **extra}, capture_output=True, text=True, timeout=180)
@@ -92,6 +92,10 @@ class _LiveTestsFixtures:
         shutil.rmtree(target, ignore_errors=True)
         shutil.copytree(self.report, target)
 
+    def regenerated(self, variant):
+        # Runtime outputs keep each summary as the original commands left it.
+        return [(self.report / 'runtime-outputs' / name).read_text() != self.placeholders[name] for name in K.GENERATED[variant]]
+
     def exercise_complete_workloads(self):
         for label in ('first', 'reused', 'changed'):
             if label == 'changed':
@@ -112,7 +116,7 @@ class _LiveTestsFixtures:
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             shutil.copytree(self.report, pair / key)
             self.retain('complete-' + key)
-        self.assertEqual((self.root / '.ci/fresh-marker').read_text().splitlines(), ['default', 'fault-proofs'] * 2)
+        self.assertEqual(self.marker.read_text().splitlines(), ['default', 'fault-proofs'] * 2)
         return pair
 
     def reset_runtime(self):
@@ -135,11 +139,14 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
                 self.assertEqual(settings['source_sha'], self.sha)
                 selected = K.G.read(directory / 'selection.json')
                 self.assertIn(K.PROOFS + '/FutureProof.sol', selected['proof_sources'])
+                self.assertEqual(selected['variants'], ['default', 'fault-proofs'])
                 coverage = K.G.read(directory / 'coverage.json')
-                self.assertEqual(coverage['variants'], ['default', 'fault-proofs'])
                 self.assertEqual(coverage['tests'], 0)
                 self.assertEqual(coverage['generated_files'], 4)
+                self.assertEqual(set(coverage['tracked_generated_changes']), set(self.placeholders))
                 self.assertTrue(coverage['complete_original_commands'])
+                for name in self.placeholders:
+                    self.assertTrue((directory / 'generated' / name).is_file())
                 for name, argv in K.COMMANDS.items():
                     stage = K.G.read(directory / (name + '.stage.json'))
                     self.assertEqual(stage['argv'], argv)
@@ -158,8 +165,12 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
         result = self.execute()
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertNotEqual(K.G.read(self.report / 'summaries.stage.json')['exit_code'], 0)
-        self.assertTrue((self.report / 'variants/default/load-inputs/manifest.json').is_file())
-        self.assertFalse((self.report / 'variants/fault-proofs').exists())
+        self.assertEqual(self.marker.read_text().splitlines(), ['default'])
+        outputs = self.report / 'runtime-outputs/packages/contracts-bedrock'
+        self.assertEqual(K.G.read(outputs / 'snapshots/state-diff/Kontrol-31337.json'), {'broken': True})
+        self.assertTrue((outputs / 'deployments/kontrol.jsonReversed').is_file())
+        self.assertFalse((outputs / 'deployments/kontrol-fp.json').exists())
+        self.assertEqual(self.regenerated('default') + self.regenerated('fault-proofs'), [False] * 4)
         self.assertFalse((self.report / 'proofs.stage.json').exists())
         self.assertTrue(K.G.read(self.report / 'final-compiler/files.json'))
         self.retain('original-kontrol-failure')
@@ -173,8 +184,7 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(K.G.read(self.report / 'summaries.stage.json')['exit_code'], 0)
         self.assertNotEqual(K.G.read(self.report / 'proofs.stage.json')['exit_code'], 0)
-        for variant in ('default', 'fault-proofs'):
-            self.assertTrue((self.report / 'variants' / variant / 'generated/manifest.json').is_file())
+        self.assertEqual(self.regenerated('default') + self.regenerated('fault-proofs'), [True] * 4)
         self.assertFalse((self.report / 'coverage.json').exists())
         self.retain('original-proof-compiler-failure')
 
@@ -193,7 +203,8 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
             output = process.communicate(timeout=20)[0].decode()
             self.assertNotEqual(process.returncode, 0, output)
             self.assertIn(K.G.read(self.report / 'summaries.stage.json')['exit_code'], (-signal.SIGTERM, 128 + signal.SIGTERM))
-            self.assertTrue((self.report / 'variants/default/generated/manifest.json').is_file())
+            self.assertEqual(self.marker.read_text().splitlines(), ['default'])
+            self.assertEqual(self.regenerated('default') + self.regenerated('fault-proofs'), [True, True, False, False])
             self.assertFalse((self.report / 'proofs.stage.json').exists())
             self.retain('original-cancellation')
         finally:

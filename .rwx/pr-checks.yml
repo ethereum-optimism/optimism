@@ -125,8 +125,6 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: |
       RWX_LIVE_SHELL_FIXTURE=1 RWX_LIVE_SEMGREP_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_static_checks.py'
-      RWX_LIVE_SHELL_FIXTURE=1 RWX_LIVE_SEMGREP_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_static_checks.py'
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_static_checks.py'
     env:
       RWX_STATIC_FIXTURE_RETAIN_DIR: .ci/static-fixture-evidence
     cache: false
@@ -222,7 +220,6 @@ tasks:
     if: ${{ init.cache-warm != 'true' && (tasks.route.values.run-main == 'true' || tasks.route.values.run-contracts == 'true') }}
     run: |
       RWX_LIVE_GO_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_pr_checks.py'
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_pr_checks.py'
     cache: false
     timeout: 10m
     outputs:
@@ -291,8 +288,7 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: |
       RWX_LIVE_MAIN_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_main_checks.py'
-      RWX_LIVE_MAIN_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_main_checks.py'
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_main_checks.py'
+      RWX_LIVE_MAIN_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_l2_chains_sync_check.py'
     cache: false
     timeout: 15m
     outputs:

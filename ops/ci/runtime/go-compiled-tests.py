@@ -136,12 +136,6 @@ def build():
                         shard_index=int(os.environ["CI_SHARD_INDEX"]), shard_total=manifest["total"],
                         manifest_sha256=digest(ROOT / ".ci" / SUITE / "manifest.json"),
                         compile_root=str(ROOT))
-    if SUITE == 'go-tests' and PREFIX + '/op-deployer/pkg/deployer/integration_test/cli' in packages:
-        # CLI TestMain otherwise recompiles the same helper in every execution
-        # group with an empty runtime compiler cache. Handoff only the binary.
-        subprocess.run(['go', 'build', '-o', str(BUILD / 'op-deployer'), './op-deployer/cmd/op-deployer'],
-                       cwd=ROOT, check=True)
-        metadata['cli_helper_sha256'] = digest(BUILD / 'op-deployer')
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     if head != metadata["commit_sha"]:
         raise ValueError("Go compilation belongs to a different commit")
@@ -237,9 +231,6 @@ def verify():
                 raise ValueError("Missing test binary or invalid no-test marker")
         if binary["file"] is not None and digest(BUILD / binary["file"]) != binary["sha256"]:
             raise ValueError(f"Go test binary changed: {package}")
-    if SUITE == 'go-tests' and PREFIX + '/op-deployer/pkg/deployer/integration_test/cli' in selected:
-        if not metadata.get('cli_helper_sha256') or digest(BUILD / 'op-deployer') != metadata['cli_helper_sha256']:
-            raise ValueError('CLI runtime helper changed or is missing')
     return metadata, selected
 
 
@@ -307,8 +298,6 @@ def execute_binary(reporter, binary, package, directory, parallel, timeout, run_
 
 def run(args):
     metadata, selected = verify()
-    if metadata.get('cli_helper_sha256'):
-        os.environ['OP_DEPLOYER_TEST_BINARY'] = str(BUILD / 'op-deployer')
     # gotestsum's raw-command reruns append -test.run=<regexp> and a package.
     # Only a rerun may narrow the selection; the initial attempt runs it all.
     run_filter = None

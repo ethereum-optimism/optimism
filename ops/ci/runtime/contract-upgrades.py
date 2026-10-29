@@ -250,7 +250,9 @@ def junit(path, discovered, bindings=None):
         for member in members: actual[member] = value
     if set(actual) != selected - non_executable: raise ValueError('Missing or extra original upgrade verdict')
     for value in actual.values(): outcomes[value['outcome']] = outcomes.get(value['outcome'], 0) + 1
-    if not outcomes.get('pass') or outcomes.get('fail'): raise ValueError('No successful complete upgrade execution')
+    # Like check-junit-tests-ran.sh, a skipped case counts as executed: a feature
+    # or fork guard can legitimately skip every selected test.
+    if not actual or outcomes.get('fail'): raise ValueError('Failed or empty complete upgrade execution')
     return {'cases': [{'class': c, 'name': n, 'verdict_source': 'setUp()' if c in setup_skips else n,
                        **actual[c, n]} for c, n in sorted(actual)],
             'non_executable': [{'class': c, 'name': n, 'reason': 'empty compiler creation bytecode'} for c, n in sorted(non_executable)],

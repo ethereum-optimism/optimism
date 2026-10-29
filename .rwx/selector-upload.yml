@@ -11,6 +11,8 @@ on:
       cache-epoch: v1
   github:
     push:
+      # Never on contributor PRs: develop and opt-in rwx/* branches only.
+      if: ${{ event.git.branch == 'develop' || starts-with(event.git.branch, 'rwx/') }}
       init:
         commit-sha: ${{ event.git.sha }}
         branch: ${{ event.git.branch }}

@@ -123,18 +123,20 @@ class SplitExecutionTests(unittest.TestCase):
                 'justfile': 'list-test-packages:\n  go list ./op-deployer/pkg/deployer/integration_test/cli\n',
                 'op-deployer/cmd/op-deployer/main.go': 'package main\nfunc main() {}\n',
                 str(hot.relative_to(root) / 'fixture_test.go'): '''package cli
-import("os";"testing")
+import("fmt";"os";"os/exec";"path/filepath";"testing")
 func TestMain(m *testing.M){
- if os.Getenv("OP_DEPLOYER_TEST_BINARY")=="" {os.Exit(44)}
- os.Exit(m.Run())
+ dir,err:=os.MkdirTemp("","op-deployer-cli-tests-");if err!=nil {os.Exit(43)}
+ out,err:=exec.Command("go","build","-o",filepath.Join(dir,"op-deployer"),"../../../../cmd/op-deployer").CombinedOutput()
+ if err!=nil {fmt.Fprintf(os.Stderr,"build op-deployer: %v\\n%s",err,out);os.Exit(44)}
+ code:=m.Run();os.RemoveAll(dir);os.Exit(code)
 }
 func TestA(t *testing.T){t.Run("nested",func(t *testing.T){})}
 func TestB(t *testing.T){}
 func TestC(t *testing.T){if os.Getenv("SPLIT_FAIL")=="1" {t.Fatal("original split failure")}}
 func TestNew(t *testing.T){}
 func Value() {}
-func ExampleValue(){println("value") /* Output: value */}
-'''.replace('println("value")', 'fmt.Println("value")').replace('"os";"testing"', '"os";"testing";"fmt"'),
+func ExampleValue(){fmt.Println("value") /* Output: value */}
+''',
             }
             for name, text in files.items():
                 path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(text)
@@ -147,22 +149,14 @@ func ExampleValue(){println("value") /* Output: value */}
             result=call(['python3',str(helpers/'go-suite.py'),'discover','--suite','go-tests','--total','12'])
             self.assertEqual(result.returncode,0,result.stderr)
             manifest=json.loads((root/'.ci/go-tests/manifest.json').read_text())
-            # Static discovery must not run TestMain, which requires the sealed helper.
+            # Static discovery must not run TestMain, which builds the CLI helper.
             self.assertEqual(manifest['split_tests'][HOT],['ExampleValue','TestA','TestB','TestC','TestNew'])
             events=[]
             for index,share in enumerate(manifest['work_shards']):
                 if not share: continue
                 result=call(['python3',str(helpers/'go-compiled-tests.py'),'build','--suite','go-tests'],CI_SHARD_INDEX=str(index))
                 self.assertEqual(result.returncode,0,result.stderr)
-                helper = root / '.ci/go-tests/build/op-deployer'
-                original = helper.read_bytes()
-                helper.write_bytes(b'corrupt prepared helper')
-                tampered=call(['python3',str(helpers/'go-compiled-tests.py'),'verify','--suite','go-tests'],CI_SHARD_INDEX=str(index))
-                self.assertNotEqual(tampered.returncode,0)
-                helper.unlink()
-                missing=call(['python3',str(helpers/'go-compiled-tests.py'),'verify','--suite','go-tests'],CI_SHARD_INDEX=str(index))
-                self.assertNotEqual(missing.returncode,0)
-                helper.write_bytes(original);helper.chmod(0o755)
+                # Each execution group's TestMain builds its own helper, as in ordinary go test.
                 result=call(['python3',str(helpers/'go-compiled-tests.py'),'run','--suite','go-tests'],CI_SHARD_INDEX=str(index))
                 self.assertEqual(result.returncode,0,result.stdout+result.stderr)
                 events.extend(json.loads(line) for line in result.stdout.splitlines())

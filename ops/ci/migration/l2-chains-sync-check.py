@@ -4,9 +4,8 @@ import importlib.util
 import json
 from pathlib import Path
 
-_SPEC=importlib.util.spec_from_file_location('report_evidence',Path(__file__).with_name('report-evidence.py'))
-E=importlib.util.module_from_spec(_SPEC);_SPEC.loader.exec_module(E)
-M=E.helper('main-checks')
+_SPEC=importlib.util.spec_from_file_location('main_checks',Path(__file__).resolve().parents[1]/'runtime'/'main-checks.py')
+M=importlib.util.module_from_spec(_SPEC);_SPEC.loader.exec_module(M)
 ROOT=M.ROOT
 COMMAND=['bash','.circleci/scripts/check-l2-chains-sync.sh']
 stage, retain_sources = M.stage, M.retain_sources

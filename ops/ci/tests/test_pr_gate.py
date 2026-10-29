@@ -30,7 +30,7 @@ class GateTests(unittest.TestCase):
         self.sha=subprocess.check_output(['git','rev-parse','HEAD'],cwd=self.root,text=True).strip()
         for target,name,value in ((G,'ROOT',self.root),(G,'MANIFEST',self.root/'ops/ci/runtime/pr-gates.json')):
             handle=patch.object(target,name,value);handle.start();self.addCleanup(handle.stop)
-        self.env={'CI_COMMIT_SHA':self.sha,'CI_BRANCH':'codex/rwx-ci-pilot','RWX_RUN_ID':'a'*32,'RWX_TASK_ATTEMPT_NUMBER':'1'}
+        self.env={'CI_COMMIT_SHA':self.sha,'CI_BRANCH':'rwx/example','RWX_RUN_ID':'a'*32,'RWX_TASK_ATTEMPT_NUMBER':'1'}
         self.manifest,self.selection=G.configuration('required-rust-ci');self.selection=self.selection['required-rust-ci']
         route=self.root/'.ci/routing.json';route.parent.mkdir(exist_ok=True)
         route.write_text(json.dumps({'c-run_rust_ci':True,'c-run_main':True,'c-run_contracts_feature_tests':True}));self.env['GATE_ROUTING']=str(route)

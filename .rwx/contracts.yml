@@ -163,10 +163,7 @@ tasks:
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
       RWX_LIVE_CONTRACT_SUITE_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_contract_suites.py'
-      RWX_LIVE_CONTRACT_SUITE_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_contract_suites.py'
-      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_contract_suites.py'
-      python3 ops/ci/tests/test_contracts_shadow.py
-      python3 ops/ci/migration/tests/test_check_changed.py
+      python3 ops/ci/tests/test_rwx_contracts_prepare.py
     cache: false
     timeout: 15m
     outputs:

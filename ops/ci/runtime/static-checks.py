@@ -95,6 +95,32 @@ def machine_report(job, data, root):
     return result
 
 
+def findings(job, data):
+    """Return the findings Semgrep's default text output would print.
+
+    The machine report needs --json, which moves findings from the task log
+    into check.json. The caller prints these lines so a failure stays readable.
+    """
+    if not isinstance(data, dict): return ['Semgrep wrote no JSON report; see check.json and check.log']
+    lines = ['Semgrep configuration error: ' + str(config) for config in data.get('config_with_errors') or []]
+    if job == 'semgrep-test':
+        for config, row in sorted((data.get('results') or {}).items()):
+            for name, case in sorted((row.get('checks') or {}).items()):
+                if case.get('passed') is True and not case.get('errors'): continue
+                lines.append(f'Semgrep rule test failed: {config}: {name}')
+                lines += [f'  {filename}: expected lines {m.get("expected_lines")}, reported lines {m.get("reported_lines")}'
+                          for filename, m in sorted((case.get('matches') or {}).items())]
+                lines += [f'  error: {error}' for error in case.get('errors') or []]
+        return lines
+    for row in data.get('results') or []:
+        start = row.get('start') or {}
+        message = ' '.join(str((row.get('extra') or {}).get('message', '')).split())
+        lines.append(f"{row.get('path')}:{start.get('line')}:{start.get('col')}: {row.get('check_id')}: {message}")
+    for error in data.get('errors') or []:
+        lines.append(f"Semgrep error: {error.get('type')}: {' '.join(str(error.get('message', '')).split())}")
+    return lines
+
+
 def baseline(branch):
     if branch == 'develop': return None
     commit = subprocess.check_output(['git', 'rev-parse', '--verify', 'develop^{commit}'], cwd=ROOT, text=True).strip()
@@ -195,15 +221,20 @@ def execute(job):
                 raise ValueError('ShellCheck success lacks complete original verdict evidence')
             coverage = {'files': actual, 'outcome': 'pass' if status == 0 else 'fail'}
             cases = [{'name': n, 'outcome': 'pass'} for n in actual] if not status else [{'name': job, 'outcome': 'fail'}]
-        elif not status:
-            raw = json.loads((d / 'check.json').read_text()); coverage = machine_report(job, raw, str(ROOT))
+        else:
+            try: raw = json.loads((d / 'check.json').read_text())
+            except ValueError: raw = None
+            for line in findings(job, raw): print(line, file=sys.stderr)
+        if job != 'shell-check' and not status:
+            if raw is None: raise ValueError('Successful Semgrep run wrote no JSON report')
+            coverage = machine_report(job, raw, str(ROOT))
             if job == 'semgrep-test':
                 cases = [{'name': config + ':' + name, 'outcome': 'pass'} for config, row in coverage['results'].items() for name in row['checks']]
                 cases += [{'name': n, 'outcome': 'skip', 'reason': 'Original Semgrep config_missing_tests'} for n in coverage['config_missing_tests']]
             else:
                 S.write(d / 'scanned-source-sha256.json', scanned_inputs(coverage, before))
                 cases = [{'name': job, 'outcome': 'pass'}]
-        else: coverage = {'outcome': 'fail'}
+        elif job != 'shell-check': coverage = {'outcome': 'fail'}
         S.write(d / 'coverage.json', coverage)
         after = inputs(); S.write(d / 'inputs-after.json', after)
         if before != after or settings['source_sha'] != subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip():

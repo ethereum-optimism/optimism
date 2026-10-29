@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """Run complete original NUT regeneration with recorded Forge/Just provenance."""
 import argparse
-import base64
-from collections import Counter
 import importlib.util
 import hashlib
-import json
 import os
 from pathlib import Path
 import re
@@ -182,130 +179,17 @@ def execute(provider,full,prepare=False,module_artifact=None,tool_artifact=None)
                 if any({k:v for k,v in row.items() if k!='binary_path'}!={k:v for k,v in old[name].items() if k!='binary_path'} for name,row in identity.items()):
                     raise ValueError('Historical NUT tools differ from producer')
             if prepare:continue
-            os.environ['NUT_PROVENANCE_REPORT_DIR']=str(target/'originals')
-            try:status=S.stage(target,'generation',prefix(pins)+selection['go_argv']+[fork],cwd=str(ROOT),stdin=subprocess.DEVNULL)
-            finally:os.environ.pop('NUT_PROVENANCE_REPORT_DIR',None)
+            # The verifier's exit status is the verdict. It exits nonzero unless the locked bundle matches its
+            # lock hash and the bundle regenerated at the recorded commit equals the locked bundle byte for byte.
+            status=S.stage(target,'generation',prefix(pins)+selection['go_argv']+[fork],cwd=str(ROOT),stdin=subprocess.DEVNULL)
             if status:raise ValueError('Original NUT regeneration failed: '+fork)
             compiler_identity(target)
-            validate_fork(target,selection['entries'][fork],fork)
         if M.inputs()!=before:raise ValueError('NUT verification changed source inputs')
         status=0
     except Exception as error:
         status=status or 1;errors.append(str(error));print(error,file=sys.stderr)
     finally:S.write(directory/'final.json',{'exit_code':status,'report_errors':errors,'tests':0,'original_sha256':seal(directory)})
     return status
-
-
-def git_inventory(data):
-    result={}
-    for entry in data.split(b'\0'):
-        if not entry:continue
-        header,name=entry.decode().split('\t',1);mode,revision,stage=header.split()
-        if (stage!='0' or mode not in ('100644','100755','120000','160000') or not re.fullmatch('[0-9a-f]{40}',revision)
-                or name in result or Path(name).is_absolute() or '..' in Path(name).parts):raise ValueError('Invalid complete historical NUT Git inventory')
-        result[name]={'mode':mode,'object':revision}
-    if not result:raise ValueError('Empty historical NUT Git inventory')
-    return result
-
-
-def submodules(text):
-    result={}
-    for line in text.splitlines():
-        match=re.fullmatch(r'([ -])([0-9a-f]{40}) ([^ ]+)(?: \(.*\))?',line)
-        if (not match or match[3] in result or Path(match[3]).is_absolute() or '..' in Path(match[3]).parts):
-            raise ValueError('Missing, duplicate or changed historical NUT submodule')
-        result[match[3]]={'revision':match[2],'initialized':match[1]==' '}
-    if not result:raise ValueError('Empty historical NUT submodule selection')
-    return result
-
-
-def validate_fork(directory,entry,fork):
-    stage=G.read(directory/'generation.stage.json');raw=directory/'originals'
-    if stage['exit_code']!=0 or stage['argv']!=prefix(entry['historical_tools'])+['go','run','./ops/scripts/nut-provenance-verify',fork]:
-        raise ValueError('Wrong or incomplete original NUT invocation')
-    metadata=G.read(raw/'source.json')
-    if metadata!={'fork':fork,'entry':{k.title():entry[k] for k in ('bundle','hash','commit')},'generator_argv':['just','generate-nut-bundle']}:
-        raise ValueError('Wrong historical NUT source or generator')
-    for name in ('locked-bundle.json','regenerated-bundle.json'):
-        if 'sha256:'+S.digest(raw/name)!=entry['hash']:raise ValueError('Original NUT regeneration bytes differ from lock')
-    if S.digest(raw/'mise.toml')!=entry['historical_mise_sha256']:raise ValueError('Wrong historical NUT generator configuration')
-    inventory=git_inventory((raw/'tracked-stage.bin').read_bytes())
-    for name,path in [('mise.toml','mise.toml'),('contracts.justfile','packages/contracts-bedrock/justfile'),
-                      ('foundry.toml','packages/contracts-bedrock/foundry.toml')]:
-        data=(raw/name).read_bytes();blob=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data,usedforsecurity=False).hexdigest()
-        if inventory.get(path)!={'mode':'100644','object':blob}:
-            raise ValueError('Retained NUT generator input differs from historical Git source')
-    module_rows=submodules((raw/'submodules.txt').read_text())
-    originals=G.read(raw/'submodule-inventories.json');module_inventories={}
-    if set(originals)!={name for name,row in module_rows.items() if row['initialized']}:
-        raise ValueError('Missing or extra original historical submodule inventory')
-    for name,row in originals.items():
-        if row['head']!=module_rows[name]['revision'] or base64.b64decode(row['status'],validate=True):
-            raise ValueError('Changed historical NUT submodule source')
-        module_inventories[name]=git_inventory(base64.b64decode(row['tracked_stage'],validate=True))
-    # Each recorded gitlink is bound to its immediate parent's original index.
-    # The actual Forge generator initializes contract libraries recursively;
-    # unrelated root repositories remain explicitly uninitialized.
-    for parent,index in [('',inventory),*module_inventories.items()]:
-        for name,row in index.items():
-            if row['mode']!='160000':continue
-            path=str(Path(parent)/name)
-            if path not in module_rows or module_rows[path]['revision']!=row['object']:
-                raise ValueError('Missing or mismatched historical NUT gitlink')
-            if path.startswith('packages/contracts-bedrock/lib/') and not module_rows[path]['initialized']:
-                raise ValueError('Historical NUT contract gitlink was never initialized')
-    for name in module_rows:
-        parents=[p for p in module_inventories if name.startswith(p+'/')]
-        parent=max(parents,key=len) if parents else ''
-        relative=name[len(parent)+1:] if parent else name
-        if (module_inventories[parent] if parent else inventory).get(relative)!={'mode':'160000','object':module_rows[name]['revision']}:
-            raise ValueError('Extra historical NUT submodule outside original gitlinks')
-    log=(directory/'generation.log').read_text()
-    if log.count('PASS: regenerated bundle matches committed bundle')!=1 or log.count('PASS: bundle hash matches lock')!=1:
-        raise ValueError('Missing or duplicate original NUT verdict')
-    compilers=Counter(re.findall(r'Compiling ([0-9]+) files with Solc ([0-9.]+)',log))
-    if not compilers:raise ValueError('Original full NUT regeneration compiled no contracts')
-    identities=G.read(directory/'compilers.json')
-    if (set(identities)!={version for _,version in compilers}
-            or any(set(row)!={'version','binary_sha256','binary_path'} or not re.fullmatch('[0-9a-f]{64}',row['binary_sha256'])
-                   or not Path(row['binary_path']).is_absolute() or not re.search(r'^Version: '+re.escape(version)+r'\+',row['version'],re.M)
-                   for version,row in identities.items())):
-        raise ValueError('Missing, extra or corrupt original NUT compiler identity')
-    tools=G.read(directory/'tools.json')
-    if (set(tools)!={'forge','just','go'} or any(set(row)!={'version','binary_sha256','binary_path'}
-            or not re.fullmatch('[0-9a-f]{64}',row['binary_sha256']) or not Path(row['binary_path']).is_absolute() for row in tools.values())
-            or tools['just']['version']!='just '+entry['historical_tools']['just']
-            or not re.search(r'^forge Version: '+re.escape(entry['historical_tools']['forge'])+r'(?:-|$)',tools['forge']['version'],re.M)):
-        raise ValueError('Missing or wrong original NUT generator tool identity')
-    return {'source':metadata,'git_inventory':inventory,'submodules':module_rows,'submodule_inventories':module_inventories,
-            'compiler_partitions':[{'files':int(files),'solc':version,'invocations':count} for (files,version),count in sorted(compilers.items())]}
-
-
-def full_selection(directory):
-    selection=G.read(directory/'selection.json')
-    locks=tomllib.loads((directory/'fork_lock.toml').read_text())
-    if (selection['mode']!='full' or not locks or selection['excluded']
-            or set(selection['entries'])!=set(locks)
-            or set(selection['selected_forks'])!=set(locks)
-            or len(selection['selected_forks'])!=len(set(selection['selected_forks']))
-            or any({key:entry[key] for key in ('bundle','hash','commit')}!=locks[fork]
-                   for fork,entry in selection['entries'].items())):
-        raise ValueError('Missing or different full NUT workload selection')
-    base_keys=('base_revision','base_lock_available','base_lock_exit_code')
-    base={key:selection[key] for key in base_keys}
-    if (base['base_revision'] is not None and not re.fullmatch('[0-9a-f]{40}',base['base_revision'])
-            or type(base['base_lock_available']) is not bool or type(base['base_lock_exit_code']) is not int
-            or not 0<=base['base_lock_exit_code']<=255
-            or base['base_lock_available'] and base['base_revision'] is None
-            or base['base_lock_available']!=(base['base_lock_exit_code']==0)):
-        raise ValueError('Invalid original NUT base discovery provenance')
-    if base['base_lock_available']:
-        tomllib.loads((directory/'base-fork-lock.toml').read_text())
-    base.update(lock_sha256=S.digest(directory/'base-fork-lock.toml'),
-                stderr_sha256=S.digest(directory/'base-discovery.stderr'),affects_full_selection=False)
-    # The explicit full replay never consults base hashes to select work.
-    # Preserve provider base observations; compare every effective input.
-    return {key:value for key,value in selection.items() if key not in base_keys},base
 
 
 if __name__=='__main__':

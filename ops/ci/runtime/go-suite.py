@@ -18,8 +18,8 @@ SHARDS = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SHARDS)
 
 
-def settings(*, fresh=True, short=False):
-    return {"tags": ["ci"], "short": short, "count": 1 if fresh else None,
+def settings():
+    return {"tags": ["ci"], "short": False, "count": 1,
             "package_parallelism": 4, "parallel": int(os.environ.get("PARALLEL", "8")),
             "timeout": os.environ.get("TEST_TIMEOUT", "40m"),
             "rerun_fails": 3, "rerun_fails_max_failures": 50}
@@ -77,30 +77,11 @@ def discover(suite, total, timings):
     manifest = SHARDS.create_manifest(packages, SUITES[suite], total, durations,
                                      split_tests, timing_data.get('tests'))
     manifest.update(suite=suite, commit_sha=os.environ["CI_COMMIT_SHA"],
-                    branch=os.environ.get("CI_BRANCH") or os.environ.get("CIRCLE_BRANCH"), settings=settings(),
+                    branch=os.environ.get("CI_BRANCH"), settings=settings(),
                     environment=environment(), go_environment=go_environment(),
                     go_version=subprocess.check_output(["go", "version"], cwd=ROOT, text=True).strip())
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (output / "all-packages.txt").write_text("\n".join(packages) + "\n")
-
-
-def record_circle(flags):
-    output = ROOT / "tmp/testlogs"
-    selected = (output / "all-packages.txt").read_text().splitlines()
-    packages = validate_discovery(selected, (output / "discovery.json").read_text(), MODULE)
-    sha = os.environ.get("CIRCLE_SHA1") or os.environ.get("CI_COMMIT_SHA") or subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    branch = os.environ.get("CIRCLE_BRANCH") or os.environ.get("CI_BRANCH") or subprocess.check_output(
-        ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ROOT, text=True).strip()
-    metadata = {"version": 1, "suite": "go-tests", "commit_sha": sha,
-                "branch": branch, "packages": packages, "environment": environment(),
-                "go_environment": go_environment(),
-                "go_version": subprocess.check_output(["go", "version"], cwd=ROOT, text=True).strip(),
-                "shard_index": int(os.environ.get("CIRCLE_NODE_INDEX", "0")),
-                "shard_total": int(os.environ.get("CIRCLE_NODE_TOTAL", "1")),
-                "settings": settings(fresh=os.environ.get("CI_GO_FRESH_TESTS", "false") in ("1", "true"),
-                                     short=flags == "-short")}
-    (output / "selection.json").write_text(json.dumps(metadata, indent=2) + "\n")
 
 
 def main():
@@ -113,14 +94,9 @@ def main():
     discovery.add_argument("--suite", choices=SUITES, required=True)
     discovery.add_argument("--total", required=True)
     discovery.add_argument("--timings", type=Path)
-    circle = commands.add_parser("record-circle")
-    circle.add_argument("--flags", default="")
     args = parser.parse_args()
     try:
-        if args.command == "discover":
-            discover(args.suite, args.total, args.timings)
-        else:
-            record_circle(args.flags)
+        discover(args.suite, args.total, args.timings)
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 1
