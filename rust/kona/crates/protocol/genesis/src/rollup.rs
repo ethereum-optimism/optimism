@@ -330,10 +330,11 @@ impl RollupConfig {
             !self.is_interop_active(timestamp.saturating_sub(self.block_time))
     }
 
-    /// Returns true if a DA Challenge proxy Address is provided in the rollup config and the
-    /// address is not zero.
-    pub fn is_alt_da_enabled(&self) -> bool {
-        self.da_challenge_address.is_some_and(|addr| !addr.is_zero())
+    /// Returns true if the rollup config has an alt-DA config, for either commitment type.
+    /// Generic commitments have no challenge contract, so `da_challenge_address` doesn't
+    /// indicate alt-DA.
+    pub const fn is_alt_da_enabled(&self) -> bool {
+        self.alt_da_config.is_some()
     }
 
     /// Returns the max sequencer drift for the given timestamp.
@@ -847,9 +848,11 @@ mod tests {
     fn test_alt_da_enabled() {
         let mut config = RollupConfig::default();
         assert!(!config.is_alt_da_enabled());
-        config.da_challenge_address = Some(Address::ZERO);
-        assert!(!config.is_alt_da_enabled());
-        config.da_challenge_address = Some(address!("0000000000000000000000000000000000000001"));
+        config.alt_da_config = Some(AltDAConfig {
+            da_commitment_type: Some("GenericCommitment".into()),
+            da_challenge_address: None,
+            ..Default::default()
+        });
         assert!(config.is_alt_da_enabled());
     }
 
