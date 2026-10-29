@@ -89,7 +89,7 @@ All composition happens in op-deployer at deploy / genesis time. The central fun
   - Reads `intent.GlobalDeployOverrides["devFeatureBitmap"]`
   - Returns the bitmap to the genesis builder.
 
-What this does **not** do: it does not OR together a list of named feature toggles. The operator hands in a raw bitmap; op-deployer passes it through verbatim. Interop at genesis follows `intent.UseInterop` alone, not a bitmap bit. The CLI flag and the intent override are independent surfaces — they are not merged; whichever subcommand runs uses its own input.
+What this does **not** do: it does not OR together a list of named feature toggles. The operator hands in a raw bitmap; op-deployer passes it through verbatim. The CLI flag and the intent override are independent surfaces — they are not merged; whichever subcommand runs uses its own input.
 
 The Foundry test-only assembler in `FeatureFlags.sol` is a separate composition layer entirely; it is never invoked by op-deployer.
 
@@ -106,7 +106,7 @@ It does **not** flow to op-node or kona at runtime. They learn about feature act
 
 **On L2 (Solidity)**, readers consult the in-memory bitmap during deploy scripts:
 
-- `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. A predeploy record with a non-zero `devFeatureGate` is installed only when the bitmap has that bit. No record sets a gate today. The interop predeploys are gated on `useInterop` and the Lagoon fork instead.
+- `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. A predeploy record with a non-zero `devFeatureGate` is installed only when the bitmap has that bit.
 - `scripts/L2Genesis.s.sol` — gates which predeploys get installed at genesis.
 - `L2ContractsManager` does **not** read the bitmap. Its upgrade gates the interop predeploys on the `INTEROP` system feature in `L1Block`, so chains that never set the bitmap at genesis can still activate interop at Lagoon.
 
@@ -122,7 +122,7 @@ It does **not** flow to op-node or kona at runtime. They learn about feature act
 
 ## F. Hardfork interaction
 
-ZK uses the bitmap as its per-chain provisioning switch and has no parallel hardfork timestamp. Interop does not use the L2 bitmap. Genesis follows `useInterop` and the Lagoon fork, and existing chains activate interop at the Lagoon hardfork through the `INTEROP` system feature (see section E). Super-root migration also has no parallel hardfork timestamp, but it is default-on in the predicate, so its bitmap bit no longer acts as a circuit breaker. Network-wide activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when** L2ContractsManager upgrade transactions execute across the network.
+ZK uses the bitmap as its per-chain provisioning switch and has no parallel hardfork timestamp. Super-root migration also has no parallel hardfork timestamp, but it is default-on in the predicate, so its bitmap bit no longer acts as a circuit breaker. Network-wide activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when** L2ContractsManager upgrade transactions execute across the network.
 
 ## G. Lifecycle direction
 
