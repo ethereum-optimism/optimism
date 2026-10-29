@@ -22,6 +22,15 @@ import (
 // an EIP-7702 SetCode transaction delegates the EOA to a DelegateCallProxy, so the EOA can act as
 // an owner without a transfer of ownership.
 func DelegateCallWithSetCode(ctx context.Context, client *ethclient.Client, privateKey *ecdsa.PrivateKey, target common.Address, data []byte) error {
+	// A delegatecall to an address without code succeeds and does nothing.
+	code, err := client.CodeAt(ctx, target, nil)
+	if err != nil {
+		return fmt.Errorf("failed to read code at delegatecall target %s: %w", target, err)
+	}
+	if len(code) == 0 {
+		return fmt.Errorf("delegatecall target %s has no code", target)
+	}
+
 	sender := crypto.PubkeyToAddress(privateKey.PublicKey)
 	proxyAddr, err := deployDelegateCallProxy(ctx, client, privateKey, sender)
 	if err != nil {
