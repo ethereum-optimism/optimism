@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -746,6 +747,10 @@ func (wb *worldBuilder) prepareAndDeployChains(opts deployer.ApplyPipelineOpts, 
 		_, err := client.HeaderByNumber(wb.p.Ctx(), big.NewInt(int64(rpc.SafeBlockNumber)))
 		return err == nil
 	}, 30*time.Second, 100*time.Millisecond, "L1 must publish a safe head before preparation")
+	// geth rejects receipt queries until its first indexing pass. prepare and continue run forge on an
+	// anvil fork of this L1, forge's receipt queries reach geth through the fork, and forge gives up
+	// after a few retries.
+	wb.require.NoError(geth.WaitUntilTransactionNotFound(client, common.Hash{}, 30*time.Second))
 
 	// Keep the safe anchor at genesis until preparation commits the L2 timestamp.
 	l1CL.fakepos.Stop()
