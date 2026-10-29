@@ -43,7 +43,7 @@ RUN <<-EOF
 
     [ "${ACTUAL_SHA}" == "${EXPECTED_SHA}" ] || (echo "Forge checksum mismatch: Expected $EXPECTED_SHA, got $ACTUAL_SHA" && exit 1)
 
-    # Extract the archive. op-deployer runs forge, and anvil for `op-deployer continue`.
+    # Extract the archive. op-deployer runs forge, and anvil for `op-deployer prepare` and `continue`.
     tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge anvil
 EOF
 
