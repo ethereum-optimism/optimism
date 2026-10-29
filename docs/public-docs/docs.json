@@ -8,7 +8,7 @@
     "dark": "#FF0420"
   },
   "thumbnails": {
-    "preset": "headline",
+    "preset": "classic",
     "appearance": "dark",
     "surface": "neutral",
     "background": "/public/img/thumbnail-bg.png",
