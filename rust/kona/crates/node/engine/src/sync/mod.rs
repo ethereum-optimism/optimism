@@ -19,6 +19,11 @@ use tracing::info;
 
 use crate::EngineClient;
 
+/// How many sequencing windows the unsafe head's L1 origin must be past L1 genesis, with the safe
+/// and finalized heads still at genesis, for the safe head search to treat the node as just
+/// EL-synced. Matches op-node's `RecoverMinSeqWindows`.
+const RECOVER_MIN_SEQ_WINDOWS: u64 = 14;
+
 /// Searches for the latest [`L2ForkchoiceState`] that we can use to start the sync process with.
 ///
 ///   - The *unsafe L2 block*: This is the highest L2 block, at or above the finalized one, whose L1
@@ -54,8 +59,18 @@ pub async fn find_starting_forkchoice(
     // Search for the highest `safe` block that's L1 origin is at least older than the sequencing
     // window, relative to the L1 origin of the `unsafe` block, and that is no higher than the
     // previous safe head: blocks above it were never derived, and may never be. Like op-node's
-    // `FindL2Heads`.
-    let previous_safe = current_fc.safe.block_info.number;
+    // `FindL2Heads`. After EL sync, though, the safe and finalized heads can still be at genesis
+    // with the unsafe head far ahead; there the cap would walk the whole chain back to genesis,
+    // so, like op-node's `RecoverMinSeqWindows` check, the search is left uncapped.
+    let el_synced_without_safe_head = current_fc.finalized.block_info.hash == cfg.genesis.l2.hash &&
+        current_fc.safe.block_info.hash == cfg.genesis.l2.hash &&
+        current_fc.un_safe.l1_origin.number >
+            cfg.genesis
+                .l1
+                .number
+                .saturating_add(RECOVER_MIN_SEQ_WINDOWS * cfg.seq_window_size);
+    let previous_safe =
+        if el_synced_without_safe_head { u64::MAX } else { current_fc.safe.block_info.number };
     let mut safe_cursor = current_fc.un_safe;
     loop {
         info!(
@@ -249,22 +264,35 @@ mod cold_start_tests {
 
     /// The safe head never moves up. With a sequencing window of 2, block 22 (L1 origin 102) is
     /// the first block below the unsafe head (L1 origin 105) more than a window behind it, but
-    /// derivation has only reached block 20, so the search keeps going down to block 20.
+    /// derivation has only reached block 20, so the search keeps going down to block 20. Just
+    /// after EL sync, with the safe and finalized heads at genesis (here block 18) and the unsafe
+    /// head's L1 origin more than 14 windows past L1 genesis, it stops at block 22 instead of
+    /// walking the chain back to genesis.
+    #[rstest]
+    #[case::derivation_reached_block_20(false, 20)]
+    #[case::just_el_synced(true, 22)]
     #[tokio::test]
-    async fn cold_start_keeps_the_safe_head_at_or_below_the_previous_one() {
-        let config = Arc::new(RollupConfig { seq_window_size: 2, ..Default::default() });
-        let (client, l1, l2) = test_engine_client(config.clone());
+    async fn cold_start_keeps_the_safe_head_at_or_below_the_previous_one(
+        #[case] el_synced: bool,
+        #[case] expected_safe: u64,
+    ) {
         let chain = TestChain::new();
-        chain.expect_heads(&l2, 18, 20, 26);
+        let mut config = RollupConfig { seq_window_size: 2, ..Default::default() };
+        if el_synced {
+            config.genesis.l2 = chain.info(18).block_info.id();
+        }
+        let config = Arc::new(config);
+        let (client, l1, l2) = test_engine_client(config.clone());
+        chain.expect_heads(&l2, 18, if el_synced { 18 } else { 20 }, 26);
         expect_l1_block(&l1, 105, 106);
-        for number in (20..26).rev() {
+        for number in (expected_safe..26).rev() {
             chain.expect_by_hash(&l2, number);
         }
 
         let forkchoice = find_starting_forkchoice(&config, &client).await.unwrap();
 
         assert_eq!(forkchoice.un_safe, chain.info(26));
-        assert_eq!(forkchoice.safe, chain.info(20));
+        assert_eq!(forkchoice.safe, chain.info(expected_safe));
         l1.assert_finished();
         l2.assert_finished();
     }
