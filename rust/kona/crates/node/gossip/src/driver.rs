@@ -812,7 +812,7 @@ mod tests {
     };
     use futures::future;
     use libp2p::{
-        Transport, TransportError,
+        StreamProtocol, Transport, TransportError,
         core::{
             muxing::StreamMuxerBox,
             transport::{self, TransportEvent},
@@ -967,6 +967,62 @@ mod tests {
             panic!("expected the listener to close, got {start:?}");
         };
         assert_eq!(reason.to_string(), "listener failed");
+    }
+
+    /// A peer can't push an endless sync request into the node. A request is an 8-byte block
+    /// number, but a peer that never closes the stream could otherwise keep sending, and the node
+    /// would buffer every byte until it ran out of memory.
+    ///
+    /// The peer sends up to 128 MiB on one stream without closing it. The node must stop taking
+    /// the bytes, by failing the writes or by leaving them blocked, well before all of them are in.
+    #[tokio::test]
+    async fn test_sync_request_size_is_bounded() {
+        const MIB: usize = 1 << 20;
+        const LIMIT_MIB: usize = 128;
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+        let peer_1 = *driver_1.local_peer_id();
+        let addr_1 = driver_1.start().await.expect("listen");
+        driver_2.start().await.expect("listen");
+        driver_2.dial_multiaddr(addr_1.with(Protocol::P2p(peer_1)));
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+
+        let chain_id = driver_1.handler().rollup_config.l2_chain_id;
+        let protocol =
+            StreamProtocol::try_from_owned(format!("/opstack/req/payload_by_number/{chain_id}/0/"))
+                .expect("protocol");
+        let mut control = driver_2.swarm.behaviour().sync_req_resp.new_control();
+        let mut sent = 0;
+        let send = async {
+            let mut stream = control.open_stream(peer_1, protocol).await?;
+            let chunk = vec![0; MIB];
+            while sent < LIMIT_MIB * MIB {
+                stream.write_all(&chunk).await?;
+                sent += chunk.len();
+            }
+            Ok::<_, Box<dyn std::error::Error>>(())
+        };
+        let poll = async {
+            loop {
+                tokio::select! {
+                    Some(event) = driver_1.next() => { driver_1.handle_event(event); }
+                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
+                }
+            }
+        };
+        let outcome = tokio::time::timeout(Duration::from_secs(5), async {
+            tokio::select! {
+                outcome = send => outcome,
+                () = poll => unreachable!("the drivers never stop"),
+            }
+        })
+        .await;
+
+        assert!(
+            sent < LIMIT_MIB * MIB,
+            "the node took all {} MiB of one sync request ({outcome:?})",
+            sent / MIB
+        );
     }
 
     /// Two peers that dial each other at the same time end up with one connection, the one dialed
