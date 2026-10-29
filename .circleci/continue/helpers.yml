@@ -3,24 +3,37 @@
 # duplicating the definitions across main.yml and rust-e2e.yml.
 commands:
   # Shared Go module cache. There is a single Go module in the repo, so the
-  # downloaded module set is identical for every job at a given go.sum. It is
-  # populated once by the prep-go-modules job and restored read-only everywhere
-  # else, so modules are downloaded a single time per go.sum rather than once
-  # per job (every download is an opportunity for a proxy.golang.org flake).
+  # downloaded module set is identical for every job at a given go.mod and
+  # go.sum. It is populated once by the prep-go-modules job and restored
+  # read-only everywhere else, so modules are downloaded a single time per
+  # snapshot rather than once per job (every download is an opportunity for a
+  # proxy.golang.org flake). The key includes go.mod because a toolchain
+  # directive bump changes only go.mod, and the toolchain that Go then
+  # downloads is stored in this cache: keys are immutable, so a go.sum-only key
+  # never captures it and every job downloads the toolchain again.
   # c-go-cache-version is the global cache-buster for breaking changes.
   restore-go-mod-cache:
     steps:
+      - run:
+          name: Use the shared Go module cache directory
+          command: |
+            # Machine images default GOPATH to ~/.go_workspace, not the ~/go
+            # that the cache below restores, so set GOMODCACHE explicitly.
+            # Circle sources BASH_ENV in every later step.
+            GO_MODULE_CACHE_DIR="$HOME/go/pkg/mod"
+            mkdir -p "$GO_MODULE_CACHE_DIR"
+            printf 'export GOMODCACHE=%q\n' "$GO_MODULE_CACHE_DIR" >> "$BASH_ENV"
       - restore_cache:
-          name: Restore Go module cache (go.sum)
+          name: Restore Go module cache (go.mod, go.sum)
           keys:
-            - go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.sum" }}
+            - go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}-{{ checksum "go.sum" }}
             - go-mod-<<pipeline.parameters.c-go-cache-version>>-
 
   save-go-mod-cache:
     steps:
       - save_cache:
-          name: Save Go module cache (go.sum)
-          key: go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.sum" }}
+          name: Save Go module cache (go.mod, go.sum)
+          key: go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.mod" }}-{{ checksum "go.sum" }}
           paths:
             - ~/go/pkg/mod
 

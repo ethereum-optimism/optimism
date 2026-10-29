@@ -2366,8 +2366,12 @@ jobs:
       SEMGREP_REPO_URL: << pipeline.project.git_url >>
       SEMGREP_BRANCH: << pipeline.git.branch >>
       SEMGREP_COMMIT: << pipeline.git.revision >>
+    # Pinned: semgrep-scan-local and semgrep-test gate ci-gate, so a floating tag
+    # would let an upstream release fail every PR without a change in this repo.
+    # Keep the version in step with "pipx:semgrep" in mise.toml, which local runs
+    # use; a new tag needs its new digest too.
     docker:
-      - image: returntocorp/semgrep
+      - image: returntocorp/semgrep:1.182.1@sha256:451b3d875c00dac7ed5db5293e584a07de11449a409c10b3c2d2652f429630b6
     resource_class: xlarge.gen2
     steps:
       - checkout # no need to use mise here since the docker image contains the only dependency
