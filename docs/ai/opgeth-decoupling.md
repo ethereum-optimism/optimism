@@ -538,7 +538,7 @@ serves every use:
 | Live deploys (`apply` live, `bootstrap`) | keyless `forge script` dry run; op-deployer sends the transactions that forge records through txmgr, which keeps rebroadcasts and fee bumps |
 | Genesis-target L1 (op-e2e, sysgo, `apply --deployment-target genesis`) | offline `forge script`, one process per stage, chained by a state-in/state-out hook (`vm.loadAllocs` / `vm.dumpState`) in the deploy scripts' `runWithBytes`; `SetPreinstalls` runs in forge, while geth-param preinstalls, prefund, mock SP1 verifier and seal stay Go-side alloc edits |
 | L2 genesis | offline `forge script` dump wrapper around `L2Genesis.s.sol` |
-| `prepare` / `continue` | keyless forge dry-run; `continue` preflight on an ephemeral `anvil --fork-url` |
+| `prepare` / `continue` | forge on an ephemeral `anvil --fork-url` fork, as the deployer without its key |
 | Read-only paths (op-fetcher, StandardValidator reads) | no script engine: eth_call on the live L1, or on the anvil fork in `continue` |
 
 **Dropped, not ported:** the `calldata`/`noop` deployment targets, `manage`, the script-driven
@@ -560,7 +560,7 @@ Invariants:
   when it compiles nothing.
 - **One contracts release per op-deployer release.** The forge path requires bundles with the
   `runWithBytes` entrypoints; a preflight fails fast on a mismatched bundle.
-- **forge (and anvil, for `continue`) is a runtime dependency.** Shipped in the op-deployer image;
+- **forge (and anvil, for `prepare` and `continue`) is a runtime dependency.** Shipped in the op-deployer image;
   auto-downloaded (pinned, checksummed) on Linux and macOS; on PATH via mise in CI and devstack.
 - **Per-invocation isolation.** Concurrent forge runs (devstack) get their own `FOUNDRY_BROADCAST`
   directory, and their own state files inside the bundle's `fs_permissions`.

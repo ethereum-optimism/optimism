@@ -56,8 +56,8 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	return RecordOPChainDeployment(st, result)
 }
 
-// ExecuteOPChainDeployment runs the deployment without recording state.
-// Script-host execution queues transactions. The forge path sends them before it returns.
+// ExecuteOPChainDeployment runs the deployment without recording state. It sends the deployment's
+// transactions before it returns.
 func ExecuteOPChainDeployment(
 	env *Env,
 	st *state.State,
@@ -87,9 +87,7 @@ func ExecuteOPChainDeployment(
 		}
 	}
 
-	var dco opcm.DeployOPChainOutput
-	var err error
-	dco, err = opcm.DeployOPChain(env.Forge, dci)
+	dco, err := opcm.DeployOPChain(env.Forge, dci)
 	if err != nil {
 		return result, err
 	}
@@ -125,9 +123,7 @@ func readOPChainDeployment(
 		Opcm:                              pinnedOPCM,
 	}
 
-	var impls opcm.ReadImplementationAddressesOutput
-	var err error
-	impls, err = opcm.ReadImplementationAddresses(env.Forge, readInput)
+	impls, err := opcm.ReadImplementationAddresses(env.Forge, readInput)
 	if err != nil {
 		return OPChainDeploymentResult{}, err
 	}

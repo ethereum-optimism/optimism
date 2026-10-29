@@ -22,10 +22,7 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 		Paused:                    false,
 	}
 
-	var dso opcm.DeploySuperchainOutput
-	var err error
-
-	dso, err = opcm.DeploySuperchain(env.Forge, input)
+	dso, err := opcm.DeploySuperchain(env.Forge, input)
 	if err != nil {
 		return err
 	}

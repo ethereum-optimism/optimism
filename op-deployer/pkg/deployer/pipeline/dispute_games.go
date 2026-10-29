@@ -66,10 +66,7 @@ func deployDisputeGame(
 			PreimageOracle:   st.ImplementationsDeployment.PreimageOracleImpl,
 		}
 
-		var out opcm.DeployAlphabetVMOutput
-		var err error
-
-		out, err = opcm.DeployAlphabetVM(env.Forge, input)
+		out, err := opcm.DeployAlphabetVM(env.Forge, input)
 		if err != nil {
 			return err
 		}
@@ -171,10 +168,7 @@ func deployDisputeGame(
 		Challenger:               thisIntent.Roles.Challenger,
 	}
 
-	var out opcm.DeployDisputeGameOutput
-	var err error
-
-	out, err = opcm.DeployDisputeGame(env.Forge, input)
+	out, err := opcm.DeployDisputeGame(env.Forge, input)
 	if err != nil {
 		return err
 	}

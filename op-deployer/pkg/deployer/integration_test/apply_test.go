@@ -290,29 +290,6 @@ func TestEndToEndApply(t *testing.T) {
 		validateOPChainDeployment(t, cg, st, intent, false)
 	})
 
-	t.Run("on the Go script host", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
-		defer cancel()
-
-		// --use-forge=false keeps the Go script host until a later release removes it.
-		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
-		cg := ethClientCodeGetter(ctx, l1Client)
-		require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
-			DeploymentTarget:     deployer.DeploymentTargetLive,
-			L1RPCUrl:             l1RPC,
-			DeployerPrivateKey:   pk,
-			Intent:               intent,
-			State:                st,
-			Logger:               lgr,
-			StateWriter:          pipeline.NoopStateWriter(),
-			CacheDir:             testCacheDir,
-			ReceiptQueryInterval: testReceiptQueryInterval,
-			UseScriptHost:        true,
-		}))
-		validateSuperchainDeployment(t, st, cg, true)
-		validateOPChainDeployment(t, cg, st, intent, false)
-	})
-
 	t.Run("with alt-da and additional dispute games", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 		defer cancel()
