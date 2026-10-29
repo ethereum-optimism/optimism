@@ -31,6 +31,154 @@ fn expect_parent(mock: &RpcMock, parent: &L2Block) {
     mock.expect_params("eth_getBlockByHash", json!([parent.header.hash, true]), parent);
 }
 
+// Old chains with missing labels must recover in constant time; recent chains still derive
+// from genesis. Non-zero genesis heights exercise the threshold relative to chain genesis.
+#[rstest::rstest]
+#[case::genesis(0, false)]
+#[case::recent_chain(1, false)]
+#[case::at_recovery_threshold(28, false)]
+#[case::past_recovery_threshold(29, false)]
+#[case::distant_unsafe_head(100_000_000, false)]
+#[case::missing_labels(100_000_000, true)]
+#[tokio::test]
+async fn recovers_el_sync_with_genesis_labels(#[case] distance: u64, #[case] missing_labels: bool) {
+    let genesis = test_l2_block(100, 50, 0, B256::ZERO);
+    let mut cfg = RollupConfig { seq_window_size: 2, ..Default::default() };
+    cfg.genesis.l1 = alloy_eips::BlockNumHash::new(50, l1_block(50).header.hash);
+    cfg.genesis.l2 = alloy_eips::BlockNumHash::new(100, genesis.header.hash);
+    let mut blocks = vec![genesis.clone()];
+    if distance <= 28 {
+        for i in 1..=distance {
+            blocks.push(test_l2_block(100 + i, 50 + i, 0, blocks.last().unwrap().header.hash));
+        }
+    } else {
+        blocks.push(test_l2_block(100 + distance, 50 + distance, 0, B256::ZERO));
+    }
+    let head = blocks.last().unwrap();
+    let (client, l1, l2) = test_engine_client(Arc::new(cfg.clone()));
+    if missing_labels {
+        l2.expect_params(
+            "eth_getBlockByNumber",
+            json!(["finalized", true]),
+            Option::<L2Block>::None,
+        );
+        l2.expect_params("eth_getBlockByNumber", json!(["0x64", true]), &genesis);
+        l2.expect_params("eth_getBlockByNumber", json!(["safe", true]), Option::<L2Block>::None);
+        l2.expect_params("eth_getBlockByNumber", json!(["latest", true]), head);
+    } else {
+        expect_heads(&l2, &genesis, &genesis, head);
+    }
+    if distance <= 28 {
+        l1.expect_params(
+            "eth_getBlockByNumber",
+            json!([format!("{:#x}", 50 + distance), false]),
+            l1_block(50 + distance),
+        );
+        for i in (0..distance).rev() {
+            expect_parent(&l2, &blocks[i as usize]);
+            l1.expect_params(
+                "eth_getBlockByHash",
+                json!([l1_block(50 + i).header.hash, false]),
+                l1_block(50 + i),
+            );
+        }
+    }
+    let result = find_starting_forkchoice(&cfg, &client).await.unwrap();
+    assert_eq!(result.un_safe, info(head, &cfg));
+    let derived = if distance > 28 { head } else { &genesis };
+    assert_eq!(result.safe, info(derived, &cfg));
+    assert_eq!(result.finalized, info(derived, &cfg));
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+#[rstest::rstest]
+#[case::behind_safe(0, 20)]
+#[case::behind_finalized(20, 17)]
+#[case::behind_finalized_and_safe(20, 21)]
+#[tokio::test]
+async fn recovers_rewound_el_labels(#[case] finalized_number: u64, #[case] safe_number: u64) {
+    let mut cfg = RollupConfig::default();
+    let finalized = test_l2_block(finalized_number, 100, 0, B256::ZERO);
+    if finalized_number == 0 {
+        cfg.genesis.l2.hash = finalized.header.hash;
+    }
+    let safe = test_l2_block(safe_number, 101, 0, B256::ZERO);
+    let head = test_l2_block(18, 99, 0, B256::ZERO);
+    let (client, l1, l2) = test_engine_client(Arc::new(cfg.clone()));
+    expect_heads(&l2, &finalized, &safe, &head);
+    let result = find_starting_forkchoice(&cfg, &client).await.unwrap();
+    let expected = info(&head, &cfg);
+    assert_eq!(
+        result,
+        L2ForkchoiceState { un_safe: expected, safe: expected, finalized: expected }
+    );
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+#[rstest::rstest]
+#[case::only_safe_established(0)]
+#[case::finality_established(1)]
+#[tokio::test]
+async fn established_labels_keep_the_normal_recovery_walk(#[case] finalized: usize) {
+    let mut blocks = vec![];
+    for number in 0..30 {
+        let parent = blocks.last().map_or(B256::ZERO, |block: &L2Block| block.header.hash);
+        blocks.push(test_l2_block(number, number, 0, parent));
+    }
+    let mut cfg = RollupConfig { seq_window_size: 2, ..Default::default() };
+    cfg.genesis.l2.hash = blocks[0].header.hash;
+    let (client, l1, l2) = test_engine_client(Arc::new(cfg.clone()));
+    expect_heads(&l2, &blocks[finalized], &blocks[1], &blocks[29]);
+    l1.expect_params("eth_getBlockByNumber", json!(["0x1d", false]), l1_block(29));
+    for number in (1..29).rev() {
+        l1.expect_params(
+            "eth_getBlockByHash",
+            json!([l1_block(number).header.hash, false]),
+            l1_block(number),
+        );
+    }
+    for parent in (finalized..29).rev() {
+        expect_parent(&l2, &blocks[parent]);
+    }
+    let result = find_starting_forkchoice(&cfg, &client).await.unwrap();
+    assert_eq!(result.un_safe, info(&blocks[29], &cfg));
+    assert_eq!(result.safe, info(&blocks[finalized], &cfg));
+    assert_eq!(result.finalized, info(&blocks[finalized], &cfg));
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+#[tokio::test]
+async fn missing_l2_parent_can_be_retried() {
+    let cfg = RollupConfig::default();
+    let finalized = test_l2_block(1, 99, 0, B256::ZERO);
+    let head = test_l2_block(2, 100, 0, finalized.header.hash);
+    let (client, l1, l2) = test_engine_client(Arc::new(cfg.clone()));
+    expect_heads(&l2, &finalized, &finalized, &head);
+    l1.expect_params("eth_getBlockByNumber", json!(["0x64", false]), l1_block(100));
+    l2.expect_params(
+        "eth_getBlockByHash",
+        json!([finalized.header.hash, true]),
+        Option::<L2Block>::None,
+    );
+    let err = find_starting_forkchoice(&cfg, &client).await.unwrap_err();
+    assert!(matches!(err, SyncStartError::BlockNotFound(_)));
+    assert!(crate::EngineResetError::SyncStart(err).is_temporary());
+
+    expect_heads(&l2, &finalized, &finalized, &head);
+    l1.expect_params("eth_getBlockByNumber", json!(["0x64", false]), l1_block(100));
+    expect_parent(&l2, &finalized);
+    l1.expect_params("eth_getBlockByHash", json!([l1_block(99).header.hash, false]), l1_block(99));
+    let result = find_starting_forkchoice(&cfg, &client).await.unwrap();
+    assert_eq!(result.un_safe, info(&head, &cfg));
+    assert_eq!(result.safe, info(&finalized, &cfg));
+    assert_eq!(result.finalized, info(&finalized, &cfg));
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
 // Same histories and expected labels as op-node's small-reorg, L1-ahead and L2-ahead vectors.
 // The final case keeps the previous safe head below the lookback boundary.
 #[rstest::rstest]

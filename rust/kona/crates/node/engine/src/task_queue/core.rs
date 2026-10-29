@@ -184,7 +184,11 @@ impl EngineResetError {
     /// Whether retrying the reset can recover without changing the node configuration.
     pub fn is_temporary(&self) -> bool {
         match self {
-            Self::SyncStart(SyncStartError::RpcError(_) | SyncStartError::ChainViewChanged) => true,
+            Self::SyncStart(
+                SyncStartError::RpcError(_) |
+                SyncStartError::ChainViewChanged |
+                SyncStartError::BlockNotFound(_),
+            ) => true,
             Self::SyncStart(_) => false,
             Self::Forkchoice(err) => err.severity() != EngineTaskErrorSeverity::Critical,
         }
@@ -357,7 +361,6 @@ mod reset_tests {
     #[case::walk_stops_at_finality(22, false)]
     #[case::already_finalized(20, false)]
     #[case::conflicting_finalized(20, true)]
-    #[case::below_finalized(18, false)]
     #[tokio::test]
     async fn unsafe_walk_never_passes_finality(#[case] number: u64, #[case] conflict: bool) {
         let config = Arc::new(RollupConfig { seq_window_size: 3600, ..Default::default() });
@@ -406,7 +409,7 @@ mod reset_tests {
             l1.expect_params("eth_getBlockByNumber", serde_json::json!(["0x63", false]), origin);
         }
         let result = crate::find_starting_forkchoice(&config, &client).await;
-        if number < 20 || conflict {
+        if conflict {
             let err = result.unwrap_err();
             assert!(matches!(err, SyncStartError::MismatchedFinalizedBlock(..)));
             assert!(!EngineResetError::SyncStart(err).is_temporary());

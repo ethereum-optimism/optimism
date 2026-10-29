@@ -11,13 +11,16 @@ pub use forkchoice::L2ForkchoiceState;
 mod error;
 pub use error::SyncStartError;
 
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::EngineClient;
 
+/// Matches op-node's threshold for recovering EL-sync forkchoice labels left at genesis.
+const RECOVER_MIN_SEQ_WINDOWS: u64 = 14;
+
 /// Searches for a sync starting point using op-node's epoch and sequence consistency rules.
 /// Unsafe origins may be ahead of L1; conservative safe recovery stops at an epoch boundary
-/// beyond the sync lookback, or at finality.
+/// beyond the sync lookback, or at finality. Missing or stale EL-sync labels recover at the tip.
 pub async fn find_starting_forkchoice(
     cfg: &RollupConfig,
     engine_client: &EngineClient,
@@ -30,6 +33,26 @@ pub async fn find_starting_forkchoice(
         finalized = %current_fc.finalized.block_info.number,
         "Loaded current L2 EL forkchoice state"
     );
+
+    let missing_finality = current_fc.finalized.hash() == cfg.genesis.l2.hash &&
+        current_fc.safe.hash() == cfg.genesis.l2.hash &&
+        current_fc.un_safe.block_info.number > cfg.genesis.l2.number &&
+        current_fc.un_safe.l1_origin.number >
+            cfg.genesis
+                .l1
+                .number
+                .saturating_add(RECOVER_MIN_SEQ_WINDOWS.saturating_mul(cfg.seq_window_size));
+    let rewound = current_fc.un_safe.block_info.number < current_fc.safe.block_info.number ||
+        current_fc.un_safe.block_info.number < current_fc.finalized.block_info.number;
+    if missing_finality || rewound {
+        // Like op-node's L2HeadsForELSyncWithOffset with its default zero offset, trust the
+        // EL-synced tip when labels were lost or the EL chain was rewound without updating them.
+        // Handle this before the normal walk: stale labels are not a reorg finality boundary.
+        warn!(target: "sync_start", ?current_fc, missing_finality, rewound, "Recovering missing or stale execution-layer forkchoice labels");
+        current_fc.safe = current_fc.un_safe;
+        current_fc.finalized = current_fc.un_safe;
+        return Ok(current_fc);
+    }
 
     let previous_unsafe = current_fc.un_safe;
     let previous_safe = current_fc.safe;
