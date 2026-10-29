@@ -221,7 +221,7 @@ func TestClient_RunScriptStopsOnCompile(t *testing.T) {
 	t.Cleanup(func() { waitDelay = oldDelay })
 	// A private slot pool, so that forge runs of other tests on the host do not count in the time.
 	oldSlots := runSlots
-	runSlots = &slotPool{dir: t.TempDir(), size: 1}
+	runSlots = &slotPool{dir: filepath.Join(t.TempDir(), "slots"), size: 1}
 	t.Cleanup(func() { runSlots = oldSlots })
 	broadcast := filepath.Join(t.TempDir(), "broadcast")
 	cl := NewClient(stubBinary(t, "echo 'Compiling 1 files with Solc 0.8.15'\nsleep 5\ntouch "+broadcast))
@@ -238,7 +238,7 @@ func TestClient_RunScriptStopsOnCompile(t *testing.T) {
 // TestClient_LimitsConcurrentRuns checks that forge runs wait for a free slot.
 func TestClient_LimitsConcurrentRuns(t *testing.T) {
 	oldSlots := runSlots
-	runSlots = &slotPool{dir: t.TempDir(), size: 1}
+	runSlots = &slotPool{dir: filepath.Join(t.TempDir(), "slots"), size: 1}
 	t.Cleanup(func() { runSlots = oldSlots })
 
 	cl := NewClient(stubBinary(t, "sleep 0.4"))
