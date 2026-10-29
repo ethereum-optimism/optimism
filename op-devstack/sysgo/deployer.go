@@ -363,9 +363,13 @@ func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 			bitmap = currentValue.(common.Hash)
 		}
 		builder.WithGlobalOverride(devFeatureBitmapKey, devfeatures.EnableDevFeature(bitmap, flag))
-		if flag == devfeatures.OptimismPortalInteropFlag {
-			builder.WithUseInterop(true)
-		}
+	}
+}
+
+// WithUseInterop deploys the L2s with the interop predeploys when Lagoon is active at genesis.
+func WithUseInterop() DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithUseInterop(true)
 	}
 }
 

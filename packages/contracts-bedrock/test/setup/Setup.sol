@@ -26,7 +26,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
@@ -213,8 +212,7 @@ abstract contract Setup is FeatureFlags {
         resolveFeaturesFromEnv();
         deploy.cfg().setDevFeatureBitmap(devFeatureBitmap);
 
-        // If the OPTIMISM_PORTAL_INTEROP dev feature is enabled, set the useInterop flag to true
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        if (Config.sysFeatureInterop()) {
             deploy.cfg().setUseInterop(true);
         }
 

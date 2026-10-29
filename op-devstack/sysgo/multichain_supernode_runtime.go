@@ -15,7 +15,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
@@ -450,7 +449,7 @@ func buildMultiL2RuntimeWorld(
 	}
 	if enableInterop {
 		deployerOpts = append([]DeployerOption{
-			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+			WithUseInterop(),
 		}, deployerOpts...)
 		for _, l2Cfg := range wb.builder.L2s() {
 			if delaySeconds > 0 {
