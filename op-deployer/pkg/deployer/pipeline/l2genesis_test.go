@@ -33,10 +33,25 @@ func TestBuildDevFeatureBitmap(t *testing.T) {
 			wantBitmap: interopBit,
 		},
 		{
-			name:       "UseInterop=true, interop bit not set: interop not enabled",
+			name:       "UseInterop=true, interop bit not set: interop bit derived from intent",
 			useInterop: true,
 			bitmap:     common.Hash{},
-			wantError:  true,
+			wantError:  false,
+			wantBitmap: interopBit,
+		},
+		{
+			name:       "UseInterop=true, no bitmap override: interop bit derived from intent",
+			useInterop: true,
+			bitmap:     nil,
+			wantError:  false,
+			wantBitmap: interopBit,
+		},
+		{
+			name:       "UseInterop=true, other bits set: interop bit added, other bits kept",
+			useInterop: true,
+			bitmap:     devfeatures.ZKDisputeGameFlag,
+			wantError:  false,
+			wantBitmap: devfeatures.EnableDevFeature(devfeatures.ZKDisputeGameFlag, interopBit),
 		},
 		{
 			name:       "UseInterop=false, interop bit set: interop not enabled",

@@ -87,10 +87,10 @@ All composition happens in op-deployer at deploy / genesis time. The central fun
 
 - **`buildDevFeatureBitmap()`** in `op-deployer/pkg/deployer/pipeline/l2genesis.go`
   - Reads `intent.GlobalDeployOverrides["devFeatureBitmap"]`
-  - **Cross-validates** the interop bit against the separate `intent.UseInterop` boolean — fails the deploy if they disagree
+  - **Derives the interop bit** from the separate `intent.UseInterop` boolean: when `useInterop = true` the `OptimismPortalInterop` bit is OR-ed in, so an interop intent needs no bitmap at all. Setting the bit with `useInterop = false` fails the deploy, since the two would disagree.
   - Returns the bitmap to the genesis builder.
 
-What this does **not** do: it does not OR together a list of named feature toggles. The operator hands in a raw bitmap; op-deployer just validates one bit (interop) against a parallel boolean, then passes the bitmap through verbatim. The CLI flag and the intent override are independent surfaces — they are not merged; whichever subcommand runs uses its own input.
+What this does **not** do: it does not OR together a list of named feature toggles. The operator hands in a raw bitmap; op-deployer adds one bit (interop) from a parallel boolean, then passes the bitmap through verbatim. The CLI flag and the intent override are independent surfaces — they are not merged; whichever subcommand runs uses its own input.
 
 The Foundry test-only assembler in `FeatureFlags.sol` is a separate composition layer entirely; it is never invoked by op-deployer.
 
