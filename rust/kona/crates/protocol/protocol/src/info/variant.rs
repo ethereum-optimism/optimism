@@ -81,9 +81,14 @@ impl L1BlockInfoTx {
             })
             .transpose()?
             .unwrap_or_default();
-        let base_fee_scalar = u32::from_be_bytes(
-            scalar[28..32].try_into().map_err(|_| BlockInfoError::BaseFeeScalar)?,
-        );
+        let base_fee_scalar = if scalar[0] == 0 && scalar[1..28].iter().any(|&byte| byte != 0) {
+            // The Ecotone spec saturates version-0 scalars with non-zero padding.
+            u32::MAX
+        } else {
+            u32::from_be_bytes(
+                scalar[28..32].try_into().map_err(|_| BlockInfoError::BaseFeeScalar)?,
+            )
+        };
 
         // Determine the blob fee configuration based on the timestamp.
         // We start with the scheduled blob fee parameters, and then check for the osaka and prague
@@ -794,6 +799,76 @@ mod test {
             u32::from_be_bytes(scalar[28..32].try_into().expect("Failed to parse base fee scalar"));
         assert_eq!(l1_info.blob_base_fee_scalar(), blob_base_fee_scalar);
         assert_eq!(l1_info.base_fee_scalar(), base_fee_scalar);
+    }
+
+    // Successful vectors from op-service/eth/types_test.go::TestEcotoneScalars.
+    #[rstest]
+    #[case::dirty_v0_last_padding_byte(b256!("0000000000000000000000000000000000000000000000000000000100000002"), 0, u32::MAX)]
+    #[case::dirty_v0_first_padding_byte(b256!("0001000000000000000000000000000000000000000000000000000000000002"), 0, u32::MAX)]
+    #[case::dirty_v0_blob_scalar_offset(b256!("0000000000000000000000000000000000000000000000000100000000000002"), 0, u32::MAX)]
+    #[case::valid_v0(b256!("0000000000000000000000000000000000000000000000000000000000000002"), 0, 2)]
+    #[case::valid_v1_zero_blob_scalar(b256!("0100000000000000000000000000000000000000000000000000000000000002"), 0, 2)]
+    #[case::valid_v1(b256!("0100000000000000000000000000000000000000000000000000007b00000002"), 123, 2)]
+    #[case::valid_v1_zero_base_scalar(b256!("0100000000000000000000000000000000000000000000000000007b00000000"), 123, 0)]
+    #[case::valid_v1_full_width(b256!("0100000000000000000000000000000000000000000000001234567890abcdef"), 0x12345678, 0x90abcdef)]
+    #[case::zero_v0(B256::ZERO, 0, 0)]
+    #[case::zero_v1(b256!("0100000000000000000000000000000000000000000000000000000000000000"), 0, 0)]
+    fn test_try_new_ecotone_scalars(
+        #[case] scalar: B256,
+        #[case] blob_base_fee_scalar: u32,
+        #[case] base_fee_scalar: u32,
+        #[values(
+            HardForkConfig { ecotone_time: Some(1), ..Default::default() },
+            HardForkConfig { isthmus_time: Some(1), ..Default::default() },
+            HardForkConfig { jovian_time: Some(1), ..Default::default() }
+        )]
+        hardforks: HardForkConfig,
+    ) {
+        let rollup_config = RollupConfig { hardforks, ..Default::default() };
+        let system_config =
+            SystemConfig { scalar: U256::from_be_bytes(scalar.0), ..Default::default() };
+        let (l1_info, deposit_tx) = L1BlockInfoTx::try_new_with_deposit_tx(
+            &rollup_config,
+            &L1Config::sepolia(),
+            &system_config,
+            0,
+            &Header::default(),
+            0xFF,
+        )
+        .unwrap();
+
+        assert_eq!(l1_info.blob_base_fee_scalar(), U256::from(blob_base_fee_scalar));
+        assert_eq!(l1_info.l1_fee_scalar(), U256::from(base_fee_scalar));
+        // All post-Ecotone formats put the two scalars immediately after the selector.
+        assert_eq!(&deposit_tx.input[4..8], &base_fee_scalar.to_be_bytes());
+        assert_eq!(&deposit_tx.input[8..12], &blob_base_fee_scalar.to_be_bytes());
+    }
+
+    #[rstest]
+    #[case::before_ecotone(0)]
+    #[case::ecotone_activation(2)]
+    fn test_try_new_dirty_scalar_bedrock(#[case] l2_block_time: u64) {
+        let rollup_config = RollupConfig {
+            block_time: 2,
+            hardforks: HardForkConfig { ecotone_time: Some(2), ..Default::default() },
+            ..Default::default()
+        };
+        let system_config =
+            SystemConfig { scalar: U256::from(0x1_0000_0002u64), ..Default::default() };
+        let l1_info = L1BlockInfoTx::try_new(
+            &rollup_config,
+            &L1Config::sepolia(),
+            &system_config,
+            0,
+            &Header::default(),
+            l2_block_time,
+        )
+        .unwrap();
+
+        let L1BlockInfoTx::Bedrock(l1_info) = l1_info else {
+            panic!("Wrong fork");
+        };
+        assert_eq!(l1_info.l1_fee_scalar(), system_config.scalar);
     }
 
     #[rstest]
