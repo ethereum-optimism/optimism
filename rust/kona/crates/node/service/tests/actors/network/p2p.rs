@@ -282,3 +282,46 @@ async fn rpc_commands_publish_state_before_returning() -> anyhow::Result<()> {
     .await??;
     Ok(())
 }
+
+/// `opp2p_connectPeer` fails at once, with the gate's reason, when the operator has blocked the
+/// peer, its IP address or its subnet, instead of waiting for a connection that never comes. Once
+/// unblocked, the peer connects.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_connect_peer_reports_the_gates_refusal() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().without_discovery();
+    let node_1 = builder.build(vec![]).await;
+    let node_2 = builder.build(vec![]).await;
+    let peer_1 = node_1.peer_id().await?;
+    let port = tcp_port(&node_1.listen_addr().await?).expect("a TCP listen address");
+    let addr_1 = format!("/ip4/127.0.0.1/tcp/{port}/p2p/{peer_1}");
+    let ip = "127.0.0.1".parse()?;
+    let subnet = "127.0.0.0/8".parse()?;
+    let rpc = &node_2.p2p_rpc;
+
+    // Well under the 10 s that opp2p_connectPeer waits for a connection once it has dialed.
+    let refusal = async || {
+        let connect = rpc.opp2p_connect_peer(addr_1.clone());
+        let err = tokio::time::timeout(Duration::from_secs(2), connect)
+            .await
+            .expect("refused at once")
+            .expect_err("refused");
+        assert_eq!(err.code(), -32000);
+        err.message().to_owned()
+    };
+
+    rpc.opp2p_block_peer(peer_1.clone()).await?;
+    assert_eq!(refusal().await, format!("Peer is blocked: {peer_1}"));
+    rpc.opp2p_unblock_peer(peer_1.clone()).await?;
+
+    rpc.opp2p_block_addr(ip).await?;
+    assert_eq!(refusal().await, "IP address is blocked: 127.0.0.1");
+    rpc.opp2p_unblock_addr(ip).await?;
+
+    rpc.opp2p_block_subnet(subnet).await?;
+    assert_eq!(refusal().await, "IP address 127.0.0.1 is in a blocked subnet");
+    rpc.opp2p_unblock_subnet(subnet).await?;
+
+    tokio::time::timeout(Duration::from_secs(10), rpc.opp2p_connect_peer(addr_1.clone())).await??;
+    node_1.is_connected_to_with_retries(&node_2).await?;
+    Ok(())
+}
