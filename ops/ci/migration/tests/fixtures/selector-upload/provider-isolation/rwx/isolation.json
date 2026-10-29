@@ -1,0 +1,27 @@
+{
+  "destination": "https://api.4byte.sourcify.dev/signature-database/v1/import",
+  "external_blocked": [
+    {
+      "address": "1.1.1.1",
+      "errno": 101
+    },
+    {
+      "address": "2606:4700:4700::1111",
+      "errno": 101
+    }
+  ],
+  "gid": 1000,
+  "hosts_sha256": "e741ad2b57f70e68b4adea9610f9e4b8cf24b14683207f5b27fdd558cb945072",
+  "interfaces": [
+    [
+      1,
+      "lo"
+    ]
+  ],
+  "mount_namespace": "mnt:[4026532845]",
+  "network_namespace": "net:[4026532782]",
+  "no_new_privileges": true,
+  "pid": 1,
+  "trust_sha256": "a49479d75b0d864f81ec17a557cc3c6f8468f73a404204c16163a4773f3dc908",
+  "uid": 1000
+}
