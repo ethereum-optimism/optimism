@@ -42,7 +42,7 @@ use kona_rpc::{
 use kona_safedb::SafeDb;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{ops::Not as _, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
@@ -459,7 +459,7 @@ impl RollupNode {
             self.create_attributes_builder(attributes_provider),
             conductor,
             sequencer_engine_client,
-            self.sequencer_config.sequencer_stopped.not(),
+            self.sequencer_config.initially_active(),
             self.sequencer_config.sequencer_recovery_mode,
             delayed_origin_selector,
             self.config.clone(),
