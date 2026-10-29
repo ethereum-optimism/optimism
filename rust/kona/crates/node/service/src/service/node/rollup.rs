@@ -1,13 +1,16 @@
 //! Contains the [`RollupNode`] implementation.
 use crate::{
-    ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
-    DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
-    EngineActorRequest, EngineConfig, L1OriginSelector, L1WatcherActor, L1WatcherChain,
-    NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode,
-    QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor, SequencerActor,
-    SequencerConfig, SignedPayload, SignerActor, SystemClock,
-    actors::{BlockStream, QueuedUnsafePayloadGossipClient},
+    ConductorClient, DelegateDerivationActor, DerivationActor, DerivationActorRequest,
+    DerivationDelegateClient, DerivationError, EngineActor, EngineActorRequest, EngineConfig,
+    L1OriginSelector, L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig,
+    NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
+    QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient,
+    QueuedSequencerEngineClient, RpcActor, SequencerActor, SequencerConfig, SignedPayload,
+    SignerActor, SystemClock,
+    actors::{
+        BlockStream, OriginPrefetcher, OriginPreparation, PreparedAttributesProvider,
+        PreparedOriginProvider, QueuedUnsafePayloadGossipClient,
+    },
     service::{BufferImportedBlocks, middleware::RpcObservabilityLayer},
 };
 use alloy_eips::{BlockNumHash, BlockNumberOrTag};
@@ -162,12 +165,18 @@ type ConfiguredEngineActor = EngineActor<QueuedEngineDerivationClient>;
 
 /// Concrete type of the sequencer actor used by `RollupNode`.
 type ConfiguredSequencerActor = SequencerActor<
-    StatefulAttributesBuilder<AlloyChainProvider, BufferedAlloyL2ChainProvider>,
+    StatefulAttributesBuilder<PreparedAttributesProvider, BufferedAlloyL2ChainProvider>,
     ConductorClient,
-    L1OriginSelector<DelayedL1OriginSelectorProvider>,
+    L1OriginSelector<PreparedOriginProvider>,
     QueuedSequencerEngineClient,
     QueuedUnsafePayloadGossipClient,
 >;
+
+/// Optional sequencing actors, constructed together with their shared preparation channel.
+struct ConfiguredSequencer {
+    actor: ConfiguredSequencerActor,
+    prefetcher: OriginPrefetcher<crate::DelayedL1OriginSelectorProvider, AlloyChainProvider>,
+}
 
 impl RollupNode {
     /// The mode of operation for the node.
@@ -189,12 +198,8 @@ impl RollupNode {
     /// Returns the sequencer builder for the node.
     fn create_attributes_builder(
         &self,
-    ) -> StatefulAttributesBuilder<AlloyChainProvider, BufferedAlloyL2ChainProvider> {
-        let l1_derivation_provider = AlloyChainProvider::new_with_trust(
-            self.l1_config.engine_provider.clone(),
-            DERIVATION_PROVIDER_CACHE_SIZE,
-            self.l1_config.trust_rpc,
-        );
+        l1_derivation_provider: PreparedAttributesProvider,
+    ) -> StatefulAttributesBuilder<PreparedAttributesProvider, BufferedAlloyL2ChainProvider> {
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
             self.l2_block_buffer.clone(),
             AlloyL2ChainProvider::new_with_trust(
@@ -413,15 +418,25 @@ impl RollupNode {
         unsafe_head_rx: watch::Receiver<L2BlockInfo>,
         l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
         sequencer_admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
-    ) -> Result<Option<ConfiguredSequencerActor>, String> {
+    ) -> Result<Option<ConfiguredSequencer>, String> {
         if !self.mode().is_sequencer() {
             return Ok(None);
         }
 
-        let delayed_l1_provider = DelayedL1OriginSelectorProvider::new(
+        let chain = AlloyChainProvider::new_with_trust(
+            self.l1_config.engine_provider.clone(),
+            DERIVATION_PROVIDER_CACHE_SIZE,
+            self.l1_config.trust_rpc,
+        );
+        let OriginPreparation {
+            prefetcher,
+            origins: delayed_l1_provider,
+            attributes: attributes_provider,
+        } = OriginPreparation::new(
             self.l1_config.engine_provider.clone(),
             l1_head_updates_rx,
             self.sequencer_config.l1_conf_delay,
+            chain,
         );
         let delayed_origin_selector =
             L1OriginSelector::new(self.config.clone(), delayed_l1_provider);
@@ -439,9 +454,9 @@ impl RollupNode {
 
         let queued_gossip_client = QueuedUnsafePayloadGossipClient::new(gossip_payload_tx);
 
-        Ok(Some(SequencerActor::new(
+        let actor = SequencerActor::new(
             sequencer_admin_command_rx,
-            self.create_attributes_builder(),
+            self.create_attributes_builder(attributes_provider),
             conductor,
             sequencer_engine_client,
             self.sequencer_config.sequencer_stopped.not(),
@@ -450,7 +465,8 @@ impl RollupNode {
             self.config.clone(),
             queued_gossip_client,
             Arc::new(SystemClock),
-        )))
+        );
+        Ok(Some(ConfiguredSequencer { actor, prefetcher }))
     }
 
     /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
@@ -617,7 +633,7 @@ impl RollupNode {
             .await
             .map_err(|e| format!("Failed to start network: {e:?}"))?;
 
-        let discovery = handler.discovery.clone();
+        let discovery = handler.discovery.as_ref().map(|discovery| discovery.handler.clone());
         let network = NetworkActor::new(
             QueuedNetworkEngineClient { engine_actor_request_tx: engine_actor_request_tx.clone() },
             handler,
@@ -626,7 +642,12 @@ impl RollupNode {
             signed_payload_rx,
         );
 
-        let p2p_rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx);
+        let p2p_rpc = P2pRpc::new(
+            network.gossip_query_handle(),
+            discovery,
+            self.config.l2_chain_id.id(),
+            gossip_command_tx,
+        );
 
         let l1_watcher = self.build_l1_watcher(
             derivation_actor_request_tx,
@@ -636,16 +657,22 @@ impl RollupNode {
             l1_head_updates_tx,
         )?;
 
-        let sequencer_actor = self.build_sequencer(
+        let sequencing = self.build_sequencer(
             engine_actor_request_tx.clone(),
             gossip_payload_tx,
             unsafe_head_rx,
             l1_head_updates_rx,
             sequencer_admin_command_rx,
         )?;
-        let sequencer_admin = sequencer_actor.as_ref().map(|actor| {
-            SequencerAdminHandle::new(actor.admin_state_receiver(), sequencer_admin_command_tx)
+        let sequencer_admin = sequencing.as_ref().map(|components| {
+            SequencerAdminHandle::new(
+                components.actor.admin_state_receiver(),
+                sequencer_admin_command_tx,
+            )
         });
+        let (sequencer_actor, origin_prefetcher) = sequencing
+            .map(|components| (Some(components.actor), Some(components.prefetcher)))
+            .unwrap_or((None, None));
 
         let admin_rpc = AdminRpc::new(sequencer_admin, engine_actor_request_tx, admin_payload_tx);
         let rpc = self
@@ -657,6 +684,7 @@ impl RollupNode {
             actors = [
                 rpc,
                 sequencer_actor,
+                origin_prefetcher,
                 signer_actor,
                 Some(network),
                 Some(l1_watcher),

@@ -8,7 +8,7 @@ use kona_preimage::{
     errors::{PreimageOracleError, PreimageOracleResult},
 };
 use kona_proof::{Hint, errors::HintParsingError};
-use std::{collections::HashSet, hash::Hash, str::FromStr, sync::Arc, time::Duration};
+use std::{hash::Hash, str::FromStr, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 use tracing::{debug, error, trace};
 
@@ -19,10 +19,20 @@ const MAX_RETRY_DELAY: Duration = Duration::from_secs(5);
 /// [`OnlineHostBackend`].
 pub trait OnlineHostBackendCfg {
     /// The hint type describing the range of hints that can be received.
-    type HintType: FromStr<Err = HintParsingError> + Hash + Eq + PartialEq + Clone + Send + Sync;
+    type HintType: FromStr<Err = HintParsingError>
+        + Hash
+        + Eq
+        + PartialEq
+        + Clone
+        + Send
+        + Sync
+        + 'static;
 
     /// The providers that are used to fetch data in response to hints.
     type Providers: Send + Sync;
+
+    /// Hint types treated as high-level (see `OnlineHostBackend::last_high_level_hint`).
+    const HIGH_LEVEL_HINTS: &'static [Self::HintType];
 }
 
 /// A [`HintHandler`] is an interface for receiving hints, fetching remote data, and storing it in
@@ -57,8 +67,6 @@ where
     kv: SharedKeyValueStore,
     /// The providers that are used to fetch data in response to hints.
     providers: C::Providers,
-    /// Hint types treated as "high-level" (see [`Self::last_high_level_hint`]).
-    high_level_hint_types: HashSet<C::HintType>,
     /// The latest high-level hint. High-level hints bulk-populate the key-value store, so rather
     /// than being fetched once on receipt the latest is retained and tried before
     /// [`Self::last_hint`] on every [`Self::get_preimage`] attempt: cleared once it succeeds (its
@@ -83,18 +91,10 @@ where
             cfg,
             kv,
             providers,
-            high_level_hint_types: HashSet::default(),
             last_high_level_hint: Arc::new(RwLock::new(None)),
             last_hint: Arc::new(RwLock::new(None)),
             _hint_handler: std::marker::PhantomData,
         }
-    }
-
-    /// Registers a hint type as "high-level": rather than being fetched once and discarded, the
-    /// latest hint of this type is retained and tried first by the `get_preimage` retry loop.
-    pub fn with_high_level_hint(mut self, hint_type: C::HintType) -> Self {
-        self.high_level_hint_types.insert(hint_type);
-        self
     }
 }
 
@@ -111,7 +111,7 @@ where
         let parsed_hint = hint
             .parse::<Hint<C::HintType>>()
             .map_err(|e| PreimageOracleError::HintParseFailed(e.to_string()))?;
-        if self.high_level_hint_types.contains(&parsed_hint.ty) {
+        if C::HIGH_LEVEL_HINTS.contains(&parsed_hint.ty) {
             debug!(target: "host_backend", "High-level hint received; retaining {hint}");
             self.last_high_level_hint.write().await.replace(parsed_hint);
         } else {
@@ -215,6 +215,8 @@ mod tests {
     impl OnlineHostBackendCfg for TestCfg {
         type HintType = TestHint;
         type Providers = TestProviders;
+
+        const HIGH_LEVEL_HINTS: &'static [TestHint] = &[TestHint::HighLevel];
     }
 
     /// Configures the mock [`HintHandler`]. The attempt counters are behind `Arc`s so a test can
@@ -280,7 +282,6 @@ mod tests {
     fn new_backend(providers: TestProviders) -> OnlineHostBackend<TestCfg, TestHintHandler> {
         let kv: SharedKeyValueStore = Arc::new(RwLock::new(MemoryKeyValueStore::new()));
         OnlineHostBackend::new(TestCfg, kv, providers, TestHintHandler)
-            .with_high_level_hint(TestHint::HighLevel)
     }
 
     /// The core regression: a transient high-level (witness) fetch failure is retried by the

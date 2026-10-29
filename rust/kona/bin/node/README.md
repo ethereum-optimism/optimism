@@ -78,7 +78,7 @@ kona-node \
 Many configuration options can be set via environment variables:
 
 - `KONA_NODE_L1_ETH_RPC` - L1 execution client RPC URL
-- `KONA_NODE_L1_TRUST_RPC` - Whether to trust the L1 RPC without verification (default: true)
+- `KONA_NODE_L1_TRUST_RPC` - Whether to trust the L1 RPC without verification (default: false)
 - `KONA_NODE_L1_BEACON` - L1 beacon API URL
 - `KONA_NODE_L2_ENGINE_RPC` - L2 engine API URL
 - `KONA_NODE_L2_TRUST_RPC` - Whether to trust the L2 RPC without verification (default: true)
@@ -147,23 +147,23 @@ kona-node info --help
 
 ### RPC Trust Configuration
 
-By default, Kona trusts RPC providers and does not perform additional block hash verification, optimizing for performance. This can be configured using trust flags:
+Kona defaults to verifying L1 RPC block hashes (`--l1-trust-rpc=false`) and trusting the local L2 engine (`--l2-trust-rpc=true`), matching op-node. To retain the previous L1 trust behavior, set `--l1-trust-rpc=true` or `KONA_NODE_L1_TRUST_RPC=true`. Both settings accept a space-separated value (such as `--l1-trust-rpc false`) or an equals sign (`--l1-trust-rpc=false`). A bare flag enables trust. Both settings can be configured explicitly:
 
 ```bash
 # For untrusted/public RPC providers (adds verification)
 kona-node node \
   --l1 https://public-rpc-endpoint.com \
-  --l1-trust-rpc false \
+  --l1-trust-rpc=false \
   --l2 https://another-public-rpc.com \
-  --l2-trust-rpc false \
+  --l2-trust-rpc=false \
   # ... other options
 ```
 
 **Security Considerations:**
-- Default behavior (`true`): No additional verification, assumes RPC is trustworthy
-- Verification mode (`false`): All block hashes are verified against requested hashes
+- Trust mode (`true`): No additional block hash verification, assumes RPC is trustworthy
+- Verification mode (`false`): Enables block hash verification
 - Use verification (`false`) for public or third-party RPC endpoints
-- Default trust (`true`) is suitable for local nodes and trusted infrastructure
+- Trust mode (`true`) is suitable for local nodes and trusted infrastructure
 
 ### Production Deployments
 

@@ -68,7 +68,7 @@ mod driver;
 pub use driver::Discv5Driver;
 
 mod handler;
-pub use handler::{Discv5Handler, HandlerRequest};
+pub use handler::{DiscoveryStopped, Discv5Handler, HandlerRequest};
 
 mod metrics;
 pub use metrics::Metrics;

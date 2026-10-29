@@ -43,11 +43,14 @@ mod network;
 pub use network::{
     NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
     NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
-    QueuedNetworkEngineClient, QueuedUnsafePayloadGossipClient, UnsafePayloadGossipClient,
-    UnsafePayloadGossipClientError,
+    QueuedNetworkEngineClient, QueuedUnsafePayloadGossipClient, RunningDiscovery,
+    UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
 };
 
 mod sequencer;
+pub(crate) use sequencer::{
+    OriginPrefetcher, OriginPreparation, PreparedAttributesProvider, PreparedOriginProvider,
+};
 
 pub use sequencer::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider, L1OriginSelector,
