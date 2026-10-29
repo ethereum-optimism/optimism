@@ -8,7 +8,6 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -130,8 +129,8 @@ func deployDisputeGame(
 		if game.ZKDisputeGame == nil {
 			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")
 		}
-		if game.DisputeGameType != uint32(embedded.GameTypeZKDisputeGame) {
-			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", embedded.GameTypeZKDisputeGame, game.DisputeGameType)
+		if game.DisputeGameType != uint32(opcm.GameTypeZKDisputeGame) {
+			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", opcm.GameTypeZKDisputeGame, game.DisputeGameType)
 		}
 		sp1PlonkAdapter := st.ImplementationsDeployment.SP1PlonkAdapterImpl
 		if sp1PlonkAdapter == (common.Address{}) {

@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"math/big"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -138,4 +139,16 @@ func TestRenderGenesisAndRollup_NilStartBlock(t *testing.T) {
 
 	_, _, err := RenderGenesisAndRollup(st, chainID, intent)
 	require.ErrorContains(t, err, "has no pinned start block")
+}
+
+// Every state file written before DeploymentCalldata was removed has the field, as null or as
+// the calldata target's dump, so ReadState must keep ignoring unknown fields.
+func TestReadState_IgnoresRemovedDeploymentCalldata(t *testing.T) {
+	dir := t.TempDir()
+	stateJSON := `{"version":1,"DeploymentCalldata":[{"to":"0x0000000000000000000000000000000000000001","data":"0x1234","value":"0x0"}]}`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "state.json"), []byte(stateJSON), 0o644))
+
+	st, err := ReadState(dir)
+	require.NoError(t, err)
+	require.Equal(t, 1, st.Version)
 }

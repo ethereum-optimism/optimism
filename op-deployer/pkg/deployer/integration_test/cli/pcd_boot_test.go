@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
@@ -34,7 +34,7 @@ func TestCLIPCDBoot(t *testing.T) {
 	t.Logf("PCD runtime inputs: op-reth=%s Anvil hardfork=prague requested_timestamp=%d observed_timestamp=%d", opRethPath, requestedL1Timestamp, l1Genesis.Time())
 
 	journey.bootstrapOPCM()
-	journey.runInit(embedded.GameTypeSuperCannonKona)
+	journey.runInit(opcm.GameTypeSuperCannonKona)
 	journey.runPrepare()
 	journey.runInspect()
 	journey.writeDependencySet()

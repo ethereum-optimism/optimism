@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -252,14 +251,14 @@ func ResolvePreparedGameType(chain *state.ChainIntent, chainState *state.ChainSt
 }
 
 func initialGameTypeName(gameType uint32) string {
-	switch embedded.GameType(gameType) {
-	case embedded.GameTypePermissionedCannon:
+	switch opcm.GameType(gameType) {
+	case opcm.GameTypePermissionedCannon:
 		return "PERMISSIONED_CANNON"
-	case embedded.GameTypeSuperPermissioned:
+	case opcm.GameTypeSuperPermissioned:
 		return "SUPER_PERMISSIONED"
-	case embedded.GameTypeCannonKona:
+	case opcm.GameTypeCannonKona:
 		return "CANNON_KONA"
-	case embedded.GameTypeSuperCannonKona:
+	case opcm.GameTypeSuperCannonKona:
 		return "SUPER_CANNON_KONA"
 	default:
 		return "UNKNOWN"
@@ -274,8 +273,8 @@ type InitialDeployRequirements struct {
 
 // IsSuperGameType reports whether the initial game uses a super root.
 func IsSuperGameType(gameType uint32) bool {
-	return embedded.GameType(gameType) == embedded.GameTypeSuperCannonKona ||
-		embedded.GameType(gameType) == embedded.GameTypeSuperPermissioned
+	return opcm.GameType(gameType) == opcm.GameTypeSuperCannonKona ||
+		opcm.GameType(gameType) == opcm.GameTypeSuperPermissioned
 }
 
 // DeploymentUsesSuperRoots reports whether the starting anchors are SuperV1 roots over the
@@ -303,10 +302,10 @@ func ValidateInitialGameTypeSet(gameTypes []uint32) error {
 	hasCannonKona := false
 	hasSuperCannonKona := false
 	for _, gameType := range gameTypes {
-		switch embedded.GameType(gameType) {
-		case embedded.GameTypeCannonKona:
+		switch opcm.GameType(gameType) {
+		case opcm.GameTypeCannonKona:
 			hasCannonKona = true
-		case embedded.GameTypeSuperCannonKona:
+		case opcm.GameTypeSuperCannonKona:
 			hasSuperCannonKona = true
 		}
 	}
@@ -319,9 +318,9 @@ func ValidateInitialGameTypeSet(gameTypes []uint32) error {
 
 func ValidateInitialGameTypeForOPCM(gameType uint32, requireSuperGame bool, opcmAddr common.Address) error {
 	var isSuperGame bool
-	switch embedded.GameType(gameType) {
-	case embedded.GameTypePermissionedCannon, embedded.GameTypeCannonKona:
-	case embedded.GameTypeSuperPermissioned, embedded.GameTypeSuperCannonKona:
+	switch opcm.GameType(gameType) {
+	case opcm.GameTypePermissionedCannon, opcm.GameTypeCannonKona:
+	case opcm.GameTypeSuperPermissioned, opcm.GameTypeSuperCannonKona:
 		isSuperGame = true
 	default:
 		return fmt.Errorf("unsupported initial dispute game type %d", gameType)
@@ -330,10 +329,10 @@ func ValidateInitialGameTypeForOPCM(gameType uint32, requireSuperGame bool, opcm
 		return nil
 	}
 
-	permissionless, permissioned := embedded.GameTypeCannonKona, embedded.GameTypePermissionedCannon
+	permissionless, permissioned := opcm.GameTypeCannonKona, opcm.GameTypePermissionedCannon
 	enabled := "disabled"
 	if requireSuperGame {
-		permissionless, permissioned = embedded.GameTypeSuperCannonKona, embedded.GameTypeSuperPermissioned
+		permissionless, permissioned = opcm.GameTypeSuperCannonKona, opcm.GameTypeSuperPermissioned
 		enabled = "enabled"
 	}
 	return fmt.Errorf(
@@ -351,10 +350,10 @@ func ValidateInitialGameTypeForOPCM(gameType uint32, requireSuperGame bool, opcm
 
 // ResolveInitialDeployRequirements returns requirements for a supported initial game type.
 func ResolveInitialDeployRequirements(gameType uint32) (InitialDeployRequirements, error) {
-	switch embedded.GameType(gameType) {
-	case embedded.GameTypePermissionedCannon, embedded.GameTypeSuperPermissioned:
+	switch opcm.GameType(gameType) {
+	case opcm.GameTypePermissionedCannon, opcm.GameTypeSuperPermissioned:
 		return InitialDeployRequirements{}, nil
-	case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
+	case opcm.GameTypeCannonKona, opcm.GameTypeSuperCannonKona:
 		return InitialDeployRequirements{
 			Permissionless:   true,
 			RequiresPrestate: true,
@@ -528,12 +527,12 @@ func BuildDeployOPChainInput(
 	}
 
 	var cannonAbsolutePrestate common.Hash
-	switch embedded.GameType(proofParams.DisputeGameType) {
-	case embedded.GameTypeCannonKona:
+	switch opcm.GameType(proofParams.DisputeGameType) {
+	case opcm.GameTypeCannonKona:
 		cannonAbsolutePrestate = opcm.PermissionedCannonFallbackPrestatePlaceholder
-	case embedded.GameTypeSuperCannonKona, embedded.GameTypeSuperPermissioned:
+	case opcm.GameTypeSuperCannonKona, opcm.GameTypeSuperPermissioned:
 		cannonAbsolutePrestate = common.Hash{}
-	case embedded.GameTypePermissionedCannon:
+	case opcm.GameTypePermissionedCannon:
 		cannonAbsolutePrestate = proofParams.DisputeAbsolutePrestate
 	}
 
