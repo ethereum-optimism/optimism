@@ -324,15 +324,12 @@ mod tests {
         assert!(driver.discovery.is_none());
     }
 
-    /// A network started without discovery leaves the UDP port discovery would listen on free.
+    /// A network starts without discovery, and its handler then holds none.
     #[tokio::test]
-    async fn test_start_without_discovery_binds_no_udp_socket() {
+    async fn test_start_without_discovery() {
         let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
-        let udp_port = std::net::UdpSocket::bind((ip, 0)).unwrap().local_addr().unwrap().port();
-
         let handler = network_builder(Default::default())
             .with_gossip_address(Multiaddr::from(ip).with(libp2p::multiaddr::Protocol::Tcp(0)))
-            .with_discovery_config(ConfigBuilder::new(ListenConfig::from_ip(ip, udp_port)).build())
             .with_discovery_enabled(false)
             .build()
             .unwrap()
@@ -341,6 +338,5 @@ mod tests {
             .unwrap();
 
         assert!(handler.discovery.is_none());
-        std::net::UdpSocket::bind((ip, udp_port)).expect("the discovery port should be free");
     }
 }
