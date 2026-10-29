@@ -115,7 +115,7 @@ contract DeployComplianceMocks is Script {
         _output.module = new MockComplianceModule(_input.portal, _input.owner);
 
         vm.broadcast(msg.sender);
-        _output.policy.setModule(IComplianceModule(payable(address(_output.module))));
+        _output.policy.setModule(IComplianceModule(address(_output.module)));
 
         vm.broadcast(msg.sender);
         _output.module.setPolicy(IPolicy(address(_output.policy)));
