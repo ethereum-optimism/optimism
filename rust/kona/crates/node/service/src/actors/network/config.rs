@@ -22,7 +22,7 @@ pub struct NetworkConfig {
     /// The interval to remove peers from the discovery service.
     pub discovery_randomize: Option<Duration>,
     /// Whether to run discovery. Without it, the node binds no UDP socket, and connects only to
-    /// its static peers and the peers that dial it.
+    /// its static peers, the peers that dial it, and the peers added with `opp2p_connectPeer`.
     pub discovery_enabled: bool,
     /// Whether to update the ENR socket when the gossip listen address changes.
     pub enr_update: bool,

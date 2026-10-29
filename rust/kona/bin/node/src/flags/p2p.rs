@@ -104,7 +104,8 @@ fn parse_static_peer(addr: &str) -> Result<PeerAddr, String> {
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 pub struct P2PArgs {
     /// Disable Discv5 (node discovery). The node then binds no UDP port, ignores its bootnodes,
-    /// and connects only to its static peers and the peers that dial it.
+    /// and connects only to its static peers, the peers that dial it, and the peers added with
+    /// `opp2p_connectPeer`.
     #[arg(long = "p2p.no-discovery", default_value = "false", env = "KONA_NODE_P2P_NO_DISCOVERY")]
     pub no_discovery: bool,
     /// Read the hex-encoded 32-byte private key for the peer ID from this txt file.
