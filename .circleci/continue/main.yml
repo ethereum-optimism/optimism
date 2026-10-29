@@ -399,7 +399,7 @@ commands:
             GH_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-}}" source scripts/ops/get-target-branch.sh
 
             # Make TARGET_BRANCH available to subsequent steps
-            echo "export TARGET_BRANCH=$TARGET_BRANCH" >> "$BASH_ENV"
+            printf 'export TARGET_BRANCH=%q\n' "$TARGET_BRANCH" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
 
   setup-features:
