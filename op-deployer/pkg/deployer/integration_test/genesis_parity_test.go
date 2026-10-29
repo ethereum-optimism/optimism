@@ -170,7 +170,9 @@ func TestL1DevGenesisForgeMatchesGoHost(t *testing.T) {
 		opts.UseScriptHost = useScriptHost
 		opts.DeployMockSP1Verifier = true
 		opts.AllowUnoptimizedContracts = true
-		require.NoError(t, deployer.ApplyL1DevGenesis(context.Background(), opts))
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+		defer cancel()
+		require.NoError(t, deployer.ApplyL1DevGenesis(ctx, opts))
 		return st
 	}
 	goHost := applyL1DevGenesis(true)
