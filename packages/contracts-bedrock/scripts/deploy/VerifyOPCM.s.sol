@@ -812,8 +812,7 @@ contract VerifyOPCM is Script {
     /// @return True if super dispute games are enabled.
     function _isSuperDisputeGamesEnabled(IOPContractsManagerV2 _opcm) internal view returns (bool) {
         bytes32 bitmap = _opcm.devFeatureBitmap();
-        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-            || DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
     }
 
     /// @notice Checks if a contract is a Super dispute game implementation.

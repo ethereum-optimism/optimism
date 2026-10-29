@@ -326,11 +326,6 @@ library Config {
         return vm.envOr("L2_FORK_CHAIN", string("op"));
     }
 
-    /// @notice Returns true if the development feature interop is enabled.
-    function devFeatureInterop() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", false);
-    }
-
     /// @notice Returns true if the development feature BRIDGE_HOOK is enabled.
     function devFeatureBridgeHook() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__BRIDGE_HOOK", false);
@@ -355,6 +350,11 @@ library Config {
     /// @notice Returns true if the system feature custom_gas_token is enabled.
     function sysFeatureCustomGasToken() internal view returns (bool) {
         return vm.envOr("SYS_FEATURE__CUSTOM_GAS_TOKEN", false);
+    }
+
+    /// @notice Returns true if the system feature interop is enabled.
+    function sysFeatureInterop() internal view returns (bool) {
+        return vm.envOr("SYS_FEATURE__INTEROP", false);
     }
 
     /// @notice Returns true if running in kontrol context.

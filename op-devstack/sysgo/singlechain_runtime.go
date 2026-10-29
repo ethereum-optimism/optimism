@@ -14,7 +14,6 @@ import (
 	opchallenger "github.com/ethereum-optimism/optimism/op-challenger"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	challengermetrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -68,7 +67,7 @@ func newDefaultSingleChainWorld(t devtest.T, keys devkeys.Keys, cfg PresetConfig
 	deployerOpts := cfg.DeployerOptions
 	if cfg.InteropAtGenesis {
 		deployerOpts = append([]DeployerOption{
-			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+			WithUseInterop(),
 		}, deployerOpts...)
 	}
 	migration, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorld(t, keys, cfg.InteropAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), startL1, deployerOpts...)
