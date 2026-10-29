@@ -1,6 +1,6 @@
 use std::{net::Ipv4Addr, time::Duration};
 
-use crate::actors::network::mocks::{TestNetworkError, builder::TestNetworkBuilder};
+use crate::actors::network::mocks::{TestNetwork, builder::TestNetworkBuilder};
 use discv5::Enr;
 use enr::NodeId;
 use kona_genesis::OP_MAINNET_CHAIN_ID;
@@ -18,9 +18,9 @@ async fn test_p2p_network_conn() -> anyhow::Result<()> {
 
     let node_2 = builder.build(vec![enr_1]).await;
 
-    node_2.is_connected_to_with_retries(&node_1).await?;
+    node_2.check_connected_to_with_retries(&node_1).await?;
 
-    node_1.is_connected_to_with_retries(&node_2).await?;
+    node_1.check_connected_to_with_retries(&node_2).await?;
 
     Ok(())
 }
@@ -52,7 +52,7 @@ async fn test_large_network_conn() -> anyhow::Result<()> {
                 continue;
             }
 
-            node.is_connected_to_with_retries(other_node).await?;
+            node.check_connected_to_with_retries(other_node).await?;
         }
     }
 
@@ -69,8 +69,8 @@ async fn test_memory_network_conn() -> anyhow::Result<()> {
 
     node_2.connect_to(&node_1).await?;
 
-    node_2.is_connected_to_with_retries(&node_1).await?;
-    node_1.is_connected_to_with_retries(&node_2).await?;
+    node_2.check_connected_to_with_retries(&node_1).await?;
+    node_1.check_connected_to_with_retries(&node_2).await?;
 
     assert!(node_1.has_discovery_disabled().await);
     assert!(node_2.has_discovery_disabled().await);
@@ -88,8 +88,8 @@ async fn test_static_peer_connects_at_startup() -> anyhow::Result<()> {
     let mut builder = builder.with_static_peers(vec![static_peer]);
     let node_2 = builder.build(vec![]).await;
 
-    node_2.is_connected_to_with_retries(&node_1).await?;
-    node_1.is_connected_to_with_retries(&node_2).await?;
+    node_2.check_connected_to_with_retries(&node_1).await?;
+    node_1.check_connected_to_with_retries(&node_2).await?;
 
     assert!(node_1.has_discovery_disabled().await);
     assert!(node_2.has_discovery_disabled().await);
@@ -120,9 +120,9 @@ async fn test_static_peer_is_not_discoverable() -> anyhow::Result<()> {
     let node_1 = builder.build(vec![]).await;
     let node_2 = builder.build(vec![node_1.peer_enr().await?]).await;
 
-    node_1.is_connected_to_with_retries(&static_node).await?;
-    node_1.is_connected_to_with_retries(&node_2).await?;
-    node_2.is_connected_to_with_retries(&node_1).await?;
+    node_1.check_connected_to_with_retries(&static_node).await?;
+    node_1.check_connected_to_with_retries(&node_2).await?;
+    node_2.check_connected_to_with_retries(&node_1).await?;
 
     // Give discovery many rounds to pass S on, if it ever would.
     tokio::time::sleep(Duration::from_secs(3)).await;
@@ -140,10 +140,7 @@ async fn test_static_peer_is_not_discoverable() -> anyhow::Result<()> {
     assert!(static_node.discovery_table().await?.is_empty());
 
     // S's only connection is the one D1 dialed as its static peer.
-    assert!(matches!(
-        node_2.is_connected_to(&static_node).await,
-        Err(TestNetworkError::PeerNotConnected)
-    ));
+    assert!(!node_2.is_connected_to(&static_node).await?);
     assert_eq!(static_node.peers().await?.peers.len(), 1);
 
     Ok(())
@@ -205,7 +202,7 @@ async fn test_node_without_discovery_does_not_answer_discovery() -> anyhow::Resu
     let mut builder = builder.with_discovery();
     let node_b = builder.build(vec![enr_a.clone()]).await;
 
-    node_b.is_connected_to_with_retries(&node_a).await?;
+    node_b.check_connected_to_with_retries(&node_a).await?;
     // Give B's discovery many lookups to reach A.
     tokio::time::sleep(Duration::from_secs(2)).await;
 
@@ -249,7 +246,7 @@ async fn test_node_without_discovery_starts_with_its_udp_port_taken() -> anyhow:
         builder.with_static_peers(vec![static_peer]).with_udp_port(taken.local_addr()?.port());
     let node = builder.build(vec![]).await;
 
-    node.is_connected_to_with_retries(&static_node).await?;
+    node.check_connected_to_with_retries(&static_node).await?;
     assert!(node.has_discovery_disabled().await);
     assert_eq!(node.peers().await?.peers.len(), 1);
 
@@ -286,6 +283,9 @@ async fn rpc_commands_publish_state_before_returning() -> anyhow::Result<()> {
 /// `opp2p_connectPeer` fails at once, with the gate's reason, when the operator has blocked the
 /// peer, its IP address or its subnet, instead of waiting for a connection that never comes. Once
 /// unblocked, the peer connects.
+///
+/// Over TCP, because the gate only applies IP and subnet blocks to addresses with an IP, which an
+/// in-memory one doesn't have.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_connect_peer_reports_the_gates_refusal() -> anyhow::Result<()> {
     let mut builder = TestNetworkBuilder::new().without_discovery();
@@ -322,6 +322,70 @@ async fn test_connect_peer_reports_the_gates_refusal() -> anyhow::Result<()> {
     rpc.opp2p_unblock_subnet(subnet).await?;
 
     tokio::time::timeout(Duration::from_secs(10), rpc.opp2p_connect_peer(addr_1.clone())).await??;
-    node_1.is_connected_to_with_retries(&node_2).await?;
+    node_1.check_connected_to_with_retries(&node_2).await?;
+    Ok(())
+}
+
+/// Returns the address of `node`'s gossip listener on the loopback interface, ending in its
+/// peer ID, for `opp2p_connectPeer`.
+async fn loopback_addr(node: &TestNetwork) -> anyhow::Result<String> {
+    let peer = node.peer_id().await?;
+    let port = tcp_port(&node.listen_addr().await?).expect("a TCP listen address");
+    Ok(format!("/ip4/127.0.0.1/tcp/{port}/p2p/{peer}"))
+}
+
+/// `opp2p_connectPeer` returns once the peers are connected.
+///
+/// The nodes connect over TCP, as real nodes do, though any transport would show it: the
+/// command only starts the dial, and the connection is established later, in the background.
+/// The RPC has to wait for that.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_connect_peer_waits_for_the_connection() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().without_discovery();
+    let node_1 = builder.build(vec![]).await;
+    let node_2 = builder.build(vec![]).await;
+
+    let connect = node_2.p2p_rpc.opp2p_connect_peer(loopback_addr(&node_1).await?);
+    tokio::time::timeout(Duration::from_secs(10), connect).await??;
+    node_2.check_connected_to(&node_1).await?;
+    Ok(())
+}
+
+/// `opp2p_disconnectPeer` returns once the peers are disconnected.
+///
+/// Over TCP, as in [`test_connect_peer_waits_for_the_connection`], though any transport would
+/// show it: the command only starts closing the connections, and they close later, in the
+/// background. The RPC has to wait for that.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_disconnect_peer_waits_for_the_disconnection() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().without_discovery();
+    let node_1 = builder.build(vec![]).await;
+    let node_2 = builder.build(vec![]).await;
+    node_2.connect_to(&node_1).await?;
+    node_2.check_connected_to_with_retries(&node_1).await?;
+
+    let disconnect = node_2.p2p_rpc.opp2p_disconnect_peer(node_1.peer_id().await?);
+    tokio::time::timeout(Duration::from_secs(10), disconnect).await??;
+    assert!(!node_2.is_connected_to(&node_1).await?, "still connected");
+    Ok(())
+}
+
+/// `opp2p_connectPeer` to an address where nothing listens fails as soon as the dial does, with
+/// the dial's error, as op-node's does.
+///
+/// Over TCP, so that the dial reaches a real port and the OS refuses it.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_connect_peer_reports_a_failed_dial() -> anyhow::Result<()> {
+    let node = TestNetworkBuilder::new().without_discovery().build(vec![]).await;
+    let port = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?.local_addr()?.port();
+    let peer = Keypair::generate_secp256k1().public().to_peer_id();
+
+    let connect = node.p2p_rpc.opp2p_connect_peer(format!("/ip4/127.0.0.1/tcp/{port}/p2p/{peer}"));
+    let err = tokio::time::timeout(Duration::from_secs(5), connect)
+        .await
+        .expect("fails as soon as the dial does")
+        .expect_err("nothing listens");
+    assert_eq!(err.code(), -32000, "{err:?}");
+    assert!(err.message().contains("Connection refused"), "{err:?}");
     Ok(())
 }

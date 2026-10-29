@@ -84,23 +84,29 @@ impl TestNetwork {
         Ok(self.p2p_rpc.opp2p_peers(true).await?)
     }
 
-    /// Checks whether `other` is among this node's connected peers.
-    pub(super) async fn is_connected_to(&self, other: &Self) -> Result<(), TestNetworkError> {
+    /// Returns whether `other` is among this node's connected peers.
+    pub(super) async fn is_connected_to(&self, other: &Self) -> Result<bool, TestNetworkError> {
         let other_peer_id = other.peer_id().await?;
-        let peers = self.peers().await?;
-        if !peers.peers.contains_key(&other_peer_id) {
+        Ok(self.peers().await?.peers.contains_key(&other_peer_id))
+    }
+
+    /// Returns [`TestNetworkError::PeerNotConnected`] unless `other` is among this node's connected
+    /// peers. An error, rather than a `bool`, so that [`Self::check_connected_to_with_retries`]
+    /// can retry on it.
+    pub(super) async fn check_connected_to(&self, other: &Self) -> Result<(), TestNetworkError> {
+        if !self.is_connected_to(other).await? {
             return Err(TestNetworkError::PeerNotConnected);
         }
         Ok(())
     }
 
-    /// Like `is_connected_to`, but retries until the connection is established, see
+    /// Like `check_connected_to`, but retries until the connection is established, see
     /// [`retry_backoff`].
-    pub(super) async fn is_connected_to_with_retries(
+    pub(super) async fn check_connected_to_with_retries(
         &self,
         other: &Self,
     ) -> Result<(), TestNetworkError> {
-        (async || self.is_connected_to(other).await)
+        (async || self.check_connected_to(other).await)
             .retry(retry_backoff())
             // When to retry
             .when(|e| matches!(e, TestNetworkError::PeerNotConnected))
@@ -145,7 +151,7 @@ impl TestNetwork {
     }
 
     /// Asks this node to dial `other` at its listen address, the command `opp2p_connectPeer`
-    /// sends. Use [`Self::is_connected_to_with_retries`] to wait for the connection: unlike
+    /// sends. Use [`Self::check_connected_to_with_retries`] to wait for the connection: unlike
     /// `opp2p_connectPeer`, this does not wait for it.
     pub(super) async fn connect_to(&self, other: &Self) -> Result<(), TestNetworkError> {
         let address = other.listen_addr().await?;
