@@ -521,6 +521,7 @@ mod tests {
         state.protected_peers.push(connected);
         state.gossip_peers.insert(connected);
         state.peer_scores.insert(connected, 3.5);
+        state.pings.insert(connected, Duration::from_millis(25));
         state.blocked_addresses.push("192.0.2.1".parse().unwrap());
         state.blocked_subnets.push("192.0.2.0/24".parse().unwrap());
         fixture.state_tx.send_replace(Arc::new(state));
@@ -540,6 +541,8 @@ mod tests {
             assert_eq!(info.connectedness, Connectedness::Connected);
             assert!(info.protected && info.gossip_blocks);
             assert_eq!(info.peer_scores.gossip.total, 3.5);
+            // In nanoseconds, as op-node's `time.Duration` encodes it.
+            assert_eq!(info.latency, 25_000_000);
             assert_eq!(info.user_agent, "agent");
             assert_eq!(info.protocol_version, "protocol");
             assert_eq!(info.protocols.as_ref().unwrap(), &["/meshsub/1.1.0"]);
