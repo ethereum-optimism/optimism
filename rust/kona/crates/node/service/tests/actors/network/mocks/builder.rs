@@ -33,7 +33,7 @@ use tokio::sync::{mpsc, watch};
 use tracing::{Instrument, error, info_span};
 
 /// Builds [`TestNetwork`]s: nodes that share a random chain ID, so they get no registry bootnodes
-/// and find each other only through the bootnodes a test passes in, unless a test sets a chain ID.
+/// and find each other only through the bootnodes a test passes in.
 pub(crate) struct TestNetworkBuilder {
     /// The chain ID every node built by this builder uses.
     chain_id: u64,
@@ -94,10 +94,9 @@ impl TestNetworkBuilder {
         self
     }
 
-    /// Makes the nodes built from now on use `chain_id`, and so the bootnodes the registry has for
-    /// it, instead of a random chain ID.
-    pub(crate) const fn with_chain_id(mut self, chain_id: u64) -> Self {
-        self.chain_id = chain_id;
+    /// Makes the nodes built from now on run discovery again.
+    pub(crate) const fn with_discovery(mut self) -> Self {
+        self.discovery_enabled = true;
         self
     }
 
@@ -156,14 +155,10 @@ impl TestNetworkBuilder {
     pub(crate) async fn build(&mut self, bootnodes: Vec<Enr>) -> TestNetwork {
         let keypair = self.custom_keypair.take().unwrap_or_else(Keypair::generate_secp256k1);
 
-        let secp256k1_key = keypair.clone().try_into_secp256k1()
-        .map_err(|e| anyhow::anyhow!("Impossible to convert keypair to secp256k1. This is a bug since we only support secp256k1 keys: {e}")).unwrap()
-        .secret().to_bytes();
         // LocalNode takes enr's k256 key and BlockSignerHandler alloy's signer; both share one
         // secret.
-        let local_node_key = enr::k256::ecdsa::SigningKey::from_bytes(&secp256k1_key.into())
-            .expect("libp2p secp256k1 secret is a valid k256 key");
-        let block_signer = PrivateKeySigner::from_bytes(&secp256k1_key.into())
+        let local_node_key = local_node_key(&keypair);
+        let block_signer = PrivateKeySigner::from_bytes(&secp256k1_secret(&keypair).into())
             .expect("libp2p secp256k1 secret is a valid k256 key");
 
         let node_addr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
@@ -171,13 +166,7 @@ impl TestNetworkBuilder {
         let udp_port = self.udp_port.take().unwrap_or(0);
         let discovery_config = ConfigBuilder::new(ListenConfig::from_ip(node_addr, udp_port))
             // Only allow loopback addresses.
-            .table_filter(|enr| {
-                let Some(ip) = enr.ip4() else {
-                    return false;
-                };
-
-                ip.is_loopback()
-            })
+            .table_filter(|enr| enr.ip4().is_some_and(|ip| ip.is_loopback()))
             .build();
 
         let gossip_multiaddr = if self.in_memory {
@@ -283,6 +272,34 @@ impl TestNetworkBuilder {
             handle,
         }
     }
+}
+
+impl TestNetworkBuilder {
+    /// Returns the ENR the node with `keypair` would advertise at `127.0.0.1` with these ports. A
+    /// node without discovery publishes none, so a test that gives it to others as a bootnode
+    /// builds it with this.
+    pub(crate) fn enr(&self, keypair: &Keypair, tcp_port: u16, udp_port: u16) -> Enr {
+        let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
+        LocalNode::new(local_node_key(keypair), ip, tcp_port, udp_port)
+            .build_enr(self.chain_id)
+            .expect("a node's own ENR builds")
+    }
+}
+
+/// The secret of `keypair`, which test nodes also sign their ENRs and blocks with.
+fn secp256k1_secret(keypair: &Keypair) -> [u8; 32] {
+    keypair
+        .clone()
+        .try_into_secp256k1()
+        .expect("test nodes have secp256k1 keys")
+        .secret()
+        .to_bytes()
+}
+
+/// The key a node with `keypair` signs its ENR with.
+fn local_node_key(keypair: &Keypair) -> enr::k256::ecdsa::SigningKey {
+    enr::k256::ecdsa::SigningKey::from_bytes(&secp256k1_secret(keypair).into())
+        .expect("libp2p secp256k1 secret is a valid k256 key")
 }
 
 /// The address a node with `keypair` signs blocks as.

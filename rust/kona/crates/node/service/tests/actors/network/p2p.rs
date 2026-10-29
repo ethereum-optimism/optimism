@@ -3,9 +3,9 @@ use std::{net::Ipv4Addr, time::Duration};
 use crate::actors::network::mocks::{TestNetworkError, builder::TestNetworkBuilder};
 use discv5::Enr;
 use enr::NodeId;
-use kona_genesis::OP_SEPOLIA_CHAIN_ID;
 use kona_gossip::PeerAddr;
 use kona_rpc::OpP2PApiServer;
+use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 
 /// Two nodes connect through discovery: the second bootstraps from the first's ENR, and its
 /// network actor dials the ENRs discovery hands it, over TCP.
@@ -148,13 +148,90 @@ async fn test_static_peer_is_not_discoverable() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// A node without discovery connects only to its static peers, even on a chain whose registry
-/// bootnodes discovery would reach out to. It keeps running even though its discovery UDP port is
-/// taken, since it binds no UDP socket.
+/// Returns a UDP port that is free now.
+fn free_udp_port() -> u16 {
+    let socket = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).expect("bind a free port");
+    socket.local_addr().expect("bound socket has an address").port()
+}
+
+/// Returns the TCP port of a listen address.
+fn tcp_port(addr: &Multiaddr) -> Option<u16> {
+    addr.iter().find_map(|p| match p {
+        Protocol::Tcp(port) => Some(port),
+        _ => None,
+    })
+}
+
+/// A node without discovery doesn't bind the UDP port it would discover on. The port is checked
+/// after an RPC call that a running discovery only answers once it has started, and so bound it.
 #[tokio::test(flavor = "multi_thread")]
-async fn test_node_without_discovery_connects_only_to_static_peers() -> anyhow::Result<()> {
-    let mut builder =
-        TestNetworkBuilder::new().with_chain_id(OP_SEPOLIA_CHAIN_ID).without_discovery();
+async fn test_node_without_discovery_binds_no_udp_port() -> anyhow::Result<()> {
+    let udp_port = free_udp_port();
+    let mut builder = TestNetworkBuilder::new().without_discovery().with_udp_port(udp_port);
+    let node = builder.build(vec![]).await;
+
+    node.peers().await?;
+    std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, udp_port))?;
+    assert!(node.has_discovery_disabled().await);
+
+    Ok(())
+}
+
+/// A node without discovery doesn't answer discovery. B has A as a bootnode, so B's discovery
+/// keeps A's record in its table and tries to reach it, but never gets a session with it. B does
+/// dial A over TCP from that record, which shows A is reachable.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_node_without_discovery_does_not_answer_discovery() -> anyhow::Result<()> {
+    let keypair_a = Keypair::generate_secp256k1();
+    let udp_port_a = free_udp_port();
+    let mut builder = TestNetworkBuilder::new()
+        .with_discovery_interval(Duration::from_millis(100))
+        .without_discovery()
+        .with_custom_keypair(keypair_a.clone())
+        .with_udp_port(udp_port_a);
+    let node_a = builder.build(vec![]).await;
+    let tcp_port_a = tcp_port(&node_a.listen_addr().await?).expect("listens on TCP");
+    let enr_a = builder.enr(&keypair_a, tcp_port_a, udp_port_a);
+
+    let mut builder = builder.with_discovery();
+    let node_b = builder.build(vec![enr_a.clone()]).await;
+
+    node_b.is_connected_to_with_retries(&node_a).await?;
+    // Give B's discovery many lookups to reach A.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    assert!(node_a.has_discovery_disabled().await);
+    assert!(node_ids(&node_b.discovery_table().await?).contains(&enr_a.node_id()));
+    assert_eq!(node_b.p2p_rpc.opp2p_peer_count().await?.connected_discovery, Some(0));
+
+    Ok(())
+}
+
+/// A node without discovery ignores its bootnodes: D, which runs discovery, never hears from N
+/// over discovery or TCP, though N has D as a bootnode.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_node_without_discovery_ignores_its_bootnodes() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().with_discovery_interval(Duration::from_millis(100));
+    let node_d = builder.build(vec![]).await;
+    let mut builder = builder.without_discovery();
+    let node_n = builder.build(vec![node_d.peer_enr().await?]).await;
+
+    // Give a discovery that runs by mistake many lookups to reach D.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    assert!(node_n.has_discovery_disabled().await);
+    assert!(!node_ids(&node_d.discovery_table().await?).contains(&node_n.node_id().await?));
+    assert!(node_d.peers().await?.peers.is_empty());
+
+    Ok(())
+}
+
+/// A node without discovery binds no UDP socket, so it starts and connects to its static peer even
+/// though the UDP port it would discover on is taken. A discovery that ran by mistake would fail
+/// to start on that port and stop, failing the RPC calls once it gave up.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_node_without_discovery_starts_with_its_udp_port_taken() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().without_discovery();
     let static_node = builder.build(vec![]).await;
     let static_peer = PeerAddr::try_from(static_node.listen_addr().await?)?;
 
@@ -164,13 +241,8 @@ async fn test_node_without_discovery_connects_only_to_static_peers() -> anyhow::
     let node = builder.build(vec![]).await;
 
     node.is_connected_to_with_retries(&static_node).await?;
-    // Give a discovery that runs by mistake time to reach the bootnodes, if the network allows.
-    tokio::time::sleep(Duration::from_secs(3)).await;
-
-    assert!(node.is_running());
     assert!(node.has_discovery_disabled().await);
     assert_eq!(node.peers().await?.peers.len(), 1);
-    assert_eq!(static_node.peers().await?.peers.len(), 1);
 
     Ok(())
 }

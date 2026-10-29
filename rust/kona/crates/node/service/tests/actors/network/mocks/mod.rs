@@ -2,6 +2,7 @@
 
 use std::{str::FromStr, time::Duration};
 
+use alloy_primitives::B256;
 use backon::{ExponentialBuilder, Retryable};
 use discv5::Enr;
 use enr::NodeId;
@@ -32,6 +33,7 @@ pub(crate) struct TestNetwork {
     /// Receives the unsafe blocks this node accepts from gossip.
     pub(super) blocks_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     /// The network actor's task.
+    #[allow(dead_code)]
     handle: JoinHandle<Result<(), NetworkActorError>>,
 }
 
@@ -44,6 +46,8 @@ pub(crate) enum TestNetworkError {
     PeerInfoMissingEnr,
     #[error("Invalid ENR: {0}")]
     InvalidEnr(String),
+    #[error("Invalid node ID: {0}")]
+    InvalidNodeId(String),
     #[error("Peer info missing listen address")]
     PeerInfoMissingAddress,
     #[error("Invalid multiaddr: {0}")]
@@ -172,11 +176,6 @@ impl TestNetwork {
         )
     }
 
-    /// Returns whether this node's network actor is still running.
-    pub(super) fn is_running(&self) -> bool {
-        !self.handle.is_finished()
-    }
-
     /// Returns this node's own ENR.
     pub(super) async fn peer_enr(&self) -> Result<Enr, TestNetworkError> {
         let enr = self.peer_info().await?.enr.ok_or(TestNetworkError::PeerInfoMissingEnr)?;
@@ -190,8 +189,12 @@ impl TestNetwork {
         Ok(self.peer_info().await?.peer_id)
     }
 
-    /// Returns this node's own discovery node ID, from its ENR.
+    /// Returns this node's own discovery node ID, as `opp2p_self` reports it, which it does
+    /// without discovery too.
     pub(super) async fn node_id(&self) -> Result<NodeId, TestNetworkError> {
-        Ok(self.peer_enr().await?.node_id())
+        let node_id = self.peer_info().await?.node_id;
+        let bytes =
+            B256::from_str(&node_id).map_err(|_| TestNetworkError::InvalidNodeId(node_id))?;
+        Ok(NodeId::new(&bytes.0))
     }
 }
