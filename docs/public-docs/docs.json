@@ -2771,7 +2771,9 @@
                   "chain-operators/guides/configuration/getting-started",
                   "chain-operators/guides/configuration/batcher",
                   "chain-operators/guides/configuration/proposer",
-                  "chain-operators/guides/configuration/op-challenger-config-guide"
+                  "chain-operators/guides/configuration/op-challenger-config-guide",
+                  "chain-operators/guides/configuration/zk-proposer",
+                  "chain-operators/guides/configuration/zk-challenger"
                 ]
               },
               {
@@ -2845,7 +2847,9 @@
                   "chain-operators/tutorials/kona-custom-prestate",
                   "chain-operators/tutorials/dispute-games",
                   "chain-operators/tutorials/migrating-permissionless",
-                  "chain-operators/tutorials/merge-shared-dispute-game"
+                  "chain-operators/tutorials/merge-shared-dispute-game",
+                  "chain-operators/tutorials/zk-prestate",
+                  "chain-operators/tutorials/migrate-to-zk-proofs"
                 ]
               },
               {
@@ -3472,6 +3476,18 @@
                 ]
               },
               {
+                "group": "ZK Proofs",
+                "pages": [
+                  "op-stack/zk-proofs/index",
+                  "op-stack/zk-proofs/explainer",
+                  "op-stack/zk-proofs/zk-dispute-game",
+                  "op-stack/zk-proofs/proof-system",
+                  "op-stack/zk-proofs/components",
+                  "op-stack/zk-proofs/security",
+                  "op-stack/zk-proofs/reference"
+                ]
+              },
+              {
                 "group": "Interoperability",
                 "pages": [
                   "op-stack/interop/index",
@@ -3538,6 +3554,7 @@
                     "pages": [
                       "op-stack/components/op-proposer",
                       "op-stack/components/op-challenger",
+                      "op-stack/components/op-zk-proposer",
                       "op-stack/components/cannon",
                       "op-stack/components/kona-client",
                       "op-stack/components/kona-host",
