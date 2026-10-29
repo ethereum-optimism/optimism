@@ -1,8 +1,9 @@
-use std::time::Duration;
+use std::{net::Ipv4Addr, time::Duration};
 
 use crate::actors::network::mocks::{TestNetworkError, builder::TestNetworkBuilder};
 use discv5::Enr;
 use enr::NodeId;
+use kona_genesis::OP_SEPOLIA_CHAIN_ID;
 use kona_gossip::PeerAddr;
 use kona_rpc::OpP2PApiServer;
 
@@ -57,8 +58,8 @@ async fn test_large_network_conn() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Nodes gossiping over the in-memory transport connect through the `ConnectPeer` command that
-/// `opp2p_connectPeer` sends, while discovery, with no bootnodes, finds nobody.
+/// Nodes gossiping over the in-memory transport, without discovery, connect through the
+/// `ConnectPeer` command that `opp2p_connectPeer` sends.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_memory_network_conn() -> anyhow::Result<()> {
     let mut builder = TestNetworkBuilder::new().in_memory();
@@ -70,14 +71,13 @@ async fn test_memory_network_conn() -> anyhow::Result<()> {
     node_2.is_connected_to_with_retries(&node_1).await?;
     node_1.is_connected_to_with_retries(&node_2).await?;
 
-    assert!(node_1.discovery_table().await?.is_empty());
-    assert!(node_2.discovery_table().await?.is_empty());
+    assert!(node_1.has_discovery_disabled().await);
+    assert!(node_2.has_discovery_disabled().await);
 
     Ok(())
 }
 
-/// A node dials its static peers at startup, with no `ConnectPeer` command and no discovery: the
-/// in-memory nodes have no bootnodes.
+/// A node dials its static peers at startup, with no `ConnectPeer` command and no discovery.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_static_peer_connects_at_startup() -> anyhow::Result<()> {
     let mut builder = TestNetworkBuilder::new().in_memory();
@@ -90,8 +90,8 @@ async fn test_static_peer_connects_at_startup() -> anyhow::Result<()> {
     node_2.is_connected_to_with_retries(&node_1).await?;
     node_1.is_connected_to_with_retries(&node_2).await?;
 
-    assert!(node_1.discovery_table().await?.is_empty());
-    assert!(node_2.discovery_table().await?.is_empty());
+    assert!(node_1.has_discovery_disabled().await);
+    assert!(node_2.has_discovery_disabled().await);
 
     Ok(())
 }
@@ -143,6 +143,33 @@ async fn test_static_peer_is_not_discoverable() -> anyhow::Result<()> {
         node_2.is_connected_to(&static_node).await,
         Err(TestNetworkError::PeerNotConnected)
     ));
+    assert_eq!(static_node.peers().await?.peers.len(), 1);
+
+    Ok(())
+}
+
+/// A node without discovery connects only to its static peers, even on a chain whose registry
+/// bootnodes discovery would reach out to. It keeps running even though its discovery UDP port is
+/// taken, since it binds no UDP socket.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_node_without_discovery_connects_only_to_static_peers() -> anyhow::Result<()> {
+    let mut builder =
+        TestNetworkBuilder::new().with_chain_id(OP_SEPOLIA_CHAIN_ID).without_discovery();
+    let static_node = builder.build(vec![]).await;
+    let static_peer = PeerAddr::try_from(static_node.listen_addr().await?)?;
+
+    let taken = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))?;
+    let mut builder =
+        builder.with_static_peers(vec![static_peer]).with_udp_port(taken.local_addr()?.port());
+    let node = builder.build(vec![]).await;
+
+    node.is_connected_to_with_retries(&static_node).await?;
+    // Give a discovery that runs by mistake time to reach the bootnodes, if the network allows.
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    assert!(node.is_running());
+    assert!(node.has_discovery_disabled().await);
+    assert_eq!(node.peers().await?.peers.len(), 1);
     assert_eq!(static_node.peers().await?.peers.len(), 1);
 
     Ok(())

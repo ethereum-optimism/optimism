@@ -32,7 +32,6 @@ pub(crate) struct TestNetwork {
     /// Receives the unsafe blocks this node accepts from gossip.
     pub(super) blocks_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     /// The network actor's task.
-    #[allow(dead_code)]
     handle: JoinHandle<Result<(), NetworkActorError>>,
 }
 
@@ -162,6 +161,20 @@ impl TestNetwork {
             .iter()
             .map(|enr| Enr::from_str(enr).map_err(TestNetworkError::InvalidEnr))
             .collect()
+    }
+
+    /// Returns whether this node runs without discovery, which `opp2p_discoveryTable` reports with
+    /// op-node's error.
+    pub(super) async fn has_discovery_disabled(&self) -> bool {
+        matches!(
+            self.p2p_rpc.opp2p_discovery_table().await,
+            Err(err) if err.message() == "discovery disabled"
+        )
+    }
+
+    /// Returns whether this node's network actor is still running.
+    pub(super) fn is_running(&self) -> bool {
+        !self.handle.is_finished()
     }
 
     /// Returns this node's own ENR.

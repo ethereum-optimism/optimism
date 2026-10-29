@@ -33,21 +33,23 @@ use tokio::sync::{mpsc, watch};
 use tracing::{Instrument, error, info_span};
 
 /// Builds [`TestNetwork`]s: nodes that share a random chain ID, so they get no registry bootnodes
-/// and find each other only through the bootnodes a test passes in.
+/// and find each other only through the bootnodes a test passes in, unless a test sets a chain ID.
 pub(crate) struct TestNetworkBuilder {
     /// The chain ID every node built by this builder uses.
     chain_id: u64,
+    /// Whether the nodes built from now on run discovery.
+    discovery_enabled: bool,
+    /// The UDP port the next node built listens on for discovery, if not a free one.
+    udp_port: Option<u16>,
     /// The block signer of the nodes built from now on: they only accept blocks it signed.
     unsafe_block_signer: Address,
     /// The keypair for the next node built, if it must not be random.
     custom_keypair: Option<Keypair>,
     /// Whether nodes gossip over the in-memory transport instead of TCP.
     ///
-    /// Discovery still runs over UDP on localhost, but it cannot connect in-memory nodes: their
-    /// ENRs only advertise IP and TCP, which the memory transport cannot dial, and nodes connected
-    /// directly over gossip are never added to each other's discovery tables. So build in-memory
-    /// nodes without bootnodes and connect them explicitly. That makes them fast to test manually
-    /// configured networks with, where discovery finds nobody.
+    /// In-memory nodes run without discovery, since it could not connect them: their ENRs would
+    /// only advertise IP and TCP, which the memory transport cannot dial. So connect them
+    /// explicitly. That makes them fast to test manually configured networks with.
     in_memory: bool,
     /// How often nodes look up random nodes, if not the default.
     discovery_interval: Option<Duration>,
@@ -68,6 +70,8 @@ impl TestNetworkBuilder {
 
         Self {
             chain_id,
+            discovery_enabled: true,
+            udp_port: None,
             unsafe_block_signer: Address::ZERO,
             custom_keypair: None,
             in_memory: false,
@@ -78,9 +82,28 @@ impl TestNetworkBuilder {
     }
 
     /// Makes the nodes built from now on gossip over the in-memory transport, listening on a free
-    /// `/memory` port. See the `in_memory` field for how this interacts with discovery.
+    /// `/memory` port, and run without discovery. See the `in_memory` field for why.
     pub(crate) const fn in_memory(mut self) -> Self {
         self.in_memory = true;
+        self.without_discovery()
+    }
+
+    /// Makes the nodes built from now on run without discovery.
+    pub(crate) const fn without_discovery(mut self) -> Self {
+        self.discovery_enabled = false;
+        self
+    }
+
+    /// Makes the nodes built from now on use `chain_id`, and so the bootnodes the registry has for
+    /// it, instead of a random chain ID.
+    pub(crate) const fn with_chain_id(mut self, chain_id: u64) -> Self {
+        self.chain_id = chain_id;
+        self
+    }
+
+    /// Makes the next node built, and only that one, listen for discovery on `port`.
+    pub(crate) const fn with_udp_port(mut self, port: u16) -> Self {
+        self.udp_port = Some(port);
         self
     }
 
@@ -145,7 +168,8 @@ impl TestNetworkBuilder {
 
         let node_addr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
 
-        let discovery_config = ConfigBuilder::new(ListenConfig::from_ip(node_addr, 0))
+        let udp_port = self.udp_port.take().unwrap_or(0);
+        let discovery_config = ConfigBuilder::new(ListenConfig::from_ip(node_addr, udp_port))
             // Only allow loopback addresses.
             .table_filter(|enr| {
                 let Some(ip) = enr.ip4() else {
@@ -169,9 +193,10 @@ impl TestNetworkBuilder {
             self.unsafe_block_signer,
             gossip_multiaddr,
             keypair,
-            LocalNode::new(local_node_key, node_addr, 0, 0),
+            LocalNode::new(local_node_key, node_addr, 0, udp_port),
             discovery_config,
         )
+        .with_discovery_enabled(self.discovery_enabled)
         .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into())
         .with_static_peers(std::mem::take(&mut self.static_peers));
         if let Some(interval) = self.discovery_interval {
