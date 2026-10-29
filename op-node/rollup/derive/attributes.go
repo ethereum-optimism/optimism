@@ -98,7 +98,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 
 		// errors from UpdateSystemConfigWithL1Receipts are ignored as they represent malformed or invalid updates
 		// and there is no recovery mechanism for malformed updates, we must process past them.
-		_ = UpdateSystemConfigWithL1Receipts(&sysConfig, receipts.Geth(), ba.rollupCfg, info.Time())
+		_ = UpdateSystemConfigWithL1Receipts(nil, &sysConfig, receipts.Geth(), ba.rollupCfg, info.Time())
 
 		l1Info = info
 		depositTxs = deposits

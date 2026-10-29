@@ -12,6 +12,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 var (
@@ -355,7 +357,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			config := eth.SystemConfig{}
 			rollupCfg := rollup.Config{EcotoneTime: test.ecotoneTime}
 
-			err := ProcessSystemConfigUpdateLogEvent(&config, test.hook(t, test.log), &rollupCfg, test.l1Time)
+			err := ProcessSystemConfigUpdateLogEvent(testlog.Logger(t, log.LevelInfo), &config, test.hook(t, test.log), &rollupCfg, test.l1Time)
 			if test.err {
 				require.Error(t, err)
 			} else {
@@ -413,7 +415,7 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 				Logs:   []*types.Log{gasLog},
 			},
 		}
-		err = UpdateSystemConfigWithL1Receipts(&sysCfg, receipts, &cfg, 0)
+		err = UpdateSystemConfigWithL1Receipts(testlog.Logger(t, log.LevelInfo), &sysCfg, receipts, &cfg, 0)
 		require.NoError(t, err)
 		require.Equal(t, newBatcher, sysCfg.BatcherAddr)
 		require.Equal(t, uint64(0xbb), sysCfg.GasLimit)
@@ -492,7 +494,7 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 				Logs:   []*types.Log{futureLogVersion},
 			},
 		}
-		err = UpdateSystemConfigWithL1Receipts(&sysCfg, receipts, &cfg, 0)
+		err = UpdateSystemConfigWithL1Receipts(testlog.Logger(t, log.LevelInfo), &sysCfg, receipts, &cfg, 0)
 		// Error should be returned due to malformed update, but valid updates should apply
 		require.Error(t, err)
 		// Confirm valid update applied
@@ -548,7 +550,7 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 				Logs:   []*types.Log{batcherLog, gasLog},
 			},
 		}
-		err = UpdateSystemConfigWithL1Receipts(&sysCfg, receipts, &cfg, 0)
+		err = UpdateSystemConfigWithL1Receipts(testlog.Logger(t, log.LevelInfo), &sysCfg, receipts, &cfg, 0)
 		require.NoError(t, err)
 		require.Equal(t, newBatcher, sysCfg.BatcherAddr)
 		require.Equal(t, uint64(0xcc), sysCfg.GasLimit)
@@ -629,10 +631,176 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 				Logs:             []*types.Log{minBaseFeeLog},
 			},
 		}
-		err = UpdateSystemConfigWithL1Receipts(&sysCfg, receipts, &cfg, 0)
+		err = UpdateSystemConfigWithL1Receipts(testlog.Logger(t, log.LevelInfo), &sysCfg, receipts, &cfg, 0)
 		require.NoError(t, err)
 		require.Equal(t, newBatcher, sysCfg.BatcherAddr)
 		require.Equal(t, uint64(0xdd), sysCfg.GasLimit)
 		require.Equal(t, minBaseFee, sysCfg.MinBaseFee)
 	})
+}
+
+func TestProcessSystemConfigUpdateLogEvent_Logging(t *testing.T) {
+	lgr, logs := testlog.CaptureLogger(t, log.LevelInfo)
+	sysCfg := eth.SystemConfig{}
+	cfg := rollup.Config{}
+
+	// 1. Batcher
+	addr := common.Address{19: 0xaa}
+	addrData, err := addressArgs.Pack(&addr)
+	require.NoError(t, err)
+	data, err := bytesArgs.Pack(addrData)
+	require.NoError(t, err)
+	batcherLog := &types.Log{
+		Topics: []common.Hash{
+			ConfigUpdateEventABIHash,
+			ConfigUpdateEventVersion0,
+			SystemConfigUpdateBatcher,
+		},
+		Data: data,
+	}
+	err = ProcessSystemConfigUpdateLogEvent(lgr, &sysCfg, batcherLog, &cfg, 0)
+	require.NoError(t, err)
+	logs.RequireMessageContained(t, "System config updated: batcher address")
+
+	// 2. Gas Limit
+	logs.Clear()
+	gasDataEnc, err := oneUint256.Pack(big.NewInt(12345))
+	require.NoError(t, err)
+	gasData, err := bytesArgs.Pack(gasDataEnc)
+	require.NoError(t, err)
+	gasLog := &types.Log{
+		Topics: []common.Hash{
+			ConfigUpdateEventABIHash,
+			ConfigUpdateEventVersion0,
+			SystemConfigUpdateGasLimit,
+		},
+		Data: gasData,
+	}
+	err = ProcessSystemConfigUpdateLogEvent(lgr, &sysCfg, gasLog, &cfg, 0)
+	require.NoError(t, err)
+	logs.RequireMessageContained(t, "System config updated: gas limit")
+
+	// 3. Unsafe Block Signer
+	logs.Clear()
+	signerLog := &types.Log{
+		Topics: []common.Hash{
+			ConfigUpdateEventABIHash,
+			ConfigUpdateEventVersion0,
+			SystemConfigUpdateUnsafeBlockSigner,
+		},
+	}
+	err = ProcessSystemConfigUpdateLogEvent(lgr, &sysCfg, signerLog, &cfg, 0)
+	require.NoError(t, err)
+	logs.RequireMessageContained(t, "System config updated: unsafe block signer (ignored in derivation)")
+
+	// 4. Min Base Fee
+	logs.Clear()
+	minBaseFeeEnc, err := oneUint256.Pack(new(big.Int).SetUint64(1000))
+	require.NoError(t, err)
+	minBaseFeeData, err := bytesArgs.Pack(minBaseFeeEnc)
+	require.NoError(t, err)
+	minBaseFeeLog := &types.Log{
+		Topics: []common.Hash{
+			ConfigUpdateEventABIHash,
+			ConfigUpdateEventVersion0,
+			SystemConfigUpdateMinBaseFee,
+		},
+		Data: minBaseFeeData,
+	}
+	err = ProcessSystemConfigUpdateLogEvent(lgr, &sysCfg, minBaseFeeLog, &cfg, 0)
+	require.NoError(t, err)
+	logs.RequireMessageContained(t, "System config updated: min base fee")
+
+	// 5. DA Footprint Gas Scalar
+	logs.Clear()
+	daScalarEnc, err := oneUint16.Pack(uint16(50))
+	require.NoError(t, err)
+	daScalarData, err := bytesArgs.Pack(daScalarEnc)
+	require.NoError(t, err)
+	daScalarLog := &types.Log{
+		Topics: []common.Hash{
+			ConfigUpdateEventABIHash,
+			ConfigUpdateEventVersion0,
+			SystemConfigUpdateDAFootprintGasScalar,
+		},
+		Data: daScalarData,
+	}
+	err = ProcessSystemConfigUpdateLogEvent(lgr, &sysCfg, daScalarLog, &cfg, 0)
+	require.NoError(t, err)
+	logs.RequireMessageContained(t, "System config updated: DA footprint gas scalar")
+
+	// 6. Fee Scalars (Bedrock)
+	logs.Clear()
+	scalarDataEnc, err := twoUint256.Pack(big.NewInt(10), big.NewInt(20))
+	require.NoError(t, err)
+	scalarData, err := bytesArgs.Pack(scalarDataEnc)
+	require.NoError(t, err)
+	scalarLog := &types.Log{
+		Topics: []common.Hash{
+			ConfigUpdateEventABIHash,
+			ConfigUpdateEventVersion0,
+			SystemConfigUpdateFeeScalars,
+		},
+		Data: scalarData,
+	}
+	err = ProcessSystemConfigUpdateLogEvent(lgr, &sysCfg, scalarLog, &cfg, 0)
+	require.NoError(t, err)
+	logs.RequireMessageContained(t, "System config updated: fee scalars")
+
+	// 7. Fee Scalars (Ecotone)
+	logs.Clear()
+	ecotoneTime := uint64(0)
+	ecotoneCfg := rollup.Config{EcotoneTime: &ecotoneTime}
+	ecotoneScalar := eth.Bytes32{0: 0x01, 31: 0x05} // valid ecotone scalar format
+	ecotoneScalarEnc, err := twoUint256.Pack(big.NewInt(0), new(big.Int).SetBytes(ecotoneScalar[:]))
+	require.NoError(t, err)
+	ecotoneScalarData, err := bytesArgs.Pack(ecotoneScalarEnc)
+	require.NoError(t, err)
+	ecotoneLog := &types.Log{
+		Topics: []common.Hash{
+			ConfigUpdateEventABIHash,
+			ConfigUpdateEventVersion0,
+			SystemConfigUpdateFeeScalars,
+		},
+		Data: ecotoneScalarData,
+	}
+	err = ProcessSystemConfigUpdateLogEvent(lgr, &sysCfg, ecotoneLog, &ecotoneCfg, 0)
+	require.NoError(t, err)
+	logs.RequireMessageContained(t, "System config updated: fee scalar")
+
+	// 8. EIP-1559 Params
+	logs.Clear()
+	eipDataEnc, err := oneUint256.Pack(new(big.Int).SetBytes(eip1559Params))
+	require.NoError(t, err)
+	eipData, err := bytesArgs.Pack(eipDataEnc)
+	require.NoError(t, err)
+	eipLog := &types.Log{
+		Topics: []common.Hash{
+			ConfigUpdateEventABIHash,
+			ConfigUpdateEventVersion0,
+			SystemConfigUpdateEIP1559Params,
+		},
+		Data: eipData,
+	}
+	err = ProcessSystemConfigUpdateLogEvent(lgr, &sysCfg, eipLog, &cfg, 0)
+	require.NoError(t, err)
+	logs.RequireMessageContained(t, "System config updated: EIP-1559 params")
+
+	// 9. Operator Fee Params
+	logs.Clear()
+	opFeeEnc, err := oneUint256.Pack(new(big.Int).SetBytes(operatorFeeParams))
+	require.NoError(t, err)
+	opFeeData, err := bytesArgs.Pack(opFeeEnc)
+	require.NoError(t, err)
+	opFeeLog := &types.Log{
+		Topics: []common.Hash{
+			ConfigUpdateEventABIHash,
+			ConfigUpdateEventVersion0,
+			SystemConfigUpdateOperatorFeeParams,
+		},
+		Data: opFeeData,
+	}
+	err = ProcessSystemConfigUpdateLogEvent(lgr, &sysCfg, opFeeLog, &cfg, 0)
+	require.NoError(t, err)
+	logs.RequireMessageContained(t, "System config updated: operator fee params")
 }
