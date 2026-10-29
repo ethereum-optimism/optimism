@@ -94,6 +94,14 @@ impl TestNetworkBuilder {
         self
     }
 
+    /// Makes the nodes built from now on use `chain_id` instead of a random chain ID. On a chain in
+    /// the registry, a node that runs discovery also bootstraps from the chain's built-in
+    /// bootnodes.
+    pub(crate) const fn with_chain_id(mut self, chain_id: u64) -> Self {
+        self.chain_id = chain_id;
+        self
+    }
+
     /// Makes the nodes built from now on run discovery again.
     pub(crate) const fn with_discovery(mut self) -> Self {
         self.discovery_enabled = true;

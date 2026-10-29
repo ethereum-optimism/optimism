@@ -3,6 +3,7 @@ use std::{net::Ipv4Addr, time::Duration};
 use crate::actors::network::mocks::{TestNetworkError, builder::TestNetworkBuilder};
 use discv5::Enr;
 use enr::NodeId;
+use kona_genesis::OP_MAINNET_CHAIN_ID;
 use kona_gossip::PeerAddr;
 use kona_rpc::OpP2PApiServer;
 use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
@@ -162,17 +163,25 @@ fn tcp_port(addr: &Multiaddr) -> Option<u16> {
     })
 }
 
-/// A node without discovery doesn't bind the UDP port it would discover on. The port is checked
-/// after an RPC call that a running discovery only answers once it has started, and so bound it.
+/// A node without discovery doesn't bind the UDP port it would discover on. That holds on a chain
+/// with built-in bootnodes too, such as OP Mainnet, which a running discovery bootstraps from even
+/// with no bootnodes configured.
+///
+/// The port is checked after an RPC call that a running discovery only answers once it has
+/// started, and so bound the port.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_node_without_discovery_binds_no_udp_port() -> anyhow::Result<()> {
-    let udp_port = free_udp_port();
-    let mut builder = TestNetworkBuilder::new().without_discovery().with_udp_port(udp_port);
-    let node = builder.build(vec![]).await;
+    for builder in
+        [TestNetworkBuilder::new(), TestNetworkBuilder::new().with_chain_id(OP_MAINNET_CHAIN_ID)]
+    {
+        let udp_port = free_udp_port();
+        let mut builder = builder.without_discovery().with_udp_port(udp_port);
+        let node = builder.build(vec![]).await;
 
-    node.peers().await?;
-    std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, udp_port))?;
-    assert!(node.has_discovery_disabled().await);
+        node.peers().await?;
+        std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, udp_port))?;
+        assert!(node.has_discovery_disabled().await);
+    }
 
     Ok(())
 }
