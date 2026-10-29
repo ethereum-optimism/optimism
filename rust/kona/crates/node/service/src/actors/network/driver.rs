@@ -1,8 +1,8 @@
 use std::net::{IpAddr, SocketAddr};
 
 use kona_disc::Discv5Driver;
-use kona_gossip::{ConnectionGater, GossipDriver, PEER_SCORE_INSPECT_FREQUENCY};
-use libp2p::{Multiaddr, TransportError, multiaddr::Protocol};
+use kona_gossip::{ConnectionGater, GossipDriver, PEER_SCORE_INSPECT_FREQUENCY, StartError};
+use libp2p::{Multiaddr, multiaddr::Protocol};
 
 use crate::actors::network::handler::{NetworkHandler, RunningDiscovery};
 
@@ -25,7 +25,7 @@ pub struct NetworkDriver {
 pub enum NetworkDriverError {
     /// An error occurred starting the libp2p Swarm.
     #[error("error starting libp2p Swarm")]
-    GossipStartError(#[from] TransportError<std::io::Error>),
+    GossipStartError(#[from] StartError),
     /// An error occurred parsing the gossip listen address.
     #[error("error parsing gossip listen address: {0}")]
     InvalidGossipListenAddr(Multiaddr),

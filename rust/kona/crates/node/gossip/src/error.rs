@@ -75,6 +75,20 @@ pub enum GossipDriverBuilderError {
     SyncReqRespAlreadyAccepted(#[source] libp2p_stream::AlreadyRegistered),
 }
 
+/// An error from [`crate::GossipDriver::start`].
+#[derive(Debug, Error)]
+pub enum StartError {
+    /// The driver is already listening, on the address [`crate::GossipDriver::addr`] returns.
+    #[error("the gossip driver has already been started")]
+    AlreadyStarted,
+    /// The transport can't listen on the address.
+    #[error("failed to listen")]
+    Listen(#[from] libp2p::TransportError<std::io::Error>),
+    /// The listener closed before it reported the address it listens on.
+    #[error("the listener closed before it reported an address")]
+    ListenerClosed(#[source] Option<std::io::Error>),
+}
+
 /// An error type representing reasons why a peer cannot be dialed.
 #[derive(Debug, Clone, Error)]
 pub enum DialError {

@@ -7,7 +7,7 @@ use futures::{AsyncReadExt, AsyncWriteExt, stream::StreamExt};
 use kona_genesis::RollupConfig;
 use kona_peers::{EnrValidation, PeerMonitoring, enr_to_multiaddr};
 use libp2p::{
-    Multiaddr, PeerId, Swarm, TransportError,
+    Multiaddr, PeerId, Swarm,
     core::transport::ListenerId,
     gossipsub::{IdentTopic, MessageId},
     swarm::{ConnectionId, SwarmEvent, dial_opts::DialOpts},
@@ -20,7 +20,7 @@ use tokio::{sync::Mutex, time::Instant};
 
 use crate::{
     Behaviour, BlockHandler, ConnectionGate, ConnectionGater, Event, GossipDriverBuilder, Handler,
-    PeerAddr, PublishError,
+    PeerAddr, PublishError, StartError,
 };
 
 /// A driver for a [`Swarm`] instance.
@@ -243,34 +243,46 @@ where
 
     /// Starts the libp2p Swarm.
     ///
+    /// - Tells the swarm to listen on the given [`Multiaddr`], and waits until it does.
     /// - Starts the sync request/response protocol handler.
-    /// - Tells the swarm to listen on the given [`Multiaddr`].
+    /// - Dials the static peers.
     ///
-    /// Waits for the swarm to start listen before returning and connecting to peers.
-    pub async fn start(&mut self) -> Result<Multiaddr, TransportError<std::io::Error>> {
-        // Start the sync request/response protocol handler.
-        self.start_sync_protocol_handler();
+    /// The handler and the dials only start once the swarm listens, so a start that fails leaves
+    /// nothing running.
+    ///
+    /// A driver starts once: calling this again returns [`StartError::AlreadyStarted`], and the
+    /// driver keeps listening on the address the first call returned.
+    pub async fn start(&mut self) -> Result<Multiaddr, StartError> {
+        if self.listener_id.is_some() {
+            return Err(StartError::AlreadyStarted);
+        }
 
-        match self.swarm.listen_on(self.addr.clone()) {
-            Ok(id) => {
-                self.listener_id = Some(id);
-                loop {
-                    if let SwarmEvent::NewListenAddr { address, listener_id } =
-                        self.swarm.select_next_some().await &&
-                        id == listener_id
-                    {
-                        info!(target: "gossip", peer_id = %self.local_peer_id(), "Swarm now listening on: {address}");
+        let id = self.swarm.listen_on(self.addr.clone()).inspect_err(|err| {
+            error!(target: "gossip", "Fail to listen on {}: {err}", self.addr);
+        })?;
+        self.listener_id = Some(id);
+        loop {
+            match self.swarm.select_next_some().await {
+                SwarmEvent::NewListenAddr { address, listener_id } if listener_id == id => {
+                    info!(target: "gossip", peer_id = %self.local_peer_id(), "Swarm now listening on: {address}");
 
-                        self.addr = address.clone();
-                        self.dial_static_peers();
+                    self.addr = address.clone();
+                    self.start_sync_protocol_handler();
+                    self.dial_static_peers();
 
-                        return Ok(address);
-                    }
+                    return Ok(address);
                 }
-            }
-            Err(err) => {
-                error!(target: "gossip", "Fail to listen on {}: {err}", self.addr);
-                Err(err)
+                SwarmEvent::ListenerClosed { listener_id, reason, .. } if listener_id == id => {
+                    error!(target: "gossip", ?reason, "Listener on {} closed before it reported an address", self.addr);
+                    self.listener_id = None;
+                    return Err(StartError::ListenerClosed(reason.err()));
+                }
+                // Keep the driver's state in step with the swarm. A block arriving here would be
+                // dropped, but blocks need a connection, and the driver dials its static peers only
+                // once it listens.
+                event => {
+                    self.handle_event(event);
+                }
             }
         }
     }
@@ -792,13 +804,25 @@ where
 mod tests {
     use super::*;
     use crate::{
-        SIGNER_GRACE_PERIOD,
+        GossipTransport, SIGNER_GRACE_PERIOD,
         builder::tests::{
             memory_driver, memory_driver_builder, memory_driver_builder_at, poll_until_connected,
         },
         signer::tests::{address, payload},
     };
-    use libp2p::multiaddr::Protocol;
+    use futures::future;
+    use libp2p::{
+        Transport, TransportError,
+        core::{
+            muxing::StreamMuxerBox,
+            transport::{self, TransportEvent},
+        },
+        multiaddr::Protocol,
+    };
+    use std::{
+        pin::Pin,
+        task::{Context, Poll},
+    };
     use tokio::sync::watch;
 
     /// Polls both drivers' swarms until `done` holds for them, for at most 10 seconds.
@@ -860,6 +884,89 @@ mod tests {
         driver_1.dial_multiaddr(addr_2);
         driver_2.dial_multiaddr(addr_1);
         (peer_1, peer_2)
+    }
+
+    /// Starting a driver again fails, and the driver keeps listening where it first started.
+    #[tokio::test]
+    async fn test_start_twice_fails() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+        let peer_1 = *driver_1.local_peer_id();
+        let addr_1 = driver_1.start().await.expect("listen");
+
+        assert!(matches!(driver_1.start().await, Err(StartError::AlreadyStarted)));
+        assert_eq!(driver_1.addr(), &addr_1);
+
+        driver_2.start().await.expect("listen");
+        driver_2.dial_multiaddr(addr_1.with(Protocol::P2p(peer_1)));
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+    }
+
+    /// A transport whose listeners close with an error before they report an address.
+    ///
+    /// The memory transport always reports the address first, so it can't test this.
+    #[derive(Default)]
+    struct ClosingTransport {
+        /// The listener to close on the next poll.
+        listener_id: Option<ListenerId>,
+    }
+
+    impl Transport for ClosingTransport {
+        type Output = (PeerId, StreamMuxerBox);
+        type Error = std::io::Error;
+        type ListenerUpgrade = future::Pending<Result<Self::Output, Self::Error>>;
+        type Dial = future::Pending<Result<Self::Output, Self::Error>>;
+
+        fn listen_on(
+            &mut self,
+            id: ListenerId,
+            _addr: Multiaddr,
+        ) -> Result<(), TransportError<Self::Error>> {
+            self.listener_id = Some(id);
+            Ok(())
+        }
+
+        fn remove_listener(&mut self, _id: ListenerId) -> bool {
+            false
+        }
+
+        fn dial(
+            &mut self,
+            addr: Multiaddr,
+            _opts: transport::DialOpts,
+        ) -> Result<Self::Dial, TransportError<Self::Error>> {
+            Err(TransportError::MultiaddrNotSupported(addr))
+        }
+
+        fn poll(
+            mut self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+        ) -> Poll<TransportEvent<Self::ListenerUpgrade, Self::Error>> {
+            self.listener_id.take().map_or(Poll::Pending, |listener_id| {
+                Poll::Ready(TransportEvent::ListenerClosed {
+                    listener_id,
+                    reason: Err(std::io::Error::other("listener failed")),
+                })
+            })
+        }
+    }
+
+    /// A listener that closes before it reports an address fails the start, instead of leaving
+    /// it waiting for an address that never comes.
+    #[tokio::test]
+    async fn test_start_fails_when_listener_closes() {
+        let mut driver = memory_driver_builder()
+            .with_transport(GossipTransport::Other(Box::new(|_| {
+                Ok(ClosingTransport::default().boxed())
+            })))
+            .build()
+            .expect("build");
+
+        let start = tokio::time::timeout(Duration::from_secs(10), driver.start()).await;
+        let Ok(Err(StartError::ListenerClosed(Some(reason)))) = start else {
+            panic!("expected the listener to close, got {start:?}");
+        };
+        assert_eq!(reason.to_string(), "listener failed");
     }
 
     /// Two peers that dial each other at the same time end up with one connection, the one dialed
