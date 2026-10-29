@@ -48,8 +48,8 @@ pub use config::{
     default_config, default_config_builder,
 };
 
-mod gate;
-pub use gate::ConnectionGate; // trait
+pub mod gate;
+pub use gate::ConnectionGate;
 
 mod gater;
 pub use gater::{

@@ -1,6 +1,7 @@
 //! Event Handling Module.
 
 use libp2p::{gossipsub, identify, ping};
+use std::convert::Infallible;
 
 /// High-level events emitted by the gossip networking system.
 ///
@@ -57,6 +58,13 @@ impl From<gossipsub::Event> for Event {
     /// Converts [`gossipsub::Event`] to [Event]
     fn from(value: gossipsub::Event) -> Self {
         Self::Gossipsub(Box::new(value))
+    }
+}
+
+impl From<Infallible> for Event {
+    /// The [`crate::gate::Behaviour`] emits no events.
+    fn from(never: Infallible) -> Self {
+        match never {}
     }
 }
 

@@ -8,7 +8,7 @@ use libp2p::{
     swarm::NetworkBehaviour,
 };
 
-use crate::{Event, Handler};
+use crate::{Event, Handler, gate};
 
 /// An error that can occur when creating a [`Behaviour`].
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -31,6 +31,10 @@ pub type Gossipsub = libp2p::gossipsub::Behaviour<IdentityTransform, WhitelistSu
 #[derive(NetworkBehaviour, Debug)]
 #[behaviour(out_event = "Event")]
 pub struct Behaviour {
+    /// The peers, addresses and subnets the operator blocked.
+    ///
+    /// First, so that the swarm asks it about a connection before the other behaviours.
+    pub gate: gate::Behaviour,
     /// Responds to inbound pings and send outbound pings.
     #[debug(skip)]
     pub ping: libp2p::ping::Behaviour,
@@ -74,7 +78,7 @@ impl Behaviour {
             tracing::info!(target: "gossip", "-> {}", topic);
         }
 
-        Ok(Self { identify, ping, gossipsub })
+        Ok(Self { gate: gate::Behaviour::default(), identify, ping, gossipsub })
     }
 }
 

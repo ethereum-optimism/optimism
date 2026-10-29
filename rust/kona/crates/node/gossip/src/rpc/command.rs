@@ -71,18 +71,12 @@ impl GossipCommand {
     /// Executes this command on the actor's gossip driver.
     pub fn handle<G: ConnectionGate>(self, gossip: &mut GossipDriver<G>) {
         match self {
-            Self::BlockPeer { id } => {
-                gossip.connection_gate.block_peer(&id);
-                gossip.swarm.behaviour_mut().gossipsub.blacklist_peer(&id);
-            }
-            Self::UnblockPeer { id } => {
-                gossip.connection_gate.unblock_peer(&id);
-                gossip.swarm.behaviour_mut().gossipsub.remove_blacklisted_peer(&id);
-            }
-            Self::BlockAddr { address } => gossip.connection_gate.block_addr(address),
-            Self::UnblockAddr { address } => gossip.connection_gate.unblock_addr(address),
-            Self::BlockSubnet { address } => gossip.connection_gate.block_subnet(address),
-            Self::UnblockSubnet { address } => gossip.connection_gate.unblock_subnet(address),
+            Self::BlockPeer { id } => gossip.block_peer(id),
+            Self::UnblockPeer { id } => gossip.unblock_peer(id),
+            Self::BlockAddr { address } => gossip.block_addr(address),
+            Self::UnblockAddr { address } => gossip.unblock_addr(address),
+            Self::BlockSubnet { address } => gossip.block_subnet(address),
+            Self::UnblockSubnet { address } => gossip.unblock_subnet(address),
             Self::ConnectPeer { address } => gossip.dial_multiaddr(address),
             Self::ProtectPeer { peer_id } => gossip.connection_gate.protect_peer(peer_id),
             Self::UnprotectPeer { peer_id } => gossip.unprotect_peer(peer_id),

@@ -84,9 +84,9 @@ impl<G: ConnectionGate> GossipDriver<G> {
             gossip_peers,
             topic_peer_counts,
             block_topics,
-            blocked_peers: self.connection_gate.list_blocked_peers(),
-            blocked_addresses: self.connection_gate.list_blocked_addrs(),
-            blocked_subnets: self.connection_gate.list_blocked_subnets(),
+            blocked_peers: self.list_blocked_peers(),
+            blocked_addresses: self.list_blocked_addrs(),
+            blocked_subnets: self.list_blocked_subnets(),
             protected_peers: self.connection_gate.list_protected_peers(),
             pings: Arc::clone(&self.ping),
         }

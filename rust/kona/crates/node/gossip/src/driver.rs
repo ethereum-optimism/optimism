@@ -4,6 +4,7 @@ use alloy_primitives::{Address, Signature};
 use derive_more::Debug;
 use discv5::Enr;
 use futures::stream::StreamExt;
+use ipnet::IpNet;
 use kona_genesis::RollupConfig;
 use kona_peers::{EnrValidation, PeerMonitoring, enr_to_multiaddr};
 use libp2p::{
@@ -14,7 +15,7 @@ use libp2p::{
 };
 use libp2p_identity::Keypair;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, net::IpAddr, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, time::Instant};
 
 use crate::{
@@ -225,12 +226,11 @@ where
         if self.static_peers.is_empty() {
             return;
         }
+        let gate = &self.swarm.behaviour().gate;
         let due: Vec<_> = self
             .static_peers
             .iter()
-            .filter(|(peer_id, _)| {
-                !self.is_connected(peer_id) && !self.connection_gate.is_blocked_peer(peer_id)
-            })
+            .filter(|(peer_id, _)| !self.is_connected(peer_id) && !gate.is_blocked_peer(peer_id))
             .map(|(peer_id, addrs)| (*peer_id, addrs.clone()))
             .collect();
         for (peer_id, addrs) in due {
@@ -342,6 +342,55 @@ where
         self.connection_gate.unprotect_peer(peer_id);
     }
 
+    /// Blocks `peer_id`: the gate refuses to dial it, and gossipsub ignores its messages.
+    pub fn block_peer(&mut self, peer_id: PeerId) {
+        let behaviour = self.swarm.behaviour_mut();
+        behaviour.gate.block_peer(peer_id);
+        behaviour.gossipsub.blacklist_peer(&peer_id);
+    }
+
+    /// Unblocks `peer_id`, undoing [`Self::block_peer`].
+    pub fn unblock_peer(&mut self, peer_id: PeerId) {
+        let behaviour = self.swarm.behaviour_mut();
+        behaviour.gate.unblock_peer(&peer_id);
+        behaviour.gossipsub.remove_blacklisted_peer(&peer_id);
+    }
+
+    /// Lists the blocked peers.
+    pub fn list_blocked_peers(&self) -> Vec<PeerId> {
+        self.swarm.behaviour().gate.list_blocked_peers()
+    }
+
+    /// Blocks an IP address: the gate refuses to dial it.
+    pub fn block_addr(&mut self, ip: IpAddr) {
+        self.swarm.behaviour_mut().gate.block_addr(ip);
+    }
+
+    /// Unblocks an IP address.
+    pub fn unblock_addr(&mut self, ip: IpAddr) {
+        self.swarm.behaviour_mut().gate.unblock_addr(&ip);
+    }
+
+    /// Lists the blocked IP addresses.
+    pub fn list_blocked_addrs(&self) -> Vec<IpAddr> {
+        self.swarm.behaviour().gate.list_blocked_addrs()
+    }
+
+    /// Blocks a subnet: the gate refuses to dial any IP address in it.
+    pub fn block_subnet(&mut self, subnet: IpNet) {
+        self.swarm.behaviour_mut().gate.block_subnet(subnet);
+    }
+
+    /// Unblocks a subnet.
+    pub fn unblock_subnet(&mut self, subnet: IpNet) {
+        self.swarm.behaviour_mut().gate.unblock_subnet(&subnet);
+    }
+
+    /// Lists the blocked subnets.
+    pub fn list_blocked_subnets(&self) -> Vec<IpNet> {
+        self.swarm.behaviour().gate.list_blocked_subnets()
+    }
+
     /// Returns whether `peer_id` is one of the static peers.
     pub fn is_static_peer(&self, peer_id: &PeerId) -> bool {
         self.static_peers.contains_key(peer_id)
@@ -415,6 +464,7 @@ where
         //
         // Every address is checked before the peer is marked as being dialed, which would make
         // the gate refuse all but the first.
+        let gate = &self.swarm.behaviour().gate;
         let addrs: Vec<Multiaddr> = addrs
             .into_iter()
             .flat_map(|addr| ConnectionGater::resolve_dns_addrs(addr, ConnectionGater::system_resolve))
@@ -423,7 +473,7 @@ where
                     warn!(target: "gossip", ?peer_id, peer=?addr, "Address is not for the peer being dialed");
                     return false;
                 }
-                if let Err(dial_error) = self.connection_gate.can_dial(addr) {
+                if let Err(dial_error) = self.connection_gate.can_dial(addr, gate) {
                     debug!(target: "gossip", ?dial_error, "unable to dial peer");
                     return false;
                 }
@@ -1022,8 +1072,6 @@ mod tests {
     /// resolves to, rather than leaving libp2p to resolve the name again.
     #[tokio::test]
     async fn test_dial_peer_resolves_dns_names_before_the_gate() {
-        use crate::ConnectionGate;
-
         let mut driver_1 = tcp_driver();
         let mut driver_2 = tcp_driver();
         let peer_2 = *driver_2.local_peer_id();
@@ -1042,12 +1090,12 @@ mod tests {
 
         // `localhost` resolves to a blocked IP, so nothing is dialed.
         let localhost = "127.0.0.1".parse().unwrap();
-        driver_1.connection_gate.block_addr(localhost);
+        driver_1.block_addr(localhost);
         driver_1.dial_peer(peer_2, [dns_addr.clone()]);
         assert!(!driver_1.connection_gate.current_dials.contains(&peer_2));
 
         // Unblocked, the resolved address is what's dialed and counted.
-        driver_1.connection_gate.unblock_addr(localhost);
+        driver_1.unblock_addr(localhost);
         driver_1.dial_peer(peer_2, [dns_addr]);
         let dialed: Vec<_> = driver_1.connection_gate.dialed_addrs.keys().cloned().collect();
         assert_eq!(dialed, vec![ip_addr]);
@@ -1153,8 +1201,6 @@ mod tests {
     /// Addresses the gate refuses, or that are for another peer, are left out of the dial.
     #[tokio::test]
     async fn test_dial_peer_leaves_out_refused_addresses() {
-        use crate::ConnectionGate;
-
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
 
@@ -1163,7 +1209,7 @@ mod tests {
         driver_1.start().await.expect("listen");
 
         let blocked: Multiaddr = format!("/ip4/10.0.0.1/tcp/9222/p2p/{peer_2}").parse().unwrap();
-        driver_1.connection_gate.block_addr("10.0.0.1".parse().unwrap());
+        driver_1.block_addr("10.0.0.1".parse().unwrap());
         let other_peer = unused_memory_addr(PeerId::random());
 
         driver_1.dial_peer(peer_2, [blocked, other_peer, addr_2.clone()]);
@@ -1176,11 +1222,9 @@ mod tests {
     /// Nothing is dialed when the gate refuses every address.
     #[tokio::test]
     async fn test_dial_peer_skips_peer_with_no_allowed_address() {
-        use crate::ConnectionGate;
-
         let mut driver = memory_driver();
         let peer = PeerId::random();
-        driver.connection_gate.block_peer(&peer);
+        driver.block_peer(peer);
 
         driver.dial_peer(peer, [unused_memory_addr(peer)]);
 
@@ -1339,12 +1383,10 @@ mod tests {
     /// once unblocked.
     #[tokio::test]
     async fn test_blocked_static_peer_is_skipped() {
-        use crate::ConnectionGate;
-
         let (_, _, static_peer) = random_identity();
         let peer = static_peer.peer_id();
         let mut driver = driver_with_static_peer(static_peer);
-        driver.connection_gate.block_peer(&peer);
+        driver.block_peer(peer);
 
         // Skipped before `dial_peer`, which would count it as a `blocked_peer` error.
         assert!(dial_errors(|| driver.dial_static_peers()).is_empty());
@@ -1354,7 +1396,7 @@ mod tests {
         assert!(driver.next_static_peer_check.is_some());
 
         // Once unblocked, the next check dials it.
-        driver.connection_gate.unblock_peer(&peer);
+        driver.unblock_peer(peer);
         driver.dial_static_peers();
         assert!(driver.connection_gate.current_dials.contains(&peer));
     }
