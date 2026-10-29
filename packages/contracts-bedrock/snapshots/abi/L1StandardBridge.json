@@ -743,6 +743,56 @@
         "type": "address"
       },
       {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "ERC20Held",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "l1Token",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "l2Token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "ERC20Restored",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "l1Token",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "l2Token",
+        "type": "address"
+      },
+      {
         "indexed": true,
         "internalType": "address",
         "name": "from",
@@ -906,6 +956,21 @@
     ],
     "name": "Initialized",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "L1StandardBridge_InvalidTokenTransfer",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L1StandardBridge_NoBridgeHook",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L1StandardBridge_NotPortal",
+    "type": "error"
   },
   {
     "inputs": [],
