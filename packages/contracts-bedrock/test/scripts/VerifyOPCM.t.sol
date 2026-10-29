@@ -171,8 +171,7 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
 
     function superGamesEnabled() internal view returns (bool) {
         bytes32 bitmap = opcm.devFeatureBitmap();
-        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-            || DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
     }
 
     function zkDisputeGameEnabled() internal view returns (bool) {

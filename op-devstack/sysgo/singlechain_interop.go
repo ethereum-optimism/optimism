@@ -9,7 +9,7 @@ import (
 
 func newSingleChainInteropWorldNoSupernode(t devtest.T, keys devkeys.Keys, cfg PresetConfig, startL1 func(*L1Network) (*L1Geth, *L1CLNode)) singleChainRuntimeWorld {
 	cfg.DeployerOptions = append([]DeployerOption{
-		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+		WithUseInterop(),
 	}, cfg.DeployerOptions...)
 	migration, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), startL1, cfg.DeployerOptions...)
 	return singleChainRuntimeWorld{
