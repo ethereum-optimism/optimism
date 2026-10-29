@@ -396,15 +396,16 @@ func newPipelineEnv(ctx context.Context, opts ApplyPipelineOpts, bundle artifact
 		return nil, fmt.Errorf("invalid deployment target: '%s'", opts.DeploymentTarget)
 	}
 
-	if !opts.UseScriptHost {
-		var err error
-		pEnv.L2Forge, err = opcm.NewForgeClient(bundle.L2, opts.CacheDir, opcm.L2ForgeScripts)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create L2 Forge client: %w", err)
-		}
+	if opts.UseScriptHost {
+		return pEnv, useScriptHost(ctx, pEnv, opts, bundle, l1RPC)
+	}
+	var err error
+	pEnv.L2Forge, err = opcm.NewForgeClient(bundle.L2, opts.CacheDir, opcm.L2ForgeScripts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create L2 Forge client: %w", err)
 	}
 	// A genesis deployment runs the L1 scripts on the Go script host.
-	if opts.UseScriptHost || isGenesis {
+	if isGenesis {
 		return pEnv, useScriptHost(ctx, pEnv, opts, bundle, l1RPC)
 	}
 

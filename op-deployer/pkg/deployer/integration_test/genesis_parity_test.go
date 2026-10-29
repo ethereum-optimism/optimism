@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -166,7 +167,9 @@ func applyGenesis(t *testing.T, useScriptHost bool, mutate func(*testing.T, *sta
 	if mutate != nil {
 		mutate(t, intent, &opts)
 	}
-	require.NoError(t, deployer.ApplyPipeline(context.Background(), opts))
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+	defer cancel()
+	require.NoError(t, deployer.ApplyPipeline(ctx, opts))
 	return st
 }
 
