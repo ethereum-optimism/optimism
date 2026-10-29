@@ -316,7 +316,7 @@ impl GossipDriverBuilder {
             gate = gate.allowing_addrs_without_ip();
         }
 
-        let mut driver = GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate);
+        let mut driver = GossipDriver::new(swarm, addr, handler, sync_protocol, gate);
         driver.peer_monitoring = peer_monitoring;
         driver.static_peers = static_peers;
         if let Some(interval) = static_peer_redial_interval {

@@ -477,8 +477,9 @@ mod tests {
         let disconnected_key = Keypair::generate_secp256k1();
         let connected = connected_key.public().to_peer_id();
         let disconnected = disconnected_key.public().to_peer_id();
+        let mut state = fixture.driver.snapshot();
         for key in [&connected_key, &disconnected_key] {
-            fixture.driver.peerstore.insert(
+            state.peerstore.insert(
                 key.public().to_peer_id(),
                 Info {
                     public_key: key.public(),
@@ -491,7 +492,6 @@ mod tests {
                 },
             );
         }
-        let mut state = fixture.driver.snapshot();
         state.connected_peers.insert(connected);
         state.blocked_peers.push(disconnected);
         state.protected_peers.push(connected);

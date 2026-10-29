@@ -34,7 +34,7 @@ impl NetworkHandler {
         };
 
         // Record the score of every connected peer in the metrics.
-        for peer_id in self.gossip.swarm.connected_peers() {
+        for peer_id in self.gossip.connected_peers() {
             metrics::histogram!(kona_gossip::Metrics::PEER_SCORES)
                 .record(self.gossip.peer_score(peer_id));
         }

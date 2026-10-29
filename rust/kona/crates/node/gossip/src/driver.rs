@@ -31,14 +31,11 @@ use crate::{
 pub struct GossipDriver<G: ConnectionGate> {
     /// The [`Swarm`] instance.
     #[debug(skip)]
-    pub swarm: Swarm<Behaviour>,
+    pub(crate) swarm: Swarm<Behaviour>,
     /// A [`Multiaddr`] to listen on.
-    pub addr: Multiaddr,
+    pub(crate) addr: Multiaddr,
     /// The [`BlockHandler`].
-    pub handler: BlockHandler,
-    /// A [`libp2p_stream::Control`] instance. Can be used to control the sync request/response
-    #[debug(skip)]
-    pub sync_handler: libp2p_stream::Control,
+    pub(crate) handler: BlockHandler,
     /// The inbound streams for the sync request/response protocol.
     ///
     /// This is an option to allow to take the underlying value when the gossip driver gets
@@ -49,7 +46,7 @@ pub struct GossipDriver<G: ConnectionGate> {
     #[debug(skip)]
     sync_protocol: Option<IncomingStreams>,
     /// A mapping from [`PeerId`] to [`Multiaddr`].
-    pub peerstore: HashMap<PeerId, libp2p::identify::Info>,
+    pub(crate) peerstore: HashMap<PeerId, libp2p::identify::Info>,
     /// If set, the gossip layer will monitor peer scores and ban peers that are below a given
     /// threshold.
     pub peer_monitoring: Option<PeerMonitoring>,
@@ -143,7 +140,6 @@ where
         swarm: Swarm<Behaviour>,
         addr: Multiaddr,
         handler: BlockHandler,
-        sync_handler: libp2p_stream::Control,
         sync_protocol: IncomingStreams,
         gate: G,
     ) -> Self {
@@ -154,7 +150,6 @@ where
             peerstore: Default::default(),
             peer_monitoring: None,
             peer_connection_start: Default::default(),
-            sync_handler,
             sync_protocol: Some(sync_protocol),
             connection_gate: gate,
             static_peers: HashMap::new(),
@@ -315,9 +310,15 @@ where
         self.swarm.local_peer_id()
     }
 
-    /// Returns a mutable reference to the Swarm's behaviour.
-    pub fn behaviour_mut(&mut self) -> &mut Behaviour {
-        self.swarm.behaviour_mut()
+    /// Returns the address the driver listens on, the one it was built with until
+    /// [`Self::start`] replaces it with the address the swarm reports.
+    pub const fn addr(&self) -> &Multiaddr {
+        &self.addr
+    }
+
+    /// Returns the [`BlockHandler`].
+    pub const fn handler(&self) -> &BlockHandler {
+        &self.handler
     }
 
     /// Attempts to select the next event from the Swarm.
@@ -347,9 +348,9 @@ where
         }
     }
 
-    /// Returns the number of connected peers.
-    pub fn connected_peers(&self) -> usize {
-        self.swarm.connected_peers().count()
+    /// Returns the peers the swarm has a connection to.
+    pub fn connected_peers(&self) -> impl Iterator<Item = &PeerId> {
+        self.swarm.connected_peers()
     }
 
     /// Returns whether the swarm has a connection to `peer_id`.
@@ -590,7 +591,7 @@ where
                 }
 
                 // Record the peer score in the metrics if available.
-                if let Some(_peer_score) = self.behaviour_mut().gossipsub.peer_score(&peer) {
+                if let Some(_peer_score) = self.swarm.behaviour().gossipsub.peer_score(&peer) {
                     metrics::histogram!(crate::Metrics::PEER_SCORES).record(_peer_score);
                 }
 
@@ -760,7 +761,7 @@ where
                 }
 
                 // Record the peer score in the metrics if available.
-                if let Some(_peer_score) = self.behaviour_mut().gossipsub.peer_score(&peer_id) {
+                if let Some(_peer_score) = self.swarm.behaviour().gossipsub.peer_score(&peer_id) {
                     metrics::histogram!(crate::Metrics::PEER_SCORES).record(_peer_score);
                 }
 
