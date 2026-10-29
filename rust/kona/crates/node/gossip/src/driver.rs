@@ -859,6 +859,22 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(10), poll).await.expect("condition reached");
     }
 
+    /// Polls both drivers' swarms and never returns, for a test that runs something else
+    /// alongside, or waits a while to see that nothing happens.
+    ///
+    /// It sets no timeout, so a test on a paused clock can wait past [`poll_until`]'s.
+    async fn poll_forever(
+        driver_1: &mut GossipDriver<ConnectionGater>,
+        driver_2: &mut GossipDriver<ConnectionGater>,
+    ) {
+        loop {
+            tokio::select! {
+                Some(event) = driver_1.next() => { driver_1.handle_event(event); }
+                Some(event) = driver_2.next() => { driver_2.handle_event(event); }
+            }
+        }
+    }
+
     /// Polls one driver's swarm until `done` holds for it, for at most 10 seconds.
     async fn poll_one_until(
         driver: &mut GossipDriver<ConnectionGater>,
@@ -1006,17 +1022,9 @@ mod tests {
             let stream = control.open_stream(peer_1, protocol).await.expect("open stream");
             peer(stream).await
         };
-        let poll = async {
-            loop {
-                tokio::select! {
-                    Some(event) = driver_1.next() => { driver_1.handle_event(event); }
-                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
-                }
-            }
-        };
         tokio::select! {
             out = run => out,
-            () = poll => unreachable!("the drivers never stop"),
+            () = poll_forever(&mut driver_1, &mut driver_2) => unreachable!("the drivers never stop"),
         }
     }
 
@@ -1124,15 +1132,8 @@ mod tests {
         .await;
 
         // Well within the grace period, nothing is closed.
-        let _ = tokio::time::timeout(Duration::from_millis(200), async {
-            loop {
-                tokio::select! {
-                    Some(event) = driver_1.next() => { driver_1.handle_event(event); }
-                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
-                }
-            }
-        })
-        .await;
+        let poll = poll_forever(&mut driver_1, &mut driver_2);
+        let _ = tokio::time::timeout(Duration::from_millis(200), poll).await;
         assert_eq!(num_connections(&driver_1), 2);
         assert_eq!(num_connections(&driver_2), 2);
     }
