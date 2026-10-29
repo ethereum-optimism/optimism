@@ -8,3 +8,8 @@ import "os"
 func tryLock(*os.File) bool {
 	return true
 }
+
+// checkPrivateDir accepts any directory where there are no file locks.
+func checkPrivateDir(string) error {
+	return nil
+}

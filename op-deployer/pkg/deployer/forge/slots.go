@@ -2,7 +2,9 @@ package forge
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -25,8 +27,12 @@ var runSlots = &slotPool{
 
 // acquire waits for a free slot and returns its release function.
 func (p *slotPool) acquire(ctx context.Context) (func(), error) {
-	if err := os.MkdirAll(p.dir, 0o700); err != nil {
+	// Not MkdirAll: a planted link or file must fail the check below, not the create.
+	if err := os.Mkdir(p.dir, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
 		return nil, fmt.Errorf("failed to create the forge slot directory: %w", err)
+	}
+	if err := checkPrivateDir(p.dir); err != nil {
+		return nil, err
 	}
 	for {
 		for i := range p.size {
