@@ -1,7 +1,7 @@
 //! A task to consolidate the engine state.
 
 use crate::{
-    ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, ImportedBlockSink,
+    ConsolidateTaskError, EngineClient, EngineState, ExecutableEngineTask, ImportedBlockSink,
     state::EngineSyncStateUpdate,
     task_queue::{build_and_import, synchronize},
 };
@@ -265,7 +265,7 @@ impl ConsolidateTask {
 }
 
 #[async_trait]
-impl EngineTaskExt for ConsolidateTask {
+impl ExecutableEngineTask for ConsolidateTask {
     type Output = ();
 
     type Error = ConsolidateTaskError;

@@ -129,7 +129,9 @@ func startL2CLForKey(
 ) L2CLNode {
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
-		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
+		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, konaNodeStartConfig{
+			L2CLConfig: resolveKonaL2CLConfig(t, clKey, l2Net.ChainID(), isSequencer, followSource, l2CLOpts),
+		})
 	default: // op-node
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,
@@ -157,35 +159,11 @@ func startStoppedSequencerCL(
 ) L2CLNode {
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
-		baseCfg := *DefaultL2CLConfig()
-		baseCfg.IsSequencer = true
-		konaCfg := baseCfg
-		target := NewComponentTarget(key, l2Net.ChainID())
-		for _, opt := range l2CLOpts {
-			if opt != nil {
-				opt.Apply(t, target, &konaCfg)
-			}
-		}
-		// Only the conductor and safe head database settings are forwarded to kona. Fail on
-		// any other option rather than silently running a node that never saw it.
-		unsupported := konaCfg
-		unsupported.ConductorRPC = ""
-		unsupported.ConductorRPCTimeout = 0
-		unsupported.SafeDBPath = ""
-		t.Require().Equal(baseCfg, unsupported, "L2CL options other than the conductor and safe head database settings cannot be applied to kona-node")
-		extraEnv := append([]string{"KONA_NODE_SEQUENCER_STOPPED=true"}, konaSafeDBEnv(konaCfg.SafeDBPath)...)
-		if konaCfg.ConductorRPC != "" {
-			t.Require().Positive(konaCfg.ConductorRPCTimeout, "conductor RPC timeout must be positive")
-			// kona-node parses this flag but does not apply it yet (#21906).
-			t.Require().Zero(konaCfg.ConductorRPCTimeout%time.Second, "Kona conductor RPC timeout must use whole seconds")
-			extraEnv = append(extraEnv,
-				"KONA_NODE_CONDUCTOR_RPC="+konaCfg.ConductorRPC,
-				fmt.Sprintf("KONA_NODE_CONDUCTOR_RPC_TIMEOUT=%d", konaCfg.ConductorRPCTimeout/time.Second),
-			)
-		}
 		return startMixedKonaNode(
-			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, key, key, true, nil,
-			extraEnv...,
+			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, key, key, konaNodeStartConfig{
+				L2CLConfig:       resolveKonaL2CLConfig(t, key, l2Net.ChainID(), true, "", l2CLOpts),
+				SequencerStopped: true,
+			},
 		)
 	default: // op-node
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{

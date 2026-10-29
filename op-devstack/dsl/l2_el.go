@@ -264,10 +264,14 @@ func (el *L2ELNode) ReachedWithProgressFn(label, progressLabel eth.BlockLabel, t
 	}
 }
 
-func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
+func (el *L2ELNode) blockRefByNumber(num uint64) (eth.L2BlockRef, error) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
-	block, err := el.inner.L2EthClient().L2BlockRefByNumber(ctx, num)
+	return el.inner.L2EthClient().L2BlockRefByNumber(ctx, num)
+}
+
+func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
+	block, err := el.blockRefByNumber(num)
 	el.require.NoError(err, "block not found using block number %d", num)
 	return block
 }
@@ -402,7 +406,12 @@ func (el *L2ELNode) WaitL1OriginHash(label eth.BlockLabel, target eth.BlockID, a
 	logger.Info("Expecting L2EL L1 origin to match")
 	el.require.NoError(retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 		func() error {
-			head := el.BlockRefByLabel(label)
+			// A reorg can temporarily make the label or a historical block unavailable.
+			// Return lookup errors to the retry loop instead of failing the test here.
+			head, err := el.blockRefByLabel(label)
+			if err != nil {
+				return fmt.Errorf("fetch %s head: %w", label, err)
+			}
 			if head.L1Origin.Number < target.Number {
 				logger.Debug("L2EL L1 origin not yet reached", "head", head.ID(), "l1Origin", head.L1Origin)
 				return fmt.Errorf("L1 origin of %s head has not reached target yet", label)
@@ -411,7 +420,11 @@ func (el *L2ELNode) WaitL1OriginHash(label eth.BlockLabel, target eth.BlockID, a
 			// the L2 block whose L1 origin number matches the target.
 			block := head
 			for block.L1Origin.Number > target.Number && block.Number > 0 {
-				block = el.BlockRefByNumber(block.Number - 1)
+				number := block.Number - 1
+				block, err = el.blockRefByNumber(number)
+				if err != nil {
+					return fmt.Errorf("fetch L2 block %d: %w", number, err)
+				}
 			}
 			if block.L1Origin.Hash == target.Hash {
 				logger.Info("L2EL L1 origin matched", "l2Block", block.ID(), "l1Origin", block.L1Origin)

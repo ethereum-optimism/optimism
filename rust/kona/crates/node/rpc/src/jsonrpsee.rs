@@ -156,9 +156,9 @@ pub trait AdminApi {
     #[method(name = "sequencerActive")]
     async fn admin_sequencer_active(&self) -> RpcResult<bool>;
 
-    /// Starts the sequencer.
+    /// Starts the sequencer at the expected unsafe head.
     #[method(name = "startSequencer")]
-    async fn admin_start_sequencer(&self) -> RpcResult<()>;
+    async fn admin_start_sequencer(&self, head: B256) -> RpcResult<()>;
 
     /// Stops the sequencer.
     #[method(name = "stopSequencer")]
@@ -176,7 +176,7 @@ pub trait AdminApi {
     #[method(name = "setRecoverMode")]
     async fn admin_set_recover_mode(&self, mode: bool) -> RpcResult<()>;
 
-    /// Overrides the leader in the conductor.
+    /// Locally bypasses conductor leadership checks and commits until the node restarts.
     #[method(name = "overrideLeader")]
     async fn admin_override_leader(&self) -> RpcResult<()>;
 

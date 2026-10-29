@@ -1,7 +1,7 @@
 //! A task for finalizing an L2 block.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, FinalizeBlockId, FinalizeTaskError,
+    EngineClient, EngineState, ExecutableEngineTask, FinalizeBlockId, FinalizeTaskError,
     state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use alloy_eips::BlockId;
@@ -24,7 +24,7 @@ pub struct FinalizeTask {
 }
 
 #[async_trait]
-impl EngineTaskExt for FinalizeTask {
+impl ExecutableEngineTask for FinalizeTask {
     type Output = ();
 
     type Error = FinalizeTaskError;

@@ -28,12 +28,20 @@ impl PeerScoreLevel {
     /// Decay epoch is the number of epochs to decay the score over.
     pub const DECAY_EPOCH: f64 = 5.0;
 
-    /// Helper function to calculate the decay factor for a given duration.
-    /// The decay factor is calculated using the formula:
-    /// `decay_factor = (1 - decay_to_zero) ^ (duration / slot)`.
+    /// The number of slots in an epoch.
+    pub const SLOTS_PER_EPOCH: u32 = 6;
+
+    /// Returns the decay factor of a score counter that should fade away over `duration`.
+    ///
+    /// gossipsub multiplies each counter by its decay factor once every `slot` (the
+    /// `decay_interval`), and sets it to zero once it drops below [`Self::DECAY_TO_ZERO`]. So
+    /// after `n = duration / slot` ticks a counter of 1 is down to `factor^n`, and the factor is
+    /// chosen so that this is `DECAY_TO_ZERO`: `factor = DECAY_TO_ZERO^(1 / n)`, as in op-node's
+    /// `ScoreDecay`. A `duration` of zero gives a factor of 0, forgetting at the next tick.
+    ///
+    /// The ticks are counted in fractions, so a slot shorter than a second works too.
     pub fn score_decay(duration: std::time::Duration, slot: std::time::Duration) -> f64 {
-        let num_of_times = duration.as_secs() / slot.as_secs();
-        (1.0 - Self::DECAY_TO_ZERO).powf(1.0 / num_of_times as f64)
+        libp2p::gossipsub::score_parameter_decay_with_base(duration, slot, Self::DECAY_TO_ZERO)
     }
 
     /// Default peer score thresholds.
@@ -56,10 +64,9 @@ impl PeerScoreLevel {
     /// Returns the topic score parameters given the block time.
     pub fn topic_score_params(block_time: u64) -> TopicScoreParams {
         let slot = std::time::Duration::from_secs(block_time);
-        let epoch = slot * 6;
+        let epoch = slot * Self::SLOTS_PER_EPOCH;
         let invalid_decay_period = 50 * epoch;
-        let decay_epoch =
-            std::time::Duration::from_secs(Self::DECAY_EPOCH as u64 * epoch.as_secs());
+        let decay_epoch = epoch.mul_f64(Self::DECAY_EPOCH);
         TopicScoreParams {
             topic_weight: 0.8,
             time_in_mesh_weight: Self::MAX_IN_MESH_SCORE / Self::in_mesh_cap(slot),
@@ -70,10 +77,8 @@ impl PeerScoreLevel {
             first_message_deliveries_cap: 23.0,
             mesh_message_deliveries_weight: Self::MESH_WEIGHT,
             mesh_message_deliveries_decay: Self::score_decay(decay_epoch, slot),
-            mesh_message_deliveries_cap: (epoch.as_secs() / slot.as_secs()) as f64 *
-                Self::DECAY_EPOCH,
-            mesh_message_deliveries_threshold: (epoch.as_secs() / slot.as_secs()) as f64 *
-                Self::DECAY_EPOCH /
+            mesh_message_deliveries_cap: f64::from(Self::SLOTS_PER_EPOCH) * Self::DECAY_EPOCH,
+            mesh_message_deliveries_threshold: f64::from(Self::SLOTS_PER_EPOCH) * Self::DECAY_EPOCH /
                 10.0,
             mesh_message_deliveries_window: std::time::Duration::from_secs(2),
             mesh_message_deliveries_activation: epoch * 4,
@@ -109,7 +114,7 @@ impl PeerScoreLevel {
     ) -> Option<PeerScoreParams> {
         let slot = std::time::Duration::from_secs(block_time);
         debug!(target: "scoring", "Slot duration: {:?}", slot);
-        let epoch = slot * 6;
+        let epoch = slot * Self::SLOTS_PER_EPOCH;
         let ten_epochs = epoch * 10;
         let one_hundred_epochs = epoch * 100;
         let penalty_decay = Self::score_decay(ten_epochs, slot);
@@ -140,5 +145,65 @@ impl PeerScoreLevel {
     /// Returns the [`PeerScoreThresholds`].
     pub const fn thresholds() -> PeerScoreThresholds {
         Self::DEFAULT_PEER_SCORE_THRESHOLDS
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    /// Compounds the decay factor over `ticks` ticks.
+    fn after_ticks(factor: f64, ticks: i32) -> f64 {
+        factor.powi(ticks)
+    }
+
+    /// Over `duration`, a counter of 1 decays to `DECAY_TO_ZERO`, where gossipsub drops it.
+    #[test]
+    fn test_score_decay_reaches_decay_to_zero_over_duration() {
+        // 20 s is ten 2 s slots.
+        let factor = PeerScoreLevel::score_decay(Duration::from_secs(20), Duration::from_secs(2));
+        let remaining = after_ticks(factor, 10);
+        assert!((remaining - PeerScoreLevel::DECAY_TO_ZERO).abs() < 1e-12, "{remaining}");
+    }
+
+    /// A slot shorter than a second counts in fractions, not as zero whole seconds.
+    #[test]
+    fn test_score_decay_with_sub_second_slot() {
+        // 2 s is five 400 ms slots.
+        let factor =
+            PeerScoreLevel::score_decay(Duration::from_secs(2), Duration::from_millis(400));
+        let remaining = after_ticks(factor, 5);
+        assert!((remaining - PeerScoreLevel::DECAY_TO_ZERO).abs() < 1e-12, "{remaining}");
+    }
+
+    /// A zero slot doesn't panic: in floating point, `duration / 0` is infinitely many ticks, and
+    /// the factor is `DECAY_TO_ZERO^0 = 1`, which never decays. With a zero duration as well,
+    /// `0 / 0` is `NaN`.
+    #[test]
+    fn test_score_decay_with_zero_slot() {
+        assert_eq!(PeerScoreLevel::score_decay(Duration::from_secs(20), Duration::ZERO), 1.0);
+        assert!(PeerScoreLevel::score_decay(Duration::ZERO, Duration::ZERO).is_nan());
+    }
+
+    /// A block time of 0 builds the score parameters without panicking, and gossipsub rejects
+    /// them, as they use one block as an interval, which can't be shorter than a second.
+    #[test]
+    fn test_to_params_with_zero_block_time() {
+        let params = PeerScoreLevel::Light.to_params(vec![], false, 0).expect("light scoring");
+        let err = params.validate().unwrap_err();
+        assert!(err.contains("decay_interval"), "{err}");
+
+        // With topic scoring, the topic parameters are checked first.
+        let topics = vec![TopicHash::from_raw("blocks")];
+        let params = PeerScoreLevel::Light.to_params(topics, true, 0).expect("light scoring");
+        let err = params.validate().unwrap_err();
+        assert!(err.contains("time_in_mesh_quantum"), "{err}");
+    }
+
+    /// A counter that should be remembered for no time at all is wiped at the next tick.
+    #[test]
+    fn test_score_decay_over_no_time_forgets_at_once() {
+        assert_eq!(PeerScoreLevel::score_decay(Duration::ZERO, Duration::from_secs(2)), 0.0);
     }
 }

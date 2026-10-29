@@ -8,8 +8,18 @@
     "dark": "#FF0420"
   },
   "thumbnails": {
+    "preset": "classic",
     "appearance": "dark",
-    "background": "/public/img/og-background.svg"
+    "surface": "neutral",
+    "background": "/public/img/thumbnail-bg.png",
+    "fonts": {
+      "family": "Riforma LL",
+      "source": "/public/fonts/RiformaLL-Regular.woff",
+      "format": "woff"
+    },
+    "eyebrow": {
+      "source": "none"
+    }
   },
   "favicon": "/public/favicon.png",
   "metadata": {
@@ -3632,6 +3642,7 @@
               {
                 "group": "Network Upgrades",
                 "pages": [
+                  "notices/upgrade-21",
                   "notices/interop-prep"
                 ]
               },

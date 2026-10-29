@@ -26,6 +26,9 @@ impl Metrics {
     /// Identifier for the counter that tracks sequencer state flags.
     pub const SEQUENCER_STATE: &str = "kona_node_sequencer_state";
 
+    /// Engine API build rejections that can indicate a CL/EL configuration disagreement.
+    pub const SEQUENCER_BUILD_REJECTIONS: &str = "kona_node_sequencer_build_rejections_total";
+
     /// Gauge for the sequencer's attributes builder duration.
     pub const SEQUENCER_ATTRIBUTES_BUILDER_DURATION: &str =
         "kona_node_sequencer_attributes_build_duration";
@@ -81,6 +84,12 @@ impl Metrics {
         // Sequencer state
         metrics::describe_counter!(Self::SEQUENCER_STATE, "Tracks sequencer state flags");
 
+        metrics::describe_counter!(
+            Self::SEQUENCER_BUILD_REJECTIONS,
+            metrics::Unit::Count,
+            "Engine API build rejections that can indicate a CL/EL configuration disagreement"
+        );
+
         // Sequencer attributes builder duration
         metrics::describe_gauge!(
             Self::SEQUENCER_ATTRIBUTES_BUILDER_DURATION,
@@ -124,5 +133,6 @@ impl Metrics {
 
         // Sequencer: reset total transactions sequenced
         metrics::counter!(Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED).absolute(0);
+        metrics::counter!(Self::SEQUENCER_BUILD_REJECTIONS).absolute(0);
     }
 }

@@ -88,7 +88,7 @@ impl NetCommand {
 
         let handler = NetworkBuilder::from(p2p_config).build()?.start().await?;
 
-        let discovery = handler.discovery.clone();
+        let discovery = handler.discovery.as_ref().map(|discovery| discovery.handler.clone());
         let mut network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx },
             handler,
@@ -97,7 +97,12 @@ impl NetCommand {
             gossip_payload_rx,
         );
 
-        let rpc = P2pRpc::new(network.gossip_query_handle(), discovery, gossip_command_tx.clone());
+        let rpc = P2pRpc::new(
+            network.gossip_query_handle(),
+            discovery,
+            rollup_config.l2_chain_id.id(),
+            gossip_command_tx.clone(),
+        );
 
         // Spawn the actor; the loop below polls the p2p RPC interface on an interval.
         tokio::spawn(async move {

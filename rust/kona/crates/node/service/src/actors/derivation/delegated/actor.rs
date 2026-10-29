@@ -4,7 +4,7 @@ use crate::{
 };
 use alloy_primitives::BlockHash;
 use async_trait::async_trait;
-use kona_derive::ChainProvider;
+use kona_derive::{ChainProvider, Signal};
 use kona_engine::FinalizeBlockId;
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use thiserror::Error;
@@ -232,7 +232,12 @@ where
                 self.engine_l2_safe_head = *safe_head;
                 self.has_engine_sync_completed = true;
             }
-            DerivationActorRequest::ProcessEngineSignalRequest(_) |
+            DerivationActorRequest::ProcessEngineSignalRequest(signal) => match *signal {
+                Signal::Reset(reset) => self.engine_l2_safe_head = reset.l2_safe_head,
+                signal => {
+                    debug!(target: "derivation", ?signal, "Ignoring signal while derivation delegation");
+                }
+            },
             DerivationActorRequest::ProcessFinalizedL1Block(_) |
             DerivationActorRequest::ProcessL1HeadUpdateRequest(_) => {
                 debug!(target: "derivation", "Ignoring request while derivation delegation: {:?}", request_type);

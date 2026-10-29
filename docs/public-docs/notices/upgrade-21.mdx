@@ -1,0 +1,223 @@
+---
+title: Upgrade 21
+description: Prepare for Upgrade 21, an L1 contract upgrade that makes the ETHLockbox the custody and pause identifier for every chain and ships the L1 contract changes for interop.
+lang: en-US
+diataxis: reference
+content_type: notice
+date: 2026-11-16
+topic: upgrade-21
+personas:
+  - chain-operator
+  - node-operator
+  - app-developer
+  - partner
+  - user
+categories:
+  - contract-upgrades
+  - l1-contracts
+  - interop
+  - pause
+is_imported_content: 'false'
+---
+
+Upgrade 21 is an L1 smart contract upgrade for OP Stack chains.
+It ships in `op-contracts/v9.0.0`, makes the `ETHLockbox` the custody and pause identifier for every chain, and includes the L1 contract changes that interop needs.
+It has no L2 hardfork, so there is no activation timestamp to configure.
+Each network is upgraded by executing an onchain task.
+
+<Info>
+  This notice is provisional.
+  The dates below are targets that depend on Optimism Governance approval, and contract and component versions will be added when the release candidates are published.
+</Info>
+
+## What's included
+
+### ETHLockbox as the custody and pause identifier
+
+After Upgrade 21, every chain has an `ETHLockbox`, and the lockbox is the only identifier used for a chain-specific pause.
+The `ETH_LOCKBOX` feature on `SystemConfig` can no longer be disabled.
+
+* A chain whose ETH is still held by the `OptimismPortal` has the feature enabled by the upgrade, and the portal's ETH balance moves into the chain's `ETHLockbox` in the same transaction.
+* A chain that already uses an `ETHLockbox` keeps its ETH where it is.
+* A chain that uses a custom gas token keeps custody in the portal and does not move ETH.
+
+Before this upgrade, the pause identifier was the lockbox address only when the `ETH_LOCKBOX` feature was enabled, and the `OptimismPortal` address otherwise.
+After it, the `OptimismPortal`, `SystemConfig`, `AnchorStateRegistry`, and `DelayedWETH` all resolve their chain-specific pause through the lockbox.
+Initializer argument types change for these contracts, but their function selectors do not.
+`OptimismPortal.paused()` remains the check to rely on.
+See [Pausing the bridge](/op-stack/security/pause) for how pause identifiers work.
+
+### Interop contract changes
+
+Upgrade 21 includes the L1 contract changes that interop needs.
+These changes do nothing until a later upgrade uses them: Upgrade 21 does not call the migration, and it does not activate interop.
+
+`OPContractsManagerV2.migrate` merges a set of independent chains into one interop set in a single transaction.
+It deploys a shared `ETHLockbox`, `DisputeGameFactory`, and `AnchorStateRegistry`, moves every chain's ETH into the shared lockbox, points each portal at the shared contracts, and enables the `INTEROP` feature.
+Only the `ProxyAdmin` owner can call it.
+The migration is one-way, because `INTEROP` cannot be disabled and a migrated chain is rejected if it is migrated again.
+It also invalidates every withdrawal proof made before it, so users must prove those withdrawals again.
+
+The [shared dispute game runbook](/chain-operators/tutorials/merge-shared-dispute-game) describes the migration flow and is not yet cleared for production chains.
+For the node topology that interop requires, see [Interop activation prep](/notices/interop-prep).
+
+### Withdrawal proof cleanup
+
+`OptimismPortal.deleteProvenWithdrawal(bytes32,address)` lets anyone delete a withdrawal proof whose dispute game can never lead to finalization, meaning the game resolved in favor of the challenger or was blacklisted.
+It emits `WithdrawalProofDeleted`.
+Proofs against valid games are not affected.
+
+### OPCM and StandardValidator updates
+
+`OPContractsManagerV2` and `OPContractsManagerStandardValidator` are updated for the changes above.
+The validator adds assertions for the new lockbox and pause configuration and handles the shared `ProxyAdmin` of interop chains.
+
+## Required actions
+
+### Chain operators
+
+* Update Guardian pause tooling and runbooks to pass the chain's `ETHLockbox` address, read from `ethLockbox()` on the `OptimismPortal`, as the chain-specific pause identifier.
+* Update any monitoring that filters `Paused` and `Unpaused` events by the `OptimismPortal` address.
+* If you monitor the ETH balance of the `OptimismPortal`, monitor the `ETHLockbox` balance instead after the upgrade.
+* Chains governed by the Optimism Security Council are upgraded through Optimism Governance.
+* OP Enterprise Fully Managed chains: Optimism handles the upgrade, and no action is required for the contract upgrade itself.
+* OP Enterprise Self Managed chains: you must already be on Upgrade 20. Open a PR in superchain-ops with your Upgrade 21 task, and the OP Labs team will review it. Contact your Optimism point of contact if you need support.
+* All other chains: you must already be on Upgrade 20. Upgrade your L1 contracts with OPCM.
+* Update `op-challenger` to [v1.11.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.11.0) and, on a permissionless chain, configure the new absolute prestate, as described in [Update the absolute prestate](#update-the-absolute-prestate).
+
+<Info>
+  See [Pausing the bridge](/op-stack/security/pause) for how chain-specific pause identifiers work and how to pause a chain.
+</Info>
+
+#### Update the absolute prestate
+
+Upgrade 21 has no hardfork, but it ships a new absolute prestate built from [`kona-client/v1.9.0`](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.9.0).
+[`op-challenger` v1.11.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.11.0) bundles the matching `kona-host` v1.9.0, so updating `op-challenger` is the only off-chain component change.
+No other OP Stack component needs a new version for the prestate.
+
+* **Permissioned chains** do not use an absolute prestate for `SUPER_PERMISSIONED` games. Update `op-challenger` and no other prestate work is required.
+* **Permissionless chains in the superchain registry** (OP, Ink, Unichain, and Soneium, on both Sepolia and Mainnet) are covered by the standard prestate, which Optimism sets onchain as part of the governed upgrade. Update `op-challenger` and confirm it can fetch the new prestate.
+* **Permissionless chains outside the superchain registry** are not covered by the standard prestate. Build your own, host it for `op-challenger`, and set it onchain as part of your OPCM upgrade by following the steps below.
+
+<Steps>
+  <Step title="Build or verify the absolute prestate">
+    <Tabs>
+      <Tab title="Standard chain configuration">
+        `kona-client` v1.9.0 publishes two hashes in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml):
+
+        * **`cannon64-kona-interop`**: `0x03b985a286da46ca88c0a965a53942daade9ffe1ae6b854a8f2d083df1cfaf59`. Used by `SUPER_CANNON_KONA` games after Upgrade 20.
+        * **`cannon64-kona`**: `0x033c000916b4a88cfffeceddd6cf0f4be3897a89195941e5a7c3f8209b4dbb6e`.
+
+        Check out `kona-client/v1.9.0` in the monorepo, reproduce both prestates, and read the hashes:
+
+        ```bash
+        just reproducible-prestate-kona
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json  # cannon64-kona-interop
+        jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json          # cannon64-kona
+        ```
+
+        Confirm the output matches the published hashes.
+      </Tab>
+
+      <Tab title="Custom chain configuration">
+        First, stage your chain data as described in [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate).
+        Check out `kona-client/v1.9.0` and, from the root of the monorepo, build the prestates with the same custom configuration:
+
+        ```bash
+        KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/custom-configs \
+          just reproducible-prestate-kona
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json
+        ```
+
+        Confirm your chain is embedded in the build. A build that silently drops your chain produces the standard hash instead:
+
+        ```bash
+        gunzip -c rust/kona/prestate-artifacts-cannon-interop/prestate.bin.gz | strings | grep "<your-chain-name>"
+        ```
+
+        Run the `grep` once per chain in your `chainList.json`, and confirm every chain matches at least once.
+        Rebuild from a clean checkout with the same inputs and confirm the hash is identical.
+        A custom prestate hash is specific to its embedded chain configuration and does not appear in `standard-prestates.toml`.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Upload the new preimage file">
+    Upload the new preimage file to wherever you store your other absolute preimage files. This is the location `--prestates-url` or `--cannon-kona-prestates-url` points at. `op-challenger` fetches the file from there when it needs to play a game.
+
+    The build writes a copy named after the absolute prestate hash, for example `0x<hash>.bin.gz`. Keep that filename when you upload it.
+    Keep the Upgrade 20 prestate file in place so `op-challenger` can finish games created before the upgrade.
+    A custom prestate must be hosted at a URL reachable by every challenger that participates on the chain.
+  </Step>
+
+  <Step title="Update op-challenger">
+    Update `op-challenger` to [v1.11.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.11.0) before the L1 contract upgrade.
+    Your existing game types and prestate URL flags carry over unchanged.
+    Review the release notes before upgrading: v1.11.0 renames `list-games` and `list-claims` output fields, rejects unusable `--run` entries in `run-trace`, and refuses to start `kona-host` with a missing or invalid dependency set file.
+
+    If you do not use the standard OP Labs `op-challenger` Docker image, set the `kona-host` binary path, built from `kona-host/v1.9.0`:
+
+    ```bash
+    OP_CHALLENGER_CANNON_KONA_SERVER=/path/to/kona-host
+    # or
+    --cannon-kona-server=/path/to/kona-host
+    ```
+  </Step>
+
+  <Step title="Set the new prestate onchain">
+    Pass your new hash as the `absolutePrestate` in the dispute game configuration of your OPCM upgrade input, so the upgrade transaction registers it in the `DisputeGameFactory`.
+    Simulate and validate the expected output before executing the transaction.
+
+    After the upgrade, confirm the onchain prestate matches your build. The prestate lives in the first 32 bytes of `gameArgs(<gameType>)` on the `DisputeGameFactory`, or on a created game instance. `absolutePrestate()` on the bare implementation returns zero.
+  </Step>
+</Steps>
+
+### Node operators
+
+Upgrade 21 has no L2 hardfork.
+Required component versions, if any, will be listed here when the release candidates are published.
+
+### App developers and infrastructure integrators
+
+Ordinary L2 contracts and transactions are not affected.
+Update an integration if it does any of the following:
+
+* Reads the ETH balance of the `OptimismPortal` to measure the ETH held for a chain. After the upgrade, read the balance of the chain's `ETHLockbox`.
+* Filters `Paused` events from the `SuperchainConfig` by the `OptimismPortal` address.
+* Tracks withdrawal proofs and should handle the new `WithdrawalProofDeleted` event.
+
+<Info>
+  See [Exchanges and bridges](/op-stack/security/exchanges-and-bridges) for guidance on monitoring chain balances and pause state.
+</Info>
+
+### Users
+
+No action is required.
+
+## Upgrade timing
+
+Upgrade 21 is applied as an L1 contract upgrade, so each network is upgraded by executing an onchain task.
+
+| Milestone | Target date |
+| --- | --- |
+| Governance proposal published | **Monday, November 2, 2026** |
+| Sepolia execution | **Monday, November 9, 2026** |
+| Governance veto period ends | **Wednesday, November 11, 2026** |
+| Mainnet execution | **Monday, November 16, 2026** |
+
+OP Enterprise Fully Managed chains follow this tentative timeline.
+OP Enterprise Self Managed chains can reach out to their Optimism point of contact if they need any support.
+
+Governed Sepolia OP Stack chains are upgraded first, followed by a seven-day soak period before mainnet execution.
+Mainnet execution depends on Optimism Governance approval and a healthy Sepolia soak, so these dates can move.
+The Governance proposal and onchain vote will be linked here when they are published.
+
+## Verify readiness
+
+After Sepolia execution, and before mainnet execution:
+
+* Confirm your Guardian pause tooling targets the `ETHLockbox` and that `OptimismPortal.paused()` reflects a test pause.
+* Confirm your dashboards and alerts read the `ETHLockbox` balance and the lockbox pause identifier.
+* Run integration tests that cover every portal balance read and `Paused` event filter listed in this notice.
+
+If you have questions or need support, contact your Optimism point of contact.

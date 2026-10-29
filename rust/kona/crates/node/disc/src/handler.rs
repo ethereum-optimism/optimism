@@ -2,9 +2,9 @@
 
 use discv5::{Enr, RequestError, kbucket::NodeStatus, metrics::Metrics};
 use enr::NodeId;
-use libp2p::Multiaddr;
-use std::{collections::HashSet, string::String, sync::Arc, time::Duration};
-use tokio::sync::mpsc::Sender;
+use libp2p::{Multiaddr, PeerId};
+use std::{collections::HashSet, string::String, time::Duration};
+use tokio::sync::{mpsc::Sender, oneshot};
 
 /// Request message for communicating with the Discv5 discovery service.
 ///
@@ -17,13 +17,13 @@ pub enum HandlerRequest {
     ///
     /// Returns performance and operational statistics including query counts,
     /// success rates, and table population metrics.
-    Metrics(tokio::sync::oneshot::Sender<Metrics>),
+    Metrics(oneshot::Sender<Metrics>),
 
     /// Get the current number of connected peers in the discovery table.
     ///
     /// Returns the count of peers currently maintained in the routing table,
     /// which indicates the health and connectivity of the discovery service.
-    PeerCount(tokio::sync::oneshot::Sender<usize>),
+    PeerCount(oneshot::Sender<usize>),
 
     /// Add an ENR to the discovery service's routing table.
     ///
@@ -37,7 +37,7 @@ pub enum HandlerRequest {
     /// given address. Used for peer verification and metadata retrieval.
     RequestEnr {
         /// Channel to receive the result of the ENR request.
-        out: tokio::sync::oneshot::Sender<Result<Enr, RequestError>>,
+        out: oneshot::Sender<Result<Enr, RequestError>>,
         /// Network address to query for the ENR.
         addr: String,
     },
@@ -46,28 +46,28 @@ pub enum HandlerRequest {
     ///
     /// Returns the ENR that represents this node in the discovery network,
     /// including its network address, capabilities, and cryptographic identity.
-    LocalEnr(tokio::sync::oneshot::Sender<Enr>),
+    LocalEnr(oneshot::Sender<Enr>),
 
     /// Get all ENRs currently stored in the routing table.
     ///
     /// Returns a complete dump of peer records known to the discovery service,
     /// useful for debugging and network analysis.
-    TableEnrs(tokio::sync::oneshot::Sender<Vec<Enr>>),
+    TableEnrs(oneshot::Sender<Vec<Enr>>),
 
     /// Get detailed information about nodes in the routing table.
     ///
     /// Returns comprehensive information including node IDs, ENRs, and status
     /// for all peers in the discovery table.
-    TableInfos(tokio::sync::oneshot::Sender<Vec<(NodeId, Enr, NodeStatus)>>),
+    TableInfos(oneshot::Sender<Vec<(NodeId, Enr, NodeStatus)>>),
 
-    /// Ban specific network addresses for a duration.
+    /// Ban peers for a duration, by their libp2p peer IDs.
     ///
-    /// Prevents the discovery service from interacting with the specified
-    /// addresses, useful for blocking malicious or problematic peers.
-    BanAddrs {
-        /// Set of network addresses to ban.
-        addrs_to_ban: Arc<HashSet<Multiaddr>>,
-        /// Duration for which the addresses should be banned.
+    /// Prevents the discovery service from interacting with the peers' nodes, whether or not they
+    /// are in its table, useful for blocking malicious or problematic peers.
+    BanPeers {
+        /// The peers to ban.
+        peer_ids: HashSet<PeerId>,
+        /// Duration for which the peers should be banned.
         ban_duration: Duration,
     },
 }
@@ -85,95 +85,59 @@ pub struct Discv5Handler {
     pub chain_id: u64,
 }
 
+/// The discovery service stopped, so it did not answer a request.
+///
+/// See [`Discv5Driver::start`](crate::Discv5Driver::start) for when it stops.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("discovery service stopped")]
+pub struct DiscoveryStopped;
+
 impl Discv5Handler {
     /// Creates a new [`Discv5Handler`] service.
     pub const fn new(chain_id: u64, sender: Sender<HandlerRequest>) -> Self {
         Self { sender, chain_id }
     }
 
-    /// Blocking request for the ENRs of the discovery service.
-    ///
-    /// Returns `None` if the request could not be sent or received.
-    pub fn table_enrs(&self) -> tokio::sync::oneshot::Receiver<Vec<Enr>> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        let sender = self.sender.clone();
-        tokio::spawn(async move {
-            if let Err(e) = sender.send(HandlerRequest::TableEnrs(tx)).await {
-                warn!(target: "discovery", err = ?e, "Failed to send table ENRs request");
-            }
-        });
-        rx
+    /// Returns the ENRs in the discovery table.
+    pub async fn table_enrs(&self) -> Result<Vec<Enr>, DiscoveryStopped> {
+        self.request(HandlerRequest::TableEnrs).await
     }
 
-    /// Returns a [`tokio::sync::oneshot::Receiver`] that contains a vector of information about
-    /// the nodes in the discv5 table.
-    pub fn table_infos(&self) -> tokio::sync::oneshot::Receiver<Vec<(NodeId, Enr, NodeStatus)>> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        let sender = self.sender.clone();
-        tokio::spawn(async move {
-            if let Err(e) = sender.send(HandlerRequest::TableInfos(tx)).await {
-                warn!(target: "discv5_handler", "Failed to send table infos request: {:?}", e);
-            }
-        });
-        rx
+    /// Returns the node ID, ENR and status of each node in the discovery table.
+    pub async fn table_infos(&self) -> Result<Vec<(NodeId, Enr, NodeStatus)>, DiscoveryStopped> {
+        self.request(HandlerRequest::TableInfos).await
     }
 
-    /// Blocking request for the local ENR of the node.
-    ///
-    /// Returns `None` if the request could not be sent or received.
-    pub fn local_enr(&self) -> tokio::sync::oneshot::Receiver<Enr> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        let sender = self.sender.clone();
-        tokio::spawn(async move {
-            if let Err(e) = sender.send(HandlerRequest::LocalEnr(tx)).await {
-                warn!(target: "discovery", err = ?e, "Failed to send local ENR request");
-            }
-        });
-        rx
+    /// Returns the local ENR of the node.
+    pub async fn local_enr(&self) -> Result<Enr, DiscoveryStopped> {
+        self.request(HandlerRequest::LocalEnr).await
     }
 
-    /// Requests an [`Enr`] from the discv5 service given a [`Multiaddr`].
-    pub fn request_enr(
+    /// Requests an [`Enr`] from the node at a [`Multiaddr`].
+    pub async fn request_enr(
         &self,
         addr: Multiaddr,
-    ) -> tokio::sync::oneshot::Receiver<Result<Enr, RequestError>> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        let sender = self.sender.clone();
-        tokio::spawn(async move {
-            if let Err(e) =
-                sender.send(HandlerRequest::RequestEnr { out: tx, addr: addr.to_string() }).await
-            {
-                warn!(target: "discv5_handler", "Failed to send request ENR request: {:?}", e);
-            }
-        });
-        rx
+    ) -> Result<Result<Enr, RequestError>, DiscoveryStopped> {
+        self.request(|out| HandlerRequest::RequestEnr { out, addr: addr.to_string() }).await
     }
 
-    /// Blocking request for the metrics of the discovery service.
-    ///
-    /// Returns `None` if the request could not be sent or received.
-    pub fn metrics(&self) -> tokio::sync::oneshot::Receiver<Metrics> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        let sender = self.sender.clone();
-        tokio::spawn(async move {
-            if let Err(e) = sender.send(HandlerRequest::Metrics(tx)).await {
-                warn!(target: "discovery", err = ?e, "Failed to send metrics request");
-            }
-        });
-        rx
+    /// Returns the metrics of the discovery service.
+    pub async fn metrics(&self) -> Result<Metrics, DiscoveryStopped> {
+        self.request(HandlerRequest::Metrics).await
     }
 
-    /// Blocking request for the discovery service peer count.
-    ///
-    /// Returns `None` if the request could not be sent or received.
-    pub fn peer_count(&self) -> tokio::sync::oneshot::Receiver<usize> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        let sender = self.sender.clone();
-        tokio::spawn(async move {
-            if let Err(e) = sender.send(HandlerRequest::PeerCount(tx)).await {
-                warn!(target: "discovery", err = ?e, "Failed to send peer count request");
-            }
-        });
-        rx
+    /// Returns the number of connected peers in the discovery table.
+    pub async fn peer_count(&self) -> Result<usize, DiscoveryStopped> {
+        self.request(HandlerRequest::PeerCount).await
+    }
+
+    /// Sends the request that `make` builds around a response channel, and waits for the response.
+    async fn request<T>(
+        &self,
+        make: impl FnOnce(oneshot::Sender<T>) -> HandlerRequest,
+    ) -> Result<T, DiscoveryStopped> {
+        let (tx, rx) = oneshot::channel();
+        self.sender.send(make(tx)).await.map_err(|_| DiscoveryStopped)?;
+        rx.await.map_err(|_| DiscoveryStopped)
     }
 }

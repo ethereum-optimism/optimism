@@ -2,7 +2,7 @@
 
 mod task;
 pub use task::{
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, EngineTaskExt,
+    EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, ExecutableEngineTask,
 };
 
 mod synchronize;
@@ -21,6 +21,9 @@ mod seal;
 pub(super) use seal::get_payload;
 pub use seal::{SealTask, SealTaskError};
 
+mod canonicalize;
+pub use canonicalize::{CanonicalizeTask, CanonicalizeTaskError};
+
 mod consolidate;
 pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};
 
@@ -28,6 +31,4 @@ mod finalize;
 pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
 
 mod util;
-pub(super) use util::{
-    BuildAndImportError, build_and_import, insert_payload_with_holocene_fallback,
-};
+pub(super) use util::{BuildAndImportError, build_and_import};

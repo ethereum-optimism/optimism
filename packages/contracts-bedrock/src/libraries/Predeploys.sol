@@ -117,6 +117,10 @@ library Predeploys {
     /// @notice Address of the UndeliveredMessageExporter predeploy.
     address internal constant UNDELIVERED_MESSAGE_EXPORTER = 0x4200000000000000000000000000000000000030;
 
+    /// @notice Address of the ChainConfig predeploy, which holds the chain's OP Private settlement
+    ///         chain ID.
+    address internal constant CHAIN_CONFIG = 0x4200000000000000000000000000000000000031;
+
     /// @notice Implementation variant selector.
     /// @dev Values are array indexes into `PredeployRecord.variants`.
     enum VariantKind {
@@ -326,7 +330,7 @@ library Predeploys {
         });
         records_[5] = PredeployRecord({
             proxy: L2_ERC721_BRIDGE,
-            variants: _variants("L2ERC721Bridge", "L2ERC721Bridge.sol:L2ERC721Bridge", 2_367_000),
+            variants: _variants("L2ERC721Bridge", "L2ERC721Bridge.sol:L2ERC721Bridge", 2_380_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,

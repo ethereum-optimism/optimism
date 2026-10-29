@@ -63,6 +63,10 @@ pub enum GossipDriverBuilderError {
     /// An error when building the gossip behaviour.
     #[error("error building gossip behaviour")]
     BehaviourError(#[from] BehaviourError),
+    /// gossipsub rejected the peer scoring parameters, for example for a block time under a
+    /// second. gossipsub only gives the reason as a string.
+    #[error("invalid peer scoring parameters: {0}")]
+    InvalidPeerScoring(String),
     /// An error when setting up the sync request/response protocol.
     #[error("error setting up sync request/response protocol")]
     SetupSyncReqRespError(#[source] libp2p::swarm::InvalidProtocol),
@@ -117,4 +121,18 @@ pub enum DialError {
         /// The IP address that belongs to a blocked subnet range
         ip: IpAddr,
     },
+}
+
+/// Error parsing a [`PeerAddr`](crate::PeerAddr) address.
+#[derive(Debug, Error)]
+pub enum PeerAddrError {
+    /// The address is not a multiaddr.
+    #[error("Invalid multiaddr")]
+    InvalidMultiaddr(#[source] libp2p::multiaddr::Error),
+    /// The address does not end in `/p2p/<peer id>`.
+    #[error("Address does not end in /p2p/<peer id>")]
+    MissingPeerId,
+    /// The address is only a `/p2p/<peer id>`, with nothing to dial.
+    #[error("Address has nothing to dial before /p2p/<peer id>")]
+    MissingAddress,
 }

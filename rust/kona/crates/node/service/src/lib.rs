@@ -16,8 +16,8 @@ pub use service::{
 
 mod actors;
 pub use actors::{
-    BlockStream, BuildRequest, Clock, Conductor, ConductorClient, ConductorError,
-    DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
+    BlockStream, BuildRequest, CanonicalizeRequest, Clock, Conductor, ConductorClient,
+    ConductorError, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationClientError, DerivationClientResult,
     DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,
     DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
@@ -29,9 +29,9 @@ pub use actors::{
     NetworkDriverError, NetworkEngineClient, NetworkHandler, NodeActor, OriginSelector,
     QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient,
     QueuedNetworkEngineClient, QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient,
-    ResetRequest, RpcActor, RpcActorError, SealRequest, SequencerActor, SequencerActorError,
-    SequencerConfig, SequencerEngineClient, SignedPayload, SignerActor, SignerActorError,
-    SystemClock, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
+    ResetRequest, RpcActor, RpcActorError, RunningDiscovery, SealRequest, SequencerActor,
+    SequencerActorError, SequencerConfig, SequencerEngineClient, SignedPayload, SignerActor,
+    SignerActorError, SystemClock, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
 };
 
 mod metrics;

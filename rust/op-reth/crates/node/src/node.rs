@@ -57,6 +57,7 @@ use reth_optimism_rpc::{
     debug::{DebugApiExt, DebugApiOverrideServer},
     eth::{
         OpEthApiBuilder,
+        capabilities::{OpEthCapabilities, OpEthCapabilitiesApiServer},
         ext::OpEthExtApi,
         proofs::{EthApiExt, EthApiOverrideServer},
     },
@@ -915,25 +916,23 @@ where
         let eth_config =
             EthConfigHandler::new(ctx.node.provider().clone(), ctx.node.evm_config().clone());
 
-        let maybe_pre_bedrock_historical_rpc = historical_rpc
-            .and_then(|historical_rpc| {
-                ctx.node
-                    .provider()
-                    .chain_spec()
-                    .op_fork_activation(OpHardfork::Bedrock)
-                    .block_number()
-                    .filter(|activation| *activation > 0)
-                    .map(|bedrock_block| (historical_rpc, bedrock_block))
-            })
-            .map(|(historical_rpc, bedrock_block)| -> eyre::Result<_> {
+        let bedrock_block = ctx
+            .node
+            .provider()
+            .chain_spec()
+            .op_fork_activation(OpHardfork::Bedrock)
+            .block_number()
+            .unwrap_or_default();
+
+        let maybe_pre_bedrock_historical_rpc = match historical_rpc {
+            Some(historical_rpc) if bedrock_block > 0 => {
                 info!(target: "reth::cli", %bedrock_block, ?historical_rpc, "Using historical RPC endpoint pre bedrock");
                 let provider = ctx.node.provider().clone();
                 let client = HistoricalRpcClient::new(&historical_rpc)?;
-                let layer = HistoricalRpc::new(provider, client, bedrock_block);
-                Ok(layer)
-            })
-            .transpose()?
-            ;
+                Some(HistoricalRpc::new(provider, client, bedrock_block))
+            }
+            _ => None,
+        };
 
         let rpc_add_ons = rpc_add_ons.option_layer_rpc_middleware(maybe_pre_bedrock_historical_rpc);
 
@@ -975,6 +974,11 @@ where
                     container;
 
                 modules.merge_if_module_configured(RethRpcModule::Eth, eth_config.into_rpc())?;
+                // replaces upstream's `eth_capabilities`
+                modules.add_or_replace_if_module_configured(
+                    RethRpcModule::Eth,
+                    OpEthCapabilities::new(registry.eth_api().clone(), bedrock_block).into_rpc(),
+                )?;
 
                 debug!(target: "reth::cli", "Installing debug payload witness rpc endpoint");
                 modules.merge_if_module_configured(

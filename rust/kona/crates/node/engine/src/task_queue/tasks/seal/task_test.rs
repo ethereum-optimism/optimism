@@ -1,16 +1,11 @@
 use crate::{
-    EngineTaskExt, InsertTaskError, SealTask, SealTaskError,
+    ExecutableEngineTask, SealTask, SealTaskError,
     test_utils::{
         TestAttributesBuilder, TestEngineStateBuilder, test_block_info, test_engine_client,
     },
 };
-use alloy_primitives::Bytes;
-use alloy_rpc_types_engine::{
-    ExecutionPayloadV3, ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum,
-};
+use alloy_rpc_types_engine::PayloadId;
 use kona_genesis::RollupConfig;
-use op_alloy_consensus::{DEPOSIT_TX_TYPE_ID, OpTxEnvelope};
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use rstest::rstest;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -59,7 +54,6 @@ async fn unsafe_head_check_variants(
         PayloadId::new([1u8; 8]),
         attributes,
         with_channel.then_some(tx),
-        Arc::new(crate::NoopBlockSink),
     );
 
     let result = task.execute(&mut state).await;
@@ -156,105 +150,39 @@ async fn payload_fetch_selects_version_and_decodes_reply(
     l2.assert_finished();
 }
 
-/// How a seal task ends when the engine rejects its payload at newPayload.
-#[derive(Debug, PartialEq, Eq)]
-enum Rejection {
-    /// The task keeps the engine's rejection, so nothing replaces the payload.
-    Kept,
-    /// The rejected payload held only deposits, which is critical.
-    DepositsOnlyRejected,
-    /// The task tried to replace the payload with its deposits-only block, which the mock rejects.
-    ReplacementFailed,
-}
-
-/// Only derived payloads under Holocene are replaced with their deposits-only block, as op-node
-/// does. A sequencer drops its own rejected payload and builds the next one.
-#[rstest]
-#[case::derived(true, true, false, Rejection::ReplacementFailed)]
-#[case::sequenced(false, true, false, Rejection::Kept)]
-#[case::derived_before_holocene(true, false, false, Rejection::Kept)]
-#[case::derived_deposits_only(true, true, true, Rejection::DepositsOnlyRejected)]
-#[case::sequenced_deposits_only(false, true, true, Rejection::DepositsOnlyRejected)]
+/// The sequencer commits a sealed payload to the conductor before importing it, so sealing must
+/// not change forkchoice.
 #[tokio::test]
-async fn rejected_payloads_are_replaced_only_if_derived_under_holocene(
-    #[case] is_attributes_derived: bool,
-    #[case] holocene: bool,
-    #[case] deposits_only: bool,
-    #[case] expected: Rejection,
-) {
-    let parent = test_block_info(10);
-    let deposit = Bytes::from(vec![DEPOSIT_TX_TYPE_ID, 0x01]);
-    let mut transactions = vec![deposit.clone()];
-    if !deposits_only {
-        transactions.push(Bytes::from(vec![0x02]));
-    }
-    let attributes =
-        TestAttributesBuilder::new().with_parent(parent).with_transactions(transactions).build();
-    let mut cfg = RollupConfig::default();
-    cfg.hardforks.ecotone_time = Some(0);
-    cfg.hardforks.holocene_time = holocene.then_some(0);
+async fn seal_keeps_forkchoice_unchanged() {
+    use super::super::canonicalize::tests::{PayloadFixture, payload_fixture};
+    use alloy_rpc_types_engine::{ExecutionPayloadEnvelopeV2, ExecutionPayloadFieldV2};
 
-    let mut block = alloy_consensus::Block::<OpTxEnvelope>::default();
-    block.header.number = parent.block_info.number + 1;
-    let cfg = Arc::new(cfg);
-    let (client, l1, l2) = test_engine_client(cfg.clone());
-    let client = Arc::new(client);
-    let payload = OpExecutionPayloadEnvelopeV3 {
-        execution_payload: ExecutionPayloadV3::from_block_slow(&block),
-        block_value: Default::default(),
-        blobs_bundle: Default::default(),
-        should_override_builder: false,
-        parent_beacon_block_root: Default::default(),
+    let PayloadFixture { payload: expected, cfg } = payload_fixture();
+    let op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope::V1(payload) = expected.clone()
+    else {
+        panic!("fixture must be V1");
     };
-    let invalid = PayloadStatus::from_status(PayloadStatusEnum::Invalid {
-        validation_error: "invalid".into(),
-    });
-    l2.expect("engine_newPayloadV3", invalid.clone());
-    if expected == Rejection::ReplacementFailed {
-        let forkchoice = TestEngineStateBuilder::new()
-            .with_unsafe_head(parent)
-            .build()
-            .sync_state
-            .create_forkchoice_state();
-        l2.expect_params(
-            "engine_forkchoiceUpdatedV3",
-            serde_json::json!([forkchoice, attributes.as_deposits_only().attributes]),
-            ForkchoiceUpdated {
-                payload_status: PayloadStatus::from_status(PayloadStatusEnum::Valid),
-                payload_id: Some(PayloadId::new([2; 8])),
-            },
-        );
-        l2.expect("engine_getPayloadV3", payload.clone());
-        l2.expect("engine_newPayloadV3", invalid);
-    }
-    let mut state = TestEngineStateBuilder::new().with_unsafe_head(parent).build();
-    let envelope = op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope::V3 {
-        payload: payload.execution_payload,
-        parent_beacon_block_root: payload.parent_beacon_block_root,
-    };
-    let err = crate::task_queue::insert_payload_with_holocene_fallback(
-        client.as_ref(),
-        &cfg,
-        &mut state,
-        &attributes,
-        envelope,
-        is_attributes_derived,
-        &crate::NoopBlockSink,
-    )
-    .await
-    .expect_err("the engine rejects every payload");
-
-    let rejection = match &err {
-        SealTaskError::PayloadInsertionFailed(insert)
-            if matches!(**insert, InsertTaskError::UnexpectedPayloadStatus(_)) =>
-        {
-            Rejection::Kept
-        }
-        SealTaskError::DepositOnlyPayloadFailed => Rejection::DepositsOnlyRejected,
-        SealTaskError::DepositOnlyPayloadReattemptFailed => Rejection::ReplacementFailed,
-        other => panic!("unexpected seal error: {other:?}"),
-    };
-    assert_eq!(rejection, expected);
+    let (engine, l1, l2) = test_engine_client(cfg.clone());
+    l2.expect(
+        "engine_getPayloadV2",
+        ExecutionPayloadEnvelopeV2 {
+            execution_payload: ExecutionPayloadFieldV2::V1(payload),
+            block_value: Default::default(),
+        },
+    );
+    let (tx, mut rx) = mpsc::channel(1);
+    let mut state = crate::EngineState::default();
+    let original = state;
+    let task = SealTask::new(
+        Arc::new(engine),
+        cfg,
+        PayloadId::new([1; 8]),
+        TestAttributesBuilder::new().with_parent(kona_protocol::L2BlockInfo::default()).build(),
+        Some(tx),
+    );
+    task.execute(&mut state).await.unwrap();
+    assert_eq!(rx.recv().await.unwrap().unwrap(), expected);
+    assert_eq!(state, original);
     l1.assert_finished();
     l2.assert_finished();
 }

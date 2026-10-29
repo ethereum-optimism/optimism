@@ -203,6 +203,12 @@ The identifier tells you which chains the event applies to:
     In contract releases v4.1.0 through v8.0.0, the identifier is the chain's `ETHLockbox` address if the `ETH_LOCKBOX` feature is enabled on its `SystemConfig`, and its `OptimismPortal` address if it is not.
     A nonzero `ethLockbox()` on the `OptimismPortal` does not by itself mean the feature is enabled.
     Check the feature with `isFeatureEnabled(bytes32)` on the `SystemConfig`, passing `ETH_LOCKBOX` encoded with `cast format-bytes32-string ETH_LOCKBOX`.
+    In contract release v9.0.0 and later, the identifier is always the chain's `ETHLockbox` address.
+
+<Info>
+  Contract release v9.0.0 ships in Upgrade 21, which is pending Optimism Governance approval.
+  A chain on v4.1.0 through v8.0.0 keeps that rule until Upgrade 21 is executed on it.
+</Info>
 
 Whichever identifier a chain uses, `OptimismPortal.paused()` resolves it for you and remains the check to rely on.
 

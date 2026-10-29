@@ -1,6 +1,6 @@
 //! The [`Engine`] is a task queue that receives and executes [`EngineTask`]s.
 
-use super::EngineTaskExt;
+use super::ExecutableEngineTask;
 use crate::{
     EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
     EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTaskError,
@@ -106,8 +106,8 @@ impl Engine {
     }
 
     /// Resets the engine by finding a plausible sync starting point via
-    /// [`find_starting_forkchoice`]. The state will be updated to the starting point, and a
-    /// forkchoice update will be enqueued in order to reorg the execution layer.
+    /// [`find_starting_forkchoice`]. Synchronizes the execution layer and publishes the
+    /// recovered state before returning, even if no tasks are queued.
     pub async fn reset(
         &mut self,
         client: Arc<EngineClient>,
@@ -128,6 +128,7 @@ impl Engine {
         )
         .await?;
 
+        self.state_sender.send_replace(self.state);
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
 
         Ok(start.safe)
