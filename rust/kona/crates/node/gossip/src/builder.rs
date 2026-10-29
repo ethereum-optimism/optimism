@@ -4,7 +4,7 @@ use alloy_primitives::Address;
 use kona_genesis::RollupConfig;
 use kona_peers::{PeerMonitoring, PeerScoreLevel};
 use libp2p::{
-    Multiaddr, PeerId, StreamProtocol, SwarmBuilder,
+    Multiaddr, PeerId, SwarmBuilder,
     core::{muxing::StreamMuxerBox, transport::Boxed},
     gossipsub::Config,
     identity::Keypair,
@@ -220,7 +220,6 @@ impl GossipDriverBuilder {
         if let Some(addrs) = static_peers.remove(&keypair.public().to_peer_id()) {
             info!(target: "gossip", ?addrs, "Static peer list contains this node's own ID, ignoring it");
         }
-        let l2_chain_id = rollup_config.l2_chain_id;
         let block_time = rollup_config.block_time;
 
         // Block Handler setup
@@ -267,16 +266,6 @@ impl GossipDriverBuilder {
             }
         }
 
-        // Let's setup the sync request/response protocol stream.
-        let mut sync_handler = behaviour.sync_req_resp.new_control();
-
-        let protocol = format!("/opstack/req/payload_by_number/{l2_chain_id}/0/");
-        let sync_protocol_name = StreamProtocol::try_from_owned(protocol)
-            .map_err(GossipDriverBuilderError::SetupSyncReqRespError)?;
-        let sync_protocol = sync_handler
-            .accept(sync_protocol_name)
-            .map_err(GossipDriverBuilderError::SyncReqRespAlreadyAccepted)?;
-
         debug!(target: "gossip", "Building Swarm with Peer ID: {}", keypair.public().to_peer_id());
         let custom_transport = matches!(transport, GossipTransport::Other(_));
         let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
@@ -316,7 +305,7 @@ impl GossipDriverBuilder {
             gate = gate.allowing_addrs_without_ip();
         }
 
-        let mut driver = GossipDriver::new(swarm, addr, handler, sync_protocol, gate);
+        let mut driver = GossipDriver::new(swarm, addr, handler, gate);
         driver.peer_monitoring = peer_monitoring;
         driver.static_peers = static_peers;
         if let Some(interval) = static_peer_redial_interval {
@@ -341,7 +330,7 @@ pub(crate) mod tests {
 
     /// An in-process transport with the upgrades `with_tcp` applies: lazy protocol negotiation,
     /// Noise, then Yamux.
-    fn memory_transport() -> GossipTransport {
+    pub(crate) fn memory_transport() -> GossipTransport {
         GossipTransport::Other(Box::new(|keypair| {
             Ok(MemoryTransport::default()
                 .upgrade(Version::V1Lazy)

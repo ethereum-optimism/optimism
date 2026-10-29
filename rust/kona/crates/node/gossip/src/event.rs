@@ -30,12 +30,6 @@ pub enum Event {
     /// checking.
     Identify(Box<identify::Event>),
 
-    /// Stream protocol event for request-response communication.
-    ///
-    /// Handles direct peer-to-peer communication outside of the gossip mesh,
-    /// typically used for block synchronization requests.
-    Stream,
-
     /// Duplicate connections to a peer may be closed now that their grace period has passed.
     ///
     /// Emitted by [`crate::GossipDriver::next`] itself, not by the swarm's behaviour.
@@ -70,13 +64,6 @@ impl From<identify::Event> for Event {
     /// Converts [`identify::Event`] to [Event]
     fn from(value: identify::Event) -> Self {
         Self::Identify(Box::new(value))
-    }
-}
-
-impl From<()> for Event {
-    /// Converts () to [Event]
-    fn from(_value: ()) -> Self {
-        Self::Stream
     }
 }
 

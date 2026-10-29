@@ -90,7 +90,6 @@ impl OpP2PApiServer for P2pRpc {
                 "/meshsub/1.2.0".to_string(),
                 "/meshsub/1.3.0".to_string(),
                 "/ipfs/id/1.0.0".to_string(),
-                format!("/opstack/req/payload_by_number/{chain_id}/0/"),
                 "/meshsub/1.0.0".to_string(),
                 "/floodsub/1.0.0".to_string(),
             ]),

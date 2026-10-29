@@ -7697,7 +7697,6 @@ dependencies = [
  "kona-safedb",
  "kona-sources",
  "libp2p",
- "libp2p-stream",
  "metrics",
  "metrics-exporter-prometheus",
  "mockall",

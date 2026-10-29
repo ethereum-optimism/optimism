@@ -1,9 +1,9 @@
 //! Consensus-layer gossipsub driver for Optimism.
 
-use alloy_primitives::{Address, Signature, hex};
+use alloy_primitives::{Address, Signature};
 use derive_more::Debug;
 use discv5::Enr;
-use futures::{AsyncReadExt, AsyncWriteExt, stream::StreamExt};
+use futures::stream::StreamExt;
 use kona_genesis::RollupConfig;
 use kona_peers::{EnrValidation, PeerMonitoring, enr_to_multiaddr};
 use libp2p::{
@@ -13,7 +13,6 @@ use libp2p::{
     swarm::{ConnectionId, SwarmEvent, dial_opts::DialOpts},
 };
 use libp2p_identity::Keypair;
-use libp2p_stream::IncomingStreams;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, time::Instant};
@@ -36,15 +35,6 @@ pub struct GossipDriver<G: ConnectionGate> {
     pub(crate) addr: Multiaddr,
     /// The [`BlockHandler`].
     pub(crate) handler: BlockHandler,
-    /// The inbound streams for the sync request/response protocol.
-    ///
-    /// This is an option to allow to take the underlying value when the gossip driver gets
-    /// activated.
-    ///
-    /// TODO(op-rs/kona#2141): remove the sync-req-resp protocol once the `op-node`
-    /// phases it out.
-    #[debug(skip)]
-    sync_protocol: Option<IncomingStreams>,
     /// A mapping from [`PeerId`] to [`Multiaddr`].
     pub(crate) peerstore: HashMap<PeerId, libp2p::identify::Info>,
     /// If set, the gossip layer will monitor peer scores and ban peers that are below a given
@@ -103,9 +93,6 @@ impl<G: ConnectionGate> Drop for GossipDriver<G> {
 /// [`GossipDriver::duplicate_connection_grace`].
 const DUPLICATE_CONNECTION_GRACE: Duration = Duration::from_secs(10);
 
-/// How long a peer has to send a sync request and take the response, as op-node's read deadline.
-const SYNC_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
-
 /// How often static peers that aren't connected are dialed again by default, as in op-node.
 const STATIC_PEER_REDIAL_INTERVAL: Duration = Duration::from_secs(60);
 
@@ -139,13 +126,7 @@ where
     }
 
     /// Creates a new [`GossipDriver`] instance.
-    pub fn new(
-        swarm: Swarm<Behaviour>,
-        addr: Multiaddr,
-        handler: BlockHandler,
-        sync_protocol: IncomingStreams,
-        gate: G,
-    ) -> Self {
+    pub fn new(swarm: Swarm<Behaviour>, addr: Multiaddr, handler: BlockHandler, gate: G) -> Self {
         Self {
             swarm,
             addr,
@@ -153,7 +134,6 @@ where
             peerstore: Default::default(),
             peer_monitoring: None,
             peer_connection_start: Default::default(),
-            sync_protocol: Some(sync_protocol),
             connection_gate: gate,
             static_peers: HashMap::new(),
             static_peer_redial_interval: STATIC_PEER_REDIAL_INTERVAL,
@@ -193,79 +173,12 @@ where
         Ok(id)
     }
 
-    /// Handles the sync request/response protocol.
-    ///
-    /// This is a mock handler that supports the `payload_by_number` protocol.
-    /// It always returns: not found (1), version (0). `<https://specs.optimism.io/protocol/rollup-node-p2p.html#payload_by_number>`
-    ///
-    /// It reads only the 8-byte request, and drops a stream that takes longer than
-    /// [`SYNC_REQUEST_TIMEOUT`] to send it and take the response.
-    ///
-    /// ## Note
-    ///
-    /// This is used to ensure op-nodes are not penalizing kona-nodes for not supporting it.
-    /// This feature is being deprecated by the op-node team. Once it is fully removed from the
-    /// op-node's implementation we will remove this handler.
-    fn start_sync_protocol_handler(&mut self) {
-        let Some(mut sync_protocol) = self.sync_protocol.take() else {
-            return;
-        };
-
-        // Spawn a new task to handle the sync request/response protocol.
-        tokio::spawn(async move {
-            loop {
-                let Some((peer_id, mut inbound_stream)) = sync_protocol.next().await else {
-                    warn!(target: "gossip", "The sync protocol stream has ended");
-                    return;
-                };
-
-                info!(target: "gossip", "Received a sync request from {peer_id}, spawning a new task to handle it");
-
-                tokio::spawn(async move {
-                    let exchange = async {
-                        // The request is the block number, a little-endian u64. Read only those
-                        // 8 bytes, as op-node did, so a peer that keeps sending can't make the
-                        // node buffer the rest.
-                        let mut request = [0; 8];
-                        inbound_stream.read_exact(&mut request).await?;
-                        let number = u64::from_le_bytes(request);
-                        debug!(target: "gossip", %peer_id, number, "Received inbound sync request");
-
-                        // We return: not found (1), version (0). `<https://specs.optimism.io/protocol/rollup-node-p2p.html#payload_by_number>`
-                        // Response format: <response> = <res><version><payload>
-                        // No payload is returned.
-                        const OUTPUT: [u8; 2] = hex!("0100");
-                        inbound_stream.write_all(&OUTPUT).await?;
-
-                        // Send our FIN after the response, then drop the stream. yamux gives the
-                        // peer no more credit, so one that keeps sending stalls once it has used
-                        // up the stream's window, and yamux answers anything more with a reset.
-                        inbound_stream.close().await
-                    };
-                    match tokio::time::timeout(SYNC_REQUEST_TIMEOUT, exchange).await {
-                        Ok(Ok(())) => {
-                            debug!(target: "gossip", %peer_id, "Sent outbound sync response");
-                        }
-                        Ok(Err(err)) => {
-                            error!(target: "gossip", %peer_id, ?err, "Failed to serve the sync request");
-                        }
-                        Err(_) => {
-                            warn!(target: "gossip", %peer_id, "Timed out serving the sync request");
-                        }
-                    }
-                });
-            }
-        });
-    }
-
     /// Starts the libp2p Swarm.
     ///
     /// - Tells the swarm to listen on the given [`Multiaddr`], and waits until it does.
-    /// - Starts the sync request/response protocol handler.
     /// - Dials the static peers.
     ///
-    /// The handler and the dials only start once the swarm listens, so a start that fails leaves
-    /// nothing running.
+    /// The dials only start once the swarm listens, so a start that fails leaves nothing running.
     ///
     /// A driver starts once: calling this again returns [`StartError::AlreadyStarted`], and the
     /// driver keeps listening on the address the first call returned.
@@ -284,7 +197,6 @@ where
                     info!(target: "gossip", peer_id = %self.local_peer_id(), "Swarm now listening on: {address}");
 
                     self.addr = address.clone();
-                    self.start_sync_protocol_handler();
                     self.dial_static_peers();
 
                     return Ok(address);
@@ -632,10 +544,6 @@ where
                 });
             }
             Event::Identify(e) => self.handle_identify_event(*e),
-            // Don't do anything with stream events as this should be unreachable code.
-            Event::Stream => {
-                error!(target: "gossip", "Stream events should not be emitted!");
-            }
         };
 
         None
@@ -823,7 +731,8 @@ mod tests {
     use crate::{
         GossipTransport, SIGNER_GRACE_PERIOD,
         builder::tests::{
-            memory_driver, memory_driver_builder, memory_driver_builder_at, poll_until_connected,
+            memory_driver, memory_driver_builder, memory_driver_builder_at, memory_transport,
+            poll_until_connected,
         },
         signer::tests::{address, payload},
     };
@@ -1002,92 +911,49 @@ mod tests {
         assert_eq!(reason.to_string(), "listener failed");
     }
 
-    /// Connects two drivers, opens a sync request stream from the second to the first, and runs
-    /// `peer` on it, the way a peer would, while polling both drivers.
-    async fn with_sync_stream<T>(peer: impl AsyncFnOnce(libp2p::Stream) -> T) -> T {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
-        let peer_1 = *driver_1.local_peer_id();
-        let addr_1 = driver_1.start().await.expect("listen");
-        driver_2.start().await.expect("listen");
-        driver_2.dial_multiaddr(addr_1.with(Protocol::P2p(peer_1)));
-        poll_until_connected(&mut driver_1, &mut driver_2).await;
+    /// kona doesn't serve op-node's retired sync request/response protocol, `payload_by_number`.
+    /// A peer that still asks for it is told it isn't supported, so it can't send the node a
+    /// single byte on it, let alone the 128 MiB it once could.
+    #[tokio::test]
+    async fn test_sync_request_protocol_is_unsupported() {
+        let mut driver = memory_driver();
+        let peer_id = *driver.local_peer_id();
+        let addr = driver.start().await.expect("listen");
 
-        let chain_id = driver_1.handler().rollup_config.l2_chain_id;
+        let GossipTransport::Other(transport) = memory_transport() else {
+            unreachable!("the memory transport is a custom one");
+        };
+        let mut peer = libp2p::SwarmBuilder::with_new_identity()
+            .with_tokio()
+            .with_other_transport(transport)
+            .expect("transport")
+            .with_behaviour(|_| libp2p_stream::Behaviour::new())
+            .expect("behaviour")
+            .build();
+        peer.dial(addr.with(Protocol::P2p(peer_id))).expect("dial");
+
+        let chain_id = driver.handler().rollup_config.l2_chain_id;
         let protocol =
             StreamProtocol::try_from_owned(format!("/opstack/req/payload_by_number/{chain_id}/0/"))
                 .expect("protocol");
-        let mut control = driver_2.swarm.behaviour().sync_req_resp.new_control();
-        let run = async {
-            let stream = control.open_stream(peer_1, protocol).await.expect("open stream");
-            peer(stream).await
-        };
-        tokio::select! {
-            out = run => out,
-            () = poll_forever(&mut driver_1, &mut driver_2) => unreachable!("the drivers never stop"),
-        }
-    }
-
-    /// A sync request gets the "not found" response, and the node then closes the stream.
-    #[tokio::test]
-    async fn test_sync_request_gets_not_found() {
-        let response = with_sync_stream(async |mut stream| {
-            stream.write_all(&42u64.to_le_bytes()).await.expect("send the request");
-            let mut response = Vec::new();
-            stream.read_to_end(&mut response).await.expect("read the response");
-            response
-        });
-        let response = tokio::time::timeout(Duration::from_secs(10), response).await;
-        assert_eq!(response.expect("response in time"), [1, 0]);
-    }
-
-    /// A peer can't push an endless sync request into the node. A request is an 8-byte block
-    /// number, but a peer that never closes the stream could otherwise keep sending, and the node
-    /// would buffer every byte until it ran out of memory.
-    ///
-    /// The peer sends up to 128 MiB on one stream without closing it. The node must stop taking
-    /// the bytes, by failing the writes or by leaving them blocked, well before all of them are in.
-    #[tokio::test]
-    async fn test_sync_request_size_is_bounded() {
-        const KIB: usize = 1 << 10;
-        const LIMIT: usize = 128 << 20;
-        let mut sent = 0;
-        let send = with_sync_stream(async |mut stream| {
-            let chunk = vec![0; 64 * KIB];
-            while sent < LIMIT {
-                stream.write_all(&chunk).await?;
-                sent += chunk.len();
+        let mut control = peer.behaviour().new_control();
+        let mut open = std::pin::pin!(control.open_stream(peer_id, protocol));
+        let opened = tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                tokio::select! {
+                    opened = &mut open => break opened,
+                    Some(event) = driver.next() => { driver.handle_event(event); }
+                    _ = peer.select_next_some() => {}
+                }
             }
-            Ok::<_, std::io::Error>(())
-        });
-        let outcome = tokio::time::timeout(Duration::from_secs(5), send).await;
+        })
+        .await
+        .expect("the peer gets an answer in time");
 
         assert!(
-            sent < LIMIT,
-            "the node took all {} MiB of one sync request ({outcome:?})",
-            sent >> 20
+            matches!(opened, Err(libp2p_stream::OpenStreamError::UnsupportedProtocol(_))),
+            "{opened:?}"
         );
-    }
-
-    /// A peer that opens a sync stream and never sends a request has the stream closed after
-    /// [`SYNC_REQUEST_TIMEOUT`], instead of holding it open for as long as the connection lasts.
-    #[tokio::test(start_paused = true)]
-    async fn test_silent_sync_request_times_out() {
-        // A second more than the timeout, so it isn't a ping or idle timeout closing the
-        // connection instead.
-        let (waited, read) = with_sync_stream(async |mut stream| {
-            let start = Instant::now();
-            let mut response = Vec::new();
-            let read = stream.read_to_end(&mut response);
-            let read =
-                tokio::time::timeout(SYNC_REQUEST_TIMEOUT + Duration::from_secs(1), read).await;
-            (start.elapsed(), read.map(|read| read.map(|_| response)))
-        })
-        .await;
-
-        let read = read.expect("the node closes the stream in time");
-        assert!(waited >= SYNC_REQUEST_TIMEOUT, "closed after {waited:?}");
-        assert!(read.expect("the stream ends without an error").is_empty());
     }
 
     /// Two peers that dial each other at the same time end up with one connection, the one dialed

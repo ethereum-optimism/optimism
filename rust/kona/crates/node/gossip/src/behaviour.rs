@@ -39,10 +39,6 @@ pub struct Behaviour {
     /// Enables the identify protocol.
     #[debug(skip)]
     pub identify: libp2p::identify::Behaviour,
-    /// Enables the sync request/response protocol.
-    /// See `<https://specs.optimism.io/protocol/rollup-node-p2p.html#payload_by_number>`
-    #[debug(skip)]
-    pub sync_req_resp: libp2p_stream::Behaviour,
 }
 
 impl Behaviour {
@@ -69,8 +65,6 @@ impl Behaviour {
                 .with_agent_version("kona".to_string()),
         );
 
-        let sync_req_resp = libp2p_stream::Behaviour::new();
-
         if !topics.is_empty() {
             tracing::info!(target: "gossip", "Subscribed to topics:");
         }
@@ -80,7 +74,7 @@ impl Behaviour {
             tracing::info!(target: "gossip", "-> {}", topic);
         }
 
-        Ok(Self { identify, ping, gossipsub, sync_req_resp })
+        Ok(Self { identify, ping, gossipsub })
     }
 }
 

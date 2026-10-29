@@ -67,12 +67,6 @@ pub enum GossipDriverBuilderError {
     /// second. gossipsub only gives the reason as a string.
     #[error("invalid peer scoring parameters: {0}")]
     InvalidPeerScoring(String),
-    /// An error when setting up the sync request/response protocol.
-    #[error("error setting up sync request/response protocol")]
-    SetupSyncReqRespError(#[source] libp2p::swarm::InvalidProtocol),
-    /// The sync request/response protocol has already been accepted.
-    #[error("sync request/response protocol already accepted")]
-    SyncReqRespAlreadyAccepted(#[source] libp2p_stream::AlreadyRegistered),
 }
 
 /// An error from [`crate::GossipDriver::start`].
