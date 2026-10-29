@@ -33,6 +33,8 @@ pub struct P2pRpc {
     discovery: Option<Discv5Handler>,
     chain_id: u64,
     commands: GossipCommandSender,
+    /// How old the gossip state a call answers from may be.
+    snapshot_max_age: Duration,
 }
 
 /// Logs a failure the client can't fix, and returns it as an internal error that names the
@@ -43,6 +45,14 @@ fn internal_error(operation: &str, err: impl std::fmt::Display) -> ErrorObject<'
     ErrorObject::owned(ErrorCode::InternalError.code(), message, None::<()>)
 }
 
+/// How old the gossip state an RPC call answers from may be, unless set with
+/// [`P2pRpc::with_snapshot_max_age`].
+///
+/// What a command changes is there at once: the network actor publishes the state after each
+/// one. Up to this old, changes from the network itself, such as connections and scores, may be
+/// missing.
+const SNAPSHOT_MAX_AGE: Duration = Duration::from_secs(1);
+
 /// The error op-node's `opp2p_discoveryTable` returns when discovery is disabled.
 fn discovery_disabled() -> ErrorObject<'static> {
     // The code op-node's server assigns to a plain error.
@@ -52,7 +62,7 @@ fn discovery_disabled() -> ErrorObject<'static> {
 #[async_trait]
 impl OpP2PApiServer for P2pRpc {
     async fn opp2p_self(&self) -> RpcResult<PeerInfo> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         let peer_id = gossip.local_peer_id;
         let chain_id = self.chain_id;
         // Like op-node, from the libp2p key, which is discovery's key too.
@@ -106,7 +116,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_peer_count(&self) -> RpcResult<PeerCount> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         let connected_discovery = match &self.discovery {
             Some(discovery) => discovery
                 .peer_count()
@@ -121,7 +131,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_peers(&self, connected: bool) -> RpcResult<PeerDump> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         let total_connected = gossip
             .connected_peers
             .len()
@@ -138,7 +148,7 @@ impl OpP2PApiServer for P2pRpc {
             }
             None => Vec::new(),
         };
-        let pings = gossip.pings().await;
+        let pings = &gossip.pings;
         let node_to_peer_id = peer_ids.into_iter().filter_map(|id| {
             let Ok(pubkey) = libp2p::identity::PublicKey::try_decode_protobuf(&id.to_bytes()[2..]) else {
                 error!(target: "p2p::rpc", peer_id = ?id, "Failed to decode public key from peer ID");
@@ -240,7 +250,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_peer_stats(&self) -> RpcResult<PeerStats> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         let table = match &self.discovery {
             Some(discovery) => {
                 discovery.peer_count().await.map_err(|e| internal_error("peer_count", e))?
@@ -267,7 +277,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_discovery_table(&self) -> RpcResult<Vec<String>> {
-        self.gossip_snapshot()?;
+        self.gossip_snapshot().await?;
         self.discovery
             .as_ref()
             .ok_or_else(discovery_disabled)?
@@ -290,7 +300,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_list_blocked_peers(&self) -> RpcResult<Vec<String>> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         Ok(gossip.blocked_peers.iter().map(ToString::to_string).collect())
     }
 
@@ -303,7 +313,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_list_blocked_addrs(&self) -> RpcResult<Vec<IpAddr>> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         Ok(gossip.blocked_addresses.clone())
     }
 
@@ -316,7 +326,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_list_blocked_subnets(&self) -> RpcResult<Vec<IpNet>> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         Ok(gossip.blocked_subnets.clone())
     }
 
@@ -413,7 +423,15 @@ impl P2pRpc {
         chain_id: u64,
         commands: GossipCommandSender,
     ) -> Self {
-        Self { gossip, discovery, chain_id, commands }
+        Self { gossip, discovery, chain_id, commands, snapshot_max_age: SNAPSHOT_MAX_AGE }
+    }
+
+    /// Sets how old the gossip state a call answers from may be. With zero, each call waits for
+    /// state the network actor builds after the call starts, as tests that watch the network
+    /// need.
+    pub const fn with_snapshot_max_age(mut self, max_age: Duration) -> Self {
+        self.snapshot_max_age = max_age;
+        self
     }
 
     async fn apply_command(&self, command: GossipCommand) -> RpcResult<()> {
@@ -425,8 +443,11 @@ impl P2pRpc {
         applied_rx.await.map_err(|e| internal_error("apply_command", e))
     }
 
-    fn gossip_snapshot(&self) -> RpcResult<Arc<GossipState>> {
-        self.gossip.snapshot().map_err(|e| internal_error("gossip_snapshot", e))
+    async fn gossip_snapshot(&self) -> RpcResult<Arc<GossipState>> {
+        self.gossip
+            .snapshot(self.snapshot_max_age)
+            .await
+            .map_err(|e| internal_error("gossip_snapshot", e))
     }
 }
 
@@ -443,6 +464,9 @@ mod tests {
     struct Fixture {
         rpc: P2pRpc,
         state_tx: watch::Sender<Arc<GossipState>>,
+        /// Kept open, so a stale snapshot's refresh request waits instead of failing.
+        #[allow(dead_code)]
+        refresh_rx: mpsc::Receiver<()>,
         commands_rx: GossipCommandReceiver,
         discovery_rx: mpsc::Receiver<HandlerRequest>,
         driver: GossipDriver<ConnectionGater>,
@@ -458,15 +482,16 @@ mod tests {
         .build()
         .unwrap();
         let (state_tx, state_rx) = watch::channel(Arc::new(driver.snapshot()));
+        let (refresh_tx, refresh_rx) = mpsc::channel(1);
         let (commands_tx, commands_rx) = mpsc::channel(8);
         let (discovery_tx, discovery_rx) = mpsc::channel(8);
         let rpc = P2pRpc::new(
-            GossipQueryHandle::new(state_rx),
+            GossipQueryHandle::new(state_rx, refresh_tx),
             discovery.then(|| Discv5Handler::new(10, discovery_tx)),
             10,
             commands_tx,
         );
-        Fixture { rpc, state_tx, commands_rx, discovery_rx, driver }
+        Fixture { rpc, state_tx, refresh_rx, commands_rx, discovery_rx, driver }
     }
 
     #[tokio::test]
@@ -548,7 +573,8 @@ mod tests {
         fixture.state_tx.send_replace(Arc::new(state));
         assert_eq!(clone.opp2p_list_blocked_peers().await.unwrap(), vec![blocked.to_string()]);
         drop(fixture.state_tx);
-        let stopped = (ErrorCode::InternalError.code(), "gossip_snapshot: channel closed");
+        let stopped =
+            (ErrorCode::InternalError.code(), "gossip_snapshot: the network actor has stopped");
         let err = clone.opp2p_list_blocked_peers().await.unwrap_err();
         assert_eq!((err.code(), err.message()), stopped);
         let err = clone.opp2p_peer_count().await.unwrap_err();

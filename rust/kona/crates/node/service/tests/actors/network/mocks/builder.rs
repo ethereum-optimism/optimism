@@ -231,12 +231,14 @@ impl TestNetworkBuilder {
             signed_payload_rx,
         );
 
+        // Tests watch the network through the RPC, so it reads state built after each call.
         let p2p_rpc = P2pRpc::new(
             actor.gossip_query_handle(),
             discovery,
             self.chain_id,
             gossip_command_tx.clone(),
-        );
+        )
+        .with_snapshot_max_age(Duration::ZERO);
 
         // Every test network can sign: payloads sent to `gossip_payload_tx` are signed with this
         // node's key and then gossiped.

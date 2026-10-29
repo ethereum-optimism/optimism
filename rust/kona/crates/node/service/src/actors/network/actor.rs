@@ -29,8 +29,14 @@ use crate::{
 pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     /// The live libp2p [`NetworkHandler`].
     handler: NetworkHandler,
-    /// Gossip state published for readers outside the actor.
+    /// Gossip state published for readers outside the actor, after each command and when a
+    /// reader asks for fresher state.
     gossip_state_tx: watch::Sender<Arc<GossipState>>,
+    /// Handed to readers, to ask for fresher gossip state. Its capacity is one, so readers that
+    /// ask at the same time share one snapshot.
+    gossip_refresh_tx: mpsc::Sender<()>,
+    /// Receives the readers' requests for fresher gossip state.
+    gossip_refresh_rx: mpsc::Receiver<()>,
     /// A channel to receive gossip commands.
     gossip_command_rx: GossipCommandReceiver,
     /// A channel to receive unsafe payloads submitted through admin RPC.
@@ -61,10 +67,13 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
         publish_rx: mpsc::Receiver<SignedPayload>,
     ) -> Self {
         let (gossip_state_tx, _) = watch::channel(Arc::new(handler.gossip.snapshot()));
+        let (gossip_refresh_tx, gossip_refresh_rx) = mpsc::channel(1);
         let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();
         Self {
             handler,
             gossip_state_tx,
+            gossip_refresh_tx,
+            gossip_refresh_rx,
             gossip_command_rx,
             admin_payload_rx,
             publish_rx,
@@ -76,7 +85,14 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
 
     /// Returns a read-only handle to the actor's published gossip state.
     pub fn gossip_query_handle(&self) -> GossipQueryHandle {
-        GossipQueryHandle::new(self.gossip_state_tx.subscribe())
+        GossipQueryHandle::new(self.gossip_state_tx.subscribe(), self.gossip_refresh_tx.clone())
+    }
+
+    /// Publishes a new snapshot of the gossip state, unless nobody reads it.
+    fn publish_gossip_state(&self) {
+        if self.gossip_state_tx.receiver_count() > 0 {
+            self.gossip_state_tx.send_replace(Arc::new(self.handler.gossip.snapshot()));
+        }
     }
 }
 
@@ -116,8 +132,7 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
     type Error = NetworkActorError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        let mut applied = None;
-        let result = select! {
+        select! {
             block = self.unsafe_block_rx.recv() => {
                 let Some(block) = block else {
                     error!(target: "node::p2p", "The unsafe block receiver channel has closed");
@@ -180,16 +195,17 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
             }
             Some((req, applied_tx)) = self.gossip_command_rx.recv(), if !self.gossip_command_rx.is_closed() => {
                 req.handle(&mut self.handler.gossip);
-                applied = Some(applied_tx);
+                // Before the acknowledgement, so that a read after it sees what the command
+                // changed. What it sets off, such as a dial, shows once the swarm reports it.
+                self.publish_gossip_state();
+                let _ = applied_tx.send(());
                 Ok(())
             }
-        };
-        if result.is_ok() && self.gossip_state_tx.receiver_count() > 0 {
-            self.gossip_state_tx.send_replace(Arc::new(self.handler.gossip.snapshot()));
+            // The actor holds a sender, so the channel never closes.
+            Some(()) = self.gossip_refresh_rx.recv() => {
+                self.publish_gossip_state();
+                Ok(())
+            }
         }
-        if let Some(applied) = applied {
-            let _ = applied.send(());
-        }
-        result
     }
 }

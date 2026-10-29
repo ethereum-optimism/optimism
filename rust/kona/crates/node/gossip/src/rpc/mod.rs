@@ -48,7 +48,7 @@ mod command;
 pub use command::{GossipCommand, GossipCommandReceiver, GossipCommandSender};
 
 mod state;
-pub use state::{GossipQueryHandle, GossipState};
+pub use state::{GossipQueryHandle, GossipState, NetworkActorStopped};
 
 mod types;
 pub use types::{

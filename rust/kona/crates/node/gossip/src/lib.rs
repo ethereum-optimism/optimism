@@ -33,8 +33,8 @@ pub use metrics::Metrics;
 mod rpc;
 pub use rpc::{
     Connectedness, Direction, GossipCommand, GossipCommandReceiver, GossipCommandSender,
-    GossipQueryHandle, GossipScores, GossipState, PeerCount, PeerDump, PeerInfo, PeerScores,
-    PeerStats, ReqRespScores, TopicScores,
+    GossipQueryHandle, GossipScores, GossipState, NetworkActorStopped, PeerCount, PeerDump,
+    PeerInfo, PeerScores, PeerStats, ReqRespScores, TopicScores,
 };
 
 mod behaviour;

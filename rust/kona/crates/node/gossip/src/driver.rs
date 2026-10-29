@@ -15,8 +15,8 @@ use libp2p::{
 };
 use libp2p_identity::Keypair;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::{collections::HashMap, net::IpAddr, sync::Arc, time::Duration};
-use tokio::{sync::Mutex, time::Instant};
+use std::{collections::HashMap, net::IpAddr, time::Duration};
+use tokio::time::Instant;
 
 use crate::{
     Behaviour, BlockHandler, ConnectionGate, ConnectionGater, Event, GossipDriverBuilder, Handler,
@@ -58,8 +58,8 @@ pub struct GossipDriver<G: ConnectionGate> {
     /// [`Self::static_peer_redial_interval`] later. Brought forward to
     /// [`Self::static_peer_reconnect_delay`] from now when the connection to a static peer closes.
     next_static_peer_check: Option<Instant>,
-    /// Tracks ping times for peers.
-    pub(crate) ping: Arc<Mutex<HashMap<PeerId, Duration>>>,
+    /// The latest ping round-trip time to each connected peer.
+    pub(crate) ping: HashMap<PeerId, Duration>,
     /// The open connections to each peer, used to close duplicate connections.
     pub(crate) connections: HashMap<PeerId, HashMap<ConnectionId, PeerConnection>>,
     /// How long a duplicate connection stays open before it is closed.
@@ -141,7 +141,7 @@ where
             static_peer_reconnect_delay: STATIC_PEER_RECONNECT_DELAY,
             next_static_peer_check: None,
             listener_id: None,
-            ping: Arc::new(Mutex::new(Default::default())),
+            ping: HashMap::new(),
             connections: Default::default(),
             duplicate_connection_grace: DUPLICATE_CONNECTION_GRACE,
             next_duplicate_check: None,
@@ -586,12 +586,9 @@ where
                     metrics::histogram!(crate::Metrics::PEER_SCORES).record(_peer_score);
                 }
 
-                let pings = Arc::clone(&self.ping);
-                tokio::spawn(async move {
-                    if let Ok(time) = result {
-                        pings.lock().await.insert(peer, time);
-                    }
-                });
+                if let Ok(time) = result {
+                    self.ping.insert(peer, time);
+                }
             }
             Event::Identify(e) => self.handle_identify_event(*e),
         };
@@ -752,10 +749,7 @@ where
                     metrics::histogram!(crate::Metrics::PEER_SCORES).record(_peer_score);
                 }
 
-                let pings = Arc::clone(&self.ping);
-                tokio::spawn(async move {
-                    pings.lock().await.remove(&peer_id);
-                });
+                self.ping.remove(&peer_id);
             }
             SwarmEvent::NewListenAddr { listener_id, address } => {
                 debug!(target: "gossip", reporter_id = ?listener_id, new_address = ?address, "New listen address");
