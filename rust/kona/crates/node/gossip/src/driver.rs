@@ -54,9 +54,9 @@ pub struct GossipDriver<G: ConnectionGate> {
     /// threshold.
     pub peer_monitoring: Option<PeerMonitoring>,
     /// Tracks connection start time for peers
-    pub peer_connection_start: HashMap<PeerId, Instant>,
+    pub(crate) peer_connection_start: HashMap<PeerId, Instant>,
     /// The connection gate.
-    pub connection_gate: G,
+    pub(crate) connection_gate: G,
     /// The addresses of each peer to dial at startup and keep connected, without the node's own
     /// ID.
     pub(crate) static_peers: HashMap<PeerId, Vec<Multiaddr>>,
@@ -71,7 +71,7 @@ pub struct GossipDriver<G: ConnectionGate> {
     /// [`Self::static_peer_reconnect_delay`] from now when the connection to a static peer closes.
     next_static_peer_check: Option<Instant>,
     /// Tracks ping times for peers.
-    pub ping: Arc<Mutex<HashMap<PeerId, Duration>>>,
+    pub(crate) ping: Arc<Mutex<HashMap<PeerId, Duration>>>,
     /// The open connections to each peer, used to close duplicate connections.
     pub(crate) connections: HashMap<PeerId, HashMap<ConnectionId, PeerConnection>>,
     /// How long a duplicate connection stays open before it is closed.
