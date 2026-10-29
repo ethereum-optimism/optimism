@@ -47,7 +47,7 @@ pub struct GossipDriver<G: ConnectionGate> {
     /// TODO(op-rs/kona#2141): remove the sync-req-resp protocol once the `op-node`
     /// phases it out.
     #[debug(skip)]
-    pub sync_protocol: Option<IncomingStreams>,
+    sync_protocol: Option<IncomingStreams>,
     /// A mapping from [`PeerId`] to [`Multiaddr`].
     pub peerstore: HashMap<PeerId, libp2p::identify::Info>,
     /// If set, the gossip layer will monitor peer scores and ban peers that are below a given
@@ -205,7 +205,7 @@ where
     /// This is used to ensure op-nodes are not penalizing kona-nodes for not supporting it.
     /// This feature is being deprecated by the op-node team. Once it is fully removed from the
     /// op-node's implementation we will remove this handler.
-    pub(super) fn sync_protocol_handler(&mut self) {
+    fn start_sync_protocol_handler(&mut self) {
         let Some(mut sync_protocol) = self.sync_protocol.take() else {
             return;
         };
@@ -254,7 +254,7 @@ where
     /// Waits for the swarm to start listen before returning and connecting to peers.
     pub async fn start(&mut self) -> Result<Multiaddr, TransportError<std::io::Error>> {
         // Start the sync request/response protocol handler.
-        self.sync_protocol_handler();
+        self.start_sync_protocol_handler();
 
         match self.swarm.listen_on(self.addr.clone()) {
             Ok(id) => {
