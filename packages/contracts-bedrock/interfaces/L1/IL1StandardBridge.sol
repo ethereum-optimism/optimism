@@ -33,6 +33,7 @@ interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
     event ETHDepositInitiated(address indexed from, address indexed to, uint256 amount, bytes extraData);
     event ETHWithdrawalFinalized(address indexed from, address indexed to, uint256 amount, bytes extraData);
     event ERC20Held(address indexed l1Token, address indexed l2Token, uint256 amount);
+    event ERC20Restored(address indexed l1Token, address indexed l2Token, uint256 amount);
 
     function initVersion() external view returns (uint8);
     function depositERC20(

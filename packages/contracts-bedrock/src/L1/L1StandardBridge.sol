@@ -98,6 +98,12 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     /// @param amount  Amount of the token moved.
     event ERC20Held(address indexed l1Token, address indexed l2Token, uint256 amount);
 
+    /// @notice Emitted when tokens move from the OptimismPortal's bridge hook back into escrow.
+    /// @param l1Token Address of the token on L1.
+    /// @param l2Token Address of the corresponding token on L2.
+    /// @param amount  Amount of the token moved.
+    event ERC20Restored(address indexed l1Token, address indexed l2Token, uint256 amount);
+
     /// @notice Semantic version.
     /// @custom:semver 2.10.0
     string public constant version = "2.10.0";
@@ -278,7 +284,15 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     /// @param _direction Transfer direction, which identifies the L1 and L2 tokens in the message.
     /// @param _message Encoded finalizeBridgeERC20 call.
     function holdERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external {
-        (address hook, address l1Token, address l2Token, uint256 amount) = _decodeHookTransfer(_direction, _message);
+        IOptimismPortal2 portal = IOptimismPortal2(payable(systemConfig.optimismPortal()));
+        if (msg.sender != address(portal)) revert L1StandardBridge_NotPortal();
+
+        address hook = address(portal.bridgeHook());
+        if (hook == address(0)) revert L1StandardBridge_NoBridgeHook();
+
+        (bool valid, address l1Token, address l2Token, uint256 amount) =
+            BridgeHookDecoder.decodeTokenTransfer(_direction, _message);
+        if (!valid) revert L1StandardBridge_InvalidTokenTransfer();
         if (_isOptimismMintableERC20(l1Token)) return;
 
         deposits[l1Token][l2Token] -= amount;
@@ -289,35 +303,21 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     /// @notice Pulls tokens from the Portal's bridge hook back into escrow. Only callable by the Portal.
     /// @param _direction Transfer direction, which identifies the L1 and L2 tokens in the message.
     /// @param _message Encoded finalizeBridgeERC20 call.
-    function restoreERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external { }
-
-    /// @notice Checks the Portal caller and bridge hook, then decodes the token transfer.
-    ///         The Portal must authenticate the transfer before calling.
-    ///
-    /// @param _direction Transfer direction used to identify the L1 and L2 tokens.
-    /// @param _message   finalizeBridgeERC20 calldata, including the selector.
-    ///
-    /// @return hook_    Portal's bridge hook.
-    /// @return l1Token_ L1 token address.
-    /// @return l2Token_ L2 token address.
-    /// @return amount_  Transfer amount in token base units.
-    function _decodeHookTransfer(
-        BridgeHookTypes.Direction _direction,
-        bytes calldata _message
-    )
-        internal
-        view
-        returns (address hook_, address l1Token_, address l2Token_, uint256 amount_)
-    {
+    function restoreERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external {
         IOptimismPortal2 portal = IOptimismPortal2(payable(systemConfig.optimismPortal()));
         if (msg.sender != address(portal)) revert L1StandardBridge_NotPortal();
 
-        hook_ = address(portal.bridgeHook());
-        if (hook_ == address(0)) revert L1StandardBridge_NoBridgeHook();
+        address hook = address(portal.bridgeHook());
+        if (hook == address(0)) revert L1StandardBridge_NoBridgeHook();
 
-        bool valid;
-        (valid, l1Token_, l2Token_, amount_) = BridgeHookDecoder.decodeTokenTransfer(_direction, _message);
+        (bool valid, address l1Token, address l2Token, uint256 amount) =
+            BridgeHookDecoder.decodeTokenTransfer(_direction, _message);
         if (!valid) revert L1StandardBridge_InvalidTokenTransfer();
+        if (_isOptimismMintableERC20(l1Token)) return;
+
+        IERC20(l1Token).safeTransferFrom(hook, address(this), amount);
+        deposits[l1Token][l2Token] += amount;
+        emit ERC20Restored(l1Token, l2Token, amount);
     }
 
     /// @notice Internal function for initiating an ETH deposit.

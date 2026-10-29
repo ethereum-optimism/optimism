@@ -16,8 +16,8 @@
     "sourceCodeHash": "0x9da8e73a314f5d0a1bdf28bd90a586a966ef6f08755c92db762b308c82cdf618"
   },
   "src/L1/L1StandardBridge.sol:L1StandardBridge": {
-    "initCodeHash": "0xc28f8f2107cdcf3359683a25c7d133dfc80d2c8b407b984b954c5f00bf89abe9",
-    "sourceCodeHash": "0x7a9d58f9ec8f4e0760c917fd5303d8abada5ec82de6d52477bbb8639346c978d"
+    "initCodeHash": "0x04e31518760ac4a21a786af9450d983829081423dfd23b4bf02eff0639218d69",
+    "sourceCodeHash": "0x7cdb420e388dc33a75b05e20c9ae3aae53acc57756923ba2f8927714f0773d8b"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
     "initCodeHash": "0x3c92f7627e2878f73d831be010d3a1d05732c6be6ae75c980c608a744269a1d9",

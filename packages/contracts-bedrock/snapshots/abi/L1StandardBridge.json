@@ -768,6 +768,31 @@
         "type": "address"
       },
       {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "ERC20Restored",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "l1Token",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "l2Token",
+        "type": "address"
+      },
+      {
         "indexed": true,
         "internalType": "address",
         "name": "from",
