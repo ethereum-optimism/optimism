@@ -225,7 +225,12 @@ impl OpP2PApiServer for P2pRpc {
                             })
                             .unwrap_or_default(),
                         chain_id,
-                        latency: pings.get(peer_id).map(|duration| duration.as_secs()).unwrap_or(0),
+                        // In nanoseconds, as op-node's `time.Duration` encodes it. op-node reports
+                        // an average of recent pings, kona the latest one.
+                        latency: pings
+                            .get(peer_id)
+                            .map(|duration| duration.as_nanos().try_into().unwrap_or(u64::MAX))
+                            .unwrap_or(0),
                         gossip_blocks: gossip.gossip_peers.contains(peer_id),
                         protected: gossip.protected_peers.contains(peer_id),
                         peer_scores: PeerScores {
