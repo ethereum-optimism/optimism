@@ -147,6 +147,14 @@ class ProvenanceTests(_ProvenanceTestsFixtures, unittest.TestCase):
         self.write_locks({'karst': self.entry, 'jovian': self.entry | {'bundle': str(path.relative_to(self.root))}})
         self.assertEqual(N.discover(self.root, False)[0]['selected_forks'], ['jovian'])
         self.assertEqual(N.discover(self.root, True)[0]['selected_forks'], ['jovian', 'karst'])
+        # A release PR compares against its own target branch, not develop.
+        self.git(self.root, 'add', 'op-core')
+        self.git(self.root, '-c', 'user.name=CI fixture', '-c', 'user.email=ci-fixture@example.invalid', 'commit', '-qm', 'Release lock')
+        self.git(self.root, 'update-ref', 'refs/remotes/origin/proposal/upgrade', 'HEAD')
+        release = N.discover(self.root, False, 'proposal/upgrade')[0]
+        self.assertEqual(release['selected_forks'], [])
+        self.assertEqual(release['base_revision'], self.git(self.root, 'rev-parse', 'HEAD').decode())
+        self.assertEqual(N.discover(self.root, False)[0]['selected_forks'], ['jovian'])
         self.git(self.root, 'update-ref', '-d', 'refs/remotes/origin/develop')
         fallback = N.discover(self.root, False)[0]
         self.assertFalse(fallback['base_lock_available'])

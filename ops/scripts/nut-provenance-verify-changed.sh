@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Verifies provenance for all forks whose bundle hash changed vs develop.
+# Verifies provenance for all forks whose bundle hash changed vs the PR's target
+# branch (TARGET_BRANCH, default develop).
 # For each fork whose hash changed, checks out the recorded commit,
 # regenerates the bundle, and verifies it matches byte-for-byte.
 # Unchanged forks are skipped to avoid expensive forge rebuilds.

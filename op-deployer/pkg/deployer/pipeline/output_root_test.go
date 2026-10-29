@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -66,7 +65,7 @@ func setupClusterWithGenesis(t *testing.T, n int) (*Env, *state.Intent, *state.S
 		if chain.DeployOverrides == nil {
 			chain.DeployOverrides = make(map[string]any)
 		}
-		chain.DeployOverrides["respectedGameType"] = embedded.GameTypePermissionedCannon
+		chain.DeployOverrides["respectedGameType"] = opcm.GameTypePermissionedCannon
 		st.PinChainAnchor(chain.ID, anchor, genesisTime)
 		require.NoError(t, GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID))
 		ids = append(ids, chain.ID)
@@ -86,7 +85,7 @@ func useSuperGames(t *testing.T, intent *state.Intent) {
 		if chain.DeployOverrides == nil {
 			chain.DeployOverrides = map[string]any{}
 		}
-		chain.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperCannonKona
+		chain.DeployOverrides["respectedGameType"] = opcm.GameTypeSuperCannonKona
 	}
 }
 
@@ -223,7 +222,7 @@ func TestComputeGenesisOutputRoot_SuperGameTypeWrapsSuperV1Root(t *testing.T) {
 	if chainIntent.DeployOverrides == nil {
 		chainIntent.DeployOverrides = map[string]any{}
 	}
-	chainIntent.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperCannonKona
+	chainIntent.DeployOverrides["respectedGameType"] = opcm.GameTypeSuperCannonKona
 
 	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
 
@@ -270,7 +269,7 @@ func TestComputeGenesisOutputRoot_SuperAnchorRoundTrips(t *testing.T) {
 	if chainIntent.DeployOverrides == nil {
 		chainIntent.DeployOverrides = map[string]any{}
 	}
-	chainIntent.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperCannonKona
+	chainIntent.DeployOverrides["respectedGameType"] = opcm.GameTypeSuperCannonKona
 
 	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
 
@@ -439,7 +438,7 @@ func TestComputeGenesisOutputRoots_PermissionedMemberJoinsSuperCluster(t *testin
 	if intent.Chains[1].DeployOverrides == nil {
 		intent.Chains[1].DeployOverrides = map[string]any{}
 	}
-	intent.Chains[1].DeployOverrides["respectedGameType"] = embedded.GameTypeSuperCannonKona
+	intent.Chains[1].DeployOverrides["respectedGameType"] = opcm.GameTypeSuperCannonKona
 
 	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
 

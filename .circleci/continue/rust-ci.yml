@@ -524,11 +524,11 @@ jobs:
       - rust-prepare-and-restore-cache:
           directory: rust
           profile: debug
+      - get-target-branch
       - run:
           name: Generate compact vectors from base
           command: |
-            # Use develop as the base branch
-            BASE_BRANCH="develop"
+            BASE_BRANCH="$TARGET_BRANCH"
             SUPERCHAIN_TAR="rust/op-reth/crates/chainspec/res/superchain-configs.tar"
 
             # `git checkout` switches between base and PR without touching the superchain-registry

@@ -6,7 +6,7 @@ use crate::{
     version,
 };
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{Command, CommandFactory, FromArgMatches, Parser, Subcommand};
 use kona_cli::cli_styles;
 use strum::Display;
 
@@ -50,6 +50,19 @@ pub struct Cli {
 }
 
 impl Cli {
+    /// Parses the CLI arguments and environment variables, exiting with clap's message if they're
+    /// invalid.
+    ///
+    /// Unlike [`Parser::parse`], a list flag whose environment variable is set but empty gets no
+    /// entries, see [`ignore_empty_list_envs`].
+    pub fn parse_args() -> Self {
+        let matches = ignore_empty_list_envs(Self::command()).get_matches();
+        // Formatted with the command, as `Parser::parse` does, for the usage and styling.
+        Self::from_arg_matches(&matches)
+            .map_err(|e| e.format(&mut Self::command()))
+            .unwrap_or_else(|e| e.exit())
+    }
+
     /// Runs the CLI.
     pub fn run(self) -> Result<()> {
         // Initialize telemetry - allow subcommands to customize the filter.
@@ -106,10 +119,72 @@ impl Cli {
     }
 }
 
+/// Unbinds the environment variable of each list flag, here and in subcommands, whose variable is
+/// set but empty.
+///
+/// clap reads an empty variable as one empty entry, which the entry's parser rejects. op-node reads
+/// it as an empty list, so deployments can leave such a variable empty, and so can kona's.
+fn ignore_empty_list_envs(cmd: Command) -> Command {
+    cmd.mut_args(|arg| {
+        let empty_env = arg.get_value_delimiter().is_some() &&
+            arg.get_env().and_then(std::env::var_os).is_some_and(|value| value.is_empty());
+        if empty_env { arg.env(None::<&'static str>) } else { arg }
+    })
+    .mut_subcommands(ignore_empty_list_envs)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// A list flag under a subcommand, as the p2p list flags are under `node` and `net`, bound to
+    /// an environment variable no other test uses.
+    #[derive(Parser, Debug)]
+    struct ListCommand {
+        #[command(subcommand)]
+        subcommand: ListSubcommand,
+    }
+
+    #[derive(Subcommand, Debug)]
+    enum ListSubcommand {
+        Run {
+            #[arg(long, value_delimiter = ',', env = "KONA_NODE_TEST_EMPTY_LIST_ENV", value_parser = parse_entry)]
+            list: Vec<String>,
+        },
+    }
+
+    /// Accepts any entry but an empty one, like the bootnode and static peer parsers.
+    fn parse_entry(entry: &str) -> Result<String, String> {
+        if entry.is_empty() {
+            Err("Entry must not be empty".to_string())
+        } else {
+            Ok(entry.to_string())
+        }
+    }
+
+    fn parse_list(env: &str) -> Result<Vec<String>, String> {
+        // SAFETY: only this test reads or writes this variable.
+        unsafe { std::env::set_var("KONA_NODE_TEST_EMPTY_LIST_ENV", env) };
+        let matches = ignore_empty_list_envs(ListCommand::command())
+            .try_get_matches_from(["test", "run"])
+            .map_err(|e| e.to_string())?;
+        let ListSubcommand::Run { list } =
+            ListCommand::from_arg_matches(&matches).map_err(|e| e.to_string())?.subcommand;
+        Ok(list)
+    }
+
+    /// An empty environment variable is an empty list. Other values are split on commas, and an
+    /// empty entry among them is an error.
+    #[test]
+    fn test_empty_list_env_is_empty_list() {
+        assert_eq!(parse_list(""), Ok(vec![]));
+        assert_eq!(parse_list("foo,bar"), Ok(vec!["foo".to_string(), "bar".to_string()]));
+        for env in [",", ",,foo,,bar"] {
+            let err = parse_list(env).unwrap_err();
+            assert!(err.contains("Entry must not be empty"), "{env:?}: {err}");
+        }
+    }
 
     #[rstest]
     #[case::node_subcommand_long(Commands::Node(Default::default()), "node")]

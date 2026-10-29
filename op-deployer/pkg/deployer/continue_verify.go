@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -256,21 +255,21 @@ func (v *continuationVerifier) resolveGameMode() (continuationGameMode, error) {
 	mode := continuationGameMode{
 		respectedGameType: gameType,
 	}
-	switch embedded.GameType(gameType) {
-	case embedded.GameTypePermissionedCannon:
+	switch opcm.GameType(gameType) {
+	case opcm.GameTypePermissionedCannon:
 		mode.respectedImplementation = v.expected.PermissionedDisputeGameImpl
 		mode.hasChallenger = true
-	case embedded.GameTypeSuperPermissioned:
+	case opcm.GameTypeSuperPermissioned:
 		mode.respectedImplementation = v.expected.PermissionedDisputeGameImpl
-	case embedded.GameTypeCannonKona:
-		fallback := uint32(embedded.GameTypePermissionedCannon)
+	case opcm.GameTypeCannonKona:
+		fallback := uint32(opcm.GameTypePermissionedCannon)
 		mode.respectedImplementation = v.expected.FaultDisputeGameImpl
 		mode.fallbackGameType = &fallback
 		mode.fallbackImplementation = v.expected.PermissionedDisputeGameImpl
 		mode.permissionless = true
 		mode.hasChallenger = true
-	case embedded.GameTypeSuperCannonKona:
-		fallback := uint32(embedded.GameTypeSuperPermissioned)
+	case opcm.GameTypeSuperCannonKona:
+		fallback := uint32(opcm.GameTypeSuperPermissioned)
 		mode.respectedImplementation = v.expected.FaultDisputeGameImpl
 		mode.fallbackGameType = &fallback
 		mode.fallbackImplementation = v.expected.PermissionedDisputeGameImpl
@@ -865,8 +864,8 @@ func standardValidatorInput(
 	dci opcm.DeployOPChainInput,
 	contracts addresses.OpChainContracts,
 ) opcm.StandardValidatorInput {
-	gameType := embedded.GameType(dci.DisputeGameType)
-	useDevInput := gameType == embedded.GameTypeCannonKona || gameType == embedded.GameTypeSuperCannonKona
+	gameType := opcm.GameType(dci.DisputeGameType)
+	useDevInput := gameType == opcm.GameTypeCannonKona || gameType == opcm.GameTypeSuperCannonKona
 	return opcm.StandardValidatorInput{
 		SystemConfig:        contracts.SystemConfigProxy,
 		AbsolutePrestate:    dci.DisputeAbsolutePrestate,

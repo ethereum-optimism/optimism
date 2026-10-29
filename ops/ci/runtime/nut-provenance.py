@@ -30,12 +30,12 @@ def command(*argv,root=None):return subprocess.check_output(argv,cwd=ROOT if roo
 def seal(path):return {str(p.relative_to(path)):S.digest(p) for p in sorted(path.rglob('*')) if p.is_file()}
 
 
-def discover(root,full):
+def discover(root,full,base_branch='develop'):
     current=(root/LOCK).read_bytes();locks=tomllib.loads(current.decode())
     if not locks:raise ValueError('Empty complete NUT lock selection')
-    base_result=subprocess.run(['git','show','origin/develop:'+LOCK],cwd=root,capture_output=True)
+    base_result=subprocess.run(['git','show','origin/'+base_branch+':'+LOCK],cwd=root,capture_output=True)
     base=tomllib.loads(base_result.stdout.decode()) if base_result.returncode==0 else {}
-    base_revision=subprocess.run(['git','rev-parse','origin/develop'],cwd=root,capture_output=True,text=True)
+    base_revision=subprocess.run(['git','rev-parse','origin/'+base_branch],cwd=root,capture_output=True,text=True)
     entries={};selected=[];paths=set();historical={}
     for fork,entry in sorted(locks.items()):
         if (not re.fullmatch('[a-z][a-z0-9-]*',fork) or not isinstance(entry,dict)
@@ -57,7 +57,7 @@ def discover(root,full):
         historical[fork]=raw
         entries[fork]={**entry,'historical_tools':pins,'historical_mise_sha256':hashlib.sha256(raw).hexdigest()}
         if full or base.get(fork,{}).get('hash','')!=entry['hash']:selected.append(fork)
-    selection={'authority':'fork_lock.toml; original hash-changed policy vs origin/develop',
+    selection={'authority':'fork_lock.toml; original hash-changed policy vs origin/'+base_branch,
             'mode':'full' if full else 'changed','entries':entries,'selected_forks':selected,
             'excluded':[{'fork':fork,'reason':'Original unchanged bundle hash'} for fork in entries if fork not in selected],
             'base_revision':base_revision.stdout.strip() if base_revision.returncode==0 else None,
@@ -137,7 +137,13 @@ def execute(provider,full,prepare=False,module_artifact=None,tool_artifact=None)
             'go_version':command('go','version'),'cpus':os.cpu_count(),'rwx_run_id':os.environ.get('RWX_RUN_ID'),
             'rwx_task_attempt':os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}
         S.write(directory/'settings.json',settings)
-        selection,current,base,base_error,historical=discover(ROOT,full)
+        # CircleCI compares against the PR's base and tolerates a failed fetch,
+        # as the original script did. RWX runs the full selection, and a fetch
+        # there could move the base between the tool producer and the verdict.
+        base_branch=os.environ.get('TARGET_BRANCH') or 'develop'
+        if provider=='circleci':
+            S.stage(directory,'fetch-base',['git','fetch','-q','origin',base_branch],cwd=str(ROOT),stdin=subprocess.DEVNULL)
+        selection,current,base,base_error,historical=discover(ROOT,full,base_branch)
         S.write(directory/'selection.json',selection)
         (directory/'fork_lock.toml').write_bytes(current);(directory/'base-fork-lock.toml').write_bytes(base)
         (directory/'base-discovery.stderr').write_bytes(base_error)

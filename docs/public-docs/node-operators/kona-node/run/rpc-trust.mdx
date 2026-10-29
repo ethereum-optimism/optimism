@@ -8,51 +8,54 @@ The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona performs ad
 
 ## Trust Modes
 
-**Default Behavior (trust enabled, `true`):**
+The defaults match op-node: L1 trust is disabled (`false`), while L2 engine trust is enabled (`true`). To retain the previous L1 trust behavior, set `--l1-trust-rpc=true` or `KONA_NODE_L1_TRUST_RPC=true`.
+
+**Trust Mode (trust enabled, `true`):**
 - No additional block hash verification is performed
 - Optimized for performance
 - Suitable for local nodes and trusted infrastructure
 - Assumes the RPC provider is reliable and honest
 
 **Verification Mode (trust disabled, `false`):**
-- All fetched blocks have their hashes verified against the requested hashes
+- Block hash verification is enabled
 - Protects against malicious RPC providers returning incorrect blocks
 - Recommended for public or third-party RPC endpoints
 - Small performance overhead due to hash verification
 
 ## Examples
 
-**Using trusted local RPCs (default):**
+**Using trusted local RPCs:**
 ```bash
 kona-node node \
   --l1-eth-rpc http://localhost:8545 \
+  --l1-trust-rpc=true \
   --l2-engine-rpc http://localhost:8551 \
-  # trust-rpc defaults to true, no need to specify
+  # L2 trust-rpc defaults to true
 ```
 
 **Using untrusted public RPCs:**
 ```bash
 kona-node node \
   --l1-eth-rpc https://public-eth-rpc.com \
-  --l1-trust-rpc false \
+  --l1-trust-rpc=false \
   --l2-engine-rpc https://public-l2-rpc.com \
-  --l2-trust-rpc false
+  --l2-trust-rpc=false
 ```
 
 **Mixed trust configuration:**
 ```bash
 kona-node node \
   --l1-eth-rpc https://public-eth-rpc.com \
-  --l1-trust-rpc false \
+  --l1-trust-rpc=false \
   --l2-engine-rpc http://localhost:8551 \
   # L2 trust-rpc defaults to true for local engine
 ```
 
 ## Security Recommendations
 
-1. **Local Infrastructure**: Keep the default `true` setting for RPCs you control
-2. **Public RPCs**: Always set `--trust-rpc false` when using third-party endpoints
-3. **Shared Infrastructure**: Consider setting `--trust-rpc false` as a precaution
+1. **Local Infrastructure**: Use trust mode (`true`) only for RPCs you control
+2. **Public RPCs**: Use `--l1-trust-rpc=false` and `--l2-trust-rpc=false` for third-party endpoints
+3. **Shared Infrastructure**: Consider disabling trust for both RPCs
 4. **Performance Testing**: The verification overhead is minimal but can be measured in high-throughput scenarios
 
 ## Next Steps
