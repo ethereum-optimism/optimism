@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 const testBucket = "altda"
@@ -56,6 +58,16 @@ func TestS3StoreReportsMissingInputAsNotFound(t *testing.T) {
 	s := newFakeS3Store(t)
 
 	_, err := s.Get(context.Background(), []byte{0x00, 0x01})
+	require.ErrorIs(t, err, altda.ErrNotFound)
+}
+
+func TestDAServerReportsMissingS3InputAsNotFound(t *testing.T) {
+	server := altda.NewDAServer("127.0.0.1", 0, newFakeS3Store(t), testlog.Logger(t, log.LevelInfo), false)
+	require.NoError(t, server.Start())
+	t.Cleanup(func() { require.NoError(t, server.Stop()) })
+	client := altda.NewDAClient(server.HttpEndpoint(), true, false)
+
+	_, err := client.GetInput(context.Background(), altda.NewKeccak256Commitment([]byte("unknown input")))
 	require.ErrorIs(t, err, altda.ErrNotFound)
 }
 
