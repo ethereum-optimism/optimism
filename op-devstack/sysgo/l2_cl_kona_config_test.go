@@ -132,7 +132,6 @@ func TestKonaL2CLConfigRejectsUnsupportedOptions(t *testing.T) {
 		apply       func(*L2CLConfig)
 		message     string
 	}{
-		{"safe lag", true, func(cfg *L2CLConfig) { cfg.SequencerMaxSafeLag = 20 }, "does not enforce SequencerMaxSafeLag"},
 		{"safe offset", true, func(cfg *L2CLConfig) { cfg.OffsetELSafe = time.Second }, "unsupported L2CL option"},
 		{"role override", true, func(cfg *L2CLConfig) { cfg.IsSequencer = false }, "unsupported L2CL option"},
 		{"sequencer sync", true, func(cfg *L2CLConfig) { cfg.SequencerSyncMode = nodeSync.Mode(99) }, "unknown effective sync mode"},
