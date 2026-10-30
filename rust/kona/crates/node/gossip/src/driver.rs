@@ -415,7 +415,8 @@ where
         self.swarm.behaviour().gate.list_blocked_peers()
     }
 
-    /// Blocks an IP address: the gate refuses to dial it.
+    /// Blocks an IP address: the gate refuses to dial it and refuses incoming connections from it.
+    /// Connections already open stay open.
     pub fn block_addr(&mut self, ip: IpAddr) {
         self.swarm.behaviour_mut().gate.block_addr(ip);
     }
@@ -430,7 +431,8 @@ where
         self.swarm.behaviour().gate.list_blocked_addrs()
     }
 
-    /// Blocks a subnet: the gate refuses to dial any IP address in it.
+    /// Blocks a subnet: the gate refuses to dial any IP address in it, and refuses incoming
+    /// connections from them. Connections already open stay open.
     pub fn block_subnet(&mut self, subnet: IpNet) {
         self.swarm.behaviour_mut().gate.block_subnet(subnet);
     }
@@ -1457,6 +1459,44 @@ mod tests {
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
 
+    /// Polls both drivers, after `dialer` dialed `listener`, until the listener has refused the
+    /// connection or seen it established, and the dialer's dial has ended, so it may dial again.
+    /// Returns the gate's refusal, or `None` if the listener accepted the connection.
+    async fn inbound_refusal(
+        listener: &mut GossipDriver<ConnectionGater>,
+        dialer: &mut GossipDriver<ConnectionGater>,
+    ) -> Option<DialError> {
+        let (listener_peer, dialer_peer) = (*listener.local_peer_id(), *dialer.local_peer_id());
+        let mut outcome = None;
+        let poll = async {
+            while outcome.is_none() || dialer.connection_gate.current_dials.contains(&listener_peer)
+            {
+                tokio::select! {
+                    Some(event) = listener.next() => {
+                        match &event {
+                            SwarmEvent::IncomingConnectionError {
+                                error: ListenError::Denied { cause }, ..
+                            } => {
+                                let refusal = cause.downcast_ref::<DialError>();
+                                outcome = Some(Some(refusal.expect("a gate refusal").clone()));
+                            }
+                            SwarmEvent::ConnectionEstablished { peer_id, .. }
+                                if *peer_id == dialer_peer =>
+                            {
+                                outcome = Some(None);
+                            }
+                            _ => {}
+                        }
+                        listener.handle_event(event);
+                    }
+                    Some(event) = dialer.next() => { dialer.handle_event(event); }
+                }
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(10), poll).await.expect("refused or accepted");
+        outcome.flatten()
+    }
+
     /// A blocked peer can't connect to us: the gate refuses its connection as soon as the handshake
     /// shows its peer ID, so the driver never sees it established. Once unblocked, it connects.
     #[tokio::test]
@@ -1469,27 +1509,7 @@ mod tests {
         driver_1.block_peer(peer_2);
 
         driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
-        let mut refusal = None;
-        let refused = async {
-            while refusal.is_none() {
-                tokio::select! {
-                    Some(event) = driver_1.next() => {
-                        match &event {
-                            SwarmEvent::IncomingConnectionError {
-                                error: ListenError::Denied { cause }, ..
-                            } => refusal = cause.downcast_ref::<DialError>().cloned(),
-                            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-                                assert_ne!(*peer_id, peer_2, "the blocked peer connected");
-                            }
-                            _ => {}
-                        }
-                        driver_1.handle_event(event);
-                    }
-                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
-                }
-            }
-        };
-        tokio::time::timeout(Duration::from_secs(10), refused).await.expect("refused");
+        let refusal = inbound_refusal(&mut driver_1, &mut driver_2).await;
         assert!(
             matches!(refusal, Some(DialError::PeerBlocked { peer_id }) if peer_id == peer_2),
             "{refusal:?}"
@@ -1504,6 +1524,69 @@ mod tests {
 
         driver_1.unblock_peer(peer_2);
         driver_2.dial_multiaddr(addr_1).expect("dial");
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+    }
+
+    /// A blocked IP address or subnet can't connect to us: the gate refuses the connection before
+    /// the handshake, from its address alone. A subnet the address isn't in doesn't keep it out,
+    /// and once unblocked, it connects.
+    ///
+    /// Over TCP on localhost, since an in-memory address has no IP to block.
+    #[tokio::test]
+    async fn test_blocked_address_and_subnet_cannot_connect_inbound() {
+        let mut driver_1 = tcp_driver();
+        let mut driver_2 = tcp_driver();
+        let peer_1 = *driver_1.local_peer_id();
+        let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
+        driver_2.start().await.expect("listen");
+        let localhost: IpAddr = "127.0.0.1".parse().unwrap();
+        // The first 8 bits are the network, so this is every address from 127.0.0.0 to
+        // 127.255.255.255: the whole IPv4 loopback range, which contains `localhost`.
+        let loopback: IpNet = "127.0.0.0/8".parse().unwrap();
+
+        driver_1.block_addr(localhost);
+        driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
+        let refusal = inbound_refusal(&mut driver_1, &mut driver_2).await;
+        assert!(
+            matches!(refusal, Some(DialError::AddressBlocked { ip }) if ip == localhost),
+            "{refusal:?}"
+        );
+        driver_1.unblock_addr(localhost);
+
+        driver_1.block_subnet(loopback);
+        driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
+        let refusal = inbound_refusal(&mut driver_1, &mut driver_2).await;
+        assert!(
+            matches!(refusal, Some(DialError::SubnetBlocked { ip }) if ip == localhost),
+            "{refusal:?}"
+        );
+        driver_1.unblock_subnet(loopback);
+
+        driver_1.block_subnet("10.0.0.0/8".parse().unwrap());
+        driver_2.dial_multiaddr(addr_1).expect("dial");
+        assert_eq!(
+            inbound_refusal(&mut driver_1, &mut driver_2).await.map(|e| e.to_string()),
+            None
+        );
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+    }
+
+    /// An in-memory connection has no IP, so even a block on every IPv4 address doesn't keep it
+    /// out, as in go-libp2p's basic gater.
+    #[tokio::test]
+    async fn test_connection_without_an_ip_is_not_blocked_by_a_subnet() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+        let peer_1 = *driver_1.local_peer_id();
+        let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
+        driver_2.start().await.expect("listen");
+        driver_1.block_subnet("0.0.0.0/0".parse().unwrap());
+
+        driver_2.dial_multiaddr(addr_1).expect("dial");
+        assert_eq!(
+            inbound_refusal(&mut driver_1, &mut driver_2).await.map(|e| e.to_string()),
+            None
+        );
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
 

@@ -159,13 +159,37 @@ impl Behaviour {
     }
 }
 
-/// Refuses inbound connections from blocked peers, and has no protocol or events of its own.
+/// Refuses inbound connections from blocked peers, IP addresses and subnets, and has no protocol
+/// or events of its own.
 ///
 /// A refusal is a [`DialError`], as a dial the gate refuses gets, in the
 /// [`ListenError::Denied`](libp2p::swarm::ListenError::Denied) the swarm reports.
 impl NetworkBehaviour for Behaviour {
     type ConnectionHandler = dummy::ConnectionHandler;
     type ToSwarm = Infallible;
+
+    /// Refuses a connection from a blocked IP address or subnet before the handshake, from the
+    /// remote address alone, as op-node's `InterceptAccept` does. An address without an IP, such as
+    /// a `/memory` one, is allowed, as in go-libp2p's basic gater.
+    fn handle_pending_inbound_connection(
+        &mut self,
+        _connection_id: ConnectionId,
+        _local_addr: &Multiaddr,
+        remote_addr: &Multiaddr,
+    ) -> Result<(), ConnectionDenied> {
+        let Some(ip) = crate::ConnectionGater::ip_from_addr(remote_addr) else {
+            return Ok(());
+        };
+        let refusal = if self.is_blocked_addr(&ip) {
+            DialError::AddressBlocked { ip }
+        } else if self.is_in_blocked_subnet(&ip) {
+            DialError::SubnetBlocked { ip }
+        } else {
+            return Ok(());
+        };
+        debug!(target: "gossip", %remote_addr, %refusal, "Refusing a connection from a blocked address");
+        Err(ConnectionDenied::new(refusal))
+    }
 
     /// Refuses a connection from a blocked peer, the first point where its peer ID is known: once
     /// the handshake is done, and before any other behaviour sees the connection.
@@ -234,6 +258,35 @@ mod tests {
         assert!(!in_blocked_subnet("192.168.2.1"));
         assert!(!in_blocked_subnet("172.17.0.1"));
         assert!(!in_blocked_subnet("8.8.8.8"));
+    }
+
+    #[test]
+    fn test_is_in_blocked_subnet_ipv6() {
+        let mut gate = Behaviour::default();
+        // The first 32 bits are the network: the documentation prefix, 2001:db8::/32.
+        gate.block_subnet("2001:db8::/32".parse().unwrap());
+        let in_blocked_subnet = |ip: &str| gate.is_in_blocked_subnet(&ip.parse().unwrap());
+
+        assert!(in_blocked_subnet("2001:db8::1"));
+        assert!(in_blocked_subnet("2001:db8:ffff:ffff::1"));
+        assert!(!in_blocked_subnet("2001:db9::1"));
+        assert!(!in_blocked_subnet("::1"));
+    }
+
+    /// A subnet only contains addresses of its own family.
+    #[test]
+    fn test_blocked_subnet_does_not_cross_ip_families() {
+        let mut gate = Behaviour::default();
+        gate.block_subnet("10.0.0.0/8".parse().unwrap());
+        gate.block_subnet("2001:db8::/32".parse().unwrap());
+        let in_blocked_subnet = |ip: &str| gate.is_in_blocked_subnet(&ip.parse().unwrap());
+
+        // Not even the IPv4-mapped IPv6 form of an address in 10.0.0.0/8. Peers don't arrive in
+        // that form, though: libp2p-tcp makes its IPv6 listeners IPv6-only, so an IPv4 peer
+        // connects to an IPv4 listener, as `/ip4/...`.
+        assert!(!in_blocked_subnet("::ffff:10.0.0.1"));
+        // The IPv4 address 32.1.13.184 has the same first 32 bits as 2001:db8::.
+        assert!(!in_blocked_subnet("32.1.13.184"));
     }
 
     #[test]
