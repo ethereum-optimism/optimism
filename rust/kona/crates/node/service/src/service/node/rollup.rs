@@ -14,7 +14,7 @@ use crate::{
 };
 use alloy_eips::{BlockNumHash, BlockNumberOrTag};
 use alloy_primitives::Address;
-use alloy_provider::{Provider, RootProvider};
+use alloy_provider::RootProvider;
 use backon::{ExponentialBuilder, Retryable};
 use jsonrpsee::{
     RpcModule,
@@ -30,8 +30,8 @@ use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use kona_providers_alloy::{
-    AlloyChainProvider, AlloyL2ChainProvider, BufferedAlloyL2ChainProvider, OnlineBeaconClient,
-    OnlineBlobProvider, OnlinePipeline,
+    AlloyChainProvider, AlloyChainProviderError, AlloyL2ChainProvider,
+    BufferedAlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider, OnlinePipeline,
 };
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
@@ -318,17 +318,18 @@ impl RollupNode {
         if self.safe_db.is_none() {
             return Ok(BlockNumHash::default());
         }
-        let provider = &self.l1_config.engine_provider;
+        let provider = &self.l1_config.provider;
         debug!(target: "rollup_node", "Fetching L1 block zero for the safe head database");
-        let block = (|| async { provider.get_block_by_number(BlockNumberOrTag::Number(0)).await })
+        let block = (|| async { provider.block_info_by_number(0).await })
             .retry(ExponentialBuilder::default())
+            // A missing block zero is a misconfigured L1, which retrying cannot fix.
+            .when(|e| !matches!(e, AlloyChainProviderError::BlockNotFound(_)))
             .notify(|e, delay| {
                 warn!(target: "rollup_node", %e, ?delay, "Failed to fetch L1 block zero; retrying")
             })
             .await
-            .map_err(|e| format!("Failed to fetch L1 block zero for the safe head db: {e}"))?
-            .ok_or_else(|| "L1 block zero is missing".to_string())?;
-        let l1_block_zero = BlockNumHash { hash: block.header.hash, number: 0 };
+            .map_err(|e| format!("Failed to fetch L1 block zero for the safe head db: {e}"))?;
+        let l1_block_zero = block.id();
         info!(target: "rollup_node", l1_hash = %l1_block_zero.hash, "Anchoring the safe head db at L1 block zero");
         Ok(l1_block_zero)
     }
