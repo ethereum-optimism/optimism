@@ -562,7 +562,9 @@ latest-rc-tag component:
 #
 # Output is one `<label><TAB><path>` pair per line. Consecutive lines sharing a
 # label form a group: a set of paths that ship as one unit — a bundled binary's
-# dependency closure, or the shared infrastructure every Go component links.
+# dependency closure, the shared infrastructure every Go component links
+# (`shared`), or another component's code this one links and whose changes reach
+# its operators (`linked`). `shared` and `linked` are not artifacts.
 # Consumers that section their output group by label, keeping a closure from
 # swamping the component's own changes; consumers that only need the path set
 # read the second column. Emitting both in one stream means a component's paths
@@ -587,8 +589,17 @@ release-paths component:
     kona_host="kona-host=rust/Cargo.toml,rust/kona/bin/host/,rust/kona/crates/proof/,rust/kona/crates/protocol/,rust/kona/crates/providers/,rust/kona/crates/utilities/,rust/alloy-op-evm/,rust/alloy-op-hardforks/,rust/op-alloy/,rust/op-revm/"
     specs=()
     case "{{ component }}" in
-        op-node|op-batcher|op-proposer|op-supernode|op-dispute-mon)
+        op-node|op-proposer|op-dispute-mon)
             specs=("{{ component }}/" "$go_shared")
+            ;;
+        op-batcher)
+            # op-batcher builds channels with op-node's derivation code, against
+            # op-node's rollup config.
+            specs=("op-batcher/" "linked=op-node/rollup/derive/,op-node/params/,op-node/rollup/types.go,op-node/rollup/chain_spec.go,op-node/rollup/toggles.go" "$go_shared")
+            ;;
+        op-supernode)
+            # op-supernode runs op-node in-process.
+            specs=("op-supernode/" "linked=op-node/" "$go_shared")
             ;;
         op-challenger)
             # The op-challenger image ships three binaries, so all three are
