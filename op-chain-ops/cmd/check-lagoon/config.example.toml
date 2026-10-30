@@ -25,7 +25,7 @@ propagation-wait = "6s"
 admin-rpc = ["http://localhost:8420", "http://localhost:8421"]
 jwt-secret = ["0x<32-byte-hex-secret-1>", "0x<32-byte-hex-secret-2>"]
 
-# --- Used by `sdm` subcommands; top-level `all` reads the account, fund, rollup-rpc-a/b, contract-a/b, and opt-in keys ---
+# --- Used by `sdm` subcommands; top-level `all` reads the account, fund, rollup-rpc-a/b, contract-a/b, opt-in, check-rpc, rpc-js, and rpc-ots keys ---
 [sdm]
 l2 = "http://localhost:9545"
 l2-verifier = ""
@@ -40,6 +40,16 @@ contract-a = ""
 contract-b = ""
 # Enable the producer's SDM opt-in for the duration of the check if it is off.
 opt-in = false
+# Also gate RPC replay settlement; enable eth/debug/trace namespaces.
+# Use ws:// or wss:// l2/l2-verifier (l2-a/l2-b for top-level all).
+# `sdm rpc` always runs this gate, regardless of this flag.
+check-rpc = false
+# By default JS is checked when available, with only the disabled-tracer response skipped.
+# Require JS support instead (also enables the RPC gate).
+rpc-js = false
+# OTS is skipped by default; require its methods/results (also enables the RPC gate).
+rpc-ots = false
+# Skips, including missing bad/revert fixtures, are reported with complete=false.
 json = false
-# `sdm block` and `sdm verifier` only.
+# `sdm block`, `sdm verifier`, and `sdm rpc` only.
 block = 0
