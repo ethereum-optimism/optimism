@@ -22,7 +22,7 @@ The layout carries no compatibility guarantee with any other implementation and 
 ## RPC error contract
 
 The node's `optimism_safeHeadAtL1Block` and pre-interop `superroot_atTimestamp` handlers
-translate SafeDB failures into JSON-RPC errors with code `-32000`. A missing L1 lookup
+translate `SafeDB` failures into JSON-RPC errors with code `-32000`. A missing L1 lookup
 record has the bare message `not found`. The reverse lookup used by `superroot_atTimestamp`
 distinguishes `l1 at safe head not found` (not recorded yet) from
 `l1 at safe head history unavailable` (before the available history), with an operation
