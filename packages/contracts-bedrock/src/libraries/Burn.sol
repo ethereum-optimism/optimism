@@ -26,6 +26,8 @@ library Burn {
 ///         the contract from the circulating supply. Self-destructing is the only way to remove ETH
 ///         from the circulating supply.
 contract Burner {
+    // TODO(#22948): When Amsterdam activates, ETH will no longer be burned but it will still be
+    // stranded and inaccessible. Need to decide if that's OK.
     constructor() payable {
         selfdestruct(payable(address(this)));
     }

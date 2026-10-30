@@ -442,12 +442,15 @@ contract PreimageOracle_LoadPrecompilePreimagePart_Test is PreimageOracle_TestIn
 
     /// @notice Tests that a global precompile load succeeds on a variety of gas inputs.
     function testFuzz_loadPrecompilePreimagePart_withVaryingGas_succeeds(uint64 _gas) public {
-        uint64 requiredGas = 100_000;
+        // Large enough that the oracle's gas check, not storing the result, sets the minimum gas.
+        uint64 requiredGas = 500_000;
         bytes memory input = hex"deadbeef";
         address precompile = address(uint160(0xdeadbeef));
         vm.mockCall(precompile, input, hex"abba");
         uint256 offset = 0;
-        uint64 minGas = uint64(bound(_gas, requiredGas * 3, 20_000_000));
+        // The oracle's gas check, plus the gas spent before it (under 1k optimized, under 2k unoptimized).
+        uint256 checkedGas = requiredGas * 64 / 63 + oracle.PRECOMPILE_CALL_RESERVED_GAS();
+        uint64 minGas = uint64(bound(_gas, checkedGas + 3_000, 20_000_000));
         vm.expectCallMinGas(precompile, 0, requiredGas, input);
         oracle.loadPrecompilePreimagePart{ gas: minGas }(offset, precompile, requiredGas, input);
     }
