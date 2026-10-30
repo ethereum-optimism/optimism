@@ -26,8 +26,7 @@ archs:
 environment:
   PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin
   SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
-  # The SP1 SDK starts $HOME/.sp1/bin/sp1-gpu-server. .sp1 stays root-owned, so the SDK
-  # cannot download a replacement server.
+  # The SP1 SDK starts $HOME/.sp1/bin/sp1-gpu-server.
   HOME: /home/kona
   SP1_PLONK_CIRCUIT_PATH: /opt/sp1/circuits/plonk
   LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/nvidia/lib64
@@ -46,6 +45,11 @@ accounts:
 
 paths:
   - path: /home/kona
+    type: directory
+    uid: 10001
+    gid: 10001
+    permissions: 0o755
+  - path: /home/kona/.sp1
     type: directory
     uid: 10001
     gid: 10001
