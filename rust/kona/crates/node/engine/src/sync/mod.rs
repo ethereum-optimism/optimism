@@ -47,10 +47,7 @@ pub async fn find_starting_forkchoice(
     let mut ahead_of_l1 = None;
     loop {
         let l1_origin = current_fc.un_safe.l1_origin;
-        let canonical = engine_client
-            .get_l1_block(l1_origin.number.into())
-            .await?
-            .map(|block| block.header.hash);
+        let canonical = engine_client.l1_block_hash_by_number(l1_origin.number).await?;
         info!(
             target: "sync_start",
             l1_origin = %l1_origin.number,

@@ -4,6 +4,7 @@ use alloy_eips::BlockId;
 use alloy_primitives::B256;
 use alloy_transport::{RpcError, TransportErrorKind};
 use kona_protocol::FromBlockError;
+use kona_providers_alloy::AlloyChainProviderError;
 use thiserror::Error;
 
 /// An error that can occur during the sync start process.
@@ -12,6 +13,9 @@ pub enum SyncStartError {
     /// An rpc error occurred
     #[error("An RPC error occurred: {0}")]
     RpcError(#[from] RpcError<TransportErrorKind>),
+    /// The L1 provider failed.
+    #[error("L1 provider error: {0}")]
+    L1(#[from] AlloyChainProviderError),
     /// An error occurred while converting a block to [`L2BlockInfo`].
     ///
     /// [`L2BlockInfo`]: kona_protocol::L2BlockInfo

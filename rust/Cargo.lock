@@ -7353,6 +7353,7 @@ dependencies = [
  "http-body-util",
  "kona-genesis",
  "kona-protocol",
+ "kona-providers-alloy",
  "kona-registry",
  "metrics",
  "metrics-exporter-prometheus",

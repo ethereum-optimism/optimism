@@ -184,7 +184,8 @@ impl EngineResetError {
     /// Whether retrying the reset can recover without changing the node configuration.
     pub fn is_temporary(&self) -> bool {
         match self {
-            Self::SyncStart(SyncStartError::RpcError(_)) => true,
+            // A missing L1 block is not an error here, so an L1 failure is an RPC failure.
+            Self::SyncStart(SyncStartError::RpcError(_) | SyncStartError::L1(_)) => true,
             Self::SyncStart(_) => false,
             Self::Forkchoice(err) => err.severity() != EngineTaskErrorSeverity::Critical,
         }
