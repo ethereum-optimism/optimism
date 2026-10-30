@@ -18,9 +18,23 @@ pub struct PeerAddr {
 }
 
 impl PeerAddr {
+    /// Returns the address of `peer_id` at `addr`, appending its `/p2p/<peer id>` unless `addr`
+    /// already ends in it. Fails if `addr` ends in another peer's, or has nothing to dial.
+    pub(crate) fn new(addr: Multiaddr, peer_id: PeerId) -> Result<Self, PeerAddrError> {
+        addr.with_p2p(peer_id).map_err(|_| PeerAddrError::WrongPeerId)?.try_into()
+    }
+
     /// Returns the address to dial, including the `/p2p/<peer id>` it ends in.
     pub const fn addr(&self) -> &Multiaddr {
         &self.addr
+    }
+
+    /// Returns the address without the `/p2p/<peer id>` it ends in: how to reach the peer, such as
+    /// `/dns4/node.example.com/tcp/9222`.
+    pub fn transport_addr(&self) -> Multiaddr {
+        let mut addr = self.addr.clone();
+        addr.pop();
+        addr
     }
 
     /// Returns the peer's ID.
@@ -67,6 +81,12 @@ impl FromStr for PeerAddr {
     }
 }
 
+impl From<PeerAddr> for Multiaddr {
+    fn from(peer: PeerAddr) -> Self {
+        peer.addr
+    }
+}
+
 impl fmt::Display for PeerAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.addr.fmt(f)
@@ -78,6 +98,30 @@ mod tests {
     use super::*;
 
     const PEER_ID: &str = "16Uiu2HAmLFhCjjNUXiZA3Hdd3j3qp6rnD6tHkFtsSZmhpV8axfGX";
+
+    #[test]
+    fn test_new_appends_the_peer_id_once() {
+        let peer_id: PeerId = PEER_ID.parse().unwrap();
+        let expected: PeerAddr = format!("/ip4/10.0.0.1/tcp/9222/p2p/{PEER_ID}").parse().unwrap();
+
+        let transport: Multiaddr = "/ip4/10.0.0.1/tcp/9222".parse().unwrap();
+        assert_eq!(PeerAddr::new(transport.clone(), peer_id).unwrap(), expected);
+        // Already ending in the peer's ID, the address stays as it is.
+        assert_eq!(PeerAddr::new(expected.addr.clone(), peer_id).unwrap(), expected);
+        assert_eq!(expected.transport_addr(), transport);
+    }
+
+    #[test]
+    fn test_new_rejects_another_peer_or_no_address() {
+        let peer_id: PeerId = PEER_ID.parse().unwrap();
+        let other: Multiaddr =
+            format!("/ip4/10.0.0.1/tcp/9222/p2p/{}", PeerId::random()).parse().unwrap();
+        assert!(matches!(PeerAddr::new(other, peer_id), Err(PeerAddrError::WrongPeerId)));
+        assert!(matches!(
+            PeerAddr::new(Multiaddr::empty(), peer_id),
+            Err(PeerAddrError::MissingAddress)
+        ));
+    }
 
     #[test]
     fn test_group_by_peer() {

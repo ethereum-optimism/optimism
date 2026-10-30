@@ -34,8 +34,8 @@ pub enum NetworkDriverError {
 impl NetworkDriver {
     /// Starts the network.
     pub async fn start(mut self) -> Result<NetworkHandler, NetworkDriverError> {
-        // Start the libp2p Swarm
-        let gossip_listen_addr = self.gossip.start().await?;
+        // Start the libp2p Swarm.
+        let gossip_listen_addr = self.gossip.start().await?.transport_addr();
 
         if self.enr_update &&
             let Some(discovery) = &mut self.discovery

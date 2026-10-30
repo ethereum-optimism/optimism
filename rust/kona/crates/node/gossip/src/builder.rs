@@ -467,11 +467,10 @@ pub(crate) mod tests {
 
         // Port 0 binds a free memory port, the way it binds a free TCP port.
         let addr_2 = driver_2.start().await.expect("listen");
-        assert!(matches!(addr_2.iter().next(), Some(Protocol::Memory(port)) if port != 0));
+        assert!(matches!(addr_2.addr().iter().next(), Some(Protocol::Memory(port)) if port != 0));
         driver_1.start().await.expect("listen");
 
-        let peer_2 = *driver_2.local_peer_id();
-        driver_1.swarm.dial(addr_2.with(Protocol::P2p(peer_2))).expect("dial");
+        driver_1.swarm.dial(Multiaddr::from(addr_2)).expect("dial");
 
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }

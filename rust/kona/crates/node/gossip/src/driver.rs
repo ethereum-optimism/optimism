@@ -188,10 +188,13 @@ where
     ///
     /// The dials only start once the swarm listens, so a start that fails leaves nothing running.
     ///
+    /// Returns where peers can dial this node: the address the swarm listens on, ending in this
+    /// node's peer ID. [`Self::peer_addr`] returns it later too.
+    ///
     /// While the driver listens, calling this again returns [`StartError::AlreadyStarted`], and the
     /// driver keeps listening on the address the first call returned. Once its listener closes, it
     /// can start again, and listens on the address it had.
-    pub async fn start(&mut self) -> Result<Multiaddr, StartError> {
+    pub async fn start(&mut self) -> Result<PeerAddr, StartError> {
         if self.listener_id.is_some() {
             return Err(StartError::AlreadyStarted);
         }
@@ -205,10 +208,10 @@ where
                 SwarmEvent::NewListenAddr { address, listener_id } if listener_id == id => {
                     info!(target: "gossip", peer_id = %self.local_peer_id(), "Swarm now listening on: {address}");
 
-                    self.addr = address.clone();
+                    self.addr = address;
                     self.dial_static_peers();
 
-                    return Ok(address);
+                    return Ok(self.peer_addr().expect("listening"));
                 }
                 SwarmEvent::ListenerClosed { listener_id, reason, .. } if listener_id == id => {
                     error!(target: "gossip", ?reason, "Listener on {} closed before it reported an address", self.addr);
@@ -264,6 +267,16 @@ where
     /// [`Self::start`] replaces it with the address the swarm reports.
     pub const fn addr(&self) -> &Multiaddr {
         &self.addr
+    }
+
+    /// Returns where peers can dial this node, ending in its peer ID: the address
+    /// [`Self::start`] returned. `None` until the driver listens, and again once its listener
+    /// closes.
+    pub fn peer_addr(&self) -> Option<PeerAddr> {
+        self.listener_id?;
+        // The swarm reports listen addresses without a `/p2p`.
+        let addr = PeerAddr::new(self.addr.clone(), *self.local_peer_id());
+        Some(addr.expect("a listen address is a peer address once it has the peer ID"))
     }
 
     /// Returns the [`BlockHandler`].
@@ -499,7 +512,8 @@ where
 
     /// Dials the given [`Multiaddr`], which must end in the peer's `/p2p/<peer id>`. See
     /// [`Self::dial_peer`] for the result.
-    pub fn dial_multiaddr(&mut self, addr: Multiaddr) -> Result<(), DialError> {
+    pub fn dial_multiaddr(&mut self, addr: impl Into<Multiaddr>) -> Result<(), DialError> {
+        let addr = addr.into();
         let Some(peer_id) = ConnectionGater::peer_id_from_addr(&addr) else {
             warn!(target: "gossip", peer=?addr, "Failed to extract PeerId from Multiaddr");
             metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_multiaddr")
@@ -964,8 +978,8 @@ mod tests {
     ) -> (PeerId, PeerId) {
         let peer_1 = *driver_1.local_peer_id();
         let peer_2 = *driver_2.local_peer_id();
-        let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
-        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        let addr_1 = driver_1.start().await.expect("listen");
+        let addr_2 = driver_2.start().await.expect("listen");
         driver_1.dial_multiaddr(addr_2).expect("dial");
         driver_2.dial_multiaddr(addr_1).expect("dial");
         (peer_1, peer_2)
@@ -976,14 +990,13 @@ mod tests {
     async fn test_start_twice_fails() {
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
-        let peer_1 = *driver_1.local_peer_id();
         let addr_1 = driver_1.start().await.expect("listen");
 
         assert!(matches!(driver_1.start().await, Err(StartError::AlreadyStarted)));
-        assert_eq!(driver_1.addr(), &addr_1);
+        assert_eq!(driver_1.peer_addr(), Some(addr_1.clone()));
 
         driver_2.start().await.expect("listen");
-        driver_2.dial_multiaddr(addr_1.with(Protocol::P2p(peer_1))).expect("dial");
+        driver_2.dial_multiaddr(addr_1).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
 
@@ -1087,7 +1100,7 @@ mod tests {
             .with_behaviour(|_| libp2p_stream::Behaviour::new())
             .expect("behaviour")
             .build();
-        peer.dial(addr.with(Protocol::P2p(peer_id))).expect("dial");
+        peer.dial(Multiaddr::from(addr)).expect("dial");
 
         let chain_id = driver.handler().rollup_config.l2_chain_id;
         let protocol =
@@ -1184,6 +1197,7 @@ mod tests {
         let peer_2 = *driver_2.local_peer_id();
         let listen_addr_2 = driver_2.start().await.expect("listen");
         let port = listen_addr_2
+            .addr()
             .iter()
             .find_map(|protocol| match protocol {
                 Protocol::Tcp(port) => Some(port),
@@ -1255,8 +1269,7 @@ mod tests {
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
 
-        let peer_2 = *driver_2.local_peer_id();
-        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        let addr_2 = driver_2.start().await.expect("listen");
         driver_1.start().await.expect("listen");
 
         // The one dial that connects the peers.
@@ -1279,7 +1292,7 @@ mod tests {
         // refuse to dial a connected peer, which shows up as a `connection_error` instead.
         assert_eq!(dial_errors, vec![("already_connected".to_owned(), redials)]);
         // Only the first dial counts against the address's redial limit.
-        assert_eq!(driver_1.connection_gate.dialed_addrs[&addr_2].num_dials, 1);
+        assert_eq!(driver_1.connection_gate.dialed_addrs[addr_2.addr()].num_dials, 1);
     }
 
     /// An address no one listens on, so a dial to it fails.
@@ -1295,16 +1308,18 @@ mod tests {
         let mut driver_2 = memory_driver();
 
         let peer_2 = *driver_2.local_peer_id();
-        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        let addr_2 = driver_2.start().await.expect("listen");
         driver_1.start().await.expect("listen");
 
-        driver_1.dial_peer(peer_2, [unused_memory_addr(peer_2), addr_2.clone()]).expect("dial");
+        driver_1
+            .dial_peer(peer_2, [unused_memory_addr(peer_2), addr_2.addr().clone()])
+            .expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
         assert!(driver_1.is_connected(&peer_2));
         let gate = &driver_1.connection_gate;
         assert_eq!(gate.dialed_addrs[&unused_memory_addr(peer_2)].num_dials, 1);
-        assert_eq!(gate.dialed_addrs[&addr_2].num_dials, 1);
+        assert_eq!(gate.dialed_addrs[addr_2.addr()].num_dials, 1);
     }
 
     /// Addresses the gate refuses, or that are for another peer, are left out of the dial.
@@ -1314,17 +1329,17 @@ mod tests {
         let mut driver_2 = memory_driver();
 
         let peer_2 = *driver_2.local_peer_id();
-        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        let addr_2 = driver_2.start().await.expect("listen");
         driver_1.start().await.expect("listen");
 
         let blocked: Multiaddr = format!("/ip4/10.0.0.1/tcp/9222/p2p/{peer_2}").parse().unwrap();
         driver_1.block_addr("10.0.0.1".parse().unwrap());
         let other_peer = unused_memory_addr(PeerId::random());
 
-        driver_1.dial_peer(peer_2, [blocked, other_peer, addr_2.clone()]).expect("dial");
+        driver_1.dial_peer(peer_2, [blocked, other_peer, addr_2.addr().clone()]).expect("dial");
 
         let dialed: Vec<_> = driver_1.connection_gate.dialed_addrs.keys().cloned().collect();
-        assert_eq!(dialed, vec![addr_2]);
+        assert_eq!(dialed, vec![addr_2.addr().clone()]);
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
 
@@ -1363,11 +1378,9 @@ mod tests {
     async fn test_start_dials_static_peers() {
         let mut driver_2 = memory_driver();
         let peer_2 = *driver_2.local_peer_id();
-        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        let addr_2 = driver_2.start().await.expect("listen");
 
-        let static_peers = [unused_memory_addr(peer_2), addr_2]
-            .map(|addr| PeerAddr::try_from(addr).unwrap())
-            .to_vec();
+        let static_peers = vec![PeerAddr::try_from(unused_memory_addr(peer_2)).unwrap(), addr_2];
         let mut driver_1 =
             memory_driver_builder().with_static_peers(static_peers).build().expect("build");
         driver_1.start().await.expect("listen");
@@ -1417,9 +1430,7 @@ mod tests {
     fn random_identity() -> (libp2p_identity::Keypair, Multiaddr, PeerAddr) {
         let keypair = libp2p_identity::Keypair::generate_secp256k1();
         let addr = Multiaddr::empty().with(Protocol::Memory(rand::random::<u64>()));
-        let static_peer =
-            PeerAddr::try_from(addr.clone().with(Protocol::P2p(keypair.public().to_peer_id())))
-                .unwrap();
+        let static_peer = PeerAddr::new(addr.clone(), keypair.public().to_peer_id()).unwrap();
         (keypair, addr, static_peer)
     }
 
@@ -1534,7 +1545,7 @@ mod tests {
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
         let (peer_1, peer_2) = (*driver_1.local_peer_id(), *driver_2.local_peer_id());
-        let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
+        let addr_1 = driver_1.start().await.expect("listen");
         driver_2.start().await.expect("listen");
         driver_1.block_peer(peer_2);
 
@@ -1566,8 +1577,7 @@ mod tests {
     async fn test_blocked_address_and_subnet_cannot_connect_inbound() {
         let mut driver_1 = tcp_driver();
         let mut driver_2 = tcp_driver();
-        let peer_1 = *driver_1.local_peer_id();
-        let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
+        let addr_1 = driver_1.start().await.expect("listen");
         driver_2.start().await.expect("listen");
         let localhost: IpAddr = "127.0.0.1".parse().unwrap();
         // The first 8 bits are the network, so this is every address from 127.0.0.0 to
@@ -1607,7 +1617,7 @@ mod tests {
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
         let (peer_1, peer_2) = (*driver_1.local_peer_id(), *driver_2.local_peer_id());
-        let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
+        let addr_1 = driver_1.start().await.expect("listen");
         driver_2.start().await.expect("listen");
         driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
@@ -1649,7 +1659,7 @@ mod tests {
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
         let peer_2 = *driver_2.local_peer_id();
-        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        let addr_2 = driver_2.start().await.expect("listen");
         driver_1.start().await.expect("listen");
 
         // Started, but not yet polled, so the block lands while the dial is in flight.
@@ -1690,8 +1700,7 @@ mod tests {
     async fn test_connection_without_an_ip_is_not_blocked_by_a_subnet() {
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
-        let peer_1 = *driver_1.local_peer_id();
-        let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
+        let addr_1 = driver_1.start().await.expect("listen");
         driver_2.start().await.expect("listen");
         driver_1.block_subnet("0.0.0.0/0".parse().unwrap());
 
@@ -1734,7 +1743,7 @@ mod tests {
         driver_2.start().await.expect("listen");
         let mut driver_3 = memory_driver();
         let peer_3 = *driver_3.local_peer_id();
-        let addr_3 = driver_3.start().await.expect("listen").with(Protocol::P2p(peer_3));
+        let addr_3 = driver_3.start().await.expect("listen");
 
         // Light scoring weighs the application score, which the test can set.
         let mut driver_1 = memory_driver_builder()
@@ -1770,7 +1779,7 @@ mod tests {
         let listen_addr_2 = driver_2.start().await.expect("listen");
         driver_1.start().await.expect("listen");
 
-        driver_1.dial_multiaddr(listen_addr_2.clone().with(Protocol::P2p(peer_2))).expect("dial");
+        driver_1.dial_multiaddr(listen_addr_2).expect("dial");
         // Wait for identify, so there is identify info to forget.
         poll_until(&mut driver_1, &mut driver_2, |driver_1, _| {
             driver_1.peerstore.contains_key(&peer_2)
@@ -1814,7 +1823,7 @@ mod tests {
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
         let peer_2 = *driver_2.local_peer_id();
-        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        let addr_2 = driver_2.start().await.expect("listen");
         driver_1.start().await.expect("listen");
         driver_1.dial_multiaddr(addr_2).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
@@ -1861,7 +1870,7 @@ mod tests {
         let mut driver_2 = memory_driver();
 
         let peer_2 = *driver_2.local_peer_id();
-        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        let addr_2 = driver_2.start().await.expect("listen");
         driver_1.start().await.expect("listen");
 
         driver_1.dial_multiaddr(addr_2).expect("dial");

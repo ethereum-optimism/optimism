@@ -170,4 +170,7 @@ pub enum PeerAddrError {
     /// The address is only a `/p2p/<peer id>`, with nothing to dial.
     #[error("Address has nothing to dial before /p2p/<peer id>")]
     MissingAddress,
+    /// The address already ends in another peer's `/p2p/<peer id>`.
+    #[error("Address ends in another peer's /p2p/<peer id>")]
+    WrongPeerId,
 }
