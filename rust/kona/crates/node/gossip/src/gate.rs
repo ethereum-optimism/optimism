@@ -159,18 +159,27 @@ impl Behaviour {
     }
 }
 
-/// Allows every connection, and has no protocol or events of its own.
+/// Refuses inbound connections from blocked peers, and has no protocol or events of its own.
+///
+/// A refusal is a [`DialError`], as a dial the gate refuses gets, in the
+/// [`ListenError::Denied`](libp2p::swarm::ListenError::Denied) the swarm reports.
 impl NetworkBehaviour for Behaviour {
     type ConnectionHandler = dummy::ConnectionHandler;
     type ToSwarm = Infallible;
 
+    /// Refuses a connection from a blocked peer, the first point where its peer ID is known: once
+    /// the handshake is done, and before any other behaviour sees the connection.
     fn handle_established_inbound_connection(
         &mut self,
         _connection_id: ConnectionId,
-        _peer: PeerId,
+        peer: PeerId,
         _local_addr: &Multiaddr,
-        _remote_addr: &Multiaddr,
+        remote_addr: &Multiaddr,
     ) -> Result<THandler<Self>, ConnectionDenied> {
+        if self.is_blocked_peer(&peer) {
+            debug!(target: "gossip", %peer, %remote_addr, "Refusing a connection from a blocked peer");
+            return Err(ConnectionDenied::new(DialError::PeerBlocked { peer_id: peer }));
+        }
         Ok(dummy::ConnectionHandler)
     }
 

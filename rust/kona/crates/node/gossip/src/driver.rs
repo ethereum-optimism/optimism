@@ -395,7 +395,8 @@ where
         self.connection_gate.unprotect_peer(peer_id);
     }
 
-    /// Blocks `peer_id`: the gate refuses to dial it, and gossipsub ignores its messages.
+    /// Blocks `peer_id`: the gate refuses to dial it and refuses its incoming connections, and
+    /// gossipsub ignores its messages. Connections already open stay open.
     pub fn block_peer(&mut self, peer_id: PeerId) {
         let behaviour = self.swarm.behaviour_mut();
         behaviour.gate.block_peer(peer_id);
@@ -867,6 +868,7 @@ mod tests {
             transport::{self, TransportEvent},
         },
         multiaddr::Protocol,
+        swarm::ListenError,
     };
     use std::{
         pin::Pin,
@@ -1452,6 +1454,56 @@ mod tests {
         // Start it again, with the same identity and address.
         let mut driver_2 = memory_driver_builder_at(keypair_2, addr_2).build().expect("build");
         driver_2.start().await.expect("listen on the same address");
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+    }
+
+    /// A blocked peer can't connect to us: the gate refuses its connection as soon as the handshake
+    /// shows its peer ID, so the driver never sees it established. Once unblocked, it connects.
+    #[tokio::test]
+    async fn test_blocked_peer_cannot_connect_inbound() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+        let (peer_1, peer_2) = (*driver_1.local_peer_id(), *driver_2.local_peer_id());
+        let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
+        driver_2.start().await.expect("listen");
+        driver_1.block_peer(peer_2);
+
+        driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
+        let mut refusal = None;
+        let refused = async {
+            while refusal.is_none() {
+                tokio::select! {
+                    Some(event) = driver_1.next() => {
+                        match &event {
+                            SwarmEvent::IncomingConnectionError {
+                                error: ListenError::Denied { cause }, ..
+                            } => refusal = cause.downcast_ref::<DialError>().cloned(),
+                            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                                assert_ne!(*peer_id, peer_2, "the blocked peer connected");
+                            }
+                            _ => {}
+                        }
+                        driver_1.handle_event(event);
+                    }
+                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
+                }
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(10), refused).await.expect("refused");
+        assert!(
+            matches!(refusal, Some(DialError::PeerBlocked { peer_id }) if peer_id == peer_2),
+            "{refusal:?}"
+        );
+        // A sanity check that neither side is left connected. We never were. The blocked peer
+        // finished its handshake, so it saw the connection established on its side, and stays
+        // connected until it notices that we dropped the connection. Polling it alone isn't
+        // enough: the close only reaches it once our side is polled too.
+        assert!(!driver_1.is_connected(&peer_2));
+        poll_until(&mut driver_1, &mut driver_2, |_, driver_2| !driver_2.is_connected(&peer_1))
+            .await;
+
+        driver_1.unblock_peer(peer_2);
+        driver_2.dial_multiaddr(addr_1).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
 
