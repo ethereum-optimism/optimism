@@ -4,19 +4,15 @@
 //! its response on one socket per device; a future dropped between the two leaves the response
 //! for the next request on that device.
 
-use std::{
-    collections::HashMap, ffi::OsString, panic::AssertUnwindSafe, path::PathBuf, sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
 use alloy_primitives::B256;
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use futures::FutureExt;
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use parking_lot::Mutex;
 use sp1_core_executor::{ExecutionError, ExecutionReport, SP1ContextBuilder, SP1CoreOpts};
-use sp1_primitives::SP1_CRATE_VERSION;
 use sp1_sdk::{
     CudaProver, Elf, HashableKey, LightProver, ProveRequest, Prover, ProvingKey, SP1ProofMode,
     SP1ProofWithPublicValues, SP1Stdin, SP1VerifyingKey, cuda::builder::CudaProverBuilder,
@@ -55,12 +51,11 @@ impl std::fmt::Debug for LocalCudaProofProvider {
 }
 
 impl LocalCudaProofProvider {
-    /// Checks the GPU server binary and starts one server per configured device.
+    /// Starts one `$HOME/.sp1/bin/sp1-gpu-server` per configured device.
     pub async fn new(
         config: &LocalCudaConfig,
         provider_config: ProofProviderConfig,
     ) -> Result<Self> {
-        check_gpu_server(std::env::var_os("HOME")).await?;
         ensure!(
             cfg!(target_arch = "x86_64"),
             "local CUDA proving needs an x86-64 host; run the {CUDA_IMAGE} image"
@@ -118,27 +113,6 @@ impl LocalCudaProofProvider {
     ) -> Result<()> {
         Prover::verify(&self.verifier, proof, verifying_key, None).map_err(anyhow::Error::new)
     }
-}
-
-/// Checks that `$HOME/.sp1/bin/sp1-gpu-server` exists and reports the linked SP1 version.
-/// Otherwise the SDK downloads a server and stops running servers with `systemctl`.
-async fn check_gpu_server(home: Option<OsString>) -> Result<()> {
-    let home = home.with_context(|| format!("$HOME is not set; run the {CUDA_IMAGE} image"))?;
-    let path = PathBuf::from(home).join(".sp1/bin/sp1-gpu-server");
-    ensure!(path.is_file(), "{} does not exist; run the {CUDA_IMAGE} image", path.display());
-    let output =
-        tokio::process::Command::new(&path).arg("--version").output().await.with_context(|| {
-            format!("run {} --version; check the {CUDA_IMAGE} image", path.display())
-        })?;
-    let version = String::from_utf8_lossy(&output.stdout);
-    ensure!(
-        version.trim() == SP1_CRATE_VERSION,
-        "{} reports version {:?}, but op-zk-proposer links SP1 {SP1_CRATE_VERSION}; run the \
-         {CUDA_IMAGE} image of this build",
-        path.display(),
-        version.trim()
-    );
-    Ok(())
 }
 
 /// One device's `sp1-gpu-server`.
@@ -645,7 +619,6 @@ impl<S: DeviceServer> Core<S> {
 mod tests {
     use std::{
         io,
-        os::unix::fs::PermissionsExt,
         sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     };
 
@@ -1210,32 +1183,6 @@ mod tests {
         let outcomes = harness.core.outcomes.lock();
         assert!(!outcomes.contains_key(&proof_id));
         assert!(outcomes.contains_key(&kept));
-    }
-
-    #[tokio::test]
-    async fn startup_rejects_missing_or_mismatched_gpu_server() {
-        let err = check_gpu_server(None).await.unwrap_err().to_string();
-        assert!(err.contains(CUDA_IMAGE), "{err}");
-
-        let home = tempfile::tempdir().unwrap();
-        let err = check_gpu_server(Some(home.path().into())).await.unwrap_err().to_string();
-        assert!(err.contains(CUDA_IMAGE), "{err}");
-
-        let bin = home.path().join(".sp1/bin");
-        std::fs::create_dir_all(&bin).unwrap();
-        let server = bin.join("sp1-gpu-server");
-        for (version, ok) in [("6.9.0", false), (SP1_CRATE_VERSION, true)] {
-            std::fs::write(&server, format!("#!/bin/sh\necho {version}\n")).unwrap();
-            std::fs::set_permissions(&server, std::fs::Permissions::from_mode(0o755)).unwrap();
-            let result = check_gpu_server(Some(home.path().into())).await;
-            match result {
-                Ok(()) => assert!(ok, "{version} accepted"),
-                Err(err) => {
-                    assert!(!ok, "{version}: {err}");
-                    assert!(err.to_string().contains(CUDA_IMAGE), "{err}");
-                }
-            }
-        }
     }
 
     #[test]
