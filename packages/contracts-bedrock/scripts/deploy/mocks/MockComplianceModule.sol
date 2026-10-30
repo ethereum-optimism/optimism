@@ -69,9 +69,6 @@ contract MockComplianceModule is IComplianceModule {
     /// @notice Thrown when the caller is not the owner.
     error MockComplianceModule_NotOwner();
 
-    /// @notice Thrown when a verdict's expiry could never let an item move.
-    error MockComplianceModule_InvalidExpiry();
-
     /// @param _portal Portal this module is the hook for.
     /// @param _owner  Address allowed to set the policy and to disable or enable.
     constructor(IOptimismPortal2 _portal, address _owner) {
@@ -182,13 +179,9 @@ contract MockComplianceModule is IComplianceModule {
     ///         reaches the Portal.
     /// @param _id        The item's identifier.
     /// @param _expiresAt When the verdict stops being valid, as the Verdict Writer chose it.
-    ///                   Must not already have passed. Zero is rejected by the same check,
-    ///                   because zero is the record's sentinel for carrying no verdict at all.
+    ///                   Stored as given: whether an expiry is usable, and whether an expired
+    ///                   verdict still counts, are both the policy's decision.
     function recordVerdict(bytes32 _id, uint64 _expiresAt) external onlyPolicy {
-        // Either would store a clearance that can never let the item move, while still emitting
-        // VerdictRecorded. A screener watching the event would read that as a success.
-        if (_expiresAt < block.timestamp) revert MockComplianceModule_InvalidExpiry();
-
         _items[_id].expiresAt = _expiresAt;
         emit VerdictRecorded(_id, _expiresAt);
     }

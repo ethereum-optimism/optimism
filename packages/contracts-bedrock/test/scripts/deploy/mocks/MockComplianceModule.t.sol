@@ -306,37 +306,6 @@ contract MockComplianceModule_recordVerdict_Test is MockComplianceModule_TestIni
         assertEq(expiresAt, 4242);
     }
 
-    /// @notice Tests that a zero expiry is refused. Zero is the record's sentinel for carrying
-    ///         no verdict, so storing it would emit VerdictRecorded for a clearance that leaves
-    ///         the item uncleared.
-    function test_recordVerdict_zeroExpiry_reverts() public {
-        vm.warp(1000);
-
-        vm.expectRevert(MockComplianceModule.MockComplianceModule_InvalidExpiry.selector);
-        policy.clear(keccak256("item"), 0);
-    }
-
-    /// @notice Tests that an already-passed expiry is refused, since the policy would treat it
-    ///         as expired the moment it was read.
-    function test_recordVerdict_pastExpiry_reverts() public {
-        vm.warp(1000);
-
-        vm.expectRevert(MockComplianceModule.MockComplianceModule_InvalidExpiry.selector);
-        policy.clear(keccak256("item"), 999);
-    }
-
-    /// @notice Tests that an expiry landing exactly on the current timestamp is accepted, since
-    ///         the policy only treats a clearance as expired once the timestamp is past it.
-    function test_recordVerdict_expiryAtNow_succeeds() public {
-        vm.warp(1000);
-        bytes32 id = keccak256("item");
-
-        policy.clear(id, 1000);
-
-        (, uint64 expiresAt) = module.items(id);
-        assertEq(expiresAt, 1000);
-    }
-
     /// @notice Tests that only the policy may write a verdict, since that is what keeps
     ///         clearance under the chain's control.
     function test_recordVerdict_callerNotPolicy_reverts() public {

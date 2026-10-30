@@ -226,6 +226,39 @@ contract MockPolicy_clear_Test is MockPolicy_TestInit {
         policy.clear(id, 4242);
     }
 
+    /// @notice Tests that a zero expiry is refused. Zero is the module record's sentinel for
+    ///         carrying no verdict, so recording it would emit VerdictRecorded for a clearance
+    ///         that leaves the item uncleared.
+    function test_clear_zeroExpiry_reverts() public {
+        vm.warp(1000);
+
+        vm.prank(screener);
+        vm.expectRevert(MockPolicy.MockPolicy_InvalidExpiry.selector);
+        policy.clear(keccak256("item"), 0);
+    }
+
+    /// @notice Tests that an already-passed expiry is refused, since the policy would treat it
+    ///         as expired the moment it read it back.
+    function test_clear_pastExpiry_reverts() public {
+        vm.warp(1000);
+
+        vm.prank(screener);
+        vm.expectRevert(MockPolicy.MockPolicy_InvalidExpiry.selector);
+        policy.clear(keccak256("item"), 999);
+    }
+
+    /// @notice Tests that an expiry landing exactly on the current timestamp is accepted, since
+    ///         a clearance only counts as expired once the timestamp is past it.
+    function test_clear_expiryAtNow_succeeds() public {
+        vm.warp(1000);
+        bytes32 id = keccak256("item");
+        vm.mockCall(module, abi.encodeCall(IComplianceModule.recordVerdict, (id, 1000)), "");
+        vm.expectCall(module, abi.encodeCall(IComplianceModule.recordVerdict, (id, 1000)));
+
+        vm.prank(screener);
+        policy.clear(id, 1000);
+    }
+
     /// @notice Tests that only the screener may clear, since the policy is the only address the
     ///         module accepts verdicts from.
     function test_clear_callerNotScreener_reverts() public {
