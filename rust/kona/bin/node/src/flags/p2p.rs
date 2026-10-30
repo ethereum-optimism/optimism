@@ -10,7 +10,6 @@ use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
 use clap::Parser;
 use enr::k256;
-use kona_derive::ChainProvider;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::{GaterConfig, PeerAddr};
@@ -409,7 +408,7 @@ impl P2PArgs {
         l1_eth_rpc: Option<Url>,
     ) -> anyhow::Result<alloy_primitives::Address> {
         if let Some(l1_eth_rpc) = l1_eth_rpc {
-            let mut provider = AlloyChainProvider::new_http(l1_eth_rpc, 1024);
+            let provider = AlloyChainProvider::new_http(l1_eth_rpc, 1024);
             let latest_block_num = provider.latest_block_number().await?;
             let block_info = provider.block_info_by_number(latest_block_num).await?;
             return Ok(kona_providers_alloy::unsafe_block_signer(
