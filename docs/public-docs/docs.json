@@ -423,11 +423,11 @@
     },
     {
       "source": "/identity/optimist-profile",
-      "destination": "/governance/attestation-schemas"
+      "destination": "/governance/gov-faq"
     },
     {
       "source": "/chain/identity/optimist-profile",
-      "destination": "/governance/attestation-schemas"
+      "destination": "/governance/gov-faq"
     },
     {
       "source": "/app-developers/tools/overview",
@@ -1720,6 +1720,14 @@
     {
       "source": "/stack/components",
       "destination": "/op-stack/protocol/components"
+    },
+    {
+      "source": "/governance/eas-attestations",
+      "destination": "/governance/gov-faq"
+    },
+    {
+      "source": "/governance/attestation-schemas",
+      "destination": "/governance/gov-faq"
     },
     {
       "source": "/governance/blockspace-charter",
