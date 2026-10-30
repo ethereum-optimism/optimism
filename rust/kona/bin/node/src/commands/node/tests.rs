@@ -170,5 +170,5 @@ fn alt_da_config_files_are_refused() {
 
     let command = NodeCommand { l2_config_file: Some(file.path().into()), ..Default::default() };
     let err = command.get_l2_config(&GlobalArgs::default()).unwrap_err();
-    assert!(err.to_string().contains("alt-DA"), "{err}");
+    assert!(err.to_string().contains("unknown field `alt_da`"), "{err}");
 }

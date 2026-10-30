@@ -34,8 +34,7 @@ const fn default_fjord_max_sequencer_drift() -> u64 {
 /// The Rollup configuration.
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-// Derive the serde impls as inherent functions, so the `Deserialize` impl below can wrap them.
-#[cfg_attr(feature = "serde", serde(remote = "Self"))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct RollupConfig {
     /// The genesis state of the rollup.
     pub genesis: ChainGenesis,
@@ -144,33 +143,6 @@ impl Default for RollupConfig {
             blobs_enabled_l1_timestamp: None,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
         }
-    }
-}
-
-#[cfg(feature = "serde")]
-impl serde::Serialize for RollupConfig {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        Self::serialize(self, serializer)
-    }
-}
-
-/// Rejects a config with an `alt_da` section. kona only supports Ethereum DA, so it would derive an
-/// alt-DA chain wrongly without any error.
-#[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for RollupConfig {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        #[derive(serde::Deserialize)]
-        struct Checked {
-            alt_da: Option<serde::de::IgnoredAny>,
-            #[serde(flatten, with = "RollupConfig")]
-            config: RollupConfig,
-        }
-
-        let checked = <Checked as serde::Deserialize>::deserialize(deserializer)?;
-        if checked.alt_da.is_some() {
-            return Err(serde::de::Error::custom("kona does not support alt-DA chains"));
-        }
-        Ok(checked.config)
     }
 }
 
@@ -881,13 +853,14 @@ mod tests {
     #[cfg(feature = "serde")]
     fn test_deserialize_rejects_alt_da() {
         let mut config = serde_json::to_value(expected_rollup_config()).unwrap();
-        config["alt_da"] = serde_json::Value::Null;
-        let deserialized: RollupConfig = serde_json::from_value(config.clone()).unwrap();
-        assert_eq!(deserialized, expected_rollup_config());
-
-        config["alt_da"] = serde_json::json!({ "da_commitment_type": "GenericCommitment" });
-        let err = serde_json::from_value::<RollupConfig>(config).unwrap_err();
-        assert!(err.to_string().contains("alt-DA"), "{err}");
+        for alt_da in [
+            serde_json::Value::Null,
+            serde_json::json!({ "da_commitment_type": "GenericCommitment" }),
+        ] {
+            config["alt_da"] = alt_da;
+            let err = serde_json::from_value::<RollupConfig>(config.clone()).unwrap_err();
+            assert!(err.to_string().contains("unknown field `alt_da`"), "{err}");
+        }
     }
 
     fn expected_rollup_config() -> RollupConfig {
@@ -1053,9 +1026,8 @@ mod tests {
         }
         "#;
 
-        let expected = expected_rollup_config();
-        let deserialized: RollupConfig = serde_json::from_str(raw).unwrap();
-        assert_eq!(deserialized, expected);
+        let err = serde_json::from_str::<RollupConfig>(raw).unwrap_err();
+        assert_eq!(err.classify(), serde_json::error::Category::Data);
     }
 
     #[test]
