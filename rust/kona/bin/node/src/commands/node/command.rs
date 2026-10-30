@@ -279,7 +279,7 @@ impl NodeCommand {
     pub async fn run(self, args: &GlobalArgs) -> anyhow::Result<()> {
         let cfg = self.get_l2_config(args)?;
         if cfg.is_alt_da_enabled() {
-            bail!("kona-node does not support alt-DA chains; run op-node instead");
+            bail!("kona-node does not support alt-DA chains");
         }
 
         info!(
