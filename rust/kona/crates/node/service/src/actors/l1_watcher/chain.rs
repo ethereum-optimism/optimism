@@ -2,9 +2,9 @@
 
 use super::{L1WatcherActorError, L1WatcherDerivationClient};
 use alloy_primitives::Address;
-use alloy_provider::Provider;
 use kona_genesis::RollupConfig;
 use kona_protocol::BlockInfo;
+use kona_providers_alloy::{AlloyChainProvider, BlockLabel};
 use kona_rpc::L1WatcherQueries;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
@@ -60,7 +60,7 @@ where
     /// channel tears down only this worker; slow RPCs cannot hold up shared L1 observation.
     pub(super) async fn run(
         self,
-        provider: impl Provider,
+        provider: AlloyChainProvider,
         head: tokio::sync::watch::Receiver<Option<BlockInfo>>,
         finalized: tokio::sync::watch::Receiver<Option<BlockInfo>>,
     ) -> Result<(), L1WatcherActorError<BlockInfo>> {
@@ -104,7 +104,7 @@ where
     }
 
     async fn refresh_signer(
-        provider: &impl Provider,
+        provider: &AlloyChainProvider,
         config: &RollupConfig,
         signer_tx: &watch::Sender<Address>,
         mut head: tokio::sync::watch::Receiver<Option<BlockInfo>>,
@@ -119,8 +119,9 @@ where
                 _ = signer_tx.closed() => return Err(L1WatcherActorError::StreamEnded),
             }
             let Some(target) = *head.borrow_and_update() else { continue };
+            // A storage slot cannot be verified against the header, so this read trusts the RPC.
             let read = kona_providers_alloy::unsafe_block_signer(
-                provider,
+                &provider.inner,
                 config.l1_system_config_address,
                 target.hash,
             );
@@ -141,7 +142,7 @@ where
     }
 
     async fn serve_queries(
-        provider: &impl Provider,
+        provider: &AlloyChainProvider,
         config: &RollupConfig,
         derivation_origin: watch::Receiver<Option<BlockInfo>>,
         queries: &mut mpsc::Receiver<L1WatcherQueries>,
@@ -161,23 +162,22 @@ where
     }
 
     async fn l1_state(
-        provider: &impl Provider,
+        provider: &AlloyChainProvider,
         current_l1: Option<BlockInfo>,
     ) -> kona_rpc::L1State {
-        use alloy_eips::BlockId;
-        let read = |id| async move {
-            match provider.get_block(id).await {
-                Ok(block) => block.map(|block| block.into_consensus().into()),
-                result => {
-                    warn!(target: "l1_watcher", ?result, "L1 state query failed");
-                    None
-                }
-            }
+        let read = |label| async move {
+            provider
+                .block_info_by_label(label)
+                .await
+                .inspect_err(|error| {
+                    warn!(target: "l1_watcher", ?label, %error, "L1 state query failed");
+                })
+                .ok()
         };
         let (head_l1, finalized_l1, safe_l1) = tokio::join!(
-            read(BlockId::latest()),
-            read(BlockId::finalized()),
-            read(BlockId::safe())
+            read(BlockLabel::Latest),
+            read(BlockLabel::Finalized),
+            read(BlockLabel::Safe)
         );
         kona_rpc::L1State {
             current_l1,
