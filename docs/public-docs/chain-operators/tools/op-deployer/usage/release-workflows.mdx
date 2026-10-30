@@ -40,61 +40,57 @@ git push origin fixes/deployer-v0.2.0
 Adding support for a new contract version is a multi-step process. Here's a high-level overview. For the sake of
 simplicity we will assume you are adding support for a new `rc` release.
 
+OP Deployer is released from the same `proposal/op-contracts/vX.Y.Z` branch as the contracts it supports, so the two
+stay compatible while contract development continues on `develop`. The contract artifacts are embedded in the binary
+at build time from that checkout, so there is nothing to publish or pin for them.
+
 ### Step 1: Add Support on Develop
 
 First, you need to add support for the new contract version on the `develop` branch. This means ensuring that the
 deployment pipeline supports whatever changes are required for the new version. Typically, this means passing in new
 deployment variables, and responding to ABI changes in the Solidity scripts/OPCM.
 
-### Step 2: Add the Published Artifacts
+### Step 2: Tag the Contracts Release
 
-Run the following from the root of the monorepo:
-
-```bash
-cd packages/contracts-bedrock
-just clean
-just build
-bash scripts/ops/calculate-checksum.sh
-# copy the outputted checksum
-cd ../../op-deployer
-just calculate-artifacts-hash <checksum>
-```
-
-This will calculate the checksum of your artifacts as well as the hash of the artifacts tarball. OP Deployer uses
-these values to download and verify tagged contract locators.
-
-Now, update `standard/standard.go` with these values so that the new artifacts tarball can be downloaded:
-
-```go
-// Add a new const for your release
-
-const ContractsVXTag = "op-contracts/vX.Y.Z"
-
-var taggedReleases = map[string]TaggedRelease{
-// Other releases...
-ContractsVXTag: {
-ArtifactsHash: common.HexToHash("<the artifacts hash>"),
-ContentHash:   common.HexToHash("<the checksum>"),
-},
-}
-
-// Update the L1/L2 versions accordingly
-func IsSupportedL1Version(tag string) bool {
-return tag == ContractsVXTag
-}
-```
+The contracts team tags the release as `op-contracts/vX.Y.Z-rc.n` and deploys the OPCM, following the
+[contracts release process](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/book/src/policies/release-process.md).
+The OP Deployer release is cut from the same commit.
 
 ### Step 3: Update the SR With the New Release
 
-Add the new RC to the [standard versions](https://github.com/ethereum-optimism/superchain-registry/tree/main/validation/standard) in the superchain-registry.
+Add the new RC to the [standard versions](https://github.com/ethereum-optimism/superchain-registry/tree/main/validation/standard)
+in the superchain-registry, with the addresses from the OPCM deployment.
 
-### Step 4: Update the Validation Package
+### Step 4: Update the Validation Package and the Current Tag
 
-The SR is pulled into OP Deployer via the `validation` package. Update it by running the following command from the
-root of the monorepo:
+The SR is pulled into OP Deployer via the `validation` package. On the proposal branch, update it:
 
 ```shell
-go get -u github.com/ethereum-optimism/superchain-registry/validation@<SR commit SHA>
+go get github.com/ethereum-optimism/superchain-registry/validation@<SR commit SHA>
+go mod tidy
 ```
 
-That should be it!
+Then, in `op-deployer/pkg/deployer/standard/standard.go`, add a constant for the new tag and point `CurrentTag` at it:
+
+```go
+ContractsVXTag = "op-contracts/vX.Y.Z-rc.n"
+CurrentTag     = ContractsVXTag
+```
+
+`CurrentTag` is how OP Deployer resolves the standard OPCM address from the registry. Open a PR against the proposal
+branch. Once it merges, cherry-pick the OP Deployer changes to `develop`.
+
+### Step 5: Tag the Release
+
+The OP Deployer minor version tracks the contracts major version: contracts `vX.0.0` pairs with `op-deployer/v0.X.0`.
+Tag the head of the proposal branch and push the tag:
+
+```shell
+git tag -a op-deployer/v0.X.0-rc.n -m "op-deployer/v0.X.0-rc.n"
+git push origin op-deployer/v0.X.0-rc.n
+```
+
+The tag triggers two CircleCI workflows: `release` publishes the docker images, and `go-release-op-deployer` runs
+goreleaser, which publishes the binaries and creates the GitHub release. Wait for both to finish, then edit the release
+notes and mark a release candidate as a pre-release (`gh release edit <tag> --prerelease`). Announce the release in
+`#proj-op-deployer` and `#solutions`.
