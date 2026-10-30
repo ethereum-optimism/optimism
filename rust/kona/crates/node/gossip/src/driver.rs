@@ -766,7 +766,7 @@ where
                 }
 
                 let peer_count = self.swarm.connected_peers().count();
-                info!(target: "gossip", "Connection established: {:?} | Peer Count: {}", peer_id, peer_count);
+                debug!(target: "gossip", "Connection established: {:?} | Peer Count: {}", peer_id, peer_count);
                 metrics::gauge!(crate::Metrics::GOSSIPSUB_CONNECTION, "type" => "connected")
                     .increment(1);
                 metrics::gauge!(crate::Metrics::GOSSIP_PEER_COUNT).set(peer_count as f64);
@@ -821,7 +821,7 @@ where
                 }
 
                 let peer_count = self.swarm.connected_peers().count();
-                warn!(target: "gossip", ?peer_id, ?cause, peer_count, "Connection closed");
+                debug!(target: "gossip", ?peer_id, ?cause, peer_count, "Connection closed");
                 metrics::gauge!(crate::Metrics::GOSSIP_PEER_COUNT).set(peer_count as f64);
 
                 // Record the total connection duration.
