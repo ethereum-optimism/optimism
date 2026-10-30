@@ -235,8 +235,10 @@ func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 	return big.NewInt(int64(n))
 }
 
-// buildDevFeatureBitmap reads the devFeatureBitmap from global overrides and returns an error if the interop feature
-// bit does not match the UseInterop intent flag. This ensures that interop feature is explicitly enabled by both the intent and the boolean flag.
+// buildDevFeatureBitmap reads the devFeatureBitmap from global overrides and derives the interop feature bit from
+// the UseInterop intent flag: when UseInterop is set the OPTIMISM_PORTAL_INTEROP bit is enabled without the operator
+// having to spell it out in the bitmap. Setting the bit while UseInterop is false is still an error, since the two
+// would otherwise disagree about whether the interop predeploys exist.
 func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
 	var devFeatureBitmap common.Hash
 	switch v := intent.GlobalDeployOverrides["devFeatureBitmap"].(type) {
@@ -246,10 +248,12 @@ func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
 		devFeatureBitmap = common.HexToHash(v)
 	}
 
-	interopBitEnabled := devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OptimismPortalInteropFlag)
+	if intent.UseInterop {
+		return devfeatures.EnableDevFeature(devFeatureBitmap, devfeatures.OptimismPortalInteropFlag), nil
+	}
 
-	if intent.UseInterop != interopBitEnabled {
-		return common.Hash{}, fmt.Errorf("interop feature in devFeatureBitmap does not match the UseInterop intent flag")
+	if devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OptimismPortalInteropFlag) {
+		return common.Hash{}, fmt.Errorf("interop feature bit is set in devFeatureBitmap but the UseInterop intent flag is false")
 	}
 
 	return devFeatureBitmap, nil
