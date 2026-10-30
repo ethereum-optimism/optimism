@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -32,6 +33,9 @@ type Env struct {
 	Scripts      *opcm.Scripts
 	// Forge runs the deploy scripts. When it is nil, the scripts run on L1ScriptHost.
 	Forge *opcm.ForgeEnv
+	// L2Forge runs the L2 genesis script in the L2 contracts. When it is nil, the script runs on a
+	// script host.
+	L2Forge *forge.Client
 	// IsGenesis identifies deployments that build genesis allocations instead of targeting a running chain.
 	IsGenesis bool
 	// DeployMockSP1Verifier explicitly opts development environments into an accept-all raw verifier.

@@ -32,6 +32,9 @@ var (
 		{"DeployAlphabetVM.s.sol", "DeployAlphabetVM"},
 		{"SetDisputeGameImpl.s.sol", "SetDisputeGameImpl"},
 	}
+
+	// L2ForgeScripts are the scripts that build the L2 genesis.
+	L2ForgeScripts = []ForgeScript{{"L2Genesis.s.sol", "L2Genesis"}}
 )
 
 // NewForgeClient returns a forge client for a contracts bundle. It checks that the scripts have the
