@@ -335,7 +335,10 @@ async fn test_failed_reset_keeps_origin_unpublished_until_successful_reset(#[cas
     // A reset can fail before it replaces the old origin, for example on an L2 RPC error.
     actor.pipeline.reset_error = Some(PipelineError::Eof.temp());
     request_tx.send(reset()).await.unwrap();
-    actor.step().await.unwrap();
+    assert!(matches!(
+        actor.step().await,
+        Err(DerivationError::Pipeline(PipelineErrorKind::Temporary(PipelineError::Eof)))
+    ));
     assert_eq!(actor.pipeline.origin.id(), safe_head.l1_origin);
     assert!(derivation_origin_rx.borrow().is_none());
 
@@ -365,6 +368,7 @@ async fn test_failed_reset_keeps_origin_unpublished_until_successful_reset(#[cas
 struct QueuedPipeline {
     attributes: VecDeque<OpAttributesWithParent>,
     derived_from: BlockInfo,
+    reset_error: Option<PipelineErrorKind>,
     rollup_config: Arc<RollupConfig>,
 }
 
@@ -386,6 +390,9 @@ impl kona_derive::OriginProvider for QueuedPipeline {
 impl SignalReceiver for QueuedPipeline {
     async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
         if matches!(signal, Signal::Reset(_)) {
+            if let Some(error) = self.reset_error.take() {
+                return Err(error);
+            }
             self.attributes.push_back(derived_attributes());
         }
         Ok(())
@@ -480,6 +487,7 @@ impl RecordingActor {
         let pipeline = QueuedPipeline {
             attributes: VecDeque::from([derived_attributes()]),
             derived_from: l1_block(DERIVED_FROM_L1),
+            reset_error: None,
             rollup_config: Arc::new(RollupConfig::default()),
         };
         let (request_tx, request_rx) = mpsc::channel(1);
@@ -633,3 +641,5 @@ async fn a_block_is_queued_for_finalization_only_once_it_is_recorded() {
 mod database;
 
 mod safedb_tests;
+
+mod signal_failures;
