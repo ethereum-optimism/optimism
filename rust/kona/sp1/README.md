@@ -322,18 +322,75 @@ proposer loses the ability to defend, resolve, and claim those games.
   collection computes the real range/consolidation outputs and the aggregation
   inputs are validated), then submits placeholder proof bytes. Only a deployment
   with a mock game verifier (devstack) accepts them. No ELFs, no SPN credentials.
+- `OP_ZK_PROPOSER_PROOF_PROVIDER=local-cuda`: real SP1 proving on local NVIDIA GPUs, a backup
+  for an SPN outage. It runs only in the `op-zk-proposer-cuda` image and needs no SPN
+  credentials. The key and verifier checks of `network` apply. See below.
+
+### Local CUDA proving
+
+The `op-zk-proposer-cuda` image (amd64 only) adds `sp1-gpu-server`, the CUDA 12.8 runtime,
+and the PLONK circuits to the `op-zk-proposer` binary. It has no release tag: an
+`op-zk-proposer/vX` tag builds only the default image, so deploy a `develop` SHA. At startup
+the proposer checks that `$HOME/.sp1/bin/sp1-gpu-server --version` equals the linked SP1
+version, then starts one server per device in `OP_ZK_PROPOSER_CUDA_DEVICES`. Server output
+goes to the container log in the server's own format.
+
+Each request first runs its program on the CPU (pre-execution) with its cycle limit and
+`OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES`, at most one per device at a time. An execution
+error (a cycle or memory breach, a guest fault) or a guest exit code other than 0 is
+`Unexecutable`, so the proposer bisects or splits as it does for SPN. A memory-monitor kill
+counts only after 3 runs, since one kill reads a host-dependent RSS sample. The request then
+waits for a free device, which proves one request at a time; pre-execution holds no device.
+Any other failure, including an external kill of the executor, ends the request as
+`ProverFailed`, logged at error level, and the next attempt submits it again until the game
+deadline. An aggregation stdin over 4 GiB, about 3,370 child proofs, is `ProverFailed` without
+reaching a device: the server protocol frames a request with a 32-bit length. A wait
+returns after `SP1_TIMEOUT_SECONDS` while the proof keeps running, and the
+next attempt waits for the same proof. A finished proof that no one waits for is dropped
+after `SP1_TIMEOUT_SECONDS`. Nothing cancels a running proof, so the proof of an abandoned
+game runs to the end. Each device keeps the proving keys of every prestate it has proved
+until the process exits.
+
+A broken connection to a GPU server, or a panic while a task holds a device, ends the process
+with an error, which stops every server; Kubernetes restarts the pod. Proof progress is in
+memory and is lost, and the proposer rebuilds its state from L1. A server that crashes on one input
+therefore restarts the proposer each time it reaches that input. A server that stops
+answering is not detected: its device proves nothing more, and only
+`op_zk_proposer_proving_timeout_error` grows, so alert on it.
+
+Sizing, per GPU: 24 GB of VRAM, compute capability 8.6 or higher, a driver for CUDA 12.8
+(R570 or later), 8 CPU cores, and about 32 GB of host RAM, up to about 96 GB during the
+PLONK wrap, in addition to the pre-execution memory below. For example, `g2-standard-32` with
+one L4. `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES` does not reach the server, which inherits the
+proposer's environment; SP1's default executor options read `MEMORY_LIMIT` (default 24 GiB).
+Keep the two equal. The executor keeps guest
+memory and its trace ring in POSIX shared memory, so mount a `medium: Memory` `emptyDir` at
+`/dev/shm` sized for the memory limit of each concurrent pre-execution, and count it in pod
+memory; the container default of 64 MiB fails every pre-execution. Set
+`OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` to the device count: the default `1` uses one
+GPU per game.
+
+The proposer builds each request's stdin before the request waits for a device, and a game
+submits all of its log-commitment batches before it waits for any. Queued requests therefore
+hold their stdin in memory, up to `OP_ZK_PROPOSER_MAX_STDIN_BYTES` each, across
+`OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` games; with SPN each stdin is uploaded and
+freed. Each request also makes up to three short-lived copies of its stdin, during
+pre-execution and when it is sent to the server. Lower both values, and size pod memory for
+the queued stdin plus, per concurrent pre-execution, three stdin copies, about 24 GiB, and
+4.4 GiB of gas-trace buffers.
 
 ### Restart behavior
 
 Proving progress is process-local. Retries with unchanged inputs reuse submitted
 request IDs, completed chunks, and fulfilled aggregation proofs. `Cancelled`,
 `Expired`, `Reverted`, and `Unfulfillable` requests are retryable and may
-purchase replacements. A request that SPN also reports `UNEXECUTABLE` (how it
+purchase replacements; so is a local `ProverFailed` request. A request that SPN also reports `UNEXECUTABLE` (how it
 reports gas, cycle, and memory breaches) is treated as `Unexecutable`, not
 `Unfulfillable`. Progress is cleared when a game becomes terminal, is
 evicted, fails a definitive pre-submit check, or is proven successfully.
 
-A restart loses all progress and re-detects games that still need proofs. A
+A restart loses all progress, including running local CUDA proofs, and re-detects games
+that still need proofs. A
 pre-flight check prevents duplicate `prove()` submissions. Fast finality also
 re-detects unproven, signer-created games after restart.
 
@@ -390,12 +447,12 @@ Names below use the `op_zk_proposer_` prefix.
 | `up` | Gauge | `1` after the process starts. This does not imply chain-dependent startup validation has completed. Use Prometheus scrape availability to detect process loss. |
 | `signer_balance_eth` | Gauge | L1 transaction signer's balance in ETH. |
 | `signer_nonce` / `signer_pending_nonce` | Gauge | L1 signer's latest mined and pending nonces. Pending stays above latest while proposer transactions wait in the mempool; a gap that does not close means a stuck transaction. |
-| `prove_balance` | Gauge | Configured SP1 network account's spendable balance in PROVE, not the signer's ERC-20 wallet balance. Absent in mock mode. |
+| `prove_balance` | Gauge | Configured SP1 network account's spendable balance in PROVE, not the signer's ERC-20 wallet balance. Absent in mock and local-cuda modes. |
 | `deadline_passed_total` | Counter | Missed game windows observed by this process, with `window="defense"` or `window="fast_finality"`. Defense expiry and missed fast-finality acceleration have different consequences. |
 | `defense_deadline_remaining_seconds` | Gauge | Minimum observed defense deadline minus L1 block time, including queued and active games. Zero is the deadline boundary; negative values indicate expiry. |
-| `proof_requests` | Gauge | SPN requests of games still being proven, by `kind` (`range`, `consolidation`, `aggregation`, `log`) and `state` (`submitting`, `submitted`, `fulfilled`, `terminal`). A game's requests drop out once its proof is submitted or its progress is discarded. `terminal` requests wait for a retry signal. |
+| `proof_requests` | Gauge | Proof requests of games still being proven, by `kind` (`range`, `consolidation`, `aggregation`, `log`) and `state` (`submitting`, `submitted`, `fulfilled`, `terminal`). A game's requests drop out once its proof is submitted or its progress is discarded. `terminal` requests wait for a retry signal. |
 | `log_batches_submitted` | Gauge | Total log-commitment batch requests submitted. Unlike `proof_requests`, it keeps counting after a game's progress clears. |
-| `spn_requester_info` | Gauge | `1`, with the SPN requester address in the `address` label. Absent in mock mode. |
+| `spn_requester_info` | Gauge | `1`, with the SPN requester address in the `address` label. Absent in mock and local-cuda modes. |
 | `tx_sends_total` | Counter | L1 sends by `outcome`: `confirmed`, `reverted` (mined with status 0) or `failed` (no receipt: send timeout, nonce-too-low abort, or an error before publishing such as a gas-estimation revert). |
 
 Balances and nonces refresh every 15 seconds. Failed reads return `NaN`
@@ -492,7 +549,7 @@ Required core configuration:
 | `OP_ZK_PROPOSER_NETWORK` | Predefined network name recognized by OP Stack services, such as `op-mainnet`; alternative to `OP_ZK_PROPOSER_FACTORY_ADDRESS` |
 | `OP_ZK_PROPOSER_FACTORY_ADDRESS` | Explicit `DisputeGameFactory` address; required when no network is selected and overrides network lookup |
 | `OP_ZK_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz`, `<vkey>.range.bin.gz`, and `<vkey>.log.bin.gz`) |
-| `OP_ZK_PROPOSER_PROOF_PROVIDER` | `network` or `mock`; no default |
+| `OP_ZK_PROPOSER_PROOF_PROVIDER` | `network`, `mock`, or `local-cuda`; no default |
 | `OP_ZK_PROPOSER_L1_BEACON_RPC` | L1 beacon API (blob sidecars for derivation witnesses) |
 | `OP_ZK_PROPOSER_L2_RPCS` | comma-separated L2 EL RPCs, one per chain, in any order; each must serve a different chain. The proposer reads every chain ID at startup and exits on a duplicate chain or a node that does not answer |
 
@@ -519,10 +576,14 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
 | `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` | total in-flight proving tasks before creation pauses (default `1`) |
 | `OP_ZK_PROPOSER_LOG_PATH` | how a game proves executing messages that reference blocks below a local safe head: `table` (the default) or `receipts`. `receipts` turns the table path off and is meant only for chains with interop off; the proposer logs a warning at startup when it is set |
+| `OP_ZK_PROPOSER_CUDA_DEVICES` | `local-cuda` only: comma-separated CUDA device IDs, one `sp1-gpu-server` each (default `0`) |
+| `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES` | `local-cuda` only: memory limit of each pre-execution's executor process (default `25769803776`, 24 GiB) |
 | `OP_ZK_PROPOSER_DATA_DIR` | directory for the kona-host preimage store and log trees of each witness collection, one `collection-*` subdirectory each, removed when the collection ends; absent = in memory. Startup removes every `collection-*` entry, so use a directory private to one proposer process. It need not persist: a node-disk `emptyDir` fits, a `medium: Memory` one saves no memory. Under attack, a table-path collection can hold about 12 GB per chain for each timestamp it covers, and a collection covers a whole chunk (about 225 timestamps of a 3,600 s game at the default split), so no disk bounds the worst case. A full disk stalls collections, since kona-host keeps retrying the fetches it cannot store, and a restart collects the same chunk again; alert on the volume's usage and on `defense_deadline_remaining_seconds` |
 
 SP1 network configuration applies when `OP_ZK_PROPOSER_PROOF_PROVIDER=network`.
-`OP_ZK_PROPOSER_NETWORK_CALLS_TIMEOUT` also bounds metric observations in mock mode.
+`OP_ZK_PROPOSER_NETWORK_CALLS_TIMEOUT` also bounds metric observations in the other modes.
+`SP1_TIMEOUT_SECONDS` and the three cycle limits also apply to `local-cuda`. The gas limits
+drive the proposer's splitting estimates in every mode, but no local prover enforces them.
 
 | Variable | Purpose |
 |---|---|
@@ -637,7 +698,7 @@ spend traded for finality latency. Blacklisted and retired games are skipped.
 Off by default.
 
 Spend framing: in network mode this proves every game created by this signer
-whose prestate artifacts are available. At a one-hour proposal interval that is
+whose prestate artifacts are available; in local-cuda mode the cost is GPU time, not PROVE. At a one-hour proposal interval that is
 a baseline of 24 aggregation proofs per day; the default
 `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT=1` serializes them. An unchallenged game created by
 another proposer is not proven, even when it uses a known prestate. Enabling the

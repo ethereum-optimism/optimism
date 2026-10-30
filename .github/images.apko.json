@@ -63,6 +63,10 @@
       ],
       "runner_profile": "large"
     },
+    "op-zk-proposer-cuda": {
+      "config": "melange/op-zk-proposer-cuda.yaml",
+      "runner_profile": "large"
+    },
     "multicannon": {
       "config": "melange/multicannon.yaml"
     },
@@ -317,6 +321,22 @@
         "apko/op-zk-proposer.yaml"
       ],
       "smoke_test": "op-zk-proposer --version"
+    },
+    "op-zk-proposer-cuda": {
+      "type": "rust",
+      "needs_melange": [
+        "op-stack-rust",
+        "op-zk-proposer-cuda"
+      ],
+      "paths": [
+        "rust/**"
+      ],
+      "nexus_paths": [
+        "melange/op-zk-proposer-cuda.yaml",
+        "apko/op-zk-proposer-cuda.yaml"
+      ],
+      "apko_archs": "amd64",
+      "smoke_test": "op-zk-proposer --version,/home/kona/.sp1/bin/sp1-gpu-server --version"
     },
     "kona-zkvm-canary": {
       "type": "rust",

@@ -19,7 +19,7 @@ use op_zk_proposer::{
     contract::DisputeGameFactory,
     metrics::{ProposerGauge, record_spn_requester, register_metrics},
     proposer::Proposer,
-    prover::{MockProofProvider, NetworkProofProvider, ProofProvider},
+    prover::{LocalCudaProofProvider, MockProofProvider, NetworkProofProvider, ProofProvider},
     signer::{Signer, SignerLock},
 };
 
@@ -77,6 +77,8 @@ async fn main() -> Result<()> {
         log_path = ?config.log_path,
         data_dir = ?config.data_dir,
         log_gas_limit = config.proof_provider_config.log_gas_limit,
+        cuda_devices = ?config.local_cuda.devices,
+        cuda_memory_limit_bytes = config.local_cuda.memory_limit_bytes.get(),
         "Resolved proposer configuration"
     );
     if config.log_path == LogPath::Receipts {
@@ -87,8 +89,9 @@ async fn main() -> Result<()> {
         );
     }
 
-    // Mock deployments need no SPN credentials.
+    // Mock and local CUDA deployments need no SPN credentials.
     let mut spn_requester = None;
+    let mut local_cuda = None;
     let proof_provider = match config.proof_provider {
         ProofProviderKind::Network => {
             let provider_config = config.proof_provider_config.clone();
@@ -110,6 +113,15 @@ async fn main() -> Result<()> {
             );
             ProofProvider::Mock(MockProofProvider)
         }
+        ProofProviderKind::LocalCuda => {
+            let provider = LocalCudaProofProvider::new(
+                &config.local_cuda,
+                config.proof_provider_config.clone(),
+            )
+            .await?;
+            local_cuda = Some(provider.clone());
+            ProofProvider::LocalCuda(provider)
+        }
     };
     let signer = SignerLock::new(Signer::from_env().await?);
 
@@ -126,7 +138,7 @@ async fn main() -> Result<()> {
     // recorder lose their HELP lines.
     let metrics_addr = init_metrics(config.metrics_listen).await?;
     if metrics_addr.is_some() {
-        register_metrics(!proof_provider.is_mock());
+        register_metrics(config.proof_provider);
         if let Some(requester) = spn_requester {
             record_spn_requester(requester);
         }
@@ -144,5 +156,12 @@ async fn main() -> Result<()> {
         None => tracing::info!("op-zk-proposer started"),
     }
 
-    proposer.run().await
+    // See `LocalCudaProofProvider::fatal`.
+    match local_cuda {
+        Some(local_cuda) => tokio::select! {
+            result = proposer.run() => result,
+            err = local_cuda.fatal() => Err(err.context("local CUDA prover failed")),
+        },
+        None => proposer.run().await,
+    }
 }

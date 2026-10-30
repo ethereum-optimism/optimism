@@ -23,6 +23,7 @@ use kona_sp1_host_utils::{
     network::{determine_network_mode, parse_fulfillment_strategy},
 };
 use kona_sp1_super_range_executor::DEFAULT_MAX_STDIN_BYTES;
+use sp1_core_executor::DEFAULT_MEMORY_LIMIT;
 use sp1_sdk::network::{FulfillmentStrategy, NetworkMode};
 
 use crate::{env_var, proposer::MAX_GAME_DEADLINE_LAG};
@@ -50,7 +51,7 @@ impl FromStr for ProposalSafety {
 
 /// Which proof provider drives the defend path.
 ///
-/// There is no default: deployments state explicitly whether they buy real
+/// There is no default: deployments state explicitly whether they make real
 /// SP1 proofs or run the ELF-free mock pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProofProviderKind {
@@ -60,6 +61,18 @@ pub enum ProofProviderKind {
     /// whose game verifier accepts arbitrary bytes (devstack's mock
     /// verifier) can resolve games proven this way.
     Mock,
+    /// Real SP1 proving on local NVIDIA GPUs through `sp1-gpu-server`.
+    LocalCuda,
+}
+
+impl ProofProviderKind {
+    /// Returns whether this provider makes real SP1 proofs.
+    pub const fn proves_with_sp1(self) -> bool {
+        match self {
+            Self::Network | Self::LocalCuda => true,
+            Self::Mock => false,
+        }
+    }
 }
 
 impl FromStr for ProofProviderKind {
@@ -69,7 +82,8 @@ impl FromStr for ProofProviderKind {
         match value.to_ascii_lowercase().as_str() {
             "network" => Ok(Self::Network),
             "mock" => Ok(Self::Mock),
-            other => bail!("{other} (expected network|mock)"),
+            "local-cuda" => Ok(Self::LocalCuda),
+            other => bail!("{other} (expected network|mock|local-cuda)"),
         }
     }
 }
@@ -163,7 +177,7 @@ pub struct ProposerConfig {
     /// unset unless a specific need exists.
     pub max_priority_fee_per_gas: Option<u128>,
 
-    /// Selects network or mock proving for challenged games.
+    /// Selects network, mock, or local CUDA proving for challenged games.
     pub proof_provider: ProofProviderKind,
 
     /// The L1 beacon API URL serving blob sidecars for derivation witnesses.
@@ -215,6 +229,9 @@ pub struct ProposerConfig {
 
     /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
     pub proof_provider_config: ProofProviderConfig,
+
+    /// Local CUDA prover settings.
+    pub local_cuda: LocalCudaConfig,
 
     /// Consolidation path for blocks below a local-safe head.
     pub log_path: LogPath,
@@ -352,7 +369,8 @@ impl ProposerConfig {
         let proof_provider = env::var(&proof_provider_name)
             .with_context(|| {
                 format!(
-                    "{proof_provider_name} not set (expected network|mock; there is no default)"
+                    "{proof_provider_name} not set (expected network|mock|local-cuda; there is \
+                     no default)"
                 )
             })?
             .parse::<ProofProviderKind>()
@@ -407,6 +425,7 @@ impl ProposerConfig {
                 NonZeroU64::MIN,
             )?,
             proof_provider_config: ProofProviderConfig::from_env()?,
+            local_cuda: LocalCudaConfig::from_env()?,
             log_path: parsed_env_or("LOG_PATH", LogPath::Table)?,
             data_dir: optional_env("DATA_DIR").map(PathBuf::from),
         })
@@ -555,6 +574,60 @@ impl ProofProviderConfig {
         );
         Ok(mode)
     }
+}
+
+/// Local CUDA prover settings.
+///
+/// Parsed in every mode; all values have defaults.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalCudaConfig {
+    /// CUDA device IDs, one `sp1-gpu-server` each. Non-empty, without duplicates.
+    pub devices: Vec<u32>,
+    /// RSS limit in bytes of each pre-execution's executor child process.
+    pub memory_limit_bytes: NonZeroU64,
+}
+
+impl Default for LocalCudaConfig {
+    fn default() -> Self {
+        Self {
+            devices: vec![0],
+            memory_limit_bytes: NonZeroU64::new(DEFAULT_MEMORY_LIMIT)
+                .expect("SP1's default memory limit is non-zero"),
+        }
+    }
+}
+
+impl LocalCudaConfig {
+    /// Reads local CUDA prover settings from environment variables.
+    pub fn from_env() -> Result<Self> {
+        let defaults = Self::default();
+        let devices_name = env_var("CUDA_DEVICES");
+        // A set but empty list is an error, not the default.
+        let devices = match env::var(&devices_name) {
+            Ok(list) => {
+                parse_cuda_devices(&list).with_context(|| format!("invalid {devices_name}"))?
+            }
+            Err(env::VarError::NotPresent) => defaults.devices,
+            Err(err) => bail!("invalid {devices_name}: {err}"),
+        };
+        Ok(Self {
+            devices,
+            memory_limit_bytes: parsed_env_or(
+                "CUDA_MEMORY_LIMIT_BYTES",
+                defaults.memory_limit_bytes,
+            )?,
+        })
+    }
+}
+
+fn parse_cuda_devices(list: &str) -> Result<Vec<u32>> {
+    let mut devices = Vec::new();
+    for entry in list.split(',').map(str::trim) {
+        let device = entry.parse::<u32>().map_err(|err| anyhow!("device {entry:?}: {err}"))?;
+        anyhow::ensure!(!devices.contains(&device), "duplicate device {device}");
+        devices.push(device);
+    }
+    Ok(devices)
 }
 
 /// Splits defended super-root timestamp spans into 1 to 128 chunks.
@@ -988,6 +1061,53 @@ mod tests {
             assert_eq!(ProofProviderKind::from_str("Mock").unwrap(), ProofProviderKind::Mock);
             assert!(ProofProviderKind::from_str("cluster").is_err());
             assert!(ProofProviderKind::from_str("").is_err());
+        }
+
+        #[test]
+        fn proof_provider_kind_parses_local_cuda() {
+            for value in ["local-cuda", "Local-CUDA"] {
+                assert_eq!(
+                    ProofProviderKind::from_str(value).unwrap(),
+                    ProofProviderKind::LocalCuda
+                );
+            }
+        }
+
+        #[test]
+        fn proves_with_sp1_classifies_every_kind() {
+            assert!(ProofProviderKind::Network.proves_with_sp1());
+            assert!(ProofProviderKind::LocalCuda.proves_with_sp1());
+            assert!(!ProofProviderKind::Mock.proves_with_sp1());
+        }
+
+        #[test]
+        #[serial]
+        fn cuda_devices_default_to_zero() {
+            clear_proposer_env();
+            assert_eq!(LocalCudaConfig::from_env().unwrap(), LocalCudaConfig::default());
+            assert_eq!(LocalCudaConfig::default().devices, [0]);
+            set_proposer_env("CUDA_DEVICES", "1, 3");
+            assert_eq!(LocalCudaConfig::from_env().unwrap().devices, [1, 3]);
+        }
+
+        #[test]
+        #[serial]
+        fn cuda_devices_reject_empty_and_duplicates() {
+            clear_proposer_env();
+            for invalid in ["", "0,0", "x"] {
+                set_proposer_env("CUDA_DEVICES", invalid);
+                let err = LocalCudaConfig::from_env().unwrap_err().to_string();
+                assert!(err.contains("OP_ZK_PROPOSER_CUDA_DEVICES"), "{invalid:?}: {err}");
+            }
+        }
+
+        #[test]
+        #[serial]
+        fn cuda_memory_limit_rejects_zero() {
+            clear_proposer_env();
+            set_proposer_env("CUDA_MEMORY_LIMIT_BYTES", "0");
+            let err = LocalCudaConfig::from_env().unwrap_err().to_string();
+            assert!(err.contains("OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES"), "unexpected: {err}");
         }
 
         #[test]
