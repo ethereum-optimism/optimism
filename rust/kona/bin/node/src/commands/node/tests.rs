@@ -157,7 +157,10 @@ fn alt_da_chains_are_refused() {
             ..Default::default()
         };
         let err = NodeCommand::default().get_l2_config(&args).unwrap_err();
-        assert!(err.to_string().contains("Failed to find l2 config"), "chain {chain_id}: {err}");
+        assert!(
+            err.to_string().contains("kona does not support alt-DA chains"),
+            "chain {chain_id}: {err}"
+        );
     }
 }
 

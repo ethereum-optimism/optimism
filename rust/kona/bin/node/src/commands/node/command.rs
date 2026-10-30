@@ -443,7 +443,10 @@ impl NodeCommand {
             None => {
                 debug!("Loading l2 config from superchain registry");
                 let Some(cfg) = scr_rollup_config_by_alloy_ident(&args.l2_chain_id) else {
-                    bail!("Failed to find l2 config for chain ID {}", args.l2_chain_id);
+                    bail!(
+                        "Failed to find l2 config for chain ID {} (note that kona does not support alt-DA chains)",
+                        args.l2_chain_id
+                    );
                 };
                 Ok(cfg.clone())
             }
