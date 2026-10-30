@@ -7,7 +7,8 @@
 //! ## Key Components
 //!
 //! - [`GossipDriver`]: Main driver managing the libp2p swarm and event handling
-//! - [`Behaviour`]: Custom libp2p behavior combining `GossipSub`, Ping, and Identify
+//! - [`Behaviour`]: Custom libp2p behavior combining the connection gate, `GossipSub`, Ping, and
+//!   Identify
 //! - [`BlockHandler`]: Validates and processes incoming block payloads
 //! - [`ConnectionGater`]: Sophisticated connection management and rate limiting
 //! - [`GossipQueryHandle`]: Read-only access to published gossip state
@@ -33,8 +34,8 @@ pub use metrics::Metrics;
 mod rpc;
 pub use rpc::{
     Connectedness, Direction, GossipCommand, GossipCommandReceiver, GossipCommandSender,
-    GossipQueryHandle, GossipScores, GossipState, PeerCount, PeerDump, PeerInfo, PeerScores,
-    PeerStats, ReqRespScores, TopicScores,
+    GossipQueryHandle, GossipScores, GossipState, NetworkActorStopped, PeerCount, PeerDump,
+    PeerInfo, PeerScores, PeerStats, ReqRespScores, TopicScores,
 };
 
 mod behaviour;
@@ -48,8 +49,8 @@ pub use config::{
     default_config, default_config_builder,
 };
 
-mod gate;
-pub use gate::ConnectionGate; // trait
+pub mod gate;
+pub use gate::ConnectionGate;
 
 mod gater;
 pub use gater::{
@@ -62,7 +63,8 @@ pub use builder::{GossipDriverBuilder, GossipTransport, TransportBuilder};
 
 mod error;
 pub use error::{
-    DialError, GossipDriverBuilderError, HandlerEncodeError, PeerAddrError, PublishError,
+    ConnectPeerError, DialError, GossipDriverBuilderError, HandlerEncodeError, PeerAddrError,
+    PublishError, StartError,
 };
 
 mod event;

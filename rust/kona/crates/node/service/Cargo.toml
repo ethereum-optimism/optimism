@@ -50,7 +50,6 @@ op-alloy-provider.workspace = true
 # general
 url.workspace = true
 libp2p = { workspace = true, features = ["metrics"] }
-libp2p-stream.workspace = true
 discv5.workspace = true
 futures.workspace = true
 tracing.workspace = true

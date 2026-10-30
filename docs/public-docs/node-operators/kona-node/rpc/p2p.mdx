@@ -19,7 +19,7 @@ Returns information about the local node in the form of `PeerInfo`. A node runni
 
 ```js
 // > {"jsonrpc":"2.0","id":1,"method":"opp2p_self","params":[]}
-{"jsonrpc":"2.0","id":1,"result":{"peerID":"16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x","nodeID":"0x311d8222ffc44e9c86f403d57f454bd823e7dc9d3c8e97171ddd862910352f31","userAgent":"kona","protocolVersion":"","ENR":"enr:-Jm4QBAdUpUqrpTj6yQor5mwif6RRmY11dlj-Um3TqKmJiYha4SUNqdJr2eM3pRsFVCwVikYcBk__5JVTwngUeimKxcCgmlkgnY0gmlwhC36_pOHb3BzdGFja4Xc76gFAIlzZWNwMjU2azGhA2WTa6OqvnWbRmoeuhRRu-BTPgP8y4_MY6snTsNW0gHBg3RjcIIj5oN1ZHCCn7U","addresses":["/ip4/127.0.0.1/tcp/9190/p2p/16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x","/ip4/172.18.0.9/tcp/9190/p2p/16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"],"protocols":["/ipfs/id/push/1.0.0","/meshsub/1.1.0","/ipfs/ping/1.0.0","/meshsub/1.2.0","/ipfs/id/1.0.0","/opstack/req/payload_by_number/2151908/0/","/meshsub/1.0.0","/floodsub/1.0.0"],"connectedness":1,"direction":1,"protected":false,"chainID":11155420,"latency":0,"gossipBlocks":true,"scores":{"gossip":{"total":0.0,"blocks":{"timeInMesh":0.0,"firstMessageDeliveries":0.0,"meshMessageDeliveries":0.0,"invalidMessageDeliveries":0.0},"IPColocationFactor":0.0,"behavioralPenalty":0.0},"reqResp":{"validResponses":0.0,"errorResponses":0.0,"rejectedPayloads":0.0}}}}
+{"jsonrpc":"2.0","id":1,"result":{"peerID":"16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x","nodeID":"0x311d8222ffc44e9c86f403d57f454bd823e7dc9d3c8e97171ddd862910352f31","userAgent":"kona","protocolVersion":"","ENR":"enr:-Jm4QBAdUpUqrpTj6yQor5mwif6RRmY11dlj-Um3TqKmJiYha4SUNqdJr2eM3pRsFVCwVikYcBk__5JVTwngUeimKxcCgmlkgnY0gmlwhC36_pOHb3BzdGFja4Xc76gFAIlzZWNwMjU2azGhA2WTa6OqvnWbRmoeuhRRu-BTPgP8y4_MY6snTsNW0gHBg3RjcIIj5oN1ZHCCn7U","addresses":["/ip4/127.0.0.1/tcp/9190/p2p/16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x","/ip4/172.18.0.9/tcp/9190/p2p/16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"],"protocols":["/ipfs/id/push/1.0.0","/meshsub/1.1.0","/ipfs/ping/1.0.0","/meshsub/1.2.0","/ipfs/id/1.0.0","/meshsub/1.0.0","/floodsub/1.0.0"],"connectedness":1,"direction":1,"protected":false,"chainID":11155420,"latency":0,"gossipBlocks":true,"scores":{"gossip":{"total":0.0,"blocks":{"timeInMesh":0.0,"firstMessageDeliveries":0.0,"meshMessageDeliveries":0.0,"invalidMessageDeliveries":0.0},"IPColocationFactor":0.0,"behavioralPenalty":0.0},"reqResp":{"validResponses":0.0,"errorResponses":0.0,"rejectedPayloads":0.0}}}}
 ```
 
 ### `opp2p_peerCount`
@@ -90,7 +90,9 @@ Returns the discovery table entries as a list of ENR strings. A node running [wi
 
 ### `opp2p_blockPeer`
 
-Blocks a specific peer by peer ID, preventing any connections to or from that peer.
+Blocks a specific peer by peer ID, preventing any connections to or from that peer. The peer's open connections are closed, and new ones are refused in both directions until it is [unblocked](#opp2p_unblockpeer).
+
+This applies to [protected](#opp2p_protectpeer) and [static](/node-operators/kona-node/configuration#static-peers) peers too: a blocked static peer isn't dialed again until it is unblocked. op-node, by contrast, leaves a blocked peer's open connections in place.
 
 | Client | Method invocation                                   |
 | ------ | --------------------------------------------------- |
@@ -109,7 +111,7 @@ Blocks a specific peer by peer ID, preventing any connections to or from that pe
 
 ### `opp2p_unblockPeer`
 
-Unblocks a previously blocked peer by peer ID.
+Unblocks a previously blocked peer by peer ID, and lifts its ban if it is banned for its score, as in op-node. A [static peer](/node-operators/kona-node/configuration#static-peers) is dialed again within a minute; call [`opp2p_connectPeer`](#opp2p_connectpeer) to connect it at once.
 
 | Client | Method invocation                                     |
 | ------ | ----------------------------------------------------- |
@@ -128,7 +130,7 @@ Unblocks a previously blocked peer by peer ID.
 
 ### `opp2p_listBlockedPeers`
 
-Returns a list of all blocked peer IDs.
+Returns a list of all blocked peer IDs. Peers banned for their score aren't listed, as in op-node.
 
 | Client | Method invocation                      |
 | ------ | -------------------------------------- |
@@ -145,7 +147,7 @@ Returns a list of all blocked peer IDs.
 
 ### `opp2p_blockAddr`
 
-Blocks connections from a specific IP address.
+Blocks connections to and from a specific IP address, whichever peer they belong to. Open connections are closed, and new ones are refused in both directions until the address is [unblocked](#opp2p_unblockaddr). op-node, by contrast, leaves open connections in place.
 
 | Client | Method invocation                                  |
 | ------ | -------------------------------------------------- |
@@ -200,7 +202,7 @@ Returns a list of all blocked IP addresses.
 
 ### `opp2p_blockSubnet`
 
-Blocks connections from an entire IP subnet using CIDR notation.
+Blocks connections to and from an entire IP subnet using CIDR notation, whichever peers they belong to. Open connections are closed, and new ones are refused in both directions until the subnet is [unblocked](#opp2p_unblocksubnet). op-node, by contrast, leaves open connections in place.
 
 | Client | Method invocation                                  |
 | ------ | -------------------------------------------------- |
@@ -295,7 +297,9 @@ Removes protection from a peer, allowing it to be disconnected by automatic prun
 
 ### `opp2p_connectPeer`
 
-Attempts to establish a connection to a specific peer using a multiaddress.
+Connects to a specific peer using a multiaddress, and returns once the peer is connected.
+
+It respects blocks and bans: if the peer, its IP address or its subnet is [blocked](#opp2p_blockpeer), or the peer is banned for its score, the call fails at once with the reason, and nothing is dialed. To connect such a peer, unblock it first; [`opp2p_unblockPeer`](#opp2p_unblockpeer) lifts a ban too. The call also fails at once if the peer has reached its redial limit. A dial that fails, for example because nothing listens at the address, returns the dial's error, and one that doesn't finish within 30 seconds times out.
 
 | Client | Method invocation                                      |
 | ------ | ------------------------------------------------------ |
@@ -312,9 +316,16 @@ Attempts to establish a connection to a specific peer using a multiaddress.
 {"jsonrpc":"2.0","id":1,"result":null}
 ```
 
+A blocked peer:
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_connectPeer","params":["/ip4/127.0.0.1/tcp/9190/p2p/16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"Peer is blocked: 16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"}}
+```
+
 ### `opp2p_disconnectPeer`
 
-Disconnects from a specific peer by peer ID. A [static peer](/node-operators/kona-node/configuration#static-peers) is dialed again about a second later.
+Disconnects from a specific peer by peer ID, and returns once its connections have closed. A [static peer](/node-operators/kona-node/configuration#static-peers) is dialed again about a second later.
 
 | Client | Method invocation                                       |
 | ------ | ------------------------------------------------------- |
