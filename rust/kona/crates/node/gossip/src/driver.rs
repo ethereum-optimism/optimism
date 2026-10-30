@@ -211,7 +211,8 @@ where
     ///
     /// While the driver listens, calling this again returns [`StartError::AlreadyStarted`], and the
     /// driver keeps listening on the address the first call returned. Once its listener closes, it
-    /// can start again, and listens on the address it had.
+    /// can start again, and then listens on that returned address, not the one it was built with:
+    /// one interface and port, where the configured address may have been `0.0.0.0` or port 0.
     pub async fn start(&mut self) -> Result<PeerAddr, StartError> {
         if self.listener_id.is_some() {
             return Err(StartError::AlreadyStarted);

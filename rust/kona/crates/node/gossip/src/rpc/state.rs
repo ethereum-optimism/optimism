@@ -70,8 +70,9 @@ impl GossipState {
     /// snapshot soon, rather than leaving readers to find theirs stale.
     ///
     /// An event missing here only costs freshness, since readers ask for a new snapshot once
-    /// theirs is older than they accept. Scores and pings change without an event, so readers see
-    /// them up to that age anyway.
+    /// theirs is older than they accept. Scores change without an event, and pings are left out
+    /// because a ping event comes every few seconds for each peer, so readers see both up to that
+    /// age.
     pub fn changed_by(event: &SwarmEvent<Event>) -> bool {
         match event {
             SwarmEvent::Behaviour(Event::Identify(event)) => {

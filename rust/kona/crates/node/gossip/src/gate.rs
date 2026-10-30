@@ -193,6 +193,14 @@ impl Behaviour {
         let ip = ip.to_canonical();
         self.subnets.iter().any(|subnet| subnet.contains(&ip))
     }
+
+    /// Counts an inbound connection the gate refuses, by its reason, and wraps the refusal for
+    /// the swarm.
+    fn refuse_inbound(refusal: DialError) -> ConnectionDenied {
+        metrics::counter!(crate::Metrics::INBOUND_CONNECTIONS_REFUSED, "reason" => refusal.reason())
+            .increment(1);
+        ConnectionDenied::new(refusal)
+    }
 }
 
 /// Returns an IPv4-mapped IPv6 subnet, within `::ffff:0:0/96`, as the IPv4 subnet in it, and any
@@ -209,14 +217,6 @@ fn canonical_subnet(subnet: IpNet) -> IpNet {
         return IpNet::V4(v4);
     }
     subnet
-}
-
-/// Counts an inbound connection the gate refuses, by its reason, and wraps the refusal for the
-/// swarm.
-fn refuse_inbound(refusal: DialError) -> ConnectionDenied {
-    metrics::counter!(crate::Metrics::INBOUND_CONNECTIONS_REFUSED, "reason" => refusal.reason())
-        .increment(1);
-    ConnectionDenied::new(refusal)
 }
 
 /// Refuses inbound connections from blocked or banned peers and from blocked IP addresses and
@@ -243,7 +243,7 @@ impl NetworkBehaviour for Behaviour {
         };
         self.check_ip(ip).map_err(|refusal| {
             debug!(target: "gossip", %remote_addr, %refusal, "Refusing a connection from a blocked address");
-            refuse_inbound(refusal)
+            Self::refuse_inbound(refusal)
         })
     }
 
@@ -261,17 +261,17 @@ impl NetworkBehaviour for Behaviour {
     ) -> Result<THandler<Self>, ConnectionDenied> {
         if self.is_blocked_peer(&peer) {
             debug!(target: "gossip", %peer, %remote_addr, "Refusing a connection from a blocked peer");
-            return Err(refuse_inbound(DialError::PeerBlocked { peer_id: peer }));
+            return Err(Self::refuse_inbound(DialError::PeerBlocked { peer_id: peer }));
         }
         if self.is_banned_peer(&peer) {
             debug!(target: "gossip", %peer, %remote_addr, "Refusing a connection from a banned peer");
-            return Err(refuse_inbound(DialError::PeerBanned { peer_id: peer }));
+            return Err(Self::refuse_inbound(DialError::PeerBanned { peer_id: peer }));
         }
         if let Some(ip) = crate::ConnectionGater::ip_from_addr(remote_addr) &&
             let Err(refusal) = self.check_ip(ip)
         {
             debug!(target: "gossip", %peer, %remote_addr, %refusal, "Refusing a connection from an address blocked during its handshake");
-            return Err(refuse_inbound(refusal));
+            return Err(Self::refuse_inbound(refusal));
         }
         Ok(dummy::ConnectionHandler)
     }
