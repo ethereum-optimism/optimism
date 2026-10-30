@@ -330,8 +330,11 @@ func sendDeniedMessage(t devtest.T, sys *presets.SimpleInterop, hidden *sysgo.Hi
 	// Send once B is at A's next block's timestamp, so the executing message lands
 	// after it, where A's block is above the initiating one whatever the block times.
 	sys.L2ELB.WaitForTime(sys.L2ChainA.TimestampForBlockNum(initBlock + 1))
+	// Pause interop below the executing block so the receipt read and Hide precede its replacement.
+	sys.Supernode().EnsureInteropPaused(10, sys.L2CLA, sys.L2CLB)
 	execMsg := aliceB.SendInvalidExecMessage(initMsg)
 	hidden.Hide(execMsg.BlockHash())
+	sys.Supernode().ResumeInterop()
 	execBlock := bigs.Uint64Strict(execMsg.BlockNumber())
 	execTimestamp := sys.L2ChainB.TimestampForBlockNum(execBlock)
 	headA, err := sys.L2ChainA.Escape().RollupConfig().TargetBlockNumber(execTimestamp)
