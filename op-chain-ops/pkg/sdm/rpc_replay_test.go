@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var fullReplayOptions = RPCReplayOptions{RequireJS: true, CheckOTS: true}
+
 type rpcReplayFixture struct {
 	block          *RPCBlock
 	header         replayHeader
@@ -174,7 +176,7 @@ func (f *rpcReplayFixture) CallContext(ctx context.Context, result any, method s
 
 func TestValidateRPCReplay(t *testing.T) {
 	f := replayFixture(t)
-	result, err := ValidateRPCReplay(context.Background(), f, 42)
+	result, err := ValidateRPCReplay(context.Background(), f, 42, fullReplayOptions)
 	require.NoError(t, err)
 	require.Equal(t, 2, result.RefundedTransactions)
 	require.NotEmpty(t, result.Checks)
@@ -268,7 +270,7 @@ func TestValidateRPCReplayRegressions(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			f := replayFixture(t)
 			f.mutate = test.mutate
-			result, err := ValidateRPCReplay(context.Background(), f, 42)
+			result, err := ValidateRPCReplay(context.Background(), f, 42, fullReplayOptions)
 			require.ErrorContains(t, err, test.want)
 			require.NotNil(t, result, "partial evidence must survive failures")
 			require.Positive(t, f.calls["debug_traceBlockByNumber"], "failure must not short circuit other endpoint families")
@@ -281,7 +283,7 @@ func TestRPCReplayUnavailableIsFailure(t *testing.T) {
 		t.Run(method, func(t *testing.T) {
 			f := replayFixture(t)
 			f.unavailable = method
-			result, err := ValidateRPCReplay(context.Background(), f, 42)
+			result, err := ValidateRPCReplay(context.Background(), f, 42, fullReplayOptions)
 			require.ErrorContains(t, err, "method not found")
 			require.NotNil(t, result)
 		})
@@ -297,25 +299,25 @@ func TestRPCReplayReorgAndReceiptIdentity(t *testing.T) {
 			}
 			return v
 		}
-		_, err := ValidateRPCReplay(context.Background(), f, 42)
+		_, err := ValidateRPCReplay(context.Background(), f, 42, fullReplayOptions)
 		require.ErrorContains(t, err, "reorged")
 	})
 	t.Run("receipt identity", func(t *testing.T) {
 		f := replayFixture(t)
 		f.receipts[common.HexToHash("0x2")].BlockHash = common.Hash{}
-		_, err := ValidateRPCReplay(context.Background(), f, 42)
+		_, err := ValidateRPCReplay(context.Background(), f, 42, fullReplayOptions)
 		require.ErrorContains(t, err, "receipt identity")
 	})
 	t.Run("no refund payload", func(t *testing.T) {
 		f := replayFixture(t)
 		f.block.Transactions = f.block.Transactions[:4]
-		_, err := ValidateRPCReplay(context.Background(), f, 42)
+		_, err := ValidateRPCReplay(context.Background(), f, 42, fullReplayOptions)
 		require.ErrorContains(t, err, "does not contain post-exec")
 	})
 	t.Run("cancelled", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		_, err := ValidateRPCReplay(ctx, replayFixture(t), 42)
+		_, err := ValidateRPCReplay(ctx, replayFixture(t), 42, fullReplayOptions)
 		require.ErrorIs(t, err, context.Canceled)
 	})
 }

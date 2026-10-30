@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-lagoon/checks"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-lagoon/sdmcheck"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopsmoke"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -32,6 +33,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
@@ -134,8 +136,20 @@ var (
 	SDMCheckRPC = &cli.BoolFlag{
 		Name:    "sdm.check-rpc",
 		Aliases: []string{"sdm-check-rpc"},
-		Usage:   "Also check SDM replay across debug, trace, call-many and OTS (requires WebSocket and JS tracing)",
+		Usage:   "Also check SDM RPC replay (requires WebSocket; disabled JS is skipped and OTS is opt-in)",
 		EnvVars: op_service.PrefixEnvVar(prefix, "SDM_CHECK_RPC"),
+	}
+	SDMRPCJS = &cli.BoolFlag{
+		Name:    "sdm.rpc-js",
+		Aliases: []string{"sdm-rpc-js"},
+		Usage:   "Require JavaScript tracing; disabled support fails (enables SDM RPC checks)",
+		EnvVars: op_service.PrefixEnvVar(prefix, "SDM_RPC_JS"),
+	}
+	SDMRPCOTS = &cli.BoolFlag{
+		Name:    "sdm.rpc-ots",
+		Aliases: []string{"sdm-rpc-ots"},
+		Usage:   "Test OTS methods; unavailable support fails (enables SDM RPC checks)",
+		EnvVars: op_service.PrefixEnvVar(prefix, "SDM_RPC_OTS"),
 	}
 	SDMJSON = &cli.BoolFlag{
 		Name:    "sdm.json",
@@ -361,6 +375,10 @@ func lagoonAllFlags() []cli.Flag {
 		altsrc.NewStringFlag(AllSDMContractB),
 		altsrc.NewBoolFlag(SDMOptIn),
 		altsrc.NewBoolFlag(SDMCheckRPC),
+		// BoolFlag.Apply mutates Value for environment inputs; keep defaults
+		// isolated across command instances and repeated app runs.
+		altsrc.NewBoolFlag(ptr.New(*SDMRPCJS)),
+		altsrc.NewBoolFlag(ptr.New(*SDMRPCOTS)),
 		altsrc.NewBoolFlag(AllJSON),
 	}
 	return append(flags, logcli.CLIFlags(prefix)...)
@@ -441,7 +459,10 @@ func lagoonAllAction(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	baseSDM := sdmcheck.Config{Log: logger, Key: sdmKey, OptIn: c.Bool(SDMOptIn.Name), CheckRPC: c.Bool(SDMCheckRPC.Name)}
+	baseSDM := sdmcheck.Config{Log: logger, Key: sdmKey, OptIn: c.Bool(SDMOptIn.Name),
+		CheckRPC:   c.Bool(SDMCheckRPC.Name) || c.Bool(SDMRPCJS.Name) || c.Bool(SDMRPCOTS.Name),
+		RPCOptions: sdm.RPCReplayOptions{RequireJS: c.Bool(SDMRPCJS.Name), CheckOTS: c.Bool(SDMRPCOTS.Name)},
+	}
 	cfgA := baseSDM
 	cfgA.RPCURL = c.String(EndpointL2A.Name)
 	cfgA.Contract = contractA
@@ -540,6 +561,8 @@ func sdmCheckFlags() []cli.Flag {
 		altsrc.NewStringFlag(SDMVerifierL2),
 		altsrc.NewStringFlag(SDMRollupRPC),
 		altsrc.NewBoolFlag(SDMCheckRPC),
+		altsrc.NewBoolFlag(ptr.New(*SDMRPCJS)),
+		altsrc.NewBoolFlag(ptr.New(*SDMRPCOTS)),
 		altsrc.NewBoolFlag(SDMJSON),
 	}
 }
@@ -561,7 +584,10 @@ func sdmBlockFlags() []cli.Flag {
 // selects the sdm all flag set.
 func resolveSDMConfig(ctx context.Context, logger log.Logger, c *cli.Context, workload bool) (sdmcheck.Config, func(), error) {
 	cleanup := func() {}
-	cfg := sdmcheck.Config{Log: logger, RPCURL: c.String(SDMEndpointL2.Name), CheckRPC: c.Bool(SDMCheckRPC.Name)}
+	cfg := sdmcheck.Config{Log: logger, RPCURL: c.String(SDMEndpointL2.Name),
+		CheckRPC:   c.Bool(SDMCheckRPC.Name) || c.Bool(SDMRPCJS.Name) || c.Bool(SDMRPCOTS.Name),
+		RPCOptions: sdm.RPCReplayOptions{RequireJS: c.Bool(SDMRPCJS.Name), CheckOTS: c.Bool(SDMRPCOTS.Name)},
+	}
 	if workload {
 		keyHex := strings.TrimPrefix(c.String(SDMAccountKey.Name), "0x")
 		if keyHex == "" {

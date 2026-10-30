@@ -45,7 +45,7 @@ func replayAddresses(header *replayHeader, tx rpcTransactionDetails) []common.Ad
 	return []common.Address{tx.From, header.Miner, predeploys.BaseFeeVaultAddr, predeploys.L1FeeVaultAddr, predeploys.OperatorFeeVaultAddr}
 }
 
-func checkExtendedRPC(ctx context.Context, rpc Caller, blockNum uint64, header *replayHeader, receipts []*RPCReceipt, oracle *replayBalances, record replayRecorder) {
+func checkExtendedRPC(ctx context.Context, rpc Caller, blockNum uint64, header *replayHeader, receipts []*RPCReceipt, oracle *replayBalances, options RPCReplayOptions, record replayRecorder) {
 	checkParityRPC(ctx, rpc, blockNum, header, receipts, oracle, record)
 	reverted := false
 	for i, tx := range header.Transactions {
@@ -58,12 +58,12 @@ func checkExtendedRPC(ctx context.Context, rpc Caller, blockNum uint64, header *
 		}
 		label := fmt.Sprintf("tx[%d] %s", i, tx.Hash)
 		addresses := replayAddresses(header, tx)
-		reverted = checkJSAndOTS(ctx, rpc, tx, receipts[i], label, record) || reverted
+		reverted = checkJSAndOTS(ctx, rpc, tx, receipts[i], label, options, record) || reverted
 		if receipts[i].OPGasRefund != nil {
 			checkCallMany(ctx, rpc, oracle, i, addresses, record)
 		}
 	}
-	if !reverted {
+	if options.CheckOTS && !reverted {
 		record("ots_getTransactionError reverted-transaction coverage", replayCoverageGap("selected block has no failed transaction; successful-transaction null responses are still checked"))
 	}
 	record("debug_intermediateRoots canonical transaction roots", checkIntermediateRoots(ctx, rpc, header))

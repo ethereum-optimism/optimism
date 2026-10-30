@@ -14,7 +14,7 @@ import (
 
 func TestExtendedReplayCompleteAndFixtureGaps(t *testing.T) {
 	f := replayFixture(t)
-	result, err := ValidateRPCReplay(context.Background(), f, 42)
+	result, err := ValidateRPCReplay(context.Background(), f, 42, fullReplayOptions)
 	require.NoError(t, err)
 	require.False(t, result.Complete)
 	gaps := 0
@@ -26,7 +26,7 @@ func TestExtendedReplayCompleteAndFixtureGaps(t *testing.T) {
 	require.Equal(t, 2, gaps, "reverted tx and cached bad block must not be silent passes")
 	f.extended.bad = true
 	f.receipts[common.HexToHash("0x3")].Status = 0
-	result, err = ValidateRPCReplay(context.Background(), f, 42)
+	result, err = ValidateRPCReplay(context.Background(), f, 42, fullReplayOptions)
 	require.NoError(t, err)
 	require.True(t, result.Complete)
 	for _, method := range []string{"trace_replayTransaction", "trace_replayBlockTransactions", "trace_transaction", "trace_get", "trace_block", "trace_filter", "trace_call", "trace_callMany", "eth_callMany", "debug_traceCallMany", "debug_intermediateRoots", "debug_executionWitness", "ots_traceTransaction", "ots_getTransactionError", "debug_traceBadBlock", "debug_traceBlock"} {
@@ -155,7 +155,7 @@ func TestExtendedReplayRegressions(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			f := replayFixture(t)
 			f.mutate = test.mutate
-			r, err := ValidateRPCReplay(context.Background(), f, 42)
+			r, err := ValidateRPCReplay(context.Background(), f, 42, fullReplayOptions)
 			require.ErrorContains(t, err, test.want)
 			require.NotNil(t, r)
 			require.False(t, r.Complete)
@@ -168,7 +168,7 @@ func TestExtendedMethodsUnavailableFail(t *testing.T) {
 		t.Run(method, func(t *testing.T) {
 			f := replayFixture(t)
 			f.unavailable = method
-			r, err := ValidateRPCReplay(context.Background(), f, 42)
+			r, err := ValidateRPCReplay(context.Background(), f, 42, fullReplayOptions)
 			require.ErrorContains(t, err, "method not found")
 			require.False(t, r.Complete)
 		})

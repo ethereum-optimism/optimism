@@ -59,6 +59,13 @@ type replayDiff struct {
 	Post map[common.Address]replayAccount `json:"post"`
 }
 
+// RPCReplayOptions controls optional tracer/namespace coverage. Zero values
+// probe JS but skip its known disabled response, and do not invoke OTS.
+type RPCReplayOptions struct {
+	RequireJS bool
+	CheckOTS  bool
+}
+
 // ValidateRPCReplay checks generic RPC replay against canonical receipts and
 // debug_accountAt's executor-backed transaction-boundary balances. It intentionally
 // does not use debug_replaySDMBlock: that diagnostic replay omits settlement by
@@ -66,7 +73,7 @@ type replayDiff struct {
 //
 // See the check-lagoon README for the endpoint matrix and fixture requirements.
 // Complete is false when any endpoint fails or a required fixture is absent.
-func ValidateRPCReplay(ctx context.Context, rpc Caller, blockNum uint64) (*RPCReplayResult, error) {
+func ValidateRPCReplay(ctx context.Context, rpc Caller, blockNum uint64, options RPCReplayOptions) (*RPCReplayResult, error) {
 	validation, err := ValidatePostExecBlock(ctx, rpc, blockNum, ValidationOptions{CheckReceipts: true})
 	if err != nil {
 		return nil, err
@@ -189,7 +196,7 @@ func ValidateRPCReplay(ctx context.Context, rpc Caller, blockNum uint64) (*RPCRe
 			record(fmt.Sprintf("%s/callTracer tx[%d]", method, i), err)
 		}
 	}
-	checkExtendedRPC(ctx, rpc, blockNum, header, receipts, &oracle, record)
+	checkExtendedRPC(ctx, rpc, blockNum, header, receipts, &oracle, options, record)
 	// Number-based APIs may have observed a reorg; never certify a different block.
 	canonical, err := GetBlockWithTxs(ctx, rpc, blockNum)
 	if err == nil && canonical.Hash != block.Hash {

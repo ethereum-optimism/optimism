@@ -89,15 +89,31 @@ go run . sdm rpc --sdm.l2 ws://localhost:9546 --sdm.block 12345 --sdm.json
 go run . sdm rpc --sdm.l2 ws://localhost:9546 \
   --sdm.l2-verifier ws://localhost:9646 --sdm.block 12345 --sdm.json
 
+# Explicitly require JS support and enable OTS checks (unavailable support fails):
+go run . sdm rpc --sdm.l2 ws://localhost:9546 --sdm.block 12345 \
+  --sdm.rpc-js --sdm.rpc-ots --sdm.json
+
 # Alternatively add the gate after the existing conformance/workload checks:
 go run . sdm all --sdm.l2 ws://localhost:9546 --sdm.account <key> --sdm.check-rpc
 go run . sdm block --sdm.l2 ws://localhost:9546 --sdm.block 12345 --sdm.check-rpc
 ```
 
 The selected block must contain actual SDM refunds. Enable `eth`, `debug`,
-`trace`, and `ots` RPC namespaces, JavaScript tracing, and WebSocket access.
-Use `ws://`/`wss://` for each endpoint: `traceChain` is a subscription and cannot
-run over HTTP. Disabled methods/tracers are explicit failures, not skipped passes.
+`trace`, and WebSocket access. Use `ws://`/`wss://` for each endpoint:
+`traceChain` is a subscription and cannot run over HTTP.
+
+JavaScript checks run when available. By default, the explicit RPC response
+`JS Tracer is not enabled` is a **skip**, not a failure. `--sdm.rpc-js` requires
+JS support and turns that response into a failure. Other JS errors (timeouts,
+missing debug methods, execution errors, or mismatched results) still fail.
+
+OTS calls are **skipped without being invoked** unless `--sdm.rpc-ots` is set.
+With that flag, missing OTS methods or incorrect results fail; enable the `ots`
+namespace on the selected nodes. Both capability flags also enable the replay
+gate on `all`, `sdm all`, `sdm block`, and `sdm verifier`, so they cannot silently
+do nothing without `--sdm.check-rpc`. The options apply to producer and verifier.
+Config keys are `[sdm].rpc-js` / `rpc-ots`; environment variables are
+`CHECK_LAGOON_SDM_RPC_JS` / `CHECK_LAGOON_SDM_RPC_OTS`.
 
 Checks cover:
 
@@ -162,13 +178,13 @@ normal conformance and configured safe-head checks first.
 
 On failure the command exits nonzero; `--sdm.json` still emits per-check results
 under `rpc_replay` and, when selected, `verifier_rpc_replay`. Top-level `all`
-uses `--json` and preserves these within each chain's result. Unsupported methods
-and RPC failures are explicit errors. Missing **fixtures** are different: no
-retained bad block, or no reverting transaction in the selected block, produces
-an explicit `skipped` reason and `complete: false`. Covered checks may succeed
-(exit zero) with these coverage gaps, but the report does not claim a complete
-pass. `complete` is true only when every listed check ran and passed. Logs warn
-about unexercised fixtures even without JSON output.
+uses `--json` and preserves these within each chain's result. Required methods
+and unexpected RPC failures are explicit errors. Optional disabled JS, unrequested
+OTS, and missing **fixtures** (no retained bad block, or no reverting transaction
+when OTS is requested) produce explicit `skipped` reasons and `complete: false`.
+Covered checks may succeed (exit zero) with these coverage gaps, but the report
+does not claim a complete pass. `complete` is true only when every listed check
+ran and passed. Logs warn about skips even without JSON output.
 
 The normal command timeout bounds the check. Trace failures do not cause new
 workload transactions to be submitted. Root reconstruction and indexed replay

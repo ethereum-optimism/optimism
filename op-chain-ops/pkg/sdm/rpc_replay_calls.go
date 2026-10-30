@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	gethrpc "github.com/ethereum/go-ethereum/rpc"
 )
 
 // The JS result consumes the executor-supplied result, not raw opcode gas totals.
@@ -35,9 +36,14 @@ type otsEntry struct {
 	Value  *hexutil.Big   `json:"value"`
 }
 
-func checkJSAndOTS(ctx context.Context, rpc Caller, tx rpcTransactionDetails, receipt *RPCReceipt, label string, record replayRecorder) bool {
+func checkJSAndOTS(ctx context.Context, rpc Caller, tx rpcTransactionDetails, receipt *RPCReceipt, label string, options RPCReplayOptions, record replayRecorder) bool {
 	var frame executionCall
 	frameErr := rpc.CallContext(ctx, &frame, "debug_traceTransaction", tx.Hash, map[string]any{"tracer": "callTracer"})
+	// callTracer may omit empty output; the JS tracer always emits it.
+	var frameOutput hexutil.Bytes
+	if frame.Output != nil {
+		frameOutput = *frame.Output
+	}
 	var js struct {
 		Gas    json.RawMessage `json:"gas"`
 		Failed *bool           `json:"failed"`
@@ -55,12 +61,23 @@ func checkJSAndOTS(ctx context.Context, rpc Caller, tx rpcTransactionDetails, re
 		}
 		if frameErr != nil {
 			err = errors.Join(err, frameErr)
-		} else if js.Output == nil || frame.Output == nil || !bytes.Equal(*js.Output, *frame.Output) {
+		} else if js.Output == nil || !bytes.Equal(*js.Output, frameOutput) {
 			err = errors.Join(err, errors.New("JS output differs from callTracer"))
 		}
 	}
+	// Only the node's explicit disabled-tracer RPC error is optional. Do not
+	// hide transport errors, missing debug methods, or failed JS assertions.
+	var rpcErr gethrpc.Error
+	if !options.RequireJS && errors.As(err, &rpcErr) && rpcErr.ErrorCode() == -32603 && strings.EqualFold(strings.TrimSpace(rpcErr.Error()), "JS Tracer is not enabled") {
+		err = replayCoverageGap("JS tracer is not enabled; use --sdm.rpc-js to require it")
+	}
 	record(label+" debug_traceTransaction/JavaScript", err)
 
+	if !options.CheckOTS {
+		record(label+" ots_traceTransaction", replayCoverageGap("OTS checks not requested; enable with --sdm.rpc-ots"))
+		record(label+" ots_getTransactionError", replayCoverageGap("OTS checks not requested; enable with --sdm.rpc-ots"))
+		return false
+	}
 	var ots []otsEntry
 	err = rpc.CallContext(ctx, &ots, "ots_traceTransaction", tx.Hash)
 	if err == nil {
@@ -81,7 +98,7 @@ func checkJSAndOTS(ctx context.Context, rpc Caller, tx rpcTransactionDetails, re
 		} else if frameErr != nil {
 			err = frameErr
 		} else if strings.Contains(strings.ToLower(frame.Error), "revert") {
-			if output == nil || frame.Output == nil || !bytes.Equal(*output, *frame.Output) {
+			if output == nil || !bytes.Equal(*output, frameOutput) {
 				err = errors.New("OTS revert bytes differ from callTracer")
 			}
 		} else if output != nil {

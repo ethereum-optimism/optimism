@@ -44,12 +44,13 @@ type RollupClient interface {
 
 // Config selects the producer, workload account, and optional verifiers.
 type Config struct {
-	Log      log.Logger
-	RPCURL   string
-	Key      *ecdsa.PrivateKey
-	Contract *common.Address
-	OptIn    bool
-	CheckRPC bool
+	Log        log.Logger
+	RPCURL     string
+	Key        *ecdsa.PrivateKey
+	Contract   *common.Address
+	OptIn      bool
+	CheckRPC   bool
+	RPCOptions sdm.RPCReplayOptions
 
 	Verifier sdm.Caller
 	Rollup   RollupClient
@@ -307,12 +308,12 @@ func CheckRPCBlock(ctx context.Context, cfg Config, blockNum uint64) (*Result, e
 
 func checkRPCReplay(ctx context.Context, cfg Config, producer sdm.Caller, result *Result, blockNum uint64) (*Result, error) {
 	var producerErr, verifierErr error
-	result.RPCReplay, producerErr = sdm.ValidateRPCReplay(ctx, producer, blockNum)
+	result.RPCReplay, producerErr = sdm.ValidateRPCReplay(ctx, producer, blockNum, cfg.RPCOptions)
 	if producerErr != nil {
 		producerErr = fmt.Errorf("producer RPC replay: %w", producerErr)
 	}
 	if cfg.Verifier != nil {
-		result.VerifierRPCReplay, verifierErr = sdm.ValidateRPCReplay(ctx, cfg.Verifier, blockNum)
+		result.VerifierRPCReplay, verifierErr = sdm.ValidateRPCReplay(ctx, cfg.Verifier, blockNum, cfg.RPCOptions)
 		if verifierErr != nil {
 			verifierErr = fmt.Errorf("verifier RPC replay: %w", verifierErr)
 		}
