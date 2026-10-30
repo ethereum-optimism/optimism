@@ -33,18 +33,18 @@ use url::Url;
 mod query;
 pub use query::EngineQueryClient;
 
-/// Deadline for each request the engine client sends, to the Engine API or to L1.
+/// Deadline for each request the node sends to an execution-layer RPC, on L1 or to the Engine API.
 ///
 /// It bounds one request, never an operation made of many requests, such as the block traversal
 /// of a reset, so a long but healthy operation is not cut off.
-const RPC_TIMEOUT: Duration = Duration::from_secs(10);
+pub const RPC_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Bounds one request on an alloy transport by [`RPC_TIMEOUT`].
 ///
 /// This wraps the transport's future rather than the HTTP client below it, because the HTTP
 /// client's future completes when the response headers arrive and the transport reads the body
 /// after that.
-fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
+pub fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
     Box::pin(async move {
         tokio::time::timeout(RPC_TIMEOUT, request)
             .await

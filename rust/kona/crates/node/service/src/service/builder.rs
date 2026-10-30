@@ -3,7 +3,7 @@
 use crate::{EngineConfig, NetworkConfig, RollupNode, SequencerConfig, service::node::L1Config};
 use alloy_primitives::Bytes;
 use alloy_provider::RootProvider;
-use alloy_rpc_client::RpcClient;
+use alloy_rpc_client::{ClientBuilder, RpcClient};
 use alloy_transport_http::{
     AuthLayer, Http, HyperClient,
     hyper_util::{client::legacy::Client, rt::TokioExecutor},
@@ -11,7 +11,7 @@ use alloy_transport_http::{
 use http_body_util::Full;
 use op_alloy_network::Optimism;
 use std::sync::Arc;
-use tower::ServiceBuilder;
+use tower::{ServiceBuilder, util::MapFutureLayer};
 use url::Url;
 
 use kona_genesis::{L1ChainConfig, RollupConfig};
@@ -154,7 +154,13 @@ impl RollupNodeBuilder {
             chain_config: Arc::new(self.l1_config_builder.chain_config),
             trust_rpc: self.l1_config_builder.trust_rpc,
             beacon_client: l1_beacon,
-            engine_provider: RootProvider::new_http(self.l1_config_builder.rpc_url.clone()),
+            // Every L1 request is bounded, so a stalled endpoint fails its caller instead of
+            // hanging it.
+            engine_provider: RootProvider::new(
+                ClientBuilder::default()
+                    .layer(MapFutureLayer::new(kona_engine::with_deadline))
+                    .http(self.l1_config_builder.rpc_url.clone()),
+            ),
         };
 
         let jwt_secret = self.engine_config.l2_jwt_secret;
