@@ -3,7 +3,7 @@
 use crate::{EngineConfig, NetworkConfig, RollupNode, SequencerConfig, service::node::L1Config};
 use alloy_primitives::Bytes;
 use alloy_provider::RootProvider;
-use alloy_rpc_client::{ClientBuilder, RpcClient};
+use alloy_rpc_client::RpcClient;
 use alloy_transport_http::{
     AuthLayer, Http, HyperClient,
     hyper_util::{client::legacy::Client, rt::TokioExecutor},
@@ -11,7 +11,7 @@ use alloy_transport_http::{
 use http_body_util::Full;
 use op_alloy_network::Optimism;
 use std::sync::Arc;
-use tower::{ServiceBuilder, util::MapFutureLayer};
+use tower::ServiceBuilder;
 use url::Url;
 
 use kona_genesis::{L1ChainConfig, RollupConfig};
@@ -21,20 +21,15 @@ use kona_providers_local::BufferedL2Provider;
 use kona_rpc::RpcBuilder;
 use kona_safedb::SafeDb;
 
-/// How many headers, receipt sets and blocks the node's L1 client caches.
-const L1_PROVIDER_CACHE_SIZE: usize = 1024;
-
 /// The [`L1ConfigBuilder`] is used to construct a [`L1Config`].
 #[derive(Debug)]
 pub struct L1ConfigBuilder {
     /// The L1 chain configuration.
     pub chain_config: L1ChainConfig,
-    /// Whether to trust the L1 RPC.
-    pub trust_rpc: bool,
+    /// The node's L1 client, shared by every component that reads L1.
+    pub provider: AlloyChainProvider,
     /// The L1 beacon API.
     pub beacon: Url,
-    /// The L1 RPC URL.
-    pub rpc_url: Url,
     /// The duration in seconds of an L1 slot. This can be used to hardcode a fixed slot
     /// duration if the l1-beacon's slot configuration is not available.
     pub slot_duration_override: Option<u64>,
@@ -153,21 +148,10 @@ impl RollupNodeBuilder {
             l1_beacon = l1_beacon.with_l1_slot_duration_override(l1_slot_duration);
         }
 
-        // Every L1 request is bounded, so a stalled endpoint fails its caller instead of hanging
-        // it.
-        let l1_rpc = RootProvider::new(
-            ClientBuilder::default()
-                .layer(MapFutureLayer::new(kona_engine::with_deadline))
-                .http(self.l1_config_builder.rpc_url.clone()),
-        );
         let l1_config = L1Config {
             chain_config: Arc::new(self.l1_config_builder.chain_config),
             beacon_client: l1_beacon,
-            provider: AlloyChainProvider::new_with_trust(
-                l1_rpc,
-                L1_PROVIDER_CACHE_SIZE,
-                self.l1_config_builder.trust_rpc,
-            ),
+            provider: self.l1_config_builder.provider,
         };
 
         let jwt_secret = self.engine_config.l2_jwt_secret;
