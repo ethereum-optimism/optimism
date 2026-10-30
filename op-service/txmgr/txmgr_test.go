@@ -230,6 +230,9 @@ type mockBackend struct {
 	// blockHeight tracks the current height of the chain.
 	blockHeight uint64
 
+	// labelLag is how many blocks the safe and finalized blocks trail blockHeight.
+	labelLag uint64
+
 	// minedTxs maps the hash of a mined transaction to its details.
 	minedTxs map[common.Hash]minedTxInfo
 }
@@ -282,7 +285,10 @@ func (b *mockBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*typ
 	defer b.mu.RUnlock()
 
 	num := big.NewInt(int64(b.blockHeight))
-	if number != nil {
+	if number != nil && number.Sign() < 0 {
+		// A negative number selects a labeled block, e.g. safe or finalized.
+		num.SetUint64(b.blockHeight - min(b.labelLag, b.blockHeight))
+	} else if number != nil {
 		num.Set(number)
 	}
 	return &types.Header{
@@ -998,6 +1004,45 @@ func TestWaitMinedMultipleConfs(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, txHash, receipt.TxHash)
+}
+
+// TestWaitMinedConfsFromBlockTag ensures that confirmations are counted from
+// the configured block tag rather than from the tip.
+func TestWaitMinedConfsFromBlockTag(t *testing.T) {
+	t.Parallel()
+
+	for _, label := range []eth.BlockLabel{eth.Safe, eth.Finalized} {
+		t.Run(string(label), func(t *testing.T) {
+			t.Parallel()
+
+			cfg := configWithNumConfs(1)
+			cfg.NumConfirmationsBlockTag = label
+			h := newTestHarnessWithConfig(t, cfg)
+			h.backend.labelLag = 2
+
+			tx := types.NewTx(&types.LegacyTx{})
+			txHash := tx.Hash()
+			h.backend.mine(&txHash, new(big.Int), nil)
+
+			// One confirmation from the tip, but the labeled block is 2 blocks behind.
+			for i := 0; i < 2; i++ {
+				ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+				receipt, err := h.mgr.waitMined(ctx, tx, NewSendState(10, time.Hour))
+				cancel()
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+				require.Nil(t, receipt)
+				h.backend.mine(nil, nil, nil)
+			}
+
+			// The labeled block has now reached the tx block.
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			receipt, err := h.mgr.waitMined(ctx, tx, NewSendState(10, time.Hour))
+			require.NoError(t, err)
+			require.NotNil(t, receipt)
+			require.Equal(t, txHash, receipt.TxHash)
+		})
+	}
 }
 
 // TestManagerErrsOnZeroCLIConfs ensures that the NewSimpleTxManager will error
