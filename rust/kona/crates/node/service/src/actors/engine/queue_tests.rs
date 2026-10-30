@@ -252,6 +252,7 @@ async fn finalization_target_survives_resets_below_it(#[case] target_kind: Targe
     let genesis_block = TestRpcBlock::default();
     let mut config = RollupConfig::default();
     config.genesis.l2.hash = genesis_block.header.inner.hash_slow();
+    config.genesis.l1.hash = alloy_consensus::Header::default().hash_slow();
     let config = Arc::new(config);
     let genesis = L2BlockInfo::from_block_and_genesis(
         &genesis_block.clone().into_consensus(),

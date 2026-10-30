@@ -255,7 +255,9 @@ impl RollupNode {
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
         let engine = Engine::new(engine_state, engine_state_tx);
 
-        let engine_client = Arc::new(self.engine_config.clone().build_engine_client());
+        let engine_client = Arc::new(
+            self.engine_config.clone().build_engine_client(self.l1_config.provider.clone()),
+        );
 
         // unsafe_head_tx is only meaningful in sequencer mode; validators ignore it.
         let unsafe_head_tx_opt = self.mode().is_sequencer().then_some(unsafe_head_tx);
