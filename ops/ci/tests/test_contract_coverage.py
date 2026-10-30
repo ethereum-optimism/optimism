@@ -107,6 +107,7 @@ class _LiveCoverageTestsFixtures:
             root = Path(tmp) / 'repo'
             contracts = root / 'packages/contracts-bedrock'
             (contracts / 'test/L1').mkdir(parents=True)
+            (contracts / 'test/L2').mkdir(parents=True)
             (contracts / 'src').mkdir()
             (contracts / 'scripts/go-ffi').mkdir(parents=True)
             (root / 'ops/ci/runtime').mkdir(parents=True)
@@ -132,6 +133,8 @@ class _LiveCoverageTestsFixtures:
             (contracts / 'foundry.toml').write_text('[profile.default]\nsrc="src"\ntest="test"\nout="forge-artifacts"\nsolc="0.8.15"\nffi=true\nast=true\noptimizer=true\nextra_output=["devdoc","userdoc","metadata","storageLayout"]\n[profile.cicoverage]\noptimizer=false\nthreads=16\ncompilation_restrictions=[]\n[profile.cicoverage.fuzz]\nruns=1\n[profile.cicoverage.invariant]\nruns=1\ndepth=1\n')
             (contracts / 'src/Fixture.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;contract Fixture {function value(uint256 a) external pure returns(uint256){return a==3?1:2;}}interface Vm {function skip(bool,string calldata) external;function ffi(string[] calldata) external returns(bytes memory);function envOr(string calldata,bool) external view returns(bool);function envUint(string calldata) external view returns(uint256);}')
             (contracts / 'test/L1/Fixture.t.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;import {Fixture,Vm} from "../../src/Fixture.sol";contract FixtureTest {Vm constant vm=Vm(address(uint160(uint256(keccak256("hevm cheat code")))));function test_runtime() public {string[] memory a=new string[](1);a[0]="./scripts/go-ffi/go-ffi";assert(abi.decode(vm.ffi(a),(uint256))==1);}function testFuzz_value(uint256 a) public {assert(new Fixture().value(a)>0);}function test_skip() public {vm.skip(true,"original fixture exclusion");}}contract OPContractsManagerFixture_Upgrade_Test {Vm constant vm=Vm(address(uint160(uint256(keccak256("hevm cheat code")))));function setUp() public {vm.skip(!vm.envOr("FORK_TEST",false),"upgrade requires fork");}function test_upgrade() public {assert(vm.envUint("FORK_BLOCK_NUMBER")==42);assert(vm.envUint("FOUNDRY_FORK_RETRIES")==10);assert(vm.envUint("FOUNDRY_FORK_RETRY_BACKOFF")==1000);string[] memory a=new string[](1);a[0]="./scripts/go-ffi/go-ffi";assert(abi.decode(vm.ffi(a),(uint256))==1);}}abstract contract DeclaredTest {function test_abstract() public pure {assert(true);}}contract InvariantTarget {uint256 public value=1;function handler(uint256) external {value=1;}}contract InvariantFixtureTest {InvariantTarget target;function setUp() public {target=new InvariantTarget();}function targetContracts() external view returns(address[] memory result){result=new address[](1);result[0]=address(target);}Vm constant vm=Vm(address(uint160(uint256(keccak256("hevm cheat code")))));function invariant_value() public view {assert(target.value()==1&&!vm.envOr("CI_COVERAGE_FIXTURE_INVARIANT_FAIL",false));}function invariant_valuePositive() public view {assert(target.value()>0);}}')
+            # Coverage runs default-EVM tests in their own pass.
+            (contracts / 'test/L2/Fixture.t.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;import {Fixture} from "../../src/Fixture.sol";contract L2FixtureTest {function test_l2() public {assert(new Fixture().value(3)==1);}}')
 
             def git(*args):
                 return subprocess.check_output(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', *args], cwd=root, text=True, stderr=subprocess.DEVNULL).strip()
@@ -214,18 +217,20 @@ class _LiveCoverageTestsFixtures:
             code, directory, log = invoke('run', 'rwx', prepared, preflight / 'block.json')
             self.assertEqual(code, 0, log)
             self.assertEqual(marker.read_text(), 'xx')
-            ordinary = json.loads((directory / 'ordinary/coverage.json').read_text())
+            ordinary = json.loads((directory / 'ordinary-amsterdam/coverage.json').read_text())
             self.assertEqual(ordinary['outcomes'], {'pass': 4, 'skip': 2})
-            events = json.loads((directory / 'ordinary/original-events.json').read_text())
+            events = json.loads((directory / 'ordinary-amsterdam/original-events.json').read_text())
             self.assertEqual(events['engine_summary'], {'suites': 3, 'pass': 3, 'fail': 0, 'skip': 2, 'total': 5})
             self.assertEqual(len(events['invariant_campaigns'][0]['members']), 2)
             self.assertEqual(len(ordinary['non_executable']), 1)
+            self.assertEqual(json.loads((directory / 'ordinary-l2/coverage.json').read_text())['outcomes'], {'pass': 1})
+            self.assertEqual(json.loads((directory / 'evm-passes.json').read_text())['passes'], {'amsterdam': ['test/L1/Fixture.t.sol'], 'l2': ['test/L2/Fixture.t.sol']})
             self.assertEqual(json.loads((directory / 'upgrade/coverage.json').read_text())['outcomes'], {'pass': 1})
             phase_ids = {}
             for phase in C.PHASES:
                 phase_ids[phase] = {(r.attrib['classname'], r.attrib['name']) for r in C.ET.parse(directory / phase / 'derived.junit.xml').iter('testcase')}
                 self.assertTrue(all((identity.startswith(phase + ':') for identity, _ in phase_ids[phase])))
-            self.assertTrue(phase_ids['ordinary'].isdisjoint(phase_ids['upgrade']))
+            self.assertTrue(phase_ids['ordinary-amsterdam'].isdisjoint(phase_ids['upgrade']))
             self.assertTrue((contracts / 'lcov.info').is_file())
             self.assertTrue((contracts / 'lcov-upgrade.info').is_file())
             first = Path(tmp) / 'native'
@@ -247,7 +252,7 @@ class _LiveCoverageTestsFixtures:
             code, directory, log = invoke('run', 'rwx', prepared, preflight / 'block.json')
             self.assertNotEqual(code, 0, log)
             self.assertEqual(marker.read_text(), 'xxxx')
-            self.assertFalse((directory / 'ordinary').exists())
+            self.assertFalse((directory / 'ordinary-amsterdam').exists())
             ffi.write_bytes(original_binary)
             settings = prepared / 'settings.json'
             original_settings = settings.read_bytes()
@@ -258,25 +263,26 @@ class _LiveCoverageTestsFixtures:
             code, directory, log = invoke('run', 'rwx', prepared, preflight / 'block.json')
             self.assertNotEqual(code, 0, log)
             self.assertEqual(marker.read_text(), 'xxxx')
-            self.assertFalse((directory / 'ordinary').exists())
+            self.assertFalse((directory / 'ordinary-amsterdam').exists())
             settings.write_bytes(original_settings)
             C.UP.finish(prepared, 0, [])
             code, directory, log = invoke('run', block=preflight / 'block.json', failing=True)
             self.assertNotEqual(code, 0, log)
-            self.assertEqual(json.loads((directory / 'ordinary/tests.stage.json').read_text())['exit_code'], 1)
-            self.assertTrue((directory / 'ordinary/original.lcov.info').is_file())
-            self.assertTrue((directory / 'ordinary/original.attribution.json').is_file())
-            self.assertTrue(any((r['outcome'] == 'fail' for r in json.loads((directory / 'ordinary/original-cases.json').read_text()))))
+            self.assertEqual(json.loads((directory / 'ordinary-amsterdam/tests.stage.json').read_text())['exit_code'], 1)
+            self.assertTrue((directory / 'ordinary-amsterdam/original.lcov.info').is_file())
+            self.assertTrue((directory / 'ordinary-amsterdam/original.attribution.json').is_file())
+            self.assertTrue(any((r['outcome'] == 'fail' for r in json.loads((directory / 'ordinary-amsterdam/original-cases.json').read_text()))))
+            self.assertFalse((directory / 'ordinary-l2').exists())
             self.assertFalse((directory / 'upgrade').exists())
             self.assertTrue((directory / 'rerun.stage.json').exists())
             self.assertNotEqual(json.loads((directory / 'final.json').read_text())['exit_code'], 0)
             self.assertFalse(json.loads((directory / 'final.json').read_text())['report_errors'])
             code, directory, log = invoke('run', block=preflight / 'block.json', invariant_failing=True)
             self.assertNotEqual(code, 0, log)
-            events = json.loads((directory / 'ordinary/original-events.json').read_text())
+            events = json.loads((directory / 'ordinary-amsterdam/original-events.json').read_text())
             self.assertEqual(events['invariant_campaigns'][0]['outcome'], 'fail')
             self.assertEqual({r['name']: r['outcome'] for r in events['cases'] if r['class'].endswith(':InvariantFixtureTest')}, {'invariant_value()': 'fail', 'invariant_valuePositive()': 'pass'})
-            self.assertEqual(json.loads((directory / 'ordinary/tests.stage.json').read_text())['exit_code'], 1)
+            self.assertEqual(json.loads((directory / 'ordinary-amsterdam/tests.stage.json').read_text())['exit_code'], 1)
             self.assertFalse(json.loads((directory / 'final.json').read_text())['report_errors'])
 
 

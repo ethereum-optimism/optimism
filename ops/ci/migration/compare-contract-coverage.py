@@ -99,6 +99,9 @@ def report(directory, feature, sha, provider, empty):
     for row in bindings.values():
         if not row['artifacts'] or any(compiled.get(name) != value for name, value in row['artifacts'].items()):
             raise ValueError('Coverage compiler signatures differ from bound artifacts')
+    routing = json.loads((directory / 'evm-passes.json').read_text())
+    if not isinstance(routing.get('pattern'), str) or routing != C.evm_passes(files, routing['pattern']):
+        raise ValueError('Coverage EVM passes differ from the complete file selection')
     selection = {phase: UP.selection(json.loads((directory / (phase + '-discovery.json')).read_text()), bindings) for phase in C.PHASES}
     if selection != {k: [tuple(r) for r in v] for k, v in json.loads((directory / 'selection.json').read_text()).items()} or \
        any(identity.rsplit(':', 1)[0] not in files for rows in selection.values() for identity, _ in rows):
@@ -109,8 +112,8 @@ def report(directory, feature, sha, provider, empty):
                 'submodules-init': ['git', '-C', root, '-c', 'protocol.file.allow=never', 'submodule', 'update', '--init', '--recursive', '--jobs', '8'],
                 'build-config': ['forge', 'config', '--json'], 'go-ffi': ['just', 'build-go-ffi'], 'source-build': ['just', 'build-source'],
                 'foundry-config': ['forge', 'config', '--json'], 'coverage-build': ['forge', 'build'],
-                **{phase + '-discovery': argv for phase, argv in C.DISCOVERY.items()},
-                **{phase + '/tests': argv for phase, argv in C.COMMANDS.items()}}
+                **{phase + '-discovery': argv for phase, argv in C.discovery(routing).items()},
+                **{phase + '/tests': argv for phase, argv in C.commands(routing).items()}}
     if provider == 'rwx':
         if json.loads((directory / 'runtime-config.json').read_text()) != config or CS.file_selection((directory / 'runtime-files.log').read_text()) != files:
             raise ValueError('Coverage runtime settings or selection differ from preparation')
@@ -171,7 +174,7 @@ def report(directory, feature, sha, provider, empty):
                          'lcov': records, 'source_sha256': sources}
     methods = {name: {'methods': row['methods'], 'deployable': UP.deployable(row)} for name, row in bindings.items()
                if UP.deployable(row) or any(method.startswith(('test', 'invariant')) for method in row['methods'])}
-    return {'settings': settings, 'files': files, 'selection': selection, 'phases': phases, 'block': block, 'source_after_verdict': after,
+    return {'settings': settings, 'files': files, 'evm_passes': routing, 'selection': selection, 'phases': phases, 'block': block, 'source_after_verdict': after,
             'fixtures': fixtures, 'config': UP.REPORT.normalize(config, root), 'build_config': UP.REPORT.normalize(build_config, root),
             'methods': methods, 'submodules': UP.SUBMODULES.revisions((directory / 'submodules.txt').read_text()), 'original_sha256': hashes}
 
@@ -182,7 +185,7 @@ def compare(directories, feature, sha):
     for key in ('source_sha', 'feature', 'branch', 'profile', 'source_build_profile', 'benchmark_seed', 'authority', 'phases',
                 'forge', 'go', 'just', 'input_sha256', 'runtime_output_paths', 'rpc_input_name'):
         if a['settings'][key] != b['settings'][key]: raise ValueError('Coverage settings differ at ' + key)
-    for key in ('files', 'selection', 'phases', 'block', 'source_after_verdict', 'fixtures', 'config', 'build_config', 'methods', 'submodules'):
+    for key in ('files', 'evm_passes', 'selection', 'phases', 'block', 'source_after_verdict', 'fixtures', 'config', 'build_config', 'methods', 'submodules'):
         if a[key] != b[key]: raise ValueError('Complete original coverage parity differs at ' + key)
     return {'source_sha': sha, 'feature': feature, 'verified_parity': True, 'selection': a['selection'], 'file_selection': a['files'],
             'phases': a['phases'], 'block': a['block'], 'settings': {p: d['settings'] for p, d in data.items()},

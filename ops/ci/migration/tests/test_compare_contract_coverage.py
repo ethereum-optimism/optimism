@@ -13,6 +13,8 @@ from ci_test_fixtures import ReportFixtures
 SPEC = importlib.util.spec_from_file_location('compare', Path(__file__).resolve().parents[2] / 'migration' / 'compare-contract-coverage.py')
 C = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(C)
 SHA = 'a'*40
+# The justfile's DEFAULT_EVM_TESTS routing.
+PATTERN = r'^test/L2/|^test/scripts/ExecuteNUTBundle\.t\.sol$'
 
 
 class ComparisonTests(ReportFixtures, unittest.TestCase):
@@ -23,7 +25,9 @@ class ComparisonTests(ReportFixtures, unittest.TestCase):
             source = 'test/L1/Fixture.t.sol'; identity = source + ':OPContractsManagerFixture_Upgrade_Test'
             artifact = 'packages/contracts-bedrock/forge-artifacts/Fixture.t.sol/OPContractsManagerFixture_Upgrade_Test.json'
             seed = '0x' + hashlib.sha256((SHA + ':main:contract-coverage').encode()).hexdigest()
-            inputs = {'packages/contracts-bedrock/' + source: 'b'*64, 'packages/contracts-bedrock/src/A.sol': 'e'*64}
+            # Coverage requires a non-empty file list for each EVM pass.
+            files = [source, 'test/L2/Fixture.t.sol']; routing = C.C.evm_passes(files, PATTERN)
+            inputs = {**{'packages/contracts-bedrock/' + name: 'b'*64 for name in files}, 'packages/contracts-bedrock/src/A.sol': 'e'*64}
             settings = {'source_sha': SHA, 'feature': 'main', 'branch': 'pilot', 'profile': 'cicoverage', 'source_build_profile': 'default',
                         'benchmark_seed': seed, 'rpc_input_name': C.C.RPC_INPUT, 'authority': ['just', 'coverage-lcov-all'],
                         'ffi_replay_seed': seed, 'ffi_replay_policy': 'chacha8-arguments-v1',
@@ -31,7 +35,8 @@ class ComparisonTests(ReportFixtures, unittest.TestCase):
                         'forge': 'pinned', 'go': 'pinned', 'just': 'pinned', 'input_sha256': inputs, 'runtime_output_paths': [],
                         'rwx_run_id': 'c'*32 if provider == 'rwx' else None, 'rwx_task_attempt': '1'}
             self.write(d / 'settings.json', settings); self.write(d / 'source-after-preparation.json', inputs)
-            (d / 'files.log').write_text(source + '\n'); self.write(d / 'file-selection.json', {'files': [source], 'partitions': [{'index': 0, 'files': [source]}]})
+            (d / 'files.log').write_text('\n'.join(files) + '\n'); self.write(d / 'file-selection.json', {'files': files, 'partitions': [{'index': 0, 'files': files}]})
+            self.write(d / 'evm-passes.json', routing)
             (d / 'submodules.txt').write_text(' ' + 'd'*40 + ' modules/original\n')
             config = {'root': root, 'out': 'forge-artifacts', 'optimizer': False, 'threads': 16, 'compilation_restrictions': [],
                       'fuzz': {'runs': 1, 'seed': seed}, 'invariant': {'runs': 1, 'depth': 1}}
@@ -49,12 +54,12 @@ class ComparisonTests(ReportFixtures, unittest.TestCase):
                         'submodules-init': ['git', '-C', root, '-c', 'protocol.file.allow=never', 'submodule', 'update', '--init', '--recursive', '--jobs', '8'],
                         'build-config': ['forge', 'config', '--json'], 'go-ffi': ['just', 'build-go-ffi'], 'source-build': ['just', 'build-source'],
                         'coverage-build': ['forge', 'build'], 'foundry-config': ['forge', 'config', '--json'],
-                        **{phase + '-discovery': argv for phase, argv in C.C.DISCOVERY.items()}}
+                        **{phase + '-discovery': argv for phase, argv in C.C.discovery(routing).items()}}
             for name, argv in commands.items(): self.stage(d, name, argv, root)
             if provider == 'rwx':
                 self.seal(d); (d / 'preparation-manifest.json').write_bytes((d / 'final.json').read_bytes())
                 self.write(d / 'preparation-settings.json', settings); self.write(d / 'runtime-config.json', config)
-                (d / 'runtime-files.log').write_text(source + '\n')
+                (d / 'runtime-files.log').write_text('\n'.join(files) + '\n')
                 self.stage(d, 'runtime-config', ['forge', 'config', '--json'], root); self.stage(d, 'runtime-files', C.CS.FILE_COMMANDS['standard'], root)
             block = {'source_sha': SHA, 'policy': 'Just current-day 00:00 UTC', 'chain_id': 1, 'number': 42, 'hash': '0x'+'a'*64, 'timestamp': 1234}
             self.write(d / 'block.json', block); preflight = d / 'archive-preflight'; preflight.mkdir()
@@ -78,7 +83,7 @@ class ComparisonTests(ReportFixtures, unittest.TestCase):
                     'FNF:1\nFNH:1\nLF:1\nLH:1\nBRF:0\nBRH:0\nend_of_record\n')
                 self.write(p / 'lcov-records.json', C.C.lcov((p / 'original.lcov.info').read_text()))
                 self.write(p / 'coverage-source-sha256.json', {'src/A.sol': 'e'*64})
-                self.stage(p, 'tests', C.C.COMMANDS[phase], root)
+                self.stage(p, 'tests', C.C.commands(routing)[phase], root)
             self.seal(d)
 
     def stage(self, directory, name, argv, root):
@@ -113,8 +118,16 @@ class ComparisonTests(ReportFixtures, unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'seed'): self.compare()
 
     def test_matching_noop_command_is_rejected(self):
-        for d in self.dirs.values(): self.mutate(d, 'ordinary/tests.stage.json', lambda v: v.update(argv=['true']))
+        for d in self.dirs.values(): self.mutate(d, 'ordinary-amsterdam/tests.stage.json', lambda v: v.update(argv=['true']))
         with self.assertRaisesRegex(ValueError, 'command'): self.compare()
+
+    def test_coverage_outside_its_evm_pass_is_rejected(self):
+        # Both providers ran the Amsterdam-routed coverage pass at the default EVM.
+        for d in self.dirs.values(): self.mutate(d, 'ordinary-amsterdam/tests.stage.json', lambda v: v.update(argv=v['argv'][2:]))
+        with self.assertRaisesRegex(ValueError, 'command'): self.compare()
+        self.setUp()
+        for d in self.dirs.values(): self.mutate(d, 'evm-passes.json', lambda v: v['passes'].update(l2=v['passes']['amsterdam']))
+        with self.assertRaisesRegex(ValueError, 'EVM passes'): self.compare()
 
     def test_unbound_ffi_replay_corpus_is_rejected(self):
         for d in self.dirs.values(): self.mutate(d, 'settings.json', lambda v:v.update(ffi_replay_seed='0x'+'b'*64))
@@ -134,7 +147,7 @@ class ComparisonTests(ReportFixtures, unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'preflight'): self.compare()
 
     def test_raw_lcov_hit_difference_is_not_normalized_away(self):
-        d = self.dirs['circle']; p = d / 'ordinary'; source = p / 'original.lcov.info'
+        d = self.dirs['circle']; p = d / 'ordinary-amsterdam'; source = p / 'original.lcov.info'
         source.write_text(source.read_text().replace('DA:6,4', 'DA:6,5'))
         self.write(p / 'lcov-records.json', C.C.lcov(source.read_text())); self.seal(d)
         with self.assertRaisesRegex(ValueError, 'differs at phases'): self.compare()
@@ -143,16 +156,16 @@ class ComparisonTests(ReportFixtures, unittest.TestCase):
         item={'source':'src/A.sol','contract':'A','kind':'branch','line_start':6,'line_end':7,
               'byte_start':10,'byte_end':30,'hits':4,'branch_id':1,'path_id':0}
         for d in self.dirs.values():
-            self.mutate(d,'ordinary/original.attribution.json',lambda data:data['tests'][0].update(covered=[item]))
+            self.mutate(d,'ordinary-amsterdam/original.attribution.json',lambda data:data['tests'][0].update(covered=[item]))
         self.assertTrue(self.compare()['verified_parity'])
-        d=self.dirs['rwx'];original=(d/'ordinary/original.attribution.json').read_text()
+        d=self.dirs['rwx'];original=(d/'ordinary-amsterdam/original.attribution.json').read_text()
         for field,value in [('hits',5),('byte_end',31),('branch_id',2),('path_id',1)]:
             data=json.loads(original);data['tests'][0]['covered'][0][field]=value
-            self.write(d/'ordinary/original.attribution.json',data);self.seal(d)
+            self.write(d/'ordinary-amsterdam/original.attribution.json',data);self.seal(d)
             with self.subTest(field=field),self.assertRaisesRegex(ValueError,'differs at phases'):self.compare()
 
     def test_derived_junit_cannot_invent_or_change_a_skip_reason(self):
-        d = self.dirs['circle']; p = d / 'ordinary/derived.junit.xml'; p.write_text(p.read_text().replace('original exclusion', 'invented exclusion'))
+        d = self.dirs['circle']; p = d / 'ordinary-amsterdam/derived.junit.xml'; p.write_text(p.read_text().replace('original exclusion', 'invented exclusion'))
         self.seal(d)
         with self.assertRaisesRegex(ValueError, 'Derived coverage JUnit differs'): self.compare()
 
@@ -163,7 +176,7 @@ class ComparisonTests(ReportFixtures, unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'retry'): self.compare()
         self.setUp(); d = self.dirs['circle']; self.mutate(d, 'source-after-verdict.json', lambda v: v.update({'go.sum': 'f'*64}))
         with self.assertRaisesRegex(ValueError, 'source mutation'): self.compare()
-        self.setUp(); d = self.dirs['circle']; (d / 'ordinary/tests.log').write_text('corrupt'); self.seal(d)
+        self.setUp(); d = self.dirs['circle']; (d / 'ordinary-amsterdam/tests.log').write_text('corrupt'); self.seal(d)
         with self.assertRaisesRegex(ValueError, 'output hashes'): self.compare()
 
 

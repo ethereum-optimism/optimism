@@ -15,23 +15,40 @@ import xml.etree.ElementTree as ET
 SPEC = importlib.util.spec_from_file_location('suites', Path(__file__).with_name('contract-suites.py'))
 CS = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(CS)
 UP, ROOT, CONTRACTS = CS.UP, CS.ROOT, CS.CONTRACTS
-PHASES = ('ordinary', 'upgrade')
+# coverage-lcov-all runs `coverage`, which splits ordinary tests into an
+# Amsterdam pass and a default-EVM pass, and then the upgrade pass.
+PHASES = ('ordinary-amsterdam', 'ordinary-l2', 'upgrade')
 UPGRADE_CONTRACT = 'OPContractsManager.*_Upgrade_Test'
 RPC_INPUT = 'OP_CI_MAINNET_L1_ARCHIVE_RPC_URL'
 FFI_REPLAY_INPUT = 'OP_CI_FFI_REPLAY_SEED'
-DISCOVERY = {'ordinary': ['forge', 'test', '--list', '--json'],
-             'upgrade': ['forge', 'test', '--list', '--json', '--match-contract', UPGRADE_CONTRACT, '--match-path', UP.MATCH]}
-# These are the two commands executed, in this order and with short-circuiting,
-# by coverage-lcov-all. Attribution adds reporting only. Foundry ignores
-# --report-file for multiple file reports, so each pass's lcov.info is moved to
-# its original public filename before the next pass can overwrite it.
-COMMANDS = {'ordinary': ['just', 'coverage-lcov', '--report', 'attribution'],
-            'upgrade': ['just', 'coverage-lcov-upgrade', '--match-contract', UPGRADE_CONTRACT, '--report', 'attribution']}
+UPGRADE_DISCOVERY = ['forge', 'test', '--list', '--json', '--match-contract', UPGRADE_CONTRACT, '--match-path', UP.MATCH]
+# Attribution adds reporting only. Foundry ignores --report-file for multiple
+# file reports, so the runner executes the `coverage` passes itself and moves
+# each pass's lcov.info aside before the next pass can overwrite it.
+UPGRADE_COMMAND = ['just', 'coverage-lcov-upgrade', '--match-contract', UPGRADE_CONTRACT, '--report', 'attribution']
 PREPARED = {'settings.json', 'files.log', 'files.stage.json', 'file-selection.json', 'submodules.txt',
             'submodules-sync.stage.json', 'submodules-init.stage.json', 'build-config.json', 'build-config.stage.json',
             'go-ffi.stage.json', 'source-build.stage.json', 'coverage-build.stage.json', 'foundry-config.json', 'foundry-config.stage.json',
-            'ordinary-discovery.json', 'ordinary-discovery.stage.json', 'upgrade-discovery.json', 'upgrade-discovery.stage.json',
-            'selection.json', 'signature-bindings.json', 'compiled.json', 'compile-only.json', 'source-after-preparation.json'}
+            'evm-passes.json', 'selection.json', 'signature-bindings.json', 'compiled.json', 'compile-only.json', 'source-after-preparation.json',
+            *(phase + '-discovery' + suffix for phase in PHASES for suffix in ('.json', '.stage.json'))}
+
+
+def evm_passes(files, pattern):
+    routing = CS.evm_passes(files, pattern)
+    if set(routing['passes']) != {'amsterdam', 'l2'}: raise ValueError('Coverage EVM pass is empty')
+    return routing
+
+
+def discovery(routing):
+    return {**{'ordinary-' + name: ['forge', 'test', '--list', '--json', '--match-path', CS.match_path(files)]
+               for name, files in routing['passes'].items()}, 'upgrade': UPGRADE_DISCOVERY}
+
+
+def commands(routing):
+    prefix = {'amsterdam': ['env', 'FOUNDRY_HARDFORK=amsterdam'], 'l2': []}
+    return {**{'ordinary-' + name: [*prefix[name], 'forge', 'coverage', '--match-path', CS.match_path(files),
+                                    '--report', 'lcov', '--report', 'attribution']
+               for name, files in routing['passes'].items()}, 'upgrade': UPGRADE_COMMAND}
 
 
 def configure(feature):
@@ -113,7 +130,9 @@ def prepare(directory, feature):
     # the authoritative signature/abstract-bytecode bindings without tests.
     status = UP.stage(directory, 'coverage-build', ['forge', 'build'])
     if status: return status
-    for phase, argv in DISCOVERY.items():
+    routing = evm_passes(files, UP.command('just', '--evaluate', 'DEFAULT_EVM_TESTS', cwd=CONTRACTS))
+    UP.write(directory / 'evm-passes.json', routing)
+    for phase, argv in discovery(routing).items():
         status = UP.stage(directory, phase + '-discovery', argv, json_output=True)
         if status: return status
     out = Path(config['out']); out = out if out.is_absolute() else CONTRACTS / out
@@ -336,7 +355,7 @@ def collect_pass(directory, phase, redactor, status, selection, bindings):
         p = CONTRACTS / source
         if p.exists(): (directory / name).write_bytes(redactor(p.read_bytes()))
     generated = {}
-    for name in ('cache/test-failures', 'cache/fuzz', 'cache/invariant', '.testdata', '.resource-metering.csv'):
+    for name in ('cache/test-failures', *CS.FAILURES, 'cache/fuzz', 'cache/invariant', '.testdata', '.resource-metering.csv'):
         p = CONTRACTS / name
         if p.exists():
             for source in ([p] if p.is_file() else sorted(p.rglob('*'))):
@@ -380,6 +399,11 @@ def run(directory, url, redactor, block_path):
     else: chosen = UP.pinned_block(directory, url, redactor)
     UP.write(directory / 'block.json', chosen); os.environ['FORK_BLOCK_NUMBER'] = str(chosen['number'])
     selected = json.loads((directory / 'selection.json').read_text()); bindings = json.loads((directory / 'signature-bindings.json').read_text())
+    routing = json.loads((directory / 'evm-passes.json').read_text()); argv = commands(routing)
+    for name in CS.FAILURES: (CONTRACTS / name).unlink(missing_ok=True)
+    # `just test-rerun` reruns these files when no pass recorded a failure cache.
+    (CONTRACTS / 'cache').mkdir(exist_ok=True)
+    (CONTRACTS / 'cache/test-files').write_text('\n'.join(CS.file_selection((directory / 'files.log').read_text())) + '\n')
     status = 0
     for phase in PHASES:
         current = directory / phase; current.mkdir()
@@ -387,14 +411,19 @@ def run(directory, url, redactor, block_path):
             p = CONTRACTS / name
             if p.is_dir(): shutil.rmtree(p)
             elif p.exists(): p.unlink()
-        status = UP.stage(current, 'tests', COMMANDS[phase], redactor)
+        status = UP.stage(current, 'tests', argv[phase], redactor)
+        # As in `coverage`, each EVM pass keeps its own failure cache for test-rerun.
+        if status and phase != 'upgrade' and (CONTRACTS / 'cache/test-failures').is_file():
+            shutil.copy2(CONTRACTS / 'cache/test-failures', CONTRACTS / 'cache' / ('test-failures-' + phase.removeprefix('ordinary-')))
         collect_pass(current, phase, redactor, status, selected[phase], bindings)
         if status: break
     # Preserve coverage-lcov-all's two original public output paths as well as
     # the independently sealed originals. Verdicts and reports are never cached.
-    for phase, name in [('ordinary', 'lcov.info'), ('upgrade', 'lcov-upgrade.info')]:
-        source = directory / phase / 'original.lcov.info'
-        if source.exists(): shutil.copy2(source, CONTRACTS / name)
+    # As in `coverage`, lcov.info concatenates both EVM passes' records.
+    for phases, name in [(('ordinary-amsterdam', 'ordinary-l2'), 'lcov.info'), (('upgrade',), 'lcov-upgrade.info')]:
+        sources = [directory / phase / 'original.lcov.info' for phase in phases]
+        if any(source.exists() for source in sources):
+            (CONTRACTS / name).write_bytes(b''.join(source.read_bytes() for source in sources if source.exists()))
     if status and status < 128 and (CONTRACTS / 'cache/test-failures').is_file() and (CONTRACTS / 'cache/test-failures').stat().st_size:
         UP.stage(directory, 'rerun', ['just', 'test-rerun'], redactor)
     return status
