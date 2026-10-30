@@ -24,10 +24,11 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 /// @dev    NOT FOR PRODUCTION. Faithful to the interface and the event shapes, but unaudited
 ///         and holding real value on whatever chain it is deployed to.
 ///
-///         The Portal's completeDepositTransaction and completeWithdrawalTransaction are empty
-///         stubs until the real hook paths land, so a completion today emits Completed and
-///         changes nothing on the Portal. Left deliberately, since the real behaviour arrives
-///         with those changes rather than with this contract.
+///         What a completion actually does depends on which Portal is behind the proxy.
+///         Against the stock Portal, whose completion entry points are still empty stubs, it
+///         emits Completed and changes nothing there. Against the mock Portal, or the real one
+///         once its hook paths land, it runs the item on its committed terms. The module's own
+///         bookkeeping is identical either way, so nothing here changes when they do.
 contract MockComplianceModule is IComplianceModule {
     using SafeERC20 for IERC20;
 
