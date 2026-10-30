@@ -99,6 +99,9 @@ impl<G: ConnectionGate> Drop for GossipDriver<G> {
 /// [`GossipDriver::duplicate_connection_grace`].
 const DUPLICATE_CONNECTION_GRACE: Duration = Duration::from_secs(10);
 
+/// The longest a ban can last: about a century, which every platform's clock can add to now.
+const LONGEST_BAN: Duration = Duration::from_secs(100 * 365 * 24 * 60 * 60);
+
 /// How often static peers that aren't connected are dialed again by default, as in op-node.
 const STATIC_PEER_REDIAL_INTERVAL: Duration = Duration::from_secs(60);
 
@@ -401,7 +404,9 @@ where
         )
         .increment(1);
         if let Some(monitoring) = &self.peer_monitoring {
-            let until = Instant::now() + monitoring.ban_duration;
+            // A duration too long for the clock bans the peer for as long as the node runs.
+            let now = Instant::now();
+            let until = now.checked_add(monitoring.ban_duration).unwrap_or(now + LONGEST_BAN);
             self.swarm.behaviour_mut().gate.ban_peer(peer_id, until);
         }
         self.disconnect_peer(peer_id);
@@ -2039,6 +2044,19 @@ mod tests {
             driver_2.dial_multiaddr(addr_1).expect("dial");
         }
         poll_until_connected(&mut driver_1, &mut driver_2).await;
+    }
+
+    /// A ban duration too long to add to the clock bans the peer for as long as the clock goes,
+    /// rather than panicking when the first peer is banned.
+    #[tokio::test]
+    async fn test_ban_duration_beyond_the_clock_does_not_panic() {
+        let monitoring = PeerMonitoring { ban_threshold: -100.0, ban_duration: Duration::MAX };
+        let mut driver =
+            memory_driver_builder().with_peer_monitoring(Some(monitoring)).build().expect("build");
+        let peer = PeerId::random();
+
+        driver.ban_peer(peer);
+        assert!(driver.swarm.behaviour().gate.is_banned_peer(&peer));
     }
 
     /// Unblocking a peer lifts its ban too, and a ban isn't listed as a block, as in op-node.
