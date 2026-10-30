@@ -8,6 +8,7 @@ use kona_derive::{
 };
 use kona_genesis::{CONFIG_UPDATE_TOPIC, RollupConfig, SystemConfig};
 use kona_protocol::{DEPOSIT_EVENT_ABI_HASH, L2BlockInfo};
+use kona_providers_alloy::AlloyChainProviderError;
 use op_alloy_consensus::{TxDeposit, UserDepositSource};
 use rstest::rstest;
 use std::sync::{
@@ -68,7 +69,7 @@ impl L1OriginSelectorProvider for MemoryL1 {
         &self,
         hash: B256,
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
-        self.count_call().await?;
+        self.count_call().await.map_err(AlloyChainProviderError::from)?;
         Ok(self
             .blocks
             .lock()
@@ -90,7 +91,7 @@ impl L1OriginSelectorProvider for MemoryL1 {
         {
             return Ok(None);
         }
-        self.count_call().await?;
+        self.count_call().await.map_err(AlloyChainProviderError::from)?;
         Ok(self.blocks.lock().unwrap().get(number as usize).map(Self::info))
     }
 }
@@ -172,7 +173,10 @@ impl Harness {
             head: head_rx.clone(),
             depth,
         };
-        let rpc = alloy_provider::RootProvider::new_http("http://127.0.0.1:1".parse().unwrap());
+        let rpc = kona_providers_alloy::AlloyChainProvider::new_http(
+            "http://127.0.0.1:1".parse().unwrap(),
+            8,
+        );
         let OriginPreparation { prefetcher: worker, origins: provider, attributes } =
             OriginPreparation::new(rpc, head_rx, depth, l1.clone());
         let worker = OriginPrefetcher {
