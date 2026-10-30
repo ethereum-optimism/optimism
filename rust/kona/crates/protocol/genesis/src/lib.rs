@@ -55,8 +55,8 @@ pub use system::{
 
 mod chain;
 pub use chain::{
-    AddressList, AltDAConfig, BASE_MAINNET_CHAIN_ID, BASE_SEPOLIA_CHAIN_ID, ChainConfig,
-    HardForkConfig, L1ChainConfig, OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID, Roles,
+    AddressList, BASE_MAINNET_CHAIN_ID, BASE_SEPOLIA_CHAIN_ID, ChainConfig, HardForkConfig,
+    L1ChainConfig, OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID, Roles,
 };
 
 pub mod interop;
