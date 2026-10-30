@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "source_run": "6fef93645dc94ca1a243b096c60a916f",
+  "commit_sha": "9e863c1546f437454567faf2e689c95aa021ae8e",
+  "unit": "seconds",
+  "packages": {
+    "github.com/ethereum-optimism/optimism/op-node/rollup": 0.335,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/async": 2.338,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/attributes": 0.016,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/conductor": 0,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/confdepth": 0.008,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/derive": 11.85,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/derive/mocks": 0,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/derive/params": 0,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test": 0,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/driver": 0.06,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/engine": 0.061,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/finality": 0.011,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/sequencing": 6.33,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/status": 0.01,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/sync": 31.181,
+    "github.com/ethereum-optimism/optimism/op-node/rollup/test": 0
+  }
+}

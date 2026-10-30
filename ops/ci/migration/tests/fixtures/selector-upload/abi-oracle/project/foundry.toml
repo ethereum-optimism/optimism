@@ -1,0 +1,4 @@
+[profile.default]
+src="src"
+solc_version="0.8.28"
+build_info=true
