@@ -305,7 +305,7 @@ impl NodeCommand {
         // The node's one L1 client: every component reads L1 through a clone, sharing its caches
         // and trust setting. Every request is bounded, so a stalled endpoint fails its caller
         // instead of hanging it.
-        let l1_provider = AlloyChainProvider::new_with_trust(
+        let l1_provider = AlloyChainProvider::new(
             RootProvider::new(
                 ClientBuilder::default()
                     .layer(MapFutureLayer::new(kona_engine::with_deadline))

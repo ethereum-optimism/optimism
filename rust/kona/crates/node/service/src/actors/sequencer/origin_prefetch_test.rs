@@ -173,9 +173,10 @@ impl Harness {
             head: head_rx.clone(),
             depth,
         };
-        let rpc = kona_providers_alloy::AlloyChainProvider::new_http(
-            "http://127.0.0.1:1".parse().unwrap(),
+        let rpc = kona_providers_alloy::AlloyChainProvider::new(
+            alloy_provider::RootProvider::new_http("http://127.0.0.1:1".parse().unwrap()),
             8,
+            true,
         );
         let OriginPreparation { prefetcher: worker, origins: provider, attributes } =
             OriginPreparation::new(rpc, head_rx, depth, l1.clone());
