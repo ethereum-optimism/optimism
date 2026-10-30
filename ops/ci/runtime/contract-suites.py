@@ -305,6 +305,9 @@ def run(directory):
     routing = evm_passes(chosen['files'], UP.command('just', '--evaluate', 'DEFAULT_EVM_TESTS', cwd=CONTRACTS))
     UP.write(directory / 'evm-passes.json', routing)
     (CONTRACTS / 'results').mkdir(exist_ok=True)
+    # `just test-rerun` reruns these files when no pass recorded a failure cache.
+    (CONTRACTS / 'cache').mkdir(exist_ok=True)
+    (CONTRACTS / 'cache/test-files').write_text('\n'.join(chosen['files']) + '\n')
     status, reports = 0, []
     for name, files in routing['passes'].items():
         # Each pass keeps its own failure cache so `just test-rerun` replays
@@ -320,8 +323,7 @@ def run(directory):
             result = UP.stage(directory, 'junit-nonempty-' + name, ['./scripts/checks/check-junit-tests-ran.sh', str(report)])
         status = status or result
         if result >= 128: break
-    if status and status < 128 and any((CONTRACTS / name).is_file() for name in FAILURES):
-        UP.stage(directory, 'rerun', ['just', 'test-rerun'])
+    if status and status < 128: UP.stage(directory, 'rerun', ['just', 'test-rerun'])
     if status == 0:
         UP.write(directory / 'coverage.json', UP.junit(reports,
                  json.loads((directory / 'selection.json').read_text()), json.loads((directory / 'signature-bindings.json').read_text())))

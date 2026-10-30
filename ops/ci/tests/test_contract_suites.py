@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -99,6 +100,7 @@ class _LiveSuiteTestsFixtures:
             (contracts / 'test/unit').mkdir(parents=True)
             (contracts / 'test/L2').mkdir(parents=True)
             (contracts / 'src/unit').mkdir(parents=True)
+            (contracts / 'src/L2').mkdir(parents=True)
             (contracts / 'scripts/go-ffi').mkdir(parents=True)
             (root / 'ops/ci/runtime').mkdir(parents=True)
             for source in Path(CS.__file__).parent.glob('*.py'):
@@ -129,19 +131,23 @@ class _LiveSuiteTestsFixtures:
             shutil.copy2(CS.CONTRACTS / 'scripts/checks/check-junit-tests-ran.sh', guard)
             original = (CS.CONTRACTS / 'justfile').read_text()
             recipes = []
-            for name in ('build-go-ffi', 'test-rerun', 'lint-forge-tests-check-no-build'):
-                start = original.index('\n' + name + ':')
-                end = original.index('\n\n', start + 1)
-                recipes.append(original[start + 1:end])
+            # test-rerun falls back to `just test`, which needs its helper.
+            (contracts / 'scripts/ops').mkdir(parents=True)
+            shutil.copy2(CS.CONTRACTS / 'scripts/ops/apply-match-path.sh', contracts / 'scripts/ops/apply-match-path.sh')
+            for name in ('build-go-ffi', 'test', '_test-single', 'test-rerun', 'lint-forge-tests-check-no-build'):
+                match = re.search('^' + re.escape(name) + '(?:[ :*].*)?:.*$', original, re.M)
+                # A recipe body may contain blank lines; it ends at the next unindented line.
+                end = re.compile('^\\S', re.M).search(original, match.end() + 1)
+                recipes.append(original[match.start():end.start() if end else len(original)].rstrip())
             routing = next(line for line in original.splitlines() if line.startswith('DEFAULT_EVM_TESTS :='))
             (contracts / 'justfile').write_text(routing + '\n\n' + '\n\n'.join(recipes) + '\n')
             (contracts / 'scripts/go-ffi/main.go').write_text('package main\nimport("fmt";"os")\nfunc main(){f,e:=os.OpenFile(os.Getenv("CI_SUITE_FIXTURE_MARKER"),os.O_APPEND|os.O_CREATE|os.O_WRONLY,0600);if e!=nil{panic(e)};defer f.Close();f.WriteString("x");v:=1;if os.Getenv("CI_SUITE_FIXTURE_FAIL")=="1"{v=0};fmt.Printf("0x%064x",v)}\n')
             (contracts / 'foundry.toml').write_text('[profile.default]\nsrc="src"\ntest="test"\nout="forge-artifacts"\nsolc="0.8.15"\nffi=true\nast=true\n[profile.liteci]\noptimizer=false\n[profile.liteci.fuzz]\nruns=128\n[profile.liteci.invariant]\nruns=64\ndepth=32\n[profile.ciheavy]\noptimizer=false\n[profile.ciheavy.fuzz]\nruns=20000\ntimeout=300\n[profile.ciheavy.invariant]\nruns=128\ndepth=512\ntimeout=300\n')
             (contracts / 'src/unit/Fixture.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; interface Vm {function skip(bool,string calldata) external;function ffi(string[] calldata) external returns(bytes memory);}contract Fixture {uint256 public value;uint256 public copied;function runtime(uint256 a) public returns(uint256){value=a;copied=a;return a;}}')
             (contracts / 'test/unit/Fixture.t.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; import {Fixture,Vm} from "../../src/unit/Fixture.sol";contract Fixture_Runtime_Test {Vm constant vm=Vm(address(uint160(uint256(keccak256("hevm cheat code")))));function test_runtime_succeeds() public {string[] memory args=new string[](1);args[0]="./scripts/go-ffi/go-ffi";assert(abi.decode(vm.ffi(args),(uint256))==1);}function testFuzz_runtime_succeeds(uint256 a) public {assert(new Fixture().runtime(a)==a);}function test_runtime_disabled_succeeds() public {vm.skip(true,"fixture disabled");}}')
-            (contracts / 'src/unit/InvariantFixture.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; import {Fixture} from "./Fixture.sol";contract InvariantFixture is Fixture {}')
+            (contracts / 'src/L2/InvariantFixture.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; import {Fixture} from "../unit/Fixture.sol";contract InvariantFixture is Fixture {}')
             # A default-EVM test makes the standard suite exercise both EVM passes.
-            (contracts / 'test/L2/InvariantFixture.t.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; import {InvariantFixture} from "../../src/unit/InvariantFixture.sol";contract InvariantFixture_Runtime_Test {InvariantFixture fixture;function setUp() public {fixture=new InvariantFixture();}function targetContracts() public view returns(address[] memory targets){targets=new address[](1);targets[0]=address(fixture);}function invariant_runtime_succeeds() public view {assert(fixture.value()==fixture.copied());}}')
+            (contracts / 'test/L2/InvariantFixture.t.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; import {InvariantFixture} from "../../src/L2/InvariantFixture.sol";contract InvariantFixture_Runtime_Test {InvariantFixture fixture;function setUp() public {fixture=new InvariantFixture();}function targetContracts() public view returns(address[] memory targets){targets=new address[](1);targets[0]=address(fixture);}function invariant_runtime_succeeds() public view {assert(fixture.value()==fixture.copied());}}')
 
             def git(*args, directory=root):
                 return subprocess.check_output(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', *args], cwd=directory, text=True, stderr=subprocess.DEVNULL).strip()
