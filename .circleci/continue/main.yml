@@ -2146,6 +2146,10 @@ jobs:
 
   op-acceptance-tests:
     parameters:
+      benchmark_mode:
+        default: standard
+        enum: [standard, sequential, parallel, parallel-bounded]
+        type: enum
       l1_fork:
         description: "L1 fork active at genesis"
         type: string
@@ -2233,46 +2237,64 @@ jobs:
       # does not need a separate `go mod download`.
       - go-restore-cache:
           namespace: op-acceptance-tests
-      - run:
-          name: Run SafeDB resync tests with op-geth
-          command: |
-            if [ "${CIRCLE_NODE_INDEX:-0}" != "0" ]; then
-              exit 0
-            fi
-            mkdir -p op-acceptance-tests/logs/safedb-op-geth op-acceptance-tests/results
-            DEVSTACK_L2EL_KIND=op-geth LOG_LEVEL=info gotestsum \
-              --format testname \
-              --jsonfile op-acceptance-tests/logs/safedb-op-geth/raw_go_events.log \
-              --junitfile op-acceptance-tests/results/safedb-op-geth.xml \
-              -- -count=1 -p=1 -parallel=1 -timeout=10m \
-              ./op-acceptance-tests/tests/safeheaddb_elsync \
-              ./op-acceptance-tests/tests/safeheaddb_clsync
-      # Run the acceptance tests (if the devnet is running)
-      - run:
-          name: Run acceptance tests
-          working_directory: op-acceptance-tests
-          no_output_timeout: <<parameters.no_output_timeout>>
-          command: |
-            if [ -n "<<parameters.acceptance_test_jobs>>" ]; then
-              export ACCEPTANCE_TEST_JOBS="<<parameters.acceptance_test_jobs>>"
-            fi
-            LOG_LEVEL=info just acceptance-test
-      - run:
-          name: Print results (summary)
-          working_directory: op-acceptance-tests
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR/summary.log" || true
-      - run:
-          name: Print results (failures)
-          working_directory: op-acceptance-tests
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR"/failed/*.log || true
-          when: on_fail
+      - when:
+          condition:
+            equal: [standard, <<parameters.benchmark_mode>>]
+          steps:
+            - run:
+                name: Run SafeDB resync tests with op-geth
+                command: |
+                  if [ "${CIRCLE_NODE_INDEX:-0}" != "0" ]; then
+                    exit 0
+                  fi
+                  mkdir -p op-acceptance-tests/logs/safedb-op-geth op-acceptance-tests/results
+                  DEVSTACK_L2EL_KIND=op-geth LOG_LEVEL=info gotestsum \
+                    --format testname \
+                    --jsonfile op-acceptance-tests/logs/safedb-op-geth/raw_go_events.log \
+                    --junitfile op-acceptance-tests/results/safedb-op-geth.xml \
+                    -- -count=1 -p=1 -parallel=1 -timeout=10m \
+                    ./op-acceptance-tests/tests/safeheaddb_elsync \
+                    ./op-acceptance-tests/tests/safeheaddb_clsync
+            # Run the acceptance tests (if the devnet is running)
+            - run:
+                name: Run acceptance tests
+                working_directory: op-acceptance-tests
+                no_output_timeout: <<parameters.no_output_timeout>>
+                command: |
+                  if [ -n "<<parameters.acceptance_test_jobs>>" ]; then
+                    export ACCEPTANCE_TEST_JOBS="<<parameters.acceptance_test_jobs>>"
+                  fi
+                  LOG_LEVEL=info just acceptance-test
+            - run:
+                name: Print results (summary)
+                working_directory: op-acceptance-tests
+                command: |
+                  LOG_DIR=$(ls -td -- logs/* | head -1)
+                  cat "$LOG_DIR/summary.log" || true
+            - run:
+                name: Print results (failures)
+                working_directory: op-acceptance-tests
+                command: |
+                  LOG_DIR=$(ls -td -- logs/* | head -1)
+                  cat "$LOG_DIR"/failed/*.log || true
+                when: on_fail
+      - unless:
+          condition:
+            equal: [standard, <<parameters.benchmark_mode>>]
+          steps:
+            - run:
+                name: Measure SafeDB concurrency
+                no_output_timeout: 40m
+                environment:
+                  BENCHMARK_RESOURCE_CLASS: <<parameters.resource_class>>
+                command: python3 .circleci/scripts/measure-safedb-concurrency.py <<parameters.benchmark_mode>>
       # Save the module cache for future runs
-      - go-save-cache:
-          namespace: op-acceptance-tests
+      - when:
+          condition:
+            equal: [standard, <<parameters.benchmark_mode>>]
+          steps:
+            - go-save-cache:
+                namespace: op-acceptance-tests
       # Store test results and artifacts
       - when:
           condition: always
@@ -2838,14 +2860,16 @@ workflows:
       # 16 vCPU / 32 GiB after a 21.3 GiB observed peak.
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests:
-          name: memory-all-opn-op-reth-<<matrix.l1_fork>>
+          name: measure-safedb-opn-<<matrix.benchmark_mode>>
           image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
             parameters:
-              l1_fork: &acceptance_l1_forks
-                - fusaka
+              benchmark_mode: &safedb_benchmark_modes
+                - sequential
+                - parallel
+                - parallel-bounded
           l2_el_kind: op-reth
-          parallelism: 8
+          parallelism: 1
           acceptance_test_jobs: "8"
           no_output_timeout: 120m
           context:
@@ -2862,15 +2886,15 @@ workflows:
             - prep-superchain
       # IN-MEMORY - kona/op-reth
       - op-acceptance-tests:
-          name: memory-all-kona-op-reth-<<matrix.l1_fork>>
+          name: measure-safedb-kona-<<matrix.benchmark_mode>>
           image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
             parameters:
-              l1_fork: *acceptance_l1_forks
+              benchmark_mode: *safedb_benchmark_modes
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
           resource_class: 2xlarge.gen2
-          parallelism: 8
+          parallelism: 1
           acceptance_test_jobs: "8"
           no_output_timeout: 120m
           context:
@@ -2899,8 +2923,12 @@ workflows:
             - semgrep-test: terminal
             - go-tests: terminal
             - go-actions-tests: terminal
-            - memory-all-opn-op-reth-fusaka: terminal
-            - memory-all-kona-op-reth-fusaka: terminal
+            - measure-safedb-opn-sequential: terminal
+            - measure-safedb-opn-parallel: terminal
+            - measure-safedb-opn-parallel-bounded: terminal
+            - measure-safedb-kona-sequential: terminal
+            - measure-safedb-kona-parallel: terminal
+            - measure-safedb-kona-parallel-bounded: terminal
             - kona-build-sp1-elfs: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
             - cannon-go-lint-and-test: terminal
