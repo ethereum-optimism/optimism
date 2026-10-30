@@ -152,6 +152,14 @@ contract MockOptimismPortal2 is Initializable, ReinitializableBase, ProxyAdminOw
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
 
+    /// @notice Emitted when a deposit is held by the bridge hook. Fires before the hook takes
+    ///         custody, so it precedes anything the hook itself emits.
+    event DepositHeld(bytes32 indexed id);
+
+    /// @notice Emitted when a withdrawal is held by the bridge hook. Same ordering as
+    ///         DepositHeld.
+    event WithdrawalHeld(bytes32 indexed id);
+
     /// @notice Emitted when a withdrawal is proven.
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
 
@@ -530,6 +538,7 @@ contract MockOptimismPortal2 is Initializable, ReinitializableBase, ProxyAdminOw
         pass_ = bridgeHook.screenWithdrawal(item, _finalizableAt(_withdrawalHash, _proofSubmitter));
         if (pass_) return pass_;
 
+        emit WithdrawalHeld(BridgeHookHashing.hashItem(item));
         _commitHold(item, message, heldWithdrawals);
 
         // Unlike a held deposit, a held withdrawal does unlock, exactly as the paying path would.
@@ -637,6 +646,7 @@ contract MockOptimismPortal2 is Initializable, ReinitializableBase, ProxyAdminOw
         pass_ = bridgeHook.screenDeposit(item);
         if (pass_) return pass_;
 
+        emit DepositHeld(BridgeHookHashing.hashItem(item));
         _commitHold(item, message, heldDeposits);
         bridgeHook.holdDeposit{ value: item.ethAmount }(item);
     }

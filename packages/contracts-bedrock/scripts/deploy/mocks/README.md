@@ -77,11 +77,19 @@ upgrading back to the real implementation finds that state intact.
 
 | Event | Emitted by | When |
 | --- | --- | --- |
+| `DepositHeld(bytes32 indexed id)` | Portal | A deposit is held, before the hook takes custody |
+| `WithdrawalHeld(bytes32 indexed id)` | Portal | A withdrawal is held, before the hook takes custody |
 | `Held(bytes32 indexed id, Item item)` | module | An item is deferred into custody |
 | `VerdictRecorded(bytes32 indexed id, uint64 expiresAt)` | module | The screener clears an item |
 | `VerdictRevoked(bytes32 indexed id)` | module | A clearance is withdrawn |
 | `Completed(bytes32 indexed id)` | module | A held item is released on its committed terms |
 | `ItemObserved(bytes32 indexed id, Item item, uint8 kind, bool pass)` | policy | Every screening call |
+
+`DepositHeld` and `WithdrawalHeld` come from the Portal and fire **before** the module's
+`Held`, so a hold is observable without depending on which hook is installed. `DepositHeld`
+matches what the real Portal will emit once #23736 lands, including that ordering.
+`WithdrawalHeld` is the symmetric counterpart; the withdrawal-path PR is not open yet, so its
+name is not yet confirmed against the real contract.
 
 `Held` carries the **full item**, not just its ID. The module stores only two timestamps, so
 that log is the only on-chain record of the preimage a completion needs. Note the `Item` has a
