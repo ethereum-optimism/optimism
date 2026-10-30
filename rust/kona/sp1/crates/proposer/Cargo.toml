@@ -25,7 +25,6 @@ kona-sources.workspace = true
 
 # sp1
 sp1-core-executor.workspace = true
-sp1-primitives.workspace = true
 sp1-sdk.workspace = true
 sp1-verifier.workspace = true
 
