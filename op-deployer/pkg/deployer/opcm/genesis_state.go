@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -17,10 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
-
-// genesisStateDir holds the state files of the script runs, relative to the project; the sandbox
-// config gives forge read-write access to it.
-const genesisStateDir = ".op-deployer"
 
 // genesisChainID is the chain ID that genesis scripts see. Not the L1 chain ID: the Permit2
 // preinstall depends on it, and earlier releases made the L1 dev genesis with 1337.
@@ -88,13 +85,10 @@ func (g *GenesisState) account(addr common.Address) types.Account {
 
 // run runs one script on the state through fn. With writes, the state it leaves replaces this one.
 func (g *GenesisState) run(client *forge.Client, writes bool, fn func(client *forge.Client, flags []string) error) error {
-	parent := filepath.Join(client.Wd, genesisStateDir)
-	if err := os.MkdirAll(parent, 0o700); err != nil {
-		return fmt.Errorf("failed to create the genesis state directory: %w", err)
-	}
-	dir, err := os.MkdirTemp(parent, "run-")
+	// The state files stay out of the bundle, which may be read-only.
+	dir, err := os.MkdirTemp("", "op-deployer-genesis-")
 	if err != nil {
-		return fmt.Errorf("failed to create a genesis state directory: %w", err)
+		return fmt.Errorf("failed to create the genesis state directory: %w", err)
 	}
 	defer os.RemoveAll(dir)
 
@@ -121,7 +115,11 @@ func (g *GenesisState) run(client *forge.Client, writes bool, fn func(client *fo
 	if g.NoCodeSizeLimit {
 		flags = append(flags, "--disable-code-size-limit")
 	}
-	if err := fn(client.WithEnv(env...), flags); err != nil {
+	runClient := client.WithEnv(env...)
+	// This replaces the project's fs_permissions, so client.FsPermissions must grant what the script
+	// reads.
+	runClient.FsPermissions = append(slices.Clone(client.FsPermissions), forge.FsPermission{Access: "read-write", Path: dir})
+	if err := fn(runClient, flags); err != nil {
 		return err
 	}
 	if !writes {
