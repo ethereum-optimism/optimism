@@ -64,7 +64,6 @@ fs_permissions = [
   { access='read', path='./broadcast/' },
   { access='read', path = './forge-artifacts/' },
   { access='read-write', path='./.testdata/' },
-  { access='read-write', path='./.op-deployer/' },
   { access='read', path='./kout-deployment' },
   { access='read', path='./test/fixtures' },
   { access='read', path='../../superchain-registry/superchain/configs/' },

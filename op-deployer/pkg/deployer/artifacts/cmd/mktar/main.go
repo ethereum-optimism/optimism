@@ -186,10 +186,6 @@ func shouldExclude(rel string, d os.DirEntry) bool {
 	if strings.HasPrefix(rel, "snapshots/") || rel == "snapshots" {
 		return true
 	}
-	// op-deployer writes its genesis state files there.
-	if strings.HasPrefix(rel, ".op-deployer/") || rel == ".op-deployer" {
-		return true
-	}
 
 	if !d.IsDir() {
 		if strings.HasSuffix(d.Name(), ".t.sol") {

@@ -13,9 +13,6 @@ coverage.out
 
 # Testing State
 .testdata
-
-# op-deployer genesis state files
-.op-deployer
 kontrol_prove_report.xml
 
 # Scripts
