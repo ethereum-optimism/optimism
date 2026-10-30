@@ -113,6 +113,8 @@ contract MockOptimismPortal2_TestInit is Test {
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
     event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
+    event DepositHeld(bytes32 indexed id);
+    event WithdrawalHeld(bytes32 indexed id);
 
     bytes32 internal constant DEPOSITED_TOPIC = keccak256("TransactionDeposited(address,address,uint256,bytes)");
     bytes32 internal constant FINALIZED_TOPIC = keccak256("WithdrawalFinalized(bytes32,bool)");
@@ -246,6 +248,31 @@ contract MockOptimismPortal2_depositTransaction_Test is MockOptimismPortal2_Test
         assertEq(_countDeposited(vm.getRecordedLogs()), 0);
         assertEq(address(hook).balance, 1 ether);
         assertTrue(portal.heldDeposits(BridgeHookHashing.hashItem(_ethItem(1 ether, 0))));
+    }
+
+    /// @notice Tests that a held deposit is announced by the Portal itself, so the hold is
+    ///         observable without depending on whatever hook happens to be installed.
+    function test_depositTransaction_emitsDepositHeld_succeeds() public {
+        portal.setBridgeHookUnchecked(hook);
+        hook.setPassDeposits(false);
+
+        vm.expectEmit(true, true, true, true, address(portal));
+        emit DepositHeld(BridgeHookHashing.hashItem(_ethItem(1 ether, 0)));
+
+        vm.prank(alice, alice);
+        portal.depositTransaction{ value: 1 ether }(target, 0, GAS_LIMIT, false, "");
+    }
+
+    /// @notice Tests that a deposit which proceeds announces nothing, so the event means held
+    ///         rather than screened.
+    function test_depositTransaction_proceedingEmitsNoDepositHeld_succeeds() public {
+        portal.setBridgeHookUnchecked(hook);
+
+        vm.recordLogs();
+        vm.prank(alice, alice);
+        portal.depositTransaction{ value: 1 ether }(target, 0, GAS_LIMIT, false, "");
+
+        assertEq(_countTopic(vm.getRecordedLogs(), keccak256("DepositHeld(bytes32)")), 0);
     }
 
     /// @notice Tests that a hook which reverts refuses the deposit outright, consuming nothing.
@@ -410,6 +437,20 @@ contract MockOptimismPortal2_finalizeWithdrawalTransaction_Test is MockOptimismP
         assertEq(target.balance, 0);
         assertEq(address(hook).balance, 1 ether);
         assertTrue(portal.heldWithdrawals(BridgeHookHashing.hashItem(_withdrawalItem(wtx))));
+    }
+
+    /// @notice Tests that a held withdrawal is announced by the Portal itself, the counterpart
+    ///         to DepositHeld.
+    function test_finalizeWithdrawalTransaction_emitsWithdrawalHeld_succeeds() public {
+        portal.setBridgeHookUnchecked(hook);
+        hook.setPassWithdrawals(false);
+        Types.WithdrawalTransaction memory wtx = _withdrawal(target, 1 ether);
+        _proveAndMature(wtx);
+
+        vm.expectEmit(true, true, true, true, address(portal));
+        emit WithdrawalHeld(BridgeHookHashing.hashItem(_withdrawalItem(wtx)));
+
+        portal.finalizeWithdrawalTransaction(wtx);
     }
 
     /// @notice Tests that the hook is told when the withdrawal became finalizable, so a policy
