@@ -2,9 +2,8 @@ package monitor
 
 import "github.com/ethereum-optimism/optimism/op-service/eth"
 
-// BlockBuffer is a circular buffer of seen blocks.
-// It can be used as a fix-sized stack of blocks to ensure
-// a canonical and contiguous view of the block history.
+// BlockBuffer is a circular buffer of seen blocks. Callers are responsible for adding blocks in
+// canonical, contiguous order; the buffer does not validate them.
 type BlockBuffer struct {
 	buffer []eth.BlockInfo
 	idx    int
