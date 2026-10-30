@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -326,7 +327,7 @@ func (c *Client) VerifyContract(ctx context.Context, opts ...string) (string, er
 	cliOpts := []string{"verify-contract"}
 	cliOpts = append(cliOpts, opts...)
 	// forge reads the verifier API key, such as ETHERSCAN_API_KEY, from its environment.
-	if err := c.execWithEnv(ctx, os.Environ(), buf, buf, cliOpts...); err != nil {
+	if err := c.execWithEnv(ctx, withGoCertDirs(os.Environ()), buf, buf, cliOpts...); err != nil {
 		return buf.String(), fmt.Errorf("failed to verify contract: %w", err)
 	}
 	return buf.String(), nil
@@ -389,7 +390,28 @@ func inheritedEnv() []string {
 			env = append(env, kv)
 		}
 	}
-	return env
+	return withGoCertDirs(env)
+}
+
+// goCertDirs are the directories that Go reads trusted certificates from on Linux when SSL_CERT_DIR
+// is unset or empty.
+const goCertDirs = "/etc/ssl/certs:/etc/pki/tls/certs"
+
+// withGoCertDirs sets SSL_CERT_DIR to goCertDirs on Linux when env does not set it to a non-empty
+// value, so that forge trusts the certificates that op-deployer trusts. Without it, forge 1.8.3 reads
+// only the system bundle file: a CA certificate mounted into /etc/ssl/certs, as a Kubernetes
+// ConfigMap often is, works for op-deployer, and fails forge's RPC calls with UnknownIssuer. With it,
+// forge reads only these directories, which hold the system bundle on the common distributions.
+func withGoCertDirs(env []string) []string {
+	if runtime.GOOS != "linux" {
+		return env
+	}
+	for _, kv := range env {
+		if name, value, _ := strings.Cut(kv, "="); name == "SSL_CERT_DIR" && value != "" {
+			return env
+		}
+	}
+	return append(env, "SSL_CERT_DIR="+goCertDirs)
 }
 
 type ScriptCallEncoder[I any] interface {
