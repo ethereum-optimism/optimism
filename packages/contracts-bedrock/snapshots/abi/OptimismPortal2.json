@@ -958,6 +958,19 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "DepositHeld",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "address",
         "name": "lockbox",
         "type": "address"
@@ -1274,6 +1287,16 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_NotBridgeHook",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_NotHeld",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_NotUsingInterop",
     "type": "error"
   },
@@ -1290,6 +1313,11 @@
   {
     "inputs": [],
     "name": "OptimismPortal_Unproven",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_ValueMismatch",
     "type": "error"
   },
   {

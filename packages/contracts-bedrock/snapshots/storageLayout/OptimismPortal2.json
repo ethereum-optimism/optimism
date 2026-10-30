@@ -21,11 +21,25 @@
     "type": "struct ResourceMetering.ResourceParams"
   },
   {
-    "bytes": "1536",
-    "label": "__gap",
+    "bytes": "8",
+    "label": "publishedGas",
     "offset": 0,
     "slot": "2",
-    "type": "uint256[48]"
+    "type": "uint64"
+  },
+  {
+    "bytes": "8",
+    "label": "publishedBlockNum",
+    "offset": 8,
+    "slot": "2",
+    "type": "uint64"
+  },
+  {
+    "bytes": "1504",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "3",
+    "type": "uint256[47]"
   },
   {
     "bytes": "20",
@@ -173,5 +187,12 @@
     "offset": 0,
     "slot": "67",
     "type": "mapping(bytes32 => bool)"
+  },
+  {
+    "bytes": "32",
+    "label": "depositNonce",
+    "offset": 0,
+    "slot": "68",
+    "type": "uint256"
   }
 ]

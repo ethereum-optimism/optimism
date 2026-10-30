@@ -22,6 +22,9 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Features } from "src/libraries/Features.sol";
+import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
+import { BridgeHookHashing } from "src/libraries/BridgeHookHashing.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/dispute/lib/Types.sol";
 import { UnknownChainId } from "src/dispute/lib/Errors.sol";
 
@@ -37,9 +40,13 @@ import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
+import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 
 abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     address depositor;
+    address hook;
 
     Types.WithdrawalTransaction _defaultTx;
     IFaultDisputeGame game;
@@ -108,6 +115,7 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
         }
 
         depositor = makeAddr("depositor");
+        hook = makeAddr("bridgeHook");
         portalProofMaturityDelay = optimismPortal2.proofMaturityDelaySeconds();
 
         setupFaultDisputeGame(Claim.wrap(_outputRoot));
@@ -209,6 +217,13 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
         vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(_hook))));
     }
 
+    /// @notice Returns the published gas count and the block it counts.
+    function publishedCount() internal returns (uint64 gas_, uint64 blockNum_) {
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "publishedGas");
+        uint256 word = uint256(vm.load(address(optimismPortal2), bytes32(slot.slot)));
+        return (uint64(word), uint64(word >> 64));
+    }
+
     /// @notice Enables the runtime interop features used by portal migration methods.
     function forceEnableInterop() public {
         forceEnableLockbox(address(ethLockbox));
@@ -223,6 +238,48 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     function setUseCustomGasToken(bool _useCustomGasToken) public {
         vm.prank(address(proxyAdmin));
         systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, _useCustomGasToken);
+    }
+}
+
+/// @title OptimismPortal2_Reentrancy_TestInit
+/// @notice Gives the test contract hook and bridge callbacks that can re-enter the Portal.
+abstract contract OptimismPortal2_Reentrancy_TestInit is OptimismPortal2_TestInit {
+    /// @notice Verdict that screenDeposit returns.
+    bool internal pass;
+
+    /// @notice Selector of the one callback that re-enters.
+    bytes4 internal reenterFrom;
+
+    /// @notice Portal call that the re-entering callback makes.
+    bytes internal reentry;
+
+    function screenDeposit(BridgeHookTypes.Item calldata) external returns (bool) {
+        _reenter();
+        return pass;
+    }
+
+    function holdDeposit(BridgeHookTypes.Item calldata) external payable {
+        _reenter();
+    }
+
+    function holdERC20(BridgeHookTypes.Direction, bytes calldata) external {
+        _reenter();
+    }
+
+    function restoreERC20(BridgeHookTypes.Direction, bytes calldata) external {
+        _reenter();
+    }
+
+    /// @notice Makes the re-entry if this callback is the one set, and bubbles up its revert.
+    function _reenter() internal {
+        if (msg.sig != reenterFrom) return;
+        delete reenterFrom;
+        (bool success, bytes memory returnData) = address(optimismPortal2).call(reentry);
+        if (!success) {
+            assembly {
+                revert(add(returnData, 0x20), mload(returnData))
+            }
+        }
     }
 }
 
@@ -1189,7 +1246,6 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
 
     /// @notice Tests that a configured hook is an unsafe withdrawal target.
     function test_proveWithdrawalTransaction_bridgeHookTarget_reverts() external {
-        address hook = makeAddr("bridgeHook");
         forceSetBridgeHook(hook);
 
         _defaultTx.target = hook;
@@ -1634,7 +1690,6 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
 
     /// @notice Tests that a configured hook is an unsafe withdrawal target.
     function test_finalizeWithdrawalTransaction_bridgeHookTarget_reverts() external {
-        address hook = makeAddr("bridgeHook");
         forceSetBridgeHook(hook);
 
         _defaultTx.target = hook;
@@ -2841,7 +2896,9 @@ contract OptimismPortal2_DeleteProvenWithdrawal_Test is OptimismPortal2_TestInit
 
 /// @title OptimismPortal2_DepositTransaction_Test
 /// @notice Test contract for OptimismPortal2 `depositTransaction` function.
-contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
+contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_TestInit {
+    event DepositHeld(bytes32 indexed id);
+
     /// @notice Tests that `depositTransaction` reverts when the destination address is non-zero
     ///         for a contract creation deposit.
     function test_depositTransaction_contractCreation_reverts() external {
@@ -3086,6 +3143,794 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
             assertEq(address(optimismPortal2).balance, balanceBefore + _mint);
         }
     }
+
+    /// @notice Tests that the hook screens a deposit on its terms and a passed deposit reaches L2.
+    function testFuzz_depositTransaction_hookPasses_succeeds(
+        address _to,
+        uint256 _value,
+        uint64 _gasLimit,
+        uint256 _mint,
+        bool _isCreation,
+        bytes memory _data,
+        bool _isContract
+    )
+        external
+    {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        _gasLimit = uint64(
+            bound(
+                _gasLimit,
+                optimismPortal2.minimumGasLimit(uint64(_data.length)),
+                systemConfig.resourceConfig().maxResourceLimit
+            )
+        );
+        _mint = bound(_mint, 0, type(uint256).max - address(ethLockbox).balance);
+        if (_isCreation) _to = address(0);
+        address from = _isContract ? AddressAliasHelper.applyL1ToL2Alias(depositor) : depositor;
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: from,
+            aliased: _isContract,
+            to: _to,
+            ethAmount: _mint,
+            l2Value: _value,
+            gasLimit: _gasLimit,
+            isCreation: _isCreation,
+            data: _data,
+            nonce: 0
+        });
+        vm.mockCall(hook, abi.encodeCall(IBridgeHook.screenDeposit, (item)), abi.encode(true));
+
+        vm.expectEmit(address(optimismPortal2));
+        emitTransactionDeposited(from, _to, _mint, _value, _gasLimit, _isCreation, _data);
+
+        vm.deal(depositor, _mint);
+        vm.prank(depositor, _isContract ? address(this) : depositor);
+        optimismPortal2.depositTransaction{ value: _mint }(_to, _value, _gasLimit, _isCreation, _data);
+
+        (uint64 gas, uint64 blockNum) = publishedCount();
+        assertEq(gas, _gasLimit);
+        assertEq(blockNum, block.number);
+    }
+
+    /// @notice Tests that a held deposit is committed, its ETH goes to the hook and only DepositHeld is
+    ///         emitted.
+    function testFuzz_depositTransaction_hookHolds_succeeds(
+        address _to,
+        uint256 _value,
+        uint64 _gasLimit,
+        uint256 _mint,
+        bool _isCreation,
+        bytes memory _data
+    )
+        external
+    {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        _gasLimit = uint64(
+            bound(
+                _gasLimit,
+                optimismPortal2.minimumGasLimit(uint64(_data.length)),
+                systemConfig.resourceConfig().maxResourceLimit
+            )
+        );
+        _mint = bound(_mint, 0, type(uint256).max - address(ethLockbox).balance);
+        if (_isCreation) _to = address(0);
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: _to,
+            ethAmount: _mint,
+            l2Value: _value,
+            gasLimit: _gasLimit,
+            isCreation: _isCreation,
+            data: _data,
+            nonce: 0
+        });
+        vm.mockCall(hook, abi.encodeCall(IBridgeHook.screenDeposit, (item)), abi.encode(false));
+        vm.expectCall(hook, _mint, abi.encodeCall(IBridgeHook.holdDeposit, (item)));
+
+        vm.expectEmit(address(optimismPortal2));
+        emit DepositHeld(BridgeHookHashing.hashItem(item));
+
+        vm.deal(depositor, _mint);
+        vm.recordLogs();
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction{ value: _mint }(_to, _value, _gasLimit, _isCreation, _data);
+
+        assertEq(vm.getRecordedLogs().length, 1);
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)));
+        assertEq(hook.balance, _mint);
+        (uint64 gas, uint64 blockNum) = publishedCount();
+        assertEq(gas, 0);
+        assertEq(blockNum, 0);
+    }
+
+    /// @notice Tests that the hook's revert data reaches the caller unchanged.
+    function testFuzz_depositTransaction_hookReverts_reverts(bytes memory _revertData) external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        vm.mockCallRevert(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), _revertData);
+
+        vm.expectRevert(_revertData);
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
+    }
+
+    /// @notice Tests that a held deposit without ETH still calls holdDeposit.
+    function test_depositTransaction_hookHoldsZeroValue_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: bob,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 0
+        });
+        vm.mockCall(hook, abi.encodeCall(IBridgeHook.screenDeposit, (item)), abi.encode(false));
+        vm.expectCall(hook, 0, abi.encodeCall(IBridgeHook.holdDeposit, (item)));
+
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+    }
+
+    /// @notice Tests that two identical held deposits get different nonces and IDs.
+    function test_depositTransaction_identicalDeposits_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(false));
+
+        vm.startPrank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+        vm.stopPrank();
+
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: bob,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 0
+        });
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)), "nonce 0");
+        item.nonce = 1;
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)), "nonce 1");
+    }
+
+    /// @notice Tests that the L1PAO's deposit skips the hook and the nonce and reaches L2.
+    function test_depositTransaction_l1paoBypassesHook_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        vm.expectCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), 0);
+
+        vm.expectEmit(address(optimismPortal2));
+        emitTransactionDeposited(proxyAdminOwner, bob, 0, 0, 100_000, false, hex"aa");
+
+        vm.prank(proxyAdminOwner, proxyAdminOwner);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "depositNonce");
+        assertEq(vm.load(address(optimismPortal2), bytes32(slot.slot)), bytes32(0));
+        (uint64 gas,) = publishedCount();
+        assertEq(gas, 100_000);
+    }
+
+    /// @notice Tests that the L1PAO's message through the messenger is screened.
+    function test_depositTransaction_l1paoThroughMessenger_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(true));
+        vm.expectCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), 1);
+
+        vm.prank(proxyAdminOwner, proxyAdminOwner);
+        l1CrossDomainMessenger.sendMessage(bob, hex"aa", 100_000);
+    }
+
+    /// @notice Tests that the published gas count restarts in each block.
+    function test_depositTransaction_countResetsPerBlock_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(true));
+
+        vm.startPrank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
+        vm.roll(block.number + 1);
+        optimismPortal2.depositTransaction(bob, 0, 200_000, false, hex"");
+        vm.stopPrank();
+
+        (uint64 gas, uint64 blockNum) = publishedCount();
+        assertEq(gas, 200_000);
+        assertEq(blockNum, block.number);
+    }
+
+    /// @notice Tests that a deposit past the block's published gas limit reverts.
+    function testFuzz_depositTransaction_overPublishedLimit_reverts(uint64 _published) external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(true));
+        uint64 max = systemConfig.resourceConfig().maxResourceLimit;
+        _published = uint64(bound(_published, max - 100_000 + 1, max));
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "publishedGas");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(block.number << 64 | _published));
+
+        vm.expectRevert(IOptimismPortal.OutOfGas.selector);
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
+    }
+
+    /// @notice Tests that after the hook is removed, deposits are counted only until the block ends.
+    function test_depositTransaction_countAfterRemoval_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(true));
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.removeHook();
+
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
+        (uint64 gas,) = publishedCount();
+        assertEq(gas, 200_000, "same block");
+
+        vm.roll(block.number + 1);
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
+        (uint64 gasAfter, uint64 blockNum) = publishedCount();
+        assertEq(gasAfter, 200_000, "next block");
+        assertEq(blockNum, block.number - 1, "next block");
+    }
+
+    /// @notice Tests that without a hook a deposit never reads the L1PAO and writes only the meter.
+    function test_depositTransaction_noHook_succeeds() external {
+        vm.expectCall(address(proxyAdmin), abi.encodeCall(proxyAdmin.owner, ()), 0);
+
+        vm.startStateDiffRecording();
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+        VmSafe.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
+
+        StorageSlot memory params = ForgeArtifacts.getSlot("OptimismPortal2", "params");
+        for (uint256 i; i < accesses.length; i++) {
+            for (uint256 j; j < accesses[i].storageAccesses.length; j++) {
+                VmSafe.StorageAccess memory access = accesses[i].storageAccesses[j];
+                if (access.account != address(optimismPortal2) || !access.isWrite) continue;
+                assertEq(access.slot, bytes32(params.slot), "write outside the meter");
+            }
+        }
+    }
+
+    /// @notice Tests that a held token transfer is screened as ERC20, then committed before the
+    ///         bridge moves its tokens to the hook.
+    function test_depositTransaction_tokenTransferHolds_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        bytes memory message = abi.encodeCall(
+            IStandardBridge.finalizeBridgeERC20, (address(0x1001), address(0x1002), alice, bob, 100, hex"")
+        );
+        bytes memory data = abi.encodeCall(
+            ICrossDomainMessenger.relayMessage,
+            (0, address(l1StandardBridge), Predeploys.L2_STANDARD_BRIDGE, 0, 200_000, message)
+        );
+        address from = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ERC20,
+            from: from,
+            aliased: true,
+            to: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 500_000,
+            isCreation: false,
+            data: data,
+            nonce: 0
+        });
+        vm.mockCall(hook, abi.encodeCall(IBridgeHook.screenDeposit, (item)), abi.encode(false));
+        bytes memory holdCall =
+            abi.encodeCall(IL1StandardBridge.holdERC20, (BridgeHookTypes.Direction.Deposit, message));
+        vm.expectCall(address(l1StandardBridge), holdCall);
+
+        vm.startStateDiffRecording();
+        vm.prank(address(l1CrossDomainMessenger));
+        optimismPortal2.depositTransaction(Predeploys.L2_CROSS_DOMAIN_MESSENGER, 0, 500_000, false, data);
+        VmSafe.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
+
+        StorageSlot memory held = ForgeArtifacts.getSlot("OptimismPortal2", "heldDeposits");
+        bytes32 heldSlot = keccak256(abi.encode(BridgeHookHashing.hashItem(item), held.slot));
+        bool committed;
+        bool holdCalled;
+        for (uint256 i; i < accesses.length; i++) {
+            for (uint256 j; j < accesses[i].storageAccesses.length; j++) {
+                VmSafe.StorageAccess memory access = accesses[i].storageAccesses[j];
+                if (access.isWrite && access.slot == heldSlot) committed = true;
+            }
+            if (accesses[i].account == address(l1StandardBridge) && keccak256(accesses[i].data) == keccak256(holdCall))
+            {
+                assertTrue(committed, "holdERC20 before commit");
+                holdCalled = true;
+            }
+        }
+        assertTrue(holdCalled, "holdERC20 not called");
+    }
+
+    /// @notice Tests that a deposit the hook makes while screening gets its own nonce.
+    function test_depositTransaction_hookDepositsWhileScreening_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(address(this));
+        reenterFrom = IBridgeHook.screenDeposit.selector;
+        reentry = abi.encodeCall(IOptimismPortal.depositTransaction, (bob, 0, 100_000, false, hex"aa"));
+
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: AddressAliasHelper.applyL1ToL2Alias(address(this)),
+            aliased: true,
+            to: bob,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 0
+        });
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)), "nonce 0");
+        item.nonce = 1;
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)), "nonce 1");
+    }
+
+    /// @notice Tests that the hook can complete a held deposit while it screens another.
+    function test_depositTransaction_hookCompletesWhileScreening_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(address(this));
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: bob,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 0
+        });
+        reenterFrom = IBridgeHook.screenDeposit.selector;
+        reentry = abi.encodeCall(IOptimismPortal.completeDepositTransaction, (item));
+
+        vm.expectEmit(address(optimismPortal2));
+        emitTransactionDeposited(depositor, bob, 0, 0, 100_000, false, hex"aa");
+
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+
+        assertFalse(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)), "completed");
+        item.nonce = 1;
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)), "screened");
+    }
+
+    /// @notice Tests that a deposit made while the bridge escrows held tokens gets its own nonce.
+    function test_depositTransaction_depositWhileHoldingTokens_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(address(this));
+        vm.mockCall(address(systemConfig), abi.encodeCall(systemConfig.l1StandardBridge, ()), abi.encode(address(this)));
+        bytes memory message = abi.encodeCall(
+            IStandardBridge.finalizeBridgeERC20, (address(0x1001), address(0x1002), alice, bob, 100, hex"")
+        );
+        bytes memory data = abi.encodeCall(
+            ICrossDomainMessenger.relayMessage, (0, address(this), Predeploys.L2_STANDARD_BRIDGE, 0, 200_000, message)
+        );
+        reenterFrom = IL1StandardBridge.holdERC20.selector;
+        reentry = abi.encodeCall(IOptimismPortal.depositTransaction, (bob, 0, 100_000, false, hex"aa"));
+
+        vm.prank(address(l1CrossDomainMessenger));
+        optimismPortal2.depositTransaction(Predeploys.L2_CROSS_DOMAIN_MESSENGER, 0, 500_000, false, data);
+
+        BridgeHookTypes.Item memory tokenItem = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ERC20,
+            from: AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)),
+            aliased: true,
+            to: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 500_000,
+            isCreation: false,
+            data: data,
+            nonce: 0
+        });
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: AddressAliasHelper.applyL1ToL2Alias(address(this)),
+            aliased: true,
+            to: bob,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 1
+        });
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(tokenItem)), "token");
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)), "re-entered");
+    }
+
+    /// @notice Tests that the hook can complete a deposit while it holds it, after DepositHeld.
+    function test_depositTransaction_hookCompletesWhileHolding_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(address(this));
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: bob,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 0
+        });
+        reenterFrom = IBridgeHook.holdDeposit.selector;
+        reentry = abi.encodeCall(IOptimismPortal.completeDepositTransaction, (item));
+
+        vm.expectEmit(address(optimismPortal2));
+        emit DepositHeld(BridgeHookHashing.hashItem(item));
+        vm.expectEmit(address(optimismPortal2));
+        emitTransactionDeposited(depositor, bob, 0, 0, 100_000, false, hex"aa");
+
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+
+        assertFalse(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)));
+    }
+}
+
+/// @title OptimismPortal2_CompleteDepositTransaction_Test
+/// @notice Test contract for OptimismPortal2 `completeDepositTransaction` function.
+contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_Reentrancy_TestInit {
+    function setUp() public override {
+        super.setUp();
+        // A bridge hook is not supported alongside a custom gas token.
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        forceSetBridgeHook(hook);
+        vm.mockCall(hook, abi.encodePacked(IBridgeHook.screenDeposit.selector), abi.encode(false));
+    }
+
+    /// @notice Tests that a completed deposit is locked and emitted exactly as if it had passed.
+    function testFuzz_completeDepositTransaction_succeeds(
+        address _to,
+        uint256 _value,
+        uint64 _gasLimit,
+        uint256 _mint,
+        bool _isCreation,
+        bytes memory _data
+    )
+        external
+    {
+        _gasLimit = uint64(
+            bound(
+                _gasLimit,
+                optimismPortal2.minimumGasLimit(uint64(_data.length)),
+                systemConfig.resourceConfig().maxResourceLimit
+            )
+        );
+        _mint = bound(_mint, 0, type(uint256).max - address(ethLockbox).balance);
+        if (_isCreation) _to = address(0);
+        vm.deal(depositor, _mint);
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction{ value: _mint }(_to, _value, _gasLimit, _isCreation, _data);
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: _to,
+            ethAmount: _mint,
+            l2Value: _value,
+            gasLimit: _gasLimit,
+            isCreation: _isCreation,
+            data: _data,
+            nonce: 0
+        });
+        uint256 balanceBefore = address(optimismPortal2).balance;
+        uint256 lockboxBalanceBefore = address(ethLockbox).balance;
+        (uint128 baseFee, uint64 boughtGas, uint64 meteredBlockNum) = optimismPortal2.params();
+
+        vm.expectEmit(address(optimismPortal2));
+        emitTransactionDeposited(depositor, _to, _mint, _value, _gasLimit, _isCreation, _data);
+
+        vm.prank(hook);
+        optimismPortal2.completeDepositTransaction{ value: _mint }(item);
+
+        assertFalse(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)));
+        assertEq(address(optimismPortal2).balance, balanceBefore);
+        assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _mint);
+        (uint64 gas,) = publishedCount();
+        assertEq(gas, _gasLimit, "published");
+        (uint128 baseFeeAfter, uint64 boughtGasAfter, uint64 meteredBlockNumAfter) = optimismPortal2.params();
+        assertEq(baseFeeAfter, baseFee, "base fee");
+        assertEq(boughtGasAfter, boughtGas, "bought gas");
+        assertEq(meteredBlockNumAfter, meteredBlockNum, "metered block");
+    }
+
+    /// @notice Tests that a held deposit completes only once.
+    function test_completeDepositTransaction_twice_reverts() external {
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: bob,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 0
+        });
+
+        vm.startPrank(hook);
+        optimismPortal2.completeDepositTransaction(item);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotHeld.selector);
+        optimismPortal2.completeDepositTransaction(item);
+        vm.stopPrank();
+    }
+
+    /// @notice Tests that a completion reverts unless it sends exactly the held deposit's ETH.
+    function testFuzz_completeDepositTransaction_valueMismatch_reverts(uint256 _value) external {
+        vm.deal(depositor, 1 ether);
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction{ value: 1 ether }(bob, 0, 100_000, false, hex"aa");
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: bob,
+            ethAmount: 1 ether,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 0
+        });
+
+        _value = bound(_value, 0, type(uint256).max - address(optimismPortal2).balance);
+        vm.assume(_value != 1 ether);
+        vm.deal(hook, _value);
+        vm.prank(hook);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ValueMismatch.selector);
+        optimismPortal2.completeDepositTransaction{ value: _value }(item);
+    }
+
+    /// @notice Tests that only the current hook can complete a held deposit.
+    function testFuzz_completeDepositTransaction_notHook_reverts(address _caller) external {
+        vm.assume(_caller != hook);
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: bob,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 0
+        });
+
+        vm.prank(_caller);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotBridgeHook.selector);
+        optimismPortal2.completeDepositTransaction(item);
+    }
+
+    /// @notice Tests that a held token transfer's commitment is deleted before the bridge returns
+    ///         its tokens.
+    function test_completeDepositTransaction_tokenTransfer_succeeds() external {
+        bytes memory message = abi.encodeCall(
+            IStandardBridge.finalizeBridgeERC20, (address(0x1001), address(0x1002), alice, bob, 100, hex"")
+        );
+        bytes memory data = abi.encodeCall(
+            ICrossDomainMessenger.relayMessage,
+            (0, address(l1StandardBridge), Predeploys.L2_STANDARD_BRIDGE, 0, 200_000, message)
+        );
+        vm.prank(address(l1CrossDomainMessenger));
+        optimismPortal2.depositTransaction(Predeploys.L2_CROSS_DOMAIN_MESSENGER, 0, 500_000, false, data);
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ERC20,
+            from: AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)),
+            aliased: true,
+            to: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 500_000,
+            isCreation: false,
+            data: data,
+            nonce: 0
+        });
+        bytes memory restoreCall =
+            abi.encodeCall(IL1StandardBridge.restoreERC20, (BridgeHookTypes.Direction.Deposit, message));
+        vm.expectCall(address(l1StandardBridge), restoreCall);
+
+        vm.startStateDiffRecording();
+        vm.prank(hook);
+        optimismPortal2.completeDepositTransaction(item);
+        VmSafe.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
+
+        StorageSlot memory held = ForgeArtifacts.getSlot("OptimismPortal2", "heldDeposits");
+        bytes32 heldSlot = keccak256(abi.encode(BridgeHookHashing.hashItem(item), held.slot));
+        bool deleted;
+        bool restored;
+        for (uint256 i; i < accesses.length; i++) {
+            for (uint256 j; j < accesses[i].storageAccesses.length; j++) {
+                VmSafe.StorageAccess memory access = accesses[i].storageAccesses[j];
+                if (access.isWrite && access.slot == heldSlot && access.newValue == 0) deleted = true;
+            }
+            if (
+                accesses[i].account == address(l1StandardBridge)
+                    && keccak256(accesses[i].data) == keccak256(restoreCall)
+            ) {
+                assertTrue(deleted, "restoreERC20 before delete");
+                restored = true;
+            }
+        }
+        assertTrue(restored, "not restored");
+    }
+
+    /// @notice Tests that a completion reverts and the deposit stays held when the bridge cannot
+    ///         return its tokens.
+    function test_completeDepositTransaction_restoreFails_reverts() external {
+        bytes memory message = abi.encodeCall(
+            IStandardBridge.finalizeBridgeERC20, (address(0x1001), address(0x1002), alice, bob, 100, hex"")
+        );
+        bytes memory data = abi.encodeCall(
+            ICrossDomainMessenger.relayMessage,
+            (0, address(l1StandardBridge), Predeploys.L2_STANDARD_BRIDGE, 0, 200_000, message)
+        );
+        vm.prank(address(l1CrossDomainMessenger));
+        optimismPortal2.depositTransaction(Predeploys.L2_CROSS_DOMAIN_MESSENGER, 0, 500_000, false, data);
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ERC20,
+            from: AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)),
+            aliased: true,
+            to: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 500_000,
+            isCreation: false,
+            data: data,
+            nonce: 0
+        });
+        vm.mockCallRevert(address(l1StandardBridge), abi.encodePacked(IL1StandardBridge.restoreERC20.selector), "");
+
+        vm.prank(hook);
+        vm.expectRevert(bytes(""));
+        optimismPortal2.completeDepositTransaction(item);
+
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)));
+    }
+
+    /// @notice Tests that the hook can complete a held deposit while the Portal is paused.
+    function test_completeDepositTransaction_paused_succeeds() external {
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: bob,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 0
+        });
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+        assertTrue(optimismPortal2.paused());
+
+        vm.expectEmit(address(optimismPortal2));
+        emitTransactionDeposited(depositor, bob, 0, 0, 100_000, false, hex"aa");
+
+        vm.prank(hook);
+        optimismPortal2.completeDepositTransaction(item);
+    }
+
+    /// @notice Tests that a completion past the block's published gas limit reverts and the deposit
+    ///         stays held.
+    function test_completeDepositTransaction_overPublishedLimit_reverts() external {
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: bob,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 0
+        });
+        uint64 max = systemConfig.resourceConfig().maxResourceLimit;
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "publishedGas");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(block.number << 64 | (max - 50_000)));
+
+        vm.prank(hook);
+        vm.expectRevert(IOptimismPortal.OutOfGas.selector);
+        optimismPortal2.completeDepositTransaction(item);
+
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)));
+    }
+
+    /// @notice Tests that a completion made while the bridge restores the same deposit's tokens
+    ///         reverts as not held.
+    function test_completeDepositTransaction_completeWhileRestoringTokens_reverts() external {
+        forceSetBridgeHook(address(this));
+        vm.mockCall(address(systemConfig), abi.encodeCall(systemConfig.l1StandardBridge, ()), abi.encode(address(this)));
+        bytes memory message = abi.encodeCall(
+            IStandardBridge.finalizeBridgeERC20, (address(0x1001), address(0x1002), alice, bob, 100, hex"")
+        );
+        bytes memory data = abi.encodeCall(
+            ICrossDomainMessenger.relayMessage, (0, address(this), Predeploys.L2_STANDARD_BRIDGE, 0, 200_000, message)
+        );
+        vm.prank(address(l1CrossDomainMessenger));
+        optimismPortal2.depositTransaction(Predeploys.L2_CROSS_DOMAIN_MESSENGER, 0, 500_000, false, data);
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ERC20,
+            from: AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)),
+            aliased: true,
+            to: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 500_000,
+            isCreation: false,
+            data: data,
+            nonce: 0
+        });
+        reenterFrom = IL1StandardBridge.restoreERC20.selector;
+        reentry = abi.encodeCall(IOptimismPortal.completeDepositTransaction, (item));
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotHeld.selector);
+        optimismPortal2.completeDepositTransaction(item);
+    }
 }
 
 /// @title OptimismPortal2_Params_Test
@@ -3241,8 +4086,6 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
     event BridgeHookSet(address indexed bridgeHook);
     event BridgeHookRemoved(address indexed bridgeHook);
 
-    address internal hook = makeAddr("bridgeHook");
-
     function setUp() public override {
         super.setUp();
         // A bridge hook is not supported alongside a custom gas token.
@@ -3376,5 +4219,46 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidBridgeHookState.selector);
         vm.prank(proxyAdminOwner);
         optimismPortal2.removeHook();
+    }
+
+    /// @notice Tests that setting a hook counts the gas this block published before it.
+    function test_initialize_countsAlreadyPublished_succeeds() external {
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"");
+        (, uint64 boughtGas,) = optimismPortal2.params();
+
+        _allowReinitialize();
+        _initialize(hook);
+
+        (uint64 gas, uint64 blockNum) = publishedCount();
+        assertEq(gas, boughtGas);
+        assertEq(blockNum, block.number);
+    }
+
+    /// @notice Tests that setting a hook keeps a count that already started in this block.
+    function test_initialize_countStarted_succeeds() external {
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "publishedGas");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(block.number << 64 | 300_000));
+
+        _allowReinitialize();
+        _initialize(hook);
+
+        (uint64 gas,) = publishedCount();
+        assertEq(gas, 300_000);
+    }
+
+    /// @notice Tests that a hook removed and set again in the same block keeps the block's count.
+    function test_removeHook_setAgainSameBlock_succeeds() external {
+        forceSetBridgeHook(hook);
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "publishedGas");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(block.number << 64 | 300_000));
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.removeHook();
+
+        _allowReinitialize();
+        _initialize(hook);
+
+        (uint64 gas,) = publishedCount();
+        assertEq(gas, 300_000);
     }
 }

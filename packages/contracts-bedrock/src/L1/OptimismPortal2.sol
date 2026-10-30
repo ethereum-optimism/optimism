@@ -18,6 +18,8 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Claim, GameStatus, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { Features } from "src/libraries/Features.sol";
 import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
+import { BridgeHookHashing } from "src/libraries/BridgeHookHashing.sol";
+import { BridgeHookDecoder } from "src/libraries/BridgeHookDecoder.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -152,6 +154,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Withdrawals the hook is holding, keyed by item ID.
     mapping(bytes32 => bool) public heldWithdrawals;
 
+    /// @notice Nonce of the next screened deposit.
+    uint256 internal depositNonce;
+
     /// @notice Emitted when the Portal is migrated.
     /// @param oldLockbox The lockbox before the migration
     /// @param newLockbox The shared lockbox
@@ -174,6 +179,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Emitted when the bridge hook is removed.
     /// @param bridgeHook The removed bridge hook.
     event BridgeHookRemoved(IBridgeHook indexed bridgeHook);
+
+    /// @notice Emitted when the bridge hook holds a deposit.
+    /// @param id Identifier of the held deposit.
+    event DepositHeld(bytes32 indexed id);
 
     /// @notice Emitted when the proof maturity delay is set.
     /// @param proofMaturityDelaySeconds The new proof maturity delay in seconds.
@@ -275,6 +284,15 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when removing a bridge hook that is not set.
     error OptimismPortal_InvalidBridgeHookState();
 
+    /// @notice Thrown when the caller is not the bridge hook.
+    error OptimismPortal_NotBridgeHook();
+
+    /// @notice Thrown when completing an item that is not held.
+    error OptimismPortal_NotHeld();
+
+    /// @notice Thrown when the ETH sent with a completion does not match the held item.
+    error OptimismPortal_ValueMismatch();
+
     /// @notice Thrown when ETHLockbox is set/unset incorrectly depending on the feature flag.
     error OptimismPortal_InvalidLockboxState();
 
@@ -294,9 +312,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 7.1.0
+    /// @custom:semver 7.2.0
     function version() public pure virtual returns (string memory) {
-        return "7.1.0";
+        return "7.2.0";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -312,7 +330,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Initializer. A nonzero `_bridgeHook` replaces the current hook and emits
     ///         BridgeHookSet on every run. Value held by a replaced hook stays with it. Upgrades
-    ///         pass the zero address to keep the current hook.
+    ///         pass the zero address to keep the current hook. Setting a hook also counts the gas
+    ///         this block already published.
     ///
     /// @param _systemConfig Address of the SystemConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
@@ -341,6 +360,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         if (address(_bridgeHook) != address(0)) {
             bridgeHook = _bridgeHook;
             emit BridgeHookSet(_bridgeHook);
+            _countAlreadyPublished();
         }
 
         _assertValidInteropState();
@@ -808,11 +828,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             if (msg.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
         }
 
-        // If using ETHLockbox, lock the ETH in the ETHLockbox.
-        if (_isUsingLockbox()) {
-            if (msg.value > 0) _lockETH(msg.value);
-        }
-
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
         if (_isCreation && _to != address(0)) {
@@ -839,14 +854,31 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
         }
 
-        // Compute the opaque data that will be emitted as part of the TransactionDeposited event.
-        // We use opaque data so that we can update the TransactionDeposited event in the future
-        // without breaking the current interface.
-        bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation, _data);
+        // The L1PAO skips the hook so that governance can always reach L2.
+        if (_isUsingBridgeHook() && msg.sender != proxyAdminOwner()) {
+            BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+                direction: BridgeHookTypes.Direction.Deposit,
+                asset: BridgeHookTypes.Asset.ETH,
+                from: from,
+                aliased: from != msg.sender,
+                to: _to,
+                ethAmount: msg.value,
+                l2Value: _value,
+                gasLimit: _gasLimit,
+                isCreation: _isCreation,
+                data: _data,
+                nonce: depositNonce++
+            });
+            bytes memory message = _recognize(item);
+            if (!bridgeHook.screenDeposit(item)) {
+                emit DepositHeld(BridgeHookHashing.hashItem(item));
+                _commitHold(item, message, heldDeposits);
+                bridgeHook.holdDeposit{ value: msg.value }(item);
+                return;
+            }
+        }
 
-        // Emit a TransactionDeposited event so that the rollup node can derive a deposit
-        // transaction for this deposit.
-        emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
+        _emitDeposit(from, _to, _value, _gasLimit, _isCreation, _data);
     }
 
     /// @notice External getter for the number of proof submitters for a withdrawal hash.
@@ -872,7 +904,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Sends a held deposit to L2 on its original terms. Only callable by the bridge hook.
     ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
     /// @param _item Held deposit.
-    function completeDepositTransaction(BridgeHookTypes.Item memory _item) external payable { }
+    function completeDepositTransaction(BridgeHookTypes.Item memory _item) external payable {
+        _releaseHeld(_item, heldDeposits);
+        _emitDeposit(_item.from, _item.to, _item.l2Value, uint64(_item.gasLimit), _item.isCreation, _item.data);
+    }
 
     /// @notice Executes a held withdrawal on its original terms. Only callable by the bridge hook.
     ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
@@ -916,6 +951,87 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @return The game's creation timestamp.
     function _gameCreatedAt(IDisputeGame _game) internal view returns (uint64) {
         return _game.createdAt().raw();
+    }
+
+    /// @notice Marks the item as a token transfer if it is one.
+    /// @param _item Item to recognize.
+    /// @return message_ The bridge's call, or empty if not a token transfer.
+    function _recognize(BridgeHookTypes.Item memory _item) internal view returns (bytes memory message_) {
+        bool isTokenTransfer;
+        (isTokenTransfer, message_) = BridgeHookDecoder.recognizeTokenTransfer(
+            _item, systemConfig.l1CrossDomainMessenger(), address(_l1StandardBridge())
+        );
+        if (isTokenTransfer) _item.asset = BridgeHookTypes.Asset.ERC20;
+    }
+
+    /// @notice Commits a held item and moves its escrowed tokens to the hook.
+    /// @param _item    Held item.
+    /// @param _message The bridge's call, for a token transfer.
+    /// @param _held    Held items of the item's direction.
+    function _commitHold(
+        BridgeHookTypes.Item memory _item,
+        bytes memory _message,
+        mapping(bytes32 => bool) storage _held
+    )
+        internal
+    {
+        _held[BridgeHookHashing.hashItem(_item)] = true;
+
+        if (_item.asset == BridgeHookTypes.Asset.ERC20) {
+            _l1StandardBridge().holdERC20(_item.direction, _message);
+        }
+    }
+
+    /// @notice Deletes a held item's commitment and returns its escrowed tokens to the bridge.
+    ///         Reverts unless the caller is the hook and sends the item's ETH.
+    /// @param _item Held item.
+    /// @param _held Held items of the direction that the caller completes.
+    function _releaseHeld(BridgeHookTypes.Item memory _item, mapping(bytes32 => bool) storage _held) internal {
+        if (msg.sender != address(bridgeHook)) revert OptimismPortal_NotBridgeHook();
+
+        bytes32 id = BridgeHookHashing.hashItem(_item);
+        if (!_held[id]) revert OptimismPortal_NotHeld();
+        delete _held[id];
+
+        if (msg.value != _item.ethAmount) revert OptimismPortal_ValueMismatch();
+
+        if (_item.asset == BridgeHookTypes.Asset.ERC20) {
+            (, bytes memory message) = BridgeHookDecoder.extractTokenMessage(_item);
+            _l1StandardBridge().restoreERC20(_item.direction, message);
+        }
+    }
+
+    /// @notice Locks the deposit's ETH and emits its TransactionDeposited event.
+    /// @param _from       Sender on L2, aliased if a contract.
+    /// @param _to         Target address on L2.
+    /// @param _value      ETH value to send to the recipient.
+    /// @param _gasLimit   Amount of L2 gas to purchase.
+    /// @param _isCreation Whether or not the transaction is a contract creation.
+    /// @param _data       Data to trigger the recipient with.
+    function _emitDeposit(
+        address _from,
+        address _to,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    )
+        internal
+    {
+        if (_isUsingBridgeHook() || publishedBlockNum == block.number) _countPublished(_gasLimit);
+
+        if (_isUsingLockbox()) {
+            if (msg.value > 0) _lockETH(msg.value);
+        }
+
+        // Compute the opaque data that will be emitted as part of the TransactionDeposited event.
+        // We use opaque data so that we can update the TransactionDeposited event in the future
+        // without breaking the current interface.
+        bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation, _data);
+
+        // Emit a TransactionDeposited event so that the rollup node can derive a deposit
+        // transaction for this deposit.
+        emit TransactionDeposited(_from, _to, DEPOSIT_VERSION, opaqueData);
     }
 
     /// @notice Checks if a bridge hook is set.
