@@ -13,15 +13,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 
 	"github.com/ethereum/go-ethereum"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
@@ -37,6 +34,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
@@ -288,29 +286,6 @@ func TestEndToEndApply(t *testing.T) {
 			},
 		))
 
-		validateSuperchainDeployment(t, st, cg, true)
-		validateOPChainDeployment(t, cg, st, intent, false)
-	})
-
-	t.Run("on the Go script host", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
-		defer cancel()
-
-		// --use-forge=false keeps the Go script host until a later release removes it.
-		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
-		cg := ethClientCodeGetter(ctx, l1Client)
-		require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
-			DeploymentTarget:     deployer.DeploymentTargetLive,
-			L1RPCUrl:             l1RPC,
-			DeployerPrivateKey:   pk,
-			Intent:               intent,
-			State:                st,
-			Logger:               lgr,
-			StateWriter:          pipeline.NoopStateWriter(),
-			CacheDir:             testCacheDir,
-			ReceiptQueryInterval: testReceiptQueryInterval,
-			UseScriptHost:        true,
-		}))
 		validateSuperchainDeployment(t, st, cg, true)
 		validateOPChainDeployment(t, cg, st, intent, false)
 	})
@@ -630,25 +605,24 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	_, st, chainID := newContinuationInputs(t, uint256.NewInt(2))
 	require.Nil(t, st.ImplementationsDeployment)
 	require.Nil(t, st.SuperchainDeployment)
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		opts.Logger,
-		deployerAddress,
-		l1Artifacts,
-		script.WithNoMaxCodeSize(),
-	)
-	require.NoError(t, err)
-	host.ImportState(l1StateDump)
-	scripts, err := opcm.NewScripts(host)
+	// Continue on an L1 that holds the state of phase one.
+	l1RPCURL, l1Client := devnet.DefaultAnvilRPC(t, opts.Logger)
+	shared.LoadAllocs(t, l1Client.Client(), l1StateDump)
+	require.NoError(t, l1Client.Client().Call(nil, "anvil_setBalance", deployerAddress, (*hexutil.Big)(big.NewInt(params.Ether))))
+	forgeClient, err := opcm.NewForgeClient(l1Artifacts, "", opcm.L1ForgeScripts)
 	require.NoError(t, err)
 	pEnv := &pipeline.Env{
-		StateWriter:  pipeline.NoopStateWriter(),
-		L1ScriptHost: host,
-		Broadcaster:  broadcaster.NoopBroadcaster(),
-		Deployer:     deployerAddress,
-		Logger:       opts.Logger,
-		Scripts:      scripts,
-		Context:      ctx,
+		StateWriter: pipeline.NoopStateWriter(),
+		L1Client:    l1Client,
+		Deployer:    deployerAddress,
+		Logger:      opts.Logger,
+		Forge: &opcm.ForgeEnv{
+			Client:     forgeClient,
+			Context:    ctx,
+			L1RPCUrl:   l1RPCURL,
+			PrivateKey: hexutil.Encode(crypto.FromECDSA(opts.DeployerPrivateKey)),
+		},
+		Context: ctx,
 	}
 
 	dci, err := pipeline.BuildContinuationDCI(chainID, st)
@@ -664,12 +638,14 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, *chainState.Deployed)
 
-	caller := &shared.HostCaller{Host: host}
+	call := func(to common.Address, data []byte) ([]byte, error) {
+		return l1Client.CallContract(ctx, ethereum.CallMsg{To: &to, Data: data}, nil)
+	}
 	gameImpls := w3.MustNewFunc("gameImpls(uint32)", "address")
 	readGameImpl := func(gameType opcm.GameType) common.Address {
 		callData, err := gameImpls.EncodeArgs(uint32(gameType))
 		require.NoError(t, err)
-		ret, err := caller.Call(chainState.DisputeGameFactoryProxy, callData)
+		ret, err := call(chainState.DisputeGameFactoryProxy, callData)
 		require.NoError(t, err)
 		var implementation common.Address
 		require.NoError(t, gameImpls.DecodeReturns(ret, &implementation))
@@ -684,7 +660,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	readAbsolutePrestate := func(gameType opcm.GameType) common.Hash {
 		callData, err := gameArgs.EncodeArgs(uint32(gameType))
 		require.NoError(t, err)
-		ret, err := caller.Call(chainState.DisputeGameFactoryProxy, callData)
+		ret, err := call(chainState.DisputeGameFactoryProxy, callData)
 		require.NoError(t, err)
 		var args []byte
 		require.NoError(t, gameArgs.DecodeReturns(ret, &args))
@@ -699,7 +675,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	)
 	callData, err := getStartingAnchorRoot.EncodeArgs()
 	require.NoError(t, err)
-	ret, err := caller.Call(chainState.AnchorStateRegistryProxy, callData)
+	ret, err := call(chainState.AnchorStateRegistryProxy, callData)
 	require.NoError(t, err)
 	var actualAnchor opcm.Proposal
 	require.NoError(t, getStartingAnchorRoot.DecodeReturns(ret, &actualAnchor))
@@ -713,7 +689,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	respectedGameType := w3.MustNewFunc("respectedGameType()", "uint32")
 	callData, err = respectedGameType.EncodeArgs()
 	require.NoError(t, err)
-	ret, err = caller.Call(chainState.AnchorStateRegistryProxy, callData)
+	ret, err = call(chainState.AnchorStateRegistryProxy, callData)
 	require.NoError(t, err)
 	var actualGameType uint32
 	require.NoError(t, respectedGameType.DecodeReturns(ret, &actualGameType))

@@ -578,7 +578,7 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 					mutate(&dci)
 				}
 
-				out, err := opcm.DeployOPChainViaForge(fork.forge, dci)
+				out, err := opcm.DeployOPChain(fork.forge, dci)
 				require.NoError(t, err)
 				return out
 			}

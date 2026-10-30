@@ -6,7 +6,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -46,12 +45,6 @@ type L2GenesisInput struct {
 	// is on: 0 on a public chain, the chain's own ID on a settlement chain, and its settlement
 	// chain's ID on a private chain.
 	SettlementChainID *big.Int
-}
-
-type L2GenesisScript script.DeployScriptWithoutOutput[L2GenesisInput]
-
-func NewL2GenesisScript(host *script.Host) (L2GenesisScript, error) {
-	return script.NewDeployScriptWithoutOutputFromFile[L2GenesisInput](host, "L2Genesis.s.sol", "L2Genesis")
 }
 
 func NewL2GenesisForgeCaller(client *forge.Client) forge.ScriptCaller[L2GenesisInput, forge.None] {

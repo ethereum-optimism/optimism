@@ -223,7 +223,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		}
 	}()
 	predict := func(dci opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
-		return opcm.DeployOPChainViaForge(fork.forge, dci)
+		return opcm.DeployOPChain(fork.forge, dci)
 	}
 
 	// Fetch safe block once, so all unpinned chains without an override share one anchor.

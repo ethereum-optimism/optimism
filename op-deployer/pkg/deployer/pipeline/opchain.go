@@ -56,8 +56,8 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	return RecordOPChainDeployment(st, result)
 }
 
-// ExecuteOPChainDeployment runs the deployment without recording state.
-// Script-host execution queues transactions. The forge path sends them before it returns.
+// ExecuteOPChainDeployment runs the deployment without recording state. It sends the deployment's
+// transactions before it returns.
 func ExecuteOPChainDeployment(
 	env *Env,
 	st *state.State,
@@ -87,19 +87,9 @@ func ExecuteOPChainDeployment(
 		}
 	}
 
-	var dco opcm.DeployOPChainOutput
-	var err error
-	if env.Forge != nil {
-		lgr.Info("using Forge for DeployOPChain")
-		dco, err = opcm.DeployOPChainViaForge(env.Forge, dci)
-		if err != nil {
-			return result, err
-		}
-	} else {
-		dco, err = env.Scripts.DeployOPChain.Run(dci)
-		if err != nil {
-			return result, fmt.Errorf("error deploying OP chain: %w", err)
-		}
+	dco, err := opcm.DeployOPChain(env.Forge, dci)
+	if err != nil {
+		return result, err
 	}
 
 	return readOPChainDeployment(env, chainID, OpChainContractsFromDeployOutput(dco), dci.Opcm)
@@ -133,24 +123,9 @@ func readOPChainDeployment(
 		Opcm:                              pinnedOPCM,
 	}
 
-	var impls opcm.ReadImplementationAddressesOutput
-	var err error
-	if env.Forge != nil {
-		env.Logger.Info("using Forge for ReadImplementationAddresses", "stage", "deploy-opchain")
-		impls, err = opcm.ReadImplementationAddressesViaForge(env.Forge, readInput)
-		if err != nil {
-			return OPChainDeploymentResult{}, err
-		}
-	} else {
-		readImplementations, err := opcm.NewReadImplementationAddressesScript(env.L1ScriptHost)
-		if err != nil {
-			return OPChainDeploymentResult{}, fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
-		}
-
-		impls, err = readImplementations.Run(readInput)
-		if err != nil {
-			return OPChainDeploymentResult{}, fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
-		}
+	impls, err := opcm.ReadImplementationAddresses(env.Forge, readInput)
+	if err != nil {
+		return OPChainDeploymentResult{}, err
 	}
 
 	return OPChainDeploymentResult{

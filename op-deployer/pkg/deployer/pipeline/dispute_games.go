@@ -66,49 +66,21 @@ func deployDisputeGame(
 			PreimageOracle:   st.ImplementationsDeployment.PreimageOracleImpl,
 		}
 
-		var out opcm.DeployAlphabetVMOutput
-		var err error
-
-		if env.Forge != nil {
-			lgr.Info("using Forge for DeployAlphabetVM")
-			out, err = opcm.DeployAlphabetVMViaForge(env.Forge, input)
-			if err != nil {
-				return err
-			}
-		} else {
-			deployAlphabetVM, err := opcm.NewDeployAlphabetVMScript(env.L1ScriptHost)
-			if err != nil {
-				return fmt.Errorf("failed to load DeployAlphabetVM script: %w", err)
-			}
-			out, err = deployAlphabetVM.Run(input)
-			if err != nil {
-				return fmt.Errorf("failed to deploy Alphabet VM: %w", err)
-			}
+		out, err := opcm.DeployAlphabetVM(env.Forge, input)
+		if err != nil {
+			return err
 		}
 		vmAddr = out.AlphabetVM
 	case state.VMTypeCannon, state.VMTypeCannonNext:
-		if env.Forge != nil {
-			lgr.Info("using Forge for DeployMIPS")
-			forgeInput := opcm.DeployMIPSInput{
-				MipsVersion:    new(big.Int).SetUint64(game.VMType.MipsVersion()),
-				PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
-			}
-			forgeOut, err := opcm.DeployMIPSViaForge(env.Forge, forgeInput)
-			if err != nil {
-				return err
-			}
-			vmAddr = forgeOut.MipsSingleton
-		} else {
-			input := opcm.DeployMIPSInput{
-				MipsVersion:    new(big.Int).SetUint64(game.VMType.MipsVersion()),
-				PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
-			}
-			out, err := opcm.DeployMIPS(env.L1ScriptHost, input)
-			if err != nil {
-				return fmt.Errorf("failed to deploy MIPS VM: %w", err)
-			}
-			vmAddr = out.MipsSingleton
+		forgeInput := opcm.DeployMIPSInput{
+			MipsVersion:    new(big.Int).SetUint64(game.VMType.MipsVersion()),
+			PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
 		}
+		forgeOut, err := opcm.DeployMIPS(env.Forge, forgeInput)
+		if err != nil {
+			return err
+		}
+		vmAddr = forgeOut.MipsSingleton
 	case state.VMTypeZK:
 		zkImpl := st.ImplementationsDeployment.ZkDisputeGameImpl
 		if zkImpl == (common.Address{}) {
@@ -147,7 +119,7 @@ func deployDisputeGame(
 		if game.MakeRespected {
 			zkInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
 		}
-		if err := setDisputeGameImpl(env, zkInput); err != nil {
+		if err := opcm.SetDisputeGameImpl(env.Forge, zkInput); err != nil {
 			return fmt.Errorf("failed to set ZK dispute game impl: %w", err)
 		}
 		thisState.AdditionalDisputeGames = append(thisState.AdditionalDisputeGames, state.AdditionalDisputeGameState{
@@ -196,20 +168,9 @@ func deployDisputeGame(
 		Challenger:               thisIntent.Roles.Challenger,
 	}
 
-	var out opcm.DeployDisputeGameOutput
-	var err error
-
-	if env.Forge != nil {
-		lgr.Info("using Forge for DeployDisputeGame")
-		out, err = opcm.DeployDisputeGameViaForge(env.Forge, input)
-		if err != nil {
-			return err
-		}
-	} else {
-		out, err = env.Scripts.DeployDisputeGame.Run(input)
-		if err != nil {
-			return fmt.Errorf("failed to deploy dispute game: %w", err)
-		}
+	out, err := opcm.DeployDisputeGame(env.Forge, input)
+	if err != nil {
+		return err
 	}
 	lgr.Info("dispute game deployed", "impl", out.DisputeGameImpl)
 
@@ -224,7 +185,7 @@ func deployDisputeGame(
 	if game.MakeRespected {
 		sdgiInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
 	}
-	if err := setDisputeGameImpl(env, sdgiInput); err != nil {
+	if err := opcm.SetDisputeGameImpl(env.Forge, sdgiInput); err != nil {
 		return fmt.Errorf("failed to set dispute game impl: %w", err)
 	}
 
@@ -237,13 +198,6 @@ func deployDisputeGame(
 	})
 
 	return nil
-}
-
-func setDisputeGameImpl(env *Env, input opcm.SetDisputeGameImplInput) error {
-	if env.Forge != nil {
-		return opcm.SetDisputeGameImplViaForge(env.Forge, input)
-	}
-	return opcm.SetDisputeGameImpl(env.L1ScriptHost, input)
 }
 
 func shouldDeployAdditionalDisputeGames(thisIntent *state.ChainIntent, thisState *state.ChainState) bool {

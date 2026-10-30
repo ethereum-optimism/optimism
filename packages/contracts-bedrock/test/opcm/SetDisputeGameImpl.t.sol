@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 import { Test } from "test/setup/Test.sol";
 
 // Scripts
-import { SetDisputeGameImpl, SetDisputeGameImplInput } from "scripts/deploy/SetDisputeGameImpl.s.sol";
+import { SetDisputeGameImpl } from "scripts/deploy/SetDisputeGameImpl.s.sol";
 
 // Contracts
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
@@ -25,58 +25,6 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-
-contract SetDisputeGameImplInput_Test is Test {
-    SetDisputeGameImplInput input;
-
-    function setUp() public {
-        input = new SetDisputeGameImplInput();
-    }
-
-    function test_getters_whenNotSet_reverts() public {
-        vm.expectRevert("SetDisputeGameImplInput: not set");
-        input.factory();
-
-        vm.expectRevert("SetDisputeGameImplInput: not set");
-        input.impl();
-
-        // gameType doesn't revert when not set, returns 0
-        assertEq(input.gameType(), 0);
-    }
-
-    function test_set_succeeds() public {
-        address factory = makeAddr("factory");
-        address impl = makeAddr("impl");
-        uint32 gameType = 1;
-
-        vm.etch(factory, hex"01");
-        vm.etch(impl, hex"01");
-
-        input.set(input.factory.selector, factory);
-        input.set(input.impl.selector, impl);
-        input.set(input.gameType.selector, gameType);
-
-        assertEq(address(input.factory()), factory);
-        assertEq(address(input.impl()), impl);
-        assertEq(input.gameType(), gameType);
-    }
-
-    function test_set_withZeroAddress_reverts() public {
-        vm.expectRevert("SetDisputeGameImplInput: cannot set zero address");
-        input.set(input.factory.selector, address(0));
-
-        vm.expectRevert("SetDisputeGameImplInput: cannot set zero address");
-        input.set(input.impl.selector, address(0));
-    }
-
-    function test_set_withInvalidSelector_reverts() public {
-        vm.expectRevert("SetDisputeGameImplInput: unknown selector");
-        input.set(bytes4(0xdeadbeef), makeAddr("test"));
-
-        vm.expectRevert("SetDisputeGameImplInput: unknown selector");
-        input.set(bytes4(0xdeadbeef), uint32(1));
-    }
-}
 
 contract SetDisputeGameImpl_Test is Test {
     SetDisputeGameImpl script;

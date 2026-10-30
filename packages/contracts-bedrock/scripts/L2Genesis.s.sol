@@ -422,8 +422,7 @@ contract L2Genesis is Script {
     function temporaryL2CMAddress() public view returns (address) {
         bytes32 initCodeHash =
             keccak256(abi.encodePacked(type(L2ContractsManager).creationCode, abi.encode(_buildL2CMImplRecords())));
-        // Plain CREATE2 derivation (keccak256(0xff ++ deployer ++ salt ++ initCodeHash)). Avoids the
-        // vm.computeCreate2Address cheatcode, which the op-deployer script host does not implement.
+        // Plain CREATE2 derivation (keccak256(0xff ++ deployer ++ salt ++ initCodeHash)).
         return
             address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), L2CM_SALT, initCodeHash)))));
     }
