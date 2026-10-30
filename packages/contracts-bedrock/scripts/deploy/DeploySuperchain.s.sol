@@ -8,6 +8,7 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
 // For all broadcasts in this script we explicitly specify the deployer as `msg.sender` because for
@@ -34,8 +35,10 @@ contract DeploySuperchain is Script {
     // -------- Core Deployment Methods --------
 
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        DeployState.load();
         Input memory input = abi.decode(_input, (Input));
         Output memory output = run(input);
+        DeployState.dump(msg.sender);
         return abi.encode(output);
     }
 

@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
@@ -41,6 +42,7 @@ contract ReadSuperchainDeployment is Script {
     }
 
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        DeployState.load();
         Input memory input = abi.decode(_input, (Input));
         Output memory output = run(input);
         return abi.encode(output);

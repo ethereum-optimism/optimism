@@ -31,8 +31,7 @@ import (
 )
 
 // TestGenesisForgeMatchesGoHost runs genesis deployments on the Go script host and on forge, and
-// requires the same L1 state and L2 genesis from both. The L1 scripts of a genesis deployment still
-// run on the Go script host, so only the L2 genesis comes from a different engine.
+// requires the same L1 state and L2 genesis from both.
 func TestGenesisForgeMatchesGoHost(t *testing.T) {
 	zkGame := state.AdditionalDisputeGame{
 		ChainProofParams: state.ChainProofParams{DisputeGameType: uint32(opcm.GameTypeZKDisputeGame)},
@@ -156,6 +155,30 @@ func TestGenesisForgeMatchesGoHost(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestL1DevGenesisForgeMatchesGoHost does the same for the L1 dev genesis that sysgo builds.
+func TestL1DevGenesisForgeMatchesGoHost(t *testing.T) {
+	applyL1DevGenesis := func(useScriptHost bool) *state.State {
+		opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
+		deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
+		intent.L1DevGenesisParams = &state.L1DevGenesisParams{
+			BlockParams: state.L1DevGenesisBlockParams{Timestamp: 1000},
+			Prefund:     map[common.Address]*hexutil.U256{deployerAddr: (*hexutil.U256)(uint256.NewInt(1e18))},
+		}
+		intent.GlobalDeployOverrides = map[string]any{"devFeatureBitmap": devfeatures.ZKDisputeGameFlag}
+		opts.UseScriptHost = useScriptHost
+		opts.DeployMockSP1Verifier = true
+		opts.AllowUnoptimizedContracts = true
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+		defer cancel()
+		require.NoError(t, deployer.ApplyL1DevGenesis(ctx, opts))
+		return st
+	}
+	goHost := applyL1DevGenesis(true)
+	forge := applyL1DevGenesis(false)
+	requireEqualAllocs(t, goHost.L1StateDump.Data.Accounts, forge.L1StateDump.Data.Accounts)
+	require.Equal(t, goHost.L1DevGenesis.ToBlock().Root(), forge.L1DevGenesis.ToBlock().Root())
 }
 
 func applyGenesis(t *testing.T, useScriptHost bool, mutate func(*testing.T, *state.Intent, *deployer.ApplyPipelineOpts)) *state.State {
