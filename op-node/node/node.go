@@ -398,9 +398,13 @@ func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) er
 	node.runCfg = runCfg
 
 	confDepth := cfg.Driver.VerifierConfDepth
+	confLabel := cfg.Driver.VerifierL1BlockTag
+	if confLabel == "" {
+		confLabel = eth.Unsafe
+	}
 	reload := func(ctx context.Context) (eth.L1BlockRef, error) {
 		fetchCtx, fetchCancel := context.WithTimeout(ctx, time.Second*10)
-		l1Head, err := node.l1Source.L1BlockRefByLabel(fetchCtx, eth.Unsafe)
+		l1Head, err := node.l1Source.L1BlockRefByLabel(fetchCtx, confLabel)
 		fetchCancel()
 		if err != nil {
 			node.log.Error("failed to fetch L1 head for runtime config initialization", "err", err)

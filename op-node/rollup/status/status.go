@@ -147,6 +147,19 @@ func (st *StatusTracker) L1Head() eth.L1BlockRef {
 	return st.SyncStatus().HeadL1
 }
 
+// L1RefGetter returns a getter for the tracked L1 block with the given label.
+// Any label other than safe or finalized returns the L1 head.
+func (st *StatusTracker) L1RefGetter(label eth.BlockLabel) func() eth.L1BlockRef {
+	switch label {
+	case eth.Safe:
+		return func() eth.L1BlockRef { return st.SyncStatus().SafeL1 }
+	case eth.Finalized:
+		return func() eth.L1BlockRef { return st.SyncStatus().FinalizedL1 }
+	default:
+		return st.L1Head
+	}
+}
+
 func (st *StatusTracker) OnCrossSafeUpdate(ctx context.Context, crossSafe eth.L2BlockRef, localSafe eth.L2BlockRef) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
