@@ -10,7 +10,7 @@ use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, PipelineResult, ResetError,
     Signal, SignalReceiver, StepResult,
 };
-use kona_engine::FinalizeBlockId;
+use kona_engine::{DerivedSafeHead, FinalizeBlockId};
 use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use kona_safedb::{SafeDatabase, SafeDb, SafeDbError, SafeHeadRecord};
@@ -171,19 +171,31 @@ impl Pipeline for StubPipeline {
 
 /// A pipeline-driven reset must always reach the engine actor. The engine's reset is what
 /// sends the pipeline its [`Signal`] back; without it the actor parks in
-/// [`DerivationState::AwaitingSignal`] forever.
+/// [`DerivationState::AwaitingSignal`] forever. An L1 reorg asks for the reset after a reorg;
+/// any other reset asks for the full one.
 #[rstest]
-#[case::interop_inactive(None)]
-#[case::interop_active(Some(0))]
+#[case::reorg_interop_inactive(None, true)]
+#[case::reorg_interop_active(Some(0), true)]
+#[case::other_reset_interop_inactive(None, false)]
+#[case::other_reset_interop_active(Some(0), false)]
 #[tokio::test]
-async fn test_pipeline_reset_always_resets_engine(#[case] lagoon_time: Option<u64>) {
+async fn test_pipeline_reset_always_resets_engine(
+    #[case] lagoon_time: Option<u64>,
+    #[case] reorg: bool,
+) {
     let rollup_config = Arc::new(RollupConfig {
         hardforks: HardForkConfig { lagoon_time, ..Default::default() },
         ..Default::default()
     });
 
     let mut engine_client = MockDerivationEngineClient::new();
-    engine_client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
+    let reset = if reorg {
+        engine_client.expect_reset_engine_after_l1_reorg().times(1).returning(|_| Ok(()));
+        ResetError::ReorgDetected(B256::ZERO, B256::repeat_byte(1))
+    } else {
+        engine_client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
+        ResetError::BadParentHash(B256::ZERO, B256::repeat_byte(1))
+    };
 
     let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
     let (request_tx, request_rx) = mpsc::channel(1);
@@ -194,9 +206,7 @@ async fn test_pipeline_reset_always_resets_engine(#[case] lagoon_time: Option<u6
             rollup_config: rollup_config.clone(),
             origin: BlockInfo::default(),
             reset_error: None,
-            step_result: StepResult::StepFailed(
-                ResetError::ReorgDetected(B256::ZERO, B256::repeat_byte(1)).reset(),
-            ),
+            step_result: StepResult::StepFailed(reset.reset()),
         },
         None,
         l1_block(0).id(),
@@ -212,7 +222,7 @@ async fn test_pipeline_reset_always_resets_engine(#[case] lagoon_time: Option<u6
     actor.step().await.unwrap();
     assert!(derivation_origin_rx.borrow().is_some());
 
-    // Complete EL sync so the actor starts deriving, then let it hit the reorg.
+    // Complete EL sync so the actor starts deriving, then let it hit the reset.
     request_tx
         .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::default()))
         .await
@@ -360,12 +370,14 @@ async fn test_failed_reset_keeps_origin_unpublished_until_successful_reset(#[cas
 }
 
 /// A pipeline stub that yields queued attributes one at a time, then reports its data
-/// source exhausted. A reset re-queues the derived block, as re-derivation would.
+/// source exhausted, or an L1 reorg if `reorg_when_exhausted`. A reset re-queues the derived
+/// block, as re-derivation would.
 #[derive(Debug)]
 struct QueuedPipeline {
     attributes: VecDeque<OpAttributesWithParent>,
     derived_from: BlockInfo,
     rollup_config: Arc<RollupConfig>,
+    reorg_when_exhausted: bool,
 }
 
 impl Iterator for QueuedPipeline {
@@ -399,10 +411,14 @@ impl Pipeline for QueuedPipeline {
     }
 
     async fn step(&mut self, _: L2BlockInfo) -> StepResult {
-        if self.attributes.is_empty() {
-            StepResult::StepFailed(PipelineError::Eof.temp())
-        } else {
+        if !self.attributes.is_empty() {
             StepResult::PreparedAttributes
+        } else if self.reorg_when_exhausted {
+            StepResult::StepFailed(
+                ResetError::ReorgDetected(B256::ZERO, B256::repeat_byte(1)).reset(),
+            )
+        } else {
+            StepResult::StepFailed(PipelineError::Eof.temp())
         }
     }
 
@@ -481,6 +497,7 @@ impl RecordingActor {
             attributes: VecDeque::from([derived_attributes()]),
             derived_from: l1_block(DERIVED_FROM_L1),
             rollup_config: Arc::new(RollupConfig::default()),
+            reorg_when_exhausted: false,
         };
         let (request_tx, request_rx) = mpsc::channel(1);
         let actor = DerivationActor::new(
@@ -535,6 +552,143 @@ impl RecordingActor {
         }))
         .await;
     }
+}
+
+/// The recorded safe head [`DERIVED_HEAD`], derived from [`DERIVED_FROM_L1`].
+fn derived_head() -> DerivedSafeHead {
+    DerivedSafeHead {
+        safe_head: l2_block(DERIVED_HEAD),
+        derived_from: l1_block(DERIVED_FROM_L1).id(),
+    }
+}
+
+/// An engine client that accepts attributes and expects one reset after an L1 reorg, handed
+/// `recent_safe_heads`.
+fn engine_client_expecting_reorg_reset(
+    recent_safe_heads: Vec<DerivedSafeHead>,
+) -> MockDerivationEngineClient {
+    let mut engine_client = engine_client_accepting_attributes();
+    engine_client
+        .expect_reset_engine_after_l1_reorg()
+        .withf(move |heads| *heads == recent_safe_heads)
+        .times(1)
+        .returning(|_| Ok(()));
+    engine_client
+}
+
+/// An L1 reorg hands the engine the safe heads derivation produced, each with the L1 block it
+/// was derived from, so the engine can keep one the reorg left canonical. The pipeline's own
+/// origin was reorged out, so a safe head derived at it is not offered.
+#[rstest]
+#[case::derived_below_the_reorged_origin(DERIVED_FROM_L1 + 1, vec![derived_head()])]
+#[case::derived_at_the_reorged_origin(DERIVED_FROM_L1, vec![])]
+#[tokio::test]
+async fn an_l1_reorg_hands_the_engine_the_recent_safe_heads(
+    #[case] reorged_origin: u64,
+    #[case] expected: Vec<DerivedSafeHead>,
+) {
+    let mut node = RecordingActor::new(engine_client_expecting_reorg_reset(expected));
+    node.actor.pipeline.derived_from = l1_block(reorged_origin);
+    node.actor.pipeline.reorg_when_exhausted = true;
+
+    node.derive_and_confirm_one_block().await;
+
+    assert_eq!(
+        node.actor.derivation_state_machine.current_state(),
+        DerivationState::AwaitingSignal
+    );
+}
+
+/// A reset to a safe head the history did not record clears the history, so a later reorg
+/// offers nothing that may depend on data below the reset.
+#[tokio::test]
+async fn a_reset_to_an_unrecorded_safe_head_clears_the_history() {
+    let mut node = RecordingActor::new(engine_client_accepting_attributes());
+    node.derive_and_confirm_one_block().await;
+    assert_eq!(node.actor.safe_head_history.newest_first(), vec![derived_head()]);
+
+    node.signal(Signal::Reset(kona_derive::ResetSignal { l2_safe_head: l2_block(RESUME_HEAD) }))
+        .await;
+
+    assert_eq!(node.actor.safe_head_history.newest_first(), vec![]);
+}
+
+/// At EL sync completion, the safe head's L1 data is unknown beyond the end of its sequencing
+/// window, so a block derived below that is not recorded.
+#[tokio::test]
+async fn el_sync_completion_floors_the_history_at_the_sequencing_window() {
+    let mut node = RecordingActor::new(engine_client_expecting_reorg_reset(vec![]));
+    node.actor.pipeline.rollup_config =
+        Arc::new(RollupConfig { seq_window_size: DERIVED_FROM_L1, ..Default::default() });
+    node.actor.pipeline.derived_from = l1_block(DERIVED_FROM_L1 + 1);
+    node.actor.pipeline.reorg_when_exhausted = true;
+
+    node.derive_and_confirm_one_block().await;
+}
+
+/// After a reset that keeps the confirmed safe head, derivation resumes from it and records the
+/// next block it derives.
+#[tokio::test]
+async fn a_reset_to_the_confirmed_safe_head_records_the_next_block() {
+    let mut node = RecordingActor::new(engine_client_accepting_attributes());
+    node.derive_and_confirm_one_block().await;
+    let next_l1 = DERIVED_FROM_L1 + 1;
+    node.actor.pipeline.attributes.push_back(attributes_after(DERIVED_HEAD, next_l1));
+
+    node.signal(Signal::Reset(kona_derive::ResetSignal { l2_safe_head: l2_block(DERIVED_HEAD) }))
+        .await;
+
+    assert_eq!(
+        node.actor.derivation_state_machine.current_state(),
+        DerivationState::AwaitingSafeHeadConfirmation
+    );
+    node.confirm_safe_head(DERIVED_HEAD + 1).await;
+    assert_eq!(node.db.last_entry().unwrap(), record(next_l1, DERIVED_HEAD + 1));
+}
+
+/// Attributes for the child of `parent`, derived from L1 block `derived_from`.
+fn attributes_after(parent: u64, derived_from: u64) -> OpAttributesWithParent {
+    OpAttributesWithParent {
+        attributes: OpPayloadAttributes::default(),
+        parent: l2_block(parent),
+        derived_from: Some(l1_block(derived_from)),
+        is_last_in_span: true,
+    }
+}
+
+/// After a reset, the pipeline replays from before the safe head's L1 origin and can produce the
+/// next block from an L1 block below the one the safe head became safe at. That block became safe
+/// only once its parent did, so the database records it at its parent's L1 block: updates stay
+/// in ascending L1 order, and no query answers it for an L1 block where the parent was not safe.
+#[tokio::test]
+async fn replay_after_a_reset_records_no_safe_head_below_its_parents_l1_block() {
+    let mut node = RecordingActor::new(engine_client_accepting_attributes());
+    node.derive_and_confirm_one_block().await;
+    let parent_l1 = DERIVED_FROM_L1 + 6;
+    node.actor.pipeline.attributes.push_back(attributes_after(DERIVED_HEAD, parent_l1));
+    node.handle(DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::default())).await;
+    node.confirm_safe_head(DERIVED_HEAD + 1).await;
+    assert_eq!(node.db.last_entry().unwrap(), record(parent_l1, DERIVED_HEAD + 1));
+
+    // A reset that keeps that safe head, then a replay that finds the next block's batch lower.
+    node.actor.pipeline.attributes.push_back(attributes_after(DERIVED_HEAD + 1, parent_l1 - 3));
+    node.signal(Signal::Reset(kona_derive::ResetSignal {
+        l2_safe_head: l2_block(DERIVED_HEAD + 1),
+    }))
+    .await;
+    node.actor
+        .pipeline
+        .attributes
+        .retain(|attributes| attributes.parent == l2_block(DERIVED_HEAD + 1));
+    node.confirm_safe_head(DERIVED_HEAD + 2).await;
+
+    assert_eq!(node.db.last_entry().unwrap(), record(parent_l1, DERIVED_HEAD + 2));
+    // Below the parent's L1 block, the safe head is still the grandparent.
+    assert_eq!(
+        node.db.safe_head_at_l1(parent_l1 - 1).unwrap(),
+        record(DERIVED_FROM_L1, DERIVED_HEAD)
+    );
+    assert_eq!(node.db.l1_at_safe_head(DERIVED_HEAD + 1).unwrap().l1, l1_block(parent_l1).id());
 }
 
 #[tokio::test]
