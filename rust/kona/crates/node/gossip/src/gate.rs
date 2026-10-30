@@ -153,14 +153,26 @@ impl Behaviour {
         self.subnets.iter().copied().collect()
     }
 
+    /// Returns why the gate refuses an IP address: it is blocked by itself, or lies in a blocked
+    /// subnet.
+    pub fn check_ip(&self, ip: IpAddr) -> Result<(), DialError> {
+        if self.is_blocked_addr(&ip) {
+            return Err(DialError::AddressBlocked { ip });
+        }
+        if self.is_in_blocked_subnet(&ip) {
+            return Err(DialError::SubnetBlocked { ip });
+        }
+        Ok(())
+    }
+
     /// Returns whether an IP address lies in a blocked subnet.
     pub fn is_in_blocked_subnet(&self, ip: &IpAddr) -> bool {
         self.subnets.iter().any(|subnet| subnet.contains(ip))
     }
 }
 
-/// Refuses inbound connections from blocked peers, IP addresses and subnets, and has no protocol
-/// or events of its own.
+/// Refuses inbound connections from blocked peers, IP addresses and subnets, and our own
+/// connections to addresses blocked while we dialed them. Has no protocol or events of its own.
 ///
 /// A refusal is a [`DialError`], as a dial the gate refuses gets, in the
 /// [`ListenError::Denied`](libp2p::swarm::ListenError::Denied) the swarm reports.
@@ -180,15 +192,10 @@ impl NetworkBehaviour for Behaviour {
         let Some(ip) = crate::ConnectionGater::ip_from_addr(remote_addr) else {
             return Ok(());
         };
-        let refusal = if self.is_blocked_addr(&ip) {
-            DialError::AddressBlocked { ip }
-        } else if self.is_in_blocked_subnet(&ip) {
-            DialError::SubnetBlocked { ip }
-        } else {
-            return Ok(());
-        };
-        debug!(target: "gossip", %remote_addr, %refusal, "Refusing a connection from a blocked address");
-        Err(ConnectionDenied::new(refusal))
+        self.check_ip(ip).map_err(|refusal| {
+            debug!(target: "gossip", %remote_addr, %refusal, "Refusing a connection from a blocked address");
+            ConnectionDenied::new(refusal)
+        })
     }
 
     /// Refuses a connection from a blocked peer, the first point where its peer ID is known: once
@@ -207,16 +214,23 @@ impl NetworkBehaviour for Behaviour {
         Ok(dummy::ConnectionHandler)
     }
 
-    /// Allows our connections: the gate refuses to dial a blocked peer, and blocking a peer
-    /// aborts our dials to it that are still in flight.
+    /// Refuses a connection we dialed to an address blocked while the dial was in flight. The
+    /// gate refuses to dial a blocked address, and blocking a peer aborts our dials to it, but no
+    /// call on the swarm aborts the dials to an address.
     fn handle_established_outbound_connection(
         &mut self,
         _connection_id: ConnectionId,
         _peer: PeerId,
-        _addr: &Multiaddr,
+        addr: &Multiaddr,
         _role_override: Endpoint,
         _port_use: PortUse,
     ) -> Result<THandler<Self>, ConnectionDenied> {
+        if let Some(ip) = crate::ConnectionGater::ip_from_addr(addr) &&
+            let Err(refusal) = self.check_ip(ip)
+        {
+            debug!(target: "gossip", %addr, %refusal, "Refusing our connection to a blocked address");
+            return Err(ConnectionDenied::new(refusal));
+        }
         Ok(dummy::ConnectionHandler)
     }
 

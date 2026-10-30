@@ -231,23 +231,14 @@ impl ConnectionGater {
 
     /// Checks the IP address of `addr` against the blocked addresses and subnets.
     fn check_ip(addr: &Multiaddr, ip: IpAddr, gate: &gate::Behaviour) -> Result<(), DialError> {
-        // If the address is blocked, do not dial.
-        if gate.is_blocked_addr(&ip) {
-            debug!(target: "gossip", peer=?addr, "Address is blocked, not dialing");
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_address")
-                .increment(1);
-            return Err(DialError::AddressBlocked { ip });
-        }
-
-        // If address lies in any blocked subnets, do not dial.
-        if gate.is_in_blocked_subnet(&ip) {
-            debug!(target: "gossip", ip=?ip, "IP address is in a blocked subnet, not dialing");
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_subnet")
-                .increment(1);
-            return Err(DialError::SubnetBlocked { ip });
-        }
-
-        Ok(())
+        gate.check_ip(ip).inspect_err(|refusal| {
+            debug!(target: "gossip", peer=?addr, %refusal, "Not dialing a blocked address");
+            let kind = match refusal {
+                DialError::AddressBlocked { .. } => "blocked_address",
+                _ => "blocked_subnet",
+            };
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => kind).increment(1);
+        })
     }
 }
 

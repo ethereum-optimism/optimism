@@ -109,12 +109,15 @@ const STATIC_PEER_REDIAL_INTERVAL: Duration = Duration::from_secs(60);
 const STATIC_PEER_RECONNECT_DELAY: Duration = Duration::from_secs(1);
 
 /// An open connection to a peer.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct PeerConnection {
     /// The peer that dialed the connection, this node or the other one.
     dialer: PeerId,
     /// When the connection was established.
     established: Instant,
+    /// The peer's address on this connection: the one we dialed, or the one it dialed us from.
+    /// Blocking its IP address or subnet closes the connection.
+    remote_addr: Multiaddr,
 }
 
 impl<G> GossipDriver<G>
@@ -436,10 +439,11 @@ where
         self.swarm.behaviour().gate.list_blocked_peers()
     }
 
-    /// Blocks an IP address: the gate refuses to dial it and refuses incoming connections from it.
-    /// Connections already open stay open.
+    /// Blocks an IP address: closes the connections to and from it, and the gate refuses to dial
+    /// it and refuses incoming connections from it.
     pub fn block_addr(&mut self, ip: IpAddr) {
         self.swarm.behaviour_mut().gate.block_addr(ip);
+        self.close_blocked_connections();
     }
 
     /// Unblocks an IP address.
@@ -452,10 +456,31 @@ where
         self.swarm.behaviour().gate.list_blocked_addrs()
     }
 
-    /// Blocks a subnet: the gate refuses to dial any IP address in it, and refuses incoming
-    /// connections from them. Connections already open stay open.
+    /// Blocks a subnet: closes the connections to and from the IP addresses in it, and the gate
+    /// refuses to dial them and refuses incoming connections from them.
     pub fn block_subnet(&mut self, subnet: IpNet) {
         self.swarm.behaviour_mut().gate.block_subnet(subnet);
+        self.close_blocked_connections();
+    }
+
+    /// Closes the connections whose remote IP address the gate now refuses, whichever side
+    /// dialed them. Connections without an IP, such as in-memory ones, stay open.
+    fn close_blocked_connections(&mut self) {
+        let gate = &self.swarm.behaviour().gate;
+        let blocked: Vec<_> = self
+            .connections
+            .values()
+            .flatten()
+            .filter(|(_, connection)| {
+                ConnectionGater::ip_from_addr(&connection.remote_addr)
+                    .is_some_and(|ip| gate.check_ip(ip).is_err())
+            })
+            .map(|(connection_id, connection)| (*connection_id, connection.remote_addr.clone()))
+            .collect();
+        for (connection_id, remote_addr) in blocked {
+            debug!(target: "gossip", ?connection_id, %remote_addr, "Closing a connection to a blocked address");
+            self.swarm.close_connection(connection_id);
+        }
     }
 
     /// Unblocks a subnet.
@@ -771,12 +796,12 @@ where
                 } else {
                     peer_id
                 };
-                let connection = PeerConnection { dialer, established: Instant::now() };
+                let established = Instant::now();
+                let remote_addr = endpoint.get_remote_address().clone();
+                let connection = PeerConnection { dialer, established, remote_addr };
                 self.connections.entry(peer_id).or_default().insert(connection_id, connection);
                 if num_established.get() > 1 {
-                    self.update_next_duplicate_check(
-                        connection.established + self.duplicate_connection_grace,
-                    );
+                    self.update_next_duplicate_check(established + self.duplicate_connection_grace);
                 }
 
                 let peer_count = self.swarm.connected_peers().count();
@@ -902,6 +927,7 @@ mod tests {
         multiaddr::Protocol,
         swarm::ListenError,
     };
+    use rstest::rstest;
     use std::{
         pin::Pin,
         task::{Context, Poll},
@@ -925,20 +951,23 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(10), poll).await.expect("condition reached");
     }
 
-    /// Polls both drivers' swarms and never returns, for a test that runs something else
-    /// alongside, or waits a while to see that nothing happens.
-    ///
-    /// It sets no timeout, so a test on a paused clock can wait past [`poll_until`]'s.
-    async fn poll_forever(
+    /// Polls both drivers' swarms for `duration`, for a test that checks that nothing happens
+    /// meanwhile.
+    async fn poll_for(
         driver_1: &mut GossipDriver<ConnectionGater>,
         driver_2: &mut GossipDriver<ConnectionGater>,
+        duration: Duration,
     ) {
-        loop {
-            tokio::select! {
-                Some(event) = driver_1.next() => { driver_1.handle_event(event); }
-                Some(event) = driver_2.next() => { driver_2.handle_event(event); }
+        let poll = async {
+            loop {
+                tokio::select! {
+                    Some(event) = driver_1.next() => { driver_1.handle_event(event); }
+                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
+                }
             }
-        }
+        };
+        // Polling only ends when the time is up.
+        let _ = tokio::time::timeout(duration, poll).await;
     }
 
     /// Polls one driver's swarm until `done` holds for it, for at most 10 seconds.
@@ -1168,8 +1197,7 @@ mod tests {
         .await;
 
         // Well within the grace period, nothing is closed.
-        let poll = poll_forever(&mut driver_1, &mut driver_2);
-        let _ = tokio::time::timeout(Duration::from_millis(200), poll).await;
+        poll_for(&mut driver_1, &mut driver_2, Duration::from_millis(200)).await;
         assert_eq!(num_connections(&driver_1), 2);
         assert_eq!(num_connections(&driver_2), 2);
     }
@@ -1692,6 +1720,109 @@ mod tests {
             Some(libp2p::swarm::DialError::Aborted.to_string().as_str())
         );
         assert!(!driver_1.is_connected(&peer_2));
+    }
+
+    /// Two TCP drivers on localhost, connected by the first dialing the second if `outbound`, or
+    /// the second dialing the first if not.
+    async fn connected_tcp_drivers(
+        outbound: bool,
+    ) -> (GossipDriver<ConnectionGater>, GossipDriver<ConnectionGater>) {
+        let mut driver_1 = tcp_driver();
+        let mut driver_2 = tcp_driver();
+        let addr_1 = driver_1.start().await.expect("listen");
+        let addr_2 = driver_2.start().await.expect("listen");
+        if outbound {
+            driver_1.dial_multiaddr(addr_2).expect("dial");
+        } else {
+            driver_2.dial_multiaddr(addr_1).expect("dial");
+        }
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+        (driver_1, driver_2)
+    }
+
+    /// Blocking an IP address closes the connections to and from it, whichever side dialed.
+    #[rstest]
+    #[case::inbound(false)]
+    #[case::outbound(true)]
+    #[tokio::test]
+    async fn test_blocking_an_address_closes_its_connections(#[case] outbound: bool) {
+        let (mut driver_1, mut driver_2) = connected_tcp_drivers(outbound).await;
+        driver_1.block_addr("127.0.0.1".parse().unwrap());
+        poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
+            driver_1.connections.is_empty() && driver_2.connections.is_empty()
+        })
+        .await;
+    }
+
+    /// Blocking a subnet closes the connections to and from the addresses in it, whichever side
+    /// dialed.
+    #[rstest]
+    #[case::inbound(false)]
+    #[case::outbound(true)]
+    #[tokio::test]
+    async fn test_blocking_a_subnet_closes_its_connections(#[case] outbound: bool) {
+        let (mut driver_1, mut driver_2) = connected_tcp_drivers(outbound).await;
+        driver_1.block_subnet("127.0.0.0/8".parse().unwrap());
+        poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
+            driver_1.connections.is_empty() && driver_2.connections.is_empty()
+        })
+        .await;
+    }
+
+    /// Blocking a subnet the peer's address isn't in leaves its connection open.
+    #[rstest]
+    #[case::inbound(false)]
+    #[case::outbound(true)]
+    #[tokio::test]
+    async fn test_blocking_another_subnet_leaves_connections_open(#[case] outbound: bool) {
+        let (mut driver_1, mut driver_2) = connected_tcp_drivers(outbound).await;
+        let (peer_1, peer_2) = (*driver_1.local_peer_id(), *driver_2.local_peer_id());
+        driver_1.block_subnet("10.0.0.0/8".parse().unwrap());
+        poll_for(&mut driver_1, &mut driver_2, Duration::from_millis(200)).await;
+        assert!(driver_1.is_connected(&peer_2) && driver_2.is_connected(&peer_1));
+    }
+
+    /// A dial of ours still in flight when the address it goes to is blocked doesn't connect: the
+    /// gate refuses the connection once it is established, before any other behaviour sees it.
+    #[tokio::test]
+    async fn test_dial_in_flight_to_an_address_blocked_meanwhile_does_not_connect() {
+        let mut driver_1 = tcp_driver();
+        let mut driver_2 = tcp_driver();
+        let addr_2 = driver_2.start().await.expect("listen");
+        let peer_2 = addr_2.peer_id();
+        driver_1.start().await.expect("listen");
+
+        // Started, but not yet polled, so the block lands while the dial is in flight.
+        driver_1.dial_multiaddr(addr_2).expect("dial");
+        driver_1.block_addr("127.0.0.1".parse().unwrap());
+
+        let mut refusal = None;
+        let poll = async {
+            while refusal.is_none() {
+                tokio::select! {
+                    Some(event) = driver_1.next() => {
+                        match &event {
+                            SwarmEvent::OutgoingConnectionError { peer_id: Some(peer_id), error, .. }
+                                if *peer_id == peer_2 =>
+                            {
+                                let libp2p::swarm::DialError::Denied { cause } = error else {
+                                    panic!("not refused by the gate: {error}");
+                                };
+                                refusal = cause.downcast_ref::<DialError>().cloned();
+                            }
+                            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                                assert_ne!(*peer_id, peer_2, "the blocked address connected");
+                            }
+                            _ => {}
+                        }
+                        driver_1.handle_event(event);
+                    }
+                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
+                }
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(10), poll).await.expect("the dial ended");
+        assert!(matches!(refusal, Some(DialError::AddressBlocked { .. })), "{refusal:?}");
     }
 
     /// An in-memory connection has no IP, so even a block on every IPv4 address doesn't keep it

@@ -147,7 +147,7 @@ Returns a list of all blocked peer IDs.
 
 ### `opp2p_blockAddr`
 
-Blocks connections from a specific IP address.
+Blocks connections to and from a specific IP address, whichever peer they belong to. Open connections are closed, and new ones are refused in both directions until the address is [unblocked](#opp2p_unblockaddr). op-node, by contrast, leaves open connections in place.
 
 | Client | Method invocation                                  |
 | ------ | -------------------------------------------------- |
@@ -202,7 +202,7 @@ Returns a list of all blocked IP addresses.
 
 ### `opp2p_blockSubnet`
 
-Blocks connections from an entire IP subnet using CIDR notation.
+Blocks connections to and from an entire IP subnet using CIDR notation, whichever peers they belong to. Open connections are closed, and new ones are refused in both directions until the subnet is [unblocked](#opp2p_unblocksubnet). op-node, by contrast, leaves open connections in place.
 
 | Client | Method invocation                                  |
 | ------ | -------------------------------------------------- |

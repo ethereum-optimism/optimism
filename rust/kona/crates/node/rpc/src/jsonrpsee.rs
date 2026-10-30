@@ -103,7 +103,9 @@ pub trait OpP2PApi {
     #[method(name = "listBlockedPeers")]
     async fn opp2p_list_blocked_peers(&self) -> RpcResult<Vec<String>>;
 
-    /// Blocks the given address
+    /// Blocks the given IP address: closes the connections to and from it, whichever peer they
+    /// belong to, and refuses new ones in both directions until it is unblocked. Unlike op-node,
+    /// which leaves open connections in place.
     #[method(name = "blockAddr")]
     async fn opp2p_block_addr(&self, ip: IpAddr) -> RpcResult<()>;
 
@@ -115,7 +117,9 @@ pub trait OpP2PApi {
     #[method(name = "listBlockedAddrs")]
     async fn opp2p_list_blocked_addrs(&self) -> RpcResult<Vec<IpAddr>>;
 
-    /// Blocks the given subnet
+    /// Blocks the given subnet: closes the connections to and from the IP addresses in it,
+    /// whichever peers they belong to, and refuses new ones in both directions until it is
+    /// unblocked. Unlike op-node, which leaves open connections in place.
     #[method(name = "blockSubnet")]
     async fn opp2p_block_subnet(&self, subnet: IpNet) -> RpcResult<()>;
 
