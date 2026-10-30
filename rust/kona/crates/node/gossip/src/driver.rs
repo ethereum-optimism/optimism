@@ -111,6 +111,18 @@ const STATIC_PEER_REDIAL_INTERVAL: Duration = Duration::from_secs(60);
 /// connection right away isn't redialed in a tight loop.
 const STATIC_PEER_RECONNECT_DELAY: Duration = Duration::from_secs(1);
 
+/// Adds a reply to tell about `peer_id`, first dropping the ones whose caller has given up, so
+/// that callers that keep timing out can't pile replies up while a dial runs.
+fn add_reply<T>(
+    replies: &mut HashMap<PeerId, Vec<oneshot::Sender<T>>>,
+    peer_id: PeerId,
+    reply: oneshot::Sender<T>,
+) {
+    let replies = replies.entry(peer_id).or_default();
+    replies.retain(|reply| !reply.is_closed());
+    replies.push(reply);
+}
+
 /// An open connection to a peer.
 #[derive(Debug, Clone)]
 pub(crate) struct PeerConnection {
@@ -363,7 +375,7 @@ where
         }
         match self.dial_peer(peer_id, [addr]) {
             Ok(()) | Err(DialError::AlreadyDialing { .. }) => {
-                self.pending_connects.entry(peer_id).or_default().push(reply);
+                add_reply(&mut self.pending_connects, peer_id, reply);
             }
             Err(refusal) => {
                 let _ = reply.send(Err(refusal.into()));
@@ -378,7 +390,7 @@ where
             let _ = reply.send(());
             return;
         }
-        self.pending_disconnects.entry(peer_id).or_default().push(reply);
+        add_reply(&mut self.pending_disconnects, peer_id, reply);
         self.disconnect_peer(peer_id);
     }
 
@@ -2057,6 +2069,23 @@ mod tests {
 
         driver.ban_peer(peer);
         assert!(driver.swarm.behaviour().gate.is_banned_peer(&peer));
+    }
+
+    /// A reply whose caller has given up, such as an RPC call that timed out, is dropped when the
+    /// next reply for the same peer is added, rather than kept until the peer's dial ends.
+    #[tokio::test]
+    async fn test_abandoned_connect_replies_are_dropped() {
+        let mut driver = memory_driver();
+        driver.start().await.expect("listen");
+        let peer = PeerId::random();
+
+        // Not polled, so the dial stays in flight, and the second call joins it.
+        let (abandoned, _) = oneshot::channel();
+        driver.connect_peer(unused_memory_addr(peer), abandoned);
+        let (waiting, _waiting_rx) = oneshot::channel();
+        driver.connect_peer(unused_memory_addr(peer), waiting);
+
+        assert_eq!(driver.pending_connects[&peer].len(), 1);
     }
 
     /// Unblocking a peer lifts its ban too, and a ban isn't listed as a block, as in op-node.
