@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use discv5::Enr;
 use kona_gossip::{GossipCommandReceiver, GossipQueryHandle, GossipState};
-use libp2p::TransportError;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 use thiserror::Error;
@@ -114,9 +113,6 @@ pub enum NetworkActorError {
     /// Network driver error.
     #[error(transparent)]
     NetworkDriver(#[from] NetworkDriverError),
-    /// Driver startup failed.
-    #[error(transparent)]
-    DriverStartup(#[from] TransportError<std::io::Error>),
     /// The network driver was missing its unsafe block receiver.
     #[error("Missing unsafe block receiver in network driver")]
     MissingUnsafeBlockReceiver,
