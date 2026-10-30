@@ -130,12 +130,14 @@ impl Metrics {
         kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "receipts_by_hash", 0);
         kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "block_by_hash", 0);
         kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "block_number", 0);
+        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "block_by_label", 0);
 
         // RPC error metrics
         kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "header_by_hash", 0);
         kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "receipts_by_hash", 0);
         kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "block_by_hash", 0);
         kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "block_number", 0);
+        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "block_by_label", 0);
 
         // Beacon client metrics
         kona_macros::set!(gauge, Self::BEACON_CLIENT_REQUESTS, "method", "spec", 0);
