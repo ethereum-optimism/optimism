@@ -55,7 +55,7 @@ The sections are:
 | `CrossL2Inbox` deposit check | L2 | Introspection | It finds deposits with `block.basefee > 0 && tx.gasprice == 0`. A change to fee rules can break this check. |
 | `Burn.gas` (`src/libraries/Burn.sol`) | L1 | Introspection | The loop checks `gasleft()`. Opcode prices set the step size and the overshoot. |
 | `WETH98.withdraw` (`src/universal/WETH98.sol`), also called by `DelayedWETH.withdraw` (`src/dispute/DelayedWETH.sol`) | Both | Fixed gas | `transfer` gives a 2300 gas stipend. On L1, `DelayedWETH` sends ETH to the dispute game this way. A receiver can fail if its opcodes cost more. |
-| `FaultDisputeGame.closeGame`, `SuperFaultDisputeGame.closeGame` | L1 | Introspection | The 63/64 rule applies to `try setAnchorState {} catch {}`, and the catch hides an out-of-gas failure. If the registry costs more, a caller can make the update fail on purpose. |
+| `FaultDisputeGame.closeGame`, `SuperFaultDisputeGame.closeGame` | L1 | Introspection | The 63/64 rule applies to the `setAnchorState` call. The game catches and ignores an out-of-gas failure of this call. If the registry costs more, a caller can make the update fail on purpose. |
 | `Faucet.drip` (`src/periphery/faucet/Faucet.sol`) | Both | Fixed gas | It calls the recipient with a gas limit that the caller gives. |
 
 ### Contracts: limits and gas-scaled formulas
