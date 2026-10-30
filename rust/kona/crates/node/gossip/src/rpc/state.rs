@@ -1,8 +1,13 @@
 //! Published gossip state for queries outside the network actor.
 
-use crate::{ConnectionGate, GossipDriver};
+use crate::{ConnectionGate, Event, GossipDriver};
 use ipnet::IpNet;
-use libp2p::{Multiaddr, PeerId, gossipsub::TopicHash, identify::Info};
+use libp2p::{
+    Multiaddr, PeerId,
+    gossipsub::{self, TopicHash},
+    identify::{self, Info},
+    swarm::SwarmEvent,
+};
 use std::{
     collections::{HashMap, HashSet},
     net::IpAddr,
@@ -51,6 +56,37 @@ pub struct GossipState {
     pub protected_peers: Vec<PeerId>,
     /// The latest ping round-trip time to each connected peer.
     pub pings: HashMap<PeerId, Duration>,
+}
+
+impl GossipState {
+    /// Returns whether `event` changes what a snapshot shows: the connected peers, the peerstore,
+    /// the topic subscriptions, or the node's addresses. The network actor then publishes a new
+    /// snapshot soon, rather than leaving readers to find theirs stale.
+    ///
+    /// An event missing here only costs freshness, since readers ask for a new snapshot once
+    /// theirs is older than they accept. Scores and pings change without an event, so readers see
+    /// them up to that age anyway.
+    pub fn changed_by(event: &SwarmEvent<Event>) -> bool {
+        match event {
+            SwarmEvent::Behaviour(Event::Identify(event)) => {
+                matches!(**event, identify::Event::Received { .. })
+            }
+            SwarmEvent::Behaviour(Event::Gossipsub(event)) => matches!(
+                **event,
+                gossipsub::Event::Subscribed { .. } | gossipsub::Event::Unsubscribed { .. }
+            ),
+            event => matches!(
+                event,
+                SwarmEvent::ConnectionEstablished { .. } |
+                    SwarmEvent::ConnectionClosed { .. } |
+                    SwarmEvent::NewListenAddr { .. } |
+                    SwarmEvent::ExpiredListenAddr { .. } |
+                    SwarmEvent::ListenerClosed { .. } |
+                    SwarmEvent::ExternalAddrConfirmed { .. } |
+                    SwarmEvent::ExternalAddrExpired { .. }
+            ),
+        }
+    }
 }
 
 impl<G: ConnectionGate> GossipDriver<G> {

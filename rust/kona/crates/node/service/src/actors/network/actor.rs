@@ -161,6 +161,11 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                     error!(target: "node::p2p", "The gossip swarm stream has ended");
                     return Err(NetworkActorError::ChannelClosed);
                 };
+                // Published on the actor's next turn, after events already waiting. A full
+                // channel already holds a request, which covers this change too.
+                if GossipState::changed_by(&event) {
+                    let _ = self.gossip_refresh_tx.try_send(());
+                }
 
                 if let Some(payload) = self.handler.gossip.handle_event(event) &&
                     self.unsafe_block_tx.send(payload).is_err()

@@ -389,3 +389,20 @@ async fn test_connect_peer_reports_a_failed_dial() -> anyhow::Result<()> {
     assert!(err.message().contains("Connection refused"), "{err:?}");
     Ok(())
 }
+
+/// A new connection shows in the RPC soon after it opens, even if the RPC accepts gossip state
+/// of any age: the network actor publishes new state when a connection opens, without waiting
+/// for a reader to find its state too old.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_new_connection_is_published_without_a_stale_read() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().in_memory().with_snapshot_max_age(Duration::MAX);
+    let node_1 = builder.build(vec![]).await;
+    let node_2 = builder.build(vec![]).await;
+
+    // The command publishes state from before the connection opens.
+    node_2.connect_to(&node_1).await?;
+
+    node_2.check_connected_to_with_retries(&node_1).await?;
+    node_1.check_connected_to_with_retries(&node_2).await?;
+    Ok(())
+}

@@ -57,6 +57,9 @@ pub(crate) struct TestNetworkBuilder {
     next_node_id: usize,
     /// The static peers of the next node built.
     static_peers: Vec<PeerAddr>,
+    /// How old the gossip state the nodes' RPC answers from may be. Zero by default, so that
+    /// each call sees the network as it is.
+    snapshot_max_age: Duration,
 }
 
 impl TestNetworkBuilder {
@@ -78,6 +81,7 @@ impl TestNetworkBuilder {
             discovery_interval: None,
             next_node_id: 0,
             static_peers: Vec::new(),
+            snapshot_max_age: Duration::ZERO,
         }
     }
 
@@ -120,6 +124,12 @@ impl TestNetworkBuilder {
     /// Only for tests that wait on discovery to connect nodes: frequent lookups flood debug logs.
     pub(crate) const fn with_discovery_interval(mut self, interval: Duration) -> Self {
         self.discovery_interval = Some(interval);
+        self
+    }
+
+    /// Sets how old the gossip state the RPC of the nodes built from now on may answer from.
+    pub(crate) const fn with_snapshot_max_age(mut self, max_age: Duration) -> Self {
+        self.snapshot_max_age = max_age;
         self
     }
 
@@ -231,14 +241,15 @@ impl TestNetworkBuilder {
             signed_payload_rx,
         );
 
-        // Tests watch the network through the RPC, so it reads state built after each call.
+        // Tests watch the network through the RPC, so by default it reads state built after each
+        // call.
         let p2p_rpc = P2pRpc::new(
             actor.gossip_query_handle(),
             discovery,
             self.chain_id,
             gossip_command_tx.clone(),
         )
-        .with_snapshot_max_age(Duration::ZERO);
+        .with_snapshot_max_age(self.snapshot_max_age);
 
         // Every test network can sign: payloads sent to `gossip_payload_tx` are signed with this
         // node's key and then gossiped.
