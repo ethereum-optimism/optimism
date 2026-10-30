@@ -59,6 +59,26 @@ contract MockPolicy_TestInit is Test {
         });
     }
 
+    /// @notice Screens as the module, which is the only caller the policy accepts.
+    function _screen(BridgeHookTypes.Item memory _i, address[] memory _p) internal returns (bool) {
+        vm.prank(module);
+        return policy.screen(_i, _p);
+    }
+
+    /// @notice Screens a release as the module.
+    function _screenRelease(
+        BridgeHookTypes.Item memory _i,
+        address[] memory _p,
+        uint64 _expiresAt,
+        uint256 _finalizableAt
+    )
+        internal
+        returns (bool)
+    {
+        vm.prank(module);
+        return policy.screenRelease(_i, _p, _expiresAt, _finalizableAt);
+    }
+
     /// @notice Counts the logs carrying the given topic0.
     function _countTopic(Vm.Log[] memory _logs, bytes32 _topic) internal pure returns (uint256 count_) {
         for (uint256 i; i < _logs.length; i++) {
@@ -73,7 +93,7 @@ contract MockPolicy_screen_Test is MockPolicy_TestInit {
     /// @notice Tests that the default answer for a deposit is to proceed, so a freshly deployed
     ///         policy does not silently hold every deposit on the chain.
     function test_screen_defaultProceeds_succeeds() public {
-        assertTrue(policy.screen(_item(BridgeHookTypes.Direction.Deposit, 0), noParties));
+        assertTrue(_screen(_item(BridgeHookTypes.Direction.Deposit, 0), noParties));
     }
 
     /// @notice Tests that flipping the deposit default holds deposits instead.
@@ -81,7 +101,7 @@ contract MockPolicy_screen_Test is MockPolicy_TestInit {
         vm.prank(owner);
         policy.setDefaultDeposit(MockPolicy.Outcome.Hold);
 
-        assertFalse(policy.screen(_item(BridgeHookTypes.Direction.Deposit, 0), noParties));
+        assertFalse(_screen(_item(BridgeHookTypes.Direction.Deposit, 0), noParties));
     }
 
     /// @notice Tests that a Reject default refuses the item outright, which the Portal turns
@@ -91,6 +111,7 @@ contract MockPolicy_screen_Test is MockPolicy_TestInit {
         policy.setDefaultDeposit(MockPolicy.Outcome.Reject);
 
         BridgeHookTypes.Item memory item = _item(BridgeHookTypes.Direction.Deposit, 0);
+        vm.prank(module);
         vm.expectRevert(
             abi.encodeWithSelector(MockPolicy.MockPolicy_Rejected.selector, BridgeHookHashing.hashItem(item))
         );
@@ -107,8 +128,8 @@ contract MockPolicy_screen_Test is MockPolicy_TestInit {
         policy.setOverride(BridgeHookHashing.hashItem(pinned), MockPolicy.Override.Hold);
         vm.stopPrank();
 
-        assertTrue(policy.screen(_item(BridgeHookTypes.Direction.Deposit, 0), noParties));
-        assertFalse(policy.screen(pinned, noParties));
+        assertTrue(_screen(_item(BridgeHookTypes.Direction.Deposit, 0), noParties));
+        assertFalse(_screen(pinned, noParties));
     }
 
     /// @notice Tests that clearing an override returns the item to the default.
@@ -116,21 +137,34 @@ contract MockPolicy_screen_Test is MockPolicy_TestInit {
         BridgeHookTypes.Item memory item = _item(BridgeHookTypes.Direction.Deposit, 0);
         bytes32 id = BridgeHookHashing.hashItem(item);
 
-        vm.startPrank(owner);
+        vm.prank(owner);
         policy.setOverride(id, MockPolicy.Override.Hold);
-        assertFalse(policy.screen(item, noParties));
+        assertFalse(_screen(item, noParties));
 
+        vm.prank(owner);
         policy.setOverride(id, MockPolicy.Override.Unset);
-        vm.stopPrank();
+        assertTrue(_screen(item, noParties));
+    }
 
-        assertTrue(policy.screen(item, noParties));
+    /// @notice Tests that only the module may screen. Anyone else could otherwise emit an
+    ///         ItemObserved for an item the Portal never saw, and an indexer that treats the
+    ///         feed as authoritative would ingest it.
+    function test_screen_callerNotModule_reverts() public {
+        vm.expectRevert(MockPolicy.MockPolicy_NotModule.selector);
+        policy.screen(_item(BridgeHookTypes.Direction.Deposit, 0), noParties);
+    }
+
+    /// @notice Tests that the same guard covers the release path.
+    function test_screen_releaseCallerNotModule_reverts() public {
+        vm.expectRevert(MockPolicy.MockPolicy_NotModule.selector);
+        policy.screenRelease(_item(BridgeHookTypes.Direction.Withdrawal, 0), noParties, 0, 1000);
     }
 
     /// @notice Tests that every screened item is reported, so the screener can recover the IDs
     ///         of deposits that proceeded and therefore left no other on-chain trace.
     function test_screen_emitsItemObserved_succeeds() public {
         vm.recordLogs();
-        policy.screen(_item(BridgeHookTypes.Direction.Deposit, 0), noParties);
+        _screen(_item(BridgeHookTypes.Direction.Deposit, 0), noParties);
 
         assertEq(_countTopic(vm.getRecordedLogs(), OBSERVED_TOPIC), 1);
     }
@@ -147,7 +181,7 @@ contract MockPolicy_screenRelease_Test is MockPolicy_TestInit {
         policy.setDefaultRelease(MockPolicy.Outcome.Proceed);
         vm.stopPrank();
 
-        assertFalse(policy.screenRelease(_item(BridgeHookTypes.Direction.Withdrawal, 0), noParties, 0, 1000));
+        assertFalse(_screenRelease(_item(BridgeHookTypes.Direction.Withdrawal, 0), noParties, 0, 1000));
     }
 
     /// @notice Tests that a zero finalizable time is read as a completion, which is how the
@@ -158,7 +192,7 @@ contract MockPolicy_screenRelease_Test is MockPolicy_TestInit {
         policy.setDefaultRelease(MockPolicy.Outcome.Proceed);
         vm.stopPrank();
 
-        assertTrue(policy.screenRelease(_item(BridgeHookTypes.Direction.Withdrawal, 0), noParties, 0, 0));
+        assertTrue(_screenRelease(_item(BridgeHookTypes.Direction.Withdrawal, 0), noParties, 0, 0));
     }
 
     /// @notice Tests that an expired clearance counts as none, so the item is held like any
@@ -167,14 +201,14 @@ contract MockPolicy_screenRelease_Test is MockPolicy_TestInit {
         vm.warp(2000);
         BridgeHookTypes.Item memory item = _item(BridgeHookTypes.Direction.Withdrawal, 0);
 
-        assertTrue(policy.screenRelease(item, noParties, uint64(block.timestamp + 1), 1000));
-        assertFalse(policy.screenRelease(item, noParties, uint64(block.timestamp - 1), 1000));
+        assertTrue(_screenRelease(item, noParties, uint64(block.timestamp + 1), 1000));
+        assertFalse(_screenRelease(item, noParties, uint64(block.timestamp - 1), 1000));
     }
 
     /// @notice Tests that a zero expiry means the clearance never ages out.
     function test_screenRelease_zeroExpiryNeverExpires_succeeds() public {
         vm.warp(2000);
-        assertTrue(policy.screenRelease(_item(BridgeHookTypes.Direction.Withdrawal, 0), noParties, 0, 1000));
+        assertTrue(_screenRelease(_item(BridgeHookTypes.Direction.Withdrawal, 0), noParties, 0, 1000));
     }
 }
 

@@ -69,8 +69,10 @@ contract MockPolicy is IPolicy {
     /// @notice Emitted on every screening call, whatever it answers.
     /// @dev    MOCK ONLY. A proceeding deposit leaves no other on-chain record of its item ID,
     ///         because TransactionDeposited does not carry the deposit counter. This gives the
-    ///         screener a complete ordered feed of every ID the Portal computed. A rejected item
-    ///         is absent by construction: the revert discards the log with everything else.
+    ///         screener a complete ordered feed of every ID the Portal computed, which is only
+    ///         true because screening is restricted to the module: an open entry point would let
+    ///         anyone forge entries in it. A rejected item is absent by construction, since the
+    ///         revert discards the log with everything else.
     event ItemObserved(bytes32 indexed id, BridgeHookTypes.Item item, uint8 kind, bool pass);
 
     /// @notice Emitted when a direction's default answer changes.
@@ -100,6 +102,9 @@ contract MockPolicy is IPolicy {
     /// @notice Thrown when the caller is not the screener.
     error MockPolicy_NotScreener();
 
+    /// @notice Thrown when the caller is not the module.
+    error MockPolicy_NotModule();
+
     /// @notice Thrown when a verdict is written before the module is set.
     error MockPolicy_ModuleNotSet();
 
@@ -110,6 +115,14 @@ contract MockPolicy is IPolicy {
 
     modifier onlyScreener() {
         if (msg.sender != screener) revert MockPolicy_NotScreener();
+        _;
+    }
+
+    /// @notice Restricts screening to the module. Without it anyone could call these and emit
+    ///         ItemObserved for an item the Portal never saw, and an indexer that trusts the
+    ///         feed would ingest it.
+    modifier onlyModule() {
+        if (msg.sender != address(module)) revert MockPolicy_NotModule();
         _;
     }
 
@@ -124,7 +137,7 @@ contract MockPolicy is IPolicy {
     /// @notice Answers for a deposit arriving at the Portal.
     /// @param _item The item being screened.
     /// @return pass_ True to proceed, false to hold. Reverts to reject.
-    function screen(BridgeHookTypes.Item calldata _item, address[] calldata) external returns (bool pass_) {
+    function screen(BridgeHookTypes.Item calldata _item, address[] calldata) external onlyModule returns (bool pass_) {
         pass_ = _decide(_item, defaultDeposit, KIND_DEPOSIT);
     }
 
@@ -141,6 +154,7 @@ contract MockPolicy is IPolicy {
         uint256 _finalizableAt
     )
         external
+        onlyModule
         returns (bool pass_)
     {
         bool isCompletion = _finalizableAt == 0;
