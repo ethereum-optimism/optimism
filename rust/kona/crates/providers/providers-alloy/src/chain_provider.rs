@@ -4,7 +4,7 @@
 use crate::Metrics;
 use alloy_consensus::{Header, Receipt, ReceiptEnvelope, TxEnvelope};
 use alloy_eips::{
-    BlockId,
+    BlockId, BlockNumberOrTag,
     eip2718::{Decodable2718, Eip2718Error},
 };
 use alloy_primitives::{B256, Bytes};
@@ -46,6 +46,27 @@ impl ConfirmationDepth {
             number
                 .checked_add(self.depth)
                 .is_some_and(|confirmed_at| confirmed_at <= head.number)
+    }
+}
+
+/// An L1 block identified by its position relative to the chain head.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockLabel {
+    /// The chain head.
+    Latest,
+    /// The most recent block that the consensus layer considers safe.
+    Safe,
+    /// The most recent finalized block.
+    Finalized,
+}
+
+impl From<BlockLabel> for BlockNumberOrTag {
+    fn from(label: BlockLabel) -> Self {
+        match label {
+            BlockLabel::Latest => Self::Latest,
+            BlockLabel::Safe => Self::Safe,
+            BlockLabel::Finalized => Self::Finalized,
+        }
     }
 }
 
@@ -547,6 +568,38 @@ impl AlloyChainProvider {
         Ok(block_info)
     }
 
+    /// Returns the [`BlockInfo`] of the block currently at `label`.
+    ///
+    /// Which block holds a label is the RPC's claim. Without trusting the RPC, only the returned
+    /// header's hash is verified. The header is cached by that hash.
+    pub async fn block_info_by_label(
+        &self,
+        label: BlockLabel,
+    ) -> Result<BlockInfo, AlloyChainProviderError> {
+        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "block_by_label");
+
+        let block = self
+            .inner
+            .get_block_by_number(label.into())
+            .await
+            .inspect_err(|_e| {
+                kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "block_by_label");
+            })?
+            .ok_or(AlloyChainProviderError::BlockNotFound(BlockNumberOrTag::from(label).into()))?;
+        let hash = block.header.hash;
+        let header = block.header.into_consensus();
+        self.verify_header_hash(&header, hash)?;
+
+        let block_info = BlockInfo {
+            hash,
+            number: header.number,
+            parent_hash: header.parent_hash,
+            timestamp: header.timestamp,
+        };
+        lock(&self.shared.headers).put(hash, header);
+        Ok(block_info)
+    }
+
     /// Returns the receipts of the block with the given hash.
     pub async fn receipts_by_hash(
         &self,
@@ -764,6 +817,46 @@ mod tests {
         let fetched = provider.header_by_hash(hash).await.unwrap();
         assert_eq!(clone.header_by_hash(hash).await.unwrap(), fetched);
         assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn label_lookups_fill_the_header_cache() {
+        let asserter = Asserter::new();
+        let header = Header { number: 7, ..Default::default() };
+        let hash = header.hash_slow();
+        asserter.push_success(&Some(RpcBlock::<TxEnvelope>::new(
+            RpcHeader::new(header.clone()),
+            BlockTransactions::Hashes(Vec::new()),
+        )));
+        let provider = AlloyChainProvider::new_with_trust(
+            RootProvider::new(RpcClient::mocked(asserter.clone())),
+            8,
+            false,
+        );
+
+        let block_info = provider.block_info_by_label(BlockLabel::Finalized).await.unwrap();
+        assert_eq!(block_info.hash, hash);
+        assert_eq!(block_info.number, 7);
+        assert_eq!(provider.header_by_hash(hash).await.unwrap(), header);
+        assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn untrusted_label_lookups_reject_a_mismatched_hash() {
+        let asserter = Asserter::new();
+        let mut rpc_header = RpcHeader::new(Header::default());
+        rpc_header.hash = B256::repeat_byte(0xbb);
+        asserter.push_success(&Some(RpcBlock::<TxEnvelope>::new(
+            rpc_header,
+            BlockTransactions::Hashes(Vec::new()),
+        )));
+        let provider = AlloyChainProvider::new_with_trust(
+            RootProvider::new(RpcClient::mocked(asserter)),
+            8,
+            false,
+        );
+
+        assert!(provider.block_info_by_label(BlockLabel::Latest).await.is_err());
     }
 
     #[tokio::test]
