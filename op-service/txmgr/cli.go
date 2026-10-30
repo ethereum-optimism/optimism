@@ -31,6 +31,7 @@ const (
 	PrivateKeyFlagName = "private-key"
 	// TxMgr Flags (new + legacy + some shared flags)
 	NumConfirmationsFlagName           = "num-confirmations"
+	NumConfirmationsBlockTagFlagName   = "num-confirmations-block-tag"
 	SafeAbortNonceTooLowCountFlagName  = "safe-abort-nonce-too-low-count"
 	FeeLimitMultiplierFlagName         = "fee-limit-multiplier"
 	FeeLimitThresholdFlagName          = "txmgr.fee-limit-threshold"
@@ -207,6 +208,12 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			Value:   defaults.NumConfirmations,
 			EnvVars: prefixEnvVars("NUM_CONFIRMATIONS"),
 		},
+		&cli.StringFlag{
+			Name:    NumConfirmationsBlockTagFlagName,
+			Usage:   "L1 block that the confirmations of a sent transaction are counted from: latest, safe or finalized",
+			Value:   string(eth.Unsafe),
+			EnvVars: prefixEnvVars("NUM_CONFIRMATIONS_BLOCK_TAG"),
+		},
 		&cli.Uint64Flag{
 			Name:    SafeAbortNonceTooLowCountFlagName,
 			Usage:   "Number of ErrNonceTooLow observations required to give up on a tx at a particular nonce without receiving confirmation",
@@ -312,6 +319,7 @@ type CLIConfig struct {
 	PrivateKey                 string
 	SignerCLIConfig            opsigner.CLIConfig
 	NumConfirmations           uint64
+	NumConfirmationsBlockTag   string
 	SafeAbortNonceTooLowCount  uint64
 	FeeLimitMultiplier         uint64
 	FeeLimitThresholdGwei      float64
@@ -337,6 +345,7 @@ func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
 	return CLIConfig{
 		L1RPCURL:                  l1RPCURL,
 		NumConfirmations:          defaults.NumConfirmations,
+		NumConfirmationsBlockTag:  string(eth.Unsafe),
 		SafeAbortNonceTooLowCount: defaults.SafeAbortNonceTooLowCount,
 		FeeLimitMultiplier:        defaults.FeeLimitMultiplier,
 		FeeLimitThresholdGwei:     defaults.FeeLimitThresholdGwei,
@@ -363,6 +372,9 @@ func (m CLIConfig) Check() error {
 	}
 	if m.NumConfirmations == 0 {
 		return errors.New("NumConfirmations must not be 0")
+	}
+	if err := checkConfirmationsBlockTag(eth.BlockLabel(m.NumConfirmationsBlockTag)); err != nil {
+		return err
 	}
 	if m.NetworkTimeout == 0 {
 		return errors.New("must provide NetworkTimeout")
@@ -428,6 +440,7 @@ func ReadCLIConfig(ctx cliiface.Context) CLIConfig {
 		PrivateKey:                 ctx.String(PrivateKeyFlagName),
 		SignerCLIConfig:            opsigner.ReadCLIConfig(ctx),
 		NumConfirmations:           ctx.Uint64(NumConfirmationsFlagName),
+		NumConfirmationsBlockTag:   ctx.String(NumConfirmationsBlockTagFlagName),
 		SafeAbortNonceTooLowCount:  ctx.Uint64(SafeAbortNonceTooLowCountFlagName),
 		FeeLimitMultiplier:         ctx.Uint64(FeeLimitMultiplierFlagName),
 		FeeLimitThresholdGwei:      ctx.Float64(FeeLimitThresholdFlagName),
@@ -526,6 +539,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		MaxRetries:                 cfg.MaxRetries,
 		ReceiptQueryInterval:       cfg.ReceiptQueryInterval,
 		NumConfirmations:           cfg.NumConfirmations,
+		NumConfirmationsBlockTag:   eth.BlockLabel(cfg.NumConfirmationsBlockTag),
 		SafeAbortNonceTooLowCount:  cfg.SafeAbortNonceTooLowCount,
 		AlreadyPublishedCustomErrs: cfg.AlreadyPublishedCustomErrs,
 	}
@@ -628,6 +642,10 @@ type Config struct {
 	// transaction confirmed.
 	NumConfirmations uint64
 
+	// NumConfirmationsBlockTag is the L1 block (latest, safe or finalized) that
+	// NumConfirmations are counted from. An empty value means latest.
+	NumConfirmationsBlockTag eth.BlockLabel
+
 	// SafeAbortNonceTooLowCount specifies how many ErrNonceTooLow observations
 	// are required to give up on a tx at a particular nonce without receiving
 	// confirmation.
@@ -661,6 +679,9 @@ func (m *Config) Check() error {
 	if m.NumConfirmations == 0 {
 		return errors.New("NumConfirmations must not be 0")
 	}
+	if err := checkConfirmationsBlockTag(m.NumConfirmationsBlockTag); err != nil {
+		return err
+	}
 	if m.NetworkTimeout == 0 {
 		return errors.New("must provide NetworkTimeout")
 	}
@@ -692,4 +713,13 @@ func (m *Config) Check() error {
 		return errors.New("must provide the ChainID")
 	}
 	return nil
+}
+
+func checkConfirmationsBlockTag(label eth.BlockLabel) error {
+	switch label {
+	case "", eth.Unsafe, eth.Safe, eth.Finalized:
+		return nil
+	default:
+		return fmt.Errorf("NumConfirmationsBlockTag %q is not one of %q, %q or %q", label, eth.Unsafe, eth.Safe, eth.Finalized)
+	}
 }
