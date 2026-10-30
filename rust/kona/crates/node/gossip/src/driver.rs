@@ -1677,45 +1677,56 @@ mod tests {
     }
 
     /// A blocked IP address or subnet can't connect to us: the gate refuses the connection before
-    /// the handshake, from its address alone. A subnet the address isn't in doesn't keep it out,
-    /// and once unblocked, it connects.
+    /// the handshake, from its address alone. Once unblocked, it connects.
     ///
     /// Over TCP on localhost, since an in-memory address has no IP to block.
+    #[rstest]
+    #[case::address(
+        |driver: &mut GossipDriver<ConnectionGater>, block: bool| {
+            let localhost = "127.0.0.1".parse().unwrap();
+            if block { driver.block_addr(localhost) } else { driver.unblock_addr(localhost) }
+        },
+        "IP address is blocked: 127.0.0.1"
+    )]
+    #[case::subnet(
+        |driver: &mut GossipDriver<ConnectionGater>, block: bool| {
+            // The first 8 bits are the network, so this is every address from 127.0.0.0 to
+            // 127.255.255.255: the whole IPv4 loopback range, which contains localhost.
+            let loopback = "127.0.0.0/8".parse().unwrap();
+            if block { driver.block_subnet(loopback) } else { driver.unblock_subnet(loopback) }
+        },
+        "IP address 127.0.0.1 is in a blocked subnet"
+    )]
     #[tokio::test]
-    async fn test_blocked_address_and_subnet_cannot_connect_inbound() {
+    async fn test_blocked_address_cannot_connect_inbound_until_unblocked(
+        #[case] set_blocked: fn(&mut GossipDriver<ConnectionGater>, bool),
+        #[case] expected_refusal: &str,
+    ) {
         let mut driver_1 = tcp_driver();
         let mut driver_2 = tcp_driver();
         let addr_1 = driver_1.start().await.expect("listen");
         driver_2.start().await.expect("listen");
-        let localhost: IpAddr = "127.0.0.1".parse().unwrap();
-        // The first 8 bits are the network, so this is every address from 127.0.0.0 to
-        // 127.255.255.255: the whole IPv4 loopback range, which contains `localhost`.
-        let loopback: IpNet = "127.0.0.0/8".parse().unwrap();
 
-        driver_1.block_addr(localhost);
+        set_blocked(&mut driver_1, true);
         driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
         let refusal = inbound_refusal(&mut driver_1, &mut driver_2).await;
-        assert!(
-            matches!(refusal, Some(DialError::AddressBlocked { ip }) if ip == localhost),
-            "{refusal:?}"
-        );
-        driver_1.unblock_addr(localhost);
+        assert_eq!(refusal.map(|refusal| refusal.to_string()).as_deref(), Some(expected_refusal));
 
-        driver_1.block_subnet(loopback);
-        driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
-        let refusal = inbound_refusal(&mut driver_1, &mut driver_2).await;
-        assert!(
-            matches!(refusal, Some(DialError::SubnetBlocked { ip }) if ip == localhost),
-            "{refusal:?}"
-        );
-        driver_1.unblock_subnet(loopback);
+        set_blocked(&mut driver_1, false);
+        driver_2.dial_multiaddr(addr_1).expect("dial");
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+    }
+
+    /// A subnet block doesn't keep out an address outside the subnet.
+    #[tokio::test]
+    async fn test_address_outside_a_blocked_subnet_connects_inbound() {
+        let mut driver_1 = tcp_driver();
+        let mut driver_2 = tcp_driver();
+        let addr_1 = driver_1.start().await.expect("listen");
+        driver_2.start().await.expect("listen");
 
         driver_1.block_subnet("10.0.0.0/8".parse().unwrap());
         driver_2.dial_multiaddr(addr_1).expect("dial");
-        assert_eq!(
-            inbound_refusal(&mut driver_1, &mut driver_2).await.map(|e| e.to_string()),
-            None
-        );
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
 
