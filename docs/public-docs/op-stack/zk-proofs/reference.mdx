@@ -1,0 +1,114 @@
+---
+title: ZK proofs reference
+description: Reference for the ZK dispute game type, its contracts and functions, its per-chain parameters, and its statuses.
+diataxis: reference
+---
+
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<ZkProofsStatus />
+
+This page catalogues the contracts, functions, parameters, and statuses of the OP Stack ZK proof system. For the normative definitions, see the [ZK dispute game specification](https://specs.optimism.io/fault-proof/stage-one/zk/zk-dispute-game.html?utm_source=op-docs&utm_medium=docs).
+
+## Game type
+
+| Value | Name | Description |
+| --- | --- | --- |
+| `10` | `ZK_DISPUTE_GAME` | Optimistic super-root dispute game settled by a ZK proof. |
+
+Off-chain tools use the name `zk` for this game type, for example `op-challenger --game-types zk`.
+
+## Contracts
+
+| Contract | Purpose |
+| --- | --- |
+| [`ZKDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/zk/ZKDisputeGame.sol) | One game per proposal: challenge, prove, resolve, and bond accounting |
+| [`SP1PlonkAdapter`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/zk/SP1PlonkAdapter.sol) | `IZKVerifier` implementation that calls Succinct's SP1 PLONK verifier |
+| [`IZKVerifier`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/dispute/zk/IZKVerifier.sol) | Generic verifier interface the game calls; specified in the [`IZKVerifier` specification](https://specs.optimism.io/fault-proof/stage-one/zk/zk-interface.html?utm_source=op-docs&utm_medium=docs) |
+| [`DisputeGameFactory`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol) | Creates games and holds each game type's implementation, configuration, and init bond |
+| [`AnchorStateRegistry`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol) | Anchor state, respected game type, blacklist, retirement timestamp, and finality |
+| [`DelayedWETH`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DelayedWETH.sol) | Bond custody with a delayed withdrawal |
+| [`OptimismPortal2`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol) | Proves and finalizes withdrawals against valid games |
+
+The SP1 PLONK verifier that `SP1PlonkAdapter` wraps is deployed by Succinct; see the [`sp1-contracts` deployments](https://github.com/succinctlabs/sp1-contracts/tree/main/contracts/deployments). `op-deployer` selects the release-approved verifier for Ethereum mainnet and Sepolia ([source](https://github.com/ethereum-optimism/optimism/blob/develop/op-deployer/pkg/deployer/standard/standard.go)).
+
+## `ZKDisputeGame` functions
+
+Actions, callable by anyone:
+
+| Function | Effect |
+| --- | --- |
+| `challenge()` | Challenges the proposal. Must send exactly `challengerBond()`. Reverts if the game is over or already challenged. |
+| `prove(bytes proofBytes)` | Submits a proof. Reverts if the proof is invalid, the game is over, or the parent lost. |
+| `resolve()` | Resolves the game once it is over and its parent has resolved. |
+| `closeGame()` | Decides between normal and refund bond distribution once the game is final, and tries to update the anchor state. Called by `claimCredit` if needed. |
+| `claimCredit(address recipient)` | First call unlocks the recipient's bond credit in `DelayedWETH`; a second call after the `DelayedWETH` delay withdraws it. |
+
+Reads:
+
+| Function | Returns |
+| --- | --- |
+| `rootClaim()` | The proposed super root |
+| `l2SequenceNumber()` | The super root timestamp |
+| `extraData()` | The parent index followed by the super root preimage |
+| `rootClaimByChainId(uint256 chainId)` | One chain's output root from the super root preimage; reverts with `UnknownChainId` if the chain is not in it |
+| `parentIndex()` | The parent game's factory index, or `type(uint32).max` if the game builds on the anchor state |
+| `startingProposal()` | The starting super root and timestamp: the parent's claim, or the anchor state |
+| `l1Head()` | The L1 block hash recorded at creation |
+| `claimData()` | The parent index, proposal status, challenger, prover, current deadline, and claim |
+| `gameOver()` | Whether the game has a proof or its deadline has passed |
+| `status()` | The `GameStatus` |
+| `credit(address recipient)` | The recipient's claimable credit under the current distribution mode |
+| `absolutePrestate()`, `verifier()`, `maxChallengeDuration()`, `maxProveDuration()`, `challengerBond()` | The game's configuration |
+| `wasRespectedGameTypeWhenCreated()` | Whether `ZK_DISPUTE_GAME` was the respected game type when the game was created |
+
+## Parameters
+
+Each chain sets these when it registers the game through `OPContractsManager`:
+
+| Parameter | Where it lives | Description |
+| --- | --- | --- |
+| `absolutePrestate` | Game configuration | The `super-aggregation` program's verification key. Must be non-zero. |
+| `verifier` | Game configuration | The `IZKVerifier` contract. `OPContractsManager` sets it to its `SP1PlonkAdapter`. |
+| `maxChallengeDuration` | Game configuration | Seconds a new game can be challenged. Must be non-zero and at most `type(uint32).max`. |
+| `maxProveDuration` | Game configuration | Seconds a challenged game has to be proven. Must be non-zero and at most `type(uint32).max`. |
+| `challengerBond` | Game configuration | Wei required to challenge. Must be non-zero. |
+| init bond | `DisputeGameFactory.initBonds(10)` | Wei required to create a game. |
+
+{/* TODO: add the standard values for maxChallengeDuration, maxProveDuration, challengerBond, and the init bond once they are set for the release. */}
+
+The game also uses the chain's shared dispute delays: the `OptimismPortal` proof maturity delay, the `AnchorStateRegistry` finality delay, and the `DelayedWETH` withdrawal delay. See the [standard values for these delays](/op-stack/fault-proofs/reference#timing-and-finality).
+
+## Statuses
+
+`GameStatus`, the outcome read by the `AnchorStateRegistry` and `OptimismPortal`:
+
+| Status | Meaning |
+| --- | --- |
+| `IN_PROGRESS` | The game has not resolved |
+| `CHALLENGER_WINS` | The proposal was challenged and not proven, or the parent game lost |
+| `DEFENDER_WINS` | The proposal was proven, or was not challenged before its deadline |
+
+`ProposalStatus`, the game's internal progress, in `claimData().status`:
+
+| Status | Meaning |
+| --- | --- |
+| `Unchallenged` | Created, not challenged, not proven |
+| `Challenged` | Challenged, waiting for a proof |
+| `UnchallengedAndValidProofProvided` | Proven without a challenge |
+| `ChallengedAndValidProofProvided` | Challenged, then proven |
+| `Resolved` | Resolved; read `status()` for the outcome |
+
+## Release artifacts
+
+| Artifact | Release tag | Contents |
+| --- | --- | --- |
+| ZK proof programs | `kona-sp1-program/vX.Y.Z` | `super-range`, `super-aggregation`, and `log-commitment` binaries. The `super-aggregation` verification key is the `absolutePrestate`. |
+| `op-zk-proposer` | `op-zk-proposer/vX.Y.Z` | The proposer service and its container image |
+
+Release the proposer and the programs together where possible: the proposer collects the data the programs read, and must be compatible with the program version it proves for. See [Verifying a ZK absolute prestate](/chain-operators/tutorials/zk-prestate) for where the program binaries are published.
+
+## Next steps
+
+*   Read [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game) for how the functions fit together.
+*   Read the [game mechanics specification](https://specs.optimism.io/fault-proof/stage-one/zk/game-mechanics.html?utm_source=op-docs&utm_medium=docs) for the normative behavior of each function.

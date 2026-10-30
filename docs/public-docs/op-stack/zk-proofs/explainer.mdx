@@ -1,0 +1,71 @@
+---
+title: ZK proofs explainer
+description: Learn how the OP Stack secures withdrawals with optimistic ZK proofs, where a proposal stands unless challenged and a challenged proposal must be proven with a zero-knowledge proof.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<NormativeSpec
+  what="The ZK dispute game"
+  title="ZK dispute game specification"
+  href="https://specs.optimism.io/fault-proof/stage-one/zk/zk-dispute-game.html"
+  note="This page is a conceptual explainer; it does not restate the spec."
+/>
+
+<ZkProofsStatus />
+
+ZK proofs are how an OP Stack chain proves its state to Ethereum so that users can withdraw without trusting a third party. Anyone can propose the state of the chain on L1, and anyone can challenge a proposal. A challenged proposal must then be proven correct with a zero-knowledge proof before a deadline, or it fails.
+
+The system is optimistic: a proposal is assumed correct unless someone challenges it, and no proof is generated for a proposal that nobody disputes. Proofs are only needed when a challenge happens, so the cost of proving is paid in the rare case of a dispute, not on every proposal.
+
+## Proposals
+
+A proposal is a claim about the state of the chain at a point in time, submitted to the `DisputeGameFactory` contract on L1. Each proposal creates a new [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game), and the proposer posts a bond with it.
+
+Every proposal is a **super root**: a single hash that commits to the output root of every chain in the chain's interop set at one timestamp. A chain that is not part of an interop set is a set of one, so the same game and the same proof system serve both cases.
+
+Each proposal builds on an earlier one. A game names a parent game, and its claim is that the chain moved from the parent's super root to its own. The first game in a sequence builds on the anchor state recorded in the `AnchorStateRegistry`. A proof therefore only needs to cover the blocks between two proposals, not the chain's whole history.
+
+Proposing is permissionless. The chain operator runs [`op-zk-proposer`](/op-stack/components/op-zk-proposer) so that proposals land regularly, but any account can create a game by paying the bond.
+
+## Challenges
+
+Anyone who believes a proposal is wrong can challenge it by depositing a challenger bond. A game can be challenged once, and only during its challenge window.
+
+If nobody challenges a proposal before its challenge window ends, the proposal wins. If it is challenged, the game enters a prove window: someone must submit a valid ZK proof that the proposal is correct before that window ends. A valid proof wins the game for the proposer. With no proof by the deadline, the challenger wins and takes the proposer's bond.
+
+A challenge is a single transaction. There is no back-and-forth between the two sides, and the challenger does not need to compute anything except the correct super root to compare against. The operator runs [`op-challenger`](/op-stack/components/op-challenger) to check every proposal against its own nodes and challenge invalid ones.
+
+## Proofs
+
+A ZK proof is a short cryptographic proof that a program ran correctly on some inputs. For the OP Stack, the program re-derives each chain from L1 data and executes its blocks, starting from the parent's super root, and checks that the result is the proposed super root. The L1 contract verifies the proof in one call, without re-running anything.
+
+Proofs are generated off-chain with the [SP1 zkVM](https://github.com/succinctlabs/sp1) by Succinct, running programs built from the same [Kona](/op-stack/components/kona-client) code that implements the OP Stack state transition. The proposer buys proofs from the [Succinct Prover Network](https://docs.succinct.xyz/). See [ZK proof system](/op-stack/zk-proofs/proof-system) for how a proof is built.
+
+Proving is permissionless too. Anyone can submit a proof for any game, and a proof is bound to the address that submits it, so it cannot be copied by someone else. In practice the proposer proves its own challenged games.
+
+## Fast finality
+
+An unproven game that nobody challenges has to wait out its whole challenge window before it can resolve. A proposer can choose to prove its games anyway, as soon as they are created. A proven game is over immediately and resolves as soon as its parent resolves, so its result is available much sooner. This trades proving cost for lower latency.
+
+Withdrawals still wait for the delays that protect them, described below, even when a game resolves early.
+
+## From resolution to withdrawal
+
+Once a game is over, anyone can resolve it. Games resolve in order: a game cannot resolve until its parent has, and if a parent loses, every game built on it loses too.
+
+A resolved game is not trusted immediately:
+
+*   The `AnchorStateRegistry` waits a finality delay after resolution before it treats the result as final. During that time the [Guardian](/op-stack/protocol/privileged-roles#guardian) can blacklist a game that resolved incorrectly.
+*   The `OptimismPortal` waits a proof maturity delay between a user proving a withdrawal and finalizing it.
+*   Bonds are paid out through `DelayedWETH`, which adds its own delay so funds can be recovered if a game resolved incorrectly.
+
+See [ZK proofs security](/op-stack/zk-proofs/security) for how these safeguards work together.
+
+## Next steps
+
+*   Read [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game) for the game's lifecycle, deadlines, and bonds.
+*   Read [ZK proof system](/op-stack/zk-proofs/proof-system) for how proofs are generated and verified.
+*   Read [ZK proof system components](/op-stack/zk-proofs/components) for the contracts and services involved.

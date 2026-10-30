@@ -1,0 +1,88 @@
+---
+title: ZK dispute game
+description: Learn how a ZK dispute game moves from proposal to resolution, how games chain from parent to child, and how bonds are paid out.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<NormativeSpec
+  what="The ZK dispute game's lifecycle and bond accounting"
+  title="ZK dispute game mechanics specification"
+  href="https://specs.optimism.io/fault-proof/stage-one/zk/game-mechanics.html"
+  note="This page explains the lifecycle in prose; it does not restate the spec."
+/>
+
+<ZkProofsStatus />
+
+`ZKDisputeGame` is the L1 contract that settles one proposal. Each proposal is its own game, created by the `DisputeGameFactory` as a lightweight clone of a shared implementation. The game type is `10`.
+
+## The proposal
+
+A game's root claim is a super root: the hash of a list of `(chainId, outputRoot)` pairs, sorted by chain ID, at one timestamp. The proposer passes the full list (the super root's preimage) when it creates the game, and the game checks that it hashes to the root claim. Because the game stores the preimage, the `OptimismPortal` can look up any single chain's output root in it when a user proves a withdrawal.
+
+The game's L2 sequence number is the super root's timestamp, not a block number.
+
+The game also records the L1 block hash at the time it was created. The proof has to show that the proposal follows from L1 data up to that block, so a proposal can only be proven with data that was on L1 when it was made.
+
+## Parent games
+
+Each game names a parent game by its index in the `DisputeGameFactory`, or names no parent and builds on the anchor state in the `AnchorStateRegistry`. The game's starting point is its parent's root claim, and a proof covers only the transition from that starting point to the game's own claim.
+
+When a game is created, it checks that its parent is usable: the parent must be a ZK game, must not have lost, must not be blacklisted or retired, and must have a timestamp above the current anchor and below the new game's own. A game created while ZK is the respected game type can only build on a parent that was also created while ZK was respected.
+
+The parent link is what makes a chain of games trustworthy. A game cannot resolve until its parent has resolved, and if the parent loses, the child loses as well, whatever its own state. So a valid proof for a child game cannot rescue it from an invalid parent.
+
+## Lifecycle
+
+A game moves through these stages:
+
+1.  **Created.** The proposer creates the game and posts the init bond. The challenge window opens.
+2.  **Challenged (optional).** Anyone can challenge the game once during the challenge window by posting the challenger bond. A challenge replaces the challenge deadline with a prove deadline, `maxProveDuration` from the time of the challenge.
+3.  **Proven (optional).** Anyone can submit a proof before the current deadline, whether or not the game was challenged. The game calls its verifier, which reverts on an invalid proof. A valid proof ends the game immediately.
+4.  **Over.** The game is over when it has a valid proof or when its current deadline has passed.
+5.  **Resolved.** Once the game is over and its parent has resolved, anyone can resolve it.
+
+The outcome, assuming the parent won:
+
+| What happened | Result |
+| --- | --- |
+| Not challenged, deadline passed | Proposer wins |
+| Proven, whether challenged or not | Proposer wins |
+| Challenged, no proof by the prove deadline | Challenger wins |
+
+If the parent lost, the game resolves as a challenger win.
+
+## Bonds
+
+The proposer posts the init bond when it creates a game. A challenger posts the challenger bond. The winner receives the bonds in the game:
+
+*   A proposer who wins gets its bond back, plus the challenger's bond if the game was challenged.
+*   A challenger who wins gets both bonds.
+*   If someone other than the proposer proves a challenged game, the prover earns the challenger's bond and the proposer gets its own bond back. This rewards anyone who defends a valid proposal.
+*   If a game loses only because its parent lost, and nobody challenged it, its bond is burned.
+
+Bonds are held in `DelayedWETH`, not in the game. After a game resolves and the finality delay has passed, it is closed. Closing decides whether bonds are paid normally or refunded: a game that the Guardian has blacklisted or retired refunds each party its own bond instead of paying the winner. Claiming is a two-step process: the first claim unlocks the funds in `DelayedWETH`, and a second claim after the `DelayedWETH` delay withdraws them.
+
+See [the bond distribution tables in the specification](https://specs.optimism.io/fault-proof/stage-one/zk/game-mechanics.html?utm_source=op-docs&utm_medium=docs#bond-distribution) for every case.
+
+## Configuration
+
+Each chain sets its own values for the game. They are stored with the game implementation in the `DisputeGameFactory` and can be changed through `OPContractsManager` without redeploying the implementation:
+
+*   `absolutePrestate`: the identity of the ZK program that proofs must come from. See [Absolute prestate](/op-stack/zk-proofs/proof-system#absolute-prestate).
+*   `verifier`: the contract that checks proofs.
+*   `maxChallengeDuration`: how long a new proposal can be challenged.
+*   `maxProveDuration`: how long a challenged proposal has to be proven.
+*   `challengerBond`: the bond required to challenge.
+
+The init bond is a separate `DisputeGameFactory` setting. Changing any of these values affects only new games; games already in progress keep the values they were created with.
+
+The durations set a trade-off. A longer challenge window gives challengers more time to notice an invalid proposal, and delays unproven games. A longer prove window gives the proposer more time to generate a proof under load, and delays challenged games. The prove window must leave room for the worst-case proving time; see [Completeness](/op-stack/zk-proofs/security#completeness).
+
+## Next steps
+
+*   Read [ZK proof system](/op-stack/zk-proofs/proof-system) for what a proof attests to.
+*   Read [ZK proofs reference](/op-stack/zk-proofs/reference) for the contract functions and statuses.
+*   Read [the ZK dispute game specification](https://specs.optimism.io/fault-proof/stage-one/zk/zk-dispute-game.html?utm_source=op-docs&utm_medium=docs) for the normative definition, including its assumptions and invariants.

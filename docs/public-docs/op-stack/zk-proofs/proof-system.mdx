@@ -1,0 +1,86 @@
+---
+title: ZK proof system
+description: Learn what a ZK proof for an OP Stack proposal attests to, how the proof is built from SP1 programs, and how the absolute prestate pins the program version.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<NormativeSpec
+  what="The ZK proof program and its verifier"
+  title="ZK fault proof VM specification"
+  href="https://specs.optimism.io/fault-proof/zk-fault-proof-vm.html"
+  note="This page explains how the OP Stack implementation builds proofs; it does not restate the spec."
+/>
+
+<ZkProofsStatus />
+
+A ZK dispute game is won by a proof that its proposal is correct. This page explains what that proof says, how it is produced, and how the L1 contracts know which program produced it.
+
+## What a proof attests to
+
+The [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game) builds the proof's public values from its own state when `prove()` is called:
+
+*   the L1 block hash recorded when the game was created,
+*   the starting super root (the parent game's claim, or the anchor state),
+*   the proposed super root,
+*   the proposal's timestamp, and
+*   the address submitting the proof.
+
+A proof that verifies against these values means: deriving every chain in the super root from L1 data up to that L1 block, starting from the starting super root, produces exactly the proposed super root at that timestamp.
+
+The prover supplies the data the program reads, such as L1 blocks, blobs, and L2 state, as private input. The program checks all of it against the public values, for example by hashing L1 blocks back to the L1 block hash. Private input it cannot connect to a public value is never trusted.
+
+The prover's address is part of the public values, so a proof is only valid when submitted by the account it was generated for. Nobody can take a proof from the mempool and submit it as their own.
+
+## The programs
+
+Proofs are produced by programs that run inside the [SP1 zkVM](https://github.com/succinctlabs/sp1). They are built from [Kona](/op-stack/components/kona-client), the Rust implementation of the OP Stack state transition, so the derivation and execution rules they prove are the ones Kona implements. Three programs make up a proof:
+
+*   **`super-range`** runs in two modes. In range mode, it derives and executes the blocks of one or more chains over a range of timestamps. In consolidation mode, it checks the cross-chain messages across every chain for the same range, replaces any block whose messages are invalid, and computes the resulting super roots.
+*   **`log-commitment`** commits to the logs in a block's receipts. When a cross-chain message refers to an older block, consolidation can check the message against this commitment instead of loading every receipt of that block.
+*   **`super-aggregation`** verifies the range and consolidation proofs inside the zkVM, checks that together they cover every chain at every timestamp of the game in order, and commits the public values the game expects.
+
+The final aggregation proof is wrapped as a PLONK proof, which is small and cheap to verify on L1.
+
+A chain that is not part of an interop set has a set of one chain, and runs the same programs. Consolidation then has no cross-chain messages to check.
+
+## How a proof is built
+
+The prover, in practice [`op-zk-proposer`](/op-stack/components/op-zk-proposer), defends a game in these steps:
+
+1.  It reads the game's span: the timestamps from the starting super root to the proposed one.
+2.  It splits the span into chunks so each proof request stays within the prover's limits. Each chunk gets a range proof and a consolidation proof.
+3.  For each chunk, it collects a witness: every piece of L1 and L2 data the program will read, gathered in advance from its L1 and L2 nodes. The program reads only from this witness.
+4.  It requests the range, consolidation, and log-commitment proofs from the prover network, then an aggregation proof over all of them.
+5.  It submits the aggregation proof to the game with `prove()`.
+
+If a chunk is too large to prove, the proposer splits it again: first by timestamp, then, for a single timestamp, by chain. A single timestamp's consolidation always covers every chain and cannot be split further.
+
+## Absolute prestate
+
+Each game is configured with an `absolutePrestate`: a 32-byte identity of the ZK program that its proofs must come from. For SP1, it is the verification key of the `super-aggregation` program. The game passes it to the verifier with every proof, so a proof produced by any other program fails.
+
+The `super-aggregation` program embeds the verification key of the `super-range` program, and `super-range` embeds the key of `log-commitment`. One `absolutePrestate` therefore pins all three programs.
+
+A verification key is derived from the program's compiled binary. Two consequences follow:
+
+*   **Every release has a new prestate.** The programs embed the commit they were built from, so a build from a different commit has a different key even if no code changed. Updating the ZK program on a chain means updating its `absolutePrestate`.
+*   **Chain configuration is part of the program.** The programs read chain configurations, such as the rollup config and the dependency set, only from a registry compiled into them. They reject chains they do not know. A chain whose configuration is not in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) needs its own build, with its own prestate.
+
+The programs build reproducibly, so anyone can rebuild them from the tagged source and confirm the verification key. See [Verifying a ZK absolute prestate](/chain-operators/tutorials/zk-prestate).
+
+## Verifier
+
+The game does not depend on a specific proof system. It calls a verifier contract through a generic `IZKVerifier` interface, which takes a program identity, the public values, and the proof, and reverts if the proof is invalid.
+
+For SP1, the verifier is `SP1PlonkAdapter`, a small contract that implements `IZKVerifier` by calling Succinct's audited [SP1 PLONK verifier](https://github.com/succinctlabs/sp1-contracts). A proof generated by an SP1 SDK only verifies on a verifier for the same PLONK circuit, so the proposer checks that the verifier behind each game matches its SDK before it spends anything on proving.
+
+The verifier and the `absolutePrestate` are set per chain and can be changed without redeploying the game implementation. Games already in progress keep the verifier and prestate they were created with.
+
+## Next steps
+
+*   Read [ZK proofs security](/op-stack/zk-proofs/security) for what happens when a valid proposal cannot be proven in time.
+*   Read [ZK proof system components](/op-stack/zk-proofs/components) for the services that generate proofs.
+*   Read the [SP1 integration README](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/sp1/README.md) for the implementation details of the programs.

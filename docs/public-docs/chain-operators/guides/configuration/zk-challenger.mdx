@@ -1,0 +1,71 @@
+---
+title: Configure op-challenger for ZK dispute games
+description: Run op-challenger as the honest challenger for an OP Stack chain using ZK proofs, and verify that it challenges invalid proposals and resolves games.
+diataxis: how-to
+---
+
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<ZkProofsStatus />
+
+This guide configures [`op-challenger`](/op-stack/components/op-challenger) to watch a chain's ZK dispute games (game type `10`). For each game, the challenger compares the proposed super root with the one its own super root source computes, and:
+
+*   challenges the game if the proposal is wrong, or if its parent game lost,
+*   resolves the game once it is over and its parent has resolved.
+
+The challenger does not generate proofs. Defending valid proposals with proofs is [`op-zk-proposer`](/chain-operators/guides/configuration/zk-proposer)'s job. A ZK challenge is a single transaction, so the challenger needs no VM, prestate, or trace data.
+
+## Before you start
+
+You need:
+
+*   **The chain's `DisputeGameFactory` address.**
+*   **A super root source** serving `superroot_atTimestamp`: an [`op-supernode`](/node-operators/guides/configuration/supernode) for an interop set, or the chain's `op-node` with its safe head database (`--safedb.path`) enabled for a chain on its own. It must cover every chain in the super root, or the challenger will compute different super roots and challenge valid proposals.
+*   **An L1 execution node and an L1 beacon node.**
+*   **An L2 execution node** for the chain. `op-challenger` requires one at startup.
+*   **An L1 transaction signer** funded with ETH for challenger bonds and gas. Each challenge locks one challenger bond until the game resolves and the bond is claimed.
+
+Use a different super root source from the one `op-zk-proposer` uses. A challenger that trusts the same node as the proposer cannot catch that node's mistakes.
+
+## Configure the challenger
+
+```bash
+op-challenger \
+  --game-types zk \
+  --l1-eth-rpc <L1 execution RPC> \
+  --l1-beacon <L1 beacon RPC> \
+  --l2-eth-rpc <L2 execution RPC> \
+  --superroot-rpc <super root RPC> \
+  --game-factory-address <DisputeGameFactory address> \
+  --datadir /data \
+  --private-key <L1 signer key>
+```
+
+Every flag has an environment variable with the `OP_CHALLENGER_` prefix, for example `OP_CHALLENGER_GAME_TYPES=zk` and `OP_CHALLENGER_SUPERROOT_RPC`. In production, use a remote signer instead of `--private-key`. See the [challenger configuration reference](/chain-operators/reference/challenger-configuration) for every flag, including the signer options.
+
+To keep watching games of other game types during a migration, list them together, for example `--game-types super-cannon-kona,zk`. Each game type needs its own flags.
+
+## Verify the challenger
+
+At startup, check that the log lists `zk` as a registered game type and shows no connection errors to the super root source.
+
+The challenger waits until its super root source has processed L1 past a game's L1 head before it judges the game. A source that lags far behind L1 delays challenges, so watch its sync status.
+
+On a test network, you can confirm the challenger challenges an invalid proposal by creating a game with a wrong root claim. See the [`create-game` subcommand](https://github.com/ethereum-optimism/optimism/tree/develop/op-challenger#create-game), which takes `--game-type zk` and a `--parent-index`. Do not do this on a production chain: the game's init bond is lost.
+
+To list games and their status:
+
+```bash
+op-challenger list-games --l1-eth-rpc <L1 RPC> --game-factory-address <DisputeGameFactory address>
+```
+
+## Monitor the challenger
+
+Run [`op-dispute-mon`](/chain-operators/tools/chain-monitoring#dispute-mon) alongside the challenger. Its `op_dispute_mon_zk_games_pending_lifecycle_action` metric counts ZK games that are waiting to be resolved (`action="resolution"`) or closed (`action="bond_distribution"`). A count that stays above zero means the challenger, or the proposer, is not acting on games.
+
+Also alert on the signer's ETH balance. A challenger that cannot pay a challenger bond cannot stop an invalid proposal.
+
+## Next steps
+
+*   Read [ZK proofs security](/op-stack/zk-proofs/security) for why at least one honest challenger must be online during every challenge window.
+*   Read [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game#bonds) for how challenger bonds are paid out.
