@@ -86,9 +86,11 @@ pub enum StartError {
 /// Why a peer that the [`crate::GossipCommand::ConnectPeer`] command dialed didn't connect.
 #[derive(Debug, Clone, Error)]
 pub enum ConnectPeerError {
-    /// The peer wasn't dialed: the gate refused the address, or the address can't be dialed.
+    /// The gate refused the peer or its address, or the address can't be dialed. The gate refuses
+    /// before the dial, or once the connection is established, for an address blocked while the
+    /// dial ran.
     #[error(transparent)]
-    NotDialed(#[from] DialError),
+    Refused(#[from] DialError),
     /// The swarm couldn't connect, for example because the peer refused the connection. Holds the
     /// swarm's error message.
     #[error("{0}")]

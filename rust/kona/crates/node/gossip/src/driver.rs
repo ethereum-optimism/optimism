@@ -893,6 +893,10 @@ where
                     // both dialed at once.
                     let outcome = if self.is_connected(&peer_id) {
                         Ok(())
+                    } else if let libp2p::swarm::DialError::Denied { cause } = &error &&
+                        let Some(refusal) = cause.downcast_ref::<DialError>()
+                    {
+                        Err(refusal.clone().into())
                     } else {
                         Err(ConnectPeerError::DialFailed(error.to_string()))
                     };
@@ -1904,6 +1908,32 @@ mod tests {
         assert!(matches!(refusal, Some(DialError::AddressBlocked { .. })), "{refusal:?}");
     }
 
+    /// A connect whose dial is in flight when the address is blocked fails with the block, as one
+    /// made after the block does, rather than with the swarm's message.
+    #[tokio::test]
+    async fn test_connect_to_an_address_blocked_during_the_dial_reports_the_block() {
+        let mut driver_1 = tcp_driver();
+        let mut driver_2 = tcp_driver();
+        let addr_2 = driver_2.start().await.expect("listen");
+        let peer_2 = addr_2.peer_id();
+        driver_1.start().await.expect("listen");
+
+        // Not polled in between, so the block lands while the dial is in flight.
+        let (reply, outcome) = oneshot::channel();
+        driver_1.connect_peer(addr_2, reply);
+        driver_1.block_addr("127.0.0.1".parse().unwrap());
+
+        poll_until(&mut driver_1, &mut driver_2, |driver_1, _| {
+            !driver_1.pending_connects.contains_key(&peer_2)
+        })
+        .await;
+        let outcome = outcome.await.expect("replied");
+        assert!(
+            matches!(outcome, Err(ConnectPeerError::Refused(DialError::AddressBlocked { .. }))),
+            "{outcome:?}"
+        );
+    }
+
     /// An in-memory connection has no IP, so even a block on every IPv4 address doesn't keep it
     /// out, as in go-libp2p's basic gater.
     #[tokio::test]
@@ -2109,7 +2139,7 @@ mod tests {
 
         let refusal = outcome.await.expect("replied at once");
         assert!(
-            matches!(refusal, Err(ConnectPeerError::NotDialed(DialError::PeerBlocked { .. }))),
+            matches!(refusal, Err(ConnectPeerError::Refused(DialError::PeerBlocked { .. }))),
             "{refusal:?}"
         );
     }
