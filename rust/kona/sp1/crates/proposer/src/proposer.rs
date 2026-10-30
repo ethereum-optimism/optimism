@@ -1196,13 +1196,13 @@ impl Proposer {
     }
 
     /// Whether proofs from the linked sp1-sdk verify on the raw SP1 verifier behind `adapter`.
-    /// Network proofs carry the SDK circuit's selector, so a verifier for another circuit
+    /// SP1 proofs carry the SDK circuit's selector, so a verifier for another circuit
     /// rejects every proof after the proving spend; callers skip the action instead. Mock
     /// mode only logs the hash: `MockSP1Verifier` accepts any bytes, and the read still
     /// proves the adapter wiring. Read failures propagate like any other L1 read.
     async fn verifier_compatible(&self, adapter: Address) -> Result<bool> {
         let actual = self.l1_view.verifier_hash(adapter).await?;
-        if self.config.proof_provider == ProofProviderKind::Mock {
+        if !self.config.proof_provider.proves_with_sp1() {
             tracing::debug!(%adapter, verifier_hash = %actual, "skipping SP1 verifier hash check in mock mode");
             return Ok(true);
         }
@@ -2238,7 +2238,7 @@ impl Proposer {
     }
 
     /// Returns whether game creation may proceed for `prestate`. Artifacts
-    /// must load, and network mode also requires key setup and vkey
+    /// must load, and an SP1 provider also requires key setup and vkey
     /// verification before a game is bonded on the prestate.
     ///
     /// Key setup takes tens of seconds per ELF, so this scheduler path starts
@@ -2248,7 +2248,7 @@ impl Proposer {
         if !self.prestates.ensure_loaded(prestate).await {
             return false;
         }
-        if self.config.proof_provider != ProofProviderKind::Network {
+        if !self.config.proof_provider.proves_with_sp1() {
             return true;
         }
         match self.prestates.key_verification_state(prestate).await {
@@ -3149,12 +3149,15 @@ impl Proposer {
                 }
             ),
             async {
-                if self.config.proof_provider == ProofProviderKind::Network {
-                    self.collect_gauge(
-                        ProposerGauge::ProveBalance,
-                        self.proof_engine.prove_balance(),
-                    )
-                    .await;
+                match self.config.proof_provider {
+                    ProofProviderKind::Network => {
+                        self.collect_gauge(
+                            ProposerGauge::ProveBalance,
+                            self.proof_engine.prove_balance(),
+                        )
+                        .await;
+                    }
+                    ProofProviderKind::Mock | ProofProviderKind::LocalCuda => {}
                 }
             },
         );
@@ -4226,11 +4229,10 @@ impl Proposer {
             self.undefendable.lock().await.insert(game_address);
             return Ok(TaskSuccess::TerminallyUnprovable);
         }
-        let keys = match self.config.proof_provider {
-            ProofProviderKind::Network => {
-                Some(self.prestates.proof_keys(prestate, self.config.proof_provider).await?)
-            }
-            ProofProviderKind::Mock => None,
+        let keys = if self.config.proof_provider.proves_with_sp1() {
+            Some(self.prestates.proof_keys(prestate, self.config.proof_provider).await?)
+        } else {
+            None
         };
 
         let inputs = self.game_proof_inputs(proof_inputs, prestate);
@@ -4587,7 +4589,7 @@ pub const UNKNOWN_PRESTATE_RETRY: Duration = Duration::from_secs(60);
 pub struct PrestateEntry {
     programs: Arc<PrestatePrograms>,
     /// Lazily initialized proving keys and the vkey-verification verdict
-    /// (network mode only; mock mode never initializes this). A stored
+    /// (SP1 providers only; mock mode never initializes this). A stored
     /// `Err` poisons the entry: setup already ran and a vkey check failed
     /// (or setup itself failed), so the outcome is deterministic and never
     /// retried.
@@ -4713,7 +4715,7 @@ impl PrestateCache {
     }
 
     /// Loads program ELFs unless a recent miss is cached. An unpoisoned
-    /// loaded entry returns true even when network proving keys are not
+    /// loaded entry returns true even when SP1 proving keys are not
     /// initialized; `prestate_usable_for_creation` applies that separate
     /// creation gate.
     ///
@@ -4857,7 +4859,7 @@ impl PrestateCache {
     }
 
     /// Returns the proving keys for `prestate`, running SP1 key setup on first
-    /// use in network mode.
+    /// use with an SP1 provider.
     ///
     /// Setup takes tens of seconds per ELF. The entry is cloned before setup
     /// so no map guard blocks cache readers or writers. When `verify_vkeys`
@@ -4867,10 +4869,7 @@ impl PrestateCache {
         prestate: B256,
         kind: ProofProviderKind,
     ) -> Result<Arc<ProofKeys>> {
-        anyhow::ensure!(
-            kind == ProofProviderKind::Network,
-            "proving keys are unavailable in mock mode"
-        );
+        anyhow::ensure!(kind.proves_with_sp1(), "proving keys are unavailable in mock mode");
         let entry = self
             .programs
             .read()
@@ -5669,6 +5668,7 @@ mod tests {
                 max_price_per_pgu: Some(std::num::NonZeroU64::MIN),
                 min_auction_period: 1,
             },
+            local_cuda: Default::default(),
             log_path: crate::config::LogPath::Table,
             data_dir: None,
         }

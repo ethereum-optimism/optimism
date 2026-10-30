@@ -1,0 +1,98 @@
+# GPU dependencies of the op-zk-proposer-cuda image, which runs op-zk-proposer in
+# OP_ZK_PROPOSER_PROOF_PROVIDER=local-cuda mode. The binary itself comes from
+# the op-stack-rust op-zk-proposer APK.
+#
+# The pins must match the linked SP1 SDK: sp1-gpu-server must be the sp1-sdk
+# version in rust/Cargo.lock (op-zk-proposer checks its --version at startup),
+# and the PLONK circuits must be sp1-prover's SP1_CIRCUIT_VERSION. libcudart
+# matches the CUDA 12.8 toolkit that sp1-gpu-server links against.
+#
+# The planner builds every stack on x86_64 and aarch64, but these binaries are
+# x86_64 only, so every step is gated on the arch and the aarch64 APKs are empty.
+# The gate is per step: melange v0.50.8 never substitutes ${{build.arch}} into a
+# subpackage-level `if` (chainguard-dev/melange#1377), so such a gate is always false.
+package:
+  name: op-zk-proposer-cuda
+  version: "0.0.0"
+  epoch: 0
+  description: op-zk-proposer-cuda — meta package for the GPU dependencies of local CUDA proving
+  copyright:
+    - license: MIT OR Apache-2.0
+    - license: LicenseRef-NVIDIA-CUDA
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - busybox
+      - ca-certificates-bundle
+      - tar
+      - xz
+      - gzip
+
+# `fetch` extracts with `tar -C <directory>`, which must exist.
+subpackages:
+  - name: sp1-gpu-server
+    description: sp1-gpu-server — SP1 GPU prover server, started by the SP1 SDK's CUDA client
+    pipeline:
+      - if: ${{build.arch}} == 'x86_64'
+        runs: mkdir -p sp1-gpu-server
+      - if: ${{build.arch}} == 'x86_64'
+        uses: fetch
+        with:
+          uri: https://github.com/succinctlabs/sp1/releases/download/v6.10.0/sp1_gpu_server_v6.10.0_x86_64.tar.gz
+          expected-sha256: 20ee4b96fa6e5a2ce8a9da523ee42b75c698658ae1d4366e57b52bdd642f1bdb
+          directory: sp1-gpu-server
+          strip-components: 0
+          delete: true
+      # The SDK starts $HOME/.sp1/bin/sp1-gpu-server; the image sets HOME=/home/kona.
+      - if: ${{build.arch}} == 'x86_64'
+        runs: |
+          install -Dm755 sp1-gpu-server/sp1-gpu-server \
+            "${{targets.contextdir}}/home/kona/.sp1/bin/sp1-gpu-server"
+
+  - name: cuda-cudart-12
+    description: cuda-cudart-12 — NVIDIA CUDA 12.8 runtime library
+    pipeline:
+      - if: ${{build.arch}} == 'x86_64'
+        runs: mkdir -p cudart
+      - if: ${{build.arch}} == 'x86_64'
+        uses: fetch
+        with:
+          uri: https://developer.download.nvidia.com/compute/cuda/redist/cuda_cudart/linux-x86_64/cuda_cudart-linux-x86_64-12.8.90-archive.tar.xz
+          expected-sha256: 8d566b5fe745c46842dc16945cf36686227536decd2302c372be86da37faca68
+          directory: cudart
+          delete: true
+      # Only the runtime: the archive's stub libcuda.so would shadow the node's driver library.
+      - if: ${{build.arch}} == 'x86_64'
+        runs: |
+          lib="${{targets.contextdir}}/usr/local/cuda/lib64"
+          mkdir -p "$lib"
+          cp -P cudart/lib/libcudart.so.12 cudart/lib/libcudart.so.12.8.90 "$lib/"
+          install -Dm644 cudart/LICENSE \
+            "${{targets.contextdir}}/usr/share/licenses/cuda-cudart-12/LICENSE"
+
+  - name: sp1-plonk-circuits
+    description: sp1-plonk-circuits — SP1 v6.1.0 PLONK circuit artifacts for the on-chain proof wrap
+    pipeline:
+      - if: ${{build.arch}} == 'x86_64'
+        runs: mkdir -p plonk
+      # sp1-prover reads ${SP1_PLONK_CIRCUIT_PATH}/<SP1_CIRCUIT_VERSION> and downloads the
+      # circuits unless that directory holds a .complete marker (src/build.rs).
+      - if: ${{build.arch}} == 'x86_64'
+        uses: fetch
+        with:
+          uri: https://sp1-circuits.s3-us-east-2.amazonaws.com/v6.1.0-plonk.tar.gz
+          expected-sha256: b3e2f5b5dd5ca89675c73975d2d1cc4a0f9e7cde048ec5354dabc7b0694aa39b
+          directory: plonk
+          strip-components: 0
+          delete: true
+      - if: ${{build.arch}} == 'x86_64'
+        runs: |
+          dir="${{targets.contextdir}}/opt/sp1/circuits/plonk"
+          mkdir -p "$dir"
+          mv plonk "$dir/v6.1.0"
+          touch "$dir/v6.1.0/.complete"
