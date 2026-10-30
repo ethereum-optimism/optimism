@@ -595,7 +595,7 @@ release-paths component:
         op-batcher)
             # op-batcher builds channels with op-node's derivation code, against
             # op-node's rollup config.
-            specs=("op-batcher/" "linked=op-node/rollup/derive/,op-node/params/,op-node/rollup/types.go,op-node/rollup/chain_spec.go" "$go_shared")
+            specs=("op-batcher/" "linked=op-node/rollup/derive/,op-node/params/,op-node/rollup/types.go,op-node/rollup/chain_spec.go,op-node/rollup/toggles.go" "$go_shared")
             ;;
         op-supernode)
             # op-supernode runs op-node in-process.
