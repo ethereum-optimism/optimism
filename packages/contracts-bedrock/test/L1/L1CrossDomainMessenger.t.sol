@@ -1471,6 +1471,8 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
 
         // The withdrawal's relay reaches this messenger and its deposit, but leaves the call too
         // little gas to finish the deposit.
+        // An L1 base fee at the 1 gwei floor makes the deposit's gas burn exceed what the call has.
+        vm.fee(1 gwei);
         uint256 depositNonce = l1CrossDomainMessenger.messageNonce();
         vm.expectCall(address(l1CrossDomainMessenger), word);
         vm.expectCall(address(optimismPortal2), bytes.concat(IOptimismPortal2.depositTransaction.selector));
