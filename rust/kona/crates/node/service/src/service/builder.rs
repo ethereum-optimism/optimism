@@ -16,10 +16,13 @@ use url::Url;
 
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_providers_alloy::OnlineBeaconClient;
+use kona_providers_alloy::{AlloyChainProvider, OnlineBeaconClient};
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::RpcBuilder;
 use kona_safedb::SafeDb;
+
+/// How many headers, receipt sets and blocks the node's L1 client caches.
+const L1_PROVIDER_CACHE_SIZE: usize = 1024;
 
 /// The [`L1ConfigBuilder`] is used to construct a [`L1Config`].
 #[derive(Debug)]
@@ -150,17 +153,22 @@ impl RollupNodeBuilder {
             l1_beacon = l1_beacon.with_l1_slot_duration_override(l1_slot_duration);
         }
 
+        // Every L1 request is bounded, so a stalled endpoint fails its caller instead of hanging
+        // it.
+        let engine_provider = RootProvider::new(
+            ClientBuilder::default()
+                .layer(MapFutureLayer::new(kona_engine::with_deadline))
+                .http(self.l1_config_builder.rpc_url.clone()),
+        );
         let l1_config = L1Config {
             chain_config: Arc::new(self.l1_config_builder.chain_config),
-            trust_rpc: self.l1_config_builder.trust_rpc,
             beacon_client: l1_beacon,
-            // Every L1 request is bounded, so a stalled endpoint fails its caller instead of
-            // hanging it.
-            engine_provider: RootProvider::new(
-                ClientBuilder::default()
-                    .layer(MapFutureLayer::new(kona_engine::with_deadline))
-                    .http(self.l1_config_builder.rpc_url.clone()),
+            provider: AlloyChainProvider::new_with_trust(
+                engine_provider.clone(),
+                L1_PROVIDER_CACHE_SIZE,
+                self.l1_config_builder.trust_rpc,
             ),
+            engine_provider,
         };
 
         let jwt_secret = self.engine_config.l2_jwt_secret;

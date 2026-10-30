@@ -79,12 +79,13 @@ pub(super) fn merge_admin_module(
 pub struct L1Config {
     /// The L1 chain configuration.
     pub chain_config: Arc<L1ChainConfig>,
-    /// Whether to trust the L1 RPC.
-    pub trust_rpc: bool,
     /// The L1 beacon client.
     pub beacon_client: OnlineBeaconClient,
     /// The L1 engine provider.
     pub engine_provider: RootProvider,
+    /// The node's L1 client. Every component holds a clone, so all share its caches and trust
+    /// setting.
+    pub provider: AlloyChainProvider,
 }
 
 /// The standard implementation of the [`RollupNode`] service, using the governance approved OP
@@ -219,13 +220,11 @@ impl RollupNode {
         &self,
         l1_head: watch::Receiver<Option<BlockInfo>>,
     ) -> Result<OnlinePipeline, BlobProviderError> {
-        // Create the caching L1/L2 EL providers for derivation.
-        let l1_derivation_provider = AlloyChainProvider::new_with_trust(
-            self.l1_config.engine_provider.clone(),
-            DERIVATION_PROVIDER_CACHE_SIZE,
-            self.l1_config.trust_rpc,
-        )
-        .with_confirmation_depth(self.verifier_l1_confs, l1_head);
+        let l1_derivation_provider = self
+            .l1_config
+            .provider
+            .clone()
+            .with_confirmation_depth(self.verifier_l1_confs, l1_head);
         let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
             self.l2_block_buffer.clone(),
             AlloyL2ChainProvider::new_with_trust(
@@ -287,16 +286,12 @@ impl RollupNode {
     ) -> Result<ConfiguredDerivationActor, String> {
         if let Some(url) = &self.derivation_delegate_url {
             let derivation_delegate = build_derivation_delegate_client(url)?;
-            // L1 Provider for sanity checking Derivation Delegation
-            let l1_provider = AlloyChainProvider::new(
-                self.l1_config.engine_provider.clone(),
-                DERIVATION_PROVIDER_CACHE_SIZE,
-            );
+            // The delegate's reported L1 blocks are checked against our own L1 view.
             Ok(ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::new(
                 QueuedDerivationEngineClient { engine_actor_request_tx },
                 derivation_actor_request_rx,
                 derivation_delegate,
-                l1_provider,
+                self.l1_config.provider.clone(),
                 derivation_origin_tx,
             ))))
         } else {
@@ -425,11 +420,6 @@ impl RollupNode {
             return Ok(None);
         }
 
-        let chain = AlloyChainProvider::new_with_trust(
-            self.l1_config.engine_provider.clone(),
-            DERIVATION_PROVIDER_CACHE_SIZE,
-            self.l1_config.trust_rpc,
-        );
         let OriginPreparation {
             prefetcher,
             origins: delayed_l1_provider,
@@ -438,7 +428,7 @@ impl RollupNode {
             self.l1_config.engine_provider.clone(),
             l1_head_updates_rx,
             self.sequencer_config.l1_conf_delay,
-            chain,
+            self.l1_config.provider.clone(),
         );
         let delayed_origin_selector =
             L1OriginSelector::new(self.config.clone(), delayed_l1_provider);
