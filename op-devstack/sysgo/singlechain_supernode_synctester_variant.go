@@ -53,7 +53,7 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 	}
 	var l1EL *L1Geth
 	var l1CL *L1CLNode
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorld(t, keys, interopAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
+	migration, l1Net, l2Net, depSet := buildSingleChainWorld(t, keys, interopAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
 		func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
 			l1EL, l1CL = startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 			return l1EL, l1CL

@@ -9,13 +9,14 @@ import (
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/el"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -42,11 +43,10 @@ type l2Node struct {
 }
 
 type l2Net struct {
-	l2Out        *interopgen.L2Output
+	genesis      *opgenesis.Genesis
+	rollupCfg    *rollup.Config
 	chainID      *big.Int
 	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey
-	contracts    map[string]interface{}
-	userKeys     map[string]ecdsa.PrivateKey
 
 	batcher *bss.BatcherService
 	nodes   map[string]*l2Node
@@ -103,16 +103,15 @@ func (s *interopE2ESystem) L2RollupClient(id string, name string) *sources.Rollu
 // newL2 sets up the per-chain state needed before the supernode boots: keys, the L2 EL (op-geth),
 // and an empty node map. The op-node is configured via newSupernodeNodeConfig and started by
 // the supernode; the batcher is started after the supernode is up.
-func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Net {
-	operatorKeys := s.newOperatorKeysForL2(l2Out)
-	l2EL := s.newELForL2(id, "sequencer", l2Out)
+func (s *interopE2ESystem) newL2(id string, l2Genesis *opgenesis.Genesis, rollupCfg *rollup.Config) l2Net {
+	chainID := l2Genesis.Config.ChainID
+	l2EL := s.newELForL2(id, "sequencer", l2Genesis)
 	return l2Net{
-		l2Out:        l2Out,
-		chainID:      l2Out.Genesis.Config.ChainID,
+		genesis:      l2Genesis,
+		rollupCfg:    rollupCfg,
+		chainID:      chainID,
 		nodes:        map[string]*l2Node{"sequencer": {name: "sequencer", l2EL: l2EL}},
-		operatorKeys: operatorKeys,
-		userKeys:     make(map[string]ecdsa.PrivateKey),
-		contracts:    make(map[string]interface{}),
+		operatorKeys: s.newOperatorKeysForL2(chainID),
 	}
 }
 
@@ -145,7 +144,7 @@ func (s *interopE2ESystem) newSupernodeNodeConfig(l2 l2Net, depSet depset.Depend
 			SequencerEnabled:   true,
 			SequencerConfDepth: 2,
 		},
-		Rollup:        *l2.l2Out.RollupCfg,
+		Rollup:        *l2.rollupCfg,
 		DependencySet: depSet,
 		P2PSigner:     p2pSigner,
 		RPC: oprpc.CLIConfig{
@@ -165,13 +164,13 @@ func (s *interopE2ESystem) newSupernodeNodeConfig(l2 l2Net, depSet depset.Depend
 }
 
 // newELForL2 creates a new L2 execution-layer instance for an L2 chain.
-func (s *interopE2ESystem) newELForL2(id string, node string, l2Out *interopgen.L2Output) services.EthInstance {
+func (s *interopE2ESystem) newELForL2(id string, node string, l2Genesis *opgenesis.Genesis) services.EthInstance {
 	jwtPath := writeDefaultJWT(s.t)
 	name := "l2-" + id + "-" + node
 	l2EL, err := el.InitL2(context.Background(), el.L2Config{
 		Kind:    s.config.L2ELKind,
 		Name:    name,
-		Genesis: l2Out.Genesis,
+		Genesis: l2Genesis,
 		JWTPath: jwtPath,
 		Logger:  s.logger.New("role", name),
 		DataDir: s.t.TempDir(),
