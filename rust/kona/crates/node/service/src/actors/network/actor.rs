@@ -184,7 +184,8 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 if let Some(peer) = gossip.enr_to_peer_addr(&enr) &&
                     !gossip.is_connected(&peer.peer_id())
                 {
-                    gossip.dial_peer(peer.peer_id(), [peer.addr().clone()]);
+                    // A refusal is logged in `dial_peer`, and discovery hands the ENR over again.
+                    let _ = gossip.dial_peer(peer.peer_id(), [peer.addr().clone()]);
                 }
                 Ok(())
             }

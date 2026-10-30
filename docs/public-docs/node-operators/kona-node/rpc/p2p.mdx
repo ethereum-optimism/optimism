@@ -295,7 +295,9 @@ Removes protection from a peer, allowing it to be disconnected by automatic prun
 
 ### `opp2p_connectPeer`
 
-Attempts to establish a connection to a specific peer using a multiaddress.
+Connects to a specific peer using a multiaddress, and returns once the peer is connected.
+
+It respects blocks: if the peer, its IP address or its subnet is [blocked](#opp2p_blockpeer), the call fails at once with the reason, and nothing is dialed. To connect such a peer, unblock it first. The call also fails at once if the peer has reached its redial limit. A dial that fails, for example because nothing listens at the address, returns the dial's error, and one that doesn't finish within 30 seconds times out.
 
 | Client | Method invocation                                      |
 | ------ | ------------------------------------------------------ |
@@ -312,9 +314,16 @@ Attempts to establish a connection to a specific peer using a multiaddress.
 {"jsonrpc":"2.0","id":1,"result":null}
 ```
 
+A blocked peer:
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"opp2p_connectPeer","params":["/ip4/127.0.0.1/tcp/9190/p2p/16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"]}
+{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"Peer is blocked: 16Uiu2HAmKVVub7edwZ3RKDnqMpZVsusYW9TKRgbwpH54nvDWLE4x"}}
+```
+
 ### `opp2p_disconnectPeer`
 
-Disconnects from a specific peer by peer ID. A [static peer](/node-operators/kona-node/configuration#static-peers) is dialed again about a second later.
+Disconnects from a specific peer by peer ID, and returns once its connections have closed. A [static peer](/node-operators/kona-node/configuration#static-peers) is dialed again about a second later.
 
 | Client | Method invocation                                       |
 | ------ | ------------------------------------------------------- |

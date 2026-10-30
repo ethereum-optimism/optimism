@@ -45,12 +45,12 @@ pub enum GossipCommand {
         /// The subnet to unblock.
         address: IpNet,
     },
-    /// Connect to a peer.
+    /// Connect to a peer, unless the gate refuses to dial it.
     ConnectPeer {
         /// The address to dial, ending in the peer's `/p2p/<peer id>`.
         address: Multiaddr,
         /// Told once the peer connects, or why it didn't. Told at once if the peer is already
-        /// connected.
+        /// connected, or if the gate refuses to dial it, with the gate's reason.
         reply: oneshot::Sender<Result<(), ConnectPeerError>>,
     },
     /// Disconnect a peer.

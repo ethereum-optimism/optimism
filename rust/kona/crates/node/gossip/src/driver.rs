@@ -19,7 +19,7 @@ use std::{collections::HashMap, net::IpAddr, time::Duration};
 use tokio::{sync::oneshot, time::Instant};
 
 use crate::{
-    Behaviour, BlockHandler, ConnectPeerError, ConnectionGate, ConnectionGater, Event,
+    Behaviour, BlockHandler, ConnectPeerError, ConnectionGate, ConnectionGater, DialError, Event,
     GossipDriverBuilder, Handler, PeerAddr, PublishError, StartError,
 };
 
@@ -241,7 +241,8 @@ where
             .collect();
         for (peer_id, addrs) in due {
             info!(target: "gossip", %peer_id, ?addrs, "Dialing static peer");
-            self.dial_peer(peer_id, addrs);
+            // A refusal is logged in `dial_peer`, and the next check tries again.
+            let _ = self.dial_peer(peer_id, addrs);
         }
         self.update_next_static_peer_check(Instant::now() + self.static_peer_redial_interval);
     }
@@ -322,22 +323,31 @@ where
     }
 
     /// Dials the peer at `addr`, which must end in its `/p2p/<peer id>`, and tells `reply` once
-    /// the peer connects or the dial fails. A peer that is already connected is told at once.
+    /// the peer connects or the dial fails.
+    ///
+    /// A peer that is already connected is told at once, and so is one the gate refuses to dial,
+    /// with the reason. A peer that is already being dialed is told how that dial ends.
     pub fn connect_peer(
         &mut self,
         addr: Multiaddr,
         reply: oneshot::Sender<Result<(), ConnectPeerError>>,
     ) {
         let Some(peer_id) = ConnectionGater::peer_id_from_addr(&addr) else {
-            let _ = reply.send(Err(ConnectPeerError::InvalidMultiaddr { addr }));
+            let _ = reply.send(Err(DialError::InvalidMultiaddr { addr }.into()));
             return;
         };
         if self.is_connected(&peer_id) {
             let _ = reply.send(Ok(()));
             return;
         }
-        self.pending_connects.entry(peer_id).or_default().push(reply);
-        self.dial_peer(peer_id, [addr]);
+        match self.dial_peer(peer_id, [addr]) {
+            Ok(()) | Err(DialError::AlreadyDialing { .. }) => {
+                self.pending_connects.entry(peer_id).or_default().push(reply);
+            }
+            Err(refusal) => {
+                let _ = reply.send(Err(refusal.into()));
+            }
+        }
     }
 
     /// Disconnects `peer_id`, and tells `reply` once its last connection closes. A peer that
@@ -476,15 +486,16 @@ where
         PeerAddr::try_from(addr).ok()
     }
 
-    /// Dials the given [`Multiaddr`], which must end in the peer's `/p2p/<peer id>`.
-    pub fn dial_multiaddr(&mut self, addr: Multiaddr) {
+    /// Dials the given [`Multiaddr`], which must end in the peer's `/p2p/<peer id>`. See
+    /// [`Self::dial_peer`] for the result.
+    pub fn dial_multiaddr(&mut self, addr: Multiaddr) -> Result<(), DialError> {
         let Some(peer_id) = ConnectionGater::peer_id_from_addr(&addr) else {
             warn!(target: "gossip", peer=?addr, "Failed to extract PeerId from Multiaddr");
             metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_multiaddr")
                 .increment(1);
-            return;
+            return Err(DialError::InvalidMultiaddr { addr });
         };
-        self.dial_peer(peer_id, [addr]);
+        self.dial_peer(peer_id, [addr])
     }
 
     /// Dials `peer_id` at whichever of `addrs` connects first.
@@ -492,14 +503,23 @@ where
     /// Each address must end in `/p2p/<peer_id>`, and the gate checks each one: the addresses it
     /// refuses are left out, and nothing is dialed if it refuses them all. The rest make a single
     /// dial, in which libp2p tries several addresses at once and keeps the first connection.
-    pub fn dial_peer(&mut self, peer_id: PeerId, addrs: impl IntoIterator<Item = Multiaddr>) {
+    ///
+    /// Returns `Ok` once the dial has started, or if the peer is already connected. If no address
+    /// is left, returns the gate's first refusal, or [`DialError::NoAddresses`] if the gate refused
+    /// none. Whether the dial then connects comes later, in [`SwarmEvent::ConnectionEstablished`]
+    /// or [`SwarmEvent::OutgoingConnectionError`].
+    pub fn dial_peer(
+        &mut self,
+        peer_id: PeerId,
+        addrs: impl IntoIterator<Item = Multiaddr>,
+    ) -> Result<(), DialError> {
         // Callers should not dial connected peers, so this is counted as a dial error. It is
         // checked before the gate, which would refuse it as already dialing or count it as a dial.
         if self.is_connected(&peer_id) {
             debug!(target: "gossip", ?peer_id, "Already connected to peer, not dialing");
             metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected")
                 .increment(1);
-            return;
+            return Ok(());
         }
 
         // A DNS name is resolved here, so that the gate checks the IPs libp2p then dials, rather
@@ -508,6 +528,7 @@ where
         // Every address is checked before the peer is marked as being dialed, which would make
         // the gate refuse all but the first.
         let gate = &self.swarm.behaviour().gate;
+        let mut refusal = None;
         let addrs: Vec<Multiaddr> = addrs
             .into_iter()
             .flat_map(|addr| ConnectionGater::resolve_dns_addrs(addr, ConnectionGater::system_resolve))
@@ -518,13 +539,14 @@ where
                 }
                 if let Err(dial_error) = self.connection_gate.can_dial(addr, gate) {
                     debug!(target: "gossip", ?dial_error, "unable to dial peer");
+                    refusal.get_or_insert(dial_error);
                     return false;
                 }
                 true
             })
             .collect();
         if addrs.is_empty() {
-            return;
+            return Err(refusal.unwrap_or(DialError::NoAddresses { peer_id }));
         }
 
         // Let the gate know we are dialing the peer.
@@ -543,12 +565,14 @@ where
                     self.connection_gate.dialed(addr);
                 }
                 metrics::gauge!(crate::Metrics::DIAL_PEER).increment(1);
+                Ok(())
             }
             Err(e) => {
                 error!(target: "gossip", "Failed to connect to peer: {:?}", e);
                 self.connection_gate.remove_dial(&peer_id);
                 metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "connection_error")
                     .increment(1);
+                Err(DialError::SwarmRefused { peer_id, reason: e.to_string() })
             }
         }
     }
@@ -922,8 +946,8 @@ mod tests {
         let peer_2 = *driver_2.local_peer_id();
         let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
         let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
-        driver_1.dial_multiaddr(addr_2);
-        driver_2.dial_multiaddr(addr_1);
+        driver_1.dial_multiaddr(addr_2).expect("dial");
+        driver_2.dial_multiaddr(addr_1).expect("dial");
         (peer_1, peer_2)
     }
 
@@ -939,7 +963,7 @@ mod tests {
         assert_eq!(driver_1.addr(), &addr_1);
 
         driver_2.start().await.expect("listen");
-        driver_2.dial_multiaddr(addr_1.with(Protocol::P2p(peer_1)));
+        driver_2.dial_multiaddr(addr_1.with(Protocol::P2p(peer_1))).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
 
@@ -1140,12 +1164,13 @@ mod tests {
         // `localhost` resolves to a blocked IP, so nothing is dialed.
         let localhost = "127.0.0.1".parse().unwrap();
         driver_1.block_addr(localhost);
-        driver_1.dial_peer(peer_2, [dns_addr.clone()]);
+        let refused = driver_1.dial_peer(peer_2, [dns_addr.clone()]);
+        assert!(matches!(refused, Err(DialError::AddressBlocked { .. })), "{refused:?}");
         assert!(!driver_1.connection_gate.current_dials.contains(&peer_2));
 
         // Unblocked, the resolved address is what's dialed and counted.
         driver_1.unblock_addr(localhost);
-        driver_1.dial_peer(peer_2, [dns_addr]);
+        driver_1.dial_peer(peer_2, [dns_addr]).expect("dial");
         let dialed: Vec<_> = driver_1.connection_gate.dialed_addrs.keys().cloned().collect();
         assert_eq!(dialed, vec![ip_addr]);
         poll_until_connected(&mut driver_1, &mut driver_2).await;
@@ -1201,7 +1226,7 @@ mod tests {
         driver_1.start().await.expect("listen");
 
         // The one dial that connects the peers.
-        driver_1.dial_multiaddr(addr_2.clone());
+        driver_1.dial_multiaddr(addr_2.clone()).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
         // Dial the connected peer again, as a caller that doesn't check `is_connected` would, for
@@ -1210,7 +1235,8 @@ mod tests {
         let redials = 3;
         let dial_errors = dial_errors(|| {
             for _ in 0..redials {
-                driver_1.dial_multiaddr(addr_2.clone());
+                // Not refused: the peer is already where the caller wants it.
+                driver_1.dial_multiaddr(addr_2.clone()).expect("connected peer");
             }
         });
 
@@ -1238,7 +1264,7 @@ mod tests {
         let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
         driver_1.start().await.expect("listen");
 
-        driver_1.dial_peer(peer_2, [unused_memory_addr(peer_2), addr_2.clone()]);
+        driver_1.dial_peer(peer_2, [unused_memory_addr(peer_2), addr_2.clone()]).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
         assert!(driver_1.is_connected(&peer_2));
@@ -1261,7 +1287,7 @@ mod tests {
         driver_1.block_addr("10.0.0.1".parse().unwrap());
         let other_peer = unused_memory_addr(PeerId::random());
 
-        driver_1.dial_peer(peer_2, [blocked, other_peer, addr_2.clone()]);
+        driver_1.dial_peer(peer_2, [blocked, other_peer, addr_2.clone()]).expect("dial");
 
         let dialed: Vec<_> = driver_1.connection_gate.dialed_addrs.keys().cloned().collect();
         assert_eq!(dialed, vec![addr_2]);
@@ -1275,7 +1301,8 @@ mod tests {
         let peer = PeerId::random();
         driver.block_peer(peer);
 
-        driver.dial_peer(peer, [unused_memory_addr(peer)]);
+        let refused = driver.dial_peer(peer, [unused_memory_addr(peer)]);
+        assert!(matches!(refused, Err(DialError::PeerBlocked { .. })), "{refused:?}");
 
         assert!(!driver.connection_gate.current_dials.contains(&peer));
         assert!(driver.connection_gate.dialed_addrs.is_empty());
@@ -1290,7 +1317,7 @@ mod tests {
         let unused_2 =
             Multiaddr::empty().with(Protocol::Memory(u64::MAX - 1)).with(Protocol::P2p(peer));
 
-        driver.dial_peer(peer, [unused_memory_addr(peer), unused_2]);
+        driver.dial_peer(peer, [unused_memory_addr(peer), unused_2]).expect("dial");
         assert!(driver.connection_gate.current_dials.contains(&peer));
 
         poll_one_until(&mut driver, |driver| !driver.connection_gate.current_dials.contains(&peer))
@@ -1473,7 +1500,7 @@ mod tests {
             .expect("build");
         driver_1.start().await.expect("listen");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
-        driver_1.dial_multiaddr(addr_3);
+        driver_1.dial_multiaddr(addr_3).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_3).await;
         assert!(driver_1.peers_to_ban().is_empty());
 
@@ -1495,7 +1522,7 @@ mod tests {
         let listen_addr_2 = driver_2.start().await.expect("listen");
         driver_1.start().await.expect("listen");
 
-        driver_1.dial_multiaddr(listen_addr_2.clone().with(Protocol::P2p(peer_2)));
+        driver_1.dial_multiaddr(listen_addr_2.clone().with(Protocol::P2p(peer_2))).expect("dial");
         // Wait for identify, so there is identify info to forget.
         poll_until(&mut driver_1, &mut driver_2, |driver_1, _| {
             driver_1.peerstore.contains_key(&peer_2)
@@ -1541,7 +1568,7 @@ mod tests {
         let peer_2 = *driver_2.local_peer_id();
         let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
         driver_1.start().await.expect("listen");
-        driver_1.dial_multiaddr(addr_2);
+        driver_1.dial_multiaddr(addr_2).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
         durations();
 
@@ -1589,7 +1616,7 @@ mod tests {
         let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
         driver_1.start().await.expect("listen");
 
-        driver_1.dial_multiaddr(addr_2);
+        driver_1.dial_multiaddr(addr_2).expect("dial");
         assert!(driver_1.connection_gate.current_dials.contains(&peer_2));
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 

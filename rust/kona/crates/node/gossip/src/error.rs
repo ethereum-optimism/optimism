@@ -86,12 +86,9 @@ pub enum StartError {
 /// Why a peer that the [`crate::GossipCommand::ConnectPeer`] command dialed didn't connect.
 #[derive(Debug, Clone, Error)]
 pub enum ConnectPeerError {
-    /// The address doesn't end in the peer's `/p2p/<peer id>`.
-    #[error("Failed to extract PeerId from Multiaddr: {addr}")]
-    InvalidMultiaddr {
-        /// The address that was given.
-        addr: Multiaddr,
-    },
+    /// The peer wasn't dialed: the gate refused the address, or the address can't be dialed.
+    #[error(transparent)]
+    NotDialed(#[from] DialError),
     /// The swarm couldn't connect, for example because the peer refused the connection. Holds the
     /// swarm's error message.
     #[error("{0}")]
@@ -143,6 +140,21 @@ pub enum DialError {
     SubnetBlocked {
         /// The IP address that belongs to a blocked subnet range
         ip: IpAddr,
+    },
+    /// No address is left to dial, though the gate refused none: none is for the peer, or a DNS
+    /// name didn't resolve.
+    #[error("No address to dial peer: {peer_id}")]
+    NoAddresses {
+        /// The peer that had no address left.
+        peer_id: PeerId,
+    },
+    /// The swarm refused to start the dial.
+    #[error("Failed to dial peer {peer_id}: {reason}")]
+    SwarmRefused {
+        /// The peer that wasn't dialed.
+        peer_id: PeerId,
+        /// The swarm's error message.
+        reason: String,
     },
 }
 

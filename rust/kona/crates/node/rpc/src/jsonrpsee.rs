@@ -131,11 +131,19 @@ pub trait OpP2PApi {
     #[method(name = "unprotectPeer")]
     async fn opp2p_unprotect_peer(&self, peer: String) -> RpcResult<()>;
 
-    /// Connects to the given peer
+    /// Connects to the peer at the given multiaddr, which must end in its `/p2p/<peer id>`, and
+    /// returns once the peer is connected.
+    ///
+    /// Respects the operator's blocks: if the peer, its IP address or its subnet is blocked, it
+    /// fails at once with the reason, and dials nothing. Unblock first to connect such a peer.
+    /// It also fails at once if the peer has reached its redial limit. A dial that fails, for
+    /// example because nothing listens at the address, returns the dial's error, and one that
+    /// doesn't finish within 30 seconds times out, as in op-node.
     #[method(name = "connectPeer")]
     async fn opp2p_connect_peer(&self, peer: String) -> RpcResult<()>;
 
-    /// Disconnects from the given peer
+    /// Disconnects from the given peer, and returns once its connections have closed. A static
+    /// peer is dialed again about a second later.
     #[method(name = "disconnectPeer")]
     async fn opp2p_disconnect_peer(&self, peer: String) -> RpcResult<()>;
 }
