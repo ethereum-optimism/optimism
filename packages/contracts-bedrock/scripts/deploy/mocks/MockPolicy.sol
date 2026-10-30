@@ -102,6 +102,9 @@ contract MockPolicy is IPolicy {
     /// @notice Thrown when a verdict is written before the module is set.
     error MockPolicy_ModuleNotSet();
 
+    /// @notice Thrown when a clearance's expiry could never let an item move.
+    error MockPolicy_InvalidExpiry();
+
     modifier onlyOwner() {
         if (msg.sender != owner) revert MockPolicy_NotOwner();
         _;
@@ -165,9 +168,17 @@ contract MockPolicy is IPolicy {
     /// @notice Records a clear verdict for an item, with the expiry the screener chose. How long
     ///         a verdict stays valid is decided entirely off chain.
     /// @param _id        Identifier of the item to clear.
-    /// @param _expiresAt When the clearance stops counting.
+    /// @param _expiresAt When the clearance stops counting. Must not already have passed. Zero
+    ///                   is refused by the same check, because zero is the module record's
+    ///                   sentinel for carrying no verdict at all.
     function clear(bytes32 _id, uint64 _expiresAt) public onlyScreener {
         if (address(module) == address(0)) revert MockPolicy_ModuleNotSet();
+
+        // Either would record a clearance that can never let the item move, while the module
+        // still emits VerdictRecorded. A screener watching that event would read it as success.
+        // The check belongs here rather than in the module, which stores whatever it is passed:
+        // what counts as a usable expiry is the policy's call.
+        if (_expiresAt < block.timestamp) revert MockPolicy_InvalidExpiry();
 
         // The module owns the verdict registry and announces the write itself, so there is
         // nothing for the policy to emit here.
