@@ -81,12 +81,6 @@ contract MockPolicy is IPolicy {
     /// @notice Emitted when an item's override changes.
     event OverrideSet(bytes32 indexed id, Override outcome);
 
-    /// @notice Emitted when the screener clears an item.
-    event VerdictCleared(bytes32 indexed id, uint64 expiresAt);
-
-    /// @notice Emitted when the screener revokes an item's clearance.
-    event VerdictRevoked(bytes32 indexed id);
-
     /// @notice Emitted when the module is set.
     event ModuleSet(IComplianceModule indexed module);
 
@@ -174,8 +168,10 @@ contract MockPolicy is IPolicy {
     /// @param _expiresAt When the clearance stops counting.
     function clear(bytes32 _id, uint64 _expiresAt) public onlyScreener {
         if (address(module) == address(0)) revert MockPolicy_ModuleNotSet();
+
+        // The module owns the verdict registry and announces the write itself, so there is
+        // nothing for the policy to emit here.
         module.recordVerdict(_id, _expiresAt);
-        emit VerdictCleared(_id, _expiresAt);
     }
 
     /// @notice Removes an item's clear verdict.
@@ -183,7 +179,6 @@ contract MockPolicy is IPolicy {
     function revoke(bytes32 _id) external onlyScreener {
         if (address(module) == address(0)) revert MockPolicy_ModuleNotSet();
         module.revokeVerdict(_id);
-        emit VerdictRevoked(_id);
     }
 
     /// @notice Clears a held deposit and completes it in one transaction.
