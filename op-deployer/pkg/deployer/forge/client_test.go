@@ -382,6 +382,37 @@ func TestClient_VerifyContractEnvironment(t *testing.T) {
 	require.Equal(t, "key=set\n", out)
 }
 
+// TestClient_CertDirs checks that forge trusts the certificates that Go trusts. On Linux, Go reads every
+// certificate file in its certificate directories; forge 1.8.3 reads them only through SSL_CERT_DIR.
+func TestClient_CertDirs(t *testing.T) {
+	want := "dirs=\n"
+	if runtime.GOOS == "linux" {
+		want = "dirs=/etc/ssl/certs:/etc/pki/tls/certs\n"
+	}
+	t.Setenv("SSL_CERT_DIR", "")
+	require.NoError(t, os.Unsetenv("SSL_CERT_DIR"))
+	cl := NewClient(stubBinary(t, `echo "dirs=$SSL_CERT_DIR"`))
+	cl.Wd = stubProject(t)
+	cl.Stdout = io.Discard
+
+	out, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	require.NoError(t, err)
+	require.Equal(t, want, out, "script run")
+	out, err = cl.VerifyContract(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, want, out, "verify-contract")
+
+	t.Setenv("SSL_CERT_DIR", "")
+	out, err = cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	require.NoError(t, err)
+	require.Equal(t, want, out, "an empty SSL_CERT_DIR counts as unset, as in Go")
+
+	t.Setenv("SSL_CERT_DIR", "/custom")
+	out, err = cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	require.NoError(t, err)
+	require.Equal(t, "dirs=/custom\n", out, "the user's SSL_CERT_DIR wins")
+}
+
 func TestClient_WithEnv(t *testing.T) {
 	base := NewClient(stubBinary(t, `echo "A=$OP_DEPLOYER_TEST_A B=$OP_DEPLOYER_TEST_B"`))
 	base.Wd = stubProject(t)
