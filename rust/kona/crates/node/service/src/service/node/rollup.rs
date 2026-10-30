@@ -12,7 +12,7 @@ use crate::{
     },
     service::{BufferImportedBlocks, middleware::RpcObservabilityLayer},
 };
-use alloy_eips::{BlockNumHash, BlockNumberOrTag};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Address;
 use alloy_provider::RootProvider;
 use backon::{ExponentialBuilder, Retryable};
@@ -30,7 +30,7 @@ use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 use kona_providers_alloy::{
-    AlloyChainProvider, AlloyChainProviderError, AlloyL2ChainProvider,
+    AlloyChainProvider, AlloyChainProviderError, AlloyL2ChainProvider, BlockLabel,
     BufferedAlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider, OnlinePipeline,
 };
 use kona_providers_local::BufferedL2Provider;
@@ -81,8 +81,6 @@ pub struct L1Config {
     pub chain_config: Arc<L1ChainConfig>,
     /// The L1 beacon client.
     pub beacon_client: OnlineBeaconClient,
-    /// The L1 engine provider.
-    pub engine_provider: RootProvider,
     /// The node's L1 client. Every component holds a clone, so all share its caches and trust
     /// setting.
     pub provider: AlloyChainProvider,
@@ -347,18 +345,17 @@ impl RollupNode {
         derivation_origin_rx: watch::Receiver<Option<BlockInfo>>,
         l1_query_rx: mpsc::Receiver<L1WatcherQueries>,
         l1_head_updates_tx: watch::Sender<Option<BlockInfo>>,
-    ) -> Result<impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static, String>
-    {
+    ) -> impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static {
         let head_stream = BlockStream::new_as_stream(
-            self.l1_config.engine_provider.clone(),
-            BlockNumberOrTag::Latest,
+            self.l1_config.provider.clone(),
+            BlockLabel::Latest,
             Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
-        )?;
+        );
         let finalized_stream = BlockStream::new_as_stream(
-            self.l1_config.engine_provider.clone(),
-            BlockNumberOrTag::Finalized,
+            self.l1_config.provider.clone(),
+            BlockLabel::Finalized,
             Duration::from_secs(FINALIZED_STREAM_POLL_INTERVAL),
-        )?;
+        );
 
         let chain = L1WatcherChain::new(
             self.config.clone(),
@@ -368,13 +365,13 @@ impl RollupNode {
             l1_query_rx,
         );
 
-        Ok(L1WatcherActor::new(
-            self.l1_config.engine_provider.clone(),
+        L1WatcherActor::new(
+            self.l1_config.provider.clone(),
             l1_head_updates_tx,
             head_stream,
             finalized_stream,
             vec![chain],
-        ))
+        )
     }
 
     /// Builds the signer actor when the node is in sequencer mode; otherwise returns `None`.
@@ -660,7 +657,7 @@ impl RollupNode {
             derivation_origin_rx,
             l1_query_rx,
             l1_head_updates_tx,
-        )?;
+        );
 
         let sequencing = self.build_sequencer(
             engine_actor_request_tx.clone(),
