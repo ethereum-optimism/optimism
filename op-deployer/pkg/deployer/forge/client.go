@@ -178,6 +178,9 @@ func (c *Client) execCmd(ctx context.Context, stdout io.Writer, stderr io.Writer
 	cmd.Stdout = mwStdout
 	cmd.Stderr = mwStderr
 	cmd.Dir = c.Wd
+	// The artifacts' foundry.toml denies warnings, and forge ignores its compile cache at that
+	// deny level, so every script run would recompile the bundled contracts.
+	cmd.Env = append(cmd.Environ(), "FOUNDRY_DENY=never")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to run forge command: %w", err)
 	}
