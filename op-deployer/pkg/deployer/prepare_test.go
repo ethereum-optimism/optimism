@@ -17,17 +17,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	opdenv "github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -476,7 +472,6 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 
 	forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
-	_, afacts := testutil.LocalArtifacts(t)
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	anvil, err := devnet.NewAnvil(lgr)
 	require.NoError(t, err)
@@ -495,30 +490,6 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqualValues(t, 1337, bigs.Uint64Strict(l1ChainID))
 
-	host, err := opdenv.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		lgr,
-		common.Address{'D'},
-		afacts,
-		script.WithForkHook(func(cfg *script.ForkConfig) (forking.ForkSource, error) {
-			src, err := forking.RPCSourceByNumber(cfg.URLOrAlias, l1RPC, *cfg.BlockNumber)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create RPC fork source: %w", err)
-			}
-			return forking.Cache(src), nil
-		}),
-	)
-	require.NoError(t, err)
-
-	latest, err := l1Client.HeaderByNumber(ctx, nil)
-	require.NoError(t, err)
-
-	_, err = host.CreateSelectFork(
-		script.ForkWithURLOrAlias("main"),
-		script.ForkWithBlockNumberU256(latest.Number),
-	)
-	require.NoError(t, err)
-
 	superchainIntent := &state.Intent{
 		SuperchainRoles: &addresses.SuperchainRoles{
 			SuperchainProxyAdminOwner: common.Address{'S'},
@@ -529,18 +500,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	superchainState := &state.State{Version: 1}
 
 	pEnv := &pipeline.Env{
-		Logger:  lgr,
-		Scripts: &opcm.Scripts{},
-		Forge: &opcm.ForgeEnv{
-			Client:     forgeClient,
-			Context:    ctx,
-			L1RPCUrl:   l1RPCUrl,
-			PrivateKey: privateKey,
-		},
-		Context:      ctx,
-		Broadcaster:  broadcaster.NoopBroadcaster(),
-		StateWriter:  pipeline.NoopStateWriter(),
-		L1ScriptHost: host,
+		Logger:      lgr,
+		Forge:       &opcm.ForgeEnv{Client: forgeClient, Context: ctx, L1RPCUrl: l1RPCUrl, PrivateKey: privateKey},
+		Context:     ctx,
+		StateWriter: pipeline.NoopStateWriter(),
 	}
 
 	require.NoError(t, pipeline.DeploySuperchain(pEnv, superchainIntent, superchainState))
@@ -561,8 +524,8 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 		{
 			name:     "L2_CHAIN_ID_1337",
 			gameType: opcm.GameTypeSuperCannonKona,
-			// The script host defaults to chain ID 1337. This remains a valid L2 chain ID
-			// because the fork context must use the actual, non-1337 Anvil L1 chain ID.
+			// The prediction runs on an L1 fork, so it sees the L1 chain ID, not the 1337 of genesis
+			// runs, and 1337 is a valid L2 chain ID.
 			chainID: common.HexToHash("0x0539"),
 			salt:    common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901236"),
 		},
@@ -598,25 +561,16 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 			predictState := &state.State{Version: 1, Create2Salt: tt.salt}
 
 			runPrediction := func(
-				beforePredict func(*script.Host),
+				beforePredict func(*l1Fork),
 				mutate func(*opcm.DeployOPChainInput),
 			) opcm.DeployOPChainOutput {
-				predictHost, err := opdenv.DefaultForkedScriptHost(
-					ctx,
-					broadcaster.NoopBroadcaster(),
-					lgr,
-					common.Address{'D'},
-					afacts,
-					l1RPC,
-				)
+				fork, err := startPredictionFork(ctx, l1Client, l1RPCUrl, common.Address{'D'}, forgeClient, "")
 				require.NoError(t, err)
+				defer func() { require.NoError(t, fork.stop()) }()
 
 				if beforePredict != nil {
-					beforePredict(predictHost)
+					beforePredict(fork)
 				}
-
-				deployScript, err := opcm.NewDeployOPChainScript(predictHost)
-				require.NoError(t, err)
 
 				dci, err := makePredictionInput(predictIntent, predictState, chain)
 				require.NoError(t, err)
@@ -624,7 +578,7 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 					mutate(&dci)
 				}
 
-				out, err := deployScript.Run(dci)
+				out, err := opcm.DeployOPChainViaForge(fork.forge, dci)
 				require.NoError(t, err)
 				return out
 			}
@@ -644,11 +598,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 			})
 			require.Equal(t, out, outDifferentRoot)
 
-			// Prepare reads the live superchain deployment on the prediction host before
-			// predicting
-			outAfterSuperchainRead := runPrediction(func(predictHost *script.Host) {
+			// A superchain read on the fork before the prediction must not change the predicted addresses.
+			outAfterSuperchainRead := runPrediction(func(fork *l1Fork) {
 				superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
-					&pipeline.Env{Logger: lgr, L1ScriptHost: predictHost},
+					&pipeline.Env{Logger: lgr, Forge: fork.forge},
 					opcmAddr,
 					superchainConfigProxy,
 				)
@@ -1377,7 +1330,9 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 		Time:   hexutil.Uint64(uint64(genesisTime) - 100),
 	}, genesisTime)
 
-	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
+	l2Forge, err := opcm.NewForgeClient(afacts, "", opcm.L2ForgeScripts)
+	require.NoError(t, err)
+	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer, L2Forge: l2Forge}
 	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
 
@@ -1467,7 +1422,9 @@ func TestPrepare_RepredictionRebuildsL2Genesis(t *testing.T) {
 	}
 	const genesisTimeOffset = 600
 
-	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
+	l2Forge, err := opcm.NewForgeClient(afacts, "", opcm.L2ForgeScripts)
+	require.NoError(t, err)
+	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer, L2Forge: l2Forge}
 	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	prepareOnce := func() *state.ChainState {
 		require.NoError(t, prepareChains(lgr, intent, st, run, selectAnchor, anchor, genesisTimeOffset))
