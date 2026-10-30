@@ -1639,9 +1639,14 @@ mod tests {
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
 
-    /// Connects two drivers, then has the first block the second, protected first if `protected`.
-    /// The block closes the connection on both sides, and the second's redial is refused.
-    async fn assert_blocking_closes_the_connection(protected: bool) {
+    /// Blocking a connected peer closes its connection on both sides, and its redial is refused.
+    /// That holds for a protected peer too: protection only keeps a peer from being disconnected
+    /// for its score or the redial limit.
+    #[rstest]
+    #[case::unprotected(false)]
+    #[case::protected(true)]
+    #[tokio::test]
+    async fn test_blocking_a_connected_peer_closes_its_connection(#[case] protected: bool) {
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
         let (peer_1, peer_2) = (*driver_1.local_peer_id(), *driver_2.local_peer_id());
@@ -1665,19 +1670,6 @@ mod tests {
             matches!(refusal, Some(DialError::PeerBlocked { peer_id }) if peer_id == peer_2),
             "{refusal:?}"
         );
-    }
-
-    /// Blocking a connected peer closes its connection, and its redial is refused.
-    #[tokio::test]
-    async fn test_blocking_a_connected_peer_closes_its_connection() {
-        assert_blocking_closes_the_connection(false).await;
-    }
-
-    /// A protected peer is only protected from being disconnected for its score or the redial
-    /// limit. Blocking it closes its connection too.
-    #[tokio::test]
-    async fn test_blocking_a_protected_peer_closes_its_connection() {
-        assert_blocking_closes_the_connection(true).await;
     }
 
     /// A dial of ours still in flight when its peer is blocked doesn't connect: blocking the peer
