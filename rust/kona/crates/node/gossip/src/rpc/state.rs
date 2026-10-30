@@ -21,6 +21,12 @@ use tokio::{
     },
     time::Instant,
 };
+use tracing::debug;
+
+/// How long a reader waits for the network actor to publish a snapshot it asked for, before it
+/// answers from the last one. The actor publishes after the step it is in, which a slow command,
+/// such as a dial that resolves a DNS name, can hold up.
+const REFRESH_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Gossip data the network actor samples from its driver, after each command and when a
 /// [`GossipQueryHandle`] asks for fresher data.
@@ -159,9 +165,11 @@ impl GossipQueryHandle {
     }
 
     /// Returns a snapshot built at most `max_age` ago. If the latest is older, asks the network
-    /// actor for a new one and waits for it.
+    /// actor for a new one and waits for it, for up to two seconds. If none comes in that
+    /// time, returns the latest after all, so that a busy actor delays readers but can't block
+    /// them.
     ///
-    /// With a zero `max_age`, it always waits for a snapshot built after this call.
+    /// With a zero `max_age`, it waits for a snapshot built after this call.
     pub async fn snapshot(
         &self,
         max_age: Duration,
@@ -179,7 +187,14 @@ impl GossipQueryHandle {
         if self.refresh.try_send(()) == Err(TrySendError::Closed(())) {
             return Err(NetworkActorStopped);
         }
-        state.changed().await.map_err(|_| NetworkActorStopped)?;
+        match tokio::time::timeout(REFRESH_TIMEOUT, state.changed()).await {
+            Ok(changed) => changed.map_err(|_| NetworkActorStopped)?,
+            Err(_) => debug!(
+                target: "gossip",
+                age = ?latest.built_at.elapsed(),
+                "The network actor didn't publish a new snapshot in time, answering from the last one"
+            ),
+        }
         Ok(Arc::clone(&state.borrow()))
     }
 }
@@ -266,6 +281,18 @@ mod tests {
         let snapshot = read.await.expect("reader").expect("snapshot");
         assert!(!Arc::ptr_eq(&snapshot, &published));
         assert!(Arc::ptr_eq(&snapshot, &newer));
+    }
+
+    /// If the actor doesn't answer a refresh request in time, the reader gets the last snapshot.
+    #[tokio::test(start_paused = true)]
+    async fn test_busy_actor_delays_reads_by_the_refresh_timeout() {
+        let (handle, state_tx, _refresh_rx) = handle();
+        let published = Arc::clone(&state_tx.borrow());
+        let start = Instant::now();
+
+        let snapshot = handle.snapshot(Duration::ZERO).await.expect("snapshot");
+        assert!(Arc::ptr_eq(&snapshot, &published));
+        assert_eq!(start.elapsed(), REFRESH_TIMEOUT);
     }
 
     /// Once the actor has stopped, reads fail rather than return its last snapshot.
