@@ -23,8 +23,9 @@ type Config struct {
 	// and thus fail to produce a block with anything more than deposits.
 	SequencerConfDepth uint64 `json:"sequencer_conf_depth"`
 
-	// SequencerL1BlockTag is the L1 block (latest, safe or finalized) that SequencerConfDepth is counted from.
-	// An empty value means latest.
+	// SequencerL1BlockTag is the L1 block (latest or safe) that SequencerConfDepth is counted from.
+	// An empty value means latest. Finalized is not supported: on Ethereum it trails the head by more than
+	// a typical rollup.Config.MaxSequencerDrift, so the sequencer could only produce deposit-only blocks.
 	SequencerL1BlockTag eth.BlockLabel `json:"sequencer_l1_block_tag,omitempty"`
 
 	// SequencerEnabled is true when the driver should sequence new blocks.
@@ -53,6 +54,9 @@ func (c *Config) Check() error {
 	}
 	if err := checkL1BlockTag(c.SequencerL1BlockTag); err != nil {
 		return fmt.Errorf("invalid sequencer L1 block tag: %w", err)
+	}
+	if c.SequencerL1BlockTag == eth.Finalized {
+		return fmt.Errorf("invalid sequencer L1 block tag: %q would exceed the max sequencer drift", eth.Finalized)
 	}
 	return nil
 }

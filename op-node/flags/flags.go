@@ -259,7 +259,8 @@ var (
 	VerifierL1BlockTag = &cli.StringFlag{
 		Name: "verifier.l1-block-tag",
 		Usage: "L1 block that --verifier.l1-confs is counted from: latest, safe or finalized. " +
-			"The safe and finalized blocks are refreshed every --l1.epoch-poll-interval.",
+			"The safe and finalized blocks are polled every --l1.epoch-poll-interval, so they can be up to one interval late; " +
+			"lower it when using safe.",
 		EnvVars:  prefixEnvVars("VERIFIER_L1_BLOCK_TAG"),
 		Value:    "latest",
 		Category: L1RPCCategory,
@@ -285,8 +286,9 @@ var (
 	}
 	SequencerL1BlockTag = &cli.StringFlag{
 		Name: "sequencer.l1-block-tag",
-		Usage: "L1 block that --sequencer.l1-confs is counted from: latest, safe or finalized. " +
-			"The safe and finalized blocks are refreshed every --l1.epoch-poll-interval.",
+		Usage: "L1 block that --sequencer.l1-confs is counted from: latest or safe. " +
+			"The safe block is polled every --l1.epoch-poll-interval, so it can be up to one interval late; " +
+			"lower it when using safe, and keep the total lag below the max sequencer drift.",
 		EnvVars:  prefixEnvVars("SEQUENCER_L1_BLOCK_TAG"),
 		Value:    "latest",
 		Category: SequencerCategory,
