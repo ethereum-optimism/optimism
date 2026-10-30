@@ -60,8 +60,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     address private spacer_253_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 3.2.0
-    string public constant version = "3.2.0";
+    /// @custom:semver 3.3.0
+    string public constant version = "3.3.0";
 
     /// @notice See `GasConstants.L1_RELAY_RESERVED_GAS`.
     uint64 internal constant LOCAL_RELAY_RESERVED_GAS = GasConstants.L1_RELAY_RESERVED_GAS;
