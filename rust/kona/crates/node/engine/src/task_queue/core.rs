@@ -184,10 +184,12 @@ impl EngineResetError {
     /// Whether retrying the reset can recover without changing the node configuration.
     pub fn is_temporary(&self) -> bool {
         match self {
-            // An L1 RPC can serve a missing block below its head while a lagging backend
-            // catches up.
+            // A missing L1 block below the head means a lagging backend that may catch up, and
+            // any other L1 failure is an RPC failure.
             Self::SyncStart(
-                SyncStartError::RpcError(_) | SyncStartError::L1BlockMissing { .. },
+                SyncStartError::RpcError(_) |
+                SyncStartError::L1(_) |
+                SyncStartError::L1BlockMissing { .. },
             ) => true,
             Self::SyncStart(_) => false,
             Self::Forkchoice(err) => err.severity() != EngineTaskErrorSeverity::Critical,
