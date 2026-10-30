@@ -222,7 +222,7 @@ def deployable(binding):
     return any(row['bytes'] > 0 for row in creation.values())
 
 
-def junit(path, discovered, bindings=None):
+def junit(paths, discovered, bindings=None):
     selected = {tuple(r) for r in discovered}
     if not selected or len(selected) != len(discovered): raise ValueError('Empty or duplicate upgrade selection')
     non_executable = set()
@@ -231,7 +231,8 @@ def junit(path, discovered, bindings=None):
             if not deployable(bindings[identity]):
                 non_executable.update(r for r in selected if r[0] == identity)
     actual = {}; outcomes = {}; setup_skips = {}
-    for suite in ET.parse(path).iter('testsuite'):
+    # Contract suites pass one report per EVM pass; a case in two reports is a duplicate.
+    for suite in (s for p in ([paths] if isinstance(paths, (str, Path)) else paths) for s in ET.parse(p).iter('testsuite')):
         for case in suite.findall('testcase'):
             key = (case.get('classname') or suite.get('name', ''), case.attrib['name'])
             if key in actual: raise ValueError('Duplicate original upgrade verdict')

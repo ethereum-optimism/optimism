@@ -22,6 +22,20 @@ pub trait ChainProvider {
     /// source.
     async fn block_info_by_number(&mut self, number: u64) -> Result<BlockInfo, Self::Error>;
 
+    /// Resolves a reset base against the canonical chain without delaying for confirmations.
+    /// The reset base has already been selected; this lookup preserves canonical-by-number
+    /// resolution even if the supplied base hash was reorged out. Providers without a live
+    /// confirmation-depth policy use the ordinary lookup.
+    async fn block_info_by_number_for_reset(
+        &mut self,
+        number: u64,
+    ) -> Result<BlockInfo, Self::Error>
+    where
+        Self: Send,
+    {
+        self.block_info_by_number(number).await
+    }
+
     /// Returns all receipts in the block with the given hash, or an error if the block does not
     /// exist in the data source.
     async fn receipts_by_hash(&mut self, hash: B256) -> Result<Vec<Receipt>, Self::Error>;

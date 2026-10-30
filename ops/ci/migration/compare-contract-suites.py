@@ -14,7 +14,7 @@ UP = CS.UP
 
 
 def report(directory, suite, feature, sha, provider, empty):
-    required = CS.PREPARED | {'original.junit.xml', 'coverage.json', 'tests.stage.json', 'junit-nonempty.stage.json',
+    required = CS.PREPARED | {'evm-passes.json', 'coverage.json',
                               'lint-test-names.stage.json', 'source-after-verdict.json', 'runtime-fixtures.json'}
     if provider == 'rwx': required |= {'runtime-config.json', 'runtime-config.stage.json', 'runtime-files.log', 'runtime-files.stage.json',
                                        'preparation-manifest.json', 'preparation-settings.json'}
@@ -40,6 +40,11 @@ def report(directory, suite, feature, sha, provider, empty):
     files = CS.file_selection((directory / 'files.log').read_text())
     if not files: raise ValueError('Empty original contract selection cannot establish coverage')
     chosen = {'files': files, 'partitions': [{'index': 0, 'files': files}], 'match_path': CS.match_path(files)}
+    routing = json.loads((directory / 'evm-passes.json').read_text())
+    if not isinstance(routing.get('pattern'), str) or routing != CS.evm_passes(files, routing['pattern']):
+        raise ValueError('Contract EVM passes differ from the file selection')
+    reports = [directory / ('original-' + name + '.junit.xml') for name in routing['passes']]
+    if not {p.name for p in reports} <= set(hashes): raise ValueError('Missing original contract EVM pass report')
     outputs = CS.runtime_outputs(files)
     if settings.get('runtime_output_paths') != outputs: raise ValueError('Unexpected tracked runtime output role')
     after = json.loads((directory / 'source-after-verdict.json').read_text())
@@ -89,7 +94,7 @@ def report(directory, suite, feature, sha, provider, empty):
     if selected != [tuple(row) for row in json.loads((directory / 'selection.json').read_text())] or \
        any(identity.rsplit(':', 1)[0] not in files for identity, _ in selected):
         raise ValueError('Contract test selection differs from complete original discovery')
-    coverage = UP.junit(directory / 'original.junit.xml', selected, methods)
+    coverage = UP.junit(reports, selected, methods)
     if json.loads((directory / 'coverage.json').read_text()) != coverage: raise ValueError('Contract coverage differs from original JUnit')
     if json.loads((directory / 'compile-only.json').read_text()) != {'tests': 0, 'selected_cases': len(selected), 'suite': suite, 'feature': feature}:
         raise ValueError('Contract producer did not retain a compile-only observation')
@@ -104,9 +109,10 @@ def report(directory, suite, feature, sha, provider, empty):
                                     'update', '--init', '--recursive', '--jobs', '8'],
                 'go-ffi': ['just', 'build-go-ffi'], 'contracts-build': ['forge', 'build'],
                 'discovery': ['forge', 'test', '--list', '--json', '--match-path', chosen['match_path']],
-                'tests': ['forge', 'test', '--match-path', chosen['match_path'], '--junit'],
-                'junit-nonempty': ['./scripts/checks/check-junit-tests-ran.sh', str(directory / 'original.junit.xml')],
                 'lint-test-names': ['just', 'lint-forge-tests-check-no-build']}
+    for name, rows in routing['passes'].items():
+        commands['tests-' + name] = CS.pass_argv(name, rows)
+        commands['junit-nonempty-' + name] = None
     if provider == 'circle': commands['split'] = CS.SPLIT_COMMAND
     else: commands.update({'runtime-files': files_argv, 'runtime-config': ['forge', 'config', '--json']})
     if suite == 'modified':
@@ -122,9 +128,9 @@ def report(directory, suite, feature, sha, provider, empty):
         row = json.loads((directory / (name + '.stage.json')).read_text())
         # The report location is provider-specific; the original guard's path
         # must still refer to this invocation's retained original XML.
-        if name == 'junit-nonempty':
-            expected = root + '/.ci/contract-suites/' + suite + '-' + feature + '/run/original.junit.xml'
-            argv = ['./scripts/checks/check-junit-tests-ran.sh', expected]
+        if name.startswith('junit-nonempty-'):
+            report = 'original-' + name.removeprefix('junit-nonempty-') + '.junit.xml'
+            argv = ['./scripts/checks/check-junit-tests-ran.sh', root + '/.ci/contract-suites/' + suite + '-' + feature + '/run/' + report]
         if (row['argv'], row['cwd'], row['exit_code']) != (argv, cwd, 0): raise ValueError('Wrong or failed original contract command')
     # Foundry leaves obsolete line-numbered VmContractHelper interfaces in a
     # restored output directory. They have no creation bytecode and no test or
@@ -132,7 +138,7 @@ def report(directory, suite, feature, sha, provider, empty):
     # contracts and every test-bearing abstract declaration as workload inputs.
     interfaces = {name: {'methods': row['methods'], 'deployable': False} for name, row in methods.items()
                   if not UP.deployable(row) and not any(method.startswith(('test', 'invariant')) for method in row['methods'])}
-    return {'settings': settings, 'files': chosen, 'selection': selected, 'coverage': coverage,
+    return {'settings': settings, 'files': chosen, 'evm_passes': routing, 'selection': selected, 'coverage': coverage,
             'config': UP.REPORT.normalize(config, root), 'original_sha256': hashes, 'compiled_sha256': compiled,
             'source_after_verdict': after, 'runtime_fixtures': fixtures,
             'submodules': UP.SUBMODULES.revisions((directory / 'submodules.txt').read_text()),
@@ -147,7 +153,7 @@ def compare(directories, suite, feature, sha):
     for key in ('source_sha', 'suite', 'feature', 'branch', 'profile', 'test_list', 'forge', 'go', 'just', 'input_sha256',
                 'runtime_output_paths', 'target_sha', 'merge_base_sha'):
         if a['settings'].get(key) != b['settings'].get(key): raise ValueError('Contract settings differ at ' + key)
-    for key in ('files', 'selection', 'coverage', 'config', 'submodules', 'methods', 'source_after_verdict', 'runtime_fixtures'):
+    for key in ('files', 'evm_passes', 'selection', 'coverage', 'config', 'submodules', 'methods', 'source_after_verdict', 'runtime_fixtures'):
         if a[key] != b[key]: raise ValueError('Complete original contract parity differs at ' + key)
     interface_differences = {name: {p: d['interfaces'].get(name) for p, d in data.items()}
                              for name in sorted(set(a['interfaces']) | set(b['interfaces']))

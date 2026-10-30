@@ -1224,6 +1224,7 @@ jobs:
           features: <<parameters.features>>
       - run:
           name: Run tests with complete original parity reports
+          # The runner partitions the shard between Amsterdam and default-EVM tests, as `just test` does.
           command: |
             python3 ops/ci/runtime/contract-suites.py run \
               --suite "<<parameters.parity_suite>>" --feature "${CI_CONTRACT_FEATURE:-main}"
@@ -1236,8 +1237,9 @@ jobs:
       - run:
           name: Print failed dependency traces
           command: |
-            if [ ! -f "../../.ci/contract-suites/<<parameters.parity_suite>>-${CI_CONTRACT_FEATURE:-main}/run/tests.stage.json" ] \
-               && [ -s cache/test-failures ]; then
+            run="../../.ci/contract-suites/<<parameters.parity_suite>>-${CI_CONTRACT_FEATURE:-main}/run"
+            if [ ! -f "$run/tests-amsterdam.stage.json" ] && [ ! -f "$run/tests-l2.stage.json" ] \
+               && { [ -s cache/test-failures-amsterdam ] || [ -s cache/test-failures-l2 ]; }; then
               just test-rerun
             fi
           environment:
@@ -1280,12 +1282,10 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Run heavy fuzz tests
-          command: |
-            mkdir -p results
-            just test
+          command: just test
           environment:
             FOUNDRY_PROFILE: ciheavy
-            JUNIT_TEST_PATH: results/results.xml
+            JUNIT_TEST_DIR: results
           working_directory: packages/contracts-bedrock
           no_output_timeout: 90m
       - run:

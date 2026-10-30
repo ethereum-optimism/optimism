@@ -4,6 +4,10 @@ pragma solidity ^0.8.0;
 /// @title SafeCall
 /// @notice Perform low level safe calls
 library SafeCall {
+    /// @notice EIP-8037 state gas for a CALL that sends value to an empty account: 120 bytes at
+    ///         1,530 gas per byte. The CALL charges it before the 63/64 split.
+    uint256 internal constant NEW_ACCOUNT_STATE_GAS = 183_600;
+
     /// @notice Performs a low level call without copying any returndata.
     /// @dev Passes no calldata to the call context.
     /// @param _target   Address to call
@@ -87,7 +91,8 @@ library SafeCall {
     ///          `value_to_empty_account_cost` factors with an added buffer of 5,700 gas. It is
     ///          still possible to self-rekt by initiating a withdrawal with a minimum gas limit
     ///          that does not account for the `memory_expansion_cost` & `code_execution_cost`
-    ///          factors of the dynamic cost of the `CALL` opcode.
+    ///          factors of the dynamic cost of the `CALL` opcode. Under EIP-8037, value to an
+    ///          empty account also costs `NEW_ACCOUNT_STATE_GAS`, which callers must reserve.
     ///      2.) This function should *directly* precede the external call if possible. There is an
     ///          added buffer to account for gas consumed between this check and the call, but it
     ///          is only 5,700 gas.
@@ -111,6 +116,8 @@ library SafeCall {
     /// @param _minGas   The minimum amount of gas that may be passed to the call
     /// @param _value    Amount of value to pass to the call
     /// @param _calldata Calldata to pass to the call
+    /// @dev Sending value to an account with no code, balance or nonce also requires
+    ///      `NEW_ACCOUNT_STATE_GAS`. `EXTCODEHASH` returns zero for exactly those accounts.
     function callWithMinGas(
         address _target,
         uint256 _minGas,
@@ -121,9 +128,10 @@ library SafeCall {
         returns (bool)
     {
         bool _success;
-        bool _hasMinGas = hasMinGas(_minGas, 0);
+        uint256 newAccountGas = _value != 0 && _target.codehash == bytes32(0) ? NEW_ACCOUNT_STATE_GAS : 0;
+        bool _hasMinGas = hasMinGas(_minGas, newAccountGas);
         assembly {
-            // Assertion: gasleft() >= (_minGas * 64) / 63 + 40_000
+            // Assertion: gasleft() >= (_minGas * 64) / 63 + 40_000 + newAccountGas
             if iszero(_hasMinGas) {
                 // Store the "Error(string)" selector in scratch space.
                 mstore(0, 0x08c379a0)

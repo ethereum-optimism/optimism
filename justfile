@@ -668,7 +668,8 @@ release-paths component:
 # <from> and <to> can be explicit tags (e.g. v1.16.5), or:
 #   'latest'    - resolves to the latest stable tag (vX.Y.Z)
 #   'latest-rc' - resolves to the latest RC tag (vX.Y.Z-rc.N)
-#   'develop'   - (only for <to>) uses the develop branch tip with --unreleased
+#   any other git ref - (only for <to>) e.g. develop, origin/develop or a commit:
+#               the range ends there, with --unreleased
 #
 # Set <mode> to 'offline' to skip GitHub API calls (faster, but no PR metadata).
 #
@@ -676,6 +677,7 @@ release-paths component:
 #   just release-notes op-node                          # latest stable -> latest RC (default)
 #   just release-notes op-node latest develop           # all unreleased changes since the latest stable release
 #   just release-notes op-node latest develop offline   # same, but without GitHub API calls
+#   just release-notes op-node latest origin/develop    # same, up to the fetched remote branch
 #   just release-notes op-node v1.16.5 v1.16.6          # explicit tags
 #
 # Requires GITHUB_TOKEN for git-cliff's GitHub integration (unless mode=offline):
@@ -711,15 +713,22 @@ release-notes component from='latest' to='latest-rc' mode='':
         include_path_args+=(--include-path "$include_path")
     done <<< "$component_paths"
     tag_args=()
-    if [ "{{ to }}" = "develop" ]; then
-        tag_args=(--unreleased)
-        range_end="develop"
-    else
-        to_tag=$(resolve_tag "{{ to }}")
-        if [ -z "$to_tag" ]; then echo "error: could not resolve to tag '{{ to }}' for {{ component }}"; exit 1; fi
-        tag_args=(--tag "$to_tag")
-        range_end="$to_tag"
-    fi
+    case "{{ to }}" in
+        latest|latest-rc|v[0-9]*)
+            to_tag=$(resolve_tag "{{ to }}")
+            if [ -z "$to_tag" ]; then echo "error: could not resolve to tag '{{ to }}' for {{ component }}"; exit 1; fi
+            tag_args=(--tag "$to_tag")
+            range_end="$to_tag"
+            ;;
+        *)
+            if ! git rev-parse --verify --quiet "{{ to }}^{commit}" >/dev/null; then
+                echo "error: '{{ to }}' is neither 'latest', 'latest-rc', a version nor a git ref"
+                exit 1
+            fi
+            tag_args=(--unreleased)
+            range_end="{{ to }}"
+            ;;
+    esac
     echo "Generating release notes for ${from_tag}..${range_end}"
     offline_args=()
     if [ "{{ mode }}" = "offline" ]; then

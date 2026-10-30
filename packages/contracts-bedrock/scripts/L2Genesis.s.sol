@@ -131,11 +131,6 @@ contract L2Genesis is Script {
 
     /// @notice Alias for `runWithStateDump` so that no `--sig` needs to be specified.
     function run(Input memory _input) public {
-        require(
-            _input.useInterop
-                == DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP),
-            "L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree"
-        );
         // The messenger only takes a non-production expiry period when interop is active at
         // genesis; a later activation initializes it with the production period.
         require(
@@ -291,7 +286,6 @@ contract L2Genesis is Script {
         setEAS(); // 21
         setGovernanceToken(_input); // 42: OP (not behind a proxy)
         if (_isGenesisInteropEnabled(_input)) {
-            // Both flags must be explicitly set in order to enable Interop
             setCrossL2Inbox(); // 22
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainETHBridge(); // 24
@@ -443,8 +437,7 @@ contract L2Genesis is Script {
 
     /// @notice Returns true when interop should be active in the genesis state.
     function _isGenesisInteropEnabled(Input memory _input) internal pure returns (bool) {
-        return _input.fork >= uint256(Fork.LAGOON) && _input.useInterop
-            && DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        return _input.fork >= uint256(Fork.LAGOON) && _input.useInterop;
     }
 
     function setInteropPredeployProxies() internal { }
@@ -641,15 +634,13 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setCrossL2Inbox() internal {
-        Predeploys.assertGates(Predeploys.CROSS_L2_INBOX, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
+        Predeploys.assertGates(Predeploys.CROSS_L2_INBOX, bytes32(0), false, true);
         _setImplementationCode(Predeploys.CROSS_L2_INBOX);
     }
 
     /// @notice This predeploy is following the safety invariant #1.
     function setL2ToL2CrossDomainMessenger() internal {
-        Predeploys.assertGates(
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
-        );
+        Predeploys.assertGates(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, bytes32(0), false, true);
         address impl = _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         IL2ToL2CrossDomainMessenger(impl).initialize({ _expiryPeriod: Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD });
     }
@@ -657,7 +648,7 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setETHLiquidity() internal {
-        Predeploys.assertGates(Predeploys.ETH_LIQUIDITY, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
+        Predeploys.assertGates(Predeploys.ETH_LIQUIDITY, bytes32(0), false, true);
         _setImplementationCode(Predeploys.ETH_LIQUIDITY);
         vm.deal(Predeploys.ETH_LIQUIDITY, type(uint128).max);
     }
@@ -665,15 +656,13 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setSuperchainETHBridge() internal {
-        Predeploys.assertGates(Predeploys.SUPERCHAIN_ETH_BRIDGE, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
+        Predeploys.assertGates(Predeploys.SUPERCHAIN_ETH_BRIDGE, bytes32(0), false, true);
         _setImplementationCode(Predeploys.SUPERCHAIN_ETH_BRIDGE);
     }
 
     /// @notice This predeploy is following the safety invariant #1.
     function setUndeliveredMessageExporter() internal {
-        Predeploys.assertGates(
-            Predeploys.UNDELIVERED_MESSAGE_EXPORTER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
-        );
+        Predeploys.assertGates(Predeploys.UNDELIVERED_MESSAGE_EXPORTER, bytes32(0), false, true);
         _setImplementationCode(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
     }
 

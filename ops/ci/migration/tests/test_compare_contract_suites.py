@@ -13,6 +13,8 @@ from unittest.mock import patch
 SPEC = importlib.util.spec_from_file_location('compare', Path(__file__).resolve().parents[2] / 'migration' / 'compare-contract-suites.py')
 C = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(C)
 SHA = 'a' * 40
+# The justfile's DEFAULT_EVM_TESTS routing.
+PATTERN = r'^test/L2/|^test/scripts/ExecuteNUTBundle\.t\.sol$'
 
 
 class ComparisonTests(ReportFixtures, unittest.TestCase):
@@ -56,13 +58,14 @@ class ComparisonTests(ReportFixtures, unittest.TestCase):
                 self.stage(d, 'runtime-files', C.CS.FILE_COMMANDS['standard'], root)
             else:
                 (d / 'split.log').write_text('test/Fixture.t.sol\n'); self.stage(d, 'split', C.CS.SPLIT_COMMAND, root)
-            (d / 'original.junit.xml').write_text('<testsuites><testsuite name="test/Fixture.t.sol:Fixture">'
+            self.write(d / 'evm-passes.json', C.CS.evm_passes(files, PATTERN))
+            (d / 'original-amsterdam.junit.xml').write_text('<testsuites><testsuite name="test/Fixture.t.sol:Fixture">'
                 '<testcase name="test_a()"/><testcase name="test_skip()"><skipped>original guard</skipped></testcase></testsuite></testsuites>')
             self.write(d / 'source-after-verdict.json', settings['input_sha256'])
             self.write(d / 'runtime-fixtures.json', {})
-            self.write(d / 'coverage.json', C.UP.junit(d / 'original.junit.xml', selected, methods))
-            self.stage(d, 'tests', ['forge', 'test', '--match-path', match, '--junit'], root)
-            self.stage(d, 'junit-nonempty', ['./scripts/checks/check-junit-tests-ran.sh', root + '/.ci/contract-suites/standard-main/run/original.junit.xml'], root)
+            self.write(d / 'coverage.json', C.UP.junit([d / 'original-amsterdam.junit.xml'], selected, methods))
+            self.stage(d, 'tests-amsterdam', ['env', 'FOUNDRY_HARDFORK=amsterdam', 'forge', 'test', '--match-path', match, '--junit'], root)
+            self.stage(d, 'junit-nonempty-amsterdam', ['./scripts/checks/check-junit-tests-ran.sh', root + '/.ci/contract-suites/standard-main/run/original-amsterdam.junit.xml'], root)
             self.stage(d, 'lint-test-names', ['just', 'lint-forge-tests-check-no-build'], root); self.seal(d)
 
     def stage(self, d, name, argv, root): self.write(d / (name + '.stage.json'), {'argv': argv, 'cwd': root + '/packages/contracts-bedrock', 'exit_code': 0})
@@ -139,12 +142,22 @@ class ComparisonTests(ReportFixtures, unittest.TestCase):
     def test_duplicate_partition_or_missing_original_is_rejected(self):
         d = self.dirs['rwx']; self.mutate(d, 'file-selection.json', lambda v: v['partitions'].append(v['partitions'][0]))
         with self.assertRaisesRegex(ValueError, 'assignment'): self.compare()
-        (d / 'original.junit.xml').unlink()
+        (d / 'original-amsterdam.junit.xml').unlink()
         with self.assertRaises(ValueError): self.compare()
 
     def test_matching_wrong_command_is_not_proof_of_parity(self):
-        for d in self.dirs.values(): self.mutate(d, 'tests.stage.json', lambda v: v.update(argv=['true']))
+        for d in self.dirs.values(): self.mutate(d, 'tests-amsterdam.stage.json', lambda v: v.update(argv=['true']))
         with self.assertRaisesRegex(ValueError, 'command'): self.compare()
+
+    def test_tests_outside_their_evm_pass_are_rejected(self):
+        # Both providers ran an Amsterdam-routed file at the default EVM.
+        for d in self.dirs.values():
+            self.mutate(d, 'tests-amsterdam.stage.json', lambda v: v.update(argv=v['argv'][2:]))
+        with self.assertRaisesRegex(ValueError, 'command'): self.compare()
+        self.setUp()
+        for d in self.dirs.values():
+            self.mutate(d, 'evm-passes.json', lambda v: v.update(passes={'l2': v['passes']['amsterdam']}))
+        with self.assertRaisesRegex(ValueError, 'EVM passes'): self.compare()
 
     def test_reduced_fuzzing_is_rejected(self):
         for d in self.dirs.values(): self.mutate(d, 'foundry-config.json', lambda v: v['fuzz'].update(runs=1))
@@ -157,7 +170,7 @@ class ComparisonTests(ReportFixtures, unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'retry'): self.compare()
 
     def test_corrupt_original_or_unsealed_extra_is_rejected(self):
-        d = self.dirs['rwx']; (d / 'original.junit.xml').write_text('corrupt')
+        d = self.dirs['rwx']; (d / 'original-amsterdam.junit.xml').write_text('corrupt')
         with self.assertRaises(ValueError): self.compare()
         self.setUp(); d = self.dirs['rwx']; (d / 'extra.txt').write_text('unsealed')
         with self.assertRaisesRegex(ValueError, 'Unsealed'): self.compare()

@@ -52,6 +52,7 @@ type L2Configurator interface {
 	WithL1StartBlockHash(hash common.Hash)
 	WithAdditionalDisputeGames(games []state.AdditionalDisputeGame)
 	WithFinalizationPeriodSeconds(value uint64)
+	WithAltDA(cfg genesis.AltDADeployConfig)
 	WithCustomGasToken(name string, symbol string, initialLiquidity *big.Int, liquidityControllerOwner common.Address)
 	ContractsConfigurator
 	L2VaultsConfigurator
@@ -568,4 +569,8 @@ func (c *l2Configurator) WithAdditionalDisputeGames(games []state.AdditionalDisp
 
 func (c *l2Configurator) WithFinalizationPeriodSeconds(value uint64) {
 	c.builder.intent.Chains[c.chainIndex].DeployOverrides["l2FinalizationPeriodSeconds"] = value
+}
+
+func (c *l2Configurator) WithAltDA(cfg genesis.AltDADeployConfig) {
+	c.builder.intent.Chains[c.chainIndex].DangerousAltDAConfig = cfg
 }

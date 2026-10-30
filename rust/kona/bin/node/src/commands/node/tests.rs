@@ -32,6 +32,31 @@ fn test_node_cli_defaults() {
     let args =
         NodeCommand::parse_from(std::iter::once(&"node").chain(default_flags().iter()).copied());
     assert_eq!(args.node_mode, NodeMode::Validator);
+    assert_eq!(args.verifier_l1_confs, 0);
+    assert_eq!(NodeCommand::default().verifier_l1_confs, 0);
+}
+
+#[test]
+fn verifier_confirmation_depth_is_available_in_both_node_modes() {
+    for mode in ["Validator", "Sequencer"] {
+        let args = NodeCommand::parse_from(
+            std::iter::once("node").chain(default_flags().iter().copied()).chain([
+                "--mode",
+                mode,
+                "--verifier.l1-confs",
+                "4",
+            ]),
+        );
+        assert_eq!(args.verifier_l1_confs, 4);
+    }
+}
+
+#[test]
+fn verifier_confirmation_depth_has_the_expected_environment_variable() {
+    use clap::CommandFactory;
+    let command = NodeCommand::command();
+    let arg = command.get_arguments().find(|arg| arg.get_id() == "verifier_l1_confs").unwrap();
+    assert_eq!(arg.get_env().unwrap(), "KONA_NODE_VERIFIER_L1_CONFS");
 }
 
 #[test]

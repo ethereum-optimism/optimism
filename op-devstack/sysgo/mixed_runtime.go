@@ -184,6 +184,9 @@ type MixedSingleChainNodeSpec struct {
 	// EnableSafeDB gives this node's CL a safe head database in a fresh temp dir, so it records
 	// the L2 safe head reached as of each L1 block and serves it over optimism_safeHeadAtL1Block.
 	EnableSafeDB bool
+	// VerifierL1Confs is the L1 confirmation distance used by derivation in either CL.
+	// It does not change the sequencer's L1 origin selection distance.
+	VerifierL1Confs uint64
 }
 
 type MixedSingleChainPresetConfig struct {
@@ -285,6 +288,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				DependencySet: depSet,
 				L2CLOptions: []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 					cfg.SafeDBPath = safeDBPath
+					cfg.VerifierL1Confs = spec.VerifierL1Confs
 				})},
 			})
 		case MixedL2CLKona:
@@ -303,6 +307,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 					L2CLConfig: resolveKonaL2CLConfig(t, spec.CLKey, l2Net.ChainID(), spec.IsSequencer, "", []L2CLOption{
 						L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 							cfg.SafeDBPath = safeDBPath
+							cfg.VerifierL1Confs = spec.VerifierL1Confs
 						}),
 					}),
 				},

@@ -97,6 +97,7 @@ class _LiveSuiteTestsFixtures:
             root.mkdir()
             contracts = root / 'packages/contracts-bedrock'
             (contracts / 'test/unit').mkdir(parents=True)
+            (contracts / 'test/L2').mkdir(parents=True)
             (contracts / 'src/unit').mkdir(parents=True)
             (contracts / 'scripts/go-ffi').mkdir(parents=True)
             (root / 'ops/ci/runtime').mkdir(parents=True)
@@ -132,13 +133,15 @@ class _LiveSuiteTestsFixtures:
                 start = original.index('\n' + name + ':')
                 end = original.index('\n\n', start + 1)
                 recipes.append(original[start + 1:end])
-            (contracts / 'justfile').write_text('\n\n'.join(recipes) + '\n')
+            routing = next(line for line in original.splitlines() if line.startswith('DEFAULT_EVM_TESTS :='))
+            (contracts / 'justfile').write_text(routing + '\n\n' + '\n\n'.join(recipes) + '\n')
             (contracts / 'scripts/go-ffi/main.go').write_text('package main\nimport("fmt";"os")\nfunc main(){f,e:=os.OpenFile(os.Getenv("CI_SUITE_FIXTURE_MARKER"),os.O_APPEND|os.O_CREATE|os.O_WRONLY,0600);if e!=nil{panic(e)};defer f.Close();f.WriteString("x");v:=1;if os.Getenv("CI_SUITE_FIXTURE_FAIL")=="1"{v=0};fmt.Printf("0x%064x",v)}\n')
             (contracts / 'foundry.toml').write_text('[profile.default]\nsrc="src"\ntest="test"\nout="forge-artifacts"\nsolc="0.8.15"\nffi=true\nast=true\n[profile.liteci]\noptimizer=false\n[profile.liteci.fuzz]\nruns=128\n[profile.liteci.invariant]\nruns=64\ndepth=32\n[profile.ciheavy]\noptimizer=false\n[profile.ciheavy.fuzz]\nruns=20000\ntimeout=300\n[profile.ciheavy.invariant]\nruns=128\ndepth=512\ntimeout=300\n')
             (contracts / 'src/unit/Fixture.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; interface Vm {function skip(bool,string calldata) external;function ffi(string[] calldata) external returns(bytes memory);}contract Fixture {uint256 public value;uint256 public copied;function runtime(uint256 a) public returns(uint256){value=a;copied=a;return a;}}')
             (contracts / 'test/unit/Fixture.t.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; import {Fixture,Vm} from "../../src/unit/Fixture.sol";contract Fixture_Runtime_Test {Vm constant vm=Vm(address(uint160(uint256(keccak256("hevm cheat code")))));function test_runtime_succeeds() public {string[] memory args=new string[](1);args[0]="./scripts/go-ffi/go-ffi";assert(abi.decode(vm.ffi(args),(uint256))==1);}function testFuzz_runtime_succeeds(uint256 a) public {assert(new Fixture().runtime(a)==a);}function test_runtime_disabled_succeeds() public {vm.skip(true,"fixture disabled");}}')
             (contracts / 'src/unit/InvariantFixture.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; import {Fixture} from "./Fixture.sol";contract InvariantFixture is Fixture {}')
-            (contracts / 'test/unit/InvariantFixture.t.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; import {InvariantFixture} from "../../src/unit/InvariantFixture.sol";contract InvariantFixture_Runtime_Test {InvariantFixture fixture;function setUp() public {fixture=new InvariantFixture();}function targetContracts() public view returns(address[] memory targets){targets=new address[](1);targets[0]=address(fixture);}function invariant_runtime_succeeds() public view {assert(fixture.value()==fixture.copied());}}')
+            # A default-EVM test makes the standard suite exercise both EVM passes.
+            (contracts / 'test/L2/InvariantFixture.t.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; import {InvariantFixture} from "../../src/unit/InvariantFixture.sol";contract InvariantFixture_Runtime_Test {InvariantFixture fixture;function setUp() public {fixture=new InvariantFixture();}function targetContracts() public view returns(address[] memory targets){targets=new address[](1);targets[0]=address(fixture);}function invariant_runtime_succeeds() public view {assert(fixture.value()==fixture.copied());}}')
 
             def git(*args, directory=root):
                 return subprocess.check_output(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', *args], cwd=directory, text=True, stderr=subprocess.DEVNULL).strip()
@@ -211,7 +214,7 @@ class _LiveSuiteTestsFixtures:
                             mismatch = invoke('run', suite, provider, prepared)
                             self.assertNotEqual(mismatch.returncode, 0)
                             self.assertIn('Pinned contract target differs from compilation', mismatch.stderr)
-                            self.assertFalse((root / '.ci/contract-suites/modified-main/run/tests.stage.json').exists())
+                            self.assertFalse((root / '.ci/contract-suites/modified-main/run/tests-amsterdam.stage.json').exists())
                             env.pop('CI_SUITE_FIXTURE_TARGET')
                     else:
                         prepared = None
@@ -237,6 +240,8 @@ class _LiveSuiteTestsFixtures:
                     self.assertEqual(skipped[0]['skip_reason'], {'attributes': {'message': 'fixture disabled'}, 'text': ''})
                     self.assertFalse(any((line.startswith('-') for line in (report / 'submodules.txt').read_text().splitlines())))
                     self.assertIn('All contract test validations passed', (report / 'lint-test-names.log').read_text())
+                    passes = json.loads((report / 'evm-passes.json').read_text())['passes']
+                    self.assertEqual(passes, {'amsterdam': ['test/unit/Fixture.t.sol'], **({'l2': ['test/L2/InvariantFixture.t.sol']} if suite == 'standard' else {})})
                 self.verify_provider_reports(root, directories, sha, suite, tmp)
             prepared = root / '.ci/contract-suites/standard-main/prepare'
             settings_path, manifest_path = (prepared / 'settings.json', prepared / 'final.json')
@@ -250,7 +255,7 @@ class _LiveSuiteTestsFixtures:
             result = invoke('run', 'standard', 'rwx', prepared)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('Unexpected compiled tracked runtime output role', result.stderr)
-            self.assertFalse((root / '.ci/contract-suites/standard-main/run/tests.stage.json').exists())
+            self.assertFalse((root / '.ci/contract-suites/standard-main/run/tests-amsterdam.stage.json').exists())
             settings_path.write_bytes(original_settings)
             manifest_path.write_bytes(original_manifest)
             binary = contracts / 'scripts/go-ffi/go-ffi'
@@ -258,14 +263,14 @@ class _LiveSuiteTestsFixtures:
             result = invoke('run', 'standard', 'rwx', prepared)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('corrupt', result.stderr)
-            self.assertFalse((root / '.ci/contract-suites/standard-main/run/tests.stage.json').exists())
+            self.assertFalse((root / '.ci/contract-suites/standard-main/run/tests-amsterdam.stage.json').exists())
             result = invoke('prepare', 'standard', 'rwx')
             self.assertEqual(result.returncode, 0, result.stderr)
             env['CI_SUITE_FIXTURE_FAIL'] = '1'
             result = invoke('run', 'standard', 'rwx', prepared)
             self.assertNotEqual(result.returncode, 0)
             report = root / '.ci/contract-suites/standard-main/run'
-            self.assertIn('<failure', (report / 'original.junit.xml').read_text())
+            self.assertIn('<failure', (report / 'original-amsterdam.junit.xml').read_text())
             self.assertTrue((report / 'rerun.stage.json').exists())
             self.assertNotEqual(json.loads((report / 'final.json').read_text())['exit_code'], 0)
             env.pop('CI_SUITE_FIXTURE_FAIL')

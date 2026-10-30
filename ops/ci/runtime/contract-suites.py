@@ -28,6 +28,9 @@ FILE_COMMANDS = {
     'modified': ['bash', '-eo', 'pipefail', '-c',
                  "git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'"],
 }
+# `just test` records each EVM pass's failures and JUnit report separately.
+FAILURES = ('cache/test-failures-amsterdam', 'cache/test-failures-l2')
+RESULTS = ('results/results-amsterdam.xml', 'results/results-l2.xml')
 SPLIT_COMMAND = ['bash', '-eo', 'pipefail', '-c', 'circleci tests split --split-by=timings < "$CI_CONTRACT_FILE_LIST"']
 # GenerateNUTBundleTest calls the real script's run() and verifies the JSON it
 # writes at Constants.CURRENT_BUNDLE_PATH. This tracked snapshot is both an
@@ -116,6 +119,19 @@ def file_selection(text):
 def match_path(files):
     if not files: raise ValueError('Cannot execute an empty contract selection')
     return './test/{' + ','.join(name.removeprefix('test/') for name in files) + '}'
+
+
+def evm_passes(files, pattern):
+    # The justfile's DEFAULT_EVM_TESTS owns the routing: matching files keep
+    # the configured EVM; all other files run under Amsterdam, as `just test` does.
+    default = [name for name in files if re.search(pattern, name)]
+    amsterdam = [name for name in files if name not in default]
+    return {'pattern': pattern, 'passes': {name: rows for name, rows in (('amsterdam', amsterdam), ('l2', default)) if rows}}
+
+
+def pass_argv(name, files):
+    argv = ['forge', 'test', '--match-path', match_path(files), '--junit']
+    return ['env', 'FOUNDRY_HARDFORK=amsterdam', *argv] if name == 'amsterdam' else argv
 
 
 def file_command(suite, target=None):
@@ -282,19 +298,32 @@ def restore(directory, prepared, suite, feature):
 def run(directory):
     chosen = json.loads((directory / 'file-selection.json').read_text())
     if not chosen['files']: return 0
-    for name in ('cache/test-failures', 'cache/fuzz', 'cache/invariant'):
+    for name in ('cache/test-failures', *FAILURES, 'cache/fuzz', 'cache/invariant'):
         p = CONTRACTS / name
         if p.is_dir(): shutil.rmtree(p)
         elif p.exists(): p.unlink()
-    status = UP.stage(directory, 'tests', ['forge', 'test', '--match-path', chosen['match_path'], '--junit'], json_output=True)
-    (directory / 'tests.json').rename(directory / 'original.junit.xml')
+    routing = evm_passes(chosen['files'], UP.command('just', '--evaluate', 'DEFAULT_EVM_TESTS', cwd=CONTRACTS))
+    UP.write(directory / 'evm-passes.json', routing)
     (CONTRACTS / 'results').mkdir(exist_ok=True)
-    shutil.copy2(directory / 'original.junit.xml', CONTRACTS / 'results/results.xml')
-    if status and status < 128: UP.stage(directory, 'rerun', ['just', 'test-rerun'])
+    status, reports = 0, []
+    for name, files in routing['passes'].items():
+        # Each pass keeps its own failure cache so `just test-rerun` replays
+        # failures under the EVM that produced them.
+        (CONTRACTS / 'cache/test-failures').unlink(missing_ok=True)
+        result = UP.stage(directory, 'tests-' + name, pass_argv(name, files), json_output=True)
+        report = directory / ('original-' + name + '.junit.xml'); reports.append(report)
+        (directory / ('tests-' + name + '.json')).rename(report)
+        shutil.copy2(report, CONTRACTS / 'results' / ('results-' + name + '.xml'))
+        if result and (CONTRACTS / 'cache/test-failures').is_file():
+            shutil.copy2(CONTRACTS / 'cache/test-failures', CONTRACTS / 'cache' / ('test-failures-' + name))
+        if result == 0:
+            result = UP.stage(directory, 'junit-nonempty-' + name, ['./scripts/checks/check-junit-tests-ran.sh', str(report)])
+        status = status or result
+        if result >= 128: break
+    if status and status < 128 and any((CONTRACTS / name).is_file() for name in FAILURES):
+        UP.stage(directory, 'rerun', ['just', 'test-rerun'])
     if status == 0:
-        status = UP.stage(directory, 'junit-nonempty', ['./scripts/checks/check-junit-tests-ran.sh', str(directory / 'original.junit.xml')])
-    if status == 0:
-        UP.write(directory / 'coverage.json', UP.junit(directory / 'original.junit.xml',
+        UP.write(directory / 'coverage.json', UP.junit(reports,
                  json.loads((directory / 'selection.json').read_text()), json.loads((directory / 'signature-bindings.json').read_text())))
         status = UP.stage(directory, 'lint-test-names', ['just', 'lint-forge-tests-check-no-build'])
     return status
@@ -307,7 +336,8 @@ def main():
     a = p.parse_args(); directory = ROOT / '.ci/contract-suites' / (a.suite + '-' + a.feature) / a.mode
     if a.prepared and a.mode != 'run': p.error('--prepared requires run mode')
     shutil.rmtree(directory, ignore_errors=True); directory.mkdir(parents=True); status, errors = 1, []
-    if a.mode == 'run': (CONTRACTS / 'results/results.xml').unlink(missing_ok=True)
+    if a.mode == 'run':
+        for name in RESULTS: (CONTRACTS / name).unlink(missing_ok=True)
     try:
         if a.prepared: restore(directory, a.prepared, a.suite, a.feature); status = 0
         else: status = prepare(directory, a.suite, a.feature)
@@ -323,7 +353,7 @@ def main():
         if status == 0: status = 1
     finally:
         # Counterexamples and runtime fixtures are evidence, never compiler outputs.
-        for name in ('cache/test-failures', 'cache/fuzz', 'cache/invariant', '.testdata', '.resource-metering.csv'):
+        for name in ('cache/test-failures', *FAILURES, 'cache/fuzz', 'cache/invariant', '.testdata', '.resource-metering.csv'):
             source = CONTRACTS / name
             if source.exists():
                 target = directory / 'generated' / name; target.parent.mkdir(parents=True, exist_ok=True)
