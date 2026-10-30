@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math/big"
 	"strings"
 	"testing"
@@ -26,6 +25,7 @@ type rpcReplayFixture struct {
 	unavailable    string
 	calls          map[string]int
 	accountIndices []int
+	extended       *extendedReplayFixture
 }
 
 func replayFixture(t *testing.T) *rpcReplayFixture {
@@ -67,6 +67,7 @@ func replayFixture(t *testing.T) *rpcReplayFixture {
 		}
 		f.states = append(f.states, state)
 	}
+	initExtendedFixture(t, f)
 	return f
 }
 
@@ -84,24 +85,31 @@ func (f *rpcReplayFixture) CallContext(ctx context.Context, result any, method s
 		value = f.block
 	case "eth_getBlockByHash":
 		value = f.header
+		if args[0] == f.header.ParentHash {
+			value = map[string]any{"hash": f.header.ParentHash, "stateRoot": f.extended.parentRoot}
+		}
 	case "eth_getTransactionReceipt":
 		value = f.receipts[args[0].(common.Hash)]
 	case "eth_getBalance":
-		value = bigPtr(f.states[0][args[0].(common.Address)])
+		state := 0
+		if args[1].(map[string]any)["blockHash"] == f.header.Hash {
+			state = len(f.states) - 1
+		}
+		value = bigPtr(f.states[state][args[0].(common.Address)])
 	case "debug_accountAt":
 		if args[0] != f.header.Hash {
 			return errors.New("wrong accountAt block hash")
 		}
 		index := args[1].(int)
 		f.accountIndices = append(f.accountIndices, index)
-		value = replayAccount{Balance: bigPtr(f.states[index+1][args[2].(common.Address)])}
+		value = fixtureAccount(f.states[index+1][args[2].(common.Address)])
 	case "debug_traceTransaction":
 		receipt := f.receipts[args[0].(common.Hash)]
 		index := int(receipt.TransactionIndex)
 		opts := args[1].(map[string]any)
 		switch opts["tracer"] {
 		case "callTracer":
-			value = replayCallFrame{GasUsed: uint64Ptr(uint64(receipt.GasUsed))}
+			value = f.fixtureCall(index)
 		case "prestateTracer":
 			diff := replayDiff{Pre: make(map[common.Address]replayAccount), Post: make(map[common.Address]replayAccount)}
 			for addr, after := range f.states[index+1] {
@@ -113,12 +121,12 @@ func (f *rpcReplayFixture) CallContext(ctx context.Context, result any, method s
 			}
 			value = diff
 		default:
-			value = map[string]any{"gas": uint64(receipt.GasUsed), "failed": false}
+			value = map[string]any{"gas": uint64(receipt.GasUsed), "failed": receipt.Status == 0, "output": f.fixtureCall(index).Output}
 		}
 	case "debug_traceBlockByHash", "debug_traceBlockByNumber":
 		frames := make([]map[string]any, 0, len(f.block.Transactions))
-		for _, tx := range f.block.Transactions {
-			frames = append(frames, map[string]any{"txHash": tx.Hash, "result": replayCallFrame{GasUsed: uint64Ptr(uint64(f.receipts[tx.Hash].GasUsed))}})
+		for i, tx := range f.block.Transactions {
+			frames = append(frames, map[string]any{"txHash": tx.Hash, "result": f.fixtureCall(i)})
 		}
 		value = frames
 	case "debug_traceCall":
@@ -140,7 +148,11 @@ func (f *rpcReplayFixture) CallContext(ctx context.Context, result any, method s
 		}
 		value = replayCallFrame{Output: &output}
 	default:
-		return fmt.Errorf("unexpected RPC %s", method)
+		var err error
+		value, err = f.extendedValue(method, args)
+		if err != nil {
+			return err
+		}
 	}
 	// Mutations operate on actual wire-shaped JSON, also testing missing fields.
 	encoded, err := json.Marshal(value)

@@ -83,18 +83,23 @@ settlement even when consensus, receipts and stored state are correct.
 
 ```bash
 # No private key, funding, transactions, or operator opt-in changes.
-go run . sdm rpc --sdm.l2 http://localhost:9545 --sdm.block 12345 --sdm.json
+go run . sdm rpc --sdm.l2 ws://localhost:9546 --sdm.block 12345 --sdm.json
 
 # Check both producer and independent verifier, preserving both failure reports.
-go run . sdm rpc --sdm.l2 http://localhost:9545 \
-  --sdm.l2-verifier http://localhost:9645 --sdm.block 12345 --sdm.json
+go run . sdm rpc --sdm.l2 ws://localhost:9546 \
+  --sdm.l2-verifier ws://localhost:9646 --sdm.block 12345 --sdm.json
 
 # Alternatively add the gate after the existing conformance/workload checks:
-go run . sdm all --sdm.l2 http://localhost:9545 --sdm.account <key> --sdm.check-rpc
-go run . sdm block --sdm.l2 http://localhost:9545 --sdm.block 12345 --sdm.check-rpc
+go run . sdm all --sdm.l2 ws://localhost:9546 --sdm.account <key> --sdm.check-rpc
+go run . sdm block --sdm.l2 ws://localhost:9546 --sdm.block 12345 --sdm.check-rpc
 ```
 
-The selected block must contain actual SDM refunds. Checks cover:
+The selected block must contain actual SDM refunds. Enable `eth`, `debug`,
+`trace`, and `ots` RPC namespaces, JavaScript tracing, and WebSocket access.
+Use `ws://`/`wss://` for each endpoint: `traceChain` is a subscription and cannot
+run over HTTP. Disabled methods/tracers are explicit failures, not skipped passes.
+
+Checks cover:
 
 - `debug_traceTransaction` default and call tracers: each ordinary transaction's
   gas and success/failure agree with its **individual** canonical receipt, not
@@ -111,6 +116,39 @@ The selected block must contain actual SDM refunds. Checks cover:
   code override reads sender/fee-vault balances. Its output must match the
   settled canonical prefix. This tests a synthetic call on settled state,
   not whether a recorded refund is assigned to that synthetic call.
+- `eth_callMany` and `debug_traceCallMany`: the same interior-prefix balance
+  probes, with a scratch counter carried through two calls in one bundle and
+  one call in another. Checks results, bundle ordering and that overrides are
+  applied only once. All writes are ephemeral simulation state.
+- `trace_replayTransaction` and `trace_replayBlockTransactions`: parity balance
+  deltas against the transaction-boundary oracle, execution status and frame
+  structure. **Parity frame gas is not canonical receipt gas** and is not
+  incorrectly compared to it.
+- `trace_transaction`, `trace_get`, `trace_block`, and `trace_filter`: complete
+  frame-tree agreement with single-transaction replay, block/transaction
+  identities, ordering and filter pagination. These are wrapper-consistency
+  checks, not independent proof of every call frame's EVM behavior.
+- `trace_call` and `trace_callMany`: read-only balance probes at the committed
+  block boundary (these APIs do not accept an interior transaction index).
+- `debug_traceTransaction` with a JavaScript tracer: returned execution gas,
+  status and output; `ots_traceTransaction`: flattened call tree agreement;
+  `ots_getTransactionError`: null on successful/halted transactions and exact
+  revert output on reverting transactions, compared with `callTracer`.
+- `debug_intermediateRoots`: reconstruct **every transaction-boundary account
+  trie** from the parent `debug_executionWitness` nodes and full
+  `debug_accountAt` records, then compare each returned root. Does not assume
+  the final intermediate root equals the header root: block finalization may
+  legitimately change state afterward. Witness account-key completeness and
+  executor-backed account records are trusted inputs, not a new EVM execution.
+- `debug_subscribe("traceChain", ...)`: a one-block range, validating block
+  identity and each result's position/hash/gas/status. Missing/null results and
+  transaction-level errors are failures; the subscription is always closed.
+- `debug_traceBlock`: raw diagnostic response shape and invariance when only
+  the header's gasUsed is deliberately invalid. It is **not** required to report
+  settled gas. Nothing is submitted to the Engine API.
+- `debug_traceBadBlock`: when `debug_getBadBlocks` supplies a retained fixture,
+  compare its cached trace with tracing the same raw RLP. No bad blocks are
+  injected into the network just to manufacture coverage.
 - The block must remain canonical throughout the check.
 
 `debug_accountAt` is a required **executor-backed oracle** on op-reth; a missing
@@ -125,14 +163,23 @@ normal conformance and configured safe-head checks first.
 On failure the command exits nonzero; `--sdm.json` still emits per-check results
 under `rpc_replay` and, when selected, `verifier_rpc_replay`. Top-level `all`
 uses `--json` and preserves these within each chain's result. Unsupported methods
-and RPC failures are explicit errors. The normal command timeout bounds the
-check. Trace failures do not cause new workload transactions to be submitted.
-The work scales with block size; prefer small, purpose-built SDM blocks.
+and RPC failures are explicit errors. Missing **fixtures** are different: no
+retained bad block, or no reverting transaction in the selected block, produces
+an explicit `skipped` reason and `complete: false`. Covered checks may succeed
+(exit zero) with these coverage gaps, but the report does not claim a complete
+pass. `complete` is true only when every listed check ran and passed. Logs warn
+about unexercised fixtures even without JSON output.
 
-This is **not** the complete #485 acceptance matrix. It does not cover parity
-`trace_*`, `eth_callMany`/`debug_traceCallMany`, OTS, JS tracers, intermediate
-roots, or raw/bad-block diagnostics. It does not generate a refund-dependent
-insufficient-balance workload or independently prove `debug_accountAt` correct.
+The normal command timeout bounds the check. Trace failures do not cause new
+workload transactions to be submitted. Root reconstruction and indexed replay
+are expensive and scale with block size; prefer small, purpose-built blocks.
+
+This remains **a replay endpoint matrix, not every Ethereum RPC or every option
+of every tracer**. It does not check `trace_rawTransaction`, opcode-statistics
+extensions, OTS explorer/search APIs, arbitrary JS tracers, per-slot storage diffs,
+or timeout/error behavior for every endpoint. It does not generate a
+refund-dependent insufficient-balance workload, a reverted transaction or a
+retained bad block, nor independently prove `debug_accountAt` correct.
 Do not equate passing this gate with completing the issue or fleet rollout.
 
 ## Config

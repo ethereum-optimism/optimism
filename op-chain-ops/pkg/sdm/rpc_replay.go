@@ -22,12 +22,20 @@ type RPCReplayResult struct {
 	BlockHash            common.Hash      `json:"block_hash"`
 	RefundedTransactions int              `json:"refunded_transactions"`
 	Checks               []RPCReplayCheck `json:"checks"`
+	Complete             bool             `json:"complete"`
 }
 
 type RPCReplayCheck struct {
-	Name  string `json:"name"`
-	Error string `json:"error,omitempty"`
+	Name    string `json:"name"`
+	Error   string `json:"error,omitempty"`
+	Skipped string `json:"skipped,omitempty"`
 }
+
+// Missing fixture coverage is distinct from an unavailable/failed RPC method.
+// It never counts as a passed check, even when other checks succeed.
+type replayCoverageGap string
+
+func (g replayCoverageGap) Error() string { return string(g) }
 
 type replayHeader struct {
 	Hash         common.Hash             `json:"hash"`
@@ -56,8 +64,8 @@ type replayDiff struct {
 // does not use debug_replaySDMBlock: that diagnostic replay omits settlement by
 // design and cannot serve as an oracle for refund-dependent transactions.
 //
-// This is not full issue485 coverage: parity traces, call-many, JS tracers,
-// intermediate roots and raw/bad-block diagnostics are not checked here.
+// See the check-lagoon README for the endpoint matrix and fixture requirements.
+// Complete is false when any endpoint fails or a required fixture is absent.
 func ValidateRPCReplay(ctx context.Context, rpc Caller, blockNum uint64) (*RPCReplayResult, error) {
 	validation, err := ValidatePostExecBlock(ctx, rpc, blockNum, ValidationOptions{CheckReceipts: true})
 	if err != nil {
@@ -92,7 +100,9 @@ func ValidateRPCReplay(ctx context.Context, rpc Caller, blockNum uint64) (*RPCRe
 	var failures []error
 	record := func(name string, err error) {
 		check := RPCReplayCheck{Name: name}
-		if err != nil {
+		if gap, skipped := err.(replayCoverageGap); skipped {
+			check.Skipped = string(gap)
+		} else if err != nil {
 			check.Error = err.Error()
 			failures = append(failures, fmt.Errorf("%s: %w", name, err))
 		}
@@ -179,12 +189,14 @@ func ValidateRPCReplay(ctx context.Context, rpc Caller, blockNum uint64) (*RPCRe
 			record(fmt.Sprintf("%s/callTracer tx[%d]", method, i), err)
 		}
 	}
+	checkExtendedRPC(ctx, rpc, blockNum, header, receipts, &oracle, record)
 	// Number-based APIs may have observed a reorg; never certify a different block.
 	canonical, err := GetBlockWithTxs(ctx, rpc, blockNum)
 	if err == nil && canonical.Hash != block.Hash {
 		err = fmt.Errorf("block %d reorged: %s -> %s", blockNum, block.Hash, canonical.Hash)
 	}
 	record("canonical block unchanged", err)
+	result.Complete = !slices.ContainsFunc(result.Checks, func(c RPCReplayCheck) bool { return c.Error != "" || c.Skipped != "" })
 	return result, errors.Join(failures...)
 }
 
@@ -321,7 +333,7 @@ func checkReplayDiff(ctx context.Context, oracle *replayBalances, index int, req
 	return errors.Join(failures...)
 }
 
-func checkReplayPrefix(ctx context.Context, rpc Caller, oracle *replayBalances, index int, addresses []common.Address) error {
+func balanceProbe(addresses []common.Address) (map[string]any, map[common.Address]any) {
 	// BALANCE probes avoid inferring canonical state from the trace under test.
 	// Each address returns one 32-byte word; all five offsets fit PUSH1.
 	probe := common.HexToAddress("0x000000000000000000000000000000000000dead")
@@ -332,18 +344,25 @@ func checkReplayPrefix(ctx context.Context, rpc Caller, oracle *replayBalances, 
 		code = append(code, 0x31, 0x60, byte(i*32), 0x52) // BALANCE, PUSH1 offset, MSTORE
 	}
 	code = append(code, 0x60, byte(len(addresses)*32), 0x5f, 0xf3) // size, PUSH0, RETURN
+	return map[string]any{"to": probe, "gas": "0x100000", "gasPrice": "0x0"}, map[common.Address]any{probe: map[string]any{"code": code}}
+}
+
+func checkReplayPrefix(ctx context.Context, rpc Caller, oracle *replayBalances, index int, addresses []common.Address) error {
+	call, overrides := balanceProbe(addresses)
 	var frame replayCallFrame
-	err := rpc.CallContext(ctx, &frame, "debug_traceCall",
-		map[string]any{"to": probe, "gas": "0x100000", "gasPrice": "0x0"},
-		oracle.hash,
-		map[string]any{"tracer": "callTracer", "txIndex": hexutil.Uint64(index + 1), "stateOverrides": map[common.Address]any{probe: map[string]any{"code": code}}})
+	err := rpc.CallContext(ctx, &frame, "debug_traceCall", call, oracle.hash,
+		map[string]any{"tracer": "callTracer", "txIndex": hexutil.Uint64(index + 1), "stateOverrides": overrides})
 	if err != nil {
 		return err
 	}
 	if frame.Error != "" {
 		return errors.New(frame.Error)
 	}
-	if frame.Output == nil || len(*frame.Output) != len(addresses)*32 {
+	return checkBalanceOutput(ctx, oracle, index, addresses, frame.Output)
+}
+
+func checkBalanceOutput(ctx context.Context, oracle *replayBalances, index int, addresses []common.Address, output *hexutil.Bytes) error {
+	if output == nil || len(*output) != len(addresses)*32 {
 		return errors.New("balance probe returned missing/truncated output")
 	}
 	var failures []error
@@ -352,7 +371,7 @@ func checkReplayPrefix(ctx context.Context, rpc Caller, oracle *replayBalances, 
 		if err != nil {
 			return err
 		}
-		actual := new(big.Int).SetBytes((*frame.Output)[i*32 : (i+1)*32])
+		actual := new(big.Int).SetBytes((*output)[i*32 : (i+1)*32])
 		if actual.Cmp(expected) != 0 {
 			failures = append(failures, fmt.Errorf("%s prefix balance %s, canonical %s", address, actual, expected))
 		}

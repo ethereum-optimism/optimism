@@ -320,6 +320,18 @@ func checkRPCReplay(ctx context.Context, cfg Config, producer sdm.Caller, result
 			verifierErr = errors.Join(verifierErr, errors.New("producer/verifier RPC replay block hashes differ"))
 		}
 	}
+	if cfg.Log != nil {
+		for _, report := range []*sdm.RPCReplayResult{result.RPCReplay, result.VerifierRPCReplay} {
+			if report == nil {
+				continue
+			}
+			for _, check := range report.Checks {
+				if check.Skipped != "" {
+					cfg.Log.Warn("RPC replay coverage not exercised", "check", check.Name, "reason", check.Skipped)
+				}
+			}
+		}
+	}
 	return result, errors.Join(producerErr, verifierErr)
 }
 

@@ -134,7 +134,7 @@ var (
 	SDMCheckRPC = &cli.BoolFlag{
 		Name:    "sdm.check-rpc",
 		Aliases: []string{"sdm-check-rpc"},
-		Usage:   "Also require canonical debug RPC gas, transaction-boundary balances, and settled indexed-call prefixes (issue 485)",
+		Usage:   "Also check SDM replay across debug, trace, call-many and OTS (requires WebSocket and JS tracing)",
 		EnvVars: op_service.PrefixEnvVar(prefix, "SDM_CHECK_RPC"),
 	}
 	SDMJSON = &cli.BoolFlag{
@@ -646,7 +646,8 @@ func runSDMAction(c *cli.Context, mode string) error {
 		return err
 	}
 	if mode == "rpc" {
-		logger.Info("SDM canonical RPC replay checks passed", "block", result.RPCReplay.BlockNumber, "hash", result.RPCReplay.BlockHash)
+		complete := result.RPCReplay.Complete && (result.VerifierRPCReplay == nil || result.VerifierRPCReplay.Complete)
+		logger.Info("SDM canonical RPC replay checks completed", "block", result.RPCReplay.BlockNumber, "hash", result.RPCReplay.BlockHash, "complete", complete)
 		return nil
 	}
 	validation := result.Conformance.ValidationResult

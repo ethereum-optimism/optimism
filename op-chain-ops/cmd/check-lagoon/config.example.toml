@@ -40,7 +40,9 @@ contract-a = ""
 contract-b = ""
 # Enable the producer's SDM opt-in for the duration of the check if it is off.
 opt-in = false
-# Also gate generic RPC replay settlement (issue485); requires debug_accountAt.
+# Also gate RPC replay settlement; enable debug/trace/ots and JavaScript tracing.
+# For this gate, use ws:// or wss:// l2/l2-verifier (l2-a/l2-b for top-level all).
+# Missing bad/revert fixtures are reported explicitly with complete=false.
 # `sdm rpc` always runs this gate, regardless of this flag.
 check-rpc = false
 json = false
