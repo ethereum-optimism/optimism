@@ -6,6 +6,7 @@ use alloy_provider::RootProvider;
 use alloy_rpc_client::ClientBuilder;
 use alloy_transport::{TransportError, TransportErrorKind};
 use kona_genesis::RollupConfig;
+use kona_providers_alloy::AlloyChainProvider;
 use kona_rpc::L1WatcherQueries;
 use std::sync::{
     Arc,
@@ -26,7 +27,7 @@ struct RpcState {
     cancelled: Notify,
 }
 
-fn provider(state: Arc<RpcState>) -> RootProvider {
+fn provider(state: Arc<RpcState>) -> AlloyChainProvider {
     let transport = tower::service_fn(
         move |request: RequestPacket| -> alloy_transport::TransportFut<'static> {
             let state = state.clone();
@@ -83,11 +84,12 @@ fn provider(state: Arc<RpcState>) -> RootProvider {
         },
     );
     // Bound requests as production's L1 transport does, so a stalled read fails and is retried.
-    RootProvider::new(
+    let rpc = RootProvider::new(
         ClientBuilder::default()
             .layer(tower::util::MapFutureLayer::new(kona_engine::with_deadline))
             .transport(transport, false),
-    )
+    );
+    AlloyChainProvider::new(rpc, 8)
 }
 
 struct ChainHandles {
