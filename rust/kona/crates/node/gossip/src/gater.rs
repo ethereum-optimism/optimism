@@ -233,11 +233,8 @@ impl ConnectionGater {
     fn check_ip(addr: &Multiaddr, ip: IpAddr, gate: &gate::Behaviour) -> Result<(), DialError> {
         gate.check_ip(ip).inspect_err(|refusal| {
             debug!(target: "gossip", peer=?addr, %refusal, "Not dialing a blocked address");
-            let kind = match refusal {
-                DialError::AddressBlocked { .. } => "blocked_address",
-                _ => "blocked_subnet",
-            };
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => kind).increment(1);
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => refusal.reason())
+                .increment(1);
         })
     }
 }

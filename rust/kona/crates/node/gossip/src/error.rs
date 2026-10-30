@@ -164,6 +164,24 @@ pub enum DialError {
     },
 }
 
+impl DialError {
+    /// Returns the reason as a metric label, such as `blocked_peer`.
+    pub(crate) const fn reason(&self) -> &'static str {
+        match self {
+            Self::InvalidMultiaddr { .. } => "invalid_multiaddr",
+            Self::AlreadyDialing { .. } => "already_dialing",
+            Self::ThresholdReached { .. } => "threshold_reached",
+            Self::PeerBlocked { .. } => "blocked_peer",
+            Self::PeerBanned { .. } => "banned_peer",
+            Self::InvalidIpAddress { .. } => "invalid_ip_address",
+            Self::AddressBlocked { .. } => "blocked_address",
+            Self::SubnetBlocked { .. } => "blocked_subnet",
+            Self::NoAddresses { .. } => "no_addresses",
+            Self::SwarmRefused { .. } => "swarm_refused",
+        }
+    }
+}
+
 /// Error parsing a [`PeerAddr`](crate::PeerAddr) address.
 #[derive(Debug, Error)]
 pub enum PeerAddrError {

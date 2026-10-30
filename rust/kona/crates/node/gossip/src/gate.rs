@@ -190,6 +190,14 @@ impl Behaviour {
     }
 }
 
+/// Counts an inbound connection the gate refuses, by its reason, and wraps the refusal for the
+/// swarm.
+fn refuse_inbound(refusal: DialError) -> ConnectionDenied {
+    metrics::counter!(crate::Metrics::INBOUND_CONNECTIONS_REFUSED, "reason" => refusal.reason())
+        .increment(1);
+    ConnectionDenied::new(refusal)
+}
+
 /// Refuses inbound connections from blocked or banned peers and from blocked IP addresses and
 /// subnets, and our own connections to addresses blocked while we dialed them. Has no protocol or
 /// events of its own.
@@ -214,7 +222,7 @@ impl NetworkBehaviour for Behaviour {
         };
         self.check_ip(ip).map_err(|refusal| {
             debug!(target: "gossip", %remote_addr, %refusal, "Refusing a connection from a blocked address");
-            ConnectionDenied::new(refusal)
+            refuse_inbound(refusal)
         })
     }
 
@@ -229,11 +237,11 @@ impl NetworkBehaviour for Behaviour {
     ) -> Result<THandler<Self>, ConnectionDenied> {
         if self.is_blocked_peer(&peer) {
             debug!(target: "gossip", %peer, %remote_addr, "Refusing a connection from a blocked peer");
-            return Err(ConnectionDenied::new(DialError::PeerBlocked { peer_id: peer }));
+            return Err(refuse_inbound(DialError::PeerBlocked { peer_id: peer }));
         }
         if self.is_banned_peer(&peer) {
             debug!(target: "gossip", %peer, %remote_addr, "Refusing a connection from a banned peer");
-            return Err(ConnectionDenied::new(DialError::PeerBanned { peer_id: peer }));
+            return Err(refuse_inbound(DialError::PeerBanned { peer_id: peer }));
         }
         Ok(dummy::ConnectionHandler)
     }
@@ -280,6 +288,51 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use metrics_util::debugging::{DebugValue, DebuggingRecorder};
+    use rstest::rstest;
+    use std::time::Duration;
+
+    /// Each inbound connection the gate refuses is counted under its reason.
+    #[rstest]
+    #[case::blocked_peer("blocked_peer", |gate: &mut Behaviour, peer: PeerId| gate.block_peer(peer))]
+    #[case::banned_peer("banned_peer", |gate: &mut Behaviour, peer: PeerId| {
+        gate.ban_peer(peer, Instant::now() + Duration::from_secs(60))
+    })]
+    #[case::blocked_address("blocked_address", |gate: &mut Behaviour, _: PeerId| gate.block_addr("10.0.0.1".parse().unwrap()))]
+    #[case::blocked_subnet("blocked_subnet", |gate: &mut Behaviour, _: PeerId| gate.block_subnet("10.0.0.0/8".parse().unwrap()))]
+    fn test_refused_inbound_connections_are_counted_by_reason(
+        #[case] reason: &str,
+        #[case] block: fn(&mut Behaviour, PeerId),
+    ) {
+        let peer = PeerId::random();
+        let local: Multiaddr = "/ip4/127.0.0.1/tcp/9222".parse().unwrap();
+        let remote: Multiaddr = "/ip4/10.0.0.1/tcp/40000".parse().unwrap();
+        let mut gate = Behaviour::default();
+        block(&mut gate, peer);
+
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            // The swarm asks before the handshake, then once the peer ID is known.
+            let id = ConnectionId::new_unchecked(0);
+            let refused = gate.handle_pending_inbound_connection(id, &local, &remote).is_err() ||
+                gate.handle_established_inbound_connection(id, peer, &local, &remote).is_err();
+            assert!(refused, "the gate let the connection in");
+        });
+
+        let counted: Vec<_> = snapshotter
+            .snapshot()
+            .into_vec()
+            .into_iter()
+            .filter(|(key, ..)| key.key().name() == crate::Metrics::INBOUND_CONNECTIONS_REFUSED)
+            .map(|(key, _, _, value)| {
+                let label =
+                    key.key().labels().find(|l| l.key() == "reason").map(|l| l.value().to_owned());
+                (label, value)
+            })
+            .collect();
+        assert_eq!(counted, vec![(Some(reason.to_owned()), DebugValue::Counter(1))]);
+    }
 
     #[test]
     fn test_is_in_blocked_subnet_ipv4() {
