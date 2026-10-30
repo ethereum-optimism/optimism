@@ -2,10 +2,10 @@
 
 use super::{L1WatcherActorError, L1WatcherChain, L1WatcherDerivationClient};
 use crate::NodeActor;
-use alloy_provider::Provider;
 use async_trait::async_trait;
 use futures::{Stream, StreamExt};
 use kona_protocol::BlockInfo;
+use kona_providers_alloy::AlloyChainProvider;
 use tokio::{sync::watch, task::JoinSet};
 
 #[derive(Debug)]
@@ -20,13 +20,12 @@ struct ChainExit {
 /// lets a slow chain catch up without either blocking its peers or growing a queue indefinitely.
 /// Workers and their in-flight RPCs are cancelled when the watcher is dropped.
 #[derive(Debug)]
-pub struct L1WatcherActor<BlockStream, L1Provider, Client>
+pub struct L1WatcherActor<BlockStream, Client>
 where
     BlockStream: Stream<Item = BlockInfo> + Unpin + Send,
-    L1Provider: Provider + Clone,
     Client: L1WatcherDerivationClient,
 {
-    l1_provider: L1Provider,
+    l1_provider: AlloyChainProvider,
     latest_head: watch::Sender<Option<BlockInfo>>,
     latest_finalized: watch::Sender<Option<BlockInfo>>,
     head_stream: BlockStream,
@@ -36,10 +35,9 @@ where
     workers: JoinSet<ChainExit>,
 }
 
-impl<BlockStream, L1Provider, Client> L1WatcherActor<BlockStream, L1Provider, Client>
+impl<BlockStream, Client> L1WatcherActor<BlockStream, Client>
 where
     BlockStream: Stream<Item = BlockInfo> + Unpin + Send,
-    L1Provider: Provider + Clone,
     Client: L1WatcherDerivationClient,
 {
     /// Constructs a watcher. Workers are started by the first call to `step`.
@@ -47,7 +45,7 @@ where
     /// # Panics
     /// Panics when there are no chains to serve.
     pub fn new(
-        l1_provider: L1Provider,
+        l1_provider: AlloyChainProvider,
         latest_head: watch::Sender<Option<BlockInfo>>,
         head_stream: BlockStream,
         finalized_stream: BlockStream,
@@ -68,10 +66,9 @@ where
 }
 
 #[async_trait]
-impl<BlockStream, L1Provider, Client> NodeActor for L1WatcherActor<BlockStream, L1Provider, Client>
+impl<BlockStream, Client> NodeActor for L1WatcherActor<BlockStream, Client>
 where
     BlockStream: Stream<Item = BlockInfo> + Unpin + Send + 'static,
-    L1Provider: Provider + Clone + 'static,
     Client: L1WatcherDerivationClient + 'static,
 {
     type Error = L1WatcherActorError<BlockInfo>;

@@ -155,7 +155,7 @@ impl RollupNodeBuilder {
 
         // Every L1 request is bounded, so a stalled endpoint fails its caller instead of hanging
         // it.
-        let engine_provider = RootProvider::new(
+        let l1_rpc = RootProvider::new(
             ClientBuilder::default()
                 .layer(MapFutureLayer::new(kona_engine::with_deadline))
                 .http(self.l1_config_builder.rpc_url.clone()),
@@ -164,11 +164,10 @@ impl RollupNodeBuilder {
             chain_config: Arc::new(self.l1_config_builder.chain_config),
             beacon_client: l1_beacon,
             provider: AlloyChainProvider::new_with_trust(
-                engine_provider.clone(),
+                l1_rpc,
                 L1_PROVIDER_CACHE_SIZE,
                 self.l1_config_builder.trust_rpc,
             ),
-            engine_provider,
         };
 
         let jwt_secret = self.engine_config.l2_jwt_secret;
