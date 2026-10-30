@@ -30,17 +30,21 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 
 /// @custom:proxied true
 /// @title MockOptimismPortal2
-/// @notice Devnet-only OptimismPortal for the bridge-screener mock stack, selected by the
-///         BRIDGE_HOOK_MOCKS dev feature. It reproduces the deposit and withdrawal event
-///         choreography, including the bridge hook paths that the real Portal only declares as
-///         empty stubs, and verifies nothing: no merkle proofs, no dispute games, no resource
-///         metering.
-/// @dev    NOT FOR PRODUCTION. Two divergences from the spec are deliberate and load-bearing.
-///         First, setBridgeHook exists because OPCM passes a zero hook and ChainAssertions
-///         requires the hook to still be zero when DeployOPChain finishes, so the hook can only
-///         be wired afterwards. The real Portal must keep initialize as the only way to set it.
-///         Second, deposits are not metered, so the deposit gas accounting the spec requires is
-///         absent entirely.
+/// @notice Devnet-only OptimismPortal for the bridge-screener integration, installed by
+///         DeployComplianceMocks when its useMockPortal input is set. It reproduces the deposit
+///         and withdrawal choreography, including the bridge hook paths that the real Portal
+///         only declares as empty stubs, and verifies nothing: no merkle proofs, no dispute
+///         games, no resource metering.
+/// @dev    NOT FOR PRODUCTION.
+///
+///         Its storage mirrors the real Portal's slot for slot, because it replaces the
+///         implementation behind the live Portal proxy. Fields it never reads are declared as
+///         spacers rather than omitted, which keeps the swap safe in both directions.
+///
+///         Two divergences from the spec are deliberate. Proving verifies nothing, so
+///         setProofMaturityDelaySeconds drops the real Portal's bounds and a withdrawal can be
+///         finalized without waiting. And deposits are not metered, so the deposit gas
+///         accounting the spec requires is absent entirely.
 contract MockOptimismPortal2 is Initializable, ReinitializableBase, ProxyAdminOwnedBase, ISemver {
     /// @notice Represents a proven withdrawal. The mock verifies no dispute game, but keeps the
     ///         field so the struct packs exactly as the real Portal's does. Dropping it would
@@ -229,8 +233,9 @@ contract MockOptimismPortal2 is Initializable, ReinitializableBase, ProxyAdminOw
         _disableInitializers();
     }
 
-    /// @notice Initializer. Mirrors the real Portal's signature exactly, because OPCM encodes
-    ///         this call and passes a zero bridge hook.
+    /// @notice Initializer. Mirrors the real Portal's signature exactly, because the rewire
+    ///         encodes IOptimismPortal2.initialize against the real interface, and because any
+    ///         later upgrade back to the real implementation uses the same call.
     /// @param _systemConfig Address of the SystemConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
     /// @param _ethLockbox Address of the ETHLockbox.
@@ -316,27 +321,14 @@ contract MockOptimismPortal2 is Initializable, ReinitializableBase, ProxyAdminOw
         emit ProofMaturityDelaySecondsSet(_proofMaturityDelaySeconds);
     }
 
-    /// @notice Locks the Portal's whole ETH balance into the lockbox. OPCM calls this on an
-    ///         initial deployment.
+    /// @notice Locks the Portal's whole ETH balance into the lockbox. Nothing in the rewire
+    ///         calls it; it is kept so the mock does not quietly drop part of the Portal's
+    ///         surface while it stands in for one.
     function migrateLiquidity() public {
         _assertOnlyProxyAdminOwner();
         uint256 ethBalance = address(this).balance;
         if (_isUsingLockbox()) _lockETH(ethBalance);
         emit ETHMigrated(address(ethLockbox), ethBalance);
-    }
-
-    /// @notice Sets the bridge hook after deployment.
-    /// @dev    MOCK ONLY, and a deliberate divergence from the spec, which makes initialize the
-    ///         only way to set a hook. OPCM passes a zero hook and ChainAssertions requires the
-    ///         hook to still be zero when DeployOPChain finishes, so there is no other moment to
-    ///         wire a module that itself needs the Portal's address. Do not copy this into the
-    ///         real Portal.
-    /// @param _bridgeHook The hook to set.
-    function setBridgeHook(IBridgeHook _bridgeHook) external {
-        _assertOnlyProxyAdminOwner();
-        if (address(_bridgeHook) == address(0)) revert OptimismPortal_InvalidBridgeHookState();
-        bridgeHook = _bridgeHook;
-        emit BridgeHookSet(_bridgeHook);
     }
 
     /// @notice Removes the bridge hook. The removed hook keeps the value it holds.
