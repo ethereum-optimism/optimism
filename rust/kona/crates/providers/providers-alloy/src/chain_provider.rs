@@ -10,7 +10,6 @@ use alloy_eips::{
 use alloy_primitives::{B256, Bytes};
 use alloy_provider::{Provider, RootProvider};
 use alloy_transport::{RpcError, TransportErrorKind};
-use alloy_transport_http::reqwest;
 use async_trait::async_trait;
 use kona_derive::{ChainProvider, PipelineError, PipelineErrorKind, ResetError};
 use kona_protocol::BlockInfo;
@@ -111,19 +110,11 @@ fn lock<T>(cache: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 impl AlloyChainProvider {
-    /// Creates a new [`AlloyChainProvider`] with the given alloy provider.
-    ///
-    /// ## Panics
-    /// - Panics if `cache_size` is zero.
-    pub fn new(inner: RootProvider, cache_size: usize) -> Self {
-        Self::new_with_trust(inner, cache_size, true)
-    }
-
     /// Creates a new [`AlloyChainProvider`] with the given alloy provider and trust setting.
     ///
     /// ## Panics
     /// - Panics if `cache_size` is zero.
-    pub fn new_with_trust(inner: RootProvider, cache_size: usize, trust_rpc: bool) -> Self {
+    pub fn new(inner: RootProvider, cache_size: usize, trust_rpc: bool) -> Self {
         let cache_size = NonZeroUsize::new(cache_size).unwrap();
         Self {
             inner,
@@ -136,12 +127,6 @@ impl AlloyChainProvider {
                 raw_receipts_supported: AtomicBool::new(true),
             }),
         }
-    }
-
-    /// Creates a new [`AlloyChainProvider`] from the provided [`reqwest::Url`].
-    pub fn new_http(url: reqwest::Url, cache_size: usize) -> Self {
-        let inner = RootProvider::new_http(url);
-        Self::new(inner, cache_size)
     }
 
     /// Hides L1 blocks with fewer than `depth` confirmations from forward traversal.
@@ -759,7 +744,7 @@ mod tests {
 
     /// Creates a chain provider backed by a FIFO mock RPC transport.
     fn mocked_provider(asserter: Asserter) -> AlloyChainProvider {
-        AlloyChainProvider::new(RootProvider::new(RpcClient::mocked(asserter)), 8)
+        AlloyChainProvider::new(RootProvider::new(RpcClient::mocked(asserter)), 8, true)
     }
 
     fn observed_head(number: u64) -> BlockInfo {
@@ -843,7 +828,7 @@ mod tests {
             RpcHeader::new(header.clone()),
             BlockTransactions::Hashes(Vec::new()),
         )));
-        let provider = AlloyChainProvider::new_with_trust(
+        let provider = AlloyChainProvider::new(
             RootProvider::new(RpcClient::mocked(asserter.clone())),
             8,
             false,
@@ -865,11 +850,8 @@ mod tests {
             rpc_header,
             BlockTransactions::Hashes(Vec::new()),
         )));
-        let provider = AlloyChainProvider::new_with_trust(
-            RootProvider::new(RpcClient::mocked(asserter)),
-            8,
-            false,
-        );
+        let provider =
+            AlloyChainProvider::new(RootProvider::new(RpcClient::mocked(asserter)), 8, false);
 
         assert!(provider.block_info_by_label(BlockLabel::Latest).await.is_err());
     }
@@ -1043,7 +1025,11 @@ mod tests {
             when.method(POST).body_includes("eth_getBlockReceipts");
             then.status(500);
         });
-        let provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            8,
+            true,
+        );
 
         assert_eq!(provider.receipts_by_hash(B256::repeat_byte(0xaa)).await.unwrap(), [expected]);
         raw_mock.assert();
@@ -1148,7 +1134,11 @@ mod tests {
                 .header("content-type", "application/json")
                 .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": [] }));
         });
-        let provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            8,
+            true,
+        );
         let provider_clone = provider.clone();
 
         assert!(provider.receipts_by_hash(B256::repeat_byte(0xba)).await.unwrap().is_empty());
@@ -1174,7 +1164,11 @@ mod tests {
                 .header("content-type", "application/json")
                 .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": [] }));
         });
-        let provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            8,
+            true,
+        );
 
         assert!(provider.receipts_by_hash(B256::repeat_byte(0xbc)).await.unwrap().is_empty());
         assert!(provider.receipts_by_hash(B256::repeat_byte(0xbd)).await.unwrap().is_empty());
@@ -1206,7 +1200,11 @@ mod tests {
                 }),
             );
         });
-        let provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            8,
+            true,
+        );
 
         let first_error = provider.receipts_by_hash(B256::repeat_byte(0xbc)).await.unwrap_err();
         assert!(matches!(first_error, AlloyChainProviderError::ReceiptMethodsFailed { .. }));
@@ -1239,7 +1237,11 @@ mod tests {
                 .header("content-type", "application/json")
                 .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": [] }));
         });
-        let provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            8,
+            true,
+        );
 
         assert!(provider.receipts_by_hash(B256::repeat_byte(0xca)).await.unwrap().is_empty());
         assert!(provider.receipts_by_hash(B256::repeat_byte(0xcb)).await.unwrap().is_empty());
@@ -1263,7 +1265,11 @@ mod tests {
                 .header("content-type", "application/json")
                 .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": [] }));
         });
-        let provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            8,
+            true,
+        );
 
         assert!(provider.receipts_by_hash(B256::repeat_byte(0xda)).await.unwrap().is_empty());
         raw_mock.assert();
@@ -1294,7 +1300,11 @@ mod tests {
                 }),
             );
         });
-        let provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            8,
+            true,
+        );
 
         let error = provider.receipts_by_hash(B256::repeat_byte(0xea)).await.unwrap_err();
         assert!(matches!(error, AlloyChainProviderError::ReceiptMethodsFailed { .. }));
@@ -1328,7 +1338,11 @@ mod tests {
                 .header("content-type", "application/json")
                 .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": null }));
         });
-        let provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            8,
+            true,
+        );
         let hash = B256::repeat_byte(0xfa);
 
         let error = provider.receipts_by_hash(hash).await.unwrap_err();
@@ -1436,7 +1450,11 @@ mod tests {
                 serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": json_receipts }),
             );
         });
-        let provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            8,
+            true,
+        );
 
         assert_eq!(provider.receipts_by_hash(block_hash).await.unwrap(), expected);
         raw_mock.assert();
