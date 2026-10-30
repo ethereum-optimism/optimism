@@ -10,8 +10,9 @@ the message expiry configuration, and SDM PostExec conformance.
 Runs the `interop-smoke all` suite, the `expiry` check on both chains, and one
 SDM workload per chain concurrently. The expiry check compares the
 `ETHLiquidity` pause with L1 only when `--expiry.l1` and two
-`--expiry.l1-messenger` values (chain A, then chain B) are set. It derives an SDM account from `--account` (or uses `--sdm-account`) and tops
-it up to `--sdm-l2-fund-amount` on both chains.
+`--expiry.l1-messenger` values (chain A, then chain B) are set. It derives an
+SDM account from `--account` (or uses `--sdm-account`) and tops it up to
+`--sdm-l2-fund-amount` on both chains.
 
 ```bash
 go run . all \
