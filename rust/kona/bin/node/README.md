@@ -21,10 +21,6 @@ kona-node [GLOBAL_OPTIONS] <SUBCOMMAND> [SUBCOMMAND_OPTIONS]
 ### Available Subcommands
 
 - **`node`** (alias: `n`) - Runs the consensus node for OP Stack rollup validation
-- **`net`** (aliases: `p2p`, `network`) - Runs the networking stack for the node
-- **`registry`** (aliases: `r`, `scr`) - Lists OP Stack chains available in the superchain-registry
-- **`bootstore`** (aliases: `b`, `boot`, `store`) - Utility tool to interact with local bootstores
-- **`info`** - Get information about OP Stack chains
 
 ### Running the Consensus Node
 
@@ -111,35 +107,8 @@ Use the `--help` flag to see all available options and subcommands:
 # General help
 kona-node --help
 
-# Help for specific subcommands
+# Help for the node subcommand
 kona-node node --help
-kona-node net --help
-kona-node registry --help
-```
-
-### Networking and P2P
-
-Run just the networking stack:
-
-```bash
-kona-node net \
-  --p2p.listen.tcp 9223 \
-  --p2p.listen.udp 9223 \
-  --p2p.bootstore ./bootstore
-```
-
-### Registry Information
-
-List available OP Stack chains:
-
-```bash
-kona-node registry
-```
-
-Get information about a specific chain:
-
-```bash
-kona-node info --help
 ```
 
 ## Requirements

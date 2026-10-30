@@ -381,10 +381,10 @@
           ]
         },
         {
-          "name": "contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP",
+          "name": "contracts-bedrock-tests INTEROP",
           "group": "contracts-suites",
           "tasks": [
-            "verdict-standard-OPTIMISM_PORTAL_INTEROP"
+            "verdict-standard-INTEROP"
           ]
         },
         {
@@ -430,10 +430,10 @@
           ]
         },
         {
-          "name": "contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP",
+          "name": "contracts-bedrock-tests-heavy-fuzz-modified INTEROP",
           "group": "contracts-suites",
           "tasks": [
-            "verdict-modified-OPTIMISM_PORTAL_INTEROP"
+            "verdict-modified-INTEROP"
           ]
         },
         {
@@ -479,10 +479,10 @@
           ]
         },
         {
-          "name": "contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP",
+          "name": "contracts-bedrock-coverage INTEROP",
           "group": "contracts-coverage",
           "tasks": [
-            "verdict-OPTIMISM_PORTAL_INTEROP"
+            "verdict-INTEROP"
           ]
         },
         {
@@ -528,10 +528,10 @@
           ]
         },
         {
-          "name": "contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP",
+          "name": "contracts-bedrock-tests-upgrade op-mainnet INTEROP",
           "group": "contracts-upgrades",
           "tasks": [
-            "verdict-feature-OPTIMISM_PORTAL_INTEROP"
+            "verdict-feature-INTEROP"
           ]
         },
         {

@@ -743,7 +743,6 @@ spin = "0.10.0"
 strum = { version = "0.27", default-features = false }
 strum_macros = "0.27"
 syn = "2.0"
-tabled = { version = "0.20.0", default-features = false }
 tar = "0.4.44"
 thiserror = { version = "2.0.18", default-features = false }
 unsigned-varint = "0.8.0"

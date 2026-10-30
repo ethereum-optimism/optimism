@@ -15,7 +15,6 @@ Active flags:
 
 | Flag | Gates |
 |------|-------|
-| `OptimismPortalInterop` | Super dispute game implementations in `DeployImplementations`; no effect while `SuperRootGamesMigration` is on by default |
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `ZKDisputeGame` | ZK dispute game system |
 | `BridgeHook` | Bridge hook configuration on OptimismPortal2, currently planned only for the compliance module |
@@ -68,12 +67,11 @@ What it gates is **runtime activation timing** in op-node (when NUT bundle depos
 
 A separate, **test-only** assembler exists for Foundry tests and fork scripts. It reads env vars for opt-in features and hardcodes default-on features. It is isolated from the production path — no `src/` contract and no production deploy script reads these controls.
 
-- `DEV_FEATURE__OPTIMISM_PORTAL_INTEROP`
 - `DEV_FEATURE__ZK_DISPUTE_GAME`
 - `DEV_FEATURE__BRIDGE_HOOK`
 - `DEV_FEATURE__OP_PRIVATE`
 
-Interop, ZK, bridge hook and OP Private are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
+ZK, bridge hook and OP Private are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
 
 - `test/setup/FeatureFlags.sol` — `resolveFeaturesFromEnv()` OR-s each enabled flag into `devFeatureBitmap`
 - `test/setup/ForkL1Live.s.sol` — branches on individual `Config.devFeature*` returns

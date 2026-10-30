@@ -15,7 +15,7 @@ SCRIPTS = Path(__file__).resolve().parents[1] / 'runtime'
 FEATURES = {
     "main": None,
     "CUSTOM_GAS_TOKEN": "SYS_FEATURE__CUSTOM_GAS_TOKEN",
-    "OPTIMISM_PORTAL_INTEROP": "DEV_FEATURE__OPTIMISM_PORTAL_INTEROP",
+    "INTEROP": "SYS_FEATURE__INTEROP",
     "ZK_DISPUTE_GAME": "DEV_FEATURE__ZK_DISPUTE_GAME",
     "BRIDGE_HOOK": "DEV_FEATURE__BRIDGE_HOOK",
     "BRIDGE_HOOK,ZK_DISPUTE_GAME": "DEV_FEATURE__BRIDGE_HOOK DEV_FEATURE__ZK_DISPUTE_GAME",
@@ -220,7 +220,7 @@ class ContractsShadowTest(unittest.TestCase):
     def test_inherited_filters_features_reduction_and_rpc_overrides_are_removed(self):
         self.assert_success(self.run_helper(
             FOUNDRY_PROFILE="lite", FOUNDRY_FUZZ_RUNS="1", FOUNDRY_MATCH_TEST="only_one", DAPP_TEST_NUMBER="1",
-            DEV_FEATURE__OPTIMISM_PORTAL_INTEROP="true", SYS_FEATURE__CUSTOM_GAS_TOKEN="true",
+            SYS_FEATURE__INTEROP="true", SYS_FEATURE__CUSTOM_GAS_TOKEN="true",
             FORK_TEST="true", L2_FORK_TEST="true", L2CM_ACTIVATION_TEST="true", ETH_RPC_URL="fixture-rpc",
             FORK_RPC_URL="fixture-rpc",
         ))

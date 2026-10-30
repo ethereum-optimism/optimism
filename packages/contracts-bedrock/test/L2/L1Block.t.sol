@@ -11,7 +11,6 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/L1BlockErrors.sol";
 import { Features } from "src/libraries/Features.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
@@ -523,8 +522,8 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
 
     /// @notice Tests that setFeature succeeds when called by the depositor.
     function test_setFeature_succeeds() external {
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            vm.skip(true, "Interop is already enabled by the dev feature");
+        if (deploy.cfg().useInterop()) {
+            vm.skip(true, "Interop is already enabled by the deploy config");
         }
         vm.expectEmit(Predeploys.L1_BLOCK_ATTRIBUTES);
         emit FeatureSet(Features.INTEROP, true);
@@ -548,8 +547,8 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
 
     /// @notice Tests that setFeature reverts when the feature is already enabled.
     function test_setFeature_alreadyEnabled_reverts() external {
-        // If the interop dev feature is not enabled, set the feature
-        if (!isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        // L2 genesis sets the feature when interop is active at genesis.
+        if (!l1Block.isFeatureEnabled(Features.INTEROP)) {
             vm.prank(depositor);
             l1Block.setFeature(Features.INTEROP);
         }
@@ -561,9 +560,8 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
 
     /// @notice Tests that isFeatureEnabled returns false by default.
     function test_isFeatureEnabled_defaultFalse_succeeds() external {
-        // If the interop dev feature is enabled, skip this test
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            vm.skip(true, "Interop is already enabled by the dev feature");
+        if (deploy.cfg().useInterop()) {
+            vm.skip(true, "Interop is already enabled by the deploy config");
         }
         assertFalse(l1Block.isFeatureEnabled(Features.INTEROP));
     }
@@ -571,7 +569,7 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
     /// @notice Tests that multiple features can be enabled independently.
     function test_setFeature_multipleFeatures_succeeds() external {
         vm.startPrank(depositor);
-        if (!isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        if (!l1Block.isFeatureEnabled(Features.INTEROP)) {
             l1Block.setFeature(Features.INTEROP);
         }
 

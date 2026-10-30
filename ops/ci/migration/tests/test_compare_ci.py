@@ -18,7 +18,7 @@ CI = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CI)
 SHA = "cb48622213e9aa8408de9904baafac784441ecc6"
 PREFIX = "github.com/ethereum-optimism/optimism/op-node/rollup"
-FEATURES = ["main", "CUSTOM_GAS_TOKEN", "OPTIMISM_PORTAL_INTEROP", "ZK_DISPUTE_GAME"]
+FEATURES = ["main", "CUSTOM_GAS_TOKEN", "INTEROP", "ZK_DISPUTE_GAME"]
 
 
 class ComparisonTest(unittest.TestCase):

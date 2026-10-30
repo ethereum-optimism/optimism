@@ -435,13 +435,13 @@ commands:
     parameters:
       features:
         description: "Comma-separated list of features (can mix dev and system features,
-          e.g., 'OPTIMISM_PORTAL_INTEROP,CUSTOM_GAS_TOKEN')"
+          e.g., 'INTEROP,CUSTOM_GAS_TOKEN')"
         type: string
         default: ""
       system_features:
         description: "Registry of system features (others treated as dev features)"
         type: string
-        default: "CUSTOM_GAS_TOKEN"
+        default: "CUSTOM_GAS_TOKEN,INTEROP"
     steps:
       - run:
           name: Set feature environment variables
@@ -1173,7 +1173,7 @@ jobs:
         default: contracts-bedrock
       features:
         description: Comma-separated list of features to enable (e.g.,
-          "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
+          "INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
       attach_build:
@@ -1327,7 +1327,7 @@ jobs:
         default: OP_CI_MAINNET_L1_ARCHIVE_RPC_URL
       features:
         description: Comma-separated list of features to enable (e.g.,
-          "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
+          "INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
     steps:
@@ -1434,7 +1434,7 @@ jobs:
         default: ""
       features:
         description: Comma-separated list of features to enable (e.g.,
-          "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
+          "INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
     docker:
@@ -3498,11 +3498,11 @@ workflows:
           features: <<matrix.features>>
           matrix:
             parameters:
-              # BRIDGE_HOOK is not supported with OPTIMISM_PORTAL_INTEROP or CUSTOM_GAS_TOKEN.
+              # BRIDGE_HOOK is not supported with INTEROP or CUSTOM_GAS_TOKEN.
               features: &features_matrix
                 - main
                 - CUSTOM_GAS_TOKEN
-                - OPTIMISM_PORTAL_INTEROP
+                - INTEROP
                 - ZK_DISPUTE_GAME
                 - BRIDGE_HOOK
                 - BRIDGE_HOOK,ZK_DISPUTE_GAME
@@ -3677,28 +3677,28 @@ workflows:
           requires:
             - contracts-bedrock-tests main: terminal
             - contracts-bedrock-tests CUSTOM_GAS_TOKEN: terminal
-            - contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP: terminal
+            - contracts-bedrock-tests INTEROP: terminal
             - contracts-bedrock-tests ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests BRIDGE_HOOK: terminal
             - contracts-bedrock-tests BRIDGE_HOOK,ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests OP_PRIVATE: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN: terminal
-            - contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified INTEROP: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified BRIDGE_HOOK: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified BRIDGE_HOOK,ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified OP_PRIVATE: terminal
             - contracts-bedrock-coverage main: terminal
             - contracts-bedrock-coverage CUSTOM_GAS_TOKEN: terminal
-            - contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP: terminal
+            - contracts-bedrock-coverage INTEROP: terminal
             - contracts-bedrock-coverage ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-coverage BRIDGE_HOOK: terminal
             - contracts-bedrock-coverage BRIDGE_HOOK,ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-coverage OP_PRIVATE: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN: terminal
-            - contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet INTEROP: terminal
             - contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests-upgrade op-mainnet BRIDGE_HOOK: terminal
             - contracts-bedrock-tests-upgrade op-mainnet BRIDGE_HOOK,ZK_DISPUTE_GAME: terminal

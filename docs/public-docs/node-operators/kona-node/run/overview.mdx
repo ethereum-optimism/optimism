@@ -18,12 +18,12 @@ can only support networks that are defined this way.
 
 [scr]: https://github.com/ethereum-optimism/superchain-registry
 
-To view available networks, the `kona-node` binary provides
-a `registry` subcommand that lists all available networks:
+To view available networks, see the [chain list][chain-list] that
+`kona-node` embeds from the superchain-registry. The link shows the
+list on `develop`; for the chains a release supports, open the same
+file at that release's tag.
 
-```bash
-kona-node registry
-```
+[chain-list]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/protocol/registry/etc/chainList.json
 
 <Tip>
 Want to add support for a new network?

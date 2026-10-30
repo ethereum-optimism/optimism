@@ -94,23 +94,14 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(_feature));
     }
 
-    /// @notice Tests that `isDevFeatureEnabled` works correctly with the known OPTIMISM_PORTAL_INTEROP feature.
-    function test_isDevFeatureEnabled_interop_succeeds() public {
-        vm.prank(Constants.DEPOSITOR_ACCOUNT);
-        l2DevFeatureFlags.setDevFeatureBitmap(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
-        assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP));
-        assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME));
-    }
-
     /// @notice Tests that `isDevFeatureEnabled` works correctly with multiple features set.
     function test_isDevFeatureEnabled_multipleFeatures_succeeds() public {
-        bytes32 bitmap = DevFeatures.OPTIMISM_PORTAL_INTEROP | DevFeatures.ZK_DISPUTE_GAME;
+        bytes32 bitmap = DevFeatures.ZK_DISPUTE_GAME | DevFeatures.BRIDGE_HOOK;
 
         vm.prank(Constants.DEPOSITOR_ACCOUNT);
         l2DevFeatureFlags.setDevFeatureBitmap(bitmap);
 
-        assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP));
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME));
+        assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.BRIDGE_HOOK));
     }
 }

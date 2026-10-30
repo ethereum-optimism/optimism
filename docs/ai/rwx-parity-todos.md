@@ -151,19 +151,19 @@ CircleCI workflow: `contracts-feature-tests` (23 jobs).
 - [x] `prep-go-modules`
 - [x] `contracts-bedrock-tests main`
 - [x] `contracts-bedrock-tests CUSTOM_GAS_TOKEN`
-- [x] `contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP`
+- [x] `contracts-bedrock-tests INTEROP`
 - [x] `contracts-bedrock-tests ZK_DISPUTE_GAME`
 - [x] `contracts-bedrock-tests-heavy-fuzz-modified main`
 - [x] `contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN`
-- [x] `contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP`
+- [x] `contracts-bedrock-tests-heavy-fuzz-modified INTEROP`
 - [x] `contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME`
 - [x] `contracts-bedrock-coverage main`
 - [x] `contracts-bedrock-coverage CUSTOM_GAS_TOKEN`
-- [x] `contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP`
+- [x] `contracts-bedrock-coverage INTEROP`
 - [x] `contracts-bedrock-coverage ZK_DISPUTE_GAME`
 - [x] `contracts-bedrock-tests-upgrade op-mainnet main`
 - [x] `contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN`
-- [x] `contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP`
+- [x] `contracts-bedrock-tests-upgrade op-mainnet INTEROP`
 - [x] `contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME`
 - [x] `contracts-bedrock-tests-upgrade op-mainnet`
 - [x] `contracts-bedrock-tests-upgrade ink-mainnet`
