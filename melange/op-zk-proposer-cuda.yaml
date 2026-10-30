@@ -3,7 +3,7 @@
 # the op-stack-rust op-zk-proposer APK.
 #
 # The pins must match the linked SP1 SDK: sp1-gpu-server must be the sp1-sdk
-# version in rust/Cargo.lock (otherwise the SDK tries to replace it at startup),
+# version in rust/Cargo.lock (op-zk-proposer checks its --version at startup),
 # and the PLONK circuits must be sp1-prover's SP1_CIRCUIT_VERSION. libcudart
 # matches the CUDA 12.8 toolkit that sp1-gpu-server links against.
 #
