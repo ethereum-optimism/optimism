@@ -226,8 +226,11 @@ impl NetworkBehaviour for Behaviour {
         })
     }
 
-    /// Refuses a connection from a blocked peer, the first point where its peer ID is known: once
-    /// the handshake is done, and before any other behaviour sees the connection.
+    /// Refuses a connection from a blocked or banned peer, the first point where its peer ID is
+    /// known: once the handshake is done, and before any other behaviour sees the connection.
+    ///
+    /// Also checks the remote IP address again: the pending check ran before the handshake, and
+    /// the address or its subnet may have been blocked while the handshake ran.
     fn handle_established_inbound_connection(
         &mut self,
         _connection_id: ConnectionId,
@@ -242,6 +245,12 @@ impl NetworkBehaviour for Behaviour {
         if self.is_banned_peer(&peer) {
             debug!(target: "gossip", %peer, %remote_addr, "Refusing a connection from a banned peer");
             return Err(refuse_inbound(DialError::PeerBanned { peer_id: peer }));
+        }
+        if let Some(ip) = crate::ConnectionGater::ip_from_addr(remote_addr) &&
+            let Err(refusal) = self.check_ip(ip)
+        {
+            debug!(target: "gossip", %peer, %remote_addr, %refusal, "Refusing a connection from an address blocked during its handshake");
+            return Err(refuse_inbound(refusal));
         }
         Ok(dummy::ConnectionHandler)
     }
@@ -291,6 +300,31 @@ mod tests {
     use metrics_util::debugging::{DebugValue, DebuggingRecorder};
     use rstest::rstest;
     use std::time::Duration;
+
+    /// A connection that passed the check before its handshake, and then had its IP address or
+    /// subnet blocked while the handshake ran, is refused once the handshake completes.
+    #[rstest]
+    #[case::address(|gate: &mut Behaviour| gate.block_addr("10.0.0.1".parse().unwrap()))]
+    #[case::subnet(|gate: &mut Behaviour| gate.block_subnet("10.0.0.0/8".parse().unwrap()))]
+    fn test_address_blocked_during_the_handshake_is_refused(#[case] block: fn(&mut Behaviour)) {
+        let local: Multiaddr = "/ip4/127.0.0.1/tcp/9222".parse().unwrap();
+        let remote: Multiaddr = "/ip4/10.0.0.1/tcp/40000".parse().unwrap();
+        let mut gate = Behaviour::default();
+        let id = ConnectionId::new_unchecked(0);
+        assert!(gate.handle_pending_inbound_connection(id, &local, &remote).is_ok());
+
+        block(&mut gate);
+        let refused =
+            gate.handle_established_inbound_connection(id, PeerId::random(), &local, &remote);
+        let refusal = refused.err().and_then(|denied| denied.downcast::<DialError>().ok());
+        assert!(
+            matches!(
+                refusal,
+                Some(DialError::AddressBlocked { .. } | DialError::SubnetBlocked { .. })
+            ),
+            "{refusal:?}"
+        );
+    }
 
     /// Each inbound connection the gate refuses is counted under its reason.
     #[rstest]
