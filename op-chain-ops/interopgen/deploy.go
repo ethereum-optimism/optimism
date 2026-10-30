@@ -371,7 +371,7 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
-		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && lagoonAtGenesis(cfg.L2GenesisLagoonTimeOffset)),
+		DevFeatureBitmap:                         common.Hash{},
 		UseInterop:                               multichainDepSet && lagoonAtGenesis(cfg.L2GenesisLagoonTimeOffset),
 		L2ToL2MessageExpiryPeriod:                new(big.Int),
 		SettlementChainID:                        new(big.Int),
@@ -386,15 +386,6 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 // Using a nil offset means Lagoon (and thus interop) is not scheduled at all.
 func lagoonAtGenesis(lagoonOffset *hexutil.Uint64) bool {
 	return lagoonOffset != nil && *lagoonOffset == 0
-}
-
-// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the Interop flag.
-func devFeatureBitmapForL2Genesis(enableInterop bool) common.Hash {
-	var bitmap common.Hash
-	if enableInterop {
-		bitmap = devfeatures.EnableDevFeature(bitmap, devfeatures.OptimismPortalInteropFlag)
-	}
-	return bitmap
 }
 
 func CompleteL1(l1Host *script.Host, cfg *L1Config) (*L1Output, error) {

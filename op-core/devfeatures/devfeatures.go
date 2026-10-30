@@ -18,8 +18,8 @@ import (
 //
 // Use packages/contracts-bedrock/src/libraries/DevFeatures.sol as the full checklist.
 var (
-	// OptimismPortalInteropFlag enables the interop predeploys on L2 at genesis. L2ContractsManager
-	// upgrades gate the interop predeploys on the INTEROP system feature instead.
+	// OptimismPortalInteropFlag enables deployment of the super dispute game implementations. It has
+	// no effect while SuperRootGamesMigrationFlag is enabled by default.
 	OptimismPortalInteropFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
 
 	// DeployV2DisputeGamesFlag enables deployment of V2 dispute game contracts.
