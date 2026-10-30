@@ -70,25 +70,17 @@ func allocModes(t *testing.T) []allocMode {
 			},
 		},
 		{
-			name:             "interop",
-			devFeatureBitmap: devfeatures.OptimismPortalInteropFlag,
+			name: "interop",
 			configure: func(t *testing.T, intent *state.Intent) {
 				intent.UseInterop = true
-				intent.GlobalDeployOverrides = map[string]any{
-					"devFeatureBitmap": devfeatures.OptimismPortalInteropFlag,
-				}
 			},
 		},
 		{
-			name:             "cgt+interop",
-			customGasToken:   true,
-			devFeatureBitmap: devfeatures.OptimismPortalInteropFlag,
+			name:           "cgt+interop",
+			customGasToken: true,
 			configure: func(t *testing.T, intent *state.Intent) {
 				enableCustomGasToken(t, intent)
 				intent.UseInterop = true
-				intent.GlobalDeployOverrides = map[string]any{
-					"devFeatureBitmap": devfeatures.OptimismPortalInteropFlag,
-				}
 			},
 		},
 		{

@@ -37,10 +37,6 @@ abstract contract FeatureFlags {
     /// @notice Resolves the development feature bitmap.
     /// @dev When updating this function, make sure to also update the getFeatureName function.
     function resolveFeaturesFromEnv() public {
-        if (Config.devFeatureInterop()) {
-            console.log("Setup: DEV_FEATURE__OPTIMISM_PORTAL_INTEROP is enabled");
-            devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
-        }
         if (Config.devFeatureBridgeHook()) {
             console.log("Setup: DEV_FEATURE__BRIDGE_HOOK is enabled");
             devFeatureBitmap |= DevFeatures.BRIDGE_HOOK;
@@ -63,9 +59,7 @@ abstract contract FeatureFlags {
     /// @param _feature The feature to get the name of.
     /// @return The name of the feature.
     function getFeatureName(bytes32 _feature) public pure returns (string memory) {
-        if (_feature == DevFeatures.OPTIMISM_PORTAL_INTEROP) {
-            return "DEV_FEATURE__OPTIMISM_PORTAL_INTEROP";
-        } else if (_feature == DevFeatures.ZK_DISPUTE_GAME) {
+        if (_feature == DevFeatures.ZK_DISPUTE_GAME) {
             return "DEV_FEATURE__ZK_DISPUTE_GAME";
         } else if (_feature == DevFeatures.SUPER_ROOT_GAMES_MIGRATION) {
             return "DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION";
@@ -77,6 +71,8 @@ abstract contract FeatureFlags {
             return "SYS_FEATURE__CUSTOM_GAS_TOKEN";
         } else if (_feature == Features.ETH_LOCKBOX) {
             return "SYS_FEATURE__ETH_LOCKBOX";
+        } else if (_feature == Features.INTEROP) {
+            return "SYS_FEATURE__INTEROP";
         } else {
             // NOTE: We error out here so that developers remember to actually name their features
             //       above. Solidity doesn't have anything like reflection that could do this.

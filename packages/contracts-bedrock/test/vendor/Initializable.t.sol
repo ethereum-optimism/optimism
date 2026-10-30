@@ -12,7 +12,6 @@ import { Process } from "scripts/libraries/Process.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { GameType, Hash, Proposal } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -126,7 +125,7 @@ contract Initializer_Test is CommonTest {
             })
         );
 
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        if (deploy.cfg().useInterop()) {
             contracts.push(
                 InitializeableContract({
                     name: "OptimismPortal2Impl",
