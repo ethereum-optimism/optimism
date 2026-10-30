@@ -7,6 +7,8 @@ use crate::{
         SequencerArgs,
     },
 };
+use alloy_provider::RootProvider;
+use alloy_rpc_client::ClientBuilder;
 use alloy_rpc_types_engine::JwtSecret;
 use anyhow::{Context as _, Result, bail};
 use backon::{ExponentialBuilder, Retryable};
@@ -16,6 +18,7 @@ use kona_engine::EngineClient;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
+use kona_providers_alloy::AlloyChainProvider;
 use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
 use kona_safedb::{SafeDatabase, SafeDb};
 use op_alloy_provider::ext::engine::OpEngineApi;
@@ -27,7 +30,11 @@ use std::{
     sync::Arc,
 };
 use strum::IntoEnumIterator;
+use tower::util::MapFutureLayer;
 use tracing::{debug, error, info};
+
+/// How many headers, receipt sets and blocks the node's L1 client caches.
+const L1_PROVIDER_CACHE_SIZE: usize = 1024;
 
 /// A JWT token validation error.
 #[derive(Debug, thiserror::Error)]
@@ -295,11 +302,22 @@ impl NodeCommand {
             "Hardfork schedule"
         );
 
+        // The node's one L1 client: every component reads L1 through a clone, sharing its caches
+        // and trust setting. Every request is bounded, so a stalled endpoint fails its caller
+        // instead of hanging it.
+        let l1_provider = AlloyChainProvider::new_with_trust(
+            RootProvider::new(
+                ClientBuilder::default()
+                    .layer(MapFutureLayer::new(kona_engine::with_deadline))
+                    .http(self.l1_rpc_args.l1_eth_rpc.clone()),
+            ),
+            L1_PROVIDER_CACHE_SIZE,
+            self.l1_rpc_args.l1_trust_rpc,
+        );
         let l1_config = L1ConfigBuilder {
             chain_config: self.get_l1_config(cfg.l1_chain_id)?,
-            trust_rpc: self.l1_rpc_args.l1_trust_rpc,
+            provider: l1_provider.clone(),
             beacon: self.l1_rpc_args.l1_beacon.clone(),
-            rpc_url: self.l1_rpc_args.l1_eth_rpc.clone(),
             slot_duration_override: self.l1_rpc_args.l1_slot_duration_override,
         };
 
@@ -309,11 +327,7 @@ impl NodeCommand {
         let jwt_secret = self.validate_jwt().await?;
 
         self.p2p_flags.check_ports()?;
-        let p2p_config = self
-            .p2p_flags
-            .clone()
-            .config(&cfg, args, Some(self.l1_rpc_args.l1_eth_rpc.clone()))
-            .await?;
+        let p2p_config = self.p2p_flags.clone().config(&cfg, args, Some(&l1_provider)).await?;
         let rpc_config = self.rpc_flags.clone().into();
 
         let engine_config = EngineConfig {
