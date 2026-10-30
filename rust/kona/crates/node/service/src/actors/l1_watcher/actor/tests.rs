@@ -3,7 +3,7 @@ use crate::{DerivationActorRequest, QueuedL1WatcherDerivationClient};
 use alloy_json_rpc::{RequestPacket, Response, ResponsePacket, ResponsePayload};
 use alloy_primitives::{Address, B256, U256};
 use alloy_provider::RootProvider;
-use alloy_rpc_client::RpcClient;
+use alloy_rpc_client::ClientBuilder;
 use alloy_transport::{TransportError, TransportErrorKind};
 use kona_genesis::RollupConfig;
 use kona_rpc::L1WatcherQueries;
@@ -82,7 +82,12 @@ fn provider(state: Arc<RpcState>) -> RootProvider {
             })
         },
     );
-    RootProvider::new(RpcClient::new(transport, false))
+    // Bound requests as production's L1 transport does, so a stalled read fails and is retried.
+    RootProvider::new(
+        ClientBuilder::default()
+            .layer(tower::util::MapFutureLayer::new(kona_engine::with_deadline))
+            .transport(transport, false),
+    )
 }
 
 struct ChainHandles {

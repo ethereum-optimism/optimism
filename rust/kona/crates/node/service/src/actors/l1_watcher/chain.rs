@@ -6,7 +6,7 @@ use alloy_provider::Provider;
 use kona_genesis::RollupConfig;
 use kona_protocol::BlockInfo;
 use kona_rpc::L1WatcherQueries;
-use std::{future::IntoFuture, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 
 /// A single L2 chain served by the [`L1WatcherActor`](super::L1WatcherActor).
@@ -124,15 +124,15 @@ where
                 config.l1_system_config_address,
                 target.hash,
             );
-            match time::timeout(Duration::from_secs(10), read).await {
+            match read.await {
                 // Head changes while a read is outstanding supersede that read, including
                 // same-height reorgs. Never install a snapshot for an obsolete branch.
-                Ok(Ok(signer)) if *head.borrow() == Some(target) => {
+                Ok(signer) if *head.borrow() == Some(target) => {
                     // Subscribers are only notified when the signer actually changes.
                     signer_tx
                         .send_if_modified(|current| std::mem::replace(current, signer) != signer);
                 }
-                Ok(Ok(_)) => {}
+                Ok(_) => {}
                 result => {
                     warn!(target: "l1_watcher", chain_id = config.l2_chain_id.id(), ?result, "Failed to refresh unsafe block signer; retaining previous value")
                 }
@@ -165,10 +165,9 @@ where
         current_l1: Option<BlockInfo>,
     ) -> kona_rpc::L1State {
         use alloy_eips::BlockId;
-        use tokio::time::{Duration, timeout};
         let read = |id| async move {
-            match timeout(Duration::from_secs(10), provider.get_block(id).into_future()).await {
-                Ok(Ok(block)) => block.map(|block| block.into_consensus().into()),
+            match provider.get_block(id).await {
+                Ok(block) => block.map(|block| block.into_consensus().into()),
                 result => {
                     warn!(target: "l1_watcher", ?result, "L1 state query failed");
                     None

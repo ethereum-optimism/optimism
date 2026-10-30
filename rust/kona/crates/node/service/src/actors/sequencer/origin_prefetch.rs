@@ -197,7 +197,6 @@ pub(crate) struct OriginPrefetcher<P, C> {
     window: watch::Sender<OriginWindow>,
     l1_head: watch::Receiver<Option<BlockInfo>>,
     retry: Interval,
-    fetch_timeout: Duration,
 }
 
 /// Components that must share one preparation window.
@@ -236,7 +235,6 @@ impl<C> OriginPreparation<C> {
             window,
             l1_head,
             retry,
-            fetch_timeout: Duration::from_secs(10),
         };
         Self { prefetcher: worker, origins: provider, attributes }
     }
@@ -254,15 +252,16 @@ where
         if let Some(block) = self.window.borrow().get(info.hash) {
             return Ok(block.clone());
         }
-        let header = tokio::time::timeout(self.fetch_timeout, self.chain.header_by_hash(info.hash))
+        let header = self
+            .chain
+            .header_by_hash(info.hash)
             .await
-            .map_err(|_| L1OriginSelectorError::Timeout)?
             .map_err(|err| L1OriginSelectorError::Attributes(err.to_string()))?;
-        let receipts =
-            tokio::time::timeout(self.fetch_timeout, self.chain.receipts_by_hash(info.hash))
-                .await
-                .map_err(|_| L1OriginSelectorError::Timeout)?
-                .map_err(|err| L1OriginSelectorError::Attributes(err.to_string()))?;
+        let receipts = self
+            .chain
+            .receipts_by_hash(info.hash)
+            .await
+            .map_err(|err| L1OriginSelectorError::Attributes(err.to_string()))?;
         Ok(Arc::new(PreparedOrigin { info, header, receipts }))
     }
 
@@ -277,12 +276,7 @@ where
         let current = match old.get(request.parent.hash) {
             Some(block) => block.clone(),
             None => {
-                let info = tokio::time::timeout(
-                    self.fetch_timeout,
-                    self.origins.get_block_by_hash(request.parent.hash),
-                )
-                .await
-                .map_err(|_| L1OriginSelectorError::Timeout)??;
+                let info = self.origins.get_block_by_hash(request.parent.hash).await?;
                 let Some(info) = info else {
                     self.window.send_replace(OriginWindow {
                         missing: Some(request.parent),
@@ -308,9 +302,7 @@ where
                 }) {
                 Some(block.info)
             } else {
-                tokio::time::timeout(self.fetch_timeout, self.origins.get_block_by_number(number))
-                    .await
-                    .map_err(|_| L1OriginSelectorError::Timeout)??
+                self.origins.get_block_by_number(number).await?
             };
             let Some(next) = next else { break };
             if next.parent_hash != parent.hash {
