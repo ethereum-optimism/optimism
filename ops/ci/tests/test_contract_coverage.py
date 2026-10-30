@@ -116,13 +116,18 @@ class _LiveCoverageTestsFixtures:
             (root / 'go.mod').write_text('module example.invalid/coverage-fixture\ngo 1.26.5\n')
             (contracts / 'scripts/go-ffi/main.go').write_text('package main\nimport("fmt";"os")\nfunc main(){f,e:=os.OpenFile(os.Getenv("CI_COVERAGE_FIXTURE_MARKER"),os.O_APPEND|os.O_CREATE|os.O_WRONLY,0600);if e!=nil{panic(e)};defer f.Close();f.WriteString("x");v:=1;if os.Getenv("CI_COVERAGE_FIXTURE_FAIL")=="1"{v=0};fmt.Printf("0x%064x",v)}\n')
             original = (C.CONTRACTS / 'justfile').read_text()
-            recipes = []
-            for name in ('build-go-ffi', 'build-source', 'coverage-lcov', 'coverage-upgrade', 'coverage-lcov-upgrade', 'coverage-lcov-all', 'prepare-upgrade-env', 'test-rerun'):
+            # The EVM routing variable and its helper are inputs of `coverage` and `test`.
+            recipes = [next(line for line in original.splitlines() if line.startswith('DEFAULT_EVM_TESTS :='))]
+            (contracts / 'scripts/ops').mkdir(parents=True)
+            shutil.copy2(C.CONTRACTS / 'scripts/ops/apply-match-path.sh', contracts / 'scripts/ops/apply-match-path.sh')
+            for name in ('build-go-ffi', 'build-source', 'coverage', 'coverage-lcov', 'coverage-upgrade', 'coverage-lcov-upgrade',
+                         'coverage-lcov-all', 'prepare-upgrade-env', 'test', '_test-single', 'test-rerun'):
                 match = C.re.search('^' + C.re.escape(name) + '(?:[ :*].*)?:.*$', original, C.re.M)
                 if match is None:
                     raise AssertionError('Missing production Just recipe ' + name)
-                end = original.index('\n\n', match.start())
-                recipes.append(original[match.start():end])
+                # A recipe body may contain blank lines; it ends at the next unindented line.
+                end = C.re.compile('^\\S', C.re.M).search(original, match.end() + 1)
+                recipes.append(original[match.start():end.start() if end else len(original)].rstrip())
             (contracts / 'justfile').write_text('\n\n'.join(recipes) + '\n\nprint-pinned-block-number:\n  @echo 42\n')
             (contracts / 'foundry.toml').write_text('[profile.default]\nsrc="src"\ntest="test"\nout="forge-artifacts"\nsolc="0.8.15"\nffi=true\nast=true\noptimizer=true\nextra_output=["devdoc","userdoc","metadata","storageLayout"]\n[profile.cicoverage]\noptimizer=false\nthreads=16\ncompilation_restrictions=[]\n[profile.cicoverage.fuzz]\nruns=1\n[profile.cicoverage.invariant]\nruns=1\ndepth=1\n')
             (contracts / 'src/Fixture.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;contract Fixture {function value(uint256 a) external pure returns(uint256){return a==3?1:2;}}interface Vm {function skip(bool,string calldata) external;function ffi(string[] calldata) external returns(bytes memory);function envOr(string calldata,bool) external view returns(bool);function envUint(string calldata) external view returns(uint256);}')
