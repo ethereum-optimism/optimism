@@ -95,11 +95,12 @@ build_pkgmap() {
   [ -s "$workdir/pkgmap" ]
 }
 
-# The shipping units, from the monorepo's own list. `shared` is infrastructure every
-# component links, not an artifact. Empty for a component release-paths does not know.
+# The shipping units, from the monorepo's own list. `shared` (infrastructure every
+# component links) and `linked` (another component's code this one links) are not
+# artifacts. Empty for a component release-paths does not know.
 artifacts_of() {
   (cd "$root" && just release-paths "$1" 2> /dev/null) \
-    | awk -F'\t' '$1 != "shared" && $1 != "" { print $1 }' | awk '!seen[$0]++'
+    | awk -F'\t' '$1 != "shared" && $1 != "linked" && $1 != "" { print $1 }' | awk '!seen[$0]++'
 }
 
 # op-deployer runs contract scripts that its linked Go code names as string literals.
