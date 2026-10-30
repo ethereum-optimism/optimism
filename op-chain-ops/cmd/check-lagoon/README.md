@@ -1,15 +1,18 @@
 # check-lagoon
 
 Smoke tests for interop cross-chain messaging, the op-interop-filter failsafe,
-and SDM PostExec conformance.
+the message expiry configuration, and SDM PostExec conformance.
 
 ## Commands
 
 ### all
 
-Runs the `interop-smoke all` suite and one SDM workload per chain concurrently.
-It derives an SDM account from `--account` (or uses `--sdm-account`) and tops
-it up to `--sdm-l2-fund-amount` on both chains.
+Runs the `interop-smoke all` suite, the `expiry` check on both chains, and one
+SDM workload per chain concurrently. The expiry check compares the
+`ETHLiquidity` pause with L1 only when `--expiry.l1` and two
+`--expiry.l1-messenger` values (chain A, then chain B) are set. It derives an
+SDM account from `--account` (or uses `--sdm-account`) and tops it up to
+`--sdm-l2-fund-amount` on both chains.
 
 ```bash
 go run . all \
@@ -39,6 +42,29 @@ Full failsafe lifecycle test:
 ```bash
 go run . failsafe --config <config.toml>
 ```
+
+### expiry
+
+Read-only. For each `--expiry.l2` chain it checks:
+
+- `L2ToL2CrossDomainMessenger.expiryPeriod()` equals `--expiry.period`, which
+  defaults to the production 8 days (`Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD`);
+- the paired `--expiry.l1-messenger` belongs to this chain (its
+  `SystemConfig.l2ChainId()`);
+- `ETHLiquidity.paused()` equals the chain's L1 pause
+  (`L1CrossDomainMessenger.paused()`). A mismatch means
+  `syncETHLiquidityPause()` needs to run.
+
+It checks every chain and reports every mismatch.
+
+```bash
+go run . expiry \
+  --expiry.l2 <op-rpc> --expiry.l2 <ink-rpc> --expiry.l2 <unichain-rpc> \
+  --expiry.l1 <l1-rpc> \
+  --expiry.l1-messenger <op-l1cdm> --expiry.l1-messenger <ink-l1cdm> --expiry.l1-messenger <unichain-l1cdm>
+```
+
+Devnets that override the period pass it with `--expiry.period`.
 
 ### sdm all | block | verifier
 
