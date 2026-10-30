@@ -821,7 +821,6 @@ fn classify_game_sync(
             // - Own game under an owned prestate: any resolvable outcome, so a lost game can be
             //   closed (and refunded if disallowed before it closes).
             // - Own disallowed game: under any prestate, to recover its refund-mode credit.
-            // Foreign unowned games and our allowed games under unknown prestates wait (#22894).
             Ok(GameSyncAction::Update {
                 index,
                 lifecycle,
@@ -1795,8 +1794,6 @@ impl Proposer {
         if game.creator == self.proposer_address {
             return self.retain_own_invalid_game(game, false).await;
         }
-        // TODO(#22894): foreign invalid games are dropped here instead of being tracked, so they
-        // are never closed; closing every game will need to retain them too.
         self.invalid_game_result(game.index, game.address).await
     }
 
