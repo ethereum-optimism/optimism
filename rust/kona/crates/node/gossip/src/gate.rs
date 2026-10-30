@@ -19,11 +19,12 @@ use libp2p::{
     },
 };
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     convert::Infallible,
     net::IpAddr,
     task::{Context, Poll},
 };
+use tokio::time::Instant;
 
 /// Connection Gate
 ///
@@ -61,7 +62,8 @@ pub trait ConnectionGate {
     fn list_protected_peers(&self) -> Vec<PeerId>;
 }
 
-/// The peers, IP addresses and subnets the operator blocked.
+/// The peers, IP addresses and subnets the operator blocked, and the peers banned for their
+/// score.
 ///
 /// # Why it is a behaviour
 ///
@@ -88,6 +90,9 @@ pub struct Behaviour {
     addrs: HashSet<IpAddr>,
     /// The blocked subnets.
     subnets: HashSet<IpNet>,
+    /// The peers banned for their score, and when each ban expires. An expired ban no longer
+    /// counts, and is removed when the next ban is added.
+    bans: HashMap<PeerId, Instant>,
 }
 
 impl Behaviour {
@@ -97,13 +102,27 @@ impl Behaviour {
         debug!(target: "gossip", peer=?peer_id, "Blocked peer");
     }
 
-    /// Unblocks a peer.
+    /// Unblocks a peer, and lifts its ban if it has one, as op-node does.
     pub fn unblock_peer(&mut self, peer_id: &PeerId) {
         self.peers.remove(peer_id);
+        self.bans.remove(peer_id);
         debug!(target: "gossip", peer=?peer_id, "Unblocked peer");
     }
 
-    /// Lists the blocked peers.
+    /// Bans a peer for its score until `until`.
+    pub fn ban_peer(&mut self, peer_id: PeerId, until: Instant) {
+        let now = Instant::now();
+        self.bans.retain(|_, expiry| *expiry > now);
+        self.bans.insert(peer_id, until);
+        debug!(target: "gossip", peer=?peer_id, ?until, "Banned peer");
+    }
+
+    /// Returns whether a peer is banned for its score, and its ban hasn't expired yet.
+    pub fn is_banned_peer(&self, peer_id: &PeerId) -> bool {
+        self.bans.get(peer_id).is_some_and(|expiry| *expiry > Instant::now())
+    }
+
+    /// Lists the blocked peers. Banned peers aren't listed, as in op-node.
     pub fn list_blocked_peers(&self) -> Vec<PeerId> {
         self.peers.iter().copied().collect()
     }
@@ -171,8 +190,9 @@ impl Behaviour {
     }
 }
 
-/// Refuses inbound connections from blocked peers, IP addresses and subnets, and our own
-/// connections to addresses blocked while we dialed them. Has no protocol or events of its own.
+/// Refuses inbound connections from blocked or banned peers and from blocked IP addresses and
+/// subnets, and our own connections to addresses blocked while we dialed them. Has no protocol or
+/// events of its own.
 ///
 /// A refusal is a [`DialError`], as a dial the gate refuses gets, in the
 /// [`ListenError::Denied`](libp2p::swarm::ListenError::Denied) the swarm reports.
@@ -210,6 +230,10 @@ impl NetworkBehaviour for Behaviour {
         if self.is_blocked_peer(&peer) {
             debug!(target: "gossip", %peer, %remote_addr, "Refusing a connection from a blocked peer");
             return Err(ConnectionDenied::new(DialError::PeerBlocked { peer_id: peer }));
+        }
+        if self.is_banned_peer(&peer) {
+            debug!(target: "gossip", %peer, %remote_addr, "Refusing a connection from a banned peer");
+            return Err(ConnectionDenied::new(DialError::PeerBanned { peer_id: peer }));
         }
         Ok(dummy::ConnectionHandler)
     }

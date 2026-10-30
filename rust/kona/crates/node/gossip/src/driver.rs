@@ -386,8 +386,9 @@ where
         }
     }
 
-    /// Disconnects a peer banned for its score, and forgets what identify told about it. Discovery
-    /// bans the peer separately, by its ID.
+    /// Bans a peer for its score: disconnects it, refuses its connections in both directions for
+    /// [`PeerMonitoring::ban_duration`], and forgets what identify told about it. Discovery bans
+    /// the peer separately, by its ID.
     pub fn ban_peer(&mut self, peer_id: PeerId) {
         // The score that got the peer banned, read before the peer is disconnected.
         let score = self.peer_score(&peer_id);
@@ -397,6 +398,10 @@ where
             "score" => score.to_string()
         )
         .increment(1);
+        if let Some(monitoring) = &self.peer_monitoring {
+            let until = Instant::now() + monitoring.ban_duration;
+            self.swarm.behaviour_mut().gate.ban_peer(peer_id, until);
+        }
         self.disconnect_peer(peer_id);
         self.peerstore.remove(&peer_id);
     }
@@ -1567,7 +1572,8 @@ mod tests {
     }
 
     /// Polls both drivers, after `dialer` dialed `listener`, until the listener has refused the
-    /// connection or seen it established, and the dialer's dial has ended, so it may dial again.
+    /// connection or seen it established, and the dialer's dial has ended, so that it may dial
+    /// again. After a refusal, that includes the dialer seeing the refused connection closed.
     /// Returns the gate's refusal, or `None` if the listener accepted the connection.
     async fn inbound_refusal(
         listener: &mut GossipDriver<ConnectionGater>,
@@ -1575,9 +1581,16 @@ mod tests {
     ) -> Option<DialError> {
         let (listener_peer, dialer_peer) = (*listener.local_peer_id(), *dialer.local_peer_id());
         let mut outcome = None;
+        // A peer refused after the handshake saw the connection established on its side, and stays
+        // connected until it notices that the listener dropped it, which takes polling both.
+        let pending = |outcome: &Option<Option<DialError>>,
+                       dialer: &GossipDriver<ConnectionGater>| {
+            outcome.is_none() ||
+                dialer.connection_gate.current_dials.contains(&listener_peer) ||
+                matches!(outcome, Some(Some(_))) && dialer.is_connected(&listener_peer)
+        };
         let poll = async {
-            while outcome.is_none() || dialer.connection_gate.current_dials.contains(&listener_peer)
-            {
+            while pending(&outcome, dialer) {
                 tokio::select! {
                     Some(event) = listener.next() => {
                         match &event {
@@ -1621,13 +1634,10 @@ mod tests {
             matches!(refusal, Some(DialError::PeerBlocked { peer_id }) if peer_id == peer_2),
             "{refusal:?}"
         );
-        // A sanity check that neither side is left connected. We never were. The blocked peer
-        // finished its handshake, so it saw the connection established on its side, and stays
-        // connected until it notices that we dropped the connection. Polling it alone isn't
-        // enough: the close only reaches it once our side is polled too.
+        // A sanity check that neither side is left connected. We never were, and the blocked peer
+        // saw the connection closed before `inbound_refusal` returned.
         assert!(!driver_1.is_connected(&peer_2));
-        poll_until(&mut driver_1, &mut driver_2, |_, driver_2| !driver_2.is_connected(&peer_1))
-            .await;
+        assert!(!driver_2.is_connected(&peer_1));
 
         driver_1.unblock_peer(peer_2);
         driver_2.dial_multiaddr(addr_1).expect("dial");
@@ -1982,6 +1992,67 @@ mod tests {
         let covered = driver_1.static_peer_addrs_covered_by(|ip| *ip == localhost);
         assert_eq!(covered.len(), 1, "{covered:?}");
         assert_eq!(covered[0].0, addr_2.peer_id());
+    }
+
+    /// How long the drivers in the ban tests ban a peer for.
+    const BAN_DURATION: Duration = Duration::from_secs(60);
+
+    /// A memory driver that bans peers for [`BAN_DURATION`].
+    fn banning_driver() -> GossipDriver<ConnectionGater> {
+        let monitoring = PeerMonitoring { ban_threshold: -100.0, ban_duration: BAN_DURATION };
+        memory_driver_builder().with_peer_monitoring(Some(monitoring)).build().expect("build")
+    }
+
+    /// A peer banned for its score can't connect, whichever side dials, until the ban expires.
+    #[rstest]
+    #[case::we_dial(true)]
+    #[case::it_dials(false)]
+    #[tokio::test(start_paused = true)]
+    async fn test_banned_peer_is_refused_until_the_ban_expires(#[case] we_dial: bool) {
+        let mut driver_1 = banning_driver();
+        let mut driver_2 = memory_driver();
+        let addr_1 = driver_1.start().await.expect("listen");
+        let addr_2 = driver_2.start().await.expect("listen");
+        let (peer_1, peer_2) = (addr_1.peer_id(), addr_2.peer_id());
+        driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+
+        driver_1.ban_peer(peer_2);
+        poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
+            !driver_1.is_connected(&peer_2) && !driver_2.is_connected(&peer_1)
+        })
+        .await;
+        if we_dial {
+            let refused = driver_1.dial_multiaddr(addr_2.clone());
+            assert!(matches!(refused, Err(DialError::PeerBanned { .. })), "{refused:?}");
+        } else {
+            driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
+            let refusal = inbound_refusal(&mut driver_1, &mut driver_2).await;
+            assert!(matches!(refusal, Some(DialError::PeerBanned { .. })), "{refusal:?}");
+        }
+
+        tokio::time::advance(BAN_DURATION).await;
+        if we_dial {
+            driver_1.dial_multiaddr(addr_2).expect("dial");
+        } else {
+            driver_2.dial_multiaddr(addr_1).expect("dial");
+        }
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+    }
+
+    /// Unblocking a peer lifts its ban too, and a ban isn't listed as a block, as in op-node.
+    #[tokio::test(start_paused = true)]
+    async fn test_unblocking_a_peer_lifts_its_ban() {
+        let mut driver = banning_driver();
+        let peer = PeerId::random();
+
+        driver.ban_peer(peer);
+        assert!(driver.list_blocked_peers().is_empty());
+        let refused = driver.dial_multiaddr(unused_memory_addr(peer));
+        assert!(matches!(refused, Err(DialError::PeerBanned { .. })), "{refused:?}");
+
+        driver.unblock_peer(peer);
+        driver.dial_multiaddr(unused_memory_addr(peer)).expect("dial");
     }
 
     /// Peers scoring below the ban threshold are banned, but a static peer never is.

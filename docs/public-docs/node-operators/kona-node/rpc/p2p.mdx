@@ -111,7 +111,7 @@ This applies to [protected](#opp2p_protectpeer) and [static](/node-operators/kon
 
 ### `opp2p_unblockPeer`
 
-Unblocks a previously blocked peer by peer ID. A [static peer](/node-operators/kona-node/configuration#static-peers) is dialed again within a minute; call [`opp2p_connectPeer`](#opp2p_connectpeer) to connect it at once.
+Unblocks a previously blocked peer by peer ID, and lifts its ban if it is banned for its score, as in op-node. A [static peer](/node-operators/kona-node/configuration#static-peers) is dialed again within a minute; call [`opp2p_connectPeer`](#opp2p_connectpeer) to connect it at once.
 
 | Client | Method invocation                                     |
 | ------ | ----------------------------------------------------- |
@@ -130,7 +130,7 @@ Unblocks a previously blocked peer by peer ID. A [static peer](/node-operators/k
 
 ### `opp2p_listBlockedPeers`
 
-Returns a list of all blocked peer IDs.
+Returns a list of all blocked peer IDs. Peers banned for their score aren't listed, as in op-node.
 
 | Client | Method invocation                      |
 | ------ | -------------------------------------- |
@@ -299,7 +299,7 @@ Removes protection from a peer, allowing it to be disconnected by automatic prun
 
 Connects to a specific peer using a multiaddress, and returns once the peer is connected.
 
-It respects blocks: if the peer, its IP address or its subnet is [blocked](#opp2p_blockpeer), the call fails at once with the reason, and nothing is dialed. To connect such a peer, unblock it first. The call also fails at once if the peer has reached its redial limit. A dial that fails, for example because nothing listens at the address, returns the dial's error, and one that doesn't finish within 30 seconds times out.
+It respects blocks and bans: if the peer, its IP address or its subnet is [blocked](#opp2p_blockpeer), or the peer is banned for its score, the call fails at once with the reason, and nothing is dialed. To connect such a peer, unblock it first; [`opp2p_unblockPeer`](#opp2p_unblockpeer) lifts a ban too. The call also fails at once if the peer has reached its redial limit. A dial that fails, for example because nothing listens at the address, returns the dial's error, and one that doesn't finish within 30 seconds times out.
 
 | Client | Method invocation                                      |
 | ------ | ------------------------------------------------------ |

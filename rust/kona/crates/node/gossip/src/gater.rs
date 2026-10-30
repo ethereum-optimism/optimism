@@ -279,6 +279,13 @@ impl ConnectionGate for ConnectionGater {
             return Err(DialError::PeerBlocked { peer_id });
         }
 
+        // If the peer is banned for its score, do not dial until the ban expires.
+        if gate.is_banned_peer(&peer_id) {
+            debug!(target: "gossip", peer=?addr, "Peer is banned, not dialing");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "banned_peer").increment(1);
+            return Err(DialError::PeerBanned { peer_id });
+        }
+
         // Checks on the IP address only apply to addresses that have one.
         for ip in self.ips_to_check(addr)? {
             Self::check_ip(addr, ip, gate)?;

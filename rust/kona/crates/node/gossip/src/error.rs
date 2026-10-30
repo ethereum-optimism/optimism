@@ -123,6 +123,12 @@ pub enum DialError {
         /// The `PeerId` of the peer that is on the blocklist
         peer_id: PeerId,
     },
+    /// Peer is banned for its score, until the ban expires.
+    #[error("Peer is banned: {peer_id}")]
+    PeerBanned {
+        /// The `PeerId` of the banned peer
+        peer_id: PeerId,
+    },
     /// Failed to extract IP address from Multiaddr.
     #[error("Failed to extract IP address from Multiaddr: {addr}")]
     InvalidIpAddress {

@@ -87,7 +87,7 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.scoring <none or light>` | `KONA_NODE_P2P_SCORING` | Peer scoring strategy | `light` |
 | `--p2p.ban.peers` | `KONA_NODE_P2P_BAN_PEERS` | Enable peer banning | `false` |
 | `--p2p.ban.threshold <N>` | `KONA_NODE_P2P_BAN_THRESHOLD` | Ban threshold | `-100` |
-| `--p2p.ban.duration <MINUTES>` | `KONA_NODE_P2P_BAN_DURATION` | Ban duration | `60` |
+| `--p2p.ban.duration <MINUTES>` | `KONA_NODE_P2P_BAN_DURATION` | Ban duration: a banned peer is disconnected, and its connections are refused in both directions until the ban expires or [`opp2p_unblockPeer`](/node-operators/kona-node/rpc/p2p#opp2p_unblockpeer) lifts it. Bans don't survive a restart | `60` |
 | `--p2p.discovery.interval <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | Peer discovery interval | `5` |
 | `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | Directory to store the bootstore | - |
 | `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | Peer redialing threshold | `500` |
