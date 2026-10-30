@@ -207,6 +207,8 @@ impl NetworkBehaviour for Behaviour {
         Ok(dummy::ConnectionHandler)
     }
 
+    /// Allows our connections: the gate refuses to dial a blocked peer, and blocking a peer
+    /// aborts our dials to it that are still in flight.
     fn handle_established_outbound_connection(
         &mut self,
         _connection_id: ConnectionId,

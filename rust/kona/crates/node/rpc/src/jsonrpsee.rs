@@ -87,7 +87,11 @@ pub trait OpP2PApi {
     #[method(name = "discoveryTable")]
     async fn opp2p_discovery_table(&self) -> RpcResult<Vec<String>>;
 
-    /// Blocks the given peer
+    /// Blocks the given peer: closes its connections, refuses its new ones in both directions, and
+    /// ignores its gossip until it is unblocked.
+    ///
+    /// This applies to protected and static peers too: a static peer isn't dialed again while it
+    /// is blocked. Unlike op-node, which leaves a blocked peer's open connections in place.
     #[method(name = "blockPeer")]
     async fn opp2p_block_peer(&self, peer: String) -> RpcResult<()>;
 

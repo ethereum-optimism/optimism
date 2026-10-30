@@ -90,7 +90,9 @@ Returns the discovery table entries as a list of ENR strings. A node running [wi
 
 ### `opp2p_blockPeer`
 
-Blocks a specific peer by peer ID, preventing any connections to or from that peer.
+Blocks a specific peer by peer ID, preventing any connections to or from that peer. The peer's open connections are closed, and new ones are refused in both directions until it is [unblocked](#opp2p_unblockpeer).
+
+This applies to [protected](#opp2p_protectpeer) and [static](/node-operators/kona-node/configuration#static-peers) peers too: a blocked static peer isn't dialed again until it is unblocked. op-node, by contrast, leaves a blocked peer's open connections in place.
 
 | Client | Method invocation                                   |
 | ------ | --------------------------------------------------- |

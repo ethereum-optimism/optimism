@@ -395,12 +395,18 @@ where
         self.connection_gate.unprotect_peer(peer_id);
     }
 
-    /// Blocks `peer_id`: the gate refuses to dial it and refuses its incoming connections, and
-    /// gossipsub ignores its messages. Connections already open stay open.
+    /// Blocks `peer_id`: closes its connections and aborts our dials to it, the gate refuses to
+    /// dial it and refuses its incoming connections, and gossipsub ignores its messages.
+    ///
+    /// Its connections are closed even if it is protected or a static peer: protection only keeps
+    /// a peer from being disconnected for its score or the redial limit. op-node leaves a blocked
+    /// peer's open connections in place.
     pub fn block_peer(&mut self, peer_id: PeerId) {
         let behaviour = self.swarm.behaviour_mut();
         behaviour.gate.block_peer(peer_id);
         behaviour.gossipsub.blacklist_peer(&peer_id);
+        // Also aborts our dials still in flight. An error only means the peer isn't connected.
+        let _ = self.swarm.disconnect_peer_id(peer_id);
     }
 
     /// Unblocks `peer_id`, undoing [`Self::block_peer`].
@@ -1569,6 +1575,89 @@ mod tests {
             None
         );
         poll_until_connected(&mut driver_1, &mut driver_2).await;
+    }
+
+    /// Connects two drivers, then has the first block the second, protected first if `protected`.
+    /// The block closes the connection on both sides, and the second's redial is refused.
+    async fn assert_blocking_closes_the_connection(protected: bool) {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+        let (peer_1, peer_2) = (*driver_1.local_peer_id(), *driver_2.local_peer_id());
+        let addr_1 = driver_1.start().await.expect("listen").with(Protocol::P2p(peer_1));
+        driver_2.start().await.expect("listen");
+        driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+        if protected {
+            driver_1.connection_gate.protect_peer(peer_2);
+        }
+
+        driver_1.block_peer(peer_2);
+        poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
+            !driver_1.is_connected(&peer_2) && !driver_2.is_connected(&peer_1)
+        })
+        .await;
+
+        driver_2.dial_multiaddr(addr_1).expect("dial");
+        let refusal = inbound_refusal(&mut driver_1, &mut driver_2).await;
+        assert!(
+            matches!(refusal, Some(DialError::PeerBlocked { peer_id }) if peer_id == peer_2),
+            "{refusal:?}"
+        );
+    }
+
+    /// Blocking a connected peer closes its connection, and its redial is refused.
+    #[tokio::test]
+    async fn test_blocking_a_connected_peer_closes_its_connection() {
+        assert_blocking_closes_the_connection(false).await;
+    }
+
+    /// A protected peer is only protected from being disconnected for its score or the redial
+    /// limit. Blocking it closes its connection too.
+    #[tokio::test]
+    async fn test_blocking_a_protected_peer_closes_its_connection() {
+        assert_blocking_closes_the_connection(true).await;
+    }
+
+    /// A dial of ours still in flight when its peer is blocked doesn't connect: blocking the peer
+    /// aborts it.
+    #[tokio::test]
+    async fn test_dial_in_flight_to_a_peer_blocked_meanwhile_does_not_connect() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+        let peer_2 = *driver_2.local_peer_id();
+        let addr_2 = driver_2.start().await.expect("listen").with(Protocol::P2p(peer_2));
+        driver_1.start().await.expect("listen");
+
+        // Started, but not yet polled, so the block lands while the dial is in flight.
+        driver_1.dial_multiaddr(addr_2).expect("dial");
+        driver_1.block_peer(peer_2);
+
+        let mut dial_error = None;
+        let poll = async {
+            while dial_error.is_none() {
+                tokio::select! {
+                    Some(event) = driver_1.next() => {
+                        match &event {
+                            SwarmEvent::OutgoingConnectionError {
+                                peer_id: Some(peer_id), error, ..
+                            } if *peer_id == peer_2 => dial_error = Some(error.to_string()),
+                            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                                assert_ne!(*peer_id, peer_2, "the blocked peer connected");
+                            }
+                            _ => {}
+                        }
+                        driver_1.handle_event(event);
+                    }
+                    Some(event) = driver_2.next() => { driver_2.handle_event(event); }
+                }
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(10), poll).await.expect("the dial ended");
+        assert_eq!(
+            dial_error.as_deref(),
+            Some(libp2p::swarm::DialError::Aborted.to_string().as_str())
+        );
+        assert!(!driver_1.is_connected(&peer_2));
     }
 
     /// An in-memory connection has no IP, so even a block on every IPv4 address doesn't keep it
