@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -230,8 +231,12 @@ type mockBackend struct {
 	// blockHeight tracks the current height of the chain.
 	blockHeight uint64
 
-	// labelLag is how many blocks the safe and finalized blocks trail blockHeight.
-	labelLag uint64
+	// safeLag and finalizedLag are how many blocks the safe and finalized blocks trail blockHeight.
+	safeLag      uint64
+	finalizedLag uint64
+
+	// labelErr is returned when a labeled block (e.g. safe or finalized) is requested.
+	labelErr error
 
 	// minedTxs maps the hash of a mined transaction to its details.
 	minedTxs map[common.Hash]minedTxInfo
@@ -287,7 +292,16 @@ func (b *mockBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*typ
 	num := big.NewInt(int64(b.blockHeight))
 	if number != nil && number.Sign() < 0 {
 		// A negative number selects a labeled block, e.g. safe or finalized.
-		num.SetUint64(b.blockHeight - min(b.labelLag, b.blockHeight))
+		if b.labelErr != nil {
+			return nil, b.labelErr
+		}
+		lag := b.safeLag
+		if number.Int64() == int64(rpc.FinalizedBlockNumber) {
+			lag = b.finalizedLag
+		} else if number.Int64() != int64(rpc.SafeBlockNumber) {
+			return nil, fmt.Errorf("unexpected block number %v", number)
+		}
+		num.SetUint64(b.blockHeight - min(lag, b.blockHeight))
 	} else if number != nil {
 		num.Set(number)
 	}
@@ -1018,7 +1032,12 @@ func TestWaitMinedConfsFromBlockTag(t *testing.T) {
 			cfg := configWithNumConfs(1)
 			cfg.NumConfirmationsBlockTag = label
 			h := newTestHarnessWithConfig(t, cfg)
-			h.backend.labelLag = 2
+			// Only the configured label trails the tip, so reading the other label confirms too early.
+			if label == eth.Safe {
+				h.backend.safeLag = 2
+			} else {
+				h.backend.finalizedLag = 2
+			}
 
 			tx := types.NewTx(&types.LegacyTx{})
 			txHash := tx.Hash()
@@ -1043,6 +1062,24 @@ func TestWaitMinedConfsFromBlockTag(t *testing.T) {
 			require.Equal(t, txHash, receipt.TxHash)
 		})
 	}
+}
+
+// TestQueryReceiptBlockTagError ensures that a tx is not confirmed when the
+// configured block tag cannot be fetched.
+func TestQueryReceiptBlockTagError(t *testing.T) {
+	t.Parallel()
+
+	cfg := configWithNumConfs(1)
+	cfg.NumConfirmationsBlockTag = eth.Safe
+	h := newTestHarnessWithConfig(t, cfg)
+	h.backend.labelErr = errors.New("safe block not available")
+
+	tx := types.NewTx(&types.LegacyTx{})
+	txHash := tx.Hash()
+	h.backend.mine(&txHash, new(big.Int), nil)
+	h.backend.mine(nil, nil, nil)
+
+	require.Nil(t, h.mgr.queryReceipt(context.Background(), txHash, NewSendState(10, time.Hour)))
 }
 
 // TestManagerErrsOnZeroCLIConfs ensures that the NewSimpleTxManager will error
