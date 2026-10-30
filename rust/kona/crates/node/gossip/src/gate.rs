@@ -132,15 +132,17 @@ impl Behaviour {
         self.peers.contains(peer_id)
     }
 
-    /// Blocks an IP address.
+    /// Blocks an IP address. An IPv4-mapped IPv6 address blocks the IPv4 address in it.
     pub fn block_addr(&mut self, ip: IpAddr) {
+        let ip = ip.to_canonical();
         self.addrs.insert(ip);
         debug!(target: "gossip", ?ip, "Blocked ip address");
     }
 
     /// Unblocks an IP address.
     pub fn unblock_addr(&mut self, ip: &IpAddr) {
-        self.addrs.remove(ip);
+        let ip = ip.to_canonical();
+        self.addrs.remove(&ip);
         debug!(target: "gossip", ?ip, "Unblocked ip address");
     }
 
@@ -152,18 +154,20 @@ impl Behaviour {
     /// Returns whether an IP address is blocked by itself. A blocked subnet that contains it
     /// doesn't count, see [`Self::is_in_blocked_subnet`].
     pub fn is_blocked_addr(&self, ip: &IpAddr) -> bool {
-        self.addrs.contains(ip)
+        self.addrs.contains(&ip.to_canonical())
     }
 
-    /// Blocks a subnet.
+    /// Blocks a subnet. An IPv4-mapped IPv6 subnet blocks the IPv4 subnet in it.
     pub fn block_subnet(&mut self, subnet: IpNet) {
+        let subnet = canonical_subnet(subnet);
         self.subnets.insert(subnet);
         debug!(target: "gossip", ?subnet, "Blocked subnet");
     }
 
     /// Unblocks a subnet.
     pub fn unblock_subnet(&mut self, subnet: &IpNet) {
-        self.subnets.remove(subnet);
+        let subnet = canonical_subnet(*subnet);
+        self.subnets.remove(&subnet);
         debug!(target: "gossip", ?subnet, "Unblocked subnet");
     }
 
@@ -186,8 +190,25 @@ impl Behaviour {
 
     /// Returns whether an IP address lies in a blocked subnet.
     pub fn is_in_blocked_subnet(&self, ip: &IpAddr) -> bool {
-        self.subnets.iter().any(|subnet| subnet.contains(ip))
+        let ip = ip.to_canonical();
+        self.subnets.iter().any(|subnet| subnet.contains(&ip))
     }
+}
+
+/// Returns an IPv4-mapped IPv6 subnet, within `::ffff:0:0/96`, as the IPv4 subnet in it, and any
+/// other subnet as it is.
+///
+/// IPv4 peers always arrive as IPv4 addresses, since libp2p-tcp makes its IPv6 sockets IPv6-only,
+/// so a mapped subnet would otherwise never match them.
+fn canonical_subnet(subnet: IpNet) -> IpNet {
+    if let IpNet::V6(v6) = subnet &&
+        v6.prefix_len() >= 96 &&
+        let Some(network) = v6.network().to_ipv4_mapped() &&
+        let Ok(v4) = ipnet::Ipv4Net::new(network, v6.prefix_len() - 96)
+    {
+        return IpNet::V4(v4);
+    }
+    subnet
 }
 
 /// Counts an inbound connection the gate refuses, by its reason, and wraps the refusal for the
@@ -408,12 +429,32 @@ mod tests {
         gate.block_subnet("2001:db8::/32".parse().unwrap());
         let in_blocked_subnet = |ip: &str| gate.is_in_blocked_subnet(&ip.parse().unwrap());
 
-        // Not even the IPv4-mapped IPv6 form of an address in 10.0.0.0/8. Peers don't arrive in
-        // that form, though: libp2p-tcp makes its IPv6 listeners IPv6-only, so an IPv4 peer
-        // connects to an IPv4 listener, as `/ip4/...`.
-        assert!(!in_blocked_subnet("::ffff:10.0.0.1"));
         // The IPv4 address 32.1.13.184 has the same first 32 bits as 2001:db8::.
         assert!(!in_blocked_subnet("32.1.13.184"));
+        assert!(!in_blocked_subnet("2001:db9::1"));
+    }
+
+    /// An IPv4-mapped IPv6 address, such as `::ffff:10.0.0.1`, means the IPv4 address in it, in a
+    /// block and in a check. Without that, blocking one would never match: libp2p-tcp makes its
+    /// IPv6 sockets IPv6-only, so IPv4 peers always arrive as `/ip4/...`.
+    #[test]
+    fn test_ipv4_mapped_addresses_mean_their_ipv4_address() {
+        let mut gate = Behaviour::default();
+        gate.block_addr("::ffff:10.0.0.1".parse().unwrap());
+        gate.block_subnet("::ffff:192.168.0.0/112".parse().unwrap());
+        gate.block_subnet("172.16.0.0/12".parse().unwrap());
+        let check = |ip: &str| gate.check_ip(ip.parse().unwrap());
+
+        assert!(matches!(check("10.0.0.1"), Err(DialError::AddressBlocked { .. })));
+        assert!(matches!(check("192.168.3.4"), Err(DialError::SubnetBlocked { .. })));
+        assert!(matches!(check("::ffff:172.16.0.1"), Err(DialError::SubnetBlocked { .. })));
+        assert!(check("10.0.0.2").is_ok());
+        // Listed as the IPv4 address and subnet they block.
+        assert_eq!(gate.list_blocked_addrs(), vec!["10.0.0.1".parse::<IpAddr>().unwrap()]);
+        assert!(gate.list_blocked_subnets().contains(&"192.168.0.0/16".parse().unwrap()));
+
+        gate.unblock_addr(&"::ffff:10.0.0.1".parse().unwrap());
+        assert!(gate.check_ip("10.0.0.1".parse().unwrap()).is_ok());
     }
 
     #[test]
