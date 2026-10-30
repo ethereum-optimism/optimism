@@ -369,6 +369,20 @@ where
             let _ = reply.send(Err(DialError::InvalidMultiaddr { addr }.into()));
             return;
         };
+        // Before the connected check: a peer just blocked is still connected until its
+        // connections have closed.
+        let gate = &self.swarm.behaviour().gate;
+        let refusal = if gate.is_blocked_peer(&peer_id) {
+            Some(DialError::PeerBlocked { peer_id })
+        } else if gate.is_banned_peer(&peer_id) {
+            Some(DialError::PeerBanned { peer_id })
+        } else {
+            ConnectionGater::ip_from_addr(&addr).and_then(|ip| gate.check_ip(ip).err())
+        };
+        if let Some(refusal) = refusal {
+            let _ = reply.send(Err(refusal.into()));
+            return;
+        }
         if self.is_connected(&peer_id) {
             let _ = reply.send(Ok(()));
             return;
@@ -2069,6 +2083,28 @@ mod tests {
 
         driver.ban_peer(peer);
         assert!(driver.swarm.behaviour().gate.is_banned_peer(&peer));
+    }
+
+    /// Connecting to a peer that was just blocked fails with the block, even while its connection
+    /// is still closing.
+    #[tokio::test]
+    async fn test_connect_to_a_peer_just_blocked_is_refused() {
+        let mut driver_1 = memory_driver();
+        let mut driver_2 = memory_driver();
+        let addr_2 = driver_2.start().await.expect("listen");
+        driver_1.start().await.expect("listen");
+        driver_1.dial_multiaddr(addr_2.clone()).expect("dial");
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+
+        driver_1.block_peer(addr_2.peer_id());
+        let (reply, outcome) = oneshot::channel();
+        driver_1.connect_peer(addr_2.into(), reply);
+
+        let refusal = outcome.await.expect("replied at once");
+        assert!(
+            matches!(refusal, Err(ConnectPeerError::NotDialed(DialError::PeerBlocked { .. }))),
+            "{refusal:?}"
+        );
     }
 
     /// A reply whose caller has given up, such as an RPC call that timed out, is dropped when the
