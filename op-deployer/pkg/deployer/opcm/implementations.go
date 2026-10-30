@@ -87,13 +87,7 @@ func NewDeployImplementationsForgeCaller(client *forge.Client) forge.ScriptCalle
 
 // DeployImplementationsViaForge deploys implementation contracts using Forge
 func DeployImplementationsViaForge(env *ForgeEnv, input DeployImplementationsInput) (DeployImplementationsOutput, error) {
-	var output DeployImplementationsOutput
-	if err := env.validate(true); err != nil {
-		return output, err
-	}
-	forgeCaller := NewDeployImplementationsForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOpts()...)
+	output, err := broadcastScript(env, NewDeployImplementationsForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy implementations with Forge: %w", err)
 	}

@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -31,8 +30,8 @@ type Env struct {
 	Deployer     common.Address
 	Logger       log.Logger
 	Scripts      *opcm.Scripts
-	ForgeClient  *forge.Client
-	UseForge     bool
+	// Forge runs the deploy scripts. When it is nil, the scripts run on L1ScriptHost.
+	Forge *opcm.ForgeEnv
 	// IsGenesis identifies deployments that build genesis allocations instead of targeting a running chain.
 	IsGenesis bool
 	// DeployMockSP1Verifier explicitly opts development environments into an accept-all raw verifier.
@@ -40,8 +39,6 @@ type Env struct {
 	// AllowUnoptimizedContracts permits contract artifacts that exceed the EIP-170 code-size limit.
 	// It is only enabled for genesis-mode deployments, which execute scripts against an in-memory host.
 	AllowUnoptimizedContracts bool
-	L1RPCUrl                  string
-	PrivateKey                string
 	Context                   context.Context
 }
 

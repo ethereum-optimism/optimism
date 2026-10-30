@@ -55,7 +55,8 @@ We recommend the following these best practices when bootstrapping:
 1.  Use Gnosis SAFEs for ownership roles like `guardian` and `superchain-proxy-admin-owner`. The owner **must** be a
     smart contract to support future upgrades, so a SAFE is a sensible default.
 2.  Use a regular EOA as the deployer. It will not have any control over the deployment once the deployment completes.
-3.  Use a standard contracts tag (e.g. `tag://op-contracts/v2.0.0`). This will make upgrading easier.
+3.  Use the contracts that op-deployer embeds (`embedded`, the default). op-deployer runs only the contracts release
+    that it was built with.
 
 ### Bootstrapping Implementations
 
@@ -111,8 +112,8 @@ See the following config for an example:
 configType = "standard-overrides"
 l1ChainID = 11155420
 opcmAddress = "0x..."
-l1ContractsLocator = "tag://..." # must match the one used in bootstrap
-l2ContractsLocator = "tag://..."
+l1ContractsLocator = "embedded" # must match the one used in bootstrap
+l2ContractsLocator = "embedded"
 
 [[chains]]
 # Chain configs...

@@ -260,7 +260,6 @@ func TestPopulateSuperchainState(t *testing.T) {
 
 	env := &Env{
 		L1ScriptHost: host,
-		UseForge:     false,
 		Context:      context.Background(),
 	}
 
@@ -349,7 +348,6 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 
 	env := &Env{
 		L1ScriptHost: host,
-		UseForge:     false,
 		Context:      context.Background(),
 	}
 

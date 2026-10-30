@@ -137,6 +137,7 @@ jobs:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: kona-ci
       # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
@@ -185,6 +186,7 @@ jobs:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: kona-ci
       # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
@@ -221,6 +223,7 @@ jobs:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: op-reth-e2e
       # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
@@ -259,6 +262,7 @@ jobs:
           checkout-method: blobless
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: kona-ci
       # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
@@ -393,6 +397,7 @@ jobs:
           directory: rust
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: sp1-super-range-elf-smoke
       - run:
@@ -511,6 +516,7 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - checkout-contracts-lib
       - go-restore-cache:
           namespace: kona-sp1-action-tests
       - run:

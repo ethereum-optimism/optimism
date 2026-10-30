@@ -165,13 +165,7 @@ func NewReadImplementationAddressesForgeCaller(client *forge.Client) forge.Scrip
 
 // DeployOPChainViaForge deploys OP Chain contracts using Forge
 func DeployOPChainViaForge(env *ForgeEnv, input DeployOPChainInput) (DeployOPChainOutput, error) {
-	var output DeployOPChainOutput
-	if err := env.validate(true); err != nil {
-		return output, err
-	}
-	forgeCaller := NewDeployOPChainForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOpts()...)
+	output, err := broadcastScript(env, NewDeployOPChainForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy OP Chain with Forge: %w", err)
 	}
@@ -180,13 +174,7 @@ func DeployOPChainViaForge(env *ForgeEnv, input DeployOPChainInput) (DeployOPCha
 
 // ReadImplementationAddressesViaForge reads implementation addresses using Forge
 func ReadImplementationAddressesViaForge(env *ForgeEnv, input ReadImplementationAddressesInput) (ReadImplementationAddressesOutput, error) {
-	var output ReadImplementationAddressesOutput
-	if err := env.validate(false); err != nil {
-		return output, err
-	}
-	forgeCaller := NewReadImplementationAddressesForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOptsReadOnly()...)
+	output, err := readScript(env, NewReadImplementationAddressesForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to run ReadImplementationAddresses with Forge: %w", err)
 	}
