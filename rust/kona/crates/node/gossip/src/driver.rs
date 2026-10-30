@@ -78,7 +78,8 @@ pub struct GossipDriver<G: ConnectionGate> {
     /// Set when a duplicate connection is established, and after each check to the earliest
     /// duplicate still in its grace period. `None` until the next duplicate is established.
     next_duplicate_check: Option<Instant>,
-    /// The listener [`Self::start`] added, removed again when the driver is dropped.
+    /// The listener [`Self::start`] added, removed again when the driver is dropped. `None` until
+    /// the driver starts, and again once the listener closes.
     listener_id: Option<ListenerId>,
 }
 
@@ -187,8 +188,9 @@ where
     ///
     /// The dials only start once the swarm listens, so a start that fails leaves nothing running.
     ///
-    /// A driver starts once: calling this again returns [`StartError::AlreadyStarted`], and the
-    /// driver keeps listening on the address the first call returned.
+    /// While the driver listens, calling this again returns [`StartError::AlreadyStarted`], and the
+    /// driver keeps listening on the address the first call returned. Once its listener closes, it
+    /// can start again, and listens on the address it had.
     pub async fn start(&mut self) -> Result<Multiaddr, StartError> {
         if self.listener_id.is_some() {
             return Err(StartError::AlreadyStarted);
@@ -842,6 +844,14 @@ where
             SwarmEvent::NewListenAddr { listener_id, address } => {
                 debug!(target: "gossip", reporter_id = ?listener_id, new_address = ?address, "New listen address");
             }
+            // The node no longer accepts connections. Forget the listener, so that the driver can
+            // start listening again.
+            SwarmEvent::ListenerClosed { listener_id, addresses, reason }
+                if self.listener_id == Some(listener_id) =>
+            {
+                error!(target: "gossip", ?addresses, ?reason, "Gossip listener closed, not accepting connections");
+                self.listener_id = None;
+            }
             SwarmEvent::Dialing { peer_id, connection_id } => {
                 debug!(target: "gossip", ?peer_id, ?connection_id, "Dialing peer");
             }
@@ -1042,6 +1052,20 @@ mod tests {
             panic!("expected the listener to close, got {start:?}");
         };
         assert_eq!(reason.to_string(), "listener failed");
+    }
+
+    /// When our listener closes, the driver forgets it, and can start listening again, on the
+    /// address it had.
+    #[tokio::test]
+    async fn test_driver_forgets_a_closed_listener() {
+        let mut driver = memory_driver();
+        let addr = driver.start().await.expect("listen");
+        let listener_id = driver.listener_id.expect("a listener");
+
+        assert!(driver.swarm.remove_listener(listener_id));
+        poll_one_until(&mut driver, |driver| driver.listener_id.is_none()).await;
+
+        assert_eq!(driver.start().await.expect("listen again"), addr);
     }
 
     /// kona doesn't serve op-node's retired sync request/response protocol, `payload_by_number`.
