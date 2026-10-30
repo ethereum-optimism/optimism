@@ -6,7 +6,7 @@ use alloy_primitives::B256;
 use backon::{ExponentialBuilder, Retryable};
 use discv5::Enr;
 use enr::NodeId;
-use kona_gossip::{GossipCommand, GossipCommandSender, PeerDump, PeerInfo};
+use kona_gossip::{GossipCommand, GossipCommandSender, PeerAddr, PeerDump, PeerInfo};
 use kona_node_service::NetworkActorError;
 use kona_rpc::{OpP2PApiServer, P2pRpc};
 use libp2p::Multiaddr;
@@ -154,12 +154,13 @@ impl TestNetwork {
     /// sends. Use [`Self::check_connected_to_with_retries`] to wait for the connection: unlike
     /// `opp2p_connectPeer`, this does not wait for it.
     pub(super) async fn connect_to(&self, other: &Self) -> Result<(), TestNetworkError> {
-        let address = other.listen_addr().await?;
+        let peer = PeerAddr::try_from(other.listen_addr().await?)
+            .map_err(|e| TestNetworkError::InvalidMultiaddr(e.to_string()))?;
         let (applied_tx, applied_rx) = tokio::sync::oneshot::channel();
         // Nobody waits for the reply: the caller watches for the connection itself.
         let reply = tokio::sync::oneshot::channel().0;
         self.gossip_command_tx
-            .send((GossipCommand::ConnectPeer { address, reply }, applied_tx))
+            .send((GossipCommand::ConnectPeer { peer, reply }, applied_tx))
             .await
             .map_err(|_| TestNetworkError::CommandNotApplied)?;
         applied_rx.await.map_err(|_| TestNetworkError::CommandNotApplied)

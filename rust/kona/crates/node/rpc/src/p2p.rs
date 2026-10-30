@@ -16,7 +16,7 @@ use jsonrpsee::{
 use kona_disc::Discv5Handler;
 use kona_gossip::{
     Connectedness, Direction, GossipCommand, GossipCommandSender, GossipQueryHandle, GossipScores,
-    GossipState, PeerCount, PeerDump, PeerInfo, PeerScores, PeerStats,
+    GossipState, PeerAddr, PeerAddrError, PeerCount, PeerDump, PeerInfo, PeerScores, PeerStats,
 };
 use kona_peers::{OpStackEnr, peer_id_to_node_id};
 use libp2p::{PeerId, multiaddr::Protocol};
@@ -358,19 +358,12 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_connect_peer(&self, peer: String) -> RpcResult<()> {
-        let address = libp2p::Multiaddr::from_str(&peer).map_err(|_| {
-            ErrorObject::borrowed(ErrorCode::InvalidParams.code(), "Invalid multiaddr", None)
+        let peer: PeerAddr = peer.parse().map_err(|err: PeerAddrError| {
+            ErrorObject::owned(ErrorCode::InvalidParams.code(), err.to_string(), None::<()>)
         })?;
-        if !address.iter().any(|component| matches!(component, Protocol::P2p(_))) {
-            return Err(ErrorObject::borrowed(
-                ErrorCode::InvalidParams.code(),
-                "Impossible to extract peer ID from multiaddr",
-                None,
-            ));
-        }
 
         let (reply, outcome) = oneshot::channel();
-        self.apply_command(GossipCommand::ConnectPeer { address, reply }).await?;
+        self.apply_command(GossipCommand::ConnectPeer { peer, reply }).await?;
         match tokio::time::timeout(CONNECT_TIMEOUT, outcome).await {
             Ok(Ok(Ok(()))) => self.await_current_state().await,
             Ok(Ok(Err(err))) => Err(plain_error(err.to_string())),
@@ -498,6 +491,20 @@ mod tests {
         let mut state = fixture.driver.snapshot();
         state.connected_peers.extend(connected);
         fixture.state_tx.send_replace(Arc::new(state));
+    }
+
+    /// `opp2p_connectPeer` rejects an address that doesn't name a peer to dial as invalid params,
+    /// without sending the network actor a command.
+    #[rstest::rstest]
+    #[case::not_a_multiaddr("127.0.0.1:9222")]
+    #[case::no_peer_id("/ip4/127.0.0.1/tcp/9222")]
+    #[case::nothing_to_dial("/p2p/16Uiu2HAmLFhCjjNUXiZA3Hdd3j3qp6rnD6tHkFtsSZmhpV8axfGX")]
+    #[tokio::test]
+    async fn connect_peer_rejects_an_address_without_a_peer_to_dial(#[case] addr: &str) {
+        let mut fixture = fixture(false);
+        let err = fixture.rpc.opp2p_connect_peer(addr.to_owned()).await.expect_err("rejected");
+        assert_eq!(err.code(), ErrorCode::InvalidParams.code());
+        assert!(fixture.commands_rx.try_recv().is_err());
     }
 
     /// `opp2p_connectPeer` returns only once the gossip state shows the connection, so that a

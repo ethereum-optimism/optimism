@@ -355,20 +355,16 @@ where
         }
     }
 
-    /// Dials the peer at `addr`, which must end in its `/p2p/<peer id>`, and tells `reply` once
-    /// the peer connects or the dial fails.
+    /// Dials `peer`, and tells `reply` once the peer connects or the dial fails.
     ///
     /// A peer that is already connected is told at once, and so is one the gate refuses to dial,
     /// with the reason. A peer that is already being dialed is told how that dial ends.
     pub fn connect_peer(
         &mut self,
-        addr: Multiaddr,
+        peer: PeerAddr,
         reply: oneshot::Sender<Result<(), ConnectPeerError>>,
     ) {
-        let Some(peer_id) = ConnectionGater::peer_id_from_addr(&addr) else {
-            let _ = reply.send(Err(DialError::InvalidMultiaddr { addr }.into()));
-            return;
-        };
+        let peer_id = peer.peer_id();
         // Before the connected check: a peer just blocked is still connected until its
         // connections have closed.
         let gate = &self.swarm.behaviour().gate;
@@ -377,7 +373,7 @@ where
         } else if gate.is_banned_peer(&peer_id) {
             Some(DialError::PeerBanned { peer_id })
         } else {
-            ConnectionGater::ip_from_addr(&addr).and_then(|ip| gate.check_ip(ip).err())
+            ConnectionGater::ip_from_addr(peer.addr()).and_then(|ip| gate.check_ip(ip).err())
         };
         if let Some(refusal) = refusal {
             let _ = reply.send(Err(refusal.into()));
@@ -387,7 +383,7 @@ where
             let _ = reply.send(Ok(()));
             return;
         }
-        match self.dial_peer(peer_id, [addr]) {
+        match self.dial_peer(peer_id, [peer.into()]) {
             Ok(()) | Err(DialError::AlreadyDialing { .. }) => {
                 add_reply(&mut self.pending_connects, peer_id, reply);
             }
@@ -2109,7 +2105,7 @@ mod tests {
 
         driver_1.block_peer(addr_2.peer_id());
         let (reply, outcome) = oneshot::channel();
-        driver_1.connect_peer(addr_2.into(), reply);
+        driver_1.connect_peer(addr_2, reply);
 
         let refusal = outcome.await.expect("replied at once");
         assert!(
@@ -2128,9 +2124,10 @@ mod tests {
 
         // Not polled, so the dial stays in flight, and the second call joins it.
         let (abandoned, _) = oneshot::channel();
-        driver.connect_peer(unused_memory_addr(peer), abandoned);
+        let addr = PeerAddr::try_from(unused_memory_addr(peer)).unwrap();
+        driver.connect_peer(addr.clone(), abandoned);
         let (waiting, _waiting_rx) = oneshot::channel();
-        driver.connect_peer(unused_memory_addr(peer), waiting);
+        driver.connect_peer(addr, waiting);
 
         assert_eq!(driver.pending_connects[&peer].len(), 1);
     }
@@ -2154,7 +2151,7 @@ mod tests {
         let peer_2 = addr_2.peer_id();
 
         let (reply, mut outcome) = oneshot::channel();
-        driver_1.connect_peer(addr_2.into(), reply);
+        driver_1.connect_peer(addr_2, reply);
         assert!(matches!(outcome.try_recv(), Ok(Ok(()))));
         assert!(!driver_1.pending_connects.contains_key(&peer_2));
     }
@@ -2171,7 +2168,11 @@ mod tests {
         let addr_2 = driver_2.start().await.expect("listen");
         let peer_2 = addr_2.peer_id();
         driver_1.start().await.expect("listen");
-        let addr: Multiaddr = if reachable { addr_2.into() } else { unused_memory_addr(peer_2) };
+        let addr = if reachable {
+            addr_2
+        } else {
+            PeerAddr::try_from(unused_memory_addr(peer_2)).unwrap()
+        };
 
         // Not polled in between, so the second call finds the first one's dial in flight.
         let (replies, outcomes): (Vec<_>, Vec<_>) = (0..2).map(|_| oneshot::channel()).unzip();

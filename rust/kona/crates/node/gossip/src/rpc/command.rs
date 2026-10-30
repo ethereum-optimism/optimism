@@ -1,8 +1,8 @@
 //! Commands that mutate the gossip network.
 
-use crate::{ConnectPeerError, ConnectionGate, GossipDriver};
+use crate::{ConnectPeerError, ConnectionGate, GossipDriver, PeerAddr};
 use ipnet::IpNet;
-use libp2p::{Multiaddr, PeerId};
+use libp2p::PeerId;
 use std::net::IpAddr;
 use tokio::sync::{mpsc, oneshot};
 
@@ -47,8 +47,8 @@ pub enum GossipCommand {
     },
     /// Connect to a peer, unless the gate refuses to dial it.
     ConnectPeer {
-        /// The address to dial, ending in the peer's `/p2p/<peer id>`.
-        address: Multiaddr,
+        /// The peer, and the address to dial it at.
+        peer: PeerAddr,
         /// Told once the peer connects, or why it didn't. Told at once if the peer is already
         /// connected, or if the gate refuses to dial it, with the gate's reason.
         reply: oneshot::Sender<Result<(), ConnectPeerError>>,
@@ -82,7 +82,7 @@ impl GossipCommand {
             Self::UnblockAddr { address } => gossip.unblock_addr(address),
             Self::BlockSubnet { address } => gossip.block_subnet(address),
             Self::UnblockSubnet { address } => gossip.unblock_subnet(address),
-            Self::ConnectPeer { address, reply } => gossip.connect_peer(address, reply),
+            Self::ConnectPeer { peer, reply } => gossip.connect_peer(peer, reply),
             Self::ProtectPeer { peer_id } => gossip.connection_gate.protect_peer(peer_id),
             Self::UnprotectPeer { peer_id } => gossip.unprotect_peer(peer_id),
             Self::DisconnectPeer { peer_id, reply } => {
