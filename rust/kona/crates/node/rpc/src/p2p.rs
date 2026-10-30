@@ -372,7 +372,7 @@ impl OpP2PApiServer for P2pRpc {
         let (reply, outcome) = oneshot::channel();
         self.apply_command(GossipCommand::ConnectPeer { address, reply }).await?;
         match tokio::time::timeout(CONNECT_TIMEOUT, outcome).await {
-            Ok(Ok(Ok(()))) => Ok(()),
+            Ok(Ok(Ok(()))) => self.await_current_state().await,
             Ok(Ok(Err(err))) => Err(plain_error(err.to_string())),
             Ok(Err(err)) => Err(internal_error("connect_peer", err)),
             Err(_) => Err(plain_error("timed out connecting to the peer".to_owned())),
@@ -386,7 +386,7 @@ impl OpP2PApiServer for P2pRpc {
         let (reply, closed) = oneshot::channel();
         self.apply_command(GossipCommand::DisconnectPeer { peer_id, reply }).await?;
         match tokio::time::timeout(DISCONNECT_TIMEOUT, closed).await {
-            Ok(Ok(())) => Ok(()),
+            Ok(Ok(())) => self.await_current_state().await,
             Ok(Err(err)) => Err(internal_error("disconnect_peer", err)),
             Err(_) => Err(plain_error("timed out disconnecting the peer".to_owned())),
         }
@@ -422,6 +422,18 @@ impl P2pRpc {
         applied_rx.await.map_err(|e| internal_error("apply_command", e))
     }
 
+    /// Waits for gossip state built after this point, so that a call made after this returns
+    /// sees what the network actor has done so far, even with a snapshot that is still young
+    /// enough to answer from. The actor settles a connect or disconnect from a swarm event, and
+    /// only publishes after handling it.
+    async fn await_current_state(&self) -> RpcResult<()> {
+        self.gossip
+            .snapshot(Duration::ZERO)
+            .await
+            .map(|_| ())
+            .map_err(|e| internal_error("gossip_snapshot", e))
+    }
+
     async fn gossip_snapshot(&self) -> RpcResult<Arc<GossipState>> {
         self.gossip
             .snapshot(self.snapshot_max_age)
@@ -444,7 +456,6 @@ mod tests {
         rpc: P2pRpc,
         state_tx: watch::Sender<Arc<GossipState>>,
         /// Kept open, so a stale snapshot's refresh request waits instead of failing.
-        #[allow(dead_code)]
         refresh_rx: mpsc::Receiver<()>,
         commands_rx: GossipCommandReceiver,
         discovery_rx: mpsc::Receiver<HandlerRequest>,
@@ -471,6 +482,66 @@ mod tests {
             commands_tx,
         );
         Fixture { rpc, state_tx, refresh_rx, commands_rx, discovery_rx, driver }
+    }
+
+    /// Plays the network actor for one command: applies it, has `settle` reply to it, and
+    /// publishes `connected` as the new state only once a reader asks for a fresher snapshot.
+    async fn settle_command_then_publish_when_asked(
+        fixture: &mut Fixture,
+        settle: impl FnOnce(GossipCommand),
+        connected: Option<PeerId>,
+    ) {
+        let (command, applied) = fixture.commands_rx.recv().await.expect("a command");
+        let _ = applied.send(());
+        settle(command);
+        fixture.refresh_rx.recv().await.expect("a request for fresher state");
+        let mut state = fixture.driver.snapshot();
+        state.connected_peers.extend(connected);
+        fixture.state_tx.send_replace(Arc::new(state));
+    }
+
+    /// `opp2p_connectPeer` returns only once the gossip state shows the connection, so that a
+    /// read right after it lists the peer, though an older snapshot is still young enough to use.
+    #[tokio::test]
+    async fn connect_peer_returns_once_the_state_shows_the_connection() {
+        let mut fixture = fixture(false);
+        let peer = Keypair::generate_secp256k1().public().to_peer_id();
+        let connect = fixture.rpc.clone();
+        let connect = connect.opp2p_connect_peer(format!("/ip4/127.0.0.1/tcp/9222/p2p/{peer}"));
+        let settle = |command| {
+            let GossipCommand::ConnectPeer { reply, .. } = command else { panic!("{command:?}") };
+            let _ = reply.send(Ok(()));
+        };
+        let actor = settle_command_then_publish_when_asked(&mut fixture, settle, Some(peer));
+        let joined =
+            tokio::time::timeout(Duration::from_secs(5), async { tokio::join!(connect, actor) });
+        joined.await.expect("connected").0.expect("connect");
+
+        assert_eq!(fixture.rpc.opp2p_peer_count().await.unwrap().connected_gossip, 1);
+    }
+
+    /// `opp2p_disconnectPeer` returns only once the gossip state shows the disconnection.
+    #[tokio::test]
+    async fn disconnect_peer_returns_once_the_state_shows_the_disconnection() {
+        let mut fixture = fixture(false);
+        let peer = Keypair::generate_secp256k1().public().to_peer_id();
+        let mut state = fixture.driver.snapshot();
+        state.connected_peers.insert(peer);
+        fixture.state_tx.send_replace(Arc::new(state));
+        let disconnect = fixture.rpc.clone();
+        let disconnect = disconnect.opp2p_disconnect_peer(peer.to_string());
+        let settle = |command| {
+            let GossipCommand::DisconnectPeer { reply, .. } = command else {
+                panic!("{command:?}")
+            };
+            let _ = reply.send(());
+        };
+        let actor = settle_command_then_publish_when_asked(&mut fixture, settle, None);
+        let joined =
+            tokio::time::timeout(Duration::from_secs(5), async { tokio::join!(disconnect, actor) });
+        joined.await.expect("disconnected").0.expect("disconnect");
+
+        assert_eq!(fixture.rpc.opp2p_peer_count().await.unwrap().connected_gossip, 0);
     }
 
     #[tokio::test]

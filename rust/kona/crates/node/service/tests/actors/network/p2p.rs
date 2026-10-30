@@ -406,3 +406,34 @@ async fn test_new_connection_is_published_without_a_stale_read() -> anyhow::Resu
     node_1.check_connected_to_with_retries(&node_2).await?;
     Ok(())
 }
+
+/// Right after `opp2p_connectPeer` returns, `opp2p_peers` lists the new peer, even though the RPC
+/// accepts gossip state up to a second old, as it does in the node. The op-devstack reads the
+/// peers once, right after connecting.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_peers_show_a_connection_once_connect_peer_returns() -> anyhow::Result<()> {
+    let mut builder =
+        TestNetworkBuilder::new().without_discovery().with_snapshot_max_age(Duration::from_secs(1));
+    let node_1 = builder.build(vec![]).await;
+    let node_2 = builder.build(vec![]).await;
+
+    node_2.p2p_rpc.opp2p_connect_peer(loopback_addr(&node_1).await?).await?;
+    assert!(node_2.is_connected_to(&node_1).await?, "connected, but not listed yet");
+    Ok(())
+}
+
+/// Right after `opp2p_disconnectPeer` returns, `opp2p_peers` no longer lists the peer, even though
+/// the RPC accepts gossip state up to a second old, as it does in the node.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_peers_drop_a_connection_once_disconnect_peer_returns() -> anyhow::Result<()> {
+    let mut builder =
+        TestNetworkBuilder::new().without_discovery().with_snapshot_max_age(Duration::from_secs(1));
+    let node_1 = builder.build(vec![]).await;
+    let node_2 = builder.build(vec![]).await;
+    node_2.p2p_rpc.opp2p_connect_peer(loopback_addr(&node_1).await?).await?;
+    node_2.check_connected_to_with_retries(&node_1).await?;
+
+    node_2.p2p_rpc.opp2p_disconnect_peer(node_1.peer_id().await?).await?;
+    assert!(!node_2.is_connected_to(&node_1).await?, "disconnected, but still listed");
+    Ok(())
+}
