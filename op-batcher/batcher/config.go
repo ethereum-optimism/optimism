@@ -84,7 +84,9 @@ type CLIConfig struct {
 	// during times of low L2 transaction volume. Note that the effective
 	// L1-block distance between batcher transactions is then MaxChannelDuration
 	// + NumConfirmations because the batcher waits for NumConfirmations blocks
-	// after sending a batcher tx and only then starts a new channel.
+	// after sending a batcher tx and only then starts a new channel. The
+	// confirmations are counted from the L1 block selected by
+	// NumConfirmationsBlockTag, so with safe or finalized the distance is larger.
 	//
 	// If 0, duration checks are disabled.
 	MaxChannelDuration uint64
