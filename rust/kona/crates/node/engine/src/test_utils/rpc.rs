@@ -44,7 +44,7 @@ impl RpcMock {
 
     /// Builds a trusting L1 provider backed by this mock transport.
     pub fn l1_provider(&self) -> AlloyChainProvider {
-        AlloyChainProvider::new(self.provider(), 8)
+        AlloyChainProvider::new(self.provider(), 8, true)
     }
 
     /// Expects one call to `method` and returns the serialized response.
