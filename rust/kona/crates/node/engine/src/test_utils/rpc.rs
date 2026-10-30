@@ -174,6 +174,10 @@ impl Service<RequestPacket> for RpcMock {
 pub fn test_engine_client(cfg: Arc<RollupConfig>) -> (EngineClient, RpcMock, RpcMock) {
     let l1 = RpcMock::default();
     let l2 = RpcMock::default();
-    let client = EngineClient::new(l1.provider(), l2.provider(), cfg);
+    let client = EngineClient::new(
+        kona_providers_alloy::AlloyChainProvider::new(l1.provider(), 8),
+        l2.provider(),
+        cfg,
+    );
     (client, l1, l2)
 }

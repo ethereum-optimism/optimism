@@ -40,8 +40,7 @@ pub async fn find_starting_forkchoice(
 
     // Search for the highest `unsafe` block, relative to the initial `unsafe` block's L1 origin,
     loop {
-        let l1_origin =
-            engine_client.get_l1_block(current_fc.un_safe.l1_origin.hash.into()).await?;
+        let l1_origin = engine_client.l1_header_by_hash(current_fc.un_safe.l1_origin.hash).await?;
         info!(
             target: "sync_start",
             l1_origin = %current_fc.un_safe.l1_origin.number,
