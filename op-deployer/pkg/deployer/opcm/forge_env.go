@@ -9,8 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
-// ForgeEnv runs the deploy scripts with forge against a live L1. Live transactions are
-// produced by a keyless forge dry run, then signed and sent by txmgr, not forge.
+// ForgeEnv runs the deploy scripts with forge, against a live L1 or offline on a GenesisState. On a
+// live L1, a keyless forge dry run produces the transactions, and txmgr signs and sends them.
 type ForgeEnv struct {
 	Client               *forge.Client
 	Context              context.Context
@@ -18,11 +18,14 @@ type ForgeEnv struct {
 	PrivateKey           string
 	Logger               log.Logger
 	ReceiptQueryInterval time.Duration
+	// Genesis, when set, is the offline L1 state that the scripts run on.
+	Genesis *GenesisState
 }
 
 type newScriptCaller[I, O any] func(*forge.Client) forge.ScriptCaller[I, O]
 
-// broadcastScript simulates a script and sends its transactions to L1 with txmgr.
+// broadcastScript runs a script that sends transactions: to the live L1 through txmgr, or on the
+// genesis state.
 func broadcastScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I) (O, error) {
 	return runScript(env, newCaller, input, true)
 }
@@ -41,6 +44,15 @@ func runScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if env.Genesis != nil {
+		err := env.Genesis.run(env.Client, broadcast, func(client *forge.Client, flags []string) error {
+			var err error
+			out, err = newCaller(client)(ctx, input, flags...)
+			return err
+		})
+		return out, err
+	}
+
 	if env.L1RPCUrl == "" {
 		return out, errors.New("L1 RPC URL is required for Forge deployments")
 	}
