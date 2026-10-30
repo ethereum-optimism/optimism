@@ -209,7 +209,7 @@ pub(crate) struct OriginPreparation<C> {
 
 impl<C> OriginPreparation<C> {
     pub(crate) fn new(
-        rpc: alloy_provider::RootProvider,
+        rpc: kona_providers_alloy::AlloyChainProvider,
         l1_head: watch::Receiver<Option<BlockInfo>>,
         confirmation_depth: u64,
         chain: C,
