@@ -197,6 +197,8 @@ func NewDriverConfig(ctx cliiface.Context) *driver.Config {
 	cfg := &driver.Config{
 		VerifierConfDepth:        ctx.Uint64(flags.VerifierL1Confs.Name),
 		SequencerConfDepth:       ctx.Uint64(flags.SequencerL1Confs.Name),
+		VerifierL1BlockTag:       eth.BlockLabel(ctx.String(flags.VerifierL1BlockTag.Name)),
+		SequencerL1BlockTag:      eth.BlockLabel(ctx.String(flags.SequencerL1BlockTag.Name)),
 		SequencerEnabled:         ctx.Bool(flags.SequencerEnabledFlag.Name),
 		SequencerStopped:         ctx.Bool(flags.SequencerStoppedFlag.Name),
 		RecoverMode:              ctx.Bool(flags.SequencerRecoverMode.Name),
