@@ -81,6 +81,16 @@ mod tests {
     }
 
     #[test]
+    fn test_only_eth_da_chains() {
+        let superchains = Registry::from_chain_list();
+        assert!(superchains.chain_list.chains.iter().all(|c| c.data_availability_type == "eth-da"));
+        assert!(superchains.op_chains.values().all(|c| c.data_availability_type == "eth-da"));
+        // Redstone uses alt-DA.
+        assert!(superchains.chain_list.get_chain_by_id(690).is_none());
+        assert!(!superchains.rollup_configs.contains_key(&690));
+    }
+
+    #[test]
     fn test_read_rollup_configs() {
         let superchains = Registry::from_chain_list();
         assert_eq!(

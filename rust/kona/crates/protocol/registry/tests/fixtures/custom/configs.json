@@ -52,7 +52,6 @@
             "eip1559Denominator": 50,
             "eip1559DenominatorCanyon": 250
           },
-          "alt_da": null,
           "genesis": {
             "l1": {
               "number": 17422590,
@@ -104,8 +103,7 @@
             "FaultDisputeGame": null,
             "Mips": null,
             "PermissionedDisputeGame": null,
-            "PreimageOracle": null,
-            "DataAvailabilityChallenge": null
+            "PreimageOracle": null
           }
         },
         {
@@ -137,7 +135,6 @@
             "eip1559Denominator": 50,
             "eip1559DenominatorCanyon": 250
           },
-          "alt_da": null,
           "genesis": {
             "l1": {
               "number": 17422590,
@@ -189,8 +186,7 @@
             "FaultDisputeGame": null,
             "Mips": null,
             "PermissionedDisputeGame": null,
-            "PreimageOracle": null,
-            "DataAvailabilityChallenge": null
+            "PreimageOracle": null
           }
         }
       ]
