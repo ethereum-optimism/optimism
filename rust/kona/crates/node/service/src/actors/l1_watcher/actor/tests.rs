@@ -89,7 +89,7 @@ fn provider(state: Arc<RpcState>) -> AlloyChainProvider {
             .layer(tower::util::MapFutureLayer::new(kona_engine::with_deadline))
             .transport(transport, false),
     );
-    AlloyChainProvider::new(rpc, 8)
+    AlloyChainProvider::new(rpc, 8, true)
 }
 
 struct ChainHandles {

@@ -376,6 +376,7 @@ mod test {
             AlloyChainProvider::new(
                 alloy_provider::RootProvider::new(RpcClient::mocked(responses.clone())),
                 8,
+                true,
             ),
             state,
             depth,
@@ -407,6 +408,7 @@ mod test {
             AlloyChainProvider::new(
                 alloy_provider::RootProvider::new(RpcClient::mocked(responses.clone())),
                 8,
+                true,
             ),
             state,
             2,
