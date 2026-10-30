@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/module"
 )
 
 const (
@@ -28,8 +29,17 @@ var retryDelay = 5 * time.Second
 var opGethVersion = regexp.MustCompile(`^v(\d+)\.10(\d{2})(\d{2})\.\d+(-rc\.\d+)?$`)
 
 // upstreamVersion returns the upstream go-ethereum version an op-geth version is based on.
+// A pseudo-version is based on the version of the tag it descends from.
 func upstreamVersion(opGeth string) (string, error) {
-	m := opGethVersion.FindStringSubmatch(opGeth)
+	tagged := opGeth
+	if module.IsPseudoVersion(opGeth) {
+		base, err := module.PseudoVersionBase(opGeth)
+		if err != nil {
+			return "", fmt.Errorf("op-geth version %q: %w", opGeth, err)
+		}
+		tagged = base
+	}
+	m := opGethVersion.FindStringSubmatch(tagged)
 	if m == nil {
 		return "", fmt.Errorf("unexpected op-geth version %q", opGeth)
 	}

@@ -14,6 +14,8 @@ func TestUpstreamVersion(t *testing.T) {
 		"v1.101605.0":      "v1.16.5",
 		"v1.101407.0":      "v1.14.7",
 		"v1.101710.12":     "v1.17.10",
+		"v1.101702.4-rc.1.0.20261027092156-c3c54e6c107d": "v1.17.2",
+		"v1.101702.5-0.20261027092156-c3c54e6c107d":      "v1.17.2",
 	} {
 		got, err := upstreamVersion(opGeth)
 		require.NoError(t, err, opGeth)
