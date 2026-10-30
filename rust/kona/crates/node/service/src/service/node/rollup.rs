@@ -425,7 +425,7 @@ impl RollupNode {
             origins: delayed_l1_provider,
             attributes: attributes_provider,
         } = OriginPreparation::new(
-            self.l1_config.engine_provider.clone(),
+            self.l1_config.provider.clone(),
             l1_head_updates_rx,
             self.sequencer_config.l1_conf_delay,
             self.l1_config.provider.clone(),
