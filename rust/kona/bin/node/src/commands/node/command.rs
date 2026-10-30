@@ -326,8 +326,8 @@ impl NodeCommand {
 
         let dependency_set = self.load_dependency_set(&cfg)?;
         let safe_db = self.open_safe_db()?;
-        let derivation_delegate_config = self.derivation_delegate_args.config();
-        if safe_db.is_some() && derivation_delegate_config.is_some() {
+        let derivation_delegate_url = self.derivation_delegate_args.l2_follow_source;
+        if safe_db.is_some() && derivation_delegate_url.is_some() {
             bail!(
                 "--safedb.path cannot be combined with derivation delegation: a delegated node \
                  derives nothing itself, so the record would never be written and would be \
@@ -345,7 +345,7 @@ impl NodeCommand {
             rpc_config,
         )
         .with_sequencer_config(self.sequencer_flags.config())
-        .with_derivation_delegate_config(derivation_delegate_config)
+        .with_derivation_delegate_url(derivation_delegate_url)
         .with_dependency_set(dependency_set)
         .with_safe_db(safe_db)
         .with_verifier_l1_confs(self.verifier_l1_confs)

@@ -1,12 +1,11 @@
 //! Contains the [`RollupNode`] implementation.
 use crate::{
     ConductorClient, DelegateDerivationActor, DerivationActor, DerivationActorRequest,
-    DerivationDelegateClient, DerivationError, EngineActor, EngineActorRequest, EngineConfig,
-    L1OriginSelector, L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig,
-    NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
-    QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient,
-    QueuedSequencerEngineClient, RpcActor, SequencerActor, SequencerConfig, SignedPayload,
-    SignerActor, SystemClock,
+    DerivationError, EngineActor, EngineActorRequest, EngineConfig, L1OriginSelector,
+    L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler,
+    NodeActor, NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
+    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerEngineClient,
+    RpcActor, SequencerActor, SequencerConfig, SignedPayload, SignerActor, SystemClock,
     actors::{
         BlockStream, OriginPrefetcher, OriginPreparation, PreparedAttributesProvider,
         PreparedOriginProvider, QueuedUnsafePayloadGossipClient,
@@ -19,6 +18,7 @@ use alloy_provider::{Provider, RootProvider};
 use backon::{ExponentialBuilder, Retryable};
 use jsonrpsee::{
     RpcModule,
+    http_client::{HttpClient, HttpClientBuilder},
     server::{
         Server, ServerConfig,
         middleware::{http::ProxyGetRequestLayer, rpc::RpcServiceBuilder},
@@ -45,8 +45,11 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
+use url::Url;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
+/// Timeout for each `optimism_syncStatus` request to the derivation delegate.
+const DERIVATION_DELEGATE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 /// How many recently imported blocks to keep for the local L2 lookups.
 ///
 /// Every lookup served from here is for the block being built on top of, which the engine recorded
@@ -106,8 +109,8 @@ pub struct RollupNode {
     pub(crate) p2p_config: NetworkConfig,
     /// The [`SequencerConfig`] for the node.
     pub(crate) sequencer_config: SequencerConfig,
-    /// Optional derivation delegate provider.
-    pub(crate) derivation_delegate_provider: Option<DerivationDelegateClient>,
+    /// The L2 CL RPC to delegate derivation to. It must expose `optimism_syncStatus`.
+    pub(crate) derivation_delegate_url: Option<Url>,
     /// Blocks the engine has imported, shared with the derivation providers so they can be read
     /// locally instead of fetched back from the execution layer.
     pub(crate) l2_block_buffer: BufferedL2Provider,
@@ -130,13 +133,7 @@ pub struct RollupNode {
 /// `RollupNode` wiring logic.
 enum ConfiguredDerivationActor {
     Delegate(
-        Box<
-            DelegateDerivationActor<
-                QueuedDerivationEngineClient,
-                DerivationDelegateClient,
-                AlloyChainProvider,
-            >,
-        >,
+        Box<DelegateDerivationActor<QueuedDerivationEngineClient, HttpClient, AlloyChainProvider>>,
     ),
     Normal(Box<DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>>),
 }
@@ -144,11 +141,8 @@ enum ConfiguredDerivationActor {
 #[async_trait::async_trait]
 impl NodeActor for ConfiguredDerivationActor
 where
-    DelegateDerivationActor<
-        QueuedDerivationEngineClient,
-        DerivationDelegateClient,
-        AlloyChainProvider,
-    >: NodeActor<Error = DerivationError>,
+    DelegateDerivationActor<QueuedDerivationEngineClient, HttpClient, AlloyChainProvider>:
+        NodeActor<Error = DerivationError>,
     DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>:
         NodeActor<Error = DerivationError>,
 {
@@ -282,16 +276,17 @@ impl RollupNode {
         (actor, engine_client.query_client(), engine_state_rx)
     }
 
-    /// Selects between the standard and delegate derivation actor implementations and constructs
-    /// the chosen one.
+    /// Constructs the delegate derivation actor when a derivation delegate is given, and the
+    /// standard one otherwise.
     async fn build_derivation_actor(
         &self,
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
         l1_head: watch::Receiver<Option<BlockInfo>>,
+        derivation_delegate: Option<HttpClient>,
     ) -> Result<ConfiguredDerivationActor, String> {
-        if let Some(provider) = self.derivation_delegate_provider.clone() {
+        if let Some(derivation_delegate) = derivation_delegate {
             // L1 Provider for sanity checking Derivation Delegation
             let l1_provider = AlloyChainProvider::new(
                 self.l1_config.engine_provider.clone(),
@@ -300,7 +295,7 @@ impl RollupNode {
             Ok(ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::new(
                 QueuedDerivationEngineClient { engine_actor_request_tx },
                 derivation_actor_request_rx,
-                provider,
+                derivation_delegate,
                 l1_provider,
                 derivation_origin_tx,
             ))))
@@ -616,12 +611,23 @@ impl RollupNode {
             unsafe_head_tx,
         );
 
+        let derivation_delegate = self
+            .derivation_delegate_url
+            .as_ref()
+            .map(|url| {
+                HttpClientBuilder::default()
+                    .request_timeout(DERIVATION_DELEGATE_REQUEST_TIMEOUT)
+                    .build(url)
+                    .map_err(|e| format!("Failed to build derivation delegate client: {e}"))
+            })
+            .transpose()?;
         let derivation = self
             .build_derivation_actor(
                 engine_actor_request_tx.clone(),
                 derivation_actor_request_rx,
                 derivation_origin_tx,
                 l1_head_updates_rx.clone(),
+                derivation_delegate,
             )
             .await?;
 

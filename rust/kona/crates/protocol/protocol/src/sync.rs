@@ -64,10 +64,10 @@ mod tests {
     use super::*;
     use alloy_primitives::b256;
 
-    /// A CL that still reports `cross_unsafe_l2` must stay parseable. `DerivationDelegateClient`
-    /// reads `optimism_syncStatus` from an arbitrary external node, and op-nodes predating the
-    /// field's removal — plus third-party implementations — still send it. This only works
-    /// because [`SyncStatus`] does not `deny_unknown_fields`.
+    /// A CL that still reports `cross_unsafe_l2` must stay parseable. kona-node's derivation
+    /// delegation reads `optimism_syncStatus` from an arbitrary external node, and op-nodes
+    /// predating the field's removal — plus third-party implementations — still send it. This
+    /// only works because [`SyncStatus`] does not `deny_unknown_fields`.
     #[test]
     fn test_sync_status_ignores_cross_unsafe_from_an_external_node() {
         let l1_block = r#"{
