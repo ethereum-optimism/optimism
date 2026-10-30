@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -91,6 +92,18 @@ class MeasurementTests(unittest.TestCase):
             result = measurement.count_tests(events)
         self.assertEqual(result["names"], ["TestOne", "TestTwo"])
         self.assertEqual(result["counts"], {"fail": 0, "pass": 1, "run": 1, "skip": 1})
+
+    def test_phase_environment_preserves_client_overrides_through_bash(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            bash_environment = Path(temporary) / "bash-env"
+            bash_environment.write_text("export DEVSTACK_L2EL_KIND=op-reth\n")
+            with patch.dict(os.environ, {"BASH_ENV": str(bash_environment), "DEVSTACK_L2EL_KIND": "op-reth"}):
+                for phase, expected_client in [("normal", "op-reth"), ("resync", "op-geth")]:
+                    with self.subTest(phase=phase):
+                        environment = measurement.phase_environment(phase, temporary)
+                        result = subprocess.check_output(["bash", "-c", 'printf %s "$DEVSTACK_L2EL_KIND"'], env=environment, text=True)
+                        self.assertEqual(result, expected_client)
+                        self.assertEqual(environment["GOCACHE"], temporary)
 
     def test_process_launch_failure_is_retained(self):
         with tempfile.TemporaryDirectory() as temporary:

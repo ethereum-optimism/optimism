@@ -174,6 +174,13 @@ def count_tests(path):
     return {"counts": counts, "names": sorted(names)}
 
 
+def phase_environment(phase, build_cache):
+    environment = dict(os.environ, BASH_ENV="/dev/null", GOCACHE=build_cache, LOG_LEVEL="info")
+    if phase == "resync":
+        environment["DEVSTACK_L2EL_KIND"] = "op-geth"
+    return environment
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=["sequential", "parallel", "parallel-bounded"])
@@ -196,7 +203,7 @@ def main():
     environments = {}
     for phase in ["normal", "resync"]:
         (output / phase).mkdir(parents=True, exist_ok=True)
-        environments[phase] = dict(os.environ, GOCACHE=build_cache, LOG_LEVEL="info")
+        environments[phase] = phase_environment(phase, build_cache)
         command = [
             "bash", "ops/scripts/gotestsum-split.sh", "--format", "testname",
             "--jsonfile", str(output / phase / "events.json"),
@@ -207,7 +214,6 @@ def main():
         if phase == "normal":
             command += ["-run=^(" + "|".join(names) + ")$", "./op-acceptance-tests/tests/..."]
         else:
-            environments[phase]["DEVSTACK_L2EL_KIND"] = "op-geth"
             command += ["./op-acceptance-tests/tests/safeheaddb_elsync", "./op-acceptance-tests/tests/safeheaddb_clsync"]
         commands[phase] = command
     cgroup_path = Path("/sys/fs/cgroup")
@@ -227,6 +233,8 @@ def main():
             summary["phases"][phase]["test_counts"] = counts["counts"]
             summary["phases"][phase]["observed_test_names"] = counts["names"]
             summary["success"] = summary["success"] and counts["counts"]["run"] > 0
+            if phase == "resync":
+                summary["success"] = summary["success"] and counts["counts"]["pass"] == 3 and counts["counts"]["skip"] == 0
             if phase == "normal":
                 missing = sorted(set(names) - set(counts["names"]))
                 unexpected = sorted(set(counts["names"]) - set(names))
