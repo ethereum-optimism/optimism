@@ -66,7 +66,7 @@ impl Metrics {
     /// Identifier for the counter of inbound connections the gate refused, by reason:
     /// `blocked_peer`, `banned_peer`, `blocked_address` or `blocked_subnet`. op-node counts its
     /// gater's decisions in `op_node_default_p2p_accepts`, by whether it allowed them.
-    pub const INBOUND_CONNECTIONS_REFUSED: &str = "kona_node_inbound_connections_refused";
+    pub const INBOUND_CONNECTIONS_REFUSED: &str = "kona_node_gossip_inbound_connections_refused";
 
     /// Identifier for the counter that tracks inbound frames the gossipsub `message_id` function
     /// could not decompress within the gossip size bound.

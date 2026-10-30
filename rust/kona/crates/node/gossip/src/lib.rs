@@ -7,7 +7,8 @@
 //! ## Key Components
 //!
 //! - [`GossipDriver`]: Main driver managing the libp2p swarm and event handling
-//! - [`Behaviour`]: Custom libp2p behavior combining `GossipSub`, Ping, and Identify
+//! - [`Behaviour`]: Custom libp2p behavior combining the connection gate, `GossipSub`, Ping, and
+//!   Identify
 //! - [`BlockHandler`]: Validates and processes incoming block payloads
 //! - [`ConnectionGater`]: Sophisticated connection management and rate limiting
 //! - [`GossipQueryHandle`]: Read-only access to published gossip state
