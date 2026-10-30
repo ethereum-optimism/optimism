@@ -58,6 +58,15 @@ func TestCLIConfigCheck(t *testing.T) {
 			errString: "NumConfirmations must not be 0",
 		},
 		{
+			name:      "invalid NumConfirmationsBlockTag",
+			override:  func(c *CLIConfig) { c.NumConfirmationsBlockTag = "pending" },
+			errString: `NumConfirmationsBlockTag "pending" is not one of`,
+		},
+		{
+			name:     "safe NumConfirmationsBlockTag",
+			override: func(c *CLIConfig) { c.NumConfirmationsBlockTag = "safe" },
+		},
+		{
 			name:      "zero NetworkTimeout",
 			override:  func(c *CLIConfig) { c.NetworkTimeout = 0 },
 			errString: "must provide NetworkTimeout",
