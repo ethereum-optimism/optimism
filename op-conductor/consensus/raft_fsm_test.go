@@ -111,3 +111,69 @@ func (m *mockReadCloser) Read(p []byte) (n int, err error) {
 func (m *mockReadCloser) Close() error {
 	return nil
 }
+
+func TestUnsafeHeadTrackerRestore(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelDebug)
+
+	t.Run("empty snapshot resets unsafe head", func(t *testing.T) {
+		tracker := &unsafeHeadTracker{log: logger, unsafeHead: createPayloadEnvelope(222)}
+		require.NoError(t, tracker.Restore(io.NopCloser(bytes.NewReader(nil))))
+		require.Nil(t, tracker.UnsafeHead())
+	})
+
+	// Guards that only the exact zero-length case is accepted; short non-empty inputs must still fail.
+	t.Run("truncated snapshot is rejected", func(t *testing.T) {
+		var buf bytes.Buffer
+		_, err := createPayloadEnvelope(333).MarshalSSZ(&buf)
+		require.NoError(t, err)
+
+		for _, size := range []int{1, 31, 32, 40, buf.Len() - 1} {
+			tracker := &unsafeHeadTracker{log: logger, unsafeHead: createPayloadEnvelope(222)}
+			err := tracker.Restore(io.NopCloser(bytes.NewReader(buf.Bytes()[:size])))
+			require.Error(t, err, "snapshot truncated to %d bytes must be rejected", size)
+			require.Equal(t, hexutil.Uint64(222), tracker.UnsafeHead().ExecutionPayload.BlockNumber)
+		}
+	})
+}
+
+// TestUnsafeHeadTrackerSnapshotRoundTrip persists and restores snapshots through the file snapshot store that
+// op-conductor uses in production, so the zero-length snapshot path is exercised end to end.
+func TestUnsafeHeadTrackerSnapshotRoundTrip(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelDebug)
+
+	cases := []struct {
+		name       string
+		unsafeHead *eth.ExecutionPayloadEnvelope
+	}{
+		{name: "nil unsafe head", unsafeHead: nil},
+		{name: "committed unsafe head", unsafeHead: createPayloadEnvelope(333)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store, err := raft.NewFileSnapshotStore(t.TempDir(), 1, io.Discard)
+			require.NoError(t, err)
+
+			source := &unsafeHeadTracker{log: logger, unsafeHead: tc.unsafeHead}
+			snap, err := source.Snapshot()
+			require.NoError(t, err)
+			sink, err := store.Create(raft.SnapshotVersionMax, 1, 1, raft.Configuration{}, 1, nil)
+			require.NoError(t, err)
+			require.NoError(t, snap.Persist(sink))
+
+			metas, err := store.List()
+			require.NoError(t, err)
+			require.Len(t, metas, 1)
+			_, rc, err := store.Open(metas[0].ID)
+			require.NoError(t, err)
+
+			restored := &unsafeHeadTracker{log: logger, unsafeHead: createPayloadEnvelope(222)}
+			require.NoError(t, restored.Restore(rc))
+			if tc.unsafeHead == nil {
+				require.Nil(t, restored.UnsafeHead())
+				return
+			}
+			require.Equal(t, tc.unsafeHead.ExecutionPayload.BlockNumber, restored.UnsafeHead().ExecutionPayload.BlockNumber)
+			require.Equal(t, tc.unsafeHead.ExecutionPayload.BlockHash, restored.UnsafeHead().ExecutionPayload.BlockHash)
+		})
+	}
+}
