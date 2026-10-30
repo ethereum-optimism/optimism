@@ -49,6 +49,7 @@ type Config struct {
 	Key      *ecdsa.PrivateKey
 	Contract *common.Address
 	OptIn    bool
+	CheckRPC bool
 
 	Verifier sdm.Caller
 	Rollup   RollupClient
@@ -56,16 +57,18 @@ type Config struct {
 
 // Result is the machine-readable output of an SDM workload or block check.
 type Result struct {
-	RPCURL          string                 `json:"rpc_url"`
-	From            common.Address         `json:"from"`
-	Contract        common.Address         `json:"contract"`
-	OptInToggled    bool                   `json:"opt_in_toggled"`
-	Attempt         int                    `json:"attempt"`
-	SubmittedTxs    int                    `json:"submitted_txs"`
-	IncludedByBlock map[uint64]int         `json:"included_by_block,omitempty"`
-	Conformance     *sdm.ConformanceResult `json:"conformance"`
-	VerifierChecked bool                   `json:"verifier_checked"`
-	SafeHeadChecked bool                   `json:"safe_head_checked"`
+	RPCURL            string                 `json:"rpc_url"`
+	From              common.Address         `json:"from"`
+	Contract          common.Address         `json:"contract"`
+	OptInToggled      bool                   `json:"opt_in_toggled"`
+	Attempt           int                    `json:"attempt"`
+	SubmittedTxs      int                    `json:"submitted_txs"`
+	IncludedByBlock   map[uint64]int         `json:"included_by_block,omitempty"`
+	Conformance       *sdm.ConformanceResult `json:"conformance"`
+	VerifierChecked   bool                   `json:"verifier_checked"`
+	SafeHeadChecked   bool                   `json:"safe_head_checked"`
+	RPCReplay         *sdm.RPCReplayResult   `json:"rpc_replay,omitempty"`
+	VerifierRPCReplay *sdm.RPCReplayResult   `json:"verifier_rpc_replay,omitempty"`
 }
 
 // DeriveSDMAccountKey derives a stable, domain-separated key from funder.
@@ -202,6 +205,11 @@ func CheckAll(ctx context.Context, cfg Config) (*Result, error) {
 		result, err := submitAttempt(ctx, cfg, sender, contract, attempt)
 		if err == nil {
 			result.OptInToggled = optInToggled
+			// Replay failures are not workload-generation failures. Preserve the
+			// selected block/report and do not send more transactions to retry them.
+			if cfg.CheckRPC {
+				return checkRPCReplay(ctx, cfg, sender.RPC, result, uint64(result.Conformance.Block.Number))
+			}
 			return result, nil
 		}
 		attemptErrs = append(attemptErrs, fmt.Errorf("attempt %d: %w", attempt, err))
@@ -270,10 +278,49 @@ func CheckBlock(ctx context.Context, cfg Config, blockNum uint64) (*Result, erro
 	if err != nil {
 		return nil, err
 	}
-	return &Result{
+	result := &Result{
 		RPCURL: cfg.RPCURL, From: sender.From, Conformance: conformance,
 		VerifierChecked: verifierChecked, SafeHeadChecked: safeHeadChecked,
-	}, nil
+	}
+	if cfg.CheckRPC {
+		return checkRPCReplay(ctx, cfg, sender.RPC, result, blockNum)
+	}
+	return result, nil
+}
+
+// CheckRPCBlock checks generic canonical RPC replay without sending transactions
+// or depending on diagnostic, policy-free debug_replaySDMBlock conformance.
+func CheckRPCBlock(ctx context.Context, cfg Config, blockNum uint64) (*Result, error) {
+	if cfg.RPCURL == "" {
+		return nil, errors.New("SDM producer RPC URL is required")
+	}
+	producer, err := sdm.DialTxSender(ctx, cfg.RPCURL, nil, common.Address{}, gasLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer producer.Close()
+	if err := checkLagoonActive(ctx, cfg, producer.RPC, hexutil.EncodeUint64(blockNum)); err != nil {
+		return nil, err
+	}
+	return checkRPCReplay(ctx, cfg, producer.RPC, &Result{RPCURL: cfg.RPCURL}, blockNum)
+}
+
+func checkRPCReplay(ctx context.Context, cfg Config, producer sdm.Caller, result *Result, blockNum uint64) (*Result, error) {
+	var producerErr, verifierErr error
+	result.RPCReplay, producerErr = sdm.ValidateRPCReplay(ctx, producer, blockNum)
+	if producerErr != nil {
+		producerErr = fmt.Errorf("producer RPC replay: %w", producerErr)
+	}
+	if cfg.Verifier != nil {
+		result.VerifierRPCReplay, verifierErr = sdm.ValidateRPCReplay(ctx, cfg.Verifier, blockNum)
+		if verifierErr != nil {
+			verifierErr = fmt.Errorf("verifier RPC replay: %w", verifierErr)
+		}
+		if result.RPCReplay != nil && result.VerifierRPCReplay != nil && result.RPCReplay.BlockHash != result.VerifierRPCReplay.BlockHash {
+			verifierErr = errors.Join(verifierErr, errors.New("producer/verifier RPC replay block hashes differ"))
+		}
+	}
+	return result, errors.Join(producerErr, verifierErr)
 }
 
 func resolveContract(ctx context.Context, cfg Config, sender *sdm.TxSender) (common.Address, error) {

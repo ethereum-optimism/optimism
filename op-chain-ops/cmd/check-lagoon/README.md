@@ -1,7 +1,7 @@
 # check-lagoon
 
 Smoke tests for interop cross-chain messaging, the op-interop-filter failsafe,
-and SDM PostExec conformance.
+SDM PostExec conformance, and canonical RPC replay settlement.
 
 ## Commands
 
@@ -9,7 +9,9 @@ and SDM PostExec conformance.
 
 Runs the `interop-smoke all` suite and one SDM workload per chain concurrently.
 It derives an SDM account from `--account` (or uses `--sdm-account`) and tops
-it up to `--sdm-l2-fund-amount` on both chains.
+it up to `--sdm-l2-fund-amount` on both chains. Add `--sdm.check-rpc` to require
+the canonical RPC replay checks below on both workload blocks. This is opt-in:
+a passing default `all` result does **not** establish generic tracing correctness.
 
 ```bash
 go run . all \
@@ -72,6 +74,66 @@ execution reads such a balance (a refunded sender or a fee vault) replays with
 different gas and fails the replay gas checks even though the block is valid.
 The StateBloat workload never reads balances, but a block from `sdm block` or
 `sdm verifier`, or one shared with third-party transactions, can.
+
+### sdm rpc — canonical RPC replay settlement
+
+Read-only regression gate for [protocol-team#485](https://github.com/ethereum-optimism/protocol-team/issues/485).
+Correct receipts do not establish correct traces: generic replay can omit SDM
+settlement even when consensus, receipts and stored state are correct.
+
+```bash
+# No private key, funding, transactions, or operator opt-in changes.
+go run . sdm rpc --sdm.l2 http://localhost:9545 --sdm.block 12345 --sdm.json
+
+# Check both producer and independent verifier, preserving both failure reports.
+go run . sdm rpc --sdm.l2 http://localhost:9545 \
+  --sdm.l2-verifier http://localhost:9645 --sdm.block 12345 --sdm.json
+
+# Alternatively add the gate after the existing conformance/workload checks:
+go run . sdm all --sdm.l2 http://localhost:9545 --sdm.account <key> --sdm.check-rpc
+go run . sdm block --sdm.l2 http://localhost:9545 --sdm.block 12345 --sdm.check-rpc
+```
+
+The selected block must contain actual SDM refunds. Checks cover:
+
+- `debug_traceTransaction` default and call tracers: each ordinary transaction's
+  gas and success/failure agree with its **individual** canonical receipt, not
+  cumulative block gas. Includes unrefunded transactions and later targets.
+- `debug_traceTransaction` prestate tracer in diff mode: balance changes agree
+  with `debug_accountAt` immediately before/after that transaction. Checks the
+  sender, coinbase, base/L1/operator fee vaults and all accounts in the diff.
+  Reused senders are checked at their transaction boundaries, never against
+  block-final balances. Storage/nonce/code diffs are not covered.
+- `debug_traceBlockByHash` and `debug_traceBlockByNumber` call tracers: trace
+  count/order, available transaction hashes, per-transaction gas and status,
+  including deposits and the trailing PostExec transaction.
+- Indexed `debug_traceCall`: after every refunded transaction, an ephemeral
+  code override reads sender/fee-vault balances. Its output must match the
+  settled canonical prefix. This tests a synthetic call on settled state,
+  not whether a recorded refund is assigned to that synthetic call.
+- The block must remain canonical throughout the check.
+
+`debug_accountAt` is a required **executor-backed oracle** on op-reth; a missing
+method is a failure, not a skipped check. The gate does not use
+`debug_replaySDMBlock` as its oracle: that diagnostic endpoint intentionally
+omits settlement and may fail for refund-dependent transactions. Consequently
+standalone `sdm rpc` can check those blocks without first passing diagnostic
+replay conformance. Its optional `--sdm.rollup-rpc` checks Lagoon activation only,
+not safe-head progression. `--sdm.check-rpc` on other commands still runs their
+normal conformance and configured safe-head checks first.
+
+On failure the command exits nonzero; `--sdm.json` still emits per-check results
+under `rpc_replay` and, when selected, `verifier_rpc_replay`. Top-level `all`
+uses `--json` and preserves these within each chain's result. Unsupported methods
+and RPC failures are explicit errors. The normal command timeout bounds the
+check. Trace failures do not cause new workload transactions to be submitted.
+The work scales with block size; prefer small, purpose-built SDM blocks.
+
+This is **not** the complete #485 acceptance matrix. It does not cover parity
+`trace_*`, `eth_callMany`/`debug_traceCallMany`, OTS, JS tracers, intermediate
+roots, or raw/bad-block diagnostics. It does not generate a refund-dependent
+insufficient-balance workload or independently prove `debug_accountAt` correct.
+Do not equate passing this gate with completing the issue or fleet rollout.
 
 ## Config
 

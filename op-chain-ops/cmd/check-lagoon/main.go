@@ -131,6 +131,12 @@ var (
 		Usage:   "Enable the producer's SDM opt-in for the duration of the check if it is off",
 		EnvVars: op_service.PrefixEnvVar(prefix, "SDM_OPT_IN"),
 	}
+	SDMCheckRPC = &cli.BoolFlag{
+		Name:    "sdm.check-rpc",
+		Aliases: []string{"sdm-check-rpc"},
+		Usage:   "Also require canonical debug RPC gas, transaction-boundary balances, and settled indexed-call prefixes (issue 485)",
+		EnvVars: op_service.PrefixEnvVar(prefix, "SDM_CHECK_RPC"),
+	}
 	SDMJSON = &cli.BoolFlag{
 		Name:    "sdm.json",
 		Aliases: []string{"sdm-json"},
@@ -354,6 +360,7 @@ func lagoonAllFlags() []cli.Flag {
 		altsrc.NewStringFlag(AllSDMContractA),
 		altsrc.NewStringFlag(AllSDMContractB),
 		altsrc.NewBoolFlag(SDMOptIn),
+		altsrc.NewBoolFlag(SDMCheckRPC),
 		altsrc.NewBoolFlag(AllJSON),
 	}
 	return append(flags, logcli.CLIFlags(prefix)...)
@@ -434,7 +441,7 @@ func lagoonAllAction(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	baseSDM := sdmcheck.Config{Log: logger, Key: sdmKey, OptIn: c.Bool(SDMOptIn.Name)}
+	baseSDM := sdmcheck.Config{Log: logger, Key: sdmKey, OptIn: c.Bool(SDMOptIn.Name), CheckRPC: c.Bool(SDMCheckRPC.Name)}
 	cfgA := baseSDM
 	cfgA.RPCURL = c.String(EndpointL2A.Name)
 	cfgA.Contract = contractA
@@ -532,6 +539,7 @@ func sdmCheckFlags() []cli.Flag {
 		altsrc.NewStringFlag(SDMEndpointL2),
 		altsrc.NewStringFlag(SDMVerifierL2),
 		altsrc.NewStringFlag(SDMRollupRPC),
+		altsrc.NewBoolFlag(SDMCheckRPC),
 		altsrc.NewBoolFlag(SDMJSON),
 	}
 }
@@ -553,7 +561,7 @@ func sdmBlockFlags() []cli.Flag {
 // selects the sdm all flag set.
 func resolveSDMConfig(ctx context.Context, logger log.Logger, c *cli.Context, workload bool) (sdmcheck.Config, func(), error) {
 	cleanup := func() {}
-	cfg := sdmcheck.Config{Log: logger, RPCURL: c.String(SDMEndpointL2.Name)}
+	cfg := sdmcheck.Config{Log: logger, RPCURL: c.String(SDMEndpointL2.Name), CheckRPC: c.Bool(SDMCheckRPC.Name)}
 	if workload {
 		keyHex := strings.TrimPrefix(c.String(SDMAccountKey.Name), "0x")
 		if keyHex == "" {
@@ -600,7 +608,8 @@ func resolveSDMConfig(ctx context.Context, logger log.Logger, c *cli.Context, wo
 	return cfg, cleanup, nil
 }
 
-func runSDMAction(c *cli.Context, existingBlock bool, requireVerifier bool) error {
+func runSDMAction(c *cli.Context, mode string) error {
+	existingBlock := mode != "all"
 	logger, ctx := setup(c, c.App.ErrWriter)
 	ctx, cancel := context.WithTimeout(ctx, sdmTimeout)
 	defer cancel()
@@ -609,7 +618,7 @@ func runSDMAction(c *cli.Context, existingBlock bool, requireVerifier bool) erro
 		return err
 	}
 	defer cleanup()
-	if requireVerifier && cfg.Verifier == nil {
+	if mode == "verifier" && cfg.Verifier == nil {
 		return errors.New("--sdm-l2-verifier is required")
 	}
 
@@ -619,17 +628,26 @@ func runSDMAction(c *cli.Context, existingBlock bool, requireVerifier bool) erro
 		if blockNum == 0 {
 			return errors.New("--sdm-block is required")
 		}
-		result, err = sdmcheck.CheckBlock(ctx, cfg, blockNum)
+		if mode == "rpc" {
+			result, err = sdmcheck.CheckRPCBlock(ctx, cfg, blockNum)
+		} else {
+			result, err = sdmcheck.CheckBlock(ctx, cfg, blockNum)
+		}
 	} else {
 		result, err = sdmcheck.CheckAll(ctx, cfg)
+	}
+	// Preserve per-endpoint failure evidence in JSON while still exiting nonzero.
+	if c.Bool(SDMJSON.Name) && result != nil {
+		encoder := json.NewEncoder(c.App.Writer)
+		encoder.SetIndent("", "  ")
+		return errors.Join(err, encoder.Encode(result))
 	}
 	if err != nil {
 		return err
 	}
-	if c.Bool(SDMJSON.Name) {
-		encoder := json.NewEncoder(c.App.Writer)
-		encoder.SetIndent("", "  ")
-		return encoder.Encode(result)
+	if mode == "rpc" {
+		logger.Info("SDM canonical RPC replay checks passed", "block", result.RPCReplay.BlockNumber, "hash", result.RPCReplay.BlockHash)
+		return nil
 	}
 	validation := result.Conformance.ValidationResult
 	logger.Info("SDM conformance check passed",
@@ -645,6 +663,7 @@ func makeSDMCommand(tomlSource func(*cli.Context) (altsrc.InputSourceContext, er
 	allFlags := cliapp.ProtectFlags(sdmAllFlags())
 	blockFlags := cliapp.ProtectFlags(sdmBlockFlags())
 	verifierFlags := cliapp.ProtectFlags(sdmBlockFlags())
+	rpcFlags := cliapp.ProtectFlags(sdmBlockFlags())
 	return &cli.Command{
 		Name:  "sdm",
 		Usage: "Generate and validate SDM PostExec blocks",
@@ -654,21 +673,28 @@ func makeSDMCommand(tomlSource func(*cli.Context) (altsrc.InputSourceContext, er
 				Usage:  "Generate load and validate the resulting PostExec block",
 				Flags:  allFlags,
 				Before: altsrc.InitInputSourceWithContext(allFlags, tomlSource),
-				Action: func(c *cli.Context) error { return runSDMAction(c, false, false) },
+				Action: func(c *cli.Context) error { return runSDMAction(c, "all") },
 			},
 			{
 				Name:   "block",
 				Usage:  "Validate an existing SDM block",
 				Flags:  blockFlags,
 				Before: altsrc.InitInputSourceWithContext(blockFlags, tomlSource),
-				Action: func(c *cli.Context) error { return runSDMAction(c, true, false) },
+				Action: func(c *cli.Context) error { return runSDMAction(c, "block") },
 			},
 			{
 				Name:   "verifier",
 				Usage:  "Validate an existing SDM block and verifier agreement",
 				Flags:  verifierFlags,
 				Before: altsrc.InitInputSourceWithContext(verifierFlags, tomlSource),
-				Action: func(c *cli.Context) error { return runSDMAction(c, true, true) },
+				Action: func(c *cli.Context) error { return runSDMAction(c, "verifier") },
+			},
+			{
+				Name:   "rpc",
+				Usage:  "Check canonical RPC replay gas and balances on an existing SDM block (no workload)",
+				Flags:  rpcFlags,
+				Before: altsrc.InitInputSourceWithContext(rpcFlags, tomlSource),
+				Action: func(c *cli.Context) error { return runSDMAction(c, "rpc") },
 			},
 		},
 	}

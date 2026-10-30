@@ -25,7 +25,7 @@ propagation-wait = "6s"
 admin-rpc = ["http://localhost:8420", "http://localhost:8421"]
 jwt-secret = ["0x<32-byte-hex-secret-1>", "0x<32-byte-hex-secret-2>"]
 
-# --- Used by `sdm` subcommands; top-level `all` reads the account, fund, rollup-rpc-a/b, contract-a/b, and opt-in keys ---
+# --- Used by `sdm` subcommands; top-level `all` reads the account, fund, rollup-rpc-a/b, contract-a/b, opt-in, and check-rpc keys ---
 [sdm]
 l2 = "http://localhost:9545"
 l2-verifier = ""
@@ -40,6 +40,9 @@ contract-a = ""
 contract-b = ""
 # Enable the producer's SDM opt-in for the duration of the check if it is off.
 opt-in = false
+# Also gate generic RPC replay settlement (issue485); requires debug_accountAt.
+# `sdm rpc` always runs this gate, regardless of this flag.
+check-rpc = false
 json = false
-# `sdm block` and `sdm verifier` only.
+# `sdm block`, `sdm verifier`, and `sdm rpc` only.
 block = 0
