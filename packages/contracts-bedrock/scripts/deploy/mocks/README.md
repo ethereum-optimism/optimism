@@ -94,6 +94,11 @@ counter. Without this feed, recovering the ID of a proceeding deposit means repl
 deposit since genesis. `kind` is `0` for a deposit arriving, `1` for a withdrawal arriving, `2`
 for a held item completing.
 
+The feed can be treated as authoritative because `screen` and `screenRelease` are restricted
+to the module. They are the only path that emits `ItemObserved`, so every entry corresponds to
+an item the Portal actually screened. An open entry point would let anyone emit one for an
+item that never existed.
+
 A **rejected** item emits nothing at all. Rejection reverts the whole transaction, which
 discards the logs with it. That is the one outcome with no event, by construction.
 
