@@ -46,6 +46,7 @@ reth-optimism-forks.workspace = true
 reth-optimism-trie.workspace = true
 
 # ethereum
+alloy-eip7928.workspace = true
 alloy-eips.workspace = true
 alloy-hardforks.workspace = true
 alloy-json-rpc.workspace = true
