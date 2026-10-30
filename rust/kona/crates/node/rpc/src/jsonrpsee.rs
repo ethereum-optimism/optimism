@@ -95,7 +95,8 @@ pub trait OpP2PApi {
     #[method(name = "blockPeer")]
     async fn opp2p_block_peer(&self, peer: String) -> RpcResult<()>;
 
-    /// Unblocks the given peer
+    /// Unblocks the given peer. A static peer is dialed again within a minute, or at once with
+    /// `opp2p_connectPeer`.
     #[method(name = "unblockPeer")]
     async fn opp2p_unblock_peer(&self, peer: String) -> RpcResult<()>;
 

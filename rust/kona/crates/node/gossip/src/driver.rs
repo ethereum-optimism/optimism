@@ -248,7 +248,7 @@ where
             .map(|(peer_id, addrs)| (*peer_id, addrs.clone()))
             .collect();
         for (peer_id, addrs) in due {
-            info!(target: "gossip", %peer_id, ?addrs, "Dialing static peer");
+            debug!(target: "gossip", %peer_id, ?addrs, "Dialing static peer");
             // A refusal is logged in `dial_peer`, and the next check tries again.
             let _ = self.dial_peer(peer_id, addrs);
         }
@@ -425,9 +425,13 @@ where
         behaviour.gossipsub.blacklist_peer(&peer_id);
         // Also aborts our dials still in flight. An error only means the peer isn't connected.
         let _ = self.swarm.disconnect_peer_id(peer_id);
+        if self.is_static_peer(&peer_id) {
+            warn!(target: "gossip", %peer_id, "Blocked a static peer: it isn't dialed until unblocked");
+        }
     }
 
-    /// Unblocks `peer_id`, undoing [`Self::block_peer`].
+    /// Unblocks `peer_id`, undoing [`Self::block_peer`]. A static peer is dialed again at the next
+    /// static peer check.
     pub fn unblock_peer(&mut self, peer_id: PeerId) {
         let behaviour = self.swarm.behaviour_mut();
         behaviour.gate.unblock_peer(&peer_id);
@@ -444,6 +448,7 @@ where
     pub fn block_addr(&mut self, ip: IpAddr) {
         self.swarm.behaviour_mut().gate.block_addr(ip);
         self.close_blocked_connections();
+        self.warn_about_blocked_static_peers(|addr| *addr == ip);
     }
 
     /// Unblocks an IP address.
@@ -461,6 +466,39 @@ where
     pub fn block_subnet(&mut self, subnet: IpNet) {
         self.swarm.behaviour_mut().gate.block_subnet(subnet);
         self.close_blocked_connections();
+        self.warn_about_blocked_static_peers(|ip| subnet.contains(ip));
+    }
+
+    /// Warns about each static peer address that a new block covers, so that an operator sees
+    /// when they block a static peer by accident.
+    fn warn_about_blocked_static_peers(&self, covers: impl Fn(&IpAddr) -> bool) {
+        for (peer_id, addr) in self.static_peer_addrs_covered_by(covers) {
+            warn!(target: "gossip", %peer_id, %addr, "Blocked an address of a static peer: it isn't dialed there until unblocked");
+        }
+    }
+
+    /// Returns the static peers' addresses whose IP `covers`: the IP addresses they are configured
+    /// with, and the addresses of the connections open to them.
+    ///
+    /// A static peer configured with a DNS name isn't found unless it is connected, since finding
+    /// it would need a DNS lookup.
+    fn static_peer_addrs_covered_by(
+        &self,
+        covers: impl Fn(&IpAddr) -> bool,
+    ) -> Vec<(PeerId, Multiaddr)> {
+        let mut covered = Vec::new();
+        for (peer_id, addrs) in &self.static_peers {
+            let connections = self.connections.get(peer_id).into_iter().flat_map(HashMap::values);
+            let open = connections.map(|connection| &connection.remote_addr);
+            for addr in addrs.iter().chain(open) {
+                let ip = ConnectionGater::ip_from_addr(addr);
+                if ip.is_some_and(|ip| covers(&ip)) && !covered.contains(&(*peer_id, addr.clone()))
+                {
+                    covered.push((*peer_id, addr.clone()));
+                }
+            }
+        }
+        covered
     }
 
     /// Closes the connections whose remote IP address the gate now refuses, whichever side
@@ -1855,6 +1893,95 @@ mod tests {
         driver.unblock_peer(peer);
         driver.dial_static_peers();
         assert!(driver.connection_gate.current_dials.contains(&peer));
+    }
+
+    /// Blocking a connected static peer disconnects it, and it isn't dialed again, after the
+    /// reconnect delay or at a regular check, while its own dials are refused. Once unblocked, it
+    /// is dialed again at the next check.
+    #[tokio::test(start_paused = true)]
+    async fn test_blocked_static_peer_stays_disconnected_until_unblocked() {
+        let (keypair_2, addr_2, static_peer) = random_identity();
+        let peer_2 = static_peer.peer_id();
+        let mut driver_2 = memory_driver_builder_at(keypair_2, addr_2).build().expect("build");
+        driver_2.start().await.expect("listen");
+        let mut driver_1 = driver_with_static_peer(static_peer);
+        let addr_1 = driver_1.start().await.expect("listen");
+        let peer_1 = addr_1.peer_id();
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+
+        driver_1.block_peer(peer_2);
+        poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
+            !driver_1.is_connected(&peer_2) && !driver_2.is_connected(&peer_1)
+        })
+        .await;
+        driver_2.dial_multiaddr(addr_1).expect("dial");
+        let refusal = inbound_refusal(&mut driver_1, &mut driver_2).await;
+        assert!(matches!(refusal, Some(DialError::PeerBlocked { .. })), "{refusal:?}");
+
+        // Past the reconnect delay, and many regular checks.
+        poll_for(&mut driver_1, &mut driver_2, Duration::from_secs(5)).await;
+        assert!(!driver_1.is_connected(&peer_2));
+        assert!(!driver_1.connection_gate.current_dials.contains(&peer_2));
+
+        driver_1.unblock_peer(peer_2);
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+    }
+
+    /// A block covers a static peer's configured IP address, but can't tell from a DNS name.
+    #[test]
+    fn test_static_peer_addrs_covered_by_configured_ips() {
+        let static_peer = |addr: &str| -> PeerAddr {
+            format!("{addr}/p2p/{}", PeerId::random()).parse().unwrap()
+        };
+        let in_subnet = static_peer("/ip4/10.0.0.1/tcp/9222");
+        let outside = static_peer("/ip4/192.168.1.5/tcp/9222");
+        let by_name = static_peer("/dns4/node.example.com/tcp/9222");
+        let driver = memory_driver_builder()
+            .with_static_peers(vec![in_subnet.clone(), outside.clone(), by_name])
+            .build()
+            .expect("build");
+        let subnet: IpNet = "10.0.0.0/8".parse().unwrap();
+
+        assert_eq!(
+            driver.static_peer_addrs_covered_by(|ip| subnet.contains(ip)),
+            vec![(in_subnet.peer_id(), in_subnet.addr().clone())]
+        );
+        let ip: IpAddr = "192.168.1.5".parse().unwrap();
+        assert_eq!(
+            driver.static_peer_addrs_covered_by(|addr| *addr == ip),
+            vec![(outside.peer_id(), outside.addr().clone())]
+        );
+    }
+
+    /// A static peer configured with a DNS name is covered at the address of its open connection.
+    #[tokio::test]
+    async fn test_static_peer_addrs_covered_by_open_connections() {
+        let mut driver_2 = tcp_driver();
+        let addr_2 = driver_2.start().await.expect("listen");
+        let port = addr_2.transport_addr().iter().find_map(|protocol| match protocol {
+            Protocol::Tcp(port) => Some(port),
+            _ => None,
+        });
+        let by_name: PeerAddr =
+            format!("/dns4/localhost/tcp/{}/p2p/{}", port.unwrap(), addr_2.peer_id())
+                .parse()
+                .unwrap();
+        let mut driver_1 = crate::GossipDriverBuilder::new(
+            kona_genesis::RollupConfig::default(),
+            alloy_primitives::Address::ZERO,
+            "/ip4/127.0.0.1/tcp/0".parse().unwrap(),
+            libp2p::identity::Keypair::generate_secp256k1(),
+        )
+        .with_static_peers(vec![by_name])
+        .build()
+        .expect("build");
+        driver_1.start().await.expect("listen");
+        poll_until_connected(&mut driver_1, &mut driver_2).await;
+
+        let localhost: IpAddr = "127.0.0.1".parse().unwrap();
+        let covered = driver_1.static_peer_addrs_covered_by(|ip| *ip == localhost);
+        assert_eq!(covered.len(), 1, "{covered:?}");
+        assert_eq!(covered[0].0, addr_2.peer_id());
     }
 
     /// Peers scoring below the ban threshold are banned, but a static peer never is.

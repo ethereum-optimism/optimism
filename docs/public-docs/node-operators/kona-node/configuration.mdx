@@ -129,7 +129,7 @@ The node treats its static peers as follows:
 
 - It dials them at startup, and once a minute dials those that aren't connected. A static peer that disconnects is dialed again about a second later.
 - Static peers are exempt from the redial limit (`--p2p.redial`), are never banned for a low score, and stay protected after `opp2p_unprotectPeer`.
-- A static peer blocked with `opp2p_blockPeer`, or at a blocked address or subnet, isn't dialed until it's unblocked.
+- A static peer blocked with `opp2p_blockPeer`, or at a blocked address or subnet, is disconnected and isn't dialed again until it's unblocked. Once unblocked, it's dialed at the next check, within a minute. To connect it at once, call [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer). The node logs a warning when a block covers a static peer: by its peer ID, by an IP address it's configured with, or by the address of its open connection. It can't tell for a static peer given by DNS name that isn't connected.
 - The node never passes its static peers on through discovery, so other nodes can't find a static peer through it. A static peer can still be found if it runs discovery itself.
 
 <Info>

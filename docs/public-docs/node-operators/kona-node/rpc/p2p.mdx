@@ -111,7 +111,7 @@ This applies to [protected](#opp2p_protectpeer) and [static](/node-operators/kon
 
 ### `opp2p_unblockPeer`
 
-Unblocks a previously blocked peer by peer ID.
+Unblocks a previously blocked peer by peer ID. A [static peer](/node-operators/kona-node/configuration#static-peers) is dialed again within a minute; call [`opp2p_connectPeer`](#opp2p_connectpeer) to connect it at once.
 
 | Client | Method invocation                                     |
 | ------ | ----------------------------------------------------- |
