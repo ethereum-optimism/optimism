@@ -35,6 +35,8 @@ alloy-rpc-types-engine.workspace = true
 alloy-rpc-client.workspace = true
 alloy-provider = { workspace = true, features = ["ipc", "ws", "reqwest"] }
 alloy-primitives = { workspace = true, features = ["map"] }
+alloy-rlp.workspace = true
+alloy-trie = { workspace = true, features = ["ethereum"] }
 # Alloy's `ws` feature enables embedded WebPKI roots. Also load platform roots so private CAs work.
 tokio-tungstenite = { workspace = true, features = ["rustls-tls-native-roots"] }
 
