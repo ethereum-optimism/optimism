@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
@@ -40,8 +40,7 @@ func TestL2MultipleTransactionsInDifferentBlocks(gt *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt1.Status)
 	t.Logf("Transaction 1 included in block: %d", bigs.Uint64Strict(receipt1.BlockNumber))
 
-	utils.WaitForProofsStoreBlock(t, sys.RethWithProofL2ELNode().Escape().L2EthClient(), bigs.Uint64Strict(receipt1.BlockNumber))
-	utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, bigs.Uint64Strict(receipt1.BlockNumber))
+	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), bigs.Uint64Strict(receipt1.BlockNumber), dsl.ProofAccount{Address: accounts[0].Address()})
 	sys.L2ELSequencerNode().WaitForBlockNumber(currentBlock.Number + 1)
 
 	// Block 2: Send transaction from second account
@@ -55,11 +54,10 @@ func TestL2MultipleTransactionsInDifferentBlocks(gt *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt2.Status)
 	t.Logf("Transaction 2 included in block: %d", bigs.Uint64Strict(receipt2.BlockNumber))
 
-	utils.WaitForProofsStoreBlock(t, sys.RethWithProofL2ELNode().Escape().L2EthClient(), bigs.Uint64Strict(receipt2.BlockNumber))
-	utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, bigs.Uint64Strict(receipt2.BlockNumber))
+	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), bigs.Uint64Strict(receipt2.BlockNumber), dsl.ProofAccount{Address: accounts[1].Address()})
 
 	// Also verify we can get proofs for account 0 at block 2 (different block height)
-	utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, bigs.Uint64Strict(receipt2.BlockNumber))
+	sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), bigs.Uint64Strict(receipt2.BlockNumber), dsl.ProofAccount{Address: accounts[0].Address()})
 }
 
 // TestL2MultipleTransactionsInSingleBlock tests 2 different accounts sending transactions
@@ -100,21 +98,20 @@ func TestL2MultipleTransactionsInSingleBlock(gt *testing.T) {
 	receipt1Block := bigs.Uint64Strict(receipt1.BlockNumber)
 	t.Logf("Transaction 1 included in block %d", receipt1Block)
 
-	utils.WaitForProofsStoreBlock(t, sys.RethWithProofL2ELNode().Escape().L2EthClient(), max(receipt0Block, receipt1Block))
 	// Txns can land in the same or different blocks depending on timing.
 	if receipt0Block == receipt1Block {
 		t.Logf("Both transactions included in the same L2 block: %d", receipt0Block)
 
 		// Verify both proofs against the same block state root
-		utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, receipt0Block)
-		utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, receipt0Block)
+		sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), receipt0Block, dsl.ProofAccount{Address: accounts[0].Address()})
+		sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), receipt0Block, dsl.ProofAccount{Address: accounts[1].Address()})
 
 	} else {
 		t.Logf("Transactions in different blocks: %d and %d", receipt0Block, receipt1Block)
 
 		// Different blocks: verify each proof's merkle root matches its respective block's state root
-		utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, receipt0Block)
-		utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, receipt1Block)
+		sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), receipt0Block, dsl.ProofAccount{Address: accounts[0].Address()})
+		sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), receipt1Block, dsl.ProofAccount{Address: accounts[1].Address()})
 	}
 
 	t.Logf("Proof for account 0 and 1 verified successfully")
