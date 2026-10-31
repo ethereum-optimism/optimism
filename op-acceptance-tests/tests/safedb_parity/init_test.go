@@ -34,29 +34,38 @@ func newParitySystemWithoutSafeDB(t devtest.T) *paritySystem {
 }
 
 func newParitySystemWithSafeDB(t devtest.T, enabled bool) *paritySystem {
+	return newParitySystemWithExecutionClient(t, enabled, sysgo.MixedL2ELOpReth)
+}
+
+func newParitySystemWithExecutionClient(t devtest.T, enabled bool, executionClient sysgo.MixedL2ELKind) *paritySystem {
 	// Every node's CL kind is pinned, so the kona-node CI variant would only repeat this run.
 	sysgo.SkipOnKonaNode(t, "pins op-node and kona-node explicitly; covered by the op-node variant")
+	var deployerOptions []sysgo.DeployerOption
+	if executionClient == sysgo.MixedL2ELOpGeth {
+		deployerOptions = []sysgo.DeployerOption{sysgo.WithJovianAtGenesis}
+	}
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
+		DeployerOptions: deployerOptions,
 		NodeSpecs: []sysgo.MixedSingleChainNodeSpec{
 			{
-				ELKey:       "sequencer-op-reth",
 				CLKey:       "sequencer",
-				ELKind:      sysgo.MixedL2ELOpReth,
 				CLKind:      sysgo.MixedL2CLOpNode,
+				ELKey:       "sequencer-" + string(executionClient),
+				ELKind:      executionClient,
 				IsSequencer: true,
 			},
 			{
-				ELKey:        opNodeVerifierKey + "-op-reth",
 				CLKey:        opNodeVerifierKey,
-				ELKind:       sysgo.MixedL2ELOpReth,
 				CLKind:       sysgo.MixedL2CLOpNode,
+				ELKey:        opNodeVerifierKey + "-" + string(executionClient),
+				ELKind:       executionClient,
 				EnableSafeDB: enabled,
 			},
 			{
-				ELKey:        konaVerifierKey + "-op-reth",
 				CLKey:        konaVerifierKey,
-				ELKind:       sysgo.MixedL2ELOpReth,
 				CLKind:       sysgo.MixedL2CLKona,
+				ELKey:        konaVerifierKey + "-" + string(executionClient),
+				ELKind:       executionClient,
 				EnableSafeDB: enabled,
 			},
 		},
