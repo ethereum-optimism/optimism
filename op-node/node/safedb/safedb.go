@@ -56,6 +56,13 @@ func (c uint64Key) IterRange() *pebble.IterOptions {
 	}
 }
 
+// Metricer reports SafeDB persistence health without exposing database contents.
+type Metricer interface {
+	RecordSafeDBWriteError(operation string)
+	RecordSafeDBLastL2(number uint64)
+	ClearSafeDBLastL2()
+}
+
 type SafeDB struct {
 	// m ensures all read iterators are closed before closing the database by preventing concurrent read and write
 	// operations (with close considered a write operation).
@@ -63,6 +70,7 @@ type SafeDB struct {
 	log log.Logger
 	db  *pebble.DB
 
+	metrics   Metricer
 	writeOpts *pebble.WriteOptions
 
 	closed bool
@@ -89,24 +97,68 @@ func decodeSafeByL1BlockNum(key []byte, val []byte) (l1 eth.BlockID, l2 eth.Bloc
 }
 
 func NewSafeDB(logger log.Logger, path string) (*SafeDB, error) {
+	return NewSafeDBWithMetrics(logger, path, nil)
+}
+
+// NewSafeDBWithMetrics opens the database and initializes its persisted-tip metric.
+func NewSafeDBWithMetrics(logger log.Logger, path string, metrics Metricer) (*SafeDB, error) {
 	db, err := pebble.Open(path, &pebble.Options{})
 	if err != nil {
 		return nil, err
 	}
-	return &SafeDB{
+	d := &SafeDB{
+		metrics:   metrics,
 		log:       logger,
 		db:        db,
 		writeOpts: &pebble.WriteOptions{Sync: true},
-	}, nil
+	}
+	d.recordHead()
+	return d, nil
+}
+
+// recordHead runs while the caller holds the write lock (or before publication).
+// Read the actual last key: an out-of-order update need not become the DB tip.
+func (d *SafeDB) recordHead() {
+	if d.metrics == nil {
+		return
+	}
+	iter, err := d.db.NewIter(safeByL1BlockNumKey.IterRange())
+	if err != nil {
+		d.metrics.ClearSafeDBLastL2()
+		d.log.Warn("Failed to read safe head database tip for metrics", "err", err)
+		return
+	}
+	defer iter.Close()
+	if !iter.Last() {
+		d.metrics.ClearSafeDBLastL2()
+		if err := iter.Error(); err != nil {
+			d.log.Warn("Failed to read safe head database tip for metrics", "err", err)
+		}
+		return
+	}
+	_, head, err := decodeEntry(iter)
+	if err != nil {
+		d.metrics.ClearSafeDBLastL2()
+		d.log.Warn("Failed to decode safe head database tip for metrics", "err", err)
+		return
+	}
+	d.metrics.RecordSafeDBLastL2(head.Number)
+}
+
+func (d *SafeDB) recordWriteError(operation string, err *error) {
+	if d.metrics != nil && *err != nil {
+		d.metrics.RecordSafeDBWriteError(operation)
+	}
 }
 
 func (d *SafeDB) Enabled() bool {
 	return true
 }
 
-func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) error {
+func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) (err error) {
 	d.m.Lock()
 	defer d.m.Unlock()
+	defer d.recordWriteError("update", &err)
 	if d.closed {
 		return ErrClosed
 	}
@@ -119,12 +171,14 @@ func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) er
 	if err := batch.Commit(d.writeOpts); err != nil {
 		return fmt.Errorf("failed to commit safe head update: %w", err)
 	}
+	d.recordHead()
 	return nil
 }
 
-func (d *SafeDB) SafeHeadReset(safeHead eth.L2BlockRef) error {
+func (d *SafeDB) SafeHeadReset(safeHead eth.L2BlockRef) (err error) {
 	d.m.Lock()
 	defer d.m.Unlock()
+	defer d.recordWriteError("reset", &err)
 	if d.closed {
 		return ErrClosed
 	}
@@ -168,6 +222,7 @@ func (d *SafeDB) SafeHeadReset(safeHead eth.L2BlockRef) error {
 			if err := batch.Commit(d.writeOpts); err != nil {
 				return fmt.Errorf("reset failed to commit batch: %w", err)
 			}
+			d.recordHead()
 			return nil
 		}
 		if valid := iter.Next(); !valid {
