@@ -7411,7 +7411,7 @@ dependencies = [
 
 [[package]]
 name = "kona-genesis"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "alloy-chains",
  "alloy-consensus 2.4.2",
@@ -7930,7 +7930,7 @@ dependencies = [
 
 [[package]]
 name = "kona-registry"
-version = "0.4.5"
+version = "0.5.0"
 dependencies = [
  "alloy-chains",
  "alloy-eips 2.5.0",

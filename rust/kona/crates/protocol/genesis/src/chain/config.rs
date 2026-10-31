@@ -8,8 +8,8 @@ use alloy_primitives::Address;
 #[cfg(feature = "rollup_config_override")]
 use crate::FJORD_MAX_SEQUENCER_DRIFT;
 use crate::{
-    AddressList, AltDAConfig, BaseFeeConfig, ChainGenesis, GRANITE_CHANNEL_TIMEOUT, HardForkConfig,
-    Roles, RollupConfig, base_fee_params, base_fee_params_canyon, params::base_fee_config,
+    AddressList, BaseFeeConfig, ChainGenesis, GRANITE_CHANNEL_TIMEOUT, HardForkConfig, Roles,
+    RollupConfig, base_fee_params, base_fee_params_canyon, params::base_fee_config,
 };
 
 /// L1 chain configuration from the `alloy-genesis` crate.
@@ -97,9 +97,6 @@ pub struct ChainConfig {
     /// Optimism configuration
     #[cfg_attr(feature = "serde", serde(rename = "optimism"))]
     pub optimism: Option<BaseFeeConfig>,
-    /// Alternative DA configuration
-    #[cfg_attr(feature = "serde", serde(rename = "alt_da"))]
-    pub alt_da: Option<AltDAConfig>,
     /// Chain-specific genesis information
     pub genesis: ChainGenesis,
     /// Roles
@@ -171,10 +168,6 @@ impl ChainConfig {
                 .unwrap_or_default(),
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
-            da_challenge_address: self
-                .alt_da
-                .as_ref()
-                .and_then(|alt_da| alt_da.da_challenge_address),
 
             // The below chain parameters can be different per OP-Stack chain,
             // but since none of the superchain chains differ, it's not represented in the
@@ -186,7 +179,6 @@ impl ChainConfig {
             #[cfg(feature = "rollup_config_override")]
             fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             chain_op_config: self.base_fee_config(),
-            alt_da_config: self.alt_da.clone(),
         }
     }
 }
@@ -227,7 +219,6 @@ mod tests {
                 "eip1559Denominator": 50,
                 "eip1559DenominatorCanyon": 250
             },
-            "alt_da": null,
             "genesis": {
                 "l1": {
                   "number": 17481768,
@@ -338,7 +329,6 @@ mod tests {
                 "eip1559Denominator": 50,
                 "eip1559DenominatorCanyon": 250
             },
-            "alt_da": null,
             "genesis": {
                 "l1": {
                   "number": 17481768,

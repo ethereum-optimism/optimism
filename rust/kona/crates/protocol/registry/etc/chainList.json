@@ -1,26 +1,5 @@
 [
   {
-    "name": "Automata Mainnet",
-    "identifier": "mainnet/automata",
-    "chainId": 65536,
-    "rpc": [
-      "https://rpc.ata.network"
-    ],
-    "explorers": [
-      "https://explorer.ata.network"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "gasPayingToken": "0xA2120b9e674d3fC3875f415A7DF52e382F141225",
-    "faultProofs": {
-      "status": "none"
-    }
-  },
-  {
     "name": "BOB",
     "identifier": "mainnet/bob",
     "chainId": 60808,
@@ -62,26 +41,6 @@
     }
   },
   {
-    "name": "Cyber Mainnet",
-    "identifier": "mainnet/cyber",
-    "chainId": 7560,
-    "rpc": [
-      "https://rpc.cyber.co"
-    ],
-    "explorers": [
-      "https://cyberscan.co/"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
     "name": "Ethernity",
     "identifier": "mainnet/ethernity",
     "chainId": 183,
@@ -99,46 +58,6 @@
     },
     "faultProofs": {
       "status": "none"
-    }
-  },
-  {
-    "name": "Fraxtal",
-    "identifier": "mainnet/fraxtal",
-    "chainId": 252,
-    "rpc": [
-      "https://rpc.frax.com"
-    ],
-    "explorers": [
-      "https://fraxscan.com"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "none"
-    }
-  },
-  {
-    "name": "Funki",
-    "identifier": "mainnet/funki",
-    "chainId": 33979,
-    "rpc": [
-      "https://rpc-mainnet.funkichain.com"
-    ],
-    "explorers": [
-      "https://funki.superscan.network"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
     }
   },
   {
@@ -194,26 +113,6 @@
     ],
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
-    "name": "Lyra Chain",
-    "identifier": "mainnet/lyra",
-    "chainId": 957,
-    "rpc": [
-      "https://rpc.lyra.finance"
-    ],
-    "explorers": [
-      "https://explorer.lyra.finance"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
     "parent": {
       "type": "L2",
       "chain": "mainnet"
@@ -303,26 +202,6 @@
     }
   },
   {
-    "name": "Orderly Mainnet",
-    "identifier": "mainnet/orderly",
-    "chainId": 291,
-    "rpc": [
-      "https://rpc.orderly.network"
-    ],
-    "explorers": [
-      "https://explorer.orderly.network"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
     "name": "Polynomial",
     "identifier": "mainnet/polynomial",
     "chainId": 8008,
@@ -354,26 +233,6 @@
     ],
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "none"
-    }
-  },
-  {
-    "name": "Redstone",
-    "identifier": "mainnet/redstone",
-    "chainId": 690,
-    "rpc": [
-      "https://rpc.redstonechain.com"
-    ],
-    "explorers": [
-      "https://explorer.redstone.xyz"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
     "parent": {
       "type": "L2",
       "chain": "mainnet"
@@ -523,26 +382,6 @@
     }
   },
   {
-    "name": "Xterio Chain (ETH)",
-    "identifier": "mainnet/xterio-eth",
-    "chainId": 2702128,
-    "rpc": [
-      "https://xterio-eth.alt.technology/"
-    ],
-    "explorers": [
-      "https://eth.xterscan.io/"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "none"
-    }
-  },
-  {
     "name": "Zora",
     "identifier": "mainnet/zora",
     "chainId": 7777777,
@@ -615,26 +454,6 @@
     ],
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia"
-    },
-    "faultProofs": {
-      "status": "none"
-    }
-  },
-  {
-    "name": "Funki Sepolia Testnet",
-    "identifier": "sepolia/funki",
-    "chainId": 3397901,
-    "rpc": [
-      "https://funki-testnet.alt.technology"
-    ],
-    "explorers": [
-      "https://sepolia-sandbox.funkichain.com/"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
     "parent": {
       "type": "L2",
       "chain": "sepolia"
@@ -982,68 +801,6 @@
     },
     "faultProofs": {
       "status": "none"
-    }
-  },
-  {
-    "name": "Celo",
-    "identifier": "mainnet/celo",
-    "chainId": 42220,
-    "rpc": [
-      "https://forno.celo.org"
-    ],
-    "explorers": [
-      "https://celoscan.io/"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "gasPayingToken": "0x057898f3C43F129a17517B9056D23851F124b19f",
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
-    "name": "Silent Data Mainnet",
-    "identifier": "mainnet/silent-data-mainnet",
-    "chainId": 380929,
-    "rpc": [
-      "https://mainnet.silentdata.com/${SILENTDATA_AUTH_TOKEN}"
-    ],
-    "explorers": [
-      "https://explorer-mainnet.rollup.silentdata.com"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
-    "name": "Celo Sepolia Testnet",
-    "identifier": "sepolia/celo-sep",
-    "chainId": 11142220,
-    "rpc": [
-      "https://forno.celo-sepolia.celo-testnet.org"
-    ],
-    "explorers": [
-      "https://celo-sepolia.blockscout.com"
-    ],
-    "governedByOptimism": false,
-    "dataAvailabilityType": "alt-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia"
-    },
-    "gasPayingToken": "0x3C7011fD5e6Aed460cAa4985cF8d8Caba435b092",
-    "faultProofs": {
-      "status": "permissioned"
     }
   },
   {
