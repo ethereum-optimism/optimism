@@ -8,4 +8,4 @@ mod engine_state;
 pub use engine_state::TestEngineStateBuilder;
 
 mod misc;
-pub use misc::test_block_info;
+pub use misc::{test_block_info, test_l2_block};

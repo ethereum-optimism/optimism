@@ -68,6 +68,61 @@ async fn reset_adopts_safe_head_and_resumes_atomically(#[case] previous_head: u6
     assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingL1Data);
 }
 
+#[rstest]
+#[case::unchanged(RESUME_HEAD)]
+#[case::rewound(DERIVED_HEAD)]
+#[tokio::test]
+async fn failed_reset_does_not_adopt_head_or_resume(#[case] previous_head: u64) {
+    let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
+    let (request_tx, request_rx) = mpsc::channel(1);
+    let origin = l1_block(100);
+    let mut actor = DerivationActor::new(
+        MockDerivationEngineClient::new(),
+        request_rx,
+        StubPipeline {
+            rollup_config: Arc::new(RollupConfig::default()),
+            origin,
+            step_result: StepResult::StepFailed(PipelineError::Eof.temp()),
+            reset_error: None,
+        },
+        None,
+        l1_block(0).id(),
+        derivation_origin_tx,
+    );
+    request_tx
+        .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(l2_block(
+            previous_head,
+        ))))
+        .await
+        .unwrap();
+    actor.step().await.unwrap();
+
+    actor.pipeline.step_result = StepResult::AdvancedOrigin;
+    actor.pipeline.reset_error = Some(PipelineError::Eof.temp());
+    let reset = || {
+        DerivationActorRequest::ProcessEngineSignalRequest(Box::new(Signal::Reset(
+            kona_derive::ResetSignal { l2_safe_head: l2_block(RESUME_HEAD) },
+        )))
+    };
+    request_tx.send(reset()).await.unwrap();
+    actor.step().await.unwrap();
+    assert_eq!(
+        actor.derivation_state_machine.current_state(),
+        DerivationState::AwaitingUpdateAfterSignal
+    );
+    assert_eq!(actor.derivation_state_machine.last_confirmed_safe_head(), l2_block(previous_head));
+    assert_eq!(actor.pipeline.origin, origin);
+    assert!(matches!(actor.pipeline.step_result, StepResult::AdvancedOrigin));
+    assert!(derivation_origin_rx.borrow().is_none());
+
+    request_tx.send(reset()).await.unwrap();
+    actor.step().await.unwrap();
+    assert_eq!(actor.derivation_state_machine.last_confirmed_safe_head(), l2_block(RESUME_HEAD));
+    assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingL1Data);
+    assert_eq!(actor.pipeline.origin.number, l2_block(RESUME_HEAD).l1_origin.number + 1);
+    assert_eq!(*derivation_origin_rx.borrow(), Some(actor.pipeline.origin));
+}
+
 /// An L1 update following reset cannot make a delayed reset acknowledgement consume the newly
 /// derived block's outstanding confirmation or its safe-head database record.
 #[tokio::test]
