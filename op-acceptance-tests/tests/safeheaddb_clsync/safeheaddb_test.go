@@ -27,6 +27,7 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 	// assertions.go:387:
 	sysgo.SkipOnOpReth(t, "not supported (peering issue)")
 	sys := presets.NewSingleChainMultiNode(t,
+		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
 		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(p devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
 			cfg.SequencerSyncMode = sync.CLSync
 			cfg.VerifierSyncMode = sync.CLSync
@@ -52,6 +53,7 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 
 	sys.L2ELB.Start()
 	sys.L2CLB.Start()
+	sys.L2ELB.WaitForOnline()
 	sys.L2ELB.PeerWith(sys.L2EL)
 
 	sys.L2CLB.InSync(sys.L2CL, safety.LocalSafe, 30)
