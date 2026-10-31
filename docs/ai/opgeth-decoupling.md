@@ -561,7 +561,7 @@ Invariants:
 - **forge (and anvil, for `continue`) is a runtime dependency.** Shipped in the op-deployer image;
   auto-downloaded (pinned, checksummed) on Linux and macOS; on PATH via mise in CI and devstack.
 - **Per-invocation isolation.** Concurrent forge runs (devstack) get their own `FOUNDRY_BROADCAST`
-  directory, and their own state files inside the bundle's `fs_permissions`.
+  directory, and their own state files in a temp directory that only their `fs_permissions` grant.
 
 **No interim module split.** Splitting op-chain-ops+op-deployer into their own Go module that
 keeps the op-geth replace was considered and rejected: the epic's value only materialises when we
