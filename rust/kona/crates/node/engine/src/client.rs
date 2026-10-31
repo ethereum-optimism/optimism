@@ -46,11 +46,12 @@ pub const RPC_TIMEOUT: Duration = Duration::from_secs(10);
 /// This wraps the transport's future rather than the HTTP client below it, because the HTTP
 /// client's future completes when the response headers arrive and the transport reads the body
 /// after that.
+///
+/// A request that runs out of time fails with a [`TransportErrorKind::Custom`] holding a
+/// [`tokio::time::error::Elapsed`], so outer layers can tell a timeout from other failures.
 pub fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
     Box::pin(async move {
-        tokio::time::timeout(RPC_TIMEOUT, request)
-            .await
-            .map_err(|_| TransportErrorKind::custom_str("RPC request timed out"))?
+        tokio::time::timeout(RPC_TIMEOUT, request).await.map_err(TransportErrorKind::custom)?
     })
 }
 
