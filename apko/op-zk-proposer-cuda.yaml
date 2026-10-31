@@ -15,9 +15,7 @@ contents:
     - libstdc++
     - openssl
     - op-zk-proposer@local
-    - sp1-gpu-server@local
-    - cuda-cudart-12@local
-    - sp1-plonk-circuits@local
+    - op-zk-proposer-cuda@local
     - apk-tools
 
 archs:
