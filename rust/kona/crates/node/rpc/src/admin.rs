@@ -8,7 +8,7 @@ use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
-use kona_engine::{EngineActorRequest, ResetRequest};
+use kona_engine::{EngineActorRequest, ResetKind, ResetRequest};
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, watch};
@@ -177,7 +177,10 @@ impl AdminApiServer for AdminRpc {
     async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()> {
         let (result_tx, mut result_rx) = mpsc::channel(1);
         self.engine
-            .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx })))
+            .send(EngineActorRequest::Reset(Box::new(ResetRequest {
+                result_tx,
+                kind: ResetKind::Full,
+            })))
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
         result_rx

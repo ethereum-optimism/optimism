@@ -1,7 +1,8 @@
 //! Requests sent to the node engine actor and their replies.
 
 use crate::{
-    BuildTaskError, CanonicalizeTaskError, ConsolidateInput, FinalizeBlockId, SealTaskError,
+    BuildTaskError, CanonicalizeTaskError, ConsolidateInput, DerivedSafeHead, FinalizeBlockId,
+    SealTaskError,
 };
 use alloy_rpc_types_engine::PayloadId;
 use kona_protocol::OpAttributesWithParent;
@@ -76,6 +77,20 @@ pub struct BuildRequest {
 pub struct ResetRequest {
     /// The channel on which the reset result will be sent.
     pub result_tx: mpsc::Sender<EngineRequestResult<()>>,
+    /// The reset to perform.
+    pub kind: ResetKind,
+}
+
+/// The reset a [`ResetRequest`] asks the engine for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResetKind {
+    /// Find a sync starting point with [`crate::find_starting_forkchoice`].
+    Full,
+    /// Answer an L1 reorg detected by derivation. Holds the safe heads derivation recently
+    /// produced, newest first, each with an L1 block that all of the L1 data it depends on is at
+    /// or below. The engine keeps the newest one the reorg left canonical; see
+    /// [`crate::Engine::reset_after_l1_reorg`].
+    AfterL1Reorg(Vec<DerivedSafeHead>),
 }
 
 /// A request to fetch a sealed payload without changing forkchoice.
