@@ -9,9 +9,10 @@ use alloy_eips::{
     BlockId, BlockNumberOrTag,
     eip2718::{Decodable2718, Eip2718Error},
 };
-use alloy_primitives::{Address, B256, Bytes, b256};
+use alloy_primitives::{Address, B256, Bytes, U256, b256, keccak256};
 use alloy_provider::{Provider, RootProvider};
-use alloy_transport::{RpcError, TransportErrorKind, TransportResult};
+use alloy_transport::{RpcError, TransportErrorKind};
+use alloy_trie::{EMPTY_ROOT_HASH, KECCAK_EMPTY, Nibbles, TrieAccount, proof::verify_proof};
 use async_trait::async_trait;
 use cache::Cache;
 use kona_derive::{ChainProvider, PipelineError, PipelineErrorKind, ResetError};
@@ -115,25 +116,103 @@ impl AlloyChainProvider {
         }
     }
 
-    /// Reads the unsafe block signer from `SystemConfig` at `block_hash`.
+    /// Returns the unsafe block signer recorded in the `SystemConfig` contract at
+    /// `system_config`, as of the block with the given hash.
     ///
     /// Reading state rather than individual update logs also recovers rotations missed between
-    /// polls and restores the previous signer when a rotation is reorged out. The value is not yet
-    /// verified against the block's state root, so the read trusts the RPC.
+    /// polls and restores the previous signer when a rotation is reorged out. Unless the RPC is
+    /// trusted, the value is proven against the block's state root.
     pub async fn unsafe_block_signer(
         &self,
         system_config: Address,
         block_hash: B256,
-    ) -> TransportResult<Address> {
+    ) -> Result<Address, AlloyChainProviderError> {
         // bytes32(uint256(keccak256("systemconfig.unsafeblocksigner")) - 1)
         const SLOT: B256 =
             b256!("65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08");
-        let value = self
-            .inner
-            .get_storage_at(system_config, SLOT.into())
-            .hash_canonical(block_hash)
-            .await?;
+        let value = self.storage_at(system_config, SLOT, block_hash).await?;
         Ok(Address::from_slice(&value.to_be_bytes::<32>()[12..]))
+    }
+
+    /// Returns the value in `slot` of `address`'s storage, as of the block with the given hash.
+    ///
+    /// Unless the RPC is trusted, the value comes from an `eth_getProof` response whose account
+    /// proof is checked against the block's state root, and whose storage proof is checked against
+    /// the proven account's storage root.
+    async fn storage_at(
+        &self,
+        address: Address,
+        slot: B256,
+        block_hash: B256,
+    ) -> Result<U256, AlloyChainProviderError> {
+        if !self.verify {
+            return Ok(self
+                .inner
+                .get_storage_at(address, slot.into())
+                .hash_canonical(block_hash)
+                .await?);
+        }
+
+        let state_root = self.header_by_hash(block_hash).await?.state_root;
+        let proof = self.inner.get_proof(address, vec![slot]).hash_canonical(block_hash).await?;
+        let invalid = |reason: String| AlloyChainProviderError::InvalidStorageProof {
+            block_hash,
+            address,
+            slot,
+            reason,
+        };
+        if proof.address != address {
+            return Err(invalid(format!("the proof is for address {}", proof.address)));
+        }
+        let [storage] = proof.storage_proof.as_slice() else {
+            return Err(invalid(format!(
+                "expected one storage proof, got {}",
+                proof.storage_proof.len()
+            )));
+        };
+        if storage.key.as_b256() != slot {
+            return Err(invalid(format!(
+                "the storage proof is for slot {}",
+                storage.key.as_b256()
+            )));
+        }
+
+        // Accounts with no nonce, balance, code or storage do not exist in the state trie
+        // (EIP-161), so the proof must show the account is absent. RPCs report an absent
+        // account's code hash and storage root either as zero or as their empty values.
+        let absent = proof.nonce == 0 &&
+            proof.balance.is_zero() &&
+            matches!(proof.code_hash, B256::ZERO | KECCAK_EMPTY) &&
+            matches!(proof.storage_hash, B256::ZERO | EMPTY_ROOT_HASH);
+        let account = (!absent).then(|| {
+            alloy_rlp::encode(TrieAccount {
+                nonce: proof.nonce,
+                balance: proof.balance,
+                storage_root: proof.storage_hash,
+                code_hash: proof.code_hash,
+            })
+        });
+        verify_proof(
+            state_root,
+            Nibbles::unpack(keccak256(address)),
+            account,
+            &proof.account_proof,
+        )
+        .map_err(|error| invalid(format!("invalid account proof: {error}")))?;
+
+        if absent {
+            // An absent account has no storage.
+            if !storage.value.is_zero() {
+                return Err(invalid("a value was reported for an absent account".into()));
+            }
+            return Ok(U256::ZERO);
+        }
+
+        // A zero value is not stored, so the proof must show the slot is absent.
+        let value = (!storage.value.is_zero()).then(|| alloy_rlp::encode(storage.value));
+        verify_proof(proof.storage_hash, Nibbles::unpack(keccak256(slot)), value, &storage.proof)
+            .map_err(|error| invalid(format!("invalid storage proof: {error}")))?;
+        Ok(storage.value)
     }
 
     /// Hides L1 blocks with fewer than `depth` confirmations from forward traversal.
@@ -387,6 +466,20 @@ pub enum AlloyChainProviderError {
         /// The root of the returned receipts.
         actual: B256,
     },
+    /// The RPC returned a storage value whose proof does not hold against the block's state root.
+    #[error(
+        "Invalid storage proof for slot {slot} of {address} at L1 block {block_hash}: {reason}"
+    )]
+    InvalidStorageProof {
+        /// The block's hash.
+        block_hash: B256,
+        /// The account whose storage was read.
+        address: Address,
+        /// The storage slot that was read.
+        slot: B256,
+        /// Why the proof was rejected.
+        reason: String,
+    },
     /// The RPC returned transactions that do not match the block's transactions root.
     #[error("Transactions root mismatch for L1 block {hash}: expected {expected}, got {actual}")]
     TransactionsRootMismatch {
@@ -502,6 +595,7 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
             error @ (AlloyChainProviderError::HeaderHashMismatch { .. } |
             AlloyChainProviderError::ReceiptsRootMismatch { .. } |
             AlloyChainProviderError::TransactionsRootMismatch { .. } |
+            AlloyChainProviderError::InvalidStorageProof { .. } |
             AlloyChainProviderError::RawReceiptsNull(_) |
             AlloyChainProviderError::RawReceiptDecode { .. } |
             AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock { .. }) => {
@@ -1781,5 +1875,175 @@ mod tests {
         assert!(matches!(PipelineErrorKind::from(error), PipelineErrorKind::Temporary(_)));
         // Nothing unverified reaches the cache.
         assert!(provider.shared.cache.transactions(hash).is_none());
+    }
+
+    /// The root of a trie holding `leaves`, keyed by already-hashed keys, and the proof of
+    /// `target` in it. The proof shows `target` is absent when it is not a leaf.
+    fn trie_with_proof(leaves: &[(B256, Vec<u8>)], target: B256) -> (B256, Vec<Bytes>) {
+        use alloy_trie::{HashBuilder, proof::ProofRetainer};
+
+        let target = Nibbles::unpack(target);
+        let mut leaves: Vec<_> =
+            leaves.iter().map(|(key, value)| (Nibbles::unpack(key), value.clone())).collect();
+        leaves.sort_by_key(|(key, _)| *key);
+        let mut builder =
+            HashBuilder::default().with_proof_retainer(ProofRetainer::from_iter([target]));
+        for (key, value) in &leaves {
+            builder.add_leaf(*key, value);
+        }
+        let root = builder.root();
+        let proof = builder
+            .take_proof_nodes()
+            .matching_nodes_sorted(&target)
+            .into_iter()
+            .map(|(_, node)| node)
+            .collect();
+        (root, proof)
+    }
+
+    const SIGNER_SLOT: B256 =
+        b256!("65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08");
+    const SYSTEM_CONFIG: Address = Address::repeat_byte(0x01);
+    const SIGNER: Address = Address::repeat_byte(0x0b);
+
+    /// A state root in which `SYSTEM_CONFIG` stores `SIGNER` in its signer slot, alongside another
+    /// account and slot, and the `eth_getProof` response proving it.
+    fn proven_signer() -> (B256, serde_json::Value) {
+        let value = U256::from_be_bytes(SIGNER.into_word().0);
+        let (storage_root, storage_proof) = trie_with_proof(
+            &[
+                (keccak256(SIGNER_SLOT), alloy_rlp::encode(value)),
+                (keccak256(B256::with_last_byte(1)), alloy_rlp::encode(U256::from(7))),
+            ],
+            keccak256(SIGNER_SLOT),
+        );
+        let account = TrieAccount {
+            nonce: 1,
+            balance: U256::ZERO,
+            storage_root,
+            code_hash: keccak256([0x60]),
+        };
+        let (state_root, account_proof) = trie_with_proof(
+            &[
+                (keccak256(SYSTEM_CONFIG), alloy_rlp::encode(account)),
+                (
+                    keccak256(Address::repeat_byte(0x02)),
+                    alloy_rlp::encode(TrieAccount { nonce: 5, ..Default::default() }),
+                ),
+            ],
+            keccak256(SYSTEM_CONFIG),
+        );
+        let response = serde_json::json!({
+            "address": SYSTEM_CONFIG,
+            "balance": U256::ZERO,
+            "codeHash": account.code_hash,
+            "nonce": "0x1",
+            "storageHash": storage_root,
+            "accountProof": account_proof,
+            "storageProof": [{ "key": SIGNER_SLOT, "value": value, "proof": storage_proof }],
+        });
+        (state_root, response)
+    }
+
+    /// An untrusted provider over a server whose block has `state_root`, answering
+    /// `eth_getProof` with `response`.
+    fn storage_proof_server(
+        state_root: B256,
+        response: serde_json::Value,
+    ) -> (MockServer, AlloyChainProvider, B256) {
+        let header = Header { number: 16, state_root, ..Default::default() };
+        let hash = header.hash_slow();
+        let block = RpcBlock::<TxEnvelope>::new(
+            RpcHeader::new(header),
+            BlockTransactions::Hashes(Vec::new()),
+        );
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockByHash");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 0, "result": block }));
+        });
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getProof");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 0, "result": response }));
+        });
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            false,
+        );
+        (server, provider, hash)
+    }
+
+    #[tokio::test]
+    async fn untrusted_unsafe_block_signer_is_proven_against_the_state_root() {
+        let (state_root, response) = proven_signer();
+        let (_server, provider, hash) = storage_proof_server(state_root, response);
+
+        assert_eq!(provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap(), SIGNER);
+    }
+
+    #[tokio::test]
+    async fn untrusted_unsafe_block_signer_rejects_a_value_the_storage_proof_does_not_hold() {
+        let (state_root, mut response) = proven_signer();
+        response["storageProof"][0]["value"] =
+            serde_json::json!(U256::from_be_bytes(Address::repeat_byte(0x0c).into_word().0));
+        let (_server, provider, hash) = storage_proof_server(state_root, response);
+
+        let error = provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap_err();
+
+        assert!(
+            matches!(&error, AlloyChainProviderError::InvalidStorageProof { reason, .. }
+                if reason.contains("storage proof")),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn untrusted_unsafe_block_signer_rejects_an_account_the_state_root_does_not_hold() {
+        // A forged account could carry a forged storage root, so the account itself is proven.
+        let (state_root, mut response) = proven_signer();
+        response["balance"] = serde_json::json!(U256::from(1));
+        let (_server, provider, hash) = storage_proof_server(state_root, response);
+
+        let error = provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap_err();
+
+        assert!(
+            matches!(&error, AlloyChainProviderError::InvalidStorageProof { reason, .. }
+                if reason.contains("account proof")),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn untrusted_storage_of_an_absent_account_is_proven_zero() {
+        // The state holds only another account, so the proof shows `SYSTEM_CONFIG` is absent.
+        let (state_root, account_proof) = trie_with_proof(
+            &[(
+                keccak256(Address::repeat_byte(0x02)),
+                alloy_rlp::encode(TrieAccount { nonce: 5, ..Default::default() }),
+            )],
+            keccak256(SYSTEM_CONFIG),
+        );
+        let response = |value: U256| {
+            serde_json::json!({
+                "address": SYSTEM_CONFIG,
+                "balance": U256::ZERO,
+                "codeHash": KECCAK_EMPTY,
+                "nonce": "0x0",
+                "storageHash": EMPTY_ROOT_HASH,
+                "accountProof": account_proof,
+                "storageProof": [{ "key": SIGNER_SLOT, "value": value, "proof": [] }],
+            })
+        };
+
+        let (_server, provider, hash) = storage_proof_server(state_root, response(U256::ZERO));
+        assert_eq!(provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap(), Address::ZERO);
+
+        let (_server, provider, hash) = storage_proof_server(state_root, response(U256::from(1)));
+        assert!(provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.is_err());
     }
 }
