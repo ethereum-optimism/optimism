@@ -642,4 +642,6 @@ mod database;
 
 mod safedb_tests;
 
+mod service_shutdown;
+
 mod signal_failures;
