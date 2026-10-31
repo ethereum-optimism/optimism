@@ -7595,6 +7595,7 @@ version = "1.0.0-rc.1"
 dependencies = [
  "alloy-chains",
  "alloy-genesis",
+ "alloy-json-rpc 2.5.0",
  "alloy-primitives",
  "alloy-provider",
  "alloy-rpc-client",
@@ -7628,6 +7629,7 @@ dependencies = [
  "kona-sources",
  "libp2p",
  "metrics",
+ "metrics-exporter-prometheus",
  "op-alloy-network",
  "op-alloy-provider",
  "op-version",
