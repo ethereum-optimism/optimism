@@ -1,8 +1,6 @@
 //! Providers that use alloy provider types on the backend.
 
 mod cache;
-#[cfg(feature = "metrics")]
-use crate::Metrics;
 use alloy_consensus::{Header, Receipt, ReceiptEnvelope, TxEnvelope};
 use alloy_eips::{
     BlockId, BlockNumberOrTag,
@@ -150,16 +148,7 @@ impl AlloyChainProvider {
 
     /// Returns the latest L2 block number.
     pub async fn latest_block_number(&self) -> Result<u64, RpcError<TransportErrorKind>> {
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "block_number");
-
-        let result = self.inner.get_block_number().await;
-
-        #[cfg(feature = "metrics")]
-        if result.is_err() {
-            kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "block_number");
-        }
-
-        result
+        self.inner.get_block_number().await
     }
 
     /// Returns the chain ID.
@@ -501,15 +490,10 @@ impl AlloyChainProvider {
             return Ok(header);
         }
 
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "header_by_hash");
-
         let block = self
             .inner
             .get_block_by_hash(hash)
-            .await
-            .inspect_err(|_e| {
-                kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "header_by_hash");
-            })?
+            .await?
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
         let header = block.header.into_consensus();
 
@@ -532,15 +516,10 @@ impl AlloyChainProvider {
             return Err(AlloyChainProviderError::BlockNotFound(number.into()));
         }
 
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "block_by_number");
-
         let block = self
             .inner
             .get_block_by_number(number.into())
-            .await
-            .inspect_err(|_e| {
-                kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "block_by_number");
-            })?
+            .await?
             .ok_or(AlloyChainProviderError::BlockNotFound(number.into()))?;
         let header = block.header.into_consensus();
 
@@ -561,16 +540,10 @@ impl AlloyChainProvider {
         &self,
         label: BlockLabel,
     ) -> Result<BlockInfo, AlloyChainProviderError> {
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "block_by_label");
-
-        let block = self
-            .inner
-            .get_block_by_number(label.into())
-            .await
-            .inspect_err(|_e| {
-                kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "block_by_label");
-            })?
-            .ok_or(AlloyChainProviderError::BlockNotFound(BlockNumberOrTag::from(label).into()))?;
+        let block =
+            self.inner.get_block_by_number(label.into()).await?.ok_or(
+                AlloyChainProviderError::BlockNotFound(BlockNumberOrTag::from(label).into()),
+            )?;
         let hash = block.header.hash;
         let header = block.header.into_consensus();
         self.verify_header_hash(&header, hash)?;
@@ -594,8 +567,6 @@ impl AlloyChainProvider {
             return Ok(receipts);
         }
 
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "receipts_by_hash");
-
         let receipts = if self.shared.raw_receipts_supported.load(Ordering::SeqCst) {
             match self.raw_receipts_by_hash(hash).await {
                 Ok(receipts) => Ok(receipts),
@@ -613,10 +584,7 @@ impl AlloyChainProvider {
             }
         } else {
             self.sticky_fallback_receipts_by_hash(hash).await
-        }
-        .inspect_err(|_e| {
-            kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "receipts_by_hash");
-        })?;
+        }?;
 
         self.shared.cache.insert_receipts(hash, receipts.clone());
 
@@ -632,16 +600,11 @@ impl AlloyChainProvider {
             return Ok(block_info_and_txs);
         }
 
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "block_by_hash");
-
         let block = self
             .inner
             .get_block_by_hash(hash)
             .full()
-            .await
-            .inspect_err(|_e| {
-                kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "block_by_hash");
-            })?
+            .await?
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?
             .into_consensus()
             .map_transactions(|t| t.inner.into_inner());
