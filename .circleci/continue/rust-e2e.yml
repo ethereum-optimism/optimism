@@ -664,7 +664,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
-          build_args: --deny-warnings --skip test
+          build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:

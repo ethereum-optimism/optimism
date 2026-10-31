@@ -15,7 +15,14 @@ func NewForked(lgr log.Logger, rpcURL string, anvilOpts ...AnvilOption) (*Anvil,
 		return nil, nil, fmt.Errorf("failed to start retry proxy: %w", err)
 	}
 
-	anvil, err := NewAnvil(lgr, append([]AnvilOption{WithForkURL(retryProxy.Endpoint()), WithBlockTime(3)}, anvilOpts...)...)
+	defaultOpts := []AnvilOption{
+		WithForkURL(retryProxy.Endpoint()),
+		WithBlockTime(3),
+		// TODO(#23640): Remove once the repo supports Amsterdam. Anvil forks Sepolia under its live
+		// Amsterdam hardfork, where op-deployer's broadcasts run out of gas on anvil's own estimates.
+		WithHardfork("bpo2"),
+	}
+	anvil, err := NewAnvil(lgr, append(defaultOpts, anvilOpts...)...)
 	if err != nil {
 		_ = retryProxy.Stop()
 		return nil, nil, fmt.Errorf("failed to create Anvil: %w", err)

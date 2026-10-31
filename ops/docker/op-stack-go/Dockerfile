@@ -224,8 +224,9 @@ RUN <<-EOF
       done
     done
 EOF
-# Compile contracts and create artifacts tarball
-RUN cd packages/contracts-bedrock && forge build --skip "/**/test/**"
+# Compile contracts and create artifacts tarball. `--deny never` keeps forge's compile cache in the
+# tarball (see contracts-bedrock's forge-build recipe), so op-deployer doesn't recompile.
+RUN cd packages/contracts-bedrock && forge build --deny never --skip "/**/test/**"
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   go run ./op-deployer/pkg/deployer/artifacts/cmd/mktar \
     -base ./packages/contracts-bedrock \
