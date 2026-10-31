@@ -7,9 +7,9 @@ use alloy_eips::{
     BlockId, BlockNumberOrTag,
     eip2718::{Decodable2718, Eip2718Error},
 };
-use alloy_primitives::{B256, Bytes};
+use alloy_primitives::{Address, B256, Bytes, b256};
 use alloy_provider::{Provider, RootProvider};
-use alloy_transport::{RpcError, TransportErrorKind};
+use alloy_transport::{RpcError, TransportErrorKind, TransportResult};
 use async_trait::async_trait;
 use kona_derive::{ChainProvider, PipelineError, PipelineErrorKind, ResetError};
 use kona_protocol::BlockInfo;
@@ -77,7 +77,7 @@ impl From<BlockLabel> for BlockNumberOrTag {
 #[derive(Debug, Clone)]
 pub struct AlloyChainProvider {
     /// The inner Ethereum JSON-RPC provider.
-    pub inner: RootProvider,
+    inner: RootProvider,
     /// Whether to trust the RPC without verification.
     pub trust_rpc: bool,
     /// Optional confirmation policy for online derivation's forward traversal only.
@@ -127,6 +127,27 @@ impl AlloyChainProvider {
                 raw_receipts_supported: AtomicBool::new(true),
             }),
         }
+    }
+
+    /// Reads the unsafe block signer from `SystemConfig` at `block_hash`.
+    ///
+    /// Reading state rather than individual update logs also recovers rotations missed between
+    /// polls and restores the previous signer when a rotation is reorged out. The value is not yet
+    /// verified against the block's state root, so the read trusts the RPC.
+    pub async fn unsafe_block_signer(
+        &self,
+        system_config: Address,
+        block_hash: B256,
+    ) -> TransportResult<Address> {
+        // bytes32(uint256(keccak256("systemconfig.unsafeblocksigner")) - 1)
+        const SLOT: B256 =
+            b256!("65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08");
+        let value = self
+            .inner
+            .get_storage_at(system_config, SLOT.into())
+            .hash_canonical(block_hash)
+            .await?;
+        Ok(Address::from_slice(&value.to_be_bytes::<32>()[12..]))
     }
 
     /// Hides L1 blocks with fewer than `depth` confirmations from forward traversal.
@@ -788,6 +809,34 @@ mod tests {
         let provider = mocked_provider(asserter.clone()).with_confirmation_depth(4, head_rx);
         provider.header_by_hash(B256::repeat_byte(0xbb)).await.unwrap();
         assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn unsafe_block_signer_snapshots_are_pinned_to_the_requested_contract_and_branch() {
+        let server = MockServer::start();
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.url("/").parse().unwrap()),
+            8,
+            true,
+        );
+        let contract = Address::repeat_byte(1);
+        // Distinct branches can have different signers, including a return to the old signer.
+        for (request_id, index) in [2, 3, 2].into_iter().enumerate() {
+            let hash = B256::repeat_byte(index);
+            let signer = Address::repeat_byte(index + 10);
+            let mut mock = server.mock(|when, then| {
+                when.method("POST").json_body(serde_json::json!({
+                    "jsonrpc": "2.0", "id": request_id,
+                    "method": "eth_getStorageAt",
+                    "params": [contract, "0x65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08", {"blockHash": hash, "requireCanonical": true}]
+                }));
+                then.json_body(serde_json::json!({"jsonrpc":"2.0", "id":request_id, "result": signer.into_word()}));
+            });
+            let result = provider.unsafe_block_signer(contract, hash).await;
+            mock.assert();
+            assert_eq!(result.unwrap(), signer);
+            mock.delete();
+        }
     }
 
     #[tokio::test]

@@ -408,13 +408,9 @@ impl P2PArgs {
     ) -> anyhow::Result<alloy_primitives::Address> {
         if let Some(provider) = l1_provider {
             let block_info = provider.block_info_by_label(BlockLabel::Latest).await?;
-            // A storage slot cannot be verified against the header, so this read trusts the RPC.
-            return Ok(kona_providers_alloy::unsafe_block_signer(
-                &provider.inner,
-                rollup_config.l1_system_config_address,
-                block_info.hash,
-            )
-            .await?);
+            return Ok(provider
+                .unsafe_block_signer(rollup_config.l1_system_config_address, block_info.hash)
+                .await?);
         }
 
         // Otherwise use the genesis signer or the configured unsafe block signer.
