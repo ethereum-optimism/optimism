@@ -1,0 +1,5 @@
+# Local config files hold live secrets (the sync and guardian private keys).
+# Ignore every .toml in this directory except the checked-in example, so a config
+# under any name (config.toml, devnet.toml, ...) can't be committed by accident.
+*.toml
+!config.example.toml

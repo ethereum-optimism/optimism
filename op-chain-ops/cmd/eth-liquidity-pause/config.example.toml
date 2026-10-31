@@ -1,0 +1,38 @@
+# Example config for eth-liquidity-pause. Pass with --config <path>.
+# Keys are the flag names. CLI flags and ETH_LIQUIDITY_PAUSE_* env vars override anything set here.
+# Each command ignores keys it doesn't register, so one file can serve every command.
+
+# --- Every command ---
+l2 = ["http://localhost:9545", "http://localhost:9546"]
+# status works without l1 / l1-messenger (L2 side only); sync and devnet-* need them. Uncomment
+# both and give one l1-messenger per l2 entry, in the same order: l1-messenger[i] is the
+# L1CrossDomainMessenger proxy of the chain at l2[i].
+# l1 = "http://localhost:8545"
+# l1-messenger = [
+#   "<L1CrossDomainMessenger proxy of l2[0]>",
+#   "<L1CrossDomainMessenger proxy of l2[1]>",
+# ]
+
+# --- status ---
+# Sender of the sendETH eth_call; its balance is overridden, so any address works.
+from = "0x000000000000000000000000000000000000bEEF"
+# Destination chain for the sendETH eth_call; 0 means the chain's own ID + 1.
+destination = 0
+# "paused", "unpaused", or "" to only report.
+expect = ""
+json = false
+
+# --- sync, devnet-pause, devnet-unpause ---
+# Any funded L1 key (hex, no 0x needed); the sync is permissionless.
+# devnet-* default to guardian-key when this is empty.
+key = ""
+# Bounds each L1 receipt wait and each L2 wait. Strings parsed by time.ParseDuration.
+timeout = "5m"
+
+# --- sync only ---
+# Sync chains whose L2 already matches L1.
+force = false
+
+# --- devnet-pause, devnet-unpause only ---
+# The devnet SuperchainConfig guardian key.
+guardian-key = ""
