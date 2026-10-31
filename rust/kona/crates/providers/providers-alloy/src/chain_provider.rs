@@ -77,8 +77,8 @@ impl From<BlockLabel> for BlockNumberOrTag {
 pub struct AlloyChainProvider {
     /// The inner Ethereum JSON-RPC provider.
     inner: RootProvider,
-    /// Whether to trust the RPC without verification.
-    trust_rpc: bool,
+    /// Whether to verify the RPC's responses rather than trust them.
+    verify: bool,
     /// Optional confirmation policy for online derivation's forward traversal only.
     confirmation_depth: Option<ConfirmationDepth>,
     /// State shared by all clones.
@@ -106,7 +106,7 @@ impl AlloyChainProvider {
     pub fn new(inner: RootProvider, cache_size: NonZeroUsize, trust_rpc: bool) -> Self {
         Self {
             inner,
-            trust_rpc,
+            verify: !trust_rpc,
             confirmation_depth: None,
             shared: Arc::new(Shared::new(cache_size)),
         }
@@ -195,7 +195,9 @@ impl AlloyChainProvider {
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
         let transaction_count = block.transactions.len();
         let header = block.header.into_consensus();
-        self.verify_header_hash(&header, hash)?;
+        if self.verify {
+            verify_header(&header, hash)?;
+        }
 
         if transaction_count != 0 || !header.transaction_root_is_empty() {
             return Err(AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock {
@@ -322,31 +324,15 @@ impl AlloyChainProvider {
             }
         })
     }
+}
 
-    /// Verifies that a header's hash matches the expected hash when `trust_rpc` is false.
-    fn verify_header_hash(
-        &self,
-        header: &Header,
-        expected_hash: B256,
-    ) -> Result<(), AlloyChainProviderError> {
-        if self.trust_rpc {
-            return Ok(());
-        }
-
-        let actual_hash = header.hash_slow();
-        if actual_hash != expected_hash {
-            return Err(AlloyChainProviderError::Transport(RpcError::Transport(
-                TransportErrorKind::Custom(
-                    format!(
-                        "Header hash mismatch: expected {expected_hash:?}, got {actual_hash:?}"
-                    )
-                    .into(),
-                ),
-            )));
-        }
-
-        Ok(())
+/// Verifies that `header` hashes to `expected`.
+fn verify_header(header: &Header, expected: B256) -> Result<(), AlloyChainProviderError> {
+    let actual = header.hash_slow();
+    if actual != expected {
+        return Err(AlloyChainProviderError::HeaderHashMismatch { expected, actual });
     }
+    Ok(())
 }
 
 /// An error for the [`AlloyChainProvider`].
@@ -356,6 +342,14 @@ pub enum AlloyChainProviderError {
     /// Transport error
     #[error(transparent)]
     Transport(#[from] RpcError<TransportErrorKind>),
+    /// The RPC returned a header that does not hash to the requested hash.
+    #[error("Header hash mismatch: expected {expected}, got {actual}")]
+    HeaderHashMismatch {
+        /// The requested hash.
+        expected: B256,
+        /// The hash of the returned header.
+        actual: B256,
+    },
     /// Block not found.
     #[error("Block not found: {0}")]
     BlockNotFound(BlockId),
@@ -458,7 +452,8 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
                     "Failed to convert RPC receipts into consensus receipts for L1 block {hash}"
                 )))
             }
-            error @ (AlloyChainProviderError::RawReceiptsNull(_) |
+            error @ (AlloyChainProviderError::HeaderHashMismatch { .. } |
+            AlloyChainProviderError::RawReceiptsNull(_) |
             AlloyChainProviderError::RawReceiptDecode { .. } |
             AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock { .. }) => {
                 Self::Temporary(PipelineError::Provider(error.to_string()))
@@ -489,19 +484,16 @@ impl AlloyChainProvider {
         if let Some(header) = self.shared.cache.header(hash) {
             return Ok(header);
         }
-
         let block = self
             .inner
             .get_block_by_hash(hash)
             .await?
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
         let header = block.header.into_consensus();
-
-        // Verify the header hash matches what we requested
-        self.verify_header_hash(&header, hash)?;
-
+        if self.verify {
+            verify_header(&header, hash)?;
+        }
         self.shared.cache.insert_header(hash, header.clone());
-
         Ok(header)
     }
 
@@ -524,20 +516,7 @@ impl AlloyChainProvider {
         &self,
         number: u64,
     ) -> Result<BlockInfo, AlloyChainProviderError> {
-        let block = self
-            .inner
-            .get_block_by_number(number.into())
-            .await?
-            .ok_or(AlloyChainProviderError::BlockNotFound(number.into()))?;
-        let header = block.header.into_consensus();
-
-        let block_info = BlockInfo {
-            hash: header.hash_slow(),
-            number,
-            parent_hash: header.parent_hash,
-            timestamp: header.timestamp,
-        };
-        Ok(block_info)
+        self.block_info(number.into()).await
     }
 
     /// Returns the [`BlockInfo`] of the block currently at `label`.
@@ -548,14 +527,21 @@ impl AlloyChainProvider {
         &self,
         label: BlockLabel,
     ) -> Result<BlockInfo, AlloyChainProviderError> {
-        let block =
-            self.inner.get_block_by_number(label.into()).await?.ok_or(
-                AlloyChainProviderError::BlockNotFound(BlockNumberOrTag::from(label).into()),
-            )?;
-        let hash = block.header.hash;
-        let header = block.header.into_consensus();
-        self.verify_header_hash(&header, hash)?;
+        self.block_info(BlockNumberOrTag::from(label).into()).await
+    }
 
+    async fn block_info(&self, block_id: BlockId) -> Result<BlockInfo, AlloyChainProviderError> {
+        let rpc_header = self
+            .inner
+            .get_block(block_id)
+            .await?
+            .ok_or(AlloyChainProviderError::BlockNotFound(block_id))?
+            .header;
+        let hash = rpc_header.hash;
+        let header = rpc_header.into_consensus();
+        if self.verify {
+            verify_header(&header, hash)?;
+        }
         let block_info = BlockInfo {
             hash,
             number: header.number,
@@ -604,10 +590,17 @@ impl AlloyChainProvider {
         &self,
         hash: B256,
     ) -> Result<(BlockInfo, Vec<TxEnvelope>), AlloyChainProviderError> {
-        if let Some(block_info_and_txs) = self.shared.cache.block_info_and_transactions(hash) {
-            return Ok(block_info_and_txs);
+        if let (Some(header), Some(transactions)) =
+            (self.shared.cache.header(hash), self.shared.cache.transactions(hash))
+        {
+            let block_info = BlockInfo {
+                hash,
+                number: header.number,
+                parent_hash: header.parent_hash,
+                timestamp: header.timestamp,
+            };
+            return Ok((block_info, transactions));
         }
-
         let block = self
             .inner
             .get_block_by_hash(hash)
@@ -616,23 +609,17 @@ impl AlloyChainProvider {
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?
             .into_consensus()
             .map_transactions(|t| t.inner.into_inner());
-
-        // Verify the block hash matches what we requested
-        self.verify_header_hash(&block.header, hash)?;
-
+        if self.verify {
+            verify_header(&block.header, hash)?;
+        }
         let block_info = BlockInfo {
-            hash, // Use the already verified hash instead of recomputing
+            hash,
             number: block.header.number,
             parent_hash: block.header.parent_hash,
             timestamp: block.header.timestamp,
         };
-
-        self.shared.cache.insert_block_info_and_transactions(
-            hash,
-            block_info,
-            block.body.transactions.clone(),
-        );
-
+        self.shared.cache.insert_header(hash, block.header);
+        self.shared.cache.insert_transactions(hash, block.body.transactions.clone());
         Ok((block_info, block.body.transactions))
     }
 }
