@@ -1,11 +1,13 @@
 //! SP1 proof providers for challenged games.
 //!
 //! The mock pipeline computes outputs natively and submits placeholder bytes to deployments
-//! whose verifier accepts arbitrary proofs. Network proving resolves [`ProofKeys`] per game
-//! because games may use different prestates.
+//! whose verifier accepts arbitrary proofs. SP1 proving, on the prover network or on local GPUs,
+//! resolves [`ProofKeys`] per game because games may use different prestates.
 
+mod cuda;
 mod spn;
 
+pub use cuda::LocalCudaProofProvider;
 pub use spn::NetworkProofProvider;
 pub(crate) use spn::PROOF_STATUS_POLL_INTERVAL;
 #[cfg(test)]
@@ -28,7 +30,8 @@ use crate::config::PrestatePrograms;
 /// `ZKMockVerifier`) can resolve games proven with these.
 pub const MOCK_PROOF_BYTES: &[u8] = b"kona-sp1-mock-super-aggregation-proof";
 
-/// Identifier returned by the SP1 prover network for a proof request.
+/// Identifier of a proof request: the prover network's request ID, or a random ID for a local
+/// request.
 pub type ProofId = B256;
 
 /// A terminal SP1 request outcome that permits no further polling.
@@ -46,6 +49,8 @@ pub enum ProofTerminalState {
     Expired,
     /// Mainnet request details confirm cancellation.
     Cancelled,
+    /// The local prover failed; the request can be submitted again.
+    ProverFailed,
 }
 
 /// Why polling an existing SP1 request stopped.
@@ -55,18 +60,18 @@ pub enum ProofWaitError {
         "proof request {proof_id} reached terminal state {state:?} \
          (fulfillment_status={fulfillment_status}, execution_status={execution_status})"
     )]
-    /// SPN confirmed that the request cannot produce a proof.
+    /// The provider confirmed that the request cannot produce a proof.
     Terminal {
         /// Request whose polling ended.
         proof_id: ProofId,
         /// Classified terminal outcome.
         state: ProofTerminalState,
-        /// Raw SPN fulfillment status for diagnostics.
+        /// Raw SPN fulfillment status for diagnostics; 0 for a local request.
         fulfillment_status: i32,
-        /// Raw SPN execution status for diagnostics.
+        /// Raw SPN execution status for diagnostics; 0 for a local request.
         execution_status: i32,
     },
-    /// SPN may still be processing the request.
+    /// The provider may still be processing the request.
     #[error(transparent)]
     Uncertain(#[from] anyhow::Error),
 }
@@ -135,6 +140,8 @@ pub enum ProofProvider {
     /// Native-core pipeline with placeholder on-chain bytes; produces no SP1
     /// proofs at all.
     Mock(MockProofProvider),
+    /// Real SP1 proving on local NVIDIA GPUs.
+    LocalCuda(LocalCudaProofProvider),
 }
 
 impl std::fmt::Debug for ProofProvider {
@@ -142,16 +149,17 @@ impl std::fmt::Debug for ProofProvider {
         match self {
             Self::Network(provider) => f.debug_tuple("Network").field(provider).finish(),
             Self::Mock(provider) => f.debug_tuple("Mock").field(provider).finish(),
+            Self::LocalCuda(provider) => f.debug_tuple("LocalCuda").field(provider).finish(),
         }
     }
 }
 
 impl ProofProvider {
-    /// Returns spendable PROVE tokens, or `None` for mock proving.
+    /// Returns spendable PROVE tokens, or `None` for a provider that spends none.
     pub async fn balance(&self) -> Result<Option<f64>> {
         match self {
             Self::Network(provider) => provider.balance().await.map(Some),
-            Self::Mock(_) => Ok(None),
+            Self::Mock(_) | Self::LocalCuda(_) => Ok(None),
         }
     }
 
@@ -160,6 +168,7 @@ impl ProofProvider {
         match self {
             Self::Network(provider) => provider.request_range_proof(keys, stdin).await,
             Self::Mock(_) => bail!("mock provider produces no SP1 range proofs"),
+            Self::LocalCuda(provider) => Ok(provider.request_range_proof(keys, stdin)),
         }
     }
 
@@ -168,6 +177,7 @@ impl ProofProvider {
         match self {
             Self::Network(provider) => provider.request_log_proof(keys, stdin).await,
             Self::Mock(_) => bail!("mock provider produces no SP1 log-commitment proofs"),
+            Self::LocalCuda(provider) => Ok(provider.request_log_proof(keys, stdin)),
         }
     }
 
@@ -180,6 +190,7 @@ impl ProofProvider {
         match self {
             Self::Network(provider) => provider.request_aggregation_proof(keys, stdin).await,
             Self::Mock(_) => bail!("mock provider produces no SP1 aggregation proofs"),
+            Self::LocalCuda(provider) => Ok(provider.request_aggregation_proof(keys, stdin)),
         }
     }
 
@@ -191,7 +202,8 @@ impl ProofProvider {
         self.wait_for_proof_every(proof_id, PROOF_STATUS_POLL_INTERVAL).await
     }
 
-    /// Polls an existing proof request every `interval` until it finishes.
+    /// Polls an existing proof request every `interval` until it finishes. A local request is
+    /// awaited, not polled, so `interval` does not apply to it.
     pub(crate) async fn wait_for_proof_every(
         &self,
         proof_id: ProofId,
@@ -202,6 +214,7 @@ impl ProofProvider {
             Self::Mock(_) => Err(ProofWaitError::Uncertain(anyhow::anyhow!(
                 "mock provider owns no SP1 proof requests"
             ))),
+            Self::LocalCuda(provider) => provider.wait_for_proof(proof_id).await,
         }
     }
 
@@ -214,6 +227,7 @@ impl ProofProvider {
         match self {
             Self::Network(provider) => provider.verify(proof, keys.range_vk.as_ref()),
             Self::Mock(_) => bail!("mock provider produces no SP1 range proofs"),
+            Self::LocalCuda(provider) => provider.verify(proof, keys.range_vk.as_ref()),
         }
     }
 
@@ -226,6 +240,7 @@ impl ProofProvider {
         match self {
             Self::Network(provider) => provider.verify(proof, keys.log_vk.as_ref()),
             Self::Mock(_) => bail!("mock provider produces no SP1 log-commitment proofs"),
+            Self::LocalCuda(provider) => provider.verify(proof, keys.log_vk.as_ref()),
         }
     }
 
@@ -238,12 +253,16 @@ impl ProofProvider {
         match self {
             Self::Network(provider) => provider.verify(proof, keys.agg_vk.as_ref()),
             Self::Mock(_) => bail!("mock provider produces no SP1 aggregation proofs"),
+            Self::LocalCuda(provider) => provider.verify(proof, keys.agg_vk.as_ref()),
         }
     }
 
-    /// Returns whether this provider uses the mock pipeline.
-    pub const fn is_mock(&self) -> bool {
-        matches!(self, Self::Mock(_))
+    /// Returns whether this provider makes real SP1 proofs.
+    pub const fn proves_with_sp1(&self) -> bool {
+        match self {
+            Self::Network(_) | Self::LocalCuda(_) => true,
+            Self::Mock(_) => false,
+        }
     }
 }
 
