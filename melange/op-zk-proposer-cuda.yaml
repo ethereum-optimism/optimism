@@ -68,9 +68,10 @@ subpackages:
           directory: cudart
           delete: true
       # Only the runtime: the archive's stub libcuda.so would shadow the node's driver library.
+      # In /usr/lib, melange registers so:libcudart.so.12, which sp1-gpu-server depends on.
       - if: ${{build.arch}} == 'x86_64'
         runs: |
-          lib="${{targets.contextdir}}/usr/local/cuda/lib64"
+          lib="${{targets.contextdir}}/usr/lib"
           mkdir -p "$lib"
           cp -P cudart/lib/libcudart.so.12 cudart/lib/libcudart.so.12.8.90 "$lib/"
           install -Dm644 cudart/LICENSE \
