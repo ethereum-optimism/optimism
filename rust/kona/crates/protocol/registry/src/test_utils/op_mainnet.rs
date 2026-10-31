@@ -51,6 +51,7 @@ pub const OP_MAINNET_CONFIG: RollupConfig = RollupConfig {
     l1_chain_id: 1_u64,
     l2_chain_id: Chain::optimism_mainnet(),
     chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
+    settlement_chain_id: 0,
     alt_da_config: None,
     hardforks: HardForkConfig {
         regolith_time: None,

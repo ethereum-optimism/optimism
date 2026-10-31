@@ -35,8 +35,8 @@ where
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
 
-    /// Derivation delegate provider.
-    derivation_delegate_provider: DelegateProvider,
+    /// Derivation delegate provider. With `None`, the safe and finalized heads are never updated.
+    derivation_delegate_provider: Option<DelegateProvider>,
     /// L1 provider for validating L1 info for derivation delegation.
     l1_provider: L1Provider,
     /// Publishes the delegate's `current_l1`: the L1 block that its derivation has reached.
@@ -61,7 +61,7 @@ where
     pub fn new(
         engine_client: DerivationEngineClient_,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
-        derivation_delegate_provider: DelegateProvider,
+        derivation_delegate_provider: Option<DelegateProvider>,
         l1_provider: L1Provider,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
     ) -> Self {
@@ -106,7 +106,7 @@ where
                 self.handle_derivation_delegation_actor_request(request).await
             }
             _ = self.delegated_derivation_ticker.tick(),
-            if self.has_engine_sync_completed => {
+            if self.has_engine_sync_completed && self.derivation_delegate_provider.is_some() => {
                 self.fetch_and_apply_delegate_safe_head().await
             }
         }
@@ -177,7 +177,10 @@ where
 
     /// Fetches, validates, and applies sync status from the derivation delegate.
     async fn fetch_and_apply_delegate_safe_head(&mut self) -> Result<(), DerivationError> {
-        let sync_status = match self.derivation_delegate_provider.fetch_sync_status().await {
+        let Some(provider) = self.derivation_delegate_provider.as_ref() else {
+            return Ok(());
+        };
+        let sync_status = match provider.fetch_sync_status().await {
             Ok(status) => status,
             Err(_) => {
                 warn!(target: "derivation", "Failed to fetch sync status from delegate");
@@ -228,7 +231,11 @@ where
                 self.engine_l2_safe_head = *safe_head;
             }
             DerivationActorRequest::ProcessEngineSyncCompletionRequest(safe_head) => {
-                info!(target: "derivation", "Engine finished syncing, starting derivation.");
+                if self.derivation_delegate_provider.is_some() {
+                    info!(target: "derivation", "Engine finished syncing, starting derivation.");
+                } else {
+                    info!(target: "derivation", "Engine finished syncing, no follow source to derive from.");
+                }
                 self.engine_l2_safe_head = *safe_head;
                 self.has_engine_sync_completed = true;
             }
@@ -256,4 +263,46 @@ enum DerivationDelegationError {
     /// The hash provided by the derivation delegation does not match the canonical chain.
     #[error("L1 inconsistency in {context} at block {number}: expected {expected}, got {actual}")]
     L1ValidationFailed { context: String, number: u64, expected: BlockHash, actual: BlockHash },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actors::derivation::{
+        DerivationDelegateClientError, engine_client::MockDerivationEngineClient,
+    };
+    use kona_derive::test_utils::TestChainProvider;
+
+    #[derive(Debug)]
+    struct NoDelegate;
+
+    type Actor = DelegateDerivationActor<MockDerivationEngineClient, NoDelegate, TestChainProvider>;
+
+    #[async_trait]
+    impl DerivationDelegateProvider for NoDelegate {
+        async fn fetch_sync_status(&self) -> Result<SyncStatus, DerivationDelegateClientError> {
+            unreachable!("there is no delegate to poll")
+        }
+    }
+
+    /// With nothing to follow, the actor never sends a safe or finalized head to the engine.
+    #[tokio::test(start_paused = true)]
+    async fn test_no_provider_sends_no_safe_or_finalized_head() {
+        let mut engine = MockDerivationEngineClient::new();
+        engine.expect_send_safe_l2_signal().never();
+        engine.expect_send_finalized_l2_block().never();
+
+        let (tx, rx) = mpsc::channel(1);
+        let (origin_tx, _origin_rx) = watch::channel(None);
+        let mut actor = Actor::new(engine, rx, None, TestChainProvider::default(), origin_tx);
+        tx.send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::default()))
+            .await
+            .unwrap();
+        actor.step().await.unwrap();
+        assert!(actor.has_engine_sync_completed);
+
+        // Many poll intervals pass and the actor only waits for requests.
+        let idle = time::timeout(Actor::DERIVATION_DELEGATE_POLL_INTERVAL * 10, actor.step()).await;
+        assert!(idle.is_err());
+    }
 }
