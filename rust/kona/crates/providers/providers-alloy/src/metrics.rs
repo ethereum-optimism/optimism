@@ -83,7 +83,7 @@ impl Metrics {
     #[cfg(feature = "metrics")]
     pub fn zero() {
         // Chain provider cache metrics
-        for cache in ["headers", "receipts", "block_info_and_transactions"] {
+        for cache in ["headers", "receipts", "transactions"] {
             kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_HITS, "cache", cache, 0);
             kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_MISSES, "cache", cache, 0);
             kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_ENTRIES, "cache", cache, 0);
