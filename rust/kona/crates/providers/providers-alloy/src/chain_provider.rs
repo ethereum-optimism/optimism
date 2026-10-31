@@ -79,7 +79,7 @@ pub struct AlloyChainProvider {
     /// The inner Ethereum JSON-RPC provider.
     inner: RootProvider,
     /// Whether to trust the RPC without verification.
-    pub trust_rpc: bool,
+    trust_rpc: bool,
     /// Optional confirmation policy for online derivation's forward traversal only.
     confirmation_depth: Option<ConfirmationDepth>,
     /// State shared by all clones.
