@@ -428,7 +428,6 @@ impl RollupNode {
             self.l1_config.provider.clone(),
             l1_head_updates_rx,
             self.sequencer_config.l1_conf_delay,
-            self.l1_config.provider.clone(),
         );
         let delayed_origin_selector =
             L1OriginSelector::new(self.config.clone(), delayed_l1_provider);
