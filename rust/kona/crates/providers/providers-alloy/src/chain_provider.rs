@@ -86,46 +86,63 @@ pub struct AlloyChainProvider {
     shared: Arc<Shared>,
 }
 
-/// Caches and RPC capabilities shared by all clones of an [`AlloyChainProvider`].
+/// Responses cached by block hash.
 ///
 /// Every entry was fetched under the same trust setting, so sharing never mixes verified and
 /// unverified data.
 #[derive(Debug)]
-struct Shared {
+struct Cache {
     /// `header_by_hash` LRU cache.
-    headers: Mutex<LruCache<B256, Header>>,
+    headers: LruCache<B256, Header>,
     /// `receipts_by_hash` LRU cache.
-    receipts: Mutex<LruCache<B256, Vec<Receipt>>>,
+    receipts: LruCache<B256, Vec<Receipt>>,
     /// `block_info_and_transactions_by_hash` LRU cache.
-    block_info_and_transactions: Mutex<LruCache<B256, (BlockInfo, Vec<TxEnvelope>)>>,
+    block_info_and_transactions: LruCache<B256, (BlockInfo, Vec<TxEnvelope>)>,
+}
+
+impl Cache {
+    fn new(size: NonZeroUsize) -> Self {
+        Self {
+            headers: LruCache::new(size),
+            receipts: LruCache::new(size),
+            block_info_and_transactions: LruCache::new(size),
+        }
+    }
+}
+
+/// State shared by all clones of an [`AlloyChainProvider`].
+#[derive(Debug)]
+struct Shared {
+    /// Responses cached by block hash.
+    cache: Mutex<Cache>,
     /// Whether the L1 RPC supports `debug_getRawReceipts`. Once any clone observes
     /// `MethodNotFound`, all clones use the fallback.
     raw_receipts_supported: AtomicBool,
 }
 
-/// Locks a cache. A panic while holding the lock cannot leave an LRU cache inconsistent, so a
-/// poisoned lock is still usable.
-fn lock<T>(cache: &Mutex<T>) -> MutexGuard<'_, T> {
-    cache.lock().unwrap_or_else(PoisonError::into_inner)
+impl Shared {
+    fn new(cache_size: NonZeroUsize) -> Self {
+        Self {
+            cache: Mutex::new(Cache::new(cache_size)),
+            raw_receipts_supported: AtomicBool::new(true),
+        }
+    }
+
+    /// Locks the cache. A panic while holding the lock cannot leave an LRU cache inconsistent, so
+    /// a poisoned lock is still usable.
+    fn cache(&self) -> MutexGuard<'_, Cache> {
+        self.cache.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 }
 
 impl AlloyChainProvider {
     /// Creates a new [`AlloyChainProvider`] with the given alloy provider and trust setting.
-    ///
-    /// ## Panics
-    /// - Panics if `cache_size` is zero.
-    pub fn new(inner: RootProvider, cache_size: usize, trust_rpc: bool) -> Self {
-        let cache_size = NonZeroUsize::new(cache_size).unwrap();
+    pub fn new(inner: RootProvider, cache_size: NonZeroUsize, trust_rpc: bool) -> Self {
         Self {
             inner,
             trust_rpc,
             confirmation_depth: None,
-            shared: Arc::new(Shared {
-                headers: Mutex::new(LruCache::new(cache_size)),
-                receipts: Mutex::new(LruCache::new(cache_size)),
-                block_info_and_transactions: Mutex::new(LruCache::new(cache_size)),
-                raw_receipts_supported: AtomicBool::new(true),
-            }),
+            shared: Arc::new(Shared::new(cache_size)),
         }
     }
 
@@ -512,7 +529,7 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
 impl AlloyChainProvider {
     /// Returns the header with the given hash.
     pub async fn header_by_hash(&self, hash: B256) -> Result<Header, AlloyChainProviderError> {
-        let cached = lock(&self.shared.headers).get(&hash).cloned();
+        let cached = self.shared.cache().headers.get(&hash).cloned();
         if let Some(header) = cached {
             kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_HITS, "cache" => "header_by_hash");
             return Ok(header);
@@ -535,7 +552,7 @@ impl AlloyChainProvider {
         // Verify the header hash matches what we requested
         self.verify_header_hash(&header, hash)?;
 
-        lock(&self.shared.headers).put(hash, header.clone());
+        self.shared.cache().headers.put(hash, header.clone());
 
         kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "header_by_hash");
 
@@ -602,7 +619,7 @@ impl AlloyChainProvider {
             parent_hash: header.parent_hash,
             timestamp: header.timestamp,
         };
-        lock(&self.shared.headers).put(hash, header);
+        self.shared.cache().headers.put(hash, header);
         Ok(block_info)
     }
 
@@ -611,7 +628,7 @@ impl AlloyChainProvider {
         &self,
         hash: B256,
     ) -> Result<Vec<Receipt>, AlloyChainProviderError> {
-        let cached = lock(&self.shared.receipts).get(&hash).cloned();
+        let cached = self.shared.cache().receipts.get(&hash).cloned();
         if let Some(receipts) = cached {
             kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_HITS, "cache" => "receipts_by_hash");
             return Ok(receipts);
@@ -643,7 +660,7 @@ impl AlloyChainProvider {
             kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "receipts_by_hash");
         })?;
 
-        lock(&self.shared.receipts).put(hash, receipts.clone());
+        self.shared.cache().receipts.put(hash, receipts.clone());
 
         kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "receipts_by_hash");
 
@@ -655,7 +672,7 @@ impl AlloyChainProvider {
         &self,
         hash: B256,
     ) -> Result<(BlockInfo, Vec<TxEnvelope>), AlloyChainProviderError> {
-        let cached = lock(&self.shared.block_info_and_transactions).get(&hash).cloned();
+        let cached = self.shared.cache().block_info_and_transactions.get(&hash).cloned();
         if let Some(block_info_and_txs) = cached {
             kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_HITS, "cache" => "block_info_and_tx");
             return Ok(block_info_and_txs);
@@ -687,7 +704,9 @@ impl AlloyChainProvider {
             timestamp: block.header.timestamp,
         };
 
-        lock(&self.shared.block_info_and_transactions)
+        self.shared
+            .cache()
+            .block_info_and_transactions
             .put(hash, (block_info, block.body.transactions.clone()));
 
         kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "block_info_and_tx");
@@ -731,6 +750,8 @@ mod tests {
     use alloy_transport::mock::Asserter;
     use httpmock::prelude::*;
 
+    const CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(8).unwrap();
+
     type EthereumBlock =
         <alloy_provider::network::Ethereum as alloy_provider::Network>::BlockResponse;
 
@@ -750,7 +771,7 @@ mod tests {
 
     /// Creates a chain provider backed by a FIFO mock RPC transport.
     fn mocked_provider(asserter: Asserter) -> AlloyChainProvider {
-        AlloyChainProvider::new(RootProvider::new(RpcClient::mocked(asserter)), 8, true)
+        AlloyChainProvider::new(RootProvider::new(RpcClient::mocked(asserter)), CACHE_SIZE, true)
     }
 
     fn observed_head(number: u64) -> BlockInfo {
@@ -816,7 +837,7 @@ mod tests {
         let server = MockServer::start();
         let provider = AlloyChainProvider::new(
             RootProvider::new_http(server.url("/").parse().unwrap()),
-            8,
+            CACHE_SIZE,
             true,
         );
         let contract = Address::repeat_byte(1);
@@ -864,7 +885,7 @@ mod tests {
         )));
         let provider = AlloyChainProvider::new(
             RootProvider::new(RpcClient::mocked(asserter.clone())),
-            8,
+            CACHE_SIZE,
             false,
         );
 
@@ -884,8 +905,11 @@ mod tests {
             rpc_header,
             BlockTransactions::Hashes(Vec::new()),
         )));
-        let provider =
-            AlloyChainProvider::new(RootProvider::new(RpcClient::mocked(asserter)), 8, false);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new(RpcClient::mocked(asserter)),
+            CACHE_SIZE,
+            false,
+        );
 
         assert!(provider.block_info_by_label(BlockLabel::Latest).await.is_err());
     }
@@ -1077,7 +1101,7 @@ mod tests {
         });
         let provider = AlloyChainProvider::new(
             RootProvider::new_http(server.base_url().parse().unwrap()),
-            8,
+            CACHE_SIZE,
             true,
         );
 
@@ -1186,7 +1210,7 @@ mod tests {
         });
         let provider = AlloyChainProvider::new(
             RootProvider::new_http(server.base_url().parse().unwrap()),
-            8,
+            CACHE_SIZE,
             true,
         );
         let provider_clone = provider.clone();
@@ -1216,7 +1240,7 @@ mod tests {
         });
         let provider = AlloyChainProvider::new(
             RootProvider::new_http(server.base_url().parse().unwrap()),
-            8,
+            CACHE_SIZE,
             true,
         );
 
@@ -1252,7 +1276,7 @@ mod tests {
         });
         let provider = AlloyChainProvider::new(
             RootProvider::new_http(server.base_url().parse().unwrap()),
-            8,
+            CACHE_SIZE,
             true,
         );
 
@@ -1289,7 +1313,7 @@ mod tests {
         });
         let provider = AlloyChainProvider::new(
             RootProvider::new_http(server.base_url().parse().unwrap()),
-            8,
+            CACHE_SIZE,
             true,
         );
 
@@ -1317,7 +1341,7 @@ mod tests {
         });
         let provider = AlloyChainProvider::new(
             RootProvider::new_http(server.base_url().parse().unwrap()),
-            8,
+            CACHE_SIZE,
             true,
         );
 
@@ -1352,7 +1376,7 @@ mod tests {
         });
         let provider = AlloyChainProvider::new(
             RootProvider::new_http(server.base_url().parse().unwrap()),
-            8,
+            CACHE_SIZE,
             true,
         );
 
@@ -1390,7 +1414,7 @@ mod tests {
         });
         let provider = AlloyChainProvider::new(
             RootProvider::new_http(server.base_url().parse().unwrap()),
-            8,
+            CACHE_SIZE,
             true,
         );
         let hash = B256::repeat_byte(0xfa);
@@ -1502,7 +1526,7 @@ mod tests {
         });
         let provider = AlloyChainProvider::new(
             RootProvider::new_http(server.base_url().parse().unwrap()),
-            8,
+            CACHE_SIZE,
             true,
         );
 

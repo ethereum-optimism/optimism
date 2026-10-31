@@ -175,7 +175,11 @@ pub fn test_engine_client(cfg: Arc<RollupConfig>) -> (EngineClient, RpcMock, Rpc
     let l1 = RpcMock::default();
     let l2 = RpcMock::default();
     let client = EngineClient::new(
-        kona_providers_alloy::AlloyChainProvider::new(l1.provider(), 8, true),
+        kona_providers_alloy::AlloyChainProvider::new(
+            l1.provider(),
+            std::num::NonZeroUsize::new(8).unwrap(),
+            true,
+        ),
         l2.provider(),
         cfg,
     );
