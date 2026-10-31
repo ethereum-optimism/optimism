@@ -98,7 +98,8 @@ where
         match result {
             Ok(()) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
             Err(e) => {
-                error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline")
+                error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline");
+                return Err(e.into());
             }
         }
         self.publish_origin();
