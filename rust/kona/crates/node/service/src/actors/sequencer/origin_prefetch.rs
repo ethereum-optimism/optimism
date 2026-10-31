@@ -8,6 +8,7 @@ use alloy_primitives::B256;
 use async_trait::async_trait;
 use kona_derive::{ChainProvider, PipelineError, PipelineErrorKind};
 use kona_protocol::BlockInfo;
+use kona_providers_alloy::AlloyChainProvider;
 use std::{fmt::Debug, sync::Arc, time::Duration};
 use tokio::{sync::watch, time::Interval};
 
@@ -201,18 +202,17 @@ pub(crate) struct OriginPrefetcher<P, C> {
 
 /// Components that must share one preparation window.
 #[derive(Debug)]
-pub(crate) struct OriginPreparation<C> {
-    pub(crate) prefetcher: OriginPrefetcher<DelayedL1OriginSelectorProvider, C>,
+pub(crate) struct OriginPreparation {
+    pub(crate) prefetcher: OriginPrefetcher<DelayedL1OriginSelectorProvider, AlloyChainProvider>,
     pub(crate) origins: PreparedOriginProvider,
     pub(crate) attributes: PreparedAttributesProvider,
 }
 
-impl<C> OriginPreparation<C> {
+impl OriginPreparation {
     pub(crate) fn new(
-        rpc: kona_providers_alloy::AlloyChainProvider,
+        rpc: AlloyChainProvider,
         l1_head: watch::Receiver<Option<BlockInfo>>,
         confirmation_depth: u64,
-        chain: C,
     ) -> Self {
         let (request_tx, request) = watch::channel(None);
         let (window, window_rx) = watch::channel(OriginWindow::default());
@@ -229,8 +229,12 @@ impl<C> OriginPreparation<C> {
         let mut retry = tokio::time::interval(Duration::from_secs(1));
         retry.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         let worker = OriginPrefetcher {
-            origins: DelayedL1OriginSelectorProvider::new(rpc, l1_head.clone(), confirmation_depth),
-            chain,
+            origins: DelayedL1OriginSelectorProvider::new(
+                rpc.clone(),
+                l1_head.clone(),
+                confirmation_depth,
+            ),
+            chain: rpc,
             request,
             window,
             l1_head,
