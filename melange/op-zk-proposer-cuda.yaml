@@ -30,7 +30,7 @@ environment:
     packages:
       - busybox
       - ca-certificates-bundle
-      - tar
+      - gnutar
       - xz
       - gzip
 
