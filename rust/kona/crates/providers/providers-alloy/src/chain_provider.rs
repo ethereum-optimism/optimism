@@ -1,7 +1,10 @@
 //! Providers that use alloy provider types on the backend.
 
 mod cache;
-use alloy_consensus::{Header, Receipt, ReceiptEnvelope, TxEnvelope};
+use alloy_consensus::{
+    Header, Receipt, ReceiptEnvelope, TxEnvelope,
+    proofs::{calculate_receipt_root, ordered_trie_root_encoded},
+};
 use alloy_eips::{
     BlockId, BlockNumberOrTag,
     eip2718::{Decodable2718, Eip2718Error},
@@ -166,9 +169,13 @@ impl AlloyChainProvider {
         let raw_receipts = raw_receipts.ok_or(AlloyChainProviderError::RawReceiptsNull(hash))?;
 
         // Geth returns an empty array both for an unknown hash and for an existing block with no
-        // transactions. Resolve that ambiguity before accepting and caching an empty result.
+        // transactions. Resolve that ambiguity before accepting and caching an empty result. An
+        // existing block without transactions commits to no receipts, so it needs no root check.
         if raw_receipts.is_empty() {
             self.verify_empty_raw_receipts(hash).await?;
+        } else if self.verify {
+            // The raw receipts are already EIP-2718 encoded, as the receipts trie stores them.
+            self.verify_receipts_root(hash, ordered_trie_root_encoded(&raw_receipts)).await?;
         }
 
         raw_receipts
@@ -214,16 +221,36 @@ impl AlloyChainProvider {
         &self,
         hash: B256,
     ) -> Result<Vec<Receipt>, AlloyChainProviderError> {
-        let receipts = self
+        let receipts: Vec<_> = self
             .inner
             .get_block_receipts(hash.into())
             .await?
-            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
-        receipts
+            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?
             .into_iter()
-            .map(|receipt| receipt.inner.into_primitives_receipt().as_receipt().cloned())
+            .map(|receipt| receipt.inner.into_primitives_receipt())
+            .collect();
+        if self.verify {
+            // Verify the typed envelopes, before the conversion below discards their types.
+            self.verify_receipts_root(hash, calculate_receipt_root(&receipts)).await?;
+        }
+        receipts
+            .iter()
+            .map(|receipt| receipt.as_receipt().cloned())
             .collect::<Option<Vec<_>>>()
             .ok_or(AlloyChainProviderError::ReceiptsConversion(hash))
+    }
+
+    /// Verifies that the block with the given hash commits to receipts whose root is `actual`.
+    async fn verify_receipts_root(
+        &self,
+        hash: B256,
+        actual: B256,
+    ) -> Result<(), AlloyChainProviderError> {
+        let expected = self.header_by_hash(hash).await?.receipts_root;
+        if actual != expected {
+            return Err(AlloyChainProviderError::ReceiptsRootMismatch { hash, expected, actual });
+        }
+        Ok(())
     }
 
     /// Falls back to `eth_getBlockReceipts` after `debug_getRawReceipts` fails.
@@ -350,6 +377,16 @@ pub enum AlloyChainProviderError {
         /// The hash of the returned header.
         actual: B256,
     },
+    /// The RPC returned receipts that do not match the block's receipts root.
+    #[error("Receipts root mismatch for L1 block {hash}: expected {expected}, got {actual}")]
+    ReceiptsRootMismatch {
+        /// The block's hash.
+        hash: B256,
+        /// The receipts root in the block's header.
+        expected: B256,
+        /// The root of the returned receipts.
+        actual: B256,
+    },
     /// Block not found.
     #[error("Block not found: {0}")]
     BlockNotFound(BlockId),
@@ -453,6 +490,7 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
                 )))
             }
             error @ (AlloyChainProviderError::HeaderHashMismatch { .. } |
+            AlloyChainProviderError::ReceiptsRootMismatch { .. } |
             AlloyChainProviderError::RawReceiptsNull(_) |
             AlloyChainProviderError::RawReceiptDecode { .. } |
             AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock { .. }) => {
@@ -1433,5 +1471,188 @@ mod tests {
         assert_eq!(provider.receipts_by_hash(block_hash).await.unwrap(), expected);
         raw_mock.assert();
         fallback_mock.assert();
+    }
+
+    /// Two receipts of different types, one with a log, as `(JSON type, receipt, envelope)`.
+    fn verified_receipts() -> Vec<(&'static str, Receipt, ReceiptEnvelope)> {
+        let first = Receipt {
+            status: Eip658Value::Eip658(true),
+            cumulative_gas_used: 21_000,
+            logs: vec![Log::new_unchecked(
+                Address::repeat_byte(0x10),
+                vec![B256::repeat_byte(0x20)],
+                Bytes::from_static(&[0x01]),
+            )],
+        };
+        let second = Receipt {
+            status: Eip658Value::Eip658(false),
+            cumulative_gas_used: 42_000,
+            logs: Vec::new(),
+        };
+        vec![
+            ("0x2", first.clone(), ReceiptEnvelope::Eip1559(first.with_bloom())),
+            ("0x0", second.clone(), ReceiptEnvelope::Legacy(second.with_bloom())),
+        ]
+    }
+
+    /// The `eth_getBlockReceipts` JSON for `receipts`, each given with its JSON type.
+    fn json_receipts(block_hash: B256, receipts: &[(&str, Receipt)]) -> serde_json::Value {
+        receipts
+            .iter()
+            .enumerate()
+            .map(|(index, (tx_type, receipt))| {
+                let logs: Vec<_> = receipt
+                    .logs
+                    .iter()
+                    .enumerate()
+                    .map(|(log_index, log)| {
+                        serde_json::json!({
+                            "address": log.address,
+                            "topics": log.topics(),
+                            "data": log.data.data,
+                            "blockHash": block_hash,
+                            "blockNumber": "0x10",
+                            "transactionHash": B256::with_last_byte(index as u8),
+                            "transactionIndex": format!("{index:#x}"),
+                            "logIndex": format!("{log_index:#x}"),
+                            "removed": false,
+                        })
+                    })
+                    .collect();
+                serde_json::json!({
+                    "type": tx_type,
+                    "status": if receipt.status.coerce_status() { "0x1" } else { "0x0" },
+                    "cumulativeGasUsed": format!("{:#x}", receipt.cumulative_gas_used),
+                    "logs": logs,
+                    "logsBloom": receipt.bloom_slow(),
+                    "transactionHash": B256::with_last_byte(index as u8),
+                    "transactionIndex": format!("{index:#x}"),
+                    "blockHash": block_hash,
+                    "blockNumber": "0x10",
+                    "gasUsed": "0x5208",
+                    "effectiveGasPrice": "0x3b9aca00",
+                    "from": Address::repeat_byte(0x30),
+                    "to": Address::repeat_byte(0x31),
+                    "contractAddress": null,
+                })
+            })
+            .collect()
+    }
+
+    /// An untrusted provider over a server whose block commits to `verified_receipts`, answering
+    /// `debug_getRawReceipts` with `raw` and `eth_getBlockReceipts` with `json`.
+    fn receipts_root_server(
+        raw: serde_json::Value,
+        json: serde_json::Value,
+    ) -> (MockServer, AlloyChainProvider, B256) {
+        let envelopes: Vec<_> =
+            verified_receipts().into_iter().map(|(_, _, envelope)| envelope).collect();
+        let header = Header {
+            number: 16,
+            receipts_root: calculate_receipt_root(&envelopes),
+            ..Default::default()
+        };
+        let hash = header.hash_slow();
+        let block = RpcBlock::<TxEnvelope>::new(
+            RpcHeader::new(header),
+            BlockTransactions::Hashes(Vec::new()),
+        );
+
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockByHash");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 0, "result": block }));
+        });
+        server.mock(|when, then| {
+            when.method(POST).body_includes("debug_getRawReceipts");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 0, "result": raw }));
+        });
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockReceipts");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 0, "result": json }));
+        });
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            false,
+        );
+        (server, provider, hash)
+    }
+
+    /// The raw EIP-2718 encodings of `envelopes`.
+    fn raw_receipts(envelopes: &[ReceiptEnvelope]) -> serde_json::Value {
+        serde_json::json!(
+            envelopes
+                .iter()
+                .map(|envelope| Bytes::from(envelope.encoded_2718()))
+                .collect::<Vec<_>>()
+        )
+    }
+
+    #[tokio::test]
+    async fn untrusted_raw_receipts_matching_the_receipts_root_are_accepted() {
+        let receipts = verified_receipts();
+        let envelopes: Vec<_> = receipts.iter().map(|(_, _, envelope)| envelope.clone()).collect();
+        let (_server, provider, hash) =
+            receipts_root_server(raw_receipts(&envelopes), serde_json::Value::Null);
+
+        let fetched = provider.receipts_by_hash(hash).await.unwrap();
+
+        assert_eq!(
+            fetched,
+            receipts.into_iter().map(|(_, receipt, _)| receipt).collect::<Vec<_>>()
+        );
+    }
+
+    #[tokio::test]
+    async fn untrusted_raw_receipts_failing_the_root_fall_back_to_verified_json_receipts() {
+        let receipts = verified_receipts();
+        // The raw method drops the second receipt; the JSON method answers in full.
+        let raw = raw_receipts(&[receipts[0].2.clone()]);
+        let json = json_receipts(
+            B256::ZERO,
+            &receipts.iter().map(|(ty, receipt, _)| (*ty, receipt.clone())).collect::<Vec<_>>(),
+        );
+        let (_server, provider, hash) = receipts_root_server(raw, json);
+
+        let fetched = provider.receipts_by_hash(hash).await.unwrap();
+
+        assert_eq!(
+            fetched,
+            receipts.into_iter().map(|(_, receipt, _)| receipt).collect::<Vec<_>>()
+        );
+        // A bad answer is not a missing method, so the raw method stays enabled.
+        assert!(provider.shared.raw_receipts_supported.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn receipts_failing_the_root_on_both_methods_are_temporary() {
+        let receipts = verified_receipts();
+        let raw = raw_receipts(&[receipts[0].2.clone()]);
+        // The receipts root commits to each receipt's type, so mislabelling the legacy receipt
+        // as EIP-1559 is caught even though every other field is correct.
+        let json = json_receipts(
+            B256::ZERO,
+            &receipts.iter().map(|(_, receipt, _)| ("0x2", receipt.clone())).collect::<Vec<_>>(),
+        );
+        let (_server, provider, hash) = receipts_root_server(raw, json);
+
+        let error = provider.receipts_by_hash(hash).await.unwrap_err();
+
+        let AlloyChainProviderError::ReceiptMethodsFailed { raw, fallback } = &error else {
+            panic!("expected both methods to fail, got {error}");
+        };
+        assert!(matches!(**raw, AlloyChainProviderError::ReceiptsRootMismatch { .. }), "{raw}");
+        assert!(
+            matches!(**fallback, AlloyChainProviderError::ReceiptsRootMismatch { .. }),
+            "{fallback}"
+        );
+        assert!(matches!(PipelineErrorKind::from(error), PipelineErrorKind::Temporary(_)));
     }
 }
