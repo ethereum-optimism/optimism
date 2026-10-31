@@ -39,10 +39,7 @@ impl Metrics {
     pub const PROVIDER_REQUEST_DURATION: &str = "kona_providers_request_duration";
 
     /// Identifier for the gauge that tracks active cache entries.
-    pub const CACHE_ENTRIES: &str = "kona_providers_cache_entries";
-
-    /// Identifier for the gauge that tracks cache memory usage.
-    pub const CACHE_MEMORY_USAGE: &str = "kona_providers_cache_memory_bytes";
+    pub const CHAIN_PROVIDER_CACHE_ENTRIES: &str = "kona_providers_cache_entries";
 
     /// Initializes metrics for the Alloy providers.
     ///
@@ -97,12 +94,8 @@ impl Metrics {
             "Duration of provider requests in seconds"
         );
         metrics::describe_gauge!(
-            Self::CACHE_ENTRIES,
-            "Number of active entries in provider caches"
-        );
-        metrics::describe_gauge!(
-            Self::CACHE_MEMORY_USAGE,
-            "Memory usage of provider caches in bytes"
+            Self::CHAIN_PROVIDER_CACHE_ENTRIES,
+            "Number of active entries in the chain provider cache"
         );
     }
 
@@ -111,19 +104,11 @@ impl Metrics {
     #[cfg(feature = "metrics")]
     pub fn zero() {
         // Chain provider cache metrics
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_HITS, "cache", "header_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_HITS, "cache", "receipts_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_HITS, "cache", "block_info_and_tx", 0);
-
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_MISSES, "cache", "header_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_MISSES, "cache", "receipts_by_hash", 0);
-        kona_macros::set!(
-            gauge,
-            Self::CHAIN_PROVIDER_CACHE_MISSES,
-            "cache",
-            "block_info_and_tx",
-            0
-        );
+        for cache in ["headers", "receipts", "block_info_and_transactions"] {
+            kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_HITS, "cache", cache, 0);
+            kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_MISSES, "cache", cache, 0);
+            kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_ENTRIES, "cache", cache, 0);
+        }
 
         // RPC call metrics
         kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "header_by_hash", 0);
@@ -196,14 +181,5 @@ impl Metrics {
         // Blob sidecar metrics
         kona_macros::set!(gauge, Self::BLOB_FETCHES, 0);
         kona_macros::set!(gauge, Self::BLOB_FETCH_ERRORS, 0);
-
-        // Cache metrics
-        kona_macros::set!(gauge, Self::CACHE_ENTRIES, "cache", "header_by_hash", 0);
-        kona_macros::set!(gauge, Self::CACHE_ENTRIES, "cache", "receipts_by_hash", 0);
-        kona_macros::set!(gauge, Self::CACHE_ENTRIES, "cache", "block_info_and_tx", 0);
-
-        kona_macros::set!(gauge, Self::CACHE_MEMORY_USAGE, "cache", "header_by_hash", 0);
-        kona_macros::set!(gauge, Self::CACHE_MEMORY_USAGE, "cache", "receipts_by_hash", 0);
-        kona_macros::set!(gauge, Self::CACHE_MEMORY_USAGE, "cache", "block_info_and_tx", 0);
     }
 }
