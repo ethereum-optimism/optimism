@@ -3,7 +3,7 @@
 mod cache;
 use alloy_consensus::{
     Header, Receipt, ReceiptEnvelope, TxEnvelope,
-    proofs::{calculate_receipt_root, ordered_trie_root_encoded},
+    proofs::{calculate_receipt_root, calculate_transaction_root, ordered_trie_root_encoded},
 };
 use alloy_eips::{
     BlockId, BlockNumberOrTag,
@@ -387,6 +387,16 @@ pub enum AlloyChainProviderError {
         /// The root of the returned receipts.
         actual: B256,
     },
+    /// The RPC returned transactions that do not match the block's transactions root.
+    #[error("Transactions root mismatch for L1 block {hash}: expected {expected}, got {actual}")]
+    TransactionsRootMismatch {
+        /// The block's hash.
+        hash: B256,
+        /// The transactions root in the block's header.
+        expected: B256,
+        /// The root of the returned transactions.
+        actual: B256,
+    },
     /// Block not found.
     #[error("Block not found: {0}")]
     BlockNotFound(BlockId),
@@ -491,6 +501,7 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
             }
             error @ (AlloyChainProviderError::HeaderHashMismatch { .. } |
             AlloyChainProviderError::ReceiptsRootMismatch { .. } |
+            AlloyChainProviderError::TransactionsRootMismatch { .. } |
             AlloyChainProviderError::RawReceiptsNull(_) |
             AlloyChainProviderError::RawReceiptDecode { .. } |
             AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock { .. }) => {
@@ -640,6 +651,14 @@ impl AlloyChainProvider {
             .map_transactions(|t| t.inner.into_inner());
         if self.verify {
             verify_header(&block.header, hash)?;
+            let actual = calculate_transaction_root(&block.body.transactions);
+            if actual != block.header.transactions_root {
+                return Err(AlloyChainProviderError::TransactionsRootMismatch {
+                    hash,
+                    expected: block.header.transactions_root,
+                    actual,
+                });
+            }
         }
         let block_info = BlockInfo {
             hash,
@@ -1654,5 +1673,113 @@ mod tests {
             "{fallback}"
         );
         assert!(matches!(PipelineErrorKind::from(error), PipelineErrorKind::Temporary(_)));
+    }
+
+    /// Two signed transactions of different types.
+    fn signed_transactions() -> Vec<TxEnvelope> {
+        use alloy_consensus::{SignableTransaction, TxEip1559, TxLegacy};
+        use alloy_primitives::{Signature, TxKind};
+
+        let signature = Signature::test_signature();
+        vec![
+            TxLegacy {
+                chain_id: Some(1),
+                nonce: 1,
+                gas_limit: 21_000,
+                to: TxKind::Call(Address::repeat_byte(0x01)),
+                input: Bytes::from_static(&[0xaa]),
+                ..Default::default()
+            }
+            .into_signed(signature)
+            .into(),
+            TxEip1559 {
+                chain_id: 1,
+                nonce: 2,
+                gas_limit: 21_000,
+                to: TxKind::Call(Address::repeat_byte(0x02)),
+                ..Default::default()
+            }
+            .into_signed(signature)
+            .into(),
+        ]
+    }
+
+    /// An untrusted provider over a server whose block commits to `committed` but answers with
+    /// `returned` as its transactions.
+    fn transactions_root_server(
+        committed: &[TxEnvelope],
+        returned: Vec<TxEnvelope>,
+    ) -> (MockServer, AlloyChainProvider, B256) {
+        let header = Header {
+            number: 16,
+            transactions_root: calculate_transaction_root(committed),
+            ..Default::default()
+        };
+        let hash = header.hash_slow();
+        let transactions = returned
+            .into_iter()
+            .enumerate()
+            .map(|(index, tx)| alloy_rpc_types_eth::Transaction {
+                inner: alloy_consensus::transaction::Recovered::new_unchecked(
+                    tx,
+                    Address::repeat_byte(0x30),
+                ),
+                block_hash: Some(hash),
+                block_number: Some(16),
+                transaction_index: Some(index as u64),
+                effective_gas_price: None,
+                block_timestamp: None,
+            })
+            .collect();
+        let block = RpcBlock::new(RpcHeader::new(header), BlockTransactions::Full(transactions));
+
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockByHash");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 0, "result": block }));
+        });
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            false,
+        );
+        (server, provider, hash)
+    }
+
+    #[tokio::test]
+    async fn untrusted_transactions_matching_the_transactions_root_are_accepted() {
+        let transactions = signed_transactions();
+        let (_server, provider, hash) =
+            transactions_root_server(&transactions, transactions.clone());
+
+        let (block_info, fetched) =
+            provider.block_info_and_transactions_by_hash(hash).await.unwrap();
+
+        assert_eq!(block_info.hash, hash);
+        assert_eq!(fetched, transactions);
+    }
+
+    #[tokio::test]
+    async fn untrusted_transactions_failing_the_transactions_root_are_rejected_temporarily() {
+        let transactions = signed_transactions();
+        // The RPC drops the second transaction, as one hiding a batch from derivation might.
+        let (_server, provider, hash) =
+            transactions_root_server(&transactions, transactions[..1].to_vec());
+
+        let error = provider.block_info_and_transactions_by_hash(hash).await.unwrap_err();
+
+        assert!(
+            matches!(
+                error,
+                AlloyChainProviderError::TransactionsRootMismatch { hash: error_hash, .. }
+                    if error_hash == hash
+            ),
+            "{error}"
+        );
+        assert!(matches!(PipelineErrorKind::from(error), PipelineErrorKind::Temporary(_)));
+        // Nothing unverified reaches the cache.
+        assert!(provider.shared.cache.transactions(hash).is_none());
     }
 }
