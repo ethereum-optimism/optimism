@@ -17,6 +17,7 @@ func newSingleChainMultiNodeELSync(t devtest.T) *presets.SingleChainMultiNode {
 	// uses a 4x CrossSafe budget (see singlechain_from_runtime.go), which is
 	// what this test needs.
 	return presets.NewSingleChainMultiNode(t,
+		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
 		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(p devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
 			cfg.VerifierSyncMode = sync.ELSync
 			cfg.SafeDBPath = p.TempDir()
@@ -74,16 +75,6 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 
 func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Example error with kona-node:
-	//
-	// assertions.go:387:             ERROR[03-31|10:35:59.154]
-	// assertions.go:387:             	Error Trace:	/Users/josh/repos/optimism/op-devstack/dsl/safedb.go:22
-	// assertions.go:387:             	            				/Users/josh/repos/optimism/op-devstack/dsl/l2_cl.go:432
-	// assertions.go:387:             	            				/Users/josh/repos/optimism/op-acceptance-tests/tests/safeheaddb_elsync/safeheaddb_test.go:74
-	// assertions.go:387:             	Error:      	Expected value not to be nil.
-	// assertions.go:387:             	Test:       	TestNotTruncateDatabaseOnRestartWithExistingDatabase
-	// assertions.go:387:             	Messages:   	no safe head data available at L1 block 4
-	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := newSingleChainMultiNodeELSync(t)
 
 	dsl.CheckAll(t,
@@ -95,7 +86,7 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	preRestartSafeBlock := sys.L2CLB.SafeHeadDBFloor()
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))
 
-	// Restart the verifier op-node, but not the EL so the existing chain data is not deleted.
+	// Keep the EL's chain data while restarting the verifier CL.
 	sys.L2CLB.Stop()
 
 	sys.L2CL.Advanced(safety.LocalSafe, 3, 30)
