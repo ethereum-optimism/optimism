@@ -523,7 +523,7 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
     /// @notice Tests that setFeature succeeds when called by the depositor.
     function test_setFeature_succeeds() external {
         if (deploy.cfg().useInterop()) {
-            vm.skip(true);
+            vm.skip(true, "Interop is already enabled by the deploy config");
         }
         vm.expectEmit(Predeploys.L1_BLOCK_ATTRIBUTES);
         emit FeatureSet(Features.INTEROP, true);
@@ -561,7 +561,7 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
     /// @notice Tests that isFeatureEnabled returns false by default.
     function test_isFeatureEnabled_defaultFalse_succeeds() external {
         if (deploy.cfg().useInterop()) {
-            vm.skip(true);
+            vm.skip(true, "Interop is already enabled by the deploy config");
         }
         assertFalse(l1Block.isFeatureEnabled(Features.INTEROP));
     }
