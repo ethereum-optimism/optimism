@@ -15,6 +15,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::{
     collections::VecDeque,
+    num::NonZeroUsize,
     sync::{Arc, Mutex},
     task::{Context, Poll},
     time::Duration,
@@ -44,7 +45,7 @@ impl RpcMock {
 
     /// Builds a trusting L1 provider backed by this mock transport.
     pub fn l1_provider(&self) -> AlloyChainProvider {
-        AlloyChainProvider::new(self.provider(), 8, true)
+        AlloyChainProvider::new(self.provider(), NonZeroUsize::new(8).unwrap(), true)
     }
 
     /// Expects one call to `method` and returns the serialized response.
