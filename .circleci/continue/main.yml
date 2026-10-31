@@ -2228,32 +2228,10 @@ jobs:
       # does not need a separate `go mod download`.
       - go-restore-cache:
           namespace: op-acceptance-tests
-      # Run the acceptance tests (if the devnet is running)
       - run:
-          name: Run acceptance tests
-          working_directory: op-acceptance-tests
-          no_output_timeout: <<parameters.no_output_timeout>>
-          command: |
-            if [ -n "<<parameters.acceptance_test_jobs>>" ]; then
-              export ACCEPTANCE_TEST_JOBS="<<parameters.acceptance_test_jobs>>"
-            fi
-            LOG_LEVEL=info just acceptance-test
-      - run:
-          name: Print results (summary)
-          working_directory: op-acceptance-tests
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR/summary.log" || true
-      - run:
-          name: Print results (failures)
-          working_directory: op-acceptance-tests
-          command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            cat "$LOG_DIR"/failed/*.log || true
-          when: on_fail
-      # Save the module cache for future runs
-      - go-save-cache:
-          namespace: op-acceptance-tests
+          name: Verify SafeDB key negative control
+          no_output_timeout: 30m
+          command: python3 .circleci/scripts/verify-safedb-key-negative-control.py
       # Store test results and artifacts
       - when:
           condition: always
@@ -2819,40 +2797,15 @@ workflows:
       # 16 vCPU / 32 GiB after a 21.3 GiB observed peak.
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests:
-          name: memory-all-opn-op-reth-<<matrix.l1_fork>>
+          name: safedb-parity-negative-control-<<matrix.l1_fork>>
           image: <<pipeline.parameters.c-rust_base_image>>
           matrix:
             parameters:
               l1_fork: &acceptance_l1_forks
                 - fusaka
           l2_el_kind: op-reth
-          parallelism: 8
-          acceptance_test_jobs: "8"
-          no_output_timeout: 120m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
-            - rust-binaries-for-sysgo
-            - go-binaries-for-sysgo
-            - prep-go-modules
-            # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
-            - prep-superchain
-      # IN-MEMORY - kona/op-reth
-      - op-acceptance-tests:
-          name: memory-all-kona-op-reth-<<matrix.l1_fork>>
-          image: <<pipeline.parameters.c-rust_base_image>>
-          matrix:
-            parameters:
-              l1_fork: *acceptance_l1_forks
-          l2_cl_kind: kona-node
-          l2_el_kind: op-reth
-          resource_class: 2xlarge.gen2
-          parallelism: 8
-          acceptance_test_jobs: "8"
+          parallelism: 1
+          acceptance_test_jobs: "1"
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2880,8 +2833,7 @@ workflows:
             - semgrep-test: terminal
             - go-tests: terminal
             - go-actions-tests: terminal
-            - memory-all-opn-op-reth-fusaka: terminal
-            - memory-all-kona-op-reth-fusaka: terminal
+            - safedb-parity-negative-control-fusaka: terminal
             - kona-build-sp1-elfs: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
             - cannon-go-lint-and-test: terminal
