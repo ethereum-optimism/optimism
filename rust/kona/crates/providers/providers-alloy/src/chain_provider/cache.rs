@@ -4,7 +4,6 @@
 use crate::Metrics;
 use alloy_consensus::{Header, Receipt, TxEnvelope};
 use alloy_primitives::B256;
-use kona_protocol::BlockInfo;
 use lru::LruCache;
 use std::{
     num::NonZeroUsize,
@@ -62,8 +61,8 @@ pub(super) struct Cache {
     headers: Mutex<HashCache<Header>>,
     /// Block receipts.
     receipts: Mutex<HashCache<Vec<Receipt>>>,
-    /// Block info and transactions.
-    block_info_and_transactions: Mutex<HashCache<(BlockInfo, Vec<TxEnvelope>)>>,
+    /// Block transactions.
+    transactions: Mutex<HashCache<Vec<TxEnvelope>>>,
 }
 
 /// Locks a cache. A panic while holding the lock cannot leave an LRU cache inconsistent, so a
@@ -78,10 +77,7 @@ impl Cache {
         Self {
             headers: Mutex::new(HashCache::new(size, "headers")),
             receipts: Mutex::new(HashCache::new(size, "receipts")),
-            block_info_and_transactions: Mutex::new(HashCache::new(
-                size,
-                "block_info_and_transactions",
-            )),
+            transactions: Mutex::new(HashCache::new(size, "transactions")),
         }
     }
 
@@ -105,21 +101,13 @@ impl Cache {
         lock(&self.receipts).put(hash, receipts);
     }
 
-    /// Returns the cached [`BlockInfo`] and transactions of the block with the given hash.
-    pub(super) fn block_info_and_transactions(
-        &self,
-        hash: B256,
-    ) -> Option<(BlockInfo, Vec<TxEnvelope>)> {
-        lock(&self.block_info_and_transactions).get(hash).cloned()
+    /// Returns the cached transactions of the block with the given hash.
+    pub(super) fn transactions(&self, hash: B256) -> Option<Vec<TxEnvelope>> {
+        lock(&self.transactions).get(hash).cloned()
     }
 
-    /// Caches the [`BlockInfo`] and transactions of the block with the given hash.
-    pub(super) fn insert_block_info_and_transactions(
-        &self,
-        hash: B256,
-        block_info: BlockInfo,
-        transactions: Vec<TxEnvelope>,
-    ) {
-        lock(&self.block_info_and_transactions).put(hash, (block_info, transactions));
+    /// Caches the transactions of the block with the given hash.
+    pub(super) fn insert_transactions(&self, hash: B256, transactions: Vec<TxEnvelope>) {
+        lock(&self.transactions).put(hash, transactions);
     }
 }
