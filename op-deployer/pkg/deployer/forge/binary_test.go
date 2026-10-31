@@ -21,10 +21,17 @@ import (
 
 // TestStandardBinary_ForgeBins tests that the binary can be downloaded from the
 // official release channel, and that their checksums are correct.
+//
+// It downloads every pinned release archive from GitHub, so it only runs when
+// OP_DEPLOYER_TEST_FORGE_RELEASES is set. `just check-forge-version` sets it,
+// and CI's op-deployer-forge-version job runs that recipe on develop and on PRs
+// that change this package, the recipe, mise.toml or the CI config.
 func TestStandardBinary_ForgeBins(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test in -short mode")
+	if os.Getenv("OP_DEPLOYER_TEST_FORGE_RELEASES") == "" {
+		t.Skip("OP_DEPLOYER_TEST_FORGE_RELEASES not set")
 	}
+
+	require.NotEmpty(t, checksums, "version.json pins no forge release checksums")
 
 	// Clear out the PATH env var so it forces a download.
 	t.Setenv("PATH", "")
@@ -44,7 +51,8 @@ func TestStandardBinary_ForgeBins(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			// Each archive is over 100 MB. The timeout bounds a hang, not a slow mirror.
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 			defer cancel()
 			require.NoError(t, bin.Ensure(ctx))
 		})
