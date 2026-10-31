@@ -85,6 +85,23 @@ func TestStandardBinary_Downloads(t *testing.T) {
 		require.True(t, progressed.Load())
 	})
 
+	t.Run("anvil from the same archive", func(t *testing.T) {
+		anvilCacheDir := t.TempDir()
+		bin, err := NewStandardBinary(
+			WithTool("anvil"),
+			WithURL(ts.URL+"/foundry.tgz"),
+			WithCachePather(func() (string, error) { return anvilCacheDir, nil }),
+			WithChecksummer(staticChecksummer(string(expChecksum))),
+		)
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, bin.Ensure(ctx))
+		require.Equal(t, path.Join(anvilCacheDir, "anvil"), bin.Path())
+		require.FileExists(t, path.Join(anvilCacheDir, "forge"), "the download installs every tool of the archive")
+	})
+
 	t.Run("invalid checksum", func(t *testing.T) {
 		bin, err := NewStandardBinary(
 			WithURL(ts.URL+"/foundry.tgz"),

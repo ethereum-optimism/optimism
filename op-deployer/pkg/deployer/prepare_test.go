@@ -529,16 +529,18 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	superchainState := &state.State{Version: 1}
 
 	pEnv := &pipeline.Env{
-		Logger:       lgr,
-		Scripts:      &opcm.Scripts{},
-		ForgeClient:  forgeClient,
-		UseForge:     true,
+		Logger:  lgr,
+		Scripts: &opcm.Scripts{},
+		Forge: &opcm.ForgeEnv{
+			Client:     forgeClient,
+			Context:    ctx,
+			L1RPCUrl:   l1RPCUrl,
+			PrivateKey: privateKey,
+		},
 		Context:      ctx,
 		Broadcaster:  broadcaster.NoopBroadcaster(),
 		StateWriter:  pipeline.NoopStateWriter(),
 		L1ScriptHost: host,
-		L1RPCUrl:     l1RPCUrl,
-		PrivateKey:   privateKey,
 	}
 
 	require.NoError(t, pipeline.DeploySuperchain(pEnv, superchainIntent, superchainState))

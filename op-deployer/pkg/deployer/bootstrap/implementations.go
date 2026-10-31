@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
@@ -58,8 +57,8 @@ type ImplementationsConfig struct {
 	SuperchainProxyAdmin               common.Address     `cli:"superchain-proxy-admin"`
 	Challenger                         common.Address     `cli:"challenger"`
 	CacheDir                           string             `cli:"cache-dir"`
-	UseForge                           bool               `cli:"use-forge"`
-	ForgeSlowBroadcast                 bool               `cli:"forge-slow-broadcast"`
+	// UseScriptHost runs the script on the Go script host instead of forge.
+	UseScriptHost bool
 
 	Logger log.Logger
 
@@ -183,6 +182,7 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("--%s must not be zero when explicitly set", SP1VerifierAddressFlagName)
 	}
 	cfg.Logger = l
+	cfg.UseScriptHost = !cliCtx.Bool(deployer.UseForgeFlagName)
 
 	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
 	artifactsLocator := new(artifacts.Locator)
@@ -294,19 +294,19 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 		SP1Verifier:                        cfg.SP1Verifier,
 	}
 
-	if cfg.UseForge {
+	if !cfg.UseScriptHost {
 		lgr.Info("using Forge for DeployImplementations")
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", artifactsFS))
+		forgeClient, err := opcm.NewForgeClient(artifactsFS, cfg.CacheDir, []opcm.ForgeScript{opcm.DeployImplementationsForgeScript})
 		if err != nil {
 			return dio, fmt.Errorf("failed to create forge client: %w", err)
 		}
-		forgeClient.SlowBroadcast = cfg.ForgeSlowBroadcast
 
 		forgeEnv := &opcm.ForgeEnv{
 			Client:     forgeClient,
 			Context:    ctx,
 			L1RPCUrl:   cfg.L1RPCUrl,
 			PrivateKey: cfg.PrivateKey,
+			Logger:     lgr,
 		}
 		dio, err = opcm.DeployImplementationsViaForge(forgeEnv, input)
 		if err != nil {

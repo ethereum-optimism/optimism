@@ -175,6 +175,7 @@ func asTxCandidate(bcast Broadcast, gasLimit uint64) txmgr.TxCandidate {
 		candidate = txmgr.TxCandidate{
 			TxData:   bcast.Input,
 			To:       nil,
+			Value:    value,
 			GasLimit: gasLimit,
 		}
 	case BroadcastCreate2:

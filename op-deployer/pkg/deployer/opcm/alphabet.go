@@ -36,13 +36,7 @@ func NewDeployAlphabetVMForgeCaller(client *forge.Client) forge.ScriptCaller[Dep
 
 // DeployAlphabetVMViaForge deploys Alphabet VM contracts using Forge
 func DeployAlphabetVMViaForge(env *ForgeEnv, input DeployAlphabetVMInput) (DeployAlphabetVMOutput, error) {
-	var output DeployAlphabetVMOutput
-	if err := env.validate(true); err != nil {
-		return output, err
-	}
-	forgeCaller := NewDeployAlphabetVMForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOpts()...)
+	output, err := broadcastScript(env, NewDeployAlphabetVMForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy Alphabet VM with Forge: %w", err)
 	}

@@ -44,7 +44,6 @@ There are a couple of ways to install `op-deployer`:
       *   For macOS:
           *   Apple Silicon (M1/M2): `op-deployer-darwin-arm64`
           *   Intel processors: `op-deployer-darwin-amd64`
-      *   For Windows: `op-deployer-windows-amd64.exe`
 
       <Info>
         **Always download the latest version** to ensure you have the most recent features and bug fixes.
@@ -246,9 +245,9 @@ The intent file defines your chain's configuration.
   opcmAddress = "0x3bb6437aba031afbf9cb3538fa064161e2bf2d78"  # OPCM contract address on Sepolia
 
   # Contract locators - REQUIRED fields, automatically populated by op-deployer init
-  # Keep these default values unless you need specific contract versions (advanced use case)
-  l1ContractsLocator = "tag://op-contracts/v2.0.0"
-  l2ContractsLocator = "tag://op-contracts/v1.7.0-beta.1+l2-contracts"
+  # Keep these default values: op-deployer runs only the contracts release that it embeds
+  l1ContractsLocator = "embedded"
+  l2ContractsLocator = "embedded"
 
   # Shared contract roles - only define if creating a standalone chain not part of the OP Stack ecosystem
   # For standard OP Stack deployments, these are predefined and should not be set

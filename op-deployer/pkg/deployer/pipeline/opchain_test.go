@@ -1207,14 +1207,11 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 	pEnv := &Env{
 		Logger:       lgr,
 		Scripts:      opcmScripts,
-		ForgeClient:  forgeClient,
-		UseForge:     true,
+		Forge:        &opcm.ForgeEnv{Client: forgeClient, Context: ctx, L1RPCUrl: l1RPCUrl, PrivateKey: privateKey},
 		Context:      ctx,
 		Broadcaster:  broadcaster.NoopBroadcaster(),
 		StateWriter:  NoopStateWriter(),
 		L1ScriptHost: host,
-		L1RPCUrl:     l1RPCUrl,
-		PrivateKey:   privateKey,
 	}
 
 	err = DeploySuperchain(pEnv, intent, st)

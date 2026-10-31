@@ -38,13 +38,7 @@ func NewReadSuperchainDeploymentForgeCaller(client *forge.Client) forge.ScriptCa
 
 // ReadSuperchainDeploymentViaForge reads superchain deployment addresses using Forge
 func ReadSuperchainDeploymentViaForge(env *ForgeEnv, input ReadSuperchainDeploymentInput) (ReadSuperchainDeploymentOutput, error) {
-	var output ReadSuperchainDeploymentOutput
-	if err := env.validate(false); err != nil {
-		return output, err
-	}
-	forgeCaller := NewReadSuperchainDeploymentForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOptsReadOnly()...)
+	output, err := readScript(env, NewReadSuperchainDeploymentForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to run ReadSuperchainDeployment with Forge: %w", err)
 	}

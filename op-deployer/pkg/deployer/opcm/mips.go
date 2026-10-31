@@ -49,13 +49,7 @@ func NewDeployMIPSForgeCaller(client *forge.Client) forge.ScriptCaller[DeployMIP
 
 // DeployMIPSViaForge deploys MIPS contracts using Forge
 func DeployMIPSViaForge(env *ForgeEnv, input DeployMIPSInput) (DeployMIPSOutput, error) {
-	var output DeployMIPSOutput
-	if err := env.validate(true); err != nil {
-		return output, err
-	}
-	forgeCaller := NewDeployMIPSForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOpts()...)
+	output, err := broadcastScript(env, NewDeployMIPSForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy MIPS VM with Forge: %w", err)
 	}
