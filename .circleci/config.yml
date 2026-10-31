@@ -132,6 +132,11 @@ jobs:
       - run:
           name: Test decision tree
           command: .circleci/scripts/test-decision-tree.sh
+      # Fails if the shared Go module cache helper stops making Go read the
+      # directory it restores (machine images use a different default GOPATH).
+      - run:
+          name: Test Go module cache setup
+          command: python3 .circleci/scripts/test-go-mod-cache.py
       # Forward string pipeline parameters to /tmp/pipeline-parameters.json.
       # collect-params.sh picks up all env vars starting with "c-" and writes them as JSON strings.
       # Add a line here when a new string value needs to reach continuation config jobs
