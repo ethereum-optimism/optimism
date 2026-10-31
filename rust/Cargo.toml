@@ -512,6 +512,9 @@ op-alloy-flz = { version = "0.13.1", default-features = false }
 
 # ==================== SP1 ====================
 sp1-core-executor = { version = "6.10.0", default-features = false }
+sp1-cuda = { version = "6.10.0", default-features = false }
+sp1-primitives = { version = "6.10.0", default-features = false }
+sp1-prover-types = { version = "6.10.0", default-features = false }
 sp1-sdk = { version = "6.10.0", default-features = false, features = [
   "network",
 ] }
