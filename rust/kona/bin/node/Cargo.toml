@@ -42,6 +42,7 @@ alloy-genesis.workspace = true
 alloy-signer.workspace = true
 alloy-provider.workspace = true
 alloy-rpc-client.workspace = true
+alloy-json-rpc.workspace = true
 alloy-transport.workspace = true
 alloy-transport-http.workspace = true
 alloy-primitives.workspace = true
@@ -75,6 +76,7 @@ backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [dev-dependencies]
+metrics-exporter-prometheus.workspace = true
 rstest.workspace = true
 tempfile.workspace = true
 

@@ -5128,8 +5128,8 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "disableTextWrap": false,
-              "editorMode": "builder",
-              "expr": "kona_providers_chain_rpc_calls{instance=\"$instance\"}",
+              "editorMode": "code",
+              "expr": "sum by (method) (rate(kona_rpc_client_request_duration_seconds_count{instance=\"$instance\", client=\"l1\"}[$__rate_interval]))",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -5139,7 +5139,7 @@
               "useBackend": false
             }
           ],
-          "title": "L1 Provider RPC Calls",
+          "title": "L1 RPC Requests/s",
           "transparent": true,
           "type": "timeseries"
         },
@@ -5330,18 +5330,18 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "disableTextWrap": false,
-              "editorMode": "builder",
-              "expr": "kona_providers_chain_rpc_errors{instance=\"$instance\"}",
+              "editorMode": "code",
+              "expr": "sum by (method, outcome) (rate(kona_rpc_client_request_duration_seconds_count{instance=\"$instance\", client=\"l1\", outcome!=\"ok\"}[$__rate_interval]))",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
-              "legendFormat": "{{method}}",
+              "legendFormat": "{{method}} ({{outcome}})",
               "range": true,
               "refId": "A",
               "useBackend": false
             }
           ],
-          "title": "L1 Provider RPC Errors",
+          "title": "L1 RPC Errors/s",
           "transparent": true,
           "type": "timeseries"
         },
