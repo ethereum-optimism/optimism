@@ -43,7 +43,8 @@ def validate_events(events, exit_code, expected_names, expect_mismatch=False):
 
 def run_phase(name, names, output, expect_mismatch=False):
     events_path = output / f"{name}-events.json"
-    command = ["gotestsum", "--format", "testname", "--jsonfile", str(events_path), "--junitfile", f"op-acceptance-tests/results/key-control-{name}.xml", "--", "-count=1", "-p=1", "-parallel=1", "-timeout=12m", "-run=^(" + "|".join(names) + ")$", PACKAGE]
+    junit_path = str(output / f"{name}.xml") if expect_mismatch else f"op-acceptance-tests/results/key-control-{name}.xml"
+    command = ["gotestsum", "--format", "testname", "--jsonfile", str(events_path), "--junitfile", junit_path, "--", "-count=1", "-p=1", "-parallel=1", "-timeout=12m", "-run=^(" + "|".join(names) + ")$", PACKAGE]
     environment = dict(os.environ, BASH_ENV="/dev/null", DEVSTACK_L2CL_KIND="op-node", LOG_LEVEL="info")
     print(f"Starting {name}: {command}", flush=True)
     started = time.monotonic()
