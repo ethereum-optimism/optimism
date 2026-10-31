@@ -11,7 +11,9 @@
 
 mod backfill;
 pub(crate) mod cursor;
+mod history_migration;
 mod init;
+mod layout;
 #[cfg(feature = "metrics")]
 mod metrics;
 mod provider_ro;
@@ -20,6 +22,9 @@ mod read;
 mod snapshot_init;
 mod snapshot_read;
 mod write;
+
+pub use history_migration::{HistoryLayoutReport, HistoryLayoutVerdict, MisplacedShardCounts};
+pub use layout::HISTORY_LAYOUT_VERSION;
 
 pub use cursor::{
     MdbxAccountCursor, MdbxAccountTrieCursor, MdbxAccountTrieSnapshotCursor,
@@ -73,7 +78,17 @@ pub struct MdbxProofsStorage {
 
 impl MdbxProofsStorage {
     /// Creates a new [`MdbxProofsStorage`] instance with the given path.
+    ///
+    /// Brings the store to the current history layout first. On the first start after upgrading
+    /// from a store below it, that scans every history table once.
     pub fn new(path: &Path) -> Result<Self, OpProofsStorageError> {
+        let storage = Self::open_env(path)?;
+        storage.ensure_history_layout(path)?;
+        Ok(storage)
+    }
+
+    /// Opens or creates the database without checking its history layout.
+    fn open_env(path: &Path) -> Result<Self, OpProofsStorageError> {
         let env = init_db_for::<_, Tables>(path, DatabaseArguments::default())
             .map_err(|e| DatabaseError::Other(format!("Failed to open database: {e}")))?;
         match LegacyV1Usage::read(&env) {
