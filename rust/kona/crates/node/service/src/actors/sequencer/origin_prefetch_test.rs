@@ -179,7 +179,7 @@ impl Harness {
             true,
         );
         let OriginPreparation { prefetcher: worker, origins: provider, attributes } =
-            OriginPreparation::new(rpc, head_rx, depth, l1.clone());
+            OriginPreparation::new(rpc, head_rx, depth);
         let worker = OriginPrefetcher {
             origins: l1.clone(),
             chain: l1.clone(),
