@@ -71,12 +71,13 @@ tokio-stream.workspace = true
 tokio-util.workspace = true
 serde_json = { workspace = true, features = ["std"] }
 clap = { workspace = true, features = ["derive", "env"] }
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "time"] }
 backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [dev-dependencies]
 metrics-exporter-prometheus.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 rstest.workspace = true
 tempfile.workspace = true
 
