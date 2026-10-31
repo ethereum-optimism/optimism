@@ -1,5 +1,6 @@
 //! Node Subcommand.
 
+use super::middleware::{self, RpcMetricsLayer};
 use crate::{
     cli_metrics::{CliMetrics, init_rollup_config_metrics},
     flags::{
@@ -305,10 +306,13 @@ impl NodeCommand {
 
         // The node's one L1 client: every component reads L1 through a clone, sharing its caches
         // and trust setting. Every request is bounded, so a stalled endpoint fails its caller
-        // instead of hanging it.
+        // instead of hanging it. Metrics wrap the deadline, so a timeout is recorded as a
+        // transport error.
+        middleware::describe();
         let l1_provider = AlloyChainProvider::new(
             RootProvider::new(
                 ClientBuilder::default()
+                    .layer(RpcMetricsLayer::new("l1"))
                     .layer(MapFutureLayer::new(kona_engine::with_deadline))
                     .http(self.l1_rpc_args.l1_eth_rpc.clone()),
             ),

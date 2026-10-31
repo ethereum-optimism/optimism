@@ -11,12 +11,6 @@ impl Metrics {
     /// Identifier for the gauge that tracks chain provider cache misses.
     pub const CHAIN_PROVIDER_CACHE_MISSES: &str = "kona_providers_chain_cache_misses";
 
-    /// Identifier for the gauge that tracks chain provider RPC calls.
-    pub const CHAIN_PROVIDER_RPC_CALLS: &str = "kona_providers_chain_rpc_calls";
-
-    /// Identifier for the gauge that tracks chain provider RPC errors.
-    pub const CHAIN_PROVIDER_RPC_ERRORS: &str = "kona_providers_chain_rpc_errors";
-
     /// Identifier for the gauge that tracks beacon client requests.
     pub const BEACON_CLIENT_REQUESTS: &str = "kona_providers_beacon_requests";
 
@@ -34,9 +28,6 @@ impl Metrics {
 
     /// Identifier for the gauge that tracks blob fetch errors.
     pub const BLOB_FETCH_ERRORS: &str = "kona_providers_blob_fetch_errors";
-
-    /// Identifier for the histogram that tracks provider request duration.
-    pub const PROVIDER_REQUEST_DURATION: &str = "kona_providers_request_duration";
 
     /// Identifier for the gauge that tracks active cache entries.
     pub const CHAIN_PROVIDER_CACHE_ENTRIES: &str = "kona_providers_cache_entries";
@@ -64,14 +55,6 @@ impl Metrics {
             "Number of cache misses in chain provider"
         );
         metrics::describe_gauge!(
-            Self::CHAIN_PROVIDER_RPC_CALLS,
-            "Number of RPC calls made by chain provider"
-        );
-        metrics::describe_gauge!(
-            Self::CHAIN_PROVIDER_RPC_ERRORS,
-            "Number of RPC errors in chain provider"
-        );
-        metrics::describe_gauge!(
             Self::BEACON_CLIENT_REQUESTS,
             "Number of requests made to beacon client"
         );
@@ -89,10 +72,6 @@ impl Metrics {
         );
         metrics::describe_gauge!(Self::BLOB_FETCHES, "Number of blob sidecar fetches");
         metrics::describe_gauge!(Self::BLOB_FETCH_ERRORS, "Number of blob sidecar fetch errors");
-        metrics::describe_histogram!(
-            Self::PROVIDER_REQUEST_DURATION,
-            "Duration of provider requests in seconds"
-        );
         metrics::describe_gauge!(
             Self::CHAIN_PROVIDER_CACHE_ENTRIES,
             "Number of active entries in the chain provider cache"
@@ -109,20 +88,6 @@ impl Metrics {
             kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_MISSES, "cache", cache, 0);
             kona_macros::set!(gauge, Self::CHAIN_PROVIDER_CACHE_ENTRIES, "cache", cache, 0);
         }
-
-        // RPC call metrics
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "header_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "receipts_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "block_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "block_number", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_CALLS, "method", "block_by_label", 0);
-
-        // RPC error metrics
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "header_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "receipts_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "block_by_hash", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "block_number", 0);
-        kona_macros::set!(gauge, Self::CHAIN_PROVIDER_RPC_ERRORS, "method", "block_by_label", 0);
 
         // Beacon client metrics
         kona_macros::set!(gauge, Self::BEACON_CLIENT_REQUESTS, "method", "spec", 0);
