@@ -5331,11 +5331,11 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "sum by (method, outcome) (rate(kona_rpc_client_request_duration_seconds_count{instance=\"$instance\", client=\"l1\", outcome!=\"ok\"}[$__rate_interval]))",
+              "expr": "sum by (method, error) (rate(kona_rpc_client_request_duration_seconds_count{instance=\"$instance\", client=\"l1\", outcome!=\"ok\"}[$__rate_interval]))",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
-              "legendFormat": "{{method}} ({{outcome}})",
+              "legendFormat": "{{method}} ({{error}})",
               "range": true,
               "refId": "A",
               "useBackend": false
