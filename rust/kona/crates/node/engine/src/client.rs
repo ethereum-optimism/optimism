@@ -431,7 +431,11 @@ mod request_observability_tests {
                     config.hardforks.ecotone_time = Some(0);
                     let config = Arc::new(config);
                     let engine = EngineClient::new(
-                        AlloyChainProvider::new(l1.provider(), 8, true),
+                        AlloyChainProvider::new(
+                            l1.provider(),
+                            std::num::NonZeroUsize::new(8).unwrap(),
+                            true,
+                        ),
                         provider,
                         config.clone(),
                     );
@@ -557,7 +561,7 @@ mod deadline_tests {
             l2_jwt: JwtSecret::random(),
             l1: AlloyChainProvider::new(
                 RootProvider::new_http("http://127.0.0.1:1".parse().unwrap()),
-                8,
+                std::num::NonZeroUsize::new(8).unwrap(),
                 true,
             ),
             cfg: Arc::new(RollupConfig::default()),
