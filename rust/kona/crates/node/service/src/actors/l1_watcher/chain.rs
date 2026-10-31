@@ -119,12 +119,7 @@ where
                 _ = signer_tx.closed() => return Err(L1WatcherActorError::StreamEnded),
             }
             let Some(target) = *head.borrow_and_update() else { continue };
-            // A storage slot cannot be verified against the header, so this read trusts the RPC.
-            let read = kona_providers_alloy::unsafe_block_signer(
-                &provider.inner,
-                config.l1_system_config_address,
-                target.hash,
-            );
+            let read = provider.unsafe_block_signer(config.l1_system_config_address, target.hash);
             match read.await {
                 // Head changes while a read is outstanding supersede that read, including
                 // same-height reorgs. Never install a snapshot for an obsolete branch.
