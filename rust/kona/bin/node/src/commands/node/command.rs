@@ -26,6 +26,7 @@ use serde_json::{Value, from_reader, from_value};
 use std::{
     fs::File,
     io::{Read, Write},
+    num::NonZeroUsize,
     path::PathBuf,
     sync::Arc,
 };
@@ -34,7 +35,7 @@ use tower::util::MapFutureLayer;
 use tracing::{debug, error, info};
 
 /// How many headers, receipt sets and blocks the node's L1 client caches.
-const L1_PROVIDER_CACHE_SIZE: usize = 1024;
+const L1_PROVIDER_CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
 
 /// A JWT token validation error.
 #[derive(Debug, thiserror::Error)]

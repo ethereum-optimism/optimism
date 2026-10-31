@@ -375,7 +375,7 @@ mod test {
         let provider = DelayedL1OriginSelectorProvider::new(
             AlloyChainProvider::new(
                 alloy_provider::RootProvider::new(RpcClient::mocked(responses.clone())),
-                8,
+                std::num::NonZeroUsize::new(8).unwrap(),
                 true,
             ),
             state,
@@ -407,7 +407,7 @@ mod test {
         let provider = DelayedL1OriginSelectorProvider::new(
             AlloyChainProvider::new(
                 alloy_provider::RootProvider::new(RpcClient::mocked(responses.clone())),
-                8,
+                std::num::NonZeroUsize::new(8).unwrap(),
                 true,
             ),
             state,
