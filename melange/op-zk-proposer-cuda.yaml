@@ -3,7 +3,8 @@
 # the op-stack-rust op-zk-proposer APK.
 #
 # The pins must match the linked SP1 SDK: sp1-gpu-server must be the sp1-sdk
-# version in rust/Cargo.lock (op-zk-proposer checks its --version at startup),
+# version in rust/Cargo.lock (op-zk-proposer checks its --version at startup and
+# speaks the sp1-cuda socket protocol of that version),
 # and the PLONK circuits must be sp1-prover's SP1_CIRCUIT_VERSION. libcudart
 # matches the CUDA 12.8 toolkit that sp1-gpu-server links against.
 #
@@ -48,11 +49,11 @@ subpackages:
           directory: sp1-gpu-server
           strip-components: 0
           delete: true
-      # The SDK starts $HOME/.sp1/bin/sp1-gpu-server; the image sets HOME=/home/kona.
+      # op-zk-proposer starts /usr/local/bin/sp1-gpu-server (GPU_SERVER in prover/cuda.rs).
       - if: ${{build.arch}} == 'x86_64'
         runs: |
           install -Dm755 sp1-gpu-server/sp1-gpu-server \
-            "${{targets.contextdir}}/home/kona/.sp1/bin/sp1-gpu-server"
+            "${{targets.contextdir}}/usr/local/bin/sp1-gpu-server"
 
   - name: cuda-cudart-12
     description: cuda-cudart-12 — NVIDIA CUDA 12.8 runtime library

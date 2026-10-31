@@ -336,7 +336,7 @@
         "apko/op-zk-proposer-cuda.yaml"
       ],
       "apko_archs": "amd64",
-      "smoke_test": "op-zk-proposer --version,/home/kona/.sp1/bin/sp1-gpu-server --version"
+      "smoke_test": "op-zk-proposer --version,sp1-gpu-server --version"
     },
     "kona-zkvm-canary": {
       "type": "rust",

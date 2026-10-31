@@ -1,27 +1,42 @@
 //! Local SP1 proving on NVIDIA GPUs, through one `sp1-gpu-server` child per CUDA device.
 //!
-//! Each request runs in a spawned task that is never aborted. The SDK sends a request and reads
-//! its response on one socket per device; a future dropped between the two leaves the response
-//! for the next request on that device.
+//! The proposer starts each server and speaks its socket protocol (`sp1_cuda::api`) itself, so
+//! the SP1 SDK's CUDA client, which downloads a missing server, never runs. Each request runs in
+//! a spawned task that is never aborted: a future dropped between sending a request and reading
+//! its response would leave the response for the next request on that device.
 
 use std::{
-    collections::HashMap, ffi::OsString, panic::AssertUnwindSafe, path::PathBuf, sync::Arc,
+    collections::HashMap,
+    io,
+    panic::AssertUnwindSafe,
+    path::{Path, PathBuf},
+    process::Stdio,
+    sync::Arc,
     time::Duration,
 };
 
 use alloy_primitives::B256;
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use async_trait::async_trait;
 use futures::FutureExt;
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use parking_lot::Mutex;
 use sp1_core_executor::{ExecutionError, ExecutionReport, SP1ContextBuilder, SP1CoreOpts};
-use sp1_primitives::SP1_CRATE_VERSION;
-use sp1_sdk::{
-    CudaProver, Elf, HashableKey, LightProver, ProveRequest, Prover, ProvingKey, SP1ProofMode,
-    SP1ProofWithPublicValues, SP1Stdin, SP1VerifyingKey, cuda::builder::CudaProverBuilder,
+use sp1_cuda::{
+    api::{Request, Response},
+    client::socket_path,
 };
+use sp1_primitives::SP1_CRATE_VERSION;
+use sp1_prover_types::{SerializableRiscvMachine, network_base_types::ProofMode};
+use sp1_sdk::{
+    Elf, HashableKey, LightProver, Prover, ProvingKey, RiscvAir, SP1ProofWithPublicValues,
+    SP1Stdin, SP1VerifyingKey,
+};
+use thiserror::Error;
 use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::UnixStream,
+    process::{Child, Command},
     sync::{Semaphore, SemaphorePermit, watch},
     time::Instant,
 };
@@ -36,13 +51,16 @@ use crate::{
 /// The image that carries `sp1-gpu-server`, the CUDA runtime, and the PLONK circuits.
 const CUDA_IMAGE: &str = "op-zk-proposer-cuda";
 
-type CudaClientError = <CudaProver as Prover>::Error;
+/// The `sp1-gpu-server` binary of the image.
+const GPU_SERVER: &str = "/usr/local/bin/sp1-gpu-server";
+
+/// How long a started server may take to open its socket; it initializes CUDA first.
+const SERVER_START_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Local proving on CUDA devices, one proof per device at a time. Clones share one state.
 #[derive(Clone)]
 pub struct LocalCudaProofProvider {
-    core: Arc<Core<CudaProver>>,
-    /// Verifies proofs. A `CudaProver` clone would keep its device client alive.
+    core: Arc<Core<GpuServer>>,
     verifier: LightProver,
 }
 
@@ -60,7 +78,8 @@ impl LocalCudaProofProvider {
         config: &LocalCudaConfig,
         provider_config: ProofProviderConfig,
     ) -> Result<Self> {
-        check_gpu_server(std::env::var_os("HOME")).await?;
+        let path = Path::new(GPU_SERVER);
+        check_gpu_server(path).await?;
         ensure!(
             cfg!(target_arch = "x86_64"),
             "local CUDA proving needs an x86-64 host; run the {CUDA_IMAGE} image"
@@ -70,15 +89,9 @@ impl LocalCudaProofProvider {
         let verifier = LightProver::new_with_opts(opts).await;
         let mut devices = Vec::with_capacity(config.devices.len());
         for &id in &config.devices {
-            // `build` panics when the server does not start.
-            let server = tokio::spawn(CudaProverBuilder::new().with_device_id(id).build())
-                .await
-                .map_err(|err| {
-                    anyhow!(
-                        "sp1-gpu-server for CUDA device {id} did not start: {err}; check the \
-                         device and the {CUDA_IMAGE} image"
-                    )
-                })?;
+            let server = GpuServer::start(path, id).await.with_context(|| {
+                format!("start sp1-gpu-server for CUDA device {id}; check the device and the {CUDA_IMAGE} image")
+            })?;
             tracing::info!(device = id, "Started sp1-gpu-server");
             devices.push(Device { id, server, keys: HashMap::new() });
         }
@@ -120,16 +133,13 @@ impl LocalCudaProofProvider {
     }
 }
 
-/// Checks that `$HOME/.sp1/bin/sp1-gpu-server` exists and reports the linked SP1 version.
-/// Otherwise the SDK downloads a server and stops running servers with `systemctl`.
-async fn check_gpu_server(home: Option<OsString>) -> Result<()> {
-    let home = home.with_context(|| format!("$HOME is not set; run the {CUDA_IMAGE} image"))?;
-    let path = PathBuf::from(home).join(".sp1/bin/sp1-gpu-server");
+/// Checks that the server binary exists and reports the linked SP1 version, whose protocol types
+/// the proposer speaks.
+async fn check_gpu_server(path: &Path) -> Result<()> {
     ensure!(path.is_file(), "{} does not exist; run the {CUDA_IMAGE} image", path.display());
-    let output =
-        tokio::process::Command::new(&path).arg("--version").output().await.with_context(|| {
-            format!("run {} --version; check the {CUDA_IMAGE} image", path.display())
-        })?;
+    let output = Command::new(path).arg("--version").output().await.with_context(|| {
+        format!("run {} --version; check the {CUDA_IMAGE} image", path.display())
+    })?;
     let version = String::from_utf8_lossy(&output.stdout);
     ensure!(
         version.trim() == SP1_CRATE_VERSION,
@@ -146,7 +156,7 @@ async fn check_gpu_server(home: Option<OsString>) -> Result<()> {
 trait DeviceServer: Send + Sync + 'static {
     type Key: Send + Sync + 'static;
 
-    async fn setup(&self, elf: Elf) -> Result<Self::Key, CudaClientError>;
+    async fn setup(&self, elf: Elf) -> Result<Self::Key, ServerError>;
 
     fn vk_hash(key: &Self::Key) -> [u32; 8];
 
@@ -154,29 +164,175 @@ trait DeviceServer: Send + Sync + 'static {
         &self,
         key: &Self::Key,
         stdin: SP1Stdin,
-        mode: SP1ProofMode,
-    ) -> Result<SP1ProofWithPublicValues, CudaClientError>;
+        mode: ProofMode,
+    ) -> Result<SP1ProofWithPublicValues, ServerError>;
+}
+
+/// Why a server request failed.
+#[derive(Debug, Error)]
+enum ServerError {
+    /// The server answered with an internal or prover error.
+    #[error("the server rejected the request: {0}")]
+    Rejected(String),
+    /// The request does not fit the protocol's `u32` length prefix; nothing was sent.
+    #[error("the {0}-byte request exceeds the server's frame size")]
+    TooLarge(usize),
+    #[error("encode the request: {0}")]
+    Encode(bincode1::Error),
+    #[error("decode the response: {0}")]
+    Decode(bincode1::Error),
+    #[error("server connection failed: {0}")]
+    Io(#[from] io::Error),
+    #[error("unexpected {0} response")]
+    Unexpected(&'static str),
+}
+
+impl ServerError {
+    /// A failure before the request was sent, or a rejection, leaves the socket in step. Any other
+    /// failure is fatal: I/O may leave it out of step, and an undecodable or unexpected response
+    /// means the server speaks another protocol.
+    fn into_failure(self) -> Failure {
+        match self {
+            Self::Rejected(_) | Self::TooLarge(_) | Self::Encode(_) => {
+                Failure::ProverFailed(self.into())
+            }
+            Self::Decode(_) | Self::Io(_) | Self::Unexpected(_) => Failure::Fatal(self.into()),
+        }
+    }
+}
+
+const fn response_name(response: &Response) -> &'static str {
+    match response {
+        Response::Ok => "Ok",
+        Response::Setup { .. } => "Setup",
+        Response::Proof { .. } => "Proof",
+        Response::ProverError(_) => "ProverError",
+        Response::InternalError(_) => "InternalError",
+        Response::ConnectionClosed => "ConnectionClosed",
+    }
+}
+
+/// A server's socket, framed as `sp1_cuda::client` frames it: a little-endian `u32` length, then
+/// the bincode 1 encoding.
+struct Connection {
+    stream: tokio::sync::Mutex<UnixStream>,
+}
+
+impl Connection {
+    async fn call(&self, request: &Request) -> Result<Response, ServerError> {
+        let bytes = bincode1::serialize(request).map_err(ServerError::Encode)?;
+        let len = u32::try_from(bytes.len()).map_err(|_| ServerError::TooLarge(bytes.len()))?;
+        let mut stream = self.stream.lock().await;
+        stream.write_all(&len.to_le_bytes()).await?;
+        stream.write_all(&bytes).await?;
+        let mut len = [0; 4];
+        stream.read_exact(&mut len).await?;
+        let mut response = vec![0; u32::from_le_bytes(len) as usize];
+        stream.read_exact(&mut response).await?;
+        match bincode1::deserialize(&response).map_err(ServerError::Decode)? {
+            Response::InternalError(err) | Response::ProverError(err) => {
+                Err(ServerError::Rejected(err))
+            }
+            response => Ok(response),
+        }
+    }
+}
+
+/// A server key: its ID on the server, and the hash of its verifying key.
+struct ServerKey {
+    id: [u8; 32],
+    vk_hash: [u32; 8],
+}
+
+/// A started `sp1-gpu-server` child and its connection. Dropping it kills the child.
+struct GpuServer {
+    connection: Connection,
+    _child: Child,
+}
+
+impl GpuServer {
+    /// Starts the server for device `id` and connects to its socket. The child gets no
+    /// `OP_ZK_PROPOSER_*` variable, since those hold the proposer's keys.
+    async fn start(path: &Path, id: u32) -> Result<Self> {
+        let socket = socket_path(id);
+        // A socket file left by another server could take the connection.
+        match std::fs::remove_file(&socket) {
+            Ok(()) => {}
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+            Err(err) => return Err(err).with_context(|| format!("remove {}", socket.display())),
+        }
+        let mut command = Command::new(path);
+        for (name, _) in std::env::vars_os() {
+            if name.to_string_lossy().starts_with(crate::ENV_VAR_PREFIX) {
+                command.env_remove(name);
+            }
+        }
+        let mut child = command
+            .env("CUDA_VISIBLE_DEVICES", id.to_string())
+            .stdin(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .with_context(|| format!("run {}", path.display()))?;
+        let stream = connect(&socket, &mut child).await?;
+        Ok(Self {
+            connection: Connection { stream: tokio::sync::Mutex::new(stream) },
+            _child: child,
+        })
+    }
+}
+
+async fn connect(socket: &PathBuf, child: &mut Child) -> Result<UnixStream> {
+    let deadline = Instant::now() + SERVER_START_TIMEOUT;
+    loop {
+        let err = match UnixStream::connect(socket).await {
+            Ok(stream) => return Ok(stream),
+            Err(err) => err,
+        };
+        if let Some(status) = child.try_wait()? {
+            bail!("the server exited before it opened {}: {status}", socket.display());
+        }
+        if Instant::now() >= deadline {
+            bail!(
+                "the server did not open {} within {}s: {err}",
+                socket.display(),
+                SERVER_START_TIMEOUT.as_secs()
+            );
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
 
 #[async_trait]
-impl DeviceServer for CudaProver {
-    type Key = <Self as Prover>::ProvingKey;
+impl DeviceServer for GpuServer {
+    type Key = ServerKey;
 
-    async fn setup(&self, elf: Elf) -> Result<Self::Key, CudaClientError> {
-        Prover::setup(self, elf).await
+    async fn setup(&self, elf: Elf) -> Result<ServerKey, ServerError> {
+        let request = Request::Setup {
+            elf: elf.to_vec(),
+            machine: SerializableRiscvMachine::from(RiscvAir::machine()),
+        };
+        match self.connection.call(&request).await? {
+            Response::Setup { id, vk } => Ok(ServerKey { id, vk_hash: vk.hash_u32() }),
+            response => Err(ServerError::Unexpected(response_name(&response))),
+        }
     }
 
-    fn vk_hash(key: &Self::Key) -> [u32; 8] {
-        key.verifying_key().hash_u32()
+    fn vk_hash(key: &ServerKey) -> [u32; 8] {
+        key.vk_hash
     }
 
     async fn prove(
         &self,
-        key: &Self::Key,
+        key: &ServerKey,
         stdin: SP1Stdin,
-        mode: SP1ProofMode,
-    ) -> Result<SP1ProofWithPublicValues, CudaClientError> {
-        Prover::prove(self, key, stdin).mode(mode).await
+        mode: ProofMode,
+    ) -> Result<SP1ProofWithPublicValues, ServerError> {
+        // The SDK's CUDA client sends a zero nonce too.
+        let request = Request::ProveWithMode { mode, key: key.id, stdin, proof_nonce: [0; 4] };
+        match self.connection.call(&request).await? {
+            Response::Proof { proof } => Ok(proof.into()),
+            response => Err(ServerError::Unexpected(response_name(&response))),
+        }
     }
 }
 
@@ -223,10 +379,10 @@ impl Program {
         }
     }
 
-    const fn mode(self) -> SP1ProofMode {
+    const fn mode(self) -> ProofMode {
         match self {
-            Self::Range | Self::LogCommitment => SP1ProofMode::Compressed,
-            Self::Aggregation => SP1ProofMode::Plonk,
+            Self::Range | Self::LogCommitment => ProofMode::Compressed,
+            Self::Aggregation => ProofMode::Plonk,
         }
     }
 
@@ -327,20 +483,6 @@ fn fits_server_frame(stdin_bytes: u64) -> bool {
     stdin_bytes.saturating_add(REQUEST_OVERHEAD) <= u64::from(u32::MAX)
 }
 
-/// `CudaClientError` hides its variant; only its text names it. The server answers a failed
-/// request with an internal or prover error. Any other error is a broken connection.
-fn classify_client_error(err: CudaClientError) -> Failure {
-    let text = err.to_string();
-    let err = anyhow::Error::new(err);
-    if text.contains("The server returned an internal error") ||
-        text.contains("The server returned a prover error")
-    {
-        Failure::ProverFailed(err)
-    } else {
-        Failure::Fatal(err)
-    }
-}
-
 /// A device's server and the proving keys it holds, by prestate. Keys are never evicted.
 struct Device<S: DeviceServer> {
     id: u32,
@@ -364,7 +506,8 @@ impl<S: DeviceServer> Device<S> {
 
     async fn setup(&self, program: Program, keys: &PrestateKeys) -> Result<S::Key, Failure> {
         let expected = keys.programs.get(program);
-        let key = self.server.setup(expected.elf.clone()).await.map_err(classify_client_error)?;
+        let key =
+            self.server.setup(expected.elf.clone()).await.map_err(ServerError::into_failure)?;
         let actual = S::vk_hash(&key);
         if actual != expected.vk_hash {
             return Err(Failure::ProverFailed(anyhow!(
@@ -561,7 +704,7 @@ impl<S: DeviceServer> Core<S> {
         device.ensure_keys(keys).await?;
         let key = device.keys[&keys.prestate].get(program);
         tracing::info!(device = device.id, program = program.name(), "Proving on CUDA device");
-        device.server.prove(key, stdin, program.mode()).await.map_err(classify_client_error)
+        device.server.prove(key, stdin, program.mode()).await.map_err(ServerError::into_failure)
     }
 
     fn finish(
@@ -644,12 +787,12 @@ impl<S: DeviceServer> Core<S> {
 #[cfg(test)]
 mod tests {
     use std::{
-        io,
         os::unix::fs::PermissionsExt,
         sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     };
 
     use sp1_sdk::{SP1Proof, SP1PublicValues, network::FulfillmentStrategy};
+    use sp1_verifier::ProofFromNetwork;
 
     use super::*;
 
@@ -722,7 +865,7 @@ mod tests {
         /// The device and verifying-key hash of each setup.
         setups: Mutex<Vec<(u32, [u32; 8])>>,
         wrong_vk: AtomicBool,
-        prove_error: Option<fn() -> CudaClientError>,
+        prove_error: Option<fn() -> ServerError>,
     }
 
     struct ScriptedServer {
@@ -734,7 +877,7 @@ mod tests {
     impl DeviceServer for ScriptedServer {
         type Key = [u32; 8];
 
-        async fn setup(&self, elf: Elf) -> Result<[u32; 8], CudaClientError> {
+        async fn setup(&self, elf: Elf) -> Result<[u32; 8], ServerError> {
             let hash =
                 if self.script.wrong_vk.load(Ordering::SeqCst) { [0; 8] } else { vk_hash(&elf) };
             self.script.setups.lock().push((self.id, hash));
@@ -749,8 +892,8 @@ mod tests {
             &self,
             _key: &[u32; 8],
             _stdin: SP1Stdin,
-            _mode: SP1ProofMode,
-        ) -> Result<SP1ProofWithPublicValues, CudaClientError> {
+            _mode: ProofMode,
+        ) -> Result<SP1ProofWithPublicValues, ServerError> {
             self.script.prove.run().await;
             self.script.prove_error.map_or_else(|| Ok(test_proof()), |error| Err(error()))
         }
@@ -823,7 +966,7 @@ mod tests {
             execute: Probe,
             prove: Probe,
             result: ExecuteResult,
-            prove_error: Option<fn() -> CudaClientError>,
+            prove_error: Option<fn() -> ServerError>,
         ) -> Self {
             let executor = Arc::new(ScriptedExecutor { probe: execute, result });
             let script = Arc::new(ServerScript {
@@ -1048,7 +1191,7 @@ mod tests {
             Probe::open(),
             Probe::open(),
             |_| Ok(ExecutionReport::default()),
-            Some(|| CudaClientError::ServerError("out of memory".into())),
+            Some(|| ServerError::Rejected("out of memory".into())),
         );
         let proof_id = harness.request();
 
@@ -1068,7 +1211,7 @@ mod tests {
             Probe::open(),
             Probe::open(),
             |_| Ok(ExecutionReport::default()),
-            Some(|| CudaClientError::Read(io::ErrorKind::BrokenPipe.into())),
+            Some(|| ServerError::Io(io::ErrorKind::BrokenPipe.into())),
         );
         let proof_id = harness.request();
 
@@ -1079,7 +1222,7 @@ mod tests {
             "{err:?}"
         );
         let fatal = harness.core.fatal().await.to_string();
-        assert!(fatal.contains("Failed to read the response"), "{fatal}");
+        assert!(fatal.contains("server connection failed"), "{fatal}");
     }
 
     #[tokio::test(start_paused = true)]
@@ -1214,21 +1357,15 @@ mod tests {
 
     #[tokio::test]
     async fn startup_rejects_missing_or_mismatched_gpu_server() {
-        let err = check_gpu_server(None).await.unwrap_err().to_string();
+        let dir = tempfile::tempdir().unwrap();
+        let server = dir.path().join("sp1-gpu-server");
+        let err = check_gpu_server(&server).await.unwrap_err().to_string();
         assert!(err.contains(CUDA_IMAGE), "{err}");
 
-        let home = tempfile::tempdir().unwrap();
-        let err = check_gpu_server(Some(home.path().into())).await.unwrap_err().to_string();
-        assert!(err.contains(CUDA_IMAGE), "{err}");
-
-        let bin = home.path().join(".sp1/bin");
-        std::fs::create_dir_all(&bin).unwrap();
-        let server = bin.join("sp1-gpu-server");
         for (version, ok) in [("6.9.0", false), (SP1_CRATE_VERSION, true)] {
             std::fs::write(&server, format!("#!/bin/sh\necho {version}\n")).unwrap();
             std::fs::set_permissions(&server, std::fs::Permissions::from_mode(0o755)).unwrap();
-            let result = check_gpu_server(Some(home.path().into())).await;
-            match result {
+            match check_gpu_server(&server).await {
                 Ok(()) => assert!(ok, "{version} accepted"),
                 Err(err) => {
                     assert!(!ok, "{version}: {err}");
@@ -1239,29 +1376,143 @@ mod tests {
     }
 
     #[test]
-    fn classify_client_error_texts() {
+    fn server_error_classes() {
         let bincode_error = || Box::new(bincode1::ErrorKind::Custom("bad".into()));
-        let io_error = || io::Error::from(io::ErrorKind::BrokenPipe);
-        let cases: [(CudaClientError, bool); 10] = [
-            (CudaClientError::Connect(io_error()), false),
-            (CudaClientError::Serialize(bincode_error()), false),
-            (CudaClientError::Deserialize(bincode_error()), false),
-            (CudaClientError::Write(io_error()), false),
-            (CudaClientError::Read(io_error()), false),
-            (CudaClientError::ServerError("cuda".into()), true),
-            (CudaClientError::UnexpectedResponse("Ok"), false),
-            (CudaClientError::ProverError("prover".into()), true),
-            // `Download` takes a reqwest 0.12 error and has the same text.
-            (CudaClientError::DownloadIO(io_error()), false),
-            (CudaClientError::Unexpected("other".into()), false),
+        let cases = [
+            (ServerError::Rejected("cuda".into()), true),
+            (ServerError::TooLarge(1), true),
+            (ServerError::Encode(bincode_error()), true),
+            (ServerError::Decode(bincode_error()), false),
+            (ServerError::Io(io::ErrorKind::BrokenPipe.into()), false),
+            (ServerError::Unexpected("Ok"), false),
         ];
         for (err, retryable) in cases {
             let text = err.to_string();
-            match classify_client_error(err) {
+            match err.into_failure() {
                 Failure::ProverFailed(_) => assert!(retryable, "{text}"),
                 Failure::Fatal(_) => assert!(!retryable, "{text}"),
                 Failure::Unexecutable(_) => panic!("{text}"),
             }
         }
+    }
+
+    /// A fake server end that answers each request with the next of `responses`, and returns the
+    /// requests it read.
+    fn fake_server(
+        mut stream: UnixStream,
+        responses: Vec<Response>,
+    ) -> tokio::task::JoinHandle<Vec<Request>> {
+        tokio::spawn(async move {
+            let mut requests = Vec::new();
+            for response in responses {
+                let mut len = [0; 4];
+                stream.read_exact(&mut len).await.unwrap();
+                let mut request = vec![0; u32::from_le_bytes(len) as usize];
+                stream.read_exact(&mut request).await.unwrap();
+                requests.push(bincode1::deserialize(&request).unwrap());
+                let response = bincode1::serialize(&response).unwrap();
+                stream.write_all(&(response.len() as u32).to_le_bytes()).await.unwrap();
+                stream.write_all(&response).await.unwrap();
+            }
+            requests
+        })
+    }
+
+    fn connection(stream: UnixStream) -> Connection {
+        Connection { stream: tokio::sync::Mutex::new(stream) }
+    }
+
+    /// Pins the request and response framing of `sp1_cuda::client`.
+    #[tokio::test]
+    async fn prove_round_trips_the_wire_protocol() {
+        let (client, server) = UnixStream::pair().unwrap();
+        let proof = ProofFromNetwork {
+            proof: SP1Proof::Core(Vec::new()),
+            public_values: SP1PublicValues::from(&[7u8][..]),
+            sp1_version: "v6.1.0".into(),
+        };
+        let requests = fake_server(server, vec![Response::Proof { proof }]);
+        let gpu = connection(client);
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&42u64);
+        let key = ServerKey { id: [9; 32], vk_hash: [0; 8] };
+
+        let request = Request::ProveWithMode {
+            mode: ProofMode::Plonk,
+            key: key.id,
+            stdin,
+            proof_nonce: [0; 4],
+        };
+        let Response::Proof { proof } = gpu.call(&request).await.unwrap() else {
+            panic!("expected a proof")
+        };
+
+        assert_eq!(SP1ProofWithPublicValues::from(proof).public_values.as_slice(), [7]);
+        let requests = requests.await.unwrap();
+        let [Request::ProveWithMode { mode, key, stdin, proof_nonce }] = requests.as_slice() else {
+            panic!("expected one prove request")
+        };
+        assert_eq!((*mode, *key, *proof_nonce), (ProofMode::Plonk, [9; 32], [0; 4]));
+        assert_eq!(stdin.buffer, [bincode1::serialize(&42u64).unwrap()]);
+    }
+
+    #[tokio::test]
+    async fn server_error_responses_are_rejected() {
+        let (client, server) = UnixStream::pair().unwrap();
+        let requests = fake_server(
+            server,
+            vec![Response::InternalError("oom".into()), Response::ProverError("bad".into())],
+        );
+        let gpu = connection(client);
+        let request = Request::Destroy { key: [0; 32] };
+
+        for expected in ["oom", "bad"] {
+            let Err(ServerError::Rejected(message)) = gpu.call(&request).await else {
+                panic!("expected a rejection")
+            };
+            assert_eq!(message, expected);
+        }
+        assert_eq!(requests.await.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn connect_fails_when_the_server_exits() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut child =
+            Command::new("sh").args(["-c", "exit 3"]).kill_on_drop(true).spawn().unwrap();
+
+        let err = connect(&dir.path().join("server.sock"), &mut child).await.unwrap_err();
+
+        assert!(err.to_string().contains("exited"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn connect_waits_for_a_late_socket() {
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("server.sock");
+        let mut child =
+            Command::new("sh").args(["-c", "sleep 30"]).kill_on_drop(true).spawn().unwrap();
+        let listener = {
+            let socket = socket.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(300)).await;
+                let listener = tokio::net::UnixListener::bind(&socket).unwrap();
+                listener.accept().await.unwrap();
+            })
+        };
+
+        connect(&socket, &mut child).await.unwrap();
+
+        listener.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn closed_connection_is_io_failure() {
+        let (client, server) = UnixStream::pair().unwrap();
+        drop(server);
+
+        let result = connection(client).call(&Request::Destroy { key: [0; 32] }).await;
+
+        assert!(matches!(result, Err(ServerError::Io(_))));
     }
 }

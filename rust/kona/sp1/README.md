@@ -331,9 +331,12 @@ proposer loses the ability to defend, resolve, and claim those games.
 The `op-zk-proposer-cuda` image (amd64 only) adds `sp1-gpu-server`, the CUDA 12.8 runtime,
 and the PLONK circuits to the `op-zk-proposer` binary. It has no release tag: an
 `op-zk-proposer/vX` tag builds only the default image, so deploy a `develop` SHA. At startup
-the proposer checks that `$HOME/.sp1/bin/sp1-gpu-server --version` equals the linked SP1
-version, then starts one server per device in `OP_ZK_PROPOSER_CUDA_DEVICES`. Server output
-goes to the container log in the server's own format.
+the proposer checks that `/usr/local/bin/sp1-gpu-server --version` equals the linked SP1
+version, then starts one server per device in `OP_ZK_PROPOSER_CUDA_DEVICES` and speaks the
+server's socket protocol itself. The SP1 SDK's CUDA client, which downloads a missing server,
+is not used, so the proposer never downloads a binary. A server gets the proposer's
+environment without the `OP_ZK_PROPOSER_*` variables. Server output goes to the container log
+in the server's own format.
 
 Each request first runs its program on the CPU (pre-execution) with its cycle limit and
 `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES`, at most one per device at a time. An execution
