@@ -1,5 +1,6 @@
 //! Providers that use alloy provider types on the backend.
 
+mod cache;
 #[cfg(feature = "metrics")]
 use crate::Metrics;
 use alloy_consensus::{Header, Receipt, ReceiptEnvelope, TxEnvelope};
@@ -11,14 +12,14 @@ use alloy_primitives::{Address, B256, Bytes, b256};
 use alloy_provider::{Provider, RootProvider};
 use alloy_transport::{RpcError, TransportErrorKind, TransportResult};
 use async_trait::async_trait;
+use cache::Cache;
 use kona_derive::{ChainProvider, PipelineError, PipelineErrorKind, ResetError};
 use kona_protocol::BlockInfo;
-use lru::LruCache;
 use std::{
     boxed::Box,
     num::NonZeroUsize,
     sync::{
-        Arc, Mutex, MutexGuard, PoisonError,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
     vec::Vec,
@@ -86,35 +87,11 @@ pub struct AlloyChainProvider {
     shared: Arc<Shared>,
 }
 
-/// Responses cached by block hash.
-///
-/// Every entry was fetched under the same trust setting, so sharing never mixes verified and
-/// unverified data.
-#[derive(Debug)]
-struct Cache {
-    /// `header_by_hash` LRU cache.
-    headers: LruCache<B256, Header>,
-    /// `receipts_by_hash` LRU cache.
-    receipts: LruCache<B256, Vec<Receipt>>,
-    /// `block_info_and_transactions_by_hash` LRU cache.
-    block_info_and_transactions: LruCache<B256, (BlockInfo, Vec<TxEnvelope>)>,
-}
-
-impl Cache {
-    fn new(size: NonZeroUsize) -> Self {
-        Self {
-            headers: LruCache::new(size),
-            receipts: LruCache::new(size),
-            block_info_and_transactions: LruCache::new(size),
-        }
-    }
-}
-
 /// State shared by all clones of an [`AlloyChainProvider`].
 #[derive(Debug)]
 struct Shared {
     /// Responses cached by block hash.
-    cache: Mutex<Cache>,
+    cache: Cache,
     /// Whether the L1 RPC supports `debug_getRawReceipts`. Once any clone observes
     /// `MethodNotFound`, all clones use the fallback.
     raw_receipts_supported: AtomicBool,
@@ -122,16 +99,7 @@ struct Shared {
 
 impl Shared {
     fn new(cache_size: NonZeroUsize) -> Self {
-        Self {
-            cache: Mutex::new(Cache::new(cache_size)),
-            raw_receipts_supported: AtomicBool::new(true),
-        }
-    }
-
-    /// Locks the cache. A panic while holding the lock cannot leave an LRU cache inconsistent, so
-    /// a poisoned lock is still usable.
-    fn cache(&self) -> MutexGuard<'_, Cache> {
-        self.cache.lock().unwrap_or_else(PoisonError::into_inner)
+        Self { cache: Cache::new(cache_size), raw_receipts_supported: AtomicBool::new(true) }
     }
 }
 
@@ -529,13 +497,9 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
 impl AlloyChainProvider {
     /// Returns the header with the given hash.
     pub async fn header_by_hash(&self, hash: B256) -> Result<Header, AlloyChainProviderError> {
-        let cached = self.shared.cache().headers.get(&hash).cloned();
-        if let Some(header) = cached {
-            kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_HITS, "cache" => "header_by_hash");
+        if let Some(header) = self.shared.cache.header(hash) {
             return Ok(header);
         }
-
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_MISSES, "cache" => "header_by_hash");
 
         kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "header_by_hash");
 
@@ -552,9 +516,7 @@ impl AlloyChainProvider {
         // Verify the header hash matches what we requested
         self.verify_header_hash(&header, hash)?;
 
-        self.shared.cache().headers.put(hash, header.clone());
-
-        kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "header_by_hash");
+        self.shared.cache.insert_header(hash, header.clone());
 
         Ok(header)
     }
@@ -619,7 +581,7 @@ impl AlloyChainProvider {
             parent_hash: header.parent_hash,
             timestamp: header.timestamp,
         };
-        self.shared.cache().headers.put(hash, header);
+        self.shared.cache.insert_header(hash, header);
         Ok(block_info)
     }
 
@@ -628,13 +590,9 @@ impl AlloyChainProvider {
         &self,
         hash: B256,
     ) -> Result<Vec<Receipt>, AlloyChainProviderError> {
-        let cached = self.shared.cache().receipts.get(&hash).cloned();
-        if let Some(receipts) = cached {
-            kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_HITS, "cache" => "receipts_by_hash");
+        if let Some(receipts) = self.shared.cache.receipts(hash) {
             return Ok(receipts);
         }
-
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_MISSES, "cache" => "receipts_by_hash");
 
         kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "receipts_by_hash");
 
@@ -660,9 +618,7 @@ impl AlloyChainProvider {
             kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "receipts_by_hash");
         })?;
 
-        self.shared.cache().receipts.put(hash, receipts.clone());
-
-        kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "receipts_by_hash");
+        self.shared.cache.insert_receipts(hash, receipts.clone());
 
         Ok(receipts)
     }
@@ -672,13 +628,9 @@ impl AlloyChainProvider {
         &self,
         hash: B256,
     ) -> Result<(BlockInfo, Vec<TxEnvelope>), AlloyChainProviderError> {
-        let cached = self.shared.cache().block_info_and_transactions.get(&hash).cloned();
-        if let Some(block_info_and_txs) = cached {
-            kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_HITS, "cache" => "block_info_and_tx");
+        if let Some(block_info_and_txs) = self.shared.cache.block_info_and_transactions(hash) {
             return Ok(block_info_and_txs);
         }
-
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_MISSES, "cache" => "block_info_and_tx");
 
         kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "block_by_hash");
 
@@ -704,12 +656,11 @@ impl AlloyChainProvider {
             timestamp: block.header.timestamp,
         };
 
-        self.shared
-            .cache()
-            .block_info_and_transactions
-            .put(hash, (block_info, block.body.transactions.clone()));
-
-        kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "block_info_and_tx");
+        self.shared.cache.insert_block_info_and_transactions(
+            hash,
+            block_info,
+            block.body.transactions.clone(),
+        );
 
         Ok((block_info, block.body.transactions))
     }
