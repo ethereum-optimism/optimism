@@ -4,7 +4,7 @@ use alloy_primitives::B256;
 use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
 use kona_engine::{
     Engine, EngineActorRequest, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
-    test_utils::{TestAttributesBuilder, test_engine_client},
+    test_utils::{TestAttributesBuilder, test_engine_client, test_l2_block},
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -86,7 +86,7 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
         l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
     }
     l1.expect(
-        "eth_getBlockByHash",
+        "eth_getBlockByNumber",
         alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
     );
     l2.expect(
@@ -141,29 +141,55 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
     tasks.abort_all();
 }
 
+#[derive(Debug, Clone, Copy)]
+enum ResetFailure {
+    L1,
+    L2,
+    L2Parent,
+}
+
 /// Both L1 and L2 outages during a reset must retain the original request and finish it
 /// after recovery, without a new reset request or L1 head to wake the actor.
 #[rstest::rstest]
-#[case(true, Duration::ZERO)]
-#[case(false, Duration::ZERO)]
-#[case(false, Duration::from_secs(4))]
+#[case::l1(ResetFailure::L1, Duration::ZERO)]
+#[case::l2(ResetFailure::L2, Duration::ZERO)]
+#[case::slow_l2(ResetFailure::L2, Duration::from_secs(4))]
+#[case::missing_l2_parent(ResetFailure::L2Parent, Duration::ZERO)]
 #[tokio::test(start_paused = true)]
 async fn admin_reset_recovers_and_completes_original_request(
-    #[case] l1_failure: bool,
+    #[case] failure: ResetFailure,
     #[case] read_delay: Duration,
 ) {
-    let block: <op_alloy_network::Optimism as alloy_provider::Network>::BlockResponse =
-        Default::default();
+    let block = test_l2_block(0, 0, 0, B256::ZERO);
     let mut config = RollupConfig::default();
-    config.genesis.l2.hash = block.header.inner.hash_slow();
+    config.genesis.l2.hash = block.header.hash;
+    // Keep an unsafe block above genesis so both the L1 origin check and the safe walk run.
+    let unsafe_block = test_l2_block(1, 0, 1, config.genesis.l2.hash);
+
     let config = Arc::new(config);
     let (client, l1, l2) = test_engine_client(config.clone());
     let client = Arc::new(client);
-    if l1_failure {
+    if matches!(failure, ResetFailure::L1 | ResetFailure::L2Parent) {
         for tag in ["finalized", "safe", "latest"] {
-            l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
+            l2.expect_params(
+                "eth_getBlockByNumber",
+                serde_json::json!([tag, true]),
+                if tag == "latest" { &unsafe_block } else { &block },
+            );
         }
-        l1.expect_error("eth_getBlockByHash");
+        if matches!(failure, ResetFailure::L1) {
+            l1.expect_error("eth_getBlockByNumber");
+        } else {
+            l1.expect(
+                "eth_getBlockByNumber",
+                alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
+            );
+            l2.expect_params(
+                "eth_getBlockByHash",
+                serde_json::json!([block.header.hash, true]),
+                serde_json::Value::Null,
+            );
+        }
     } else {
         l2.expect_error("eth_getBlockByNumber");
     }
@@ -180,7 +206,7 @@ async fn admin_reset_recovers_and_completes_original_request(
         tokio::sync::watch::channel(kona_protocol::L2BlockInfo::default());
     let mut actor = EngineActor::new(
         client,
-        config,
+        config.clone(),
         derivation,
         Engine::new(EngineState::default(), state_tx),
         Some(unsafe_head_tx),
@@ -193,11 +219,16 @@ async fn admin_reset_recovers_and_completes_original_request(
     actor.step().await.unwrap(); // retain the reset
     actor.step().await.unwrap(); // failed attempt, then wait for backoff
     assert!(!reset.is_finished());
-    for _ in 0..3 {
-        l2.expect_with_delay("eth_getBlockByNumber", &block, read_delay);
+    for response in [&block, &block, &unsafe_block] {
+        l2.expect_with_delay("eth_getBlockByNumber", response, read_delay);
     }
-    l1.expect(
+    l2.expect_params(
         "eth_getBlockByHash",
+        serde_json::json!([config.genesis.l2.hash, true]),
+        &block,
+    );
+    l1.expect(
+        "eth_getBlockByNumber",
         alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
     );
     l2.expect(
@@ -218,14 +249,14 @@ async fn admin_reset_recovers_and_completes_original_request(
     // when stopped sequencing leaves the engine task queue empty.
     let published = *state_rx.borrow();
     for head in [
-        published.sync_state.unsafe_head(),
         published.sync_state.local_safe_head(),
         published.sync_state.safe_head(),
         published.sync_state.finalized_head(),
     ] {
         assert_eq!(head.hash(), block.header.inner.hash_slow());
     }
-    assert_eq!(unsafe_head_rx.borrow().hash(), block.header.inner.hash_slow());
+    assert_eq!(published.sync_state.unsafe_head().hash(), unsafe_block.header.hash);
+    assert_eq!(unsafe_head_rx.borrow().hash(), unsafe_block.header.hash);
     assert!(matches!(
         derivation_rx.recv().await.unwrap(),
         DerivationActorRequest::ProcessL1HeadUpdateRequest(_)
@@ -246,6 +277,80 @@ async fn admin_reset_recovers_and_completes_original_request(
         "reset must not send a separate safe-head acknowledgement"
     );
     tasks.abort_all();
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// EL-sync completion must bootstrap derivation at the synced tip without reading its ancestry.
+#[tokio::test(start_paused = true)]
+async fn el_sync_completion_recovers_genesis_labels_without_a_historical_walk() {
+    let genesis = test_l2_block(0, 0, 0, B256::ZERO);
+    let mut config = RollupConfig::default();
+    config.genesis.l2.hash = genesis.header.hash;
+    let tip = test_l2_block(100_000_000, 14 * config.seq_window_size + 1, 0, B256::ZERO);
+    let tip_info =
+        L2BlockInfo::from_block_and_genesis(&tip.clone().into_consensus(), &config.genesis)
+            .unwrap();
+    let config = Arc::new(config);
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let state = EngineState {
+        sync_state: EngineState::default().sync_state.apply_update(EngineSyncStateUpdate {
+            unsafe_head: Some(tip_info),
+            ..Default::default()
+        }),
+        el_sync_finished: true,
+        ..Default::default()
+    };
+    let (state_tx, state_rx) = tokio::sync::watch::channel(state);
+    let (requests, request_rx) = mpsc::channel(1);
+    let (derivation_tx, mut derivation_rx) = mpsc::channel(2);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    // The completed EL sync with an unset finalized head schedules its own reset.
+    actor.step().await.unwrap();
+    for (tag, block) in [("finalized", &genesis), ("safe", &genesis), ("latest", &tip)] {
+        l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), block);
+    }
+    l2.expect_params(
+        "engine_forkchoiceUpdatedV3",
+        serde_json::json!([
+            alloy_rpc_types_engine::ForkchoiceState {
+                head_block_hash: tip_info.hash(),
+                safe_block_hash: tip_info.hash(),
+                finalized_block_hash: tip_info.hash(),
+            },
+            null
+        ]),
+        ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+    );
+    // Closing input lets the step return after recovery and its notifications have completed.
+    drop(requests);
+    assert!(matches!(actor.step().await, Err(crate::EngineError::ChannelClosed)));
+    let published = *state_rx.borrow();
+    assert_eq!(published.sync_state.unsafe_head(), tip_info);
+    assert_eq!(published.sync_state.local_safe_head(), tip_info);
+    assert_eq!(published.sync_state.safe_head(), tip_info);
+    assert_eq!(published.sync_state.finalized_head(), tip_info);
+    let DerivationActorRequest::ProcessEngineSignalRequest(signal) =
+        derivation_rx.recv().await.unwrap()
+    else {
+        panic!("expected the reset head");
+    };
+    assert!(matches!(*signal, kona_derive::Signal::Reset(reset) if reset.l2_safe_head == tip_info));
+    let DerivationActorRequest::ProcessEngineSyncCompletionRequest(head) =
+        derivation_rx.recv().await.unwrap()
+    else {
+        panic!("expected EL-sync completion after reset");
+    };
+    assert_eq!(*head, tip_info);
+    assert!(derivation_rx.try_recv().is_err());
     l1.assert_finished();
     l2.assert_finished();
 }

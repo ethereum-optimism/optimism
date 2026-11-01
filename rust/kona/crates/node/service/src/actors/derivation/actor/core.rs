@@ -78,8 +78,8 @@ where
         }
     }
 
-    /// Handles a [`Signal`] received over the derivation signal receiver channel.
-    pub(super) async fn signal(&mut self, signal: Signal) -> Result<(), DerivationError> {
+    /// Handles a [`Signal`] and reports whether the pipeline applied it successfully.
+    pub(super) async fn signal(&mut self, signal: Signal) -> Result<bool, DerivationError> {
         let result = match signal {
             Signal::Reset(reset) => {
                 self.derivation_origin_tx.send_replace(None);
@@ -95,14 +95,18 @@ where
             Signal::Activation(activation) => self.signal_activation(activation).await,
             Signal::FlushChannel => self.signal_flush_channel().await,
         };
-        match result {
-            Ok(()) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
-            Err(e) => {
-                error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline")
+        let applied = match result {
+            Ok(()) => {
+                info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully");
+                true
             }
-        }
+            Err(e) => {
+                error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline");
+                false
+            }
+        };
         self.publish_origin();
-        Ok(())
+        Ok(applied)
     }
 
     /// Activates a hardfork while preserving the pipeline's derivation state.
@@ -218,13 +222,13 @@ where
     ) -> Result<(), DerivationError> {
         match request_type {
             DerivationActorRequest::ProcessEngineSignalRequest(signal) => {
-                self.signal(*signal).await?;
+                let signal_applied = self.signal(*signal).await?;
                 // A channel flush leaves the outstanding engine confirmation pending.
                 if !matches!(*signal, Signal::FlushChannel) {
                     self.derivation_state_machine
                         .update(&DerivationStateUpdate::SignalProcessed)?;
                 }
-                if let Signal::Reset(reset) = *signal {
+                if signal_applied && let Signal::Reset(reset) = *signal {
                     // Adopt the reset head and resume in this request. A separate confirmation
                     // could arrive after an L1 update has already resumed derivation.
                     self.derivation_state_machine.update(
