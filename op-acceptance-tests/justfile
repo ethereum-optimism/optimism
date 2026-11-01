@@ -165,5 +165,69 @@ acceptance-test:
     cp "$LOG_DIR/all.log" "$LOG_DIR/summary.log"
     exit "$TEST_STATUS"
 
+# Run the SafeDB resync cases that SkipOnOpReth, with op-geth forced on
+safedb-resync-test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export DEVSTACK_L2EL_KIND=op-geth
+    echo -e "DEVNET: in-memory (op-geth SafeDB resync)\n"
+
+    LOG_LEVEL="$(echo "${LOG_LEVEL:-info}" | grep -E '^(debug|info|warn|error)$' || echo 'info')"
+    TEST_TIMEOUT="${ACCEPTANCE_TEST_TIMEOUT:-10m}"
+    echo "LOG_LEVEL: $LOG_LEVEL"
+    echo "PACKAGE TIMEOUT: $TEST_TIMEOUT"
+
+    cd {{REPO_ROOT}}
+    if ! command -v gotestsum >/dev/null; then
+        echo "error: gotestsum is required for acceptance-test runs." >&2
+        exit 1
+    fi
+
+    RESYNC_TESTS=(TestTruncateDatabaseOnELResync TestPreserveDatabaseOnCLResync)
+    RESYNC_PACKAGES=(
+        ./op-acceptance-tests/tests/safeheaddb_clsync
+        ./op-acceptance-tests/tests/safeheaddb_elsync
+    )
+    RUN_FLAG="-run=^($(IFS='|'; echo "${RESYNC_TESTS[*]}"))$"
+
+    LOG_ROOT="{{REPO_ROOT}}/op-acceptance-tests/logs"
+    RESULTS_DIR="{{REPO_ROOT}}/op-acceptance-tests/results"
+    LOG_DIR="$LOG_ROOT/safedb-resync-$(date -u +%Y%m%d-%H%M%S)"
+    EVENTS_FILE="$LOG_DIR/raw_go_events.log"
+    mkdir -p "$LOG_DIR/failed" "$RESULTS_DIR"
+
+    set +e
+    LOG_LEVEL="${LOG_LEVEL}" {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \
+        --format testname \
+        --junitfile "$RESULTS_DIR/safedb-resync.xml" \
+        --jsonfile "$EVENTS_FILE" \
+        -- \
+        -count=1 \
+        -p 1 \
+        -parallel 1 \
+        -timeout "${TEST_TIMEOUT}" \
+        "$RUN_FLAG" \
+        "${RESYNC_PACKAGES[@]}" \
+        2>&1 | tee "$LOG_DIR/all.log"
+    TEST_STATUS=${PIPESTATUS[0]}
+    set -e
+
+    cp "$LOG_DIR/all.log" "$LOG_DIR/summary.log"
+    if [ "$TEST_STATUS" -ne 0 ]; then
+        exit "$TEST_STATUS"
+    fi
+    # buildL2Genesis skips op-geth on Karst chains, which would otherwise turn a
+    # fork-default change into silent loss of coverage.
+    if grep -q '"Action":"skip","Package":"[^"]*","Test":"' "$EVENTS_FILE"; then
+        echo "SafeDB resync tests were skipped under op-geth" >&2
+        exit 1
+    fi
+    for test_name in "${RESYNC_TESTS[@]}"; do
+        if ! grep -q "\"Action\":\"pass\",\"Package\":\"[^\"]*\",\"Test\":\"$test_name\"" "$EVENTS_FILE"; then
+            echo "SafeDB resync test $test_name did not pass under op-geth" >&2
+            exit 1
+        fi
+    done
+
 clean:
     rm -rf tests/interop/loadtest/artifacts
