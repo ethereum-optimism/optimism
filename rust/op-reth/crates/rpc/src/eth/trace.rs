@@ -15,19 +15,16 @@ use alloy_rpc_types_eth::TransactionInfo;
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, TraceResult};
 use reth_errors::RethError;
 use reth_evm::{
-    ConfigureEvm, Evm, EvmEnvFor, EvmFor, InspectorFor, IntoTxEnv, TxEnvFor,
+    ConfigureEvm, Evm, EvmEnvFor, EvmFor, HaltReasonFor, InspectorFor, IntoTxEnv, TxEnvFor,
     block::{BlockExecutor, BlockExecutorFor, TxResult},
 };
-use reth_primitives_traits::{BlockBody, BlockTy, Recovered, RecoveredBlock};
+use reth_primitives_traits::{BlockBody, BlockTy, RecoveredBlock};
 use reth_rpc_eth_api::{
     FromEthApiError, FromEvmError, RpcConvert, RpcNodeCore,
-    helpers::{
-        LoadState, Trace,
-        trace::{BlockReplayMode, TracingCtx, TransactionReplayResult},
-    },
+    helpers::{LoadState, Trace, trace::TracingCtx},
 };
 use reth_rpc_eth_types::{EthApiError, StateCacheDb};
-use reth_storage_api::{HashedPostStateProvider, ProviderBlock, ProviderTx, StateRootProvider};
+use reth_storage_api::{HashedPostStateProvider, ProviderBlock, StateRootProvider};
 use revm::{
     context::Block, context_interface::result::ResultAndState,
     database::states::bundle_state::BundleRetention, state::bal::Bal as RevmBal,
@@ -35,7 +32,7 @@ use revm::{
 use revm_inspectors::tracing::{DebugInspector, TransactionContext};
 use std::sync::Arc;
 
-/// UPSTREAM-MIRROR(override): reth@rev:1f20b35 `reth_rpc_eth_api::helpers::Trace`
+/// UPSTREAM-MIRROR(override): reth@rev:6edc1bd `reth_rpc_eth_api::helpers::Trace`
 ///
 /// Canonical replays include executor settlement; diagnostic block replays use the bare EVM.
 impl<N, Rpc> Trace for OpEthApi<N, Rpc>
@@ -71,7 +68,7 @@ where
         inspector: impl InspectorFor<Self::Evm, &'a mut StateCacheDb>,
         target_tx_index: usize,
         _bal: Option<&DecodedBal<Arc<RevmBal>>>,
-    ) -> TransactionReplayResult<Self::Evm, Self::Error> {
+    ) -> Result<(ResultAndState<HaltReasonFor<Self::Evm>>, EvmEnvFor<Self::Evm>), Self::Error> {
         let evm_env = self.evm_env_for_header(block.sealed_block().sealed_header())?;
         let mut executor = inspected_block_executor(self, block, db, evm_env.clone(), inspector)?;
 
@@ -102,7 +99,7 @@ where
         target_tx_index: usize,
         target_tx_env: impl IntoTxEnv<TxEnvFor<Self::Evm>>,
         _bal: Option<&DecodedBal<Arc<RevmBal>>>,
-    ) -> TransactionReplayResult<Self::Evm, Self::Error> {
+    ) -> Result<(ResultAndState<HaltReasonFor<Self::Evm>>, EvmEnvFor<Self::Evm>), Self::Error> {
         let evm_env = self.evm_env_for_header(block.sealed_block().sealed_header())?;
         let mut executor = inspected_block_executor(self, block, db, evm_env.clone(), inspector)?;
         for transaction in block.transactions_recovered().take(target_tx_index) {
@@ -116,33 +113,29 @@ where
 
     /// Unlike upstream, a transaction that fails to execute fails the call instead of ending the
     /// iteration early.
-    fn trace_block_transactions<Insp, F, R>(
+    fn trace_block_transactions<Setup, Insp, F, R>(
         &self,
         db: &mut StateCacheDb,
         block: &RecoveredBlock<ProviderBlock<Self::Provider>>,
         evm_env: EvmEnvFor<Self::Evm>,
         max_transactions: usize,
-        inspector: Insp,
+        mut inspector_setup: Setup,
         f: F,
     ) -> Result<Vec<R>, Self::Error>
     where
         F: Fn(
             TransactionInfo,
-            TracingCtx<
-                '_,
-                Recovered<&ProviderTx<Self::Provider>>,
-                EvmFor<Self::Evm, &mut StateCacheDb, Insp>,
-            >,
+            TracingCtx<'_, Insp, EvmFor<Self::Evm, &mut StateCacheDb, Insp>>,
         ) -> Result<R, Self::Error>,
-        Insp: Clone + for<'a> InspectorFor<Self::Evm, &'a mut StateCacheDb>,
+        Setup: FnMut() -> Insp,
+        Insp: for<'a> InspectorFor<Self::Evm, &'a mut StateCacheDb>,
     {
         let block_hash = block.hash();
         let block_number = evm_env.block_env.number().saturating_to();
         let block_timestamp = evm_env.block_env.timestamp().saturating_to();
         let base_fee = evm_env.block_env.basefee();
 
-        let fused_inspector = inspector.clone();
-        let mut executor = inspected_block_executor(self, block, db, evm_env, inspector)?;
+        let mut executor = inspected_block_executor(self, block, db, evm_env, inspector_setup())?;
         executor.evm_mut().enable_inspector();
 
         let mut results =
@@ -153,7 +146,6 @@ where
             let output = executor
                 .execute_transaction_without_commit(tx)
                 .map_err(Self::Error::from_eth_err)?;
-            let ResultAndState { result, state } = output.result();
 
             let tx_info = TransactionInfo {
                 hash: Some(*tx.tx_hash()),
@@ -163,25 +155,12 @@ where
                 block_timestamp: Some(block_timestamp),
                 base_fee: Some(base_fee),
             };
-            let mut was_fused = false;
             let (db, inspector, _) = executor.evm_mut().components_mut();
-            let traced = f(
-                tx_info,
-                TracingCtx::new(
-                    tx,
-                    result.clone(),
-                    state,
-                    inspector,
-                    db,
-                    &fused_inspector,
-                    &mut was_fused,
-                ),
-            );
-            // The inspector and state of the last traced transaction are not needed.
+            let inspector = core::mem::replace(inspector, inspector_setup());
+            let traced =
+                f(tx_info, TracingCtx { result: output.result(), db: &mut *db, inspector });
+            // The state of the last traced transaction is not needed.
             if transactions.peek().is_some() {
-                if !was_fused {
-                    *executor.evm_mut().inspector_mut() = fused_inspector.clone();
-                }
                 executor.commit_transaction(output);
             }
             results.push(traced?);
@@ -194,12 +173,8 @@ where
         db: &mut StateCacheDb,
         block: &RecoveredBlock<ProviderBlock<Self::Provider>>,
         evm_env: EvmEnvFor<Self::Evm>,
-        mode: BlockReplayMode,
         opts: GethDebugTracingOptions,
     ) -> Result<Vec<TraceResult>, Self::Error> {
-        if mode == BlockReplayMode::Unvalidated {
-            return self.debug_trace_unvalidated_block_transactions(db, block, evm_env, opts);
-        }
         let mut results = Vec::with_capacity(block.body().transactions().len());
         let block_env = evm_env.block_env.clone();
 
