@@ -38,11 +38,21 @@ type EthClient interface {
 	Close()
 }
 
+// blockLog is the part of a log the logs DB stores. Fetch workers reduce
+// receipts to these so blocks waiting to be written do not retain full receipts.
+type blockLog struct {
+	hash    common.Hash
+	execMsg *messages.ExecutingMessage
+}
+
 type blockFetch struct {
 	blockNum  uint64
 	blockInfo eth.BlockInfo
-	receipts  optypes.Receipts
-	err       error
+	logs      []blockLog
+	// logsErr reports a log that failed to decode. It is surfaced only after the
+	// parent-hash check, so a reorg takes precedence over an invalid log.
+	logsErr error
+	err     error
 }
 
 // LogsDBChainIngester handles block ingestion and log storage for a single chain.
@@ -109,13 +119,18 @@ func NewLogsDBChainIngester(
 		return nil, fmt.Errorf("failed to create RPC client for chain %s: %w", chainID, err)
 	}
 
+	// Each block's receipts and transactions are read once, by the fetch worker
+	// that reduces them to log hashes, so the caches only need to cover blocks in
+	// flight. Sizing them by block count retained up to 1000 blocks of receipts,
+	// which exceeds the memory limit when blocks carry many megabytes of logs.
+	inFlightBlocks := max(fetchConcurrency, 1)
 	ethClient, err := sources.NewEthClient(
 		rpcClient,
 		logger,
 		nil,
 		&sources.EthClientConfig{
-			ReceiptsCacheSize:     1000,
-			TransactionsCacheSize: 1000,
+			ReceiptsCacheSize:     inFlightBlocks,
+			TransactionsCacheSize: inFlightBlocks,
 			HeadersCacheSize:      1000,
 			PayloadsCacheSize:     100,
 			MaxRequestsPerBatch:   20,
@@ -684,17 +699,21 @@ func (c *LogsDBChainIngester) ingestBlockRange(startBlock, endBlock uint64, last
 			// Resolve the number to a hash first, then fetch receipts by hash so
 			// the receipts are pinned to the block identity we are about to write.
 			blockInfo, err := c.ethClient.InfoByNumber(rangeCtx, blockNum)
-			var receipts optypes.Receipts
+			var logs []blockLog
+			var logsErr error
 			if err != nil {
 				err = fmt.Errorf("fetch block info: %w", err)
 			} else {
+				var receipts optypes.Receipts
 				_, receipts, err = c.ethClient.FetchReceipts(rangeCtx, blockInfo.Hash())
 				if err != nil {
 					err = fmt.Errorf("fetch block receipts: %w", err)
+				} else {
+					logs, logsErr = toBlockLogs(receipts, blockNum)
 				}
 			}
 			select {
-			case slot <- blockFetch{blockNum: blockNum, blockInfo: blockInfo, receipts: receipts, err: err}:
+			case slot <- blockFetch{blockNum: blockNum, blockInfo: blockInfo, logs: logs, logsErr: logsErr, err: err}:
 			case <-rangeCtx.Done():
 			}
 		}()
@@ -769,7 +788,11 @@ func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 		}
 	}
 
-	logCount, err := c.processBlockLogs(blockInfo, blockID, fetched.receipts, blockNum)
+	var logCount uint32
+	err := fetched.logsErr
+	if err == nil {
+		logCount, err = c.processBlockLogs(blockInfo, blockID, fetched.logs, blockNum)
+	}
 	if err != nil {
 		if errors.Is(err, interop.ErrConflict) {
 			c.SetError(ErrorConflict, fmt.Sprintf("database conflict at block %d", blockNum))
@@ -824,8 +847,27 @@ func (c *LogsDBChainIngester) recordIngestionProgress(blockNum, head uint64) {
 	}
 }
 
+// toBlockLogs hashes each log and decodes any executing message it carries.
+func toBlockLogs(receipts optypes.Receipts, blockNum uint64) ([]blockLog, error) {
+	var n int
+	for _, receipt := range receipts {
+		n += len(receipt.Logs)
+	}
+	logs := make([]blockLog, 0, n)
+	for _, receipt := range receipts {
+		for _, l := range receipt.Logs {
+			execMsg, err := messages.DecodeExecutingMessageLog(l)
+			if err != nil {
+				return nil, fmt.Errorf("invalid log %d in block %d: %w: %w", l.Index, blockNum, ErrInvalidLog, err)
+			}
+			logs = append(logs, blockLog{hash: messages.LogToLogHash(l), execMsg: execMsg})
+		}
+	}
+	return logs, nil
+}
+
 func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID eth.BlockID,
-	receipts optypes.Receipts, blockNum uint64) (uint32, error) {
+	logs []blockLog, blockNum uint64) (uint32, error) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -837,31 +879,22 @@ func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID 
 		parentBlock = eth.BlockID{}
 	}
 
-	for _, receipt := range receipts {
-		for _, l := range receipt.Logs {
-			logHash := messages.LogToLogHash(l)
-
-			execMsg, err := messages.DecodeExecutingMessageLog(l)
-			if err != nil {
-				return 0, fmt.Errorf("invalid log %d in block %d: %w: %w", l.Index, blockNum, ErrInvalidLog, err)
-			}
-
-			if execMsg != nil {
-				c.log.Debug("Found executing message in block",
-					"block", blockNum,
-					"log_index", logIndex,
-					"src_chain", execMsg.ChainID,
-					"src_block", execMsg.BlockNum,
-					"src_log_index", execMsg.LogIdx,
-					"src_timestamp", execMsg.Timestamp,
-				)
-			}
-
-			if err := c.logsDB.AddLog(logHash, parentBlock, logIndex, execMsg); err != nil {
-				return 0, fmt.Errorf("failed to add log: %w", err)
-			}
-			logIndex++
+	for _, l := range logs {
+		if execMsg := l.execMsg; execMsg != nil {
+			c.log.Debug("Found executing message in block",
+				"block", blockNum,
+				"log_index", logIndex,
+				"src_chain", execMsg.ChainID,
+				"src_block", execMsg.BlockNum,
+				"src_log_index", execMsg.LogIdx,
+				"src_timestamp", execMsg.Timestamp,
+			)
 		}
+
+		if err := c.logsDB.AddLog(l.hash, parentBlock, logIndex, l.execMsg); err != nil {
+			return 0, fmt.Errorf("failed to add log: %w", err)
+		}
+		logIndex++
 	}
 
 	if err := c.logsDB.SealBlock(blockInfo.ParentHash(), blockID, blockInfo.Time()); err != nil {
