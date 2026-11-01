@@ -48,8 +48,7 @@ func TestDisputeMonitorClassifiesOutputRoots(gt *testing.T) {
 			system := newOutputRootSystem(t)
 			proposer := system.FunderL1.NewFundedEOA(eth.OneEther)
 			gameOptions := append([]proofs.GameOpt{proofs.WithL2SequenceNumber(3)}, testCase.gameOptions...)
-			game := system.DisputeGameFactory().StartCannonKonaGame(proposer, gameOptions...)
-			game.WaitForGameStatus(gameTypes.GameStatusInProgress)
+			system.DisputeGameFactory().StartCannonKonaGame(proposer, gameOptions...)
 
 			monitor := system.StartDisputeMon()
 			monitor.VerifyState(

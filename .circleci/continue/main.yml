@@ -2233,20 +2233,6 @@ jobs:
       # does not need a separate `go mod download`.
       - go-restore-cache:
           namespace: op-acceptance-tests
-      - run:
-          name: Run SafeDB resync tests with op-geth
-          command: |
-            if [ "${CIRCLE_NODE_INDEX:-0}" != "0" ]; then
-              exit 0
-            fi
-            mkdir -p op-acceptance-tests/logs/safedb-op-geth op-acceptance-tests/results
-            DEVSTACK_L2EL_KIND=op-geth LOG_LEVEL=info gotestsum \
-              --format testname \
-              --jsonfile op-acceptance-tests/logs/safedb-op-geth/raw_go_events.log \
-              --junitfile op-acceptance-tests/results/safedb-op-geth.xml \
-              -- -count=1 -p=1 -parallel=1 -timeout=10m \
-              ./op-acceptance-tests/tests/safeheaddb_elsync \
-              ./op-acceptance-tests/tests/safeheaddb_clsync
       # Run the acceptance tests (if the devnet is running)
       - run:
           name: Run acceptance tests
@@ -2270,6 +2256,38 @@ jobs:
             LOG_DIR=$(ls -td -- logs/* | head -1)
             cat "$LOG_DIR"/failed/*.log || true
           when: on_fail
+      # The two resync cases below SkipOnOpReth, so the op-reth run above never
+      # exercises them. They run here with op-geth, after the sharded suite so a
+      # resync failure cannot skip shard 0's share of it, and the step fails on
+      # any skip: buildL2Genesis skips op-geth on Karst chains, which would
+      # otherwise turn a fork-default change into silent loss of coverage.
+      - run:
+          name: Run SafeDB resync tests with op-geth
+          command: |
+            if [ "${CIRCLE_NODE_INDEX:-0}" != "0" ]; then
+              exit 0
+            fi
+            RESYNC_TESTS="TestTruncateDatabaseOnELResync TestPreserveDatabaseOnCLResync"
+            EVENTS_FILE=op-acceptance-tests/logs/safedb-op-geth/raw_go_events.log
+            mkdir -p "$(dirname "$EVENTS_FILE")" op-acceptance-tests/results
+            DEVSTACK_L2EL_KIND=op-geth LOG_LEVEL=info gotestsum \
+              --format testname \
+              --jsonfile "$EVENTS_FILE" \
+              --junitfile op-acceptance-tests/results/safedb-op-geth.xml \
+              -- -count=1 -p=1 -parallel=1 -timeout=10m \
+              -run "^($(echo "$RESYNC_TESTS" | tr ' ' '|'))$" \
+              ./op-acceptance-tests/tests/safeheaddb_elsync \
+              ./op-acceptance-tests/tests/safeheaddb_clsync
+            if grep -q '"Action":"skip","Package":"[^"]*","Test":"' "$EVENTS_FILE"; then
+              echo "SafeDB resync tests were skipped under op-geth" >&2
+              exit 1
+            fi
+            for test_name in $RESYNC_TESTS; do
+              if ! grep -q "\"Action\":\"pass\",\"Package\":\"[^\"]*\",\"Test\":\"$test_name\"" "$EVENTS_FILE"; then
+                echo "SafeDB resync test $test_name did not pass under op-geth" >&2
+                exit 1
+              fi
+            done
       # Save the module cache for future runs
       - go-save-cache:
           namespace: op-acceptance-tests

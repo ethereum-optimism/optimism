@@ -203,6 +203,10 @@ Returns the rollup configuration parameters that define the rollup chain's behav
 
 Returns the most recent recorded L2 safe head whose derivation source L1 block is at or before the requested L1 block. Enable persistence with `--safedb.path` or `KONA_NODE_SAFEDB_PATH`.
 
+| Client | Method invocation                                                  |
+| ------ | ------------------------------------------------------------------ |
+| RPC    | `{"method": "optimism_safeHeadAtL1Block", "params": [l1BlockNumber]}` |
+
 ### Parameters
 
 - `l1BlockNumber` (`string`): An L1 block number encoded as a hexadecimal quantity, such as `"0x64"`. Block tags are not supported.
@@ -228,16 +232,11 @@ A disabled database is distinct from an enabled database with no matching record
 
 ### Example
 
-```json
-{"id":1,"jsonrpc":"2.0","method":"optimism_safeHeadAtL1Block","params":["0x64"]}
-```
-
-An illustrative response:
-
-```json
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"optimism_safeHeadAtL1Block","params":["0x64"]}
 {
-  "id": 1,
   "jsonrpc": "2.0",
+  "id": 1,
   "result": {
     "l1Block": {
       "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
@@ -375,6 +374,10 @@ Returns the software version of the Kona rollup node.
 
 Returns a pre-interop, single-chain super root and its L1 derivation requirements. This method uses the `superroot` namespace rather than the `optimism` namespace. SafeDB must be enabled and contain the relevant history for a non-genesis block that is locally safe.
 
+| Client | Method invocation                                          |
+| ------ | ---------------------------------------------------------- |
+| RPC    | `{"method": "superroot_atTimestamp", "params": [timestamp]}` |
+
 ### Parameters
 
 - `timestamp` (`string`): An L2 timestamp encoded as a hexadecimal quantity. The rollup configuration maps the timestamp to an L2 block number.
@@ -413,16 +416,13 @@ SafeDB lookup messages for this method include the operation prefix `l1AtSafeHea
 
 ### Example
 
-```json
-{"id":1,"jsonrpc":"2.0","method":"superroot_atTimestamp","params":["0x6553f100"]}
-```
+A progress-only response, returned while the requested block is not yet locally safe:
 
-An illustrative progress-only response when the requested block is not yet locally safe:
-
-```json
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"superroot_atTimestamp","params":["0x6553f100"]}
 {
-  "id": 1,
   "jsonrpc": "2.0",
+  "id": 1,
   "result": {
     "chain_ids": ["901"],
     "current_l1": {
