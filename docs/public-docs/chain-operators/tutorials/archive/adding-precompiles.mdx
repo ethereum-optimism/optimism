@@ -1,10 +1,17 @@
 ---
-title: Adding a precompile
-description: Learn how to run an EVM with a new precompile for OP Stack chain operations to speed up calculations that are not currently supported.
+title: Adding a precompile (archived)
+description: "Archived: op-geth walkthrough for adding a custom precompile to an OP Stack execution client. op-geth has reached end-of-support; an op-revm version is pending."
 diataxis: tutorial
 ---
 
 import OpStackHacksWarning from "/snippets/op-stack-hacks-warning.mdx"
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
+<Warning>
+  **Archived.** This walkthrough modifies op-geth source code. It is retained for reference until it is rewritten for op-reth, where OP Stack precompiles live in [op-revm](https://github.com/ethereum-optimism/optimism/blob/develop/rust/op-revm/src/precompiles.rs).
+</Warning>
+
+<OpGethEol />
 
 <OpStackHacksWarning />
 
