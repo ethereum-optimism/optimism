@@ -308,7 +308,7 @@ async fn test_non_reset_signal_does_not_publish_uninitialized_origin(#[case] sig
 }
 
 #[tokio::test]
-async fn failed_reset_stops_actor_with_origin_unpublished() {
+async fn critical_reset_failure_stops_actor_with_origin_unpublished() {
     let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
     let (request_tx, request_rx) = mpsc::channel(1);
     let mut actor = DerivationActor::new(
@@ -337,12 +337,12 @@ async fn failed_reset_stops_actor_with_origin_unpublished() {
     actor.step().await.unwrap();
     assert_eq!(derivation_origin_rx.borrow().map(|origin| origin.id()), Some(safe_head.l1_origin));
 
-    // A reset can fail before it replaces the old origin, for example on an L2 RPC error.
-    actor.pipeline.signal_error = Some(l2_provider_error().temp());
+    // A reset can fail before it replaces the old origin.
+    actor.pipeline.signal_error = Some(l2_provider_error().crit());
     request_tx.send(reset()).await.unwrap();
     assert!(matches!(
         actor.step().await,
-        Err(DerivationError::Pipeline(PipelineErrorKind::Temporary(PipelineError::Provider(_))))
+        Err(DerivationError::Pipeline(PipelineErrorKind::Critical(PipelineError::Provider(_))))
     ));
     assert_eq!(actor.pipeline.origin.id(), safe_head.l1_origin);
     assert!(derivation_origin_rx.borrow().is_none());

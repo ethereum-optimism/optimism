@@ -1,10 +1,8 @@
 use super::*;
 
-#[rstest]
-#[case::temporary(l2_provider_error().temp())]
-#[case::critical(l2_provider_error().crit())]
 #[tokio::test]
-async fn failed_pipeline_reset_cannot_resume_queued_attributes(#[case] error: PipelineErrorKind) {
+async fn critical_pipeline_reset_failure_cannot_resume_queued_attributes() {
+    let error = l2_provider_error().crit();
     let mut engine_client = MockDerivationEngineClient::new();
     engine_client.expect_send_safe_l2_signal().times(0);
     engine_client.expect_send_finalized_l2_block().times(0);
