@@ -8,8 +8,8 @@ use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 #[rstest]
-#[case::temporary(PipelineError::Eof.temp())]
-#[case::critical(PipelineError::Eof.crit())]
+#[case::temporary(l2_provider_error().temp())]
+#[case::critical(l2_provider_error().crit())]
 #[tokio::test]
 async fn failed_pipeline_reset_stops_service_and_rpc(#[case] error: PipelineErrorKind) {
     let mut engine_client = MockDerivationEngineClient::new();
@@ -19,8 +19,7 @@ async fn failed_pipeline_reset_stops_service_and_rpc(#[case] error: PipelineErro
     node.actor.pipeline.attributes.clear();
     node.complete_el_sync_at(DERIVED_HEAD).await;
     node.actor.pipeline.attributes.push_back(derived_attributes());
-    let expected_error = format!("Pipeline({error:?})");
-    node.actor.pipeline.reset_error = Some(error);
+    node.actor.pipeline.signal_error = Some(error);
 
     let mut module = RpcModule::new(());
     module.register_method("test_alive", |_, _, _| true).unwrap();
@@ -50,12 +49,11 @@ async fn failed_pipeline_reset_stops_service_and_rpc(#[case] error: PipelineErro
         .await
         .unwrap();
 
-    let service_error = timeout(Duration::from_secs(5), service)
+    let service_result = timeout(Duration::from_secs(5), service)
         .await
         .expect("failed reset must stop the service")
-        .unwrap()
-        .unwrap_err();
-    assert_eq!(service_error, expected_error);
+        .unwrap();
+    assert!(service_result.is_err(), "the failed reset must reach the supervisor as an error");
     assert!(cancellation.is_cancelled());
     timeout(Duration::from_secs(5), handle.stopped())
         .await

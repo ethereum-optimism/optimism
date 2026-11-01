@@ -99,7 +99,13 @@ where
             Ok(()) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
             Err(e) => {
                 error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline");
-                return Err(e.into());
+                // A failed reset leaves SafeDB truncated while the stages still hold pre-reset
+                // data, so derivation must not resume from it. Activation and channel flush
+                // failures leave the derivation state intact.
+                if matches!(signal, Signal::Reset(_)) {
+                    metrics::counter!(Metrics::DERIVATION_CRITICAL_ERROR).increment(1);
+                    return Err(e.into());
+                }
             }
         }
         self.publish_origin();

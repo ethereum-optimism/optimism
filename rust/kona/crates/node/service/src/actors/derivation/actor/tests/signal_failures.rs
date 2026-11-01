@@ -1,8 +1,8 @@
 use super::*;
 
 #[rstest]
-#[case::temporary(PipelineError::Eof.temp())]
-#[case::critical(PipelineError::Eof.crit())]
+#[case::temporary(l2_provider_error().temp())]
+#[case::critical(l2_provider_error().crit())]
 #[tokio::test]
 async fn failed_pipeline_reset_cannot_resume_queued_attributes(#[case] error: PipelineErrorKind) {
     let mut engine_client = MockDerivationEngineClient::new();
@@ -13,7 +13,7 @@ async fn failed_pipeline_reset_cannot_resume_queued_attributes(#[case] error: Pi
     node.complete_el_sync_at(DERIVED_HEAD).await;
     node.actor.pipeline.attributes.push_back(derived_attributes());
     let expected_error = error.to_string();
-    node.actor.pipeline.reset_error = Some(error);
+    node.actor.pipeline.signal_error = Some(error);
     let previous_state = node.actor.derivation_state_machine.current_state();
     let previous_head = node.actor.derivation_state_machine.last_confirmed_safe_head();
 
