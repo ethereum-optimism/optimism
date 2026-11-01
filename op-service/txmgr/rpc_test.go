@@ -1,6 +1,7 @@
 package txmgr
 
 import (
+	"context"
 	"fmt"
 	"math/big"
 	"testing"
@@ -27,6 +28,7 @@ func TestTxmgrRPC(t *testing.T) {
 	cfg.ResubmissionTimeout.Store(bumpFeeRetryTimeInit)
 
 	h := newTestHarnessWithConfig(t, cfg)
+	h.mgr.blobTipOracle = &mockBlobTipOracle{suggestedTip: big.NewInt(1)}
 
 	appVersion := "test"
 	server := oprpc.NewServer(
@@ -87,4 +89,31 @@ func TestTxmgrRPC(t *testing.T) {
 		require.NoError(t, rpcClient.Call(&res, "txmgr_getBlobTipCapDynamic"))
 		require.False(t, res)
 	})
+}
+
+func TestTxmgrRPC_SetBlobTipCapDynamicWithoutOracle(t *testing.T) {
+	h := newTestHarnessWithConfig(t, configWithNumConfs(1))
+	require.Nil(t, h.mgr.blobTipOracle)
+
+	server := oprpc.NewServer("127.0.0.1", 0, "test")
+	server.AddAPI(h.mgr.API())
+	require.NoError(t, server.Start())
+	defer func() {
+		_ = server.Stop()
+	}()
+
+	rpcClient, err := rpc.Dial(fmt.Sprintf("http://%s", server.Endpoint()))
+	require.NoError(t, err)
+
+	err = rpcClient.Call(nil, "txmgr_setBlobTipCapDynamic", true)
+	require.ErrorContains(t, err, ErrNoBlobTipOracle.Error())
+
+	var res bool
+	require.NoError(t, rpcClient.Call(&res, "txmgr_getBlobTipCapDynamic"))
+	require.False(t, res)
+	require.NoError(t, rpcClient.Call(nil, "txmgr_setBlobTipCapDynamic", false))
+
+	// Gas price suggestions keep working instead of dereferencing the missing oracle.
+	_, _, _, _, err = h.mgr.SuggestGasPriceCaps(context.Background())
+	require.NoError(t, err)
 }
