@@ -85,6 +85,7 @@ registries = []
 
 [sources]
 allow-git = [
+    "https://github.com/ethereum-optimism/reth-core",
   "https://github.com/paradigmxyz/reth",
   # Maintenance fork carrying patches not yet included in the selected upstream release.
   "https://github.com/ethereum-optimism/reth",

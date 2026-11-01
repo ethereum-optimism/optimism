@@ -16,6 +16,8 @@ mod debug_trace_post_exec;
 
 mod invalid_post_exec;
 
+mod lagoon;
+
 mod estimate_gas_7825;
 
 mod p2p_version;
@@ -23,3 +25,5 @@ mod p2p_version;
 mod derived_attributes;
 
 const fn main() {}
+
+mod rpc_replay_settlement;
