@@ -456,6 +456,14 @@ pub enum AlloyChainProviderError {
         /// The hash of the returned header.
         actual: B256,
     },
+    /// The RPC answered a lookup by number with a block at a different number.
+    #[error("Block number mismatch: expected {expected}, got {actual}")]
+    BlockNumberMismatch {
+        /// The requested number.
+        expected: u64,
+        /// The number of the returned block.
+        actual: u64,
+    },
     /// The RPC returned receipts that do not match the block's receipts root.
     #[error("Receipts root mismatch for L1 block {hash}: expected {expected}, got {actual}")]
     ReceiptsRootMismatch {
@@ -593,6 +601,7 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
                 )))
             }
             error @ (AlloyChainProviderError::HeaderHashMismatch { .. } |
+            AlloyChainProviderError::BlockNumberMismatch { .. } |
             AlloyChainProviderError::ReceiptsRootMismatch { .. } |
             AlloyChainProviderError::TransactionsRootMismatch { .. } |
             AlloyChainProviderError::InvalidStorageProof { .. } |
@@ -675,6 +684,15 @@ impl AlloyChainProvider {
         let header = rpc_header.into_consensus();
         if self.verify {
             verify_header(&header, hash)?;
+        }
+        // A number lookup must return a block at that number, however much the RPC is trusted.
+        if let BlockId::Number(BlockNumberOrTag::Number(expected)) = block_id &&
+            header.number != expected
+        {
+            return Err(AlloyChainProviderError::BlockNumberMismatch {
+                expected,
+                actual: header.number,
+            });
         }
         let block_info = BlockInfo {
             hash,
@@ -856,7 +874,10 @@ mod tests {
     #[tokio::test]
     async fn confirmation_depth_tracks_head_regression_and_clones() {
         let asserter = Asserter::new();
-        let block = rpc_block(B256::ZERO, Vec::new(), alloy_consensus::EMPTY_ROOT_HASH);
+        let block = RpcBlock::<TxEnvelope>::new(
+            RpcHeader::new(Header { number: 6, ..Default::default() }),
+            BlockTransactions::Hashes(Vec::new()),
+        );
         asserter.push_success(&Some(block.clone()));
         asserter.push_success(&Some(block));
         let (head_tx, head_rx) = watch::channel(Some(observed_head(10)));
@@ -870,6 +891,31 @@ mod tests {
         head_tx.send_replace(Some(observed_head(10)));
         cloned.block_info_by_number(6).await.unwrap();
         assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn number_lookups_reject_a_block_at_another_number_even_when_trusted() {
+        let asserter = Asserter::new();
+        let header = Header { number: 8, ..Default::default() };
+        let hash = header.hash_slow();
+        asserter.push_success(&Some(RpcBlock::<TxEnvelope>::new(
+            RpcHeader::new(header),
+            BlockTransactions::Hashes(Vec::new()),
+        )));
+        let provider = mocked_provider(asserter.clone());
+
+        let error = provider.block_info_by_number(7).await.unwrap_err();
+
+        assert!(
+            matches!(
+                error,
+                AlloyChainProviderError::BlockNumberMismatch { expected: 7, actual: 8 }
+            ),
+            "{error}"
+        );
+        assert!(matches!(PipelineErrorKind::from(error), PipelineErrorKind::Temporary(_)));
+        // The wrong block is not cached.
+        assert!(provider.shared.cache.header(hash).is_none());
     }
 
     #[tokio::test]
