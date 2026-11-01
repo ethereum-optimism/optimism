@@ -35,7 +35,7 @@ async fn reset_adopts_safe_head_and_resumes_atomically(#[case] previous_head: u6
             rollup_config: Arc::new(RollupConfig::default()),
             origin: BlockInfo::default(),
             step_result: StepResult::StepFailed(PipelineError::Eof.temp()),
-            reset_error: None,
+            signal_error: None,
         },
         None,
         l1_block(0).id(),
@@ -99,6 +99,16 @@ async fn reset_keeps_new_attributes_pending_across_an_l1_update() {
     );
 }
 
+/// The error a reset sees when the L2 provider fails during the pipeline's initial reset.
+fn l2_provider_error() -> PipelineError {
+    PipelineError::Provider("l2 rpc timed out".into())
+}
+
+/// Fails the next pipeline signal with the injected error, if any, consuming it.
+fn take_injected_signal_error(signal_error: &mut Option<PipelineErrorKind>) -> PipelineResult<()> {
+    signal_error.take().map_or(Ok(()), Err)
+}
+
 /// A pipeline stub that returns `step_result` once, then yields. Origin advances increment
 /// its L1 block number, and a reset moves it to the safe head's L1 origin.
 #[derive(Debug)]
@@ -106,7 +116,7 @@ struct StubPipeline {
     rollup_config: Arc<RollupConfig>,
     origin: BlockInfo,
     step_result: StepResult,
-    reset_error: Option<PipelineErrorKind>,
+    signal_error: Option<PipelineErrorKind>,
 }
 
 impl Iterator for StubPipeline {
@@ -126,10 +136,8 @@ impl kona_derive::OriginProvider for StubPipeline {
 #[async_trait]
 impl SignalReceiver for StubPipeline {
     async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
+        take_injected_signal_error(&mut self.signal_error)?;
         if let Signal::Reset(reset) = signal {
-            if let Some(error) = self.reset_error.take() {
-                return Err(error);
-            }
             self.origin = BlockInfo {
                 number: reset.l2_safe_head.l1_origin.number,
                 hash: reset.l2_safe_head.l1_origin.hash,
@@ -193,7 +201,7 @@ async fn test_pipeline_reset_always_resets_engine(#[case] lagoon_time: Option<u6
         StubPipeline {
             rollup_config: rollup_config.clone(),
             origin: BlockInfo::default(),
-            reset_error: None,
+            signal_error: None,
             step_result: StepResult::StepFailed(
                 ResetError::ReorgDetected(B256::ZERO, B256::repeat_byte(1)).reset(),
             ),
@@ -239,7 +247,7 @@ async fn test_origin_is_published(#[case] step_result: StepResult) {
             rollup_config: Arc::new(RollupConfig::default()),
             origin: BlockInfo::default(),
             step_result,
-            reset_error: None,
+            signal_error: None,
         },
         None,
         l1_block(0).id(),
@@ -285,7 +293,7 @@ async fn test_non_reset_signal_does_not_publish_uninitialized_origin(#[case] sig
             rollup_config: Arc::new(RollupConfig::default()),
             origin: BlockInfo::default(),
             step_result: StepResult::AdvancedOrigin,
-            reset_error: None,
+            signal_error: None,
         },
         None,
         l1_block(0).id(),
@@ -299,11 +307,8 @@ async fn test_non_reset_signal_does_not_publish_uninitialized_origin(#[case] sig
     assert!(derivation_origin_rx.borrow().is_none());
 }
 
-#[rstest]
-#[case::activation(Signal::Activation(ActivationSignal::default()))]
-#[case::flush_channel(Signal::FlushChannel)]
 #[tokio::test]
-async fn test_failed_reset_keeps_origin_unpublished_until_successful_reset(#[case] signal: Signal) {
+async fn critical_reset_failure_stops_actor_with_origin_unpublished() {
     let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
     let (request_tx, request_rx) = mpsc::channel(1);
     let mut actor = DerivationActor::new(
@@ -312,7 +317,7 @@ async fn test_failed_reset_keeps_origin_unpublished_until_successful_reset(#[cas
         StubPipeline {
             rollup_config: Arc::new(RollupConfig::default()),
             origin: BlockInfo::default(),
-            reset_error: None,
+            signal_error: None,
             step_result: StepResult::AdvancedOrigin,
         },
         None,
@@ -332,29 +337,56 @@ async fn test_failed_reset_keeps_origin_unpublished_until_successful_reset(#[cas
     actor.step().await.unwrap();
     assert_eq!(derivation_origin_rx.borrow().map(|origin| origin.id()), Some(safe_head.l1_origin));
 
-    // A reset can fail before it replaces the old origin, for example on an L2 RPC error.
-    actor.pipeline.reset_error = Some(PipelineError::Eof.temp());
+    // A reset can fail before it replaces the old origin.
+    actor.pipeline.signal_error = Some(l2_provider_error().crit());
     request_tx.send(reset()).await.unwrap();
-    actor.step().await.unwrap();
+    assert!(matches!(
+        actor.step().await,
+        Err(DerivationError::Pipeline(PipelineErrorKind::Critical(PipelineError::Provider(_))))
+    ));
     assert_eq!(actor.pipeline.origin.id(), safe_head.l1_origin);
     assert!(derivation_origin_rx.borrow().is_none());
+}
 
-    // Neither a successful non-reset signal nor a step makes that origin valid again.
+/// Activation and channel flush failures leave the derivation state intact, so the actor
+/// keeps running and a later reset still publishes its origin.
+#[rstest]
+#[case::activation(Signal::Activation(ActivationSignal::default()))]
+#[case::flush_channel(Signal::FlushChannel)]
+#[tokio::test]
+async fn failed_non_reset_signal_keeps_actor_running(#[case] signal: Signal) {
+    let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
+    let (request_tx, request_rx) = mpsc::channel(1);
+    let mut actor = DerivationActor::new(
+        MockDerivationEngineClient::new(),
+        request_rx,
+        StubPipeline {
+            rollup_config: Arc::new(RollupConfig::default()),
+            origin: BlockInfo::default(),
+            signal_error: Some(l2_provider_error().temp()),
+            step_result: StepResult::AdvancedOrigin,
+        },
+        None,
+        l1_block(0).id(),
+        derivation_origin_tx,
+    );
+
     request_tx
         .send(DerivationActorRequest::ProcessEngineSignalRequest(Box::new(signal)))
         .await
         .unwrap();
     actor.step().await.unwrap();
     assert!(derivation_origin_rx.borrow().is_none());
+
+    let mut safe_head = L2BlockInfo::default();
+    safe_head.l1_origin.number = 10;
+    safe_head.l1_origin.hash = B256::repeat_byte(10);
     request_tx
-        .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(safe_head)))
+        .send(DerivationActorRequest::ProcessEngineSignalRequest(Box::new(Signal::Reset(
+            kona_derive::ResetSignal { l2_safe_head: safe_head },
+        ))))
         .await
         .unwrap();
-    actor.step().await.unwrap();
-    assert_eq!(actor.pipeline.origin.number, 11);
-    assert!(derivation_origin_rx.borrow().is_none());
-
-    request_tx.send(reset()).await.unwrap();
     actor.step().await.unwrap();
     assert_eq!(derivation_origin_rx.borrow().map(|origin| origin.id()), Some(safe_head.l1_origin));
 }
@@ -366,6 +398,7 @@ struct QueuedPipeline {
     attributes: VecDeque<OpAttributesWithParent>,
     derived_from: BlockInfo,
     rollup_config: Arc<RollupConfig>,
+    signal_error: Option<PipelineErrorKind>,
 }
 
 impl Iterator for QueuedPipeline {
@@ -385,6 +418,7 @@ impl kona_derive::OriginProvider for QueuedPipeline {
 #[async_trait]
 impl SignalReceiver for QueuedPipeline {
     async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
+        take_injected_signal_error(&mut self.signal_error)?;
         if matches!(signal, Signal::Reset(_)) {
             self.attributes.push_back(derived_attributes());
         }
@@ -481,6 +515,7 @@ impl RecordingActor {
             attributes: VecDeque::from([derived_attributes()]),
             derived_from: l1_block(DERIVED_FROM_L1),
             rollup_config: Arc::new(RollupConfig::default()),
+            signal_error: None,
         };
         let (request_tx, request_rx) = mpsc::channel(1);
         let actor = DerivationActor::new(
@@ -632,4 +667,10 @@ async fn a_block_is_queued_for_finalization_only_once_it_is_recorded() {
 
 mod database;
 
+mod op_node_parity;
+
 mod safedb_tests;
+
+mod service_shutdown;
+
+mod signal_failures;
