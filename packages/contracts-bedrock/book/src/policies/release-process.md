@@ -29,7 +29,7 @@ First select a tag string based on the guidance in [Monorepo Contracts Release V
 1. Populate the release notes in the house style. The `release-notes` skill in `.claude/skills/release-notes/` describes the style and the tools.
    If the tag is a release candidate, check the `Set as a pre-release`  option, and uncheck the
    `Set as the latest release` option.
-1. Deploy the OPCM using the following op-deployer just recipes (which call the `op-deployer bootstrap implementations` [command](https://devdocs.optimism.io/op-deployer/user-guide/bootstrap.html)),
+1. Deploy the OPCM using the following op-deployer just recipes (which call the `op-deployer bootstrap implementations` [command](https://docs.optimism.io/chain-operators/tools/op-deployer/usage/bootstrap)),
    this will write the addresses of the deployed contracts to `stdout` (or to disk if you provide an `--outfile` argument).
    ```
    cd op-deployer
@@ -38,11 +38,14 @@ First select a tag string based on the guidance in [Monorepo Contracts Release V
    just verify-opcm // verifies contracts on block-explorer
    ```
    Deploy and verify contracts on both Sepolia and Mainnet.
+   Leave `DEV_FEATURE_BITMAP` unset. `OPContractsManagerContainer` reverts on Mainnet when any dev feature is
+   enabled, and a release must be the same bundle on every network, so the OPCM for a release is always deployed
+   with an empty (`0x0`) bitmap; the recipe defaults to that.
 1. In the superchain-registry edit the following files to add a new `[<tag-string>]` entry, with the addresses from the
    previous step:
    - [standard-versions-mainnet.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml)
    - [standard-versions-sepolia.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-sepolia.toml)
-1. Once the changes are merged into the superchain-registry, you can follow the [instructions](https://devdocs.optimism.io/op-deployer/reference-guide/releases.html#step-3-update-the-sr-with-the-new-release)
+1. Once the changes are merged into the superchain-registry, you can follow the [instructions](https://docs.optimism.io/chain-operators/tools/op-deployer/usage/release-workflows#add-support-for-a-new-contract-version)
    for creating a new release of `op-deployer`.
 
 ## Implications for audits
