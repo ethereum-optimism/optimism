@@ -10,10 +10,12 @@ use alloy_transport::{
     mock::{Asserter, MockResponse, MockTransport},
 };
 use kona_genesis::RollupConfig;
+use kona_providers_alloy::AlloyChainProvider;
 use serde::Serialize;
 use serde_json::Value;
 use std::{
     collections::VecDeque,
+    num::NonZeroUsize,
     sync::{Arc, Mutex},
     task::{Context, Poll},
     time::Duration,
@@ -39,6 +41,11 @@ impl RpcMock {
     /// Builds a real Alloy provider backed by this mock transport.
     pub fn provider<N: Network>(&self) -> RootProvider<N> {
         RootProvider::new(RpcClient::new(self.clone(), true))
+    }
+
+    /// Builds a trusting L1 provider backed by this mock transport.
+    pub fn l1_provider(&self) -> AlloyChainProvider {
+        AlloyChainProvider::new(self.provider(), NonZeroUsize::new(8).unwrap(), true)
     }
 
     /// Expects one call to `method` and returns the serialized response.
@@ -174,14 +181,6 @@ impl Service<RequestPacket> for RpcMock {
 pub fn test_engine_client(cfg: Arc<RollupConfig>) -> (EngineClient, RpcMock, RpcMock) {
     let l1 = RpcMock::default();
     let l2 = RpcMock::default();
-    let client = EngineClient::new(
-        kona_providers_alloy::AlloyChainProvider::new(
-            l1.provider(),
-            std::num::NonZeroUsize::new(8).unwrap(),
-            true,
-        ),
-        l2.provider(),
-        cfg,
-    );
+    let client = EngineClient::new(l1.l1_provider(), l2.provider(), cfg);
     (client, l1, l2)
 }
