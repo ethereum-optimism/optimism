@@ -1952,43 +1952,61 @@ mod tests {
     const SYSTEM_CONFIG: Address = Address::repeat_byte(0x01);
     const SIGNER: Address = Address::repeat_byte(0x0b);
 
-    /// A state root in which `SYSTEM_CONFIG` stores `SIGNER` in its signer slot, alongside another
-    /// account and slot, and the `eth_getProof` response proving it.
-    fn proven_signer() -> (B256, serde_json::Value) {
-        let value = U256::from_be_bytes(SIGNER.into_word().0);
-        let (storage_root, storage_proof) = trie_with_proof(
-            &[
-                (keccak256(SIGNER_SLOT), alloy_rlp::encode(value)),
-                (keccak256(B256::with_last_byte(1)), alloy_rlp::encode(U256::from(7))),
-            ],
-            keccak256(SIGNER_SLOT),
-        );
-        let account = TrieAccount {
-            nonce: 1,
-            balance: U256::ZERO,
-            storage_root,
-            code_hash: keccak256([0x60]),
-        };
-        let (state_root, account_proof) = trie_with_proof(
-            &[
-                (keccak256(SYSTEM_CONFIG), alloy_rlp::encode(account)),
-                (
-                    keccak256(Address::repeat_byte(0x02)),
-                    alloy_rlp::encode(TrieAccount { nonce: 5, ..Default::default() }),
-                ),
-            ],
-            keccak256(SYSTEM_CONFIG),
-        );
+    /// The signer slot's value for `signer`.
+    fn signer_value(signer: Address) -> U256 {
+        U256::from_be_bytes(signer.into_word().0)
+    }
+
+    /// A state root over `accounts`, and the `eth_getProof` response for `target`'s signer slot.
+    /// Each account has code, stores 7 in slot 1 and, if given, a value in the signer slot.
+    fn proven_state(
+        accounts: &[(Address, Option<U256>)],
+        target: Address,
+    ) -> (B256, serde_json::Value) {
+        let accounts: Vec<_> = accounts
+            .iter()
+            .map(|&(address, signer)| {
+                let mut slots =
+                    vec![(keccak256(B256::with_last_byte(1)), alloy_rlp::encode(U256::from(7)))];
+                if let Some(signer) = signer {
+                    slots.push((keccak256(SIGNER_SLOT), alloy_rlp::encode(signer)));
+                }
+                let (storage_root, storage_proof) = trie_with_proof(&slots, keccak256(SIGNER_SLOT));
+                let account = TrieAccount {
+                    nonce: 1,
+                    balance: U256::ZERO,
+                    storage_root,
+                    code_hash: keccak256([0x60]),
+                };
+                (address, signer.unwrap_or_default(), account, storage_proof)
+            })
+            .collect();
+        let leaves: Vec<_> = accounts
+            .iter()
+            .map(|(address, _, account, _)| (keccak256(address), alloy_rlp::encode(account)))
+            .collect();
+        let (state_root, account_proof) = trie_with_proof(&leaves, keccak256(target));
+        let (_, value, account, storage_proof) =
+            accounts.iter().find(|(address, ..)| *address == target).expect("target is an account");
         let response = serde_json::json!({
-            "address": SYSTEM_CONFIG,
-            "balance": U256::ZERO,
+            "address": target,
+            "balance": account.balance,
             "codeHash": account.code_hash,
-            "nonce": "0x1",
-            "storageHash": storage_root,
+            "nonce": format!("{:#x}", account.nonce),
+            "storageHash": account.storage_root,
             "accountProof": account_proof,
             "storageProof": [{ "key": SIGNER_SLOT, "value": value, "proof": storage_proof }],
         });
         (state_root, response)
+    }
+
+    /// A state root in which `SYSTEM_CONFIG` stores `SIGNER` in its signer slot, alongside another
+    /// account, and the `eth_getProof` response proving it.
+    fn proven_signer() -> (B256, serde_json::Value) {
+        proven_state(
+            &[(SYSTEM_CONFIG, Some(signer_value(SIGNER))), (Address::repeat_byte(0x02), None)],
+            SYSTEM_CONFIG,
+        )
     }
 
     /// An untrusted provider over a server whose block has `state_root`, answering
@@ -2043,7 +2061,7 @@ mod tests {
 
         assert!(
             matches!(&error, AlloyChainProviderError::InvalidStorageProof { reason, .. }
-                if reason.contains("storage proof")),
+                if reason.starts_with("invalid storage proof")),
             "{error}"
         );
     }
@@ -2059,7 +2077,7 @@ mod tests {
 
         assert!(
             matches!(&error, AlloyChainProviderError::InvalidStorageProof { reason, .. }
-                if reason.contains("account proof")),
+                if reason.starts_with("invalid account proof")),
             "{error}"
         );
     }
@@ -2074,22 +2092,88 @@ mod tests {
             )],
             keccak256(SYSTEM_CONFIG),
         );
-        let response = |value: U256| {
-            serde_json::json!({
-                "address": SYSTEM_CONFIG,
-                "balance": U256::ZERO,
-                "codeHash": KECCAK_EMPTY,
-                "nonce": "0x0",
-                "storageHash": EMPTY_ROOT_HASH,
-                "accountProof": account_proof,
-                "storageProof": [{ "key": SIGNER_SLOT, "value": value, "proof": [] }],
-            })
-        };
+        // RPCs report an absent account's code hash and storage root either as their empty values
+        // or as zero.
+        for (code_hash, storage_hash) in [(KECCAK_EMPTY, EMPTY_ROOT_HASH), (B256::ZERO, B256::ZERO)]
+        {
+            let response = |value: U256| {
+                serde_json::json!({
+                    "address": SYSTEM_CONFIG,
+                    "balance": U256::ZERO,
+                    "codeHash": code_hash,
+                    "nonce": "0x0",
+                    "storageHash": storage_hash,
+                    "accountProof": account_proof,
+                    "storageProof": [{ "key": SIGNER_SLOT, "value": value, "proof": [] }],
+                })
+            };
 
-        let (_server, provider, hash) = storage_proof_server(state_root, response(U256::ZERO));
+            let (_server, provider, hash) = storage_proof_server(state_root, response(U256::ZERO));
+            assert_eq!(
+                provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap(),
+                Address::ZERO
+            );
+
+            let (_server, provider, hash) =
+                storage_proof_server(state_root, response(U256::from(1)));
+            let error = provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap_err();
+            assert!(
+                matches!(error, AlloyChainProviderError::InvalidStorageProof { .. }),
+                "{error}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn untrusted_unsafe_block_signer_rejects_another_accounts_storage() {
+        // An attacker's contract stores the attacker's address in the same slot. Its proofs are
+        // valid against the state root, but they prove the wrong account, whichever address the
+        // response claims.
+        let attacker = Address::repeat_byte(0x0a);
+        let (state_root, mut response) = proven_state(
+            &[
+                (SYSTEM_CONFIG, Some(signer_value(SIGNER))),
+                (attacker, Some(signer_value(attacker))),
+            ],
+            attacker,
+        );
+        for claimed in [attacker, SYSTEM_CONFIG] {
+            response["address"] = serde_json::json!(claimed);
+            let (_server, provider, hash) = storage_proof_server(state_root, response.clone());
+
+            let error = provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap_err();
+
+            assert!(
+                matches!(error, AlloyChainProviderError::InvalidStorageProof { .. }),
+                "{error}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn untrusted_unset_signer_of_an_existing_account_is_proven_zero() {
+        let (state_root, response) = proven_state(
+            &[(SYSTEM_CONFIG, None), (Address::repeat_byte(0x02), None)],
+            SYSTEM_CONFIG,
+        );
+        let (_server, provider, hash) = storage_proof_server(state_root, response);
+
         assert_eq!(provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap(), Address::ZERO);
+    }
 
-        let (_server, provider, hash) = storage_proof_server(state_root, response(U256::from(1)));
-        assert!(provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.is_err());
+    #[tokio::test]
+    async fn untrusted_unsafe_block_signer_rejects_a_set_slot_reported_as_zero() {
+        // Claiming the slot is unset needs a proof that it is absent, which a set slot has not.
+        let (state_root, mut response) = proven_signer();
+        response["storageProof"][0]["value"] = serde_json::json!(U256::ZERO);
+        let (_server, provider, hash) = storage_proof_server(state_root, response);
+
+        let error = provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap_err();
+
+        assert!(
+            matches!(&error, AlloyChainProviderError::InvalidStorageProof { reason, .. }
+                if reason.starts_with("invalid storage proof")),
+            "{error}"
+        );
     }
 }
