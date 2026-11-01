@@ -564,7 +564,7 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 	var safeDB closableSafeDB
 	if cfg.SafeDBPath != "" {
 		node.log.Info("Safe head database enabled", "path", cfg.SafeDBPath)
-		safeDB, err = safedb.NewSafeDB(node.log, cfg.SafeDBPath)
+		safeDB, err = safedb.NewSafeDBWithMetrics(node.log, cfg.SafeDBPath, node.metrics)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to create safe head database at %v: %w", cfg.SafeDBPath, err)
 		}
