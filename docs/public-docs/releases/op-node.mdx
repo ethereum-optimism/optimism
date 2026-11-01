@@ -15,7 +15,18 @@ diataxis: reference
 
 **op-node** implements the [rollup-node spec](https://specs.optimism.io/protocol/rollup-node.html), functioning as the consensus layer (CL) client of an OP Stack chain. It builds, relays, and verifies the canonical L2 chain, working alongside an execution layer client such as op-reth.
 
-<Update label="October 1, 2026" description="v1.19.8" tags={["Latest", "Stable"]}>
+<Update label="October 22, 2026" description="v1.19.11" tags={["Latest", "Stable"]}>
+
+## Overview
+
+> [!IMPORTANT]
+> This is a strongly recommended release for all op-node operators. It contains security fixes for the compromised eMudhra certificate authority (CVE-2026-111943) and other Go standard-library security fixes, a fix for the sequencer's L1 origin falling behind L1 on chains whose L2 block time is more than half the L1 block time (more than 6 seconds on Ethereum), support for beacon nodes that publish the slot duration only as `SLOT_DURATION_MS`, and a startup fix for L1 clients that have pruned history.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.19.11)
+
+</Update>
+
+<Update label="October 1, 2026" description="v1.19.8" tags={["Stable"]}>
 
 ## Overview
 
