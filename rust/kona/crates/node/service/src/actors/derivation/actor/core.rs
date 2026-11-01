@@ -139,7 +139,7 @@ where
 
     /// Resets the pipeline to the engine's safe head, adopts that head, and resumes derivation.
     ///
-    /// SafeDB is truncated before the pipeline resets, so derivation must not resume until the
+    /// `SafeDB` is truncated before the pipeline resets, so derivation must not resume until the
     /// pipeline reset has succeeded. Like op-node, a temporary pipeline failure, such as an L2
     /// RPC error while the pipeline walks back to its L1 origin, schedules a retry with backoff
     /// and leaves the state machine awaiting the signal. Any other failure stops the actor.
