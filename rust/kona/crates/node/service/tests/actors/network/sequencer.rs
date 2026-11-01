@@ -2,10 +2,7 @@ use std::time::Duration;
 
 use crate::actors::{
     generator::{block_builder::PayloadVersion, seed::SEED_GENERATOR_BUILDER},
-    network::mocks::{
-        TestNetworkError,
-        builder::{TestNetworkBuilder, signer_address},
-    },
+    network::mocks::builder::{TestNetworkBuilder, signer_address},
 };
 use kona_gossip::PeerAddr;
 use libp2p::identity::Keypair;
@@ -20,9 +17,9 @@ async fn test_sequencer_network_conn() -> anyhow::Result<()> {
 
     let mut validator = builder.build(vec![enr_1]).await;
 
-    sequencer.is_connected_to_with_retries(&validator).await?;
+    sequencer.check_connected_to_with_retries(&validator).await?;
 
-    validator.is_connected_to_with_retries(&sequencer).await?;
+    validator.check_connected_to_with_retries(&sequencer).await?;
 
     let mut seed_generator = SEED_GENERATOR_BUILDER.next_generator();
 
@@ -49,8 +46,8 @@ async fn test_sequencer_memory_network_conn() -> anyhow::Result<()> {
 
     validator.connect_to(&sequencer).await?;
 
-    validator.is_connected_to_with_retries(&sequencer).await?;
-    sequencer.is_connected_to_with_retries(&validator).await?;
+    validator.check_connected_to_with_retries(&sequencer).await?;
+    sequencer.check_connected_to_with_retries(&validator).await?;
 
     let mut seed_generator = SEED_GENERATOR_BUILDER.next_generator();
 
@@ -92,7 +89,7 @@ async fn test_sequencer_network_propagation() -> anyhow::Result<()> {
     // Check that each validator is connected to the node before it, so the line is complete.
     let mut previous = &sequencer;
     for validator in &validators {
-        validator.is_connected_to_with_retries(previous).await?;
+        validator.check_connected_to_with_retries(previous).await?;
         previous = validator;
     }
 
@@ -154,10 +151,7 @@ async fn test_hub_relays_blocks_between_spokes() -> anyhow::Result<()> {
 
     // The spokes are only connected to the hub.
     for (spoke, other) in [(&spoke_a, &spoke_b), (&spoke_b, &spoke_a)] {
-        assert!(matches!(
-            spoke.is_connected_to(other).await,
-            Err(TestNetworkError::PeerNotConnected)
-        ));
+        assert!(!spoke.is_connected_to(other).await?);
         assert_eq!(spoke.peers().await?.peers.len(), 1);
     }
     for node in [&hub, &spoke_a, &spoke_b] {

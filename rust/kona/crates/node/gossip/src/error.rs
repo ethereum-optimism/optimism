@@ -67,12 +67,34 @@ pub enum GossipDriverBuilderError {
     /// second. gossipsub only gives the reason as a string.
     #[error("invalid peer scoring parameters: {0}")]
     InvalidPeerScoring(String),
-    /// An error when setting up the sync request/response protocol.
-    #[error("error setting up sync request/response protocol")]
-    SetupSyncReqRespError(#[source] libp2p::swarm::InvalidProtocol),
-    /// The sync request/response protocol has already been accepted.
-    #[error("sync request/response protocol already accepted")]
-    SyncReqRespAlreadyAccepted(#[source] libp2p_stream::AlreadyRegistered),
+}
+
+/// An error from [`crate::GossipDriver::start`].
+#[derive(Debug, Error)]
+pub enum StartError {
+    /// The driver is already listening, on the address [`crate::GossipDriver::addr`] returns.
+    #[error("the gossip driver has already been started")]
+    AlreadyStarted,
+    /// The transport can't listen on the address.
+    #[error("failed to listen")]
+    Listen(#[from] libp2p::TransportError<std::io::Error>),
+    /// The listener closed before it reported the address it listens on.
+    #[error("the listener closed before it reported an address")]
+    ListenerClosed(#[source] Option<std::io::Error>),
+}
+
+/// Why a peer that the [`crate::GossipCommand::ConnectPeer`] command dialed didn't connect.
+#[derive(Debug, Clone, Error)]
+pub enum ConnectPeerError {
+    /// The gate refused the peer or its address, or the address can't be dialed. The gate refuses
+    /// before the dial, or once the connection is established, for an address blocked while the
+    /// dial ran.
+    #[error(transparent)]
+    Refused(#[from] DialError),
+    /// The swarm couldn't connect, for example because the peer refused the connection. Holds the
+    /// swarm's error message.
+    #[error("{0}")]
+    DialFailed(String),
 }
 
 /// An error type representing reasons why a peer cannot be dialed.
@@ -103,6 +125,12 @@ pub enum DialError {
         /// The `PeerId` of the peer that is on the blocklist
         peer_id: PeerId,
     },
+    /// Peer is banned for its score, until the ban expires.
+    #[error("Peer is banned: {peer_id}")]
+    PeerBanned {
+        /// The `PeerId` of the banned peer
+        peer_id: PeerId,
+    },
     /// Failed to extract IP address from Multiaddr.
     #[error("Failed to extract IP address from Multiaddr: {addr}")]
     InvalidIpAddress {
@@ -121,6 +149,39 @@ pub enum DialError {
         /// The IP address that belongs to a blocked subnet range
         ip: IpAddr,
     },
+    /// No address is left to dial, though the gate refused none: none is for the peer, or a DNS
+    /// name didn't resolve.
+    #[error("No address to dial peer: {peer_id}")]
+    NoAddresses {
+        /// The peer that had no address left.
+        peer_id: PeerId,
+    },
+    /// The swarm refused to start the dial.
+    #[error("Failed to dial peer {peer_id}: {reason}")]
+    SwarmRefused {
+        /// The peer that wasn't dialed.
+        peer_id: PeerId,
+        /// The swarm's error message.
+        reason: String,
+    },
+}
+
+impl DialError {
+    /// Returns the reason as a metric label, such as `blocked_peer`.
+    pub(crate) const fn reason(&self) -> &'static str {
+        match self {
+            Self::InvalidMultiaddr { .. } => "invalid_multiaddr",
+            Self::AlreadyDialing { .. } => "already_dialing",
+            Self::ThresholdReached { .. } => "threshold_reached",
+            Self::PeerBlocked { .. } => "blocked_peer",
+            Self::PeerBanned { .. } => "banned_peer",
+            Self::InvalidIpAddress { .. } => "invalid_ip_address",
+            Self::AddressBlocked { .. } => "blocked_address",
+            Self::SubnetBlocked { .. } => "blocked_subnet",
+            Self::NoAddresses { .. } => "no_addresses",
+            Self::SwarmRefused { .. } => "swarm_refused",
+        }
+    }
 }
 
 /// Error parsing a [`PeerAddr`](crate::PeerAddr) address.
@@ -135,4 +196,7 @@ pub enum PeerAddrError {
     /// The address is only a `/p2p/<peer id>`, with nothing to dial.
     #[error("Address has nothing to dial before /p2p/<peer id>")]
     MissingAddress,
+    /// The address already ends in another peer's `/p2p/<peer id>`.
+    #[error("Address ends in another peer's /p2p/<peer id>")]
+    WrongPeerId,
 }

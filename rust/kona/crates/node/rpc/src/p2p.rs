@@ -7,7 +7,6 @@
 
 use alloy_primitives::map::HashMap;
 use async_trait::async_trait;
-use backon::{ExponentialBuilder, Retryable};
 use enr::{NodeId, k256::ecdsa};
 use ipnet::IpNet;
 use jsonrpsee::{
@@ -17,11 +16,12 @@ use jsonrpsee::{
 use kona_disc::Discv5Handler;
 use kona_gossip::{
     Connectedness, Direction, GossipCommand, GossipCommandSender, GossipQueryHandle, GossipScores,
-    GossipState, PeerCount, PeerDump, PeerInfo, PeerScores, PeerStats,
+    GossipState, PeerAddr, PeerAddrError, PeerCount, PeerDump, PeerInfo, PeerScores, PeerStats,
 };
 use kona_peers::{OpStackEnr, peer_id_to_node_id};
 use libp2p::{PeerId, multiaddr::Protocol};
 use std::{net::IpAddr, str::FromStr, sync::Arc, time::Duration};
+use tokio::sync::oneshot;
 
 use crate::OpP2PApiServer;
 
@@ -33,6 +33,8 @@ pub struct P2pRpc {
     discovery: Option<Discv5Handler>,
     chain_id: u64,
     commands: GossipCommandSender,
+    /// How old the gossip state a call answers from may be.
+    snapshot_max_age: Duration,
 }
 
 /// Logs a failure the client can't fix, and returns it as an internal error that names the
@@ -43,16 +45,34 @@ fn internal_error(operation: &str, err: impl std::fmt::Display) -> ErrorObject<'
     ErrorObject::owned(ErrorCode::InternalError.code(), message, None::<()>)
 }
 
+/// How old the gossip state an RPC call answers from may be, unless set with
+/// [`P2pRpc::with_snapshot_max_age`].
+///
+/// What a command changes is there at once: the network actor publishes the state after each
+/// one. Up to this old, changes from the network itself, such as connections and scores, may be
+/// missing.
+const SNAPSHOT_MAX_AGE: Duration = Duration::from_secs(1);
+
+/// How long `opp2p_connectPeer` waits for the peer to connect, as op-node does.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How long `opp2p_disconnectPeer` waits for the peer's connections to close.
+const DISCONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// An error with the code op-node's server assigns to a plain Go error, and its message.
+fn plain_error(message: String) -> ErrorObject<'static> {
+    ErrorObject::owned(-32000, message, None::<()>)
+}
+
 /// The error op-node's `opp2p_discoveryTable` returns when discovery is disabled.
 fn discovery_disabled() -> ErrorObject<'static> {
-    // The code op-node's server assigns to a plain error.
-    ErrorObject::owned(-32000, "discovery disabled", None::<()>)
+    plain_error("discovery disabled".to_owned())
 }
 
 #[async_trait]
 impl OpP2PApiServer for P2pRpc {
     async fn opp2p_self(&self) -> RpcResult<PeerInfo> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         let peer_id = gossip.local_peer_id;
         let chain_id = self.chain_id;
         // Like op-node, from the libp2p key, which is discovery's key too.
@@ -90,7 +110,6 @@ impl OpP2PApiServer for P2pRpc {
                 "/meshsub/1.2.0".to_string(),
                 "/meshsub/1.3.0".to_string(),
                 "/ipfs/id/1.0.0".to_string(),
-                format!("/opstack/req/payload_by_number/{chain_id}/0/"),
                 "/meshsub/1.0.0".to_string(),
                 "/floodsub/1.0.0".to_string(),
             ]),
@@ -107,7 +126,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_peer_count(&self) -> RpcResult<PeerCount> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         let connected_discovery = match &self.discovery {
             Some(discovery) => discovery
                 .peer_count()
@@ -122,7 +141,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_peers(&self, connected: bool) -> RpcResult<PeerDump> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         let total_connected = gossip
             .connected_peers
             .len()
@@ -139,7 +158,7 @@ impl OpP2PApiServer for P2pRpc {
             }
             None => Vec::new(),
         };
-        let pings = gossip.pings().await;
+        let pings = &gossip.pings;
         let node_to_peer_id = peer_ids.into_iter().filter_map(|id| {
             let Ok(pubkey) = libp2p::identity::PublicKey::try_decode_protobuf(&id.to_bytes()[2..]) else {
                 error!(target: "p2p::rpc", peer_id = ?id, "Failed to decode public key from peer ID");
@@ -216,7 +235,12 @@ impl OpP2PApiServer for P2pRpc {
                             })
                             .unwrap_or_default(),
                         chain_id,
-                        latency: pings.get(peer_id).map(|duration| duration.as_secs()).unwrap_or(0),
+                        // In nanoseconds, as op-node's `time.Duration` encodes it. op-node reports
+                        // an average of recent pings, kona the latest one.
+                        latency: pings
+                            .get(peer_id)
+                            .map(|duration| duration.as_nanos().try_into().unwrap_or(u64::MAX))
+                            .unwrap_or(0),
                         gossip_blocks: gossip.gossip_peers.contains(peer_id),
                         protected: gossip.protected_peers.contains(peer_id),
                         peer_scores: PeerScores {
@@ -241,7 +265,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_peer_stats(&self) -> RpcResult<PeerStats> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         let table = match &self.discovery {
             Some(discovery) => {
                 discovery.peer_count().await.map_err(|e| internal_error("peer_count", e))?
@@ -268,7 +292,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_discovery_table(&self) -> RpcResult<Vec<String>> {
-        self.gossip_snapshot()?;
+        self.gossip_snapshot().await?;
         self.discovery
             .as_ref()
             .ok_or_else(discovery_disabled)?
@@ -291,7 +315,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_list_blocked_peers(&self) -> RpcResult<Vec<String>> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         Ok(gossip.blocked_peers.iter().map(ToString::to_string).collect())
     }
 
@@ -304,7 +328,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_list_blocked_addrs(&self) -> RpcResult<Vec<IpAddr>> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         Ok(gossip.blocked_addresses.clone())
     }
 
@@ -317,7 +341,7 @@ impl OpP2PApiServer for P2pRpc {
     }
 
     async fn opp2p_list_blocked_subnets(&self) -> RpcResult<Vec<IpNet>> {
-        let gossip = self.gossip_snapshot()?;
+        let gossip = self.gossip_snapshot().await?;
         Ok(gossip.blocked_subnets.clone())
     }
 
@@ -333,75 +357,32 @@ impl OpP2PApiServer for P2pRpc {
         self.apply_command(GossipCommand::UnprotectPeer { peer_id }).await
     }
 
-    async fn opp2p_connect_peer(&self, _peer: String) -> RpcResult<()> {
-        use std::str::FromStr;
-        let ma = libp2p::Multiaddr::from_str(&_peer).map_err(|_| {
-            ErrorObject::borrowed(ErrorCode::InvalidParams.code(), "Invalid multiaddr", None)
+    async fn opp2p_connect_peer(&self, peer: String) -> RpcResult<()> {
+        let peer: PeerAddr = peer.parse().map_err(|err: PeerAddrError| {
+            ErrorObject::owned(ErrorCode::InvalidParams.code(), err.to_string(), None::<()>)
         })?;
 
-        let peer_id = ma
-            .iter()
-            .find_map(|component| match component {
-                libp2p::multiaddr::Protocol::P2p(peer_id) => Some(peer_id),
-                _ => None,
-            })
-            .ok_or_else(|| {
-                ErrorObject::borrowed(
-                    ErrorCode::InvalidParams.code(),
-                    "Impossible to extract peer ID from multiaddr",
-                    None,
-                )
-            })?;
-
-        self.apply_command(GossipCommand::ConnectPeer { address: ma }).await?;
-
-        // We need to wait until both peers are connected to each other to return from this method.
-        // We try with an exponential backoff and return an error if we fail to connect to the peer.
-        let is_connected = async || {
-            let peers = self.opp2p_peers(true).await?;
-            Ok::<bool, ErrorObject<'_>>(peers.peers.contains_key(&peer_id.to_string()))
-        };
-
-        if !is_connected
-            .retry(ExponentialBuilder::default().with_total_delay(Some(Duration::from_secs(10))))
-            .await?
-        {
-            return Err(ErrorObject::borrowed(
-                ErrorCode::InvalidParams.code(),
-                "Peer not connected",
-                None,
-            ));
+        let (reply, outcome) = oneshot::channel();
+        self.apply_command(GossipCommand::ConnectPeer { peer, reply }).await?;
+        match tokio::time::timeout(CONNECT_TIMEOUT, outcome).await {
+            Ok(Ok(Ok(()))) => self.await_current_state().await,
+            Ok(Ok(Err(err))) => Err(plain_error(err.to_string())),
+            Ok(Err(err)) => Err(internal_error("connect_peer", err)),
+            Err(_) => Err(plain_error("timed out connecting to the peer".to_owned())),
         }
-
-        Ok(())
     }
 
     async fn opp2p_disconnect_peer(&self, peer_id: String) -> RpcResult<()> {
         let peer_id: PeerId =
             peer_id.parse().map_err(|_| ErrorObject::from(ErrorCode::InvalidParams))?;
 
-        self.apply_command(GossipCommand::DisconnectPeer { peer_id }).await?;
-
-        // We need to wait until both peers are fully disconnected to each other to return from this
-        // method. We try with an exponential backoff and return an error if we fail to
-        // disconnect from the peer.
-        let is_not_connected = async || {
-            let peers = self.opp2p_peers(true).await?;
-            Ok::<bool, ErrorObject<'_>>(!peers.peers.contains_key(&peer_id.to_string()))
-        };
-
-        if !is_not_connected
-            .retry(ExponentialBuilder::default().with_total_delay(Some(Duration::from_secs(10))))
-            .await?
-        {
-            return Err(ErrorObject::borrowed(
-                ErrorCode::InvalidParams.code(),
-                "Peers are still connected",
-                None,
-            ));
+        let (reply, closed) = oneshot::channel();
+        self.apply_command(GossipCommand::DisconnectPeer { peer_id, reply }).await?;
+        match tokio::time::timeout(DISCONNECT_TIMEOUT, closed).await {
+            Ok(Ok(())) => self.await_current_state().await,
+            Ok(Err(err)) => Err(internal_error("disconnect_peer", err)),
+            Err(_) => Err(plain_error("timed out disconnecting the peer".to_owned())),
         }
-
-        Ok(())
     }
 }
 
@@ -414,7 +395,15 @@ impl P2pRpc {
         chain_id: u64,
         commands: GossipCommandSender,
     ) -> Self {
-        Self { gossip, discovery, chain_id, commands }
+        Self { gossip, discovery, chain_id, commands, snapshot_max_age: SNAPSHOT_MAX_AGE }
+    }
+
+    /// Sets how old the gossip state a call answers from may be. With zero, each call waits for
+    /// state the network actor builds after the call starts, as tests that watch the network
+    /// need.
+    pub const fn with_snapshot_max_age(mut self, max_age: Duration) -> Self {
+        self.snapshot_max_age = max_age;
+        self
     }
 
     async fn apply_command(&self, command: GossipCommand) -> RpcResult<()> {
@@ -426,8 +415,23 @@ impl P2pRpc {
         applied_rx.await.map_err(|e| internal_error("apply_command", e))
     }
 
-    fn gossip_snapshot(&self) -> RpcResult<Arc<GossipState>> {
-        self.gossip.snapshot().map_err(|e| internal_error("gossip_snapshot", e))
+    /// Waits for gossip state built after this point, so that a call made after this returns
+    /// sees what the network actor has done so far, even with a snapshot that is still young
+    /// enough to answer from. The actor settles a connect or disconnect from a swarm event, and
+    /// only publishes after handling it.
+    async fn await_current_state(&self) -> RpcResult<()> {
+        self.gossip
+            .snapshot(Duration::ZERO)
+            .await
+            .map(|_| ())
+            .map_err(|e| internal_error("gossip_snapshot", e))
+    }
+
+    async fn gossip_snapshot(&self) -> RpcResult<Arc<GossipState>> {
+        self.gossip
+            .snapshot(self.snapshot_max_age)
+            .await
+            .map_err(|e| internal_error("gossip_snapshot", e))
     }
 }
 
@@ -444,6 +448,8 @@ mod tests {
     struct Fixture {
         rpc: P2pRpc,
         state_tx: watch::Sender<Arc<GossipState>>,
+        /// Kept open, so a stale snapshot's refresh request waits instead of failing.
+        refresh_rx: mpsc::Receiver<()>,
         commands_rx: GossipCommandReceiver,
         discovery_rx: mpsc::Receiver<HandlerRequest>,
         driver: GossipDriver<ConnectionGater>,
@@ -459,15 +465,90 @@ mod tests {
         .build()
         .unwrap();
         let (state_tx, state_rx) = watch::channel(Arc::new(driver.snapshot()));
+        let (refresh_tx, refresh_rx) = mpsc::channel(1);
         let (commands_tx, commands_rx) = mpsc::channel(8);
         let (discovery_tx, discovery_rx) = mpsc::channel(8);
         let rpc = P2pRpc::new(
-            GossipQueryHandle::new(state_rx),
+            GossipQueryHandle::new(state_rx, refresh_tx),
             discovery.then(|| Discv5Handler::new(10, discovery_tx)),
             10,
             commands_tx,
         );
-        Fixture { rpc, state_tx, commands_rx, discovery_rx, driver }
+        Fixture { rpc, state_tx, refresh_rx, commands_rx, discovery_rx, driver }
+    }
+
+    /// Plays the network actor for one command: applies it, has `settle` reply to it, and
+    /// publishes `connected` as the new state only once a reader asks for a fresher snapshot.
+    async fn settle_command_then_publish_when_asked(
+        fixture: &mut Fixture,
+        settle: impl FnOnce(GossipCommand),
+        connected: Option<PeerId>,
+    ) {
+        let (command, applied) = fixture.commands_rx.recv().await.expect("a command");
+        let _ = applied.send(());
+        settle(command);
+        fixture.refresh_rx.recv().await.expect("a request for fresher state");
+        let mut state = fixture.driver.snapshot();
+        state.connected_peers.extend(connected);
+        fixture.state_tx.send_replace(Arc::new(state));
+    }
+
+    /// `opp2p_connectPeer` rejects an address that doesn't name a peer to dial as invalid params,
+    /// without sending the network actor a command.
+    #[rstest::rstest]
+    #[case::not_a_multiaddr("127.0.0.1:9222")]
+    #[case::no_peer_id("/ip4/127.0.0.1/tcp/9222")]
+    #[case::nothing_to_dial("/p2p/16Uiu2HAmLFhCjjNUXiZA3Hdd3j3qp6rnD6tHkFtsSZmhpV8axfGX")]
+    #[tokio::test]
+    async fn connect_peer_rejects_an_address_without_a_peer_to_dial(#[case] addr: &str) {
+        let mut fixture = fixture(false);
+        let err = fixture.rpc.opp2p_connect_peer(addr.to_owned()).await.expect_err("rejected");
+        assert_eq!(err.code(), ErrorCode::InvalidParams.code());
+        assert!(fixture.commands_rx.try_recv().is_err());
+    }
+
+    /// `opp2p_connectPeer` returns only once the gossip state shows the connection, so that a
+    /// read right after it lists the peer, though an older snapshot is still young enough to use.
+    #[tokio::test]
+    async fn connect_peer_returns_once_the_state_shows_the_connection() {
+        let mut fixture = fixture(false);
+        let peer = Keypair::generate_secp256k1().public().to_peer_id();
+        let connect = fixture.rpc.clone();
+        let connect = connect.opp2p_connect_peer(format!("/ip4/127.0.0.1/tcp/9222/p2p/{peer}"));
+        let settle = |command| {
+            let GossipCommand::ConnectPeer { reply, .. } = command else { panic!("{command:?}") };
+            let _ = reply.send(Ok(()));
+        };
+        let actor = settle_command_then_publish_when_asked(&mut fixture, settle, Some(peer));
+        let joined =
+            tokio::time::timeout(Duration::from_secs(5), async { tokio::join!(connect, actor) });
+        joined.await.expect("connected").0.expect("connect");
+
+        assert_eq!(fixture.rpc.opp2p_peer_count().await.unwrap().connected_gossip, 1);
+    }
+
+    /// `opp2p_disconnectPeer` returns only once the gossip state shows the disconnection.
+    #[tokio::test]
+    async fn disconnect_peer_returns_once_the_state_shows_the_disconnection() {
+        let mut fixture = fixture(false);
+        let peer = Keypair::generate_secp256k1().public().to_peer_id();
+        let mut state = fixture.driver.snapshot();
+        state.connected_peers.insert(peer);
+        fixture.state_tx.send_replace(Arc::new(state));
+        let disconnect = fixture.rpc.clone();
+        let disconnect = disconnect.opp2p_disconnect_peer(peer.to_string());
+        let settle = |command| {
+            let GossipCommand::DisconnectPeer { reply, .. } = command else {
+                panic!("{command:?}")
+            };
+            let _ = reply.send(());
+        };
+        let actor = settle_command_then_publish_when_asked(&mut fixture, settle, None);
+        let joined =
+            tokio::time::timeout(Duration::from_secs(5), async { tokio::join!(disconnect, actor) });
+        joined.await.expect("disconnected").0.expect("disconnect");
+
+        assert_eq!(fixture.rpc.opp2p_peer_count().await.unwrap().connected_gossip, 0);
     }
 
     #[tokio::test]
@@ -477,8 +558,9 @@ mod tests {
         let disconnected_key = Keypair::generate_secp256k1();
         let connected = connected_key.public().to_peer_id();
         let disconnected = disconnected_key.public().to_peer_id();
+        let mut state = fixture.driver.snapshot();
         for key in [&connected_key, &disconnected_key] {
-            fixture.driver.peerstore.insert(
+            state.peerstore.insert(
                 key.public().to_peer_id(),
                 Info {
                     public_key: key.public(),
@@ -491,12 +573,12 @@ mod tests {
                 },
             );
         }
-        let mut state = fixture.driver.snapshot();
         state.connected_peers.insert(connected);
         state.blocked_peers.push(disconnected);
         state.protected_peers.push(connected);
         state.gossip_peers.insert(connected);
         state.peer_scores.insert(connected, 3.5);
+        state.pings.insert(connected, Duration::from_millis(25));
         state.blocked_addresses.push("192.0.2.1".parse().unwrap());
         state.blocked_subnets.push("192.0.2.0/24".parse().unwrap());
         fixture.state_tx.send_replace(Arc::new(state));
@@ -516,6 +598,8 @@ mod tests {
             assert_eq!(info.connectedness, Connectedness::Connected);
             assert!(info.protected && info.gossip_blocks);
             assert_eq!(info.peer_scores.gossip.total, 3.5);
+            // In nanoseconds, as op-node's `time.Duration` encodes it.
+            assert_eq!(info.latency, 25_000_000);
             assert_eq!(info.user_agent, "agent");
             assert_eq!(info.protocol_version, "protocol");
             assert_eq!(info.protocols.as_ref().unwrap(), &["/meshsub/1.1.0"]);
@@ -549,7 +633,8 @@ mod tests {
         fixture.state_tx.send_replace(Arc::new(state));
         assert_eq!(clone.opp2p_list_blocked_peers().await.unwrap(), vec![blocked.to_string()]);
         drop(fixture.state_tx);
-        let stopped = (ErrorCode::InternalError.code(), "gossip_snapshot: channel closed");
+        let stopped =
+            (ErrorCode::InternalError.code(), "gossip_snapshot: the network actor has stopped");
         let err = clone.opp2p_list_blocked_peers().await.unwrap_err();
         assert_eq!((err.code(), err.message()), stopped);
         let err = clone.opp2p_peer_count().await.unwrap_err();
