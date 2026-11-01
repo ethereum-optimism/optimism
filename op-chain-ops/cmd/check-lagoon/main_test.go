@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-lagoon/checks"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-lagoon/sdmcheck"
 )
 
@@ -191,8 +192,9 @@ func TestRunLagoonLegsFailureDoesNotCancelOtherLegs(t *testing.T) {
 			defer close(interopFailed)
 			return errors.New("relay failed")
 		},
-		sdmA: sdmLeg,
-		sdmB: sdmLeg,
+		expiry: func(context.Context) error { return nil },
+		sdmA:   sdmLeg,
+		sdmB:   sdmLeg,
 	}, &result)
 
 	require.ErrorContains(t, err, "Interop smoke: relay failed")
@@ -208,18 +210,81 @@ func TestRunLagoonLegsJoinsEveryFailure(t *testing.T) {
 	var result lagoonAllResult
 	err := runLagoonLegs(context.Background(), lagoonLegs{
 		interop: func(context.Context) error { return nil },
+		expiry:  func(context.Context) error { return errors.New("expiryPeriod() is 30s, want 691200s") },
 		sdmA:    func(context.Context) (*sdmcheck.Result, error) { return nil, errors.New("no PostExec tx") },
 		sdmB: func(context.Context) (*sdmcheck.Result, error) {
 			return &sdmcheck.Result{RPCURL: "b"}, errors.New("verifier disagreed")
 		},
 	}, &result)
 
+	require.ErrorContains(t, err, "message expiry: expiryPeriod() is 30s, want 691200s")
 	require.ErrorContains(t, err, "chain A SDM: no PostExec tx")
 	require.ErrorContains(t, err, "chain B SDM: verifier disagreed")
 	require.True(t, result.InteropPassed)
 	require.Empty(t, result.InteropError)
+	require.False(t, result.ExpiryPassed)
+	require.Equal(t, "expiryPeriod() is 30s, want 691200s", result.ExpiryError)
 	require.Nil(t, result.SDMChainA)
 	require.Equal(t, "no PostExec tx", result.SDMChainAError)
 	require.Equal(t, "b", result.SDMChainB.RPCURL)
 	require.Equal(t, "verifier disagreed", result.SDMChainBError)
+}
+
+func TestExpiryConfigLoadsFromNestedTable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "check-lagoon.toml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+[expiry]
+l2 = ["http://chain-a", "http://chain-b"]
+l1 = "http://l1"
+l1-messenger = ["0x0000000000000000000000000000000000000001", "0x0000000000000000000000000000000000000002"]
+`), 0o600))
+
+	app := newApp()
+	app.Writer = io.Discard
+	app.ErrWriter = io.Discard
+	var observed bool
+	for _, command := range app.Commands {
+		if command.Name == "expiry" {
+			command.Action = func(ctx *cli.Context) error {
+				observed = true
+				require.Equal(t, []string{"http://chain-a", "http://chain-b"}, ctx.StringSlice(ExpiryL2.Name))
+				require.Equal(t, "http://l1", ctx.String(ExpiryL1.Name))
+				require.Len(t, ctx.StringSlice(ExpiryL1Messenger.Name), 2)
+				require.Equal(t, checks.DefaultExpiryPeriod, ctx.Uint64(ExpiryPeriod.Name))
+				return nil
+			}
+		}
+	}
+	require.NoError(t, app.Run([]string{"check-lagoon", "expiry", "--config", path}))
+	require.True(t, observed)
+}
+
+func TestExpiryRejectsBadL1Flags(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "no L2", args: nil, wantErr: "--expiry.l2 is required"},
+		{name: "no L1", args: []string{"--expiry.l2", "http://a"}, wantErr: "--expiry.l1 and --expiry.l1-messenger are required"},
+		{
+			name:    "messenger count",
+			args:    []string{"--expiry.l2", "http://a", "--expiry.l2", "http://b", "--expiry.l1", "http://l1", "--expiry.l1-messenger", "0x0000000000000000000000000000000000000001"},
+			wantErr: "need one --expiry.l1-messenger per L2 chain (got 1 for 2 chains)",
+		},
+		{
+			name:    "zero messenger",
+			args:    []string{"--expiry.l2", "http://a", "--expiry.l1", "http://l1", "--expiry.l1-messenger", "0x0000000000000000000000000000000000000000"},
+			wantErr: "must be a non-zero hex address",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := newApp()
+			app.Writer = io.Discard
+			app.ErrWriter = io.Discard
+			err := app.Run(append([]string{"check-lagoon", "expiry"}, tt.args...))
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
 }
