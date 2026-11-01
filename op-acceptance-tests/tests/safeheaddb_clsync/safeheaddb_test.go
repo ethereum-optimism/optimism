@@ -27,6 +27,7 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 	// assertions.go:387:
 	sysgo.SkipOnOpReth(t, "not supported (peering issue)")
 	sys := presets.NewSingleChainMultiNode(t,
+		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
 		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(p devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
 			cfg.SequencerSyncMode = sync.CLSync
 			cfg.VerifierSyncMode = sync.CLSync
@@ -43,8 +44,8 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
 
 	// Stop the verifier node. Since the sysgo EL uses in-memory storage this also wipes its database.
-	// With the EL reset to genesis, when the CL restarts it will use EL sync to resync the chain rather than
-	// deriving it from L1.
+	// With the EL reset to genesis, the restarted CL stays in CL sync mode and re-derives the chain from L1,
+	// so unlike the EL sync case it must not truncate its safe head database.
 	sys.L2ELB.Stop()
 	sys.L2CLB.Stop()
 
@@ -52,6 +53,7 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 
 	sys.L2ELB.Start()
 	sys.L2CLB.Start()
+	sys.L2ELB.WaitForOnline()
 	sys.L2ELB.PeerWith(sys.L2EL)
 
 	sys.L2CLB.InSync(sys.L2CL, safety.LocalSafe, 30)
