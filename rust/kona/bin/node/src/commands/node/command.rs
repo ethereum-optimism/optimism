@@ -325,15 +325,9 @@ impl NodeCommand {
         };
 
         let dependency_set = self.load_dependency_set(&cfg)?;
+        self.check_safe_db_supported(&cfg)?;
         let safe_db = self.open_safe_db()?;
         let derivation_delegate_config = self.derivation_delegate_args.config();
-        if safe_db.is_some() && derivation_delegate_config.is_some() {
-            bail!(
-                "--safedb.path cannot be combined with derivation delegation: a delegated node \
-                 derives nothing itself, so the record would never be written and would be \
-                 served stale"
-            );
-        }
 
         RollupNodeBuilder::new(
             crate::version::version().to_owned(),
@@ -357,6 +351,26 @@ impl NodeCommand {
             anyhow::anyhow!("{e}")
         })?;
 
+        Ok(())
+    }
+
+    /// Rejects `--safedb.path` on nodes that don't derive, since nothing would write it.
+    pub(super) fn check_safe_db_supported(&self, cfg: &RollupConfig) -> Result<()> {
+        if self.safedb_path.is_none() {
+            return Ok(());
+        }
+        if self.derivation_delegate_args.l2_follow_source.is_some() {
+            bail!(
+                "--safedb.path cannot be combined with derivation delegation: a delegated node \
+                 derives nothing itself, so the record would never be written and would be \
+                 served stale"
+            );
+        }
+        if cfg.is_private_chain() {
+            bail!(
+                "--safedb.path is not supported on OP Private chains, which don't derive from L1"
+            );
+        }
         Ok(())
     }
 

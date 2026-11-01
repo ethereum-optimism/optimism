@@ -291,7 +291,8 @@ impl RollupNode {
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
         l1_head: watch::Receiver<Option<BlockInfo>>,
     ) -> Result<ConfiguredDerivationActor, String> {
-        if let Some(provider) = self.derivation_delegate_provider.clone() {
+        // Private chains never derive from L1.
+        if self.derivation_delegate_provider.is_some() || self.config.is_private_chain() {
             // L1 Provider for sanity checking Derivation Delegation
             let l1_provider = AlloyChainProvider::new(
                 self.l1_config.engine_provider.clone(),
@@ -300,7 +301,7 @@ impl RollupNode {
             Ok(ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::new(
                 QueuedDerivationEngineClient { engine_actor_request_tx },
                 derivation_actor_request_rx,
-                provider,
+                self.derivation_delegate_provider.clone(),
                 l1_provider,
                 derivation_origin_tx,
             ))))

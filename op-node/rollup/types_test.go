@@ -1,6 +1,7 @@
 package rollup
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -74,6 +75,22 @@ func TestConfigJSON(t *testing.T) {
 	var roundTripped Config
 	assert.NoError(t, json.Unmarshal(data, &roundTripped))
 	assert.Equal(t, &roundTripped, config)
+}
+
+func TestConfigSettlementChainIDJSON(t *testing.T) {
+	config := randConfig()
+	data, err := json.Marshal(config)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "settlement_chain_id", "omitted on a public chain")
+
+	config.SettlementChainID = 1337
+	data, err = json.Marshal(config)
+	require.NoError(t, err)
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	var decoded Config
+	require.NoError(t, dec.Decode(&decoded))
+	require.Equal(t, uint64(1337), decoded.SettlementChainID)
 }
 
 func TestAltDAConfigMaxInputSize(t *testing.T) {
