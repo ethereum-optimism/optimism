@@ -667,6 +667,8 @@ async fn a_block_is_queued_for_finalization_only_once_it_is_recorded() {
 
 mod database;
 
+mod op_node_parity;
+
 mod safedb_tests;
 
 mod service_shutdown;
