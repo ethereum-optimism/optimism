@@ -2,6 +2,7 @@
 
 #[cfg(feature = "metrics")]
 use crate::Metrics;
+use crate::verify;
 use alloy_consensus::{Header, Receipt, ReceiptEnvelope, TxEnvelope};
 use alloy_eips::{
     BlockId,
@@ -139,9 +140,9 @@ impl AlloyChainProvider {
 
     /// Fetches raw consensus-encoded receipts and decodes their EIP-2718 envelopes.
     async fn raw_receipts_by_hash(
-        &self,
+        &mut self,
         hash: B256,
-    ) -> Result<Vec<Receipt>, AlloyChainProviderError> {
+    ) -> Result<Vec<ReceiptEnvelope>, AlloyChainProviderError> {
         let raw_receipts: Option<Vec<Bytes>> =
             self.inner.client().request("debug_getRawReceipts", [hash]).await?;
         let raw_receipts = raw_receipts.ok_or(AlloyChainProviderError::RawReceiptsNull(hash))?;
@@ -152,36 +153,30 @@ impl AlloyChainProvider {
             self.verify_empty_raw_receipts(hash).await?;
         }
 
-        raw_receipts
+        let receipts = raw_receipts
             .into_iter()
             .enumerate()
             .map(|(index, raw)| {
-                ReceiptEnvelope::decode_2718_exact(raw.as_ref())
-                    .map(ReceiptEnvelope::into_receipt)
-                    .map_err(|source| AlloyChainProviderError::RawReceiptDecode {
-                        hash,
-                        index,
-                        source,
-                    })
+                ReceiptEnvelope::decode_2718_exact(raw.as_ref()).map_err(|source| {
+                    AlloyChainProviderError::RawReceiptDecode { hash, index, source }
+                })
             })
-            .collect()
+            .collect::<Result<Vec<_>, _>>()?;
+        if !self.trust_rpc {
+            self.verify_receipts(hash, &receipts).await?;
+        }
+        Ok(receipts)
     }
 
     /// Verifies that an empty raw receipt response belongs to an existing empty block.
-    async fn verify_empty_raw_receipts(&self, hash: B256) -> Result<(), AlloyChainProviderError> {
-        let block = self
-            .inner
-            .get_block_by_hash(hash)
-            .await?
-            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
-        let transaction_count = block.transactions.len();
-        let header = block.header.into_consensus();
-        self.verify_header_hash(&header, hash)?;
-
-        if transaction_count != 0 || !header.transaction_root_is_empty() {
+    async fn verify_empty_raw_receipts(
+        &mut self,
+        hash: B256,
+    ) -> Result<(), AlloyChainProviderError> {
+        let header = self.header_by_hash(hash).await?;
+        if !header.transaction_root_is_empty() {
             return Err(AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock {
                 hash,
-                transaction_count,
                 transactions_root: header.transactions_root,
             });
         }
@@ -190,27 +185,30 @@ impl AlloyChainProvider {
 
     /// Fetches JSON receipts through the standard Ethereum RPC method.
     async fn json_receipts_by_hash(
-        &self,
+        &mut self,
         hash: B256,
-    ) -> Result<Vec<Receipt>, AlloyChainProviderError> {
+    ) -> Result<Vec<ReceiptEnvelope>, AlloyChainProviderError> {
         let receipts = self
             .inner
             .get_block_receipts(hash.into())
             .await?
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
-        receipts
+        let receipts = receipts
             .into_iter()
-            .map(|receipt| receipt.inner.into_primitives_receipt().as_receipt().cloned())
-            .collect::<Option<Vec<_>>>()
-            .ok_or(AlloyChainProviderError::ReceiptsConversion(hash))
+            .map(|receipt| receipt.inner.into_primitives_receipt())
+            .collect::<Vec<_>>();
+        if !self.trust_rpc {
+            self.verify_receipts(hash, &receipts).await?;
+        }
+        Ok(receipts)
     }
 
     /// Falls back to `eth_getBlockReceipts` after `debug_getRawReceipts` fails.
     async fn fallback_receipts_by_hash(
-        &self,
+        &mut self,
         hash: B256,
         raw_error: AlloyChainProviderError,
-    ) -> Result<Vec<Receipt>, AlloyChainProviderError> {
+    ) -> Result<Vec<ReceiptEnvelope>, AlloyChainProviderError> {
         let method_not_found = raw_error.is_method_not_found();
         let newly_disabled =
             method_not_found && self.raw_receipts_supported.swap(false, Ordering::SeqCst);
@@ -278,9 +276,9 @@ impl AlloyChainProvider {
 
     /// Fetches receipts directly through the sticky `eth_getBlockReceipts` fallback.
     async fn sticky_fallback_receipts_by_hash(
-        &self,
+        &mut self,
         hash: B256,
-    ) -> Result<Vec<Receipt>, AlloyChainProviderError> {
+    ) -> Result<Vec<ReceiptEnvelope>, AlloyChainProviderError> {
         self.json_receipts_by_hash(hash).await.inspect_err(|error| {
             if error.is_hash_block_not_found() {
                 tracing::warn!(
@@ -303,28 +301,14 @@ impl AlloyChainProvider {
         })
     }
 
-    /// Verifies that a header's hash matches the expected hash when `trust_rpc` is false.
-    fn verify_header_hash(
-        &self,
-        header: &Header,
-        expected_hash: B256,
+    /// Keep the EIP-2718 type and bloom until the consensus receipt root has been checked.
+    async fn verify_receipts(
+        &mut self,
+        hash: B256,
+        receipts: &[ReceiptEnvelope],
     ) -> Result<(), AlloyChainProviderError> {
-        if self.trust_rpc {
-            return Ok(());
-        }
-
-        let actual_hash = header.hash_slow();
-        if actual_hash != expected_hash {
-            return Err(AlloyChainProviderError::Transport(RpcError::Transport(
-                TransportErrorKind::Custom(
-                    format!(
-                        "Header hash mismatch: expected {expected_hash:?}, got {actual_hash:?}"
-                    )
-                    .into(),
-                ),
-            )));
-        }
-
+        let header = self.header_by_hash(hash).await?;
+        verify::receipts(&header, receipts).map_err(RpcError::local_usage)?;
         Ok(())
     }
 }
@@ -359,13 +343,11 @@ pub enum AlloyChainProviderError {
     /// An empty raw receipt response was returned for a block that contains transactions.
     #[error(
         "debug_getRawReceipts returned no receipts for non-empty L1 block {hash} \
-         (transaction count: {transaction_count}, transactions root: {transactions_root})"
+         (transactions root: {transactions_root})"
     )]
     EmptyRawReceiptsForNonEmptyBlock {
         /// The requested L1 block hash.
         hash: B256,
-        /// The transaction count reported by `eth_getBlockByHash`.
-        transaction_count: usize,
         /// The transaction root in the block header.
         transactions_root: B256,
     },
@@ -487,8 +469,9 @@ impl ChainProvider for AlloyChainProvider {
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
         let header = block.header.into_consensus();
 
-        // Verify the header hash matches what we requested
-        self.verify_header_hash(&header, hash)?;
+        if !self.trust_rpc {
+            verify::header_hash(&header, hash).map_err(RpcError::local_usage)?;
+        }
 
         self.header_by_hash_cache.put(hash, header.clone());
 
@@ -519,7 +502,12 @@ impl ChainProvider for AlloyChainProvider {
                 kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "block_by_number");
             })?
             .ok_or(AlloyChainProviderError::BlockNotFound(number.into()))?;
+        let claimed_hash = block.header.hash;
         let header = block.header.into_consensus();
+        if !self.trust_rpc {
+            verify::header_hash(&header, claimed_hash).map_err(RpcError::local_usage)?;
+            verify::block_number(&header, number).map_err(RpcError::local_usage)?;
+        }
 
         let block_info = BlockInfo {
             hash: header.hash_slow(),
@@ -562,6 +550,7 @@ impl ChainProvider for AlloyChainProvider {
             kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "receipts_by_hash");
         })?;
 
+        let receipts = receipts.into_iter().map(ReceiptEnvelope::into_receipt).collect::<Vec<_>>();
         self.receipts_by_hash_cache.put(hash, receipts.clone());
 
         kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "receipts_by_hash");
@@ -595,8 +584,11 @@ impl ChainProvider for AlloyChainProvider {
             .into_consensus()
             .map_transactions(|t| t.inner.into_inner());
 
-        // Verify the block hash matches what we requested
-        self.verify_header_hash(&block.header, hash)?;
+        if !self.trust_rpc {
+            verify::header_hash(&block.header, hash).map_err(RpcError::local_usage)?;
+            verify::transactions(&block.header, &block.body.transactions)
+                .map_err(RpcError::local_usage)?;
+        }
 
         let block_info = BlockInfo {
             hash, // Use the already verified hash instead of recomputing
@@ -927,14 +919,13 @@ mod tests {
             vec![B256::repeat_byte(0x22)],
             transactions_root,
         )));
-        let provider = mocked_provider(asserter.clone());
+        let mut provider = mocked_provider(asserter.clone());
 
         let error = provider.raw_receipts_by_hash(hash).await.unwrap_err();
         assert!(matches!(
             error,
             AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock {
                 hash: error_hash,
-                transaction_count: 1,
                 transactions_root: error_root,
             } if error_hash == hash && error_root == transactions_root
         ));
@@ -945,7 +936,7 @@ mod tests {
     async fn raw_receipt_decode_error_preserves_source_and_index() {
         let asserter = Asserter::new();
         asserter.push_success(&vec![Bytes::from_static(&[0x05])]);
-        let provider = mocked_provider(asserter.clone());
+        let mut provider = mocked_provider(asserter.clone());
         let hash = B256::repeat_byte(0xae);
 
         let error = provider.raw_receipts_by_hash(hash).await.unwrap_err();
@@ -1272,5 +1263,383 @@ mod tests {
         assert_eq!(provider.receipts_by_hash(block_hash).await.unwrap(), expected);
         raw_mock.assert();
         fallback_mock.assert();
+    }
+    #[tokio::test]
+    async fn untrusted_l1_transactions_are_verified_before_caching() {
+        use crate::test_utils::{ethereum_transactions, rpc_block};
+        use alloy_consensus::proofs::calculate_transaction_root;
+        let transactions = ethereum_transactions();
+        let header = Header {
+            transactions_root: calculate_transaction_root(&transactions),
+            ..Default::default()
+        };
+        let hash = header.hash_slow();
+        let valid = rpc_block(header, &transactions);
+        let mut missing = valid.clone();
+        missing["transactions"].as_array_mut().unwrap().pop();
+        let mut reordered = valid.clone();
+        reordered["transactions"].as_array_mut().unwrap().swap(0, 1);
+        let mut altered = valid.clone();
+        altered["transactions"][0]["nonce"] = serde_json::json!("0x99");
+        let mut forged_hash = valid.clone();
+        forged_hash["transactions"][1]["hash"] =
+            serde_json::to_value(B256::repeat_byte(9)).unwrap();
+        for invalid in [&missing, &reordered, &altered, &forged_hash] {
+            let asserter = Asserter::new();
+            asserter.push_success(invalid);
+            asserter.push_success(&valid);
+            let mut provider = AlloyChainProvider::new_with_trust(
+                RootProvider::new(RpcClient::mocked(asserter)),
+                8,
+                false,
+            );
+            let error = provider.block_info_and_transactions_by_hash(hash).await.unwrap_err();
+            assert!(matches!(error, AlloyChainProviderError::Transport(_)), "{error:?}");
+            assert!(
+                error.to_string().contains("root mismatch") ||
+                    error.to_string().contains("hash mismatch"),
+                "{error:?}"
+            );
+            assert!(provider.block_info_and_transactions_by_hash_cache.is_empty());
+            assert!(matches!(PipelineErrorKind::from(error), PipelineErrorKind::Temporary(_)));
+            assert_eq!(
+                provider.block_info_and_transactions_by_hash(hash).await.unwrap().1,
+                transactions
+            );
+            assert_eq!(
+                provider.block_info_and_transactions_by_hash(hash).await.unwrap().1,
+                transactions
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn untrusted_receipts_preserve_types_blooms_and_logs() {
+        use crate::test_utils::{json_receipts, receipts, rpc_block};
+        use alloy_consensus::proofs::calculate_receipt_root;
+        let receipts = receipts();
+        let header =
+            Header { receipts_root: calculate_receipt_root(&receipts), ..Default::default() };
+        let hash = header.hash_slow();
+        let expected: Vec<_> =
+            receipts.iter().cloned().map(ReceiptEnvelope::into_receipt).collect();
+        // Exercise both raw and standard JSON methods; the JSON path stays active after
+        // MethodNotFound, and both paths must authenticate the typed consensus encoding.
+        for raw_supported in [true, false] {
+            let asserter = Asserter::new();
+            if raw_supported {
+                let raw: Vec<Bytes> = receipts.iter().map(|r| r.encoded_2718().into()).collect();
+                asserter.push_success(&raw);
+            } else {
+                push_method_not_found(&asserter);
+                asserter.push_success(&json_receipts(&receipts));
+            }
+            asserter.push_success(&rpc_block::<TxEnvelope>(header.clone(), &[]));
+            let mut provider = AlloyChainProvider::new_with_trust(
+                RootProvider::new(RpcClient::mocked(asserter)),
+                8,
+                false,
+            );
+            assert_eq!(provider.receipts_by_hash(hash).await.unwrap(), expected);
+            assert_eq!(provider.receipts_by_hash(hash).await.unwrap(), expected);
+            assert_eq!(provider.raw_receipts_supported.load(Ordering::SeqCst), raw_supported);
+        }
+    }
+
+    /// A method-not-found response causes subsequent receipt requests to use JSON directly.
+    fn push_method_not_found(asserter: &Asserter) {
+        asserter.push_failure(
+            serde_json::from_value(serde_json::json!({
+                "code": -32601, "message": "method not found",
+            }))
+            .unwrap(),
+        );
+    }
+
+    #[tokio::test]
+    async fn untrusted_json_receipts_reject_tampering_without_caching() {
+        use crate::test_utils::{json_receipts, receipts, rpc_block};
+        use alloy_consensus::proofs::calculate_receipt_root;
+        let receipts = receipts();
+        let header =
+            Header { receipts_root: calculate_receipt_root(&receipts), ..Default::default() };
+        let hash = header.hash_slow();
+        let valid = json_receipts(&receipts);
+        let mut missing = valid.clone();
+        missing.pop();
+        let mut reordered = valid.clone();
+        reordered.swap(0, 1);
+        let mut wrong_type = valid.clone();
+        wrong_type[0]["type"] = serde_json::json!("0x2");
+        let mut wrong_bloom = valid.clone();
+        wrong_bloom[0]["logsBloom"] = serde_json::to_value(Bloom::ZERO).unwrap();
+        let mut wrong_logs = valid.clone();
+        wrong_logs[0]["logs"][0]["data"] = serde_json::json!("0xdeadbeef");
+        let mut wrong_status = valid.clone();
+        wrong_status[0]["status"] = serde_json::json!("0x0");
+        for invalid in
+            [missing, reordered, wrong_type, wrong_bloom, wrong_logs, wrong_status, vec![]]
+        {
+            let asserter = Asserter::new();
+            push_method_not_found(&asserter);
+            asserter.push_success(&invalid);
+            asserter.push_success(&rpc_block::<TxEnvelope>(header.clone(), &[]));
+            asserter.push_success(&valid);
+            let mut provider = AlloyChainProvider::new_with_trust(
+                RootProvider::new(RpcClient::mocked(asserter)),
+                8,
+                false,
+            );
+            let error = provider.receipts_by_hash(hash).await.unwrap_err();
+            assert!(error.to_string().contains("Receipts root mismatch"), "{error:?}");
+            assert!(provider.receipts_by_hash_cache.is_empty());
+            assert!(matches!(PipelineErrorKind::from(error), PipelineErrorKind::Temporary(_)));
+            assert_eq!(provider.receipts_by_hash(hash).await.unwrap().len(), receipts.len());
+        }
+    }
+
+    #[tokio::test]
+    async fn invalid_raw_receipts_can_fall_back_to_verified_json() {
+        use crate::test_utils::{json_receipts, receipts, rpc_block};
+        use alloy_consensus::proofs::calculate_receipt_root;
+        let receipts = receipts();
+        let header =
+            Header { receipts_root: calculate_receipt_root(&receipts), ..Default::default() };
+        let hash = header.hash_slow();
+        let raw: Vec<Bytes> = receipts.iter().rev().map(|r| r.encoded_2718().into()).collect();
+        let asserter = Asserter::new();
+        asserter.push_success(&raw);
+        asserter.push_success(&rpc_block::<TxEnvelope>(header, &[]));
+        asserter.push_success(&json_receipts(&receipts));
+        let mut provider = AlloyChainProvider::new_with_trust(
+            RootProvider::new(RpcClient::mocked(asserter)),
+            8,
+            false,
+        );
+        assert_eq!(provider.receipts_by_hash(hash).await.unwrap().len(), receipts.len());
+        assert!(provider.raw_receipts_supported.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn invalid_raw_and_json_receipts_are_not_cached() {
+        use crate::test_utils::{json_receipts, receipts, rpc_block};
+        use alloy_consensus::proofs::calculate_receipt_root;
+        let receipts = receipts();
+        let header =
+            Header { receipts_root: calculate_receipt_root(&receipts), ..Default::default() };
+        let hash = header.hash_slow();
+        let raw: Vec<Bytes> = receipts.iter().rev().map(|r| r.encoded_2718().into()).collect();
+        let mut invalid_json = json_receipts(&receipts);
+        invalid_json.reverse();
+        let asserter = Asserter::new();
+        asserter.push_success(&raw);
+        asserter.push_success(&rpc_block::<TxEnvelope>(header, &[]));
+        asserter.push_success(&invalid_json);
+        let valid_raw: Vec<Bytes> = receipts.iter().map(|r| r.encoded_2718().into()).collect();
+        asserter.push_success(&valid_raw);
+        let mut provider = AlloyChainProvider::new_with_trust(
+            RootProvider::new(RpcClient::mocked(asserter)),
+            8,
+            false,
+        );
+        let error = provider.receipts_by_hash(hash).await.unwrap_err();
+        let AlloyChainProviderError::ReceiptMethodsFailed { raw, fallback } = error else {
+            panic!("expected both receipt methods to fail: {error:?}")
+        };
+        assert!(raw.to_string().contains("Receipts root mismatch"), "{raw:?}");
+        assert!(fallback.to_string().contains("Receipts root mismatch"), "{fallback:?}");
+        assert!(provider.receipts_by_hash_cache.is_empty());
+        assert_eq!(provider.receipts_by_hash(hash).await.unwrap().len(), receipts.len());
+    }
+
+    #[tokio::test]
+    async fn untrusted_empty_receipts_must_match_the_header() {
+        use crate::test_utils::rpc_block;
+        for receipts_root in [alloy_consensus::EMPTY_ROOT_HASH, B256::repeat_byte(1)] {
+            let header = Header { receipts_root, ..Default::default() };
+            let hash = header.hash_slow();
+            let asserter = Asserter::new();
+            asserter.push_success(&Vec::<Bytes>::new());
+            asserter.push_success(&rpc_block::<TxEnvelope>(header, &[]));
+            // If the raw root is invalid, the JSON fallback must reject the empty set as well.
+            if receipts_root != alloy_consensus::EMPTY_ROOT_HASH {
+                asserter.push_success(&Vec::<serde_json::Value>::new());
+            }
+            let mut provider = AlloyChainProvider::new_with_trust(
+                RootProvider::new(RpcClient::mocked(asserter)),
+                8,
+                false,
+            );
+            let result = provider.receipts_by_hash(hash).await;
+            assert_eq!(result.is_ok(), receipts_root == alloy_consensus::EMPTY_ROOT_HASH);
+        }
+    }
+
+    #[tokio::test]
+    async fn untrusted_l1_number_lookup_checks_header_hash_and_number() {
+        use crate::test_utils::rpc_block;
+        let valid = rpc_block::<TxEnvelope>(Header { number: 42, ..Default::default() }, &[]);
+        let mut forged = valid.clone();
+        forged["hash"] = serde_json::to_value(B256::repeat_byte(1)).unwrap();
+        for (response, number, expected_ok) in
+            [(&valid, 42, true), (&forged, 42, false), (&valid, 43, false)]
+        {
+            let asserter = Asserter::new();
+            asserter.push_success(response);
+            let mut provider = AlloyChainProvider::new_with_trust(
+                RootProvider::new(RpcClient::mocked(asserter)),
+                8,
+                false,
+            );
+            assert_eq!(provider.block_info_by_number(number).await.is_ok(), expected_ok);
+        }
+    }
+
+    #[tokio::test]
+    async fn receipt_verification_authenticates_the_header() {
+        use crate::test_utils::{json_receipts, receipts, rpc_block};
+        use alloy_consensus::proofs::calculate_receipt_root;
+        let receipts = receipts();
+        let header =
+            Header { receipts_root: calculate_receipt_root(&receipts), ..Default::default() };
+        let requested = B256::repeat_byte(0xab);
+        let mut block = rpc_block::<TxEnvelope>(header, &[]);
+        block["hash"] = serde_json::to_value(requested).unwrap();
+        let asserter = Asserter::new();
+        push_method_not_found(&asserter);
+        asserter.push_success(&json_receipts(&receipts));
+        asserter.push_success(&block);
+        let mut provider = AlloyChainProvider::new_with_trust(
+            RootProvider::new(RpcClient::mocked(asserter)),
+            8,
+            false,
+        );
+        let error = provider.receipts_by_hash(requested).await.unwrap_err();
+        assert!(error.to_string().contains("Header hash mismatch"), "{error:?}");
+        assert!(provider.header_by_hash_cache.is_empty());
+        assert!(provider.receipts_by_hash_cache.is_empty());
+    }
+
+    #[tokio::test]
+    async fn empty_l1_body_is_verified_and_trusted_bodies_keep_existing_behavior() {
+        use crate::test_utils::rpc_block;
+        for (trust_rpc, transactions_root, expected_ok) in [
+            (false, alloy_consensus::EMPTY_ROOT_HASH, true),
+            (false, B256::repeat_byte(1), false),
+            (true, B256::repeat_byte(1), true),
+        ] {
+            let header = Header { transactions_root, ..Default::default() };
+            let hash = header.hash_slow();
+            let asserter = Asserter::new();
+            asserter.push_success(&rpc_block::<TxEnvelope>(header, &[]));
+            let mut provider = AlloyChainProvider::new_with_trust(
+                RootProvider::new(RpcClient::mocked(asserter)),
+                8,
+                trust_rpc,
+            );
+            assert_eq!(
+                provider.block_info_and_transactions_by_hash(hash).await.is_ok(),
+                expected_ok
+            );
+        }
+    }
+    #[tokio::test]
+    async fn header_and_empty_receipt_lookups_share_the_cache_in_both_trust_modes() {
+        use crate::test_utils::rpc_block;
+        let header = Header::default();
+        let hash = header.hash_slow();
+        let block = rpc_block::<TxEnvelope>(header.clone(), &[]);
+        for trust_rpc in [false, true] {
+            for header_first in [false, true] {
+                let asserter = Asserter::new();
+                if header_first {
+                    asserter.push_success(&block);
+                    asserter.push_success(&Vec::<Bytes>::new());
+                } else {
+                    asserter.push_success(&Vec::<Bytes>::new());
+                    asserter.push_success(&block);
+                }
+                let mut provider = AlloyChainProvider::new_with_trust(
+                    RootProvider::new(RpcClient::mocked(asserter.clone())),
+                    8,
+                    trust_rpc,
+                );
+                if header_first {
+                    assert_eq!(provider.header_by_hash(hash).await.unwrap(), header);
+                }
+                assert!(provider.receipts_by_hash(hash).await.unwrap().is_empty());
+                // No second block response is available: this must reuse the same header.
+                assert_eq!(provider.header_by_hash(hash).await.unwrap(), header);
+                assert!(asserter.read_q().is_empty());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn cached_headers_use_the_transaction_root_to_check_empty_receipts() {
+        for trust_rpc in [false, true] {
+            for transactions_root in [alloy_consensus::EMPTY_ROOT_HASH, B256::repeat_byte(1)] {
+                let header = Header { transactions_root, ..Default::default() };
+                let hash = header.hash_slow();
+                let asserter = Asserter::new();
+                // RPC transaction-list metadata does not determine whether the block is empty.
+                asserter.push_success(&rpc_block(
+                    hash,
+                    vec![B256::repeat_byte(2)],
+                    transactions_root,
+                ));
+                asserter.push_success(&Vec::<Bytes>::new());
+                let mut provider = AlloyChainProvider::new_with_trust(
+                    RootProvider::new(RpcClient::mocked(asserter.clone())),
+                    8,
+                    trust_rpc,
+                );
+                assert_eq!(provider.header_by_hash(hash).await.unwrap(), header);
+                let result = provider.raw_receipts_by_hash(hash).await;
+                if header.transaction_root_is_empty() {
+                    assert!(result.unwrap().is_empty());
+                } else {
+                    assert!(matches!(
+                        result.unwrap_err(),
+                        AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock {
+                            transactions_root: actual_root, ..
+                        } if actual_root == transactions_root
+                    ));
+                }
+                assert!(asserter.read_q().is_empty());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn shared_header_fetch_rejects_invalid_headers_before_caching() {
+        use crate::test_utils::rpc_block;
+        let header = Header::default();
+        let hash = header.hash_slow();
+        let valid = rpc_block::<TxEnvelope>(header.clone(), &[]);
+        let mut invalid = valid.clone();
+        invalid["number"] = serde_json::json!("0x1");
+        for empty_receipts_first in [false, true] {
+            let asserter = Asserter::new();
+            if empty_receipts_first {
+                asserter.push_success(&Vec::<Bytes>::new());
+            }
+            asserter.push_success(&invalid);
+            asserter.push_success(&valid);
+            let mut provider = AlloyChainProvider::new_with_trust(
+                RootProvider::new(RpcClient::mocked(asserter.clone())),
+                8,
+                false,
+            );
+            let error = if empty_receipts_first {
+                provider.raw_receipts_by_hash(hash).await.unwrap_err()
+            } else {
+                provider.header_by_hash(hash).await.unwrap_err()
+            };
+            assert!(error.to_string().contains("Header hash mismatch"), "{error:?}");
+            assert!(provider.header_by_hash_cache.is_empty());
+            assert_eq!(provider.header_by_hash(hash).await.unwrap(), header);
+            assert!(asserter.read_q().is_empty());
+        }
     }
 }
