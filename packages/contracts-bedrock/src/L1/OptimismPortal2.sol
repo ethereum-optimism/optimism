@@ -868,6 +868,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     ///         deriving deposit transactions. Note that if a deposit is made by a contract, its
     ///         address will be aliased when retrieved using `tx.origin` or `msg.sender`. Consider
     ///         using the CrossDomainMessenger contracts for a simpler developer experience.
+    ///         If a bridge hook is set, the hook can hold the deposit, unless the sender is the
+    ///         ProxyAdmin owner. A held deposit does not emit TransactionDeposited until the hook
+    ///         completes it.
     /// @dev    The `msg.value` is locked on the ETHLockbox and minted as ETH when the deposit
     ///         arrives on L2, while `_value` specifies how much ETH to send to the target.
     /// @param _to         Target address on L2.
