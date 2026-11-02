@@ -2,8 +2,10 @@
 
 use std::{str::FromStr, time::Duration};
 
+use alloy_primitives::B256;
 use backon::{ExponentialBuilder, Retryable};
 use discv5::Enr;
+use enr::NodeId;
 use kona_gossip::{GossipCommand, GossipCommandSender, PeerDump, PeerInfo};
 use kona_node_service::NetworkActorError;
 use kona_rpc::{OpP2PApiServer, P2pRpc};
@@ -44,6 +46,8 @@ pub(crate) enum TestNetworkError {
     PeerInfoMissingEnr,
     #[error("Invalid ENR: {0}")]
     InvalidEnr(String),
+    #[error("Invalid node ID: {0}")]
+    InvalidNodeId(String),
     #[error("Peer info missing listen address")]
     PeerInfoMissingAddress,
     #[error("Invalid multiaddr: {0}")]
@@ -54,6 +58,19 @@ pub(crate) enum TestNetworkError {
     /// The other node is not among this node's connected peers yet.
     #[error("Peer not connected")]
     PeerNotConnected,
+    /// The other node is connected, but not subscribed to the block topics yet.
+    #[error("Peer not gossiping blocks")]
+    PeerNotGossipingBlocks,
+}
+
+/// Polls every 10ms at first, so in-memory nodes are ready without waiting, then backs off to once
+/// a second for nodes that find each other through discovery, for up to 30 seconds in all.
+fn retry_backoff() -> ExponentialBuilder {
+    ExponentialBuilder::default()
+        .with_min_delay(Duration::from_millis(10))
+        .with_max_delay(Duration::from_secs(1))
+        .without_max_times()
+        .with_total_delay(Some(Duration::from_secs(30)))
 }
 
 impl TestNetwork {
@@ -77,26 +94,44 @@ impl TestNetwork {
         Ok(())
     }
 
-    /// Like `is_connected_to`, but retries until the connection is established, for up to 30
-    /// seconds.
-    ///
-    /// It starts polling every 10ms, so in-memory nodes connect without waiting, and backs off to
-    /// once a second for nodes that find each other through discovery.
+    /// Like `is_connected_to`, but retries until the connection is established, see
+    /// [`retry_backoff`].
     pub(super) async fn is_connected_to_with_retries(
         &self,
         other: &Self,
     ) -> Result<(), TestNetworkError> {
-        let backoff = ExponentialBuilder::default()
-            .with_min_delay(Duration::from_millis(10))
-            .with_max_delay(Duration::from_secs(1))
-            .without_max_times()
-            .with_total_delay(Some(Duration::from_secs(30)));
-
         (async || self.is_connected_to(other).await)
-            .retry(backoff)
+            .retry(retry_backoff())
             // When to retry
             .when(|e| matches!(e, TestNetworkError::PeerNotConnected))
             .notify(|e, duration| tracing::info!(target: "network", "Retrying connection. Error: {e:?}, duration: {duration:?}"))
+            .await
+    }
+
+    /// Checks whether `other` is a connected peer subscribed to the block topics, so that blocks
+    /// this node publishes or relays reach it.
+    pub(super) async fn gossips_blocks_with(&self, other: &Self) -> Result<(), TestNetworkError> {
+        let other_peer_id = other.peer_id().await?;
+        match self.peers().await?.peers.get(&other_peer_id) {
+            None => Err(TestNetworkError::PeerNotConnected),
+            Some(info) if !info.gossip_blocks => Err(TestNetworkError::PeerNotGossipingBlocks),
+            Some(_) => Ok(()),
+        }
+    }
+
+    /// Like `gossips_blocks_with`, but retries until it holds, see [`retry_backoff`].
+    pub(super) async fn gossips_blocks_with_retries(
+        &self,
+        other: &Self,
+    ) -> Result<(), TestNetworkError> {
+        (async || self.gossips_blocks_with(other).await)
+            .retry(retry_backoff())
+            .when(|e| {
+                matches!(
+                    e,
+                    TestNetworkError::PeerNotConnected | TestNetworkError::PeerNotGossipingBlocks
+                )
+            })
             .await
     }
 
@@ -123,8 +158,22 @@ impl TestNetwork {
     }
 
     /// Returns the ENRs in this node's discovery table, as `opp2p_discoveryTable` does.
-    pub(super) async fn discovery_table(&self) -> Result<Vec<String>, TestNetworkError> {
-        Ok(self.p2p_rpc.opp2p_discovery_table().await?)
+    pub(super) async fn discovery_table(&self) -> Result<Vec<Enr>, TestNetworkError> {
+        self.p2p_rpc
+            .opp2p_discovery_table()
+            .await?
+            .iter()
+            .map(|enr| Enr::from_str(enr).map_err(TestNetworkError::InvalidEnr))
+            .collect()
+    }
+
+    /// Returns whether this node runs without discovery, which `opp2p_discoveryTable` reports with
+    /// op-node's error.
+    pub(super) async fn has_discovery_disabled(&self) -> bool {
+        matches!(
+            self.p2p_rpc.opp2p_discovery_table().await,
+            Err(err) if err.message() == "discovery disabled"
+        )
     }
 
     /// Returns this node's own ENR.
@@ -138,5 +187,14 @@ impl TestNetwork {
     /// Returns this node's own peer ID.
     pub(super) async fn peer_id(&self) -> Result<String, TestNetworkError> {
         Ok(self.peer_info().await?.peer_id)
+    }
+
+    /// Returns this node's own discovery node ID, as `opp2p_self` reports it, which it does
+    /// without discovery too.
+    pub(super) async fn node_id(&self) -> Result<NodeId, TestNetworkError> {
+        let node_id = self.peer_info().await?.node_id;
+        let bytes =
+            B256::from_str(&node_id).map_err(|_| TestNetworkError::InvalidNodeId(node_id))?;
+        Ok(NodeId::new(&bytes.0))
     }
 }

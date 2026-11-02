@@ -14,12 +14,10 @@ pub mod flags;
 pub(crate) mod version;
 
 fn main() {
-    use clap::Parser;
-
     kona_cli::sigsegv_handler::install();
     kona_cli::backtrace::enable();
 
-    if let Err(err) = cli::Cli::parse().run() {
+    if let Err(err) = cli::Cli::parse_args().run() {
         eprintln!("Error: {err:?}");
         std::process::exit(1);
     }

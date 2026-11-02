@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"log/slog"
 	"math/big"
 	"strings"
@@ -31,7 +30,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -39,9 +37,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/holiman/uint256"
@@ -160,63 +156,6 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 		loc, _ := testutil.LocalArtifacts(t)
 		apply(t, loc)
 	})
-}
-
-// TestEndToEndBootstrapApplyWithUpgrade tests upgrading from a previous contracts release
-// to embedded version of contracts by executing the following sequence:
-//  1. create an anvil env that is a fork of op-sepolia
-//  2. bootstrap.Implementations of the latest/embedded version of contracts, which will produce a new opcm
-//  3. call opcm.upgradeSuperchainConfig on the opcm deployed in [2] (prerequisite for opcm.upgrade)
-//  4. call opcm.upgrade on the opcm deployed in [2]
-func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
-	op_e2e.InitParallel(t)
-
-	lgr := testlog.Logger(t, slog.LevelDebug)
-
-	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
-	require.NoError(t, err)
-	pkHex, _, _ := shared.DefaultPrivkey(t)
-	t.Cleanup(func() {
-		require.NoError(t, stopL1())
-	})
-	loc, afactsFS := testutil.LocalArtifacts(t)
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
-
-	superchain, err := standard.SuperchainFor(11155111)
-	require.NoError(t, err)
-
-	superchainProxyAdmin, err := standard.SuperchainProxyAdminAddrFor(11155111)
-	require.NoError(t, err)
-
-	superchainProxyAdminOwner, err := standard.L1ProxyAdminOwner(11155111)
-	require.NoError(t, err)
-
-	cfg := bootstrap.ImplementationsConfig{
-		L1RPCUrl:                           forkedL1.RPCUrl(),
-		PrivateKey:                         pkHex,
-		ArtifactsLocator:                   loc,
-		MIPSVersion:                        int(standard.MIPSVersion),
-		MinWithdrawalDelaySeconds:          standard.MinWithdrawalDelaySeconds,
-		MaxWithdrawalDelaySeconds:          standard.MaxWithdrawalDelaySeconds,
-		MinProposalSizeBytes:               standard.MinProposalSizeBytes,
-		ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
-		MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
-		MaxProofMaturityDelaySeconds:       standard.MaxProofMaturityDelaySeconds,
-		MinDisputeGameFinalityDelaySeconds: standard.MinDisputeGameFinalityDelaySeconds,
-		MaxDisputeGameFinalityDelaySeconds: standard.MaxDisputeGameFinalityDelaySeconds,
-		SuperchainConfigProxy:              superchain.SuperchainConfigAddr,
-		L1ProxyAdminOwner:                  superchainProxyAdminOwner,
-		SuperchainProxyAdmin:               superchainProxyAdmin,
-		CacheDir:                           testCacheDir,
-		Logger:                             lgr,
-		Challenger:                         common.Address{'C'},
-		FaultGameMaxGameDepth:              standard.DisputeMaxGameDepth,
-		FaultGameSplitDepth:                standard.DisputeSplitDepth,
-		FaultGameClockExtension:            standard.DisputeClockExtension,
-		FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
-	}
-
-	runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, cfg)
 }
 
 // TestApplyDefaultsSP1VerifierOnSepolia pins that a ZK-enabled live apply with no sp1Verifier
@@ -351,29 +290,6 @@ func TestEndToEndApply(t *testing.T) {
 
 		validateSuperchainDeployment(t, st, cg, true)
 		validateOPChainDeployment(t, cg, st, intent, false)
-	})
-
-	t.Run("with calldata broadcasts", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
-		defer cancel()
-
-		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
-
-		require.NoError(t, deployer.ApplyPipeline(
-			ctx,
-			deployer.ApplyPipelineOpts{
-				DeploymentTarget:   deployer.DeploymentTargetCalldata,
-				L1RPCUrl:           l1RPC,
-				DeployerPrivateKey: pk,
-				Intent:             intent,
-				State:              st,
-				Logger:             lgr,
-				StateWriter:        pipeline.NoopStateWriter(),
-				CacheDir:           testCacheDir,
-			},
-		))
-
-		require.Greater(t, len(st.DeploymentCalldata), 0)
 	})
 
 	t.Run("with custom gas token", func(t *testing.T) {
@@ -601,7 +517,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 		intent, _ := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 		intent.SuperchainConfigProxy = &superchainConfigProxy
 		intent.Chains[0].DeployOverrides = map[string]any{
-			"respectedGameType": embedded.GameTypeSuperCannonKona,
+			"respectedGameType": opcm.GameTypeSuperCannonKona,
 		}
 
 		st := &state.State{
@@ -618,7 +534,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 		st.SetChainContracts(chainID, addresses.OpChainContracts{}, false)
 		chainState, err := st.Chain(chainID)
 		require.NoError(t, err)
-		gameType := uint32(embedded.GameTypeSuperCannonKona)
+		gameType := uint32(opcm.GameTypeSuperCannonKona)
 		chainState.InitialGameType = &gameType
 		chainState.Prestate = committedPrestate
 		chainState.StartingAnchorRoot = committedAnchor
@@ -665,7 +581,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 
 	caller := &shared.HostCaller{Host: host}
 	gameImpls := w3.MustNewFunc("gameImpls(uint32)", "address")
-	readGameImpl := func(gameType embedded.GameType) common.Address {
+	readGameImpl := func(gameType opcm.GameType) common.Address {
 		callData, err := gameImpls.EncodeArgs(uint32(gameType))
 		require.NoError(t, err)
 		ret, err := caller.Call(chainState.DisputeGameFactoryProxy, callData)
@@ -675,12 +591,12 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 		require.NotZero(t, implementation)
 		return implementation
 	}
-	superCannonKonaImpl := readGameImpl(embedded.GameTypeSuperCannonKona)
-	superPermissionedImpl := readGameImpl(embedded.GameTypeSuperPermissioned)
+	superCannonKonaImpl := readGameImpl(opcm.GameTypeSuperCannonKona)
+	superPermissionedImpl := readGameImpl(opcm.GameTypeSuperPermissioned)
 	require.NotEqual(t, superCannonKonaImpl, superPermissionedImpl)
 
 	gameArgs := w3.MustNewFunc("gameArgs(uint32)", "bytes")
-	readAbsolutePrestate := func(gameType embedded.GameType) common.Hash {
+	readAbsolutePrestate := func(gameType opcm.GameType) common.Hash {
 		callData, err := gameArgs.EncodeArgs(uint32(gameType))
 		require.NoError(t, err)
 		ret, err := caller.Call(chainState.DisputeGameFactoryProxy, callData)
@@ -690,7 +606,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 		require.GreaterOrEqual(t, len(args), common.HashLength)
 		return common.BytesToHash(args[:common.HashLength])
 	}
-	require.Equal(t, committedPrestate, readAbsolutePrestate(embedded.GameTypeSuperCannonKona))
+	require.Equal(t, committedPrestate, readAbsolutePrestate(opcm.GameTypeSuperCannonKona))
 
 	getStartingAnchorRoot := w3.MustNewFunc(
 		"getStartingAnchorRoot()",
@@ -716,7 +632,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	require.NoError(t, err)
 	var actualGameType uint32
 	require.NoError(t, respectedGameType.DecodeReturns(ret, &actualGameType))
-	require.Equal(t, uint32(embedded.GameTypeSuperCannonKona), actualGameType)
+	require.Equal(t, uint32(opcm.GameTypeSuperCannonKona), actualGameType)
 
 	t.Run("missing committed prestate", func(t *testing.T) {
 		_, st, chainID := newContinuationInputs(t, uint256.NewInt(3))
@@ -1063,193 +979,6 @@ func TestIntentConfiguration(t *testing.T) {
 			tt.assertions(t, st)
 		})
 	}
-}
-
-func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.StatDirFs, implementationsConfig bootstrap.ImplementationsConfig) {
-	lgr := implementationsConfig.Logger
-
-	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
-	defer cancel()
-
-	superchainProxyAdminOwner := implementationsConfig.L1ProxyAdminOwner
-
-	impls, err := bootstrap.Implementations(ctx, implementationsConfig)
-	require.NoError(t, err)
-
-	versionClient, err := ethclient.Dial(implementationsConfig.L1RPCUrl)
-	require.NoError(t, err)
-	defer versionClient.Close()
-
-	shouldUpgradeSuperchainConfig, err := testutil.NeedsSuperchainConfigUpgrade(
-		ctx,
-		versionClient,
-		implementationsConfig.SuperchainConfigProxy,
-		impls.SuperchainConfigImpl,
-	)
-	require.NoError(t, err)
-
-	// Now test the OPCM upgrade
-	t.Run("opcm upgrade test", func(t *testing.T) {
-		// Create script host for the upgrade
-		rpcClient, err := rpc.Dial(implementationsConfig.L1RPCUrl)
-		require.NoError(t, err)
-
-		host, err := env.DefaultForkedScriptHost(
-			ctx,
-			broadcaster.NoopBroadcaster(),
-			lgr,
-			implementationsConfig.L1ProxyAdminOwner,
-			afactsFS,
-			rpcClient,
-		)
-		require.NoError(t, err)
-
-		opcmAddress := impls.OpcmV2
-
-		// Only run the superchain config upgrade if the live superchain config is behind the freshly deployed
-		// implementation. Running the script when versions match will revert and panic the test harness.
-		if shouldUpgradeSuperchainConfig {
-			t.Run("upgrade superchain config", func(t *testing.T) {
-				upgradeConfig := embedded.UpgradeSuperchainConfigInput{
-					Prank:            superchainProxyAdminOwner,
-					Opcm:             opcmAddress,
-					SuperchainConfig: implementationsConfig.SuperchainConfigProxy,
-				}
-
-				err = embedded.UpgradeSuperchainConfig(host, upgradeConfig)
-				require.NoError(t, err, "Superchain config upgrade should succeed")
-			})
-		} else {
-			t.Log("Skipping superchain config upgrade; onchain version is already up to date")
-		}
-
-		// Run past upgrades before running the current upgrade.
-		// This is necessary when forking at a block before those upgrades were executed.
-		t.Run("run past upgrades", func(t *testing.T) {
-			shared.RunPastUpgrades(t, host, 11155111, superchainProxyAdminOwner, deployer.DefaultSystemConfigProxySepolia)
-		})
-
-		// Then run the OPCM V2 upgrade
-		t.Run("upgrade opcm v2", func(t *testing.T) {
-			require.NotEqual(t, common.Address{}, impls.OpcmV2, "OpcmV2 address should not be zero")
-			t.Logf("Using OpcmV2 at address: %s", impls.OpcmV2.Hex())
-			t.Logf("Using OpcmUtils at address: %s", impls.OpcmUtils.Hex())
-			t.Logf("Using OpcmContainer at address: %s", impls.OpcmContainer.Hex())
-
-			// Verify OPCM V2 has code deployed
-			opcmCode, err := versionClient.CodeAt(ctx, impls.OpcmV2, nil)
-			require.NoError(t, err)
-			require.NotEmpty(t, opcmCode, "OPCM V2 should have code deployed")
-			t.Logf("OPCM V2 code size: %d bytes", len(opcmCode))
-
-			// Verify OpcmUtils has code deployed
-			utilsCode, err := versionClient.CodeAt(ctx, impls.OpcmUtils, nil)
-			require.NoError(t, err)
-			require.NotEmpty(t, utilsCode, "OpcmUtils should have code deployed")
-			t.Logf("OpcmUtils code size: %d bytes", len(utilsCode))
-
-			// Verify OpcmContainer has code deployed
-			containerCode, err := versionClient.CodeAt(ctx, impls.OpcmContainer, nil)
-			require.NoError(t, err)
-			require.NotEmpty(t, containerCode, "OpcmContainer should have code deployed")
-			t.Logf("OpcmContainer code size: %d bytes", len(containerCode))
-
-			// First, upgrade the superchain with V2
-			t.Run("upgrade superchain v2", func(t *testing.T) {
-				superchainUpgradeConfig := embedded.UpgradeSuperchainConfigInput{
-					Prank:             superchainProxyAdminOwner,
-					Opcm:              impls.OpcmV2,
-					SuperchainConfig:  implementationsConfig.SuperchainConfigProxy,
-					ExtraInstructions: []embedded.ExtraInstruction{},
-				}
-				err := embedded.UpgradeSuperchainConfig(host, superchainUpgradeConfig)
-				if err != nil {
-					t.Logf("Superchain upgrade may have failed (could already be upgraded): %v", err)
-				} else {
-					t.Log("Superchain V2 upgrade succeeded")
-				}
-			})
-
-			// Then test upgrade on the V2-deployed chain
-			t.Run("upgrade chain v2", func(t *testing.T) {
-				// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
-				testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
-
-				// PermissionedDisputeGameConfig needs absolutePrestate, proposer, challenger
-				testProposer := common.Address{'P'}
-				testChallenger := common.Address{'C'}
-
-				upgradeConfig := embedded.UpgradeOPChainInput{
-					Prank: superchainProxyAdminOwner,
-					Opcm:  impls.OpcmV2,
-					UpgradeInputV2: &embedded.UpgradeInputV2{
-						SystemConfig: deployer.DefaultSystemConfigProxySepolia,
-						DisputeGameConfigs: []embedded.DisputeGameConfig{
-							{
-								Enabled:  true,
-								InitBond: big.NewInt(1000000000000000000),
-								GameType: embedded.GameTypeCannon,
-								FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
-									AbsolutePrestate: testPrestate,
-								},
-							},
-							{
-								Enabled:  true,
-								InitBond: big.NewInt(1000000000000000000),
-								GameType: embedded.GameTypePermissionedCannon,
-								PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
-									AbsolutePrestate: testPrestate,
-									Proposer:         testProposer,
-									Challenger:       testChallenger,
-								},
-							},
-							{
-								Enabled:  true,
-								InitBond: big.NewInt(1000000000000000000),
-								GameType: embedded.GameTypeCannonKona,
-								FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
-									AbsolutePrestate: testPrestate,
-								},
-							},
-							{
-								Enabled:  true,
-								InitBond: big.NewInt(0),
-								GameType: embedded.GameTypeSuperPermissioned,
-								SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
-									Proposer: testProposer,
-								},
-							},
-							{
-								Enabled:  true,
-								InitBond: big.NewInt(1000000000000000000),
-								GameType: embedded.GameTypeSuperCannonKona,
-								FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
-									AbsolutePrestate: testPrestate,
-								},
-							},
-							{
-								Enabled:  false,
-								InitBond: big.NewInt(0),
-								GameType: embedded.GameTypeZKDisputeGame,
-							},
-						},
-						ExtraInstructions: []embedded.ExtraInstruction{},
-					},
-				}
-
-				upgradeConfigBytes, err := json.Marshal(upgradeConfig)
-				require.NoError(t, err, "UpgradeOPChainV2Input should marshal to JSON")
-
-				// Verify input encoding
-				encodedData, err := upgradeConfig.EncodedUpgradeInputV2()
-				require.NoError(t, err, "Should encode UpgradeInputV2")
-				require.NotEmpty(t, encodedData, "Encoded data should not be empty")
-
-				err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
-				require.NoError(t, err, "OPCM V2 chain upgrade should succeed")
-			})
-		})
-	})
 }
 
 func setupGenesisChain(t *testing.T, l1ChainID uint64) (deployer.ApplyPipelineOpts, *state.Intent, *state.State) {

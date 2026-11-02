@@ -54,7 +54,7 @@ run_scenario() {
   echo "${json_seed}" > "${OUTPUT}"
   TRIGGER_SOURCE="${trigger}" BRANCH="${branch}" TAG="${tag}" SCHEDULE_NAME="${schedule}" \
     CIRCLE_PROJECT_USERNAME="${repo%%/*}" CIRCLE_PROJECT_REPONAME="${repo#*/}" \
-    bash "${ROUTING_SCRIPT}" >/dev/null || true
+    bash "${ROUTING_SCRIPT}" > /dev/null || true
 
   local _json
   _json=$(cat "${OUTPUT}")

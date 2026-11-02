@@ -224,7 +224,7 @@ mod test {
     use super::*;
     use crate::{CONFIG_UPDATE_EVENT_VERSION_0, HardForkConfig};
     use alloc::vec;
-    use alloy_primitives::{B256, LogData, address, b256, hex};
+    use alloy_primitives::{B256, LogData, address, b256, hex, keccak256};
 
     const BATCHER_UPDATE_TYPE: B256 =
         b256!("0000000000000000000000000000000000000000000000000000000000000000");
@@ -625,5 +625,76 @@ mod test {
         assert_eq!(system_config.batcher_address, Address::ZERO);
         // Valid gas limit update was still applied.
         assert_eq!(system_config.gas_limit, 0xbeef_u64);
+    }
+
+    /// OP Private settlement chains emit `PrivateConfigUpdate` for their private chains, and stock
+    /// derivation must ignore it.
+    #[test]
+    fn test_update_with_receipts_ignores_private_config_update() {
+        let private_config_update_topic =
+            keccak256("PrivateConfigUpdate(uint256,uint256,uint8,bytes)");
+        assert_eq!(
+            private_config_update_topic,
+            b256!("4fcb51ee30ce256e6dcc5d7e998ba855277c8dc9827f6367adf0880ec3948860")
+        );
+        let private_chain_id = B256::from(U256::from(1337).to_be_bytes::<32>());
+        const UNSAFE_BLOCK_SIGNER_UPDATE_TYPE: B256 =
+            b256!("0000000000000000000000000000000000000000000000000000000000000003");
+
+        let mut system_config = SystemConfig::default();
+        let l1_system_config_address = Address::ZERO;
+
+        // Gas limit update for this chain.
+        let gas_limit_log = Log {
+            address: Address::ZERO,
+            data: LogData::new_unchecked(
+                vec![
+                    CONFIG_UPDATE_TOPIC,
+                    CONFIG_UPDATE_EVENT_VERSION_0,
+                    GAS_LIMIT_UPDATE_TYPE,
+                ],
+                hex!("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000beef").into()
+            )
+        };
+
+        // Gas limit update for the private chain, which would change the gas limit if applied.
+        let private_gas_limit_log = Log {
+            address: Address::ZERO,
+            data: LogData::new_unchecked(
+                vec![
+                    private_config_update_topic,
+                    CONFIG_UPDATE_EVENT_VERSION_0,
+                    private_chain_id,
+                    GAS_LIMIT_UPDATE_TYPE,
+                ],
+                hex!("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000dead").into()
+            )
+        };
+
+        // Unsafe block signer update for the private chain.
+        let private_signer_log = Log {
+            address: Address::ZERO,
+            data: LogData::new_unchecked(
+                vec![
+                    private_config_update_topic,
+                    CONFIG_UPDATE_EVENT_VERSION_0,
+                    private_chain_id,
+                    UNSAFE_BLOCK_SIGNER_UPDATE_TYPE,
+                ],
+                hex!("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000dead").into()
+            )
+        };
+
+        let receipt = Receipt {
+            logs: vec![gas_limit_log, private_gas_limit_log, private_signer_log],
+            status: Eip658Value::Eip658(true),
+            cumulative_gas_used: 0,
+        };
+
+        let (updates, errors) =
+            system_config.update_with_receipts(&[receipt], l1_system_config_address, false);
+        assert_eq!(updates, vec![SystemConfigUpdateKind::GasLimit]);
+        assert!(errors.is_empty());
+        assert_eq!(system_config, SystemConfig { gas_limit: 0xbeef_u64, ..Default::default() });
     }
 }

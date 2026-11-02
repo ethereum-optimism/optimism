@@ -110,6 +110,18 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want:      0,
 		},
 		{
+			name:      "minimal rejects alt-DA",
+			supported: minimalPresetSupportedOptionKinds,
+			opts:      WithAltDA(nil),
+			want:      optionKindAltDA,
+		},
+		{
+			name:      "minimal without fault proofs allows alt-DA",
+			supported: minimalNoFaultProofsPresetSupportedOptionKinds,
+			opts:      WithAltDA(nil),
+			want:      0,
+		},
+		{
 			name:      "conductors allow op-reth options",
 			supported: minimalWithConductorsPresetSupportedOptionKinds,
 			opts:      WithOpRethOption(sysgo.OpRethWithBinary("op-reth-superset")),

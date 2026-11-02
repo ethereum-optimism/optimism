@@ -3,6 +3,7 @@
 use alloy_consensus::{SignableTransaction, TxEip1559};
 use alloy_genesis::Genesis;
 use alloy_network::{TxSignerSync, eip2718::Encodable2718};
+use alloy_op_hardforks::OP_MAINNET_BEDROCK_BLOCK;
 use alloy_primitives::{Address, Bytes, TxKind};
 use jsonrpsee::{
     RpcModule,
@@ -11,7 +12,7 @@ use jsonrpsee::{
     server::ServerBuilder,
     types::error::METHOD_NOT_FOUND_CODE,
 };
-use reth_chainspec::EthChainSpec;
+use reth_chainspec::{EthChainSpec, ForkCondition};
 use reth_e2e_test_utils::wallet::Wallet;
 use reth_network::types::NatResolver;
 use reth_node_builder::{NodeBuilder, NodeHandle};
@@ -19,7 +20,7 @@ use reth_node_core::{
     args::{NetworkArgs, RpcServerArgs, RpcStateCacheArgs},
     node_config::NodeConfig,
 };
-use reth_optimism_chainspec::{OP_SEPOLIA, OpChainSpecBuilder};
+use reth_optimism_chainspec::{OP_SEPOLIA, OpChainSpecBuilder, OpHardfork};
 use reth_optimism_node::{OpNode, args::RollupArgs};
 use reth_rpc_api::{EthConfigApiClient, servers::AdminApiServer};
 use reth_rpc_eth_api::helpers::EthTransactions;
@@ -143,6 +144,43 @@ async fn test_eth_config_endpoint_exists() -> eyre::Result<()> {
     let client = node.add_ons_handle.rpc_server_handles().rpc.http_client().unwrap();
     let config = client.config().await?;
     assert_eq!(config.current.chain_id, network.clone().chain_id());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_eth_capabilities_starts_at_bedrock() -> eyre::Result<()> {
+    reth_tracing::init_test_tracing();
+
+    let genesis: Genesis = serde_json::from_str(include_str!("../assets/genesis.json"))?;
+    let chain_spec = Arc::new(
+        OpChainSpecBuilder::optimism_sepolia()
+            .genesis(genesis)
+            .with_fork(OpHardfork::Bedrock, ForkCondition::Block(OP_MAINNET_BEDROCK_BLOCK))
+            .build(),
+    );
+
+    let exec = Runtime::test();
+    let mut network_args = NetworkArgs::default().with_unused_ports();
+    network_args.discovery.discv5_port = Some(0);
+    network_args.discovery.discv5_port_ipv6 = Some(0);
+    let node_config = NodeConfig::test()
+        .map_chain(chain_spec)
+        .with_network(network_args)
+        .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
+
+    let NodeHandle { node, node_exit_future: _ } =
+        NodeBuilder::new(node_config).testing_node(exec).node(OpNode::default()).launch().await?;
+
+    let client = node.add_ons_handle.rpc_server_handles().rpc.http_client().unwrap();
+    let capabilities: serde_json::Value = client.request("eth_capabilities", rpc_params![]).await?;
+    for resource in ["state", "tx", "logs", "receipts", "blocks", "stateproofs"] {
+        assert_eq!(
+            capabilities[resource]["oldestBlock"],
+            format!("{OP_MAINNET_BEDROCK_BLOCK:#x}"),
+            "{resource}: {capabilities}"
+        );
+    }
 
     Ok(())
 }

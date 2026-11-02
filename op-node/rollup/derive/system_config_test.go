@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -635,4 +636,71 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 		require.Equal(t, uint64(0xdd), sysCfg.GasLimit)
 		require.Equal(t, minBaseFee, sysCfg.MinBaseFee)
 	})
+}
+
+// TestUpdateSystemConfigIgnoresPrivateConfigUpdate tests that derivation ignores PrivateConfigUpdate
+// logs: OP Private settlement chains emit this event for their private chains, and stock derivation must ignore it.
+func TestUpdateSystemConfigIgnoresPrivateConfigUpdate(t *testing.T) {
+	privateConfigUpdateEventABIHash := crypto.Keccak256Hash([]byte("PrivateConfigUpdate(uint256,uint256,uint8,bytes)"))
+	require.Equal(t, common.HexToHash("0x4fcb51ee30ce256e6dcc5d7e998ba855277c8dc9827f6367adf0880ec3948860"), privateConfigUpdateEventABIHash)
+
+	sysCfg := eth.SystemConfig{GasLimit: 0x1234}
+	l1Addr := common.Address{19: 0x46}
+	cfg := rollup.Config{
+		L1SystemConfigAddress: l1Addr,
+	}
+	// Well-formed GasLimit update for this chain
+	gasDataEnc, err := oneUint256.Pack(big.NewInt(0xbb))
+	require.NoError(t, err)
+	gasData, err := bytesArgs.Pack(gasDataEnc)
+	require.NoError(t, err)
+	gasLog := &types.Log{
+		Address: l1Addr,
+		Topics: []common.Hash{
+			ConfigUpdateEventABIHash,
+			ConfigUpdateEventVersion0,
+			SystemConfigUpdateGasLimit,
+		},
+		Data: gasData,
+	}
+	// GasLimit update for private chain 1337, which would change the gas limit if applied
+	privateGasDataEnc, err := oneUint256.Pack(big.NewInt(60_000_000))
+	require.NoError(t, err)
+	privateGasData, err := bytesArgs.Pack(privateGasDataEnc)
+	require.NoError(t, err)
+	privateGasLog := &types.Log{
+		Address: l1Addr,
+		Topics: []common.Hash{
+			privateConfigUpdateEventABIHash,
+			ConfigUpdateEventVersion0,
+			common.BigToHash(big.NewInt(1337)),
+			SystemConfigUpdateGasLimit,
+		},
+		Data: privateGasData,
+	}
+	// UnsafeBlockSigner update for private chain 1337
+	signer := common.Address{19: 0xad}
+	signerEnc, err := addressArgs.Pack(&signer)
+	require.NoError(t, err)
+	signerData, err := bytesArgs.Pack(signerEnc)
+	require.NoError(t, err)
+	privateSignerLog := &types.Log{
+		Address: l1Addr,
+		Topics: []common.Hash{
+			privateConfigUpdateEventABIHash,
+			ConfigUpdateEventVersion0,
+			common.BigToHash(big.NewInt(1337)),
+			SystemConfigUpdateUnsafeBlockSigner,
+		},
+		Data: signerData,
+	}
+	receipts := []*types.Receipt{
+		{
+			Status: types.ReceiptStatusSuccessful,
+			Logs:   []*types.Log{gasLog, privateGasLog, privateSignerLog},
+		},
+	}
+	err = UpdateSystemConfigWithL1Receipts(&sysCfg, receipts, &cfg, 0)
+	require.NoError(t, err)
+	require.Equal(t, eth.SystemConfig{GasLimit: 0xbb}, sysCfg)
 }

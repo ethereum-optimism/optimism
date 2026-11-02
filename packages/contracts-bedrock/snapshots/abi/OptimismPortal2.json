@@ -1254,6 +1254,11 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_L1CDMCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_LockboxNotAuthorizedForPortal",
     "type": "error"
   },

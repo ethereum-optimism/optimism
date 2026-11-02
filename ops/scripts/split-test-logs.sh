@@ -23,14 +23,14 @@ if [ ! -f "$json_file" ]; then
   exit 1
 fi
 
-if ! command -v python3 &>/dev/null; then
+if ! command -v python3 &> /dev/null; then
   echo "Error: python3 is required but not found" >&2
   exit 1
 fi
 
 output_dir="$(dirname "$json_file")/per-test"
 
-python3 - "$json_file" "$output_dir" <<'PYEOF'
+python3 - "$json_file" "$output_dir" << 'PYEOF'
 import json, os, sys, re
 
 json_file = sys.argv[1]

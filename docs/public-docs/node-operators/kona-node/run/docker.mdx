@@ -95,7 +95,7 @@ By default, the recipe is configured for **OP Sepolia**. To sync a different OP 
 
 ### RPC Trust Configuration
 
-By default, `kona-node` trusts RPC providers (both L1 and L2). When using public or untrusted RPC endpoints, you should disable trust to enable block hash verification:
+By default, `kona-node` enables L1 block hash verification (`KONA_NODE_L1_TRUST_RPC=false`) and trusts the local L2 engine (`KONA_NODE_L2_TRUST_RPC=true`), matching op-node. For public or untrusted RPC endpoints, use `false` for both:
 
 ```bash
 # In cfg.env or as environment variables:
@@ -111,9 +111,9 @@ kona-node:
     --chain op-sepolia
     --l1-eth-rpc ${L1_PROVIDER_RPC}
     --l1-beacon ${L1_BEACON_API}
-    --l1-trust-rpc false  # Add this for untrusted L1 RPCs
+    --l1-trust-rpc=false  # The default for L1 RPCs
     --l2-engine-rpc ws://op-reth:8551
-    --l2-trust-rpc false  # Add this for untrusted L2 RPCs
+    --l2-trust-rpc=false  # Add this for untrusted L2 RPCs
 ```
 
 See [configure RPC trust](/node-operators/kona-node/run/rpc-trust) for more details on RPC trust settings.

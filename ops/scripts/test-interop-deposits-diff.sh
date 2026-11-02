@@ -39,14 +39,14 @@ trap 'rm -f "$go_out" "$go_err" "$rust_out" "$rust_err"' EXIT
 # on a cold module cache), which must not pollute the diff input.
 
 echo "==> running Go dumper"
-if ! (cd "$repo_root" && go run ./op-node/cmd/interop-deposits-dump) >"$go_out" 2>"$go_err"; then
+if ! (cd "$repo_root" && go run ./op-node/cmd/interop-deposits-dump) > "$go_out" 2> "$go_err"; then
   echo "error: Go dumper failed" >&2
   cat "$go_err" >&2
   exit 2
 fi
 
 echo "==> running Rust dumper"
-if ! (cd "$repo_root/rust/kona" && cargo run --quiet -p kona-hardforks --example interop-deposits-dump) >"$rust_out" 2>"$rust_err"; then
+if ! (cd "$repo_root/rust/kona" && cargo run --quiet -p kona-hardforks --example interop-deposits-dump) > "$rust_out" 2> "$rust_err"; then
   echo "error: Rust dumper failed" >&2
   cat "$rust_err" >&2
   exit 2

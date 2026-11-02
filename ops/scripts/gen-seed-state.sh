@@ -20,15 +20,15 @@ OUT="$ROOT/op-core/nuts/state/jovian_state.json"
 WT="$(mktemp -d "${TMPDIR:-/tmp}/prefork-state-wt.XXXXXX")"
 
 cleanup() {
-  git -C "$ROOT" worktree remove --force "$WT" 2>/dev/null || true
-  rm -rf "$WT" 2>/dev/null || true
+  git -C "$ROOT" worktree remove --force "$WT" 2> /dev/null || true
+  rm -rf "$WT" 2> /dev/null || true
 }
 trap cleanup EXIT
 
 # A release-tag commit (op-contracts/v5.0.0) need not be on develop's mainline, so
 # a fresh clone may lack it. Give a clear hint rather than a cryptic failure from
 # `git worktree add`.
-if ! git -C "$ROOT" cat-file -e "${COMMIT}^{commit}" 2>/dev/null; then
+if ! git -C "$ROOT" cat-file -e "${COMMIT}^{commit}" 2> /dev/null; then
   echo "error: commit $COMMIT not found locally — fetch it first, e.g.:" >&2
   echo "  git fetch https://github.com/ethereum-optimism/optimism.git tag op-contracts/v5.0.0" >&2
   exit 1
@@ -38,7 +38,7 @@ echo ">>> [1/3] worktree for jovian at $COMMIT"
 git -C "$ROOT" worktree add --detach "$WT" "$COMMIT"
 
 echo ">>> [2/3] build jovian-era forge-artifacts"
-( cd "$WT/packages/contracts-bedrock" && just build-no-tests )
+(cd "$WT/packages/contracts-bedrock" && just build-no-tests)
 
 echo ">>> [3/3] dump predeploy-scoped jovian state with jovian-era toolchain"
 # Copy the committed dumper into the worktree so it compiles against the fork-era
@@ -54,7 +54,7 @@ sed -i.bak 's#op-core/predeploys#op-service/predeploys#' "$WT/ops/scripts/prefor
 rm -f "$WT/ops/scripts/prefork-state-dump/main.go.bak"
 
 mkdir -p "$ROOT/op-core/nuts/state"
-( cd "$WT" && go run ./ops/scripts/prefork-state-dump jovian "$OUT" )
+(cd "$WT" && go run ./ops/scripts/prefork-state-dump jovian "$OUT")
 
 echo ">>> done"
 ls -lh "$OUT"

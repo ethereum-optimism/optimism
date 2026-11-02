@@ -42,11 +42,13 @@ func TestEcotoneScalars(t *testing.T) {
 	testCases := []scalarTest{
 		{"dirty padding v0 scalar", Bytes32{0: 0, 27: 1, 31: 2}, false, 0, math.MaxUint32},
 		{"dirty padding v0 scalar v2", Bytes32{0: 0, 1: 1, 31: 2}, false, 0, math.MaxUint32},
+		{"dirty padding v0 scalar at blob scalar offset", Bytes32{0: 0, 24: 1, 31: 2}, false, 0, math.MaxUint32},
 		{"valid v0 scalar", Bytes32{0: 0, 27: 0, 31: 2}, false, 0, 2},
 		{"invalid v1 scalar", Bytes32{0: 1, 7: 1, 31: 2}, true, 0, 0},
 		{"valid v1 scalar with 0 blob scalar", Bytes32{0: 1, 27: 0, 31: 2}, false, 0, 2},
 		{"valid v1 scalar with non-0 blob scalar", Bytes32{0: 1, 27: 123, 31: 2}, false, 123, 2},
 		{"valid v1 scalar with non-0 blob scalar and 0 scalar", Bytes32{0: 1, 27: 123, 31: 0}, false, 123, 0},
+		{"valid v1 scalar with full-width scalars", Bytes32{0: 1, 24: 0x12, 25: 0x34, 26: 0x56, 27: 0x78, 28: 0x90, 29: 0xab, 30: 0xcd, 31: 0xef}, false, 0x12345678, 0x90abcdef},
 		{"zero v0 scalar", Bytes32{0: 0}, false, 0, 0},
 		{"zero v1 scalar", Bytes32{0: 1}, false, 0, 0},
 		{"unknown version", Bytes32{0: 2}, true, 0, 0},

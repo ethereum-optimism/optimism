@@ -1,10 +1,23 @@
 //! Utilities to translate types.
 
 use discv5::Enr;
-use enr::{CombinedPublicKey, EnrPublicKey};
+use enr::{CombinedPublicKey, EnrPublicKey, NodeId};
 use libp2p::{Multiaddr, multiaddr::Protocol};
 
 use super::PeerId;
+
+/// Returns the discovery [`NodeId`] of the node with the libp2p `peer_id`, or `None` if the peer
+/// ID doesn't hold a secp256k1 key, as every OP Stack node's does.
+///
+/// Both come from the node's public key: the peer ID holds the key itself, and the node ID is its
+/// hash.
+pub fn peer_id_to_node_id(peer_id: &libp2p::PeerId) -> Option<NodeId> {
+    let public_key =
+        libp2p_identity::PublicKey::try_decode_protobuf(peer_id.as_ref().digest()).ok()?;
+    let compressed = public_key.try_into_secp256k1().ok()?.to_bytes();
+    let key = enr::k256::ecdsa::VerifyingKey::from_sec1_bytes(&compressed).ok()?;
+    Some(NodeId::from(key))
+}
 
 /// Converts an [`Enr`] into a [`Multiaddr`].
 pub fn enr_to_multiaddr(enr: &Enr) -> Option<Multiaddr> {
@@ -79,6 +92,21 @@ mod tests {
     use crate::PeerId;
     use alloy_primitives::hex::FromHex;
     use enr::{CombinedKey, Enr, EnrKey};
+
+    /// A node's peer ID and the node ID in its ENR come from the same key.
+    #[test]
+    fn test_peer_id_to_node_id() {
+        let keypair = libp2p_identity::Keypair::generate_secp256k1();
+        let mut secret = keypair.clone().try_into_secp256k1().unwrap().secret().to_bytes();
+        let key = CombinedKey::secp256k1_from_bytes(&mut secret).unwrap();
+        let enr = Enr::builder().build(&key).unwrap();
+
+        let peer_id = keypair.public().to_peer_id();
+        assert_eq!(peer_id_to_node_id(&peer_id), Some(enr.node_id()));
+
+        // A peer ID with no secp256k1 key in it.
+        assert_eq!(peer_id_to_node_id(&libp2p::PeerId::random()), None);
+    }
 
     #[test]
     fn test_resolve_multiaddr() {

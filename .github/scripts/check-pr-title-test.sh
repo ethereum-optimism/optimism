@@ -11,7 +11,7 @@ expect() {
   local expected="${1}"
   local subject="${2}"
   local actual
-  if bash "${checker}" "${subject}" >/dev/null 2>&1; then
+  if bash "${checker}" "${subject}" > /dev/null 2>&1; then
     actual="pass"
   else
     actual="fail"

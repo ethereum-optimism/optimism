@@ -8,8 +8,18 @@
     "dark": "#FF0420"
   },
   "thumbnails": {
+    "preset": "classic",
     "appearance": "dark",
-    "background": "/public/img/og-background.svg"
+    "surface": "neutral",
+    "background": "/public/img/thumbnail-bg.png",
+    "fonts": {
+      "family": "Riforma LL",
+      "source": "/public/fonts/RiformaLL-Regular.woff",
+      "format": "woff"
+    },
+    "eyebrow": {
+      "source": "none"
+    }
   },
   "favicon": "/public/favicon.png",
   "metadata": {
@@ -413,11 +423,11 @@
     },
     {
       "source": "/identity/optimist-profile",
-      "destination": "/governance/attestation-schemas"
+      "destination": "/governance/gov-faq"
     },
     {
       "source": "/chain/identity/optimist-profile",
-      "destination": "/governance/attestation-schemas"
+      "destination": "/governance/gov-faq"
     },
     {
       "source": "/app-developers/tools/overview",
@@ -1710,6 +1720,14 @@
     {
       "source": "/stack/components",
       "destination": "/op-stack/protocol/components"
+    },
+    {
+      "source": "/governance/eas-attestations",
+      "destination": "/governance/gov-faq"
+    },
+    {
+      "source": "/governance/attestation-schemas",
+      "destination": "/governance/gov-faq"
     },
     {
       "source": "/governance/blockspace-charter",
@@ -3614,8 +3632,6 @@
               "governance/protocol-upgrades",
               "governance/capital-allocation",
               "governance/evolution-and-experimentation",
-              "governance/eas-attestations",
-              "governance/attestation-schemas",
               "governance/resources",
               "governance/gov-faq"
             ]

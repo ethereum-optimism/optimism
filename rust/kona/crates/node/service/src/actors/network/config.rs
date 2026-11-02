@@ -3,7 +3,7 @@
 use alloy_primitives::Address;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
-use kona_gossip::GaterConfig;
+use kona_gossip::{GaterConfig, PeerAddr};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_sources::BlockSigner;
 use libp2p::{Multiaddr, identity::Keypair};
@@ -21,6 +21,9 @@ pub struct NetworkConfig {
     pub discovery_interval: Duration,
     /// The interval to remove peers from the discovery service.
     pub discovery_randomize: Option<Duration>,
+    /// Whether to run discovery. Without it, the node binds no UDP socket, and connects only to
+    /// its static peers, the peers that dial it, and the peers added with `opp2p_connectPeer`.
+    pub discovery_enabled: bool,
     /// Whether to update the ENR socket when the gossip listen address changes.
     pub enr_update: bool,
     /// The gossip address.
@@ -43,6 +46,8 @@ pub struct NetworkConfig {
     pub gater_config: GaterConfig,
     /// An optional list of bootnode ENRs to start the node with.
     pub bootnodes: BootNodes,
+    /// The peers to dial at startup and keep connected.
+    pub static_peers: Vec<PeerAddr>,
     /// The [`RollupConfig`].
     pub rollup_config: RollupConfig,
     /// Signs the sequencer's blocks for gossip. Required in sequencer mode. It is used by the
@@ -87,11 +92,13 @@ impl NetworkConfig {
             discovery_address: discovery_listen,
             discovery_interval: Self::DEFAULT_DISCOVERY_INTERVAL,
             discovery_randomize: Self::DEFAULT_DISCOVERY_RANDOMIZE,
+            discovery_enabled: true,
             gossip_address,
             unsafe_block_signer,
             enr_update: true,
             keypair: Keypair::generate_secp256k1(),
             bootnodes: Default::default(),
+            static_peers: Default::default(),
             bootstore: Default::default(),
             gater_config: Default::default(),
             gossip_config: Default::default(),
