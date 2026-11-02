@@ -11,16 +11,23 @@ The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona performs ad
 The defaults match op-node: L1 trust is disabled (`false`), while L2 engine trust is enabled (`true`). To retain the previous L1 trust behavior, set `--l1-trust-rpc=true` or `KONA_NODE_L1_TRUST_RPC=true`.
 
 **Trust Mode (trust enabled, `true`):**
-- No additional block hash verification is performed
+- RPC responses are used without verification
 - Optimized for performance
 - Suitable for local nodes and trusted infrastructure
 - Assumes the RPC provider is reliable and honest
 
 **Verification Mode (trust disabled, `false`):**
-- Block hash verification is enabled
-- Protects against malicious RPC providers returning incorrect blocks
+- Every L1 header is checked against its block hash, and every L1 block found by number must be at that number
+- Each L1 block's transactions and receipts are checked against the header's transactions and receipts roots
+- The unsafe block signer, read from the `SystemConfig` contract on L1, is proven against the block's state root with `eth_getProof`
+- L2 blocks looked up by hash are checked against their block hashes
+- Protects against malicious or faulty RPC providers returning incorrect data
 - Recommended for public or third-party RPC endpoints
-- Small performance overhead due to hash verification
+- Small performance overhead from the checks
+
+<Note>
+With `--l1-trust-rpc=false`, the L1 RPC must serve `eth_getProof` for recent blocks. Without it, `kona-node` cannot read the unsafe block signer and fails to start.
+</Note>
 
 ## Examples
 
