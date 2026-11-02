@@ -3409,11 +3409,17 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_Reentrancy_T
         emit DepositHeld(BridgeHookHashing.hashItem(item));
 
         vm.deal(depositor, _mint);
+        // On Amsterdam, each ETH transfer also emits a log (EIP-7708). Count only the Portal's logs.
         vm.recordLogs();
         vm.prank(depositor, depositor);
         optimismPortal2.depositTransaction{ value: _mint }(_to, _value, _gasLimit, _isCreation, _data);
 
-        assertEq(vm.getRecordedLogs().length, 1);
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        uint256 portalLogs;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(optimismPortal2)) portalLogs++;
+        }
+        assertEq(portalLogs, 1);
         assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)));
         assertEq(hook.balance, _mint);
         (uint64 gas, uint64 blockNum) = publishedCount();
