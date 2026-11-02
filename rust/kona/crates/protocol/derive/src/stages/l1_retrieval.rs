@@ -147,7 +147,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{TestDAP, TraversalTestHelper};
+    use crate::{
+        PollingTraversal,
+        test_utils::{TestChainProvider, TestDAP, TraversalTestHelper},
+    };
     use alloc::vec;
     use alloy_primitives::Bytes;
 
@@ -174,6 +177,16 @@ mod tests {
         assert!(retrieval.provider.results.is_empty());
     }
 
+    /// Makes the traversal's provider know a header to reset to, since resets resolve by hash.
+    fn reset_base(
+        retrieval: &mut L1Retrieval<TestDAP, PollingTraversal<TestChainProvider>>,
+    ) -> BlockNumHash {
+        let header = alloy_consensus::Header::default();
+        let hash = header.hash_slow();
+        retrieval.prev.data_source.insert_header(hash, header);
+        BlockNumHash { number: 0, hash }
+    }
+
     #[tokio::test]
     async fn test_l1_retrieval_reset_signal() {
         let traversal = TraversalTestHelper::new_populated();
@@ -182,9 +195,10 @@ mod tests {
         retrieval.prev.block = None;
         assert!(retrieval.prev.block.is_none());
         retrieval.next = None;
-        retrieval.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
+        let base = reset_base(&mut retrieval);
+        retrieval.reset(base, SystemConfig::default()).await.unwrap();
         assert!(retrieval.next.is_some());
-        assert_eq!(retrieval.prev.block, Some(BlockInfo::default()));
+        assert_eq!(retrieval.prev.block, Some(BlockInfo { hash: base.hash, ..Default::default() }));
         // Provider must be cleared on reset to flush stale data.
         assert!(retrieval.provider.results.is_empty());
     }
@@ -244,7 +258,8 @@ mod tests {
         let dap = TestDAP { results: vec![Ok(Bytes::from_static(b"stale"))] };
         let mut retrieval = L1Retrieval::new(traversal, dap);
         retrieval.next = Some(BlockInfo::default());
-        retrieval.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
+        let base = reset_base(&mut retrieval);
+        retrieval.reset(base, SystemConfig::default()).await.unwrap();
         let err = retrieval.next_data().await.unwrap_err();
         assert_eq!(err, PipelineError::Eof.temp());
     }

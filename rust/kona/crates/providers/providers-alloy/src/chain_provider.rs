@@ -220,8 +220,8 @@ impl AlloyChainProvider {
 
     /// Hides L1 blocks with fewer than `depth` confirmations from forward traversal.
     ///
-    /// Reset and hash-based lookups are unaffected. Configure only the online derivation provider,
-    /// so unsafe-head recovery and sequencing keep their own L1 views.
+    /// Hash lookups, which pipeline resets use, are unaffected. Configure only the online
+    /// derivation provider, so unsafe-head recovery and sequencing keep their own L1 views.
     pub fn with_confirmation_depth(
         mut self,
         depth: u64,
@@ -641,15 +641,6 @@ impl AlloyChainProvider {
             // A number-based not-found is temporary: traversal waits for more confirmations.
             return Err(AlloyChainProviderError::BlockNotFound(number.into()));
         }
-        self.block_info_by_number_for_reset(number).await
-    }
-
-    /// Returns the [`BlockInfo`] of the block with the given number, ignoring the confirmation
-    /// depth.
-    pub async fn block_info_by_number_for_reset(
-        &self,
-        number: u64,
-    ) -> Result<BlockInfo, AlloyChainProviderError> {
         self.block_info(number.into()).await
     }
 
@@ -785,13 +776,6 @@ impl ChainProvider for AlloyChainProvider {
 
     async fn block_info_by_number(&mut self, number: u64) -> Result<BlockInfo, Self::Error> {
         Self::block_info_by_number(self, number).await
-    }
-
-    async fn block_info_by_number_for_reset(
-        &mut self,
-        number: u64,
-    ) -> Result<BlockInfo, Self::Error> {
-        Self::block_info_by_number_for_reset(self, number).await
     }
 
     async fn receipts_by_hash(&mut self, hash: B256) -> Result<Vec<Receipt>, Self::Error> {
@@ -1066,14 +1050,30 @@ mod tests {
         let (_head_tx, head_rx) = watch::channel(Some(observed_head(2)));
         let provider = mocked_provider(asserter.clone()).with_confirmation_depth(4, head_rx);
         let mut traversal = PollingTraversal::new(provider, Arc::new(RollupConfig::default()));
-        // Reset re-resolves the canonical block by number, even when its old hash is stale.
+        // Reset resolves the base by hash, which the confirmation depth never delays.
         traversal
-            .reset(alloy_eips::BlockNumHash::new(1, B256::ZERO), SystemConfig::default())
+            .reset(alloy_eips::BlockNumHash::new(1, block.header.hash), SystemConfig::default())
             .await
             .unwrap();
         assert_eq!(traversal.origin().unwrap().hash, block.header.hash);
         assert!(matches!(traversal.advance_origin().await, Err(PipelineErrorKind::Temporary(_))));
         assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn reset_to_an_unknown_base_is_a_reset_error() {
+        use kona_derive::{PollingTraversal, Stage};
+        use kona_genesis::{RollupConfig, SystemConfig};
+
+        let asserter = Asserter::new();
+        asserter.push_success(&Option::<EthereumBlock>::None);
+        let mut traversal =
+            PollingTraversal::new(mocked_provider(asserter), Arc::new(RollupConfig::default()));
+        let base = alloy_eips::BlockNumHash::new(1, B256::repeat_byte(0xbb));
+        assert!(matches!(
+            traversal.reset(base, SystemConfig::default()).await,
+            Err(PipelineErrorKind::Reset(ResetError::BlockNotFound(_)))
+        ));
     }
 
     /// A one-block tip replacement is invisible to delayed traversal. At zero depth, consuming
