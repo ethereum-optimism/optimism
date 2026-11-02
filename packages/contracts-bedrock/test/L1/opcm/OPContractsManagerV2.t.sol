@@ -1049,8 +1049,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(uint256(vm.load(address(delayedWeth), bytes32(uint256(6)))), wethDelayBefore);
     }
 
-    /// @notice Tests that the upgrade keeps a chain's bridge hook state: the hook, held deposits,
-    ///         the deposit nonce and the published count.
+    /// @notice Tests that the upgrade keeps a chain's bridge hook state. This is the hook, the held
+    ///         deposits and withdrawals, the deposit nonce and the published count.
     function test_upgrade_bridgeHookStateUnchanged_succeeds() public {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
 
@@ -1073,6 +1073,11 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             keccak256(abi.encode(id, ForgeArtifacts.getSlot("OptimismPortal2", "heldDeposits").slot)),
             bytes32(uint256(1))
         );
+        vm.store(
+            address(optimismPortal2),
+            keccak256(abi.encode(id, ForgeArtifacts.getSlot("OptimismPortal2", "heldWithdrawals").slot)),
+            bytes32(uint256(1))
+        );
         vm.store(address(optimismPortal2), bytes32(nonceSlot), bytes32(uint256(7)));
         vm.store(address(optimismPortal2), bytes32(publishedSlot), published);
 
@@ -1080,6 +1085,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
         assertEq(address(optimismPortal2.bridgeHook()), hook, "bridge hook changed");
         assertTrue(optimismPortal2.heldDeposits(id), "held deposit changed");
+        assertTrue(optimismPortal2.heldWithdrawals(id), "held withdrawal changed");
         assertEq(vm.load(address(optimismPortal2), bytes32(nonceSlot)), bytes32(uint256(7)), "nonce changed");
         assertEq(vm.load(address(optimismPortal2), bytes32(publishedSlot)), published, "count changed");
     }

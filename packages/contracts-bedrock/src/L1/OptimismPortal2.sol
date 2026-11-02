@@ -184,6 +184,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param id Identifier of the held deposit.
     event DepositHeld(bytes32 indexed id);
 
+    /// @notice Emitted when the bridge hook holds a withdrawal.
+    /// @param id Identifier of the held withdrawal.
+    event WithdrawalHeld(bytes32 indexed id);
+
     /// @notice Emitted when the proof maturity delay is set.
     /// @param proofMaturityDelaySeconds The new proof maturity delay in seconds.
     event ProofMaturityDelaySecondsSet(uint256 proofMaturityDelaySeconds);
@@ -296,6 +300,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Thrown when the ETH sent with a completion does not match the held item.
     error OptimismPortal_ValueMismatch();
+
+    /// @notice Thrown when the call of a completed withdrawal fails.
+    error OptimismPortal_TargetCallFailed();
 
     /// @notice Thrown when ETHLockbox is set/unset incorrectly depending on the feature flag.
     error OptimismPortal_InvalidLockboxState();
@@ -587,7 +594,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         emit WithdrawalProvenExtension1(withdrawalHash, msg.sender);
     }
 
-    /// @notice Finalizes a withdrawal transaction.
+    /// @notice Finalizes a withdrawal transaction. If a bridge hook is set, the hook can hold the
+    ///         withdrawal. A held withdrawal does not call its target or emit WithdrawalFinalized
+    ///         until the hook completes it.
     /// @param _tx Withdrawal transaction to finalize.
     function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external {
         finalizeWithdrawalTransactionExternalProof(_tx, msg.sender);
@@ -667,7 +676,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         emit PortalMigrated(oldLockbox, _newLockbox, oldAnchorStateRegistry, _newAnchorStateRegistry);
     }
 
-    /// @notice Finalizes a withdrawal transaction, using an external proof submitter.
+    /// @notice Finalizes a withdrawal transaction, using an external proof submitter. If a bridge
+    ///         hook is set, the hook can hold the withdrawal. A held withdrawal does not call its
+    ///         target or emit WithdrawalFinalized until the hook completes it.
     /// @param _tx Withdrawal transaction to finalize.
     /// @param _proofSubmitter Address of the proof submitter.
     function finalizeWithdrawalTransactionExternalProof(
@@ -707,6 +718,37 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // If using ETHLockbox, unlock the ETH from the ETHLockbox.
         if (_isUsingLockbox()) {
             if (_tx.value > 0) _unlockETH(_tx.value);
+        }
+
+        if (_isUsingBridgeHook()) {
+            ProvenWithdrawal memory proven = provenWithdrawals[withdrawalHash][_proofSubmitter];
+            uint256 maturedAt = proven.timestamp + proofMaturityDelaySeconds;
+            uint256 settledAt =
+                proven.disputeGameProxy.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds();
+            // The withdrawal waits for both its proof delay and its game delay. This is the later of
+            // their end times, and the withdrawal can finalize one second after it.
+            uint256 finalizableAt = maturedAt > settledAt ? maturedAt : settledAt;
+
+            BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+                direction: BridgeHookTypes.Direction.Withdrawal,
+                asset: BridgeHookTypes.Asset.ETH,
+                from: _tx.sender,
+                aliased: false,
+                to: _tx.target,
+                ethAmount: _tx.value,
+                l2Value: 0,
+                gasLimit: _tx.gasLimit,
+                isCreation: false,
+                data: _tx.data,
+                nonce: _tx.nonce
+            });
+            bytes memory message = _recognize(item);
+            if (!bridgeHook.screenWithdrawal(item, finalizableAt)) {
+                emit WithdrawalHeld(BridgeHookHashing.hashItem(item));
+                _commitHold(item, message, heldWithdrawals);
+                bridgeHook.holdWithdrawal{ value: _tx.value }(item);
+                return;
+            }
         }
 
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
@@ -934,9 +976,36 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Executes a held withdrawal on its original terms. Only callable by the bridge hook,
     ///         which can also complete withdrawals held under an earlier hook. The hook must
-    ///         attach the item's ETH and approve the bridge to reclaim escrowed tokens.
+    ///         attach the item's ETH and approve the bridge to reclaim escrowed tokens. Reverts
+    ///         if the call fails, so the withdrawal stays held.
     /// @param _item Held withdrawal.
-    function completeWithdrawalTransaction(BridgeHookTypes.Item memory _item) external payable { }
+    function completeWithdrawalTransaction(BridgeHookTypes.Item memory _item) external payable {
+        _assertNotPaused();
+        if (l2Sender != Constants.DEFAULT_L2_SENDER) revert OptimismPortal_NoReentrancy();
+        if (_isUnsafeTarget(_item.to)) revert OptimismPortal_BadTarget();
+
+        _releaseHeld(_item, heldWithdrawals);
+
+        l2Sender = _item.from;
+        bool success = SafeCall.callWithMinGas(_item.to, _item.gasLimit, msg.value, _item.data);
+        l2Sender = Constants.DEFAULT_L2_SENDER;
+
+        if (!success) revert OptimismPortal_TargetCallFailed();
+
+        emit WithdrawalFinalized(
+            Hashing.hashWithdrawal(
+                Types.WithdrawalTransaction({
+                    nonce: _item.nonce,
+                    sender: _item.from,
+                    target: _item.to,
+                    value: _item.ethAmount,
+                    gasLimit: _item.gasLimit,
+                    data: _item.data
+                })
+            ),
+            true
+        );
+    }
 
     /// @notice Locks ETH in the ETHLockbox.
     /// @param _amount Amount of ETH to lock.

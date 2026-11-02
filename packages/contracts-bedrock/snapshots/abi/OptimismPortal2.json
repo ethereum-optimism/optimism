@@ -1123,6 +1123,19 @@
       {
         "indexed": true,
         "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "WithdrawalHeld",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "withdrawalHash",
         "type": "bytes32"
       },
@@ -1338,6 +1351,11 @@
   {
     "inputs": [],
     "name": "OptimismPortal_ProofNotOldEnough",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_TargetCallFailed",
     "type": "error"
   },
   {

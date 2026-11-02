@@ -46,6 +46,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_NotBridgeHook();
     error OptimismPortal_NotHeld();
     error OptimismPortal_ValueMismatch();
+    error OptimismPortal_TargetCallFailed();
     error OptimismPortal_ZeroAddress();
     error OptimismPortal_LockboxNotAuthorizedForPortal();
     error OptimismPortal_DisputeGameNotInvalidated();
@@ -61,6 +62,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     event BridgeHookSet(IBridgeHook indexed bridgeHook);
     event BridgeHookRemoved(IBridgeHook indexed bridgeHook);
     event DepositHeld(bytes32 indexed id);
+    event WithdrawalHeld(bytes32 indexed id);
     event PortalMigrated(
         IETHLockbox oldLockbox,
         IETHLockbox newLockbox,
