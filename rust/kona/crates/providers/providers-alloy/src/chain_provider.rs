@@ -228,16 +228,6 @@ impl AlloyChainProvider {
         self
     }
 
-    /// Returns the latest L2 block number.
-    pub async fn latest_block_number(&self) -> Result<u64, RpcError<TransportErrorKind>> {
-        self.inner.get_block_number().await
-    }
-
-    /// Returns the chain ID.
-    pub async fn chain_id(&self) -> Result<u64, RpcError<TransportErrorKind>> {
-        self.inner.get_chain_id().await
-    }
-
     /// Fetches raw consensus-encoded receipts and decodes their EIP-2718 envelopes.
     async fn raw_receipts_by_hash(
         &self,
