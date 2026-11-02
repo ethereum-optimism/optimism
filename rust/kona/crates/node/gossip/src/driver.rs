@@ -361,33 +361,21 @@ where
     ///
     /// A peer that is already connected is told at once, and so is one the gate refuses to dial,
     /// with the reason. A peer that is already being dialed is told how that dial ends.
+    ///
+    /// A peer counts as connected until its connections have closed, so connecting a peer just
+    /// blocked, while its connections close, is told it is connected.
     pub fn connect_peer(
         &mut self,
         peer: PeerAddr,
         reply: oneshot::Sender<Result<(), ConnectPeerError>>,
     ) {
         let peer_id = peer.peer_id();
-        // Before the connected check: a peer just blocked is still connected until its
-        // connections have closed.
-        let gate = &self.swarm.behaviour().gate;
-        let refusal = if gate.is_blocked_peer(&peer_id) {
-            Some(DialError::PeerBlocked { peer_id })
-        } else if gate.is_banned_peer(&peer_id) {
-            Some(DialError::PeerBanned { peer_id })
-        } else {
-            ConnectionGater::ip_from_addr(peer.addr()).and_then(|ip| gate.check_ip(ip).err())
-        };
-        if let Some(refusal) = refusal {
-            let _ = reply.send(Err(refusal.into()));
-            return;
-        }
-        if self.is_connected(&peer_id) {
-            let _ = reply.send(Ok(()));
-            return;
-        }
         match self.dial_peer(peer_id, [peer.into()]) {
             Ok(()) | Err(DialError::AlreadyDialing { .. }) => {
                 add_reply(&mut self.pending_connects, peer_id, reply);
+            }
+            Err(DialError::AlreadyConnected { .. }) => {
+                let _ = reply.send(Ok(()));
             }
             Err(refusal) => {
                 let _ = reply.send(Err(refusal.into()));
@@ -641,9 +629,10 @@ where
     /// refuses are left out, and nothing is dialed if it refuses them all. The rest make a single
     /// dial, in which libp2p tries several addresses at once and keeps the first connection.
     ///
-    /// Returns `Ok` once the dial has started, or if the peer is already connected. If no address
-    /// is left, returns the gate's first refusal, or [`DialError::NoAddresses`] if the gate refused
-    /// none. Whether the dial then connects comes later, in [`SwarmEvent::ConnectionEstablished`]
+    /// Returns `Ok` once the dial has started, and [`DialError::AlreadyConnected`] if the peer is
+    /// already connected. If no address is left, returns the gate's first refusal, or
+    /// [`DialError::NoAddresses`] if the gate refused none. Whether the dial then connects comes
+    /// later, in [`SwarmEvent::ConnectionEstablished`]
     /// or [`SwarmEvent::OutgoingConnectionError`].
     pub fn dial_peer(
         &mut self,
@@ -656,7 +645,7 @@ where
             debug!(target: "gossip", ?peer_id, "Already connected to peer, not dialing");
             metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected")
                 .increment(1);
-            return Ok(());
+            return Err(DialError::AlreadyConnected { peer_id });
         }
 
         // A DNS name is resolved here, so that the gate checks the IPs libp2p then dials, rather
@@ -1407,8 +1396,8 @@ mod tests {
         let redials = 3;
         let dial_errors = dial_errors(|| {
             for _ in 0..redials {
-                // Not refused: the peer is already where the caller wants it.
-                driver_1.dial_multiaddr(addr_2.clone()).expect("connected peer");
+                let redial = driver_1.dial_multiaddr(addr_2.clone());
+                assert!(matches!(redial, Err(DialError::AlreadyConnected { .. })), "{redial:?}");
             }
         });
 
@@ -2193,21 +2182,27 @@ mod tests {
         assert!(driver.swarm.behaviour().gate.is_banned_peer(&peer));
     }
 
-    /// Connecting to a peer that was just blocked fails with the block, even while its connection
-    /// is still closing.
+    /// Connecting to a peer just blocked is told it is connected while its connection closes, and
+    /// is refused with the block once it has closed.
     #[tokio::test]
-    async fn test_connect_to_a_peer_just_blocked_is_refused() {
+    async fn test_connect_to_a_peer_just_blocked_is_refused_once_disconnected() {
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
         let addr_2 = driver_2.start().await.expect("listen");
+        let peer_2 = addr_2.peer_id();
         driver_1.start().await.expect("listen");
         driver_1.dial_multiaddr(addr_2.clone()).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
-        driver_1.block_peer(addr_2.peer_id());
+        // Not polled since the block, so the connection is still open.
+        driver_1.block_peer(peer_2);
+        let (reply, outcome) = oneshot::channel();
+        driver_1.connect_peer(addr_2.clone(), reply);
+        assert!(matches!(outcome.await, Ok(Ok(()))));
+
+        poll_one_until(&mut driver_1, |driver_1| !driver_1.is_connected(&peer_2)).await;
         let (reply, outcome) = oneshot::channel();
         driver_1.connect_peer(addr_2, reply);
-
         let refusal = outcome.await.expect("replied at once");
         assert!(
             matches!(refusal, Err(ConnectPeerError::Refused(DialError::PeerBlocked { .. }))),

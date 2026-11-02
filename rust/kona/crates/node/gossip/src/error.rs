@@ -106,6 +106,12 @@ pub enum DialError {
         /// component
         addr: Multiaddr,
     },
+    /// Already connected to this peer.
+    #[error("Already connected to peer: {peer_id}")]
+    AlreadyConnected {
+        /// The `PeerId` of the peer that is already connected
+        peer_id: PeerId,
+    },
     /// Already dialing this peer.
     #[error("Already dialing peer: {peer_id}")]
     AlreadyDialing {
@@ -170,6 +176,7 @@ impl DialError {
     pub(crate) const fn reason(&self) -> &'static str {
         match self {
             Self::InvalidMultiaddr { .. } => "invalid_multiaddr",
+            Self::AlreadyConnected { .. } => "already_connected",
             Self::AlreadyDialing { .. } => "already_dialing",
             Self::ThresholdReached { .. } => "threshold_reached",
             Self::PeerBlocked { .. } => "blocked_peer",
