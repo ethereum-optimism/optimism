@@ -465,7 +465,7 @@ pub(crate) mod tests {
         assert!(matches!(addr_2.addr().iter().next(), Some(Protocol::Memory(port)) if port != 0));
         let mut driver_1 = memory_driver().start().await.expect("listen");
 
-        driver_1.swarm.dial(Multiaddr::from(addr_2)).expect("dial");
+        driver_1.dial_multiaddr(addr_2).expect("dial");
 
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }

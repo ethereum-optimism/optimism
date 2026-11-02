@@ -83,7 +83,7 @@ impl GossipCommand {
             Self::BlockSubnet { address } => gossip.block_subnet(address),
             Self::UnblockSubnet { address } => gossip.unblock_subnet(address),
             Self::ConnectPeer { peer, reply } => gossip.connect_peer(peer, reply),
-            Self::ProtectPeer { peer_id } => gossip.connection_gate.protect_peer(peer_id),
+            Self::ProtectPeer { peer_id } => gossip.protect_peer(peer_id),
             Self::UnprotectPeer { peer_id } => gossip.unprotect_peer(peer_id),
             Self::DisconnectPeer { peer_id, reply } => {
                 gossip.disconnect_peer_with_reply(peer_id, reply)

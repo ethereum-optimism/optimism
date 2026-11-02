@@ -131,7 +131,7 @@ impl<G: ConnectionGate> GossipDriver<G> {
             blocked_peers: self.list_blocked_peers(),
             blocked_addresses: self.list_blocked_addrs(),
             blocked_subnets: self.list_blocked_subnets(),
-            protected_peers: self.connection_gate.list_protected_peers(),
+            protected_peers: self.list_protected_peers(),
             pings: self.ping.clone(),
         }
     }

@@ -34,20 +34,20 @@ pub struct GossipDriver<G: ConnectionGate> {
     #[debug(skip)]
     pub(crate) swarm: Swarm<Behaviour>,
     /// The address the swarm listens on.
-    pub(crate) addr: Multiaddr,
+    addr: Multiaddr,
     /// The settings the driver was built with.
-    pub(crate) config: GossipDriverConfig,
+    config: GossipDriverConfig,
     /// The [`BlockHandler`].
     pub(crate) handler: BlockHandler,
     /// A mapping from [`PeerId`] to [`Multiaddr`].
     pub(crate) peerstore: HashMap<PeerId, libp2p::identify::Info>,
     /// Tracks connection start time for peers
-    pub(crate) peer_connection_start: HashMap<PeerId, Instant>,
+    peer_connection_start: HashMap<PeerId, Instant>,
     /// The connection gate.
-    pub(crate) connection_gate: G,
+    connection_gate: G,
     /// The addresses of each peer to dial at startup and keep connected, without the node's own
     /// ID.
-    pub(crate) static_peers: HashMap<PeerId, Vec<Multiaddr>>,
+    static_peers: HashMap<PeerId, Vec<Multiaddr>>,
     /// When static peers that aren't connected are dialed again.
     ///
     /// Set when the driver starts with static peers, and after each check to one
@@ -62,7 +62,7 @@ pub struct GossipDriver<G: ConnectionGate> {
     /// The replies to `DisconnectPeer` commands, told once their peer's last connection closes.
     pending_disconnects: HashMap<PeerId, Vec<oneshot::Sender<()>>>,
     /// The open connections to each peer, used to close duplicate connections.
-    pub(crate) connections: HashMap<PeerId, HashMap<ConnectionId, PeerConnection>>,
+    connections: HashMap<PeerId, HashMap<ConnectionId, PeerConnection>>,
     /// When the next duplicate connection may be closed, if there is one.
     ///
     /// Set when a duplicate connection is established, and after each check to the earliest
@@ -469,6 +469,17 @@ where
         self.disconnect_peer(peer_id);
     }
 
+    /// Protects `peer_id` from the redial limit. It can still be banned for its score, unless it is
+    /// a static peer.
+    pub fn protect_peer(&mut self, peer_id: PeerId) {
+        self.connection_gate.protect_peer(peer_id);
+    }
+
+    /// Lists the protected peers, the static peers among them.
+    pub fn list_protected_peers(&self) -> Vec<PeerId> {
+        self.connection_gate.list_protected_peers()
+    }
+
     /// Removes the protection of `peer_id`, unless it is a static peer, which stays protected.
     ///
     /// As in op-node, where unprotecting through the API removes only the API's protection, and
@@ -484,9 +495,9 @@ where
     /// Blocks `peer_id`: closes its connections and aborts our dials to it, the gate refuses to
     /// dial it and refuses its incoming connections, and gossipsub ignores its messages.
     ///
-    /// Its connections are closed even if it is protected or a static peer: protection only keeps
-    /// a peer from being disconnected for its score or the redial limit. op-node leaves a blocked
-    /// peer's open connections in place.
+    /// Its connections are closed even if it is protected or a static peer: protection only
+    /// exempts a peer from the redial limit. op-node leaves a blocked peer's open connections in
+    /// place.
     pub fn block_peer(&mut self, peer_id: PeerId) {
         let behaviour = self.swarm.behaviour_mut();
         behaviour.gate.block_peer(peer_id);
@@ -1781,8 +1792,7 @@ mod tests {
     }
 
     /// Blocking a connected peer closes its connection on both sides, and its redial is refused.
-    /// That holds for a protected peer too: protection only keeps a peer from being disconnected
-    /// for its score or the redial limit.
+    /// That holds for a protected peer too: protection only exempts a peer from the redial limit.
     #[rstest]
     #[case::unprotected(false)]
     #[case::protected(true)]
