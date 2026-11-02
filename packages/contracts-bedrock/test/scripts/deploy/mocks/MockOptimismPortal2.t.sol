@@ -2,7 +2,8 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test, Vm } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
+import { Test } from "test/setup/Test.sol";
 
 // Contracts
 import { MockOptimismPortal2 } from "scripts/deploy/mocks/MockOptimismPortal2.sol";
