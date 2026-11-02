@@ -107,6 +107,9 @@ impl Shared {
 
 impl AlloyChainProvider {
     /// Creates a new [`AlloyChainProvider`] with the given alloy provider and trust setting.
+    ///
+    /// The provider puts no deadline on its requests. Bound them in `inner`'s transport, or a
+    /// stalled endpoint hangs every caller.
     pub fn new(inner: RootProvider, cache_size: NonZeroUsize, trust_rpc: bool) -> Self {
         Self {
             inner,
