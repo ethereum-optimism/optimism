@@ -22,9 +22,8 @@ of three fates:
    op-devstack) and the Go proof tests under `rust/kona/tests/proofs/`; `op-chain-ops/genesis`
    (#21281) and the surviving `op-chain-ops/cmd/check-*` checkers (§18); **op-sync-tester** — a
    CL-sync EL *mock* that does **no execution** (it proxies a real op-reth EL and gates
-   visibility), whose one non-swap bit, the OP-aware `PayloadID` hash, is tracked in #21525
-   together with its plain swaps (OP fork times set on a geth `ChainConfig`, the fork's
-   `Block.WithdrawalsRoot`); **op-test-sequencer**'s fake-PoS L1 builder, which calls the fork's
+   visibility), whose one non-swap bit, the OP-aware `PayloadID` hash, is reimplemented
+   locally (#21525); **op-test-sequencer**'s fake-PoS L1 builder, which calls the fork's
    `engine.ExecutableDataToBlockNoHash` signature (#23406); and the **fork's infrastructure
    extensions** to geth's `log`/`rpc` packages, re-homed into owned op-service layers (§15).
 2. **Migrate execution to op-reth / Rust** — anything that builds or executes blocks, or needs
@@ -291,8 +290,8 @@ helpers.
 
 ## 9. `beacon/engine` – `PayloadID` type alias — no change needed
 
-`engine.PayloadID` is standard upstream. (op-sync-tester's OP-aware PayloadID *hash* is different
-— see #21525.)
+`engine.PayloadID` is standard upstream. The OP-aware PayloadID *hash* in op-geth's `miner` is
+not; op-sync-tester carries its own copy, pinned by a differential test until the cutover (#21525).
 
 ---
 
@@ -764,7 +763,7 @@ monorepo-only (#22678).
 | Kona proof tests' in-process EL (`rust/kona/tests/proofs`) | `op-reth-test-engine` subprocess | **done** (#21905) |
 | Genesis tooling (§14) | `op-core/genesis` on upstream geth + `opparams` | **done** (#21281) |
 | op-simulate / op-run-block (§14) | delete | **done** (#21282) |
-| op-sync-tester PayloadID hash + fork-config swaps | OP-aware `Id()` reimplementation | open (#21525) |
+| op-sync-tester PayloadID hash + fork-config swaps | OP-aware `Id()` reimplementation | **done** (#21525) |
 | Log context extensions (§15) | owned `op-service/log` layer: owned `Logger` + slog implementation, `ToGeth` at geth boundaries | **done** |
 | RPC recorder hooks + `JsonError` (§15) | owned `op-service/jsonrpc` seam: client wrapper; server-side recording removed | **done** |
 | One-off fork symbols (§15) | per-symbol swaps | `SetBlobTxSidecar`/`LogForStorage` **done**; test sites ride §13 (#23405) |
