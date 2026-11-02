@@ -8,16 +8,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/eip1559"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
@@ -77,7 +76,7 @@ func TestPayloadToSystemConfigUpgradeGas(t *testing.T) {
 			GasLimit:    hexutil.Uint64(gasLimit),
 			// Jovian is active, so extra data carries the EIP-1559 params plus a min base fee
 			// (value irrelevant; the test only asserts the gas limit).
-			ExtraData:    eip1559.EncodeOptimismExtraData(cfg, blockTimestamp, 250, 6, ptr.New(uint64(1))),
+			ExtraData:    eip1559.EncodeJovianExtraData(250, 6, 1),
 			Transactions: []eth.Data{l1InfoTx},
 		}
 	}

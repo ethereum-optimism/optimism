@@ -122,7 +122,14 @@ func TestTxBudgetIncluded(t *testing.T) {
 	// fee. (The L1 term is built from the same Fjord function because it depends on the tx's
 	// FastLZ-compressed size, which isn't practical to hand-pin.)
 	actualCost := new(big.Int).SetUint64(gasUsed * effectiveGasPrice)
-	l1Cost, _ := types.NewL1CostFuncFjord(l1GasPrice, l1BlobBaseFee, big.NewInt(1), big.NewInt(1))(tx.RollupCostData())
+	raw, err := tx.MarshalBinary()
+	require.NoError(t, err)
+	l1Cost := opfees.L1CostFjord(opfees.NewRollupCostData(raw), opfees.L1FeeParams{
+		L1BaseFee:     l1GasPrice,
+		L1BlobBaseFee: l1BlobBaseFee,
+		BaseFeeScalar: big.NewInt(1),
+		BlobFeeScalar: big.NewInt(1),
+	})
 	actualCost.Add(actualCost, l1Cost)
 	actualCost.Add(actualCost, opfees.OperatorCostJovian(gasUsed, operatorScalar, operatorConstant))
 

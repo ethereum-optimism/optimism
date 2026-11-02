@@ -7,10 +7,10 @@ import (
 	"math/big"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,7 +35,7 @@ func TestJobFromExecutingMessageLog_Error(t *testing.T) {
 
 func TestJobFromLog(t *testing.T) {
 	payloadHash := common.HexToHash("0xabc123")
-	address := params.InteropCrossL2InboxAddress
+	address := predeploys.CrossL2InboxAddr
 	blockHash := common.HexToHash("0xdeadbeef")
 	blockNumber := uint64(42)
 	logIndex := uint32(7)

@@ -14,7 +14,7 @@
 #
 # Entries with reason "upstream backport" use go-ethereum features op-geth carries ahead of its
 # upstream base. They are not OP-specific and go when op-geth moves to the named upstream version.
-cannon/mipsevm/testutil | changed signature of go-ethereum/core.NewEVMBlockContext | #23405 test and DSL swaps to op-core
+cannon/mipsevm/testutil | changed signature of go-ethereum/core.NewEVMBlockContext | #20266 drop the op-geth-only argument at the flip (core.NewEVMBlockContext(header, chain, author))
 op-acceptance-tests/tests (tests) | missing go-ethereum/core/types.Header.BlockAccessListHash | upstream backport, in go-ethereum v1.17.7
 op-acceptance-tests/tests/base (tests) | missing go-ethereum/core/types.Receipt.L1Fee | #23405 test and DSL swaps to op-core
 op-acceptance-tests/tests/batcher/throttling (tests) | missing go-ethereum/core/types.Transaction.IsDepositTx | #23405 test and DSL swaps to op-core
@@ -183,8 +183,8 @@ op-node/rollup/derive (tests) | missing go-ethereum/core/types.Transaction.Mint 
 op-node/rollup/derive (tests) | missing go-ethereum/core/types.Transaction.SourceHash | #23405 test and DSL swaps to op-core
 op-node/rollup/derive/test | changed signature of go-ethereum/core/types.NewBlock | #23405 test and DSL swaps to op-core
 op-node/rollup/derive/test | missing go-ethereum/core/types.DefaultBlockConfig | #23405 test and DSL swaps to op-core
-op-service/bgpo (tests) | changed signature of go-ethereum/core/types.NewBlock | #23405 test and DSL swaps to op-core
-op-service/bgpo (tests) | missing go-ethereum/core/types.DefaultBlockConfig | #23405 test and DSL swaps to op-core
+op-service/bgpo (tests) | changed signature of go-ethereum/core/types.NewBlock | #20266 drop the op-geth-only argument at the flip (types.NewBlock(header, body, receipts, trie.NewStackTrie(nil)))
+op-service/bgpo (tests) | missing go-ethereum/core/types.DefaultBlockConfig | #20266 drop the op-geth-only argument at the flip (types.NewBlock(header, body, receipts, trie.NewStackTrie(nil)))
 op-service/sources | missing go-ethereum/core/types.Header.BlockAccessListHash | upstream backport, in go-ethereum v1.17.7
 op-service/sources (tests) | missing go-ethereum/core/types.CanyonDepositReceiptVersion | #23405 test and DSL swaps to op-core
 op-service/sources (tests) | missing go-ethereum/core/types.DepositTx | #23405 test and DSL swaps to op-core
@@ -199,13 +199,13 @@ op-service/sources (tests) | missing go-ethereum/core/types.Receipt.L1Fee | #234
 op-service/sources (tests) | missing go-ethereum/core/types.Receipt.L1GasPrice | #23405 test and DSL swaps to op-core
 op-service/sources (tests) | missing go-ethereum/core/types.Receipt.OperatorFeeConstant | #23405 test and DSL swaps to op-core
 op-service/sources (tests) | missing go-ethereum/core/types.Receipt.OperatorFeeScalar | #23405 test and DSL swaps to op-core
-op-service/testutils | changed signature of go-ethereum/core/types.NewBlock | #23405 test and DSL swaps to op-core
-op-service/testutils | missing go-ethereum/core/types.DefaultBlockConfig | #23405 test and DSL swaps to op-core
+op-service/testutils | changed signature of go-ethereum/core/types.NewBlock | #20266 drop the op-geth-only argument at the flip (types.NewBlock(header, body, receipts, trie.NewStackTrie(nil)))
+op-service/testutils | missing go-ethereum/core/types.DefaultBlockConfig | #20266 drop the op-geth-only argument at the flip (types.NewBlock(header, body, receipts, trie.NewStackTrie(nil)))
 op-service/testutils | missing go-ethereum/core/types.DepositTx | #23405 test and DSL swaps to op-core
 op-service/txinclude (tests) | missing go-ethereum/core/types.NewL1CostFuncFjord | #23405 test and DSL swaps to op-core
 op-service/txinclude (tests) | missing go-ethereum/core/types.Transaction.RollupCostData | #23405 test and DSL swaps to op-core
-op-service/txplan (tests) | changed signature of go-ethereum/core/types.NewBlock | #23405 test and DSL swaps to op-core
-op-service/txplan (tests) | missing go-ethereum/core/types.DefaultBlockConfig | #23405 test and DSL swaps to op-core
+op-service/txplan (tests) | changed signature of go-ethereum/core/types.NewBlock | #20266 drop the op-geth-only argument at the flip (types.NewBlock(header, body, receipts, trie.NewStackTrie(nil)))
+op-service/txplan (tests) | missing go-ethereum/core/types.DefaultBlockConfig | #20266 drop the op-geth-only argument at the flip (types.NewBlock(header, body, receipts, trie.NewStackTrie(nil)))
 op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.EIP1559Params | #20266 op-geth differential test, removed at the cutover
 op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.GasLimit | #20266 op-geth differential test, removed at the cutover
 op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.MinBaseFee | #20266 op-geth differential test, removed at the cutover
