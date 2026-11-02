@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	DefaultZKChallengeDuration = 30 * time.Minute
+	DefaultZKChallengeDuration = 3 * time.Hour
 	DefaultZKProveDuration     = 30 * time.Minute
 	DefaultZKProposalInterval  = 6 * time.Second
 	DefaultZKFinalityDelay     = 2 * time.Second

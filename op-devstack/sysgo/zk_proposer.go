@@ -260,7 +260,7 @@ func startZKProposer(
 		zkProposerEnv("PRIVATE_KEY", hexutil.Encode(crypto.FromECDSA(proposerSecret))),
 		// The mock provider skips SP1 proving but still runs the full witness
 		// pipeline against these endpoints and configs.
-		zkProposerEnv("PROOF_PROVIDER", "mock"),
+		zkProposerEnv("PROOF_PROVIDER", "local-cuda"),
 		zkProposerEnv("L1_BEACON_RPC", l1CL.beaconHTTPAddr),
 		// Order-irrelevant: kona-host keys L2 providers by queried eth_chainId.
 		zkProposerEnv("L2_RPCS", strings.Join(l2RPCs, ",")),
@@ -301,8 +301,8 @@ func startZKProposer(
 	}
 	env = append(env, zkProposerEnv("METRICS_PORT", metricsPort))
 
-	logOut := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "op-zk-proposer", "src", "stdout"), log.LevelWarn)
-	logErr := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "op-zk-proposer", "src", "stderr"), log.LevelWarn)
+	logOut := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "op-zk-proposer", "src", "stdout"), log.LevelInfo)
+	logErr := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "op-zk-proposer", "src", "stderr"), log.LevelInfo)
 	startedChan := make(chan logpipe.LogEntry, 1)
 
 	onLogEntry := func(e logpipe.LogEntry) {

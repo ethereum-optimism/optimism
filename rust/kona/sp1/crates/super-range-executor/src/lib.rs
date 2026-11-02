@@ -251,6 +251,25 @@ struct ReplacedAgreedOutputs {
     outputs: Vec<SuperOutputRoot>,
 }
 
+/// THROWAWAY TEST PATCH: seeds the Local config keys that test-config-fallback guests read.
+fn seed_local_configs(
+    preimages: &mut Vec<(PreimageKey, Vec<u8>)>,
+    configs: Option<&ChainConfigs>,
+) -> Result<()> {
+    let Some(configs) = configs else { return Ok(()) };
+    for (key, bytes) in [
+        (DEPENDENCY_SET_KEY, serde_json::to_vec(&configs.dependency_set)?),
+        (L2_ROLLUP_CONFIG_KEY, serde_json::to_vec(&configs.rollup_configs)?),
+        (L1_CONFIG_KEY, serde_json::to_vec(&configs.l1_config)?),
+    ] {
+        let key = PreimageKey::new_local(key.to());
+        if !preimages.iter().any(|(existing, _)| *existing == key) {
+            preimages.push((key, bytes));
+        }
+    }
+    Ok(())
+}
+
 impl SynthesizedExecution {
     /// Collects a range-mode witness and the natively computed range outputs through `host`,
     /// seeded with the preloaded preimages and the agreed outputs that the span's super roots
@@ -274,10 +293,12 @@ impl SynthesizedExecution {
         inputs: &SuperRangeInputs,
         configs: Option<&ChainConfigs>,
     ) -> Result<(DefaultWitnessData, SuperRangeOutputs)> {
-        let preimages = self
+        let mut preimages = self
             .seeded_preimages(&host)
             .await
-            .context("failed to read the replaced agreed outputs")?;
+            .context("failed to read the replaced agreed outputs")?
+            .into_owned();
+        seed_local_configs(&mut preimages, configs)?;
         collect_witness(&preimages, host, |oracle, beacon| {
             let inputs = inputs.clone();
             async move { build_range_outputs(inputs, oracle, beacon, configs).await }
@@ -299,10 +320,12 @@ impl SynthesizedExecution {
         batches: &[Vec<u8>],
         log_tree_dir: Option<&Path>,
     ) -> Result<CollectedConsolidation> {
-        let preimages = self
+        let mut preimages = self
             .seeded_preimages(&host)
             .await
-            .context("failed to read the replaced agreed outputs")?;
+            .context("failed to read the replaced agreed outputs")?
+            .into_owned();
+        seed_local_configs(&mut preimages, configs)?;
         let (witness, native) = collect_witness(&preimages, host, |oracle, _beacon| {
             run_native_consolidation(
                 oracle,

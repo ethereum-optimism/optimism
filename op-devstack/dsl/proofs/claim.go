@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 )
 
-const defaultTimeout = 20 * time.Minute
+const defaultTimeout = 2 * time.Hour
 
 type Claim struct {
 	t       devtest.T
