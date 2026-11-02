@@ -21,7 +21,9 @@ use libp2p::{
 use std::{
     collections::{HashMap, HashSet},
     convert::Infallible,
+    fmt,
     net::IpAddr,
+    str::FromStr,
     task::{Context, Poll},
 };
 use tokio::time::Instant;
@@ -87,9 +89,9 @@ pub struct Behaviour {
     /// The blocked peers.
     peers: HashSet<PeerId>,
     /// The blocked IP addresses.
-    addrs: HashSet<IpAddr>,
+    addrs: HashSet<CanonicalIp>,
     /// The blocked subnets.
-    subnets: HashSet<IpNet>,
+    subnets: HashSet<CanonicalNet>,
     /// The peers banned for their score, and when each ban expires. An expired ban no longer
     /// counts, and is removed when the next ban is added.
     bans: HashMap<PeerId, Instant>,
@@ -132,53 +134,49 @@ impl Behaviour {
         self.peers.contains(peer_id)
     }
 
-    /// Blocks an IP address. An IPv4-mapped IPv6 address blocks the IPv4 address in it.
-    pub fn block_addr(&mut self, ip: IpAddr) {
-        let ip = ip.to_canonical();
+    /// Blocks an IP address.
+    pub fn block_addr(&mut self, ip: CanonicalIp) {
         self.addrs.insert(ip);
         debug!(target: "gossip", ?ip, "Blocked ip address");
     }
 
     /// Unblocks an IP address.
-    pub fn unblock_addr(&mut self, ip: &IpAddr) {
-        let ip = ip.to_canonical();
-        self.addrs.remove(&ip);
+    pub fn unblock_addr(&mut self, ip: &CanonicalIp) {
+        self.addrs.remove(ip);
         debug!(target: "gossip", ?ip, "Unblocked ip address");
     }
 
     /// Lists the blocked IP addresses.
-    pub fn list_blocked_addrs(&self) -> Vec<IpAddr> {
+    pub fn list_blocked_addrs(&self) -> Vec<CanonicalIp> {
         self.addrs.iter().copied().collect()
     }
 
     /// Returns whether an IP address is blocked by itself. A blocked subnet that contains it
     /// doesn't count, see [`Self::is_in_blocked_subnet`].
-    pub fn is_blocked_addr(&self, ip: &IpAddr) -> bool {
-        self.addrs.contains(&ip.to_canonical())
+    pub fn is_blocked_addr(&self, ip: &CanonicalIp) -> bool {
+        self.addrs.contains(ip)
     }
 
-    /// Blocks a subnet. An IPv4-mapped IPv6 subnet blocks the IPv4 subnet in it.
-    pub fn block_subnet(&mut self, subnet: IpNet) {
-        let subnet = canonical_subnet(subnet);
+    /// Blocks a subnet.
+    pub fn block_subnet(&mut self, subnet: CanonicalNet) {
         self.subnets.insert(subnet);
         debug!(target: "gossip", ?subnet, "Blocked subnet");
     }
 
     /// Unblocks a subnet.
-    pub fn unblock_subnet(&mut self, subnet: &IpNet) {
-        let subnet = canonical_subnet(*subnet);
-        self.subnets.remove(&subnet);
+    pub fn unblock_subnet(&mut self, subnet: &CanonicalNet) {
+        self.subnets.remove(subnet);
         debug!(target: "gossip", ?subnet, "Unblocked subnet");
     }
 
     /// Lists the blocked subnets.
-    pub fn list_blocked_subnets(&self) -> Vec<IpNet> {
+    pub fn list_blocked_subnets(&self) -> Vec<CanonicalNet> {
         self.subnets.iter().copied().collect()
     }
 
     /// Returns why the gate refuses an IP address: it is blocked by itself, or lies in a blocked
     /// subnet.
-    pub fn check_ip(&self, ip: IpAddr) -> Result<(), DialError> {
+    pub fn check_ip(&self, ip: CanonicalIp) -> Result<(), DialError> {
         if self.is_blocked_addr(&ip) {
             return Err(DialError::AddressBlocked { ip });
         }
@@ -189,9 +187,8 @@ impl Behaviour {
     }
 
     /// Returns whether an IP address lies in a blocked subnet.
-    pub fn is_in_blocked_subnet(&self, ip: &IpAddr) -> bool {
-        let ip = ip.to_canonical();
-        self.subnets.iter().any(|subnet| subnet.contains(&ip))
+    pub fn is_in_blocked_subnet(&self, ip: &CanonicalIp) -> bool {
+        self.subnets.iter().any(|subnet| subnet.contains(ip))
     }
 
     /// Counts an inbound connection the gate refuses, by its reason, and wraps the refusal for
@@ -203,20 +200,87 @@ impl Behaviour {
     }
 }
 
-/// Returns an IPv4-mapped IPv6 subnet, within `::ffff:0:0/96`, as the IPv4 subnet in it, and any
-/// other subnet as it is.
+/// An IP address in the form the gate matches: an IPv4-mapped IPv6 address, such as
+/// `::ffff:10.0.0.1`, as the IPv4 address in it, and any other address as it is.
 ///
 /// IPv4 peers always arrive as IPv4 addresses, since libp2p-tcp makes its IPv6 sockets IPv6-only,
-/// so a mapped subnet would otherwise never match them.
-fn canonical_subnet(subnet: IpNet) -> IpNet {
-    if let IpNet::V6(v6) = subnet &&
-        v6.prefix_len() >= 96 &&
-        let Some(network) = v6.network().to_ipv4_mapped() &&
-        let Ok(v4) = ipnet::Ipv4Net::new(network, v6.prefix_len() - 96)
-    {
-        return IpNet::V4(v4);
+/// so a mapped address would otherwise never match them. The gate stores, lists and reports
+/// addresses in this form, so what it lists is what it matches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CanonicalIp(IpAddr);
+
+impl From<IpAddr> for CanonicalIp {
+    fn from(ip: IpAddr) -> Self {
+        Self(ip.to_canonical())
     }
-    subnet
+}
+
+impl From<CanonicalIp> for IpAddr {
+    fn from(ip: CanonicalIp) -> Self {
+        ip.0
+    }
+}
+
+impl FromStr for CanonicalIp {
+    type Err = <IpAddr as FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse::<IpAddr>().map(Self::from)
+    }
+}
+
+impl fmt::Display for CanonicalIp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// A subnet in the form the gate matches: an IPv4-mapped IPv6 subnet, within `::ffff:0:0/96`, as
+/// the IPv4 subnet in it, and any other subnet as it is. See [`CanonicalIp`].
+///
+/// An IPv6 subnet that only contains the mapped range, such as `::/0`, stays IPv6, so it contains
+/// no IPv4 address, as in op-node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CanonicalNet(IpNet);
+
+impl CanonicalNet {
+    /// Returns whether the subnet contains `ip`.
+    pub fn contains(&self, ip: &CanonicalIp) -> bool {
+        self.0.contains(&ip.0)
+    }
+}
+
+impl From<IpNet> for CanonicalNet {
+    fn from(subnet: IpNet) -> Self {
+        if let IpNet::V6(v6) = subnet &&
+            v6.prefix_len() >= 96 &&
+            let Some(network) = v6.network().to_ipv4_mapped() &&
+            let Ok(v4) = ipnet::Ipv4Net::new(network, v6.prefix_len() - 96)
+        {
+            return Self(IpNet::V4(v4));
+        }
+        Self(subnet)
+    }
+}
+
+impl From<CanonicalNet> for IpNet {
+    fn from(subnet: CanonicalNet) -> Self {
+        subnet.0
+    }
+}
+
+impl FromStr for CanonicalNet {
+    type Err = <IpNet as FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse::<IpNet>().map(Self::from)
+    }
+}
+
+impl fmt::Display for CanonicalNet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
 }
 
 /// Refuses inbound connections from blocked or banned peers and from blocked IP addresses and
@@ -450,7 +514,7 @@ mod tests {
         assert!(matches!(check("::ffff:172.16.0.1"), Err(DialError::SubnetBlocked { .. })));
         assert!(check("10.0.0.2").is_ok());
         // Listed as the IPv4 address and subnet they block.
-        assert_eq!(gate.list_blocked_addrs(), vec!["10.0.0.1".parse::<IpAddr>().unwrap()]);
+        assert_eq!(gate.list_blocked_addrs(), vec!["10.0.0.1".parse().unwrap()]);
         assert!(gate.list_blocked_subnets().contains(&"192.168.0.0/16".parse().unwrap()));
 
         gate.unblock_addr(&"::ffff:10.0.0.1".parse().unwrap());
@@ -461,7 +525,7 @@ mod tests {
     fn test_is_blocked() {
         let mut gate = Behaviour::default();
         let peer_id = PeerId::random();
-        let ip: IpAddr = "10.0.0.1".parse().unwrap();
+        let ip: CanonicalIp = "10.0.0.1".parse().unwrap();
         assert!(!gate.is_blocked_peer(&peer_id));
         assert!(!gate.is_blocked_addr(&ip));
 

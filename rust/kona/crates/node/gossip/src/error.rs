@@ -1,8 +1,7 @@
 //! Error types for the gossip networking module.
 
-use crate::BehaviourError;
+use crate::{BehaviourError, CanonicalIp};
 use libp2p::{Multiaddr, PeerId};
-use std::net::IpAddr;
 use thiserror::Error;
 
 /// Error encountered when publishing a payload to the gossip network.
@@ -141,13 +140,13 @@ pub enum DialError {
     #[error("IP address is blocked: {ip}")]
     AddressBlocked {
         /// The IP address that is on the blocklist
-        ip: IpAddr,
+        ip: CanonicalIp,
     },
     /// IP address is in a blocked subnet.
     #[error("IP address {ip} is in a blocked subnet")]
     SubnetBlocked {
         /// The IP address that belongs to a blocked subnet range
-        ip: IpAddr,
+        ip: CanonicalIp,
     },
     /// No address is left to dial, though the gate refused none: none is for the peer, or a DNS
     /// name didn't resolve.

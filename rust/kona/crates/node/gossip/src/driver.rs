@@ -19,8 +19,9 @@ use std::{collections::HashMap, net::IpAddr, time::Duration};
 use tokio::{sync::oneshot, time::Instant};
 
 use crate::{
-    Behaviour, BlockHandler, ConnectPeerError, ConnectionGate, ConnectionGater, DialError, Event,
-    GossipDriverBuilder, Handler, PeerAddr, PublishError, StartError,
+    Behaviour, BlockHandler, CanonicalIp, CanonicalNet, ConnectPeerError, ConnectionGate,
+    ConnectionGater, DialError, Event, GossipDriverBuilder, Handler, PeerAddr, PublishError,
+    StartError,
 };
 
 /// A driver for a [`Swarm`] instance.
@@ -478,8 +479,10 @@ where
     }
 
     /// Blocks an IP address: closes the connections to and from it, and the gate refuses to dial
-    /// it and refuses incoming connections from it.
+    /// it and refuses incoming connections from it. An IPv4-mapped IPv6 address blocks the IPv4
+    /// address in it.
     pub fn block_addr(&mut self, ip: IpAddr) {
+        let ip = CanonicalIp::from(ip);
         self.swarm.behaviour_mut().gate.block_addr(ip);
         self.close_blocked_connections();
         self.warn_about_blocked_static_peers(self.static_peer_addrs_at(ip));
@@ -487,17 +490,19 @@ where
 
     /// Unblocks an IP address.
     pub fn unblock_addr(&mut self, ip: IpAddr) {
-        self.swarm.behaviour_mut().gate.unblock_addr(&ip);
+        self.swarm.behaviour_mut().gate.unblock_addr(&ip.into());
     }
 
     /// Lists the blocked IP addresses.
-    pub fn list_blocked_addrs(&self) -> Vec<IpAddr> {
+    pub fn list_blocked_addrs(&self) -> Vec<CanonicalIp> {
         self.swarm.behaviour().gate.list_blocked_addrs()
     }
 
     /// Blocks a subnet: closes the connections to and from the IP addresses in it, and the gate
-    /// refuses to dial them and refuses incoming connections from them.
+    /// refuses to dial them and refuses incoming connections from them. An IPv4-mapped IPv6
+    /// subnet blocks the IPv4 subnet in it.
     pub fn block_subnet(&mut self, subnet: IpNet) {
+        let subnet = CanonicalNet::from(subnet);
         self.swarm.behaviour_mut().gate.block_subnet(subnet);
         self.close_blocked_connections();
         self.warn_about_blocked_static_peers(self.static_peer_addrs_in(subnet));
@@ -512,12 +517,12 @@ where
     }
 
     /// Returns the static peers' addresses that blocking `ip` covers.
-    fn static_peer_addrs_at(&self, ip: IpAddr) -> Vec<(PeerId, Multiaddr)> {
+    fn static_peer_addrs_at(&self, ip: CanonicalIp) -> Vec<(PeerId, Multiaddr)> {
         self.static_peer_addrs_covered_by(|addr| *addr == ip)
     }
 
     /// Returns the static peers' addresses that blocking `subnet` covers.
-    fn static_peer_addrs_in(&self, subnet: IpNet) -> Vec<(PeerId, Multiaddr)> {
+    fn static_peer_addrs_in(&self, subnet: CanonicalNet) -> Vec<(PeerId, Multiaddr)> {
         self.static_peer_addrs_covered_by(|ip| subnet.contains(ip))
     }
 
@@ -528,7 +533,7 @@ where
     /// it would need a DNS lookup.
     fn static_peer_addrs_covered_by(
         &self,
-        covers: impl Fn(&IpAddr) -> bool,
+        covers: impl Fn(&CanonicalIp) -> bool,
     ) -> Vec<(PeerId, Multiaddr)> {
         let mut covered = Vec::new();
         for (peer_id, addrs) in &self.static_peers {
@@ -567,11 +572,11 @@ where
 
     /// Unblocks a subnet.
     pub fn unblock_subnet(&mut self, subnet: IpNet) {
-        self.swarm.behaviour_mut().gate.unblock_subnet(&subnet);
+        self.swarm.behaviour_mut().gate.unblock_subnet(&subnet.into());
     }
 
     /// Lists the blocked subnets.
-    pub fn list_blocked_subnets(&self) -> Vec<IpNet> {
+    pub fn list_blocked_subnets(&self) -> Vec<CanonicalNet> {
         self.swarm.behaviour().gate.list_blocked_subnets()
     }
 
@@ -2069,7 +2074,7 @@ mod tests {
         let mut driver = driver_with_static_peer(static_peer.clone());
         driver.block_addr(blocked);
 
-        assert_eq!(!driver.static_peer_addrs_at(blocked).is_empty(), covered);
+        assert_eq!(!driver.static_peer_addrs_at(blocked.into()).is_empty(), covered);
         assert_eq!(gate_refuses(&driver, &static_peer), covered);
     }
 
@@ -2089,7 +2094,7 @@ mod tests {
         let mut driver = driver_with_static_peer(static_peer.clone());
         driver.block_subnet(blocked);
 
-        assert_eq!(!driver.static_peer_addrs_in(blocked).is_empty(), covered);
+        assert_eq!(!driver.static_peer_addrs_in(blocked.into()).is_empty(), covered);
         assert_eq!(gate_refuses(&driver, &static_peer), covered);
     }
 

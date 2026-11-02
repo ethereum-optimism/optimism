@@ -259,8 +259,8 @@ impl OpP2PApiServer for P2pRpc {
             total_connected,
             peers,
             banned_peers: gossip.blocked_peers.iter().map(ToString::to_string).collect(),
-            banned_ips: gossip.blocked_addresses.clone(),
-            banned_subnets: gossip.blocked_subnets.clone(),
+            banned_ips: gossip.blocked_addresses.iter().copied().map(IpAddr::from).collect(),
+            banned_subnets: gossip.blocked_subnets.iter().copied().map(IpNet::from).collect(),
         })
     }
 
@@ -329,7 +329,7 @@ impl OpP2PApiServer for P2pRpc {
 
     async fn opp2p_list_blocked_addrs(&self) -> RpcResult<Vec<IpAddr>> {
         let gossip = self.gossip_snapshot().await?;
-        Ok(gossip.blocked_addresses.clone())
+        Ok(gossip.blocked_addresses.iter().copied().map(IpAddr::from).collect())
     }
 
     async fn opp2p_block_subnet(&self, subnet: IpNet) -> RpcResult<()> {
@@ -342,7 +342,7 @@ impl OpP2PApiServer for P2pRpc {
 
     async fn opp2p_list_blocked_subnets(&self) -> RpcResult<Vec<IpNet>> {
         let gossip = self.gossip_snapshot().await?;
-        Ok(gossip.blocked_subnets.clone())
+        Ok(gossip.blocked_subnets.iter().copied().map(IpNet::from).collect())
     }
 
     async fn opp2p_protect_peer(&self, id: String) -> RpcResult<()> {

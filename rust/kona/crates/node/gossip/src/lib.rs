@@ -50,7 +50,7 @@ pub use config::{
 };
 
 pub mod gate;
-pub use gate::ConnectionGate;
+pub use gate::{CanonicalIp, CanonicalNet, ConnectionGate};
 
 mod gater;
 pub use gater::{

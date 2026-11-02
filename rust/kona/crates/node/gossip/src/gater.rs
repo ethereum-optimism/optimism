@@ -1,6 +1,6 @@
 //! An implementation of the [`ConnectionGate`] trait.
 
-use crate::{ConnectionGate, DialError, gate};
+use crate::{CanonicalIp, ConnectionGate, DialError, gate};
 use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 use std::{
     collections::{HashMap, HashSet},
@@ -133,11 +133,11 @@ impl ConnectionGater {
         })
     }
 
-    /// Constructs the [`IpAddr`] from the given [`Multiaddr`].
-    pub fn ip_from_addr(addr: &Multiaddr) -> Option<IpAddr> {
+    /// Returns the IP address in the given [`Multiaddr`], in the form the gate matches.
+    pub fn ip_from_addr(addr: &Multiaddr) -> Option<CanonicalIp> {
         addr.iter().find_map(|component| match component {
-            libp2p::multiaddr::Protocol::Ip4(ip) => Some(IpAddr::V4(ip)),
-            libp2p::multiaddr::Protocol::Ip6(ip) => Some(IpAddr::V6(ip)),
+            libp2p::multiaddr::Protocol::Ip4(ip) => Some(IpAddr::V4(ip).into()),
+            libp2p::multiaddr::Protocol::Ip6(ip) => Some(IpAddr::V6(ip).into()),
             _ => None,
         })
     }
@@ -211,9 +211,9 @@ impl ConnectionGater {
     /// itself before it asks the gate, and drops those that don't resolve.
     ///
     /// [`GossipDriver::dial_peer`]: crate::GossipDriver::dial_peer
-    fn ips_to_check(&self, addr: &Multiaddr) -> Result<Vec<IpAddr>, DialError> {
+    fn ips_to_check(&self, addr: &Multiaddr) -> Result<Vec<CanonicalIp>, DialError> {
         match Self::resolve_dns(addr, Self::system_resolve) {
-            Some(Ok(ips)) => Ok(ips),
+            Some(Ok(ips)) => Ok(ips.into_iter().map(CanonicalIp::from).collect()),
             Some(Err(error)) => {
                 debug!(target: "gossip", peer=?addr, %error, "DNS resolution failed, allowing dial");
                 Ok(Vec::new())
@@ -230,7 +230,11 @@ impl ConnectionGater {
     }
 
     /// Checks the IP address of `addr` against the blocked addresses and subnets.
-    fn check_ip(addr: &Multiaddr, ip: IpAddr, gate: &gate::Behaviour) -> Result<(), DialError> {
+    fn check_ip(
+        addr: &Multiaddr,
+        ip: CanonicalIp,
+        gate: &gate::Behaviour,
+    ) -> Result<(), DialError> {
         gate.check_ip(ip).inspect_err(|refusal| {
             debug!(target: "gossip", peer=?addr, %refusal, "Not dialing a blocked address");
             metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => refusal.reason())
@@ -559,7 +563,7 @@ fn test_dns_multiaddr_can_dial() {
 #[test]
 fn test_dns_multiaddr_blocked_by_resolved_ip() {
     use crate::{ConnectionGate, DialError};
-    use std::{net::IpAddr, str::FromStr};
+    use std::str::FromStr;
 
     let mut gater = ConnectionGater::new(GaterConfig::default());
     let mut gate = gate::Behaviour::default();
@@ -574,7 +578,7 @@ fn test_dns_multiaddr_blocked_by_resolved_ip() {
     assert!(gater.can_dial(&dns_localhost, &gate).is_ok());
 
     // Block 127.0.0.1
-    gate.block_addr(IpAddr::from_str("127.0.0.1").unwrap());
+    gate.block_addr("127.0.0.1".parse().unwrap());
 
     // Should now fail because localhost resolves to blocked IP
     let result = gater.can_dial(&dns_localhost, &gate);

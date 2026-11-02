@@ -1,7 +1,6 @@
 //! Published gossip state for queries outside the network actor.
 
-use crate::{ConnectionGate, Event, GossipDriver};
-use ipnet::IpNet;
+use crate::{CanonicalIp, CanonicalNet, ConnectionGate, Event, GossipDriver};
 use libp2p::{
     Multiaddr, PeerId,
     gossipsub::{self, TopicHash},
@@ -10,7 +9,6 @@ use libp2p::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    net::IpAddr,
     sync::Arc,
     time::Duration,
 };
@@ -55,9 +53,9 @@ pub struct GossipState {
     /// Blocked peers.
     pub blocked_peers: Vec<PeerId>,
     /// Blocked IP addresses.
-    pub blocked_addresses: Vec<IpAddr>,
+    pub blocked_addresses: Vec<CanonicalIp>,
     /// Blocked subnets.
-    pub blocked_subnets: Vec<IpNet>,
+    pub blocked_subnets: Vec<CanonicalNet>,
     /// Peers protected from disconnection.
     pub protected_peers: Vec<PeerId>,
     /// The latest ping round-trip time to each connected peer.
