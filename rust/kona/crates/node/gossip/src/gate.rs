@@ -542,6 +542,21 @@ mod tests {
         assert!(gate.check_ip("10.0.0.1".parse().unwrap()).is_ok());
     }
 
+    /// A subnet keeps the host bits it was given, as op-node's does, whether it was given as an
+    /// IPv4 subnet or as the IPv4-mapped IPv6 one. So both forms list the same, and either form
+    /// unblocks it.
+    #[rstest]
+    #[case::ipv4("10.0.0.1/8")]
+    #[case::ipv4_mapped("::ffff:10.0.0.1/104")]
+    fn test_subnet_keeps_its_host_bits(#[case] subnet: &str) {
+        let mut gate = Behaviour::default();
+        gate.block_subnet(subnet.parse().unwrap());
+        assert_eq!(gate.list_blocked_subnets(), vec!["10.0.0.1/8".parse().unwrap()]);
+
+        gate.unblock_subnet(&"10.0.0.1/8".parse().unwrap());
+        assert!(gate.list_blocked_subnets().is_empty());
+    }
+
     #[test]
     fn test_is_blocked() {
         let mut gate = Behaviour::default();
