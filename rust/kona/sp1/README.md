@@ -331,12 +331,14 @@ proposer loses the ability to defend, resolve, and claim those games.
 The `op-zk-proposer-cuda` image (amd64 only) adds `sp1-gpu-server`, the CUDA 12.8 runtime,
 and the PLONK circuits to the `op-zk-proposer` binary. It has no release tag: an
 `op-zk-proposer/vX` tag builds only the default image, so deploy a `develop` SHA. At startup
-the proposer checks that `/usr/local/bin/sp1-gpu-server --version` equals the linked SP1
+the proposer checks that `OP_ZK_PROPOSER_CUDA_SERVER_PATH --version` equals the linked SP1
 version, then starts one server per device in `OP_ZK_PROPOSER_CUDA_DEVICES` and speaks the
 server's socket protocol itself. The SP1 SDK's CUDA client, which downloads a missing server,
 is not used, so the proposer never downloads a binary. A server gets the proposer's
 environment without the `OP_ZK_PROPOSER_*` variables. Server output goes to the container log
-in the server's own format.
+in the server's own format. Outside the image, set `SP1_PLONK_CIRCUIT_PATH` to a directory
+that holds `v6.1.0/` with a `.complete` marker, as the image does; otherwise the server
+downloads the circuits.
 
 Each request first runs its program on the CPU (pre-execution) with its cycle limit and
 `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES`, at most one per device at a time. An execution
@@ -580,6 +582,7 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` | total in-flight proving tasks before creation pauses (default `1`) |
 | `OP_ZK_PROPOSER_LOG_PATH` | how a game proves executing messages that reference blocks below a local safe head: `table` (the default) or `receipts`. `receipts` turns the table path off and is meant only for chains with interop off; the proposer logs a warning at startup when it is set |
 | `OP_ZK_PROPOSER_CUDA_DEVICES` | `local-cuda` only: comma-separated CUDA device IDs, one `sp1-gpu-server` each (default `0`) |
+| `OP_ZK_PROPOSER_CUDA_SERVER_PATH` | `local-cuda` only: the `sp1-gpu-server` binary (default `/usr/local/bin/sp1-gpu-server`, where the image installs it) |
 | `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES` | `local-cuda` only: memory limit of each pre-execution's executor process (default `25769803776`, 24 GiB) |
 | `OP_ZK_PROPOSER_DATA_DIR` | directory for the kona-host preimage store and log trees of each witness collection, one `collection-*` subdirectory each, removed when the collection ends; absent = in memory. Startup removes every `collection-*` entry, so use a directory private to one proposer process. It need not persist: a node-disk `emptyDir` fits, a `medium: Memory` one saves no memory. Under attack, a table-path collection can hold about 12 GB per chain for each timestamp it covers, and a collection covers a whole chunk (about 225 timestamps of a 3,600 s game at the default split), so no disk bounds the worst case. A full disk stalls collections, since kona-host keeps retrying the fetches it cannot store, and a restart collects the same chunk again; alert on the volume's usage and on `defense_deadline_remaining_seconds` |
 

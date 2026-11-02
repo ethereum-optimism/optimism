@@ -61,7 +61,7 @@ pipeline:
       directory: plonk
       strip-components: 0
       delete: true
-  # op-zk-proposer starts /usr/local/bin/sp1-gpu-server (GPU_SERVER in prover/cuda.rs).
+  # The default of OP_ZK_PROPOSER_CUDA_SERVER_PATH (LocalCudaConfig in config.rs).
   - if: ${{build.arch}} == 'x86_64'
     runs: |
       install -Dm755 sp1-gpu-server/sp1-gpu-server \

@@ -79,6 +79,7 @@ async fn main() -> Result<()> {
         log_gas_limit = config.proof_provider_config.log_gas_limit,
         cuda_devices = ?config.local_cuda.devices,
         cuda_memory_limit_bytes = config.local_cuda.memory_limit_bytes.get(),
+        cuda_server_path = %config.local_cuda.server_path.display(),
         "Resolved proposer configuration"
     );
     if config.log_path == LogPath::Receipts {
