@@ -25,6 +25,7 @@ import (
 //  5. Assert safe/finalized are behind unsafe.
 func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// TODO(#23828): remove once kona-node supports OffsetELSafe.
 	sysgo.SkipOnKonaNode(t, "kona-node does not support OffsetELSafe")
 	sys := newOffsetELSafeSystem(t)
 	require := t.Require()
