@@ -408,7 +408,7 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 	spamTxs(sys)
 
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
-	t.Require().NoError(karsttest.CheckEIP7934BlockSizeDisabled(t.Ctx(), t.Logger(), sys.L2EL.EthClient(), l2BlockTime))
+	t.Require().NoError(karsttest.CheckEIP7934BlockSizeDisabled(t.Ctx(), t.Logger(), sys.L2EL.Escape().L2EthClient(), l2BlockTime))
 }
 
 // spamTxs floods L2 with large-calldata transactions to drive the L2 base fee up.
