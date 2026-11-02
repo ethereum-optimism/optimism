@@ -530,7 +530,7 @@ parsing) is extended to every use:
 | Use | Mechanism |
 |---|---|
 | Live deploys (`apply` live, `bootstrap`) | `forge script --broadcast` |
-| Genesis-target L1 (op-e2e, sysgo, `apply --deployment-target genesis`) | offline `forge script`, one process per stage, chained by a state-in/state-out hook (`vm.loadAllocs` / `vm.dumpState`) in the deploy scripts' `runWithBytes`; `SetPreinstalls` runs in forge, while geth-param preinstalls, prefund, mock SP1 verifier and seal stay Go-side alloc edits |
+| Genesis-target L1 (op-e2e, sysgo, `apply --deployment-target genesis`) | offline `forge script`, one process per stage, chained by a state-in/state-out hook (`vm.loadAllocs` / `vm.dumpState`) in the deploy scripts' `runWithBytes`; `SetPreinstalls` and the `DeployImplementations` MockSP1Verifier fallback run in forge, while geth-param preinstalls, prefund and seal stay Go-side alloc edits |
 | L2 genesis | offline `forge script` dump wrapper around `L2Genesis.s.sol` |
 | `prepare` / `continue` | keyless forge dry-run; `continue` preflight on an ephemeral `anvil --fork-url` |
 | Read-only paths (op-fetcher, StandardValidator reads) | no script engine: eth_call on live paths; upstream `state`/`vm` without fork hooks over genesis allocs |

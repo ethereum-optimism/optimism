@@ -16,7 +16,6 @@ Active flags:
 | Flag | Gates |
 |------|-------|
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
-| `ZKDisputeGame` | ZK dispute game system |
 | `BridgeHook` | Bridge hook configuration on OptimismPortal2, currently planned only for the compliance module |
 | `OPPrivate` | The OP Private `ChainConfig` predeploy in L2 genesis, holding the chain's settlement chain ID (op-deployer chain override `settlementChainId`) |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade — **enabled by default** |
@@ -34,18 +33,18 @@ The bitmap has **two operator-facing input surfaces**, both in op-deployer:
    - `--dev-feature-bitmap` (env: `DEPLOYER_DEV_FEATURE_BITMAP`), defined in `op-deployer/pkg/deployer/bootstrap/flags.go`
    - Raw 32-byte hex; default empty
    - Flows into `ImplementationsConfig.DevFeatureBitmap` and on into `DeployImplementationsInput` for L1 implementation deployment.
-   - When the ZK bit is enabled, Ethereum mainnet and Sepolia default to Succinct's v6.1.0 PLONK verifier, resolved by `standard.SP1VerifierFor`. `--sp1-verifier-address` (env: `DEPLOYER_SP1_VERIFIER_ADDRESS`) overrides that release input and is required on other L1 networks.
+   - Every implementations deploy includes `ZKDisputeGame` and `SP1PlonkAdapter`, so it always needs a raw SP1 verifier. Ethereum mainnet and Sepolia default to Succinct's v6.1.0 PLONK verifier, resolved by `standard.SP1VerifierFor`. `--sp1-verifier-address` (env: `DEPLOYER_SP1_VERIFIER_ADDRESS`) overrides that release input and is required on every other L1. The one exception is local dev chains (the `block.chainid` allowlist in `DeployImplementations.deployMockSP1Verifier`: 900, 1337, 31337, 77799777, 900100): there an unset verifier makes `DeployImplementations` deploy an accept-all `MockSP1Verifier`. On any other chain it reverts.
 
 2. **Intent file (`globalDeployOverrides.devFeatureBitmap`)**
    - Schema field on `Intent`, `op-deployer/pkg/deployer/state/intent.go`
    - Lives in the operator's intent TOML/JSON
    - Read by the L2 genesis pipeline.
    - All of the following applies only when `apply` deploys new implementations. With a predeployed OPCM (`opcmAddress` set), the implementations already exist and `ValidateInputs` rejects `sp1Verifier` outright, so those operators must not set the override.
-   - A live ZK-enabled `apply` selects the same release-approved verifier as bootstrap on Ethereum mainnet and Sepolia; other L1 networks must set `globalDeployOverrides.sp1Verifier`, which always wins where it is set. Enabling ZK stays an explicit operator choice — the default only picks the verifier, never the feature.
+   - A live `apply` selects the same release-approved verifier as bootstrap on Ethereum mainnet and Sepolia; `globalDeployOverrides.sp1Verifier` always wins where it is set. Other L1 networks must set the override unless they are local dev chains, which get the `MockSP1Verifier` fallback. Deploying the ZK implementations never enables ZK on a chain: that stays an explicit `upgrade()`/`migrate()` game config.
    - Both surfaces read the mapping from `standard.SP1VerifierFor`, so bootstrap and apply can never drift.
    - `op-deployer/pkg/deployer/standard/sp1-verifier.json` records, per chain, the `VERIFIER_HASH()` of that verifier, the PLONK circuit it accepts proofs for; `standard.SP1VerifierHashFor` reads it. `TestApplyDefaultsSP1VerifierOnSepolia` holds it to the chain, `VerifyOPCM` re-checks it at release, and `op-zk-proposer`'s release-pin test holds the linked sp1-sdk to it, so bumping sp1-sdk to a new circuit fails CI until the address and the file move together. The proposer also derives the hash from its SDK at runtime and pauses creation and skips proving for any adapter whose verifier hash differs.
-   - The selected raw verifier is recorded in deployment state (`State.SP1Verifier`) and never written back into intent. A resumed deployment reuses the recorded address rather than re-resolving the default, so upgrading op-deployer mid-deployment cannot swap the verifier under a chain.
-   - Genesis deployments never select the release verifier: it does not exist in a generated genesis. They must set `sp1Verifier` explicitly, or the op-devstack builder can opt into deploying a test raw verifier during genesis.
+   - A verifier selected by op-deployer is recorded in deployment state (`State.SP1Verifier`) and never written back into intent. A resumed deployment reuses the recorded address rather than re-resolving the default, so upgrading op-deployer mid-deployment cannot swap the verifier under a chain. Mock-backed deployments record no verifier.
+   - Genesis deployments never select the release verifier: it does not exist in a generated genesis. The genesis script host runs at chain ID 1337, so without an explicit `sp1Verifier` they get the `MockSP1Verifier` fallback.
 
 There is no other production operator-facing surface. `op-node`, `kona`, and rollup config do not take a bitmap at runtime.
 
@@ -67,11 +66,10 @@ What it gates is **runtime activation timing** in op-node (when NUT bundle depos
 
 A separate, **test-only** assembler exists for Foundry tests and fork scripts. It reads env vars for opt-in features and hardcodes default-on features. It is isolated from the production path — no `src/` contract and no production deploy script reads these controls.
 
-- `DEV_FEATURE__ZK_DISPUTE_GAME`
 - `DEV_FEATURE__BRIDGE_HOOK`
 - `DEV_FEATURE__OP_PRIVATE`
 
-ZK, bridge hook and OP Private are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
+Bridge hook and OP Private are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
 
 - `test/setup/FeatureFlags.sol` — `resolveFeaturesFromEnv()` OR-s each enabled flag into `devFeatureBitmap`
 - `test/setup/ForkL1Live.s.sol` — branches on individual `Config.devFeature*` returns
@@ -120,7 +118,7 @@ It does **not** flow to op-node or kona at runtime. They learn about feature act
 
 ## F. Hardfork interaction
 
-ZK uses the bitmap as its per-chain provisioning switch and has no parallel hardfork timestamp. Super-root migration also has no parallel hardfork timestamp, but it is default-on in the predicate, so its bitmap bit no longer acts as a circuit breaker. Network-wide activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when** L2ContractsManager upgrade transactions execute across the network.
+Super-root migration has no parallel hardfork timestamp, and it is default-on in the predicate, so its bitmap bit no longer acts as a circuit breaker. Network-wide activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when** L2ContractsManager upgrade transactions execute across the network.
 
 ## G. Lifecycle direction
 
