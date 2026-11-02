@@ -174,6 +174,17 @@ impl Behaviour {
         self.subnets.iter().copied().collect()
     }
 
+    /// Returns why the gate refuses a peer: it is blocked, or banned for its score.
+    pub fn check_peer(&self, peer_id: &PeerId) -> Result<(), DialError> {
+        if self.is_blocked_peer(peer_id) {
+            return Err(DialError::PeerBlocked { peer_id: *peer_id });
+        }
+        if self.is_banned_peer(peer_id) {
+            return Err(DialError::PeerBanned { peer_id: *peer_id });
+        }
+        Ok(())
+    }
+
     /// Returns why the gate refuses an IP address: it is blocked by itself, or lies in a blocked
     /// subnet.
     pub fn check_ip(&self, ip: CanonicalIp) -> Result<(), DialError> {
@@ -323,13 +334,9 @@ impl NetworkBehaviour for Behaviour {
         _local_addr: &Multiaddr,
         remote_addr: &Multiaddr,
     ) -> Result<THandler<Self>, ConnectionDenied> {
-        if self.is_blocked_peer(&peer) {
-            debug!(target: "gossip", %peer, %remote_addr, "Refusing a connection from a blocked peer");
-            return Err(Self::refuse_inbound(DialError::PeerBlocked { peer_id: peer }));
-        }
-        if self.is_banned_peer(&peer) {
-            debug!(target: "gossip", %peer, %remote_addr, "Refusing a connection from a banned peer");
-            return Err(Self::refuse_inbound(DialError::PeerBanned { peer_id: peer }));
+        if let Err(refusal) = self.check_peer(&peer) {
+            debug!(target: "gossip", %peer, %remote_addr, %refusal, "Refusing a connection from a blocked or banned peer");
+            return Err(Self::refuse_inbound(refusal));
         }
         if let Some(ip) = crate::ConnectionGater::ip_from_addr(remote_addr) &&
             let Err(refusal) = self.check_ip(ip)
@@ -340,9 +347,12 @@ impl NetworkBehaviour for Behaviour {
         Ok(dummy::ConnectionHandler)
     }
 
-    /// Refuses a connection we dialed to an address blocked while the dial was in flight. The
-    /// gate refuses to dial a blocked address, and blocking a peer aborts our dials to it, but no
-    /// call on the swarm aborts the dials to an address.
+    /// Refuses a connection we dialed to an address blocked while the dial was in flight.
+    ///
+    /// The peer isn't checked again here. Every dial names its peer, and the gate checks it before
+    /// dialing. Blocking or banning a peer later calls `Swarm::disconnect_peer_id`, which also
+    /// aborts the dials still pending to it, so they never get this far. Nothing aborts the dials
+    /// to an address, so a block on an address or subnet is checked again.
     fn handle_established_outbound_connection(
         &mut self,
         _connection_id: ConnectionId,

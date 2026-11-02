@@ -273,19 +273,12 @@ impl ConnectionGate for ConnectionGater {
             return Err(DialError::ThresholdReached { addr: addr.clone() });
         }
 
-        // If the peer is blocked, do not dial.
-        if gate.is_blocked_peer(&peer_id) {
-            debug!(target: "gossip", peer=?addr, "Peer is blocked, not dialing");
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "blocked_peer").increment(1);
-            return Err(DialError::PeerBlocked { peer_id });
-        }
-
-        // If the peer is banned for its score, do not dial until the ban expires.
-        if gate.is_banned_peer(&peer_id) {
-            debug!(target: "gossip", peer=?addr, "Peer is banned, not dialing");
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "banned_peer").increment(1);
-            return Err(DialError::PeerBanned { peer_id });
-        }
+        // If the peer is blocked, or banned for its score, do not dial.
+        gate.check_peer(&peer_id).inspect_err(|refusal| {
+            debug!(target: "gossip", peer=?addr, %refusal, "Not dialing a blocked or banned peer");
+            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => refusal.reason())
+                .increment(1);
+        })?;
 
         // Checks on the IP address only apply to addresses that have one.
         for ip in self.ips_to_check(addr)? {
