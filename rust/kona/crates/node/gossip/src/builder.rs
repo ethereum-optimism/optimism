@@ -112,12 +112,6 @@ impl GossipDriverBuilder {
         self
     }
 
-    /// Sets how the driver behaves once it runs.
-    pub const fn with_driver_config(mut self, config: GossipDriverConfig) -> Self {
-        self.driver_config = config;
-        self
-    }
-
     /// Sets how often static peers that aren't connected are dialed again.
     pub const fn with_static_peer_redial_interval(mut self, interval: Duration) -> Self {
         self.driver_config.static_peer_redial_interval = interval;
