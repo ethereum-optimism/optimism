@@ -238,11 +238,12 @@ impl AlloyChainProvider {
         let raw_receipts = raw_receipts.ok_or(AlloyChainProviderError::RawReceiptsNull(hash))?;
 
         // Geth returns an empty array both for an unknown hash and for an existing block with no
-        // transactions. Resolve that ambiguity before accepting and caching an empty result. An
-        // existing block without transactions commits to no receipts, so it needs no root check.
+        // transactions. Resolve that ambiguity before accepting and caching an empty result, even
+        // when the RPC is trusted.
         if raw_receipts.is_empty() {
             self.verify_empty_raw_receipts(hash).await?;
-        } else if self.verify {
+        }
+        if self.verify {
             // The raw receipts are already EIP-2718 encoded, as the receipts trie stores them.
             self.verify_receipts_root(hash, ordered_trie_root_encoded(&raw_receipts)).await?;
         }
@@ -264,21 +265,11 @@ impl AlloyChainProvider {
 
     /// Verifies that an empty raw receipt response belongs to an existing empty block.
     async fn verify_empty_raw_receipts(&self, hash: B256) -> Result<(), AlloyChainProviderError> {
-        let block = self
-            .inner
-            .get_block_by_hash(hash)
-            .await?
-            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
-        let transaction_count = block.transactions.len();
-        let header = block.header.into_consensus();
-        if self.verify {
-            verify_header(&header, hash)?;
-        }
-
-        if transaction_count != 0 || !header.transaction_root_is_empty() {
+        // An unknown hash fails here as a missing block, which signals a possible L1 reorg.
+        let header = self.header_by_hash(hash).await?;
+        if !header.transaction_root_is_empty() {
             return Err(AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock {
                 hash,
-                transaction_count,
                 transactions_root: header.transactions_root,
             });
         }
@@ -511,13 +502,11 @@ pub enum AlloyChainProviderError {
     /// An empty raw receipt response was returned for a block that contains transactions.
     #[error(
         "debug_getRawReceipts returned no receipts for non-empty L1 block {hash} \
-         (transaction count: {transaction_count}, transactions root: {transactions_root})"
+         (transactions root: {transactions_root})"
     )]
     EmptyRawReceiptsForNonEmptyBlock {
         /// The requested L1 block hash.
         hash: B256,
-        /// The transaction count reported by `eth_getBlockByHash`.
-        transaction_count: usize,
         /// The transaction root in the block header.
         transactions_root: B256,
     },
@@ -1233,6 +1222,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn untrusted_empty_raw_receipts_for_an_existing_empty_block_are_accepted() {
+        let header = Header {
+            number: 16,
+            transactions_root: alloy_consensus::EMPTY_ROOT_HASH,
+            receipts_root: alloy_consensus::EMPTY_ROOT_HASH,
+            ..Default::default()
+        };
+        let hash = header.hash_slow();
+        let asserter = Asserter::new();
+        asserter.push_success(&Vec::<Bytes>::new());
+        asserter.push_success(&Some(RpcBlock::<TxEnvelope>::new(
+            RpcHeader::new(header),
+            BlockTransactions::Hashes(Vec::new()),
+        )));
+        let provider = AlloyChainProvider::new(
+            RootProvider::new(RpcClient::mocked(asserter.clone())),
+            CACHE_SIZE,
+            false,
+        );
+
+        assert!(provider.receipts_by_hash(hash).await.unwrap().is_empty());
+        assert!(asserter.read_q().is_empty());
+        // The verified header is cached, so the receipts root check reused it.
+        assert!(provider.shared.cache.header(hash).is_some());
+    }
+
+    #[tokio::test]
+    async fn untrusted_empty_raw_receipts_reject_a_header_with_another_hash() {
+        let asserter = Asserter::new();
+        asserter.push_success(&Vec::<Bytes>::new());
+        asserter.push_success(&Some(rpc_block(
+            B256::repeat_byte(0xae),
+            Vec::new(),
+            alloy_consensus::EMPTY_ROOT_HASH,
+        )));
+        let provider = AlloyChainProvider::new(
+            RootProvider::new(RpcClient::mocked(asserter.clone())),
+            CACHE_SIZE,
+            false,
+        );
+
+        let error = provider.raw_receipts_by_hash(B256::repeat_byte(0xae)).await.unwrap_err();
+
+        assert!(matches!(error, AlloyChainProviderError::HeaderHashMismatch { .. }), "{error}");
+    }
+
+    #[tokio::test]
     async fn empty_raw_receipts_for_nonempty_block_are_rejected() {
         let hash = B256::repeat_byte(0xad);
         let transactions_root = B256::repeat_byte(0x11);
@@ -1250,7 +1286,6 @@ mod tests {
             error,
             AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock {
                 hash: error_hash,
-                transaction_count: 1,
                 transactions_root: error_root,
             } if error_hash == hash && error_root == transactions_root
         ));
