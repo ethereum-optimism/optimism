@@ -68,12 +68,13 @@ func loadZKProgramVKey(elfDir string) (common.Hash, error) {
 }
 
 type zkProposerConfig struct {
-	ProposalInterval *time.Duration
-	FastFinality     bool
-	Metrics          bool
-	LogPath          string
-	RangeGasLimit    uint64
-	RangeSplitCount  uint64
+	ProposalInterval      *time.Duration
+	FastFinality          bool
+	Metrics               bool
+	LogPath               string
+	RangeGasLimit         uint64
+	RangeSplitCount       uint64
+	TestingMaxRangeChains uint64
 	// L2RPCProxy, when set, starts a proxy in front of an L2 EL endpoint and
 	// returns the URL the proposer uses instead.
 	L2RPCProxy func(p devtest.T, name string, targetURL string) string
@@ -141,6 +142,14 @@ func WithZKRangeGasLimit(limit uint64) ZKProposerOption {
 func WithZKRangeSplitCount(count uint64) ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.RangeSplitCount = count
+	}
+}
+
+// WithZKTestingMaxRangeChains sets the proposer's testing-only cap on the chains
+// of one range request. Zero keeps the proposer default, no limit.
+func WithZKTestingMaxRangeChains(limit uint64) ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.TestingMaxRangeChains = limit
 	}
 }
 
@@ -278,6 +287,9 @@ func startZKProposer(
 	}
 	if cfg.RangeSplitCount != 0 {
 		env = append(env, zkProposerEnv("RANGE_SPLIT_COUNT", strconv.FormatUint(cfg.RangeSplitCount, 10)))
+	}
+	if cfg.TestingMaxRangeChains != 0 {
+		env = append(env, zkProposerEnv("TESTING_MAX_RANGE_CHAINS", strconv.FormatUint(cfg.TestingMaxRangeChains, 10)))
 	}
 	// Always pin the metrics port so inherited host configuration cannot
 	// reach every devstack proposer and collide across parallel systems.

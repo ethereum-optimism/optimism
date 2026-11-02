@@ -345,7 +345,9 @@ or submitting another SPN request. Scheduler tasks may still run and check
 inputs. A change to the full attempt identity permits a new attempt. An
 `Unexecutable` range or consolidation request of a span with more than one
 timestamp is not sticky: the proposer bisects the span (see below), and only
-the halves' requests count from then on.
+the halves' requests count from then on. Likewise, an `Unexecutable` range
+request of a single timestamp over several chains is split by chain, and only
+the chain halves' requests count.
 
 SIGUSR1 is a Unix signal: a message you send to a running program. Send it to
 the proposer to retry terminal proof requests without restarting it. This
@@ -420,6 +422,8 @@ fails its game attempt. A batch that the proposer splits (see below) is not coun
 `op_zk_proposer_span_bisections` counts proving spans halved for exceeding a size,
 estimate or execution limit; log-batch splits are not counted. A steady rise means the
 chunks are too large for the limits: raise `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT`.
+`op_zk_proposer_range_chain_splits` counts range requests of a single timestamp
+halved by chain for exceeding a size or execution limit.
 
 `op_zk_proposer_proving_duration_seconds` records only successful runs,
 including the L1 transaction path. Use the task-stats log to investigate stuck work.
@@ -509,7 +513,7 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei, also applied to fee bumps (default uncapped) |
 | `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `16`, maximum `128`) |
-| `OP_ZK_PROPOSER_MAX_STDIN_BYTES` | encoded stdin bytes that one range, consolidation, or log-commitment request may upload, including embedded batch proofs (default `1610612736`, 1.5 GiB; maximum `2147483648`). The proposer collects the whole witness, so it holds an oversized one in memory before it refuses it, then checks the stdin before submitting it, in mock mode too. A proving task holds its range and consolidation stdin together until the range request is uploaded, and its consolidation stdin until the consolidation request is, so plan memory for twice this limit per concurrent chunk. A span over the limit is bisected; a single timestamp over it makes the game unprovable. The aggregation request is not checked |
+| `OP_ZK_PROPOSER_MAX_STDIN_BYTES` | encoded stdin bytes that one range, consolidation, or log-commitment request may upload, including embedded batch proofs (default `1610612736`, 1.5 GiB; maximum `2147483648`). The proposer collects the whole witness, so it holds an oversized one in memory before it refuses it, then checks the stdin before submitting it, in mock mode too. A proving task holds its range and consolidation stdin together until the range request is uploaded, and its consolidation stdin until the consolidation request is, so plan memory for twice this limit per concurrent chunk. A span over the limit is bisected, and a single timestamp's range over it is split by chain; a single timestamp's consolidation, or one chain's range, over it makes the game unprovable. The aggregation request is not checked |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
 | `OP_ZK_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
@@ -568,7 +572,12 @@ submits the range request, so a size or estimate split buys no proof. The log li
 `Span exceeds proving limits; bisecting` names the span. Halves persist across
 attempts until the game's progress is cleared. A single timestamp over a size limit
 makes the game unprovable; one over its estimate is submitted anyway; one that SPN
-cannot execute stays terminal.
+cannot execute stays terminal. The range request of a single timestamp over a size limit,
+or one that SPN cannot execute, is instead halved by chain, in super-root chain order,
+down to one chain; the log line `Range request exceeds proving limits; splitting by chain`
+names the chains. Each chain half is checked just before its request is submitted. One
+chain over a size limit makes the game unprovable, and one that SPN cannot execute stays
+terminal. The consolidation of a timestamp always covers every chain.
 
 At the default one-hour interval, an OP Mainnet span contains about 1,800
 two-second blocks. The default 16 chunks average 112.5 blocks each; configuring

@@ -954,6 +954,7 @@ mod tests {
                 log_gas_limit: 1,
                 max_stdin_bytes: Default::default(),
                 data_dir: None,
+                testing_max_range_chains: None,
             },
         );
 

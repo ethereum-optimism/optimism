@@ -188,8 +188,7 @@ abstract contract L2Genesis_TestInit is Test {
 
     /// @notice Mirrors L2Genesis._isGenesisInteropEnabled for the current input.
     function isGenesisInteropEnabled() internal view returns (bool) {
-        return input.useInterop && input.fork >= uint256(Fork.LAGOON)
-            && DevFeatures.isDevFeatureEnabled(input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        return input.useInterop && input.fork >= uint256(Fork.LAGOON);
     }
 
     /// @notice Asserts every upgradeable proxy points at its code-namespace implementation (or is
@@ -315,7 +314,6 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     /// @notice Helper function to configure input for interop enabled tests.
     function _setInputInteropEnabled() internal {
         input.useInterop = true;
-        input.devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
     }
 
     /// @notice Asserts that the interop predeploys are present in genesis.
@@ -504,28 +502,12 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         testInterop();
     }
 
-    /// @notice Tests that run reverts when useInterop is true but the OPTIMISM_PORTAL_INTEROP dev bit is not set.
-    function test_run_useInteropWithoutDevBit_reverts() external {
-        input.useInterop = true;
-        // devFeatureBitmap left at 0 — OPTIMISM_PORTAL_INTEROP bit not set
-        vm.expectRevert("L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree");
-        genesis.run(input);
-    }
-
     /// @notice Tests that run refuses a messenger expiry period override when interop is not active
     ///         at genesis, where it would have no effect.
     function testFuzz_run_l2ToL2MessageExpiryPeriodWithoutInterop_reverts(uint256 _period) external {
         _period = bound(_period, 1, type(uint256).max);
         input.l2ToL2MessageExpiryPeriod = _period;
         vm.expectRevert("L2Genesis: expiry period override needs interop at genesis");
-        genesis.run(input);
-    }
-
-    /// @notice Tests that run reverts when the OPTIMISM_PORTAL_INTEROP dev bit is set but useInterop is false.
-    function test_run_devBitWithoutUseInterop_reverts() external {
-        input.useInterop = false;
-        input.devFeatureBitmap = bytes32(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-        vm.expectRevert("L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree");
         genesis.run(input);
     }
 

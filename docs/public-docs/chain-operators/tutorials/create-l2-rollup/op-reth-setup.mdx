@@ -145,7 +145,6 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
             - "--rollup.config=/workspace/rollup.json"
             - "--sequencer.enabled=true"
             - "--sequencer.stopped=false"
-            - "--sequencer.max-safe-lag=3600"
             - "--verifier.l1-confs=4"
             - "--p2p.listen.ip=0.0.0.0"
             - "--p2p.listen.tcp=9222"
@@ -439,7 +438,6 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
       --rollup.config=./rollup.json \
       --sequencer.enabled=$SEQUENCER_ENABLED \
       --sequencer.stopped=$SEQUENCER_STOPPED \
-      --sequencer.max-safe-lag=3600 \
       --verifier.l1-confs=4 \
       --p2p.listen.ip=0.0.0.0 \
       --p2p.listen.tcp=$P2P_LISTEN_PORT \

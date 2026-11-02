@@ -27,7 +27,7 @@ assert_version() {
   local expected="$4"
 
   local actual
-  actual=$(cd "${project_dir}" && GITCOMMIT="${gitcommit}" just --evaluate 2>/dev/null | awk '/^VERSION / { print $NF }' | tr -d '"')
+  actual=$(cd "${project_dir}" && GITCOMMIT="${gitcommit}" just --evaluate 2> /dev/null | awk '/^VERSION / { print $NF }' | tr -d '"')
 
   if [ "${actual}" = "${expected}" ]; then
     echo "  PASS: ${scenario}"
@@ -69,18 +69,18 @@ setup_repo() {
   sha3="$(git -C "${repo}" rev-parse HEAD)"
 
   # Tags on sha1: single service (conductor) + RC-only (proposer) + RC+release pair (batcher)
-  git -C "${repo}" tag -a "op-conductor/v0.9.3"      -m "op-conductor/v0.9.3"      "${sha1}"
-  git -C "${repo}" tag -a "op-proposer/v2.0.0-rc.1"  -m "op-proposer/v2.0.0-rc.1"  "${sha1}"
-  git -C "${repo}" tag -a "op-batcher/v1.0.0-rc.1"   -m "op-batcher/v1.0.0-rc.1"   "${sha1}"
-  git -C "${repo}" tag -a "op-batcher/v1.0.0"        -m "op-batcher/v1.0.0"        "${sha1}"
+  git -C "${repo}" tag -a "op-conductor/v0.9.3" -m "op-conductor/v0.9.3" "${sha1}"
+  git -C "${repo}" tag -a "op-proposer/v2.0.0-rc.1" -m "op-proposer/v2.0.0-rc.1" "${sha1}"
+  git -C "${repo}" tag -a "op-batcher/v1.0.0-rc.1" -m "op-batcher/v1.0.0-rc.1" "${sha1}"
+  git -C "${repo}" tag -a "op-batcher/v1.0.0" -m "op-batcher/v1.0.0" "${sha1}"
 
   # Tags on sha2: multiple services on the same commit (the shared-release scenario)
-  git -C "${repo}" tag -a "op-node/v1.16.10-rc.1"    -m "op-node/v1.16.10-rc.1"    "${sha2}"
-  git -C "${repo}" tag -a "op-node/v1.16.10"         -m "op-node/v1.16.10"         "${sha2}"
-  git -C "${repo}" tag -a "op-batcher/v1.16.6-rc.1"  -m "op-batcher/v1.16.6-rc.1"  "${sha2}"
-  git -C "${repo}" tag -a "op-batcher/v1.16.6"       -m "op-batcher/v1.16.6"       "${sha2}"
+  git -C "${repo}" tag -a "op-node/v1.16.10-rc.1" -m "op-node/v1.16.10-rc.1" "${sha2}"
+  git -C "${repo}" tag -a "op-node/v1.16.10" -m "op-node/v1.16.10" "${sha2}"
+  git -C "${repo}" tag -a "op-batcher/v1.16.6-rc.1" -m "op-batcher/v1.16.6-rc.1" "${sha2}"
+  git -C "${repo}" tag -a "op-batcher/v1.16.6" -m "op-batcher/v1.16.6" "${sha2}"
   git -C "${repo}" tag -a "op-proposer/v1.16.2-rc.1" -m "op-proposer/v1.16.2-rc.1" "${sha2}"
-  git -C "${repo}" tag -a "op-proposer/v1.16.2"      -m "op-proposer/v1.16.2"      "${sha2}"
+  git -C "${repo}" tag -a "op-proposer/v1.16.2" -m "op-proposer/v1.16.2" "${sha2}"
 
   echo "${repo}"
   echo "${sha1}"
@@ -112,9 +112,9 @@ SHA3="${INFO[3]}"
 # Create one project directory per service under the fake repo so that
 # `basename justfile_directory()` resolves to the right project name.
 DIR_CONDUCTOR="$(make_project "${REPO}" op-conductor)"
-DIR_BATCHER="$(make_project "${REPO}"   op-batcher)"
-DIR_PROPOSER="$(make_project "${REPO}"  op-proposer)"
-DIR_NODE="$(make_project "${REPO}"      op-node)"
+DIR_BATCHER="$(make_project "${REPO}" op-batcher)"
+DIR_PROPOSER="$(make_project "${REPO}" op-proposer)"
+DIR_NODE="$(make_project "${REPO}" op-node)"
 
 echo "Running tests..."
 

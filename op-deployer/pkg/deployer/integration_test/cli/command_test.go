@@ -93,16 +93,16 @@ func TestApplyCommandFlagValidation(t *testing.T) {
 			expectContains: []string{"l1 RPC URL must be specified"},
 		},
 		{
-			name:           "valid noop deployment target",
+			name:           "removed noop deployment target",
 			args:           []string{"apply", "--deployment-target", "noop"},
-			expectError:    true, // Will fail because no intent file, but tests flag parsing
-			expectContains: []string{"failed to read intent file"},
+			expectError:    true,
+			expectContains: []string{"failed to parse deployment target: invalid deployment target: noop"},
 		},
 		{
-			name:           "valid calldata deployment target",
+			name:           "removed calldata deployment target",
 			args:           []string{"apply", "--deployment-target", "calldata"},
-			expectError:    true, // Will fail because no intent file, but tests flag parsing
-			expectContains: []string{"failed to read intent file"},
+			expectError:    true,
+			expectContains: []string{"failed to parse deployment target: invalid deployment target: calldata"},
 		},
 		{
 			name:           "valid genesis deployment target",
@@ -229,7 +229,7 @@ func TestCLIApplyMissingIntent(t *testing.T) {
 
 	runner.ExpectErrorContains(t, []string{
 		"apply",
-		"--deployment-target", "noop",
+		"--deployment-target", "genesis",
 		"--workdir", workDir,
 	}, nil, "failed to read intent file")
 }
@@ -249,13 +249,7 @@ func TestCLIApplyMissingState(t *testing.T) {
 
 	runner.ExpectErrorContains(t, []string{
 		"apply",
-		"--deployment-target", "noop",
+		"--deployment-target", "genesis",
 		"--workdir", workDir,
 	}, nil, "failed to read state file")
-}
-
-func TestManageHelpDoesNotIncludeMigrate(t *testing.T) {
-	runner := NewCLITestRunner(t)
-	output := runner.ExpectSuccess(t, []string{"manage", "--help"}, nil)
-	require.NotContains(t, output, "migrate")
 }

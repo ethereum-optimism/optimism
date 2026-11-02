@@ -34,7 +34,7 @@ import (
 )
 
 func withSuperProofsDeployerFeature(cfg PresetConfig) PresetConfig {
-	features := []DeployerOption{WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag)}
+	features := []DeployerOption{WithUseInterop()}
 	if cfg.ZKDisputeGame != nil {
 		features = append(features, WithDevFeatureEnabled(devfeatures.ZKDisputeGameFlag))
 	}

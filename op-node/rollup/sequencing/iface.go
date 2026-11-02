@@ -20,7 +20,6 @@ type SequencerIface interface {
 	Init(ctx context.Context, active bool) error
 	Start(ctx context.Context, head common.Hash) error
 	Stop(ctx context.Context) (hash common.Hash, err error)
-	SetMaxSafeLag(ctx context.Context, v uint64) error
 	OverrideLeader(ctx context.Context) error
 	ConductorEnabled(ctx context.Context) bool
 	SetRecoverMode(mode bool)

@@ -103,12 +103,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle,
 		return err
 	}
 
-	devFeatureBitmap, err := buildDevFeatureBitmap(intent)
-
-	if err != nil {
-		return err
-	}
-
+	devFeatureBitmap := devFeatureBitmapOverride(intent)
 	if err := checkSettlementChainIDOverride(devFeatureBitmap, overrides.SettlementChainID); err != nil {
 		return err
 	}
@@ -235,24 +230,15 @@ func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 	return big.NewInt(int64(n))
 }
 
-// buildDevFeatureBitmap reads the devFeatureBitmap from global overrides and returns an error if the interop feature
-// bit does not match the UseInterop intent flag. This ensures that interop feature is explicitly enabled by both the intent and the boolean flag.
-func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
-	var devFeatureBitmap common.Hash
+// devFeatureBitmapOverride returns the devFeatureBitmap from the global overrides, or zero when it is not set.
+func devFeatureBitmapOverride(intent *state.Intent) common.Hash {
 	switch v := intent.GlobalDeployOverrides["devFeatureBitmap"].(type) {
 	case common.Hash:
-		devFeatureBitmap = v
+		return v
 	case string:
-		devFeatureBitmap = common.HexToHash(v)
+		return common.HexToHash(v)
 	}
-
-	interopBitEnabled := devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OptimismPortalInteropFlag)
-
-	if intent.UseInterop != interopBitEnabled {
-		return common.Hash{}, fmt.Errorf("interop feature in devFeatureBitmap does not match the UseInterop intent flag")
-	}
-
-	return devFeatureBitmap, nil
+	return common.Hash{}
 }
 
 func defaultOverrides() l2GenesisOverrides {

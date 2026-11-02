@@ -32,15 +32,14 @@ func TestConfig(t *testing.T) {
 	require.NoError(t, ensemble.AddCommitter(noopcommitter.NewCommitter(committerID, logger)))
 	require.NoError(t, ensemble.AddPublisher(nooppublisher.NewPublisher(publisherID, logger)))
 	cfg := &Config{
-		ChainID:             eth.ChainIDFromUInt64(1),
-		Builder:             builderID,
-		Signer:              signerID,
-		Committer:           committerID,
-		Publisher:           publisherID,
-		SequencerConfDepth:  2,
-		SequencerEnabled:    true,
-		SequencerStopped:    true,
-		SequencerMaxSafeLag: 10,
+		ChainID:            eth.ChainIDFromUInt64(1),
+		Builder:            builderID,
+		Signer:             signerID,
+		Committer:          committerID,
+		Publisher:          publisherID,
+		SequencerConfDepth: 2,
+		SequencerEnabled:   true,
+		SequencerStopped:   true,
 	}
 	opts := &work.ServiceOpts{
 		StartOpts: &work.StartOpts{

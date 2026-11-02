@@ -821,7 +821,6 @@ fn classify_game_sync(
             // - Own game under an owned prestate: any resolvable outcome, so a lost game can be
             //   closed (and refunded if disallowed before it closes).
             // - Own disallowed game: under any prestate, to recover its refund-mode credit.
-            // Foreign unowned games and our allowed games under unknown prestates wait (#22894).
             Ok(GameSyncAction::Update {
                 index,
                 lifecycle,
@@ -986,6 +985,7 @@ impl Proposer {
                 log_gas_limit: config.proof_provider_config.log_gas_limit,
                 max_stdin_bytes: config.max_stdin_bytes,
                 data_dir: config.data_dir.clone(),
+                testing_max_range_chains: config.testing_max_range_chains,
             },
         ));
         let action_executor = Arc::new(ProductionActionExecutor::new(
@@ -1794,8 +1794,6 @@ impl Proposer {
         if game.creator == self.proposer_address {
             return self.retain_own_invalid_game(game, false).await;
         }
-        // TODO(#22894): foreign invalid games are dropped here instead of being tracked, so they
-        // are never closed; closing every game will need to retain them too.
         self.invalid_game_result(game.index, game.address).await
     }
 
@@ -5647,6 +5645,7 @@ mod tests {
             dependency_set_path: None,
             range_split_count: RangeSplitCount::one(),
             max_stdin_bytes: Default::default(),
+            testing_max_range_chains: None,
             max_concurrent_range_proofs: std::num::NonZeroUsize::MIN,
             max_concurrent_defense_tasks: std::num::NonZeroU64::new(8).unwrap(),
             fast_finality_mode: false,

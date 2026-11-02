@@ -39,10 +39,6 @@ func (ds DisabledSequencer) Stop(ctx context.Context) (hash common.Hash, err err
 	return common.Hash{}, ErrSequencerNotEnabled
 }
 
-func (ds DisabledSequencer) SetMaxSafeLag(ctx context.Context, v uint64) error {
-	return ErrSequencerNotEnabled
-}
-
 func (ds DisabledSequencer) OverrideLeader(ctx context.Context) error {
 	return ErrSequencerNotEnabled
 }
