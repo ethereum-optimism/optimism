@@ -145,3 +145,35 @@ fn a_safe_database_open_failure_reports_the_path() {
 
     assert!(error.to_string().contains(&directory.path().display().to_string()));
 }
+
+#[tokio::test(start_paused = true)]
+async fn the_l1_client_bounds_each_request_and_records_its_timeout() {
+    use kona_providers_alloy::BlockLabel;
+    use metrics_exporter_prometheus::PrometheusBuilder;
+
+    // An L1 endpoint that accepts connections and never answers.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap()).parse().unwrap();
+    let _endpoint = tokio::spawn(async move {
+        loop {
+            let (connection, _) = listener.accept().await.unwrap();
+            // Hold the connection open without ever answering.
+            tokio::spawn(async move {
+                let _connection = connection;
+                std::future::pending::<()>().await
+            });
+        }
+    });
+    let recorder = PrometheusBuilder::new().build_recorder();
+    let metrics = recorder.handle();
+    let _recorder = metrics::set_default_local_recorder(&recorder);
+
+    // The paused clock jumps to the deadline once the request is waiting on the endpoint.
+    let l1 = command::l1_client(url, true);
+    assert!(l1.block_info_by_label(BlockLabel::Latest).await.is_err());
+
+    // The metrics layer sits outside the deadline, so it records the timeout.
+    let rendered = metrics.render();
+    let timeout = r#"kona_rpc_client_request_duration_seconds_count{client="l1",method="eth_getBlockByNumber",outcome="transport_error",error="timeout"} 1"#;
+    assert!(rendered.contains(timeout), "missing {timeout} in:\n{rendered}");
+}

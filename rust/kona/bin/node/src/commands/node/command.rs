@@ -34,9 +34,26 @@ use std::{
 use strum::IntoEnumIterator;
 use tower::util::MapFutureLayer;
 use tracing::{debug, error, info};
+use url::Url;
 
 /// How many headers, receipt sets and blocks the node's L1 client caches.
 const L1_PROVIDER_CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
+
+/// Builds the node's one L1 client: every component reads L1 through a clone, sharing its caches
+/// and trust setting. Every request is bounded, so a stalled endpoint fails its caller instead of
+/// hanging it. Metrics wrap the deadline, so a timeout is recorded as a transport error.
+pub(super) fn l1_client(url: Url, trust_rpc: bool) -> AlloyChainProvider {
+    AlloyChainProvider::new(
+        RootProvider::new(
+            ClientBuilder::default()
+                .layer(RpcMetricsLayer::new("l1"))
+                .layer(MapFutureLayer::new(kona_engine::with_deadline))
+                .http(url),
+        ),
+        L1_PROVIDER_CACHE_SIZE,
+        trust_rpc,
+    )
+}
 
 /// A JWT token validation error.
 #[derive(Debug, thiserror::Error)]
@@ -304,21 +321,9 @@ impl NodeCommand {
             "Hardfork schedule"
         );
 
-        // The node's one L1 client: every component reads L1 through a clone, sharing its caches
-        // and trust setting. Every request is bounded, so a stalled endpoint fails its caller
-        // instead of hanging it. Metrics wrap the deadline, so a timeout is recorded as a
-        // transport error.
         middleware::describe();
-        let l1_provider = AlloyChainProvider::new(
-            RootProvider::new(
-                ClientBuilder::default()
-                    .layer(RpcMetricsLayer::new("l1"))
-                    .layer(MapFutureLayer::new(kona_engine::with_deadline))
-                    .http(self.l1_rpc_args.l1_eth_rpc.clone()),
-            ),
-            L1_PROVIDER_CACHE_SIZE,
-            self.l1_rpc_args.l1_trust_rpc,
-        );
+        let l1_provider =
+            l1_client(self.l1_rpc_args.l1_eth_rpc.clone(), self.l1_rpc_args.l1_trust_rpc);
         let l1_config = L1ConfigBuilder {
             chain_config: self.get_l1_config(cfg.l1_chain_id)?,
             provider: l1_provider.clone(),
