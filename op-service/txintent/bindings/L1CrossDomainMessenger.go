@@ -11,4 +11,6 @@ type L1CrossDomainMessenger struct {
 
 	// Read-only functions
 	SuperchainConfig func() TypedCall[common.Address] `sol:"superchainConfig"`
+	SystemConfig     func() TypedCall[common.Address] `sol:"systemConfig"`
+	Paused           func() TypedCall[bool]           `sol:"paused"`
 }
