@@ -1,0 +1,64 @@
+---
+title: OP Stack 체인에서 앱 구축하기
+description: OP Stack 체인에서 앱을 구축하는 기본 사항을 알아봅니다.
+diataxis: explanation
+---
+
+import OpEnterpriseAppsCallout from '/ko/snippets/op-enterprise-apps-callout.mdx';
+
+이 가이드는 OP Stack 개발의 기본 사항을 설명합니다.
+OP Stack 체인은 [EVM 동등성(EVM equivalence)](https://web.archive.org/web/20231127160757/https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306)을 갖추고 있습니다. 즉, mainnet에서 실행하는 것과 동일한 `geth`를 약간 수정한 버전을 실행합니다.
+따라서 OP Stack 개발과 Ethereum 개발 간의 차이는 미미합니다.
+하지만 몇 가지 차이점은 [분명히 존재합니다](/ko/op-stack/protocol/differences).
+
+## OP Stack 체인 엔드포인트 URL
+
+Ethereum 유형의 네트워크에 접근하려면 엔드포인트가 필요합니다. [이 제공업체들](/ko/app-developers/reference/rpc-providers)이 저희 네트워크를 지원합니다.
+
+### 네트워크 선택
+
+개발 목적으로는 로컬 개발 네트워크 또는 [OP Sepolia](https://sepolia-optimism.etherscan.io)를 사용하는 것을 권장합니다.
+그러면 실제 비용을 지출할 필요가 없습니다.
+테스트 목적으로 OP Sepolia에서 ETH가 필요하다면 [이 faucet을 사용할 수 있습니다](https://console.optimism.io/faucet?utm_source=op-docs&utm_medium=docs).
+
+## OP Stack 체인의 컨트랙트와 상호작용하기
+
+OP Sepolia의 [0x9d334aFBa83865E67a9219830ADA57aaA9406681](https://testnet-explorer.optimism.io/address/0x9d334aFBa83865E67a9219830ADA57aaA9406681#code) 주소에 Hardhat의 Greeter 컨트랙트가 배포되어 있습니다.
+이 컨트랙트와 상호작용하여 개발 스택 설정을 검증할 수 있습니다.
+
+## 개발 스택
+
+아래의 다양한 개발 스택에서 볼 수 있듯이, OP Stack 체인에서 컨트랙트를 배포하고 상호작용하는 방식은 L1 Ethereum에서와 거의 동일합니다.
+가장 눈에 띄는 차이는 (당연히) 다른 엔드포인트를 지정해야 한다는 점입니다.
+자세한 내용은 [Ethereum과 OP Stack 체인의 차이점](/ko/op-stack/protocol/differences) 가이드를 참고하십시오.
+
+*   [Foundry](https://getfoundry.sh/)
+*   [Hardhat](https://hardhat.org/)
+*   [Apeworx](https://www.apeworx.io/)
+*   [Brownie](https://eth-brownie.readthedocs.io/en/stable/install.html)
+*   [Remix](https://remix.ethereum.org)
+*   [Waffle](https://getwaffle.io/)
+
+## 모범 사례
+
+### 제공되는 EVM 사용하기
+
+개발 스택에서 제공하는 EVM으로 개발을 시작하는 것이 가장 좋습니다.
+더 빠를 뿐만 아니라, 이러한 EVM에는 [Solidity에서 메시지를 로깅하는 기능](https://hardhat.org/tutorial/debugging-with-hardhat-network.html)이나 [그래픽 사용자 인터페이스](https://trufflesuite.com/ganache/)와 같은 추가 기능이 있는 경우가 많습니다.
+
+### 배포 전에 디버깅하기
+
+개발을 마친 후에는 탈중앙화 애플리케이션을 먼저 로컬에서 디버깅한 다음 [Sepolia 테스트 네트워크](/ko/op-mainnet/network-information/connecting-to-op)에서 디버깅하십시오.
+이렇게 하면 레이어 간 ETH나 토큰 전송을 위한 브리지 호출과 같이 OP Stack 체인에 특화된 부분을 디버깅할 수 있습니다.
+
+테스트 네트워크에서 잘 작동하는 버전이 준비된 경우에만, 모든 트랜잭션에 비용이 드는 프로덕션 네트워크에 배포하십시오.
+
+<OpEnterpriseAppsCallout />
+
+### 컨트랙트 소스 검증
+
+[블록 탐색기](/ko/app-developers/tools/infrastructure/block-explorers)에 소스 코드를 업로드할 필요는 없지만, 업로드하는 것이 좋습니다.
+테스트 네트워크에서는 탐색기의 사용자 인터페이스에서 쿼리와 트랜잭션을 실행할 수 있습니다.
+프로덕션 네트워크에서는 사용자가 컨트랙트가 정확히 무엇을 하는지 알 수 있어 신뢰를 얻는 데 도움이 됩니다.
+
+[Etherscan API](https://explorer.optimism.io/apis?utm_source=op-docs&utm_medium=docs)를 사용하는 경우, OP Stack 체인용 API 키와 OP Sepolia용 API 키가 각각 따로 필요하다는 점을 기억하십시오.

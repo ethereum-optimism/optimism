@@ -1,0 +1,276 @@
+---
+title: OP Stack RPC 디렉터리
+description: 모든 OP Stack 네트워크의 공개 RPC 엔드포인트와 프로덕션 RPC 제공업체를 찾아보세요.
+diataxis: reference
+---
+
+import ThirdPartyContent from "/ko/snippets/third-party-content.mdx"
+
+<ThirdPartyContent />
+
+이 디렉터리는 모든 OP Stack 네트워크의 RPC 엔드포인트를 종합적으로 모아 개발자에게 제공하므로, OP Stack 생태계에서 애플리케이션을 더 쉽게 구축, 배포, 확장할 수 있습니다.
+
+## 공개 RPC 엔드포인트
+
+다음 표에는 모든 OP Stack 네트워크의 공개 RPC 엔드포인트가 나와 있습니다. 이러한 엔드포인트는 **요청 속도 제한(rate limit)이 있으며 프로덕션 용도로 적합하지 않지만**, 개발, 테스트, 개념 증명(PoC) 작업에는 매우 적합합니다.
+프로덕션 용도는 아래의 [프로덕션 RPC 제공업체](#production-rpc-providers) 섹션을 참조하세요.
+
+<Tabs>
+  <Tab title="Mainnet">
+    | 체인      | 공개 RPC URL                                                                                     | 문서                                                                         |
+    | ---------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+    | OP Mainnet | [https://mainnet.optimism.io](https://mainnet.optimism.io)                                         | [문서](https://docs.optimism.io/superchain/networks)                                  |
+    | Base       | [https://mainnet.base.org](https://mainnet.base.org)                                               | [문서](https://docs.base.org/chain/network-information)                               |
+    | Ink        | [https://rpc-gel.inkonchain.com](https://rpc-gel.inkonchain.com)                                   | [문서](https://docs.inkonchain.com/general/network-information)                       |
+    | Unichain   | [https://mainnet.unichain.org](https://mainnet.unichain.org)                                       | [문서](https://docs.unichain.org/docs/technical-information/network-information)      |
+    | Soneium    | [https://rpc.soneium.org/](https://rpc.soneium.org/)                                               | [문서](https://docs.soneium.org/docs/builders/overview)                               |
+    | Mode       | [https://mainnet.mode.network/](https://mainnet.mode.network/)                                     | [문서](https://docs.mode.network/user-guides/network-details)                         |
+    | Zora       | [https://rpc.zora.energy](https://rpc.zora.energy)                                                 | [문서](https://docs.zora.co/zora-network/network)                                     |
+    | Swell      | [https://swell-mainnet.alt.technology](https://swell-mainnet.alt.technology)                       | [문서](https://build.swellnetwork.io/docs/guides/getting-started)                     |
+    | Arena-Z    | [https://rpc.arena-z.gg](https://rpc.arena-z.gg)                                                   | [문서](https://raas.gelato.network/rollups/details/public/arena-z)                    |
+    | Metal      | [https://rpc.metall2.com](https://rpc.metall2.com)                                                 | [문서](https://docs.metall2.com/chain/networks)                                       |
+    | World      | [https://worldchain-mainnet.g.alchemy.com/public](https://worldchain-mainnet.g.alchemy.com/public) | [문서](https://docs.world.org/world-chain/quick-start/info)                           |
+    | Lisk       | [https://rpc.api.lisk.com](https://rpc.api.lisk.com)                                               | [문서](https://docs.lisk.com/network-info/)                                           |
+    | Polynomial | [https://rpc.polynomial.fi](https://rpc.polynomial.fi)                                             | [문서](https://docs.polynomial.fi/links)                                              |
+    | Mint       | [https://rpc.mintchain.io](https://rpc.mintchain.io)                                               | [문서](https://docs.mintchain.io/build/network)                                       |
+    | Superseed  | [https://mainnet.superseed.xyz](https://mainnet.superseed.xyz)                                     | [문서](https://docs.superseed.xyz/build-on-superseed/network-information)             |
+    | Shape      | [https://mainnet.shape.network](https://mainnet.shape.network)                                     | [문서](https://docs.shape.network/technical-details/network-information)              |
+    | Epic       | [https://mainnet.ethernitychain.io](https://mainnet.ethernitychain.io)                             | [문서](https://docs.ethernity.io/introduction/network-information)                    |
+    | Race       | [https://racemainnet.io](https://racemainnet.io)                                                   | [문서](https://raceecosystem.gitbook.io/docs/building-on-race-tm/network-information) |
+    | BoB        | [https://rpc.gobob.xyz/](https://rpc.gobob.xyz/)                                                   | [문서](https://docs.gobob.xyz/learn/user-guides/getting-started/networks)             |
+  </Tab>
+
+  <Tab title="Testnet">
+    | 체인              | 공개 RPC URL                                                                                     | 문서                                                                         |
+    | ------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+    | OP Sepolia         | [https://sepolia.optimism.io](https://sepolia.optimism.io)                                         | [문서](https://docs.optimism.io/superchain/networks)                                  |
+    | Base Sepolia       | [https://sepolia.base.org](https://sepolia.base.org)                                               | [문서](https://docs.base.org/chain/network-information)                               |
+    | Ink Sepolia        | [https://rpc-gel-sepolia.inkonchain.com](https://rpc-gel-sepolia.inkonchain.com)                   | [문서](https://docs.inkonchain.com/general/network-information)                       |
+    | Unichain Sepolia   | [https://sepolia.unichain.org](https://sepolia.unichain.org)                                       | [문서](https://docs.unichain.org/docs/technical-information/network-information)      |
+    | Soneium Sepolia    | [https://rpc.minato.soneium.org/](https://rpc.minato.soneium.org/)                                 | [문서](https://docs.soneium.org/docs/builders/overview)                               |
+    | Mode Sepolia       | [https://sepolia.mode.network](https://sepolia.mode.network)                                       | [문서](https://docs.mode.network/user-guides/network-details)                         |
+    | Zora Sepolia       | [https://sepolia.rpc.zora.energy](https://sepolia.rpc.zora.energy)                                 | [문서](https://docs.zora.co/zora-network/network)                                     |
+    | Swell Sepolia      | [https://swell-testnet.alt.technology](https://swell-testnet.alt.technology)                       | [문서](https://build.swellnetwork.io/docs/guides/getting-started)                     |
+    | Arena-Z Testnet    | [https://rpc.arena-z.t.raas.gelato.cloud](https://rpc.arena-z.t.raas.gelato.cloud)                 | [문서](https://raas.gelato.network/rollups/details/public/arena-z)                    |
+    | Metal Testnet      | [https://testnet.rpc.metall2.com/](https://testnet.rpc.metall2.com/)                               | [문서](https://docs.metall2.com/chain/networks)                                       |
+    | World Sepolia      | [https://worldchain-sepolia.g.alchemy.com/public](https://worldchain-sepolia.g.alchemy.com/public) | [문서](https://docs.world.org/world-chain/quick-start/info)                           |
+    | Lisk Sepolia       | [https://rpc.sepolia-api.lisk.com](https://rpc.sepolia-api.lisk.com)                               | [문서](https://docs.lisk.com/network-info/)                                           |
+    | Polynomial Sepolia | [https://rpc.sepolia.polynomial.fi](https://rpc.sepolia.polynomial.fi)                             | [문서](https://docs.polynomial.fi/links)                                              |
+    | Mint Sepolia       | [https://sepolia-testnet-rpc.mintchain.io](https://sepolia-testnet-rpc.mintchain.io)               | [문서](https://docs.mintchain.io/build/network)                                       |
+    | Superseed Sepolia  | [https://sepolia.superseed.xyz](https://sepolia.superseed.xyz)                                     | [문서](https://docs.superseed.xyz/build-on-superseed/network-information)             |
+    | Shape Sepolia      | [https://sepolia.shape.network](https://sepolia.shape.network)                                     | [문서](https://docs.shape.network/technical-details/network-information)              |
+    | Epic Testnet       | [https://testnet.ethernitychain.io](https://testnet.ethernitychain.io)                             | [문서](https://docs.ethernity.io/introduction/network-information)                    |
+    | Race Testnet       | [https://racetestnet.io](https://racetestnet.io)                                                   | [문서](https://raceecosystem.gitbook.io/docs/building-on-race-tm/network-information) |
+    | BoB Sepolia        | [https://sepolia.rpc.gobob.xyz/](https://sepolia.rpc.gobob.xyz/)                                   | [문서](https://docs.gobob.xyz/learn/user-guides/getting-started/networks)             |
+  </Tab>
+</Tabs>
+
+## 프로덕션 RPC 제공업체
+
+다음 제공업체는 OP Stack 네트워크에 대한 프로덕션급 RPC 접근을 제공합니다. 대부분의 제공업체는 공개 RPC보다 높은 요청 속도 한도를 갖춘 무료 등급과 프로덕션 애플리케이션을 위한 유료 플랜을 모두 제공합니다.
+
+
+### 1RPC
+
+**설명**: [1RPC](https://www.1rpc.io/)에서 다음 [네트워크](https://docs.1rpc.io/using-the-web3-api/networks)에 대해 [무료 및 유료 플랜](https://www.1rpc.io/#pricing)을 제공합니다.
+
+**지원되는 Testnet**: Mode Sepolia, World Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Mode, Base
+
+### Ankr
+
+**설명**: [Ankr](https://www.ankr.com/)에서 다음 [네트워크](https://www.ankr.com/rpc/)에 대해 [무료 및 유료 플랜](https://www.ankr.com/rpc/pricing/)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Swell Sepolia, Base Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Swell, Base
+
+### Alchemy
+
+**설명**: [Alchemy](https://www.alchemy.com/)에서 다음 [네트워크](https://docs.alchemy.com/reference/api-overview)에 대해 [무료 및 유료 플랜](https://www.alchemy.com/pricing)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Ink Sepolia, Unichain Sepolia, Soneium Sepolia, Base Sepolia, World Sepolia, Shape Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Ink, Unichain, Soneium, Base, World, Shape
+
+### All That Node
+
+**설명**: [All That Node](https://www.allthatnode.com/)에서 다음 [네트워크](https://docs.allthatnode.com/docs/supported-protocols-1)에 대해 [무료 및 유료 플랜](https://www.allthatnode.com/pricing.dsrv)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Base
+
+### Blast
+
+**설명**: [Blast](https://blastapi.io/)에서 다음 [네트워크](https://blastapi.io/chains)에 대해 [무료 및 유료 플랜](https://blastapi.io/pricing)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Mode Sepolia, Base Sepolia, BoB Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Mode, Base, BoB
+
+### Blockdaemon
+
+**설명**: [Blockdaemon](https://www.blockdaemon.com/)에서 다음 [네트워크](https://www.blockdaemon.com/protocols)에 대해 [무료 및 유료 플랜](https://www.blockdaemon.com/api/pricing)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Unichain Sepolia, Base Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Unichain, Base
+
+### BlockPI
+
+**설명**: [BlockPI](https://blockpi.io/)에서 다음 [네트워크](https://blockpi.io/chains)에 대해 [무료 및 유료 플랜](https://blockpi.io/pricing)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Unichain Sepolia, Base Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Unichain, Base
+
+### Chainstack
+
+**설명**: [Chainstack](https://chainstack.com/)에서 다음 [네트워크](https://chainstack.com/protocols/)에 대해 [무료 및 유료 플랜](https://chainstack.com/pricing/)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Base Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Base
+
+### dRPC NodeCloud
+
+**설명**: [dRPC](https://drpc.org/nodecloud-multichain-rpc-management)에서 다음 [네트워크](https://drpc.org/chainlist)에 대해 [무료 및 유료 플랜](https://drpc.org/pricing)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Ink Sepolia, Unichain Sepolia, Soneium Sepolia, Mode Sepolia, Zora Sepolia, Swell Sepolia, Metal Sepolia, Base Sepolia, World Sepolia, Lisk Sepolia, Superseed Sepolia, BoB Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Ink, Unichain, Soneium, Mode, Zora, Swell, Metal, Base, World, Lisk, Superseed, BoB
+
+### GetBlock
+
+**설명**: [GetBlock](https://getblock.io/)에서 다음 [네트워크](https://docs.getblock.io/api-reference/overview#supported-networks)에 대해 [무료 및 유료 플랜](https://getblock.io/pricing/)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia
+
+**지원되는 Mainnet**: OP Mainnet
+
+### Goldsky
+
+**설명**: [Goldsky](https://docs.goldsky.com/edge-rpc/introduction)에서 다음 [네트워크](https://docs.goldsky.com/chains/supported-networks)에 대해 [무료 및 유료 플랜](https://docs.goldsky.com/pricing/summary#edge-rpc)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Unichain Sepolia, Base Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Unichain, Base, Zora
+
+### Grove
+
+**설명**: [Grove](https://grove.city/)에서 다음 [네트워크](https://www.grove.city/services)에 대해 [무료 및 유료 플랜](https://www.grove.city/pricing)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Base Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Base Mainnet, Ink Mainnet
+
+### Infura
+
+**설명**: [Infura](https://infura.io)에서 다음 [네트워크](https://www.infura.io/networks)에 대해 [무료 및 유료 플랜](https://www.infura.io/pricing)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Unichain Sepolia, Swell Sepolia, Base Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Unichain, Swell, Base
+
+### Moralis
+
+**설명**: [Moralis](https://moralis.io)에서 다음 [네트워크](https://developers.moralis.com/chains/)에 대해 [무료 및 유료 플랜](https://developers.moralis.com/pricing/)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Base Sepolia, Lisk Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Base, Lisk
+
+### node101
+
+**설명**: [node101](https://node101.io/en/rpc/optimism)에서 다음 [네트워크](https://node101.io/en/rpc)에 대해 관리형 RPC 접근을 제공합니다.
+
+**지원되는 Testnet**: n/a
+
+**지원되는 Mainnet**: OP Mainnet, Base, Unichain, World
+
+### Nodies DLB
+
+**설명**: [Nodies DLB](https://www.nodies.app/)에서 다음 [네트워크](https://docs.nodies.app/overview/supported-blockchains)에 대해 [무료 및 유료 플랜](https://www.nodies.app/pricing)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Base Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Ink, Base
+
+### NOWNodes
+
+**설명**: [NOWNodes](https://nownodes.io/)에서 다음 [네트워크](https://nownodes.io/nodes)에 대해 [무료 및 유료 플랜](https://nownodes.io/pricing)을 제공합니다.
+
+**지원되는 Testnet**: n/a
+
+**지원되는 Mainnet**: OP Mainnet, Base, Lisk
+
+### OnFinality
+
+**설명**: [OnFinality](https://onfinality.io/)에서 다음 [네트워크](https://onfinality.io/networks)에 대해 [무료 및 유료 플랜](https://onfinality.io/pricing)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Unichain Sepolia, Base Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Unichain, Base
+
+### PublicNode
+
+**설명**: Allnodes의 [PublicNode](https://www.publicnode.com/)에서 다음 네트워크에 대해 빠르고 무료이며 개인정보 보호를 우선하는 RPC 엔드포인트를 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Ink Sepolia, Unichain Sepolia, Soneium Sepolia, Base Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Ink, Unichain, Soneium, Base
+
+### QuickNode
+
+**설명**: [QuickNode](https://www.quicknode.com/)에서 다음 [네트워크](https://www.quicknode.com/chains)에 대해 [무료 및 유료 플랜](https://www.quicknode.com/pricing)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Ink Sepolia, Unichain Sepolia, Base Sepolia, World Sepolia, Race Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Ink, Unichain, Mode, Zora, Base, World, Lisk, Race
+
+### RockX
+
+**설명**: [RockX](https://www.rockx.com/)에서 다음 [네트워크](https://access.rockx.com/)에 대해 [무료 및 유료 플랜](https://access.rockx.com/product/optimism-blockchain-api-for-web3-builders)을 제공합니다.
+
+**지원되는 Testnet**: n/a
+
+**지원되는 Mainnet**: OP Mainnet, Base
+
+### SolidRPC
+
+**설명**: [SolidRPC](https://solidrpc.io/)에서 다음 [네트워크](https://solidrpc.io/docs/networks)에 대해 [무료 및 유료 플랜](https://solidrpc.io/docs/pricing)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Base Sepolia, Lisk Sepolia, Unichain Sepolia, Zora Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Base, Ink, Unichain, World, Lisk, Zora
+
+### Tenderly
+
+**설명**: [Tenderly](https://tenderly.co/)에서 다음 [네트워크](https://docs.tenderly.co/node/rpc-reference)에 대해 [무료 및 유료 플랜](https://tenderly.co/pricing)을 제공합니다.
+
+**지원되는 Testnet**: OP Sepolia, Ink Sepolia, Unichain Sepolia, Soneium Sepolia, Mode Sepolia, Swell Sepolia, Base Sepolia, World Sepolia, Lisk Sepolia, Polynomial Sepolia, BoB Sepolia
+
+**지원되는 Mainnet**: OP Mainnet, Ink, Unichain, Soneium, Mode, Swell, Base, World, Lisk, Polynomial, BoB
+
+### Validation Cloud
+
+**설명**: [Validation Cloud](https://www.validationcloud.io/)에서 다음 [네트워크](https://docs.validationcloud.io/v1/optimism/overview)에 대해 [무료 및 유료 플랜](https://www.validationcloud.io/node)을 제공합니다.
+
+**지원되는 Testnet**: n/a
+
+**지원되는 Mainnet**: OP Mainnet, Base
+
+## 디렉터리 거버넌스
+
+OP Stack RPC 디렉터리는 OP Labs가 다음 정책에 따라 관리합니다.
+
+*   제공업체가 추가되려면 [문서](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs/) 저장소에 문서 PR을 제출해야 합니다
+*   목록에 등재되려면 제공업체는 [OP Stack 생태계](/ko/op-stack/protocol/superchain-registry)의 네트워크를 하나 이상 지원해야 합니다
+*   누구나 등재된 네트워크를 지원하지 않는 제공업체를 제거하기 위한 PR을 제출할 수 있습니다
+
+## 다음 단계
+
+*   자체 node를 운영하고 싶으신가요? [노드 운영자 개요](/ko/node-operators/overview)를 참조하세요.
+*   다른 개발자 도구를 찾고 계신가요? [개발자 도구 개요](/ko/app-developers/tools)에서 더 많은 옵션을 살펴보세요!

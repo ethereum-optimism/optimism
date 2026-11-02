@@ -1,0 +1,178 @@
+---
+title: 실패한 입금(디파짓) 재실행하기
+description: OP Sepolia의 테스트 컨트랙트를 대상으로 입금을 의도적으로 실패시킨 다음 더 많은 gas로 재실행하는 전체 과정을 통해 입금 재실행이 어떻게 동작하는지 알아봅니다.
+---
+
+입금(디파짓) 트랜잭션이 L2에서 실패하더라도(대개 gas가 부족하거나 L2 상태상 성공할 수 없는 경우) 메시지는 손실되지 않습니다. `L2CrossDomainMessenger`는 해당 메시지를 실패한 메시지로 기록하며, 나중에 필요하면 더 많은 gas를 지정하여 재실행(replay)할 수 있습니다.
+
+이 튜토리얼에서는 테스트 컨트랙트를 대상으로 입금을 의도적으로 실패시킨 다음 성공적으로 재실행하여, 실패와 재실행의 전체 주기를 처음부터 끝까지 확인합니다. 입금의 기본 개념과 재실행이 가능한 이유는 [입금 흐름](/ko/op-stack/bridging/deposit-flow)을 참조하십시오.
+
+## 시작하기 전에
+
+- [Foundry](https://book.getfoundry.sh/getting-started/installation)가 설치되어 있어야 합니다(이 튜토리얼에서는 `cast`를 사용합니다).
+- **Ethereum Sepolia**(L1)와 **OP Sepolia**(L2) 모두에 소량의 테스트 ETH가 충전된 테스트 계정의 개인 키가 필요합니다.
+- L1(Ethereum Sepolia) RPC URL이 필요합니다. 예를 들어 무료 [Infura](https://infura.io) 키 또는 다른 provider를 사용할 수 있습니다.
+
+<Info>
+  **L1과 L2 네트워크 구분**
+
+  이 튜토리얼에서는 **서로 다른 두 네트워크**를 사용합니다.
+
+  *   **L1**: Ethereum Sepolia testnet (`https://sepolia.infura.io/v3/YOUR_KEY`)
+  *   **L2**: OP Sepolia testnet (`https://sepolia.optimism.io`)
+
+  L1에서 트랜잭션을 보내면 L2에서 동작이 트리거됩니다. 각 단계에서 올바른 RPC URL을 사용하고 있는지 확인하십시오.
+</Info>
+
+## 실패한 입금을 트리거하고 재실행하기
+
+재실행이 어떻게 동작하는지 확인하려면 [OP Sepolia의 이 컨트랙트](https://testnet-explorer.optimism.io/address/0xEF60cF6C6D0C1c755be104843bb72CDa3D778630#code)를 사용할 수 있습니다.
+
+1.  다음 Foundry 명령을 사용하여 `stopChanges`를 호출합니다.
+
+    ```sh
+    PRIV_KEY=<your private key here>
+    export ETH_RPC_URL=https://sepolia.optimism.io
+    GREETER=0xEF60cF6C6D0C1c755be104843bb72CDa3D778630
+    cast send --private-key $PRIV_KEY $GREETER "stopChanges()"
+    ```
+
+2.  Foundry를 사용하여 `getStatus()`가 false를 반환하는지(즉, 변경이 허용되지 않는지) 확인하고 `greet()`의 값을 확인합니다.
+    Foundry는 false를 0으로 반환한다는 점에 유의하십시오.
+
+    ```sh
+    cast call $GREETER "greet()" | cast --to-ascii ; cast call $GREETER "getStatus()"
+    ```
+
+3.  calldata를 가져옵니다.
+    다음 Foundry 명령을 사용할 수 있습니다.
+
+    ```sh
+    cast calldata "setGreeting(string)" "testing"
+    ```
+
+    또는 다음 값을 그대로 사용해도 됩니다.
+
+    ```
+    0xa41368620000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000774657374696e6700000000000000000000000000000000000000000000000000
+    ```
+
+4.  L1(Ethereum Sepolia)에서 L2(OP Sepolia)로 greeting 변경을 입금으로 보냅니다.
+    다음 명령을 사용합니다.
+
+    ```sh
+    # L1 = Ethereum Sepolia
+    # Get a free Infura key at https://infura.io or use the public RPC below
+    L1_RPC=https://sepolia.infura.io/v3/YOUR_INFURA_KEY    
+    L1XDM_ADDRESS=0x5086d1eef304eb5284a0f6720f79403b4e9be294
+    FUNC="sendMessage(address,bytes,uint32)"
+    CALLDATA=`cast calldata "setGreeting(string)" "testing"`
+    cast send --rpc-url $L1_RPC --private-key $PRIV_KEY $L1XDM_ADDRESS $FUNC $GREETER $CALLDATA 10000000
+    ```
+
+    트랜잭션은 **L1(Ethereum Sepolia)**에서는 성공하지만, 이후 **L2(OP Sepolia)**에서 실패 이벤트를 발생시킵니다.
+
+5.  다음 단계는 실패한 릴레이의 해시를 찾는 것입니다. 여러 가지 방법이 있습니다.
+
+    **방법 A: Etherscan 내부 트랜잭션 사용**
+
+    [대상 컨트랙트의 내부 트랜잭션](https://testnet-explorer.optimism.io/address/0xEF60cF6C6D0C1c755be104843bb72CDa3D778630#internaltx)을 살펴보고 실패로 표시된 가장 최근 항목을 선택합니다. 이 항목은 주소 `0x420...007`에 있는 `L2CrossDomainMessenger`에 대한 호출이어야 합니다.
+
+    **방법 B: 컨트랙트 이벤트 사용(내부 트랜잭션이 보이지 않는 경우)**
+
+    Etherscan에서 내부 트랜잭션을 볼 수 없다면 [L2CrossDomainMessenger 컨트랙트 이벤트](https://testnet-explorer.optimism.io/address/0x4200000000000000000000000000000000000007#events)를 확인하고 해당 컨트랙트 주소가 포함된 `FailedRelayedMessage` 이벤트를 찾습니다.
+
+    **방법 C: cast를 사용하여 실패한 메시지 조회**
+
+    ```sh
+    # First, you need the message hash. You can derive it from the L1 transaction, or check events
+    L2XDM_ADDRESS=0x4200000000000000000000000000000000000007
+    # Replace MSG_HASH with the actual message hash from the FailedRelayedMessage event
+    cast call $L2XDM_ADDRESS "failedMessages(bytes32)" $MSG_HASH
+    ```
+
+    가장 최근 내부 트랜잭션이 성공으로 표시된다면 트랜잭션이 아직 릴레이되지 않았을 가능성이 높습니다. 릴레이될 때까지 기다리십시오. 몇 분 정도 걸릴 수 있습니다.
+
+6.  Foundry를 사용하여 트랜잭션 정보를 가져옵니다.
+
+    <Info>
+      **실패한 릴레이 트랜잭션 대기**
+
+      다음 단계로 진행하기 전에 입금이 L2에서 처리되어 실패할 때까지 반드시 기다리십시오. 2~5분 정도 걸릴 수 있습니다. 5단계의 방법 중 하나로 실패한 트랜잭션을 확인할 수 있어야 합니다.
+    </Info>
+
+    ```sh
+    TX_HASH=<transaction hash from the failed relay on L2>
+    L2XDM_ADDRESS=0x4200000000000000000000000000000000000007
+    REPLAY_DATA=`cast tx $TX_HASH input`
+    ```
+
+7.  다음 Foundry 명령으로 `startChanges()`를 호출하여 변경을 허용합니다.
+
+    ```sh
+    cast send --private-key $PRIV_KEY $GREETER "startChanges()"
+    ```
+
+    <Info>
+      너무 일찍 실행하지 마십시오
+
+      `startChanges()`를 너무 일찍 호출하면 메시지가 L2로 릴레이될 때 이미 변경이 허용된 상태가 되어 최초 입금이 성공하므로, 재실행할 필요가 없어집니다.
+    </Info>
+
+8.  `getStatus()`가 true를 반환하는지(즉, 변경이 허용되지 않는지) 확인하고 `greet()`의 값을 확인합니다.
+    Foundry는 true를 1로 반환합니다.
+
+    ```sh
+    cast call $GREETER "greet()" | cast --to-ascii ; cast call $GREETER "getStatus()"
+    ```
+
+9.  이제 재실행 트랜잭션을 보냅니다.
+
+    ```sh
+    cast send --private-key $PRIV_KEY --gas-limit 10000000 $L2XDM_ADDRESS $REPLAY_DATA 
+    ```
+
+    <Info>
+      gas 한도를 지정해야 하는 이유는 무엇입니까?
+
+      gas 추정 메커니즘은 트랜잭션이 성공할 수 있는 최소 gas 한도를 찾으려고 합니다.
+      그러나 `L2CrossDomainMessenger`는 gas 한도가 낮아 재실행이 실패하더라도 revert하지 않고 실패 메시지만 발생시킵니다.
+      gas 추정 메커니즘은 이를 성공으로 간주합니다.
+
+      gas 추정값을 얻으려면 다음 명령을 사용할 수 있습니다.
+
+      ```sh
+      cast estimate --from 0x0000000000000000000000000000000000000001 $L2XDM_ADDRESS $REPLAY_DATA
+      ```
+
+      이 주소는 컨트랙트가 실제로 revert하는 특수한 경우입니다.
+    </Info>
+
+10. greeting이 변경되었는지 확인합니다.
+
+    ```sh
+    cast call $GREETER "greet()" | cast --to-ascii ; cast call $GREETER "getStatus()"
+    ```
+
+## 디버깅
+
+입금 트랜잭션을 디버깅하려면 L2 cross domain messenger에 트랜잭션의 상태를 조회할 수 있습니다.
+
+1.  Etherscan에서 `FailedRelayedMessage` 이벤트를 찾습니다. `MSG_HASH`를 해당 값으로 설정합니다.
+
+2.  메시지가 실패로 기록되어 있는지 확인하려면 다음을 실행합니다.
+
+    ```sh
+    cast call $L2XDM_ADDRESS "failedMessages(bytes32)" $MSG_HASH
+    ```
+
+    성공으로 기록되어 있는지 확인하려면 다음을 실행합니다.
+
+    ```sh
+    cast call $L2XDM_ADDRESS "successfulMessages(bytes32)" $MSG_HASH
+    ```
+
+## 다음 단계
+
+- 입금이 내부적으로 L1과 L2에서 어떻게 처리되는지 이해하려면 [입금 흐름](/ko/op-stack/bridging/deposit-flow)을 읽어 보십시오.
+- 컨트랙트에서 [L1과 L2 간 데이터 전송](/ko/app-developers/guides/bridging/messaging)하는 방법을 알아보십시오.

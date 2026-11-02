@@ -1,0 +1,43 @@
+---
+title: OP Stack 체인용 앱 테스트
+description: OP Stack 체인에서 앱을 테스트하기 위한 모범 사례를 알아봅니다.
+diataxis: how-to
+---
+
+대부분의 경우 OP Stack 체인에서 애플리케이션을 실행하는 것은 Ethereum에서 실행하는 것과 동일하므로, 테스트 방법도 동일합니다.
+이 가이드에서는 차이가 있는 부분에 대해 OP Stack 테스트의 모범 사례를 알아봅니다.
+
+## 단위 테스트와 단일 레이어 통합 테스트
+
+대다수의 테스트는 OP Stack 고유 기능과 관련이 없습니다.
+이러한 경우 모든 것을 OP Stack 체인이나 테스트 네트워크에서 테스트할 *수는* 있지만, 일반적으로 비효율적입니다.
+대부분의 Ethereum 개발 스택에는 테스트를 더 쉽게 해 주는 기능이 포함되어 있으며, geth(및 Optimism이 수정한 버전인 `op-geth`)와 같은 일반 Ethereum 클라이언트는 이러한 기능을 지원하지 않습니다.
+따라서 OP Stack 고유 기능에 의존하지 않는 대부분의 테스트는 개발 스택에서 실행하는 것이 좋습니다.
+훨씬 빠르기 때문입니다.
+
+사용 사례에 따라 [로컬 멀티체인 개발 환경](/ko/app-developers/tools/development/supersim), [devnet](/ko/op-stack/introduction/op-stack), 또는 [테스트 네트워크](/ko/op-mainnet/network-information/connecting-to-op#op-sepolia) 등 OP 테스트 네트워크 전반에 걸쳐 철저한 테스트를 설계하고 실행하는 것이 모범 사례입니다. 또는 [Tenderly Virtual TestNets](https://docs.tenderly.co/virtual-testnets?mtm_campaign=ext-docs&mtm_kwd=optimism)를 사용하면 기존 프로토콜과 완전히 통합된 상태로 테스트를 실행하고, 무제한 faucet, 지속적인 상태 동기화, Debugger 및 Simulator UI와 같은 개발 도구를 이용할 수 있습니다.
+적절한 테스트를 수행하는 것은 OP Stack 체인과 Ethereum 간의 동등성이 깨지는 예외적인 경우(또는 프로덕션 환경에서 Ethereum mainnet 자체와 개발 스택이 동등하지 않을 수 있는 경우)를 찾아내는 데 핵심적입니다.
+
+## 멀티레이어 통합 테스트
+
+일부 앱은 개발 스택에서 제공되지 않는 OP Stack 고유 기능이 필요합니다.
+예를 들어 탈중앙화 애플리케이션이 [도메인 간 통신](/ko/app-developers/guides/bridging/messaging)에 의존한다면, 개발 스택에서 디버깅할 수 있도록 stub을 개발하는 노력이 자동화된 테스트가 매번 [로컬 멀티체인 개발 환경](/ko/app-developers/tools/development/supersim)을 사용하도록 하는 번거로움보다 더 클 가능성이 높습니다.
+
+## Tenderly를 이용한 테스트 및 스테이징
+
+Tenderly [Virtual TestNets](https://docs.tenderly.co/virtual-testnets?mtm_campaign=ext-docs&mtm_kwd=optimism)는 mainnet과 유사한 조건에서 OP Stack 애플리케이션을 테스트할 수 있는 강력한 환경을 제공합니다. OP Stack 애플리케이션 테스트에 다음과 같은 여러 이점이 있습니다.
+
+*   **Mainnet 상태 복제**: Virtual TestNets는 최신 OP Stack mainnet 상태와 동기화할 수 있으므로, 실제 자산을 쓰지 않고도 실제 네트워크 조건에서 테스트하고 최신 프로토콜과 상호작용할 수 있습니다.
+*   **무제한 Faucet**: 네이티브 통화와 ERC-20 토큰 모두에 대해 [무제한 테스트 토큰](https://docs.tenderly.co/virtual-testnets/unlimited-faucet?mtm_campaign=ext-docs&mtm_kwd=optimism)을 이용할 수 있어 복잡한 DeFi 상호작용을 포괄적으로 테스트할 수 있습니다.
+*   **협업 테스트**: 팀 전체가 동일한 테스트 환경에 접근할 수 있으므로 문제를 디버깅하고 수정 사항을 검증하기가 더 쉽습니다.
+*   **CI/CD 통합**: [Virtual TestNets API](https://docs.tenderly.co/reference/api?mtm_campaign=ext-docs&mtm_kwd=optimism#/operations/createAlert)와 [GitHub Actions 통합](https://docs.tenderly.co/virtual-testnets/ci-cd/github-actions-foundry?mtm_campaign=ext-docs&mtm_kwd=optimism)을 사용하여 배포 파이프라인에 자동화된 테스트를 포함할 수 있습니다.
+*   **개발 도구**: 내장된 [developer explorer](https://docs.tenderly.co/developer-explorer?mtm_campaign=ext-docs&mtm_kwd=optimism)와 디버깅 도구를 활용하여 테스트 트랜잭션과 컨트랙트 상호작용을 분석할 수 있습니다.
+
+## 다른 제품과의 통합
+
+많은 경우 탈중앙화 애플리케이션은 다른 컨트랙트의 서비스를 필요로 합니다.
+예를 들어 [Perpetual v. 2](https://docs.perp.com/docs/guides/integration-guide)는 [Uniswap v. 3](https://uniswap.org/blog/uniswap-v3) 없이는 작동할 수 없습니다.
+
+*   이러한 경우 [mainnet 포킹](/ko/app-developers/reference/tools/supersim/fork)을 사용할 수 있습니다. 이 기능은 OP Stack 체인에서도 작동합니다.
+*   Virtual TestNet을 생성하여 서드파티 컨트랙트(예: Uniswap)와 그 최신 또는 과거 상태에 접근할 수 있습니다.
+*   또는 해당 컨트랙트가 [테스트 네트워크](/ko/op-mainnet/network-information/connecting-to-op#op-sepolia)에도 배포되어 있다면(많은 경우 그렇습니다) 테스트 네트워크에 연결할 수 있습니다.

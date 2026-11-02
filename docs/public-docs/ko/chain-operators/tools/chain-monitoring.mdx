@@ -1,0 +1,122 @@
+---
+title: 체인 모니터링 옵션
+description: OP Stack 체인을 위한 온체인 및 오프체인 모니터링 옵션에 대해 알아봅니다.
+diataxis: explanation
+---
+
+이 설명 문서에서는 OP Stack 체인을 위한 온체인 및 오프체인 모니터링 옵션의 기본 사항을 다룹니다. 온체인 모니터링 서비스를 사용하면 체인 운영자(chain operator)가 전체 시스템과 온체인 이벤트를 모니터링할 수 있습니다.
+오프체인 모니터링을 사용하면 체인 운영자가 node 및 기타 오프체인 구성 요소의 동작과 상태를 모니터링할 수 있습니다.
+
+## 온체인 모니터링 서비스
+
+온체인 모니터링 서비스는 전체 시스템에 대한 인사이트를 제공하여 체인 운영자가 온체인 이벤트를 추적하고 모니터링할 수 있도록 돕습니다. 온체인 모니터링 서비스의 예로는 `monitorism`과 `dispute-mon`이 있습니다.
+
+### `monitorism`
+
+Monitorism은 OP Stack 체인에 대한 모니터링과 능동적인 대응 조치를 지원하는 도구 모음입니다. Monitorism은 모니터를 수동적 보안 수단으로 사용하여 OP Stack에 대한 자동화된 모니터링을 제공합니다. 모니터는 OP Stack을 감시하고, 보안 사고의 징후일 수 있는 특정 이벤트가 발생하면 알림을 보냅니다.
+
+현재 제공되는 모니터 목록은 다음과 같습니다.
+
+보안 무결성 모니터: L2와 L1 간의 bridge가 안전하고 예상대로 동작하는지 확인하는 데 필요한 모니터입니다. 이 모니터는 두 개의 하위 그룹으로 나뉩니다.
+
+*   결함 증명(fault proof) 도입 이전 체인 모니터:
+    *   Fault Monitor: L2OutputOracle 컨트랙트에 게시된 output root의 변경 사항을 확인합니다. 변경이 감지되면 신뢰할 수 있는 L2 소스로부터 output root를 재구성하여 일치 여부를 확인합니다.
+    *   Withdrawals Monitor: OptimismPortal 컨트랙트에 증명된 새로운 출금을 확인합니다. 각 출금은 `L2ToL1MessagePasser` 컨트랙트와 대조하여 검사됩니다.
+*   결함 증명 체인 모니터:
+    *   Faultproof Withdrawal: Faultproof Withdrawal 구성 요소는 `OptimismPortal` 컨트랙트의 `ProvenWithdrawals` 이벤트를 모니터링하고, 체인에서 불변 조건 위반을 감지하기 위한 검사를 수행합니다. 위반이 감지되면 문제를 로그로 기록하고 해당 이벤트에 대한 Prometheus 메트릭을 설정합니다. 이 구성 요소는 이미 Fault Proofs 시스템을 사용하고 있는 체인에서만 동작하도록 설계되었습니다. 이는 지원 중단된 `chain-mon`의 `faultproof-wd-mon`의 새 버전입니다. 구성 요소의 동작 방식과 사용되는 알고리즘에 대한 자세한 내용은 구성 요소 README를 참고하십시오.
+
+보안 모니터: Optimism에서 사용되는 여러 컨트랙트의 다른 측면을 모니터링하는 도구입니다.
+
+*   Global Events Monitor: YAML 규칙을 구성으로 받아 체인에서 발생하는 이벤트를 모니터링합니다.
+*   Liveness Expiration Monitor: Safe의 liveness 만료를 모니터링합니다.
+*   Balances Monitor: 구성된 계정의 잔액을 보고하는 메트릭을 내보냅니다.
+*   Multisig Monitor: OptimismPortal 컨트랙트의 일시 정지(paused) 상태를 보고합니다. 설정된 경우, 구성된 Safe 주소의 최신 nonce와 One Password에 저장된 최신 사전 서명(presigned) nonce를 보고합니다. 최신 사전 서명 nonce는 구성된 vault에서 `ready-<nonce>.json` 이름 형식을 따르는 항목을 찾아 식별합니다. 이 이름 형식의 항목 중 가장 높은 nonce가 보고됩니다.
+*   Drippie Monitor: Drippie 컨트랙트 내 drip의 실행 및 실행 가능 여부를 추적합니다.
+*   Secrets Monitor: Drippie 컨트랙트를 파라미터로 받아, 해당 컨트랙트 내에서 `CheckSecrets` dripcheck 컨트랙트를 사용하는 drip을 모니터링합니다. `CheckSecrets`는 특정 secret이 공개되면(지연 기간 이후) drip을 시작할 수 있게 하고, 두 번째 secret이 공개되면 drip을 취소하는 dripcheck입니다. secret의 공개는 secret 저장 플랫폼이 침해되어 누군가 drip이 제어하는 ETH를 탈취하려 한다는 신호일 수 있으므로, 이러한 secret을 모니터링하는 것은 중요합니다.
+
+이러한 모니터와 사용 방법에 대한 자세한 내용은 [저장소를 확인하십시오](https://github.com/ethereum-optimism/monitorism?tab=readme-ov-file#monitorism).
+
+### `dispute-mon`
+
+체인 운영자는 `op-dispute-mon` 실행을 고려해야 합니다. 이는 게임 상태를 추적하여 최근 28일 동안의 가시성을 제공하는 필수 보안 모니터링 서비스입니다.
+
+`dispute-mon`은 `op-challenger`와 동일한 방식으로 설정 및 빌드됩니다. 즉, 동일한 방식으로 실행할 수 있습니다(디렉터리에서 `make op-dispute-mon` 실행).
+
+기본 구성 옵션은 다음과 같습니다.
+
+```
+OP_DISPUTE_MON_LOG_FORMAT=logfmt
+OP_DISPUTE_MON_METRICS_ENABLED=true
+OP_DISPUTE_MON_METRICS_ADDR=0.0.0.0
+OP_DISPUTE_MON_METRICS_PORT=7300
+
+OP_DISPUTE_MON_L1_ETH_RPC=..
+OP_DISPUTE_MON_ROLLUP_RPC=..
+OP_DISPUTE_MON_GAME_FACTORY_ADDRESS=..
+
+OP_DISPUTE_MON_HONEST_ACTORS=..
+```
+
+`OP_DISPUTE_MON_HONEST_ACTORS`는 정직한(honest) `op-challenger` 인스턴스에 사용되는 주소의 CSV(공백 없음) 목록입니다.
+
+추가 플래그:
+
+*   `OP_DISPUTE_MON_GAME_WINDOW`: 게임에 대해 보고할 시간 범위입니다. bond 청구를 위해 최대 게임 기간 이상의 여유를 두어야 합니다. Fault Proof 게임 파라미터(예: MAX\_CLOCK\_DURATION)를 변경하지 않았다면 기본값으로 두는 것을 권장합니다.
+*   `OP_DISPUTE_MON_MONITOR_INTERVAL`: 새 게임을 확인하는 간격입니다. 현재 기본값은 30초입니다.
+*   `OP_DISPUTE_MON_MAX_CONCURRENCY`: 최대 스레드 수입니다. 현재 기본값은 5입니다.
+
+`op-dispute-mon`에 대한 자세한 내용은 [저장소](https://github.com/ethereum-optimism/optimism/tree/develop/op-dispute-mon)에서 확인할 수 있습니다.
+
+## 오프체인 구성 요소 모니터링
+
+오프체인 모니터링을 사용하면 체인 운영자가 node 및 기타 오프체인 구성 요소의 동작과 상태를 모니터링할 수 있습니다. 모니터링하고자 할 일반적인 구성 요소로는 `op-node`, `op-geth`, `op-proposer`, `op-batcher`, `op-challenger`가 있습니다.
+오프체인 모니터링을 활성화하는 일반적인 단계는 모든 OP 구성 요소에서 거의 동일합니다.
+
+1.  `--metrics.enabled` 플래그를 활성화하여 모니터링 포트를 노출합니다
+2.  `--metrics.port` 및 `--metrics.addr` 플래그로 각각 메트릭 포트와 주소를 사용자 지정합니다
+3.  [Prometheus](https://prometheus.io/)를 사용하여 메트릭 포트에서 데이터를 수집합니다
+4.  데이터를 `influxdb`에 저장합니다
+5.  데이터를 [Grafana](https://grafana.com/)와 연동하여 사용자 지정 대시보드를 구성합니다
+
+### `op-node`
+
+`op-node` 메트릭 및 모니터링은 [Node 메트릭 및 모니터링](/ko/node-operators/guides/monitoring/metrics) 가이드에 자세히 설명되어 있습니다. 메트릭을 활성화하려면 `op-node`에 `--metrics.enabled` 플래그를 전달하고, 사용자 지정 옵션은 위의 단계를 따르십시오.
+`op-node`에서 특히 추적해야 할 중요한 메트릭은 [이 엄선된 목록](/ko/operators/node-operators/management/metrics#important-metrics)을 참고하십시오.
+
+### `op-geth`
+
+메트릭을 활성화하려면 op-geth에 `--metrics.enabled` 플래그를 전달하십시오. `--metrics.port` 및 `--metrics.addr` 플래그로 각각 메트릭 포트와 주소를 사용자 지정할 수 있습니다.
+
+### `op-proposer`
+
+메트릭을 활성화하려면 op-proposer에 `--metrics.enabled` 플래그를 전달하십시오. `--metrics.port` 및 `--metrics.addr` 플래그로 각각 메트릭 포트와 주소를 사용자 지정할 수 있습니다.
+
+이 플래그에 대한 자세한 내용은 [Proposer 구성 문서](/ko/operators/chain-operators/configuration/proposer#metricsenabled)에서 확인할 수 있습니다.
+
+### `op-batcher`
+
+메트릭을 활성화하려면 op-batcher에 `--metrics.enabled` 플래그를 전달하십시오. `--metrics.port` 및 `--metrics.addr` 플래그로 각각 메트릭 포트와 주소를 사용자 지정할 수 있습니다.
+
+이 플래그에 대한 자세한 내용은 [Batcher 구성 문서](/ko/operators/chain-operators/configuration/proposer#metricsenabled)에서 확인할 수 있습니다.
+
+### `op-challenger`
+
+`op-challenger`는 결함 분쟁 시스템에서 *정직한 행위자(honest actor)* 로 동작하며, `OptimismPortal`을 보호하고 게임이 항상 체인의 올바른 상태로 해결되도록 보장하여 체인을 방어합니다.
+주장(claim)의 정당성을 검증하기 위해 `op-challenger`는 동기화된 신뢰할 수 있는 rollup node와 trace provider(예: [Cannon](/ko/op-stack/fault-proofs/cannon))에 의존합니다. 이 서비스에 대한 자세한 내용은 [OP-Challenger 설명](/ko/op-stack/fault-proofs/challenger)을 참고하십시오.
+
+메트릭을 활성화하려면 `op-challenger`에 `--metrics.enabled` 플래그를 전달하고, 사용자 지정 옵션은 위의 단계를 따르십시오.
+
+```
+    --metrics.addr value                (default: "0.0.0.0")               ($OP_CHALLENGER_METRICS_ADDR)
+          Metrics listening address
+   
+    --metrics.enabled                   (default: false)                   ($OP_CHALLENGER_METRICS_ENABLED)
+          Enable the metrics server
+   
+    --metrics.port value                (default: 7300)                    ($OP_CHALLENGER_METRICS_PORT)
+          Metrics listening port
+```
+
+## 다음 단계
+
+*   이 과정의 어느 단계에서든 어려움이 있으면 [개발자 지원](https://github.com/ethereum-optimism/developers/discussions)에 문의하십시오.
