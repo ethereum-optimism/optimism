@@ -482,7 +482,7 @@ where
     pub fn block_addr(&mut self, ip: IpAddr) {
         self.swarm.behaviour_mut().gate.block_addr(ip);
         self.close_blocked_connections();
-        self.warn_about_blocked_static_peers(|addr| *addr == ip);
+        self.warn_about_blocked_static_peers(self.static_peer_addrs_at(ip));
     }
 
     /// Unblocks an IP address.
@@ -500,15 +500,25 @@ where
     pub fn block_subnet(&mut self, subnet: IpNet) {
         self.swarm.behaviour_mut().gate.block_subnet(subnet);
         self.close_blocked_connections();
-        self.warn_about_blocked_static_peers(|ip| subnet.contains(ip));
+        self.warn_about_blocked_static_peers(self.static_peer_addrs_in(subnet));
     }
 
     /// Warns about each static peer address that a new block covers, so that an operator sees
     /// when they block a static peer by accident.
-    fn warn_about_blocked_static_peers(&self, covers: impl Fn(&IpAddr) -> bool) {
-        for (peer_id, addr) in self.static_peer_addrs_covered_by(covers) {
+    fn warn_about_blocked_static_peers(&self, covered: Vec<(PeerId, Multiaddr)>) {
+        for (peer_id, addr) in covered {
             warn!(target: "gossip", %peer_id, %addr, "Blocked an address of a static peer: it isn't dialed there until unblocked");
         }
+    }
+
+    /// Returns the static peers' addresses that blocking `ip` covers.
+    fn static_peer_addrs_at(&self, ip: IpAddr) -> Vec<(PeerId, Multiaddr)> {
+        self.static_peer_addrs_covered_by(|addr| *addr == ip)
+    }
+
+    /// Returns the static peers' addresses that blocking `subnet` covers.
+    fn static_peer_addrs_in(&self, subnet: IpNet) -> Vec<(PeerId, Multiaddr)> {
+        self.static_peer_addrs_covered_by(|ip| subnet.contains(ip))
     }
 
     /// Returns the static peers' addresses whose IP `covers`: the IP addresses they are configured
@@ -2031,17 +2041,62 @@ mod tests {
             .with_static_peers(vec![in_subnet.clone(), outside.clone(), by_name])
             .build()
             .expect("build");
-        let subnet: IpNet = "10.0.0.0/8".parse().unwrap();
 
         assert_eq!(
-            driver.static_peer_addrs_covered_by(|ip| subnet.contains(ip)),
+            driver.static_peer_addrs_in("10.0.0.0/8".parse().unwrap()),
             vec![(in_subnet.peer_id(), in_subnet.addr().clone())]
         );
-        let ip: IpAddr = "192.168.1.5".parse().unwrap();
         assert_eq!(
-            driver.static_peer_addrs_covered_by(|addr| *addr == ip),
+            driver.static_peer_addrs_at("192.168.1.5".parse().unwrap()),
             vec![(outside.peer_id(), outside.addr().clone())]
         );
+    }
+
+    /// A block covers a static peer's address exactly when the gate refuses it, including when
+    /// one of them is an IPv4-mapped IPv6 address. As in op-node, an IPv6 subnet such as `::/0`
+    /// doesn't cover an IPv4 address, even one written as a mapped address.
+    #[rstest]
+    #[case::mapped_addr_blocks_ipv4_peer("/ip4/10.0.0.1/tcp/9222", "::ffff:10.0.0.1", true)]
+    #[case::ipv4_addr_blocks_mapped_peer("/ip6/::ffff:10.0.0.1/tcp/9222", "10.0.0.1", true)]
+    #[case::other_addr("/ip4/10.0.0.1/tcp/9222", "10.0.0.2", false)]
+    fn test_blocked_addr_covers_the_static_peers_the_gate_refuses(
+        #[case] static_addr: &str,
+        #[case] blocked: IpAddr,
+        #[case] covered: bool,
+    ) {
+        let static_peer: PeerAddr =
+            format!("{static_addr}/p2p/{}", PeerId::random()).parse().unwrap();
+        let mut driver = driver_with_static_peer(static_peer.clone());
+        driver.block_addr(blocked);
+
+        assert_eq!(!driver.static_peer_addrs_at(blocked).is_empty(), covered);
+        assert_eq!(gate_refuses(&driver, &static_peer), covered);
+    }
+
+    /// See [`test_blocked_addr_covers_the_static_peers_the_gate_refuses`].
+    #[rstest]
+    #[case::mapped_subnet_blocks_ipv4_peer("/ip4/10.0.0.1/tcp/9222", "::ffff:10.0.0.0/104", true)]
+    #[case::ipv4_subnet_blocks_mapped_peer("/ip6/::ffff:10.0.0.1/tcp/9222", "10.0.0.0/8", true)]
+    #[case::all_ipv6_leaves_ipv4_peer("/ip4/10.0.0.1/tcp/9222", "::/0", false)]
+    #[case::all_ipv6_leaves_mapped_peer("/ip6/::ffff:10.0.0.1/tcp/9222", "::/0", false)]
+    fn test_blocked_subnet_covers_the_static_peers_the_gate_refuses(
+        #[case] static_addr: &str,
+        #[case] blocked: IpNet,
+        #[case] covered: bool,
+    ) {
+        let static_peer: PeerAddr =
+            format!("{static_addr}/p2p/{}", PeerId::random()).parse().unwrap();
+        let mut driver = driver_with_static_peer(static_peer.clone());
+        driver.block_subnet(blocked);
+
+        assert_eq!(!driver.static_peer_addrs_in(blocked).is_empty(), covered);
+        assert_eq!(gate_refuses(&driver, &static_peer), covered);
+    }
+
+    /// Returns whether the driver's gate refuses `peer`'s address.
+    fn gate_refuses(driver: &GossipDriver<ConnectionGater>, peer: &PeerAddr) -> bool {
+        let ip = ConnectionGater::ip_from_addr(peer.addr()).expect("an IP address");
+        driver.swarm.behaviour().gate.check_ip(ip).is_err()
     }
 
     /// A static peer configured with a DNS name is covered at the address of its open connection.
@@ -2069,8 +2124,7 @@ mod tests {
         driver_1.start().await.expect("listen");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
-        let localhost: IpAddr = "127.0.0.1".parse().unwrap();
-        let covered = driver_1.static_peer_addrs_covered_by(|ip| *ip == localhost);
+        let covered = driver_1.static_peer_addrs_at("127.0.0.1".parse().unwrap());
         assert_eq!(covered.len(), 1, "{covered:?}");
         assert_eq!(covered[0].0, addr_2.peer_id());
     }
