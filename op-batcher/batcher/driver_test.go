@@ -343,8 +343,8 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			}
 
 			// Add a block to the channel manager so unsafeDABytes() returns > 0
-			testBlock := newMiniL2Block(5) // Create a block with 5 transactions
-			err := bs.channelMgr.AddL2Block(mustPayloadFromGeth(testBlock))
+			testBlock := newMiniL2Payload(5, 0, common.Hash{}, 100, 0) // Create a block with 5 transactions
+			err := bs.channelMgr.AddL2Block(testBlock)
 			require.NoError(t, err, "Should be able to add block to channel manager")
 
 			// Simulate block loading by calling sendToThrottlingLoop periodically

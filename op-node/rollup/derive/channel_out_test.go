@@ -529,56 +529,45 @@ func testSpanChannelOut_MaxRLPBytesPerChannel(t *testing.T, algo CompressionAlgo
 func TestPayloadToSingularBatchParity(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x543331))
 	batch := RandomSingularBatch(rng, 4, rollupCfg.L2ChainID)
-	l1InfoTx, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
+	l1InfoTx, err := L1InfoDepositBytes(&rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
 		InfoNum:     uint64(batch.EpochNum),
 		InfoHash:    batch.EpochHash,
 		InfoBaseFee: big.NewInt(1),
 	}, batch.Timestamp)
 	require.NoError(t, err)
-	txs := []*types.Transaction{testutils.TxFromDeposit(l1InfoTx)}
-	for i, opaqueTx := range batch.Transactions {
-		tx := new(types.Transaction)
-		require.NoError(t, tx.UnmarshalBinary(opaqueTx), "decode tx %d", i)
-		txs = append(txs, tx)
-	}
-	// Append a post-exec tx as the trailing block tx (SDM block shape).
-	txs = append(txs, types.NewTx(&types.PostExecTx{Data: []byte{0xc2, 0x80, 0x80}}))
-	block := types.NewBlockWithHeader(&types.Header{
-		Number: big.NewInt(101), Time: batch.Timestamp, ParentHash: batch.ParentHash,
-		BaseFee: big.NewInt(7),
-	}).WithBody(types.Body{Transactions: txs})
-
-	payload, err := eth.BlockAsPayload(block, &rollupCfg)
+	// A user deposit follows the L1-info deposit.
+	userDepositTx, err := testutils.GenerateDeposit(testutils.RandomHash(rng), rng).MarshalBinary()
 	require.NoError(t, err)
+	// Append a post-exec tx as the trailing block tx (SDM block shape).
+	postExecTx, err := (&optypes.PostExecTx{Data: []byte{0xc2, 0x80, 0x80}}).MarshalBinary()
+	require.NoError(t, err)
+	txs := append([]eth.Data{l1InfoTx, userDepositTx}, batch.Transactions...)
+	txs = append(txs, postExecTx)
+	payload := &eth.ExecutionPayload{
+		ParentHash:   batch.ParentHash,
+		BlockNumber:  101,
+		Timestamp:    hexutil.Uint64(batch.Timestamp),
+		Transactions: txs,
+	}
 
 	batch, l1Info, err := PayloadToSingularBatch(&rollupCfg, payload)
 	require.NoError(t, err)
 
-	require.Equal(t, block.ParentHash(), batch.ParentHash)
-	require.Equal(t, block.Time(), batch.Timestamp)
+	require.Equal(t, payload.ParentHash, batch.ParentHash)
+	require.Equal(t, uint64(payload.Timestamp), batch.Timestamp)
 	require.Equal(t, rollup.Epoch(l1Info.Number), batch.EpochNum)
 	require.Equal(t, l1Info.BlockHash, batch.EpochHash)
 
-	// Expected batch txs: every non-deposit tx's canonical encoding, in order,
+	// Expected batch txs: every non-deposit tx, in order, byte-identical,
 	// including the trailing post-exec tx.
-	var want []hexutil.Bytes
-	for _, tx := range block.Transactions() {
-		if tx.Type() == optypes.DepositTxType {
-			continue
-		}
-		otx, err := tx.MarshalBinary()
-		require.NoError(t, err)
-		want = append(want, otx)
-	}
-	require.Equal(t, want, batch.Transactions)
+	require.Equal(t, txs[2:], batch.Transactions)
 	require.Equal(t, byte(optypes.PostExecTxType), batch.Transactions[len(batch.Transactions)-1][0],
 		"post-exec tx must be batch-included")
 
 	// A payload whose first tx is not a deposit is rejected.
-	userOnly, err := eth.BlockAsPayload(types.NewBlockWithHeader(block.Header()).WithBody(
-		types.Body{Transactions: block.Transactions()[1:2]}), &rollupCfg)
-	require.NoError(t, err)
-	_, _, err = PayloadToSingularBatch(&rollupCfg, userOnly)
+	userOnly := *payload
+	userOnly.Transactions = txs[2:3]
+	_, _, err = PayloadToSingularBatch(&rollupCfg, &userOnly)
 	require.ErrorIs(t, err, ErrNotDepositTx)
 }
 
@@ -616,26 +605,19 @@ func TestSpanChannelOutAddBlockPostExec(t *testing.T) {
 func postExecTestPayload(t *testing.T) *eth.ExecutionPayload {
 	rng := rand.New(rand.NewSource(0x7d0b10c))
 	batch := RandomSingularBatch(rng, 1, rollupCfg.L2ChainID)
-	l1InfoTx, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
+	l1InfoTx, err := L1InfoDepositBytes(&rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
 		InfoNum:     uint64(batch.EpochNum),
 		InfoHash:    batch.EpochHash,
 		InfoBaseFee: big.NewInt(1),
 	}, batch.Timestamp)
 	require.NoError(t, err)
-
-	userTx := new(types.Transaction)
-	require.NoError(t, userTx.UnmarshalBinary(batch.Transactions[0]))
-	txs := []*types.Transaction{
-		testutils.TxFromDeposit(l1InfoTx),
-		userTx,
-		types.NewTx(&types.PostExecTx{Data: []byte{0xc2, 0x80, 0x80}}),
-	}
-	block := types.NewBlockWithHeader(&types.Header{
-		Number: big.NewInt(101), Time: batch.Timestamp, ParentHash: batch.ParentHash,
-		BaseFee: big.NewInt(7),
-	}).WithBody(types.Body{Transactions: txs})
-
-	payload, err := eth.BlockAsPayload(block, &rollupCfg)
+	postExecTx, err := (&optypes.PostExecTx{Data: []byte{0xc2, 0x80, 0x80}}).MarshalBinary()
 	require.NoError(t, err)
-	return payload
+
+	return &eth.ExecutionPayload{
+		ParentHash:   batch.ParentHash,
+		BlockNumber:  101,
+		Timestamp:    hexutil.Uint64(batch.Timestamp),
+		Transactions: []eth.Data{l1InfoTx, batch.Transactions[0], postExecTx},
+	}
 }
