@@ -10,7 +10,7 @@ use crate::{
 };
 use alloy_consensus::BlockHeader;
 use eyre::ErrReport;
-use futures_util::FutureExt;
+use futures_util::{FutureExt, future::BoxFuture};
 use op_alloy_consensus::{OpPooledTransaction, interop::SafetyLevel};
 use reth_chainspec::{
     BaseFeeParams, ChainSpecProvider, EthChainSpec, EthereumHardforks, ForkCondition, Hardforks,
@@ -392,6 +392,7 @@ type OnNodeStartedHook = Box<dyn FnOnce(&Runtime) + Send>;
 pub struct OpLaunchHooks {
     extend_rpc_modules: Option<ExtendRpcModulesHook>,
     on_node_started: Option<OnNodeStartedHook>,
+    consensus: Option<BoxFuture<'static, eyre::Result<()>>>,
 }
 
 impl OpLaunchHooks {
@@ -416,6 +417,14 @@ impl OpLaunchHooks {
         self.on_node_started = Some(Box::new(hook));
         self
     }
+
+    /// Runs a consensus node once the execution node's RPC servers are up.
+    ///
+    /// The launcher returns when either node exits, propagating the first result.
+    pub fn with_consensus(mut self, consensus: BoxFuture<'static, eyre::Result<()>>) -> Self {
+        self.consensus = Some(consensus);
+        self
+    }
 }
 
 impl std::fmt::Debug for OpLaunchHooks {
@@ -423,6 +432,7 @@ impl std::fmt::Debug for OpLaunchHooks {
         f.debug_struct("OpLaunchHooks")
             .field("extend_rpc_modules", &self.extend_rpc_modules.is_some())
             .field("on_node_started", &self.on_node_started.is_some())
+            .field("consensus", &self.consensus.is_some())
             .finish()
     }
 }
@@ -498,7 +508,7 @@ where
         builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
         hooks: OpLaunchHooks,
     ) -> eyre::Result<()> {
-        info!(target: "reth::cli", "Launching node");
+        info!(target: "reth::cli", rollup_consensus = hooks.consensus.is_some(), "Launching node");
         let args = &self.args;
         // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
         // callers that build a `NodeConfig` without that CLI.
@@ -569,7 +579,7 @@ where
                 });
         }
 
-        let OpLaunchHooks { extend_rpc_modules, on_node_started } = hooks;
+        let OpLaunchHooks { extend_rpc_modules, on_node_started, consensus } = hooks;
         let builder = builder.extend_rpc_modules(move |ctx| {
             if let Some(storage) = proofs_storage {
                 info!(
@@ -619,7 +629,14 @@ where
         if let Some(hook) = on_node_started {
             hook(&handle.node.task_executor);
         }
-        handle.node_exit_future.await
+        if let Some(consensus) = consensus {
+            tokio::select! {
+                result = handle.node_exit_future => result,
+                result = consensus => result,
+            }
+        } else {
+            handle.node_exit_future.await
+        }
     }
 }
 

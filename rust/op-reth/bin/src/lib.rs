@@ -29,11 +29,16 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod overrides;
+mod rollup_consensus;
 pub use overrides::{OpRethArgs, OpRethOverrides};
 
-use reth_node_core::version::{RethCliVersionConsts, try_init_version_metadata};
-use reth_optimism_chainspec::{is_superchain_chain_id, superchain_block_time};
+use reth_node_core::{
+    node_config::NodeConfig,
+    version::{RethCliVersionConsts, try_init_version_metadata},
+};
+use reth_optimism_chainspec::{OpChainSpec, is_superchain_chain_id, superchain_block_time};
 use reth_optimism_node::{OpLaunchHooks, OpNode, args::RollupArgs, launch_node};
+use rollup_consensus::RollupConsensusArgs;
 use std::{borrow::Cow, fmt};
 use tracing::warn;
 
@@ -85,6 +90,14 @@ pub mod rpc {
 /// The name op-reth reports wherever its client identity is observable.
 const CLIENT_NAME: &str = "op-reth";
 
+#[derive(Debug, clap::Args)]
+struct LaunchArgs<Ext: clap::Args> {
+    #[command(flatten)]
+    args: OpRethArgs<Ext>,
+    #[command(flatten)]
+    consensus: RollupConsensusArgs,
+}
+
 /// Runs op-reth.
 pub fn main() -> eyre::Result<()> {
     main_with(OpRethOverrides::default())
@@ -116,15 +129,26 @@ where
     try_init_version_metadata(version.unwrap_or_else(op_reth_version))
         .map_err(|_| eyre::eyre!("build info is already embedded. This is a bug."))?;
 
-    reth_optimism_cli::Cli::<OpRethArgs<Ext>>::parse_with_denied_args().run(
-        async move |mut builder, OpRethArgs { rollup, ext }| {
+    reth_optimism_cli::Cli::<LaunchArgs<Ext>>::parse_with_denied_args().run(
+        async move |mut builder, LaunchArgs { args: OpRethArgs { rollup, ext }, consensus }| {
             let node = op_node(builder.config().chain.chain.id(), rollup)?;
+            let configure_consensus = |config: &NodeConfig<OpChainSpec>, hooks: OpLaunchHooks| {
+                if consensus.enabled() {
+                    let chain = config.chain.chain;
+                    let metrics = config.metrics.prometheus.is_some();
+                    hooks.with_consensus(Box::pin(consensus.run(chain, metrics)))
+                } else {
+                    hooks
+                }
+            };
             if let Some(mapper) = node_mapper {
                 let (node, hooks) = mapper(builder.config_mut(), ext, node).await?;
+                let hooks = configure_consensus(builder.config(), hooks);
                 node.launch(builder, hooks).await
             } else {
                 // Keep the stock launch compiled in reth-optimism-node.
-                launch_node(builder, node, OpLaunchHooks::default()).await
+                let hooks = configure_consensus(builder.config(), OpLaunchHooks::default());
+                launch_node(builder, node, hooks).await
             }
         },
     )
@@ -183,6 +207,7 @@ fn op_reth_version() -> RethCliVersionConsts {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reth_cli_commands::node::NoArgs;
     use reth_optimism_cli::{Cli, commands::Commands};
     use std::io::Write;
 
@@ -191,13 +216,13 @@ mod tests {
         [&["--testing.sdm-fixed-policy"], &["--testing.sdm-fixed-policy", TARGET]];
 
     fn validate_cli(chain: &str, policy_args: &[&str]) -> eyre::Result<()> {
-        let cli = Cli::<OpRethArgs>::try_parse_with_denied_args_from(
+        let cli = Cli::<LaunchArgs<NoArgs>>::try_parse_with_denied_args_from(
             ["op-reth", "node", "--chain", chain].into_iter().chain(policy_args.iter().copied()),
         )?;
         let Commands::Node(node) = cli.command else {
             panic!("expected node command");
         };
-        if node.ext.rollup.testing_sdm_fixed_policy.is_some() {
+        if node.ext.args.rollup.testing_sdm_fixed_policy.is_some() {
             validate_testing_sdm_fixed_policy(node.chain.chain.id())?;
         }
         Ok(())
@@ -212,7 +237,7 @@ mod tests {
     #[test]
     fn cli_is_valid() {
         use clap::CommandFactory;
-        Cli::<OpRethArgs>::command().debug_assert();
+        Cli::<LaunchArgs<NoArgs>>::command().debug_assert();
     }
 
     /// `OpRethArgs` must not change op-reth's command line, which `reth-optimism-cli`'s snapshot

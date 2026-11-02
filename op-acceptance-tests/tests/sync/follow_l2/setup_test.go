@@ -22,7 +22,7 @@ func forEachFollowSource(gt *testing.T, fn func(t devtest.T, source followSource
 	t := devtest.ParallelT(gt)
 	follower := sysgo.ResolveMixedL2CLKind(t)
 	other := sysgo.MixedL2CLKona
-	if follower == sysgo.MixedL2CLKona {
+	if follower.RunsKona() {
 		other = sysgo.MixedL2CLOpNode
 	}
 	devtest.RunParallel(t, []followSource{followSource(follower), followSource(other)}, fn)
