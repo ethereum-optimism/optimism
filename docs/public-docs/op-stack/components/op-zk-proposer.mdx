@@ -1,0 +1,46 @@
+---
+title: op-zk-proposer
+description: Canonical hub for op-zk-proposer, the OP Stack ZK proposer, covering what it does, who runs it, and where its guides, source, and spec live.
+diataxis: explanation
+---
+
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<ZkProofsStatus />
+
+op-zk-proposer is the OP Stack's ZK proposer: the service that proposes the chain's super root to L1 and proves its proposals with ZK proofs when they are challenged.
+
+## Overview
+
+op-zk-proposer plays every role of the proposer side of the [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game):
+
+1.  **Create.** On a fixed interval, it reads the canonical super root from its super root source and creates a game for it in the `DisputeGameFactory`, building on the previous game.
+2.  **Defend.** When one of its games is challenged, it collects the data the proof reads, buys the proofs from the Succinct Prover Network, and submits the aggregation proof to the game. In fast finality mode, it also proves its own games before anyone challenges them.
+3.  **Resolve and claim.** It resolves finished games and claims bonds, including the challenger bond it earns when it proves another proposer's challenged game.
+
+It defends every game whose prestate it has program files for, whoever created it. Before it creates a game on a prestate, it checks that it can generate proofs for that prestate and that the game's verifier accepts proofs from its SP1 version, so it never posts a bond on a game it cannot defend.
+
+op-zk-proposer is written in Rust and lives with the ZK proof programs in the Kona workspace. It embeds `kona-host` to collect the data that the programs read.
+
+**Who runs it:** the chain operator, as one of the chain's core services. Proposing and proving are permissionless, so anyone can run it, but the operator runs it so that proposals land regularly and challenged proposals are defended.
+
+## Get started
+
+*   [Configure op-zk-proposer](/chain-operators/guides/configuration/zk-proposer): set up the service, its signers, its prover network account, and its monitoring.
+
+## How-tos
+
+*   [Migrating to ZK proofs](/chain-operators/tutorials/migrate-to-zk-proofs): switch a chain to the ZK dispute game and cut proposals over to op-zk-proposer.
+*   [Verifying a ZK absolute prestate](/chain-operators/tutorials/zk-prestate): find, verify, and publish the program files the proposer needs.
+
+## Configuration reference
+
+*   [op-zk-proposer environment variables](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/sp1/README.md#environment): every configuration variable and its default.
+
+{/* TODO: add op-zk-proposer to the component reference generator and the release notes generator, then link its generated reference and release history here. */}
+
+## Source & spec links
+
+*   [Source: `rust/kona/sp1/crates/proposer/`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/sp1/crates/proposer) in the Optimism monorepo. The [SP1 integration README](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/sp1/README.md#proposer-op-zk-proposer) documents its behavior, restart handling, and metrics.
+*   [ZK dispute game specification](https://specs.optimism.io/fault-proof/stage-one/zk/zk-dispute-game.html): the normative definition of the game it plays.
+*   [ZK fault proof VM specification](https://specs.optimism.io/fault-proof/zk-fault-proof-vm.html): the normative definition of the proofs it generates.

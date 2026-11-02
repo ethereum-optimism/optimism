@@ -1,0 +1,73 @@
+---
+title: ZK proofs security
+description: Learn the security model of the OP Stack ZK proof system, what it assumes, and the safeguards that protect withdrawals and bonds when something goes wrong.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<NormativeSpec
+  what="The ZK dispute game's assumptions and invariants"
+  title="ZK dispute game specification"
+  href="https://specs.optimism.io/fault-proof/stage-one/zk/zk-dispute-game.html#assumptions"
+  note="This page explains the security model in prose; it does not restate the spec's assumptions."
+/>
+
+<ZkProofsStatus />
+
+The ZK proof system protects withdrawals with two properties. **Soundness**: an invalid proposal cannot be proven. **Completeness**: a valid proposal can always be proven in time. A failure of either one has a different effect, and the system has safeguards for both.
+
+## Soundness
+
+An invalid proposal wins only if nobody challenges it, or if someone proves it. Proving an invalid proposal would require breaking one of these:
+
+*   **The verifier.** The SP1 PLONK verifier must reject every proof of an incorrect statement. It is audited, and the verifier a chain uses is set through `OPContractsManager` under the chain's governance.
+*   **The program.** The proof program must implement the OP Stack state transition correctly, and must check every input the prover supplies against the game's public values. It is built from the same Kona code that implements the state transition elsewhere in the OP Stack.
+*   **The prestate.** Each game accepts proofs only from the program its `absolutePrestate` identifies. Changing the program requires changing the prestate, which also goes through `OPContractsManager`.
+
+The other route, an invalid proposal that nobody challenges, is closed by the challenger. Anyone can challenge, so a chain needs only one honest, online challenger during each challenge window. The chain operator runs [`op-challenger`](/chain-operators/guides/configuration/zk-challenger) and [`op-dispute-mon`](/chain-operators/tools/chain-monitoring#dispute-mon) for this.
+
+Parent links carry soundness forward. A proof only shows that a proposal follows from its parent, but a game cannot win unless its parent won first, so a sequence of games is only as good as its first parent, the anchor state.
+
+## Completeness
+
+A valid proposal that is challenged and not proven by its prove deadline loses: the challenger takes the proposer's bond, and every game built on it loses too. So an honest proposer must be able to produce a proof within `maxProveDuration` every time, including when someone is trying to stop it.
+
+This is a security property, not just an operational one. An attacker who can make an honest proof fail or take too long can remove valid proposals from the chain and take the proposer's bonds, at the cost of one challenger bond per game. Ways that could happen:
+
+*   **Expensive blocks.** Proof requests have limits on proving work, input size, and memory. An attacker might fill blocks with transactions that are cheap on L2 but expensive to prove. The proposer splits work into smaller requests to stay under the limits, and the proof programs are reviewed for this kind of cost.
+*   **Prover availability.** Proofs are bought from the Succinct Prover Network. If it cannot serve a request in time, or the proposer's PROVE balance runs out, a challenged game goes unproven.
+*   **Missing inputs.** The proposer needs the prestate's program files, and L1, beacon, and L2 nodes that can serve the data the proof reads.
+
+The proposer monitors the time left before each game's deadline; see [`op-zk-proposer` alarms](/chain-operators/guides/configuration/zk-proposer#monitor-the-proposer). The prove window should be set with room above the worst-case proving time for the whole interop set.
+
+## Guardian safeguards
+
+The [Guardian](/op-stack/protocol/privileged-roles#guardian) is the backstop if a game resolves incorrectly. These controls are shared with the rest of the OP Stack's dispute system:
+
+*   **Blacklisting.** The Guardian can blacklist a game in the `AnchorStateRegistry`. A blacklisted game cannot finalize withdrawals or update the anchor state, and its bonds are refunded instead of paid to the winner. Games built on a blacklisted parent must be blacklisted individually.
+*   **Retirement.** The Guardian can retire every game created before a timestamp, for example after a bug is found in a prestate. Retired games are treated the same way as blacklisted ones.
+*   **Respected game type.** The Guardian can change the game type that the system accepts for withdrawals.
+*   **Pause.** The Guardian can pause the system, which stops withdrawals and stops games from closing while paused.
+
+These controls only help if the Guardian acts before a bad result is used, so the system adds delays:
+
+*   **Finality delay.** The `AnchorStateRegistry` does not treat a resolved game as final until its finality delay has passed.
+*   **Proof maturity delay.** The `OptimismPortal` makes users wait between proving and finalizing a withdrawal.
+*   **Bond delay.** `DelayedWETH` holds bonds and delays withdrawals, so funds can be held back from an incorrect game.
+
+## Trust assumptions
+
+Using ZK proofs adds these assumptions to the chain's security model:
+
+*   The SP1 zkVM and its PLONK verifier are sound.
+*   The Succinct Prover Network, or another prover, can generate proofs within the prove window.
+*   At least one honest challenger watches the chain during every challenge window.
+*   The Guardian acts honestly and in time when a game resolves incorrectly.
+
+## Next steps
+
+*   Read the [spec's assumptions and invariants](https://specs.optimism.io/fault-proof/stage-one/zk/zk-dispute-game.html?utm_source=op-docs&utm_medium=docs#assumptions) for the normative definitions.
+*   Read the [OP Stack security model FAQ](/op-stack/security/faq-sec-model).
+*   Read [Audit reports](/op-stack/security/audit-reports).

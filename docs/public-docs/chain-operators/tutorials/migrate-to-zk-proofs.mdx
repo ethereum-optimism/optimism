@@ -1,0 +1,157 @@
+---
+title: Migrating to ZK proofs
+description: Switch an OP Stack chain from its current super-root dispute game to the ZK dispute game with a single opcm.upgrade call, then cut proposals over to op-zk-proposer.
+diataxis: how-to
+---
+
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<ZkProofsStatus />
+
+This runbook moves a single OP Stack chain from its current super-root dispute game, `SUPER_CANNON_KONA` (game type `9`) or `SUPER_PERMISSIONED` (game type `5`), to the ZK dispute game (`ZK_DISPUTE_GAME`, game type `10`). It runs as one `opcm.upgrade` call against the chain's own `AnchorStateRegistry` and `DisputeGameFactory`.
+
+By the end, `op-zk-proposer` creates ZK games for the chain, `op-challenger` checks them, and `op-dispute-mon` monitors them. Games created before the migration keep their original implementation and resolve as before, and withdrawals proven against them stay valid.
+
+<Note>
+  The ZK dispute game commits to super roots. A chain still on output-root games must first move to super roots: follow [Upgrading a chain from output roots to super roots](/chain-operators/tutorials/upgrade-chain-to-super-roots), then return here.
+</Note>
+
+<Note>
+  This runbook covers a chain with its own `DisputeGameFactory` and `AnchorStateRegistry`. Migrating several chains that share them as an interop set is not yet supported.
+</Note>
+
+For the normative description of the migration, see the [ZK dispute game migration specification](https://specs.optimism.io/fault-proof/stage-one/zk/zk-migration.html?utm_source=op-docs&utm_medium=docs).
+
+## Before you begin
+
+### Gather the required inputs
+
+**Chain addresses.** Read the chain's `SystemConfig`, `AnchorStateRegistry` (`<ASR>`), and `DisputeGameFactory` (`<DGF>`) addresses from its superchain-registry entry or with [`op-fetcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-fetcher), as in the [super roots runbook](/chain-operators/tutorials/upgrade-chain-to-super-roots#gather-the-required-inputs).
+
+**Current game type.** Confirm the chain's respected game type:
+
+```bash
+cast call <ASR> 'respectedGameType()(uint32)' --rpc-url $L1_RPC
+# Expect: 9 (SUPER_CANNON_KONA) or 5 (SUPER_PERMISSIONED)
+```
+
+**ZK game parameters.**
+
+| Item | Source |
+| --- | --- |
+| `absolutePrestate` | The `super-aggregation` verification key for the `kona-sp1-program` release. See [Verifying a ZK absolute prestate](/chain-operators/tutorials/zk-prestate). |
+| `maxChallengeDuration` | Seconds a new game can be challenged. |
+| `maxProveDuration` | Seconds a challenged game has to be proven. Leave room above the worst-case proving time; see [Completeness](/op-stack/zk-proofs/security#completeness). |
+| `challengerBond` | Wei required to challenge. |
+| Init bond | Wei required to create a game. |
+
+{/* TODO: add the standard values for the durations and bonds once they are set for the release. */}
+
+**Release artifacts.** The `OPContractsManager` address for the release that ships the ZK dispute game, from `validation/standard/standard-versions-<network>.toml` in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry). `OPContractsManager` sets the game's verifier to its `SP1PlonkAdapter`, so you do not supply a verifier.
+
+{/* TODO: name the op-contracts release and the superchain-ops template that support the ZK dispute game. */}
+
+### Stand up the off-chain services first
+
+On a chain moving from `SUPER_PERMISSIONED`, this migration makes proposals permissionless. On either path, the ZK game needs a funded proposer that can prove, and a challenger, from the moment it becomes the respected game type. Bring them up before the upgrade:
+
+*   **op-zk-proposer.** Configure it as in [Configure op-zk-proposer](/chain-operators/guides/configuration/zk-proposer), fund its L1 signer and its prover network account, and publish the prestate's program files. Do not start it yet: until the upgrade lands, there is no ZK game for it to create.
+*   **op-challenger.** Add `zk` to `--game-types` on the running challenger, and keep the existing game types so games already in flight stay defended. See [Configure op-challenger for ZK dispute games](/chain-operators/guides/configuration/zk-challenger).
+*   **op-dispute-mon.** No change is needed. It discovers ZK games from the same `DisputeGameFactory` and uses its existing `--superroot-rpc`.
+
+Confirm the prestate files are reachable:
+
+```bash
+curl -fI "$PRESTATES_URL/$ZK_PRESTATE.agg.bin.gz"
+curl -fI "$PRESTATES_URL/$ZK_PRESTATE.range.bin.gz"
+curl -fI "$PRESTATES_URL/$ZK_PRESTATE.log.bin.gz"
+```
+
+## Build the upgrade
+
+The upgrade is one `opcm.upgrade` call for the chain. Its input lists a dispute game configuration for each game type, and an extra instruction that sets the new respected game type:
+
+*   `ZK_DISPUTE_GAME` (`10`): `enabled = true`, the init bond, and `gameArgs` set to the ABI encoding of `(absolutePrestate, maxChallengeDuration, maxProveDuration, challengerBond)`.
+*   The chain's current game type (`9` or `5`): `enabled = false`, which clears its implementation so no new games of that type can be created.
+*   An `overrides.cfg.startingRespectedGameType` extra instruction set to `10`.
+
+`OPContractsManager` checks the ZK configuration and reverts if the prestate is zero, either duration is zero or above `type(uint32).max`, or the challenger bond is zero.
+
+The anchor state does not change. The current game type already commits to super roots, so the existing anchor is a valid starting point for the first ZK game.
+
+Simulate the upgrade against an L1 fork with your team's standard `superchain-ops` workflow, and resolve every validation error it reports before you sign.
+
+## Execute the upgrade
+
+1.  **Stop the chain's current proposer.** Games already in flight continue to resolve.
+2.  **Leave `op-challenger` and `op-dispute-mon` running.**
+3.  **Sign and broadcast the upgrade.**
+4.  **Wait for the L1 transaction to confirm.**
+
+The upgrade:
+
+*   installs the ZK dispute game implementation and its configuration on `<DGF>`,
+*   clears the implementation of the previous game type, and
+*   sets the respected game type in `<ASR>` to `10`.
+
+## Verify the upgrade on-chain
+
+<Warning>If any check fails, stop, do not start op-zk-proposer, and escalate through your incident-response process.</Warning>
+
+```bash
+# Respected game type
+cast call <ASR> 'respectedGameType()(uint32)' --rpc-url $L1_RPC
+# Expect: 10
+
+# ZK game installed, with the expected bond
+cast call <DGF> 'gameImpls(uint32)(address)' 10 --rpc-url $L1_RPC
+# Expect: non-zero
+cast call <DGF> 'initBonds(uint32)(uint256)' 10 --rpc-url $L1_RPC
+# Expect: the configured init bond
+
+# Previous game type cleared
+cast call <DGF> 'gameImpls(uint32)(address)' <9 or 5> --rpc-url $L1_RPC
+# Expect: 0x0000000000000000000000000000000000000000
+
+# Anchor state unchanged
+cast call <ASR> 'getAnchorRoot()(bytes32,uint256)' --rpc-url $L1_RPC
+# Expect: the same value as before the upgrade
+```
+
+The ZK configuration is checked when the first game is created; see the next section.
+
+## Start op-zk-proposer
+
+Start `op-zk-proposer`. Check its logs for `op-zk-proposer started` and no anchor, prestate, or verifier errors; see [Start the proposer](/chain-operators/guides/configuration/zk-proposer#start-the-proposer).
+
+Within one proposal interval, it creates the first ZK game, building on the anchor state. Check the game's configuration and claim:
+
+```bash
+COUNT=$(cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC)
+read -r GAME_TYPE CREATED_AT GAME_PROXY < <(cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
+echo "gameType=$GAME_TYPE gameProxy=$GAME_PROXY"
+# Expect: gameType=10
+
+cast call $GAME_PROXY 'absolutePrestate()(bytes32)' --rpc-url $L1_RPC
+cast call $GAME_PROXY 'maxChallengeDuration()(uint64)' --rpc-url $L1_RPC
+cast call $GAME_PROXY 'maxProveDuration()(uint64)' --rpc-url $L1_RPC
+cast call $GAME_PROXY 'challengerBond()(uint256)' --rpc-url $L1_RPC
+# Expect: the configured values
+
+cast call $GAME_PROXY 'rootClaim()(bytes32)' --rpc-url $L1_RPC
+cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC
+cast rpc superroot_atTimestamp "$(cast 2h <l2SequenceNumber>)" --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
+# Expect: equals rootClaim
+```
+
+## Verify after the migration
+
+*   **Games from before the migration still resolve.** Watch an in-flight game of the previous type until it resolves. Keep its game type in `op-challenger --game-types` until every such game has resolved and its bonds are claimed.
+*   **op-challenger watches ZK games.** Its logs show ZK games being checked, with no errors from the super root source.
+*   **op-dispute-mon reports ZK games.** `op_dispute_mon_games` includes game type `10`, and `op_dispute_mon_zk_games_pending_lifecycle_action` does not stay above zero.
+*   **The anchor advances.** The first ZK game updates the anchor state once it has resolved and its finality delay has passed: at least `maxChallengeDuration` plus the `AnchorStateRegistry` finality delay after it was created, unless the proposer proves it early with [fast finality](/chain-operators/guides/configuration/zk-proposer#enable-fast-finality). Schedule a check of `getAnchorRoot()` after that window.
+
+## Next steps
+
+*   Read [ZK proofs security](/op-stack/zk-proofs/security) for the safeguards that now protect the chain.
+*   Set up alerts from [Monitor the proposer](/chain-operators/guides/configuration/zk-proposer#monitor-the-proposer).

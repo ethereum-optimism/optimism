@@ -1,0 +1,48 @@
+---
+title: ZK proofs
+description: One place to learn the OP Stack ZK proof system, from the explainer through the game, the proof programs, hands-on operator guides, and the normative spec.
+diataxis: explanation
+content-type: curriculum-hub
+last-reviewed: 2026-10-28
+---
+
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<ZkProofsStatus />
+
+ZK proofs are how OP Stack chains secure withdrawals without a trusted third party. Anyone can propose the state of the chain on Ethereum, and anyone can challenge a proposal they believe is wrong. A challenged proposal stands only if someone proves it with a zero-knowledge proof before its deadline, and the proof is verified on Ethereum in a single call.
+
+This page is the recommended reading order for the topic. Start with the explainer for the mental model, then read the pages on the game and the proof system to see how the pieces fit. Use the operator guides if you run a chain, and the spec for full depth.
+
+## Start here
+
+*   [ZK proofs explainer](/op-stack/zk-proofs/explainer): proposals, challenges, proofs, fast finality, and the path from a resolved game to a withdrawal.
+
+## Go deeper
+
+*   [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game): the game's lifecycle, parent games, bonds, and per-chain configuration.
+*   [ZK proof system](/op-stack/zk-proofs/proof-system): what a proof attests to, the SP1 programs that produce it, the absolute prestate, and the verifier.
+*   [ZK proof system components](/op-stack/zk-proofs/components): the L1 contracts and off-chain services, and who runs each.
+*   [ZK proofs security](/op-stack/zk-proofs/security): soundness, completeness, the Guardian's safeguards, and the trust assumptions.
+*   [ZK proofs reference](/op-stack/zk-proofs/reference): the game type, functions, parameters, and statuses.
+
+## Get hands-on
+
+*   [Configure op-zk-proposer](/chain-operators/guides/configuration/zk-proposer): run the service that proposes, proves, and resolves games, and fund its proving account.
+*   [Configure op-challenger for ZK dispute games](/chain-operators/guides/configuration/zk-challenger): run the honest challenger for ZK games.
+*   [Verifying a ZK absolute prestate](/chain-operators/tutorials/zk-prestate): find the prestate for a release, rebuild it, and build one for a custom chain.
+*   [Migrating to ZK proofs](/chain-operators/tutorials/migrate-to-zk-proofs): switch a chain's respected game type to the ZK dispute game.
+*   [Chain monitoring](/chain-operators/tools/chain-monitoring#dispute-mon): run `op-dispute-mon` to track every game.
+
+## The normative spec
+
+*   [ZK dispute game](https://specs.optimism.io/fault-proof/stage-one/zk/zk-dispute-game.html?utm_source=op-docs&utm_medium=docs): the game contract, its configuration, assumptions, and invariants.
+*   [Game mechanics](https://specs.optimism.io/fault-proof/stage-one/zk/game-mechanics.html?utm_source=op-docs&utm_medium=docs): creation, challenge, proving, resolution, and bond distribution.
+*   [`IZKVerifier` interface](https://specs.optimism.io/fault-proof/stage-one/zk/zk-interface.html?utm_source=op-docs&utm_medium=docs): how the game calls its verifier.
+*   [ZK fault proof VM](https://specs.optimism.io/fault-proof/zk-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs): the proof program's inputs, output, and absolute prestate.
+*   [ZK dispute game migration](https://specs.optimism.io/fault-proof/stage-one/zk/zk-migration.html?utm_source=op-docs&utm_medium=docs): the supported upgrade paths to the ZK dispute game.
+
+## Audits and security
+
+*   [ZK proofs security](/op-stack/zk-proofs/security): the security model and its safeguards.
+*   [Audit reports](/op-stack/security/audit-reports): the index of OP Stack security reviews.
