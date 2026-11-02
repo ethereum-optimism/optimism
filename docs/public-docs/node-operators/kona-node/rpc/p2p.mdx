@@ -90,9 +90,9 @@ Returns the discovery table entries as a list of ENR strings. A node running [wi
 
 ### `opp2p_blockPeer`
 
-Blocks a specific peer by peer ID, preventing any connections to or from that peer. The peer's open connections are closed, and new ones are refused in both directions until it is [unblocked](#opp2p_unblockpeer).
+Blocks a specific peer by peer ID, preventing any connections to or from that peer. The peer's open connections are closed, and new ones are refused in both directions until it is [unblocked](#opp2p_unblockpeer), or until the node restarts: blocks aren't kept across restarts yet ([#23768](https://github.com/ethereum-optimism/optimism/issues/23768)).
 
-This applies to [protected](#opp2p_protectpeer) and [static](/node-operators/kona-node/configuration#static-peers) peers too: a blocked static peer isn't dialed again until it is unblocked. op-node, by contrast, leaves a blocked peer's open connections in place.
+This applies to [protected](#opp2p_protectpeer) and [static](/node-operators/kona-node/configuration#static-peers) peers too: a blocked static peer isn't dialed again until it is unblocked, or until the node restarts and dials it again from its configuration. op-node, by contrast, leaves a blocked peer's open connections in place.
 
 | Client | Method invocation                                   |
 | ------ | --------------------------------------------------- |
@@ -147,7 +147,7 @@ Returns a list of all blocked peer IDs. Peers banned for their score aren't list
 
 ### `opp2p_blockAddr`
 
-Blocks connections to and from a specific IP address, whichever peer they belong to. Open connections are closed, and new ones are refused in both directions until the address is [unblocked](#opp2p_unblockaddr). op-node, by contrast, leaves open connections in place.
+Blocks connections to and from a specific IP address, whichever peer they belong to. Open connections are closed, and new ones are refused in both directions until the address is [unblocked](#opp2p_unblockaddr), or until the node restarts ([#23768](https://github.com/ethereum-optimism/optimism/issues/23768)). op-node, by contrast, leaves open connections in place.
 
 | Client | Method invocation                                  |
 | ------ | -------------------------------------------------- |
@@ -202,7 +202,7 @@ Returns a list of all blocked IP addresses.
 
 ### `opp2p_blockSubnet`
 
-Blocks connections to and from an entire IP subnet using CIDR notation, whichever peers they belong to. Open connections are closed, and new ones are refused in both directions until the subnet is [unblocked](#opp2p_unblocksubnet). op-node, by contrast, leaves open connections in place.
+Blocks connections to and from an entire IP subnet using CIDR notation, whichever peers they belong to. Open connections are closed, and new ones are refused in both directions until the subnet is [unblocked](#opp2p_unblocksubnet), or until the node restarts ([#23768](https://github.com/ethereum-optimism/optimism/issues/23768)). op-node, by contrast, leaves open connections in place.
 
 | Client | Method invocation                                  |
 | ------ | -------------------------------------------------- |
