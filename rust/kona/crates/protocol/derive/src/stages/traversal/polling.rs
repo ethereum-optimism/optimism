@@ -148,7 +148,8 @@ impl<F: ChainProvider + Send> Stage for PollingTraversal<F> {
         system_config: SystemConfig,
     ) -> PipelineResult<()> {
         // Resolve the reset base by hash, as op-node does. A hash lookup is never delayed for
-        // confirmations, and a base that was reorged out is not found, which resets again.
+        // confirmations. A base that was reorged out can still be served by hash, but the next
+        // origin's parent hash will not match it, which resets again.
         let header = self.data_source.header_by_hash(l1_origin.hash).await.map_err(Into::into)?;
         let block_info =
             BlockInfo::new(l1_origin.hash, header.number, header.parent_hash, header.timestamp);

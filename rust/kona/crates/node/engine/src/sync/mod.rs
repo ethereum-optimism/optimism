@@ -1,5 +1,7 @@
 //! Sync start algorithm for the OP Stack rollup node.
 
+use alloy_eips::BlockNumHash;
+use alloy_primitives::B256;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 
@@ -38,38 +40,37 @@ pub async fn find_starting_forkchoice(
         "Loaded current L2 EL forkchoice state"
     );
 
-    // Search for the highest `unsafe` block, relative to the initial `unsafe` block's L1 origin,
+    // Walk back to the highest `unsafe` block whose L1 origin is plausible. A lookup by hash cannot
+    // decide that, because L1 clients still serve reorged-out blocks by hash, so compare the origin
+    // with the canonical block at its height, as op-node does.
     loop {
-        let l1_origin = engine_client.l1_header_by_hash(current_fc.un_safe.l1_origin.hash).await?;
+        let l1_origin = current_fc.un_safe.l1_origin;
+        let canonical = engine_client.l1_block_hash_by_number(l1_origin.number).await?;
         info!(
             target: "sync_start",
-            l1_origin = %current_fc.un_safe.l1_origin.number,
+            l1_origin = %l1_origin.number,
             l2_unsafe = %current_fc.un_safe.block_info.number,
-            "Searching for L2 unsafe block with canonical L1 origin"
+            "Searching for L2 unsafe block with plausible L1 origin"
         );
 
-        match l1_origin {
-            Some(_) => {
-                // Unsafe block has existing L1 origin. Continue with this head.
-                info!(
-                    target: "sync_start",
-                    l2_unsafe = %current_fc.un_safe.block_info.number,
-                    "Found L2 unsafe block with canonical L1 origin"
-                );
-                break;
-            }
-            None => {
-                let l2_parent_hash = current_fc.un_safe.block_info.parent_hash.into();
-                let l2_parent = engine_client
-                    .get_l2_block(l2_parent_hash)
-                    .full()
-                    .await?
-                    .ok_or(SyncStartError::BlockNotFound(l2_parent_hash))?;
-
-                current_fc.un_safe =
-                    L2BlockInfo::from_block_and_genesis(&l2_parent.into_consensus(), &cfg.genesis)?;
-            }
+        if l1_origin_is_plausible(l1_origin, canonical) {
+            info!(
+                target: "sync_start",
+                l2_unsafe = %current_fc.un_safe.block_info.number,
+                "Found L2 unsafe block with plausible L1 origin"
+            );
+            break;
         }
+
+        let l2_parent_hash = current_fc.un_safe.block_info.parent_hash.into();
+        let l2_parent = engine_client
+            .get_l2_block(l2_parent_hash)
+            .full()
+            .await?
+            .ok_or(SyncStartError::BlockNotFound(l2_parent_hash))?;
+
+        current_fc.un_safe =
+            L2BlockInfo::from_block_and_genesis(&l2_parent.into_consensus(), &cfg.genesis)?;
     }
 
     // Search for the highest `safe` block that's L1 origin is at least older than the sequencing
@@ -143,5 +144,27 @@ mod test {
         let l2_block_info =
             L2BlockInfo::from_block_and_genesis(&consensus_block, &rollup_config.genesis).unwrap();
         assert_eq!(rpc_reported_hash, l2_block_info.block_info.hash);
+    }
+}
+
+/// Whether an L1 origin is plausible: it is the canonical block at its height, or it is above the
+/// L1 chain's head (`canonical` is `None`), so it may still become canonical.
+fn l1_origin_is_plausible(origin: BlockNumHash, canonical: Option<B256>) -> bool {
+    canonical.is_none_or(|hash| hash == origin.hash)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn l1_origins_are_plausible_only_at_their_canonical_height_or_above_the_head() {
+        let origin = BlockNumHash { number: 7, hash: B256::repeat_byte(1) };
+        assert!(l1_origin_is_plausible(origin, Some(origin.hash)));
+        // Reorged out: another block is canonical at that height, even if L1 still serves the
+        // origin by hash.
+        assert!(!l1_origin_is_plausible(origin, Some(B256::repeat_byte(2))));
+        // L1 has not reached that height yet.
+        assert!(l1_origin_is_plausible(origin, None));
     }
 }

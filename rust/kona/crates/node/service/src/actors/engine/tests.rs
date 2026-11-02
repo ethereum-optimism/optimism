@@ -86,7 +86,7 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
         l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
     }
     l1.expect(
-        "eth_getBlockByHash",
+        "eth_getBlockByNumber",
         alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
     );
     l2.expect(
@@ -163,7 +163,7 @@ async fn admin_reset_recovers_and_completes_original_request(
         for tag in ["finalized", "safe", "latest"] {
             l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
         }
-        l1.expect_error("eth_getBlockByHash");
+        l1.expect_error("eth_getBlockByNumber");
     } else {
         l2.expect_error("eth_getBlockByNumber");
     }
@@ -197,7 +197,7 @@ async fn admin_reset_recovers_and_completes_original_request(
         l2.expect_with_delay("eth_getBlockByNumber", &block, read_delay);
     }
     l1.expect(
-        "eth_getBlockByHash",
+        "eth_getBlockByNumber",
         alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
     );
     l2.expect(

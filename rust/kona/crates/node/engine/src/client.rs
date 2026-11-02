@@ -1,7 +1,6 @@
 //! An Engine API Client.
 
 use crate::Metrics;
-use alloy_consensus::Header;
 use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
 use alloy_json_rpc::{RequestPacket, ResponsePacket};
 use alloy_network::Network;
@@ -192,14 +191,14 @@ impl EngineClient {
         &self.cfg
     }
 
-    /// Returns the header of the L1 block with `hash`, or `None` if the L1 chain does not have
-    /// it.
-    pub async fn l1_header_by_hash(
+    /// Returns the hash of the canonical L1 block at `number`, or `None` if the L1 chain does not
+    /// reach that height yet.
+    pub async fn l1_block_hash_by_number(
         &self,
-        hash: B256,
-    ) -> Result<Option<Header>, AlloyChainProviderError> {
-        match self.l1.header_by_hash(hash).await {
-            Ok(header) => Ok(Some(header)),
+        number: u64,
+    ) -> Result<Option<B256>, AlloyChainProviderError> {
+        match self.l1.block_info_by_number(number).await {
+            Ok(block) => Ok(Some(block.hash)),
             Err(AlloyChainProviderError::BlockNotFound(_)) => Ok(None),
             Err(error) => Err(error),
         }
@@ -600,11 +599,7 @@ mod provider_tests {
             let config = Arc::new(config);
             let (client, l1, l2) = test_engine_client(config);
             let query = client.query_client();
-            l1.expect_params(
-                "eth_getBlockByHash",
-                json!([B256::repeat_byte(4), false]),
-                Option::<Block>::None,
-            );
+            l1.expect_params("eth_getBlockByNumber", json!(["0x4", false]), Option::<Block>::None);
             l2.expect_params(
                 "eth_getBlockByNumber",
                 json!(["latest", false]),
@@ -619,7 +614,7 @@ mod provider_tests {
                     EIP1186AccountProofResponse { storage_hash, ..Default::default() },
                 );
             }
-            assert!(client.l1_header_by_hash(B256::repeat_byte(4)).await.unwrap().is_none());
+            assert!(client.l1_block_hash_by_number(4).await.unwrap().is_none());
             assert!(client.get_l2_block(BlockId::latest()).await.unwrap().is_none());
             let (info, root) = query.output_at_block(BlockNumberOrTag::Number(0)).await.unwrap();
             assert_eq!(info.block_info.hash, block.header.hash);
