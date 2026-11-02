@@ -110,12 +110,12 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	require.Equal(t, uint64(1), verifier.SyncStatus().SafeL2.L1Origin.Number)
 
 	verifCl := verifEngine.EthClient()
-	for i := int64(1); i < int64(verifier.L2Safe().Number); i++ {
-		block, _ := verifCl.BlockByNumber(t.Ctx(), big.NewInt(i))
-		require.NoError(t, err)
+	for i := uint64(1); i < verifier.L2Safe().Number; i++ {
+		deposits, userTxs := verifEngine.BlockTxs(t, verifEngine.HeaderByNumber(t, i).Hash())
 		// because verifier drops every span batch, it should generate empty blocks.
 		// so every block has only L1 attribute deposit transaction.
-		require.Equal(t, block.Transactions().Len(), 1)
+		require.Len(t, deposits, 1)
+		require.Empty(t, userTxs)
 	}
 	// check that the tx from alice is not included in verifier's chain
 	_, _, err = verifCl.TransactionByHash(t.Ctx(), tx.Hash())
@@ -225,12 +225,12 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 	require.Equal(t, uint64(2), verifier.SyncStatus().SafeL2.L1Origin.Number)
 
 	verifCl := verifEngine.EthClient()
-	for i := int64(1); i < int64(verifier.L2Safe().Number); i++ {
-		block, _ := verifCl.BlockByNumber(t.Ctx(), big.NewInt(i))
-		require.NoError(t, err)
+	for i := uint64(1); i < verifier.L2Safe().Number; i++ {
+		deposits, userTxs := verifEngine.BlockTxs(t, verifEngine.HeaderByNumber(t, i).Hash())
 		// Because verifier drops every span batch, it should generate empty blocks.
 		// So every block has only L1 attribute deposit transaction.
-		require.Equal(t, block.Transactions().Len(), 1)
+		require.Len(t, deposits, 1)
+		require.Empty(t, userTxs)
 	}
 	// Check that the tx from alice is not included in verifier's chain
 	_, _, err = verifCl.TransactionByHash(t.Ctx(), tx.Hash())

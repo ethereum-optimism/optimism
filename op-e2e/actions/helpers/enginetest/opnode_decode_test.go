@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
-	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/testengine"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/testengine/chainfixture"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -98,13 +97,15 @@ func TestOpNodeDecodesRethBlocks(t *testing.T) {
 	require.Equal(t, block1, common.Hash(env2.ExecutionPayload.ParentHash), "block2 parent is block1")
 
 	// The full transaction bodies decode correctly: the first tx of block 1 is a deposit (type
-	// 0x7E) — proving the deposit-tx JSON round-trips, the highest-risk part of the serialization.
-	info, txs, err := ethCl.InfoAndTxsByHash(ctx, block1)
-	require.NoError(t, err)
+	// 0x7E) — proving the deposit-tx JSON round-trips, the highest-risk part of the serialization —
+	// and the other is the user tx.
+	info, _, err := ethCl.InfoAndFirstDepositByHash(ctx, block1)
+	require.NoError(t, err, "first tx is the L1-info/forced deposit")
 	require.Equal(t, block1, info.Hash())
-	require.Len(t, txs, 2)
-	require.Equal(t, uint8(optypes.DepositTxType), txs[0].Type(), "first tx is the L1-info/forced deposit")
-	require.Equal(t, uint8(types.DynamicFeeTxType), txs[1].Type(), "second tx is the user 1559 tx")
+	_, userTxs, err := ethCl.InfoAndUserTxsByHash(ctx, block1)
+	require.NoError(t, err)
+	require.Len(t, userTxs, 1)
+	require.Equal(t, uint8(types.DynamicFeeTxType), userTxs[0].Type(), "the user tx is a 1559 tx")
 
 	// eth_chainId is served for op-node's ChainID().
 	cid, err := ethCl.ChainID(ctx)

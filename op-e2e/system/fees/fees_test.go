@@ -7,19 +7,21 @@ import (
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
@@ -27,22 +29,6 @@ import (
 
 func TestMain(m *testing.M) {
 	op_e2e.RunMain(m)
-}
-
-type stateGetterAdapter struct {
-	ctx      context.Context
-	t        *testing.T
-	client   *ethclient.Client
-	blockNum *big.Int
-}
-
-func (sga *stateGetterAdapter) GetState(addr common.Address, key common.Hash) common.Hash {
-	sga.t.Helper()
-	val, err := sga.client.StorageAt(sga.ctx, addr, key, sga.blockNum)
-	require.NoError(sga.t, err)
-	var res common.Hash
-	copy(res[:], val)
-	return res
 }
 
 // TestFees checks that L1/L2 fees are handled.
@@ -110,6 +96,7 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	require.Nil(t, err, "Error starting up system")
 
 	l2Seq := sys.NodeClient("sequencer")
+	l2SeqSrc := sys.NodeSourceClient("sequencer")
 	l2Verif := sys.NodeClient("verifier")
 	l1 := sys.NodeClient("l1")
 
@@ -123,17 +110,6 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	// Wait for first block after genesis. The genesis block has zero L1Block values and will throw off the GPO checks
 	_, err = geth.WaitForBlock(big.NewInt(1), l2Verif)
 	require.NoError(t, err)
-
-	config := sys.L2Genesis().Config.GethChainConfig()
-
-	sga := &stateGetterAdapter{
-		ctx:    context.Background(),
-		t:      t,
-		client: l2Seq,
-	}
-
-	l1CostFn := types.NewL1CostFunc(config, sga)
-	operatorFeeFn := types.NewOperatorCostFunc(config, sga)
 
 	// Transactor Account
 	ethPrivKey := cfg.Secrets.Alice
@@ -177,10 +153,10 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	require.Equal(t, sequencerFeeVaultStartBalance.Sign(), 0, "sequencer fee vault should be empty")
 	require.Equal(t, operatorFeeVaultStartBalance.Sign(), 0, "operator fee vault should be empty")
 
-	genesisBlock, err := l2Seq.BlockByNumber(context.Background(), big.NewInt(rpc.EarliestBlockNumber.Int64()))
+	genesisHeader, err := l2Seq.HeaderByNumber(context.Background(), big.NewInt(rpc.EarliestBlockNumber.Int64()))
 	require.NoError(t, err)
 
-	coinbaseStartBalance := balanceAt(genesisBlock.Coinbase(), big.NewInt(rpc.EarliestBlockNumber.Int64()))
+	coinbaseStartBalance := balanceAt(genesisHeader.Coinbase, big.NewInt(rpc.EarliestBlockNumber.Int64()))
 
 	// Simple transfer from signer to random account
 	startBalance := balanceAt(fromAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
@@ -190,13 +166,13 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 
 	transferAmount := big.NewInt(params.Ether)
 	gasTip := big.NewInt(10)
-	receipt := helpers.SendL2Tx(t, cfg, l2Seq, ethPrivKey, func(opts *helpers.TxOpts) {
+	receipt := helpers.SendL2Tx(t, cfg, l2SeqSrc, ethPrivKey, func(opts *helpers.TxOpts) {
 		opts.ToAddr = &common.Address{0xff, 0xff}
 		opts.Value = transferAmount
 		opts.GasTipCap = gasTip
 		opts.Gas = 21000
 		opts.GasFeeCap = big.NewInt(200)
-		opts.VerifyOnClients(l2Verif)
+		opts.VerifyOnClients(sys.NodeSourceClient("verifier"))
 	})
 
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
@@ -238,12 +214,19 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	require.NoError(t, err, "Should be able to get transaction")
 	bytes, err := tx.MarshalBinary()
 	require.Nil(t, err)
+	rollupCostData := opfees.NewRollupCostData(bytes)
 
-	l1Fee := l1CostFn(tx.RollupCostData(), header.Time)
+	// The fee parameters are the L1 attributes of the block that includes the transaction.
+	_, l1InfoDeposit, err := l2SeqSrc.InfoAndFirstDepositByHash(context.Background(), receipt.BlockHash)
+	require.NoError(t, err)
+	l1Info, err := derive.L1BlockInfoFromBytes(sys.RollupConfig, header.Time, l1InfoDeposit.Data)
+	require.NoError(t, err)
+
+	l1Fee := l1Cost(sys.RollupConfig, header.Time, rollupCostData, l1Info)
 	require.Equalf(t, l1Fee, l1FeeRecipientDiff, "L1 fee mismatch: start balance %v, end balance %v", l1FeeRecipientStartBalance, l1FeeRecipientEndBalance)
 
-	operatorFee := operatorFeeFn(receipt.GasUsed, header.Time)
-	require.True(t, operatorFeeVaultDiff.Cmp(operatorFee.ToBig()) == 0, "operator fee mismatch: start balance %v, end balance %v", operatorFeeVaultStartBalance, operatorFeeVaultEndBalance)
+	operatorFee := operatorCost(sys.RollupConfig, header.Time, receipt.GasUsed, l1Info)
+	require.True(t, operatorFeeVaultDiff.Cmp(operatorFee) == 0, "operator fee mismatch: start balance %v, end balance %v", operatorFeeVaultStartBalance, operatorFeeVaultEndBalance)
 
 	gpoEcotone, err := gpoContract.IsEcotone(nil)
 	require.NoError(t, err)
@@ -267,12 +250,12 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	adjustedGPOFee := gpoL1Fee
 	if sys.RollupConfig.IsFjord(header.Time) {
 		// The fastlz size of the transaction is 102 bytes
-		require.Equal(t, uint64(102), tx.RollupCostData().FastLzSize)
+		require.Equal(t, uint64(102), rollupCostData.FastLzSize)
 		// Which results in both the fjord cost function and GPO using the minimum value for the fastlz regression:
 		// Geth Linear Regression: -42.5856 + 102 * 0.8365 = 42.7374
 		// GPO Linear Regression: -42.5856 + 170 * 0.8365 = 99.6194
 		// The additional 68 (170 vs. 102) is due to the GPO adding 68 bytes to account for the signature.
-		require.Greater(t, bigs.Uint64Strict(types.MinTransactionSize), uint64(99))
+		require.Greater(t, bigs.Uint64Strict(opfees.MinTransactionSize), uint64(99))
 		// Because of this, we don't need to do any adjustment as the GPO and cost func are both bounded to the minimum value.
 		// However, if the fastlz regression output is ever larger than the minimum, this will require an adjustment.
 	} else if sys.RollupConfig.IsRegolith(header.Time) {
@@ -314,7 +297,7 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 			new(big.Int).SetUint64(cfg.DeployConfig.GasPriceOracleOperatorFeeConstant),
 		)
 
-		require.True(t, expectedOperatorFee.Cmp(operatorFee.ToBig()) == 0,
+		require.True(t, expectedOperatorFee.Cmp(operatorFee) == 0,
 			"operator fee is correct",
 		)
 
@@ -335,4 +318,44 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	balanceDiff := new(big.Int).Sub(startBalance, endBalance)
 	balanceDiff.Sub(balanceDiff, transferAmount)
 	require.Equal(t, balanceDiff, totalFee, "balances should add up")
+}
+
+// l1Cost returns the L1 data fee of a user transaction in the L2 block at blockTime, whose L1
+// attributes are l1Info.
+func l1Cost(rollupCfg *rollup.Config, blockTime uint64, rcd opfees.RollupCostData, l1Info *derive.L1BlockInfo) *big.Int {
+	// The Ecotone activation block still carries Bedrock L1 attributes and is charged as Bedrock.
+	if !rollupCfg.IsEcotone(blockTime) || rollupCfg.IsEcotoneActivationBlock(blockTime) {
+		calldataGas := rcd.Zeroes*params.TxDataZeroGas + rcd.Ones*params.TxDataNonZeroGasEIP2028
+		if !rollupCfg.IsRegolith(blockTime) {
+			// Before Regolith, 68 non-zero bytes are charged on top for the signature and RLP overhead.
+			calldataGas += 68 * params.TxDataNonZeroGasEIP2028
+		}
+		overhead := new(big.Int).SetBytes(l1Info.L1FeeOverhead[:])
+		scalar := new(big.Int).SetBytes(l1Info.L1FeeScalar[:])
+		return opfees.L1CostBedrock(calldataGas, l1Info.BaseFee, overhead, scalar)
+	}
+	feeParams := opfees.L1FeeParams{
+		L1BaseFee:     l1Info.BaseFee,
+		L1BlobBaseFee: l1Info.BlobBaseFee,
+		BaseFeeScalar: new(big.Int).SetUint64(uint64(l1Info.BaseFeeScalar)),
+		BlobFeeScalar: new(big.Int).SetUint64(uint64(l1Info.BlobBaseFeeScalar)),
+	}
+	if rollupCfg.IsFjord(blockTime) {
+		return opfees.L1CostFjord(rcd, feeParams)
+	}
+	return opfees.L1CostEcotone(rcd, feeParams)
+}
+
+// operatorCost returns the operator fee of a transaction that used gasUsed in the L2 block at
+// blockTime, whose L1 attributes are l1Info.
+func operatorCost(rollupCfg *rollup.Config, blockTime, gasUsed uint64, l1Info *derive.L1BlockInfo) *big.Int {
+	scalar, constant := uint64(l1Info.OperatorFeeScalar), l1Info.OperatorFeeConstant
+	switch {
+	case rollupCfg.IsJovian(blockTime):
+		return opfees.OperatorCostJovian(gasUsed, scalar, constant)
+	case rollupCfg.IsIsthmus(blockTime):
+		return opfees.OperatorCostIsthmus(gasUsed, scalar, constant)
+	default:
+		return new(big.Int)
+	}
 }

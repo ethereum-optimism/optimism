@@ -137,11 +137,11 @@ func TestJovianDAFootprint(gt *testing.T) {
 
 		// Inspect the built block and verify header DA footprint and base fee behavior.
 		env.Sequencer.L2Unsafe()
-		blk, userTxs, err := env.Engine.SourceClient(t, 10).InfoAndUserTxsByHash(t.Ctx(), env.Sequencer.L2Unsafe().Hash)
+		blk, userTxs, err := env.Engine.SourceClient().InfoAndUserTxsByHash(t.Ctx(), env.Sequencer.L2Unsafe().Hash)
 		require.NoError(t, err)
 		require.NotNil(t, blk.BlobGasUsed(), "blobGasUsed must be set on Jovian blocks")
 		blockDAFootprint := *blk.BlobGasUsed()
-		_, receipts, err := env.Engine.SourceClient(t, 10).FetchReceipts(t.Ctx(), blk.Hash())
+		_, receipts, err := env.Engine.SourceClient().FetchReceipts(t.Ctx(), blk.Hash())
 		require.NoError(t, err)
 		userReceipts := receipts.UserReceipts()
 		require.Len(t, userReceipts, len(userTxs), "every user tx must have a receipt")
