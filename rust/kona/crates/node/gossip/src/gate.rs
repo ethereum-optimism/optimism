@@ -261,7 +261,8 @@ impl fmt::Display for CanonicalIp {
 /// the IPv4 subnet in it, and any other subnet as it is. See [`CanonicalIp`].
 ///
 /// An IPv6 subnet that only contains the mapped range, such as `::/0`, stays IPv6, so it contains
-/// no IPv4 address, as in op-node.
+/// no IPv4 address, as in op-node. Host bits are kept as given, as op-node does, so
+/// `::ffff:10.0.0.1/104` is `10.0.0.1/8`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CanonicalNet(IpNet);
 
@@ -276,8 +277,8 @@ impl From<IpNet> for CanonicalNet {
     fn from(subnet: IpNet) -> Self {
         if let IpNet::V6(v6) = subnet &&
             v6.prefix_len() >= 96 &&
-            let Some(network) = v6.network().to_ipv4_mapped() &&
-            let Ok(v4) = ipnet::Ipv4Net::new(network, v6.prefix_len() - 96)
+            let Some(addr) = v6.addr().to_ipv4_mapped() &&
+            let Ok(v4) = ipnet::Ipv4Net::new(addr, v6.prefix_len() - 96)
         {
             return Self(IpNet::V4(v4));
         }
