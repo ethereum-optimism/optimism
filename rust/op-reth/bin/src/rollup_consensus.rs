@@ -3,6 +3,8 @@
 //! The rollup node takes kona-node's `node` flags and hardfork overrides, each renamed under
 //! `--rollup.consensus.` and read from the same `KONA_NODE_*` environment variables. It drives
 //! op-reth through the Engine API, at the `--rollup.consensus.l2-engine-rpc` it is given.
+//!
+//! The rollup node is experimental, so its flags are hidden from op-reth's help.
 
 use alloy_chains::Chain;
 use clap::{
@@ -130,24 +132,25 @@ fn command_line_args(kona: &Command, matches: &ArgMatches) -> Vec<OsString> {
 
 impl Args for RollupConsensusArgs {
     fn augment_args(cmd: Command) -> Command {
-        let heading = "Rollup Consensus";
-        // Copies of kona's flags, so that op-reth accepts them and lists them in its help. kona's
-        // own command validates them, so the copies require only that the rollup node runs.
+        // Copies of kona's flags, so that op-reth accepts them on its command line. kona's own
+        // command validates them and reads its environment, so the copies require only that the
+        // rollup node runs, and leave the environment alone.
         let kona = kona_command();
         let copies = kona.get_arguments().map(|arg| {
             arg.clone()
                 .id(copy_id(arg))
+                .env(None)
                 .required(false)
                 .requires(Resettable::Reset)
                 .requires(ENABLED)
                 .conflicts_with(Resettable::Reset)
-                .help_heading(heading)
+                .hide(true)
         });
         cmd.arg(
             Arg::new(ENABLED)
                 .long(ENABLED)
                 .action(ArgAction::SetTrue)
-                .help_heading(heading)
+                .hide(true)
                 .help("Run the kona rollup node in this process, configured by the other --rollup.consensus.* flags"),
         )
         .args(copies)
@@ -213,7 +216,7 @@ mod tests {
         parse(&args).unwrap().kona.unwrap()
     }
 
-    /// Each of kona's flags is copied under the prefix, with its aliases and environment variable.
+    /// Each of kona's flags is copied, hidden, under the prefix, with its aliases.
     #[test]
     fn test_copies_every_kona_flag() {
         let original = OverrideArgs::augment_args(NodeCommand::command());
@@ -224,7 +227,7 @@ mod tests {
                 .get_arguments()
                 .find(|copy| copy.get_long() == Some(&format!("{PREFIX}{long}")))
                 .unwrap_or_else(|| panic!("--{long} is not copied"));
-            assert_eq!(copy.get_env(), arg.get_env(), "--{long}");
+            assert!(copy.is_hide_set(), "--{long}");
             let aliases: Vec<_> = arg
                 .get_all_aliases()
                 .unwrap_or_default()
@@ -238,6 +241,20 @@ mod tests {
     #[test]
     fn test_disabled_by_default() {
         assert!(!parse(&[]).unwrap().enabled());
+    }
+
+    /// kona's environment variables configure the rollup node only when it runs.
+    #[test]
+    fn test_reads_environment_only_when_enabled() {
+        // SAFETY: only this test reads or writes this variable.
+        unsafe { std::env::set_var("KONA_NODE_VERIFIER_L1_CONFS", "7") };
+        let disabled = parse(&[]);
+        let enabled = REQUIRED.to_vec();
+        let enabled = parse(&enabled);
+        // SAFETY: as above.
+        unsafe { std::env::remove_var("KONA_NODE_VERIFIER_L1_CONFS") };
+        assert!(!disabled.unwrap().enabled());
+        assert_eq!(enabled.unwrap().kona.unwrap().node.verifier_l1_confs, 7);
     }
 
     const ENODE_1: &str = "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305";
