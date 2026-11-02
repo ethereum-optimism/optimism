@@ -290,9 +290,7 @@ contract Deploy is Deployer {
         artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
         artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
         artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameImpl));
-        if (address(dio.sp1PlonkAdapterSingleton) != address(0)) {
-            artifacts.save("SP1PlonkAdapter", address(dio.sp1PlonkAdapterSingleton));
-        }
+        artifacts.save("SP1PlonkAdapter", address(dio.sp1PlonkAdapterSingleton));
 
         // Get a contract set from the implementation addresses which were just deployed.
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(dio);
