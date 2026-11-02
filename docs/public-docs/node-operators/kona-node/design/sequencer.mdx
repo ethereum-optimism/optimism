@@ -81,7 +81,7 @@ let sequencer_config = SequencerConfig {
 };
 
 // engine_config carries `mode: NodeMode::Sequencer` along with the
-// L2 engine URL, JWT secret, and L1 RPC URL. A sequencer needs a block
+// L2 engine URL and JWT secret. The L1 client travels in l1_config_builder. A sequencer needs a block
 // signer: `p2p_config.gossip_signer` must be `Some`, or `start` fails.
 RollupNodeBuilder::new(
     rollup_config,
