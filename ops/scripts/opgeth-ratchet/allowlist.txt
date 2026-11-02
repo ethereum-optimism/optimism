@@ -239,14 +239,11 @@ op-service/txinclude (tests) | missing go-ethereum/core/types.NewL1CostFuncFjord
 op-service/txinclude (tests) | missing go-ethereum/core/types.Transaction.RollupCostData | #23405 test and DSL swaps to op-core
 op-service/txplan (tests) | changed signature of go-ethereum/core/types.NewBlock | #23405 test and DSL swaps to op-core
 op-service/txplan (tests) | missing go-ethereum/core/types.DefaultBlockConfig | #23405 test and DSL swaps to op-core
-op-sync-tester/synctester/backend | missing go-ethereum/core/types.Block.WithdrawalsRoot | #21525 sync-tester PayloadID
-op-sync-tester/synctester/backend | missing go-ethereum/miner.BuildPayloadArgs.EIP1559Params | #21525 sync-tester PayloadID
-op-sync-tester/synctester/backend | missing go-ethereum/miner.BuildPayloadArgs.GasLimit | #21525 sync-tester PayloadID
-op-sync-tester/synctester/backend | missing go-ethereum/miner.BuildPayloadArgs.NoTxPool | #21525 sync-tester PayloadID
-op-sync-tester/synctester/backend | missing go-ethereum/miner.BuildPayloadArgs.Transactions | #21525 sync-tester PayloadID
-op-sync-tester/synctester/backend | missing go-ethereum/params.ChainConfig.CanyonTime | #21525 sync-tester PayloadID
-op-sync-tester/synctester/backend | missing go-ethereum/params.ChainConfig.IsCanyon | #21525 sync-tester PayloadID
-op-sync-tester/synctester/backend | missing go-ethereum/params.ChainConfig.IsthmusTime | #21525 sync-tester PayloadID
+op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.EIP1559Params | #20266 op-geth differential test, removed at the cutover
+op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.GasLimit | #20266 op-geth differential test, removed at the cutover
+op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.MinBaseFee | #20266 op-geth differential test, removed at the cutover
+op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.NoTxPool | #20266 op-geth differential test, removed at the cutover
+op-sync-tester/synctester/backend (tests) | missing go-ethereum/miner.BuildPayloadArgs.Transactions | #20266 op-geth differential test, removed at the cutover
 op-test-sequencer/sequencer/backend/work/builders/fakepos | changed signature of go-ethereum/beacon/engine.ExecutableDataToBlockNoHash | #23406 non-test swaps
 op-test-sequencer/sequencer/backend/work/builders/fakepos | missing go-ethereum/beacon/engine.PayloadAttributes.TargetGasLimit | upstream backport, in go-ethereum v1.17.7
 packages/contracts-bedrock/scripts/go-ffi | missing go-ethereum/core/types.DepositTx | #23405 test and DSL swaps to op-core
