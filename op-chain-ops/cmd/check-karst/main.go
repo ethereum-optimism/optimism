@@ -12,19 +12,19 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-karst/karsttest"
-	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -73,10 +73,12 @@ type checkEnv struct {
 	ctx      context.Context
 	logger   log.Logger
 	l2       *ethclient.Client
+	l2Source *sources.EthClient
 	key      *ecdsa.PrivateKey
 	basePlan txplan.Option
 }
 
+// close closes the L2 connection, which l2Source shares with l2.
 func (e *checkEnv) close() {
 	if e.l2 != nil {
 		e.l2.Close()
@@ -97,10 +99,16 @@ func resolveEnv(c *cli.Context) (*checkEnv, error) {
 		l2Cl.Close()
 		return nil, fmt.Errorf("failed to parse account private key: %w", err)
 	}
+	l2Source, err := sources.NewEthClient(client.NewBaseRPCClient(l2Cl.Client()), logger, nil, sources.DefaultEthClientConfig(10))
+	if err != nil {
+		l2Cl.Close()
+		return nil, fmt.Errorf("failed to create L2 source client: %w", err)
+	}
 	return &checkEnv{
 		ctx:      c.Context,
 		logger:   logger,
 		l2:       l2Cl,
+		l2Source: l2Source,
 		key:      key,
 		basePlan: karsttest.NewBasePlan(l2Cl, key),
 	}, nil
@@ -159,7 +167,7 @@ func makeAllCommand() *cli.Command {
 
 			if err := karsttest.CheckAll(
 				env.ctx, env.logger,
-				&ethclientLatestBlockAdapter{env.l2},
+				env.l2Source,
 				env.basePlan,
 				common.HexToAddress(portalHex),
 				crypto.PubkeyToAddress(l1Key.PublicKey),
@@ -171,33 +179,6 @@ func makeAllCommand() *cli.Command {
 			return nil
 		},
 	}
-}
-
-// ethclientLatestBlockAdapter satisfies karsttest.LatestBlockFetcher by
-// translating InfoAndTxsByLabel(Unsafe) → BlockByNumber(nil). Other labels
-// aren't needed by the EIP-7934 check.
-type ethclientLatestBlockAdapter struct{ *ethclient.Client }
-
-// TransactionReceipt adapts the go-ethereum receipt to the optypes shape the
-// karst checks consume; the JSON-only OP fee fields stay nil (the checks read
-// only standard fields).
-func (a *ethclientLatestBlockAdapter) TransactionReceipt(ctx context.Context, txHash common.Hash) (*optypes.Receipt, error) {
-	receipt, err := a.Client.TransactionReceipt(ctx, txHash)
-	if err != nil || receipt == nil {
-		return nil, err
-	}
-	return optypes.FromGethReceipt(receipt), nil
-}
-
-func (a *ethclientLatestBlockAdapter) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error) {
-	if label != eth.Unsafe {
-		return nil, nil, fmt.Errorf("unsupported block label %q (only %q is supported)", label, eth.Unsafe)
-	}
-	block, err := a.Client.BlockByNumber(ctx, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	return eth.BlockToInfo(block), block.Transactions(), nil
 }
 
 // makeBlockSizeCommand wires up the EIP-7934 block-size-disabled check.
@@ -216,7 +197,7 @@ func makeBlockSizeCommand() *cli.Command {
 			defer env.close()
 			if err := karsttest.CheckEIP7934BlockSizeDisabled(
 				env.ctx, env.logger,
-				&ethclientLatestBlockAdapter{env.l2},
+				env.l2Source,
 				2*time.Second,
 			); err != nil {
 				return fmt.Errorf("command error: %w", err)
@@ -260,7 +241,7 @@ func makeDepositCommand() *cli.Command {
 			}
 
 			if _, err := karsttest.CheckEIP7825DepositBypass(
-				env.ctx, env.logger, &ethclientLatestBlockAdapter{env.l2},
+				env.ctx, env.logger, env.l2Source,
 				common.HexToAddress(portalHex),
 				crypto.PubkeyToAddress(l1Key.PublicKey),
 				karsttest.NewBasePlan(l1Cl, l1Key),

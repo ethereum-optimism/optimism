@@ -2,13 +2,16 @@ package sources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -105,6 +108,78 @@ func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 
 func (s *L2Client) RollupConfig() *rollup.Config {
 	return s.rollupCfg
+}
+
+// ErrSyntheticTxInBody is returned by the L2Client accessors that decode a whole block body
+// (InfoAndTxsBy*, HeaderAndTxsByHash) when the block holds an OP Stack synthetic transaction
+// (0x7E deposit or 0x7D post-exec), which upstream go-ethereum cannot decode. Read L2 block
+// bodies through the class-partitioned accessors (InfoAndUserTxsBy*, InfoAndDepositsBy*,
+// InfoAndFirstDepositBy*) or PayloadBy* instead.
+var ErrSyntheticTxInBody = errors.New("block holds an OP Stack synthetic transaction")
+
+// HeaderAndTxsByHash shadows EthClient.HeaderAndTxsByHash. It returns ErrSyntheticTxInBody for
+// a block that holds an OP Stack synthetic transaction, so an L2 caller fails now rather than
+// only after the cutover to upstream go-ethereum.
+func (s *L2Client) HeaderAndTxsByHash(ctx context.Context, hash common.Hash) (*types.Header, types.Transactions, error) {
+	header, rawTxs, err := s.headerAndRawTxsByHash(ctx, hash)
+	if err != nil {
+		return nil, nil, err
+	}
+	txs, err := decodeWithoutSynthetic(rawTxs)
+	if err != nil {
+		return nil, nil, err
+	}
+	return header, txs, nil
+}
+
+// InfoAndTxsByHash shadows EthClient.InfoAndTxsByHash; see HeaderAndTxsByHash.
+func (s *L2Client) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
+	header, txs, err := s.HeaderAndTxsByHash(ctx, hash)
+	if err != nil {
+		return nil, nil, err
+	}
+	return eth.HeaderBlockInfoTrusted(hash, header), txs, nil
+}
+
+// InfoAndTxsByNumber shadows EthClient.InfoAndTxsByNumber; see HeaderAndTxsByHash.
+func (s *L2Client) InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error) {
+	// can't hit the cache when querying by number due to reorgs.
+	header, rawTxs, err := s.blockCall(ctx, "eth_getBlockByNumber", numberID(number))
+	if err != nil {
+		return nil, nil, err
+	}
+	txs, err := decodeWithoutSynthetic(rawTxs)
+	if err != nil {
+		return nil, nil, err
+	}
+	return eth.HeaderBlockInfo(header), txs, nil
+}
+
+// InfoAndTxsByLabel shadows EthClient.InfoAndTxsByLabel; see HeaderAndTxsByHash.
+func (s *L2Client) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error) {
+	// can't hit the cache when querying the head due to reorgs / changes.
+	header, rawTxs, err := s.blockCall(ctx, "eth_getBlockByNumber", label)
+	if err != nil {
+		return nil, nil, err
+	}
+	txs, err := decodeWithoutSynthetic(rawTxs)
+	if err != nil {
+		return nil, nil, err
+	}
+	return eth.HeaderBlockInfo(header), txs, nil
+}
+
+// decodeWithoutSynthetic decodes txs into go-ethereum transactions, or returns
+// ErrSyntheticTxInBody if any of them is an OP Stack synthetic transaction. It checks the type
+// bytes before decoding, so the rejection does not depend on which go-ethereum the build resolves.
+func decodeWithoutSynthetic(txs RawTransactions) (types.Transactions, error) {
+	for i, tx := range txs {
+		switch typ := tx.Type(); typ {
+		case optypes.DepositTxType, optypes.PostExecTxType:
+			return nil, fmt.Errorf("tx %d has type %#x: %w", i, typ, ErrSyntheticTxInBody)
+		}
+	}
+	return txs.Geth()
 }
 
 // L2BlockRefByLabel returns the [eth.L2BlockRef] for the given block label.
