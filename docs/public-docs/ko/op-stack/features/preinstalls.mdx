@@ -1,0 +1,37 @@
+---
+title: OP Stack preinstall
+description: 체인에서 preinstall을 사용하는 방법을 알아봅니다.
+diataxis: reference
+---
+
+이 가이드에서는 OP Stack preinstall과 이것이 개발자에게 제공하는 이점을 설명합니다.
+새 체인에서 프로덕션을 시작하려면 개발자에게 핵심 컨트랙트가 필요합니다. Gnosis Safe, 4337 entrypoint, create2deployer 등이 그 예입니다. 빈 EVM에서는 이러한 컨트랙트를 배포하는 데 몇 주가 걸릴 수 있습니다. 이제 핵심 컨트랙트가 OP Stack에 *사전 설치(preinstalled)*되어 제공되므로 서드파티 배포가 필요하지 않습니다.
+혼자 개발하든 차세대 대형 rollup을 시작하든, 개발자는 체인을 구동하는 즉시 선호하는 컨트랙트를 사용할 수 있습니다.
+
+Preinstall은 이러한 핵심 스마트 컨트랙트를 L2 제네시스 상태의 일반적인 주소에 배치하여, 체인이 초기화되는 즉시 사용할 수 있도록 보장합니다.
+이러한 컨트랙트가 정해진 주소에 사전 설치되므로, 개발자는 OP Stack 체인의 정해진 주소에 이 모든 컨트랙트가 존재할 것이라고 기대할 수 있습니다.
+
+<Info>
+  Preinstall은 Ecotone 이후의 모든 새 OP 체인에서 자동으로 활성화됩니다.
+</Info>
+
+## 컨트랙트 및 배포 주소
+
+다음 표는 새 OP Chain에 사전 배포될 특정 컨트랙트 목록입니다.
+
+| 컨트랙트                                                                                                                            | 새 OP Chain의 배포 주소                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`Safe`](https://github.com/safe-global/safe-smart-account/blob/v1.3.0/contracts/GnosisSafe.sol)                                    | [아티팩트 파일](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/op-bindings/artifacts.json) 참조(`v1.1.4` 기준): `0x69f4D1788e39c87893C980c06EdF4b7f686e2938` |
+| [`SafeL2`](https://github.com/safe-global/safe-smart-account/blob/v1.3.0/contracts/GnosisSafeL2.sol)                                | `0xfb1bffC9d739B8D520DaF37dF666da4C687191EA`                                                                                                                         |
+| [`MultiSend`](https://github.com/safe-global/safe-smart-account/blob/v1.3.0/contracts/libraries/MultiSend.sol)                      | `0x998739BFdAAdde7C933B942a68053933098f9EDa`                                                                                                                         |
+| [`MultiSendCallOnly`](https://github.com/safe-global/safe-smart-account/blob/v1.3.0/contracts/libraries/MultiSendCallOnly.sol)      | `0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B`                                                                                                                         |
+| [Safe Singleton Factory](https://github.com/safe-global/safe-singleton-factory/blob/main/source/deterministic-deployment-proxy.yul) | `0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7`                                                                                                                         |
+| [`Multicall3`](https://github.com/mds1/multicall/tree/main)                                                                         | `0xcA11bde05977b3631167028862bE2a173976CA11`                                                                                                                         |
+| [`create2Deployer`](https://github.com/pcaversaccio/create2deployer)                                                                | `0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2`                                                                                                                         |
+| [`CreateX`](https://github.com/pcaversaccio/createx)                                                                                | `0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed`                                                                                                                         |
+| [Arachnid의 Deterministic Deployment Proxy](https://github.com/Arachnid/deterministic-deployment-proxy)                             | `0x4e59b44847b379578588920cA78FbF26c0B4956C`                                                                                                                         |
+| [`Permit2`](https://github.com/Uniswap/permit2)                                                                                     | `0x000000000022D473030F116dDEE9F6B43aC78BA3`                                                                                                                         |
+| [ERC-4337 v0.6.0 `EntryPoint`](https://github.com/eth-infinitism/account-abstraction/tree/v0.6.0)                                   | `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789`   <br /> ETH mainnet의 `0x7fc98430eAEdbb6070B35B39D798725049088348`에 있는 `SenderCreator` 종속성                       |
+| [ERC-4337 v0.6.0 `SenderCreator`](https://github.com/eth-infinitism/account-abstraction/tree/v0.6.0)                                | `0x7fc98430eAEdbb6070B35B39D798725049088348`                                                                                                                         |
+| [ERC-4337 v0.7.0 `EntryPoint`](https://github.com/eth-infinitism/account-abstraction/tree/v0.7.0)                                   | `0x0000000071727De22E5E9d8BAf0edAc6f37da032`   <br /> ETH mainnet의 `0xEFC2c1444eBCC4Db75e7613d20C6a62fF67A167C`에 있는 `SenderCreator` 종속성                       |
+| [ERC-4337 v0.7.0 `SenderCreator`](https://github.com/eth-infinitism/account-abstraction/tree/v0.7.0)                                | `0xEFC2c1444eBCC4Db75e7613d20C6a62fF67A167C`                                                                                                                         |

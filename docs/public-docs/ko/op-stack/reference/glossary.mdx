@@ -1,0 +1,544 @@
+---
+title: 용어집
+description: Optimism 개발자 문서 전반에서 사용되는 중요한 용어의 의미를 알아봅니다.
+diataxis: reference
+---
+
+이 용어집은 Optimism 개발자 문서 전반에서 사용되는 중요한 용어의 정의를 제공합니다. 이 페이지의 수정을 제안하려면 [이슈를 제출](https://github.com/ethereum-optimism/optimism/issues/new?assignees=\&labels=glossary%2Cdocumentation%2Ccommunity-request\&projects=\&template=suggest_glossary_term.yaml\&title=%5BGLOSSARY%5D+Add+PR+title)하십시오.
+
+
+## Table of contents
+
+*   [일반 용어](#general-terms)
+*   [OP 프로필 및 신원](#op-profile--identity)
+*   [OP Stack 및 OP Chain](#op-stack--op-superchain)
+*   [프로토콜](#protocol)
+
+## General terms
+
+### Address aliasing
+
+컨트랙트가 L1에서 L2로 [입금(디파짓)](#deposit)을 제출하면, 해당 주소(`ORIGIN` 및 `CALLER`가 반환하는 값)는
+컨트랙트 주소를 변형한 표현으로 별칭 처리(aliasing)됩니다.
+
+### Block
+
+트랜잭션의 순차적 목록과 함께 블록의 '''header'''에 저장된 몇 가지 속성으로 구성됩니다. [L1](#layer-1-l1) 블록 또는 [L2](#layer-2-l2) 블록을 가리킬 수 있으며, 두 블록의 구조는 비슷합니다.
+블록 내 트랜잭션을 실행하기 전에 알려진 입력 블록 속성과, 블록의 트랜잭션을 실행한 후에 도출되는 출력 블록 속성(예: [Merkle Patricia Trie root](#merkle-patricia-trie))을 구분하면 유용합니다.
+
+### Block time
+
+L2 블록 시간은 2초이며, 이는 2초마다의 [타임 슬롯](#time-slot)마다 L2 블록이 하나씩 있다는 의미입니다.
+*머지 이후*에는 L1 [타임 슬롯](#time-slot)이 12초이므로 L1 블록 시간이 12초라고 말할 수 있습니다. 그러나 실제로는
+일부 타임 슬롯이 건너뛰어질 수 있으므로 블록 시간은 가변적입니다. 머지 이전의 L1 블록 시간은 가변적이었으며, 평균 13초였습니다.
+
+### Delegation
+
+토큰의 투표권을 대리인(delegate)이라고 불리는 지정된 커뮤니티 구성원에게 할당하는 과정을 의미합니다.
+대리인은 Optimism Token House의 거버넌스에 적극적으로 참여하겠다고 자원한 사람들입니다.
+투표권을 위임하면 대리인이 여러분을 대신하여 거버넌스 안건에 투표할 수 있으며, 여러분은 토큰의 완전한 소유권과 원하는 대로 사용할 자유를 그대로 유지합니다.
+또한 선택한 대리인을 언제든지 변경할 수 있으므로, 거버넌스 과정에서 투표권이 행사되는 방식을 유연하게 조정할 수 있습니다.
+
+### EOA or externally owned account
+
+컨트랙트 주소와 대비하여 사용자가 운영하는 주소를 지칭하는 Ethereum 용어입니다.
+
+### Execution engine
+
+블록 내 트랜잭션을 실행하고 그 결과로 생성되는 state root,
+receipts root, 블록 해시를 계산하는 역할을 합니다. L1(*머지 이후*)과 L2 모두 execution engine을 가지고 있습니다. L1에서 실행되는 블록은
+L1 블록 동기화에서 오거나, L1 합의 계층의 요청에 따라 execution engine이 (L1 mempool의 트랜잭션을 사용하여) 새로 생성한 블록일 수 있습니다.
+L2에서 실행되는 블록은 [rollup node](#rollup-node)의 요청에 따라 execution engine이
+[L1 블록에서 파생된](#l2-chain-derivation) 트랜잭션을 사용하여 새로 생성합니다.
+
+### Optimism collective
+
+Optimism Collective는 모두를 위한 더 나은 경제를 구축하기 위해 협력하는 사람, 프로젝트, 기업의 연합으로,
+impact=profit이라는 공리, 즉 집단에 긍정적인 영향을 준 개인은 이익으로 보상받아야 한다는 원칙을 따르기로 한 상호 이익의 협약으로 결속되어 있습니다.
+탈중앙화 생태계의 빠르고 지속적인 성장을 이끌도록 최적화된 새로운 디지털 민주 거버넌스 모델입니다.
+
+
+### OP token
+
+"OP"라고 불리는 거버넌스 토큰입니다. 콘텐츠에서는 토큰 가격을 논하거나 가격을 추측해서는 안 되며, OP를 잘못 언급한 콘텐츠는 Optimism 플랫폼에서 삭제되고 홍보 대상이 될 수 없습니다.
+
+### Layer 1 (L1)
+
+Ethereum 블록체인을 의미하며, Optimism을 의미하는 [layer 2](#layer-2-l2)와 대비하여 사용됩니다.
+
+### Layer 2 (L2)
+
+Optimism 블록체인을 의미하며, Ethereum 블록체인을 의미하는 [layer 1](#layer-1-l1)과 대비하여 사용됩니다.
+
+### L2 output root
+
+L2 체인의 현재 상태에 대한 커밋먼트 역할을 하는 32바이트 값입니다.
+
+### L2 output oracle contract
+
+[sequencer](#sequencer)가 [L2 output root](#l2-output-root)를 게시하는 L1 컨트랙트입니다.
+
+### Predeployed contract
+
+L2 제네시스 상태(즉, 체인의 시작 시점)에 배치된 컨트랙트입니다.
+
+### PGA or priority gas auction
+
+Ethereum의 트랜잭션은 트랜잭션이 채굴자에게 지불하는 가격에 따라 정렬됩니다. Priority Gas Auction(PGA)은
+여러 당사자가 블록의 첫 번째 트랜잭션이 되기 위해 경쟁할 때 발생합니다. 각 당사자는 자신의 트랜잭션 gas 가격을
+계속해서 갱신합니다. PGA는 다른 당사자보다 먼저 트랜잭션을 제출하는 것에 가치가 있을 때(예: 첫 번째 입금이 되거나,
+보장된 gas가 더 이상 남지 않기 전에 입금을 제출하는 경우) 발생합니다.
+PGA는 매우 짧은 시간 동안 대량의 트랜잭션이 제출되기 때문에 네트워크에 부정적인 외부 효과를 미치는 경향이 있습니다.
+
+### Receipt
+
+트랜잭션이 생성하는 출력으로, 상태 코드, 사용된 gas 양, 로그 항목 목록, 그리고 이 항목들을 인덱싱하는
+[블룸 필터](https://en.wikipedia.org/wiki/Bloom_filter)로 구성됩니다. 로그 항목은 주로 Solidity 이벤트를 인코딩하는 데 사용됩니다.
+Receipt는 블록에 저장되지 않지만, 블록은 블록 내 모든 트랜잭션의 receipt를 포함하는 트리의
+[Merkle Patricia Trie root](#merkle-patricia-trie)를 저장합니다.
+
+### Rollup Node
+
+L1 체인(L1 [블록](#block)과 관련 [receipt](#receipt))으로부터 [L2 체인을 파생](#l2-chain-derivation)하는 역할을 하는 node입니다.
+Rollup node는 *[validator](#validator-mode)* 모드 또는 *[sequencer](#sequencer-mode)* 모드로 실행할 수 있습니다.
+
+### Sequencer mode
+
+Rollup node는 사용자로부터 L2 트랜잭션을 받아 L2 블록을 생성하는 데 사용합니다. 이 블록은
+[배치 제출](#batch-submission)을 통해 [데이터 가용성 제공자](#data-availability-provider)에게 제출됩니다. 그런 다음 L2 체인
+파생은 정상 여부 확인(sanity check)이자 L1 체인 re-org를 감지하는 수단으로 작동합니다.
+
+### Time slot
+
+L2에서는 2초마다 블록이 하나씩 있습니다(이 기간을 [블록 시간](#block-time)이라고 합니다).
+[L2 제네시스 블록](#l2-genesis-block)의 타임스탬프 이후 2초의 배수마다 "타임 슬롯"이 있다고 말합니다.
+머지 이후 L1에서는 타임 슬롯이 12초마다 있습니다. 그러나 경미한 합의 문제만 있어도
+모든 타임 슬롯마다 L1 블록이 생성되지 않을 수 있습니다.
+
+### Transaction Type
+
+Ethereum은 [EIP-2718](https://eips.ethereum.org/EIPS/eip-2718)에 설명된 대로 다양한 트랜잭션 유형을 정의하는 메커니즘을 제공합니다.
+트랜잭션 유형마다 서로 다른 페이로드를 포함할 수 있으며, 프로토콜에서 다르게 처리될 수 있습니다.
+
+### Validator
+
+[rollup node](#rollup-node)를 validator 모드로 실행하는 주체(개인 또는 조직)입니다. 이렇게 하면 속도 제한 없이 로컬에서
+L2 트랜잭션을 시뮬레이션할 수 있는 등 Ethereum node를 실행하는 것과 유사한 많은 이점을 얻을 수 있습니다. 또한 validator는
+[output root](#l2-output-root)를 다시 파생하여 sequencer가 제출한 것과 비교함으로써 [sequencer](#sequencer)의 작업을 검증할 수 있습니다.
+불일치가 있는 경우 validator는 [결함 증명(fault proof)](#fault-proof)을 수행할 수 있습니다.
+
+### Validator mode
+
+Rollup node는 sequencer 모드에서 설명한 대로 파생을 수행하지만, sequencer로부터 블록을 직접 받아
+L1 체인보다 "앞서 실행"할 수도 있습니다. 이 경우 파생은 sequencer의 동작을 검증하는 역할을 합니다.
+Validator 모드로 실행되는 rollup node를 *레플리카*(replica)라고 부르기도 합니다.
+
+\[[맨 위로 돌아가기](#table-of-contents)]
+
+## OP profile & identity
+
+### Attestations
+
+누구나 무엇에 대해서든 작성한 진술 또는 정보의 증거입니다.
+
+### Attestation recipient
+
+증명자(attester)로부터 [증명(attestation)](#attestations)을 받는 주체 또는 개인입니다.
+탈중앙화 신원에서 증명 수신자는 서비스 제공자, 웹사이트, 또는 개인의 신원이나 개인 정보의 검증이 필요한 기타 주체일 수 있습니다.
+
+### Attestation issuer
+
+증명 절차를 수행하고 [증명](#attestations)을 발급하는 주체 또는 개인입니다.
+탈중앙화 신원에서 증명 발급자는 정부 기관, 금융 기관, 또는 개인의 신원이나 개인 정보를 검증할 권한이 있는 기타 신뢰할 수 있는 주체일 수 있습니다.
+
+### Attestation verifier
+
+[증명](#attestations)을 검증하고 그것이 유효하고 정확한지 확인하는 주체 또는 개인입니다.
+탈중앙화 신원에서 증명 검증자는 서비스 제공자, 웹사이트, 또는 개인의 신원이나 개인 정보의 검증이 필요한 기타 주체일 수 있습니다.
+
+### Decentralized identity
+
+개인이 자신의 개인 데이터와 신원에 대해 더 큰 통제권과 소유권을 가질 수 있게 해 주는 시스템입니다.
+탈중앙화 신원에서 개인 정보는 블록체인이나 기타 탈중앙화 시스템에 저장되며, 개인은 적절하다고 판단하는 대로 자신의 데이터에 대한 접근 권한을 부여하거나 철회할 수 있습니다.
+이를 통해 개인 정보에 대한 더 높은 프라이버시, 보안, 통제가 가능해집니다.
+
+### Ethereum attestation service (EAS)
+
+무엇에 대해서든 온체인 또는 오프체인 증명을 만들기 위한 Ethereum 인프라 공공재입니다.
+
+### Sybil-resistance
+
+탈중앙화 신원 시스템에서 누군가가 여러 개의 가짜 신원을 만드는 것을 방지하는 방어 메커니즘입니다.
+
+### Web of trust
+
+네트워크 참여자 간의 신뢰를 구축하는 데 사용되는 탈중앙화 모델입니다. 참여자가 다른 참여자의 진위나 신뢰성을 보증하는 개념에 기반합니다. Web of trust에서 신뢰는 신뢰할 수 있는 개인들의 증명이 축적되면서 형성됩니다.
+
+\[[맨 위로 돌아가기](#table-of-contents)]
+
+## OP Stack & OP Chains
+
+### Attestation-based fault proof
+
+원래의 출금 주장과 일치하지 않는 [증명 기반 proof(attestation proof)](#attestation-proof)를 제출하여 이의 제기에 성공할 수 있는 결함 증명입니다.
+
+### Attestation-based validity proof
+
+출금 주장과 일치하는 [attestation proof](#attestation-proof)를 제출하여 검증할 수 있는 유효성 증명(validity proof)입니다.
+
+### Attestation proof
+
+사전에 합의된 체인 증명자(attestor) 집합의 일정 수 서명으로 구성된 증명입니다.
+
+### Cannon fault proof
+
+경제적 합리성 가정 하에서 진실한 결과를 보장하는 온체인 게임을 사용하여 이의 제기를 평가하는 결함 증명입니다.
+
+### Chain
+
+초기 상태, 상태 전이 함수, 입력(트랜잭션) 목록으로 구성된 상태 [전이 시스템](https://en.wikipedia.org/wiki/Transition_system)으로, 암호학적으로 커밋되며 일반적인 컴퓨터 하드웨어와 인터넷 연결만으로 독립적으로 복제할 수 있습니다.
+
+### Chain proof
+
+특정 출금 주장의 유효성에 대한 위조하기 어려운 증거입니다. 증명은 일반적으로 체인 간 통신을 가능하게 하는 데 사용됩니다.
+
+### Challenge period
+
+결함 증명을 반증하기 위해 이의를 제기할 수 있는 기간입니다.
+
+### Fault proof
+
+반증의 부재에 의존하여 정확성을 증명하는 증명입니다.
+
+### L1 origin
+
+L2 블록의 L1 origin은 해당 블록의 [시퀀싱 에포크(sequencing epoch)](#sequencing-epoch)에 대응하는 L1 블록입니다.
+
+### Merkle patricia trie
+
+키를 값에 매핑하는 트리 형태의 구조인 희소(sparse) [트라이](https://en.wikipedia.org/wiki/Trie)입니다.
+MPT의 루트 해시는 트리 내용에 대한 커밋먼트이며, 이를 통해 트리에 인코딩된 모든 키-값 매핑에 대한 증명을 구성할 수 있습니다. 이러한 증명을 Merkle proof라고 하며,
+Merkle root를 기준으로 검증할 수 있습니다.
+
+### Modular proof
+
+동일한 OP Chain에 대해 여러 증명 시스템을 사용할 수 있는 능력입니다. 예를 들어 결함 증명 또는 유효성 증명을 사용하여 OP Chain을 증명할 수 있어야 합니다.
+
+### Modular sequencing
+
+OP Chain 배포 중에 sequencer 주소를 구성할 수 있는 능력입니다. 이 값은 OP Chain 배포자가 구성할 수 있습니다.
+
+### OP Chain
+
+OP Stack 생태계 내의 개별 체인입니다. 특정 속성과 관계없이 Optimism Collective가 공식적으로 관리하는 모든 체인은 OP Chain으로 간주됩니다.
+
+### OP Mainnet
+
+OP Stack으로 구동되는 Layer 2 블록체인입니다. 이전에는 단순히 "Optimism"으로 알려졌던 OP Mainnet은 모든 것이 시작된 곳이며, OP Stack 기반의 첫 번째 체인입니다.
+
+### OP Stack
+
+OP Mainnet, OP Chain, OP Stack 생태계를 구동하는 모듈식 오픈 소스 MIT 라이선스 개발 스택입니다. OP Stack은 Optimism Collective가 유지 관리합니다.
+
+### OP Stack Fork
+
+MIT 라이선스 OP Stack을 사용하여 구축되었지만 Optimism 거버넌스의 관리를 받지 않거나 sequencer 수익을 Collective에 기여하지 않는 Layer 2 블록체인입니다. 따라서 OP Stack Fork는 OP Stack 생태계의 OP Chain과 보안이나 상호운용성(interoperability)을 반드시 공유하지는 않습니다.
+
+### Alt-DA Chain
+
+트랜잭션 데이터가 L1에 커밋되지만 L1에 직접 제공되지는 않으며, 데이터 가용성 이의 제기(data availability challenge)를 대비책으로 사용하는 체인입니다.
+
+### Rollup Chain
+
+모든 트랜잭션 데이터가 L1에 제출되는 체인입니다.
+
+### Rollup transactions
+
+Rollup 트랜잭션은 두 가지 방법으로 포함될 수 있습니다. 하나는 시스템이 강제하는 [입금 트랜잭션(deposited transaction)](#deposited-transaction)을 통한 방법이고, 다른 하나는 [sequencer 배치](#sequencer-batch)에 포함된 일반 트랜잭션을 통한 방법입니다.
+배치에 포함되도록 트랜잭션을 제출하면 오버헤드가 줄어 비용이 절감되며, sequencer가
+L1이 데이터를 확인하기 전에 트랜잭션을 사전 확인(pre-confirm)할 수 있습니다.
+
+### Sequencer
+
+OP Chain에 트랜잭션을 제출할 때 우선권을 가지는 특정 주체 또는 스마트 컨트랙트로, sequencer 모드로 실행되는 [rollup node](#rollup-node) 또는 이 rollup node의 운영자를 의미할 수 있습니다.
+Sequencer는 L2 사용자로부터 L2 트랜잭션을 받아 이를 사용하여 L2 블록을 생성하고, ([batcher](#batcher)를 통해) [데이터 가용성 제공자](#data-availability-provider)에게 제출합니다.
+또한 [output root](#l2-output-root)를 L1에 제출합니다.
+
+### Sequencing Window
+
+[시퀀싱 에포크](#sequencing-epoch)를 파생할 수 있는 L1 블록의 범위입니다.
+첫 번째 L1 블록의 번호가 `N`인 시퀀싱 윈도우에는 에포크 `N`에 대한 [batcher 트랜잭션](#batcher-transaction)이 포함됩니다.
+윈도우에는 블록 `(N, N + SWS)`가 포함되며, 여기서 `SWS`는 sequencer 윈도우 크기입니다.
+현재 기본 `SWS`는 3600 에포크입니다.
+또한 윈도우의 첫 번째 블록은 에포크의 첫 번째 L2 블록에 포함될 [입금](#deposit)을 결정하는
+[입금 실행 트랜잭션(depositing transaction)](#depositing-transaction)을 정의합니다.
+
+### Sequencing Epoch
+
+L1 블록의 [시퀀싱 윈도우](#sequencing-window)에서 파생된 L2 블록의 순차적 범위입니다.
+각 에포크는 에포크 번호로 식별되며, 이 번호는 시퀀싱 윈도우의 첫 번째 L1 블록의 블록 번호와 같습니다.
+에포크는 일부 제약 조건 하에서 가변 크기를 가질 수 있습니다.
+
+### OP Stack interop cluster
+
+네이티브 상호운용성으로 연결된 OP Stack 체인의 네트워크입니다. 아직 활성화되지 않았습니다. OP Stack 생태계에 속한 체인들은 보안과 공통 개발 스택(OP Stack)을 공유합니다. Interop cluster는 특히 OP Stack 상호운용성 계층으로 연결된 체인의 하위 집합을 의미합니다.
+
+### Dependency set
+
+특정 체인이 시작 메시지(initiating message)를 수락하는 체인의 집합입니다. 체인의 로컬 블록은 그 블록이 의존하는 모든 시작 메시지가 L1에서 파생될 때까지 safe가 될 수 없습니다. *전이적(transitive)* dependency set은 이를 해당 체인들의 의존 관계로, 또 그 의존 관계로 계속 확장합니다. [OP Stack interop cluster](#op-stack-interop-cluster)는 완전 연결된 dependency set으로 구성됩니다. 즉, 집합의 모든 체인은 자신의 dependency set에 다른 모든 체인을 포함합니다.
+
+### Supernode
+
+[dependency set](#dependency-set)에 속한 모든 체인의 합의 계층을 하나의 바이너리 안에서 인메모리 [virtual node](#virtual-node)로 함께 실행하는 구성 요소입니다. Supernode는 체인 간에 L1 클라이언트, L1 beacon 클라이언트, JSON-RPC 인터페이스, 메트릭을 공유하며, 블록을 "safe"로 승격하기 전에 체인이 의존하는 모든 크로스체인 메시지가 L1에서 재현되었는지 검증합니다. 각 체인의 execution 클라이언트에는 engine API를 사용하여 연결합니다. 바이너리 이름을 따서 `op-supernode`라고 부르는 경우가 많습니다. 아키텍처는 [supernode 설명](/ko/op-stack/interop/supernode)을 참고하십시오.
+
+### Chain container
+
+단일 체인을 감싸는 [supernode](#supernode)의 래퍼입니다. Chain container는 하나의 [virtual node](#virtual-node)를 호스팅하고, engine controller를 통해 해당 체인의 execution engine을 구동하며, supernode의 나머지 부분이 블록 파생, receipt 조회, output root 쿼리 응답에 사용하는 안정적인 인터페이스를 제공합니다.
+
+### Virtual node
+
+별도의 운영 체제 프로세스가 아니라 [supernode](#supernode) 내부에서 인프로세스로 호스팅되는 합의 계층 node입니다. 현재 유일한 virtual node 구현은 라이브러리로 호스팅되는 op-node 자체입니다.
+
+### Super root
+
+특정 타임스탬프에서 [dependency set](#dependency-set) 전체의 검증된 L2 블록에 대한 커밋먼트입니다. Supernode의 `superroot_atTimestamp` RPC가 생성하며, 결함 증명 시스템이 interop을 인식하는 증명을 생성하는 데 필요한 입력으로 사용합니다.
+
+### Light CL
+
+로컬 L1-to-L2 파생을 끄고 `optimism_syncStatus` RPC를 통해 신뢰할 수 있는 외부 소스에서 safe 및 finalized 상태를 미러링하는 합의 계층(op-node 또는 kona-node)의 운영 모드입니다. Light CL도 P2P를 통해 unsafe 체인은 계속 진행합니다. 여러 light CL의 safe 소스 역할을 하는 [supernode](#supernode)와 함께 사용됩니다.
+자세한 내용은 [Light Node Topology 공지 페이지](/ko/notices/specialized-node-topology)에서 확인하십시오.
+
+### Shared L1 Bridge
+
+OP Stack 생태계의 모든 OP Chain을 관리하는 L1 bridge 컨트랙트입니다. 이 bridge는 Optimism Collective가 업그레이드할 수 있습니다.
+
+### Validity Proof
+
+이의 제기 기간 없이 즉시 검증할 수 있는 출금 주장의 증명입니다.
+
+### Withdrawal Claim
+
+한 체인의 상태에 대해 다른 체인에서 이루어지는 주장입니다. 예를 들어 OP Mainnet에서 토큰을 L1으로 다시 출금할 의도로 소각했다고 주장할 수 있습니다.
+
+### Zero Knowledge Proof
+
+암호학적 속성과 낮은 오차 범위에 의존하는 유효성 증명입니다.
+
+\[[맨 위로 돌아가기](#table-of-contents)]
+
+## Protocol
+
+### Batcher
+
+데이터 가용성 제공자에서 채널을 사용할 수 있도록 만드는 역할을 하는 소프트웨어 구성 요소(독립 프로그램)입니다.
+Batcher는 채널을 가져오기 위해 rollup node와 통신합니다. 그런 다음
+[batcher 트랜잭션](#batcher-transaction)을 사용하여 채널을 사용할 수 있게 만듭니다.
+
+### Batcher Transaction
+
+채널을 사용할 수 있게 하기 위해 [batcher](#batcher)가 데이터 가용성 제공자에게 제출하는 트랜잭션입니다.
+이 트랜잭션은 하나 이상의 완전한 프레임을 전달하며, 이 프레임들은 서로 다른 채널에 속할 수 있습니다.
+채널의 프레임은 여러 batcher 트랜잭션에 나뉘어 담길 수 있습니다. Ethereum calldata로 제출하는 경우, batcher
+트랜잭션의 수신자는 sequencer inbox 주소여야 합니다. 또한 트랜잭션은 인정된 배치 제출자 계정이 서명해야 합니다.
+
+### Channel
+
+(연속된 블록에 대한) [sequencer 배치](#sequencer-batch)를 함께 압축한 시퀀스로, 타임스탬프(채널이 생성된 UNIX 시간)와
+임의의 값으로 고유하게 식별됩니다. 여러 배치를 하나로 묶는 이유는 단순히 더 나은 압축률을 얻어
+데이터 가용성 비용을 줄이기 위해서입니다.
+
+*   채널은 [batcher 트랜잭션](#batcher-transaction)을 통해 전송하기 위해 [프레임](#channel-frame)으로 분할될 수 있습니다. 채널을
+    프레임으로 분할하는 이유는 채널이 단일 batcher 트랜잭션에 담기에는 너무 클 수 있기 때문입니다.
+*   (채널의 소비자인) [rollup node](#rollup-node) 측에서는 (명시적으로 표시된) 마지막 프레임을 아직 읽지 않은 채널을
+    *열린(opened)* 채널로, 그렇지 않은 채널을 닫힌 채널로 간주합니다.
+
+### Channel Frame
+
+[채널](#channel)에 속한 데이터 조각입니다. [batcher 트랜잭션](#batcher-transaction)은 하나 또는
+여러 개의 프레임을 전달합니다. 채널을 프레임으로 분할하는 이유는 채널이 단일
+batcher 트랜잭션에 담기에는 너무 클 수 있기 때문입니다.
+
+### Channel Timeout
+
+[채널 프레임](#channel-frame)이 [batcher 트랜잭션](#batcher-transaction) 내에서 L1에 도착할 수 있는 기간(L1 블록 단위)입니다.
+[채널](#channel)의 프레임에 허용되는 시간 범위는 `[channel_id.timestamp, channel_id.timestamp +
+CHANNEL_TIMEOUT]`입니다. 이 프레임에 허용되는 L1 블록 범위는 타임스탬프가 이 시간 범위 안에 있는 모든 L1 블록입니다.
+(`channel_id.timestamp`는 채널의 프레임이 발견된 모든 L1 블록의 타임스탬프보다 작아야 하며,
+그렇지 않으면 해당 프레임은 무시된다는 점에 유의하십시오.)
+
+<Info>
+  채널 타임아웃의 목적은 두 가지입니다.
+
+  *   닫히지 않은 오래된 채널 데이터를 영원히 보관하지 않도록 합니다(닫히지 않은 채널이란 마지막 프레임이
+      전송되지 않은 채널입니다).
+  *   채널에서 [sequencer 배치](#sequencer-batch)를 디코딩하기 위해 거슬러 올라가 확인해야 하는 L1 블록 수를 제한합니다.
+      이는 특히 L1 re-org 동안 중요합니다.
+</Info>
+
+### Data Availability
+
+일부 데이터가 상당히 긴 기간 동안 "사용 가능"(즉, *조회 가능*)하다는 보장입니다.
+Optimism의 경우 해당 데이터는 [validator](#validator)가 sequencer의 작업을 검증하고 L2 체인을 검증하는 데 필요한
+[sequencer 배치](#sequencer-batch)입니다. [최종 확정 기간(finalization period)](#finalization-period)은
+가용성 기간의 하한으로 간주해야 합니다. 이 기간은 [결함 증명](#fault-proof)을 수행하는 데 데이터가 필요하므로
+데이터 가용성이 가장 중요한 시기이기 때문입니다. "가용성"은 데이터의 장기 저장을 보장한다는 의미가 **아닙니다**.
+
+### Data Availability Provider
+
+[데이터를 사용 가능하게](#data-availability) 만드는 데 사용할 수 있는 서비스입니다. 이상적으로 좋은 데이터 가용성 제공자는 Ethereum call data 및 EIP4844처럼
+데이터 가용성에 대해 *검증 가능한* 강력한 보장을 제공합니다.
+
+### Deposit
+
+(rollup driver가) L1 블록에서 파생한 L2 트랜잭션입니다. 트랜잭션 입금(deposit)은 주로(그러나 그것만은 아니게) ETH와 토큰을 L2로 "입금"(bridge)하는 데 사용되지만,
+*입금*(deposit)이라는 단어는 "L1에서 L2로 *예치된(deposited)* 트랜잭션"으로 이해해야 합니다.
+
+### Deposit contract
+
+[EOA](#eoa-or-externally-owned-account)와 컨트랙트가 입금을 보낼 수 있는 L1 컨트랙트입니다. 입금은
+[rollup node](#rollup-node)가 사용할 수 있도록 로그 레코드(Solidity에서는 *이벤트*라고 함)로 발생합니다.
+
+<Info>
+  입금은 컨트랙트가 보낼 수도 있기 때문에 calldata에 저장되지 않습니다. 컨트랙트가 보내는 경우 calldata는
+  컨트랙트 간 *내부* 실행의 일부이며, 이 중간 calldata는 L1 블록에 포함된
+  [Merkle Patricia Trie root](#merkle-patricia-trie) 중 어디에도 기록되지 않습니다.
+</Info>
+
+### Deposited Transaction
+
+L1에서 파생되어 L2 블록에 포함된 L2 트랜잭션입니다. 입금 트랜잭션에는 두 가지 종류가 있습니다.
+L1 attributes 입금 트랜잭션(L1 블록의 속성을 L1 Attributes Predeployed Contract에 제출)과 사용자 입금 트랜잭션
+(deposit contract에 대한 L1 호출에서 파생된 트랜잭션)입니다.
+
+### Depositor
+
+[입금 호출(depositing call)](#depositing-call)을 수행하는(즉, 그 호출의 `msg.sender`인) L1 주소(컨트랙트 또는 \[EOA])입니다.
+*Depositor*는 [입금 실행 트랜잭션](#depositing-transaction)의 발신자(즉, `tx.origin`)가 **아닙니다**.
+
+### Depositing Call
+
+deposit contract에 대한 L1 호출로, rollup driver에 의해 [사용자 입금 트랜잭션](#user-deposited-transaction)으로 파생됩니다.
+이 호출은 입금 트랜잭션에 필요한 모든 데이터(목적지, 값, calldata 등)를 지정합니다.
+
+### Depositing Transaction
+
+하나 이상의 [입금 호출](#depositing-call)을 수행하는 L1 트랜잭션입니다.
+
+### Deposited transaction type
+
+입금 트랜잭션의 입력 필드와 올바른 처리 방식을 지정하는 EIP-2718 트랜잭션 유형입니다.
+
+### Event or log data
+
+[입금 호출](#depositing-call)이 생성하고, rollup driver가 [입금 트랜잭션](#deposited-transaction)을 파생하기 위해 읽는 데이터입니다.
+
+### Finalized L2 Head
+
+*finalized* L1 블록, 즉 두 L1 에포크(64개의 L1 [타임 슬롯](#time-slot))보다 오래된 L1 블록으로부터
+파생할 수 있는 가장 높은 L2 블록입니다.
+
+### Finalization Period
+
+출금을 최종 확정하기 전에 반드시 경과해야 하는 최소 시간(초 단위)으로, **출금 지연**(withdrawal delay)이라고도 합니다.
+최종 확정 기간은 validator가 결함 증명을 수행할 수 있는 충분한 시간을 확보하기 위해 필요합니다.
+
+### L1 Attributes Deposited Transaction
+
+[L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)를 호출하여 L2에 L1 블록 속성
+(번호, 타임스탬프 등)을 등록하는 데 사용되는 [입금 트랜잭션](#deposited-transaction)입니다.
+그러면 이 컨트랙트를 사용하여 현재 L2 블록에 대응하는 L1 블록의 속성을 읽을 수 있습니다.
+
+### L1 Attributes Predeployed Contract
+
+주어진 블록 번호 또는 블록 해시를 가진 L1 블록의 속성을 조회하는 데 사용할 수 있는
+L2의 [predeployed contract](#predeployed-contract)입니다.
+
+### L2 Chain Derivation
+
+L2 체인을 파생하기 위해 L1에서 [L2 파생 입력](#l2-derivation-inputs)을 읽는
+과정입니다.
+
+### L2 Chain Inception
+
+[제네시스 블록](#l2-genesis-block)의 output root가 [output
+oracle](#l2-output-oracle-contract) 컨트랙트에 제안된 L1 블록 번호입니다. 현재 구현에서는 output oracle 컨트랙트가 배포되거나 업그레이드된 L1 블록 번호입니다.
+
+### L2 Derivation Inputs
+
+L1 블록에서 발견되며, [rollup node](#rollup-node)가 [payload
+attributes](#payload-attributes)를 구성하기 위해 읽는 데이터입니다. L2 파생 입력에는 L1 블록 속성(블록 번호, 타임스탬프, basefee), 입금(로그 데이터 형태),
+sequencer 배치(트랜잭션 데이터 형태), 시스템 구성 업데이트(로그 데이터 형태)가 포함됩니다.
+
+### Payload Attributes
+
+L1에서 발견된 [L2 체인 파생 입력](#l2-derivation-inputs)으로부터 파생할 수 있는 객체로, 이후
+[execution engine](#execution-engine)에 전달되어 L2 블록을 구성하는 데 사용됩니다. Payload attributes 객체는 본질적으로
+출력 속성이 없는 [블록](#block)을 인코딩합니다.
+
+### Relayer
+
+L2에서의 포함 여부를 검증하는 데 필요한 데이터를 제출하여 출금을 최종 확정하는 L1의 EOA입니다.
+
+### Safe L2 Block
+
+[rollup node](#rollup-node)가 L1에서 전적으로 파생할 수 있는 L2 블록입니다. 이는 각 node가
+L1 체인을 바라보는 시각에 따라 node마다 다를 수 있습니다.
+
+### Safe L2 Head
+
+[rollup node](#rollup-node)가 알고 있는 가장 높은 [safe L2 블록](#safe-l2-block)입니다.
+
+### Sequencer Batch
+
+[에포크
+번호](#sequencing-epoch)와 L2 블록 타임스탬프(블록 시간이 일정하므로 블록 번호로 쉽게 변환할 수 있음)가 태그된 (sequencer에 제출된) L2 트랜잭션 목록입니다.
+Sequencer 배치는 [L2 파생 입력](#l2-derivation-inputs)의 일부입니다. 각 배치는 (기존 L2 체인 상태가 주어졌을 때)
+L2 블록 **하나**를 구성하는 데 필요한 입력을 나타냅니다. 단, 각 에포크의 첫 번째 블록은 예외로,
+입금에 대한 정보도 필요합니다([L2 파생 입력](#l2-derivation-inputs) 섹션 참조).
+
+### System Configuration
+
+L1의 [`SystemConfig`](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/SystemConfig.sol)(`v1.1.4` 기준) 컨트랙트가 관리하고
+L2 [파생](#l2-chain-derivation) 과정에서 읽는, 동적으로 구성 가능한 rollup 파라미터의 모음입니다.
+이 파라미터를 통해 하드포크라는 네트워크 업그레이드 부담 없이 키를 정기적으로 교체하고
+외부 비용 파라미터를 조정할 수 있습니다.
+
+### Unsafe L2 Block
+
+[rollup node](#rollup-node)가 알고 있지만 L1 체인에서 파생되지 않은 L2 블록입니다.
+Sequencer 모드에서는 sequencer 자신이 시퀀싱한 블록이고, validator 모드에서는
+[unsafe sync](#unsafe-sync)를 통해 sequencer로부터 얻은 블록입니다.
+
+### Unsafe L2 Head
+
+[rollup node](#rollup-node)가 알고 있는 가장 높은 [unsafe L2 블록](#unsafe-l2-block)입니다.
+
+### Unsafe Block Consolidation
+
+[rollup node](#rollup-node)가 [safe L2
+head](#safe-l2-head)를 한 블록 앞으로 이동하여 가장 오래된 [unsafe L2 블록](#unsafe-l2-block)이 새로운 safe L2 head가 되도록 시도하는 과정입니다.
+통합(consolidation)을 수행하기 위해 node는 L1 체인에서 파생된 [payload attributes](#payload-attributes)가 가장 오래된 unsafe L2 블록과 정확히 일치하는지 검증합니다.
+
+### Unsafe Sync
+
+[validator](#validator)가 [sequencer](#sequencer)로부터 [unsafe L2 블록](#unsafe-l2-block)에 대해
+알게 되는 과정입니다. 이 unsafe 블록은 이후 L1 체인에 의해 ([unsafe block consolidation](#unsafe-block-consolidation)을 통해) 확인되어야 합니다.
+
+### User-Deposited Transaction
+
+deposit contract에 대한 L1 호출 및 [입금 호출](#depositing-call)에서 파생된 입금 트랜잭션입니다. [L1 attributes 입금
+트랜잭션](#l1-attributes-depositedtransaction)은 명시적으로 제외됩니다.
+
+### Withdrawal transaction
+
+데이터 및/또는 가치를 전송할 수 있는, L2에서 L1으로 보내는 트랜잭션입니다. 이러한 "트랜잭션"은 여러 수준에 존재합니다(자세한 내용은 출금 시작 트랜잭션과 출금 최종 확정 트랜잭션을 참고하십시오).
+
+### Withdrawal initiating transaction
+
+Withdrawals predeploy로 보내는 L2의 특정 트랜잭션입니다.
+
+### Withdrawal finalizing transaction
+
+출금을 최종 확정하고 릴레이하는 특정 L1 트랜잭션입니다.
+
+\[[맨 위로 돌아가기](#table-of-contents)]

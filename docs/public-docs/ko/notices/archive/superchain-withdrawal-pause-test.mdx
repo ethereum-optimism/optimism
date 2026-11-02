@@ -1,0 +1,24 @@
+---
+title: Superchain 출금 일시 중지 테스트
+description: Superchain 출금 일시 중지 테스트에 관한 공지입니다.
+diataxis: reference
+content_type: notice
+date: 2025-05-14
+---
+
+<Info>
+  *   Sepolia Superchain 출금 일시 중지 테스트는 **2025년 4월 14일**에 성공적으로 완료되었습니다.
+  *   Mainnet Superchain 출금 일시 중지 테스트는 **2025년 5월 14일**에 진행됩니다.
+</Info>
+
+Optimism Collective는 Sepolia Superchain에서 개선된 사고 대응 기능을 테스트할 예정입니다.
+
+## 진행 내용
+
+1.  이 훈련 동안 권한이 있는 [`GUARDIAN`](/ko/op-stack/protocol/privileged-roles#guardian) 주소가 `SuperchainConfig`의 `pause` 함수를 호출합니다.
+2.  Optimism Collective 보안 팀 구성원들이 일시 중지가 올바르게 실행되었는지, 사고 대응 개선 사항이 의도대로 작동했는지 확인합니다.
+3.  이후 `unpause` 함수를 호출하여 정상 운영을 재개합니다.
+
+이 기능에 대한 자세한 내용은 이 [문서](/ko/op-stack/security/pause)를 참조하십시오.
+
+이 기능은 Superchain의 보안에 중요하며, 체인 운영자와 사용자, 특히 중앙화 거래소와 서드파티 bridge 운영자가 이해하고 있어야 합니다. **이 테스트는 L1에서 L2로의 입금(디파짓) 트랜잭션이나 L2 트랜잭션에 영향을 주지 않습니다. 사용자나 운영자의 조치는 필요하지 않습니다.**

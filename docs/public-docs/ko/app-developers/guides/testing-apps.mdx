@@ -15,13 +15,13 @@ diataxis: how-to
 따라서 OP Stack 고유 기능에 의존하지 않는 대부분의 테스트는 개발 스택에서 실행하는 것이 좋습니다.
 훨씬 빠르기 때문입니다.
 
-사용 사례에 따라 [로컬 멀티체인 개발 환경](/ko/app-developers/tools/development/supersim), [devnet](/ko/op-stack/introduction/op-stack), 또는 [테스트 네트워크](/ko/op-mainnet/network-information/connecting-to-op#op-sepolia) 등 OP 테스트 네트워크 전반에 걸쳐 철저한 테스트를 설계하고 실행하는 것이 모범 사례입니다. 또는 [Tenderly Virtual TestNets](https://docs.tenderly.co/virtual-testnets?mtm_campaign=ext-docs&mtm_kwd=optimism)를 사용하면 기존 프로토콜과 완전히 통합된 상태로 테스트를 실행하고, 무제한 faucet, 지속적인 상태 동기화, Debugger 및 Simulator UI와 같은 개발 도구를 이용할 수 있습니다.
+사용 사례에 따라 [로컬 멀티체인 개발 환경](/ko/app-developers/tools-sdks/supersim), [devnet](/ko/op-stack/introduction/op-stack), 또는 [테스트 네트워크](/ko/op-mainnet/network-information/connecting-to-op#op-sepolia) 등 OP 테스트 네트워크 전반에 걸쳐 철저한 테스트를 설계하고 실행하는 것이 모범 사례입니다. 또는 [Tenderly Virtual TestNets](https://docs.tenderly.co/virtual-testnets?mtm_campaign=ext-docs&mtm_kwd=optimism)를 사용하면 기존 프로토콜과 완전히 통합된 상태로 테스트를 실행하고, 무제한 faucet, 지속적인 상태 동기화, Debugger 및 Simulator UI와 같은 개발 도구를 이용할 수 있습니다.
 적절한 테스트를 수행하는 것은 OP Stack 체인과 Ethereum 간의 동등성이 깨지는 예외적인 경우(또는 프로덕션 환경에서 Ethereum mainnet 자체와 개발 스택이 동등하지 않을 수 있는 경우)를 찾아내는 데 핵심적입니다.
 
 ## 멀티레이어 통합 테스트
 
 일부 앱은 개발 스택에서 제공되지 않는 OP Stack 고유 기능이 필요합니다.
-예를 들어 탈중앙화 애플리케이션이 [도메인 간 통신](/ko/app-developers/guides/bridging/messaging)에 의존한다면, 개발 스택에서 디버깅할 수 있도록 stub을 개발하는 노력이 자동화된 테스트가 매번 [로컬 멀티체인 개발 환경](/ko/app-developers/tools/development/supersim)을 사용하도록 하는 번거로움보다 더 클 가능성이 높습니다.
+예를 들어 탈중앙화 애플리케이션이 [도메인 간 통신](/ko/app-developers/guides/bridging/messaging)에 의존한다면, 개발 스택에서 디버깅할 수 있도록 stub을 개발하는 노력이 자동화된 테스트가 매번 [로컬 멀티체인 개발 환경](/ko/app-developers/tools-sdks/supersim)을 사용하도록 하는 번거로움보다 더 클 가능성이 높습니다.
 
 ## Tenderly를 이용한 테스트 및 스테이징
 

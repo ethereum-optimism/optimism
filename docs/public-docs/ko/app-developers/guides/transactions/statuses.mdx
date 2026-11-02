@@ -25,7 +25,7 @@ diataxis: reference
 **일반적으로 2~4초 이내**
 
 트랜잭션이 Sequencer에 의해 블록에 포함되었지만 해당 블록이 아직 Ethereum에 게시되지 **않은** 경우 "sequencer confirmed" 또는 "unsafe" 상태로 간주됩니다.
-트랜잭션이 블록에 포함되었더라도, Sequencer가 [Sequencing Window](/ko/connect/resources/glossary#sequencing-window)(약 12시간) 내에 블록을 Ethereum에 게시하지 못하면 최종 블록체인에서 제외될 수 있습니다.
+트랜잭션이 블록에 포함되었더라도, Sequencer가 [Sequencing Window](/ko/op-stack/reference/glossary#sequencing-window)(약 12시간) 내에 블록을 Ethereum에 게시하지 못하면 최종 블록체인에서 제외될 수 있습니다.
 애플리케이션은 이 상태에 있는 트랜잭션 정보를 표시할 때 이러한 가능성을 반드시 고려해야 합니다.
 
 최신 "sequencer confirmed" 블록은 블록 번호 파라미터로 `safe`를 지정하여 표준 JSON-RPC 메서드 [`eth_getBlockByNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbynumber)를 호출하고, 그 결과를 `latest` 블록에 대해 반환된 결과와 비교하여 확인할 수 있습니다.
