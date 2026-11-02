@@ -1044,6 +1044,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     {
         if (_isUsingBridgeHook() || _publishedParams.prevBlockNum == block.number) _countPublished(_gasLimit);
 
+        // TODO(#23835): Remove this check once every chain uses the ETHLockbox.
         if (_isUsingLockbox()) {
             if (msg.value > 0) _lockETH(msg.value);
         }
