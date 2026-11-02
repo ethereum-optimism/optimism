@@ -23,7 +23,7 @@ async fn critical_pipeline_reset_failure_cannot_resume_queued_attributes() {
         .unwrap();
     let actual_error = node.actor.step().await.unwrap_err();
 
-    assert!(matches!(&actual_error, DerivationError::Pipeline(_)));
+    assert!(matches!(&actual_error, DerivationError::Pipeline(PipelineErrorKind::Critical(_))));
     assert_eq!(actual_error.to_string(), expected_error);
     assert_eq!(node.actor.derivation_state_machine.current_state(), previous_state);
     assert_eq!(node.actor.derivation_state_machine.last_confirmed_safe_head(), previous_head);

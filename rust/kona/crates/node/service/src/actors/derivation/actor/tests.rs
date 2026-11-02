@@ -300,7 +300,7 @@ async fn test_non_reset_signal_does_not_publish_uninitialized_origin(#[case] sig
         derivation_origin_tx,
     );
 
-    actor.signal(signal).await.unwrap();
+    actor.forward_non_reset_signal(signal).await;
     assert!(derivation_origin_rx.borrow().is_none());
     assert!(matches!(actor.produce_next_attributes().await, Err(DerivationError::Yield)));
     assert_eq!(actor.pipeline.origin.number, 1);

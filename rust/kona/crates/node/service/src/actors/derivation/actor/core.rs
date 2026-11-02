@@ -8,8 +8,8 @@ use crate::{
 use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use kona_derive::{
-    ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, PipelineResult, ResetError,
-    ResetSignal, Signal, SignalReceiver, StepResult,
+    ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, ResetSignal, Signal,
+    SignalReceiver, StepResult,
 };
 use kona_engine::FinalizeBlockId;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
@@ -51,19 +51,28 @@ where
     l1_block_zero: BlockNumHash,
     /// The attributes sent to the engine and not yet confirmed as a safe head.
     pub(super) attributes_awaiting_confirmation: Option<OpAttributesWithParent>,
-    /// A reset whose pipeline signal failed temporarily and is retried with backoff.
+    /// A pipeline reset that has not yet succeeded. Derivation must not resume before it does.
     pending_reset: Option<PendingReset>,
 }
 
-/// A pipeline reset awaiting a retry after a temporary failure.
+/// A pipeline reset that has not yet succeeded.
 #[derive(Debug)]
-struct PendingReset {
+enum PendingReset {
+    /// The reset head was reorged out of the L2 chain, so the engine was asked for a fresh one.
+    AwaitingFreshHead,
+    /// The reset signal failed temporarily and is retried with backoff.
+    Retry(ScheduledRetry),
+}
+
+/// A reset signal retried after a temporary failure.
+#[derive(Debug)]
+struct ScheduledRetry {
     attempts: u32,
     retry_at: Instant,
     signal: ResetSignal,
 }
 
-impl PendingReset {
+impl ScheduledRetry {
     /// op-node retries a temporarily failed reset through its exponential step backoff, capped
     /// at ten seconds.
     const MAX_RETRY_DELAY: Duration = Duration::from_secs(10);
@@ -116,33 +125,27 @@ where
         }
     }
 
-    /// Handles a [`Signal`] received over the derivation signal receiver channel.
-    ///
-    /// Activation and channel flush failures leave the derivation state intact, so they are
-    /// logged and the actor continues. A reset is handled by
-    /// [`Self::reset_pipeline_and_resume`].
-    pub(super) async fn signal(&mut self, signal: Signal) -> Result<(), DerivationError> {
-        let result = match signal {
-            Signal::Reset(reset) => return self.reset_pipeline_and_resume(reset).await,
-            Signal::Activation(activation) => self.signal_activation(activation).await,
-            Signal::FlushChannel => self.signal_flush_channel().await,
-        };
-        match result {
+    /// Forwards an activation or channel flush to the pipeline. Either failure leaves the
+    /// derivation state intact, so it is logged and the actor continues. A reset is handled by
+    /// [`Self::reset_pipeline_and_resume`] instead.
+    pub(super) async fn forward_non_reset_signal(&mut self, signal: Signal) {
+        match self.pipeline.signal(signal).await {
             Ok(()) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
             Err(e) => {
                 error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline")
             }
         }
         self.publish_origin();
-        Ok(())
     }
 
     /// Resets the pipeline to the engine's safe head, adopts that head, and resumes derivation.
     ///
     /// `SafeDB` is truncated before the pipeline resets, so derivation must not resume until the
-    /// pipeline reset has succeeded. Like op-node, a temporary pipeline failure, such as an L2
-    /// RPC error while the pipeline walks back to its L1 origin, schedules a retry with backoff
-    /// and leaves the state machine awaiting the signal. Any other failure stops the actor.
+    /// pipeline reset has succeeded; [`Self::attempt_derivation`] holds while a reset is pending,
+    /// whichever actor requested it. Like op-node, a temporary pipeline failure, such as an L2
+    /// RPC error while the pipeline walks back to its L1 origin, schedules a retry with backoff,
+    /// and a reset head that was reorged out asks the engine for a fresh one. Only a critical
+    /// failure stops the actor.
     pub(super) async fn reset_pipeline_and_resume(
         &mut self,
         reset: ResetSignal,
@@ -154,28 +157,20 @@ where
         match self.pipeline.signal(Signal::Reset(reset)).await {
             Ok(()) => info!(target: "derivation", ?reset, "[SIGNAL] Executed Successfully"),
             Err(PipelineErrorKind::Temporary(error)) => {
-                let pending = match self.pending_reset.take() {
-                    Some(pending) if pending.signal == reset => pending.retried(),
-                    _ => PendingReset::first(reset),
-                };
-                warn!(
-                    target: "derivation",
-                    ?error,
-                    ?reset,
-                    attempt = pending.attempts,
-                    retry_delay = ?PendingReset::retry_delay(pending.attempts),
-                    "Pipeline reset failed temporarily; scheduling a retry"
-                );
-                self.pending_reset = Some(pending);
+                self.schedule_reset_retry(reset, error);
                 return Ok(());
             }
-            Err(error) => {
+            Err(PipelineErrorKind::Reset(error)) => {
+                return self.request_fresh_reset_head(reset, error).await;
+            }
+            Err(error @ PipelineErrorKind::Critical(_)) => {
                 error!(target: "derivation", ?error, ?reset, "Failed to reset derivation pipeline");
                 metrics::counter!(Metrics::DERIVATION_CRITICAL_ERROR).increment(1);
                 return Err(error.into());
             }
         }
         self.pending_reset = None;
+        metrics::gauge!(Metrics::DERIVATION_PENDING_RESET_ATTEMPTS).set(0.0);
         self.derivation_origin_tx.send_replace(self.pipeline.origin());
         self.derivation_state_machine.update(&DerivationStateUpdate::SignalProcessed)?;
         // Adopt the reset head and resume in this request. A separate confirmation could arrive
@@ -185,23 +180,54 @@ where
         self.attempt_derivation().await
     }
 
+    /// Schedules `reset` to be signaled again after a backoff that grows with each failed
+    /// attempt of that same signal.
+    fn schedule_reset_retry(&mut self, reset: ResetSignal, error: PipelineError) {
+        let retry = match self.pending_reset.take() {
+            Some(PendingReset::Retry(retry)) if retry.signal == reset => retry.retried(),
+            _ => ScheduledRetry::first(reset),
+        };
+        warn!(
+            target: "derivation",
+            ?error,
+            ?reset,
+            attempt = retry.attempts,
+            retry_delay = ?ScheduledRetry::retry_delay(retry.attempts),
+            "Pipeline reset failed temporarily; scheduling a retry"
+        );
+        metrics::gauge!(Metrics::DERIVATION_PENDING_RESET_ATTEMPTS).set(f64::from(retry.attempts));
+        self.pending_reset = Some(PendingReset::Retry(retry));
+    }
+
+    /// Asks the engine for a fresh reset head. The pipeline could not walk back from the head in
+    /// `reset`, so signaling it again cannot succeed; like op-node, that failure starts a new
+    /// reset rather than a retry.
+    async fn request_fresh_reset_head(
+        &mut self,
+        reset: ResetSignal,
+        error: ResetError,
+    ) -> Result<(), DerivationError> {
+        warn!(
+            target: "derivation",
+            ?error,
+            ?reset,
+            "Pipeline reset head is no longer canonical; requesting a fresh engine reset"
+        );
+        self.pending_reset = Some(PendingReset::AwaitingFreshHead);
+        metrics::gauge!(Metrics::DERIVATION_PENDING_RESET_ATTEMPTS).set(0.0);
+        self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
+            error!(target: "derivation", ?e, "Failed to send reset request");
+            DerivationError::Sender(Box::new(e))
+        })
+    }
+
     async fn retry_pending_reset(&mut self) -> Result<(), DerivationError> {
-        let Some(pending) = &self.pending_reset else {
+        let Some(PendingReset::Retry(retry)) = &self.pending_reset else {
             return Ok(());
         };
-        let reset = pending.signal;
-        info!(target: "derivation", ?reset, attempt = pending.attempts + 1, "Retrying pipeline reset");
+        let reset = retry.signal;
+        info!(target: "derivation", ?reset, attempt = retry.attempts + 1, "Retrying pipeline reset");
         self.reset_pipeline_and_resume(reset).await
-    }
-
-    /// Activates a hardfork while preserving the pipeline's derivation state.
-    async fn signal_activation(&mut self, activation: ActivationSignal) -> PipelineResult<()> {
-        self.pipeline.signal(Signal::Activation(activation)).await
-    }
-
-    /// Flushes the pipeline's currently active channel.
-    async fn signal_flush_channel(&mut self) -> PipelineResult<()> {
-        self.pipeline.signal(Signal::FlushChannel).await
     }
 
     /// Refreshes an established origin without republishing one invalidated by a reset.
@@ -309,12 +335,12 @@ where
             DerivationActorRequest::ProcessEngineSignalRequest(signal) => match *signal {
                 Signal::Reset(reset) => self.reset_pipeline_and_resume(reset).await?,
                 Signal::Activation(_) => {
-                    self.signal(*signal).await?;
+                    self.forward_non_reset_signal(*signal).await;
                     self.derivation_state_machine
                         .update(&DerivationStateUpdate::SignalProcessed)?;
                 }
                 // A channel flush leaves the outstanding engine confirmation pending.
-                Signal::FlushChannel => self.signal(*signal).await?,
+                Signal::FlushChannel => self.forward_non_reset_signal(*signal).await,
             },
             DerivationActorRequest::ProcessFinalizedL1Block(finalized_l1_block) => {
                 // Attempt to finalize the block. If successful, notify engine.
@@ -442,6 +468,13 @@ where
             info!(target: "derivation", derivation_state=?self.derivation_state_machine, "Skipping derivation.");
             return Ok(());
         }
+        if let Some(pending_reset) = &self.pending_reset {
+            // SafeDB is already truncated to the reset head, so the pipeline must reset before
+            // it is stepped. Wait for that reset the same way a drained data source is awaited.
+            info!(target: "derivation", ?pending_reset, "Holding derivation until the pipeline reset succeeds.");
+            self.derivation_state_machine.update(&DerivationStateUpdate::MoreDataNeeded)?;
+            return Ok(());
+        }
 
         info!(target: "derivation", derivation_state=?self.derivation_state_machine, "Attempting derivation.");
 
@@ -491,7 +524,10 @@ where
     type Error = DerivationError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        let retry_at = self.pending_reset.as_ref().map(|pending| pending.retry_at);
+        let retry_at = match &self.pending_reset {
+            Some(PendingReset::Retry(retry)) => Some(retry.retry_at),
+            Some(PendingReset::AwaitingFreshHead) | None => None,
+        };
         let pending_reset_due = async move {
             match retry_at {
                 Some(retry_at) => tokio::time::sleep_until(retry_at).await,
@@ -499,6 +535,8 @@ where
             }
         };
         tokio::select! {
+            // Inbound requests win, so a busy queue can hold a due retry past `retry_at`.
+            // Requests are infrequent, so that delay is accepted.
             biased;
             request = self.inbound_request_rx.recv() => {
                 let request = request.ok_or_else(|| {
