@@ -205,8 +205,6 @@ type ApplyPipelineOpts struct {
 	CacheDir           string
 	UseForge           bool
 	ForgeSlowBroadcast bool
-	// DeployMockSP1Verifier is a test-only opt-in for development environments.
-	DeployMockSP1Verifier bool
 	// AllowUnoptimizedContracts is a test-only opt-in that lets oversized dev-profile
 	// artifacts build an L2 genesis. A genesis deployment always allows them.
 	AllowUnoptimizedContracts bool
@@ -219,10 +217,6 @@ func ApplyPipeline(
 	ctx context.Context,
 	opts ApplyPipelineOpts,
 ) error {
-	if opts.DeployMockSP1Verifier && opts.DeploymentTarget != DeploymentTargetGenesis {
-		return fmt.Errorf("mock SP1 verifier deployment is only supported for genesis")
-	}
-
 	intent := opts.Intent
 	st := opts.State
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
@@ -324,7 +318,6 @@ func ApplyPipeline(
 		ForgeClient:               forgeClient,
 		UseForge:                  opts.UseForge,
 		IsGenesis:                 opts.DeploymentTarget == DeploymentTargetGenesis,
-		DeployMockSP1Verifier:     opts.DeployMockSP1Verifier,
 		AllowUnoptimizedContracts: opts.DeploymentTarget == DeploymentTargetGenesis || opts.AllowUnoptimizedContracts,
 		L1RPCUrl:                  opts.L1RPCUrl,
 		PrivateKey:                opts.PrivateKey,

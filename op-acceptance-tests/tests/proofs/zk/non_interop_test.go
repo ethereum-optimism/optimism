@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
@@ -17,10 +16,7 @@ import (
 
 func newNonInteropZKSystem(t devtest.T) (*presets.Minimal, *proofs.DisputeGameFactory) {
 	sys := presets.NewMinimal(t,
-		presets.WithDeployerOptions(
-			sysgo.WithJovianAtGenesis,
-			sysgo.WithDevFeatureEnabled(devfeatures.ZKDisputeGameFlag),
-		),
+		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
 		presets.WithGameTypeAdded(gameTypes.ZKDisputeGameType),
 		presets.WithRespectedGameTypeOverride(gameTypes.ZKDisputeGameType),
 		presets.RequireRespectedGameType(gameTypes.ZKDisputeGameType),

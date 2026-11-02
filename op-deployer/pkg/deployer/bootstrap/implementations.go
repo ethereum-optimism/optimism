@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	mipsVersion "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
@@ -137,37 +136,19 @@ func (c *ImplementationsConfig) Check() error {
 	if c.Challenger == (common.Address{}) {
 		return errors.New("challenger must be specified")
 	}
-	zkEnabled := devfeatures.IsDevFeatureEnabled(c.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
-	if !zkEnabled && c.SP1Verifier != (common.Address{}) {
-		return errors.New("sp1 verifier must not be specified when ZK dispute games are disabled")
-	}
 	return nil
 }
 
-func (c *ImplementationsConfig) resolveSP1Verifier(chainID *big.Int) error {
-	if !devfeatures.IsDevFeatureEnabled(c.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag) ||
-		c.SP1Verifier != (common.Address{}) {
-		return nil
+// resolveSP1Verifier selects the release's default SP1 verifier for the L1 chain unless one is
+// already configured. It leaves the verifier zero when the chain has no default; DeployImplementations
+// then deploys MockSP1Verifier on local dev chains and reverts on any other chain.
+func (c *ImplementationsConfig) resolveSP1Verifier(chainID *big.Int) {
+	if c.SP1Verifier != (common.Address{}) || !chainID.IsUint64() {
+		return
 	}
-
-	if !chainID.IsUint64() {
-		return fmt.Errorf(
-			"no default SP1 verifier for L1 chain ID %s; specify --%s",
-			chainID,
-			SP1VerifierAddressFlagName,
-		)
+	if verifier, err := standard.SP1VerifierFor(bigs.Uint64Strict(chainID)); err == nil {
+		c.SP1Verifier = verifier
 	}
-	chainIDUint64 := bigs.Uint64Strict(chainID)
-	verifier, err := standard.SP1VerifierFor(chainIDUint64)
-	if err != nil {
-		return fmt.Errorf(
-			"no default SP1 verifier for L1 chain ID %d; specify --%s",
-			chainIDUint64,
-			SP1VerifierAddressFlagName,
-		)
-	}
-	c.SP1Verifier = verifier
-	return nil
 }
 
 func ImplementationsCLI(cliCtx *cli.Context) error {
@@ -251,20 +232,19 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	if err := cfg.Check(); err != nil {
 		return dio, fmt.Errorf("invalid config for Implementations: %w", err)
 	}
-	zkEnabled := devfeatures.IsDevFeatureEnabled(cfg.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
-	if zkEnabled && cfg.SP1Verifier == (common.Address{}) {
+	if cfg.SP1Verifier == (common.Address{}) {
 		chainID, err := deployer.ChainIDFromRPC(ctx, cfg.L1RPCUrl)
 		if err != nil {
 			return dio, fmt.Errorf("failed to select default SP1 verifier: %w", err)
 		}
-		if err := cfg.resolveSP1Verifier(chainID); err != nil {
-			return dio, err
-		}
+		cfg.resolveSP1Verifier(chainID)
 	}
 
 	lgr := cfg.Logger
-	if zkEnabled {
+	if cfg.SP1Verifier != (common.Address{}) {
 		lgr.Info("using SP1 verifier", "address", cfg.SP1Verifier)
+	} else {
+		lgr.Warn("no SP1 verifier configured; DeployImplementations deploys an accept-all MockSP1Verifier on local dev chains and reverts elsewhere")
 	}
 
 	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)

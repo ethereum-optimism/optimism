@@ -10,16 +10,10 @@ import (
 	"github.com/lmittmann/w3"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
-)
-
-const (
-	genesisMockSP1VerifierArtifact = "MockSP1Verifier.sol"
-	genesisMockSP1VerifierContract = "MockSP1Verifier"
 )
 
 var sp1VerifierMethod = w3.MustNewFunc("sp1Verifier()", "address")
@@ -55,9 +49,6 @@ func ResolveSuperchainProofParams(intent *state.Intent) (state.SuperchainProofPa
 
 func DeployImplementations(env *Env, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-implementations")
-	if env.DeployMockSP1Verifier && !env.IsGenesis {
-		return fmt.Errorf("mock SP1 verifier deployment is only supported for genesis")
-	}
 
 	requestedSP1Verifier, hasSP1VerifierOverride, err := parseSP1VerifierOverride(intent.GlobalDeployOverrides)
 	if err != nil {
@@ -70,19 +61,13 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	if err != nil {
 		return fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
-	zkEnabled := devfeatures.IsDevFeatureEnabled(proofParams.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
-	if !zkEnabled && hasSP1VerifierOverride {
-		return fmt.Errorf("sp1Verifier must not be specified when ZK dispute games are disabled")
-	}
 	selectedSP1Verifier := requestedSP1Verifier
-	if intent.OPCMAddress == nil && zkEnabled && !hasSP1VerifierOverride && !env.DeployMockSP1Verifier {
-		// A generated genesis contains no release-approved verifier, so it must be selected explicitly.
-		if env.IsGenesis {
-			return fmt.Errorf("sp1Verifier must be specified when ZK dispute games are enabled")
-		}
-		selectedSP1Verifier, err = standard.SP1VerifierFor(intent.L1ChainID)
-		if err != nil {
-			return fmt.Errorf("sp1Verifier must be specified when ZK dispute games are enabled on L1 chain ID %d: %w", intent.L1ChainID, err)
+	// A generated genesis contains no release-approved verifier, so only live deploys use the
+	// release default. Without a verifier, DeployImplementations deploys MockSP1Verifier on local
+	// dev chains and reverts on any other chain.
+	if intent.OPCMAddress == nil && !hasSP1VerifierOverride && !env.IsGenesis {
+		if v, err := standard.SP1VerifierFor(intent.L1ChainID); err == nil {
+			selectedSP1Verifier = v
 		}
 	}
 
@@ -99,10 +84,6 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 				if err := validateReusedSP1Verifier(env, st.ImplementationsDeployment.SP1PlonkAdapterImpl, requestedSP1Verifier); err != nil {
 					return err
 				}
-			}
-		} else if intent.OPCMAddress == nil && zkEnabled {
-			if st.SP1Verifier == nil || *st.SP1Verifier == (common.Address{}) {
-				return fmt.Errorf("reused ZK implementations do not record an SP1 verifier")
 			}
 		}
 		lgr.Info("implementations deployment not needed")
@@ -133,14 +114,10 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		Challenger:                         st.SuperchainRoles.Challenger,
 		SP1Verifier:                        selectedSP1Verifier,
 	}
-	if zkEnabled && input.SP1Verifier == (common.Address{}) {
-		input.SP1Verifier, err = deployGenesisMockSP1Verifier(env)
-		if err != nil {
-			return err
-		}
-	}
-	if zkEnabled {
+	if input.SP1Verifier != (common.Address{}) {
 		lgr.Info("using SP1 verifier", "address", input.SP1Verifier)
+	} else {
+		lgr.Warn("no SP1 verifier configured; DeployImplementations deploys an accept-all MockSP1Verifier on local dev chains and reverts elsewhere")
 	}
 
 	if env.UseForge {
@@ -258,24 +235,6 @@ func readReusedSP1Verifier(env *Env, adapter common.Address) (common.Address, er
 		return common.Address{}, fmt.Errorf("failed to decode sp1Verifier from reused SP1PlonkAdapter %s: %w", adapter, err)
 	}
 	return deployed, nil
-}
-
-func deployGenesisMockSP1Verifier(env *Env) (common.Address, error) {
-	if env.L1ScriptHost == nil {
-		return common.Address{}, fmt.Errorf("cannot deploy genesis MockSP1Verifier without an L1 script host")
-	}
-	artifact, err := env.L1ScriptHost.Artifacts().ReadArtifact(genesisMockSP1VerifierArtifact, genesisMockSP1VerifierContract)
-	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to read genesis MockSP1Verifier artifact: %w", err)
-	}
-	verifier, err := env.L1ScriptHost.Create(env.Deployer, artifact.Bytecode.Object)
-	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to deploy genesis MockSP1Verifier: %w", err)
-	}
-	if verifier == (common.Address{}) {
-		return common.Address{}, fmt.Errorf("genesis MockSP1Verifier deployment produced no contract address")
-	}
-	return verifier, nil
 }
 
 func shouldDeployImplementations(intent *state.Intent, st *state.State) bool {

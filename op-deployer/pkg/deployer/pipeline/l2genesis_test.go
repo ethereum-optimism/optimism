@@ -16,7 +16,7 @@ import (
 )
 
 func TestDevFeatureBitmapOverride(t *testing.T) {
-	bitmap := devfeatures.ZKDisputeGameFlag
+	bitmap := devfeatures.OPPrivateFlag
 
 	tests := []struct {
 		name       string

@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -51,21 +50,13 @@ func TestImplementationsConfigSP1Verifier(t *testing.T) {
 		Logger:                             testlog.Logger(t, slog.LevelDebug),
 	}
 
-	t.Run("disabled requires zero verifier", func(t *testing.T) {
+	t.Run("accepts unset verifier", func(t *testing.T) {
 		cfg := valid
-		cfg.SP1Verifier = common.Address{0x05}
-		require.ErrorContains(t, cfg.Check(), "must not be specified")
-	})
-
-	t.Run("enabled accepts network default", func(t *testing.T) {
-		cfg := valid
-		cfg.DevFeatureBitmap = devfeatures.ZKDisputeGameFlag
 		require.NoError(t, cfg.Check())
 	})
 
-	t.Run("enabled accepts verifier", func(t *testing.T) {
+	t.Run("accepts verifier", func(t *testing.T) {
 		cfg := valid
-		cfg.DevFeatureBitmap = devfeatures.ZKDisputeGameFlag
 		cfg.SP1Verifier = common.Address{0x05}
 		require.NoError(t, cfg.Check())
 	})
@@ -112,46 +103,34 @@ func TestImplementationsConfigSP1Verifier(t *testing.T) {
 
 func TestImplementationsConfigResolveSP1Verifier(t *testing.T) {
 	t.Run("mainnet default", func(t *testing.T) {
-		cfg := ImplementationsConfig{DevFeatureBitmap: devfeatures.ZKDisputeGameFlag}
-		require.NoError(t, cfg.resolveSP1Verifier(big.NewInt(1)))
+		var cfg ImplementationsConfig
+		cfg.resolveSP1Verifier(big.NewInt(1))
 		require.Equal(t, common.HexToAddress("0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"), cfg.SP1Verifier)
 	})
 
 	t.Run("sepolia default", func(t *testing.T) {
-		cfg := ImplementationsConfig{DevFeatureBitmap: devfeatures.ZKDisputeGameFlag}
-		require.NoError(t, cfg.resolveSP1Verifier(big.NewInt(11155111)))
+		var cfg ImplementationsConfig
+		cfg.resolveSP1Verifier(big.NewInt(11155111))
 		require.Equal(t, common.HexToAddress("0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"), cfg.SP1Verifier)
 	})
 
-	t.Run("unknown network fails", func(t *testing.T) {
-		cfg := ImplementationsConfig{DevFeatureBitmap: devfeatures.ZKDisputeGameFlag}
-		err := cfg.resolveSP1Verifier(big.NewInt(900))
-		require.ErrorContains(t, err, "no default SP1 verifier for L1 chain ID 900")
-		require.ErrorContains(t, err, "--sp1-verifier-address")
-	})
-
-	t.Run("large unknown network fails", func(t *testing.T) {
-		cfg := ImplementationsConfig{DevFeatureBitmap: devfeatures.ZKDisputeGameFlag}
-		chainID := new(big.Int).Lsh(big.NewInt(1), 80)
-		err := cfg.resolveSP1Verifier(chainID)
-		require.ErrorContains(t, err, "no default SP1 verifier for L1 chain ID")
-		require.ErrorContains(t, err, "--sp1-verifier-address")
-	})
-
-	t.Run("override permits unknown network", func(t *testing.T) {
-		override := common.Address{0x05}
-		cfg := ImplementationsConfig{
-			DevFeatureBitmap: devfeatures.ZKDisputeGameFlag,
-			SP1Verifier:      override,
-		}
-		require.NoError(t, cfg.resolveSP1Verifier(big.NewInt(900)))
-		require.Equal(t, override, cfg.SP1Verifier)
-	})
-
-	t.Run("disabled does not select verifier", func(t *testing.T) {
-		cfg := ImplementationsConfig{}
-		require.NoError(t, cfg.resolveSP1Verifier(big.NewInt(900)))
+	t.Run("unknown network selects nothing", func(t *testing.T) {
+		var cfg ImplementationsConfig
+		cfg.resolveSP1Verifier(big.NewInt(900))
 		require.Equal(t, common.Address{}, cfg.SP1Verifier)
+	})
+
+	t.Run("large unknown network selects nothing", func(t *testing.T) {
+		var cfg ImplementationsConfig
+		cfg.resolveSP1Verifier(new(big.Int).Lsh(big.NewInt(1), 80))
+		require.Equal(t, common.Address{}, cfg.SP1Verifier)
+	})
+
+	t.Run("override wins", func(t *testing.T) {
+		override := common.Address{0x05}
+		cfg := ImplementationsConfig{SP1Verifier: override}
+		cfg.resolveSP1Verifier(big.NewInt(1))
+		require.Equal(t, override, cfg.SP1Verifier)
 	})
 }
 

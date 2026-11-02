@@ -669,7 +669,7 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 	opts := deployer.ApplyPipelineOpts{
 		DeploymentTarget:   deployer.DeploymentTargetGenesis,
 		DeployerPrivateKey: deployerKey, Intent: intent, State: st,
-		Logger: wb.logger, StateWriter: wb, DeployMockSP1Verifier: true,
+		Logger: wb.logger, StateWriter: wb,
 		AllowUnoptimizedContracts: true,
 		ReceiptQueryInterval:      100 * time.Millisecond,
 	}
@@ -696,8 +696,7 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 	pEnv := &pipeline.Env{
 		StateWriter: pipeline.NoopStateWriter(), L1ScriptHost: host, Logger: wb.logger,
 		Broadcaster: broadcaster.NoopBroadcaster(), Deployer: deployerAddr, Scripts: scripts,
-		IsGenesis: true, DeployMockSP1Verifier: opts.DeployMockSP1Verifier,
-		AllowUnoptimizedContracts: true, Context: wb.p.Ctx(),
+		IsGenesis: true, AllowUnoptimizedContracts: true, Context: wb.p.Ctx(),
 	}
 	// Preinstalls wipe the deployer; run them before CREATE consumes its nonces.
 	for _, stage := range []func(*pipeline.Env, *state.Intent, *state.State) error{
@@ -719,7 +718,6 @@ func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1
 	intent.SuperchainRoles = nil
 	opts.DeploymentTarget = deployer.DeploymentTargetLive
 	opts.L1RPCUrl = l1EL.UserRPC()
-	opts.DeployMockSP1Verifier = false
 	if prepareDeployment {
 		wb.prepareAndDeployChains(opts, l1CL)
 		opts.State = wb.output

@@ -5,8 +5,9 @@ name: Compile contracts-bedrock and pack op-deployer's embedded contract artifac
 # go build ships the embed dir with only its README, so the binary builds but
 # `op-deployer apply` fails at runtime with "artifacts.tzst: file does not
 # exist". This reproduces the production portion of the upstream op-deployer
-# artifact build so the embed target exists before `go build`. The devstack-only
-# MockSP1Verifier test artifact is intentionally excluded from shipped images.
+# artifact build so the embed target exists before `go build`. The
+# MockSP1Verifier artifact is excluded from shipped images; DeployImplementations
+# embeds its bytecode for the local dev chain fallback.
 #
 # Requires op-deployer/install-forge to run first and git (contracts-bedrock
 # pulls its Solidity deps as submodules, checked out alongside the source).

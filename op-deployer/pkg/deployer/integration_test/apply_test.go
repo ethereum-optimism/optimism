@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
@@ -158,9 +157,9 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	})
 }
 
-// TestApplyDefaultsSP1VerifierOnSepolia pins that a ZK-enabled live apply with no sp1Verifier
-// override deploys an SP1PlonkAdapter wrapping the release-approved raw verifier, and that the
-// verifier implements the circuit recorded in standard.SP1VerifierHashFor.
+// TestApplyDefaultsSP1VerifierOnSepolia pins that a live apply with no sp1Verifier override deploys
+// an SP1PlonkAdapter wrapping the release-approved raw verifier, and that the verifier implements
+// the circuit recorded in standard.SP1VerifierHashFor.
 func TestApplyDefaultsSP1VerifierOnSepolia(t *testing.T) {
 	op_e2e.InitParallel(t)
 
@@ -182,9 +181,6 @@ func TestApplyDefaultsSP1VerifierOnSepolia(t *testing.T) {
 	const sepoliaChainID = 11155111
 	_, pk, dk := shared.DefaultPrivkey(t)
 	intent, st := shared.NewIntent(t, big.NewInt(sepoliaChainID), dk, uint256.NewInt(12345), loc, loc, 30_000_000)
-	intent.GlobalDeployOverrides = map[string]any{
-		"devFeatureBitmap": devfeatures.EnableDevFeature(common.Hash{}, devfeatures.ZKDisputeGameFlag),
-	}
 
 	require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
 		DeploymentTarget:   deployer.DeploymentTargetLive,
@@ -212,7 +208,7 @@ func TestApplyDefaultsSP1VerifierOnSepolia(t *testing.T) {
 	require.NotEmpty(t, verifierCode, "release verifier must already be deployed on Sepolia")
 
 	adapter := st.ImplementationsDeployment.SP1PlonkAdapterImpl
-	require.NotEqual(t, common.Address{}, adapter, "ZK-enabled apply should deploy an SP1PlonkAdapter")
+	require.NotEqual(t, common.Address{}, adapter, "apply should deploy an SP1PlonkAdapter")
 
 	sp1VerifierFn := w3.MustNewFunc("sp1Verifier()", "address")
 	calldata, err := sp1VerifierFn.EncodeArgs()
