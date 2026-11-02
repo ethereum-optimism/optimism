@@ -1,4 +1,4 @@
-//! A builder for the [`GossipDriver`].
+//! A builder for the [`GossipDriver`](crate::GossipDriver).
 
 use alloy_primitives::Address;
 use kona_genesis::RollupConfig;
@@ -16,8 +16,8 @@ use std::{convert::Infallible, error::Error, time::Duration};
 use tokio::sync::watch;
 
 use crate::{
-    Behaviour, BlockHandler, ConnectionGate, GaterConfig, GossipDriver, GossipDriverBuilderError,
-    GossipDriverConfig, PeerAddr,
+    Behaviour, BlockHandler, ConnectionGate, GaterConfig, GossipDriverBuilderError,
+    GossipDriverConfig, GossipDriverStarter, PeerAddr,
 };
 
 /// How long a connection with no open streams stays open, unless set with
@@ -44,7 +44,7 @@ pub enum GossipTransport {
     Other(#[debug(skip)] TransportBuilder),
 }
 
-/// A builder for the [`GossipDriver`].
+/// A builder for the [`GossipDriver`](crate::GossipDriver).
 #[derive(Debug)]
 pub struct GossipDriverBuilder {
     /// The [`RollupConfig`] for the network.
@@ -193,8 +193,12 @@ impl GossipDriverBuilder {
         self
     }
 
-    /// Builds the [`GossipDriver`].
-    pub fn build(self) -> Result<GossipDriver<crate::ConnectionGater>, GossipDriverBuilderError> {
+    /// Builds the swarm, and returns the [`GossipDriverStarter`] whose
+    /// [`start`](GossipDriverStarter::start) returns the running
+    /// [`GossipDriver`](crate::GossipDriver).
+    pub fn build(
+        self,
+    ) -> Result<GossipDriverStarter<crate::ConnectionGater>, GossipDriverBuilderError> {
         // Unpacked without `..`, so a new builder field that is never used fails to compile.
         let Self {
             rollup_config,
@@ -300,13 +304,21 @@ impl GossipDriverBuilder {
             gate = gate.allowing_addrs_without_ip();
         }
 
-        Ok(GossipDriver::new(swarm, addr, handler, gate, static_peers, driver_config))
+        Ok(GossipDriverStarter {
+            swarm,
+            addr,
+            handler,
+            connection_gate: gate,
+            static_peers,
+            config: driver_config,
+        })
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::GossipDriver;
     use libp2p::{
         Transport,
         core::{transport::MemoryTransport, upgrade::Version},
@@ -328,7 +340,7 @@ pub(crate) mod tests {
 
     /// Builds a gossip driver whose swarm uses the in-memory transport, listening on a free
     /// `/memory` port once started.
-    pub(crate) fn memory_driver() -> GossipDriver<crate::ConnectionGater> {
+    pub(crate) fn memory_driver() -> GossipDriverStarter<crate::ConnectionGater> {
         memory_driver_builder().build().expect("build gossip driver")
     }
 
@@ -437,8 +449,7 @@ pub(crate) mod tests {
         let addr = Multiaddr::empty().with(Protocol::Memory(rand::random::<u64>()));
         let builder = || memory_driver_builder_at(Keypair::generate_secp256k1(), addr.clone());
 
-        let mut driver = builder().build().expect("build");
-        driver.start().await.expect("listen");
+        let driver = builder().build().expect("build").start().await.expect("listen");
         drop(driver);
 
         builder().build().expect("build").start().await.expect("listen on the same address");
@@ -448,13 +459,11 @@ pub(crate) mod tests {
     /// and connect over `/memory` addresses.
     #[tokio::test]
     async fn test_other_transport_connects_swarms() {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
-
         // Port 0 binds a free memory port, the way it binds a free TCP port.
-        let addr_2 = driver_2.start().await.expect("listen");
+        let mut driver_2 = memory_driver().start().await.expect("listen");
+        let addr_2 = driver_2.peer_addr();
         assert!(matches!(addr_2.addr().iter().next(), Some(Protocol::Memory(port)) if port != 0));
-        driver_1.start().await.expect("listen");
+        let mut driver_1 = memory_driver().start().await.expect("listen");
 
         driver_1.swarm.dial(Multiaddr::from(addr_2)).expect("dial");
 

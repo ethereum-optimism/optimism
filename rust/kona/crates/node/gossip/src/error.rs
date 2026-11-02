@@ -68,12 +68,9 @@ pub enum GossipDriverBuilderError {
     InvalidPeerScoring(String),
 }
 
-/// An error from [`crate::GossipDriver::start`].
+/// An error from [`crate::GossipDriverStarter::start`].
 #[derive(Debug, Error)]
 pub enum StartError {
-    /// The driver is already listening, on the address [`crate::GossipDriver::addr`] returns.
-    #[error("the gossip driver has already been started")]
-    AlreadyStarted,
     /// The transport can't listen on the address.
     #[error("failed to listen")]
     Listen(#[from] libp2p::TransportError<std::io::Error>),

@@ -455,7 +455,7 @@ mod tests {
         driver: GossipDriver<ConnectionGater>,
     }
 
-    fn fixture(discovery: bool) -> Fixture {
+    async fn fixture(discovery: bool) -> Fixture {
         let driver = GossipDriver::<ConnectionGater>::builder(
             RollupConfig::default(),
             Address::ZERO,
@@ -463,6 +463,9 @@ mod tests {
             Keypair::generate_secp256k1(),
         )
         .build()
+        .unwrap()
+        .start()
+        .await
         .unwrap();
         let (state_tx, state_rx) = watch::channel(Arc::new(driver.snapshot()));
         let (refresh_tx, refresh_rx) = mpsc::channel(1);
@@ -501,7 +504,7 @@ mod tests {
     #[case::nothing_to_dial("/p2p/16Uiu2HAmLFhCjjNUXiZA3Hdd3j3qp6rnD6tHkFtsSZmhpV8axfGX")]
     #[tokio::test]
     async fn connect_peer_rejects_an_address_without_a_peer_to_dial(#[case] addr: &str) {
-        let mut fixture = fixture(false);
+        let mut fixture = fixture(false).await;
         let err = fixture.rpc.opp2p_connect_peer(addr.to_owned()).await.expect_err("rejected");
         assert_eq!(err.code(), ErrorCode::InvalidParams.code());
         assert!(fixture.commands_rx.try_recv().is_err());
@@ -511,7 +514,7 @@ mod tests {
     /// read right after it lists the peer, though an older snapshot is still young enough to use.
     #[tokio::test]
     async fn connect_peer_returns_once_the_state_shows_the_connection() {
-        let mut fixture = fixture(false);
+        let mut fixture = fixture(false).await;
         let peer = Keypair::generate_secp256k1().public().to_peer_id();
         let connect = fixture.rpc.clone();
         let connect = connect.opp2p_connect_peer(format!("/ip4/127.0.0.1/tcp/9222/p2p/{peer}"));
@@ -530,7 +533,7 @@ mod tests {
     /// `opp2p_disconnectPeer` returns only once the gossip state shows the disconnection.
     #[tokio::test]
     async fn disconnect_peer_returns_once_the_state_shows_the_disconnection() {
-        let mut fixture = fixture(false);
+        let mut fixture = fixture(false).await;
         let peer = Keypair::generate_secp256k1().public().to_peer_id();
         let mut state = fixture.driver.snapshot();
         state.connected_peers.insert(peer);
@@ -553,7 +556,7 @@ mod tests {
 
     #[tokio::test]
     async fn queries_assemble_peer_data_without_sending_network_requests() {
-        let mut fixture = fixture(true);
+        let mut fixture = fixture(true).await;
         let connected_key = Keypair::generate_secp256k1();
         let disconnected_key = Keypair::generate_secp256k1();
         let connected = connected_key.public().to_peer_id();
@@ -624,7 +627,7 @@ mod tests {
 
     #[tokio::test]
     async fn queries_observe_updates_and_fail_after_the_publisher_exits() {
-        let fixture = fixture(true);
+        let fixture = fixture(true).await;
         let clone = fixture.rpc.clone();
         assert!(clone.opp2p_list_blocked_peers().await.unwrap().is_empty());
         let mut state = fixture.driver.snapshot();
@@ -643,7 +646,7 @@ mod tests {
 
     #[tokio::test]
     async fn discovery_failure_preserves_optional_peer_count_and_errors_for_stats() {
-        let mut fixture = fixture(true);
+        let mut fixture = fixture(true).await;
         let mut state = fixture.driver.snapshot();
         state.connected_peers.insert(Keypair::generate_secp256k1().public().to_peer_id());
         fixture.state_tx.send_replace(Arc::new(state));
@@ -662,7 +665,7 @@ mod tests {
     /// stats, and an error for the table itself.
     #[tokio::test]
     async fn queries_answer_without_discovery() {
-        let fixture = fixture(false);
+        let fixture = fixture(false).await;
         let mut state = fixture.driver.snapshot();
         let peer = Keypair::generate_secp256k1().public().to_peer_id();
         state.connected_peers.insert(peer);

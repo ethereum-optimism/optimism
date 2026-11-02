@@ -82,7 +82,7 @@ mod handler;
 pub use handler::{BlockHandler, Handler};
 
 mod driver;
-pub use driver::{GossipDriver, GossipDriverConfig};
+pub use driver::{GossipDriver, GossipDriverConfig, GossipDriverStarter};
 
 mod block_validity;
 pub use block_validity::BlockInvalidError;

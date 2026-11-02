@@ -203,16 +203,21 @@ mod tests {
     use super::*;
     use crate::builder::tests::memory_driver;
 
+    /// A snapshot of a driver that has just started.
+    async fn snapshot() -> GossipState {
+        memory_driver().start().await.expect("listen").snapshot()
+    }
+
     /// A handle on a published snapshot, and the actor's ends of the channels.
-    fn handle() -> (GossipQueryHandle, watch::Sender<Arc<GossipState>>, mpsc::Receiver<()>) {
-        let (state_tx, state_rx) = watch::channel(Arc::new(memory_driver().snapshot()));
+    async fn handle() -> (GossipQueryHandle, watch::Sender<Arc<GossipState>>, mpsc::Receiver<()>) {
+        let (state_tx, state_rx) = watch::channel(Arc::new(snapshot().await));
         let (refresh_tx, refresh_rx) = mpsc::channel(1);
         (GossipQueryHandle::new(state_rx, refresh_tx), state_tx, refresh_rx)
     }
 
     /// Publishes a new snapshot, as the actor does when asked.
-    fn publish(state_tx: &watch::Sender<Arc<GossipState>>) -> Arc<GossipState> {
-        let state = Arc::new(memory_driver().snapshot());
+    async fn publish(state_tx: &watch::Sender<Arc<GossipState>>) -> Arc<GossipState> {
+        let state = Arc::new(snapshot().await);
         state_tx.send_replace(Arc::clone(&state));
         state
     }
@@ -220,7 +225,7 @@ mod tests {
     /// A snapshot younger than `max_age` is returned as it is, without asking the actor.
     #[tokio::test(start_paused = true)]
     async fn test_fresh_snapshot_is_read_without_the_actor() {
-        let (handle, state_tx, mut refresh_rx) = handle();
+        let (handle, state_tx, mut refresh_rx) = handle().await;
         let published = Arc::clone(&state_tx.borrow());
         tokio::time::advance(Duration::from_millis(500)).await;
 
@@ -232,12 +237,12 @@ mod tests {
     /// A snapshot older than `max_age` makes the reader ask for a new one, and wait for it.
     #[tokio::test(start_paused = true)]
     async fn test_stale_snapshot_waits_for_a_new_one() {
-        let (handle, state_tx, mut refresh_rx) = handle();
+        let (handle, state_tx, mut refresh_rx) = handle().await;
         tokio::time::advance(Duration::from_secs(2)).await;
 
         let read = tokio::spawn(async move { handle.snapshot(Duration::from_secs(1)).await });
         refresh_rx.recv().await.expect("a refresh request");
-        let published = publish(&state_tx);
+        let published = publish(&state_tx).await;
 
         let snapshot = read.await.expect("reader").expect("snapshot");
         assert!(Arc::ptr_eq(&snapshot, &published));
@@ -247,7 +252,7 @@ mod tests {
     /// snapshot built for it.
     #[tokio::test(start_paused = true)]
     async fn test_concurrent_stale_reads_share_one_snapshot() {
-        let (handle, state_tx, mut refresh_rx) = handle();
+        let (handle, state_tx, mut refresh_rx) = handle().await;
         tokio::time::advance(Duration::from_secs(2)).await;
 
         // Poll each read once: after that, each has asked for a refresh, or found one already
@@ -259,7 +264,7 @@ mod tests {
         }
         refresh_rx.try_recv().expect("one refresh request");
         assert!(refresh_rx.try_recv().is_err(), "only one refresh request");
-        let published = publish(&state_tx);
+        let published = publish(&state_tx).await;
 
         for read in reads {
             assert!(Arc::ptr_eq(&read.await.expect("snapshot"), &published));
@@ -270,12 +275,12 @@ mod tests {
     /// for one published after it asked.
     #[tokio::test(start_paused = true)]
     async fn test_zero_max_age_waits_for_a_snapshot_after_the_call() {
-        let (handle, state_tx, mut refresh_rx) = handle();
+        let (handle, state_tx, mut refresh_rx) = handle().await;
         let published = Arc::clone(&state_tx.borrow());
 
         let read = tokio::spawn(async move { handle.snapshot(Duration::ZERO).await });
         refresh_rx.recv().await.expect("a refresh request");
-        let newer = publish(&state_tx);
+        let newer = publish(&state_tx).await;
 
         let snapshot = read.await.expect("reader").expect("snapshot");
         assert!(!Arc::ptr_eq(&snapshot, &published));
@@ -285,7 +290,7 @@ mod tests {
     /// If the actor doesn't answer a refresh request in time, the reader gets the last snapshot.
     #[tokio::test(start_paused = true)]
     async fn test_busy_actor_delays_reads_by_the_refresh_timeout() {
-        let (handle, state_tx, _refresh_rx) = handle();
+        let (handle, state_tx, _refresh_rx) = handle().await;
         let published = Arc::clone(&state_tx.borrow());
         let start = Instant::now();
 
@@ -297,7 +302,7 @@ mod tests {
     /// Once the actor has stopped, reads fail rather than return its last snapshot.
     #[tokio::test(start_paused = true)]
     async fn test_reads_fail_after_the_actor_stops() {
-        let (handle, state_tx, refresh_rx) = handle();
+        let (handle, state_tx, refresh_rx) = handle().await;
         drop(state_tx);
         drop(refresh_rx);
         assert!(handle.snapshot(Duration::from_secs(1)).await.is_err());

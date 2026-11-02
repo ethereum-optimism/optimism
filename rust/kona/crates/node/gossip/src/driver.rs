@@ -33,7 +33,7 @@ pub struct GossipDriver<G: ConnectionGate> {
     /// The [`Swarm`] instance.
     #[debug(skip)]
     pub(crate) swarm: Swarm<Behaviour>,
-    /// A [`Multiaddr`] to listen on.
+    /// The address the swarm listens on.
     pub(crate) addr: Multiaddr,
     /// The settings the driver was built with.
     pub(crate) config: GossipDriverConfig,
@@ -68,9 +68,9 @@ pub struct GossipDriver<G: ConnectionGate> {
     /// Set when a duplicate connection is established, and after each check to the earliest
     /// duplicate still in its grace period. `None` until the next duplicate is established.
     next_duplicate_check: Option<Instant>,
-    /// The listener [`Self::start`] added, removed again when the driver is dropped. `None` until
-    /// the driver starts, and again once the listener closes.
-    listener_id: Option<ListenerId>,
+    /// The listener [`GossipDriverStarter::start`] added, removed again when the driver is
+    /// dropped.
+    listener_id: ListenerId,
 }
 
 /// Removes the listener, so another driver can listen on the same address.
@@ -79,8 +79,102 @@ pub struct GossipDriver<G: ConnectionGate> {
 /// listener is removed, so a restarted in-memory node couldn't listen on its address again.
 impl<G: ConnectionGate> Drop for GossipDriver<G> {
     fn drop(&mut self) {
-        if let Some(listener_id) = self.listener_id.take() {
-            self.swarm.remove_listener(listener_id);
+        // Does nothing if the listener has already closed.
+        self.swarm.remove_listener(self.listener_id);
+    }
+}
+
+/// A gossip swarm and the settings to run it with, not listening yet. [`Self::start`] consumes it
+/// and returns the running [`GossipDriver`], so a driver starts only once.
+///
+/// [`GossipDriverBuilder::build`] makes one.
+#[derive(Debug)]
+pub struct GossipDriverStarter<G: ConnectionGate> {
+    /// The [`Swarm`] instance.
+    #[debug(skip)]
+    pub(crate) swarm: Swarm<Behaviour>,
+    /// The address to listen on.
+    pub(crate) addr: Multiaddr,
+    /// The [`BlockHandler`].
+    pub(crate) handler: BlockHandler,
+    /// The connection gate.
+    pub(crate) connection_gate: G,
+    /// The addresses of each peer to dial at startup and keep connected, without the node's own
+    /// ID.
+    pub(crate) static_peers: HashMap<PeerId, Vec<Multiaddr>>,
+    /// How the driver behaves once it runs.
+    pub(crate) config: GossipDriverConfig,
+}
+
+impl<G: ConnectionGate> GossipDriverStarter<G> {
+    /// Returns the address the driver will listen on.
+    pub const fn addr(&self) -> &Multiaddr {
+        &self.addr
+    }
+
+    /// Returns the [`BlockHandler`] the driver will validate blocks with.
+    pub const fn handler(&self) -> &BlockHandler {
+        &self.handler
+    }
+
+    /// Starts the libp2p Swarm.
+    ///
+    /// - Tells the swarm to listen on the given [`Multiaddr`], and waits until it does.
+    /// - Dials the static peers.
+    ///
+    /// The dials only start once the swarm listens, so a start that fails leaves nothing running.
+    ///
+    /// Returns the running driver. Its [`GossipDriver::peer_addr`] is where peers can dial this
+    /// node: one interface and port, where the configured address may have been `0.0.0.0` or port
+    /// 0.
+    pub async fn start(self) -> Result<GossipDriver<G>, StartError> {
+        // Unpacked without `..`, so a new field that is never used fails to compile.
+        let Self { mut swarm, addr, handler, connection_gate, static_peers, config } = self;
+        let listener_id = swarm.listen_on(addr.clone()).inspect_err(|err| {
+            error!(target: "gossip", "Fail to listen on {addr}: {err}");
+        })?;
+        let mut driver = GossipDriver {
+            swarm,
+            addr,
+            config,
+            handler,
+            peerstore: HashMap::new(),
+            peer_connection_start: HashMap::new(),
+            connection_gate,
+            static_peers,
+            next_static_peer_check: None,
+            ping: HashMap::new(),
+            pending_connects: HashMap::new(),
+            pending_disconnects: HashMap::new(),
+            connections: HashMap::new(),
+            next_duplicate_check: None,
+            listener_id,
+        };
+        loop {
+            match driver.swarm.select_next_some().await {
+                SwarmEvent::NewListenAddr { address, listener_id }
+                    if listener_id == driver.listener_id =>
+                {
+                    info!(target: "gossip", peer_id = %driver.local_peer_id(), "Swarm now listening on: {address}");
+
+                    driver.addr = address;
+                    driver.dial_static_peers();
+
+                    return Ok(driver);
+                }
+                SwarmEvent::ListenerClosed { listener_id, reason, .. }
+                    if listener_id == driver.listener_id =>
+                {
+                    error!(target: "gossip", ?reason, "Listener on {} closed before it reported an address", driver.addr);
+                    return Err(StartError::ListenerClosed(reason.err()));
+                }
+                // Keep the driver's state in step with the swarm. A block arriving here would be
+                // dropped, but blocks need a connection, and the driver dials its static peers only
+                // once it listens.
+                event => {
+                    driver.handle_event(event);
+                }
+            }
         }
     }
 }
@@ -169,34 +263,6 @@ where
         GossipDriverBuilder::new(rollup_config, signer, gossip_addr, keypair)
     }
 
-    /// Creates a driver for `swarm`, which isn't listening yet.
-    pub(crate) fn new(
-        swarm: Swarm<Behaviour>,
-        addr: Multiaddr,
-        handler: BlockHandler,
-        connection_gate: G,
-        static_peers: HashMap<PeerId, Vec<Multiaddr>>,
-        config: GossipDriverConfig,
-    ) -> Self {
-        Self {
-            swarm,
-            addr,
-            config,
-            handler,
-            peerstore: Default::default(),
-            peer_connection_start: Default::default(),
-            connection_gate,
-            static_peers,
-            next_static_peer_check: None,
-            listener_id: None,
-            ping: HashMap::new(),
-            pending_connects: HashMap::new(),
-            pending_disconnects: HashMap::new(),
-            connections: Default::default(),
-            next_duplicate_check: None,
-        }
-    }
-
     /// Returns the settings the driver was built with.
     pub const fn config(&self) -> &GossipDriverConfig {
         &self.config
@@ -226,54 +292,6 @@ where
         let id = self.swarm.behaviour_mut().gossipsub.publish(topic_hash, data)?;
         metrics::gauge!(crate::Metrics::UNSAFE_BLOCK_PUBLISHED).increment(1);
         Ok(id)
-    }
-
-    /// Starts the libp2p Swarm.
-    ///
-    /// - Tells the swarm to listen on the given [`Multiaddr`], and waits until it does.
-    /// - Dials the static peers.
-    ///
-    /// The dials only start once the swarm listens, so a start that fails leaves nothing running.
-    ///
-    /// Returns where peers can dial this node: the address the swarm listens on, ending in this
-    /// node's peer ID. [`Self::peer_addr`] returns it later too.
-    ///
-    /// While the driver listens, calling this again returns [`StartError::AlreadyStarted`], and the
-    /// driver keeps listening on the address the first call returned. Once its listener closes, it
-    /// can start again, and then listens on that returned address, not the one it was built with:
-    /// one interface and port, where the configured address may have been `0.0.0.0` or port 0.
-    pub async fn start(&mut self) -> Result<PeerAddr, StartError> {
-        if self.listener_id.is_some() {
-            return Err(StartError::AlreadyStarted);
-        }
-
-        let id = self.swarm.listen_on(self.addr.clone()).inspect_err(|err| {
-            error!(target: "gossip", "Fail to listen on {}: {err}", self.addr);
-        })?;
-        self.listener_id = Some(id);
-        loop {
-            match self.swarm.select_next_some().await {
-                SwarmEvent::NewListenAddr { address, listener_id } if listener_id == id => {
-                    info!(target: "gossip", peer_id = %self.local_peer_id(), "Swarm now listening on: {address}");
-
-                    self.addr = address;
-                    self.dial_static_peers();
-
-                    return Ok(self.peer_addr().expect("listening"));
-                }
-                SwarmEvent::ListenerClosed { listener_id, reason, .. } if listener_id == id => {
-                    error!(target: "gossip", ?reason, "Listener on {} closed before it reported an address", self.addr);
-                    self.listener_id = None;
-                    return Err(StartError::ListenerClosed(reason.err()));
-                }
-                // Keep the driver's state in step with the swarm. A block arriving here would be
-                // dropped, but blocks need a connection, and the driver dials its static peers only
-                // once it listens.
-                event => {
-                    self.handle_event(event);
-                }
-            }
-        }
     }
 
     /// Dials each static peer that isn't connected, at all of its addresses, then schedules the
@@ -313,20 +331,17 @@ where
         self.swarm.local_peer_id()
     }
 
-    /// Returns the address the driver listens on, the one it was built with until
-    /// [`Self::start`] replaces it with the address the swarm reports.
+    /// Returns the address the driver listens on, as the swarm reported it.
     pub const fn addr(&self) -> &Multiaddr {
         &self.addr
     }
 
-    /// Returns where peers can dial this node, ending in its peer ID: the address
-    /// [`Self::start`] returned. `None` until the driver listens, and again once its listener
-    /// closes.
-    pub fn peer_addr(&self) -> Option<PeerAddr> {
-        self.listener_id?;
+    /// Returns where peers can dial this node: the address the swarm listens on, ending in this
+    /// node's peer ID.
+    pub fn peer_addr(&self) -> PeerAddr {
         // The swarm reports listen addresses without a `/p2p`.
-        let addr = PeerAddr::new(self.addr.clone(), *self.local_peer_id());
-        Some(addr.expect("a listen address is a peer address once it has the peer ID"))
+        PeerAddr::new(self.addr.clone(), *self.local_peer_id())
+            .expect("a listen address is a peer address once it has the peer ID")
     }
 
     /// Returns the [`BlockHandler`].
@@ -995,13 +1010,11 @@ where
             SwarmEvent::NewListenAddr { listener_id, address } => {
                 debug!(target: "gossip", reporter_id = ?listener_id, new_address = ?address, "New listen address");
             }
-            // The node no longer accepts connections. Forget the listener, so that the driver can
-            // start listening again.
+            // The node no longer accepts connections.
             SwarmEvent::ListenerClosed { listener_id, addresses, reason }
-                if self.listener_id == Some(listener_id) =>
+                if listener_id == self.listener_id =>
             {
                 error!(target: "gossip", ?addresses, ?reason, "Gossip listener closed, not accepting connections");
-                self.listener_id = None;
             }
             SwarmEvent::Dialing { peer_id, connection_id } => {
                 debug!(target: "gossip", ?peer_id, ?connection_id, "Dialing peer");
@@ -1112,31 +1125,26 @@ mod tests {
             .any(|(id, topics)| *id == peer && !topics.is_empty())
     }
 
-    /// Starts both drivers and has them dial each other at the same time, returning their peer IDs.
+    /// Starts both drivers and has them dial each other at the same time.
     async fn cross_dial(
-        driver_1: &mut GossipDriver<ConnectionGater>,
-        driver_2: &mut GossipDriver<ConnectionGater>,
-    ) -> (PeerId, PeerId) {
-        let peer_1 = *driver_1.local_peer_id();
-        let peer_2 = *driver_2.local_peer_id();
-        let addr_1 = driver_1.start().await.expect("listen");
-        let addr_2 = driver_2.start().await.expect("listen");
-        driver_1.dial_multiaddr(addr_2).expect("dial");
-        driver_2.dial_multiaddr(addr_1).expect("dial");
-        (peer_1, peer_2)
+        starter_1: GossipDriverStarter<ConnectionGater>,
+        starter_2: GossipDriverStarter<ConnectionGater>,
+    ) -> (GossipDriver<ConnectionGater>, GossipDriver<ConnectionGater>) {
+        let mut driver_1 = starter_1.start().await.expect("listen");
+        let mut driver_2 = starter_2.start().await.expect("listen");
+        driver_1.dial_multiaddr(driver_2.peer_addr()).expect("dial");
+        driver_2.dial_multiaddr(driver_1.peer_addr()).expect("dial");
+        (driver_1, driver_2)
     }
 
-    /// Starting a driver again fails, and the driver keeps listening where it first started.
+    /// A started driver reports the address it listens on, where another driver can reach it.
     #[tokio::test]
-    async fn test_start_twice_fails() {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
-        let addr_1 = driver_1.start().await.expect("listen");
+    async fn test_peer_addr_is_where_the_driver_listens() {
+        let mut driver_1 = memory_driver().start().await.expect("listen");
+        let addr_1 = driver_1.peer_addr();
+        assert_eq!(driver_1.peer_addr(), addr_1);
 
-        assert!(matches!(driver_1.start().await, Err(StartError::AlreadyStarted)));
-        assert_eq!(driver_1.peer_addr(), Some(addr_1.clone()));
-
-        driver_2.start().await.expect("listen");
+        let mut driver_2 = memory_driver().start().await.expect("listen");
         driver_2.dial_multiaddr(addr_1).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
@@ -1194,32 +1202,28 @@ mod tests {
     /// it waiting for an address that never comes.
     #[tokio::test]
     async fn test_start_fails_when_listener_closes() {
-        let mut driver = memory_driver_builder()
+        let starter = memory_driver_builder()
             .with_transport(GossipTransport::Other(Box::new(|_| {
                 Ok(ClosingTransport::default().boxed())
             })))
             .build()
             .expect("build");
 
-        let start = tokio::time::timeout(Duration::from_secs(10), driver.start()).await;
+        let start = tokio::time::timeout(Duration::from_secs(10), starter.start()).await;
         let Ok(Err(StartError::ListenerClosed(Some(reason)))) = start else {
             panic!("expected the listener to close, got {start:?}");
         };
         assert_eq!(reason.to_string(), "listener failed");
     }
 
-    /// When our listener closes, the driver forgets it, and can start listening again, on the
-    /// address it had.
+    /// A driver whose listener has already closed is dropped like any other: removing the
+    /// listener again does nothing.
     #[tokio::test]
-    async fn test_driver_forgets_a_closed_listener() {
-        let mut driver = memory_driver();
-        let addr = driver.start().await.expect("listen");
-        let listener_id = driver.listener_id.expect("a listener");
-
-        assert!(driver.swarm.remove_listener(listener_id));
-        poll_one_until(&mut driver, |driver| driver.listener_id.is_none()).await;
-
-        assert_eq!(driver.start().await.expect("listen again"), addr);
+    async fn test_driver_with_a_closed_listener_drops() {
+        let mut driver = memory_driver().start().await.expect("listen");
+        assert!(driver.swarm.remove_listener(driver.listener_id));
+        poll_one_until(&mut driver, |driver| driver.swarm.listeners().next().is_none()).await;
+        drop(driver);
     }
 
     /// kona doesn't serve op-node's retired sync request/response protocol, `payload_by_number`.
@@ -1227,9 +1231,8 @@ mod tests {
     /// single byte on it, let alone the 128 MiB it once could.
     #[tokio::test]
     async fn test_sync_request_protocol_is_unsupported() {
-        let mut driver = memory_driver();
+        let mut driver = memory_driver().start().await.expect("listen");
         let peer_id = *driver.local_peer_id();
-        let addr = driver.start().await.expect("listen");
 
         let GossipTransport::Other(transport) = memory_transport() else {
             unreachable!("the memory transport is a custom one");
@@ -1241,7 +1244,7 @@ mod tests {
             .with_behaviour(|_| libp2p_stream::Behaviour::new())
             .expect("behaviour")
             .build();
-        peer.dial(Multiaddr::from(addr)).expect("dial");
+        peer.dial(Multiaddr::from(driver.peer_addr())).expect("dial");
 
         let chain_id = driver.handler().rollup_config.l2_chain_id;
         let protocol =
@@ -1276,7 +1279,8 @@ mod tests {
         driver_1.config.duplicate_connection_grace = Duration::from_millis(100);
         driver_2.config.duplicate_connection_grace = Duration::from_millis(100);
 
-        let (peer_1, peer_2) = cross_dial(&mut driver_1, &mut driver_2).await;
+        let (mut driver_1, mut driver_2) = cross_dial(driver_1, driver_2).await;
+        let (peer_1, peer_2) = (*driver_1.local_peer_id(), *driver_2.local_peer_id());
         poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
             num_connections(driver_1) == 1 &&
                 num_connections(driver_2) == 1 &&
@@ -1306,7 +1310,7 @@ mod tests {
         driver_2.config.duplicate_connection_grace = grace;
 
         let start = Instant::now();
-        cross_dial(&mut driver_1, &mut driver_2).await;
+        let (mut driver_1, mut driver_2) = cross_dial(driver_1, driver_2).await;
         poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
             num_connections(driver_1) == 2 && num_connections(driver_2) == 2
         })
@@ -1321,7 +1325,7 @@ mod tests {
     }
 
     /// Builds a gossip driver on TCP, listening on a free port on localhost once started.
-    fn tcp_driver() -> GossipDriver<ConnectionGater> {
+    fn tcp_driver() -> GossipDriverStarter<ConnectionGater> {
         let mut driver = crate::GossipDriverBuilder::new(
             kona_genesis::RollupConfig::default(),
             alloy_primitives::Address::ZERO,
@@ -1338,11 +1342,10 @@ mod tests {
     /// resolves to, rather than leaving libp2p to resolve the name again.
     #[tokio::test]
     async fn test_dial_peer_resolves_dns_names_before_the_gate() {
-        let mut driver_1 = tcp_driver();
-        let mut driver_2 = tcp_driver();
+        let mut driver_2 = tcp_driver().start().await.expect("listen");
         let peer_2 = *driver_2.local_peer_id();
-        let listen_addr_2 = driver_2.start().await.expect("listen");
-        let port = listen_addr_2
+        let port = driver_2
+            .peer_addr()
             .addr()
             .iter()
             .find_map(|protocol| match protocol {
@@ -1353,7 +1356,7 @@ mod tests {
         let dns_addr: Multiaddr =
             format!("/dns4/localhost/tcp/{port}/p2p/{peer_2}").parse().unwrap();
         let ip_addr: Multiaddr = format!("/ip4/127.0.0.1/tcp/{port}/p2p/{peer_2}").parse().unwrap();
-        driver_1.start().await.expect("listen");
+        let mut driver_1 = tcp_driver().start().await.expect("listen");
 
         // `localhost` resolves to a blocked IP, so nothing is dialed.
         let localhost = "127.0.0.1".parse().unwrap();
@@ -1376,9 +1379,7 @@ mod tests {
     #[tokio::test]
     async fn test_tcp_crossing_dials_connect() {
         for _ in 0..10 {
-            let mut driver_1 = tcp_driver();
-            let mut driver_2 = tcp_driver();
-            cross_dial(&mut driver_1, &mut driver_2).await;
+            let (mut driver_1, mut driver_2) = cross_dial(tcp_driver(), tcp_driver()).await;
             poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
                 num_connections(driver_1) == 1 && num_connections(driver_2) == 1
             })
@@ -1412,11 +1413,9 @@ mod tests {
     /// dial error without counting as a dial.
     #[tokio::test]
     async fn test_dial_skips_connected_peer() {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
-
-        let addr_2 = driver_2.start().await.expect("listen");
-        driver_1.start().await.expect("listen");
+        let mut driver_2 = memory_driver().start().await.expect("listen");
+        let addr_2 = driver_2.peer_addr();
+        let mut driver_1 = memory_driver().start().await.expect("listen");
 
         // The one dial that connects the peers.
         driver_1.dial_multiaddr(addr_2.clone()).expect("dial");
@@ -1450,12 +1449,10 @@ mod tests {
     /// counts against each address.
     #[tokio::test]
     async fn test_dial_peer_connects_at_any_address() {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
-
+        let mut driver_2 = memory_driver().start().await.expect("listen");
+        let addr_2 = driver_2.peer_addr();
         let peer_2 = *driver_2.local_peer_id();
-        let addr_2 = driver_2.start().await.expect("listen");
-        driver_1.start().await.expect("listen");
+        let mut driver_1 = memory_driver().start().await.expect("listen");
 
         driver_1
             .dial_peer(peer_2, [unused_memory_addr(peer_2), addr_2.addr().clone()])
@@ -1471,12 +1468,10 @@ mod tests {
     /// Addresses the gate refuses, or that are for another peer, are left out of the dial.
     #[tokio::test]
     async fn test_dial_peer_leaves_out_refused_addresses() {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
-
+        let mut driver_2 = memory_driver().start().await.expect("listen");
+        let addr_2 = driver_2.peer_addr();
         let peer_2 = *driver_2.local_peer_id();
-        let addr_2 = driver_2.start().await.expect("listen");
-        driver_1.start().await.expect("listen");
+        let mut driver_1 = memory_driver().start().await.expect("listen");
 
         let blocked: Multiaddr = format!("/ip4/10.0.0.1/tcp/9222/p2p/{peer_2}").parse().unwrap();
         driver_1.block_addr("10.0.0.1".parse().unwrap());
@@ -1492,7 +1487,7 @@ mod tests {
     /// Nothing is dialed when the gate refuses every address.
     #[tokio::test]
     async fn test_dial_peer_skips_peer_with_no_allowed_address() {
-        let mut driver = memory_driver();
+        let mut driver = memory_driver().start().await.expect("listen");
         let peer = PeerId::random();
         driver.block_peer(peer);
 
@@ -1506,8 +1501,7 @@ mod tests {
     /// When every address fails, the dial ends once, so the peer can be dialed again.
     #[tokio::test]
     async fn test_dial_peer_failing_at_every_address_is_no_longer_in_flight() {
-        let mut driver = memory_driver();
-        driver.start().await.expect("listen");
+        let mut driver = memory_driver().start().await.expect("listen");
         let peer = PeerId::random();
         let unused_2 =
             Multiaddr::empty().with(Protocol::Memory(u64::MAX - 1)).with(Protocol::P2p(peer));
@@ -1522,14 +1516,18 @@ mod tests {
     /// Starting a driver dials its static peers, at all of their addresses.
     #[tokio::test]
     async fn test_start_dials_static_peers() {
-        let mut driver_2 = memory_driver();
+        let mut driver_2 = memory_driver().start().await.expect("listen");
         let peer_2 = *driver_2.local_peer_id();
-        let addr_2 = driver_2.start().await.expect("listen");
 
-        let static_peers = vec![PeerAddr::try_from(unused_memory_addr(peer_2)).unwrap(), addr_2];
-        let mut driver_1 =
-            memory_driver_builder().with_static_peers(static_peers).build().expect("build");
-        driver_1.start().await.expect("listen");
+        let static_peers =
+            vec![PeerAddr::try_from(unused_memory_addr(peer_2)).unwrap(), driver_2.peer_addr()];
+        let mut driver_1 = memory_driver_builder()
+            .with_static_peers(static_peers)
+            .build()
+            .expect("build")
+            .start()
+            .await
+            .expect("listen");
 
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
@@ -1553,9 +1551,9 @@ mod tests {
 
     /// An ENR from discovery gives the peer ID and TCP address to dial, if it is for this chain
     /// and has a TCP port.
-    #[test]
-    fn test_enr_to_peer_addr() {
-        let driver = memory_driver();
+    #[tokio::test]
+    async fn test_enr_to_peer_addr() {
+        let driver = memory_driver().start().await.expect("listen");
         let chain_id = driver.handler.rollup_config.l2_chain_id.id();
         let keypair = libp2p_identity::Keypair::generate_secp256k1();
         let peer_id = keypair.public().to_peer_id();
@@ -1581,7 +1579,7 @@ mod tests {
     }
 
     /// A driver whose only static peer is `static_peer`, dialed again every [`REDIAL_INTERVAL`].
-    fn driver_with_static_peer(static_peer: PeerAddr) -> GossipDriver<ConnectionGater> {
+    fn driver_with_static_peer(static_peer: PeerAddr) -> GossipDriverStarter<ConnectionGater> {
         memory_driver_builder()
             .with_static_peers(vec![static_peer])
             .with_static_peer_redial_interval(REDIAL_INTERVAL)
@@ -1595,8 +1593,8 @@ mod tests {
     async fn test_static_peer_started_later_is_dialed() {
         let (keypair_2, addr_2, static_peer) = random_identity();
         let peer_2 = static_peer.peer_id();
-        let mut driver_1 = driver_with_static_peer(static_peer.clone());
-        driver_1.start().await.expect("listen");
+        let mut driver_1 =
+            driver_with_static_peer(static_peer.clone()).start().await.expect("listen");
 
         // The dial at startup fails, as nothing listens at the address yet.
         assert!(driver_1.connection_gate.current_dials.contains(&peer_2));
@@ -1607,8 +1605,12 @@ mod tests {
         assert!(!driver_1.is_connected(&peer_2));
 
         // Once the peer starts, a later check dials it again.
-        let mut driver_2 = memory_driver_builder_at(keypair_2, addr_2).build().expect("build");
-        driver_2.start().await.expect("listen");
+        let mut driver_2 = memory_driver_builder_at(keypair_2, addr_2)
+            .build()
+            .expect("build")
+            .start()
+            .await
+            .expect("listen");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
         // Skipped before `dial_peer`, which would count it as an `already_connected` error.
@@ -1623,17 +1625,22 @@ mod tests {
     async fn test_static_peer_reconnects_after_restart() {
         let (keypair_2, addr_2, static_peer) = random_identity();
         let peer_2 = static_peer.peer_id();
-        let mut driver_2 =
-            memory_driver_builder_at(keypair_2.clone(), addr_2.clone()).build().expect("build");
-        driver_2.start().await.expect("listen");
+        let mut driver_2 = memory_driver_builder_at(keypair_2.clone(), addr_2.clone())
+            .build()
+            .expect("build")
+            .start()
+            .await
+            .expect("listen");
         // A short reconnect delay, but the default minute between regular checks: only the
         // reconnect after the connection closes can bring the peer back within the test.
         let mut driver_1 = memory_driver_builder()
             .with_static_peers(vec![static_peer])
             .with_static_peer_reconnect_delay(REDIAL_INTERVAL)
             .build()
-            .unwrap();
-        driver_1.start().await.expect("listen");
+            .unwrap()
+            .start()
+            .await
+            .expect("listen");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
         // Stop the peer, and wait until the node notices.
@@ -1641,8 +1648,12 @@ mod tests {
         poll_one_until(&mut driver_1, |driver_1| !driver_1.is_connected(&peer_2)).await;
 
         // Start it again, with the same identity and address.
-        let mut driver_2 = memory_driver_builder_at(keypair_2, addr_2).build().expect("build");
-        driver_2.start().await.expect("listen on the same address");
+        let mut driver_2 = memory_driver_builder_at(keypair_2, addr_2)
+            .build()
+            .expect("build")
+            .start()
+            .await
+            .expect("listen on the same address");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
 
@@ -1696,11 +1707,10 @@ mod tests {
     /// shows its peer ID, so the driver never sees it established. Once unblocked, it connects.
     #[tokio::test]
     async fn test_blocked_peer_cannot_connect_inbound() {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
+        let mut driver_1 = memory_driver().start().await.expect("listen");
+        let addr_1 = driver_1.peer_addr();
+        let mut driver_2 = memory_driver().start().await.expect("listen");
         let (peer_1, peer_2) = (*driver_1.local_peer_id(), *driver_2.local_peer_id());
-        let addr_1 = driver_1.start().await.expect("listen");
-        driver_2.start().await.expect("listen");
         driver_1.block_peer(peer_2);
 
         driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
@@ -1745,10 +1755,9 @@ mod tests {
         #[case] set_blocked: fn(&mut GossipDriver<ConnectionGater>, bool),
         #[case] expected_refusal: &str,
     ) {
-        let mut driver_1 = tcp_driver();
-        let mut driver_2 = tcp_driver();
-        let addr_1 = driver_1.start().await.expect("listen");
-        driver_2.start().await.expect("listen");
+        let mut driver_1 = tcp_driver().start().await.expect("listen");
+        let addr_1 = driver_1.peer_addr();
+        let mut driver_2 = tcp_driver().start().await.expect("listen");
 
         set_blocked(&mut driver_1, true);
         driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
@@ -1763,13 +1772,11 @@ mod tests {
     /// A subnet block doesn't keep out an address outside the subnet.
     #[tokio::test]
     async fn test_address_outside_a_blocked_subnet_connects_inbound() {
-        let mut driver_1 = tcp_driver();
-        let mut driver_2 = tcp_driver();
-        let addr_1 = driver_1.start().await.expect("listen");
-        driver_2.start().await.expect("listen");
+        let mut driver_1 = tcp_driver().start().await.expect("listen");
+        let mut driver_2 = tcp_driver().start().await.expect("listen");
 
         driver_1.block_subnet("10.0.0.0/8".parse().unwrap());
-        driver_2.dial_multiaddr(addr_1).expect("dial");
+        driver_2.dial_multiaddr(driver_1.peer_addr()).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
     }
 
@@ -1781,11 +1788,10 @@ mod tests {
     #[case::protected(true)]
     #[tokio::test]
     async fn test_blocking_a_connected_peer_closes_its_connection(#[case] protected: bool) {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
+        let mut driver_1 = memory_driver().start().await.expect("listen");
+        let addr_1 = driver_1.peer_addr();
+        let mut driver_2 = memory_driver().start().await.expect("listen");
         let (peer_1, peer_2) = (*driver_1.local_peer_id(), *driver_2.local_peer_id());
-        let addr_1 = driver_1.start().await.expect("listen");
-        driver_2.start().await.expect("listen");
         driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
         if protected {
@@ -1810,14 +1816,12 @@ mod tests {
     /// aborts it.
     #[tokio::test]
     async fn test_dial_in_flight_to_a_peer_blocked_meanwhile_does_not_connect() {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
+        let mut driver_2 = memory_driver().start().await.expect("listen");
         let peer_2 = *driver_2.local_peer_id();
-        let addr_2 = driver_2.start().await.expect("listen");
-        driver_1.start().await.expect("listen");
+        let mut driver_1 = memory_driver().start().await.expect("listen");
 
         // Started, but not yet polled, so the block lands while the dial is in flight.
-        driver_1.dial_multiaddr(addr_2).expect("dial");
+        driver_1.dial_multiaddr(driver_2.peer_addr()).expect("dial");
         driver_1.block_peer(peer_2);
 
         let mut dial_error = None;
@@ -1853,14 +1857,12 @@ mod tests {
     async fn connected_tcp_drivers(
         outbound: bool,
     ) -> (GossipDriver<ConnectionGater>, GossipDriver<ConnectionGater>) {
-        let mut driver_1 = tcp_driver();
-        let mut driver_2 = tcp_driver();
-        let addr_1 = driver_1.start().await.expect("listen");
-        let addr_2 = driver_2.start().await.expect("listen");
+        let mut driver_1 = tcp_driver().start().await.expect("listen");
+        let mut driver_2 = tcp_driver().start().await.expect("listen");
         if outbound {
-            driver_1.dial_multiaddr(addr_2).expect("dial");
+            driver_1.dial_multiaddr(driver_2.peer_addr()).expect("dial");
         } else {
-            driver_2.dial_multiaddr(addr_1).expect("dial");
+            driver_2.dial_multiaddr(driver_1.peer_addr()).expect("dial");
         }
         poll_until_connected(&mut driver_1, &mut driver_2).await;
         (driver_1, driver_2)
@@ -1916,11 +1918,10 @@ mod tests {
     /// gate refuses the connection once it is established, before any other behaviour sees it.
     #[tokio::test]
     async fn test_dial_in_flight_to_an_address_blocked_meanwhile_does_not_connect() {
-        let mut driver_1 = tcp_driver();
-        let mut driver_2 = tcp_driver();
-        let addr_2 = driver_2.start().await.expect("listen");
+        let mut driver_2 = tcp_driver().start().await.expect("listen");
+        let addr_2 = driver_2.peer_addr();
         let peer_2 = addr_2.peer_id();
-        driver_1.start().await.expect("listen");
+        let mut driver_1 = tcp_driver().start().await.expect("listen");
 
         // Started, but not yet polled, so the block lands while the dial is in flight.
         driver_1.dial_multiaddr(addr_2).expect("dial");
@@ -1959,11 +1960,10 @@ mod tests {
     /// made after the block does, rather than with the swarm's message.
     #[tokio::test]
     async fn test_connect_to_an_address_blocked_during_the_dial_reports_the_block() {
-        let mut driver_1 = tcp_driver();
-        let mut driver_2 = tcp_driver();
-        let addr_2 = driver_2.start().await.expect("listen");
+        let mut driver_2 = tcp_driver().start().await.expect("listen");
+        let addr_2 = driver_2.peer_addr();
         let peer_2 = addr_2.peer_id();
-        driver_1.start().await.expect("listen");
+        let mut driver_1 = tcp_driver().start().await.expect("listen");
 
         // Not polled in between, so the block lands while the dial is in flight.
         let (reply, outcome) = oneshot::channel();
@@ -1985,13 +1985,11 @@ mod tests {
     /// out, as in go-libp2p's basic gater.
     #[tokio::test]
     async fn test_connection_without_an_ip_is_not_blocked_by_a_subnet() {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
-        let addr_1 = driver_1.start().await.expect("listen");
-        driver_2.start().await.expect("listen");
+        let mut driver_1 = memory_driver().start().await.expect("listen");
+        let mut driver_2 = memory_driver().start().await.expect("listen");
         driver_1.block_subnet("0.0.0.0/0".parse().unwrap());
 
-        driver_2.dial_multiaddr(addr_1).expect("dial");
+        driver_2.dial_multiaddr(driver_1.peer_addr()).expect("dial");
         assert_eq!(
             inbound_refusal(&mut driver_1, &mut driver_2).await.map(|e| e.to_string()),
             None
@@ -2005,14 +2003,18 @@ mod tests {
     async fn test_blocked_static_peer_is_skipped() {
         let (_, _, static_peer) = random_identity();
         let peer = static_peer.peer_id();
-        let mut driver = driver_with_static_peer(static_peer);
+        // Starting dials the static peer, where nothing listens.
+        let mut driver = driver_with_static_peer(static_peer).start().await.expect("listen");
         driver.block_peer(peer);
+        poll_one_until(&mut driver, |driver| !driver.connection_gate.current_dials.contains(&peer))
+            .await;
+        let dialed = driver.connection_gate.dialed_addrs.len();
 
         // Skipped before `dial_peer`, which would count it as a `blocked_peer` error.
         assert!(dial_errors(|| driver.dial_static_peers()).is_empty());
 
         assert!(!driver.connection_gate.current_dials.contains(&peer));
-        assert!(driver.connection_gate.dialed_addrs.is_empty());
+        assert_eq!(driver.connection_gate.dialed_addrs.len(), dialed);
         assert!(driver.next_static_peer_check.is_some());
 
         // Once unblocked, the next check dials it.
@@ -2028,10 +2030,14 @@ mod tests {
     async fn test_blocked_static_peer_stays_disconnected_until_unblocked() {
         let (keypair_2, addr_2, static_peer) = random_identity();
         let peer_2 = static_peer.peer_id();
-        let mut driver_2 = memory_driver_builder_at(keypair_2, addr_2).build().expect("build");
-        driver_2.start().await.expect("listen");
-        let mut driver_1 = driver_with_static_peer(static_peer);
-        let addr_1 = driver_1.start().await.expect("listen");
+        let mut driver_2 = memory_driver_builder_at(keypair_2, addr_2)
+            .build()
+            .expect("build")
+            .start()
+            .await
+            .expect("listen");
+        let mut driver_1 = driver_with_static_peer(static_peer).start().await.expect("listen");
+        let addr_1 = driver_1.peer_addr();
         let peer_1 = addr_1.peer_id();
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
@@ -2055,18 +2061,22 @@ mod tests {
     }
 
     /// A block covers a static peer's configured IP address, but can't tell from a DNS name.
-    #[test]
-    fn test_static_peer_addrs_covered_by_configured_ips() {
+    #[tokio::test]
+    async fn test_static_peer_addrs_covered_by_configured_ips() {
         let static_peer = |addr: &str| -> PeerAddr {
             format!("{addr}/p2p/{}", PeerId::random()).parse().unwrap()
         };
         let in_subnet = static_peer("/ip4/10.0.0.1/tcp/9222");
         let outside = static_peer("/ip4/192.168.1.5/tcp/9222");
-        let by_name = static_peer("/dns4/node.example.com/tcp/9222");
+        // Resolved from the hosts file, with no network.
+        let by_name = static_peer("/dns4/localhost/tcp/9222");
         let driver = memory_driver_builder()
             .with_static_peers(vec![in_subnet.clone(), outside.clone(), by_name])
             .build()
-            .expect("build");
+            .expect("build")
+            .start()
+            .await
+            .expect("listen");
 
         assert_eq!(
             driver.static_peer_addrs_in("10.0.0.0/8".parse().unwrap()),
@@ -2085,14 +2095,16 @@ mod tests {
     #[case::mapped_addr_blocks_ipv4_peer("/ip4/10.0.0.1/tcp/9222", "::ffff:10.0.0.1", true)]
     #[case::ipv4_addr_blocks_mapped_peer("/ip6/::ffff:10.0.0.1/tcp/9222", "10.0.0.1", true)]
     #[case::other_addr("/ip4/10.0.0.1/tcp/9222", "10.0.0.2", false)]
-    fn test_blocked_addr_covers_the_static_peers_the_gate_refuses(
+    #[tokio::test]
+    async fn test_blocked_addr_covers_the_static_peers_the_gate_refuses(
         #[case] static_addr: &str,
         #[case] blocked: IpAddr,
         #[case] covered: bool,
     ) {
         let static_peer: PeerAddr =
             format!("{static_addr}/p2p/{}", PeerId::random()).parse().unwrap();
-        let mut driver = driver_with_static_peer(static_peer.clone());
+        let mut driver =
+            driver_with_static_peer(static_peer.clone()).start().await.expect("listen");
         driver.block_addr(blocked);
 
         assert_eq!(!driver.static_peer_addrs_at(blocked.into()).is_empty(), covered);
@@ -2105,14 +2117,16 @@ mod tests {
     #[case::ipv4_subnet_blocks_mapped_peer("/ip6/::ffff:10.0.0.1/tcp/9222", "10.0.0.0/8", true)]
     #[case::all_ipv6_leaves_ipv4_peer("/ip4/10.0.0.1/tcp/9222", "::/0", false)]
     #[case::all_ipv6_leaves_mapped_peer("/ip6/::ffff:10.0.0.1/tcp/9222", "::/0", false)]
-    fn test_blocked_subnet_covers_the_static_peers_the_gate_refuses(
+    #[tokio::test]
+    async fn test_blocked_subnet_covers_the_static_peers_the_gate_refuses(
         #[case] static_addr: &str,
         #[case] blocked: IpNet,
         #[case] covered: bool,
     ) {
         let static_peer: PeerAddr =
             format!("{static_addr}/p2p/{}", PeerId::random()).parse().unwrap();
-        let mut driver = driver_with_static_peer(static_peer.clone());
+        let mut driver =
+            driver_with_static_peer(static_peer.clone()).start().await.expect("listen");
         driver.block_subnet(blocked);
 
         assert_eq!(!driver.static_peer_addrs_in(blocked.into()).is_empty(), covered);
@@ -2128,8 +2142,8 @@ mod tests {
     /// A static peer configured with a DNS name is covered at the address of its open connection.
     #[tokio::test]
     async fn test_static_peer_addrs_covered_by_open_connections() {
-        let mut driver_2 = tcp_driver();
-        let addr_2 = driver_2.start().await.expect("listen");
+        let mut driver_2 = tcp_driver().start().await.expect("listen");
+        let addr_2 = driver_2.peer_addr();
         let port = addr_2.transport_addr().iter().find_map(|protocol| match protocol {
             Protocol::Tcp(port) => Some(port),
             _ => None,
@@ -2146,8 +2160,10 @@ mod tests {
         )
         .with_static_peers(vec![by_name])
         .build()
-        .expect("build");
-        driver_1.start().await.expect("listen");
+        .expect("build")
+        .start()
+        .await
+        .expect("listen");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
         let covered = driver_1.static_peer_addrs_at("127.0.0.1".parse().unwrap());
@@ -2159,7 +2175,7 @@ mod tests {
     const BAN_DURATION: Duration = Duration::from_secs(60);
 
     /// A memory driver that bans peers for [`BAN_DURATION`].
-    fn banning_driver() -> GossipDriver<ConnectionGater> {
+    fn banning_driver() -> GossipDriverStarter<ConnectionGater> {
         let monitoring = PeerMonitoring { ban_threshold: -100.0, ban_duration: BAN_DURATION };
         memory_driver_builder().with_peer_monitoring(Some(monitoring)).build().expect("build")
     }
@@ -2170,10 +2186,10 @@ mod tests {
     #[case::it_dials(false)]
     #[tokio::test(start_paused = true)]
     async fn test_banned_peer_is_refused_until_the_ban_expires(#[case] we_dial: bool) {
-        let mut driver_1 = banning_driver();
-        let mut driver_2 = memory_driver();
-        let addr_1 = driver_1.start().await.expect("listen");
-        let addr_2 = driver_2.start().await.expect("listen");
+        let mut driver_1 = banning_driver().start().await.expect("listen");
+        let addr_1 = driver_1.peer_addr();
+        let mut driver_2 = memory_driver().start().await.expect("listen");
+        let addr_2 = driver_2.peer_addr();
         let (peer_1, peer_2) = (addr_1.peer_id(), addr_2.peer_id());
         driver_2.dial_multiaddr(addr_1.clone()).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
@@ -2206,8 +2222,9 @@ mod tests {
     #[tokio::test]
     async fn test_ban_duration_beyond_the_clock_does_not_panic() {
         let monitoring = PeerMonitoring { ban_threshold: -100.0, ban_duration: Duration::MAX };
-        let mut driver =
+        let starter =
             memory_driver_builder().with_peer_monitoring(Some(monitoring)).build().expect("build");
+        let mut driver = starter.start().await.expect("listen");
         let peer = PeerId::random();
 
         driver.ban_peer(peer);
@@ -2218,11 +2235,10 @@ mod tests {
     /// is refused with the block once it has closed.
     #[tokio::test]
     async fn test_connect_to_a_peer_just_blocked_is_refused_once_disconnected() {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
-        let addr_2 = driver_2.start().await.expect("listen");
+        let mut driver_2 = memory_driver().start().await.expect("listen");
+        let addr_2 = driver_2.peer_addr();
         let peer_2 = addr_2.peer_id();
-        driver_1.start().await.expect("listen");
+        let mut driver_1 = memory_driver().start().await.expect("listen");
         driver_1.dial_multiaddr(addr_2.clone()).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
@@ -2246,8 +2262,7 @@ mod tests {
     /// next reply for the same peer is added, rather than kept until the peer's dial ends.
     #[tokio::test]
     async fn test_abandoned_connect_replies_are_dropped() {
-        let mut driver = memory_driver();
-        driver.start().await.expect("listen");
+        let mut driver = memory_driver().start().await.expect("listen");
         let peer = PeerId::random();
 
         // Not polled, so the dial stays in flight, and the second call joins it.
@@ -2263,10 +2278,9 @@ mod tests {
     /// Two memory drivers, the first connected to the second by dialing it.
     async fn connected_memory_drivers()
     -> (GossipDriver<ConnectionGater>, GossipDriver<ConnectionGater>, PeerAddr) {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
-        let addr_2 = driver_2.start().await.expect("listen");
-        driver_1.start().await.expect("listen");
+        let mut driver_2 = memory_driver().start().await.expect("listen");
+        let addr_2 = driver_2.peer_addr();
+        let mut driver_1 = memory_driver().start().await.expect("listen");
         driver_1.dial_multiaddr(addr_2.clone()).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
         (driver_1, driver_2, addr_2)
@@ -2291,11 +2305,10 @@ mod tests {
     #[case::fails(false)]
     #[tokio::test]
     async fn test_connects_joining_a_dial_are_each_told_how_it_ends(#[case] reachable: bool) {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
-        let addr_2 = driver_2.start().await.expect("listen");
+        let mut driver_2 = memory_driver().start().await.expect("listen");
+        let addr_2 = driver_2.peer_addr();
         let peer_2 = addr_2.peer_id();
-        driver_1.start().await.expect("listen");
+        let mut driver_1 = memory_driver().start().await.expect("listen");
         let addr = if reachable {
             addr_2
         } else {
@@ -2344,7 +2357,7 @@ mod tests {
     /// Disconnecting a peer that isn't connected succeeds at once.
     #[tokio::test]
     async fn test_disconnect_from_a_peer_not_connected_replies_at_once() {
-        let mut driver = memory_driver();
+        let mut driver = memory_driver().start().await.expect("listen");
         let (reply, mut outcome) = oneshot::channel();
         driver.disconnect_peer_with_reply(PeerId::random(), reply);
         assert!(outcome.try_recv().is_ok());
@@ -2358,7 +2371,8 @@ mod tests {
         let mut driver_2 = memory_driver();
         driver_1.config.duplicate_connection_grace = Duration::from_secs(60);
         driver_2.config.duplicate_connection_grace = Duration::from_secs(60);
-        let (_, peer_2) = cross_dial(&mut driver_1, &mut driver_2).await;
+        let (mut driver_1, mut driver_2) = cross_dial(driver_1, driver_2).await;
+        let peer_2 = *driver_2.local_peer_id();
         poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
             num_connections(driver_1) == 2 && num_connections(driver_2) == 2
         })
@@ -2393,7 +2407,7 @@ mod tests {
     /// Unblocking a peer lifts its ban too, and a ban isn't listed as a block, as in op-node.
     #[tokio::test(start_paused = true)]
     async fn test_unblocking_a_peer_lifts_its_ban() {
-        let mut driver = banning_driver();
+        let mut driver = banning_driver().start().await.expect("listen");
         let peer = PeerId::random();
 
         driver.ban_peer(peer);
@@ -2410,11 +2424,14 @@ mod tests {
     async fn test_peers_to_ban_skips_static_peers() {
         let (keypair_2, addr_2, static_peer) = random_identity();
         let static_peer_id = static_peer.peer_id();
-        let mut driver_2 = memory_driver_builder_at(keypair_2, addr_2).build().expect("build");
-        driver_2.start().await.expect("listen");
-        let mut driver_3 = memory_driver();
+        let mut driver_2 = memory_driver_builder_at(keypair_2, addr_2)
+            .build()
+            .expect("build")
+            .start()
+            .await
+            .expect("listen");
+        let mut driver_3 = memory_driver().start().await.expect("listen");
         let peer_3 = *driver_3.local_peer_id();
-        let addr_3 = driver_3.start().await.expect("listen");
 
         // Light scoring weighs the application score, which the test can set.
         let mut driver_1 = memory_driver_builder()
@@ -2425,10 +2442,12 @@ mod tests {
             }))
             .with_static_peers(vec![static_peer])
             .build()
-            .expect("build");
-        driver_1.start().await.expect("listen");
+            .expect("build")
+            .start()
+            .await
+            .expect("listen");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
-        driver_1.dial_multiaddr(addr_3).expect("dial");
+        driver_1.dial_multiaddr(driver_3.peer_addr()).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_3).await;
         assert!(driver_1.peers_to_ban().is_empty());
 
@@ -2445,13 +2464,11 @@ mod tests {
     // TODO(#23800): prune the peerstore once a peer has been disconnected for a while.
     #[tokio::test]
     async fn test_ban_peer() {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
+        let mut driver_2 = memory_driver().start().await.expect("listen");
         let peer_2 = *driver_2.local_peer_id();
-        let listen_addr_2 = driver_2.start().await.expect("listen");
-        driver_1.start().await.expect("listen");
+        let mut driver_1 = memory_driver().start().await.expect("listen");
 
-        driver_1.dial_multiaddr(listen_addr_2).expect("dial");
+        driver_1.dial_multiaddr(driver_2.peer_addr()).expect("dial");
         // Wait for identify, so there is identify info to keep.
         poll_until(&mut driver_1, &mut driver_2, |driver_1, _| {
             driver_1.peerstore.contains_key(&peer_2)
@@ -2492,12 +2509,10 @@ mod tests {
                 .sum()
         };
 
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
+        let mut driver_2 = memory_driver().start().await.expect("listen");
         let peer_2 = *driver_2.local_peer_id();
-        let addr_2 = driver_2.start().await.expect("listen");
-        driver_1.start().await.expect("listen");
-        driver_1.dial_multiaddr(addr_2).expect("dial");
+        let mut driver_1 = memory_driver().start().await.expect("listen");
+        driver_1.dial_multiaddr(driver_2.peer_addr()).expect("dial");
         poll_until_connected(&mut driver_1, &mut driver_2).await;
         durations();
 
@@ -2513,14 +2528,14 @@ mod tests {
     }
 
     /// The `UnprotectPeer` command leaves a static peer protected, but unprotects others.
-    #[test]
-    fn test_unprotect_peer_keeps_static_peers_protected() {
+    #[tokio::test]
+    async fn test_unprotect_peer_keeps_static_peers_protected() {
         use crate::ConnectionGate;
         use std::collections::HashSet;
 
         let (_, _, static_peer) = random_identity();
         let static_peer_id = static_peer.peer_id();
-        let mut driver = driver_with_static_peer(static_peer);
+        let mut driver = driver_with_static_peer(static_peer).start().await.expect("listen");
         let other_peer = PeerId::random();
         crate::GossipCommand::ProtectPeer { peer_id: other_peer }.handle(&mut driver);
         // Both are protected to begin with, so unprotecting has something to remove.
@@ -2538,21 +2553,18 @@ mod tests {
     /// A dial that connects is no longer in flight in the gate.
     #[tokio::test]
     async fn test_connected_dial_is_no_longer_in_flight() {
-        let mut driver_1 = memory_driver();
-        let mut driver_2 = memory_driver();
-
+        let mut driver_2 = memory_driver().start().await.expect("listen");
         let peer_2 = *driver_2.local_peer_id();
-        let addr_2 = driver_2.start().await.expect("listen");
-        driver_1.start().await.expect("listen");
+        let mut driver_1 = memory_driver().start().await.expect("listen");
 
-        driver_1.dial_multiaddr(addr_2).expect("dial");
+        driver_1.dial_multiaddr(driver_2.peer_addr()).expect("dial");
         assert!(driver_1.connection_gate.current_dials.contains(&peer_2));
         poll_until_connected(&mut driver_1, &mut driver_2).await;
 
         assert!(!driver_1.connection_gate.current_dials.contains(&peer_2));
     }
 
-    fn driver(signer: watch::Receiver<Address>) -> GossipDriver<ConnectionGater> {
+    fn driver(signer: watch::Receiver<Address>) -> GossipDriverStarter<ConnectionGater> {
         GossipDriverBuilder::new(
             RollupConfig {
                 l2_chain_id: alloy_chains::Chain::optimism_mainnet(),
@@ -2571,7 +2583,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn idle_gossip_observes_rotation_before_next_payload() {
         let (sender, receiver) = watch::channel(address(1));
-        let mut driver = driver(receiver);
+        let mut driver = driver(receiver).start().await.expect("listen");
         sender.send(address(2)).unwrap();
         let event = driver.next().await.expect("signer change");
         assert!(matches!(event, SwarmEvent::Behaviour(Event::SignerChanged)));
@@ -2587,7 +2599,7 @@ mod tests {
     #[tokio::test]
     async fn closed_signer_channel_retains_its_final_value_without_spinning() {
         let (sender, receiver) = watch::channel(address(1));
-        let mut driver = driver(receiver);
+        let mut driver = driver(receiver).start().await.expect("listen");
         sender.send(address(2)).unwrap();
         drop(sender);
         // A closed channel has nothing more to report, rather than a change on every call.
@@ -2602,7 +2614,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn signer_update_preserves_duplicate_connection_deadline() {
         let (sender, receiver) = watch::channel(address(1));
-        let mut driver = driver(receiver);
+        let mut driver = driver(receiver).start().await.expect("listen");
         driver.next_duplicate_check = Some(Instant::now() + Duration::from_secs(1));
         sender.send(address(2)).unwrap();
         let event = driver.next().await.expect("signer change");
