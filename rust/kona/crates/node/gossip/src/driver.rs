@@ -1258,24 +1258,30 @@ mod tests {
     }
 
     /// A duplicate connection stays open for its grace period, so that gossipsub's subscriptions,
-    /// which it sends only on the first connection, are not lost with it.
-    #[tokio::test]
+    /// which it sends only on the first connection, are not lost with it. It closes once the
+    /// grace is over.
+    #[tokio::test(start_paused = true)]
     async fn test_duplicate_connection_stays_open_during_grace() {
+        // Within `poll_until`'s timeout, which the paused clock also counts.
+        let grace = Duration::from_secs(5);
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
-        driver_1.duplicate_connection_grace = Duration::from_secs(60);
-        driver_2.duplicate_connection_grace = Duration::from_secs(60);
+        driver_1.duplicate_connection_grace = grace;
+        driver_2.duplicate_connection_grace = grace;
 
+        let start = Instant::now();
         cross_dial(&mut driver_1, &mut driver_2).await;
         poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
             num_connections(driver_1) == 2 && num_connections(driver_2) == 2
         })
         .await;
 
-        // Well within the grace period, nothing is closed.
-        poll_for(&mut driver_1, &mut driver_2, Duration::from_millis(200)).await;
-        assert_eq!(num_connections(&driver_1), 2);
-        assert_eq!(num_connections(&driver_2), 2);
+        // The grace runs from when the duplicate opened, which is after `start`.
+        poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
+            num_connections(driver_1) == 1 && num_connections(driver_2) == 1
+        })
+        .await;
+        assert!(start.elapsed() >= grace, "closed after {:?}", start.elapsed());
     }
 
     /// Builds a gossip driver on TCP, listening on a free port on localhost once started.
@@ -1862,6 +1868,10 @@ mod tests {
         let (mut driver_1, mut driver_2) = connected_tcp_drivers(outbound).await;
         let (peer_1, peer_2) = (*driver_1.local_peer_id(), *driver_2.local_peer_id());
         driver_1.block_subnet("10.0.0.0/8".parse().unwrap());
+        // `block_subnet` starts closing the connections it covers before it returns, and the tests
+        // above see a loopback connection close within milliseconds. So if none has closed after
+        // 200ms, none was closed. On a paused clock, the 200ms could pass before TCP delivers the
+        // close, so this test runs on the real clock.
         poll_for(&mut driver_1, &mut driver_2, Duration::from_millis(200)).await;
         assert!(driver_1.is_connected(&peer_2) && driver_2.is_connected(&peer_1));
     }
@@ -1999,7 +2009,8 @@ mod tests {
         assert!(matches!(refusal, Some(DialError::PeerBlocked { .. })), "{refusal:?}");
 
         // Past the reconnect delay, and many regular checks.
-        poll_for(&mut driver_1, &mut driver_2, Duration::from_secs(5)).await;
+        let wait = STATIC_PEER_RECONNECT_DELAY + 10 * REDIAL_INTERVAL;
+        poll_for(&mut driver_1, &mut driver_2, wait).await;
         assert!(!driver_1.is_connected(&peer_2));
         assert!(!driver_1.connection_gate.current_dials.contains(&peer_2));
 
