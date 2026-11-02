@@ -178,6 +178,7 @@ You should *not* add an `op-batcher` because there should be only one.
   ```bash
       cd ~/op-reth
       openssl rand -hex 32 > jwt.txt
+      chmod 600 jwt.txt
       cp jwt.txt ~/optimism/op-node
       ```
   </Step>
