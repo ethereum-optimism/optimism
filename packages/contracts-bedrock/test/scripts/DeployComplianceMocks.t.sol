@@ -10,6 +10,7 @@ import { MockOptimismPortal2 } from "scripts/deploy/mocks/MockOptimismPortal2.so
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Contracts
 import { MockPolicy } from "scripts/deploy/mocks/MockPolicy.sol";
@@ -113,9 +114,13 @@ contract DeployComplianceMocks_run_Test is DeployComplianceMocks_TestInit {
     function test_run_depositStillWorks_succeeds() public {
         _run();
 
+        // A deposit cannot carry ETH under a custom gas token, so the ordinary deposit this
+        // asserts on is a zero-value one there.
+        uint256 value = isSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN) ? 0 : 1 ether;
+
         vm.deal(alice, 1 ether);
         vm.prank(alice, alice);
-        optimismPortal2.depositTransaction{ value: 1 ether }(alice, 0, 100_000, false, "");
+        optimismPortal2.depositTransaction{ value: value }(alice, 0, 100_000, false, "");
     }
 
     /// @notice Tests that a second run is refused rather than silently replacing a hook that
@@ -198,6 +203,8 @@ contract DeployComplianceMocks_mockPortal_Test is DeployComplianceMocks_TestInit
     /// @notice Tests that a deposit now flows through the hook, which is the point of swapping
     ///         the implementation at all.
     function test_mockPortal_depositIsHeld_succeeds() public {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+
         DeployComplianceMocks.Output memory out = deployScript.run(_mockInput());
 
         // Hold every deposit.
@@ -214,6 +221,8 @@ contract DeployComplianceMocks_mockPortal_Test is DeployComplianceMocks_TestInit
 
     /// @notice Tests that a deposit the policy lets through still reaches L2 as normal.
     function test_mockPortal_depositProceeds_succeeds() public {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+
         deployScript.run(_mockInput());
 
         MockOptimismPortal2 mocked = MockOptimismPortal2(payable(address(optimismPortal2)));
