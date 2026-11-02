@@ -15,8 +15,10 @@ import (
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
@@ -93,6 +95,41 @@ func TestInteropFilter_IngressRejectsInvalid(gt *testing.T) {
 	require.Error(err, "transaction with fabricated access list should not be included")
 	require.True(interopTxRejectedError(err),
 		"expected interop filter rejection, got: %v", err)
+}
+
+// TestInteropFilter_IngressRejectsInvalidMessage verifies that op-reth rejects an executing message
+// with a wrong payload hash with the text that txinclude treats as final.
+func TestInteropFilter_IngressRejectsInvalidMessage(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := setupInteropFilterTest(t)
+	require := t.Require()
+
+	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
+	eventLogger := alice.DeployEventLogger()
+	sys.L2B.CatchUpTo(sys.L2A)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLogger, 1, 5))
+	// Once a valid executing message lands, the filter has the log, so its verdict is definitive.
+	bob.SendExecMessage(initMsg)
+
+	ctx, cancel := context.WithTimeout(gt.Context(), 30*time.Second)
+	defer cancel()
+	result, err := initMsg.Tx.Result.Eval(ctx)
+	require.NoError(err)
+	invalidMsg := dsl.MakeInvalidPayloadHash(result.Entries[0])
+	bobAddr := bob.Address()
+	tx := txplan.NewPlannedTx(bob.Plan(),
+		txplan.WithTransactionSubmitter(sys.L2ELB.EthClient()),
+		txplan.WithTo(&bobAddr),
+		txplan.WithAccessList(types.AccessList{{
+			Address:     predeploys.CrossL2InboxAddr,
+			StorageKeys: messages.EncodeAccessList([]messages.Access{invalidMsg.Access()}),
+		}}),
+		txplan.WithGasLimit(100_000),
+	)
+	_, err = tx.Submitted.Eval(ctx)
+	require.ErrorContains(err, txinclude.ErrInteropAccessListRejected.Error())
 }
 
 // TestInteropFilter_FailsafeLifecycle verifies the full failsafe lifecycle:

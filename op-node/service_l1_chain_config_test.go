@@ -10,10 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
 	nodeflags "github.com/ethereum-optimism/optimism/op-node/flags"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
 
 func TestNewL1ChainConfig_KnownChains(t *testing.T) {
@@ -50,14 +54,6 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 		BlobScheduleConfig: nil,
 	}
 
-	// Indicative of an L2 chain config
-	// Which is what L3 chains need to provide
-	customOPStack := &params.ChainConfig{
-		ChainID:            testChainID,
-		BlobScheduleConfig: nil,
-		Optimism:           &params.OptimismConfig{},
-	}
-
 	// Prepare temp dir
 	dir := t.TempDir()
 
@@ -84,9 +80,10 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 	}
 	encode(embeddedPath, wrapper{Config: custom})
 
-	// Embedded JSON file that contains { "config": <ChainConfig> }
+	// An L2 genesis file with no fork times, which is what L3 chains need to provide
 	customOPStackPath := filepath.Join(dir, "optimism_chain.json")
-	encode(customOPStackPath, wrapper{Config: customOPStack})
+	require.NoError(t, os.WriteFile(customOPStackPath,
+		[]byte(`{"config": {"chainId": 424242, "optimism": {"eip1559Elasticity": 6, "eip1559Denominator": 50}}}`), 0o644))
 
 	// Helper to run the CLI with a given file path
 	runWithPath := func(path string) (*params.ChainConfig, error) {
@@ -131,9 +128,14 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("nil-blob-schedule-config-returns-no-error-for-l2-chain-config", func(t *testing.T) {
+	t.Run("l2-chain-config-prices-blobs-at-minimum", func(t *testing.T) {
 		cfg, err := runWithPath(customOPStackPath)
-		require.NotNil(t, cfg)
 		require.NoError(t, err)
+		require.Equal(t, testChainID, cfg.ChainID)
+		require.NotNil(t, cfg.BlobScheduleConfig, "upstream go-ethereum needs one to price blobs")
+		for _, l1Time := range []uint64{0, 1 << 40} {
+			header := &types.Header{Number: big.NewInt(1), Time: l1Time, ExcessBlobGas: ptr.New(uint64(0))}
+			require.Equal(t, uint64(1), bigs.Uint64Strict(eth.HeaderBlockInfo(header).BlobBaseFee(cfg)))
+		}
 	})
 }

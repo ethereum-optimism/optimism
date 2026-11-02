@@ -19,6 +19,10 @@ const JSON_RPC_INTERNAL_ERROR_CODE: i32 = -32603;
 const FUTURE_DATA_CODE: i32 = -321401;
 const UNINITIALIZED_CODE: i32 = -320400;
 
+/// Starts the message of every definitive rejection. RPC clients such as op-service/txinclude
+/// match it to stop resubmitting a transaction, so it must not change.
+const DEFINITIVE_REJECTION_PREFIX: &str = "interop filter rejected access list";
+
 /// Failures occurring during validation of inbox entries.
 #[derive(thiserror::Error, Debug)]
 pub enum InteropTxValidatorError {
@@ -27,14 +31,14 @@ pub enum InteropTxValidatorError {
     Timeout(u64),
 
     /// Message does not satisfy validation requirements
-    #[error(transparent)]
-    InvalidEntry(#[from] SuperchainDAError),
+    #[error("{DEFINITIVE_REJECTION_PREFIX}: {0}")]
+    InvalidEntry(SuperchainDAError),
 
     /// The filter returned a JSON-RPC error response rejecting the access list that is not one of
     /// the known [`SuperchainDAError`] codes (e.g. a generic `-32602` "failed to parse access
     /// entry"). This is still a definitive rejection — only transport failures are non-responses.
     /// The original code and message are preserved so the real reason propagates to the caller.
-    #[error("interop filter rejected access list (code {code}): {message}")]
+    #[error("{DEFINITIVE_REJECTION_PREFIX} (code {code}): {message}")]
     Rejected {
         /// The JSON-RPC error code returned by the filter.
         code: i32,
@@ -152,5 +156,26 @@ impl InteropTxValidatorError {
 
         // Any other error response is a definitive rejection; preserve the real code + message.
         Self::Rejected { code, message: error_payload.message.to_string() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    /// RPC clients see only the message, and match this exact text.
+    #[rstest]
+    #[case::invalid_entry(InteropTxValidatorError::InvalidEntry(
+        SuperchainDAError::ConflictingData
+    ))]
+    #[case::rejected(InteropTxValidatorError::Rejected { code: -32602, message: "bad entry".into() })]
+    #[case::failsafe(InteropTxValidatorError::FailsafeEnabled)]
+    #[case::quorum_not_reached(InteropTxValidatorError::QuorumNotReached { received: 0, required: 1 })]
+    fn message_prefix_marks_definitive_rejections(#[case] err: InteropTxValidatorError) {
+        assert_eq!(
+            err.to_string().starts_with("interop filter rejected access list"),
+            err.is_definitive_invalid()
+        );
     }
 }

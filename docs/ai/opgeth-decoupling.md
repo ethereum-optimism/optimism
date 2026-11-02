@@ -24,7 +24,7 @@ of three fates:
    CL-sync EL *mock* that does **no execution** (it proxies a real op-reth EL and gates
    visibility), whose one non-swap bit, the OP-aware `PayloadID` hash, is reimplemented
    locally (#21525); **op-test-sequencer**'s fake-PoS L1 builder, which calls the fork's
-   `engine.ExecutableDataToBlockNoHash` signature (#23406); and the **fork's infrastructure
+   `engine.ExecutableDataToBlockNoHash` signature (a cutover edit); and the **fork's infrastructure
    extensions** to geth's `log`/`rpc` packages, re-homed into owned op-service layers (§15).
 2. **Migrate execution to op-reth / Rust** — anything that builds or executes blocks, or needs
    fork-only EVM hooks. op-acceptance-tests sequences op-reth-only for Karst+ (#21182);
@@ -238,11 +238,9 @@ fields don't exist upstream — **shedding them is a cutover edit** (#20266).
 
 The `*params.ChainConfig` uses that remain in op-node are **L1** chain configs
 (`NewL1ChainConfig`, `FetchingAttributesBuilder`, `L1InfoDeposit`) — legitimately upstream
-go-ethereum types, not OP-hardfork reads, and they stay. One exception reads a fork field off
-such a config: `NewL1ChainConfig` in `op-node/service.go` exempts an L1 that is itself an OP
-chain (an L3 setup) from the blob-schedule check via `IsOptimism()`, which upstream lacks; an
-upstream-decoded config also drops the `optimism` JSON field it tests (#23406). Regressions fail
-the ratchet (§19).
+go-ethereum types, not OP-hardfork reads, and they stay. An L3's L1 is an OP chain, which has no
+blobs: `NewL1ChainConfigFromCLI` replaces its config with one that prices every block's blobs at
+the minimum, as op-geth's OP-chain shortcut did. Regressions fail the ratchet (§19).
 
 ---
 
@@ -491,18 +489,15 @@ and `Server.SetRecorder` inside the geth RPC client *and server*, and exports `r
   `WithHTTPRecorder` option. A `forbidigo` rule in `.golangci.yaml` rejects the fork-only symbols. The
   `<ns>_rpc_client_*` metric names and labels are pinned by `TestRPCMetricsDescriptors`.
 
-**One-off fork symbols** in the same spirit are per-symbol swaps (#23405, #23406).
-`Transaction.SetBlobTxSidecar` and `types.LogForStorage` are **done** (no occurrences remain),
+**One-off fork symbols** in the same spirit are per-symbol swaps (#23405).
+`Transaction.SetBlobTxSidecar`, `types.LogForStorage` and `core.ErrTxFilteredOut` are **done**
+(no occurrences remain; txinclude matches op-reth's definitive interop rejection instead),
 and `op-core/interop/messages` no longer reads `params.InteropCrossL2InboxAddress`. Still open:
 `types.NewIsthmusSigner` (op-e2e, `rust/kona/tests/proofs`), the fork-changed
 `types.NewBlock(…, *BlockConfig)` signature (`op-service/testutils/random.go`), and the
 remaining `params.InteropCrossL2InboxAddress` reads in op-interop-mon and op-interop-filter test
-files — all test or test-support code, so they ride §13 (#23405). Two more:
+files — all test or test-support code, so they ride §13 (#23405). One more:
 
-- `core.ErrTxFilteredOut`, the fork's interop tx-filter rejection, which
-  `op-service/txinclude`'s resubmitter classifies as a permanent failure (production) and the
-  interop load test matches. Upstream has no such error, so the classification needs op-reth's
-  equivalent rejection instead (#23406).
 - The fork's `core.NewEVMBlockContext(header, chain, author, config, statedb)` signature, used by
   cannon's `mipsevm/testutil` to run the MIPS contracts on an L1 EVM, and by op-e2e's in-process
   L1 miner. Upstream's takes only `(header, chain, author)`; the extra arguments feed only the OP
@@ -767,7 +762,7 @@ monorepo-only (#22678).
 | Log context extensions (§15) | owned `op-service/log` layer: owned `Logger` + slog implementation, `ToGeth` at geth boundaries | **done** |
 | RPC recorder hooks + `JsonError` (§15) | owned `op-service/jsonrpc` seam: client wrapper; server-side recording removed | **done** |
 | One-off fork symbols (§15) | per-symbol swaps | `SetBlobTxSidecar`/`LogForStorage` **done**; test sites ride §13 (#23405) |
-| Remaining non-test fork uses (§5, §15, §18, op-test-sequencer) | swap or delete | open (#23406) |
+| Remaining non-test fork uses (§5, §15, §18, op-test-sequencer) | swap or delete | **done**; op-test-sequencer's is a cutover edit |
 | `op-chain-ops/script` + op-deployer (§16) | upstream forge only; delete Go host + interopgen | open (#23300) |
 | In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open (#21744) |
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | **done** (#21746) |
