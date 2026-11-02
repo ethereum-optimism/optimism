@@ -625,9 +625,10 @@ where
 
     /// Dials `peer_id` at whichever of `addrs` connects first.
     ///
-    /// Each address must end in `/p2p/<peer_id>`, and the gate checks each one: the addresses it
-    /// refuses are left out, and nothing is dialed if it refuses them all. The rest make a single
-    /// dial, in which libp2p tries several addresses at once and keeps the first connection.
+    /// The gate checks the peer first, and then each address, which must end in `/p2p/<peer_id>`:
+    /// the addresses it refuses are left out, and nothing is dialed if it refuses them all. The
+    /// rest make a single dial, in which libp2p tries several addresses at once and keeps the
+    /// first connection.
     ///
     /// Returns `Ok` once the dial has started, and [`DialError::AlreadyConnected`] if the peer is
     /// already connected. If no address is left, returns the gate's first refusal, or
@@ -648,12 +649,11 @@ where
             return Err(DialError::AlreadyConnected { peer_id });
         }
 
+        let gate = &self.swarm.behaviour().gate;
+        self.connection_gate.can_dial_peer(&peer_id, gate)?;
+
         // A DNS name is resolved here, so that the gate checks the IPs libp2p then dials, rather
         // than libp2p resolving it again, maybe to an IP the gate didn't see.
-        //
-        // Every address is checked before the peer is marked as being dialed, which would make
-        // the gate refuse all but the first.
-        let gate = &self.swarm.behaviour().gate;
         let mut refusal = None;
         let addrs: Vec<Multiaddr> = addrs
             .into_iter()
@@ -663,8 +663,7 @@ where
                     warn!(target: "gossip", ?peer_id, peer=?addr, "Address is not for the peer being dialed");
                     return false;
                 }
-                if let Err(dial_error) = self.connection_gate.can_dial(addr, gate) {
-                    debug!(target: "gossip", ?dial_error, "unable to dial peer");
+                if let Err(dial_error) = self.connection_gate.can_dial_addr(&peer_id, addr, gate) {
                     refusal.get_or_insert(dial_error);
                     return false;
                 }

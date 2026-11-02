@@ -6,7 +6,7 @@
 //!   [`NetworkBehaviour`], a field of the gossip [`crate::Behaviour`], and its docs say why.
 //! - A [`ConnectionGate`] keeps the driver's dial bookkeeping: which peers are being dialed, how
 //!   often each address was dialed, and which peers are protected. Before each dial, it checks the
-//!   address against the gate [`Behaviour`].
+//!   peer, and then each of its addresses, against the gate [`Behaviour`].
 
 use crate::DialError;
 use ipnet::IpNet;
@@ -34,10 +34,21 @@ use tokio::time::Instant;
 /// logic for which peers are allowed to connect to the
 /// gossip swarm.
 pub trait ConnectionGate {
-    /// Checks whether the gossip swarm may dial `addr`, which must end in the peer's
-    /// `/p2p/<peer id>`, given the peers, addresses and subnets in `gate`. Returns the reason
-    /// in a [`DialError`] if not.
-    fn can_dial(&mut self, addr: &Multiaddr, gate: &Behaviour) -> Result<(), DialError>;
+    /// Checks whether the gossip swarm may dial `peer_id`: `gate` doesn't refuse it, and it isn't
+    /// being dialed already. Returns the reason in a [`DialError`] if not.
+    fn can_dial_peer(&self, peer_id: &PeerId, gate: &Behaviour) -> Result<(), DialError>;
+
+    /// Checks whether the gossip swarm may dial `peer_id` at `addr`, once
+    /// [`Self::can_dial_peer`] allows the peer: the address hasn't been dialed too often, and
+    /// `gate` doesn't refuse its IP. Returns the reason in a [`DialError`] if not.
+    ///
+    /// A DNS name must be resolved first: an address with a name counts as one without an IP.
+    fn can_dial_addr(
+        &self,
+        peer_id: &PeerId,
+        addr: &Multiaddr,
+        gate: &Behaviour,
+    ) -> Result<(), DialError>;
 
     /// Marks a peer as being dialed, at one or more addresses, until [`Self::remove_dial`].
     fn dialing(&mut self, peer_id: &PeerId);
