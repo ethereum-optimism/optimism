@@ -696,8 +696,9 @@ where
         peer_id: PeerId,
         addrs: impl IntoIterator<Item = Multiaddr>,
     ) -> Result<(), DialError> {
-        // Callers should not dial connected peers, so this is counted as a dial error. It is
-        // checked before the gate, which would refuse it as already dialing or count it as a dial.
+        // A connected peer is counted as a dial error: a caller, or an operator through
+        // `opp2p_connectPeer`, asked to connect a peer we are already connected to. It is checked
+        // before the gate, which would refuse it as already dialing or count it as a dial.
         if self.is_connected(&peer_id) {
             debug!(target: "gossip", ?peer_id, "Already connected to peer, not dialing");
             metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "already_connected")
@@ -731,7 +732,6 @@ where
         }
 
         // Let the gate know we are dialing the peer.
-        // Note: libp2p-dns will automatically resolve DNS multiaddrs at the transport layer.
         self.connection_gate.dialing(&peer_id);
 
         // Dial from a new port. From the listen port, two peers dialing each other at the same
