@@ -50,13 +50,12 @@ func TestCLUnsafeNotRewoundOnInvalidDuringELSync(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	// Example error with op-reth:
 	//
-	// assertions.go:387:             ERROR[03-31|09:41:58.089]
-	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/dsl/l2_cl.go:279
-	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/elsync/gap_clp2p/sync_test.go:96
-	// assertions.go:387:             	Error:      	Received unexpected error:
-	// assertions.go:387:             	            	expected head not to advance: unsafe
-	// assertions.go:387:             	Test:       	TestCLUnsafeNotRewoundOnInvalidDuringELSync
-	// assertions.go:387:
+	// Error Trace:	/optimism/op-devstack/dsl/l2_el.go:822
+	//             	/optimism/op-acceptance-tests/tests/sync/elsync/gap_clp2p/sync_test.go:113
+	// Error:      	Not equal:
+	//             	expected: 0x5
+	//             	actual  : 0x6
+	// Test:       	TestCLUnsafeNotRewoundOnInvalidDuringELSync
 	sysgo.SkipOnOpReth(t, "not supported")
 	sys := newGapCLP2PSystem(t)
 	logger := t.Logger()
@@ -69,6 +68,7 @@ func TestCLUnsafeNotRewoundOnInvalidDuringELSync(gt *testing.T) {
 	sys.L2CLB.Stop()
 	// Wipe out L2ELB state to start from genesis
 	sys.L2ELB.Stop()
+	sys.L2ELB.Wipe()
 	sys.L2ELB.Start()
 	sys.L2CLB.Start()
 

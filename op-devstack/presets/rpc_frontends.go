@@ -155,6 +155,7 @@ type l2ELFrontend struct {
 	l2EngineClient *sources.EngineClient
 	lifecycle      stack.Lifecycle
 	control        stack.ControlledLifecycle
+	wipeable       stack.Wipeable
 }
 
 var _ stack.L2ELNode = (*l2ELFrontend)(nil)
@@ -191,6 +192,11 @@ func (r *l2ELFrontend) Start() {
 func (r *l2ELFrontend) Stop() {
 	r.require().NotNil(r.lifecycle, "L2EL node %s is not lifecycle-controllable", r.Name())
 	r.lifecycle.Stop()
+}
+
+func (r *l2ELFrontend) Wipe() {
+	r.require().NotNil(r.wipeable, "L2EL node %s is not wipeable", r.Name())
+	r.wipeable.Wipe()
 }
 
 func (r *l2ELFrontend) StartControlled(ctx context.Context) error {
