@@ -44,6 +44,10 @@ COPY . .
 # context; the git-free build.rs resolves it at /superchain-registry.
 COPY --from=superchain-registry superchain /superchain-registry/superchain
 
+# The rollup node's kona-hardforks build.rs reads the NUT bundles in op-core/, also outside this
+# context. It looks for op-core/ in an ancestor of its crate, so place the bundles in /app.
+COPY --from=nuts-bundles / /app/op-core/nuts/bundles
+
 RUN cargo auditable build --profile $BUILD_PROFILE --locked --bin op-reth --manifest-path /app/op-reth/bin/Cargo.toml
 
 RUN ls -la /app/target/$BUILD_PROFILE/op-reth
