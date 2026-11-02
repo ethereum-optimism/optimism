@@ -185,7 +185,7 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 }
                 Ok(())
             }
-            _ = self.handler.peer_score_inspector.tick(), if self.handler.gossip.peer_monitoring.as_ref().is_some() => {
+            _ = self.handler.peer_score_inspector.tick(), if self.handler.gossip.config().peer_monitoring.is_some() => {
                 self.handler.handle_peer_monitoring().await;
                 Ok(())
             }

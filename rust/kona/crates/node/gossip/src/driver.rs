@@ -35,13 +35,12 @@ pub struct GossipDriver<G: ConnectionGate> {
     pub(crate) swarm: Swarm<Behaviour>,
     /// A [`Multiaddr`] to listen on.
     pub(crate) addr: Multiaddr,
+    /// The settings the driver was built with.
+    pub(crate) config: GossipDriverConfig,
     /// The [`BlockHandler`].
     pub(crate) handler: BlockHandler,
     /// A mapping from [`PeerId`] to [`Multiaddr`].
     pub(crate) peerstore: HashMap<PeerId, libp2p::identify::Info>,
-    /// If set, the gossip layer will monitor peer scores and ban peers that are below a given
-    /// threshold.
-    pub peer_monitoring: Option<PeerMonitoring>,
     /// Tracks connection start time for peers
     pub(crate) peer_connection_start: HashMap<PeerId, Instant>,
     /// The connection gate.
@@ -49,15 +48,12 @@ pub struct GossipDriver<G: ConnectionGate> {
     /// The addresses of each peer to dial at startup and keep connected, without the node's own
     /// ID.
     pub(crate) static_peers: HashMap<PeerId, Vec<Multiaddr>>,
-    /// How often static peers that aren't connected are dialed again.
-    pub(crate) static_peer_redial_interval: Duration,
-    /// How soon a static peer is dialed again after its connection closes.
-    pub(crate) static_peer_reconnect_delay: Duration,
     /// When static peers that aren't connected are dialed again.
     ///
     /// Set when the driver starts with static peers, and after each check to one
-    /// [`Self::static_peer_redial_interval`] later. Brought forward to
-    /// [`Self::static_peer_reconnect_delay`] from now when the connection to a static peer closes.
+    /// [`GossipDriverConfig::static_peer_redial_interval`] later. Brought forward to
+    /// [`GossipDriverConfig::static_peer_reconnect_delay`] from now when the connection to a
+    /// static peer closes.
     next_static_peer_check: Option<Instant>,
     /// The latest ping round-trip time to each connected peer.
     pub(crate) ping: HashMap<PeerId, Duration>,
@@ -67,13 +63,6 @@ pub struct GossipDriver<G: ConnectionGate> {
     pending_disconnects: HashMap<PeerId, Vec<oneshot::Sender<()>>>,
     /// The open connections to each peer, used to close duplicate connections.
     pub(crate) connections: HashMap<PeerId, HashMap<ConnectionId, PeerConnection>>,
-    /// How long a duplicate connection stays open before it is closed.
-    ///
-    /// gossipsub sends its subscriptions to a peer only once, on the first connection, through a
-    /// queue that all connections to the peer share (`on_connection_established` in
-    /// libp2p-gossipsub). Closing a connection while it still carries them loses them, and the
-    /// peers then never mesh. Waiting gives them time to arrive.
-    pub(crate) duplicate_connection_grace: Duration,
     /// When the next duplicate connection may be closed, if there is one.
     ///
     /// Set when a duplicate connection is established, and after each check to the earliest
@@ -96,8 +85,38 @@ impl<G: ConnectionGate> Drop for GossipDriver<G> {
     }
 }
 
+/// How a [`GossipDriver`] behaves once it runs, fixed when it is built.
+#[derive(Debug, Clone)]
+pub struct GossipDriverConfig {
+    /// If set, peers whose score drops below the threshold are banned.
+    pub peer_monitoring: Option<PeerMonitoring>,
+    /// How often static peers that aren't connected are dialed again.
+    pub static_peer_redial_interval: Duration,
+    /// How soon a static peer is dialed again after its connection closes.
+    pub static_peer_reconnect_delay: Duration,
+    /// How long a duplicate connection stays open before it is closed.
+    ///
+    /// gossipsub sends its subscriptions to a peer only once, on the first connection, through a
+    /// queue that all connections to the peer share (`on_connection_established` in
+    /// libp2p-gossipsub). Closing a connection while it still carries them loses them, and the
+    /// peers then never mesh. Waiting gives them time to arrive.
+    pub duplicate_connection_grace: Duration,
+}
+
+/// No peer monitoring, and the default intervals and grace period.
+impl Default for GossipDriverConfig {
+    fn default() -> Self {
+        Self {
+            peer_monitoring: None,
+            static_peer_redial_interval: STATIC_PEER_REDIAL_INTERVAL,
+            static_peer_reconnect_delay: STATIC_PEER_RECONNECT_DELAY,
+            duplicate_connection_grace: DUPLICATE_CONNECTION_GRACE,
+        }
+    }
+}
+
 /// How long a duplicate connection stays open by default, see
-/// [`GossipDriver::duplicate_connection_grace`].
+/// [`GossipDriverConfig::duplicate_connection_grace`].
 const DUPLICATE_CONNECTION_GRACE: Duration = Duration::from_secs(10);
 
 /// The longest a ban can last: about a century, which every platform's clock can add to now.
@@ -150,28 +169,37 @@ where
         GossipDriverBuilder::new(rollup_config, signer, gossip_addr, keypair)
     }
 
-    /// Creates a new [`GossipDriver`] instance.
-    pub fn new(swarm: Swarm<Behaviour>, addr: Multiaddr, handler: BlockHandler, gate: G) -> Self {
+    /// Creates a driver for `swarm`, which isn't listening yet.
+    pub(crate) fn new(
+        swarm: Swarm<Behaviour>,
+        addr: Multiaddr,
+        handler: BlockHandler,
+        connection_gate: G,
+        static_peers: HashMap<PeerId, Vec<Multiaddr>>,
+        config: GossipDriverConfig,
+    ) -> Self {
         Self {
             swarm,
             addr,
+            config,
             handler,
             peerstore: Default::default(),
-            peer_monitoring: None,
             peer_connection_start: Default::default(),
-            connection_gate: gate,
-            static_peers: HashMap::new(),
-            static_peer_redial_interval: STATIC_PEER_REDIAL_INTERVAL,
-            static_peer_reconnect_delay: STATIC_PEER_RECONNECT_DELAY,
+            connection_gate,
+            static_peers,
             next_static_peer_check: None,
             listener_id: None,
             ping: HashMap::new(),
             pending_connects: HashMap::new(),
             pending_disconnects: HashMap::new(),
             connections: Default::default(),
-            duplicate_connection_grace: DUPLICATE_CONNECTION_GRACE,
             next_duplicate_check: None,
         }
+    }
+
+    /// Returns the settings the driver was built with.
+    pub const fn config(&self) -> &GossipDriverConfig {
+        &self.config
     }
 
     /// Publishes an unsafe block to gossip.
@@ -269,7 +297,9 @@ where
             // A refusal is logged in `dial_peer`, and the next check tries again.
             let _ = self.dial_peer(peer_id, addrs);
         }
-        self.update_next_static_peer_check(Instant::now() + self.static_peer_redial_interval);
+        self.update_next_static_peer_check(
+            Instant::now() + self.config.static_peer_redial_interval,
+        );
     }
 
     /// Makes the next static peer check happen by `at`, keeping an earlier one.
@@ -415,7 +445,7 @@ where
             "score" => score.to_string()
         )
         .increment(1);
-        if let Some(monitoring) = &self.peer_monitoring {
+        if let Some(monitoring) = &self.config.peer_monitoring {
             // A duration too long for the clock bans the peer for as long as the node runs.
             let now = Instant::now();
             let until = now.checked_add(monitoring.ban_duration).unwrap_or(now + LONGEST_BAN);
@@ -574,11 +604,11 @@ where
     }
 
     /// Returns the connected peers whose gossipsub score is below the ban threshold of
-    /// [`Self::peer_monitoring`], or none if it isn't set.
+    /// [`GossipDriverConfig::peer_monitoring`], or none if it isn't set.
     ///
     /// Static peers are never banned, as in op-node: they would be dialed again right away.
     pub fn peers_to_ban(&self) -> Vec<PeerId> {
-        let Some(monitoring) = self.peer_monitoring.as_ref() else {
+        let Some(monitoring) = self.config.peer_monitoring.as_ref() else {
             return Vec::new();
         };
         self.swarm
@@ -713,7 +743,7 @@ where
     /// both peers would agree on.
     ///
     /// A peer's duplicates are closed once its youngest connection has been open for
-    /// [`Self::duplicate_connection_grace`].
+    /// [`GossipDriverConfig::duplicate_connection_grace`].
     fn close_duplicate_connections(&mut self) {
         self.next_duplicate_check = None;
         let local_peer_id = *self.local_peer_id();
@@ -728,7 +758,8 @@ where
                 continue;
             }
             let youngest = connections.values().map(|connection| connection.established).max();
-            let Some(closable_at) = youngest.map(|at| at + self.duplicate_connection_grace) else {
+            let Some(closable_at) = youngest.map(|at| at + self.config.duplicate_connection_grace)
+            else {
                 continue;
             };
             if closable_at > now {
@@ -876,7 +907,9 @@ where
                 let connection = PeerConnection { dialer, established, remote_addr };
                 self.connections.entry(peer_id).or_default().insert(connection_id, connection);
                 if num_established.get() > 1 {
-                    self.update_next_duplicate_check(established + self.duplicate_connection_grace);
+                    self.update_next_duplicate_check(
+                        established + self.config.duplicate_connection_grace,
+                    );
                 }
 
                 let peer_count = self.swarm.connected_peers().count();
@@ -934,7 +967,7 @@ where
 
                 if self.static_peers.contains_key(&peer_id) {
                     self.update_next_static_peer_check(
-                        Instant::now() + self.static_peer_reconnect_delay,
+                        Instant::now() + self.config.static_peer_reconnect_delay,
                     );
                 }
 
@@ -1240,8 +1273,8 @@ mod tests {
     async fn test_crossing_dials_keep_one_connection() {
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
-        driver_1.duplicate_connection_grace = Duration::from_millis(100);
-        driver_2.duplicate_connection_grace = Duration::from_millis(100);
+        driver_1.config.duplicate_connection_grace = Duration::from_millis(100);
+        driver_2.config.duplicate_connection_grace = Duration::from_millis(100);
 
         let (peer_1, peer_2) = cross_dial(&mut driver_1, &mut driver_2).await;
         poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
@@ -1269,8 +1302,8 @@ mod tests {
         let grace = Duration::from_secs(5);
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
-        driver_1.duplicate_connection_grace = grace;
-        driver_2.duplicate_connection_grace = grace;
+        driver_1.config.duplicate_connection_grace = grace;
+        driver_2.config.duplicate_connection_grace = grace;
 
         let start = Instant::now();
         cross_dial(&mut driver_1, &mut driver_2).await;
@@ -1297,7 +1330,7 @@ mod tests {
         )
         .build()
         .expect("build gossip driver");
-        driver.duplicate_connection_grace = Duration::from_millis(100);
+        driver.config.duplicate_connection_grace = Duration::from_millis(100);
         driver
     }
 
@@ -2323,8 +2356,8 @@ mod tests {
     async fn test_disconnect_replies_once_the_last_connection_closes() {
         let mut driver_1 = memory_driver();
         let mut driver_2 = memory_driver();
-        driver_1.duplicate_connection_grace = Duration::from_secs(60);
-        driver_2.duplicate_connection_grace = Duration::from_secs(60);
+        driver_1.config.duplicate_connection_grace = Duration::from_secs(60);
+        driver_2.config.duplicate_connection_grace = Duration::from_secs(60);
         let (_, peer_2) = cross_dial(&mut driver_1, &mut driver_2).await;
         poll_until(&mut driver_1, &mut driver_2, |driver_1, driver_2| {
             num_connections(driver_1) == 2 && num_connections(driver_2) == 2

@@ -28,7 +28,8 @@ pub struct RunningDiscovery {
 impl NetworkHandler {
     pub(super) async fn handle_peer_monitoring(&mut self) {
         // Inspect peer scores and ban peers that are below the threshold.
-        let Some(ban_duration) = self.gossip.peer_monitoring.as_ref().map(|m| m.ban_duration)
+        let Some(ban_duration) =
+            self.gossip.config().peer_monitoring.as_ref().map(|m| m.ban_duration)
         else {
             return;
         };

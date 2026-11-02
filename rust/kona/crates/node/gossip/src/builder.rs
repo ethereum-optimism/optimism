@@ -17,7 +17,7 @@ use tokio::sync::watch;
 
 use crate::{
     Behaviour, BlockHandler, ConnectionGate, GaterConfig, GossipDriver, GossipDriverBuilderError,
-    PeerAddr,
+    GossipDriverConfig, PeerAddr,
 };
 
 /// How long a connection with no open streams stays open, unless set with
@@ -55,27 +55,22 @@ pub struct GossipDriverBuilder {
     gossip_addr: Multiaddr,
     /// The unsafe block signer [`Address`] that gossiped blocks must be signed by.
     signer: watch::Receiver<Address>,
-    /// The idle connection timeout, [`DEFAULT_IDLE_CONNECTION_TIMEOUT`] if not set.
-    timeout: Option<Duration>,
-    /// Sets the [`PeerScoreLevel`] for the [`Behaviour`].
+    /// The idle connection timeout.
+    timeout: Duration,
+    /// Sets the [`PeerScoreLevel`] for the [`Behaviour`]. Without one, peer scoring is off.
     scoring: Option<PeerScoreLevel>,
-    /// The [`Config`] for the [`Behaviour`].
-    config: Option<Config>,
-    /// If set, the gossip layer will monitor peer scores and ban peers that are below a given
-    /// threshold.
-    peer_monitoring: Option<PeerMonitoring>,
+    /// The gossipsub [`Config`] for the [`Behaviour`].
+    gossipsub_config: Config,
     /// The configuration for the connection gater.
-    gater_config: Option<GaterConfig>,
+    gater_config: GaterConfig,
+    /// How the driver behaves once it runs.
+    driver_config: GossipDriverConfig,
     /// Topic scoring. Disabled by default.
     topic_scoring: bool,
     /// The transport the swarm listens and dials on. TCP by default.
     transport: GossipTransport,
     /// The peers to dial at startup and keep connected.
     static_peers: Vec<PeerAddr>,
-    /// How often static peers that aren't connected are dialed again, once a minute if not set.
-    static_peer_redial_interval: Option<Duration>,
-    /// How soon a static peer is dialed again after its connection closes, a second if not set.
-    static_peer_reconnect_delay: Option<Duration>,
 }
 
 impl GossipDriverBuilder {
@@ -90,20 +85,18 @@ impl GossipDriverBuilder {
         keypair: Keypair,
     ) -> Self {
         Self {
-            timeout: None,
+            timeout: DEFAULT_IDLE_CONNECTION_TIMEOUT,
             keypair,
             gossip_addr,
             signer: watch::channel(signer).1,
             scoring: None,
-            config: None,
-            peer_monitoring: None,
-            gater_config: None,
+            gossipsub_config: crate::default_config(),
+            gater_config: GaterConfig::default(),
+            driver_config: GossipDriverConfig::default(),
             rollup_config,
             topic_scoring: false,
             transport: GossipTransport::default(),
             static_peers: Vec::new(),
-            static_peer_redial_interval: None,
-            static_peer_reconnect_delay: None,
         }
     }
 
@@ -119,21 +112,27 @@ impl GossipDriverBuilder {
         self
     }
 
+    /// Sets how the driver behaves once it runs.
+    pub const fn with_driver_config(mut self, config: GossipDriverConfig) -> Self {
+        self.driver_config = config;
+        self
+    }
+
     /// Sets how often static peers that aren't connected are dialed again.
     pub const fn with_static_peer_redial_interval(mut self, interval: Duration) -> Self {
-        self.static_peer_redial_interval = Some(interval);
+        self.driver_config.static_peer_redial_interval = interval;
         self
     }
 
     /// Sets how soon a static peer is dialed again after its connection closes.
     pub const fn with_static_peer_reconnect_delay(mut self, delay: Duration) -> Self {
-        self.static_peer_reconnect_delay = Some(delay);
+        self.driver_config.static_peer_reconnect_delay = delay;
         self
     }
 
     /// Sets the configuration for the connection gater.
     pub const fn with_gater_config(mut self, config: GaterConfig) -> Self {
-        self.gater_config = Some(config);
+        self.gater_config = config;
         self
     }
 
@@ -159,7 +158,7 @@ impl GossipDriverBuilder {
 
     /// Sets the [`PeerMonitoring`] configuration for the gossip driver.
     pub const fn with_peer_monitoring(mut self, peer_monitoring: Option<PeerMonitoring>) -> Self {
-        self.peer_monitoring = peer_monitoring;
+        self.driver_config.peer_monitoring = peer_monitoring;
         self
     }
 
@@ -178,7 +177,7 @@ impl GossipDriverBuilder {
 
     /// Sets the swarm's idle connection timeout.
     pub const fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = Some(timeout);
+        self.timeout = timeout;
         self
     }
 
@@ -188,9 +187,9 @@ impl GossipDriverBuilder {
         self
     }
 
-    /// Sets the [`Config`] for the [`Behaviour`].
+    /// Sets the gossipsub [`Config`] for the [`Behaviour`].
     pub fn with_config(mut self, config: Config) -> Self {
-        self.config = Some(config);
+        self.gossipsub_config = config;
         self
     }
 
@@ -204,17 +203,14 @@ impl GossipDriverBuilder {
             signer: signer_rx,
             timeout,
             scoring,
-            config,
-            peer_monitoring,
+            gossipsub_config: config,
             gater_config,
+            driver_config,
             topic_scoring,
             transport,
             static_peers,
-            static_peer_redial_interval,
-            static_peer_reconnect_delay,
         } = self;
 
-        let timeout = timeout.unwrap_or(DEFAULT_IDLE_CONNECTION_TIMEOUT);
         let mut static_peers = PeerAddr::group_by_peer(static_peers);
         // Lets a cluster share one list.
         if let Some(addrs) = static_peers.remove(&keypair.public().to_peer_id()) {
@@ -226,7 +222,6 @@ impl GossipDriverBuilder {
         let handler = BlockHandler::new(rollup_config, signer_rx);
 
         // Construct the gossip behaviour
-        let config = config.unwrap_or_else(crate::default_config);
         info!(
             target: "gossip",
             "CONFIG: [Mesh D: {}] [Mesh L: {}] [Mesh H: {}] [Gossip Lazy: {}] [Flood Publish: {}]",
@@ -296,7 +291,7 @@ impl GossipDriverBuilder {
                 .build(),
         };
 
-        let mut gate = crate::ConnectionGater::new(gater_config.unwrap_or_default());
+        let mut gate = crate::ConnectionGater::new(gater_config);
         // Static peers are exempt from the redial limit.
         for peer_id in static_peers.keys() {
             gate.protect_peer(*peer_id);
@@ -305,16 +300,7 @@ impl GossipDriverBuilder {
             gate = gate.allowing_addrs_without_ip();
         }
 
-        let mut driver = GossipDriver::new(swarm, addr, handler, gate);
-        driver.peer_monitoring = peer_monitoring;
-        driver.static_peers = static_peers;
-        if let Some(interval) = static_peer_redial_interval {
-            driver.static_peer_redial_interval = interval;
-        }
-        if let Some(delay) = static_peer_reconnect_delay {
-            driver.static_peer_reconnect_delay = delay;
-        }
-        Ok(driver)
+        Ok(GossipDriver::new(swarm, addr, handler, gate, static_peers, driver_config))
     }
 }
 
@@ -399,7 +385,7 @@ pub(crate) mod tests {
             .build()
             .expect("build gossip driver");
 
-        let monitoring = driver.peer_monitoring.as_ref().expect("peer monitoring is set");
+        let monitoring = driver.config.peer_monitoring.as_ref().expect("peer monitoring is set");
         assert_eq!(monitoring.ban_threshold, -10.0);
         assert_eq!(
             driver.static_peers,
