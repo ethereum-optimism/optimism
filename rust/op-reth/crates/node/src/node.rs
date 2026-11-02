@@ -407,12 +407,17 @@ impl OpNode {
     }
 }
 
-/// Launches an OP node, optionally installing proof history, then waits for it to exit.
+/// Launches an OP node, optionally installing proof history, then runs `consensus` alongside it
+/// until either exits.
+///
+/// `consensus` is first polled once the node, and so its RPC servers, are up. A future that
+/// never resolves leaves the node running until it exits on its own.
 ///
 /// Fails if the engine config enables state masking, which op-reth does not support.
 pub async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     node: OpNode,
+    consensus: impl Future<Output = eyre::Result<()>>,
 ) -> eyre::Result<(), ErrReport> {
     // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
     // callers that build a `NodeConfig` without that CLI.
@@ -508,7 +513,10 @@ pub async fn launch_node(
             warn!(target: "reth::cli", %err, "Failed to check whether Storage V1 deprecation applies");
         }
     }
-    handle.node_exit_future.await
+    tokio::select! {
+        result = handle.node_exit_future => result,
+        result = consensus => result,
+    }
 }
 
 impl<N> Node<N> for OpNode

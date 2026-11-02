@@ -42,7 +42,8 @@ Every run covers the whole `./op-acceptance-tests/tests/...` tree; there is no p
 subset target. Which clients the devstack starts is chosen by two environment variables, read
 in `op-devstack/sysgo/mixed_runtime.go`:
 
-- `DEVSTACK_L2CL_KIND` — `op-node` (the default) or `kona-node`
+- `DEVSTACK_L2CL_KIND` — `op-node` (the default), `kona-node`, or `op-reth` (kona running inside
+  the op-reth EL process, so the EL must be op-reth)
 - `DEVSTACK_L2EL_KIND` — `op-reth` (the default) or `op-geth`
 
 ```bash
@@ -53,7 +54,8 @@ CI runs two variants of the `op-acceptance-tests` job: `memory-all-opn-op-reth-<
 (op-node + op-reth) and `memory-all-kona-op-reth-<l1_fork>` (kona-node + op-reth).
 
 A test that cannot run under a given client skips itself in code rather than being left out of
-a list — `sysgo.SkipOnKonaNode`, `sysgo.SkipOnOpReth` and `sysgo.SkipOnOpGeth`.
+a list — `sysgo.SkipOnKonaNode`, `sysgo.SkipOnOpReth`, `sysgo.SkipOnOpGeth` and
+`sysgo.SkipOnOpRethCL` (for tests that stop or start the EL and CL independently).
 
 ### Kona Prestate
 
