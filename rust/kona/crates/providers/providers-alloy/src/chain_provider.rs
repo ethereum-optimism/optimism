@@ -987,7 +987,50 @@ mod tests {
             false,
         );
 
-        assert!(provider.block_info_by_label(BlockLabel::Latest).await.is_err());
+        let error = provider.block_info_by_label(BlockLabel::Latest).await.unwrap_err();
+
+        assert!(
+            matches!(
+                error,
+                AlloyChainProviderError::HeaderHashMismatch { expected, .. }
+                    if expected == B256::repeat_byte(0xbb)
+            ),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn untrusted_hash_lookups_reject_a_block_with_another_hash() {
+        // Each lookup by hash gets a block whose header does not hash to the requested hash.
+        let requested = B256::repeat_byte(0xbc);
+        let block = rpc_block(requested, Vec::new(), alloy_consensus::EMPTY_ROOT_HASH);
+        let asserter = Asserter::new();
+        asserter.push_success(&Some(block.clone()));
+        asserter.push_success(&Some(block));
+        let provider = AlloyChainProvider::new(
+            RootProvider::new(RpcClient::mocked(asserter.clone())),
+            CACHE_SIZE,
+            false,
+        );
+
+        let header_error = provider.header_by_hash(requested).await.unwrap_err();
+        let transactions_error =
+            provider.block_info_and_transactions_by_hash(requested).await.unwrap_err();
+
+        for error in [header_error, transactions_error] {
+            assert!(
+                matches!(
+                    error,
+                    AlloyChainProviderError::HeaderHashMismatch { expected, .. }
+                        if expected == requested
+                ),
+                "{error}"
+            );
+        }
+        assert!(asserter.read_q().is_empty());
+        // Nothing unverified reaches the caches.
+        assert!(provider.shared.cache.header(requested).is_none());
+        assert!(provider.shared.cache.transactions(requested).is_none());
     }
 
     #[tokio::test]
