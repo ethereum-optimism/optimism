@@ -240,8 +240,7 @@ mod tests {
         Cli::<LaunchArgs<NoArgs>>::command().debug_assert();
     }
 
-    /// `OpRethArgs` must not change op-reth's command line, which `reth-optimism-cli`'s snapshot
-    /// test pins through `Cli<RollupArgs>`.
+    /// Stock op-reth keeps the help text pinned by the `Cli<RollupArgs>` snapshot.
     #[test]
     fn op_reth_args_keep_the_rollup_args_command_line() {
         fn node_help<Ext: clap::Args + std::fmt::Debug>() -> String {
@@ -250,6 +249,7 @@ mod tests {
             cmd.find_subcommand_mut("node").unwrap().render_long_help().to_string()
         }
         assert_eq!(node_help::<OpRethArgs>(), node_help::<RollupArgs>());
+        assert_eq!(node_help::<LaunchArgs<NoArgs>>(), node_help::<RollupArgs>());
     }
 
     #[test]
