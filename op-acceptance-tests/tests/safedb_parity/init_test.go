@@ -42,30 +42,31 @@ func newParitySystemWithExecutionClient(t devtest.T, enabled bool, executionClie
 	sysgo.SkipOnKonaNode(t, "pins op-node and kona-node explicitly; covered by the op-node variant")
 	var deployerOptions []sysgo.DeployerOption
 	if executionClient == sysgo.MixedL2ELOpGeth {
+		// op-geth cannot build or import Karst blocks, so its chain stays on Jovian.
 		deployerOptions = []sysgo.DeployerOption{sysgo.WithJovianAtGenesis}
 	}
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
 		DeployerOptions: deployerOptions,
 		NodeSpecs: []sysgo.MixedSingleChainNodeSpec{
 			{
-				CLKey:       "sequencer",
-				CLKind:      sysgo.MixedL2CLOpNode,
 				ELKey:       "sequencer-" + string(executionClient),
+				CLKey:       "sequencer",
 				ELKind:      executionClient,
+				CLKind:      sysgo.MixedL2CLOpNode,
 				IsSequencer: true,
 			},
 			{
-				CLKey:        opNodeVerifierKey,
-				CLKind:       sysgo.MixedL2CLOpNode,
 				ELKey:        opNodeVerifierKey + "-" + string(executionClient),
+				CLKey:        opNodeVerifierKey,
 				ELKind:       executionClient,
+				CLKind:       sysgo.MixedL2CLOpNode,
 				EnableSafeDB: enabled,
 			},
 			{
-				CLKey:        konaVerifierKey,
-				CLKind:       sysgo.MixedL2CLKona,
 				ELKey:        konaVerifierKey + "-" + string(executionClient),
+				CLKey:        konaVerifierKey,
 				ELKind:       executionClient,
+				CLKind:       sysgo.MixedL2CLKona,
 				EnableSafeDB: enabled,
 			},
 		},
