@@ -72,7 +72,7 @@ fn main() {
             let chain = builder.config().chain.chain;
             let metrics = builder.config().metrics.prometheus.is_some();
             info!(target: "reth::cli", rollup_consensus = consensus.enabled(), "Launching node");
-            launch_node(builder, OpNode::new(rollup), consensus.run(chain, metrics)).await
+            launch_node(builder, OpNode::new(rollup), Box::pin(consensus.run(chain, metrics))).await
         },
     ) {
         eprintln!("Error: {err:?}");

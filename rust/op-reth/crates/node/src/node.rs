@@ -10,7 +10,7 @@ use crate::{
 };
 use alloy_primitives::Sealed;
 use eyre::ErrReport;
-use futures_util::FutureExt;
+use futures_util::{FutureExt, future::BoxFuture};
 use op_alloy_consensus::{OpPooledTransaction, OpTransaction, TxPostExec, interop::SafetyLevel};
 use reth_chainspec::{
     BaseFeeParams, ChainSpecProvider, EthChainSpec, EthereumHardforks, ForkCondition, Hardforks,
@@ -411,13 +411,15 @@ impl OpNode {
 /// until either exits.
 ///
 /// `consensus` is first polled once the node, and so its RPC servers, are up. A future that
-/// never resolves leaves the node running until it exits on its own.
+/// never resolves leaves the node running until it exits on its own. It is boxed so this function
+/// is not generic: a generic one is compiled in its caller's crate, and compiling the node launch
+/// takes about 10 GB of memory.
 ///
 /// Fails if the engine config enables state masking, which op-reth does not support.
 pub async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     node: OpNode,
-    consensus: impl Future<Output = eyre::Result<()>>,
+    consensus: BoxFuture<'static, eyre::Result<()>>,
 ) -> eyre::Result<(), ErrReport> {
     // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
     // callers that build a `NodeConfig` without that CLI.
