@@ -844,6 +844,31 @@
   },
   {
     "inputs": [],
+    "name": "publishedParams",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "prevPublishedGas",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "prevBlockNum",
+            "type": "uint64"
+          }
+        ],
+        "internalType": "struct ResourceMetering.PublishedParams",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "removeHook",
     "outputs": [],
     "stateMutability": "nonpayable",

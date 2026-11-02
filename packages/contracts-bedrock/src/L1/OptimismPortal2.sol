@@ -332,10 +332,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         _disableInitializers();
     }
 
-    /// @notice Initializer. A nonzero `_bridgeHook` replaces the current hook and emits
-    ///         BridgeHookSet on every run. Value held by a replaced hook stays with it. Upgrades
-    ///         pass the zero address to keep the current hook. Setting a hook also counts the gas
-    ///         this block already published.
+    /// @notice Initializer. If `_bridgeHook` is nonzero, sets it as the current hook and emits
+    ///         BridgeHookSet. Upgrades pass the zero address to keep the current hook.
     ///
     /// @param _systemConfig Address of the SystemConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
@@ -362,6 +360,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             ethLockbox = _ethLockbox;
         }
         if (address(_bridgeHook) != address(0)) {
+            // The previous hook retains held value. The Portal retains the held item commitments,
+            // which the new hook can complete by supplying the required value.
             bridgeHook = _bridgeHook;
             emit BridgeHookSet(_bridgeHook);
             _countAlreadyPublished();
@@ -898,7 +898,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             }
         }
 
-        _emitDeposit(from, _to, _value, _gasLimit, _isCreation, _data);
+        _lockEthAndEmitDeposit(from, _to, _value, _gasLimit, _isCreation, _data);
     }
 
     /// @notice External getter for the number of proof submitters for a withdrawal hash.
@@ -921,16 +921,20 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         emit BridgeHookRemoved(hook);
     }
 
-    /// @notice Sends a held deposit to L2 on its original terms. Only callable by the bridge hook.
-    ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
+    /// @notice Sends a held deposit to L2 on its original terms. Only callable by the bridge hook,
+    ///         which can also complete deposits held under an earlier hook. The hook must attach
+    ///         the item's ETH and approve the bridge to reclaim escrowed tokens.
     /// @param _item Held deposit.
     function completeDepositTransaction(BridgeHookTypes.Item memory _item) external payable {
         _releaseHeld(_item, heldDeposits);
-        _emitDeposit(_item.from, _item.to, _item.l2Value, uint64(_item.gasLimit), _item.isCreation, _item.data);
+        _lockEthAndEmitDeposit(
+            _item.from, _item.to, _item.l2Value, uint64(_item.gasLimit), _item.isCreation, _item.data
+        );
     }
 
-    /// @notice Executes a held withdrawal on its original terms. Only callable by the bridge hook.
-    ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
+    /// @notice Executes a held withdrawal on its original terms. Only callable by the bridge hook,
+    ///         which can also complete withdrawals held under an earlier hook. The hook must
+    ///         attach the item's ETH and approve the bridge to reclaim escrowed tokens.
     /// @param _item Held withdrawal.
     function completeWithdrawalTransaction(BridgeHookTypes.Item memory _item) external payable { }
 
@@ -1028,7 +1032,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _gasLimit   Amount of L2 gas to purchase.
     /// @param _isCreation Whether or not the transaction is a contract creation.
     /// @param _data       Data to trigger the recipient with.
-    function _emitDeposit(
+    function _lockEthAndEmitDeposit(
         address _from,
         address _to,
         uint256 _value,
@@ -1038,7 +1042,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     )
         internal
     {
-        if (_isUsingBridgeHook() || publishedBlockNum == block.number) _countPublished(_gasLimit);
+        if (_isUsingBridgeHook() || _publishedParams.prevBlockNum == block.number) _countPublished(_gasLimit);
 
         if (_isUsingLockbox()) {
             if (msg.value > 0) _lockETH(msg.value);

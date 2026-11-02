@@ -21,18 +21,11 @@
     "type": "struct ResourceMetering.ResourceParams"
   },
   {
-    "bytes": "8",
-    "label": "publishedGas",
+    "bytes": "32",
+    "label": "_publishedParams",
     "offset": 0,
     "slot": "2",
-    "type": "uint64"
-  },
-  {
-    "bytes": "8",
-    "label": "publishedBlockNum",
-    "offset": 8,
-    "slot": "2",
-    "type": "uint64"
+    "type": "struct ResourceMetering.PublishedParams"
   },
   {
     "bytes": "1504",

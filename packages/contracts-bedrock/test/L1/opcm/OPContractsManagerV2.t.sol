@@ -1062,7 +1062,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // a wrong call from initialize.
         bytes32 published = bytes32((block.number - 1) << 64 | 300_000);
         uint256 nonceSlot = ForgeArtifacts.getSlot("OptimismPortal2", "depositNonce").slot;
-        uint256 publishedSlot = ForgeArtifacts.getSlot("OptimismPortal2", "publishedGas").slot;
+        uint256 publishedSlot = ForgeArtifacts.getSlot("OptimismPortal2", "_publishedParams").slot;
         vm.store(
             address(optimismPortal2),
             bytes32(ForgeArtifacts.getSlot("OptimismPortal2", "bridgeHook").slot),

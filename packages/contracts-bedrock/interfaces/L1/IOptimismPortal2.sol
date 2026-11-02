@@ -7,6 +7,7 @@ import { GameType } from "src/dispute/lib/LibUDT.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
@@ -117,6 +118,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function minimumGasLimit(uint64 _byteCount) external pure returns (uint64);
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256);
     function params() external view returns (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum); // nosemgrep
+    function publishedParams() external view returns (IResourceMetering.PublishedParams memory);
     function paused() external view returns (bool);
     function proofMaturityDelaySeconds() external view returns (uint256);
     function proofSubmitters(bytes32, uint256) external view returns (address);
