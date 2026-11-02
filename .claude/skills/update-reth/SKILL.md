@@ -37,7 +37,9 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
 3. **Execute the guide's procedure**, including the current-pin audit and
    `cd rust && just mirrors stale` before verification. If fork patches
    survive the audit, the pin moves to a tag on a new `op-*` fork branch (the
-   guide's "The reth fork"). Work every stale mirror
+   guide's "The reth fork"). Start that branch with the CI commit and the
+   OP `.github/CODEOWNERS` carried over from the previous branch, and confirm
+   the fork's `codeowners/errors` check is empty. Work every stale mirror
    and iterate the compile loop to green; don't ask the user to confirm each
    adaptation.
 
