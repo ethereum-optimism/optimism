@@ -224,7 +224,7 @@ The `EngineActor` receives all state-mutating input through a single inbound req
 let client = EngineClientBuilder {
     l2: l2_engine_url,
     l2_jwt: jwt_secret,
-    l1_rpc: l1_rpc_url,
+    l1: l1_provider, // The node's shared `AlloyChainProvider`
     cfg: rollup_config,
 }
 .build();
