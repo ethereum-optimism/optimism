@@ -167,8 +167,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
     /// @notice Different release-approved raw verifiers must produce different deterministic adapters.
     function test_differentSP1Verifiers_deployDifferentAdapters_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         DeployImplementations.Input memory inputA = defaultInput();
         DeployImplementations.Output memory outputA = deployImplementations.run(inputA);
 
@@ -254,9 +252,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             superchainProxyAdmin,
             l1ProxyAdminOwner,
             challenger,
-            DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)
-                ? sp1Verifier
-                : ISP1Verifier(address(0))
+            sp1Verifier
         );
 
         DeployImplementations.Output memory output = deployImplementations.run(input);
@@ -398,11 +394,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
         // Architecture assertions.
         assertEq(address(output.mipsSingleton.oracle()), address(output.preimageOracleSingleton), "600");
-        if (DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            assertEq(
-                address(output.sp1PlonkAdapterSingleton.sp1Verifier()), address(sp1Verifier), "SP1 verifier mismatch"
-            );
-        }
+        assertEq(address(output.sp1PlonkAdapterSingleton.sp1Verifier()), address(sp1Verifier), "SP1 verifier mismatch");
     }
 
     /// @notice Test that the deployImplementations script reverts when the Mips version is set to 1 on Mainnet or
@@ -503,23 +495,17 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         deployImplementations.run(input);
     }
 
-    /// @notice Tests that the raw SP1 verifier input matches the ZK feature gate.
-    function test_run_invalidSP1VerifierForFeatureGate_reverts() public {
+    /// @notice Tests that the raw SP1 verifier must be a contract.
+    function test_run_sp1VerifierNotContract_reverts() public {
         DeployImplementations.Input memory input = defaultInput();
-        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            input.sp1Verifier = ISP1Verifier(address(0));
-            vm.expectRevert("DeployImplementations: sp1Verifier must be a contract when ZK_DISPUTE_GAME is enabled");
-        } else {
-            input.sp1Verifier = sp1Verifier;
-            vm.expectRevert("DeployImplementations: sp1Verifier must be zero when ZK_DISPUTE_GAME is disabled");
-        }
+        input.sp1Verifier = ISP1Verifier(makeAddr("eoaVerifier"));
+
+        vm.expectRevert("DeployImplementations: sp1Verifier must be a contract");
         deployImplementations.run(input);
     }
 
     /// @notice Tests that the raw SP1 verifier exposes the expected verifier interface.
     function test_run_sp1VerifierWithoutVersion_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         address verifierWithoutVersion = makeAddr("verifierWithoutVersion");
         vm.etch(verifierWithoutVersion, hex"00");
         DeployImplementations.Input memory input = defaultInput();
@@ -527,6 +513,45 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
         vm.expectRevert("DeployImplementations: sp1Verifier must expose VERSION()");
         deployImplementations.run(input);
+    }
+
+    /// @notice Tests that a zero SP1 verifier makes the script deploy and wrap a MockSP1Verifier.
+    function test_run_zeroSP1VerifierDeploysMock_succeeds() public {
+        DeployImplementations.Input memory input = defaultInput();
+        input.sp1Verifier = ISP1Verifier(address(0));
+
+        DeployImplementations.Output memory output = deployImplementations.run(input);
+
+        ISP1Verifier verifier = output.sp1PlonkAdapterSingleton.sp1Verifier();
+        assertGt(address(verifier).code.length, 0, "SP1 verifier has no code");
+        assertEq(verifier.VERSION(), "v0.0.0-MOCK", "SP1 verifier is not the mock");
+    }
+
+    /// @notice Tests that a zero SP1 verifier reverts on any chain that is not a local dev chain.
+    function testFuzz_run_zeroSP1VerifierOnNonDevChain_reverts(uint64 _chainId) public {
+        vm.assume(
+            _chainId != Chains.LocalDevnet && _chainId != Chains.GethDevnet && _chainId != Chains.Hardhat
+                && _chainId != Chains.AnvilDevnet && _chainId != Chains.InteropDevnet
+        );
+        DeployImplementations.Input memory input = defaultInput();
+        input.sp1Verifier = ISP1Verifier(address(0));
+
+        vm.chainId(_chainId);
+        vm.expectRevert("DeployImplementations: sp1Verifier must be set outside local dev chains");
+        deployImplementations.run(input);
+    }
+
+    /// @notice Tests that a zero SP1 verifier reverts on Ethereum mainnet, Sepolia and OP Mainnet.
+    function test_run_zeroSP1VerifierOnPublicChain_reverts() public {
+        uint256[3] memory chainIds = [Chains.Mainnet, Chains.Sepolia, Chains.OPMainnet];
+        for (uint256 i = 0; i < chainIds.length; i++) {
+            DeployImplementations.Input memory input = defaultInput();
+            input.sp1Verifier = ISP1Verifier(address(0));
+
+            vm.chainId(chainIds[i]);
+            vm.expectRevert("DeployImplementations: sp1Verifier must be set outside local dev chains");
+            deployImplementations.run(input);
+        }
     }
 
     /// @notice Test that the deployImplementations script reverts when the V2 game parameters are invalid.
@@ -604,9 +629,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             superchainProxyAdmin,
             l1ProxyAdminOwner,
             challenger,
-            DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)
-                ? sp1Verifier
-                : ISP1Verifier(address(0))
+            sp1Verifier
         );
     }
 }

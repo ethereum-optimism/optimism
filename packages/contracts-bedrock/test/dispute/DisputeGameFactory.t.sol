@@ -9,7 +9,6 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 
 // Libraries
 import { LibClone } from "@solady/utils/LibClone.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
@@ -563,7 +562,6 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         vm.warp(block.timestamp + 1000);
     }
 
@@ -655,7 +653,8 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
     )
         public
     {
-        vm.assume(_challengerBond > 0);
+        // Bound the bond so that adding it to the existing DelayedWETH balance on a fork cannot overflow.
+        _challengerBond = bound(_challengerBond, 1, type(uint128).max);
 
         ZKDisputeGameParams memory params = ZKDisputeGameParams({
             maxChallengeDuration: Duration.wrap(_maxChallengeDuration),

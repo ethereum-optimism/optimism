@@ -4,7 +4,8 @@ pragma solidity 0.8.15;
 import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 
 /// @title MockSP1Verifier
-/// @notice Mock SP1 verifier that always succeeds. Test only.
+/// @notice Mock SP1 verifier that always succeeds. DeployImplementations deploys it when no SP1
+///         verifier is configured on a local dev chain.
 contract MockSP1Verifier is ISP1Verifier {
     /// @notice Returns the mock version string.
     function VERSION() external pure returns (string memory) {

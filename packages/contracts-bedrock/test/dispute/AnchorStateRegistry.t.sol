@@ -26,7 +26,6 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title AnchorStateRegistry_TestInit
 /// @notice Reusable test initialization for `AnchorStateRegistry` tests.
@@ -1635,8 +1634,6 @@ abstract contract AnchorStateRegistry_ZkDisputeGame_TestInit is AnchorStateRegis
 
     function setUp() public virtual override {
         super.setUp();
-
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
 
         // Register ZK game implementation and set it as the respected game type.
         setupZKDisputeGame(

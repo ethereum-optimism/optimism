@@ -13,7 +13,6 @@ import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
 import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Features } from "src/libraries/Features.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Interfaces
@@ -164,11 +163,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
         // Standard validator tests use standard game configs incompatible with migration mode.
         if (Config.devFeatureSuperRootGamesMigration()) {
             vm.skip(true, "Skipping: standard configs incompatible with SUPER_ROOT_GAMES_MIGRATION");
-        }
-        // Standard validator tests do not deploy a ZK dispute game, so they are incompatible
-        // with ZK_DISPUTE_GAME mode which expects one to be registered.
-        if (Config.devFeatureZkDisputeGame()) {
-            vm.skip(true, "Skipping: standard configs incompatible with ZK_DISPUTE_GAME");
         }
         super.setUp();
 
@@ -2213,48 +2207,9 @@ contract OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test
     }
 }
 
-/// @title OPContractsManagerStandardValidator_ZKDisputeGame_Test
-/// @notice Tests that ZK dispute game validation is gated on the ZK_DISPUTE_GAME dev feature flag.
-///         These tests run in non-ZK deployment mode and verify both branches of the gating logic.
-contract OPContractsManagerStandardValidator_ZKDisputeGame_Test is OPContractsManagerStandardValidator_TestInit {
-    /// @notice Returns the devFeatureBitmap storage slot in standardValidator.
-    function _devFeatureBitmapSlot() internal returns (bytes32) {
-        return bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "devFeatureBitmap").slot);
-    }
-
-    /// @notice Enables the ZK_DISPUTE_GAME dev feature flag in standardValidator via vm.store.
-    function _enableZKFeature() internal {
-        vm.store(address(standardValidator), _devFeatureBitmapSlot(), DevFeatures.ZK_DISPUTE_GAME);
-    }
-
-    /// @notice Tests ZKDG-NOSHAPE when ZK feature is not enabled but a ZK game is registered.
-    ///         This is the negative test ensuring the non-ZK branch of the validation is exercised.
-    function test_validate_zkDisputeGameNotExpected_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
-        vm.mockCall(
-            address(disputeGameFactory),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)),
-            abi.encode(address(0xdead))
-        );
-        assertEq("ZKDG-NOSHAPE", _validate(true));
-    }
-
-    /// @notice Tests that ZK feature enabled + no ZK impl registered is valid.
-    ///         address(0) in the factory means the chain opted out of ZK (e.g. initial deployment).
-    ///         The validator should skip ZK validation entirely and report no errors.
-    function test_validate_zkFeatureEnabledNoImpl_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
-        // Enable the ZK feature flag in bitmap; factory still returns address(0) for ZK_DISPUTE_GAME.
-        // This is the exact state produced by an initial deployment with ZK disabled.
-        _enableZKFeature();
-        assertEq(address(disputeGameFactory.gameImpls(GameTypes.ZK_DISPUTE_GAME)), address(0));
-        assertEq("", _validate(true));
-    }
-}
-
 /// @title OPContractsManagerStandardValidator_ZKMode_TestInit
 /// @notice Base contract for post-super-root-migration ZK dispute game validator tests.
-///         Requires both ZK_DISPUTE_GAME and SUPER_ROOT_GAMES_MIGRATION.
+///         Requires SUPER_ROOT_GAMES_MIGRATION.
 ///         Configures super games plus a ZK dispute game through OPCM.
 abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonTest {
     /// @notice The l2ChainId from the deploy config.
@@ -2275,11 +2230,8 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
     /// @notice The OPContractsManagerStandardValidator instance.
     IOPContractsManagerStandardValidator standardValidator;
 
-    /// @notice Sets up the ZK-mode test suite. Skips unless both required dev features are enabled.
+    /// @notice Sets up the ZK-mode test suite. Skips unless SUPER_ROOT_GAMES_MIGRATION is enabled.
     function setUp() public virtual override {
-        if (!Config.devFeatureZkDisputeGame()) {
-            vm.skip(true, "Skipping: DEV_FEATURE__ZK_DISPUTE_GAME is not enabled");
-        }
         if (!Config.devFeatureSuperRootGamesMigration()) {
             vm.skip(true, "Skipping: DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION is not enabled");
         }
@@ -2427,7 +2379,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
 
 /// @title OPContractsManagerStandardValidator_ZKValidation_Test
 /// @notice Tests for the ZK dispute game validation path in the standard validator.
-///         Only runs when ZK_DISPUTE_GAME and SUPER_ROOT_GAMES_MIGRATION are enabled.
+///         Only runs when SUPER_ROOT_GAMES_MIGRATION is enabled.
 contract OPContractsManagerStandardValidator_ZKValidation_Test is OPContractsManagerStandardValidator_ZKMode_TestInit {
     /// @notice Tests that ZK validation succeeds after the super-root migration.
     function test_validate_zkDisputeGameAfterSuperRootMigration_succeeds() public view {
@@ -2586,6 +2538,23 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is OPContractsMan
             address(dgf), abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)), abi.encode(0)
         );
         assertEq("ASR-RGT", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-NOSHAPE when a chain that registers the ZK game respects a non-super game
+    ///         type, and that the code clears once the ZK game is unregistered.
+    function test_validate_zkOnNonSuperRootChain_succeeds() public {
+        IOptimismPortal2 portal = IOptimismPortal2(payable(systemConfig.optimismPortal()));
+        vm.mockCall(
+            address(portal.anchorStateRegistry()),
+            abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
+            abi.encode(GameTypes.PERMISSIONED_CANNON)
+        );
+        assertEq("SPDG-NOSHAPE,SCKDG-NOSHAPE,ZKDG-NOSHAPE,PDDG-NOSHAPE,CKDG-NOSHAPE,PDDG-10,CKDG-10", _validate(true));
+
+        vm.mockCall(
+            address(dgf), abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)), abi.encode(0)
+        );
+        assertEq("SPDG-NOSHAPE,SCKDG-NOSHAPE,PDDG-NOSHAPE,CKDG-NOSHAPE,PDDG-10,CKDG-10", _validate(true));
     }
 
     /// @notice Tests ZKDG-160 when the ZK_DISPUTE_GAME init bond is zero. ZK game creation is
