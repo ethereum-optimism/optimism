@@ -2,7 +2,7 @@ use super::*;
 use crate::{L1OriginSelector, OriginSelector};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Log, LogData, TxKind, U256, map::HashMap};
-use alloy_transport::{TransportError, TransportErrorKind};
+use alloy_transport::TransportError;
 use kona_derive::{
     AttributesBuilder, StatefulAttributesBuilder, test_utils::TestSystemConfigL2Fetcher,
 };
@@ -53,10 +53,10 @@ impl MemoryL1 {
     }
 }
 
-/// A stalled request fails once the L1 transport's per-request deadline expires.
+/// A stalled request fails once the L1 transport's per-request deadline expires, with the error
+/// that deadline produces.
 async fn stall() -> Result<(), TransportError> {
-    tokio::time::sleep(kona_engine::RPC_TIMEOUT).await;
-    Err(TransportErrorKind::custom_str("RPC request timed out"))
+    kona_engine::with_deadline(Box::pin(std::future::pending())).await.map(|_| ())
 }
 
 fn transport_failure(error: TransportError) -> PipelineErrorKind {

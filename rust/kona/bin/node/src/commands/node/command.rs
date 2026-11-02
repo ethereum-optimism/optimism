@@ -45,7 +45,7 @@ const L1_PROVIDER_CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
 /// Every request is bounded by [`kona_engine::RPC_TIMEOUT`], so a stalled endpoint fails its
 /// caller instead of hanging it. This is the only bound on L1 reads: the components do not bound
 /// their own. Metrics wrap the deadline, so a timeout is recorded as a transport error.
-fn l1_provider(url: Url, trust_rpc: bool) -> AlloyChainProvider {
+pub(super) fn l1_client(url: Url, trust_rpc: bool) -> AlloyChainProvider {
     AlloyChainProvider::new(
         RootProvider::new(
             ClientBuilder::default()
@@ -330,7 +330,7 @@ impl NodeCommand {
 
         middleware::describe();
         let l1_provider =
-            l1_provider(self.l1_rpc_args.l1_eth_rpc.clone(), self.l1_rpc_args.l1_trust_rpc);
+            l1_client(self.l1_rpc_args.l1_eth_rpc.clone(), self.l1_rpc_args.l1_trust_rpc);
         let l1_config = L1ConfigBuilder {
             chain_config: self.get_l1_config(cfg.l1_chain_id)?,
             provider: l1_provider.clone(),
@@ -546,7 +546,7 @@ mod tests {
         // pending: connecting, sending, or waiting for the response.
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap()).parse().unwrap();
-        let provider = l1_provider(url, true);
+        let provider = l1_client(url, true);
 
         let started = Instant::now();
         let result =
