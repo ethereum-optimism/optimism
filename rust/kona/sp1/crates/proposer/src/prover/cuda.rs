@@ -51,9 +51,6 @@ use crate::{
 /// The image that carries `sp1-gpu-server`, the CUDA runtime, and the PLONK circuits.
 const CUDA_IMAGE: &str = "op-zk-proposer-cuda";
 
-/// The `sp1-gpu-server` binary of the image.
-const GPU_SERVER: &str = "/usr/local/bin/sp1-gpu-server";
-
 /// How long a started server may take to open its socket; it initializes CUDA first.
 const SERVER_START_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -78,7 +75,7 @@ impl LocalCudaProofProvider {
         config: &LocalCudaConfig,
         provider_config: ProofProviderConfig,
     ) -> Result<Self> {
-        let path = Path::new(GPU_SERVER);
+        let path = config.server_path.as_path();
         check_gpu_server(path).await?;
         ensure!(
             cfg!(target_arch = "x86_64"),

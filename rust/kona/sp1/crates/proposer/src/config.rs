@@ -585,6 +585,8 @@ pub struct LocalCudaConfig {
     pub devices: Vec<u32>,
     /// RSS limit in bytes of each pre-execution's executor child process.
     pub memory_limit_bytes: NonZeroU64,
+    /// The `sp1-gpu-server` binary; the `op-zk-proposer-cuda` image installs it at the default.
+    pub server_path: PathBuf,
 }
 
 impl Default for LocalCudaConfig {
@@ -593,6 +595,7 @@ impl Default for LocalCudaConfig {
             devices: vec![0],
             memory_limit_bytes: NonZeroU64::new(DEFAULT_MEMORY_LIMIT)
                 .expect("SP1's default memory limit is non-zero"),
+            server_path: PathBuf::from("/usr/local/bin/sp1-gpu-server"),
         }
     }
 }
@@ -616,6 +619,8 @@ impl LocalCudaConfig {
                 "CUDA_MEMORY_LIMIT_BYTES",
                 defaults.memory_limit_bytes,
             )?,
+            server_path: optional_env("CUDA_SERVER_PATH")
+                .map_or(defaults.server_path, PathBuf::from),
         })
     }
 }
@@ -1088,6 +1093,11 @@ mod tests {
             assert_eq!(LocalCudaConfig::default().devices, [0]);
             set_proposer_env("CUDA_DEVICES", "1, 3");
             assert_eq!(LocalCudaConfig::from_env().unwrap().devices, [1, 3]);
+            set_proposer_env("CUDA_SERVER_PATH", "/opt/gpu/sp1-gpu-server");
+            assert_eq!(
+                LocalCudaConfig::from_env().unwrap().server_path,
+                PathBuf::from("/opt/gpu/sp1-gpu-server")
+            );
         }
 
         #[test]
