@@ -573,8 +573,10 @@ mod tests {
     use super::*;
     use alloy_primitives::b256;
     use clap::Parser;
+    use kona_node_service::NetworkBuilder;
     use kona_peers::NodeRecord;
     use libp2p::PeerId;
+    use rstest::rstest;
 
     /// A mock command that uses the `P2PArgs`.
     #[derive(Parser, Debug, Clone)]
@@ -743,6 +745,58 @@ mod tests {
         assert_eq!(advertised_port(None, 9223), 9223);
         assert_eq!(advertised_port(Some(0), 9223), 9223);
         assert_eq!(advertised_port(Some(30303), 9223), 30303);
+    }
+
+    /// A started node advertises `--p2p.advertise.tcp` if set, and otherwise the TCP port gossip
+    /// bound, with or without `--p2p.advertise.ip`. The node listens on port 0 here, so the bound
+    /// port differs from the listen port.
+    #[rstest]
+    #[case::bound_port(&[], None)]
+    #[case::advertise_tcp(&["--p2p.advertise.tcp", "30303"], Some(30303))]
+    #[case::advertise_ip(&["--p2p.advertise.ip", "127.0.0.1"], None)]
+    #[case::advertise_ip_and_tcp(
+        &["--p2p.advertise.ip", "127.0.0.1", "--p2p.advertise.tcp", "30303"],
+        Some(30303)
+    )]
+    #[tokio::test]
+    async fn test_started_node_advertises_tcp_port(
+        #[case] flags: &[&str],
+        #[case] advertised: Option<u16>,
+    ) {
+        let args = MockCommand::parse_from(
+            [
+                "test",
+                "--p2p.listen.ip",
+                "127.0.0.1",
+                "--p2p.listen.tcp",
+                "0",
+                "--p2p.listen.udp",
+                "0",
+                "--p2p.no-bootstore",
+                "--p2p.unsafe.block.signer",
+                "0x0000000000000000000000000000000000000001",
+            ]
+            .into_iter()
+            .chain(flags.iter().copied()),
+        );
+        // Chain ID 0 is in no registry, so discovery has no bootnodes. Peer scoring needs a block
+        // time.
+        let rollup_config = RollupConfig { block_time: 2, ..Default::default() };
+        let config = args.p2p.config(&rollup_config, &GlobalArgs::default(), None).await.unwrap();
+        let handler = NetworkBuilder::from(config).build().unwrap().start().await.unwrap();
+
+        let bound_port = handler
+            .gossip
+            .addr()
+            .iter()
+            .find_map(|p| match p {
+                Protocol::Tcp(port) => Some(port),
+                _ => None,
+            })
+            .expect("gossip listens on TCP");
+        let enr = handler.discovery.unwrap().handler.local_enr().await.unwrap();
+
+        assert_eq!(enr.tcp4(), Some(advertised.unwrap_or(bound_port)));
     }
 
     #[test]
