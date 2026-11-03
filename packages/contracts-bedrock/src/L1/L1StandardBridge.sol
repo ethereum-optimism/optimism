@@ -45,6 +45,9 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     /// @notice Thrown when the escrow of the token pair is below the amount to hold.
     error L1StandardBridge_InsufficientDeposits();
 
+    /// @notice Thrown when no hold is recorded for the item.
+    error L1StandardBridge_TransferNotHeld();
+
     /// @custom:legacy
     /// @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
     /// @param from      Address of the depositor.
@@ -123,6 +126,9 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
 
     /// @notice Address of the SystemConfig contract.
     ISystemConfig public systemConfig;
+
+    /// @notice Token kinds of held token transfers, keyed by item ID.
+    mapping(bytes32 => BridgeHookTypes.TokenKind) public heldTokenKinds;
 
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge() ReinitializableBase(3) {
@@ -284,9 +290,10 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     }
 
     /// @notice Moves escrowed tokens to the Portal's bridge hook. Only callable by the Portal.
+    /// @param _id Identifier of the held item.
     /// @param _direction Transfer direction, which identifies the L1 and L2 tokens in the message.
     /// @param _message Encoded finalizeBridgeERC20 call.
-    function holdERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external {
+    function holdERC20(bytes32 _id, BridgeHookTypes.Direction _direction, bytes calldata _message) external {
         IOptimismPortal2 portal = IOptimismPortal2(payable(systemConfig.optimismPortal()));
         if (msg.sender != address(portal)) revert L1StandardBridge_NotPortal();
 
@@ -296,7 +303,11 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
         (bool valid, address l1Token, address l2Token, uint256 amount) =
             BridgeHookDecoder.decodeTokenTransfer(_direction, _message);
         if (!valid) revert L1StandardBridge_InvalidTokenTransfer();
-        if (_isOptimismMintableERC20(l1Token)) return;
+        if (_isOptimismMintableERC20(l1Token)) {
+            heldTokenKinds[_id] = BridgeHookTypes.TokenKind.NativeL2;
+            return;
+        }
+        heldTokenKinds[_id] = BridgeHookTypes.TokenKind.NativeL1;
 
         if (deposits[l1Token][l2Token] < amount) revert L1StandardBridge_InsufficientDeposits();
         deposits[l1Token][l2Token] -= amount;
@@ -305,9 +316,10 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     }
 
     /// @notice Pulls tokens from the Portal's bridge hook back into escrow. Only callable by the Portal.
+    /// @param _id Identifier of the held item.
     /// @param _direction Transfer direction, which identifies the L1 and L2 tokens in the message.
     /// @param _message Encoded finalizeBridgeERC20 call.
-    function restoreERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external {
+    function restoreERC20(bytes32 _id, BridgeHookTypes.Direction _direction, bytes calldata _message) external {
         IOptimismPortal2 portal = IOptimismPortal2(payable(systemConfig.optimismPortal()));
         if (msg.sender != address(portal)) revert L1StandardBridge_NotPortal();
 
@@ -317,7 +329,11 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
         (bool valid, address l1Token, address l2Token, uint256 amount) =
             BridgeHookDecoder.decodeTokenTransfer(_direction, _message);
         if (!valid) revert L1StandardBridge_InvalidTokenTransfer();
-        if (_isOptimismMintableERC20(l1Token)) return;
+
+        BridgeHookTypes.TokenKind kind = heldTokenKinds[_id];
+        if (kind == BridgeHookTypes.TokenKind.None) revert L1StandardBridge_TransferNotHeld();
+        delete heldTokenKinds[_id];
+        if (kind == BridgeHookTypes.TokenKind.NativeL2) return;
 
         IERC20(l1Token).safeTransferFrom(hook, address(this), amount);
         deposits[l1Token][l2Token] += amount;

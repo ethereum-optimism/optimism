@@ -14,6 +14,7 @@ interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
     error L1StandardBridge_NoBridgeHook();
     error L1StandardBridge_InvalidTokenTransfer();
     error L1StandardBridge_InsufficientDeposits();
+    error L1StandardBridge_TransferNotHeld();
 
     event ERC20DepositInitiated(
         address indexed l1Token,
@@ -78,8 +79,9 @@ interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
     function systemConfig() external view returns (ISystemConfig);
     function version() external view returns (string memory);
     function superchainConfig() external view returns (ISuperchainConfig);
-    function holdERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external;
-    function restoreERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external;
+    function heldTokenKinds(bytes32) external view returns (BridgeHookTypes.TokenKind);
+    function holdERC20(bytes32 _id, BridgeHookTypes.Direction _direction, bytes calldata _message) external;
+    function restoreERC20(bytes32 _id, BridgeHookTypes.Direction _direction, bytes calldata _message) external;
 
     function __constructor__() external;
 }

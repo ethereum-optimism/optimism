@@ -417,6 +417,30 @@
   {
     "inputs": [
       {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "heldTokenKinds",
+    "outputs": [
+      {
+        "internalType": "enum BridgeHookTypes.TokenKind",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_id",
+        "type": "bytes32"
+      },
+      {
         "internalType": "enum BridgeHookTypes.Direction",
         "name": "_direction",
         "type": "uint8"
@@ -543,6 +567,11 @@
   },
   {
     "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_id",
+        "type": "bytes32"
+      },
       {
         "internalType": "enum BridgeHookTypes.Direction",
         "name": "_direction",
@@ -975,6 +1004,11 @@
   {
     "inputs": [],
     "name": "L1StandardBridge_NotPortal",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L1StandardBridge_TransferNotHeld",
     "type": "error"
   },
   {

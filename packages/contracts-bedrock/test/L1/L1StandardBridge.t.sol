@@ -18,6 +18,7 @@ import { Features } from "src/libraries/Features.sol";
 import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
 
 // Interfaces
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
@@ -852,6 +853,8 @@ abstract contract L1StandardBridge_BridgeHook_TestInit is CommonTest {
     event ERC20Held(address indexed l1Token, address indexed l2Token, uint256 amount);
     event ERC20Restored(address indexed l1Token, address indexed l2Token, uint256 amount);
 
+    bytes32 internal constant ID = keccak256("id");
+
     address hook;
 
     function setUp() public override {
@@ -876,7 +879,7 @@ abstract contract L1StandardBridge_BridgeHook_TestInit is CommonTest {
 /// @notice Tests the `holdERC20` function of the `L1StandardBridge` contract.
 contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit {
     /// @notice Tests that a deposit's hold moves the escrowed amount to the hook.
-    function testFuzz_holdERC20_deposit_succeeds(uint256 _deposits, uint256 _amount) external {
+    function testFuzz_holdERC20_deposit_succeeds(bytes32 _id, uint256 _deposits, uint256 _amount) external {
         _amount = bound(_amount, 0, _deposits);
         _escrow(L1Token, address(L2Token), _deposits);
 
@@ -885,6 +888,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
 
         vm.prank(address(optimismPortal2));
         l1StandardBridge.holdERC20(
+            _id,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, _amount, hex"")
@@ -895,10 +899,11 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         assertEq(L1Token.balanceOf(hook), _amount);
         assertEq(L1Token.balanceOf(bob), 0);
         assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), _deposits - _amount);
+        assertEq(uint256(l1StandardBridge.heldTokenKinds(_id)), uint256(BridgeHookTypes.TokenKind.NativeL1));
     }
 
     /// @notice Tests that a withdrawal's hold moves the escrowed amount to the hook.
-    function testFuzz_holdERC20_withdrawal_succeeds(uint256 _deposits, uint256 _amount) external {
+    function testFuzz_holdERC20_withdrawal_succeeds(bytes32 _id, uint256 _deposits, uint256 _amount) external {
         _amount = bound(_amount, 0, _deposits);
         _escrow(L1Token, address(L2Token), _deposits);
 
@@ -907,6 +912,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
 
         vm.prank(address(optimismPortal2));
         l1StandardBridge.holdERC20(
+            _id,
             BridgeHookTypes.Direction.Withdrawal,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L1Token), address(L2Token), alice, bob, _amount, hex"")
@@ -917,6 +923,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         assertEq(L1Token.balanceOf(hook), _amount);
         assertEq(L1Token.balanceOf(bob), 0);
         assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), _deposits - _amount);
+        assertEq(uint256(l1StandardBridge.heldTokenKinds(_id)), uint256(BridgeHookTypes.TokenKind.NativeL1));
     }
 
     /// @notice Tests that a hold reverts when the pair's deposits are short, even though the
@@ -930,6 +937,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         vm.expectRevert(IL1StandardBridge.L1StandardBridge_InsufficientDeposits.selector);
         vm.prank(address(optimismPortal2));
         l1StandardBridge.holdERC20(
+            ID,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, _amount, hex"")
@@ -946,6 +954,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
 
         vm.prank(address(optimismPortal2));
         l1StandardBridge.holdERC20(
+            ID,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L2Token), address(token), alice, bob, 60, hex"")
@@ -956,11 +965,13 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         assertEq(token.balanceOf(hook), 60);
     }
 
-    /// @notice Tests that a hold of an OptimismMintableERC20 moves nothing in either direction.
+    /// @notice Tests that a hold of an OptimismMintableERC20 moves nothing in either direction and
+    ///         records it as native to L2.
     function test_holdERC20_optimismMintableERC20_succeeds() external {
         vm.recordLogs();
         vm.startPrank(address(optimismPortal2));
         l1StandardBridge.holdERC20(
+            keccak256("deposit"),
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20,
@@ -968,6 +979,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
             )
         );
         l1StandardBridge.holdERC20(
+            keccak256("withdrawal"),
             BridgeHookTypes.Direction.Withdrawal,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20,
@@ -979,6 +991,13 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         assertEq(vm.getRecordedLogs().length, 0);
         assertEq(BadL1Token.balanceOf(hook), 0);
         assertEq(l1StandardBridge.deposits(address(BadL1Token), address(NativeL2Token)), 0);
+        assertEq(
+            uint256(l1StandardBridge.heldTokenKinds(keccak256("deposit"))), uint256(BridgeHookTypes.TokenKind.NativeL2)
+        );
+        assertEq(
+            uint256(l1StandardBridge.heldTokenKinds(keccak256("withdrawal"))),
+            uint256(BridgeHookTypes.TokenKind.NativeL2)
+        );
     }
 
     /// @notice Tests that a hold reverts when the caller is not the Portal.
@@ -988,6 +1007,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         vm.expectRevert(IL1StandardBridge.L1StandardBridge_NotPortal.selector);
         vm.prank(_caller);
         l1StandardBridge.holdERC20(
+            ID,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, 100, hex"")
@@ -1003,6 +1023,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         vm.expectRevert(IL1StandardBridge.L1StandardBridge_NoBridgeHook.selector);
         vm.prank(address(optimismPortal2));
         l1StandardBridge.holdERC20(
+            ID,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, 100, hex"")
@@ -1018,6 +1039,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         vm.prank(address(optimismPortal2));
         // nosemgrep: sol-style-use-abi-encodecall
         l1StandardBridge.holdERC20(
+            ID,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeWithSelector(_selector, address(L2Token), address(L1Token), alice, bob, 100, hex"")
         );
@@ -1031,6 +1053,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         vm.expectRevert("transfer reverted");
         vm.prank(address(optimismPortal2));
         l1StandardBridge.holdERC20(
+            ID,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, 100, hex"")
@@ -1046,6 +1069,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         vm.expectRevert("SafeERC20: ERC20 operation did not succeed");
         vm.prank(address(optimismPortal2));
         l1StandardBridge.holdERC20(
+            ID,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, 100, hex"")
@@ -1057,10 +1081,16 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
 /// @title L1StandardBridge_RestoreERC20_Test
 /// @notice Tests the `restoreERC20` function of the `L1StandardBridge` contract.
 contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestInit {
+    using stdStorage for StdStorage;
+
     /// @notice Tests that a deposit's restore pulls the amount from the hook into escrow.
-    function testFuzz_restoreERC20_deposit_succeeds(uint256 _deposits, uint256 _amount) external {
+    function testFuzz_restoreERC20_deposit_succeeds(bytes32 _id, uint256 _deposits, uint256 _amount) external {
         _amount = bound(_amount, 0, type(uint256).max - _deposits);
         _escrow(L1Token, address(L2Token), _deposits);
+        stdstore.target(address(l1StandardBridge))
+            .sig(l1StandardBridge.heldTokenKinds.selector)
+            .with_key(_id)
+            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL1));
         deal(address(L1Token), hook, _amount);
         vm.prank(hook);
         L1Token.approve(address(l1StandardBridge), _amount);
@@ -1070,6 +1100,7 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
 
         vm.prank(address(optimismPortal2));
         l1StandardBridge.restoreERC20(
+            _id,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, _amount, hex"")
@@ -1080,12 +1111,17 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         assertEq(L1Token.balanceOf(hook), 0);
         assertEq(L1Token.balanceOf(bob), 0);
         assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), _deposits + _amount);
+        assertEq(uint256(l1StandardBridge.heldTokenKinds(_id)), uint256(BridgeHookTypes.TokenKind.None));
     }
 
     /// @notice Tests that a withdrawal's restore pulls the amount from the hook into escrow.
-    function testFuzz_restoreERC20_withdrawal_succeeds(uint256 _deposits, uint256 _amount) external {
+    function testFuzz_restoreERC20_withdrawal_succeeds(bytes32 _id, uint256 _deposits, uint256 _amount) external {
         _amount = bound(_amount, 0, type(uint256).max - _deposits);
         _escrow(L1Token, address(L2Token), _deposits);
+        stdstore.target(address(l1StandardBridge))
+            .sig(l1StandardBridge.heldTokenKinds.selector)
+            .with_key(_id)
+            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL1));
         deal(address(L1Token), hook, _amount);
         vm.prank(hook);
         L1Token.approve(address(l1StandardBridge), _amount);
@@ -1095,6 +1131,7 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
 
         vm.prank(address(optimismPortal2));
         l1StandardBridge.restoreERC20(
+            _id,
             BridgeHookTypes.Direction.Withdrawal,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L1Token), address(L2Token), alice, bob, _amount, hex"")
@@ -1105,11 +1142,12 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         assertEq(L1Token.balanceOf(hook), 0);
         assertEq(L1Token.balanceOf(bob), 0);
         assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), _deposits + _amount);
+        assertEq(uint256(l1StandardBridge.heldTokenKinds(_id)), uint256(BridgeHookTypes.TokenKind.None));
     }
 
     /// @notice Tests that a hold followed by its restore returns the balances and deposits to
     ///         where they started.
-    function testFuzz_restoreERC20_afterHold_succeeds(uint256 _amount, bool _withdrawal) external {
+    function testFuzz_restoreERC20_afterHold_succeeds(bytes32 _id, uint256 _amount, bool _withdrawal) external {
         _escrow(L1Token, address(L2Token), _amount);
         BridgeHookTypes.Direction direction =
             _withdrawal ? BridgeHookTypes.Direction.Withdrawal : BridgeHookTypes.Direction.Deposit;
@@ -1122,15 +1160,38 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
             );
 
         vm.prank(address(optimismPortal2));
-        l1StandardBridge.holdERC20(direction, message);
+        l1StandardBridge.holdERC20(_id, direction, message);
         vm.prank(hook);
         L1Token.approve(address(l1StandardBridge), _amount);
         vm.prank(address(optimismPortal2));
-        l1StandardBridge.restoreERC20(direction, message);
+        l1StandardBridge.restoreERC20(_id, direction, message);
 
         assertEq(L1Token.balanceOf(address(l1StandardBridge)), _amount);
         assertEq(L1Token.balanceOf(hook), 0);
         assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), _amount);
+    }
+
+    /// @notice Tests that a restore uses the token kind recorded at hold, not the current one.
+    function test_restoreERC20_becameNativeL1_succeeds() external {
+        bytes memory message = abi.encodeCall(
+            StandardBridge.finalizeBridgeERC20, (address(NativeL2Token), address(BadL1Token), alice, bob, 100, hex"")
+        );
+        vm.prank(address(optimismPortal2));
+        l1StandardBridge.holdERC20(ID, BridgeHookTypes.Direction.Deposit, message);
+
+        vm.mockCall(
+            address(BadL1Token),
+            abi.encodeCall(IERC165.supportsInterface, (type(IERC165).interfaceId)),
+            abi.encode(false)
+        );
+
+        vm.recordLogs();
+        vm.prank(address(optimismPortal2));
+        l1StandardBridge.restoreERC20(ID, BridgeHookTypes.Direction.Deposit, message);
+
+        assertEq(vm.getRecordedLogs().length, 0);
+        assertEq(l1StandardBridge.deposits(address(BadL1Token), address(NativeL2Token)), 0);
+        assertEq(uint256(l1StandardBridge.heldTokenKinds(ID)), uint256(BridgeHookTypes.TokenKind.None));
     }
 
     /// @notice Tests that a token re-entering during the pull sees the pair's deposits not yet
@@ -1139,12 +1200,17 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         L1StandardBridge_ReentrantERC20_Harness token =
             new L1StandardBridge_ReentrantERC20_Harness(l1StandardBridge, address(L2Token));
         _escrow(token, address(L2Token), 40);
+        stdstore.target(address(l1StandardBridge))
+            .sig(l1StandardBridge.heldTokenKinds.selector)
+            .with_key(ID)
+            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL1));
         deal(address(token), hook, 60);
         vm.prank(hook);
         token.approve(address(l1StandardBridge), 60);
 
         vm.prank(address(optimismPortal2));
         l1StandardBridge.restoreERC20(
+            ID,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L2Token), address(token), alice, bob, 60, hex"")
@@ -1155,11 +1221,22 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         assertEq(l1StandardBridge.deposits(address(token), address(L2Token)), 100);
     }
 
-    /// @notice Tests that a restore of an OptimismMintableERC20 moves nothing in either direction.
+    /// @notice Tests that a restore of an OptimismMintableERC20 moves nothing in either direction
+    ///         and clears the record.
     function test_restoreERC20_optimismMintableERC20_succeeds() external {
+        stdstore.target(address(l1StandardBridge))
+            .sig(l1StandardBridge.heldTokenKinds.selector)
+            .with_key(keccak256("deposit"))
+            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL2));
+        stdstore.target(address(l1StandardBridge))
+            .sig(l1StandardBridge.heldTokenKinds.selector)
+            .with_key(keccak256("withdrawal"))
+            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL2));
+
         vm.recordLogs();
         vm.startPrank(address(optimismPortal2));
         l1StandardBridge.restoreERC20(
+            keccak256("deposit"),
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20,
@@ -1167,6 +1244,7 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
             )
         );
         l1StandardBridge.restoreERC20(
+            keccak256("withdrawal"),
             BridgeHookTypes.Direction.Withdrawal,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20,
@@ -1178,6 +1256,25 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         assertEq(vm.getRecordedLogs().length, 0);
         assertEq(BadL1Token.balanceOf(address(l1StandardBridge)), 0);
         assertEq(l1StandardBridge.deposits(address(BadL1Token), address(NativeL2Token)), 0);
+        assertEq(
+            uint256(l1StandardBridge.heldTokenKinds(keccak256("deposit"))), uint256(BridgeHookTypes.TokenKind.None)
+        );
+        assertEq(
+            uint256(l1StandardBridge.heldTokenKinds(keccak256("withdrawal"))), uint256(BridgeHookTypes.TokenKind.None)
+        );
+    }
+
+    /// @notice Tests that a restore reverts when no hold is recorded for the item.
+    function testFuzz_restoreERC20_notHeld_reverts(bytes32 _id) external {
+        vm.expectRevert(IL1StandardBridge.L1StandardBridge_TransferNotHeld.selector);
+        vm.prank(address(optimismPortal2));
+        l1StandardBridge.restoreERC20(
+            _id,
+            BridgeHookTypes.Direction.Deposit,
+            abi.encodeCall(
+                StandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, 100, hex"")
+            )
+        );
     }
 
     /// @notice Tests that a restore reverts when the caller is not the Portal.
@@ -1187,6 +1284,7 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         vm.expectRevert(IL1StandardBridge.L1StandardBridge_NotPortal.selector);
         vm.prank(_caller);
         l1StandardBridge.restoreERC20(
+            ID,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, 100, hex"")
@@ -1201,6 +1299,7 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         vm.expectRevert(IL1StandardBridge.L1StandardBridge_NoBridgeHook.selector);
         vm.prank(address(optimismPortal2));
         l1StandardBridge.restoreERC20(
+            ID,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, 100, hex"")
@@ -1216,6 +1315,7 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         vm.prank(address(optimismPortal2));
         // nosemgrep: sol-style-use-abi-encodecall
         l1StandardBridge.restoreERC20(
+            ID,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeWithSelector(_selector, address(L2Token), address(L1Token), alice, bob, 100, hex"")
         );
@@ -1223,6 +1323,10 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
 
     /// @notice Tests that a restore reverts when the hook's allowance is short.
     function test_restoreERC20_shortAllowance_reverts() external {
+        stdstore.target(address(l1StandardBridge))
+            .sig(l1StandardBridge.heldTokenKinds.selector)
+            .with_key(ID)
+            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL1));
         deal(address(L1Token), hook, 100);
         vm.prank(hook);
         L1Token.approve(address(l1StandardBridge), 99);
@@ -1230,6 +1334,7 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         vm.expectRevert("ERC20: insufficient allowance");
         vm.prank(address(optimismPortal2));
         l1StandardBridge.restoreERC20(
+            ID,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, 100, hex"")
@@ -1239,6 +1344,10 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
 
     /// @notice Tests that a restore reverts when the token transferFrom returns false.
     function test_restoreERC20_transferFromReturnsFalse_reverts() external {
+        stdstore.target(address(l1StandardBridge))
+            .sig(l1StandardBridge.heldTokenKinds.selector)
+            .with_key(ID)
+            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL1));
         vm.mockCall(
             address(L1Token),
             abi.encodeCall(ERC20.transferFrom, (hook, address(l1StandardBridge), 100)),
@@ -1248,6 +1357,7 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         vm.expectRevert("SafeERC20: ERC20 operation did not succeed");
         vm.prank(address(optimismPortal2));
         l1StandardBridge.restoreERC20(
+            ID,
             BridgeHookTypes.Direction.Deposit,
             abi.encodeCall(
                 StandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, 100, hex"")
