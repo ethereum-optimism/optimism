@@ -49,7 +49,7 @@ func TestValidateStandardDeployment(t *testing.T) {
 	)
 	require.Equal(
 		t,
-		crypto.Keccak256([]byte("validateWithOverrides((address,bytes32,bytes32,uint256,address),bool,(address,address))"))[:4],
+		crypto.Keccak256([]byte("validateWithOverrides((address,bytes32,bytes32,bytes32,uint256,address),bool,(address,address))"))[:4],
 		standardValidationDevMethod.ID,
 	)
 
@@ -115,6 +115,7 @@ func TestValidateStandardDeployment(t *testing.T) {
 		input.UseDevFeaturesInput = true
 		input.CannonPrestate = common.Hash{0x08}
 		input.CannonKonaPrestate = common.Hash{0x09}
+		input.ZKPrestate = common.Hash{0x0a}
 		backend := &standardValidatorBackend{
 			t:          t,
 			wantMethod: standardValidationDevMethod,
@@ -122,6 +123,7 @@ func TestValidateStandardDeployment(t *testing.T) {
 				SystemConfig:       input.SystemConfig,
 				CannonPrestate:     input.CannonPrestate,
 				CannonKonaPrestate: input.CannonKonaPrestate,
+				ZKPrestate:         input.ZKPrestate,
 				L2ChainID:          input.L2ChainID,
 				Proposer:           input.Proposer,
 			},
