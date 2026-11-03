@@ -14,16 +14,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
-	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/sync/errgroup"
@@ -107,14 +104,7 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 
 	call := crossL2Inbox.ValidateMessage(identifier, msgHash)
 
-	// Read not using the DSL. Therefore you need to manually error handle and also set context
-	_, err = contractio.Read(call, t.Ctx())
-	require.ErrorContains(errutil.TryAddRevertReason(err), hexutil.Encode(dsl.ErrorSelector("NotInAccessList()")),
-		"validateMessage must revert when the access list does not declare the message")
-	// Provide access list using txplan
-	_, err = contractio.Read(call, t.Ctx(), txplan.WithAccessList(accessList))
-	// Success because access list made storage slot warm
-	require.NoError(err)
+	sys.L2ELB.ValidateMessageRequiresAccessList(msg)
 
 	// Read: Trigger executing message
 	contract.Read(call, txplan.WithAccessList(accessList))

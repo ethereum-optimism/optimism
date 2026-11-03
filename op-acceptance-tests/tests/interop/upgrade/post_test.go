@@ -13,16 +13,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txintent"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 func TestPostInbox(gt *testing.T) {
@@ -145,7 +139,10 @@ func testInteropMessageInclusion(t devtest.T, sys *presets.TwoL2SupernodeInterop
 	// Wait for chain A to advance so supernode indexes the init message
 	sys.L2A.WaitForBlock()
 
-	testValidateMessageNeedsAccessList(t, sys, initMsg)
+	initResult, err := initMsg.Tx.Result.Eval(t.Ctx())
+	t.Require().NoError(err)
+	t.Require().NotEmpty(initResult.Entries)
+	sys.L2ELB.ValidateMessageRequiresAccessList(initResult.Entries[0])
 
 	execMsg := bob.SendExecMessage(initMsg)
 
@@ -156,29 +153,4 @@ func testInteropMessageInclusion(t devtest.T, sys *presets.TwoL2SupernodeInterop
 	)
 
 	logger.Info("Interop message inclusion test completed successfully")
-}
-
-// testValidateMessageNeedsAccessList checks that the CrossL2Inbox code from the upgrade bundle
-// accepts a message only when the access list declares it.
-func testValidateMessageNeedsAccessList(t devtest.T, sys *presets.TwoL2SupernodeInterop, initMsg *dsl.InitMessage) {
-	require := t.Require()
-	result, err := initMsg.Tx.Result.Eval(t.Ctx())
-	require.NoError(err)
-	require.NotEmpty(result.Entries)
-	msg := result.Entries[0]
-
-	crossL2Inbox := bindings.NewBindings[bindings.CrossL2Inbox](
-		bindings.WithClient(sys.L2ELB.Escape().EthClient()),
-		bindings.WithTest(t),
-		bindings.WithTo(predeploys.CrossL2InboxAddr))
-	call := crossL2Inbox.ValidateMessage(msg.Identifier, eth.Bytes32(msg.PayloadHash))
-
-	_, err = contractio.Read(call, t.Ctx())
-	require.ErrorContains(errutil.TryAddRevertReason(err), hexutil.Encode(dsl.ErrorSelector("NotInAccessList()")),
-		"validateMessage must revert when the access list does not declare the message")
-
-	accessList, err := (&txintent.ExecTrigger{Executor: predeploys.CrossL2InboxAddr, Msg: msg}).AccessList()
-	require.NoError(err)
-	_, err = contractio.Read(call, t.Ctx(), txplan.WithAccessList(accessList))
-	require.NoError(err, "validateMessage must succeed when the access list declares the message")
 }
