@@ -2080,7 +2080,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests that an upgrade carrying the bridge hook override attaches a hook to a chain
     ///         that has none.
-    function testFuzz_upgrade_bridgeHookOverrideSetsHook_succeeds() public {
+    function test_upgrade_bridgeHookOverrideSetsHook_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
