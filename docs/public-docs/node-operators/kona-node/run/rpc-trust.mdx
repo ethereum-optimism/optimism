@@ -1,14 +1,20 @@
 ---
 title: "Configure RPC Trust"
-description: "Decide when to enable RPC response verification on kona-node and configure the --l1-trust-rpc and --l2-trust-rpc flags for trusted and untrusted providers."
+description: "Decide when to enable L1 RPC response verification on kona-node and configure the --l1-trust-rpc flag for trusted and untrusted providers."
 diataxis: how-to
 ---
 
-The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona performs additional verification on RPC responses to protect against malicious or faulty RPC providers. This guide helps you choose the right setting for your infrastructure and shows how to configure it.
+import { Unreleased } from "/snippets/unreleased.mdx"
+
+<Unreleased component="kona-node" />
+
+The `--l1-trust-rpc` flag controls whether Kona performs additional verification on L1 RPC responses to protect against malicious or faulty RPC providers. This guide helps you choose the right setting for your infrastructure and shows how to configure it.
+
+The L2 engine is not covered by a trust flag. It is the node's own execution client, reached over the authenticated Engine API, and an execution client that misreports blocks already controls the node's view of the chain. Kona therefore always trusts it, as op-node does.
 
 ## Trust Modes
 
-The defaults match op-node: L1 trust is disabled (`false`), while L2 engine trust is enabled (`true`). To retain the previous L1 trust behavior, set `--l1-trust-rpc=true` or `KONA_NODE_L1_TRUST_RPC=true`.
+The default matches op-node: L1 trust is disabled (`false`). To retain the previous L1 trust behavior, set `--l1-trust-rpc=true` or `KONA_NODE_L1_TRUST_RPC=true`.
 
 **Trust Mode (trust enabled, `true`):**
 - RPC responses are used without verification
@@ -20,7 +26,6 @@ The defaults match op-node: L1 trust is disabled (`false`), while L2 engine trus
 - Every L1 header is checked against its block hash, and every L1 block found by number must be at that number
 - Each L1 block's transactions and receipts are checked against the header's transactions and receipts roots
 - The unsafe block signer, read from the `SystemConfig` contract on L1, is proven against the block's state root with `eth_getProof`
-- L2 blocks looked up by hash are checked against their block hashes
 - Protects against malicious or faulty RPC providers returning incorrect data
 - Recommended for public or third-party RPC endpoints
 - Small performance overhead from the checks
@@ -31,41 +36,30 @@ With `--l1-trust-rpc=false`, the L1 RPC must serve `eth_getProof` for recent blo
 
 ## Examples
 
-**Using trusted local RPCs:**
+**Using a trusted local L1 RPC:**
 ```bash
 kona-node node \
   --l1-eth-rpc http://localhost:8545 \
   --l1-trust-rpc=true \
-  --l2-engine-rpc http://localhost:8551 \
-  # L2 trust-rpc defaults to true
+  --l2-engine-rpc http://localhost:8551
 ```
 
-**Using untrusted public RPCs:**
+**Using an untrusted public L1 RPC:**
 ```bash
 kona-node node \
   --l1-eth-rpc https://public-eth-rpc.com \
   --l1-trust-rpc=false \
-  --l2-engine-rpc https://public-l2-rpc.com \
-  --l2-trust-rpc=false
-```
-
-**Mixed trust configuration:**
-```bash
-kona-node node \
-  --l1-eth-rpc https://public-eth-rpc.com \
-  --l1-trust-rpc=false \
-  --l2-engine-rpc http://localhost:8551 \
-  # L2 trust-rpc defaults to true for local engine
+  --l2-engine-rpc http://localhost:8551
 ```
 
 ## Security Recommendations
 
-1. **Local Infrastructure**: Use trust mode (`true`) only for RPCs you control
-2. **Public RPCs**: Use `--l1-trust-rpc=false` and `--l2-trust-rpc=false` for third-party endpoints
-3. **Shared Infrastructure**: Consider disabling trust for both RPCs
+1. **Local Infrastructure**: Use trust mode (`true`) only for an L1 RPC you control
+2. **Public RPCs**: Use `--l1-trust-rpc=false` for third-party endpoints
+3. **Shared Infrastructure**: Consider disabling trust when the L1 RPC is shared
 4. **Performance Testing**: The verification overhead is minimal but can be measured in high-throughput scenarios
 
 ## Next Steps
 
-- Both flags are catalogued with the rest of the node's options in the [Kona node CLI reference](/node-operators/kona-node/configuration).
+- The flag is catalogued with the rest of the node's options in the [Kona node CLI reference](/node-operators/kona-node/configuration).
 - To get a node running end to end, follow the [binary guide](/node-operators/kona-node/run/binary) or the [Docker guide](/node-operators/kona-node/run/docker).
