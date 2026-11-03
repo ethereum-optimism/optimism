@@ -9,13 +9,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
-	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -23,7 +23,6 @@ import (
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 func TestPostInbox(gt *testing.T) {
@@ -178,10 +177,8 @@ func testValidateMessageNeedsAccessList(t devtest.T, sys *presets.TwoL2Supernode
 	require.ErrorContains(errutil.TryAddRevertReason(err), hexutil.Encode(dsl.ErrorSelector("NotInAccessList()")),
 		"validateMessage must revert when the access list does not declare the message")
 
-	accessList := types.AccessList{{
-		Address:     predeploys.CrossL2InboxAddr,
-		StorageKeys: messages.EncodeAccessList([]messages.Access{msg.Access()}),
-	}}
+	accessList, err := (&txintent.ExecTrigger{Executor: predeploys.CrossL2InboxAddr, Msg: msg}).AccessList()
+	require.NoError(err)
 	_, err = contractio.Read(call, t.Ctx(), txplan.WithAccessList(accessList))
 	require.NoError(err, "validateMessage must succeed when the access list declares the message")
 }
