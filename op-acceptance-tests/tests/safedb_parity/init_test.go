@@ -38,7 +38,6 @@ func newParitySystemWithSafeDB(t devtest.T, enabled bool) *paritySystem {
 }
 
 func newParitySystemWithExecutionClient(t devtest.T, enabled bool, executionClient sysgo.MixedL2ELKind) *paritySystem {
-	sysgo.RunOnceOnCL(t)
 	var deployerOptions []sysgo.DeployerOption
 	if executionClient == sysgo.MixedL2ELOpGeth {
 		// op-geth cannot build or import Karst blocks, so its chain stays on Jovian.

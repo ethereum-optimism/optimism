@@ -28,7 +28,6 @@ type capturedTest struct {
 func (t capturedTest) Logger() log.Logger { return t.logger }
 
 func TestVerifierConfirmationsProtectDerivationFromShallowL1Reorg(gt *testing.T) {
-	sysgo.RunOnceOnCL(devtest.SerialT(gt))
 	for _, confirmations := range []uint64{0, 4} {
 		gt.Run(fmt.Sprintf("confirmations_%d", confirmations), func(gt *testing.T) {
 			testShallowL1Reorg(gt, confirmations)

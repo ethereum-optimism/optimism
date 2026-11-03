@@ -70,15 +70,6 @@ func SkipOnOpReth(t devtest.T, reason string) {
 	}
 }
 
-// RunOnceOnCL is for tests that pin the CL kind of every node themselves, so the
-// DEVSTACK_L2CL_KIND matrix would only repeat the same run. It runs the test only in the
-// kona-node variant, or when DEVSTACK_L2CL_KIND is unset so local runs still execute it.
-func RunOnceOnCL(t devtest.T) {
-	if kind := devstackL2CLKind(); kind != "" && kind != MixedL2CLKona {
-		t.Skipf("test pins its own CL kinds; runs only in the %s variant, not %s", MixedL2CLKona, kind)
-	}
-}
-
 // SkipOnKonaNode skips the test when the L2 consensus layer is kona-node
 func SkipOnKonaNode(t devtest.T, reason string) {
 	if devstackL2CLKind() == MixedL2CLKona {
