@@ -44,7 +44,7 @@ phases:
 
   # Phase 3: Source build checks - production contracts only
   - name: source
-    build: just build-source
+    build: FOUNDRY_PROFILE=default just build-source
     checks:
       - name: snapshots
         description: Check snapshots are up to date
@@ -87,7 +87,8 @@ phases:
   # This build is the compiler-warning gate: it keeps foundry.toml's `deny = "warnings"`, under
   # which forge compiles everything without a cache.
   - name: dev
-    build: just forge-build-dev
+    # Solar does not emit the ASTs the test naming check needs, so this builds with solc.
+    build: FOUNDRY_PROFILE=cicoverage forge build --deny warnings
     checks:
       - name: forge-test-names
         description: Validate forge test conventions

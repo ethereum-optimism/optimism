@@ -5,6 +5,8 @@ pragma solidity 0.8.15;
 import { Test } from "test/setup/Test.sol";
 
 // Libraries
+import { Proxy } from "src/universal/Proxy.sol";
+import { Config } from "scripts/libraries/Config.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
@@ -83,5 +85,23 @@ contract DeployUtils_AssertUniqueAddresses_Test is DeployUtils_TestInit {
                 ),
                 addresses
             );
+    }
+}
+
+/// @title DeployUtils_GetCode_Test
+/// @notice Artifact lookup must follow the active compiler even when both outputs exist.
+contract DeployUtils_GetCode_Test is Test {
+    function test_getCode_activeCompiler_succeeds() public view {
+        // getCode falls back to a name-only lookup, so also check the path it tries first exists.
+        assertTrue(vm.exists(string.concat(Config.artifactDirectory(), "Proxy.sol/Proxy.json")));
+        assertEq(DeployUtils.getCode("Proxy"), type(Proxy).creationCode);
+    }
+}
+
+/// @title DeployUtils_GetDeployedCode_Test
+/// @notice Runtime artifacts must also follow the active compiler.
+contract DeployUtils_GetDeployedCode_Test is Test {
+    function test_getDeployedCode_activeCompiler_succeeds() public view {
+        assertEq(DeployUtils.getDeployedCode("Proxy"), type(Proxy).runtimeCode);
     }
 }
