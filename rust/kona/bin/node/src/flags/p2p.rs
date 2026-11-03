@@ -14,7 +14,7 @@ use kona_derive::ChainProvider;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::{GaterConfig, PeerAddr};
-use kona_node_service::NetworkConfig;
+use kona_node_service::{IpVotes, NetworkConfig};
 use kona_peers::{BootNode, BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_providers_alloy::AlloyChainProvider;
 use libp2p::{identity::Keypair, multiaddr::Protocol};
@@ -51,15 +51,6 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
             .ok_or_else(|| format!("DNS resolution for '{host}' returned no addresses")),
         Err(e) => Err(format!("Failed to resolve '{host}': {e}")),
     }
-}
-
-/// Parses `--p2p.discovery.ip-votes`, which discv5 needs to be at least 2.
-fn parse_ip_votes(raw: &str) -> Result<usize, String> {
-    let votes: usize = raw.parse().map_err(|e| format!("invalid number of votes: {e}"))?;
-    if votes < 2 {
-        return Err(format!("needs at least 2 votes, got {votes}"));
-    }
-    Ok(votes)
 }
 
 /// Parses one `--p2p.bootnodes` entry: an ENR (`enr:...`) or an enode URL (`enode://...`).
@@ -251,11 +242,10 @@ pub struct P2PArgs {
     /// set `p2p.advertise.ip`, or lower this.
     #[arg(
         long = "p2p.discovery.ip-votes",
-        default_value_t = NetworkConfig::DEFAULT_IP_VOTES,
-        env = "KONA_NODE_P2P_DISCOVERY_IP_VOTES",
-        value_parser = parse_ip_votes
+        default_value_t = IpVotes::DEFAULT,
+        env = "KONA_NODE_P2P_DISCOVERY_IP_VOTES"
     )]
-    pub discovery_ip_votes: usize,
+    pub discovery_ip_votes: IpVotes,
     /// The directory to store the bootstore.
     #[arg(long = "p2p.bootstore", env = "KONA_NODE_P2P_BOOTSTORE")]
     pub bootstore: Option<PathBuf>,
@@ -395,8 +385,7 @@ impl P2PArgs {
                 warnings.push("Discovery is disabled, so the bootnodes are ignored");
             }
         }
-        if self.advertise_ip.is_some() && self.discovery_ip_votes != NetworkConfig::DEFAULT_IP_VOTES
-        {
+        if self.advertise_ip.is_some() && self.discovery_ip_votes != IpVotes::DEFAULT {
             warnings.push(
                 "--p2p.discovery.ip-votes is ignored with --p2p.advertise.ip, which keeps the \
                  advertised IP fixed",
@@ -407,7 +396,7 @@ impl P2PArgs {
         if !self.no_discovery &&
             self.advertise_ip.is_none() &&
             self.listen_ip.is_unspecified() &&
-            BootNodes::from_chain_id(chain_id).0.is_empty()
+            BootNodes::from_chain_id(chain_id).is_empty()
         {
             warnings.push(
                 "The node listens on all interfaces without --p2p.advertise.ip, so it advertises \
@@ -712,7 +701,7 @@ mod tests {
     fn test_p2p_args_discovery_ip_votes() {
         let parse = |args: &[&str]| {
             MockCommand::try_parse_from(std::iter::once("test").chain(args.iter().copied()))
-                .map(|args| args.p2p.discovery_ip_votes)
+                .map(|args| args.p2p.discovery_ip_votes.get())
         };
 
         assert_eq!(parse(&[]).unwrap(), 10);

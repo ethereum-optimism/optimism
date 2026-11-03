@@ -8,6 +8,7 @@ use discv5::Enr;
 use enr::NodeId;
 use kona_genesis::OP_MAINNET_CHAIN_ID;
 use kona_gossip::PeerAddr;
+use kona_node_service::IpVotes;
 use kona_rpc::OpP2PApiServer;
 use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 
@@ -62,6 +63,9 @@ async fn test_large_network_conn() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Few enough votes for a handful of test nodes to agree on an address.
+const TWO_VOTES: IpVotes = IpVotes::new(2).expect("at least 2");
+
 /// A node listening on all interfaces advertises no IP at first, so it learns its address from
 /// the peers it contacts. It finds R1 and R2 through its bootnode, and once both report the same
 /// address, as its 2 IP votes ask, it advertises it. A node that joins later through the same
@@ -81,7 +85,8 @@ async fn test_node_on_all_interfaces_learns_its_ip_from_votes() -> anyhow::Resul
         bootnode.check_in_discovery_table_with_retries(reachable.node_id().await?).await?;
     }
 
-    let mut builder = builder.with_listen_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)).with_ip_votes(2);
+    let mut builder =
+        builder.with_listen_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)).with_ip_votes(TWO_VOTES);
     let node = builder.build(vec![bootnode_enr.clone()]).await;
 
     let enr = node.advertised_enr_with_retries().await?;
@@ -109,7 +114,8 @@ async fn test_node_on_all_interfaces_gets_no_votes_from_bootnodes() -> anyhow::R
     let bootnode_2 = builder.build(vec![]).await;
     let bootnodes = vec![bootnode_1.peer_enr().await?, bootnode_2.peer_enr().await?];
 
-    let mut builder = builder.with_listen_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)).with_ip_votes(2);
+    let mut builder =
+        builder.with_listen_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)).with_ip_votes(TWO_VOTES);
     let node = builder.build(bootnodes).await;
 
     // Discovery has sessions with both bootnodes, so they answered its pings. Gossip connecting

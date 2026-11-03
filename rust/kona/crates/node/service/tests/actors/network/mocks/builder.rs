@@ -15,7 +15,7 @@ use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::{GossipTransport, PeerAddr};
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkConfig, NetworkEngineClient,
+    EngineClientResult, IpVotes, NetworkActor, NetworkBuilder, NetworkConfig, NetworkEngineClient,
     NodeActor, SignerActor,
 };
 use kona_peers::BootNode;
@@ -45,8 +45,8 @@ pub(crate) struct TestNetworkBuilder {
     /// The IP the next node built listens on, if not `127.0.0.1`.
     listen_ip: Option<IpAddr>,
     /// How many peers must agree on the next node's address before it advertises it, if not
-    /// [`NetworkConfig::DEFAULT_IP_VOTES`].
-    ip_votes: Option<usize>,
+    /// [`IpVotes::DEFAULT`].
+    ip_votes: Option<IpVotes>,
     /// The block signer of the nodes built from now on: they only accept blocks it signed.
     unsafe_block_signer: Address,
     /// The keypair for the next node built, if it must not be random.
@@ -135,7 +135,7 @@ impl TestNetworkBuilder {
 
     /// Makes the next node built, and only that one, advertise its address once `votes` peers
     /// agree on it, as `--p2p.discovery.ip-votes` does.
-    pub(crate) const fn with_ip_votes(mut self, votes: usize) -> Self {
+    pub(crate) const fn with_ip_votes(mut self, votes: IpVotes) -> Self {
         self.ip_votes = Some(votes);
         self
     }
@@ -214,7 +214,7 @@ impl TestNetworkBuilder {
 
         let udp_port = self.udp_port.take().unwrap_or(0);
         // As the node configures discovery, without `--p2p.advertise.ip`.
-        let ip_votes = self.ip_votes.take().unwrap_or(NetworkConfig::DEFAULT_IP_VOTES);
+        let ip_votes = self.ip_votes.take().unwrap_or(IpVotes::DEFAULT);
         let mut discovery_config = NetworkConfig::discv5_config(
             ListenConfig::from_ip(node_addr, udp_port),
             Some(ip_votes),

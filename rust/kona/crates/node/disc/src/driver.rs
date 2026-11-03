@@ -200,6 +200,14 @@ impl Discv5Driver {
     /// response receivers return an error. When the task stops, the ENR receiver returns `None`
     /// once drained.
     pub fn start(self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>) {
+        let enr = self.disc.local_enr();
+        if enr.tcp4() == Some(0) || enr.tcp6() == Some(0) {
+            warn!(
+                target: "discovery",
+                "The ENR advertises TCP port 0, which no peer can dial: set its TCP port with \
+                 advertise_gossip_tcp_port before starting discovery"
+            );
+        }
         let (handler, enr_recv, _task) = self.spawn();
         (handler, enr_recv)
     }
