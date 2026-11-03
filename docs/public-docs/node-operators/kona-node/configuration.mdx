@@ -116,9 +116,9 @@ Other nodes find the node through the record that discovery publishes, its ENR. 
 
 The TCP port is `--p2p.advertise.tcp` if set, and otherwise the port LibP2P binds: `--p2p.listen.tcp`, or the port picked for a listen port of `0`. The UDP port is `--p2p.advertise.udp` if set, and otherwise the port discovery listens on.
 
-Without `--p2p.advertise.ip`, discovery learns the node's address from the peers it contacts: each reports the address it sees the node at. Once `--p2p.discovery.ip-votes` of them, 10 by default, report the same address, the node advertises it. Until then, a node without an IP in its record can't be contacted, so other nodes don't keep it, and it learns its address only from the peers it contacts itself.
+Without `--p2p.advertise.ip`, discovery learns the node's address from the peers it finds through its bootnodes: each one it contacts reports the address it sees the node at. The bootnodes themselves don't count. Once `--p2p.discovery.ip-votes` of them, 10 by default, report the same address, the node advertises it. Until then, a node without an IP in its record can't be contacted, so other nodes don't keep it. The peers it reached before then add it once they start a new session with it, or learn its record from another node.
 
-On a network with fewer reachable nodes than that, such as a devnet or a local test network, a node listening on all interfaces never learns its address, and other nodes can't find it. Nodes that listen on all interfaces count only once they've learned their own address, so on a small network where most nodes do, none of them may. On such a network:
+On a network with fewer reachable nodes than that, not counting the node's bootnodes, such as a devnet or a local test network, a node listening on all interfaces never learns its address, and other nodes can't find it. Nodes that listen on all interfaces count only once they've learned their own address, so on a small network where most nodes do, none of them may. On such a network:
 
 - Set `--p2p.advertise.ip` to the address other nodes reach it at, or listen on that address with `--p2p.listen.ip`.
 - Or lower `--p2p.discovery.ip-votes`. Fewer votes let fewer peers decide the address: two colluding peers could make the node unreachable, or point other nodes at another host. So keep the default on public networks.

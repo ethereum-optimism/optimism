@@ -243,11 +243,12 @@ pub struct P2PArgs {
     /// How many peers must report the same external address before discovery advertises it in
     /// the ENR. At least 2. Ignored with `p2p.advertise.ip`, which turns these updates off.
     ///
-    /// The reports come from peers this node contacts. With fewer votes, fewer peers decide the
-    /// address: two colluding peers could make the node unreachable, or point other nodes at
-    /// another host. Keep the default on public networks. On a network with fewer reachable
-    /// nodes than this, a node listening on all interfaces never learns its address: set
-    /// `p2p.advertise.ip`, or lower this.
+    /// The reports come from the peers this node finds through its bootnodes and contacts; the
+    /// bootnodes themselves don't count. With fewer votes, fewer peers decide the address: two
+    /// colluding peers could make the node unreachable, or point other nodes at another host.
+    /// Keep the default on public networks. On a network with fewer reachable nodes than this,
+    /// not counting the bootnodes, a node listening on all interfaces never learns its address:
+    /// set `p2p.advertise.ip`, or lower this.
     #[arg(
         long = "p2p.discovery.ip-votes",
         default_value_t = NetworkConfig::DEFAULT_IP_VOTES,
