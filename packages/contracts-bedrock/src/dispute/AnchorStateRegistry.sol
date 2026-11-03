@@ -369,14 +369,13 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
 
         // Finality delay must be set. A zero delay means the proxy was upgraded without calling
         // `initialize`, so fail closed rather than finalize games with no review period.
-        uint256 finalityDelay = disputeGameFinalityDelaySeconds;
-        if (finalityDelay == 0) {
+        if (disputeGameFinalityDelaySeconds == 0) {
             return false;
         }
 
         // Game must be beyond the "airgap period" - time since resolution must be at least
         // "dispute game finality delay" seconds in the past.
-        if (block.timestamp - _game.resolvedAt().raw() <= finalityDelay) {
+        if (block.timestamp - _game.resolvedAt().raw() <= disputeGameFinalityDelaySeconds) {
             return false;
         }
 
