@@ -44,7 +44,7 @@ phases:
 
   # Phase 3: Source build checks - production contracts only
   - name: source
-    build: just build-source
+    build: FOUNDRY_PROFILE=default just build-source
     checks:
       - name: snapshots
         description: Check snapshots are up to date
@@ -84,11 +84,12 @@ phases:
         command: just nut-bundle-check-no-build
 
   # Phase 4: Dev build checks - needs test artifacts
-  # A plain lite build, without forge-build-dev's script cache warm-up: these checks need no scripts.
+  # A plain build, without forge-build-dev's script cache warm-up: these checks need no scripts.
   # It is also the compiler-warning gate. Forge skips its compile cache when denying warnings, so
-  # this build compiles everything.
+  # this build compiles everything. Solar, which lite now uses, emits no ASTs for the test naming
+  # check, so this builds with solc and the optimizer off.
   - name: dev
-    build: FOUNDRY_PROFILE=lite forge build --deny warnings
+    build: FOUNDRY_PROFILE=cicoverage forge build --deny warnings
     checks:
       - name: forge-test-names
         description: Validate forge test conventions

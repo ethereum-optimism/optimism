@@ -228,9 +228,10 @@ contract ContractName is Initializable, ProxyAdminOwnedBase, ReinitializableBase
   `packages/contracts-bedrock/justfile` — never call `forge` directly. The recipes wire up
   go-ffi, profiles, and the script cache for you.
 - `just build` builds the contracts; `just build-dev` is the faster variant
-  (`FOUNDRY_PROFILE=lite`) for local iteration. Builds must produce zero warnings
-  (`--deny warnings` in the dev phase of `checks.yaml`, which `just check-fast` runs). Other
-  builds and tests only print warnings, as forge skips its compile cache when denying them.
+  (`FOUNDRY_PROFILE=lite`, compiled with Solar into `cache/solar-artifacts`) for local
+  iteration. Builds must produce zero warnings (`--deny warnings` in the dev phase of
+  `checks.yaml`, which `just check-fast` runs with solc). Other builds and tests only print
+  warnings, as forge skips its compile cache when denying them.
 - `just test` runs the suite; `just test-dev` is the faster `lite`-profile variant for local
   iteration. Default 64 fuzz runs; CI uses 128.
 - `just lint` formats and checks (`forge fmt` under the hood: 120-char line length, bracket
@@ -419,7 +420,7 @@ function testTransferSucceeds() external { }          // No underscores
 | Profile | Optimizer | Fuzz Runs | Use Case |
 |---------|-----------|-----------|----------|
 | default | 999,999 runs | 64 | Production builds |
-| lite | disabled | 8 | Fast dev iteration |
+| lite | disabled (Solar) | 8 | Fast dev iteration |
 | ci | 999,999 runs | 128 | CI testing |
 | ciheavy | disabled | 20,000 | Stress testing |
 | cicoverage | disabled | 1 | Coverage only |

@@ -1236,10 +1236,6 @@ jobs:
       - store_test_results:
           path: packages/contracts-bedrock/results
           when: always
-      - run:
-          name: Lint forge test names
-          command: just lint-forge-tests-check-no-build
-          working_directory: packages/contracts-bedrock
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
@@ -3192,9 +3188,9 @@ workflows:
           filters:
             branches:
               ignore: develop
-      # On develop, run tests with ci profile to mirror production. Build once
-      # and share it through the workspace, so the matrix entries don't each
-      # compile the same artifacts.
+      # On develop and release branches, run tests with ci profile to mirror production; the PR
+      # jobs above compile with Solar. Build once and share it through the workspace, so the
+      # matrix entries don't each compile the same artifacts.
       - contracts-bedrock-build-tests:
           name: contracts-bedrock-build-tests-develop
           profile: ci
@@ -3203,7 +3199,7 @@ workflows:
             - slack
           filters:
             branches:
-              only: develop
+              only: [develop, /^proposal\/.*/]
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests-develop <<matrix.features>>
           requires:
@@ -3221,7 +3217,7 @@ workflows:
             - slack
           filters:
             branches:
-              only: develop
+              only: [develop, /^proposal\/.*/]
       # On PRs, run upgrade tests with lite profile for better build times.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
@@ -3259,7 +3255,7 @@ workflows:
             - slack
           filters:
             branches:
-              only: develop
+              only: [develop, /^proposal\/.*/]
       # On PRs, run chain-specific upgrade tests with lite profile for better build times.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade <<matrix.fork_op_chain>>-mainnet
@@ -3295,7 +3291,7 @@ workflows:
             - slack
           filters:
             branches:
-              only: develop
+              only: [develop, /^proposal\/.*/]
       # Always run L2 fork tests with ci profile
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork op-mainnet

@@ -109,7 +109,7 @@ contract UndeliveredMessageExporter_ExportUndeliveredMessage_Test is Undelivered
     /// @notice Tests that word from a chain other than the message's destination cannot expire it:
     ///         that chain hashes the message with itself as the destination.
     function test_exportUndeliveredMessage_otherChainWordCannotExpire_succeeds() external {
-        uint256 source = block.chainid;
+        uint256 source = vm.getChainId();
         uint256 nonce = messenger.messageNonce();
         vm.prank(alice);
         bytes32 messageHash = messenger.sendMessage(source + 1, bob, hex"1234");

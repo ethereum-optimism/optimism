@@ -95,7 +95,7 @@ contract Preinstalls_Uncategorized_Test is Preinstalls_TestInit {
         bytes32 typeHash =
             keccak256(abi.encodePacked("EIP712Domain(string name,uint256 chainId,address verifyingContract)"));
         bytes32 nameHash = keccak256(abi.encodePacked("Permit2"));
-        uint256 chainId = block.chainid;
+        uint256 chainId = vm.getChainId();
         bytes memory encoded = abi.encode(typeHash, nameHash, chainId, Preinstalls.Permit2);
         bytes32 expectedDomainSeparator = keccak256(encoded);
         assertEq(domainSeparator, expectedDomainSeparator, "Domain separator mismatch");
@@ -138,7 +138,7 @@ contract Preinstalls_Uncategorized_Test is Preinstalls_TestInit {
     }
 
     function test_preinstall_permit2_succeeds() external {
-        uint256 pre = block.chainid;
+        uint256 pre = vm.getChainId();
         vm.chainId(901); // TODO legacy deployment does not use same chainID as tests run with
         assertPreinstall(Preinstalls.Permit2, Preinstalls.getPermit2Code(block.chainid));
         vm.chainId(pre);
