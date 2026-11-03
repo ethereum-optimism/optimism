@@ -148,7 +148,10 @@ async fn test_static_peer_is_not_discoverable() -> anyhow::Result<()> {
 
 /// Returns a UDP port that is free now.
 fn free_udp_port() -> u16 {
-    let socket = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).expect("bind a free port");
+    // Bind where the test nodes bind, not on all interfaces: whether a socket on one address
+    // blocks the same port on another differs between platforms, so only the same address tells
+    // what the node will find.
+    let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind a free port");
     socket.local_addr().expect("bound socket has an address").port()
 }
 
@@ -176,7 +179,7 @@ async fn test_node_without_discovery_binds_no_udp_port() -> anyhow::Result<()> {
         let node = builder.build(vec![]).await;
 
         node.peers().await?;
-        std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, udp_port))?;
+        std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, udp_port))?;
         assert!(node.has_discovery_disabled().await);
     }
 
@@ -241,7 +244,7 @@ async fn test_node_without_discovery_starts_with_its_udp_port_taken() -> anyhow:
     let static_node = builder.build(vec![]).await;
     let static_peer = PeerAddr::try_from(static_node.listen_addr().await?)?;
 
-    let taken = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))?;
+    let taken = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
     let mut builder =
         builder.with_static_peers(vec![static_peer]).with_udp_port(taken.local_addr()?.port());
     let node = builder.build(vec![]).await;

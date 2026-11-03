@@ -179,7 +179,9 @@ impl TestNetworkBuilder {
         let block_signer = PrivateKeySigner::from_bytes(&secp256k1_secret(&keypair).into())
             .expect("libp2p secp256k1 secret is a valid k256 key");
 
-        let node_addr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
+        // Loopback, as devstack runs kona: the node is reachable only from this host, at an
+        // address its ENR can advertise.
+        let node_addr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
         let udp_port = self.udp_port.take().unwrap_or(0);
         let discovery_config = ConfigBuilder::new(ListenConfig::from_ip(node_addr, udp_port))
