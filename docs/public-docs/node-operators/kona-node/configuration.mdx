@@ -147,9 +147,9 @@ The node's scope comes from its [advertised IP](#advertised-address), and is cho
 | Private (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), shared (`100.64.0.0/10`), link-local, or IPv6 unique-local (`fc00::/7`) or link-local (`fe80::/10`) | LAN |
 | Any other address | Public |
 | Special-purpose, such as a documentation address | Public |
-| None, as when listening on all interfaces without `--p2p.advertise.ip` | The most local scope among the bootnodes, the chain's built-in ones included. Public if none is loopback or LAN. |
+| None, as when listening on all interfaces without `--p2p.advertise.ip` | The most public scope among the bootnodes, the chain's built-in ones included. Public if there are none. |
 
-Public is the scope that accepts the fewest records, so it applies whenever nothing tells the node otherwise. An IP that votes set later doesn't change the scope.
+Public is the scope that accepts the fewest records, so it applies whenever nothing tells the node otherwise. The bootnodes decide by their most public scope, so a node with public bootnodes and one local one, such as a sidecar on loopback, is public, and skips the local one. An IP that votes set later doesn't change the scope.
 
 A record is accepted if none of its addresses is more local than the node's scope:
 

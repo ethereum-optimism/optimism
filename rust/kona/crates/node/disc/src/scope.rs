@@ -135,8 +135,13 @@ impl AddrScope {
     }
 
     /// Returns our own scope: that of `ip`, the IP our record advertises, or, while it advertises
-    /// none (`ip` is unspecified), the most local scope among `bootnode_ips`, as records reach us
-    /// through our bootnodes. Public if none of them is loopback or LAN.
+    /// none (`ip` is unspecified), the most public scope among `bootnode_ips`, as records reach us
+    /// through our bootnodes. Public if there are none.
+    ///
+    /// The most public, not the most local: a node with public bootnodes is on a public network,
+    /// so one local bootnode among them, such as a sidecar on loopback, must not make it accept
+    /// local records from every public peer. Such a bootnode is then skipped, as out of scope. On a
+    /// devnet, all bootnodes are local, so the node accepts local records.
     ///
     /// Our scope is never unspecified or special-purpose: such an address names no host we are
     /// on, so it says nothing about which addresses we can reach. When nothing else tells us, we
@@ -148,8 +153,8 @@ impl AddrScope {
     ///
     /// Being conservative costs a node without bootnodes, such as the first node of a network,
     /// little: it still learns of the nodes that start sessions with it, as discv5 adds those to
-    /// its table without the table filter, and the driver forwards their records unchecked. It only
-    /// misses the loopback and LAN records those nodes relay.
+    /// its table without the table filter, and the driver dials their records, which hold the
+    /// address they reach it from. It only misses the loopback and LAN records those nodes relay.
     ///
     /// It doesn't follow an IP that votes set later, as discv5's table filter is chosen once.
     pub fn own(ip: IpAddr, bootnode_ips: impl IntoIterator<Item = IpAddr>) -> Self {
@@ -158,13 +163,17 @@ impl AddrScope {
             Self::Special => return Self::Public,
             scope => return scope,
         }
-        bootnode_ips.into_iter().map(Self::of).fold(Self::Public, |most_local, scope| {
-            match (most_local, scope) {
-                (Self::Loopback, _) | (_, Self::Loopback) => Self::Loopback,
-                (Self::Lan, _) | (_, Self::Lan) => Self::Lan,
-                _ => Self::Public,
-            }
-        })
+        bootnode_ips
+            .into_iter()
+            .map(Self::of)
+            .fold(None, |most_public, scope| match (most_public, scope) {
+                // These name no host, so they say nothing about the network we are on.
+                (_, Self::Unspecified | Self::Special) => most_public,
+                (Some(Self::Public), _) | (_, Self::Public) => Some(Self::Public),
+                (Some(Self::Lan), _) | (_, Self::Lan) => Some(Self::Lan),
+                _ => Some(Self::Loopback),
+            })
+            .unwrap_or(Self::Public)
     }
 
     /// Checks whether `addr`, relayed by a node of scope `sender`, is worth dialing, as geth's
@@ -381,7 +390,6 @@ mod tests {
         #[case] expected: AddrScope,
     ) {
         let bootnode_ips = bootnode_ips.iter().map(|ip| ip.parse().expect("a valid IP"));
-        // TODO(#23766): the mixed cases fail, as the most local bootnode decides.
         assert_eq!(AddrScope::own(ip, bootnode_ips), expected);
     }
 
