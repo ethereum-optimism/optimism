@@ -90,21 +90,31 @@ contract SetDisputeGameImpl is Script {
         require(address(_input.factory) != address(0), "SetDisputeGameImpl: factory not set");
         require(address(_input.impl) != address(0), "SetDisputeGameImpl: impl not set");
 
+        // A rerun after a partial deployment finds its own registration, and sends nothing for it.
         GameType gameType = GameType.wrap(_input.gameType);
-        require(address(_input.factory.gameImpls(gameType)) == address(0), "SDGI-10");
-
-        if (_input.gameArgs.length > 0) {
-            vm.broadcast(msg.sender);
-            _input.factory.setImplementation(gameType, _input.impl, _input.gameArgs);
+        address current = address(_input.factory.gameImpls(gameType));
+        if (current == address(0)) {
+            if (_input.gameArgs.length > 0) {
+                vm.broadcast(msg.sender);
+                _input.factory.setImplementation(gameType, _input.impl, _input.gameArgs);
+            } else {
+                vm.broadcast(msg.sender);
+                _input.factory.setImplementation(gameType, _input.impl);
+            }
         } else {
-            vm.broadcast(msg.sender);
-            _input.factory.setImplementation(gameType, _input.impl);
+            require(
+                current == address(_input.impl)
+                    && keccak256(_input.factory.gameArgs(gameType)) == keccak256(_input.gameArgs),
+                "SDGI-10"
+            );
         }
 
         if (address(_input.anchorStateRegistry) != address(0)) {
             require(address(_input.anchorStateRegistry.disputeGameFactory()) == address(_input.factory), "SDGI-20");
-            vm.broadcast(msg.sender);
-            _input.anchorStateRegistry.setRespectedGameType(gameType);
+            if (GameType.unwrap(_input.anchorStateRegistry.respectedGameType()) != _input.gameType) {
+                vm.broadcast(msg.sender);
+                _input.anchorStateRegistry.setRespectedGameType(gameType);
+            }
         }
 
         assertValid(_input);

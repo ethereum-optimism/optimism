@@ -162,13 +162,31 @@ contract SetDisputeGameImpl_Test is Test {
         script.run(input);
     }
 
-    function test_run_whenImplAlreadySet_reverts() public {
+    function test_run_whenAlreadySet_succeeds() public {
         SetDisputeGameImpl.Input memory input = _input(anchorStateRegistry);
-
-        // First run should succeed
+        input.gameArgs = hex"1234";
         script.run(input);
 
-        // Subsequent runs should revert
+        // A rerun after a partial deployment finds its own registration and changes nothing.
+        vm.recordLogs();
+        script.run(input);
+        assertEq(vm.getRecordedLogs().length, 0);
+    }
+
+    function test_run_whenOtherImplSet_reverts() public {
+        script.run(_input(anchorStateRegistry));
+
+        SetDisputeGameImpl.Input memory input = _input(anchorStateRegistry);
+        input.impl = IFaultDisputeGame(makeAddr("otherImpl"));
+        vm.expectRevert("SDGI-10");
+        script.run(input);
+    }
+
+    function test_run_whenOtherGameArgsSet_reverts() public {
+        script.run(_input(anchorStateRegistry));
+
+        SetDisputeGameImpl.Input memory input = _input(anchorStateRegistry);
+        input.gameArgs = hex"1234";
         vm.expectRevert("SDGI-10");
         script.run(input);
     }

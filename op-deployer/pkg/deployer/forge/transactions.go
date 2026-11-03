@@ -14,8 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-// Transaction is an unsigned transaction produced by forge's script execution. Fees and gas
-// limits are deliberately not carried over: txmgr estimates them against the live chain.
+// Transaction is an unsigned transaction that forge recorded for a script. It has no fees or gas
+// limit: txmgr sets them.
 type Transaction struct {
 	From       common.Address   `json:"from"`
 	To         *common.Address  `json:"to"`
@@ -27,9 +27,7 @@ type Transaction struct {
 	AccessList types.AccessList `json:"accessList"`
 }
 
-// readTransactions reads the sole dry-run manifest from this invocation's private broadcast
-// directory before RunScript removes it. Only these private records are a signing authority;
-// transaction lists returned by an RPC endpoint are not script output.
+// readTransactions reads the sole dry-run file of a run's private broadcast directory.
 func readTransactions(dir string, stdout string) ([]Transaction, error) {
 	paths, err := filepath.Glob(filepath.Join(dir, "*", "*", "dry-run", "*-latest.json"))
 	if err != nil {

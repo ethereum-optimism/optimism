@@ -42,15 +42,12 @@ type Client struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Wd     string
-	// FsPermissions, when not nil, replaces the fs_permissions of the project config.
+	// FsPermissions are the file accesses of a script run. The project config's are ignored.
 	FsPermissions []FsPermission
 	// Timeout bounds each forge invocation. Zero means no limit.
 	Timeout time.Duration
 	// Env holds KEY=VALUE variables for each forge command, on top of the inherited environment.
 	Env []string
-	// capture is set only on the private client copy used by CaptureTransactions. A nil slice
-	// means that the script has not run yet; after a run it is non-nil, even when empty.
-	capture *[]Transaction
 }
 
 func NewStandardClient(workdir string, binOpts ...StandardBinOpt) (*Client, error) {
@@ -149,100 +146,79 @@ type FsPermission struct {
 	Path   string `toml:"path"`
 }
 
+// ArtifactsReadPermission lets the scripts of a contracts bundle read its artifacts, as
+// DeployUtils.getCode does.
+var ArtifactsReadPermission = FsPermission{Access: "read", Path: "./forge-artifacts/"}
+
 // compileCacheFile is forge's compile cache, relative to the project.
 const compileCacheFile = "cache/solidity-files-cache.json"
 
-// CaptureTransactions runs one script on a private copy of the client and returns only the
-// transactions recorded by forge. The callback must not broadcast: Go owns live delivery.
-func (c *Client) CaptureTransactions(run func(*Client) error) ([]Transaction, error) {
-	var transactions []Transaction
-	client := *c
-	client.capture = &transactions
-	if err := run(&client); err != nil {
-		return nil, err
-	}
-	if transactions == nil {
-		return nil, errors.New("forge did not capture a script run")
-	}
-	return transactions, nil
-}
-
-// RunScript runs a prebuilt script without a compile. Not --offline: offline, forge requires the solc
-// versions of the cache installed even when it compiles nothing. Each run gets its own copy of the
-// compile cache and its own broadcast directory, so concurrent runs write no shared file.
-func (c *Client) RunScript(ctx context.Context, script string, sig string, args []byte, opts ...string) (string, error) {
-	if c.capture != nil {
-		if *c.capture != nil {
-			return "", errors.New("transaction capture requires exactly one script run")
-		}
-		for _, opt := range opts {
-			name, _, _ := strings.Cut(opt, "=")
-			if name == "--broadcast" || name == "--resume" {
-				return "", errors.New("transaction capture requires a keyless dry run, not broadcast or resume")
-			}
-		}
-	}
+// RunScript runs a prebuilt script without a compile. It returns forge's output and the transactions
+// that the script would send, which forge records in the run's private dry-run file. Not --offline:
+// offline, forge requires the solc versions of the cache installed even when it compiles nothing.
+// Each run gets its own copy of the compile cache and its own broadcast directory, so concurrent
+// runs write no shared file.
+func (c *Client) RunScript(ctx context.Context, script string, sig string, args []byte, opts ...string) (string, []Transaction, error) {
 	scratch, err := os.MkdirTemp("", "op-deployer-forge-")
 	if err != nil {
-		return "", fmt.Errorf("failed to create forge scratch directory: %w", err)
+		return "", nil, fmt.Errorf("failed to create forge scratch directory: %w", err)
 	}
 	defer os.RemoveAll(scratch)
 	cacheDir := filepath.Join(scratch, "cache")
 	if err := copyCompileCache(filepath.Join(c.Wd, compileCacheFile), cacheDir); err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	root, err := filepath.Abs(c.Wd)
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve the forge project: %w", err)
+		return "", nil, fmt.Errorf("failed to resolve the forge project: %w", err)
 	}
 	configPath, err := c.sandboxConfig(root, scratch)
 	if err != nil {
-		return "", err
+		return "", nil, err
+	}
+
+	// forge runs in the scratch directory, so it does not load a .env file of the project. A target
+	// that names only a contract stays as it is: forge looks it up in the project.
+	if file, contract, ok := strings.Cut(script, ":"); (ok || strings.HasSuffix(file, ".sol")) && !filepath.IsAbs(file) {
+		script = filepath.Join(root, file)
+		if ok {
+			script += ":" + contract
+		}
 	}
 
 	buf := new(bytes.Buffer)
 	cliOpts := []string{"script", "--root", root, "--config-path", configPath, "--cache-path", cacheDir}
 	cliOpts = append(cliOpts, opts...)
-	// --slow: forge otherwise waits forever on a receipt when the node drops one of several transactions
-	// sent at once. The node's gas estimate, as with txmgr: forge's own simulation does not know every
-	// L1 fork (it underestimated a Glamsterdam L1), and its default +30% lifts the OPCM deployment over
-	// the Osaka per-transaction gas cap (EIP-7825).
-	if slices.Contains(opts, "--broadcast") {
-		cliOpts = append(cliOpts, "--slow", "--skip-simulation", "--gas-estimate-multiplier", "100")
-	}
 	cliOpts = append(cliOpts, "--sig", sig, script, "0x"+hex.EncodeToString(args))
 	release, err := runSlots.acquire(ctx)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	defer release()
-	run := c.WithEnv("FOUNDRY_BROADCAST=" + filepath.Join(scratch, "broadcast"))
+	run := c.WithEnv("FOUNDRY_BROADCAST="+filepath.Join(scratch, "broadcast"), "FOUNDRY_PROFILE=default")
 	// forge compiles before it runs the script, so a stop at the compile precedes any broadcast.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	watcher := &compileWatcher{cancel: cancel}
-	compileErr := fmt.Errorf("forge compiled the project in %s; its compile cache must be up to date", c.Wd)
+	compileErr := fmt.Errorf("forge compiled the project in %s, so its compile cache is not up to date: build it with `just build-no-tests` in packages/contracts-bedrock, or use the embedded artifacts", c.Wd)
 	// forge prints the revert reason of a failed script to stderr.
 	errBuf := new(bytes.Buffer)
-	err = run.execCmd(ctx, io.MultiWriter(buf, watcher), errBuf, cliOpts...)
+	err = run.execWithEnv(ctx, scratch, inheritedEnv(), io.MultiWriter(buf, watcher), errBuf, cliOpts...)
 	if watcher.compiled.Load() {
-		return "", compileErr
+		return "", nil, compileErr
 	}
 	if err != nil {
-		return "", fmt.Errorf("failed to execute forge script: %w\n%s", err, strings.TrimSpace(errBuf.String()))
+		return "", nil, fmt.Errorf("failed to execute forge script: %w\n%s", err, strings.TrimSpace(errBuf.String()))
 	}
 	if strings.Contains(buf.String(), "Compiler run successful") {
-		return "", compileErr
+		return "", nil, compileErr
 	}
-	if c.capture != nil {
-		transactions, err := readTransactions(filepath.Join(scratch, "broadcast"), buf.String())
-		if err != nil {
-			return "", err
-		}
-		*c.capture = transactions
+	transactions, err := readTransactions(filepath.Join(scratch, "broadcast"), buf.String())
+	if err != nil {
+		return "", nil, err
 	}
-	return buf.String(), nil
+	return buf.String(), transactions, nil
 }
 
 // compileStart is what forge prints when it starts to compile.
@@ -271,29 +247,55 @@ func (w *compileWatcher) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// sandboxConfig writes a copy of the project config into dir, with ffi off and FsPermissions when
-// set: a contracts bundle is a forge project, so its config is not trusted. The copy sets root,
-// because forge otherwise takes the root from the config's directory and recompiles; forge warns
-// that root is unknown, but uses it. forge runs the default profile, not FOUNDRY_PROFILE.
+// sandboxKeys are the keys of the project's default profile that its sandbox config keeps: the
+// settings that the compile cache records, which must match or forge compiles, and the limits of a
+// script run.
+var sandboxKeys = []string{
+	"src", "test", "script", "out", "libs", "remappings", "auto_detect_remappings", "allow_paths",
+	"include_paths", "skip", "libraries", "evm_version", "optimizer", "optimizer_runs",
+	"optimizer_details", "via_ir", "via_ssa_cfg", "bytecode_hash", "cbor_metadata", "revert_strings",
+	"use_literal_content", "ast", "model_checker", "extra_output", "extra_output_files", "build_info",
+	"build_info_path", "additional_compiler_profiles", "compilation_restrictions", "sparse_mode",
+	"dynamic_test_linking", "ignored_error_codes", "ignored_error_codes_from", "ignored_warnings_from",
+	"deny",
+	"gas_limit", "memory_limit", "code_size_limit", "disable_block_gas_limit", "enable_tx_gas_limit",
+	"isolate",
+}
+
+// solcVersionKeys are the keys that pin the compiler. The compile cache records the version, so a
+// pinned version is kept; a path would make forge run that binary.
+var solcVersionKeys = []string{"solc", "solc_version"}
+
+var solcVersionRegexp = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+
+// sandboxConfig writes the forge config of a script run into dir: a contracts bundle is a forge
+// project, so its config is not trusted. It keeps only the sandboxKeys and a pinned compiler version
+// of the project's default profile, so no other profile, extends, RPC URL or sender, and it turns
+// ffi off and grants only FsPermissions. It sets root, because forge otherwise takes the root from
+// the config's directory and recompiles; forge warns that root is unknown, but uses it.
 func (c *Client) sandboxConfig(root string, dir string) (string, error) {
-	config := make(map[string]any)
-	if _, err := toml.DecodeFile(filepath.Join(root, "foundry.toml"), &config); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	var project struct {
+		Profile map[string]map[string]any `toml:"profile"`
+	}
+	if _, err := toml.DecodeFile(filepath.Join(root, "foundry.toml"), &project); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", fmt.Errorf("failed to read the forge config of the project: %w", err)
 	}
-	profiles, ok := config["profile"].(map[string]any)
-	if !ok {
-		profiles = make(map[string]any)
-		config["profile"] = profiles
+	profile := map[string]any{
+		"root":           root,
+		"ffi":            false,
+		"fs_permissions": append([]FsPermission{}, c.FsPermissions...),
 	}
-	profile, ok := profiles["default"].(map[string]any)
-	if !ok {
-		profile = make(map[string]any)
-		profiles["default"] = profile
-	}
-	profile["root"] = root
-	profile["ffi"] = false
-	if c.FsPermissions != nil {
-		profile["fs_permissions"] = c.FsPermissions
+	for key, value := range project.Profile["default"] {
+		// forge reads a kebab-case key as its snake-case name.
+		key = strings.ReplaceAll(key, "-", "_")
+		if slices.Contains(solcVersionKeys, key) {
+			if version, ok := value.(string); !ok || !solcVersionRegexp.MatchString(version) {
+				return "", fmt.Errorf("the forge config of the project sets %s to %v; only a compiler version such as 0.8.15 is allowed", key, value)
+			}
+		} else if !slices.Contains(sandboxKeys, key) {
+			continue
+		}
+		profile[key] = value
 	}
 
 	path := filepath.Join(dir, "foundry.toml")
@@ -302,6 +304,7 @@ func (c *Client) sandboxConfig(root string, dir string) (string, error) {
 		return "", fmt.Errorf("failed to create the forge config: %w", err)
 	}
 	defer f.Close()
+	config := map[string]any{"profile": map[string]any{"default": profile}}
 	if err := toml.NewEncoder(f).Encode(config); err != nil {
 		return "", fmt.Errorf("failed to write the forge config: %w", err)
 	}
@@ -327,18 +330,18 @@ func (c *Client) VerifyContract(ctx context.Context, opts ...string) (string, er
 	cliOpts := []string{"verify-contract"}
 	cliOpts = append(cliOpts, opts...)
 	// forge reads the verifier API key, such as ETHERSCAN_API_KEY, from its environment.
-	if err := c.execWithEnv(ctx, withGoCertDirs(os.Environ()), buf, buf, cliOpts...); err != nil {
+	if err := c.execWithEnv(ctx, c.Wd, withGoCertDirs(os.Environ()), buf, buf, cliOpts...); err != nil {
 		return buf.String(), fmt.Errorf("failed to verify contract: %w", err)
 	}
 	return buf.String(), nil
 }
 
 func (c *Client) execCmd(ctx context.Context, stdout io.Writer, stderr io.Writer, args ...string) error {
-	return c.execWithEnv(ctx, inheritedEnv(), stdout, stderr, args...)
+	return c.execWithEnv(ctx, c.Wd, inheritedEnv(), stdout, stderr, args...)
 }
 
-// execWithEnv runs forge with env and c.Env.
-func (c *Client) execWithEnv(ctx context.Context, env []string, stdout io.Writer, stderr io.Writer, args ...string) error {
+// execWithEnv runs forge in dir with env and c.Env.
+func (c *Client) execWithEnv(ctx context.Context, dir string, env []string, stdout io.Writer, stderr io.Writer, args ...string) error {
 	if c.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, c.Timeout)
@@ -364,7 +367,7 @@ func (c *Client) execWithEnv(ctx context.Context, env []string, stdout io.Writer
 	mwStderr := io.MultiWriter(cStderr, stderr)
 	cmd.Stdout = mwStdout
 	cmd.Stderr = mwStderr
-	cmd.Dir = c.Wd
+	cmd.Dir = dir
 	cmd.Env = append(env, c.Env...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to run forge command: %w", err)
@@ -372,8 +375,8 @@ func (c *Client) execWithEnv(ctx context.Context, env []string, stdout io.Writer
 	return nil
 }
 
-// inheritedEnvNames are the variables that forge (except verify-contract) and anvil inherit: what
-// they need to run and to reach the network. A script can read the environment, and FOUNDRY_*,
+// inheritedEnvNames are the variables that forge inherits, except for verify-contract: what it needs
+// to run and to reach the network. A script can read the environment, and FOUNDRY_*,
 // DAPP_* and ETH_* variables could make a run compile or target another chain.
 var inheritedEnvNames = []string{
 	"PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL", "LC_CTYPE", "TZ",
@@ -422,32 +425,33 @@ type ScriptCallDecoder[O any] interface {
 	Decode(raw []byte) (O, error)
 }
 
-// ScriptCaller calls a forge script and returns its decoded return value.
-type ScriptCaller[I any, O any] func(ctx context.Context, input I, opts ...string) (O, error)
+// ScriptCaller calls a forge script. It returns the decoded return value and the transactions that
+// the script would send.
+type ScriptCaller[I any, O any] func(ctx context.Context, input I, opts ...string) (O, []Transaction, error)
 
 func NewScriptCaller[I any, O any](client *Client, script string, sig string, encoder ScriptCallEncoder[I], decoder ScriptCallDecoder[O]) ScriptCaller[I, O] {
-	return func(ctx context.Context, input I, opts ...string) (O, error) {
+	return func(ctx context.Context, input I, opts ...string) (O, []Transaction, error) {
 		var out O
 		encArgs, err := encoder.Encode(input)
 		if err != nil {
-			return out, fmt.Errorf("failed to encode forge args: %w", err)
+			return out, nil, fmt.Errorf("failed to encode forge args: %w", err)
 		}
-		rawOut, err := client.RunScript(ctx, script, sig, encArgs, opts...)
+		rawOut, transactions, err := client.RunScript(ctx, script, sig, encArgs, opts...)
 		if err != nil {
-			return out, fmt.Errorf("failed to run forge script: %w", err)
+			return out, nil, fmt.Errorf("failed to run forge script: %w", err)
 		}
 		sigilMatches := sigilRegexp.FindAllStringSubmatch(rawOut, -1)
 		if len(sigilMatches) != 1 || len(sigilMatches[0]) != 2 {
-			return out, fmt.Errorf("failed to find forge return value in output:\n%s", rawOut)
+			return out, nil, fmt.Errorf("failed to find forge return value in output:\n%s", rawOut)
 		}
 		decoded, err := hex.DecodeString(sigilMatches[0][1])
 		if err != nil {
-			return out, fmt.Errorf("failed to decode forge return value %s: %w", sigilMatches[0][1], err)
+			return out, nil, fmt.Errorf("failed to decode forge return value %s: %w", sigilMatches[0][1], err)
 		}
 		out, err = decoder.Decode(decoded)
 		if err != nil {
-			return out, fmt.Errorf("failed to decode forge output: %w", err)
+			return out, nil, fmt.Errorf("failed to decode forge output: %w", err)
 		}
-		return out, nil
+		return out, transactions, nil
 	}
 }

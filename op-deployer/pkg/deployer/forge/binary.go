@@ -107,14 +107,10 @@ func (b *PathBin) Path() string {
 	return b.path
 }
 
-// foundryTools are the tools that op-deployer runs from the foundry archive.
-var foundryTools = []string{"forge", "anvil"}
-
-// StandardBin forces the use of the standard version of a foundry tool, forge by default, by
+// StandardBin forces the use of the standard forge binary version by
 // first checking for the version locally, then downloading from github
 // if needed
 type StandardBin struct {
-	tool       string
 	progressor ioutil.Progressor
 
 	cachePather func() (string, error)
@@ -124,13 +120,6 @@ type StandardBin struct {
 }
 
 type StandardBinOpt func(s *StandardBin)
-
-// WithTool selects the foundry tool, one of foundryTools.
-func WithTool(tool string) StandardBinOpt {
-	return func(s *StandardBin) {
-		s.tool = tool
-	}
-}
 
 func WithProgressor(p ioutil.Progressor) StandardBinOpt {
 	return func(s *StandardBin) {
@@ -188,7 +177,6 @@ func githubChecksummer(r io.Reader) error {
 
 func NewStandardBinary(opts ...StandardBinOpt) (*StandardBin, error) {
 	bin := &StandardBin{
-		tool:        "forge",
 		url:         binaryURL(getOS(), runtime.GOARCH),
 		cachePather: homedirCachePather,
 		checksummer: githubChecksummer,
@@ -206,9 +194,9 @@ func (b *StandardBin) Ensure(ctx context.Context) error {
 	}
 
 	// 2) PATH: use if version matches the pinned Version
-	if toolPath, err := exec.LookPath(b.tool); err == nil {
-		if ver, err := getForgeVersion(ctx, toolPath); err == nil && ver == StandardVersion {
-			b.path = toolPath
+	if forgePath, err := exec.LookPath("forge"); err == nil {
+		if ver, err := getForgeVersion(ctx, forgePath); err == nil && ver == StandardVersion {
+			b.path = forgePath
 			return nil
 		}
 	}
@@ -218,9 +206,9 @@ func (b *StandardBin) Ensure(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not provide cache dir: %w", err)
 	}
-	binPath := path.Join(binDir, b.tool)
+	binPath := path.Join(binDir, "forge")
 	if st, err := os.Stat(binPath); err == nil && !st.IsDir() {
-		// tool binary exists in cache; check version
+		// forge binary exists in cache; check version
 		if ver, err := getForgeVersion(ctx, binPath); err == nil && ver == StandardVersion {
 			b.path = binPath
 			return nil
@@ -234,7 +222,7 @@ func (b *StandardBin) Ensure(ctx context.Context) error {
 		return fmt.Errorf("could not create forge cache directory %s: %w", binDir, err)
 	}
 	if err := b.downloadBinary(ctx, binDir); err != nil {
-		return fmt.Errorf("could not download %s %s from %s; without network access, put %s %s on PATH: %w", b.tool, StandardVersion, b.url, b.tool, StandardVersion, err)
+		return fmt.Errorf("could not download forge %s from %s; without network access, put forge %s on PATH: %w", StandardVersion, b.url, StandardVersion, err)
 	}
 	b.path = binPath
 	return nil
@@ -272,14 +260,11 @@ func (b *StandardBin) downloadBinary(ctx context.Context, dest string) error {
 	if err := ioutil.Untar(tmpDir, tr); err != nil {
 		return fmt.Errorf("failed to untar: %w", err)
 	}
-	// Install every tool, so that no tool needs a download of its own.
-	for _, tool := range foundryTools {
-		if err := ioutil.SafeRename(path.Join(tmpDir, tool), path.Join(dest, tool)); err != nil {
-			return fmt.Errorf("failed to move %s binary: %w", tool, err)
-		}
-		if err := os.Chmod(path.Join(dest, tool), 0o700); err != nil {
-			return fmt.Errorf("failed to set executable bit of %s: %w", tool, err)
-		}
+	if err := ioutil.SafeRename(path.Join(tmpDir, "forge"), path.Join(dest, "forge")); err != nil {
+		return fmt.Errorf("failed to move binary: %w", err)
+	}
+	if err := os.Chmod(path.Join(dest, "forge"), 0o700); err != nil {
+		return fmt.Errorf("failed to set executable bit: %w", err)
 	}
 	return nil
 }

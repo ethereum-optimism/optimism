@@ -320,7 +320,7 @@ func TestEndToEndApply(t *testing.T) {
 	})
 
 	t.Run("with alt-da and additional dispute games", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Minute)
 		defer cancel()
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
@@ -346,29 +346,46 @@ func TestEndToEndApply(t *testing.T) {
 			DisputeMaxClockDuration:                 10,
 			DangerouslyAllowCustomDisputeParameters: true,
 		}
-		alphabet, cannon := gameParams, gameParams
-		alphabet.DisputeGameType = 255
+		cannon, alphabet := gameParams, gameParams
 		cannon.DisputeGameType = 254
+		alphabet.DisputeGameType = 255
+		// The game constructor refuses a clock extension that the max clock duration cannot hold.
+		invalidAlphabet := alphabet
+		invalidAlphabet.DisputeClockExtension = 100
 		intent.Chains[0].AdditionalDisputeGames = []state.AdditionalDisputeGame{
-			{ChainProofParams: alphabet, VMType: state.VMTypeAlphabet, MakeRespected: true},
 			{ChainProofParams: cannon, VMType: state.VMTypeCannon},
+			{ChainProofParams: invalidAlphabet, VMType: state.VMTypeAlphabet, MakeRespected: true},
 		}
-
-		require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
+		workdir := t.TempDir()
+		opts := deployer.ApplyPipelineOpts{
 			DeploymentTarget:     deployer.DeploymentTargetLive,
 			L1RPCUrl:             l1RPC,
 			DeployerPrivateKey:   pk,
 			Intent:               intent,
 			State:                st,
 			Logger:               lgr,
-			StateWriter:          pipeline.NoopStateWriter(),
+			StateWriter:          pipeline.WorkdirStateWriter(workdir),
 			CacheDir:             testCacheDir,
 			ReceiptQueryInterval: testReceiptQueryInterval,
-		}))
+		}
+
+		// The cannon game is registered on L1, but the stage fails, so the state does not record it.
+		require.ErrorContains(t, deployer.ApplyPipeline(ctx, opts), "failed to deploy additional dispute game")
+		st, err := pipeline.ReadState(workdir)
+		require.NoError(t, err)
+		require.Empty(t, st.Chains[0].AdditionalDisputeGames)
+
+		// A rerun from the written state registers both games.
+		intent.Chains[0].AdditionalDisputeGames[1].ChainProofParams = alphabet
+		opts.State = st
+		require.NoError(t, deployer.ApplyPipeline(ctx, opts))
 
 		chainState := st.Chains[0]
-		require.NotEmpty(t, chainState.AltDAChallengeProxy)
-		require.NotEmpty(t, chainState.AltDAChallengeImpl)
+		for _, contract := range []common.Address{chainState.AltDAChallengeProxy, chainState.AltDAChallengeImpl} {
+			code, err := l1Client.CodeAt(ctx, contract, nil)
+			require.NoError(t, err)
+			require.NotEmpty(t, code, "alt-DA contract %s has no code", contract)
+		}
 		require.Len(t, chainState.AdditionalDisputeGames, 2)
 		gameImpls := w3.MustNewFunc("gameImpls(uint32)", "address")
 		for _, game := range chainState.AdditionalDisputeGames {
@@ -380,6 +397,14 @@ func TestEndToEndApply(t *testing.T) {
 			require.NoError(t, gameImpls.DecodeReturns(ret, &impl))
 			require.Equal(t, game.GameAddress, impl, "game type %d is not registered on L1", game.GameType)
 		}
+		respectedGameType := w3.MustNewFunc("respectedGameType()", "uint32")
+		calldata, err := respectedGameType.EncodeArgs()
+		require.NoError(t, err)
+		ret, err := l1Client.CallContract(ctx, ethereum.CallMsg{To: &chainState.AnchorStateRegistryProxy, Data: calldata}, nil)
+		require.NoError(t, err)
+		var respected uint32
+		require.NoError(t, respectedGameType.DecodeReturns(ret, &respected))
+		require.Equal(t, alphabet.DisputeGameType, respected)
 	})
 
 	t.Run("with custom gas token", func(t *testing.T) {
