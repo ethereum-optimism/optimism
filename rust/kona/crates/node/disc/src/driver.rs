@@ -16,7 +16,9 @@ use tokio::{
 };
 use tracing::Instrument;
 
-use crate::{AdvertiseTcpPortError, Discv5Builder, Discv5Handler, HandlerRequest, LocalNode};
+use crate::{
+    AddrScope, AdvertiseTcpPortError, Discv5Builder, Discv5Handler, HandlerRequest, LocalNode,
+};
 
 /// Spawns `future` on Tokio in the current span, so that its logs carry the span discovery was
 /// started in, such as the one each test node runs in.
@@ -48,33 +50,57 @@ const EVENT_STREAM_MAX_ATTEMPTS: u32 = 10;
 /// The delay between attempts to start the [`Discv5`] event stream.
 const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
 
-/// Returns the record a discovery event brings, with the event's name for metrics and logs, if the
-/// driver forwards it to gossip, which dials it, and saves it in the bootstore. Only a record valid
-/// for `chain_id` is forwarded, from these events:
+/// Returns the record a discovery event brings, with the event's name for metrics and logs, if our
+/// own gossip should dial it. The driver then hands it to gossip and saves it in the bootstore; it
+/// doesn't send it to other nodes. Only a record valid for `chain_id` is dialed, from these events:
 ///
 /// - `Discovered`: a record in another node's answer to one of our lookups. discv5 sends it for
 ///   every record in the answer, before it applies its table filter or checks that the record has
-///   an address to contact, so the record may not be live or reachable. It is forwarded because
-///   that is how gossip learns about nodes we have no session with.
-///
-///   TODO(#23766): a record from another node may hold an address we can't reach, such as that
-///   node's loopback or LAN address.
+///   an address to contact, so the record may not be live or reachable. It is dialed because that
+///   is how gossip learns about nodes we have no session with, but only if a node of scope
+///   `own_scope` can reach it, as the table filter checks: discv5 doesn't say which node relayed
+///   it.
 /// - `SessionEstablished`: a session with the node started, in either direction, and discv5 checked
 ///   that its record's UDP address, if it has one, is the one its packets came from. The node is
-///   live, and reachable at its record's address, so this is the record most worth forwarding.
+///   live, and reachable at its record's address, so this is the record most worth dialing, even if
+///   our own scope couldn't reach it otherwise, such as a node on our own host's loopback.
+///
+///   discv5 also adds such a node to its table without the table filter, and relays its record
+///   to the nodes that look it up, who may not be able to reach it. discv5 has no hook to check a
+///   record against the node asking for it, as geth does, so it is left to that node to reject it.
 /// - `UnverifiableEnr`: a node started a session with us, but its record's UDP address is not the
 ///   one its packets came from. discv5 keeps the session but leaves the node out of its table. It
-///   is forwarded because the record's address may still be reachable: a NAT may have rewritten the
-///   address the packets came from, while the record holds the one forwarded to the node. The
-///   record may also be wrong, or hold an address the node can't be reached at.
-fn forwarded_record(event: discv5::Event, chain_id: u64) -> Option<(&'static str, Enr)> {
-    let (kind, enr) = match event {
-        discv5::Event::Discovered(enr) => ("discovered", enr),
-        discv5::Event::SessionEstablished(enr, _) => ("session_established", enr),
-        discv5::Event::UnverifiableEnr { enr, .. } => ("unverifiable_enr", enr),
+///   is dialed because the record's address may still be reachable: a NAT may have rewritten the
+///   address the packets came from, while the record holds the one the NAT maps to the node. The
+///   record may also be wrong, or hold an address the node can't be reached at, so it is only
+///   dialed if its addresses are plausible from the address the packets came from.
+fn record_to_dial(
+    event: discv5::Event,
+    chain_id: u64,
+    own_scope: AddrScope,
+) -> Option<(&'static str, Enr)> {
+    let (kind, enr, check) = match event {
+        discv5::Event::Discovered(enr) => {
+            let check = AddrScope::check_reachable_enr(own_scope, &enr);
+            ("discovered", enr, check)
+        }
+        discv5::Event::SessionEstablished(enr, _) => ("session_established", enr, Ok(())),
+        discv5::Event::UnverifiableEnr { enr, socket, .. } => {
+            let check = AddrScope::check_relayed_enr(AddrScope::of(socket.ip()), &enr);
+            ("unverifiable_enr", enr, check)
+        }
         _ => return None,
     };
-    EnrValidation::validate(&enr, chain_id).is_valid().then_some((kind, enr))
+    if EnrValidation::validate(&enr, chain_id).is_invalid() {
+        return None;
+    }
+    if let Err(reason) = check {
+        debug!(target: "discovery", event = kind, %reason, ?enr, "Ignoring a record with an address we can't reach");
+        metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "unreachable_address")
+            .increment(1);
+        return None;
+    }
+    Some((kind, enr))
 }
 
 /// The [`Discv5Driver`] drives the discovery service.
@@ -102,6 +128,9 @@ pub struct Discv5Driver {
     pub bootnodes: BootNodes,
     /// The chain ID of the network.
     pub chain_id: u64,
+    /// Our own address scope, which discovered records and bootnodes must be reachable from. See
+    /// [`AddrScope::own`].
+    pub own_scope: AddrScope,
     /// The interval to discovery random nodes.
     pub interval: Duration,
     /// Whether to forward ENRs to the enr receiver on startup.
@@ -129,12 +158,14 @@ impl Discv5Driver {
         disc: Discv5,
         interval: Duration,
         chain_id: u64,
+        own_scope: AddrScope,
         bootstore: Option<BootStoreFile>,
         bootnodes: BootNodes,
     ) -> Result<Self, std::io::Error> {
         Ok(Self {
             disc,
             chain_id,
+            own_scope,
             bootnodes,
             interval,
             forward: true,
@@ -166,6 +197,7 @@ impl Discv5Driver {
         bootstore: Option<BootStoreFile>,
         bootnodes: BootNodes,
         chain_id: u64,
+        own_scope: AddrScope,
         disc: &Discv5,
     ) -> BootStore {
         // Note: if the bootstore file cannot be created, we use a default bootstore.
@@ -188,6 +220,12 @@ impl Discv5Driver {
             let validation = EnrValidation::validate(&enr, chain_id);
             if validation.is_invalid() {
                 trace!(target: "discovery::bootstrap", "Ignoring Invalid Bootnode ENR: {:?}. {:?}", enr, validation);
+                continue;
+            }
+
+            // discv5's table filter would reject it too, but without saying why.
+            if let Err(reason) = AddrScope::check_reachable_enr(own_scope, &enr) {
+                warn!(target: "discovery::bootstrap", %reason, ?own_scope, ?enr, "Ignoring a boot node that is not reachable from our own address");
                 continue;
             }
 
@@ -280,6 +318,7 @@ impl Discv5Driver {
     /// Same as [`Discv5Driver::start`], but also returns the [`JoinHandle`] of the task.
     fn spawn(mut self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>, JoinHandle<()>) {
         let chain_id = self.chain_id;
+        let own_scope = self.own_scope;
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
         let (enr_sender, enr_recv) = channel::<Enr>(1024);
 
@@ -299,8 +338,14 @@ impl Discv5Driver {
             trace!(target: "discovery", "Discv5 Initialized");
 
             // Step 2: Bootstrap the discovery table with bootnodes.
-            let mut store =
-                Self::bootstrap_peers(self.bootstore, self.bootnodes, chain_id, &self.disc).await;
+            let mut store = Self::bootstrap_peers(
+                self.bootstore,
+                self.bootnodes,
+                chain_id,
+                own_scope,
+                &self.disc,
+            )
+            .await;
 
             let enrs = self.disc.table_entries_enr();
             info!(target: "discovery", "Discv5 Started with {} ENRs", enrs.len());
@@ -409,8 +454,8 @@ impl Discv5Driver {
                             error!(target: "discovery", "Discv5 event stream ended, stopping discovery");
                             return;
                         };
-                        if let Some((kind, enr)) = forwarded_record(event, chain_id) {
-                            debug!(target: "discovery", event = kind, ?enr, "Valid ENR, forwarding to swarm");
+                        if let Some((kind, enr)) = record_to_dial(event, chain_id, own_scope) {
+                            debug!(target: "discovery", event = kind, ?enr, "Valid ENR, passing it to gossip to dial");
                             metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
                             store.add_enr(enr.clone());
                             let sender = enr_sender.clone();
@@ -504,21 +549,27 @@ mod tests {
         assert_eq!(handle.chain_id, OP_SEPOLIA_CHAIN_ID);
     }
 
-    /// A record of a new node on `127.0.0.1`, for `chain_id`.
-    fn localhost_enr(chain_id: u64) -> Enr {
+    /// A record of a new node on `ip`, for `chain_id`.
+    fn enr_at(ip: IpAddr, chain_id: u64) -> Enr {
         let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
             unreachable!()
         };
-        LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 9222, 9223)
+        LocalNode::new(secret_key, ip, 9222, 9223)
             .build_enr(chain_id)
             .expect("a node's own ENR builds")
+    }
+
+    /// A record of a new node on `127.0.0.1`, for `chain_id`.
+    fn localhost_enr(chain_id: u64) -> Enr {
+        enr_at(IpAddr::V4(Ipv4Addr::LOCALHOST), chain_id)
     }
 
     /// The socket a session in these tests is with.
     const SOCKET: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9223);
 
-    /// The driver forwards the record a discovery, a session or an unverifiable record brings, if
-    /// it is for the driver's chain, and nothing for other events.
+    /// Gossip dials the record a discovery, a session or an unverifiable record brings, if
+    /// it is for the driver's chain, and nothing for other events. The driver is on loopback, so it
+    /// can reach the records' loopback address.
     #[rstest]
     #[case::discovered(discv5::Event::Discovered, Some("discovered"))]
     #[case::session_established(
@@ -533,34 +584,104 @@ mod tests {
         |enr: Enr| discv5::Event::NodeInserted { node_id: enr.node_id(), replaced: None },
         None
     )]
-    fn test_forwarded_record(
+    fn test_record_to_dial(
         #[case] event: impl Fn(Enr) -> discv5::Event,
         #[case] expected: Option<&str>,
     ) {
         let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
         assert_eq!(
-            forwarded_record(event(enr.clone()), OP_SEPOLIA_CHAIN_ID),
+            record_to_dial(event(enr.clone()), OP_SEPOLIA_CHAIN_ID, AddrScope::Loopback),
             expected.map(|kind| (kind, enr))
         );
         assert_eq!(
-            forwarded_record(event(localhost_enr(OP_MAINNET_CHAIN_ID)), OP_SEPOLIA_CHAIN_ID),
+            record_to_dial(
+                event(localhost_enr(OP_MAINNET_CHAIN_ID)),
+                OP_SEPOLIA_CHAIN_ID,
+                AddrScope::Loopback
+            ),
             None,
-            "a record for another chain is never forwarded"
+            "a record for another chain is never dialed"
         );
     }
 
-    /// A public node doesn't forward a loopback record another node relayed: it is that node's
+    /// A public node doesn't dial a loopback record another node relayed: it is that node's
     /// loopback, which the public node can't reach.
     #[test]
-    fn test_public_node_does_not_forward_relayed_loopback_record() {
+    fn test_public_node_does_not_dial_relayed_loopback_record() {
         let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
-        // TODO(#23766): fails, as `forwarded_record` checks no address, and doesn't know that this
-        // node is public.
         assert_eq!(
-            forwarded_record(discv5::Event::Discovered(enr), OP_SEPOLIA_CHAIN_ID),
+            record_to_dial(discv5::Event::Discovered(enr), OP_SEPOLIA_CHAIN_ID, AddrScope::Public),
             None,
-            "a public node forwarded a relayed loopback record"
+            "a public node dialed a relayed loopback record"
         );
+    }
+
+    /// A relayed record is dialed only if a node of our own scope can reach it, as discv5
+    /// doesn't say which node relayed it. An unverifiable record only if it is plausible from
+    /// `sender`, the address its packets came from, whatever our own scope. A session's record
+    /// always is: its node reached us from its record's address.
+    #[rstest]
+    #[case::discovered_lan_while_lan("discovered", "10.0.0.1", AddrScope::Lan, None, true)]
+    #[case::discovered_loopback_while_lan("discovered", "127.0.0.1", AddrScope::Lan, None, false)]
+    #[case::discovered_lan_while_public("discovered", "10.0.0.1", AddrScope::Public, None, false)]
+    #[case::discovered_public_while_public("discovered", "1.1.1.1", AddrScope::Public, None, true)]
+    #[case::discovered_lan_while_loopback(
+        "discovered",
+        "10.0.0.1",
+        AddrScope::Loopback,
+        None,
+        true
+    )]
+    #[case::discovered_special("discovered", "192.0.2.1", AddrScope::Loopback, None, false)]
+    #[case::unverifiable_lan_from_loopback_sender(
+        "unverifiable_enr",
+        "10.0.0.1",
+        AddrScope::Public,
+        Some("127.0.0.1"),
+        true
+    )]
+    #[case::unverifiable_lan_from_public_sender(
+        "unverifiable_enr",
+        "10.0.0.1",
+        AddrScope::Loopback,
+        Some("1.1.1.1"),
+        false
+    )]
+    #[case::unverifiable_special(
+        "unverifiable_enr",
+        "192.0.2.1",
+        AddrScope::Loopback,
+        Some("127.0.0.1"),
+        false
+    )]
+    #[case::session_loopback_while_public(
+        "session_established",
+        "127.0.0.1",
+        AddrScope::Public,
+        Some("127.0.0.1"),
+        true
+    )]
+    fn test_record_to_dial_by_scope(
+        #[case] kind: &str,
+        #[case] ip: IpAddr,
+        #[case] own_scope: AddrScope,
+        #[case] sender: Option<&str>,
+        #[case] dialed: bool,
+    ) {
+        let enr = enr_at(ip, OP_SEPOLIA_CHAIN_ID);
+        let socket = || {
+            let sender = sender.expect("a session has a sender").parse().expect("a valid IP");
+            SocketAddr::new(sender, 9223)
+        };
+        let event = match kind {
+            "discovered" => discv5::Event::Discovered(enr),
+            "session_established" => discv5::Event::SessionEstablished(enr, socket()),
+            "unverifiable_enr" => {
+                discv5::Event::UnverifiableEnr { node_id: enr.node_id(), enr, socket: socket() }
+            }
+            _ => unreachable!("no such event kind: {kind}"),
+        };
+        assert_eq!(record_to_dial(event, OP_SEPOLIA_CHAIN_ID, own_scope).is_some(), dialed);
     }
 
     /// Builds a driver listening on localhost that does not contact any remote peer.
@@ -800,6 +921,7 @@ mod tests {
             discovery.bootstore,
             discovery.bootnodes,
             OP_SEPOLIA_CHAIN_ID,
+            discovery.own_scope,
             &discovery.disc,
         )
         .await;
@@ -893,6 +1015,7 @@ mod tests {
             discovery.bootstore,
             discovery.bootnodes,
             OP_MAINNET_CHAIN_ID,
+            discovery.own_scope,
             &discovery.disc,
         )
         .await;

@@ -54,4 +54,7 @@ pub enum RelayAddrError {
     /// The address is a LAN address, from a sender that is on neither loopback nor a LAN.
     #[error("LAN address from a public sender")]
     Lan,
+    /// The record has no IP address.
+    #[error("no IP address")]
+    NoAddress,
 }
