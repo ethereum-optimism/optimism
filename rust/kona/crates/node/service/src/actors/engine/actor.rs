@@ -125,8 +125,15 @@ where
 
     /// Resets the inner [`Engine`] and propagates the reset to the derivation actor.
     async fn reset(&mut self) -> Result<(), EngineError> {
-        // Reset the engine.
-        let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
+        // Reset the engine. The first reset after EL sync finishes completes EL sync like
+        // op-node's engine controller: if the execution layer has no finality yet, safe and
+        // finalized go the EL-sync offset behind the synced tip. A sequencer's initial reset runs
+        // before EL sync finishes, so it takes the regular path.
+        let l2_safe_head = if !self.el_sync_complete && self.engine.state().el_sync_finished {
+            self.engine.reset_after_el_sync(self.client.clone(), self.rollup.clone()).await?
+        } else {
+            self.engine.reset(self.client.clone(), self.rollup.clone()).await?
+        };
         // The sequencer must observe the same reset head as RPC readers before its reset
         // acknowledgement can release a queued start command.
         self.publish_unsafe_head();

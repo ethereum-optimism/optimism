@@ -4,7 +4,7 @@ use alloy_primitives::B256;
 use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum};
 use kona_engine::{
     Engine, EngineActorRequest, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
-    test_utils::{TestAttributesBuilder, test_engine_client},
+    test_utils::{TestAttributesBuilder, test_engine_client, test_l2_block},
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -246,6 +246,89 @@ async fn admin_reset_recovers_and_completes_original_request(
         "reset must not send a separate safe-head acknowledgement"
     );
     tasks.abort_all();
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// EL-sync completion places safe and finalized the EL-sync offset behind the synced tip, as
+/// op-node's engine controller does, whatever the chain's age. The tip arrived over P2P and may
+/// not be on L1 yet. Derivation then resumes from that head, without reading the synced chain's
+/// ancestry.
+#[tokio::test(start_paused = true)]
+async fn el_sync_completion_places_safe_and_finalized_the_offset_behind_the_tip() {
+    let genesis = test_l2_block(0, 0, 0, B256::ZERO);
+    let mut config = RollupConfig { block_time: 2, ..Default::default() };
+    config.genesis.l2.hash = genesis.header.hash;
+    let tip = test_l2_block(100, 50, 0, B256::ZERO);
+    // A 10s offset is five two-second blocks.
+    let offset_head = test_l2_block(95, 47, 0, B256::ZERO);
+    let [tip_info, offset_info] = [&tip, &offset_head].map(|block| {
+        L2BlockInfo::from_block_and_genesis(&block.clone().into_consensus(), &config.genesis)
+            .unwrap()
+    });
+    let config = Arc::new(config);
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let state = EngineState {
+        sync_state: EngineState::default().sync_state.apply_update(EngineSyncStateUpdate {
+            unsafe_head: Some(tip_info),
+            ..Default::default()
+        }),
+        el_sync_finished: true,
+        ..Default::default()
+    };
+    let (state_tx, state_rx) = tokio::sync::watch::channel(state);
+    let (requests, request_rx) = mpsc::channel(1);
+    let (derivation_tx, mut derivation_rx) = mpsc::channel(2);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx).with_el_sync_safe_offset(Duration::from_secs(10)),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    // The completed EL sync with an unset finalized head schedules its own reset.
+    actor.step().await.unwrap();
+    for (tag, block) in [("finalized", &genesis), ("safe", &genesis), ("latest", &tip)] {
+        l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), block);
+    }
+    l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0x5f", true]), &offset_head);
+    l2.expect_params(
+        "engine_forkchoiceUpdatedV3",
+        serde_json::json!([
+            alloy_rpc_types_engine::ForkchoiceState {
+                head_block_hash: tip_info.hash(),
+                safe_block_hash: offset_info.hash(),
+                finalized_block_hash: offset_info.hash(),
+            },
+            null
+        ]),
+        ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+    );
+    // Closing input lets the step return after recovery and its notifications have completed.
+    drop(requests);
+    assert!(matches!(actor.step().await, Err(crate::EngineError::ChannelClosed)));
+    let published = *state_rx.borrow();
+    assert_eq!(published.sync_state.unsafe_head(), tip_info);
+    assert_eq!(published.sync_state.local_safe_head(), offset_info);
+    assert_eq!(published.sync_state.safe_head(), offset_info);
+    assert_eq!(published.sync_state.finalized_head(), offset_info);
+    let DerivationActorRequest::ProcessEngineSignalRequest(signal) =
+        derivation_rx.recv().await.unwrap()
+    else {
+        panic!("expected the reset head");
+    };
+    assert!(
+        matches!(*signal, kona_derive::Signal::Reset(reset) if reset.l2_safe_head == offset_info)
+    );
+    let DerivationActorRequest::ProcessEngineSyncCompletionRequest(head) =
+        derivation_rx.recv().await.unwrap()
+    else {
+        panic!("expected EL-sync completion after reset");
+    };
+    assert_eq!(*head, offset_info);
+    assert!(derivation_rx.try_recv().is_err());
     l1.assert_finished();
     l2.assert_finished();
 }

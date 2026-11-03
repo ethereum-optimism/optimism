@@ -59,6 +59,41 @@ fn verifier_confirmation_depth_has_the_expected_environment_variable() {
     assert_eq!(arg.get_env().unwrap(), "KONA_NODE_VERIFIER_L1_CONFS");
 }
 
+/// Like op-node, the EL-sync safe offset defaults to 12h and takes durations such as `30m`,
+/// including the milliseconds devstack passes and Go's `12h0m0s` form.
+#[rstest::rstest]
+#[case::default(None, 12 * 60 * 60)]
+#[case::minutes(Some("30m"), 30 * 60)]
+#[case::disabled(Some("0s"), 0)]
+#[case::milliseconds(Some("90000ms"), 90)]
+#[case::zero_milliseconds(Some("0ms"), 0)]
+#[case::go_duration(Some("12h0m0s"), 12 * 60 * 60)]
+fn el_sync_safe_offset_parses_durations(#[case] flag: Option<&str>, #[case] seconds: u64) {
+    let flag = flag.map(|value| ["--syncmode.offset-el-safe", value]);
+    let args = NodeCommand::parse_from(
+        std::iter::once("node")
+            .chain(default_flags().iter().copied())
+            .chain(flag.into_iter().flatten()),
+    );
+    assert_eq!(args.el_sync_safe_offset, std::time::Duration::from_secs(seconds));
+}
+
+#[test]
+fn el_sync_safe_offset_default_matches_the_engine() {
+    assert_eq!(
+        NodeCommand::default().el_sync_safe_offset,
+        kona_engine::DEFAULT_EL_SYNC_SAFE_OFFSET
+    );
+}
+
+#[test]
+fn el_sync_safe_offset_has_the_expected_environment_variable() {
+    use clap::CommandFactory;
+    let command = NodeCommand::command();
+    let arg = command.get_arguments().find(|arg| arg.get_id() == "el_sync_safe_offset").unwrap();
+    assert_eq!(arg.get_env().unwrap(), "KONA_NODE_SYNCMODE_OFFSET_EL_SAFE");
+}
+
 #[test]
 fn test_node_cli_missing_l1_eth_rpc() {
     let err = NodeCommand::try_parse_from(["node"]).unwrap_err();
