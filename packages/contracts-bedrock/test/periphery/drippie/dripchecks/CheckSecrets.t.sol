@@ -182,7 +182,7 @@ contract CheckSecrets_Reveal_Test is CheckSecrets_TestInit {
     /// @notice Test that revealing the same secret twice does not work.
     function test_reveal_twice_fails() external {
         // Reveal the secret once.
-        uint256 ts = block.timestamp;
+        uint256 ts = vm.getBlockTimestamp();
         c.reveal(secretMustExist);
         assertEq(c.revealedSecrets(keccak256(secretMustExist)), ts);
 

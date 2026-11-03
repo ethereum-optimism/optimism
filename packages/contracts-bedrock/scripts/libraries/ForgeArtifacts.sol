@@ -63,7 +63,10 @@ library ForgeArtifacts {
 
     /// @notice Returns the abi from a the forge artifact
     function getAbi(string memory _name) internal returns (string memory abi_) {
-        abi_ = Process.bash(string.concat("jq -r '.abi' < ", _getForgeArtifactPath(_name)));
+        // A library without public functions has the ABI `[]`, which Process reads as no output.
+        abi_ = Process.bash({
+            _command: string.concat("jq -r '.abi' < ", _getForgeArtifactPath(_name)), _allowEmpty: true
+        });
     }
 
     /// @notice Returns the methodIdentifiers from the forge artifact
@@ -73,18 +76,6 @@ library ForgeArtifacts {
             _allowEmpty: true
         });
         ids_ = stdJson.readStringArray(res, "");
-    }
-
-    /// @notice Returns the kind of contract (i.e. library, contract, or interface).
-    /// @param _name The name of the contract to get the kind of.
-    /// @return kind_ The kind of contract ("library", "contract", or "interface").
-    function getContractKind(string memory _name) internal returns (string memory kind_) {
-        kind_ = Process.bash(
-            string.concat(
-                "jq -r '.ast.nodes[] | select(.nodeType == \"ContractDefinition\") | .contractKind' < ",
-                _getForgeArtifactPath(_name)
-            )
-        );
     }
 
     /// @notice Returns whether or not a contract is proxied.
@@ -248,7 +239,9 @@ library ForgeArtifacts {
                         "find ",
                         _path,
                         bytes(pathExcludesPat).length > 0 ? string.concat(" ! \\( ", pathExcludesPat, " \\)") : "",
-                        " -type f -exec basename {} \\; | sed 's/\\.[^.]*$//' | jq -R -s 'split(\"\n\")[:-1]'"
+                        // Solar writes no artifact for a file without a contract, library or interface.
+                        " -type f -exec grep -lE '^[[:space:]]*(abstract[[:space:]]+)?(contract|library|interface)[[:space:]]+' {} +",
+                        " | xargs -n 1 basename | sed 's/\\.[^.]*$//' | jq -R -s 'split(\"\n\")[:-1]'"
                     )
                 )
             ),

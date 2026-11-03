@@ -423,13 +423,6 @@ contract Initializer_Test is CommonTest {
         // implementation and the proxy must be accounted for in the `contracts` array.
         for (uint256 i; i < contractNames.length; i++) {
             string memory contractName = contractNames[i];
-            string memory contractKind = ForgeArtifacts.getContractKind(contractName);
-
-            // Filter out non-contracts.
-            if (!LibString.eq(contractKind, "contract")) {
-                continue;
-            }
-
             // Construct the query for the initialize function in the contract's ABI.
             string memory cmd = string.concat(
                 "echo '",

@@ -655,7 +655,7 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
             abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (messageHash, block.timestamp));
 
         // On the destination, export from a deposit: no sequencer can keep it out.
-        uint256 source = block.chainid;
+        uint256 source = vm.getChainId();
         vm.chainId(DESTINATION);
         vm.expectEmit(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         emit SentMessage(

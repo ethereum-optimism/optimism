@@ -941,7 +941,7 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
         l2ToL2CrossDomainMessenger.initialize(_expiryPeriod);
         assertEq(l2ToL2CrossDomainMessenger.expiryPeriod(), _expiryPeriod);
 
-        uint256 sentAt_ = block.timestamp;
+        uint256 sentAt_ = vm.getBlockTimestamp();
         bytes32 messageHash_ = l2ToL2CrossDomainMessenger.sendMessage(block.chainid + 1, address(0xbeef), hex"5678");
 
         vm.expectRevert(L2ToL2CrossDomainMessenger_MessageNotExpired.selector);
