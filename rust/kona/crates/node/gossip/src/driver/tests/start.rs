@@ -2,7 +2,7 @@
 //! discovered peers it would dial.
 
 use super::*;
-use crate::{GossipTransport, builder::tests::memory_transport};
+use crate::{GossipTransport, StartError, builder::tests::memory_transport};
 use futures::future;
 use libp2p::{
     StreamProtocol, Transport, TransportError,
