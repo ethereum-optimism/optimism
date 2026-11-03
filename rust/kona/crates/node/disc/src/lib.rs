@@ -75,3 +75,6 @@ pub use metrics::Metrics;
 
 mod scope;
 pub use scope::AddrScope;
+
+#[cfg(test)]
+mod test_utils;

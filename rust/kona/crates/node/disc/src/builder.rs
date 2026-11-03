@@ -314,6 +314,7 @@ impl Discv5Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::enr_at;
     use discv5::ConfigBuilder;
     use enr::CombinedKey;
     use kona_peers::EnrValidation;
@@ -403,16 +404,6 @@ mod tests {
         assert_ne!(port, 0);
         // The advertised port is the one bound for discovery, so it cannot be bound again.
         assert!(std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, port)).is_err());
-    }
-
-    /// A record of a new node on `ip`, for `chain_id`.
-    fn enr_at(ip: IpAddr, chain_id: u64) -> Enr {
-        let CombinedKey::Secp256k1(k256_key) = CombinedKey::generate_secp256k1() else {
-            unreachable!()
-        };
-        LocalNode::new(k256_key, ip, 9222, 9223)
-            .build_enr(chain_id)
-            .expect("a node's own ENR builds")
     }
 
     /// The builder installs the table filter for our own scope in discv5, chosen from the IP we

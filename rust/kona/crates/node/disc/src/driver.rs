@@ -530,7 +530,10 @@ impl Discv5Driver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::LocalNode;
+    use crate::{
+        LocalNode,
+        test_utils::{enr_at, localhost_enr},
+    };
     use discv5::{ConfigBuilder, ListenConfig, NodeContact};
     use enr::{CombinedKey, CombinedPublicKey};
     use kona_genesis::{OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
@@ -555,21 +558,6 @@ mod tests {
         .expect("Failed to build discovery service");
         let (handle, _) = discovery.start();
         assert_eq!(handle.chain_id, OP_SEPOLIA_CHAIN_ID);
-    }
-
-    /// A record of a new node on `ip`, for `chain_id`.
-    fn enr_at(ip: IpAddr, chain_id: u64) -> Enr {
-        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
-            unreachable!()
-        };
-        LocalNode::new(secret_key, ip, 9222, 9223)
-            .build_enr(chain_id)
-            .expect("a node's own ENR builds")
-    }
-
-    /// A record of a new node on `127.0.0.1`, for `chain_id`.
-    fn localhost_enr(chain_id: u64) -> Enr {
-        enr_at(IpAddr::V4(Ipv4Addr::LOCALHOST), chain_id)
     }
 
     /// The socket a session in these tests is with.
@@ -612,83 +600,88 @@ mod tests {
         );
     }
 
-    /// A public node doesn't dial a loopback record another node relayed: it is that node's
-    /// loopback, which the public node can't reach.
-    #[test]
-    fn test_public_node_does_not_dial_relayed_loopback_record() {
-        let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
-        assert_eq!(
-            record_to_dial(discv5::Event::Discovered(enr), OP_SEPOLIA_CHAIN_ID, AddrScope::Public),
-            None,
-            "a public node dialed a relayed loopback record"
-        );
+    /// A session with a node whose packets came from `sender`.
+    fn session_from(sender: &str) -> impl Fn(Enr) -> discv5::Event {
+        let socket = SocketAddr::new(sender.parse().expect("a valid IP"), 9223);
+        move |enr| discv5::Event::SessionEstablished(enr, socket)
+    }
+
+    /// A session with a node whose record doesn't match `sender`, the address its packets came
+    /// from.
+    fn unverifiable_from(sender: &str) -> impl Fn(Enr) -> discv5::Event {
+        let socket = SocketAddr::new(sender.parse().expect("a valid IP"), 9223);
+        move |enr: Enr| discv5::Event::UnverifiableEnr { node_id: enr.node_id(), enr, socket }
     }
 
     /// A relayed record is dialed only if a node of our own scope can reach it, as discv5
-    /// doesn't say which node relayed it. An unverifiable record only if it is plausible from
-    /// `sender`, the address its packets came from, whatever our own scope. A session's record
-    /// always is: its node reached us from its record's address.
+    /// doesn't say which node relayed it: a public node doesn't dial another node's loopback or
+    /// LAN address. An unverifiable record only if it is plausible from the address its packets
+    /// came from, whatever our own scope. A session's record always is: its node reached us from
+    /// its record's address.
     #[rstest]
-    #[case::discovered_lan_while_lan("discovered", "10.0.0.1", AddrScope::Lan, None, true)]
-    #[case::discovered_loopback_while_lan("discovered", "127.0.0.1", AddrScope::Lan, None, false)]
-    #[case::discovered_lan_while_public("discovered", "10.0.0.1", AddrScope::Public, None, false)]
-    #[case::discovered_public_while_public("discovered", "1.1.1.1", AddrScope::Public, None, true)]
-    #[case::discovered_lan_while_loopback(
-        "discovered",
-        "10.0.0.1",
-        AddrScope::Loopback,
-        None,
-        true
+    #[case::discovered_lan_while_lan(discv5::Event::Discovered, "10.0.0.1", AddrScope::Lan, true)]
+    #[case::discovered_loopback_while_lan(
+        discv5::Event::Discovered,
+        "127.0.0.1",
+        AddrScope::Lan,
+        false
     )]
-    #[case::discovered_special("discovered", "192.0.2.1", AddrScope::Loopback, None, false)]
-    #[case::unverifiable_lan_from_loopback_sender(
-        "unverifiable_enr",
+    #[case::discovered_loopback_while_public(
+        discv5::Event::Discovered,
+        "127.0.0.1",
+        AddrScope::Public,
+        false
+    )]
+    #[case::discovered_lan_while_public(
+        discv5::Event::Discovered,
         "10.0.0.1",
         AddrScope::Public,
-        Some("127.0.0.1"),
+        false
+    )]
+    #[case::discovered_public_while_public(
+        discv5::Event::Discovered,
+        "1.1.1.1",
+        AddrScope::Public,
+        true
+    )]
+    #[case::discovered_lan_while_loopback(
+        discv5::Event::Discovered,
+        "10.0.0.1",
+        AddrScope::Loopback,
+        true
+    )]
+    #[case::discovered_special(discv5::Event::Discovered, "192.0.2.1", AddrScope::Loopback, false)]
+    #[case::unverifiable_lan_from_loopback_sender(
+        unverifiable_from("127.0.0.1"),
+        "10.0.0.1",
+        AddrScope::Public,
         true
     )]
     #[case::unverifiable_lan_from_public_sender(
-        "unverifiable_enr",
+        unverifiable_from("1.1.1.1"),
         "10.0.0.1",
         AddrScope::Loopback,
-        Some("1.1.1.1"),
         false
     )]
     #[case::unverifiable_special(
-        "unverifiable_enr",
+        unverifiable_from("127.0.0.1"),
         "192.0.2.1",
         AddrScope::Loopback,
-        Some("127.0.0.1"),
         false
     )]
     #[case::session_loopback_while_public(
-        "session_established",
+        session_from("127.0.0.1"),
         "127.0.0.1",
         AddrScope::Public,
-        Some("127.0.0.1"),
         true
     )]
     fn test_record_to_dial_by_scope(
-        #[case] kind: &str,
+        #[case] event: impl Fn(Enr) -> discv5::Event,
         #[case] ip: IpAddr,
         #[case] own_scope: AddrScope,
-        #[case] sender: Option<&str>,
         #[case] dialed: bool,
     ) {
-        let enr = enr_at(ip, OP_SEPOLIA_CHAIN_ID);
-        let socket = || {
-            let sender = sender.expect("a session has a sender").parse().expect("a valid IP");
-            SocketAddr::new(sender, 9223)
-        };
-        let event = match kind {
-            "discovered" => discv5::Event::Discovered(enr),
-            "session_established" => discv5::Event::SessionEstablished(enr, socket()),
-            "unverifiable_enr" => {
-                discv5::Event::UnverifiableEnr { node_id: enr.node_id(), enr, socket: socket() }
-            }
-            _ => unreachable!("no such event kind: {kind}"),
-        };
+        let event = event(enr_at(ip, OP_SEPOLIA_CHAIN_ID));
         assert_eq!(record_to_dial(event, OP_SEPOLIA_CHAIN_ID, own_scope).is_some(), dialed);
     }
 
