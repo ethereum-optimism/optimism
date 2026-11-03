@@ -62,7 +62,7 @@ mod builder;
 pub use builder::{Discv5Builder, LocalNode};
 
 mod error;
-pub use error::{AdvertiseTcpPortError, Discv5BuilderError};
+pub use error::{AdvertiseTcpPortError, Discv5BuilderError, RelayAddrError};
 
 mod driver;
 pub use driver::Discv5Driver;
@@ -72,3 +72,6 @@ pub use handler::{DiscoveryStopped, Discv5Handler, HandlerRequest};
 
 mod metrics;
 pub use metrics::Metrics;
+
+mod scope;
+pub use scope::{AddrScope, check_relay_addr};

@@ -35,3 +35,22 @@ pub enum AdvertiseTcpPortError {
     #[error("failed to update the ENR")]
     EnrUpdateFailed(#[source] enr::Error),
 }
+
+/// Why an address another node relayed is not worth dialing. See [`check_relay_addr`].
+///
+/// [`check_relay_addr`]: crate::check_relay_addr
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+pub enum RelayAddrError {
+    /// The address is `0.0.0.0` or `::`.
+    #[error("unspecified address")]
+    Unspecified,
+    /// The address is a multicast, broadcast, documentation or other special-purpose address.
+    #[error("special-purpose address")]
+    Special,
+    /// The address is a loopback address, from a sender that is not on loopback.
+    #[error("loopback address from a non-loopback sender")]
+    Loopback,
+    /// The address is a LAN address, from a sender that is on neither loopback nor a LAN.
+    #[error("LAN address from a public sender")]
+    Lan,
+}
