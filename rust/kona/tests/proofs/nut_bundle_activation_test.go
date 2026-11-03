@@ -2,23 +2,34 @@ package proofs
 
 import (
 	"context"
+	"encoding/json"
 	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	"github.com/ethereum-optimism/optimism/op-core/nuts"
 	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/lmittmann/w3"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,6 +58,9 @@ var forksWithoutNUTBundle = map[forks.Name]bool{}
 // Fork-specific state assertions (e.g. Karst's proxy implementation swap) are
 // dispatched via the switch in [testActivationBlockNUTBundle]. Future forks
 // with their own post-activation invariants register a case there.
+//
+// For every fork, [assertCrossL2InboxAccessList] also checks that the bundled
+// CrossL2Inbox implementation enforces its access list under the fork's rules.
 func TestActivationBlockNUTBundle(gt *testing.T) {
 	matrix := helpers.NewMatrix[forks.Name]()
 
@@ -143,6 +157,7 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	case forks.Lagoon:
 		assertInteropActivation(t, env, actHeader)
 	}
+	assertCrossL2InboxAccessList(t, env, fork, actHeader)
 
 	// Advance the safe head across the activation boundary so the fault-proof
 	// program verifies a non-trivial span including the upgrade block. No new
@@ -353,6 +368,111 @@ func assertInteropActivation(t actionsHelpers.StatefulTesting, env *helpers.L2Fa
 	require.NoError(t, err, "read ETHLiquidity balance post-activation")
 	require.True(t, preBalance.Sign() == 0, "ETHLiquidity must have zero balance pre-activation")
 	require.True(t, postBalance.Sign() == 0, "ETHLiquidity must stay unfunded for single-chain activation")
+}
+
+// crossL2InboxDeployIntent is the NUT bundle intent of the CrossL2Inbox implementation deployment.
+const crossL2InboxDeployIntent = "Deploy CrossL2Inbox Implementation"
+
+// assertCrossL2InboxAccessList checks the access list enforcement of the newest CrossL2Inbox
+// implementation that a NUT bundle deploys up to fork. CrossL2Inbox finds an undeclared message
+// from the gas cost of one SLOAD. A compiler that removes the SLOAD, or a fork that changes the
+// SLOAD gas cost, can let every message through.
+//
+// The call goes to the implementation, not the proxy. A single-chain activation leaves the proxy
+// implementation slot unset, and CrossL2Inbox keeps no state.
+func assertCrossL2InboxAccessList(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, fork forks.Name, actHeader *types.Header) {
+	impl := lockedCrossL2InboxImpl(t, fork)
+	ethCl := env.Engine.EthClient()
+	code, err := ethCl.CodeAt(t.Ctx(), impl, actHeader.Number)
+	require.NoError(t, err, "read code at CrossL2Inbox impl")
+	require.NotEmptyf(t, code, "CrossL2Inbox impl %s must have code after %s activation", impl, fork)
+
+	msg := messages.Message{
+		Identifier: messages.Identifier{
+			Origin:      common.Address{0xaa},
+			BlockNumber: 1,
+			LogIndex:    2,
+			Timestamp:   3,
+			ChainID:     eth.ChainIDFromUInt64(901),
+		},
+		PayloadHash: common.Hash{0xbb},
+	}
+	calldata, err := (&txintent.ExecTrigger{Executor: impl, Msg: msg}).EncodeInput()
+	require.NoError(t, err)
+
+	// An eth_call without a gas price runs with a zero base fee. A gas price above the base fee keeps
+	// the real base fee and passes the CrossL2Inbox deposit check.
+	require.Positive(t, actHeader.BaseFee.Sign(), "activation block base fee must be positive")
+	call := ethereum.CallMsg{
+		From:     env.Alice.Address(),
+		To:       &impl,
+		Gas:      1_000_000,
+		GasPrice: new(big.Int).Mul(actHeader.BaseFee, big.NewInt(2)),
+		Data:     calldata,
+	}
+	_, err = ethCl.CallContract(t.Ctx(), call, actHeader.Number)
+	require.Equal(t, crypto.Keccak256([]byte("NotInAccessList()"))[:4], revertData(t, err),
+		"validateMessage without an access list must revert with NotInAccessList")
+
+	call.AccessList = types.AccessList{{
+		Address:     impl,
+		StorageKeys: messages.EncodeAccessList([]messages.Access{msg.Access()}),
+	}}
+	_, err = ethCl.CallContract(t.Ctx(), call, actHeader.Number)
+	require.NoError(t, err, "validateMessage with the checksum in the access list must succeed")
+}
+
+// lockedCrossL2InboxImpl returns the CrossL2Inbox implementation address that the newest locked
+// NUT bundle from Karst up to and including fork deploys.
+func lockedCrossL2InboxImpl(t actionsHelpers.Testing, fork forks.Name) common.Address {
+	root, err := opservice.FindMonorepoRoot(".")
+	require.NoError(t, err)
+	locks, _, err := nuts.ReadLockFile(root)
+	require.NoError(t, err)
+	deploy := w3.MustNewFunc("deploy(bytes32,bytes)", "address")
+
+	var impl common.Address
+	for _, f := range forks.From(forks.Karst) {
+		if entry, ok := locks[string(f)]; ok {
+			raw, err := os.ReadFile(filepath.Join(root, entry.Bundle))
+			require.NoError(t, err, "read %s NUT bundle", f)
+			var bundle struct {
+				Transactions []struct {
+					Intent string         `json:"intent"`
+					To     common.Address `json:"to"`
+					Data   hexutil.Bytes  `json:"data"`
+				} `json:"transactions"`
+			}
+			require.NoError(t, json.Unmarshal(raw, &bundle), "parse %s NUT bundle", f)
+			for _, tx := range bundle.Transactions {
+				if tx.Intent != crossL2InboxDeployIntent {
+					continue
+				}
+				require.Equal(t, predeploys.ConditionalDeployerAddr, tx.To, "%s CrossL2Inbox deploy target", f)
+				var salt common.Hash
+				var initCode []byte
+				require.NoError(t, deploy.DecodeArgs(tx.Data, &salt, &initCode), "decode %s CrossL2Inbox deploy", f)
+				// ConditionalDeployer deploys with CREATE2 through the deterministic deployment proxy.
+				impl = crypto.CreateAddress2(predeploys.DeterministicDeploymentProxyAddr, salt, crypto.Keccak256(initCode))
+			}
+		}
+		if f == fork {
+			break
+		}
+	}
+	require.NotEqualf(t, common.Address{}, impl, "no locked NUT bundle up to %s deploys CrossL2Inbox", fork)
+	return impl
+}
+
+// revertData returns the revert data of a failed eth_call.
+func revertData(t actionsHelpers.Testing, err error) []byte {
+	var dataErr rpc.DataError
+	require.ErrorAs(t, err, &dataErr, "eth_call must revert with data")
+	hexData, ok := dataErr.ErrorData().(string)
+	require.Truef(t, ok, "revert data must be a hex string, got %T", dataErr.ErrorData())
+	data, err := hexutil.Decode(hexData)
+	require.NoError(t, err)
+	return data
 }
 
 func allZero(b []byte) bool {
