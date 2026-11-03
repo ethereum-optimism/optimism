@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// after an upgrade. It expects the chain to already run this release's contracts.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 5.1.0
-    string public constant version = "5.1.0";
+    /// @custom:semver 5.2.0
+    string public constant version = "5.2.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -851,9 +851,10 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Returns whether the respected game type is one the selected validation branch
-    ///         requires to be registered. The ZK game is a super game type, but it is a per-chain
-    ///         opt-in, so it only counts as validated when the factory registers an
-    ///         implementation for it.
+    ///         requires to be registered. In super mode SUPER_PERMISSIONED is always required
+    ///         (enforced by SPDG-SHAPE). SUPER_CANNON_KONA and ZK_DISPUTE_GAME are optional
+    ///         permissionless super games, so they only count as validated when the factory
+    ///         registers an implementation for them.
     function isRespectedGameTypeValidated(
         GameType _gameType,
         bool _isSuperMode,
@@ -867,14 +868,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         if (!_isSuperMode) {
             return raw == GameTypes.PERMISSIONED_CANNON.raw() || raw == GameTypes.CANNON_KONA.raw();
         }
-        if (raw == GameTypes.SUPER_PERMISSIONED.raw() || raw == GameTypes.SUPER_CANNON_KONA.raw()) {
-            return true;
-        }
-        if (raw != GameTypes.ZK_DISPUTE_GAME.raw()) {
-            return false;
-        }
-        IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        return address(factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0);
+        if (raw == GameTypes.SUPER_PERMISSIONED.raw()) return true;
+        if (raw != GameTypes.SUPER_CANNON_KONA.raw() && raw != GameTypes.ZK_DISPUTE_GAME.raw()) return false;
+        return address(IDisputeGameFactory(_sysCfg.disputeGameFactory()).gameImpls(_gameType)) != address(0);
     }
 
     /// @notice Validates the configuration of the L1 contracts.
@@ -963,16 +959,23 @@ contract OPContractsManagerStandardValidator is ISemver {
                 _overrides,
                 "SPDG"
             );
-            _errors = assertValidPermissionlessDisputeGame(
-                _errors,
-                _input.sysCfg,
-                GameTypes.SUPER_CANNON_KONA,
-                _input.cannonKonaPrestate,
-                _input.l2ChainID,
-                _sharedProxyAdmin,
-                _overrides,
-                "SCKDG"
-            );
+            // SUPER_CANNON_KONA is optional when ZK_DISPUTE_GAME is the permissionless super game;
+            // DF-60 requires at least one of them.
+            if (
+                address(IDisputeGameFactory(_input.sysCfg.disputeGameFactory()).gameImpls(GameTypes.SUPER_CANNON_KONA))
+                    != address(0)
+            ) {
+                _errors = assertValidPermissionlessDisputeGame(
+                    _errors,
+                    _input.sysCfg,
+                    GameTypes.SUPER_CANNON_KONA,
+                    _input.cannonKonaPrestate,
+                    _input.l2ChainID,
+                    _sharedProxyAdmin,
+                    _overrides,
+                    "SCKDG"
+                );
+            }
             _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides);
         } else {
             // Super game types must not be registered in non-super mode.
