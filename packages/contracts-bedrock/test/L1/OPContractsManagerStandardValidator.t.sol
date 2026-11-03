@@ -316,6 +316,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 sysCfg: systemConfig,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
+                zkPrestate: bytes32(0),
                 l2ChainID: l2ChainId,
                 proposer: proposer
             }),
@@ -339,6 +340,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 sysCfg: systemConfig,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
+                zkPrestate: bytes32(0),
                 l2ChainID: l2ChainId,
                 proposer: proposer
             }),
@@ -1861,6 +1863,7 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
                 sysCfg: systemConfig,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
+                zkPrestate: bytes32(0),
                 l2ChainID: l2ChainId,
                 proposer: proposer
             }),
@@ -2210,6 +2213,9 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
     /// @notice The CannonKona absolute prestate.
     Claim cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKonaPrestate")));
 
+    /// @notice The ZK_DISPUTE_GAME absolute prestate.
+    Claim zkPrestate = Claim.wrap(bytes32(keccak256("zkPrestate")));
+
     /// @notice The proposer role from the deploy config.
     address proposer;
 
@@ -2244,7 +2250,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             // ZK_DISPUTE_GAME is a super game: chain scoping comes from the SuperRootProof
             // preimage, so the 140-byte layout has no l2ChainId field.
             bytes memory zkArgs = abi.encodePacked(
-                bytes32(keccak256("zkPrestate")),
+                zkPrestate.raw(),
                 standardValidator.sp1PlonkAdapterImpl(),
                 uint64(7 days),
                 uint64(3 days),
@@ -2321,7 +2327,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
                 gameType: GameTypes.ZK_DISPUTE_GAME,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
+                        absolutePrestate: zkPrestate,
                         maxChallengeDuration: Duration.wrap(uint64(7 days)),
                         maxProveDuration: Duration.wrap(uint64(3 days)),
                         challengerBond: 0.08 ether
@@ -2358,6 +2364,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
                 sysCfg: systemConfig,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
+                zkPrestate: zkPrestate.raw(),
                 l2ChainID: l2ChainId,
                 proposer: proposer
             }),
@@ -2405,10 +2412,13 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is OPContractsMan
         assertEq("ZKDG-150", _validate(true));
     }
 
-    /// @notice Tests ZKDG-70 when the absolutePrestate encoded in the ZK game args is zero.
-    function test_validate_zkDisputeGameZeroAbsolutePrestate_succeeds() public {
+    /// @notice Tests ZKDG-70 when the absolutePrestate encoded in the ZK game args differs from the
+    ///         expected zkPrestate.
+    function test_validate_zkDisputeGameWrongAbsolutePrestate_succeeds() public {
         // absolutePrestate occupies bytes [0-31] of the packed ZK args.
-        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 0, abi.encodePacked(bytes32(0)));
+        DisputeGames.mockZKGameArg(
+            dgf, GameTypes.ZK_DISPUTE_GAME, 0, abi.encodePacked(bytes32(keccak256("otherZkPrestate")))
+        );
         assertEq("ZKDG-70", _validate(true));
     }
 
@@ -2652,6 +2662,24 @@ contract OPContractsManagerStandardValidator_ValidateInterop_Test is OPContracts
         standardValidator.validate(input, false);
     }
 
+    /// @notice A wrong shared ZK_DISPUTE_GAME prestate must be rejected from either member.
+    function test_validate_interopMembersWrongZKPrestate_succeeds() public {
+        _upgradeMemberWithZK(
+            chainContracts2.systemConfig,
+            false,
+            GameTypes.ZK_DISPUTE_GAME,
+            Claim.wrap(bytes32(keccak256("otherZkPrestate")))
+        );
+
+        IOPContractsManagerStandardValidator.ValidationInputDev memory input =
+            _validationInput(chainContracts2.systemConfig);
+        string memory errors = standardValidator.validate(input, true);
+        assertEq(errors, "ZKDG-70");
+        assertEq(standardValidator.validate(_validationInput(chainContracts1.systemConfig), true), errors);
+        vm.expectRevert(bytes("OPContractsManagerStandardValidator: ZKDG-70"));
+        standardValidator.validate(input, false);
+    }
+
     /// @notice Discovering the shared admin must still check its expected PAO owner.
     function test_validate_sharedProxyAdminWrongOwner_succeeds() public {
         vm.mockCall(sharedProxyAdmin, abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(makeAddr("wrongSharedOwner")));
@@ -2727,6 +2755,7 @@ contract OPContractsManagerStandardValidator_ValidateInterop_Test is OPContracts
             sysCfg: _sysCfg,
             cannonPrestate: cannonPrestate.raw(),
             cannonKonaPrestate: cannonKonaPrestate.raw(),
+            zkPrestate: zkPrestate.raw(),
             l2ChainID: _sysCfg.l2ChainId(),
             proposer: proposer
         });

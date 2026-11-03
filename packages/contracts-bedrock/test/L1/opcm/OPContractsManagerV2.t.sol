@@ -192,6 +192,7 @@ contract OPContractsManagerV2_TestInit is CommonTest {
                 sysCfg: cts_.systemConfig,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
+                zkPrestate: bytes32(0),
                 l2ChainID: _deployConfig.l2ChainId,
                 proposer: deployProposer
             }),
@@ -463,12 +464,28 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
                 sysCfg: v2UpgradeInput.systemConfig,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
+                zkPrestate: _upgradeZKPrestate(),
                 l2ChainID: l2ChainId,
                 proposer: initialProposer
             }),
             false,
             validationOverrides
         );
+    }
+
+    /// @notice Returns the ZK_DISPUTE_GAME prestate enabled by the upgrade input, or zero when the
+    ///         upgrade leaves ZK_DISPUTE_GAME disabled.
+    function _upgradeZKPrestate() internal view returns (bytes32) {
+        IOPContractsManagerUtils.DisputeGameConfig[] memory configs = v2UpgradeInput.disputeGameConfigs;
+        for (uint256 i = 0; i < configs.length; i++) {
+            if (configs[i].enabled && configs[i].gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+                return
+                    abi.decode(configs[i].gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig))
+                        .absolutePrestate
+                        .raw();
+            }
+        }
+        return bytes32(0);
     }
 
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the

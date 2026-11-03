@@ -492,6 +492,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
                 sysCfg: doo.systemConfigProxy,
                 cannonPrestate: cannonAbsolutePrestate.raw(),
                 cannonKonaPrestate: cannonKonaAbsolutePrestate.raw(),
+                zkPrestate: bytes32(0),
                 l2ChainID: l2ChainId,
                 proposer: proposer
             }),
