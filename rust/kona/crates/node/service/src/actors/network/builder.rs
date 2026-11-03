@@ -354,15 +354,7 @@ mod tests {
             .await
             .unwrap();
 
-        let bound_tcp_port = handler
-            .gossip
-            .addr()
-            .iter()
-            .find_map(|p| match p {
-                libp2p::multiaddr::Protocol::Tcp(port) => Some(port),
-                _ => None,
-            })
-            .expect("gossip listens on TCP");
+        let bound_tcp_port = handler.gossip.peer_addr().tcp_port().expect("gossip listens on TCP");
         let enr = handler.discovery.unwrap().handler.local_enr().await.unwrap();
 
         assert_eq!(enr.ip4(), advertised);

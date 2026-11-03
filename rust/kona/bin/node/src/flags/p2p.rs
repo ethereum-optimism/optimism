@@ -901,15 +901,7 @@ mod tests {
         let config = network_config(flags).await;
         let handler = NetworkBuilder::from(config).build().unwrap().start().await.unwrap();
 
-        let bound_port = handler
-            .gossip
-            .addr()
-            .iter()
-            .find_map(|p| match p {
-                Protocol::Tcp(port) => Some(port),
-                _ => None,
-            })
-            .expect("gossip listens on TCP");
+        let bound_port = handler.gossip.peer_addr().tcp_port().expect("gossip listens on TCP");
         let enr = handler.discovery.unwrap().handler.local_enr().await.unwrap();
 
         assert_eq!(enr.tcp4(), Some(advertised.unwrap_or(bound_port)));

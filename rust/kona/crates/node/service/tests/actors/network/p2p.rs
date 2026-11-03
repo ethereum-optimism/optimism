@@ -4,7 +4,6 @@ use std::{
 };
 
 use crate::actors::network::mocks::{TestNetwork, builder::TestNetworkBuilder};
-use anyhow::Context;
 use discv5::Enr;
 use enr::NodeId;
 use kona_genesis::OP_MAINNET_CHAIN_ID;
@@ -63,33 +62,6 @@ async fn test_large_network_conn() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Waits until `node` advertises an IP in its ENR, and returns the ENR.
-async fn advertised_enr(node: &TestNetwork) -> anyhow::Result<Enr> {
-    tokio::time::timeout(Duration::from_secs(10), async {
-        loop {
-            let enr = node.peer_enr().await?;
-            if enr.ip4().is_some() {
-                return anyhow::Ok(enr);
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-    })
-    .await
-    .context("no IP advertised")?
-}
-
-/// Waits until `node` has a node with `node_id` in its discovery table.
-async fn wait_for_table_entry(node: &TestNetwork, node_id: NodeId) -> anyhow::Result<()> {
-    tokio::time::timeout(Duration::from_secs(10), async {
-        while !node_ids(&node.discovery_table().await?).contains(&node_id) {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-        anyhow::Ok(())
-    })
-    .await
-    .with_context(|| format!("{node_id} not in the discovery table"))?
-}
-
 /// A node listening on all interfaces advertises no IP at first, so it learns its address from
 /// the peers it contacts. It finds R1 and R2 through its bootnode, and once both report the same
 /// address, as its 2 IP votes ask, it advertises it. A node that joins later through the same
@@ -106,13 +78,13 @@ async fn test_node_on_all_interfaces_learns_its_ip_from_votes() -> anyhow::Resul
     let reachable_1 = builder.build(vec![bootnode_enr.clone()]).await;
     let reachable_2 = builder.build(vec![bootnode_enr.clone()]).await;
     for reachable in [&reachable_1, &reachable_2] {
-        wait_for_table_entry(&bootnode, reachable.node_id().await?).await?;
+        bootnode.check_in_discovery_table_with_retries(reachable.node_id().await?).await?;
     }
 
     let mut builder = builder.with_listen_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)).with_ip_votes(2);
     let node = builder.build(vec![bootnode_enr.clone()]).await;
 
-    let enr = advertised_enr(&node).await?;
+    let enr = node.advertised_enr_with_retries().await?;
     assert_eq!(
         enr.ip4(),
         Some(Ipv4Addr::LOCALHOST),
@@ -120,7 +92,7 @@ async fn test_node_on_all_interfaces_learns_its_ip_from_votes() -> anyhow::Resul
     );
 
     let late_node = builder.build(vec![bootnode_enr]).await;
-    wait_for_table_entry(&late_node, node.node_id().await?).await?;
+    late_node.check_in_discovery_table_with_retries(node.node_id().await?).await?;
     late_node.check_connected_to_with_retries(&node).await?;
 
     Ok(())
@@ -140,9 +112,9 @@ async fn test_node_on_all_interfaces_gets_no_votes_from_bootnodes() -> anyhow::R
     let mut builder = builder.with_listen_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)).with_ip_votes(2);
     let node = builder.build(bootnodes).await;
 
-    // Gossip still connects it to the bootnodes, which shows it found them.
-    node.check_connected_to_with_retries(&bootnode_1).await?;
-    node.check_connected_to_with_retries(&bootnode_2).await?;
+    // Discovery has sessions with both bootnodes, so they answered its pings. Gossip connecting
+    // to them wouldn't show it: it dials bootnodes whether or not discovery reached them.
+    node.check_discovery_peer_count_with_retries(2).await?;
     // Give it many lookups to collect votes.
     tokio::time::sleep(Duration::from_secs(2)).await;
 
