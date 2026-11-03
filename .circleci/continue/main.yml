@@ -1377,6 +1377,9 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
+    # See contracts-bedrock-tests.
+    environment:
+      FOUNDRY_DENY: never
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
@@ -1493,6 +1496,9 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
+    # See contracts-bedrock-tests.
+    environment:
+      FOUNDRY_DENY: never
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true

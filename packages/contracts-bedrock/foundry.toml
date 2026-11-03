@@ -191,8 +191,6 @@ timeout = 300
 # test thoroughness should match CI.
 
 [profile.liteci]
-# Keep incremental builds cached; contracts-bedrock-checks-fast still rejects warnings with solc.
-deny = 'never'
 # Solar is experimental: keep its artifacts separate from deployment inputs.
 solc = './scripts/ops/solar'
 out = 'cache/solar-artifacts'
