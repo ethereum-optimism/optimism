@@ -11,7 +11,6 @@ use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, ResetSignal, Signal,
     SignalReceiver, StepResult,
 };
-use kona_engine::FinalizeBlockId;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use kona_safedb::{SafeDb, SafeDbError};
 use std::{sync::Arc, time::Duration};
@@ -53,6 +52,9 @@ where
     pub(super) attributes_awaiting_confirmation: Option<OpAttributesWithParent>,
     /// A pipeline reset that has not yet succeeded. Derivation must not resume before it does.
     pending_reset: Option<PendingReset>,
+    /// How many engine resets this actor has handled. Attributes and finalizations carry it so
+    /// that the engine can drop those derived before its latest reset.
+    reset_epoch: u64,
 }
 
 /// A pipeline reset that has not yet succeeded.
@@ -122,6 +124,7 @@ where
             l1_block_zero,
             attributes_awaiting_confirmation: None,
             pending_reset: None,
+            reset_epoch: 0,
         }
     }
 
@@ -333,7 +336,11 @@ where
     ) -> Result<(), DerivationError> {
         match request_type {
             DerivationActorRequest::ProcessEngineSignalRequest(signal) => match *signal {
-                Signal::Reset(reset) => self.reset_pipeline_and_resume(reset).await?,
+                Signal::Reset(reset) => {
+                    // Count each engine reset once, not each retry of its pipeline reset.
+                    self.reset_epoch += 1;
+                    self.reset_pipeline_and_resume(reset).await?
+                }
                 Signal::Activation(_) => {
                     self.forward_non_reset_signal(*signal).await;
                     self.derivation_state_machine
@@ -349,7 +356,7 @@ where
                     // Local L1-finality: the engine's own canonical chain is the authoritative
                     // source at this height, so finalize by number.
                     self.engine_client
-                        .send_finalized_l2_block(FinalizeBlockId::ByNumber(l2_block_number))
+                        .send_derived_finalization(l2_block_number, self.reset_epoch)
                         .await
                         .map_err(|e| DerivationError::Sender(Box::new(e)))?;
                 }
@@ -363,9 +370,24 @@ where
             }
             DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(safe_head) => {
                 info!(target: "derivation", safe_head = ?*safe_head, "Received safe head from engine.");
+                // Only consolidating the attributes derived here moves the engine's safe head, and
+                // each consolidation advances it. Adopting any other head would skip blocks that
+                // were never derived and leave a gap in the safe head database.
+                let Some(attributes) = self
+                    .attributes_awaiting_confirmation
+                    .take_if(|attributes| attributes_produce(attributes, &safe_head))
+                else {
+                    warn!(
+                        target: "derivation",
+                        safe_head = safe_head.block_info.number,
+                        awaiting = ?self.attributes_awaiting_confirmation.as_ref().map(|attributes| attributes.block_number()),
+                        "Ignoring a safe head that does not confirm the derived attributes"
+                    );
+                    return Ok(());
+                };
                 self.derivation_state_machine
                     .update(&DerivationStateUpdate::NewAttributesConfirmed(safe_head.clone()))?;
-                self.settle_derived_attributes(*safe_head)?;
+                self.record_confirmed_attributes(&attributes, *safe_head)?;
 
                 self.attempt_derivation().await?;
             }
@@ -382,32 +404,15 @@ where
         Ok(())
     }
 
-    /// Records and queues for finalization the attributes that `safe_head` confirms.
+    /// Records and queues for finalization the derived `attributes` that `safe_head` confirms.
     ///
-    /// A head that confirms nothing pending was adopted by the engine rather than derived here,
-    /// so there is nothing to record. Finalization is queued only once the record is written, so
-    /// the engine's finalized head can never run ahead of the recorded history.
-    pub(super) fn settle_derived_attributes(
+    /// Finalization is queued only once the record is written, so the engine's finalized head can
+    /// never run ahead of the recorded history.
+    pub(super) fn record_confirmed_attributes(
         &mut self,
+        attributes: &OpAttributesWithParent,
         safe_head: L2BlockInfo,
     ) -> Result<(), DerivationError> {
-        let Some(attributes) = self.attributes_awaiting_confirmation.take() else {
-            debug!(
-                target: "derivation",
-                safe_head = safe_head.block_info.number,
-                "Safe head confirms no derived attributes"
-            );
-            return Ok(());
-        };
-        if !attributes_produce(&attributes, &safe_head) {
-            warn!(
-                target: "derivation",
-                expected = attributes.block_number(),
-                safe_head = safe_head.block_info.number,
-                "Safe head does not match the derived attributes awaiting confirmation"
-            );
-            return Ok(());
-        }
         if let (Some(database), Some(derived_from)) = (&self.safe_db, attributes.derived_from) {
             debug!(target: "derivation", l1_block = derived_from.number, safe_head = safe_head.block_info.number, "Recording safe head");
             database.safe_head_updated(safe_head, derived_from.id()).inspect_err(|error| {
@@ -415,7 +420,7 @@ where
             })?;
             debug!(target: "derivation", l1_block = derived_from.number, safe_head = safe_head.block_info.number, "Recorded safe head");
         }
-        self.finalizer.enqueue_for_finalization(&attributes);
+        self.finalizer.enqueue_for_finalization(attributes);
         Ok(())
     }
 
@@ -500,7 +505,7 @@ where
 
         // Send payload attributes out for processing.
         self.engine_client
-            .send_safe_l2_signal(payload_attributes.into())
+            .send_derived_attributes(payload_attributes, self.reset_epoch)
             .await
             .map_err(|e| DerivationError::Sender(Box::new(e)))?;
 

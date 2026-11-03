@@ -24,6 +24,17 @@ pub enum ConsolidateTaskError {
     /// The consolidation forkchoice update call to the engine api failed.
     #[error(transparent)]
     ForkchoiceUpdateFailed(#[from] SynchronizeTaskError),
+    /// Derived attributes do not extend the local-safe head, so derivation and the engine
+    /// disagree about the safe chain.
+    #[error(
+        "Derived attributes with parent {parent:?} do not extend the local-safe head {local_safe:?}"
+    )]
+    DoesNotExtendLocalSafe {
+        /// The attributes' parent.
+        parent: alloy_eips::BlockNumHash,
+        /// The engine's local-safe head.
+        local_safe: alloy_eips::BlockNumHash,
+    },
 }
 
 impl From<BuildAndImportError> for ConsolidateTaskError {
@@ -38,7 +49,9 @@ impl From<BuildAndImportError> for ConsolidateTaskError {
 impl EngineTaskError for ConsolidateTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
-            Self::MissingUnsafeL2Block(_) => EngineTaskErrorSeverity::Reset,
+            Self::MissingUnsafeL2Block(_) | Self::DoesNotExtendLocalSafe { .. } => {
+                EngineTaskErrorSeverity::Reset
+            }
             Self::FailedToFetchUnsafeL2Block => EngineTaskErrorSeverity::Temporary,
             Self::BuildTaskFailed(inner) => inner.severity(),
             Self::SealTaskFailed(inner) => inner.severity(),

@@ -140,6 +140,17 @@ impl Engine {
         self.active = None;
     }
 
+    /// Drops every queued [`EngineTask::Consolidate`] and [`EngineTask::Finalize`]. Call it when a
+    /// reset succeeds: derivation resets too and re-derives from the reset head, so attributes it
+    /// derived and blocks it asked to finalize before the reset are stale, even when they still
+    /// extend that head. In delegated mode this also drops the delegate's safe and finalized
+    /// heads, which it sends again on its next poll.
+    pub fn drop_derived_tasks(&mut self) {
+        self.tasks.retain(|queued| {
+            !matches!(queued.task, EngineTask::Consolidate(_) | EngineTask::Finalize(_))
+        });
+    }
+
     /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
     /// an error along the way, the error is returned and the task is not popped from the queue (in
     /// case it must be retried), unless it is a flush error.
@@ -344,5 +355,51 @@ mod recovery_tests {
             state_rx.borrow().sync_state.safe_head().block_info.hash,
             imported.header.hash_slow()
         );
+    }
+
+    // Attributes derived and finalizations requested before a reset must not run after it. Other
+    // queued work, such as unsafe payloads received meanwhile, survives.
+    #[test]
+    fn drop_derived_tasks_keeps_other_tasks() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, _l1, _l2) = test_engine_client(config.clone());
+        let client = Arc::new(client);
+        let consolidate = || {
+            EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+                client.clone(),
+                config.clone(),
+                ConsolidateInput::Attributes(Box::new(
+                    TestAttributesBuilder::new().with_parent(test_block_info(10)).build(),
+                )),
+                Arc::new(NoopBlockSink),
+            )))
+        };
+        let insert = EngineTask::Insert(Box::new(InsertTask::new(
+            client.clone(),
+            config.clone(),
+            OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(
+                &alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default(),
+            )),
+            false,
+            Arc::new(NoopBlockSink),
+        )));
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(EngineState::default());
+        let mut engine = Engine::new(EngineState::default(), state_tx);
+        engine.enqueue(consolidate());
+        engine.enqueue(insert);
+        engine.enqueue(EngineTask::Finalize(Box::new(crate::FinalizeTask::new(
+            client.clone(),
+            config.clone(),
+            crate::FinalizeBlockId::ByNumber(10),
+        ))));
+        engine.enqueue(consolidate());
+        assert_eq!(engine.len(), 4);
+
+        engine.drop_derived_tasks();
+        assert_eq!(engine.len(), 1);
+        assert!(matches!(
+            engine.tasks.peek().map(|queued| &queued.task),
+            Some(EngineTask::Insert(_))
+        ));
     }
 }

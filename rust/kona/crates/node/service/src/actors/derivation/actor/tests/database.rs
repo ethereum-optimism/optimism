@@ -66,9 +66,8 @@ fn a_confirmed_block_is_written_directly_to_its_derivation_source() {
         .once()
         .returning(|_, _| Ok(()));
     let mut actor = actor_with_database(Some(Arc::new(database)));
-    actor.attributes_awaiting_confirmation = Some(derived_attributes());
 
-    actor.settle_derived_attributes(l2_block(DERIVED_HEAD)).unwrap();
+    actor.record_confirmed_attributes(&derived_attributes(), l2_block(DERIVED_HEAD)).unwrap();
 
     assert_eq!(actor.finalizer.try_finalize_next(l1_block(DERIVED_FROM_L1)), Some(DERIVED_HEAD));
 }
@@ -82,9 +81,8 @@ fn a_failed_write_is_returned_without_retry_or_finalization() {
         .once()
         .returning(|_, _| Err(SafeDbError::InvalidEntry));
     let mut actor = actor_with_database(Some(Arc::new(database)));
-    actor.attributes_awaiting_confirmation = Some(derived_attributes());
 
-    let result = actor.settle_derived_attributes(l2_block(DERIVED_HEAD));
+    let result = actor.record_confirmed_attributes(&derived_attributes(), l2_block(DERIVED_HEAD));
 
     assert!(matches!(result, Err(DerivationError::SafeDbError(SafeDbError::InvalidEntry))));
     assert!(actor.finalizer.try_finalize_next(l1_block(DERIVED_FROM_L1)).is_none());
@@ -160,9 +158,8 @@ async fn a_failed_truncation_stops_request_processing(#[case] request: Derivatio
 #[test]
 fn an_absent_database_skips_writes_and_truncation() {
     let mut actor = actor_with_database(None);
-    actor.attributes_awaiting_confirmation = Some(derived_attributes());
 
-    actor.settle_derived_attributes(l2_block(DERIVED_HEAD)).unwrap();
+    actor.record_confirmed_attributes(&derived_attributes(), l2_block(DERIVED_HEAD)).unwrap();
     actor.truncate_safe_db(l2_block(RESUME_HEAD), "engine reset").unwrap();
 
     assert_eq!(actor.finalizer.try_finalize_next(l1_block(DERIVED_FROM_L1)), Some(DERIVED_HEAD));

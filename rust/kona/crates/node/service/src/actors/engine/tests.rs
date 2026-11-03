@@ -46,7 +46,9 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
     let state = EngineState {
         sync_state: EngineState::default().sync_state.apply_update(EngineSyncStateUpdate {
             unsafe_head: Some(l2_block(10)),
-            local_safe_head: Some(genesis),
+            // Derivation builds its attributes on the local-safe head; the engine drops attributes
+            // that don't extend it.
+            local_safe_head: Some(if rebuild { l2_block(9) } else { genesis }),
             safe_head: Some(genesis),
             finalized_head: Some(genesis),
         }),
@@ -66,18 +68,22 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
         request_rx,
         Arc::new(NoopBlockSink),
     );
-    let signal = if rebuild {
+    let request = if rebuild {
         // The queued attributes still build on the rejected branch. Reset must reload the
         // canonical EL head instead of retrying this parent with different transactions.
-        TestAttributesBuilder::new()
-            .with_parent(l2_block(9))
-            .with_transactions(vec![alloy_primitives::Bytes::from_static(&[0x02])])
-            .build()
-            .into()
+        EngineActorRequest::ProcessDerivedAttributes {
+            attributes: Box::new(
+                TestAttributesBuilder::new()
+                    .with_parent(l2_block(9))
+                    .with_transactions(vec![alloy_primitives::Bytes::from_static(&[0x02])])
+                    .build(),
+            ),
+            reset_epoch: 0,
+        }
     } else {
-        l2_block(1).into()
+        EngineActorRequest::ProcessDelegatedSafeHead(Box::new(l2_block(1)))
     };
-    requests.send(EngineActorRequest::ProcessSafeL2Signal(signal)).await.unwrap();
+    requests.send(request).await.unwrap();
     actor.step().await.unwrap();
     actor.step().await.unwrap();
     assert_eq!(state_rx.borrow().sync_state.safe_head(), genesis);
@@ -98,7 +104,7 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
         ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
     );
     let recovered = l2_block(2);
-    requests.send(EngineActorRequest::ProcessSafeL2Signal(recovered.into())).await.unwrap();
+    requests.send(EngineActorRequest::ProcessDelegatedSafeHead(Box::new(recovered))).await.unwrap();
     actor.step().await.unwrap();
     assert_eq!(state_rx.borrow().sync_state.unsafe_head(), genesis, "publish the reset head");
     assert_eq!(state_rx.borrow().sync_state.safe_head(), genesis);

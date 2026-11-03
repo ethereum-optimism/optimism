@@ -10,7 +10,6 @@ use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, PipelineResult, ResetError,
     Signal, SignalReceiver, StepResult,
 };
-use kona_engine::FinalizeBlockId;
 use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use kona_safedb::{SafeDatabase, SafeDb, SafeDbError, SafeHeadRecord};
@@ -494,7 +493,7 @@ fn derived_attributes() -> OpAttributesWithParent {
 
 fn engine_client_accepting_attributes() -> MockDerivationEngineClient {
     let mut engine_client = MockDerivationEngineClient::new();
-    engine_client.expect_send_safe_l2_signal().returning(|_| Ok(()));
+    engine_client.expect_send_derived_attributes().returning(|_, _| Ok(()));
     engine_client
 }
 
@@ -581,6 +580,57 @@ async fn a_confirmed_block_is_recorded_against_its_derivation_source() {
     assert_eq!(node.db.last_entry().unwrap(), record(DERIVED_FROM_L1, DERIVED_HEAD));
 }
 
+/// Derivation stamps its attributes with the number of engine resets it has handled, which the
+/// engine compares with the number of resets it has sent to drop stale attributes.
+#[tokio::test]
+async fn attributes_carry_the_number_of_resets_handled() {
+    let mut engine_client = MockDerivationEngineClient::new();
+    for epoch in [0, 1] {
+        engine_client
+            .expect_send_derived_attributes()
+            .withf(move |_, reset_epoch| *reset_epoch == epoch)
+            .times(1)
+            .returning(|_, _| Ok(()));
+    }
+    let mut node = RecordingActor::new(engine_client);
+    node.derive_and_confirm_one_block().await;
+    node.reset_to_resume_head().await;
+}
+
+/// A safe head that does not confirm the attributes derivation is waiting for is ignored, whether
+/// it is at another height or at the right height on another parent. The engine drops attributes
+/// derived before a reset, so this is defense in depth: adopting such a head would skip blocks
+/// that were never re-derived and leave a gap in the safe head database.
+#[tokio::test]
+async fn a_safe_head_that_confirms_no_awaited_attributes_is_ignored() {
+    let mut node = RecordingActor::new(engine_client_accepting_attributes());
+    node.db.safe_head_updated(l2_block(RESUME_HEAD - 10), l1_block(EARLIEST_L1).id()).unwrap();
+    node.db.safe_head_updated(l2_block(RESUME_HEAD), l1_block(EARLIER_L1).id()).unwrap();
+    node.derive_and_confirm_one_block().await;
+    node.reset_to_resume_head().await;
+    let truncated = record(EARLIER_L1, RESUME_HEAD);
+    assert_eq!(
+        node.actor.derivation_state_machine.current_state(),
+        DerivationState::AwaitingSafeHeadConfirmation
+    );
+
+    let mut other_parent = l2_block(DERIVED_HEAD);
+    other_parent.block_info.parent_hash = B256::repeat_byte(0xab);
+    for head in [l2_block(DERIVED_HEAD + 40), other_parent] {
+        node.handle(DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(Box::new(head)))
+            .await;
+        assert_eq!(node.db.last_entry().unwrap(), truncated);
+        assert_eq!(
+            node.actor.derivation_state_machine.last_confirmed_safe_head(),
+            l2_block(RESUME_HEAD)
+        );
+        assert!(node.actor.attributes_awaiting_confirmation.is_some());
+    }
+
+    node.confirm_safe_head(DERIVED_HEAD).await;
+    assert_eq!(node.db.last_entry().unwrap(), record(DERIVED_FROM_L1, DERIVED_HEAD));
+}
+
 /// With no history below the reset point, the L1 block that made the reset head safe is
 /// unknown, so nothing is re-recorded and the reset head itself must not be written.
 #[tokio::test]
@@ -653,10 +703,10 @@ async fn resuming_above_the_recorded_tip_clears_the_history() {
 async fn a_block_is_queued_for_finalization_only_once_it_is_recorded() {
     let mut engine_client = engine_client_accepting_attributes();
     engine_client
-        .expect_send_finalized_l2_block()
-        .withf(|block| matches!(block, FinalizeBlockId::ByNumber(DERIVED_HEAD)))
+        .expect_send_derived_finalization()
+        .withf(|number, _| *number == DERIVED_HEAD)
         .times(1)
-        .returning(|_| Ok(()));
+        .returning(|_, _| Ok(()));
     let mut node = RecordingActor::new(engine_client);
     node.complete_el_sync_at(RESUME_HEAD).await;
 
