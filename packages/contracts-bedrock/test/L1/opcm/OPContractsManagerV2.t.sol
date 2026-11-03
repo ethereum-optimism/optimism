@@ -2045,6 +2045,83 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(address(lockbox).balance, _useCustomGasToken ? 0 : 1 ether);
     }
 
+    /// @notice Writes a bridge hook straight into a portal's storage slot, so a test can start
+    ///         from a chain that already has one without going through initialize.
+    /// @param _portal The portal to write to.
+    /// @param _hook The hook address to write.
+    function _forceSetBridgeHook(IOptimismPortal2 _portal, address _hook) internal {
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "bridgeHook");
+        vm.store(address(_portal), bytes32(slot.slot), bytes32(uint256(uint160(_hook))));
+    }
+
+    /// @notice Builds an upgrade input for a deployed chain, optionally carrying a bridge hook
+    ///         override.
+    /// @param _cts The chain to upgrade.
+    /// @param _hook The hook to override to, or the zero address for no override at all.
+    /// @return input_ The upgrade input.
+    function _bridgeHookUpgradeInput(
+        IOPContractsManagerV2.ChainContracts memory _cts,
+        address _hook
+    )
+        internal
+        view
+        returns (IOPContractsManagerV2.UpgradeInput memory input_)
+    {
+        input_.systemConfig = _cts.systemConfig;
+        input_.disputeGameConfigs = deployConfig.disputeGameConfigs;
+        if (_hook == address(0)) {
+            return input_;
+        }
+        input_.extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
+        input_.extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
+            key: "overrides.cfg.bridgeHook", data: abi.encode(IBridgeHook(_hook))
+        });
+    }
+
+    /// @notice Tests that an upgrade carrying the bridge hook override attaches a hook to a chain
+    ///         that has none.
+    function testFuzz_upgrade_bridgeHookOverrideSetsHook_succeeds() public {
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        assertEq(address(cts.optimismPortal.bridgeHook()), address(0), "chain started with a hook");
+
+        address hook = makeAddr("bridgeHook");
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success,) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, hook))));
+
+        assertTrue(success, "upgrade failed");
+        assertEq(address(cts.optimismPortal.bridgeHook()), hook, "bridge hook not set");
+    }
+
+    /// @notice Tests that the bridge hook override replaces a hook the chain already has.
+    function test_upgrade_bridgeHookOverrideReplacesHook_succeeds() public {
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        address oldHook = makeAddr("oldBridgeHook");
+        _forceSetBridgeHook(cts.optimismPortal, oldHook);
+
+        address newHook = makeAddr("newBridgeHook");
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success,) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, newHook))));
+
+        assertTrue(success, "upgrade failed");
+        assertEq(address(cts.optimismPortal.bridgeHook()), newHook, "bridge hook not replaced");
+    }
+
+    /// @notice Tests that an upgrade without the override doesn't touch the chain's hook.
+    function test_upgrade_noBridgeHookOverride_succeeds() public {
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        address hook = makeAddr("bridgeHook");
+        _forceSetBridgeHook(cts.optimismPortal, hook);
+
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success,) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, address(0)))));
+
+        assertTrue(success, "upgrade failed");
+        assertEq(address(cts.optimismPortal.bridgeHook()), hook, "bridge hook changed");
+    }
+
     /// @notice Tests that the deploy function succeeds and passes standard validation.
     function test_deploy_succeeds() public {
         // Run the deploy and standard validator checks.

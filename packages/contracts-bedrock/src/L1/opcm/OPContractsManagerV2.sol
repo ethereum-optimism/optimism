@@ -386,6 +386,13 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             return true;
         }
 
+        // Allow setting or replacing the portal's bridge hook during upgrades. This is the only
+        // supported way to attach a hook to a live chain, because OptimismPortal2.initialize is
+        // the only setter. Clearing a hook is OptimismPortal2.removeHook, not a zero override.
+        if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.bridgeHook")) {
+            return true;
+        }
+
         // Always return false by default.
         return false;
     }
@@ -574,6 +581,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     {
         // Load the full config.
         return FullConfig({
+            bridgeHook: _loadBridgeHook(_upgradeInput.extraInstructions),
             disputeGameConfigs: _upgradeInput.disputeGameConfigs,
             saltMixer: string(bytes.concat(bytes32(uint256(uint160(address(_chainContracts.systemConfig)))))),
             superchainConfig: abi.decode(
@@ -724,12 +732,30 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                     _upgradeInput.extraInstructions
                 ),
                 (uint256)
-            ),
-            // TODO(optimism-private#744): read the portal's live hook here, behind an
-            // overrides.cfg.bridgeHook allowance, so an upgrade can also set or replace it. A
-            // zero value leaves whatever hook the chain already has untouched.
-            bridgeHook: IBridgeHook(address(0))
+            )
         });
+    }
+
+    /// @notice Resolves the bridge hook an upgrade should apply.
+    /// @dev    The portal's current hook is deliberately not read back from the chain. A zero
+    ///         value already tells OptimismPortal2.initialize to keep whatever hook the chain has,
+    ///         so preserving it needs no read, and portals from before the hook existed have no
+    ///         bridgeHook() getter for _loadBytes to call. Reading would therefore revert every
+    ///         ordinary upgrade.
+    /// @param _extraInstructions The extra upgrade instructions for the chain.
+    /// @return The hook named by overrides.cfg.bridgeHook, or the zero address to keep the
+    ///         current one.
+    function _loadBridgeHook(IOPContractsManagerUtils.ExtraInstruction[] memory _extraInstructions)
+        internal
+        view
+        returns (IBridgeHook)
+    {
+        for (uint256 i = 0; i < _extraInstructions.length; i++) {
+            if (_isMatchingInstructionByKey(_extraInstructions[i], "overrides.cfg.bridgeHook")) {
+                return abi.decode(_extraInstructions[i].data, (IBridgeHook));
+            }
+        }
+        return IBridgeHook(address(0));
     }
 
     /// @notice Validates the deployment/upgrade config.
