@@ -232,6 +232,11 @@
             "internalType": "uint256",
             "name": "withdrawalDelaySeconds",
             "type": "uint256"
+          },
+          {
+            "internalType": "contract IBridgeHook",
+            "name": "bridgeHook",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManagerV2.FullConfig",

@@ -39,6 +39,7 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
@@ -462,7 +463,8 @@ contract Deploy is Deployer {
             useCustomGasToken: cfg.useCustomGasToken(),
             proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
             disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
-            withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay()
+            withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
+            bridgeHook: IBridgeHook(address(0))
         });
     }
 
@@ -531,7 +533,8 @@ contract Deploy is Deployer {
             useCustomGasToken: cfg.useCustomGasToken(),
             proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
             disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
-            withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay()
+            withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
+            bridgeHook: IBridgeHook(address(0))
         });
     }
 }

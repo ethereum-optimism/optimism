@@ -34,6 +34,7 @@ import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManager
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerMigrator } from "interfaces/L1/opcm/IOPContractsManagerMigrator.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -2127,6 +2128,30 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(IDelayedWETH(payable(impls.delayedWETHImpl)).delay(), 0);
     }
 
+    /// @notice Tests that a deploy leaves the portal without a bridge hook by default.
+    function test_deploy_noBridgeHook_succeeds() public {
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
+
+        assertEq(address(deployConfig.bridgeHook), address(0), "deploy config carries a hook");
+        assertEq(address(cts.optimismPortal.bridgeHook()), address(0), "portal has a bridge hook");
+    }
+
+    /// @notice Tests that a deploy configuring a bridge hook stores it on the portal.
+    function test_deploy_bridgeHookSet_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        address hook = makeAddr("bridgeHook");
+        deployConfig.bridgeHook = IBridgeHook(hook);
+
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
+
+        assertEq(address(cts.optimismPortal.bridgeHook()), hook, "portal bridge hook mismatch");
+    }
+
     /// @notice Tests that a zero withdrawal delay is rejected by OPCM's config validation before
     ///         any proxy is touched.
     function test_deploy_zeroWithdrawalDelay_reverts() public {
@@ -2720,7 +2745,8 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             useCustomGasToken: false,
             proofMaturityDelaySeconds: 604800,
             disputeGameFinalityDelaySeconds: 302400,
-            withdrawalDelaySeconds: 302400
+            withdrawalDelaySeconds: 302400,
+            bridgeHook: IBridgeHook(address(0))
         });
 
         // Deploy the chain.

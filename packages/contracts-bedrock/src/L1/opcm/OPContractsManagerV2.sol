@@ -105,6 +105,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
         uint256 withdrawalDelaySeconds;
+        // Bridge hook configuration. Zero means retain whatever hook the portal already has, which
+        // on a new deployment is none. A chain normally attaches its hook on an upgrade, through
+        // the overrides.cfg.bridgeHook instruction. Clearing a hook is OptimismPortal2.removeHook
+        // and never this field.
+        IBridgeHook bridgeHook;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -176,9 +181,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 9.0.6
+    /// @custom:semver 9.0.7
     function version() public pure returns (string memory) {
-        return "9.0.6";
+        return "9.0.7";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -719,7 +724,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                     _upgradeInput.extraInstructions
                 ),
                 (uint256)
-            )
+            ),
+            // TODO(optimism-private#744): read the portal's live hook here, behind an
+            // overrides.cfg.bridgeHook allowance, so an upgrade can also set or replace it. A
+            // zero value leaves whatever hook the chain already has untouched.
+            bridgeHook: IBridgeHook(address(0))
         });
     }
 
@@ -916,8 +925,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // Update the OptimismPortal.
-        // TODO(optimism-private#744): A zero bridge hook keeps the portal's current hook; the OPCM
-        // does not configure hooks yet.
+        // NOTE: A zero bridge hook keeps whatever hook the portal already has, so a chain without
+        // one stays without one. Only OptimismPortal2.removeHook can clear a hook.
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.optimismPortal),
@@ -929,7 +938,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                     _cts.anchorStateRegistry,
                     _cts.ethLockbox,
                     _cfg.proofMaturityDelaySeconds,
-                    IBridgeHook(address(0))
+                    _cfg.bridgeHook
                 )
             )
         );

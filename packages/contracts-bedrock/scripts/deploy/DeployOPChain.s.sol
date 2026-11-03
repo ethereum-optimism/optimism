@@ -22,6 +22,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
@@ -197,7 +198,9 @@ contract DeployOPChain is Script {
             useCustomGasToken: _input.useCustomGasToken,
             proofMaturityDelaySeconds: _input.proofMaturityDelaySeconds,
             disputeGameFinalityDelaySeconds: _input.disputeGameFinalityDelaySeconds,
-            withdrawalDelaySeconds: _input.withdrawalDelaySeconds
+            withdrawalDelaySeconds: _input.withdrawalDelaySeconds,
+            // An initial deployment never configures a hook.
+            bridgeHook: IBridgeHook(address(0))
         });
     }
 
