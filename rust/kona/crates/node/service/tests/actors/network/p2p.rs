@@ -118,10 +118,12 @@ async fn test_node_on_all_interfaces_gets_no_votes_from_bootnodes() -> anyhow::R
         builder.with_listen_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)).with_ip_votes(TWO_VOTES);
     let node = builder.build(bootnodes).await;
 
-    // Discovery has sessions with both bootnodes, so they answered its pings. Gossip connecting
-    // to them wouldn't show it: it dials bootnodes whether or not discovery reached them.
+    // Discovery has sessions with both bootnodes, so it reached them. Gossip connecting to them
+    // wouldn't show it: it dials bootnodes whether or not discovery reached them.
     node.check_discovery_peer_count_with_retries(2).await?;
-    // Give it many lookups to collect votes.
+    // Give it many lookups to collect votes. discv5 doesn't ping the bootnodes in that time: it
+    // pings at once only peers it contacted, and the others every `ping_interval` (300s). A pong
+    // from a bootnode wouldn't count anyway, for the same reason.
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     assert_eq!(node.peer_enr().await?.ip4(), None);
