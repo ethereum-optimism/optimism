@@ -1134,6 +1134,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         // ZK_DISPUTE_GAME is optional; there is nothing to validate when it is not registered.
+        // TODO(#21529): once SUPER_CANNON_KONA is removed, drop this early return so chains without a ZK game
+        // fail validation.
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         if (address(_factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) == address(0)) {
             return _errors;
