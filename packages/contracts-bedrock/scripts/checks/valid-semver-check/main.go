@@ -90,6 +90,11 @@ func getVersion(artifact *solc.ForgeArtifact) (string, error) {
 }
 
 func assertValidSemver(version string) error {
+	// Build metadata is only used by the deposit allowlist release.
+	version, build, found := strings.Cut(version, "+")
+	if found && build != "deposit-allowlist" {
+		return fmt.Errorf("build metadata must be +deposit-allowlist")
+	}
 	parts := strings.Split(version, ".")
 
 	if len(parts) != 3 {
