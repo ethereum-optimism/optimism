@@ -218,6 +218,9 @@ pub struct P2PArgs {
 
     /// The duration in minutes to ban a peer for.
     ///
+    /// A banned peer is disconnected, and its connections are refused in both directions until
+    /// the ban expires, or until `opp2p_unblockPeer` lifts it. Bans don't survive a restart.
+    ///
     /// For peers to be banned, the `p2p.ban.peers` flag must be set to `true`.
     /// By default peers are banned for 1 hour. This follows the `op-node` default `<https://github.com/ethereum-optimism/optimism/blob/09a8351a72e43647c8a96f98c16bb60e7b25dc6e/op-node/flags/p2p_flags.go#L131-L138>`.
     #[arg(long = "p2p.ban.duration", default_value = "60", env = "KONA_NODE_P2P_BAN_DURATION")]

@@ -6,7 +6,7 @@ use alloy_primitives::B256;
 use backon::{ExponentialBuilder, Retryable};
 use discv5::Enr;
 use enr::NodeId;
-use kona_gossip::{GossipCommand, GossipCommandSender, PeerDump, PeerInfo};
+use kona_gossip::{GossipCommand, GossipCommandSender, PeerAddr, PeerDump, PeerInfo};
 use kona_node_service::NetworkActorError;
 use kona_rpc::{OpP2PApiServer, P2pRpc};
 use libp2p::Multiaddr;
@@ -84,23 +84,29 @@ impl TestNetwork {
         Ok(self.p2p_rpc.opp2p_peers(true).await?)
     }
 
-    /// Checks whether `other` is among this node's connected peers.
-    pub(super) async fn is_connected_to(&self, other: &Self) -> Result<(), TestNetworkError> {
+    /// Returns whether `other` is among this node's connected peers.
+    pub(super) async fn is_connected_to(&self, other: &Self) -> Result<bool, TestNetworkError> {
         let other_peer_id = other.peer_id().await?;
-        let peers = self.peers().await?;
-        if !peers.peers.contains_key(&other_peer_id) {
+        Ok(self.peers().await?.peers.contains_key(&other_peer_id))
+    }
+
+    /// Returns [`TestNetworkError::PeerNotConnected`] unless `other` is among this node's connected
+    /// peers. An error, rather than a `bool`, so that [`Self::check_connected_to_with_retries`]
+    /// can retry on it.
+    pub(super) async fn check_connected_to(&self, other: &Self) -> Result<(), TestNetworkError> {
+        if !self.is_connected_to(other).await? {
             return Err(TestNetworkError::PeerNotConnected);
         }
         Ok(())
     }
 
-    /// Like `is_connected_to`, but retries until the connection is established, see
+    /// Like `check_connected_to`, but retries until the connection is established, see
     /// [`retry_backoff`].
-    pub(super) async fn is_connected_to_with_retries(
+    pub(super) async fn check_connected_to_with_retries(
         &self,
         other: &Self,
     ) -> Result<(), TestNetworkError> {
-        (async || self.is_connected_to(other).await)
+        (async || self.check_connected_to(other).await)
             .retry(retry_backoff())
             // When to retry
             .when(|e| matches!(e, TestNetworkError::PeerNotConnected))
@@ -145,13 +151,16 @@ impl TestNetwork {
     }
 
     /// Asks this node to dial `other` at its listen address, the command `opp2p_connectPeer`
-    /// sends. Use [`Self::is_connected_to_with_retries`] to wait for the connection: unlike
+    /// sends. Use [`Self::check_connected_to_with_retries`] to wait for the connection: unlike
     /// `opp2p_connectPeer`, this does not wait for it.
     pub(super) async fn connect_to(&self, other: &Self) -> Result<(), TestNetworkError> {
-        let address = other.listen_addr().await?;
+        let peer = PeerAddr::try_from(other.listen_addr().await?)
+            .map_err(|e| TestNetworkError::InvalidMultiaddr(e.to_string()))?;
         let (applied_tx, applied_rx) = tokio::sync::oneshot::channel();
+        // Nobody waits for the reply: the caller watches for the connection itself.
+        let reply = tokio::sync::oneshot::channel().0;
         self.gossip_command_tx
-            .send((GossipCommand::ConnectPeer { address }, applied_tx))
+            .send((GossipCommand::ConnectPeer { peer, reply }, applied_tx))
             .await
             .map_err(|_| TestNetworkError::CommandNotApplied)?;
         applied_rx.await.map_err(|_| TestNetworkError::CommandNotApplied)

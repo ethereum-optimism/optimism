@@ -1,6 +1,7 @@
 //! Event Handling Module.
 
 use libp2p::{gossipsub, identify, ping};
+use std::convert::Infallible;
 
 /// High-level events emitted by the gossip networking system.
 ///
@@ -29,12 +30,6 @@ pub enum Event {
     /// and network identity. Used for protocol negotiation and compatibility
     /// checking.
     Identify(Box<identify::Event>),
-
-    /// Stream protocol event for request-response communication.
-    ///
-    /// Handles direct peer-to-peer communication outside of the gossip mesh,
-    /// typically used for block synchronization requests.
-    Stream,
 
     /// Duplicate connections to a peer may be closed now that their grace period has passed.
     ///
@@ -66,17 +61,17 @@ impl From<gossipsub::Event> for Event {
     }
 }
 
+impl From<Infallible> for Event {
+    /// The [`crate::gate::Behaviour`] emits no events.
+    fn from(never: Infallible) -> Self {
+        match never {}
+    }
+}
+
 impl From<identify::Event> for Event {
     /// Converts [`identify::Event`] to [Event]
     fn from(value: identify::Event) -> Self {
         Self::Identify(Box::new(value))
-    }
-}
-
-impl From<()> for Event {
-    /// Converts () to [Event]
-    fn from(_value: ()) -> Self {
-        Self::Stream
     }
 }
 

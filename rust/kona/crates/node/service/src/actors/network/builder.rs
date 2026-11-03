@@ -263,22 +263,22 @@ mod tests {
 
         // Driver Assertions
         let id = 10;
-        assert_eq!(driver.gossip.addr, gossip_addr);
+        assert_eq!(driver.gossip.addr(), &gossip_addr);
         let discovery = driver.discovery.unwrap();
         assert_eq!(discovery.chain_id, id);
         assert_eq!(discovery.disc.local_enr().tcp4().unwrap(), 9098);
 
         // Block Handler Assertions
-        assert_eq!(driver.gossip.handler.rollup_config.l2_chain_id, id);
+        assert_eq!(driver.gossip.handler().rollup_config.l2_chain_id, id);
         let v1 = IdentTopic::new(format!("/optimism/{id}/0/blocks"));
-        println!("{:?}", driver.gossip.handler.blocks_v1_topic);
-        assert_eq!(driver.gossip.handler.blocks_v1_topic.hash(), v1.hash());
+        println!("{:?}", driver.gossip.handler().blocks_v1_topic);
+        assert_eq!(driver.gossip.handler().blocks_v1_topic.hash(), v1.hash());
         let v2 = IdentTopic::new(format!("/optimism/{id}/1/blocks"));
-        assert_eq!(driver.gossip.handler.blocks_v2_topic.hash(), v2.hash());
+        assert_eq!(driver.gossip.handler().blocks_v2_topic.hash(), v2.hash());
         let v3 = IdentTopic::new(format!("/optimism/{id}/2/blocks"));
-        assert_eq!(driver.gossip.handler.blocks_v3_topic.hash(), v3.hash());
+        assert_eq!(driver.gossip.handler().blocks_v3_topic.hash(), v3.hash());
         let v4 = IdentTopic::new(format!("/optimism/{id}/3/blocks"));
-        assert_eq!(driver.gossip.handler.blocks_v4_topic.hash(), v4.hash());
+        assert_eq!(driver.gossip.handler().blocks_v4_topic.hash(), v4.hash());
     }
 
     #[test]

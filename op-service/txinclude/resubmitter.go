@@ -46,6 +46,10 @@ func NewResubmitter(inner Sender, blockTime time.Duration, opts ...ResubmitterOp
 	}
 }
 
+// ErrInteropAccessListRejected matches op-reth's definitive rejection of an invalid executing
+// message. Its transient interop failures have other messages and are retried.
+var ErrInteropAccessListRejected = errors.New("interop filter rejected access list")
+
 var fatalErrs = []error{
 	// Nonces
 	core.ErrNonceTooLow,
@@ -86,7 +90,7 @@ var fatalErrs = []error{
 	core.ErrEmptyAuthList,
 	core.ErrSetCodeTxCreate,
 	// Interop.
-	core.ErrTxFilteredOut,
+	ErrInteropAccessListRejected,
 }
 
 var recognizedErrs = append([]error{

@@ -1,0 +1,159 @@
+---
+title: 실행 클라이언트 구성
+description: op-reth를 OP Stack 실행 클라이언트로 구성하고, 지원이 종료되는 op-geth에서 마이그레이션합니다.
+diataxis: how-to
+---
+
+import OpGethEol from "/ko/snippets/op-geth-eol.mdx"
+
+실행 클라이언트(execution client)는 OP Stack node를 위한 EVM 런타임과 트랜잭션 처리를 제공합니다.
+
+<OpGethEol />
+
+<Info>
+  실행 클라이언트와 합의 클라이언트는 항상 1:1 구성으로 실행하십시오. 하나의 합의 클라이언트 뒤에 여러 실행 클라이언트를 실행하거나, 그 반대로 실행하지 마십시오.
+</Info>
+
+## 실행 중인 node에 필요한 것
+
+실행 클라이언트는 세 가지 구성 요소 중 하나입니다. 구성하기 전에 다음이 준비되어 있는지 확인하십시오.
+
+1.  동기화하려는 체인의 정산 레이어에 대한 **L1 엔드포인트**: L1 실행 RPC 엔드포인트와 L1 Beacon API 엔드포인트가 필요합니다. 합의 클라이언트는 이 엔드포인트에서 배치 데이터와 blob을 읽습니다.
+2.  **합의 클라이언트**(rollup node라고도 함): op-node 또는 kona-node입니다. L1에서 정식(canonical) 체인을 도출하고 Engine API를 통해 실행 클라이언트를 구동합니다. [합의 클라이언트 구성](/ko/node-operators/guides/configuration/consensus-clients)을 참조하십시오.
+3.  아래에서 구성하는 **실행 클라이언트**.
+
+## 실행 클라이언트
+
+<Tabs>
+  <Tab title="op-reth">
+    [op-reth](https://github.com/paradigmxyz/reth)는 Rust 기반 실행 클라이언트이며, 앞으로 OP Stack node에서 주로 지원되는 경로입니다. [Superchain Registry](https://github.com/ethereum-optimism/superchain-registry) 체인 구성이 바이너리에 컴파일되어 있으므로, 레지스트리 체인은 `--chain`을 통해 이름으로 사용할 수 있습니다(예: `--chain unichain` 또는 `--chain unichain-sepolia`).
+
+    ### 설치
+
+    지원되는 설치 경로는 두 가지입니다.
+
+    *   **Docker 이미지**: [Docker로 node 실행하기](/ko/node-operators/tutorials/node-from-docker)에서 처음부터 끝까지 구성 방법을 설명합니다.
+    *   **소스에서 빌드.** op-reth는 Optimism 모노레포의 `rust/op-reth/`에 있으며 Cargo로 빌드합니다. [소스에서 OP Stack node 빌드 및 실행하기](/ko/node-operators/tutorials/run-node-from-source)를 따르십시오. 이 가이드는 op-node와 op-reth를 동일한 조정된 릴리스 태그로 고정합니다.
+
+    ### 최소 구성
+
+    ```bash
+    op-reth node \
+      --chain optimism \
+      --rollup.sequencer https://mainnet-sequencer.optimism.io \
+      --http \
+      --ws \
+      --authrpc.port 9551 \
+      --authrpc.jwtsecret /path/to/jwt.hex
+    ```
+
+    ### OP Stack 전용 플래그
+
+    op-reth의 `Rollup` 플래그 그룹에는 OP Stack 체인에만 존재하는 동작이 포함되어 있습니다. 대부분의 운영자에게 중요한 플래그는 두 가지입니다.
+
+    *   `--rollup.sequencer <uri>`(위 예시 참조)는 이 node에 제출된 트랜잭션이 전달되는 sequencer 엔드포인트입니다. 블록을 빌드하는 것은 sequencer이기 때문입니다. 별칭: `--rollup.sequencer-http`, `--rollup.sequencer-ws`.
+    *   `--rollup.disable-tx-pool-gossip`은 node가 트랜잭션 풀을 피어에 gossip하지 않도록 합니다. 개인 node에서는 생략하고, 제공자로서 운영하는 복제본(replica)에서는 설정하십시오.
+
+    그룹의 나머지 플래그는 interop 필터, subblock, 과거 RPC를 다룹니다. 바이너리 자체의 설명이 포함된 전체 목록은 [`op-reth node` 플래그 목록](/ko/node-operators/op-reth/cli/op-reth/node)을 참조하고, 플래그 그룹이 어떻게 함께 작동하는지는 [op-reth CLI 이해하기](/ko/node-operators/op-reth/cli/overview)를 참조하십시오.
+
+    ### Subblocks
+
+    [Subblocks](/ko/op-stack/features/subblocks)를 스트리밍하는 체인에서 사전 확인된(pre-confirmed) 상태를 제공하려면 op-reth가 체인의 WebSocket 스트림을 가리키도록 설정하십시오.
+
+    ```bash
+    op-reth node \
+      --chain optimism \
+      --rollup.sequencer https://mainnet-sequencer.optimism.io \
+      --flashblocks-url wss://op-mainnet-fb-ws-pub.optimism.io/ws \
+      --http \
+      --ws \
+      --authrpc.port 9551 \
+      --authrpc.jwtsecret /path/to/jwt.hex
+    ```
+
+    그러면 node는 `pending` 블록 태그가 포함된 요청에 subblock 상태로 응답하며, 각 subblock의 트랜잭션을 자체 체인 뷰에 대해 실행합니다. subblock은 스트림의 `state_root`를 0으로 남겨 두므로 node는 이 값이 필요하지 않습니다. 이 플래그는 `flashblocks` 철자를 유지하며, `--websocket-url`도 별칭으로 사용할 수 있습니다.
+
+    일반 node에는 `--flashblocks-url`만 있으면 됩니다. `--flashblock-consensus`는 설정하지 마십시오. 이 플래그는 완료된 시퀀스를 `engine_newPayload`를 통해 제출하여 스트림에서 체인을 진행시키는데, 이는 특수한 토폴로지이며 op-node를 따르는 일반 node에 추가하는 기능이 아닙니다. 또한 이 플래그를 활성화하면 각 시퀀스의 마지막 subblock에 대한 로컬 state root 계산이 켜지는데, 일반 node에는 필요하지 않습니다.
+
+    ### 과거 증명
+
+    무허가형(permissionless) 체인은 출금 증명을 위해 약 28일간의 과거 상태가 필요합니다. [과거 증명과 함께 op-reth 실행하기](/ko/node-operators/tutorials/reth-historical-proofs) 튜토리얼을 따라 op-reth v2.2.3 이상에서 `--proofs-history`(v2) 저장소를 설정하십시오.
+
+    ### 프루닝
+
+    op-reth는 기본적으로 archive node로 동작합니다. 디스크 공간을 확보하려면 state 및 receipt 세그먼트를 프루닝하고 블록 본문은 유지하십시오. 본문 프루닝은 지원되지 않습니다. op-reth는 시작 시 `--minimal`을 거부하며, `--prune.bodies.distance`는 사용하지 않는 것이 좋습니다. [op-reth 프루닝](/ko/node-operators/guides/management/archive-node#pruning-op-reth)을 참조하십시오.
+
+    ### 전체 레퍼런스
+
+    - [op-reth 구성 레퍼런스](/ko/node-operators/reference/op-reth-config)
+    - [op-reth 과거 증명 구성](/ko/node-operators/reference/op-reth-historical-proof-config)
+    - [reth.rs 문서](https://reth.rs/run/opstack)
+  </Tab>
+
+  <Tab title="Nethermind">
+    [Nethermind](https://github.com/NethermindEth/nethermind)는 .NET 기반의 대체 실행 클라이언트입니다.
+
+    ### 최소 구성
+
+    ```bash
+    nethermind \
+      -c op-mainnet \
+      --data-dir path/to/data/dir \
+      --jsonrpc-jwtsecretfile path/to/jwt.hex
+    ```
+
+    ### 추가 리소스
+
+    - [Nethermind OP Stack 문서](https://docs.nethermind.io/get-started/running-node/l2-networks)
+    - [Nethermind 구성 레퍼런스](https://docs.nethermind.io/fundamentals/configuration)
+  </Tab>
+</Tabs>
+
+## JWT secret
+
+실행 클라이언트와 합의 클라이언트는 공유 JWT secret을 사용하여 Engine API를 통해 통신합니다.
+
+```bash
+openssl rand -hex 32 > jwt-secret.txt
+```
+
+이 파일은 실행 클라이언트와 합의 클라이언트에서 동일해야 합니다.
+
+## op-geth (레거시, 2026-05-31 지원 종료)
+
+<OpGethEol />
+
+<Accordion title="op-geth 구성(레거시)">
+  [op-geth](https://github.com/ethereum-optimism/op-geth)는 OP Stack에 최적화된 go-ethereum의 최소 포크입니다.
+
+  <Info>
+    Docker 이미지 이름은 `op-geth`이지만, go-ethereum과의 차이를 최소화하기 위해 실제 바이너리 이름은 여전히 `geth`입니다. 자세한 내용은 [op-geth diff viewer](https://op-geth.optimism.io/?utm_source=op-docs&utm_medium=docs)를 참조하십시오.
+  </Info>
+
+  ### 최소 구성
+
+  ```bash
+  geth \
+    --datadir=/data/optimism \
+    --http \
+    --http.addr=0.0.0.0 \
+    --http.port=8545 \
+    --http.api=eth,net,web3 \
+    --authrpc.jwtsecret=/path/to/jwt-secret.txt \
+    --op-network=op-mainnet \
+    --rollup.sequencerhttp=https://mainnet-sequencer.optimism.io/ \
+    --rollup.disabletxpoolgossip
+  ```
+
+  기본값: snap sync 모드, WebSocket 서버 없음, 메트릭 없음.
+
+  ### OP Stack 전용 플래그
+
+  - `--rollup.sequencerhttp`: 트랜잭션 제출을 위한 sequencer의 HTTP 엔드포인트
+  - `--rollup.disabletxpoolgossip`: 트랜잭션 풀 gossip 비활성화(복제본 node용)
+  - `--rollup.historicalrpc`: 업그레이드된 네트워크를 위한 과거 RPC 엔드포인트 활성화(OP Mainnet Bedrock 이전 archive node)
+
+  ### 전체 레퍼런스
+
+  op-geth 구성 레퍼런스는 폐기되었습니다. 동등한 op-reth 플래그는 [op-reth 구성 레퍼런스](/ko/node-operators/reference/op-reth-config)를 참조하십시오.
+</Accordion>

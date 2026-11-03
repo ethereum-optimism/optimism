@@ -1,0 +1,423 @@
+---
+title: 구성 및 RPC
+description: op-conductor 구성 플래그, 환경 변수, conductor 네임스페이스 RPC 메서드에 대한 레퍼런스입니다.
+diataxis: reference
+---
+
+import OpConductorFlags from '/ko/snippets/generated/op-conductor-flags.mdx';
+import { ConfigReferencePreamble } from '/ko/snippets/config-reference-preamble.mdx';
+
+이 페이지는 op-conductor의 구성 옵션과 admin RPC 메서드를 정리한 목록입니다.
+서비스의 동작 방식은 [OP Conductor](/ko/chain-operators/tools/op-conductor)를
+참고하고, 실행 중인 네트워크에 추가하려면 [설정 가이드](/ko/chain-operators/tools/op-conductor/setup)를
+따르십시오.
+
+## 구성 옵션
+
+<ConfigReferencePreamble component="op-conductor" />
+
+<OpConductorFlags />
+
+## 주요 플래그 참고 사항
+
+### raft.bootstrap
+
+<Info>
+  새 클러스터를 부트스트랩하기 위한 플래그입니다. 현재 활성 상태인 sequencer에서만
+  사용해야 하며, 이 플래그로는 한 번만 시작할 수 있습니다. 그렇지 않으면 클러스터를
+  다시 부트스트랩하기 전에 플래그를 제거하거나 raft 로그를 삭제해야 합니다.
+</Info>
+
+### paused
+
+<Info>
+  구성 상태가 저장되지 않으므로, RPC로 일시 정지를 해제한 후 재시작하면
+  다시 일시 정지된 상태로 시작됩니다.
+</Info>
+
+## RPCs
+
+Conductor는 `conductor` 네임스페이스에서
+[admin RPC](https://github.com/ethereum-optimism/optimism/blob/develop/op-conductor/rpc/api.go#L17)를 제공합니다.
+
+### conductor_overrideLeader
+
+`OverrideLeader`는 리더 상태를 재정의하는 데 사용되며, `Leader()` 및 `LeaderWithID()`
+호출이 true를 반환하도록 하는 용도로만 사용됩니다. 실제 raft 합의 리더십 상태에는
+영향을 주지 않습니다. 클러스터가 비정상 상태이고 해당 node만 동작 중일 때 사용하도록
+의도되었으며, batcher가 해당 node에 연결하여 수동으로 시작한 sequencer로부터 블록을
+다운로드할 수 있도록 합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_overrideLeader","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_overrideLeader --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_pause
+
+`Pause`는 op-conductor를 일시 정지합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_pause","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_pause --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_resume
+
+`Resume`은 op-conductor를 재개합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_resume","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_resume --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_paused
+
+Paused는 op-conductor가 일시 정지된 경우 true를 반환합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_paused","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_paused --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_stopped
+
+Stopped는 op-conductor가 중지된 경우 true를 반환합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_stopped","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_stopped --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor\_sequencerHealthy
+
+SequencerHealthy는 sequencer가 정상 상태인 경우 true를 반환합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_sequencerHealthy","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_sequencerHealthy --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_leader
+
+<Info>
+  합의와 관련된 API입니다.
+</Info>
+
+Leader는 서버가 리더인 경우 true를 반환합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_leader","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_leader --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_leaderWithID
+
+<Info>
+  합의와 관련된 API입니다.
+</Info>
+
+LeaderWithID는 현재 리더의 서버 정보를 반환합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_leaderWithID","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_leaderWithID --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_addServerAsVoter
+
+<Info>
+  합의와 관련된 API입니다.
+</Info>
+
+AddServerAsVoter는 서버를 voter로 클러스터에 추가합니다. 
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_addServerAsVoter","params":[<raft-server-id>, <raft-consensus-addr>, <raft-config-version>],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_addServerAsVoter <raft-server-id> <raft-consensus-addr> <raft-config-version> --rpc-url http://127.0.0.1:8547 
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_addServerAsNonvoter
+
+<Info>
+  합의와 관련된 API입니다.
+</Info>
+
+AddServerAsNonvoter는 서버를 non-voter로 클러스터에 추가합니다.
+non-voter는 리더 선출에 참여하지 않습니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_addServerAsNonvoter","params":[<raft-server-id>, <raft-consensus-addr>, <raft-config-version>],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_addServerAsNonvoter <raft-server-id> <raft-consensus-addr> <raft-config-version> --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_removeServer
+
+<Info>
+  합의와 관련된 API입니다.
+</Info>
+
+RemoveServer는 클러스터에서 서버를 제거합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_removeServer","params":[<raft-server-id>, <raft-config-version>],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_removeServer <raft-server-id> <raft-config-version> --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_transferLeader
+
+<Info>
+  합의와 관련된 API입니다.
+</Info>
+
+TransferLeader는 리더십을 다른 서버로 이전합니다(사임).
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_transferLeader","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_transferLeader --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_transferLeaderToServer
+
+<Info>
+  합의와 관련된 API입니다.
+</Info>
+
+TransferLeaderToServer는 리더십을 특정 서버로 이전합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_transferLeaderToServer","params":[<raft-server-id>, <raft-consensus-addr>, <raft-config-version>],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_transferLeaderToServer <raft-server-id> <raft-consensus-addr> <raft-config-version> --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_clusterMembership
+
+ClusterMembership은 현재 클러스터 멤버십 구성을 반환합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_clusterMembership","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_clusterMembership --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_active
+
+<Info>
+  `op-node`가 호출하는 API입니다.
+</Info>
+
+Active는 op-conductor가 활성 상태(일시 정지 또는 중지 상태가 아님)인 경우 true를 반환합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_active","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_active --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_commitUnsafePayload
+
+<Info>
+  `op-node`가 호출하는 API입니다.
+</Info>
+
+CommitUnsafePayload는 unsafe payload(최신 head)를 합의 레이어에 커밋합니다.
+이 메서드는 일반적으로 op-node가 execution payload envelope를 커밋하기 위해 호출합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_commitUnsafePayload","params":[{
+            "executionPayload": {
+                "parentHash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "feeRecipient": "0x4200000000000000000000000000000000000019",
+                "stateRoot": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+                "receiptsRoot": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                "prevRandao": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "blockNumber": "0x64",
+                "gasLimit": "0x1c9c380",
+                "gasUsed": "0x5208",
+                "timestamp": "0x12345678",
+                "extraData": "0x",
+                "baseFeePerGas": "0x7",
+                "blockHash": "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba",
+                "transactions": []
+            }
+        }],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    # Example with basic payload structure
+    cast rpc conductor_commitUnsafePayload \
+        '{"executionPayload":{"parentHash":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef","feeRecipient":"0x4200000000000000000000000000000000000019","stateRoot":"0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890","receiptsRoot":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","prevRandao":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef","blockNumber":"0x64","gasLimit":"0x1c9c380","gasUsed":"0x5208","timestamp":"0x12345678","extraData":"0x","baseFeePerGas":"0x7","blockHash":"0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba","transactions":[]}}' \
+        --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>

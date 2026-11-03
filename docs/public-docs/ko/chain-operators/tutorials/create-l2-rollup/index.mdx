@@ -1,0 +1,246 @@
+---
+title: 나만의 L2 rollup testnet 만들기
+description: 완전한 testnet 배포를 위해 모든 OP Stack 구성 요소를 배포하고 오케스트레이션하는 방법을 알아봅니다.
+diataxis: tutorial
+---
+
+<Info>
+  **OP Stack 학습하기 — 14단계 중 6단계.**
+  지금까지 OP Stack이 무엇인지, Ethereum과 어떻게 다른지, 어떤 구성 요소로
+  이루어져 있는지 등 기초를 다루었습니다. 이 첫 번째 프로젝트에서는
+  op-deployer로 rollup testnet을 배포하고 각 구성 요소를 직접 시작합니다.
+  시리즈의 모든 부분을 진행한 다음
+  [트랜잭션 흐름](/ko/op-stack/transactions/transaction-flow)으로 넘어가십시오.
+</Info>
+
+나만의 OP Stack L2 rollup testnet 배포를 위한 완전한 가이드에 오신 것을 환영합니다. 이 여러 부분으로 구성된 튜토리얼은 초기 설정부터 완전히 작동하는 rollup까지 각 구성 요소를 단계별로 안내합니다.
+
+<Info>
+이 튜토리얼에는 **EVM 체인 작업에 대한 중급 수준의 경험**이 필요합니다.
+스마트 컨트랙트, 개인 키, RPC 엔드포인트, gas 수수료, 명령줄 작업과 같은 개념에 익숙해야 합니다.
+Docker에 대한 기본적인 이해도 권장됩니다.
+</Info>
+
+## 만들게 될 것
+
+이 튜토리얼을 마치면 다음을 갖춘 완전한 OP Stack testnet을 보유하게 됩니다.
+
+*   Sepolia testnet에 배포된 **L1 스마트 컨트랙트**
+*   트랜잭션을 처리하는 **실행 클라이언트**(op-reth)
+*   rollup 합의를 관리하는 **합의 클라이언트**(op-node)
+*   트랜잭션 데이터를 L1에 게시하는 **Batcher**(op-batcher)
+*   상태 루트 제안을 제출하는 **Proposer**(op-proposer)
+*   분쟁을 모니터링하는 **Challenger**(op-challenger)
+
+## 시작하기 전에
+
+아래에서 설정 경로를 선택하기 전에 다음을 준비하십시오. 자동 경로와 수동 경로 모두 이러한 의존성과 리소스가 필요합니다.
+
+### 소프트웨어 의존성
+
+| 의존성                                                        | 버전     | 버전 확인 명령        |
+| ------------------------------------------------------------- | -------- | --------------------- |
+| [git](https://git-scm.com/)                                   | `^2`     | `git --version`       |
+| [go](https://go.dev/)                                         | `^1.26`  | `go version`          |
+| [rust](https://rustup.rs/)(소스 빌드 전용)                    | `rust/rust-toolchain.toml`로 고정 | `rustc --version` |
+| [just](https://github.com/casey/just)(소스 빌드 전용)         | `^1`     | `just --version`      |
+| [zip](https://infozip.sourceforge.net/)(소스 빌드 전용)       | `^3`     | `zip --version`       |
+| [node](https://nodejs.org/en/)                                | `^20`    | `node --version`      |
+| [pnpm](https://pnpm.io/installation)                          | `^8`     | `pnpm --version`      |
+| [foundry](https://github.com/foundry-rs/foundry#installation) | `^0.2.0` | `forge --version`     |
+| [make](https://linux.die.net/man/1/make)                      | `^3`     | `make --version`      |
+| [jq](https://github.com/jqlang/jq)                            | `^1.6`   | `jq --version`        |
+| [direnv](https://direnv.net)                                  | `^2`     | `direnv --version`    |
+| [Docker](https://docs.docker.com/get-docker/)                 | `^24`    | `docker --version`    |
+
+### 특정 의존성에 대한 참고 사항
+
+<Info>
+  자세한 내용은 아래의 각 의존성을 펼쳐 확인하십시오.
+</Info>
+
+<Accordion title="node">
+
+  최신 LTS 버전의 Node.js(현재 v20) 사용을 권장합니다.\
+  [`nvm`](https://github.com/nvm-sh/nvm)은 머신에서 여러 버전의 Node.js를 관리하는 데 도움이 되는 유용한 도구입니다.\
+  이전 버전의 Node.js에서는 예기치 않은 오류가 발생할 수 있습니다.
+</Accordion>
+
+<Accordion title="foundry">
+
+  이 가이드에서는 cast를 사용하여 지갑 주소를 생성합니다.
+</Accordion>
+
+<Accordion title="direnv">
+
+  이 튜토리얼의 일부에서는 `.envrc` 파일의 환경 변수를 셸에 로드하는 방법으로 [`direnv`](https://direnv.net)를 사용합니다.\
+  따라서 환경 변수를 사용할 때마다 수동으로 export할 필요가 없습니다.\
+  `direnv`는 명시적으로 허용한 파일에만 접근할 수 있습니다.
+
+  [`direnv`를 설치](https://direnv.net/docs/installation.html)한 후에는 **[`direnv`가 셸에 연결(hook)되어 있는지](https://direnv.net/docs/hook.html) 반드시 확인해야 합니다**.\
+  [`direnv` 웹사이트의 가이드](https://direnv.net/docs/hook.html)를 따랐는지 확인한 다음, 변경 사항이 적용되도록 **터미널을 닫았다가 다시 여십시오**(또는 방법을 알고 있다면 구성 파일을 `source`하십시오).
+
+  <Info>
+    셸 구성 파일(예: `~/.bashrc` 또는 `~/.zshrc`)을 수정하여 `direnv`를 셸에 올바르게 연결했는지 확인하십시오.\
+    구성 파일을 편집하지 않았다면 `direnv`가 제대로 구성되지 않았을 가능성이 높습니다(이후 작업이 제대로 동작하지 않을 수 있습니다).
+  </Info>
+</Accordion>
+
+<Accordion title="Docker">
+
+  이 튜토리얼에서는 다양한 OP Stack 구성 요소를 실행하기 위해 Docker를 광범위하게 사용합니다.\
+  시스템에 Docker와 Docker Compose가 모두 설치되어 실행 중인지 확인하십시오.\
+  Linux에서는 [sudo 없이 Docker를 실행하도록 구성](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user)해야 할 수 있습니다.
+
+  <Info>
+    Docker Desktop을 사용하는 경우 튜토리얼을 시작하기 전에 실행 중인지 확인하십시오.\
+    다음 명령으로 설치를 확인할 수 있습니다.
+
+    ```bash
+    docker run hello-world
+    ```
+  </Info>
+</Accordion>
+
+### Sepolia node 접근 권한 확보
+
+OP Stack 체인을 Sepolia에 배포하므로 Sepolia node에 접근할 수 있어야 합니다.
+[Alchemy](https://www.alchemy.com/)와 같은 node 제공업체를 사용하거나(더 쉬움) 직접 Sepolia node를 실행할 수 있습니다(더 어려움).
+
+### 필요한 리소스
+
+*   **Sepolia ETH** - 약 2-3 ETH가 필요합니다.
+    *   [Superchain Faucet](https://console.optimism.io/faucet)으로 시작하십시오(0.05 ETH 제공).
+    *   다음에서 추가로 받을 수 있습니다.
+        *   [Alchemy Faucet](https://sepoliafaucet.com/)
+        *   [Infura Faucet](https://www.infura.io/faucet/sepolia)
+        *   [Paradigm Faucet](https://faucet.paradigm.xyz/)
+        
+*   **L1 RPC URL** - Sepolia 네트워크에 연결하기 위한 RPC 엔드포인트입니다. [Alchemy](https://www.alchemy.com/), [Infura](https://www.infura.io/)와 같은 node 제공업체에서 얻을 수 있습니다. `op-deployer` 및 기타 서비스가 L1에서 데이터를 읽고 트랜잭션을 전송하려면 이것이 필요합니다.
+
+<Info>
+  **Testnet 전용**: 이 가이드는 **testnet 배포 전용**입니다.
+</Info>
+
+## 경로 선택
+
+의존성과 리소스가 준비되었으면 작업 방식에 맞는 경로를 선택하십시오.
+
+*   **[자동 설정](#automated-setup)** — rollup을 가장 빠르게 실행하는 방법입니다. 이 저장소에 있는 완전한 작동 구현을 사용하며 모든 구성과 배포를 대신 처리합니다.
+*   **[수동 설정](#manual-setup)** — 각 구성 요소를 단계별로 안내합니다. 각 구성 요소를 자세히 이해하고 싶거나 사용자 지정 구성이 필요한 경우 이 경로를 선택하십시오.
+
+## 자동 설정
+
+빠르게 시작하려면 이 저장소에서 제공하는 완전한 작동 구현을 사용할 수 있습니다. 이 자동 설정은 모든 구성 및 배포 단계를 대신 처리합니다.
+
+<Info>
+  **완전한 작동 예제**
+
+  완전한 작동 구현은 [`create-l2-rollup-example/`](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs/create-l2-rollup-example/) 디렉터리에서 확인할 수 있습니다. 여기에는 필요한 모든 스크립트, Docker Compose 구성 및 예제 환경 파일이 포함되어 있습니다.
+</Info>
+
+### 자동 설정 단계
+
+1.  **저장소를 클론하고 코드 디렉터리로 이동합니다.**
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism/docs/public-docs/create-l2-rollup-example
+    ```
+
+2.  **환경을 구성합니다.**
+    ```bash
+    cp .example.env .env
+    # Edit .env with your L1_RPC_URL, PRIVATE_KEY, and other settings
+    ```
+
+3.  **자동 설정을 실행합니다.**
+    ```bash
+    make init    # Download op-deployer
+    make setup   # Deploy contracts and generate configs
+    make up      # Start all services
+    make test-l1 # Verify L1 connectivity
+    make test-l2 # Verify L2 functionality
+    ```
+
+4.  **rollup을 모니터링합니다.**
+    ```bash
+    make logs     # View all service logs
+    make status   # Check service health
+    ```
+
+자동 설정은 표준 OP Stack 환경 변수 규칙(`OP_*` 접두사)을 사용하며 복잡한 구성을 모두 자동으로 처리합니다.
+
+## 수동 설정
+
+각 구성 요소를 자세히 이해하고 싶거나 사용자 지정 구성이 필요한 경우 아래의 단계별 가이드를 따르십시오. 각 단계는 이전 단계를 기반으로 하므로 순서대로 완료하는 것이 가장 좋습니다.
+
+### 디렉터리 구조
+
+rollup 배포를 체계적으로 관리하기 위해 전용 디렉터리 구조를 만듭니다. 모든 구성 요소는 이 구조 안에서 설정됩니다.
+
+```bash
+rollup/
+├── deployer/        # op-deployer files and contracts
+├── sequencer/  # op-reth and op-node
+├── batcher/    # op-batcher configuration
+├── proposer/   # op-proposer setup
+└── challenger/ # op-challenger files
+```
+
+각 구성 요소의 문서에서는 파일과 구성을 추가함에 따라 디렉터리 구조가 어떻게 변하는지 보여줍니다.
+
+<Info>
+  이 튜토리얼 전체에서 모든 파일 경로는 이 `rollup` 디렉터리 구조를 기준으로 한 상대 경로입니다. 다른 디렉터리 이름을 사용하는 경우 명령을 적절히 조정하십시오.
+</Info>
+
+### 수동 설정 단계
+
+수동 경로는 서로를 기반으로 하는 순차적인 단계로 구성되어 있습니다.
+
+<Steps>
+<Step title="op-deployer 실행">
+
+op-deployer를 설치하고, L1 컨트랙트를 배포하고, 환경을 준비합니다.
+
+[op-deployer 설정으로 이동 →](/ko/chain-operators/tutorials/create-l2-rollup/op-deployer-setup)
+</Step>
+
+<Step title="sequencer 실행">
+
+op-reth와 op-node(실행 레이어 및 합의 레이어)를 설정하고 실행합니다.
+
+[sequencer 설정으로 이동 →](/ko/chain-operators/tutorials/create-l2-rollup/op-reth-setup)
+</Step>
+
+<Step title="batcher 실행">
+
+L1 데이터 게시를 위해 op-batcher를 구성하고 시작합니다.
+
+[batcher 설정으로 이동 →](/ko/chain-operators/tutorials/create-l2-rollup/op-batcher-setup)
+</Step>
+
+<Step title="proposer 실행">
+
+상태 루트 제출을 위해 op-proposer를 설정합니다.
+
+[proposer 설정으로 이동 →](/ko/chain-operators/tutorials/create-l2-rollup/op-proposer-setup)
+</Step>
+
+<Step title="challenger 실행">
+
+분쟁 해결 모니터링을 위해 op-challenger를 구성합니다.
+
+[challenger 설정으로 이동 →](/ko/chain-operators/tutorials/create-l2-rollup/op-challenger-setup)
+</Step>
+</Steps>
+
+<Card title="op-deployer 실행" href="/ko/chain-operators/tutorials/create-l2-rollup/op-deployer-setup">
+  의존성이 이미 준비되었습니까? 시작하여 op-deployer를 실행하십시오.
+</Card>
+
+***
+
+## 도움이 필요하신가요?
+
+*   **질문 또는 문제**: [Optimism 모노레포 이슈 트래커](https://github.com/ethereum-optimism/optimism/issues)에서 질문하거나 버그 및 문서 문제를 보고하십시오.
+*   **코드 예제**: 이 튜토리얼과 함께 제공되는 [완전한 작동 예제](/ko/chain-operators/tutorials/create-l2-rollup/code-setup)를 살펴보십시오.

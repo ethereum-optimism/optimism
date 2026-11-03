@@ -53,9 +53,6 @@ parameters:
   stale_check_dispatch:
     type: boolean
     default: false
-  contracts_coverage_dispatch:
-    type: boolean
-    default: false
   heavy_fuzz_dispatch:
     type: boolean
     default: false
@@ -76,9 +73,6 @@ parameters:
     type: string
     default: "v0.1"
   c-go_fresh_tests:
-    type: boolean
-    default: false
-  c-contract_coverage_replay:
     type: boolean
     default: false
   c-nut_provenance_full:
@@ -164,7 +158,6 @@ jobs:
           command: .circleci/scripts/collect-params.sh bool
           environment:
             c-go_fresh_tests_effective: << pipeline.parameters.c-go_fresh_tests >>
-            c-contract_coverage_replay_effective: << pipeline.parameters.c-contract_coverage_replay >>
             c-nut_provenance_full_effective: << pipeline.parameters.c-nut_provenance_full >>
             c-main_dispatch: << pipeline.parameters.main_dispatch >>
             c-fault_proofs_dispatch: << pipeline.parameters.fault_proofs_dispatch >>
@@ -174,7 +167,6 @@ jobs:
             c-sdk_dispatch: << pipeline.parameters.sdk_dispatch >>
             c-publish_contract_artifacts_dispatch: << pipeline.parameters.publish_contract_artifacts_dispatch >>
             c-stale_check_dispatch: << pipeline.parameters.stale_check_dispatch >>
-            c-contracts_coverage_dispatch: << pipeline.parameters.contracts_coverage_dispatch >>
             c-heavy_fuzz_dispatch: << pipeline.parameters.heavy_fuzz_dispatch >>
             c-rust_ci_dispatch: << pipeline.parameters.rust_ci_dispatch >>
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>

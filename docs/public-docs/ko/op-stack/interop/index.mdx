@@ -1,0 +1,91 @@
+---
+title: 상호운용성
+description: 입문 소개부터 메시지 전달, 안전성, 실습 튜토리얼, 규범적 사양까지 OP Stack 상호운용성을 한곳에서 배울 수 있습니다.
+diataxis: explanation
+content-type: curriculum-hub
+last-reviewed: 2026-07-22
+---
+
+<Info>OP Stack interop은 Lagoon 하드포크와 함께 활성화됩니다.</Info>
+
+OP Stack 상호운용성(interoperability)은 OP Stack 체인들이 서로의 상태를
+읽을 수 있게 해 주는 프로토콜 집합으로, 여러 체인으로 이루어진 네트워크를
+하나의 블록체인처럼 느끼게 합니다. ETH와 ERC-20 토큰은 네이티브 발행과
+소각을 통해 체인 간에 이동하고, 컨트랙트는 낮은 지연 시간으로 다른 체인의
+이벤트와 조합될 수 있으며, 이를 필요로 하는 애플리케이션은 여러 체인에 걸쳐
+수평적으로 확장할 수 있습니다.
+
+OP Stack interop은 Lagoon 하드포크와 함께 활성화되지만 추가 기능은 단계적으로 출시될 예정입니다.
+따라서 이 자료들은 완성된 프로덕션 시스템이 아니라, 스택이 나아가는 방향과
+현재 이미 구축할 수 있는 것을 보여 주는 그림으로 읽어 주십시오. 먼저 설명 문서로
+시작한 다음, 메커니즘 페이지를 순서대로 살펴보십시오. 이 페이지들은 메시지 전달
+모델에서 출발하여 reorg 안전성과 이를 적용하는 런타임까지 차례로 설명합니다.
+튜토리얼에서는 로컬 또는 devnet 체인에서 모든 것을 직접 시도해 볼 수 있으며,
+사양은 전반에 걸쳐 규범적 정의 역할을 합니다.
+
+## 여기서 시작하십시오
+
+*   [OP Stack 상호운용성 설명](/ko/op-stack/interop/explainer): interop이
+    가능하게 하는 것(네이티브 자산 전송, 크로스체인 조합성, 수평적 확장성)과
+    전체 아키텍처를 이해하려면 이 문서를 가장 먼저 읽으십시오. 시작 메시지와
+    실행 메시지, 액세스 리스트 검증, 블록 안전성 수준, 종속성 집합과 클러스터를
+    다룹니다.
+
+## 더 깊이 알아보기
+
+*   [Interop 메시지 전달 개요](/ko/app-developers/guides/interoperability/message-passing):
+    저수준 `CrossL2Inbox`부터 대부분의 앱이 사용하는
+    `L2ToL2CrossDomainMessenger`까지, 컨트랙트 수준의 메시징 수명 주기를 설명합니다.
+*   [OP Stack interop으로 로그 읽기](/ko/app-developers/guides/interoperability/reading-logs):
+    컨트랙트가 메시지를 받는 대신 다른 체인의 로그를 직접 검증하는
+    pull 모델을 설명합니다.
+*   [메시지 만료](/ko/app-developers/guides/interoperability/message-expiration):
+    중계되지 않은 메시지가 결국 만료되는 이유와 애플리케이션이 만료된 메시지를
+    되돌리는 방법을 설명합니다.
+*   [Superchain ETH Bridge](/ko/op-stack/interop/superchain-eth-bridge):
+    네이티브 ETH가 `SuperchainETHBridge`와 `ETHLiquidity` 컨트랙트를 통해
+    체인 간에 이동하는 방식을 설명합니다.
+*   [Interop reorg 인식](/ko/op-stack/interop/reorg): interop이 크로스체인
+    이중 지불의 여지를 주지 않으면서 지연 시간이 짧은 메시지를 전달하는
+    방식을 설명합니다.
+*   [OP Supernode](/ko/op-stack/interop/supernode): 종속성 집합의 모든 체인을
+    하나의 프로세스에서 호스팅하고 크로스체인 검증 작업을 수행하는 런타임을
+    설명합니다.
+
+## 직접 실습하기
+
+*   [OP Stack devnet에서 상호운용 가능한 앱 구축하기](/ko/app-developers/guides/interoperability/get-started):
+    개발 환경(로컬 Supersim 또는 interop devnet)을 선택하고 배포를
+    시작하십시오.
+*   [Supersim](/ko/app-developers/tools-sdks/supersim): 크로스체인 애플리케이션을
+    구축하고 테스트하기 위해 다중 체인 OP Stack 구성을 시뮬레이션하는 로컬 개발
+    환경입니다.
+*   [Interop 메시지 전달 튜토리얼](/ko/app-developers/tutorials/interoperability/message-passing):
+    `L2ToL2CrossDomainMessenger` 컨트랙트를 사용하여 크로스체인 메시지 전달
+    시스템을 구축합니다.
+*   [트랜잭션 수동 중계](/ko/app-developers/tutorials/interoperability/manual-relay):
+    autorelayer가 대신 처리해 주지 않을 때 실행 메시지를 직접 구성하여
+    전송합니다.
+
+## 규범적 사양
+
+interop 동작에 대한 최종 정의는 OP Stack 사양에 있습니다.
+
+*   [Interop](https://specs.optimism.io/interop/overview.html?utm_source=op-docs&utm_medium=docs):
+    interop 사양의 루트이자 하위 모든 문서의 지도입니다.
+*   [Messaging](https://specs.optimism.io/interop/messaging.html?utm_source=op-docs&utm_medium=docs):
+    시작 메시지와 실행 메시지, 그리고 그 안전성 규칙에 대한 규범적
+    정의입니다.
+*   [Predeploys](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs):
+    `CrossL2Inbox`, `L2ToL2CrossDomainMessenger` 및 기타 interop predeploy
+    컨트랙트를 다룹니다.
+*   [SuperchainETHBridge](https://specs.optimism.io/interop/superchain-eth-bridge.html?utm_source=op-docs&utm_medium=docs):
+    interop 체인 간 네이티브 ETH 브리징에 대한 사양입니다.
+
+## 감사 및 보안
+
+*   [크로스체인 보안 조치](/ko/op-stack/security/interop-security):
+    신뢰 모델, sequencer equivocation 발생 시 일어나는 일, 그리고 각 체인이
+    구성하는 지연 시간과 보안 간의 트레이드오프를 설명합니다.
+*   [감사 보고서](/ko/op-stack/security/audit-reports): OP Stack 보안 검토의
+    상시 색인으로, monorepo의 전체 목록으로 연결됩니다.
