@@ -292,7 +292,7 @@ class GateTests(unittest.TestCase):
 
     def test_contract_verdicts_preserve_tool_cache_reads_without_reusing_results(self):
         G.configuration('required-contracts-ci')
-        for name in ('contract-coverage-verdict.yml','contract-upgrades-verdict.yml'):
+        for name in ('contract-upgrades-verdict.yml',):
             path=self.root/'.rwx/packages'/name;source=path.read_text()
             self.assertNotIn('    cache: false',source)
             self.assertIn('    tool-cache:',source)
@@ -326,10 +326,10 @@ class GateTests(unittest.TestCase):
         env=self.reports(gate='required-contracts-ci')
         result,output,record=self.run_aggregate(env,gate='required-contracts-ci')
         selection=G.configuration('required-contracts-ci')[1]['required-contracts-ci']
-        # Each contract feature has a coverage run, standard and modified suites, and an upgrade run.
+        # Each contract feature has standard and modified suites and an upgrade run.
         features=len(['main','CUSTOM_GAS_TOKEN','INTEROP','ZK_DISPUTE_GAME',
                       'BRIDGE_HOOK','BRIDGE_HOOK,ZK_DISPUTE_GAME','OP_PRIVATE'])
-        counts=[1,features,1,2*features,features+3]
+        counts=[1,1,2*features,features+3]
         self.assertEqual(result,0)
         self.assertEqual(len(selection['requires']),sum(counts))
         self.assertEqual([row['name'] for row in record['dependencies']],selection['requires'])
@@ -337,7 +337,6 @@ class GateTests(unittest.TestCase):
         self.assertEqual(G.originals(output)['tests'],0)
         self.assertEqual(self.manifest['groups']['contracts-checks']['embedded_task'],
                          self.manifest['groups']['main-checks']['embedded_task'])
-        self.assertEqual(self.manifest['groups']['contracts-coverage']['workspace'],'project')
 
     def test_contracts_failure_cannot_hide_missing_fork_and_preserves_other_gate_scope(self):
         rust=self.reports();main=self.reports(gate='ci-gate');contracts=self.reports(gate='required-contracts-ci')
@@ -360,11 +359,10 @@ class GateTests(unittest.TestCase):
         result,output,record=self.run_aggregate(env,gate='required-contracts-ci')
         self.assertEqual(result,0);self.assertEqual(record['state'],'safe_skip')
         self.assertEqual(G.originals(output)['tests'],0)
-        path=self.root/'.rwx/contract-coverage.yml';source=path.read_text()
-        for old,new in [('      path: project','      path: other'),
-                        ('cd project\n      python3 ops/ci/runtime/pr-gate.py receipt contracts-coverage',
-                         'cd project\n      true'),
-                        ('path: project/.ci/pr-gates/groups/contracts-coverage','path: .ci/pr-gates/groups/contracts-coverage')]:
+        # A receipt runs at the original checkout root, never in a moved checkout.
+        path=self.root/'.rwx/contract-upgrades.yml';source=path.read_text()
+        for old,new in [('      ref: ${{ init.commit-sha }}\n','      ref: ${{ init.commit-sha }}\n      path: other\n'),
+                        ('path: .ci/pr-gates/groups/contracts-upgrades','path: other/.ci/pr-gates/groups/contracts-upgrades')]:
             path.write_text(source.replace(old,new,1))
             with self.subTest(new=new),self.assertRaises(ValueError):G.configuration('required-contracts-ci')
 

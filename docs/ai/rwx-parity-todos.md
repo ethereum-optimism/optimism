@@ -69,6 +69,26 @@ changed these PR occurrences:
   formatted to pass it. Hosted same-SHA parity is not yet verified, so this
   occurrence has no parity credit.
 
+The October 30 merges of `develop` changed these PR occurrences:
+
+- Renamed: the `OPTIMISM_PORTAL_INTEROP` dev feature became the `INTEROP`
+  system feature (#23779) in every contract matrix. The native tasks, gate
+  mappings and feature environment now use `INTEROP` and
+  `SYS_FEATURE__INTEROP`. Hosted same-SHA parity is not yet verified for the
+  renamed occurrences.
+- Changed execution: `just test` and `just coverage` split each shard into an
+  Amsterdam pass and a default-EVM pass (#23788). The native contract suites
+  run the same two passes and retain each pass's original report.
+- Changed inputs: `nut-provenance-verify` compares locks against the PR's
+  target branch (#23622). The native runner uses the same base.
+
+The November 3 merge of `develop` at `d4575feeee3f4c1f55879678c21138d4ecae9809`
+changed these PR occurrences:
+
+- Retired: `contracts-bedrock-coverage` (#23879) in every feature. The native
+  coverage workload, its shadow check, its `required-contracts-ci` mappings and
+  the go-ffi coverage replay seed were removed with it.
+
 The completed workload snapshot is `a1aa49aaf3713a8172f3f615f094488fd8e39c3d`;
 its 92 summary hashes and complete provider originals are recoverable through the
 evidence guide. Historical per-stage percentages and closeouts are archived.
@@ -151,19 +171,19 @@ CircleCI workflow: `contracts-feature-tests` (23 jobs).
 - [x] `prep-go-modules`
 - [x] `contracts-bedrock-tests main`
 - [x] `contracts-bedrock-tests CUSTOM_GAS_TOKEN`
-- [x] `contracts-bedrock-tests INTEROP`
+- [x] `contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP`
 - [x] `contracts-bedrock-tests ZK_DISPUTE_GAME`
 - [x] `contracts-bedrock-tests-heavy-fuzz-modified main`
 - [x] `contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN`
-- [x] `contracts-bedrock-tests-heavy-fuzz-modified INTEROP`
+- [x] `contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP`
 - [x] `contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME`
 - [x] `contracts-bedrock-coverage main`
 - [x] `contracts-bedrock-coverage CUSTOM_GAS_TOKEN`
-- [x] `contracts-bedrock-coverage INTEROP`
+- [x] `contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP`
 - [x] `contracts-bedrock-coverage ZK_DISPUTE_GAME`
 - [x] `contracts-bedrock-tests-upgrade op-mainnet main`
 - [x] `contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN`
-- [x] `contracts-bedrock-tests-upgrade op-mainnet INTEROP`
+- [x] `contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP`
 - [x] `contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME`
 - [x] `contracts-bedrock-tests-upgrade op-mainnet`
 - [x] `contracts-bedrock-tests-upgrade ink-mainnet`

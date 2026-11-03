@@ -92,8 +92,7 @@ class LocalPackageTests(unittest.TestCase):
         # producer is isolated, so its static family root contains preparation
         # evidence without including verdict results.
         for name, root in [('contracts', '.ci/contract-suites'),
-                           ('contract-upgrades', '.ci/contract-upgrades'),
-                           ('contract-coverage', 'project/.ci/contract-coverage')]:
+                           ('contract-upgrades', '.ci/contract-upgrades')]:
             leaf = tasks('packages/' + name + '-compile.yml')['build']
             filters = leaf['outputs']['filesystem']['filter']['workspace']
             self.assertIn(root, filters)
@@ -123,22 +122,6 @@ class LocalPackageTests(unittest.TestCase):
             self.assertNotIn('.git', files)
         for name in ('common', 'go', 'foundry', 'rust'):
             self.assertNotIn('vaults.', json.dumps(definition('packages/toolchain-' + name + '.yml')))
-
-    def test_coverage_normalizes_tool_inputs_without_moving_the_project_checkout(self):
-        graph = tasks('contract-coverage.yml')
-        self.assertEqual(graph['code']['with']['path'], 'project')
-        bootstrap = graph['bootstrap-inputs']
-        files = bootstrap['outputs']['filesystem']['filter']['workspace']
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            for name in files:
-                destination = root / 'project' / name
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(ROOT / name, destination)
-            subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', bootstrap['run']], cwd=root, check=True)
-            for name in files:
-                self.assertEqual((root / name).read_bytes(), (ROOT / name).read_bytes())
-                self.assertEqual((root / 'project' / name).read_bytes(), (ROOT / name).read_bytes())
 
 
 if __name__ == '__main__':

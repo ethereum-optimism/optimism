@@ -465,55 +465,6 @@
           ]
         },
         {
-          "name": "contracts-bedrock-coverage main",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-main"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-coverage CUSTOM_GAS_TOKEN",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-CUSTOM_GAS_TOKEN"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-coverage INTEROP",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-INTEROP"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-coverage ZK_DISPUTE_GAME",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-ZK_DISPUTE_GAME"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-coverage BRIDGE_HOOK",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-BRIDGE_HOOK"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-coverage BRIDGE_HOOK,ZK_DISPUTE_GAME",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-BRIDGE_HOOK_ZK_DISPUTE_GAME"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-coverage OP_PRIVATE",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-OP_PRIVATE"
-          ]
-        },
-        {
           "name": "contracts-bedrock-tests-upgrade op-mainnet main",
           "group": "contracts-upgrades",
           "tasks": [
@@ -780,19 +731,6 @@
         "cache-epoch": "v1"
       },
       "receipt_if": "${{ init.cache-warm != 'true' }}"
-    },
-    "contracts-coverage": {
-      "config": ".rwx/contract-coverage.yml",
-      "receipt_task": "contracts-gate-receipt",
-      "route": "run-contracts",
-      "embedded_task": "native-contract-coverage",
-      "check_name": "optimism-contract-coverage-shadow",
-      "init": {
-        "cache-warm": "false",
-        "cache-epoch": "v1"
-      },
-      "receipt_if": "${{ init.cache-warm != 'true' }}",
-      "workspace": "project"
     },
     "contracts-l2-fork": {
       "config": ".rwx/contract-l2-fork.yml",

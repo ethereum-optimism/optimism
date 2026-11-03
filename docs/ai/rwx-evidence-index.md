@@ -304,9 +304,9 @@ For full Go, select packages from `just list-test-packages`, not a rollup prefix
 Circle's `c-go_fresh_tests=true` enables `-count=1`; RWX verdicts are always fresh.
 Acceptance retains each variant's test listing and package manifest. Contracts
 retain every feature/profile's complete test files, compiler-bound signatures,
-initial reports and diagnostic reruns. Coverage needs Circle's explicit
-`c-contract_coverage_replay=true` for identical SHA/feature-derived Solidity and
-Go FFI inputs; unseeded hit counts are not an exact replay. Full historical NUT
+initial reports and diagnostic reruns. Retained coverage evidence used Circle's
+explicit `c-contract_coverage_replay=true` for identical SHA/feature-derived
+Solidity and Go FFI inputs; #23879 retired coverage on both providers. Full historical NUT
 regeneration uses `c-nut_provenance_full=true` in a normal pipeline, not a separate
 replay workflow. L2 comparisons retain the pinned block, state reads and sealed
 relay observations. Different upstream request counts alone do not establish
