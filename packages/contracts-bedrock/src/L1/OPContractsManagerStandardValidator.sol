@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// after an upgrade. It expects the chain to already run this release's contracts.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 5.2.0
-    string public constant version = "5.2.0";
+    /// @custom:semver 6.0.0
+    string public constant version = "6.0.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -154,6 +154,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         ISystemConfig sysCfg;
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
+        bytes32 zkPrestate;
         uint256 l2ChainID;
         address proposer;
     }
@@ -974,7 +975,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                     "SCKDG"
                 );
             }
-            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides);
+            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides, _input.zkPrestate);
         } else {
             // Super game types must not be registered in non-super mode.
             _errors = assertValidNonSuperRootDisputeGames(_errors, _input.sysCfg);
@@ -1031,6 +1032,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             sysCfg: _input.sysCfg,
             cannonPrestate: _input.absolutePrestate,
             cannonKonaPrestate: bytes32(0),
+            zkPrestate: bytes32(0),
             l2ChainID: _input.l2ChainID,
             proposer: _input.proposer
         });
@@ -1073,6 +1075,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         ISystemConfig _sysCfg,
         IProxyAdmin _admin,
         ValidationOverrides memory _overrides,
+        bytes32 _zkPrestate,
         string memory _errorPrefix
     )
         private
@@ -1081,7 +1084,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
-        _errors = internalRequire(args.absolutePrestate != bytes32(0), string.concat(_errorPrefix, "-70"), _errors);
+        _errors = internalRequire(args.absolutePrestate == _zkPrestate, string.concat(_errorPrefix, "-70"), _errors);
         _errors = internalRequire(
             args.verifier == sp1PlonkAdapterImpl && sp1PlonkAdapterImpl.code.length > 0,
             string.concat(_errorPrefix, "-80"),
@@ -1128,7 +1131,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         string memory _errors,
         ISystemConfig _sysCfg,
         IProxyAdmin _admin,
-        ValidationOverrides memory _overrides
+        ValidationOverrides memory _overrides,
+        bytes32 _zkPrestate
     )
         internal
         view
@@ -1155,7 +1159,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         );
         _errors =
             internalRequire(gameImpl.gameAddress == zkDisputeGameImpl, string.concat(errorPrefix, "-150"), _errors);
-        _errors = _assertValidZKGameArgs(_errors, _sysCfg, _admin, _overrides, errorPrefix);
+        _errors = _assertValidZKGameArgs(_errors, _sysCfg, _admin, _overrides, _zkPrestate, errorPrefix);
         // ZK game creation is permissionless, so a zero init bond leaves root claims free to spam.
         return internalRequire(
             _factory.initBonds(GameTypes.ZK_DISPUTE_GAME) > 0, string.concat(errorPrefix, "-160"), _errors
