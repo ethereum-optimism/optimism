@@ -316,7 +316,7 @@ where
             self.forwarded_lagging_safe_head =
                 self.lagging_safe_head_to_remember(&sync_status.safe_l2);
             self.engine_client
-                .send_safe_l2_signal(sync_status.safe_l2.into())
+                .send_delegated_safe_head(sync_status.safe_l2)
                 .await
                 .map_err(|e| DerivationError::Sender(Box::new(e)))?;
         }

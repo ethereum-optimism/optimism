@@ -4,9 +4,7 @@ use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
 use async_trait::async_trait;
 use kona_derive::test_utils::TestChainProvider;
-use kona_engine::{
-    ConsolidateInput, EngineState, EngineSyncState, EngineSyncStateUpdate, FinalizeBlockId,
-};
+use kona_engine::{EngineState, EngineSyncState, EngineSyncStateUpdate, FinalizeBlockId};
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use rstest::rstest;
 use std::{collections::VecDeque, sync::Mutex};
@@ -115,9 +113,7 @@ impl From<EngineActorRequest> for Forwarded {
     fn from(request: EngineActorRequest) -> Self {
         match request {
             EngineActorRequest::ProcessFinalizedL2Block(finalized) => Self::Finalized(*finalized),
-            EngineActorRequest::ProcessSafeL2Signal(ConsolidateInput::BlockInfo(safe)) => {
-                Self::Safe(safe)
-            }
+            EngineActorRequest::ProcessDelegatedSafeHead(safe) => Self::Safe(*safe),
             other => Self::Other(format!("{other:?}")),
         }
     }

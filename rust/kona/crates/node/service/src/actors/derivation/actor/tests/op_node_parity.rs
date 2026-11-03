@@ -31,8 +31,13 @@ async fn temporary_reset_failure_holds_derivation_until_the_retry_like_op_node(
     #[case] request_during_backoff: DerivationActorRequest,
 ) {
     let mut engine_client = MockDerivationEngineClient::new();
-    engine_client.expect_send_safe_l2_signal().times(1).returning(|_| Ok(()));
-    engine_client.expect_send_finalized_l2_block().times(0);
+    // The retry belongs to the same engine reset, so it is not counted as another one.
+    engine_client
+        .expect_send_derived_attributes()
+        .withf(|_, reset_epoch| *reset_epoch == 1)
+        .times(1)
+        .returning(|_, _| Ok(()));
+    engine_client.expect_send_derived_finalization().times(0);
     let mut node = RecordingActor::new(engine_client);
     node.actor.pipeline.attributes.clear();
     if let Some(head) = el_sync_completed_before_reset_at {
@@ -76,8 +81,13 @@ async fn temporary_reset_failure_holds_derivation_until_the_retry_like_op_node(
 async fn reorged_reset_head_requests_a_fresh_engine_reset_like_op_node() {
     let mut engine_client = MockDerivationEngineClient::new();
     engine_client.expect_reset_engine_forkchoice().times(1).returning(|| Ok(()));
-    engine_client.expect_send_safe_l2_signal().times(1).returning(|_| Ok(()));
-    engine_client.expect_send_finalized_l2_block().times(0);
+    // The fresh engine reset is counted once, on top of the first.
+    engine_client
+        .expect_send_derived_attributes()
+        .withf(|_, reset_epoch| *reset_epoch == 2)
+        .times(1)
+        .returning(|_, _| Ok(()));
+    engine_client.expect_send_derived_finalization().times(0);
     let mut node = RecordingActor::new(engine_client);
     node.actor.pipeline.attributes.clear();
     node.complete_el_sync_at(DERIVED_HEAD).await;

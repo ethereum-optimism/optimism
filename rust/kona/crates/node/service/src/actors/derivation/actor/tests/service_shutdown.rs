@@ -11,8 +11,8 @@ use tokio_util::sync::CancellationToken;
 async fn critical_pipeline_reset_failure_stops_service_and_rpc() {
     let error = l2_provider_error().crit();
     let mut engine_client = MockDerivationEngineClient::new();
-    engine_client.expect_send_safe_l2_signal().times(0);
-    engine_client.expect_send_finalized_l2_block().times(0);
+    engine_client.expect_send_derived_attributes().times(0);
+    engine_client.expect_send_derived_finalization().times(0);
     let mut node = RecordingActor::new(engine_client);
     node.actor.pipeline.attributes.clear();
     node.complete_el_sync_at(DERIVED_HEAD).await;
