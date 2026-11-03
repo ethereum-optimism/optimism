@@ -57,8 +57,22 @@ impl NetworkConfig {
     const DEFAULT_DISCOVERY_INTERVAL: Duration = Duration::from_secs(5);
     const DEFAULT_DISCOVERY_RANDOMIZE: Option<Duration> = None;
 
+    /// How many peers must report the same external address before discovery advertises it, by
+    /// default. The same as discv5's default, and as op-node's, which is a constant.
+    pub const DEFAULT_IP_VOTES: usize = 10;
+
     /// Returns the [`discv5::Config`] from the CLI arguments.
-    pub fn discv5_config(listen_config: discv5::ListenConfig, static_ip: bool) -> discv5::Config {
+    ///
+    /// With `ip_votes`, discovery updates the ENR's address once that many peers report the same
+    /// external address. Without, the ENR's address stays as it was built, for a static IP.
+    ///
+    /// # Panics
+    ///
+    /// If `ip_votes` is less than 2, as discv5 does.
+    pub fn discv5_config(
+        listen_config: discv5::ListenConfig,
+        ip_votes: Option<usize>,
+    ) -> discv5::Config {
         // We can use a default listen config here since it
         // will be overridden by the discovery service builder.
         let mut builder = discv5::ConfigBuilder::new(listen_config);
@@ -69,8 +83,13 @@ impl NetworkConfig {
         // never ran it.
         builder.auto_nat_listen_duration(None);
 
-        if static_ip {
-            builder.disable_enr_update();
+        match ip_votes {
+            Some(votes) => {
+                builder.enr_peer_update_min(votes);
+            }
+            None => {
+                builder.disable_enr_update();
+            }
         }
 
         builder.build()
@@ -86,7 +105,10 @@ impl NetworkConfig {
     ) -> Self {
         Self {
             rollup_config,
-            discovery_config: Self::discv5_config((&discovery_listen).into(), false),
+            discovery_config: Self::discv5_config(
+                (&discovery_listen).into(),
+                Some(Self::DEFAULT_IP_VOTES),
+            ),
             discovery_address: discovery_listen,
             discovery_interval: Self::DEFAULT_DISCOVERY_INTERVAL,
             discovery_randomize: Self::DEFAULT_DISCOVERY_RANDOMIZE,
@@ -118,10 +140,22 @@ mod tests {
 
     #[test]
     fn discv5_config_disables_auto_nat() {
-        for static_ip in [false, true] {
-            let config = NetworkConfig::discv5_config(listen(), static_ip);
-            assert_eq!(config.auto_nat_listen_duration, None, "static_ip = {static_ip}");
+        for ip_votes in [Some(NetworkConfig::DEFAULT_IP_VOTES), None] {
+            let config = NetworkConfig::discv5_config(listen(), ip_votes);
+            assert_eq!(config.auto_nat_listen_duration, None, "ip_votes = {ip_votes:?}");
         }
+    }
+
+    /// With votes, the ENR's address is updated once that many peers agree on it. Without, it is
+    /// never updated.
+    #[test]
+    fn discv5_config_sets_ip_votes() {
+        let config = NetworkConfig::discv5_config(listen(), Some(3));
+        assert!(config.enr_update);
+        assert_eq!(config.enr_peer_update_min, 3);
+
+        let config = NetworkConfig::discv5_config(listen(), None);
+        assert!(!config.enr_update);
     }
 
     #[test]
