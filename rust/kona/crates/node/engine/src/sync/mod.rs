@@ -9,6 +9,9 @@ pub use forkchoice::L2ForkchoiceState;
 mod error;
 pub use error::SyncStartError;
 
+mod el_sync;
+pub use el_sync::{DEFAULT_EL_SYNC_SAFE_OFFSET, find_el_sync_forkchoice};
+
 use tracing::info;
 
 use crate::EngineClient;
