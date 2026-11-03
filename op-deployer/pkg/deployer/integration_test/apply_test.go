@@ -1023,6 +1023,7 @@ var (
 	proxyImplementationMethod      = w3.MustNewFunc("implementation()", "address")
 	chugSplashImplementationMethod = w3.MustNewFunc("getImplementation()", "address")
 	addressManagerGetAddressMethod = w3.MustNewFunc("getAddress(string)", "address")
+	gameImplsMethod                = w3.MustNewFunc("gameImpls(uint32)", "address")
 )
 
 // requireOPCMImplementations checks that the state records the implementations of its OPCM, and
@@ -1059,8 +1060,8 @@ func requireOPCMImplementations(t *testing.T, ctx context.Context, l1Client *eth
 		}
 		require.Equal(t, impls.L1StandardBridgeImpl, readAddress(chain.L1StandardBridgeProxy, chugSplashImplementationMethod), "L1StandardBridge proxy of chain %s", chain.ID)
 		require.Equal(t, impls.L1CrossDomainMessengerImpl, readAddress(chain.AddressManagerImpl, addressManagerGetAddressMethod, "OVM_L1CrossDomainMessenger"), "L1CrossDomainMessenger of chain %s", chain.ID)
-		require.Equal(t, impls.FaultDisputeGameImpl, chain.FaultDisputeGameImpl, "FaultDisputeGame of chain %s", chain.ID)
-		require.Equal(t, impls.PermissionedDisputeGameImpl, chain.PermissionedDisputeGameImpl, "PermissionedDisputeGame of chain %s", chain.ID)
+		// The callers deploy standard chains, which use the super permissioned game.
+		require.Equal(t, impls.SuperPermissionedDisputeGameImpl, readAddress(chain.DisputeGameFactoryProxy, gameImplsMethod, uint32(opcm.GameTypeSuperPermissioned)), "SuperPermissionedDisputeGame of chain %s", chain.ID)
 	}
 }
 
