@@ -18,6 +18,7 @@ use tracing::Instrument;
 
 use crate::{
     AddrScope, AdvertiseTcpPortError, Discv5Builder, Discv5Handler, HandlerRequest, LocalNode,
+    builder::bootnode_ips,
 };
 
 /// Spawns `future` on Tokio in the current span, so that its logs carry the span discovery was
@@ -233,9 +234,20 @@ impl Discv5Driver {
         let initial_store_length = store.len();
 
         for bn in bootnodes.0.into_iter().chain(BootNodes::from_chain_id(chain_id).0) {
-            let res = match bn {
+            let res = match &bn {
                 BootNode::Enr(enr) => Ok(enr.clone()),
-                BootNode::Enode(enode) => disc.request_enr(enode.clone()).await,
+                BootNode::Enode(enode) => {
+                    // Asking it for its record starts a session, which puts it in discv5's table
+                    // without the table filter, so check its address first.
+                    let unreachable = bootnode_ips(&bn)
+                        .into_iter()
+                        .find_map(|ip| AddrScope::check_reachable_addr(own_scope, ip).err());
+                    if let Some(reason) = unreachable {
+                        warn!(target: "discovery::bootstrap", %reason, ?own_scope, %enode, "Ignoring a boot node that is not reachable from our own address");
+                        continue;
+                    }
+                    disc.request_enr(enode.clone()).await
+                }
             };
 
             let Ok(enr) = res else {
@@ -249,9 +261,11 @@ impl Discv5Driver {
                 continue;
             }
 
-            // discv5's table filter would reject it too, but without saying why.
+            // discv5's table filter would reject it too, but without saying why. A bootnode given
+            // by enode URL is in the table already, from the session that fetched its record.
             if let Err(reason) = AddrScope::check_reachable_enr(own_scope, &enr) {
                 warn!(target: "discovery::bootstrap", %reason, ?own_scope, ?enr, "Ignoring a boot node that is not reachable from our own address");
+                disc.remove_node(&enr.node_id());
                 continue;
             }
 
@@ -866,7 +880,6 @@ mod tests {
         )
         .await;
 
-        // TODO(#23766): fails, as the node asks the bootnode for its record before checking it.
         assert!(
             !node
                 .disc

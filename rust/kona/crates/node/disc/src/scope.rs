@@ -196,6 +196,13 @@ impl AddrScope {
         ips.into_iter().flatten().try_for_each(|ip| Self::check_relayed_addr(sender, ip))
     }
 
+    /// Checks whether a node of scope `own` can reach `addr`, an address it was given without
+    /// knowing who it came from, such as a bootnode's enode URL. It is [`Self::check_relayed_addr`]
+    /// with `own` in place of the sender, as [`Self::check_reachable_enr`] is.
+    pub fn check_reachable_addr(own: Self, addr: IpAddr) -> Result<(), RelayAddrError> {
+        Self::check_relayed_addr(own, addr)
+    }
+
     /// Checks whether a node of scope `own` can reach every IP address in `enr`, a record another
     /// node relayed, without knowing which node that was.
     ///
@@ -363,6 +370,20 @@ mod tests {
             builder.ip6(ip6.parse().expect("a valid IPv6 address"));
         }
         builder.build(&key).expect("the record builds")
+    }
+
+    /// Our own scope reaches an address as a sender of that scope may relay it.
+    #[rstest]
+    #[case::loopback_while_public("127.0.0.1", AddrScope::Public, Err(RelayAddrError::Loopback))]
+    #[case::lan_while_public("10.0.0.1", AddrScope::Public, Err(RelayAddrError::Lan))]
+    #[case::public_while_public("23.55.1.242", AddrScope::Public, Ok(()))]
+    #[case::loopback_while_loopback("127.0.0.1", AddrScope::Loopback, Ok(()))]
+    fn test_check_reachable_addr(
+        #[case] addr: IpAddr,
+        #[case] own: AddrScope,
+        #[case] expected: Result<(), RelayAddrError>,
+    ) {
+        assert_eq!(AddrScope::check_reachable_addr(own, addr), expected);
     }
 
     /// Every address in a record must pass, and a record without one fails.

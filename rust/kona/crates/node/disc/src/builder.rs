@@ -162,7 +162,7 @@ fn advertised_udp_port(config: &Config, local_node: &LocalNode) -> Result<u16, D
 }
 
 /// Returns the IP addresses of `bootnode`: those in its record, or in its enode URL.
-fn bootnode_ips(bootnode: &BootNode) -> Vec<IpAddr> {
+pub(crate) fn bootnode_ips(bootnode: &BootNode) -> Vec<IpAddr> {
     match bootnode {
         BootNode::Enr(enr) => {
             enr.ip4().map(IpAddr::V4).into_iter().chain(enr.ip6().map(IpAddr::V6)).collect()
