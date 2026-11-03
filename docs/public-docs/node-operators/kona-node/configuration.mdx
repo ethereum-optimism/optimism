@@ -167,7 +167,7 @@ The node checks:
 - **Bootnodes**, from `--p2p.bootnodes` or the chain's built-in ones. A bootnode it doesn't accept is skipped, with a warning. So a node with a public address can't bootstrap from a loopback or LAN bootnode: to connect to a node outside its scope, list it in `--p2p.static-peers`, which isn't checked, nor is [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer).
 - **The bootstore.** At startup, the node doesn't dial the saved records it doesn't accept, such as those saved by an earlier version or while it ran with another address.
 
-A peer that starts a session with the node is dialed whatever its address, since it reached the node from the address in its record. If its record holds another address, the record is checked against the address the peer's packets came from, as geth does: a loopback record only from loopback, and a LAN record only from loopback or a LAN.
+A peer the node has a session with, started by either side, is checked against the address its packets came from instead of the node's own address: a loopback address only from loopback, and a LAN address only from loopback or a LAN. An honest peer's record holds the address it sends from, so a peer the node really reaches is dialed whatever the node's scope, such as a peer on the node's own loopback.
 
 <Warning>
 
