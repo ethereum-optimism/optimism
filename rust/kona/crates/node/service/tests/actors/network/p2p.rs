@@ -147,21 +147,35 @@ fn host_ip() -> Option<IpAddr> {
     (!ip.is_loopback() && !ip.is_unspecified()).then_some(ip)
 }
 
+/// Starts B (`bootnode`), which listens on, and advertises, the host's own IP, and R (`relayed`),
+/// which listens on, and advertises, `127.0.0.1`, and joins through B. B adds R to its table, as R
+/// started a session with it from the address R advertises, and hands R out to the nodes that look
+/// it up.
+///
+/// B and R run their only lookup at startup, so R never learns of a node that joins later. Given
+/// more lookups, R would find such a node through B and contact it, which works on one host. That
+/// node would then keep R and dial it, as a node that reached it from the address it advertises.
+///
+/// Returns the builder for the node under test, which looks up every 100ms.
+async fn bootnode_relaying_loopback_node(
+    host_ip: IpAddr,
+) -> anyhow::Result<(TestNetworkBuilder, TestNetwork, TestNetwork)> {
+    let mut builder = TestNetworkBuilder::new()
+        .with_discovery_interval(Duration::from_secs(3600))
+        .with_listen_ip(host_ip);
+    let bootnode = builder.build(vec![]).await;
+    let relayed = builder.build(vec![bootnode.peer_enr().await?]).await;
+    bootnode.check_in_discovery_table_with_retries(relayed.node_id().await?).await?;
+    Ok((builder.with_discovery_interval(Duration::from_millis(100)), bootnode, relayed))
+}
+
 /// A node on a LAN neither keeps nor dials a loopback record another node relays: it is that
-/// node's loopback, not one the LAN node can reach. All three nodes run on this host:
+/// node's loopback, not one the LAN node can reach.
 ///
-/// - B (`bootnode`) listens on, and advertises, the host's own IP.
-/// - R (`relayed`) listens on, and advertises, `127.0.0.1`, and joins through B. B adds R to its
-///   table, as R started a session with it from the address R advertises, and hands R out to the
-///   nodes that look it up.
-/// - P (`node`) listens on, and advertises, the host's own IP, and joins through B.
-///
-/// P's lookups through B return R, which P drops: its discovery doesn't contact R or keep it in its
-/// table, and its gossip doesn't dial it.
-///
-/// B and R run their only lookup at startup, before P joins, so R never learns of P. Given more
-/// lookups, R would find P through B and contact it, which works on one host. P would then keep R
-/// and dial it, as a node that reached it from the address it advertises.
+/// P (`node`) listens on, and advertises, the host's own IP, and joins through B, which holds R on
+/// loopback, see [`bootnode_relaying_loopback_node`]. P's lookups through B return R, which P
+/// drops: its discovery doesn't contact R or keep it in its table, and its gossip doesn't dial it.
+/// [`test_loopback_node_dials_relayed_loopback_records`] shows that B does relay R.
 ///
 /// Skipped on a host with no address but loopback.
 #[tokio::test(flavor = "multi_thread")]
@@ -170,18 +184,11 @@ async fn test_lan_node_ignores_relayed_loopback_records() -> anyhow::Result<()> 
         eprintln!("skipping, this host has no address but loopback");
         return Ok(());
     };
-    let mut builder = TestNetworkBuilder::new()
-        .with_discovery_interval(Duration::from_secs(3600))
-        .with_listen_ip(host_ip);
-    let bootnode = builder.build(vec![]).await;
-    let bootnode_enr = bootnode.peer_enr().await?;
-    let relayed = builder.build(vec![bootnode_enr.clone()]).await;
+    let (builder, bootnode, relayed) = bootnode_relaying_loopback_node(host_ip).await?;
     let relayed_id = relayed.node_id().await?;
-    bootnode.check_in_discovery_table_with_retries(relayed_id).await?;
 
-    let mut builder =
-        builder.with_discovery_interval(Duration::from_millis(100)).with_listen_ip(host_ip);
-    let node = builder.build(vec![bootnode_enr]).await;
+    let mut builder = builder.with_listen_ip(host_ip);
+    let node = builder.build(vec![bootnode.peer_enr().await?]).await;
     node.check_connected_to_with_retries(&bootnode).await?;
     // Discovery reached B, so its lookups go through B.
     bootnode.check_in_discovery_table_with_retries(node.node_id().await?).await?;
@@ -194,6 +201,26 @@ async fn test_lan_node_ignores_relayed_loopback_records() -> anyhow::Result<()> 
         "the node keeps a relayed loopback record"
     );
     assert!(!node.is_connected_to(&relayed).await?, "the node dialed a relayed loopback record");
+
+    Ok(())
+}
+
+/// The control for [`test_lan_node_ignores_relayed_loopback_records`]: in the same network, a node
+/// on loopback, which can reach R, finds R through B and dials it. So B relays R, and the LAN
+/// node's lookups get R too.
+///
+/// Skipped on a host with no address but loopback.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_loopback_node_dials_relayed_loopback_records() -> anyhow::Result<()> {
+    let Some(host_ip) = host_ip() else {
+        eprintln!("skipping, this host has no address but loopback");
+        return Ok(());
+    };
+    let (mut builder, bootnode, relayed) = bootnode_relaying_loopback_node(host_ip).await?;
+
+    let node = builder.build(vec![bootnode.peer_enr().await?]).await;
+    node.check_in_discovery_table_with_retries(relayed.node_id().await?).await?;
+    node.check_connected_to_with_retries(&relayed).await?;
 
     Ok(())
 }
