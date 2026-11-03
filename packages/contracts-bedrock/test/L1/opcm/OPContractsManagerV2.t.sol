@@ -2081,6 +2081,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that an upgrade carrying the bridge hook override attaches a hook to a chain
     ///         that has none.
     function testFuzz_upgrade_bridgeHookOverrideSetsHook_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
         assertEq(address(cts.optimismPortal.bridgeHook()), address(0), "chain started with a hook");
 
@@ -2095,6 +2097,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests that the bridge hook override replaces a hook the chain already has.
     function test_upgrade_bridgeHookOverrideReplacesHook_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
         address oldHook = makeAddr("oldBridgeHook");
         _forceSetBridgeHook(cts.optimismPortal, oldHook);
@@ -2203,6 +2207,55 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(IOptimismPortal2(payable(impls.optimismPortalImpl)).proofMaturityDelaySeconds(), 0);
         assertEq(IAnchorStateRegistry(impls.anchorStateRegistryImpl).disputeGameFinalityDelaySeconds(), 0);
         assertEq(IDelayedWETH(payable(impls.delayedWETHImpl)).delay(), 0);
+    }
+
+    /// @notice Tests that a deploy configuring a bridge hook is rejected while the dev feature is
+    ///         off, so the hook cannot reach a chain outside the feature's CI matrix.
+    function test_deploy_bridgeHookDevFeatureDisabled_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.BRIDGE_HOOK);
+
+        deployConfig.bridgeHook = IBridgeHook(makeAddr("bridgeHook"));
+
+        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_BridgeHookNotSupported.selector);
+        opcmV2.deploy(deployConfig);
+    }
+
+    /// @notice Tests that a bridge hook is rejected on a custom gas token chain. The hook's custody
+    ///         model puts held ETH in the ETHLockbox, which a CGT chain does not use.
+    function test_deploy_bridgeHookWithCustomGasToken_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        deployConfig.bridgeHook = IBridgeHook(makeAddr("bridgeHook"));
+        deployConfig.useCustomGasToken = true;
+
+        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_BridgeHookNotSupported.selector);
+        opcmV2.deploy(deployConfig);
+    }
+
+    /// @notice Tests that an upgrade is rejected when it would attach a bridge hook to a chain that
+    ///         is already in an interop set. The set would need the same hook on every chain and
+    ///         nothing enforces that, which is why the Migrator refuses a hooked chain outright.
+    function test_upgrade_bridgeHookWithInterop_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        vm.mockCall(
+            address(cts.systemConfig),
+            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)),
+            abi.encode(true)
+        );
+
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success, bytes memory reason) = address(opcmV2)
+            .delegatecall(
+                abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, makeAddr("bridgeHook"))))
+            );
+
+        assertFalse(success, "upgrade should have reverted");
+        // nosemgrep: sol-style-use-abi-encodecall
+        assertEq(
+            reason, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_BridgeHookNotSupported.selector)
+        );
     }
 
     /// @notice Tests that a deploy leaves the portal without a bridge hook by default.

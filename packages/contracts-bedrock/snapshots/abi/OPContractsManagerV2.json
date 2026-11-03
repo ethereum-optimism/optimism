@@ -840,6 +840,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerV2_BridgeHookNotSupported",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerV2_CannotUpgradeToCustomGasToken",
     "type": "error"
   },

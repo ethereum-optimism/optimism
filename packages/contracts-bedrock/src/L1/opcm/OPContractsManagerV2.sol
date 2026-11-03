@@ -166,6 +166,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when a withdrawal delay in the config is zero.
     error OPContractsManagerV2_InvalidDelayConfig();
 
+    /// @notice Thrown when a bridge hook is configured on a chain that cannot support one.
+    error OPContractsManagerV2_BridgeHookNotSupported();
+
     /// @notice Address of the Standard Validator for this OPCM release.
     IOPContractsManagerStandardValidator public immutable opcmStandardValidator;
 
@@ -760,8 +763,32 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
+    /// @param _cts The chain contracts.
     /// @param _isInitialDeployment Whether or not this is an initial deployment.
-    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal view {
+    function _assertValidFullConfig(
+        FullConfig memory _cfg,
+        ChainContracts memory _cts,
+        bool _isInitialDeployment
+    )
+        internal
+        view
+    {
+        if (address(_cfg.bridgeHook) != address(0)) {
+            // The feature is still behind its dev flag.
+            if (!isDevFeatureEnabled(DevFeatures.BRIDGE_HOOK)) {
+                revert OPContractsManagerV2_BridgeHookNotSupported();
+            }
+            if (_cfg.useCustomGasToken) {
+                revert OPContractsManagerV2_BridgeHookNotSupported();
+            }
+
+            // Interop is only set during migration.
+            // During initial deployment systemConfig has not been set yet.
+            if (!_isInitialDeployment && _cts.systemConfig.isFeatureEnabled(Features.INTEROP)) {
+                revert OPContractsManagerV2_BridgeHookNotSupported();
+            }
+        }
+
         // We must have a config for each valid game type.
         if (_cfg.disputeGameConfigs.length != VALID_GAME_TYPE_COUNT) {
             revert OPContractsManagerV2_InvalidGameConfigs();
@@ -889,7 +916,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         returns (ChainContracts memory)
     {
         // Validate the config.
-        _assertValidFullConfig(_cfg, _isInitialDeployment);
+        _assertValidFullConfig(_cfg, _cts, _isInitialDeployment);
 
         // Load the implementations.
         IOPContractsManagerContainer.Implementations memory impls = implementations();
