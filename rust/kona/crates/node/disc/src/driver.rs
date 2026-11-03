@@ -684,6 +684,56 @@ mod tests {
         assert_eq!(record_to_dial(event, OP_SEPOLIA_CHAIN_ID, own_scope).is_some(), dialed);
     }
 
+    /// A public node should dial only the saved records it can reach, as with the records other
+    /// nodes relay to it, so it should leave out a loopback record in its bootstore. Such a record
+    /// may have been saved by a version that didn't check the records it dials, or while the node
+    /// ran on loopback, and nothing says the node it names is on this host.
+    ///
+    /// At startup, the driver hands the bootstore's records to gossip one by one, in the order they
+    /// were saved, before any record discovery finds: here the loopback record, then the public
+    /// one. If it hands over the loopback record, gossip gets that one first. If it leaves it out,
+    /// gossip gets the public one first. So the first record shows whether the loopback one was
+    /// left out, without waiting to see that it never comes.
+    ///
+    /// The node has no bootnodes, and listens on loopback whatever it advertises, so it contacts
+    /// nobody.
+    #[tokio::test]
+    async fn test_public_node_leaves_out_saved_loopback_record() {
+        // Not in the registry, so it has no bootnodes of its own.
+        const CHAIN_ID: u64 = 0xdead_beef;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("bootstore.json");
+        let loopback = localhost_enr(CHAIN_ID);
+        let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), CHAIN_ID);
+        let mut store: BootStore =
+            BootStoreFile::Custom(path.clone()).try_into().expect("the bootstore opens");
+        store.add_enr(loopback);
+        store.add_enr(public.clone());
+        store.sync().expect("the bootstore saves");
+        drop(store);
+
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let mut driver = Discv5Driver::builder(
+            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 0, 0),
+            CHAIN_ID,
+            ConfigBuilder::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).into()).build(),
+        )
+        .build()
+        .expect("the driver builds");
+        driver.bootstore = Some(BootStoreFile::Custom(path));
+        let (_handler, mut records) = driver.start();
+
+        let first = tokio::time::timeout(Duration::from_secs(5), records.recv())
+            .await
+            .expect("the driver hands over the saved public record")
+            .expect("the driver runs");
+        // TODO(#23766): fails, as the driver hands over every saved record for its chain.
+        assert_eq!(first, public, "a public node dialed a saved loopback record");
+    }
+
     /// Builds a driver listening on localhost that does not contact any remote peer.
     fn offline_driver() -> Discv5Driver {
         // A chain ID that is not in the superchain registry has no default bootnodes.
