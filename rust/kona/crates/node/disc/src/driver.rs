@@ -350,9 +350,15 @@ impl Discv5Driver {
             let enrs = self.disc.table_entries_enr();
             info!(target: "discovery", "Discv5 Started with {} ENRs", enrs.len());
 
-            // Step 3: Forward ENRs in the bootstore to the enr receiver.
+            // Step 3: Forward ENRs in the bootstore to the enr receiver, for gossip to dial. Only
+            // those our own scope can reach: the bootstore may hold records saved by an earlier
+            // version, which didn't check them, or while we ran in another scope.
             if self.forward {
                 for enr in store.valid_peers_with_chain_id(self.chain_id) {
+                    if let Err(reason) = AddrScope::check_reachable_enr(own_scope, enr) {
+                        debug!(target: "discovery", %reason, ?enr, "Ignoring a saved record with an address we can't reach");
+                        continue;
+                    }
                     if let Err(e) = enr_sender.send(enr.clone()).await {
                         debug!(target: "discovery", "Failed to forward enr: {:?}", e);
                     }
@@ -730,7 +736,6 @@ mod tests {
             .await
             .expect("the driver hands over the saved public record")
             .expect("the driver runs");
-        // TODO(#23766): fails, as the driver hands over every saved record for its chain.
         assert_eq!(first, public, "a public node dialed a saved loopback record");
     }
 
