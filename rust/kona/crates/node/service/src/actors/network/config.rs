@@ -6,7 +6,7 @@ use kona_genesis::RollupConfig;
 use kona_gossip::{GaterConfig, PeerAddr};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_sources::BlockSigner;
-use libp2p::{Multiaddr, identity::Keypair};
+use libp2p::identity::Keypair;
 use tokio::time::Duration;
 
 /// Configuration for kona's P2P stack.
@@ -54,9 +54,6 @@ pub struct NetworkConfig {
 }
 
 impl NetworkConfig {
-    const DEFAULT_DISCOVERY_INTERVAL: Duration = Duration::from_secs(5);
-    const DEFAULT_DISCOVERY_RANDOMIZE: Option<Duration> = None;
-
     /// How many peers must report the same external address before discovery advertises it, by
     /// default. The same as discv5's default, and as op-node's, which is a constant.
     pub const DEFAULT_IP_VOTES: usize = 10;
@@ -73,8 +70,8 @@ impl NetworkConfig {
         listen_config: discv5::ListenConfig,
         ip_votes: Option<usize>,
     ) -> discv5::Config {
-        // We can use a default listen config here since it
-        // will be overridden by the discovery service builder.
+        // Discovery binds `listen_config` as is, except that a port of 0 is bound to a free port
+        // by `Discv5Builder::build`, so that the ENR can advertise it.
         let mut builder = discv5::ConfigBuilder::new(listen_config);
 
         // When a node sees too few new inbound sessions, discv5's auto-NAT strips `ip`/`udp` from
@@ -93,39 +90,6 @@ impl NetworkConfig {
         }
 
         builder.build()
-    }
-
-    /// Creates a new [`NetworkConfig`] with the given [`RollupConfig`] with the minimum required
-    /// fields. Generates a random keypair for the node.
-    pub fn new(
-        rollup_config: RollupConfig,
-        discovery_listen: LocalNode,
-        gossip_address: Multiaddr,
-        unsafe_block_signer: Address,
-    ) -> Self {
-        Self {
-            rollup_config,
-            discovery_config: Self::discv5_config(
-                (&discovery_listen).into(),
-                Some(Self::DEFAULT_IP_VOTES),
-            ),
-            discovery_address: discovery_listen,
-            discovery_interval: Self::DEFAULT_DISCOVERY_INTERVAL,
-            discovery_randomize: Self::DEFAULT_DISCOVERY_RANDOMIZE,
-            discovery_enabled: true,
-            gossip_address,
-            unsafe_block_signer,
-            keypair: Keypair::generate_secp256k1(),
-            bootnodes: Default::default(),
-            static_peers: Default::default(),
-            bootstore: Default::default(),
-            gater_config: Default::default(),
-            gossip_config: Default::default(),
-            scoring: Default::default(),
-            topic_scoring: Default::default(),
-            monitor_peers: Default::default(),
-            gossip_signer: Default::default(),
-        }
     }
 }
 
@@ -156,22 +120,5 @@ mod tests {
 
         let config = NetworkConfig::discv5_config(listen(), None);
         assert!(!config.enr_update);
-    }
-
-    #[test]
-    fn new_disables_auto_nat() {
-        let local_node = LocalNode::new(
-            enr::k256::ecdsa::SigningKey::from_bytes(&[1u8; 32].into()).unwrap(),
-            IpAddr::V4(Ipv4Addr::LOCALHOST),
-            0,
-            0,
-        );
-        let config = NetworkConfig::new(
-            RollupConfig::default(),
-            local_node,
-            Multiaddr::empty(),
-            Address::ZERO,
-        );
-        assert_eq!(config.discovery_config.auto_nat_listen_duration, None);
     }
 }

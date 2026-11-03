@@ -26,15 +26,6 @@ pub struct LocalNode {
     pub udp_port: u16,
 }
 
-impl From<&LocalNode> for discv5::ListenConfig {
-    fn from(local_node: &LocalNode) -> Self {
-        match local_node.ip {
-            IpAddr::V4(ip) => Self::Ipv4 { ip, port: local_node.tcp_port },
-            IpAddr::V6(ip) => Self::Ipv6 { ip, port: local_node.tcp_port },
-        }
-    }
-}
-
 impl LocalNode {
     /// Creates a new [`LocalNode`] instance.
     pub const fn new(
