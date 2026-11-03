@@ -53,9 +53,6 @@ parameters:
   stale_check_dispatch:
     type: boolean
     default: false
-  contracts_coverage_dispatch:
-    type: boolean
-    default: false
   heavy_fuzz_dispatch:
     type: boolean
     default: false
@@ -162,7 +159,6 @@ jobs:
             c-sdk_dispatch: << pipeline.parameters.sdk_dispatch >>
             c-publish_contract_artifacts_dispatch: << pipeline.parameters.publish_contract_artifacts_dispatch >>
             c-stale_check_dispatch: << pipeline.parameters.stale_check_dispatch >>
-            c-contracts_coverage_dispatch: << pipeline.parameters.contracts_coverage_dispatch >>
             c-heavy_fuzz_dispatch: << pipeline.parameters.heavy_fuzz_dispatch >>
             c-rust_ci_dispatch: << pipeline.parameters.rust_ci_dispatch >>
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>
