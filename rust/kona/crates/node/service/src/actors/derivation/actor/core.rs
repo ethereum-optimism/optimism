@@ -57,42 +57,41 @@ where
 
 /// A pipeline reset that has not yet succeeded.
 #[derive(Debug)]
-enum PendingReset {
-    /// The reset head was reorged out of the L2 chain, so the engine was asked for a fresh one.
-    AwaitingFreshHead,
-    /// The reset signal failed temporarily and is retried with backoff.
-    Retry(ScheduledRetry),
-}
-
-/// A reset signal retried after a temporary failure.
-#[derive(Debug)]
-struct ScheduledRetry {
+struct PendingReset {
+    /// Consecutive failed attempts since the last successful reset, whichever kind each was.
     attempts: u32,
-    retry_at: Instant,
-    signal: ResetSignal,
+    next_step: NextResetStep,
 }
 
-impl ScheduledRetry {
-    /// op-node retries a temporarily failed reset through its exponential step backoff, capped
-    /// at ten seconds.
-    const MAX_RETRY_DELAY: Duration = Duration::from_secs(10);
-    const MIN_RETRY_DELAY: Duration = Duration::from_millis(100);
+/// What brings a pending reset closer to succeeding.
+#[derive(Clone, Copy, Debug)]
+enum NextResetStep {
+    /// The engine was asked for a fresh reset head and its reset signal is awaited.
+    AwaitFreshHead,
+    /// The reset head was reorged out of the L2 chain, so a fresh one is requested at `at`.
+    RequestFreshHead { at: Instant },
+    /// The reset signal failed temporarily and is signaled again at `at`.
+    RetrySignal { at: Instant, signal: ResetSignal },
+}
 
-    fn first(signal: ResetSignal) -> Self {
-        Self::with_attempts(signal, 1)
-    }
+impl PendingReset {
+    /// op-node retries a failed reset, temporary or not, through its exponential step backoff,
+    /// capped at ten seconds.
+    const MAX_DELAY: Duration = Duration::from_secs(10);
+    const MIN_DELAY: Duration = Duration::from_millis(100);
 
-    fn retried(&self) -> Self {
-        Self::with_attempts(self.signal, self.attempts + 1)
-    }
-
-    fn with_attempts(signal: ResetSignal, attempts: u32) -> Self {
-        Self { attempts, retry_at: Instant::now() + Self::retry_delay(attempts), signal }
-    }
-
-    fn retry_delay(attempts: u32) -> Duration {
+    fn delay(attempts: u32) -> Duration {
         let doublings = attempts.saturating_sub(1).min(16);
-        Self::MIN_RETRY_DELAY.saturating_mul(1 << doublings).min(Self::MAX_RETRY_DELAY)
+        Self::MIN_DELAY.saturating_mul(1 << doublings).min(Self::MAX_DELAY)
+    }
+
+    const fn due_at(&self) -> Option<Instant> {
+        match self.next_step {
+            NextResetStep::AwaitFreshHead => None,
+            NextResetStep::RequestFreshHead { at } | NextResetStep::RetrySignal { at, .. } => {
+                Some(at)
+            }
+        }
     }
 }
 
@@ -129,6 +128,10 @@ where
     /// derivation state intact, so it is logged and the actor continues. A reset is handled by
     /// [`Self::reset_pipeline_and_resume`] instead.
     pub(super) async fn forward_non_reset_signal(&mut self, signal: Signal) {
+        debug_assert!(
+            !matches!(signal, Signal::Reset(_)),
+            "a reset must go through reset_pipeline_and_resume"
+        );
         match self.pipeline.signal(signal).await {
             Ok(()) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
             Err(e) => {
@@ -144,8 +147,8 @@ where
     /// pipeline reset has succeeded; [`Self::attempt_derivation`] holds while a reset is pending,
     /// whichever actor requested it. Like op-node, a temporary pipeline failure, such as an L2
     /// RPC error while the pipeline walks back to its L1 origin, schedules a retry with backoff,
-    /// and a reset head that was reorged out asks the engine for a fresh one. Only a critical
-    /// failure stops the actor.
+    /// and a reset head that was reorged out asks the engine for a fresh one after that same
+    /// backoff. Only a critical failure stops the actor.
     pub(super) async fn reset_pipeline_and_resume(
         &mut self,
         reset: ResetSignal,
@@ -161,7 +164,8 @@ where
                 return Ok(());
             }
             Err(PipelineErrorKind::Reset(error)) => {
-                return self.request_fresh_reset_head(reset, error).await;
+                self.schedule_fresh_reset_head_request(reset, error);
+                return Ok(());
             }
             Err(error @ PipelineErrorKind::Critical(_)) => {
                 error!(target: "derivation", ?error, ?reset, "Failed to reset derivation pipeline");
@@ -180,54 +184,69 @@ where
         self.attempt_derivation().await
     }
 
-    /// Schedules `reset` to be signaled again after a backoff that grows with each failed
-    /// attempt of that same signal.
+    /// Schedules `reset` to be signaled again after the backoff for one more failed attempt.
     fn schedule_reset_retry(&mut self, reset: ResetSignal, error: PipelineError) {
-        let retry = match self.pending_reset.take() {
-            Some(PendingReset::Retry(retry)) if retry.signal == reset => retry.retried(),
-            _ => ScheduledRetry::first(reset),
-        };
+        let attempts = self.failed_reset_attempts() + 1;
+        let delay = PendingReset::delay(attempts);
         warn!(
             target: "derivation",
             ?error,
             ?reset,
-            attempt = retry.attempts,
-            retry_delay = ?ScheduledRetry::retry_delay(retry.attempts),
+            attempt = attempts,
+            retry_delay = ?delay,
             "Pipeline reset failed temporarily; scheduling a retry"
         );
-        metrics::gauge!(Metrics::DERIVATION_PENDING_RESET_ATTEMPTS).set(f64::from(retry.attempts));
-        self.pending_reset = Some(PendingReset::Retry(retry));
+        let next_step = NextResetStep::RetrySignal { at: Instant::now() + delay, signal: reset };
+        self.set_pending_reset(attempts, next_step);
     }
 
-    /// Asks the engine for a fresh reset head. The pipeline could not walk back from the head in
-    /// `reset`, so signaling it again cannot succeed; like op-node, that failure starts a new
-    /// reset rather than a retry.
-    async fn request_fresh_reset_head(
-        &mut self,
-        reset: ResetSignal,
-        error: ResetError,
-    ) -> Result<(), DerivationError> {
+    /// Schedules a request for a fresh reset head after the backoff for one more failed
+    /// attempt. The pipeline could not walk back from the head in `reset`, so signaling it
+    /// again cannot succeed; like op-node, that failure starts a new reset rather than a retry.
+    fn schedule_fresh_reset_head_request(&mut self, reset: ResetSignal, error: ResetError) {
+        let attempts = self.failed_reset_attempts() + 1;
+        let delay = PendingReset::delay(attempts);
         warn!(
             target: "derivation",
             ?error,
             ?reset,
-            "Pipeline reset head is no longer canonical; requesting a fresh engine reset"
+            attempt = attempts,
+            request_delay = ?delay,
+            "Pipeline reset head is no longer canonical; scheduling a fresh engine reset"
         );
-        self.pending_reset = Some(PendingReset::AwaitingFreshHead);
-        metrics::gauge!(Metrics::DERIVATION_PENDING_RESET_ATTEMPTS).set(0.0);
-        self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
-            error!(target: "derivation", ?e, "Failed to send reset request");
-            DerivationError::Sender(Box::new(e))
-        })
+        let next_step = NextResetStep::RequestFreshHead { at: Instant::now() + delay };
+        self.set_pending_reset(attempts, next_step);
     }
 
-    async fn retry_pending_reset(&mut self) -> Result<(), DerivationError> {
-        let Some(PendingReset::Retry(retry)) = &self.pending_reset else {
+    fn failed_reset_attempts(&self) -> u32 {
+        self.pending_reset.as_ref().map_or(0, |pending| pending.attempts)
+    }
+
+    fn set_pending_reset(&mut self, attempts: u32, next_step: NextResetStep) {
+        metrics::gauge!(Metrics::DERIVATION_PENDING_RESET_ATTEMPTS).set(f64::from(attempts));
+        self.pending_reset = Some(PendingReset { attempts, next_step });
+    }
+
+    async fn run_due_reset_step(&mut self) -> Result<(), DerivationError> {
+        let Some(pending) = &self.pending_reset else {
             return Ok(());
         };
-        let reset = retry.signal;
-        info!(target: "derivation", ?reset, attempt = retry.attempts + 1, "Retrying pipeline reset");
-        self.reset_pipeline_and_resume(reset).await
+        let failed_attempts = pending.attempts;
+        match pending.next_step {
+            NextResetStep::AwaitFreshHead => Ok(()),
+            NextResetStep::RetrySignal { signal: reset, .. } => {
+                info!(target: "derivation", ?reset, attempt = failed_attempts + 1, "Retrying pipeline reset");
+                self.reset_pipeline_and_resume(reset).await
+            }
+            NextResetStep::RequestFreshHead { .. } => {
+                info!(target: "derivation", failed_attempts, "Requesting a fresh engine reset");
+                self.set_pending_reset(failed_attempts, NextResetStep::AwaitFreshHead);
+                self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
+                    error!(target: "derivation", ?e, "Failed to send reset request");
+                    DerivationError::Sender(Box::new(e))
+                })
+            }
+        }
     }
 
     /// Refreshes an established origin without republishing one invalidated by a reset.
@@ -471,7 +490,7 @@ where
         if let Some(pending_reset) = &self.pending_reset {
             // SafeDB is already truncated to the reset head, so the pipeline must reset before
             // it is stepped. Wait for that reset the same way a drained data source is awaited.
-            info!(target: "derivation", ?pending_reset, "Holding derivation until the pipeline reset succeeds.");
+            info!(target: "derivation", failed_attempts = pending_reset.attempts, "Holding derivation until the pipeline reset succeeds.");
             self.derivation_state_machine.update(&DerivationStateUpdate::MoreDataNeeded)?;
             return Ok(());
         }
@@ -524,18 +543,15 @@ where
     type Error = DerivationError;
 
     async fn step(&mut self) -> Result<(), Self::Error> {
-        let retry_at = match &self.pending_reset {
-            Some(PendingReset::Retry(retry)) => Some(retry.retry_at),
-            Some(PendingReset::AwaitingFreshHead) | None => None,
-        };
+        let due_at = self.pending_reset.as_ref().and_then(PendingReset::due_at);
         let pending_reset_due = async move {
-            match retry_at {
-                Some(retry_at) => tokio::time::sleep_until(retry_at).await,
+            match due_at {
+                Some(due_at) => tokio::time::sleep_until(due_at).await,
                 None => std::future::pending().await,
             }
         };
         tokio::select! {
-            // Inbound requests win, so a busy queue can hold a due retry past `retry_at`.
+            // Inbound requests win, so a busy queue can hold a due reset step past `due_at`.
             // Requests are infrequent, so that delay is accepted.
             biased;
             request = self.inbound_request_rx.recv() => {
@@ -548,7 +564,7 @@ where
                 })?;
                 self.handle_derivation_actor_request(request).await
             }
-            () = pending_reset_due => self.retry_pending_reset().await,
+            () = pending_reset_due => self.run_due_reset_step().await,
         }
     }
 }
