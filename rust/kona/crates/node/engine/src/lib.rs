@@ -53,7 +53,7 @@ mod block_sink;
 pub use block_sink::{ImportedBlockSink, NoopBlockSink};
 
 mod client;
-pub use client::{EngineClient, EngineClientError, EngineQueryClient, RPC_TIMEOUT, with_deadline};
+pub use client::{EngineClient, EngineClientError, EngineQueryClient};
 
 mod request;
 pub use request::{
