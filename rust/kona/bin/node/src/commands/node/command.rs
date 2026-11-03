@@ -22,6 +22,7 @@ use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuild
 use kona_providers_alloy::AlloyChainProvider;
 use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
 use kona_safedb::{SafeDatabase, SafeDb};
+use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use serde_json::{Value, from_reader, from_value};
 use std::{
@@ -267,10 +268,10 @@ impl NodeCommand {
         Self::is_jwt_signature_error(error.as_ref() as &dyn std::error::Error)
     }
 
-    /// Validate the jwt secret if specified by exchanging capabilities with the engine.
-    /// Since the engine client will fail if the jwt token is invalid, this allows to ensure
-    /// that the jwt token passed as a cli arg is correct.
-    pub async fn validate_jwt(&self) -> anyhow::Result<JwtSecret> {
+    /// Builds the node's one authenticated engine connection and validates the JWT secret by
+    /// exchanging capabilities over it. Since the engine rejects a request signed with the wrong
+    /// secret, this ensures that the secret passed as a cli arg is correct before the node starts.
+    pub async fn connect_engine(&self) -> anyhow::Result<RootProvider<Optimism>> {
         let jwt_secret = self.l2_jwt_secret()?;
 
         let engine =
@@ -280,7 +281,7 @@ impl NodeCommand {
             match engine.exchange_capabilities(vec![]).await {
                 Ok(_) => {
                     debug!("Successfully exchanged capabilities with engine");
-                    Ok(jwt_secret)
+                    Ok(())
                 }
                 Err(e) => {
                     if Self::is_jwt_signature_error(&e) {
@@ -303,7 +304,8 @@ impl NodeCommand {
             .notify(|_, duration| {
                 debug!("Retrying engine capability handshake after {duration:?}");
             })
-            .await
+            .await?;
+        Ok(engine)
     }
 
     /// Run the Node subcommand.
@@ -334,18 +336,14 @@ impl NodeCommand {
         // If metrics are enabled, initialize the global cli metrics.
         args.metrics.enabled.then(|| init_rollup_config_metrics(&cfg));
 
-        let jwt_secret = self.validate_jwt().await?;
+        let engine = self.connect_engine().await?;
 
         self.p2p_flags.check_ports()?;
         let p2p_config = self.p2p_flags.clone().config(&cfg, args, Some(&l1_provider)).await?;
         let rpc_config = self.rpc_flags.clone().into();
 
-        let engine_config = EngineConfig {
-            config: Arc::new(cfg.clone()),
-            l2_url: self.l2_client_args.l2_engine_rpc.clone(),
-            l2_jwt_secret: jwt_secret,
-            mode: self.node_mode,
-        };
+        let engine_config =
+            EngineConfig { config: Arc::new(cfg.clone()), provider: engine, mode: self.node_mode };
 
         let dependency_set = self.load_dependency_set(&cfg)?;
         let safe_db = self.open_safe_db()?;

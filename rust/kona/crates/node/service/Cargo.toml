@@ -36,11 +36,11 @@ alloy-signer-local.workspace = true
 alloy-primitives.workspace = true
 alloy-rpc-client.workspace = true
 alloy-rpc-types-eth.workspace = true
-alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
-alloy-provider = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls"] }
+alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+alloy-provider = { workspace = true, features = ["reqwest", "reqwest-rustls-tls"] }
 alloy-eips.workspace = true
 alloy-transport.workspace = true
-alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls", "jwt-auth"] }
+alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls"] }
 
 # op-alloy
 op-alloy-network.workspace = true
@@ -65,7 +65,6 @@ derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
 jsonrpsee = { workspace = true, features = ["server", "http-client"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 tower.workspace = true
-http-body-util.workspace = true
 
 metrics.workspace = true
 
