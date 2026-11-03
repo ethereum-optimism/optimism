@@ -51,6 +51,7 @@ impl Metrics {
         metrics::gauge!(Self::DISCOVERY_EVENT, "type" => "discovered").set(0);
         metrics::gauge!(Self::DISCOVERY_EVENT, "type" => "session_established").set(0);
         metrics::gauge!(Self::DISCOVERY_EVENT, "type" => "unverifiable_enr").set(0);
+        metrics::gauge!(Self::DISCOVERY_EVENT, "type" => "unreachable_address").set(0);
 
         // Peer Counts
         metrics::gauge!(Self::DISCOVERY_PEER_COUNT).set(0);
