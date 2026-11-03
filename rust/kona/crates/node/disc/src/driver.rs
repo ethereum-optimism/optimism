@@ -8,13 +8,36 @@ use kona_peers::{
     BootNode, BootNodes, BootStore, BootStoreFile, EnrValidation, peer_id_to_node_id,
 };
 use libp2p::{Multiaddr, multiaddr::Protocol};
+use std::pin::Pin;
 use tokio::{
     sync::mpsc::channel,
     task::JoinHandle,
     time::{Duration, sleep},
 };
+use tracing::Instrument;
 
 use crate::{AdvertiseTcpPortError, Discv5Builder, Discv5Handler, HandlerRequest, LocalNode};
+
+/// Spawns `future` on Tokio in the current span, so that its logs carry the span discovery was
+/// started in, such as the one each test node runs in.
+fn spawn_in_current_span<F>(future: F) -> JoinHandle<F::Output>
+where
+    F: Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    tokio::spawn(future.in_current_span())
+}
+
+/// Spawns discv5's own tasks like [`spawn_in_current_span`]. discv5's default executor spawns them
+/// outside any span.
+#[derive(Clone, Debug)]
+pub(crate) struct CurrentSpanExecutor;
+
+impl discv5::Executor for CurrentSpanExecutor {
+    fn spawn(&self, future: Pin<Box<dyn Future<Output = ()> + Send>>) {
+        spawn_in_current_span(future);
+    }
+}
 
 /// The number of times to retry starting the [`Discv5`] service, with exponential backoff.
 const START_MAX_RETRIES: usize = 3;
@@ -223,7 +246,7 @@ impl Discv5Driver {
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
         let (enr_sender, enr_recv) = channel::<Enr>(1024);
 
-        let task = tokio::spawn(async move {
+        let task = spawn_in_current_span(async move {
             let remove = self.remove_interval.is_some();
             let remove_dur = self.remove_interval.unwrap_or(std::time::Duration::from_secs(600));
             let mut removal_interval = tokio::time::interval(remove_dur);
@@ -355,7 +378,7 @@ impl Discv5Driver {
                                 metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "discovered").increment(1);
                                 store.add_enr(enr.clone());
                                 let sender = enr_sender.clone();
-                                tokio::spawn(async move {
+                                spawn_in_current_span(async move {
                                     if let Err(e) = sender.send(enr).await {
                                         debug!(target: "discovery", "Failed to send enr: {:?}", e);
                                     }
@@ -366,7 +389,7 @@ impl Discv5Driver {
                                 metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "session_established").increment(1);
                                 store.add_enr(enr.clone());
                                 let sender = enr_sender.clone();
-                                tokio::spawn(async move {
+                                spawn_in_current_span(async move {
                                     if let Err(e) = sender.send(enr).await {
                                         debug!(target: "discovery", "Failed to send enr: {:?}", e);
                                     }
@@ -377,7 +400,7 @@ impl Discv5Driver {
                                 metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "unverifiable_enr").increment(1);
                                 store.add_enr(enr.clone());
                                 let sender = enr_sender.clone();
-                                tokio::spawn(async move {
+                                spawn_in_current_span(async move {
                                     if let Err(e) = sender.send(enr).await {
                                         debug!(target: "discovery", "Failed to send enr: {:?}", e);
                                     }
@@ -392,7 +415,7 @@ impl Discv5Driver {
                         metrics::gauge!(crate::Metrics::FIND_NODE_REQUEST, "find_node" => "find_node").increment(1);
                         let fut = self.disc.find_node(id);
                         let enr_sender = enr_sender.clone();
-                        tokio::spawn(async move {
+                        spawn_in_current_span(async move {
                             match fut.await {
                                 Ok(nodes) => {
                                     let enrs = nodes.into_iter().filter(|node| EnrValidation::validate(node, chain_id).is_valid());

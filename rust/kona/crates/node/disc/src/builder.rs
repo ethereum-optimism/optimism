@@ -10,7 +10,7 @@ use std::{
 };
 use tokio::time::Duration;
 
-use crate::{Discv5BuilderError, Discv5Driver};
+use crate::{Discv5BuilderError, Discv5Driver, driver::CurrentSpanExecutor};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// The local node information exposed by the discovery service to the network.
@@ -265,6 +265,8 @@ impl Discv5Builder {
         bind_free_listen_port(&mut config, &local_node)?;
         local_node.udp_port = advertised_udp_port(&config, &local_node)?;
         let enr = local_node.build_enr(chain_id).map_err(Discv5BuilderError::EnrBuildFailed)?;
+        // discv5 spawns its tasks when the driver starts it, which is in the driver's span.
+        config.executor = Some(Box::new(CurrentSpanExecutor));
 
         let interval = self.interval.unwrap_or(Duration::from_secs(5));
         let disc = Discv5::new(enr, key.into(), config)
