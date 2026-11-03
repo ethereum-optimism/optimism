@@ -23,6 +23,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Features } from "src/libraries/Features.sol";
+import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
 import "src/dispute/lib/Types.sol";
 import { UnknownChainId } from "src/dispute/lib/Errors.sol";
 
@@ -3318,5 +3319,59 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidBridgeHookState.selector);
         vm.prank(proxyAdminOwner);
         optimismPortal2.removeHook();
+    }
+
+    /// @notice Tests that completeDepositTransaction reverts for a caller that is not the hook,
+    ///         so it cannot take ETH.
+    /// @param _caller The address attempting the call.
+    /// @param _value The ETH sent with the call.
+    function testFuzz_completeDepositTransaction_notBridgeHook_reverts(address _caller, uint256 _value) external {
+        vm.assume(_caller != hook);
+        _value = bound(_value, 0, 1 ether);
+        BridgeHookTypes.Item memory item;
+        vm.deal(_caller, _value);
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotBridgeHook.selector);
+        vm.prank(_caller);
+        optimismPortal2.completeDepositTransaction{ value: _value }(item);
+    }
+
+    /// @notice Tests that completeDepositTransaction reverts for the hook too, because the Portal
+    ///         cannot hold deposits yet.
+    function test_completeDepositTransaction_bridgeHook_reverts() external {
+        forceSetBridgeHook(hook);
+        BridgeHookTypes.Item memory item;
+        vm.deal(hook, 1 ether);
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotBridgeHook.selector);
+        vm.prank(hook);
+        optimismPortal2.completeDepositTransaction{ value: 1 ether }(item);
+    }
+
+    /// @notice Tests that completeWithdrawalTransaction reverts for a caller that is not the
+    ///         hook, so it cannot take ETH.
+    /// @param _caller The address attempting the call.
+    /// @param _value The ETH sent with the call.
+    function testFuzz_completeWithdrawalTransaction_notBridgeHook_reverts(address _caller, uint256 _value) external {
+        vm.assume(_caller != hook);
+        _value = bound(_value, 0, 1 ether);
+        BridgeHookTypes.Item memory item;
+        vm.deal(_caller, _value);
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotBridgeHook.selector);
+        vm.prank(_caller);
+        optimismPortal2.completeWithdrawalTransaction{ value: _value }(item);
+    }
+
+    /// @notice Tests that completeWithdrawalTransaction reverts for the hook too, because the
+    ///         Portal cannot hold withdrawals yet.
+    function test_completeWithdrawalTransaction_bridgeHook_reverts() external {
+        forceSetBridgeHook(hook);
+        BridgeHookTypes.Item memory item;
+        vm.deal(hook, 1 ether);
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotBridgeHook.selector);
+        vm.prank(hook);
+        optimismPortal2.completeWithdrawalTransaction{ value: 1 ether }(item);
     }
 }
