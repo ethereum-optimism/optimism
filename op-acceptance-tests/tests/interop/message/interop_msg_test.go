@@ -104,7 +104,7 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 
 	call := crossL2Inbox.ValidateMessage(identifier, msgHash)
 
-	sys.L2ELB.ValidateMessageRequiresAccessList(msg)
+	sys.L2ELB.ValidateExecMessageRequiresAccessList(msg)
 
 	// Read: Trigger executing message
 	contract.Read(call, txplan.WithAccessList(accessList))

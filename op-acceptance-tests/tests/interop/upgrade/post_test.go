@@ -142,7 +142,7 @@ func testInteropMessageInclusion(t devtest.T, sys *presets.TwoL2SupernodeInterop
 	initResult, err := initMsg.Tx.Result.Eval(t.Ctx())
 	t.Require().NoError(err)
 	t.Require().NotEmpty(initResult.Entries)
-	sys.L2ELB.ValidateMessageRequiresAccessList(initResult.Entries[0])
+	sys.L2ELB.ValidateExecMessageRequiresAccessList(initResult.Entries[0])
 
 	execMsg := bob.SendExecMessage(initMsg)
 

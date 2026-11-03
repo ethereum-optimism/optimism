@@ -18,10 +18,10 @@ func (el *L2ELNode) CrossL2Inbox() bindings.CrossL2Inbox {
 		bindings.WithTo(predeploys.CrossL2InboxAddr), bindings.WithTest(el.t))
 }
 
-// ValidateMessageRequiresAccessList requires that this chain's CrossL2Inbox.validateMessage
+// ValidateExecMessageRequiresAccessList requires that this chain's CrossL2Inbox.validateMessage
 // reverts with NotInAccessList for msg when the access list does not declare it, and succeeds
 // when the access list declares it.
-func (el *L2ELNode) ValidateMessageRequiresAccessList(msg messages.Message) {
+func (el *L2ELNode) ValidateExecMessageRequiresAccessList(msg messages.Message) {
 	call := el.CrossL2Inbox().ValidateMessage(msg.Identifier, eth.Bytes32(msg.PayloadHash))
 
 	_, err := contractio.Read(call, el.ctx)
