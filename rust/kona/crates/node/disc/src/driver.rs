@@ -826,6 +826,57 @@ mod tests {
         assert_eq!(first, public, "a public node dialed a saved loopback record");
     }
 
+    /// A public node should neither contact nor keep a loopback bootnode given by enode URL, as it
+    /// skips one given by ENR. An enode URL holds only an address, so the node asks that address
+    /// for the bootnode's record, which starts a session and so puts the bootnode in discv5's table
+    /// without the table filter.
+    #[tokio::test]
+    async fn test_public_node_skips_loopback_enode_bootnode() {
+        let bootnode = offline_driver().init().await.expect("the bootnode starts");
+        let bootnode_enr = bootnode.disc.local_enr();
+        let peer_id = kona_peers::enr_to_multiaddr(&bootnode_enr)
+            .and_then(|addr| addr.iter().last().map(|protocol| protocol.acquire()))
+            .expect("the bootnode's record has a peer ID");
+        let enode = Multiaddr::from(Ipv4Addr::LOCALHOST)
+            .with(Protocol::Udp(bootnode_enr.udp4().expect("the bootnode has a UDP port")))
+            .with(Protocol::Tcp(0))
+            .with(peer_id);
+
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let node = Discv5Driver::builder(
+            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 0, 0),
+            bootnode.chain_id,
+            ConfigBuilder::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).into()).build(),
+        )
+        .build()
+        .expect("the node builds")
+        .init()
+        .await
+        .expect("the node starts");
+        assert_eq!(node.own_scope, AddrScope::Public);
+
+        Discv5Driver::bootstrap_peers(
+            None,
+            BootNodes(vec![BootNode::Enode(enode)]),
+            node.chain_id,
+            node.own_scope,
+            &node.disc,
+        )
+        .await;
+
+        // TODO(#23766): fails, as the node asks the bootnode for its record before checking it.
+        assert!(
+            !node
+                .disc
+                .table_entries_enr()
+                .iter()
+                .any(|enr| enr.node_id() == bootnode_enr.node_id()),
+            "a public node kept a loopback enode bootnode"
+        );
+    }
+
     /// Builds a driver listening on localhost that does not contact any remote peer.
     fn offline_driver() -> Discv5Driver {
         // A chain ID that is not in the superchain registry has no default bootnodes.
