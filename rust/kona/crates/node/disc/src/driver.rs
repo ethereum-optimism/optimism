@@ -359,8 +359,10 @@ impl Discv5Driver {
                         debug!(target: "discovery", %reason, ?enr, "Ignoring a saved record with an address we can't reach");
                         continue;
                     }
-                    if let Err(e) = enr_sender.send(enr.clone()).await {
-                        debug!(target: "discovery", "Failed to forward enr: {:?}", e);
+                    // Fails only once the receiver is dropped, after which every send fails.
+                    if enr_sender.send(enr.clone()).await.is_err() {
+                        debug!(target: "discovery", "ENR receiver dropped, not forwarding the rest of the bootstore");
+                        break;
                     }
                 }
             }
