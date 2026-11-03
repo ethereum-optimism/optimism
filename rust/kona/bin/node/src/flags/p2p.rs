@@ -384,8 +384,10 @@ impl P2PArgs {
             if !self.bootnodes.is_empty() {
                 warnings.push("Discovery is disabled, so the bootnodes are ignored");
             }
-        }
-        if self.advertise_ip.is_some() && self.discovery_ip_votes != IpVotes::DEFAULT {
+            if self.discovery_ip_votes != IpVotes::DEFAULT {
+                warnings.push("Discovery is disabled, so --p2p.discovery.ip-votes is ignored");
+            }
+        } else if self.advertise_ip.is_some() && self.discovery_ip_votes != IpVotes::DEFAULT {
             warnings.push(
                 "--p2p.discovery.ip-votes is ignored with --p2p.advertise.ip, which keeps the \
                  advertised IP fixed",
@@ -763,8 +765,8 @@ mod tests {
         args.p2p.peering_warnings(chain_id)
     }
 
-    /// Without discovery, the node warns if nothing gives it peers, and that bootnodes go unused.
-    /// With an advertise IP, it warns that the IP votes go unused.
+    /// Without discovery, the node warns if nothing gives it peers, and that bootnodes and IP
+    /// votes go unused. With an advertise IP, it warns that the IP votes go unused.
     #[test]
     fn test_peering_warnings() {
         let static_peer = format!("/ip4/10.0.0.1/tcp/9222/p2p/{}", PeerId::random());
@@ -803,6 +805,18 @@ mod tests {
             matches!(ignored_votes.as_slice(), [w] if w.contains("ip-votes is ignored")),
             "{ignored_votes:?}"
         );
+
+        // Without discovery, the votes are ignored too, and that is the only warning, with or
+        // without an advertise IP.
+        let static_peers = ["--p2p.no-discovery", "--p2p.static-peers", static_peer.as_str()];
+        let only_votes_ignored = |flags: &[&str]| {
+            matches!(
+                warnings(flags).as_slice(),
+                [w] if w.contains("Discovery is disabled, so --p2p.discovery.ip-votes is ignored")
+            )
+        };
+        assert!(only_votes_ignored(&[&static_peers[..], &ip_votes].concat()));
+        assert!(only_votes_ignored(&[&static_peers[..], &ip_votes, &advertise_ip].concat()));
     }
 
     #[test]
