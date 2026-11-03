@@ -38,8 +38,6 @@ func newParitySystemWithSafeDB(t devtest.T, enabled bool) *paritySystem {
 }
 
 func newParitySystemWithExecutionClient(t devtest.T, enabled bool, executionClient sysgo.MixedL2ELKind) *paritySystem {
-	// Every node's CL kind is pinned, so the kona-node CI variant would only repeat this run.
-	sysgo.SkipOnKonaNode(t, "pins op-node and kona-node explicitly; covered by the op-node variant")
 	var deployerOptions []sysgo.DeployerOption
 	if executionClient == sysgo.MixedL2ELOpGeth {
 		// op-geth cannot build or import Karst blocks, so its chain stays on Jovian.
