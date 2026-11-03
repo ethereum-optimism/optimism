@@ -2112,6 +2112,70 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(address(cts.optimismPortal.bridgeHook()), newHook, "bridge hook not replaced");
     }
 
+    /// @notice Seeds a held deposit and a held withdrawal on a portal, standing in for items the
+    ///         hook has taken custody of.
+    /// @param _portal The portal to write to.
+    /// @param _depositId The held deposit's item identifier.
+    /// @param _withdrawalId The held withdrawal's item identifier.
+    function _forceHoldItems(IOptimismPortal2 _portal, bytes32 _depositId, bytes32 _withdrawalId) internal {
+        stdstore.target(address(_portal)).sig("heldDeposits(bytes32)").with_key(_depositId).checked_write(true);
+        stdstore.target(address(_portal)).sig("heldWithdrawals(bytes32)").with_key(_withdrawalId).checked_write(true);
+    }
+
+    /// @notice Tests that an upgrade preserves the hook, every held item, and the other initialize
+    ///         arguments it reads back from the chain. A held item's commitment is the only record
+    ///         binding the terms its value may later move on, so losing one on an upgrade would
+    ///         strand that value with the hook. Repeating the upgrade must change nothing either.
+    function test_upgrade_preservesHeldItems_succeeds() public {
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+
+        address hook = makeAddr("bridgeHook");
+        _forceSetBridgeHook(cts.optimismPortal, hook);
+        bytes32 depositId = keccak256("held deposit");
+        bytes32 withdrawalId = keccak256("held withdrawal");
+        _forceHoldItems(cts.optimismPortal, depositId, withdrawalId);
+
+        uint256 delayBefore = cts.optimismPortal.proofMaturityDelaySeconds();
+        address lockboxBefore = address(cts.optimismPortal.ethLockbox());
+
+        for (uint256 i = 0; i < 2; i++) {
+            prankDelegateCall(cts.proxyAdmin.owner());
+            (bool success,) = address(opcmV2)
+                .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, address(0)))));
+            assertTrue(success, "upgrade failed");
+
+            assertEq(address(cts.optimismPortal.bridgeHook()), hook, "bridge hook changed");
+            assertTrue(cts.optimismPortal.heldDeposits(depositId), "held deposit lost");
+            assertTrue(cts.optimismPortal.heldWithdrawals(withdrawalId), "held withdrawal lost");
+            assertEq(cts.optimismPortal.proofMaturityDelaySeconds(), delayBefore, "proof maturity delay changed");
+            assertEq(address(cts.optimismPortal.ethLockbox()), lockboxBefore, "lockbox changed");
+        }
+    }
+
+    /// @notice Tests that replacing the hook leaves items held by the former hook committed. Their
+    ///         value stays with the former hook, so the portal must keep the commitments that bind
+    ///         the terms it would complete them on.
+    function test_upgrade_bridgeHookReplacedKeepsHeldItems_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+
+        _forceSetBridgeHook(cts.optimismPortal, makeAddr("oldBridgeHook"));
+        bytes32 depositId = keccak256("held deposit");
+        bytes32 withdrawalId = keccak256("held withdrawal");
+        _forceHoldItems(cts.optimismPortal, depositId, withdrawalId);
+
+        address newHook = makeAddr("newBridgeHook");
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success,) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, newHook))));
+
+        assertTrue(success, "upgrade failed");
+        assertEq(address(cts.optimismPortal.bridgeHook()), newHook, "bridge hook not replaced");
+        assertTrue(cts.optimismPortal.heldDeposits(depositId), "held deposit lost");
+        assertTrue(cts.optimismPortal.heldWithdrawals(withdrawalId), "held withdrawal lost");
+    }
+
     /// @notice Tests that an upgrade without the override doesn't touch the chain's hook.
     function test_upgrade_noBridgeHookOverride_succeeds() public {
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
