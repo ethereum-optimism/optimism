@@ -86,7 +86,7 @@ fn provider(state: Arc<RpcState>) -> AlloyChainProvider {
     // Bound requests as production's L1 transport does, so a stalled read fails and is retried.
     let rpc = RootProvider::new(
         ClientBuilder::default()
-            .layer(tower::util::MapFutureLayer::new(kona_engine::with_deadline))
+            .layer(tower::util::MapFutureLayer::new(kona_sources::rpc::with_deadline))
             .transport(transport, false),
     );
     AlloyChainProvider::new(rpc, std::num::NonZeroUsize::new(8).unwrap(), true)

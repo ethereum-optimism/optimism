@@ -178,7 +178,7 @@ async fn fixture(recorded_head: u64, mutation: Mutation) -> ReorgFixture {
     let config = Arc::new(config);
     let engine = EngineClient::new(
         RpcMock::default().l1_provider(),
-        EngineClient::rpc_client(
+        kona_sources::rpc::engine(
             format!("http://{address}").parse().unwrap(),
             JwtSecret::from_hex("00".repeat(32)).unwrap(),
         ),

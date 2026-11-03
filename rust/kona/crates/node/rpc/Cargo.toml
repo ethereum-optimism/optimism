@@ -65,6 +65,7 @@ alloy-consensus.workspace = true
 alloy-rpc-types-eth.workspace = true
 kona-engine = { workspace = true, features = ["test-utils"] }
 kona-safedb = { workspace = true, features = ["rocksdb"] }
+kona-sources.workspace = true
 op-alloy-consensus.workspace = true
 op-alloy-rpc-types.workspace = true
 rstest.workspace = true
