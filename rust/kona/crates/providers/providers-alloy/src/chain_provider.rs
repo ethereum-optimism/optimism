@@ -1,14 +1,18 @@
 //! Providers that use alloy provider types on the backend.
 
 mod cache;
-use alloy_consensus::{Header, Receipt, ReceiptEnvelope, TxEnvelope};
+use alloy_consensus::{
+    Header, Receipt, ReceiptEnvelope, TxEnvelope,
+    proofs::{calculate_receipt_root, calculate_transaction_root, ordered_trie_root_encoded},
+};
 use alloy_eips::{
     BlockId, BlockNumberOrTag,
     eip2718::{Decodable2718, Eip2718Error},
 };
-use alloy_primitives::{Address, B256, Bytes, b256};
+use alloy_primitives::{Address, B256, Bytes, U256, b256, keccak256};
 use alloy_provider::{Provider, RootProvider};
-use alloy_transport::{RpcError, TransportErrorKind, TransportResult};
+use alloy_transport::{RpcError, TransportErrorKind};
+use alloy_trie::{EMPTY_ROOT_HASH, KECCAK_EMPTY, Nibbles, TrieAccount, proof::verify_proof};
 use async_trait::async_trait;
 use cache::Cache;
 use kona_derive::{ChainProvider, PipelineError, PipelineErrorKind, ResetError};
@@ -77,8 +81,8 @@ impl From<BlockLabel> for BlockNumberOrTag {
 pub struct AlloyChainProvider {
     /// The inner Ethereum JSON-RPC provider.
     inner: RootProvider,
-    /// Whether to trust the RPC without verification.
-    trust_rpc: bool,
+    /// Whether to verify the RPC's responses rather than trust them.
+    verify: bool,
     /// Optional confirmation policy for online derivation's forward traversal only.
     confirmation_depth: Option<ConfirmationDepth>,
     /// State shared by all clones.
@@ -103,34 +107,115 @@ impl Shared {
 
 impl AlloyChainProvider {
     /// Creates a new [`AlloyChainProvider`] with the given alloy provider and trust setting.
+    ///
+    /// The provider puts no deadline on its requests. Bound them in `inner`'s transport, or a
+    /// stalled endpoint hangs every caller.
     pub fn new(inner: RootProvider, cache_size: NonZeroUsize, trust_rpc: bool) -> Self {
         Self {
             inner,
-            trust_rpc,
+            verify: !trust_rpc,
             confirmation_depth: None,
             shared: Arc::new(Shared::new(cache_size)),
         }
     }
 
-    /// Reads the unsafe block signer from `SystemConfig` at `block_hash`.
+    /// Returns the unsafe block signer recorded in the `SystemConfig` contract at
+    /// `system_config`, as of the block with the given hash.
     ///
     /// Reading state rather than individual update logs also recovers rotations missed between
-    /// polls and restores the previous signer when a rotation is reorged out. The value is not yet
-    /// verified against the block's state root, so the read trusts the RPC.
+    /// polls and restores the previous signer when a rotation is reorged out. Unless the RPC is
+    /// trusted, the value is proven against the block's state root.
     pub async fn unsafe_block_signer(
         &self,
         system_config: Address,
         block_hash: B256,
-    ) -> TransportResult<Address> {
+    ) -> Result<Address, AlloyChainProviderError> {
         // bytes32(uint256(keccak256("systemconfig.unsafeblocksigner")) - 1)
         const SLOT: B256 =
             b256!("65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08");
-        let value = self
-            .inner
-            .get_storage_at(system_config, SLOT.into())
-            .hash_canonical(block_hash)
-            .await?;
+        let value = self.storage_at(system_config, SLOT, block_hash).await?;
         Ok(Address::from_slice(&value.to_be_bytes::<32>()[12..]))
+    }
+
+    /// Returns the value in `slot` of `address`'s storage, as of the block with the given hash.
+    ///
+    /// Unless the RPC is trusted, the value comes from an `eth_getProof` response whose account
+    /// proof is checked against the block's state root, and whose storage proof is checked against
+    /// the proven account's storage root.
+    async fn storage_at(
+        &self,
+        address: Address,
+        slot: B256,
+        block_hash: B256,
+    ) -> Result<U256, AlloyChainProviderError> {
+        if !self.verify {
+            return Ok(self
+                .inner
+                .get_storage_at(address, slot.into())
+                .hash_canonical(block_hash)
+                .await?);
+        }
+
+        let state_root = self.header_by_hash(block_hash).await?.state_root;
+        let proof = self.inner.get_proof(address, vec![slot]).hash_canonical(block_hash).await?;
+        let invalid = |reason: String| AlloyChainProviderError::InvalidStorageProof {
+            block_hash,
+            address,
+            slot,
+            reason,
+        };
+        if proof.address != address {
+            return Err(invalid(format!("the proof is for address {}", proof.address)));
+        }
+        let [storage] = proof.storage_proof.as_slice() else {
+            return Err(invalid(format!(
+                "expected one storage proof, got {}",
+                proof.storage_proof.len()
+            )));
+        };
+        if storage.key.as_b256() != slot {
+            return Err(invalid(format!(
+                "the storage proof is for slot {}",
+                storage.key.as_b256()
+            )));
+        }
+
+        // Accounts with no nonce, balance, code or storage do not exist in the state trie
+        // (EIP-161), so the proof must show the account is absent. RPCs report an absent
+        // account's code hash and storage root either as zero or as their empty values.
+        let absent = proof.nonce == 0 &&
+            proof.balance.is_zero() &&
+            matches!(proof.code_hash, B256::ZERO | KECCAK_EMPTY) &&
+            matches!(proof.storage_hash, B256::ZERO | EMPTY_ROOT_HASH);
+        let account = (!absent).then(|| {
+            alloy_rlp::encode(TrieAccount {
+                nonce: proof.nonce,
+                balance: proof.balance,
+                storage_root: proof.storage_hash,
+                code_hash: proof.code_hash,
+            })
+        });
+        verify_proof(
+            state_root,
+            Nibbles::unpack(keccak256(address)),
+            account,
+            &proof.account_proof,
+        )
+        .map_err(|error| invalid(format!("invalid account proof: {error}")))?;
+
+        if absent {
+            // An absent account has no storage.
+            if !storage.value.is_zero() {
+                return Err(invalid("a value was reported for an absent account".into()));
+            }
+            return Ok(U256::ZERO);
+        }
+
+        // A zero value is not stored, so the proof must show the slot is absent.
+        let value = (!storage.value.is_zero()).then(|| alloy_rlp::encode(storage.value));
+        verify_proof(proof.storage_hash, Nibbles::unpack(keccak256(slot)), value, &storage.proof)
+            .map_err(|error| invalid(format!("invalid storage proof: {error}")))?;
+        Ok(storage.value)
     }
 
     /// Hides L1 blocks with fewer than `depth` confirmations from forward traversal.
@@ -146,16 +231,6 @@ impl AlloyChainProvider {
         self
     }
 
-    /// Returns the latest L2 block number.
-    pub async fn latest_block_number(&self) -> Result<u64, RpcError<TransportErrorKind>> {
-        self.inner.get_block_number().await
-    }
-
-    /// Returns the chain ID.
-    pub async fn chain_id(&self) -> Result<u64, RpcError<TransportErrorKind>> {
-        self.inner.get_chain_id().await
-    }
-
     /// Fetches raw consensus-encoded receipts and decodes their EIP-2718 envelopes.
     async fn raw_receipts_by_hash(
         &self,
@@ -166,9 +241,14 @@ impl AlloyChainProvider {
         let raw_receipts = raw_receipts.ok_or(AlloyChainProviderError::RawReceiptsNull(hash))?;
 
         // Geth returns an empty array both for an unknown hash and for an existing block with no
-        // transactions. Resolve that ambiguity before accepting and caching an empty result.
+        // transactions. Resolve that ambiguity before accepting and caching an empty result, even
+        // when the RPC is trusted.
         if raw_receipts.is_empty() {
             self.verify_empty_raw_receipts(hash).await?;
+        }
+        if self.verify {
+            // The raw receipts are already EIP-2718 encoded, as the receipts trie stores them.
+            self.verify_receipts_root(hash, ordered_trie_root_encoded(&raw_receipts)).await?;
         }
 
         raw_receipts
@@ -188,19 +268,11 @@ impl AlloyChainProvider {
 
     /// Verifies that an empty raw receipt response belongs to an existing empty block.
     async fn verify_empty_raw_receipts(&self, hash: B256) -> Result<(), AlloyChainProviderError> {
-        let block = self
-            .inner
-            .get_block_by_hash(hash)
-            .await?
-            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
-        let transaction_count = block.transactions.len();
-        let header = block.header.into_consensus();
-        self.verify_header_hash(&header, hash)?;
-
-        if transaction_count != 0 || !header.transaction_root_is_empty() {
+        // An unknown hash fails here as a missing block, which signals a possible L1 reorg.
+        let header = self.header_by_hash(hash).await?;
+        if !header.transaction_root_is_empty() {
             return Err(AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock {
                 hash,
-                transaction_count,
                 transactions_root: header.transactions_root,
             });
         }
@@ -212,16 +284,36 @@ impl AlloyChainProvider {
         &self,
         hash: B256,
     ) -> Result<Vec<Receipt>, AlloyChainProviderError> {
-        let receipts = self
+        let receipts: Vec<_> = self
             .inner
             .get_block_receipts(hash.into())
             .await?
-            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
-        receipts
+            .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?
             .into_iter()
-            .map(|receipt| receipt.inner.into_primitives_receipt().as_receipt().cloned())
+            .map(|receipt| receipt.inner.into_primitives_receipt())
+            .collect();
+        if self.verify {
+            // Verify the typed envelopes, before the conversion below discards their types.
+            self.verify_receipts_root(hash, calculate_receipt_root(&receipts)).await?;
+        }
+        receipts
+            .iter()
+            .map(|receipt| receipt.as_receipt().cloned())
             .collect::<Option<Vec<_>>>()
             .ok_or(AlloyChainProviderError::ReceiptsConversion(hash))
+    }
+
+    /// Verifies that the block with the given hash commits to receipts whose root is `actual`.
+    async fn verify_receipts_root(
+        &self,
+        hash: B256,
+        actual: B256,
+    ) -> Result<(), AlloyChainProviderError> {
+        let expected = self.header_by_hash(hash).await?.receipts_root;
+        if actual != expected {
+            return Err(AlloyChainProviderError::ReceiptsRootMismatch { hash, expected, actual });
+        }
+        Ok(())
     }
 
     /// Falls back to `eth_getBlockReceipts` after `debug_getRawReceipts` fails.
@@ -322,31 +414,15 @@ impl AlloyChainProvider {
             }
         })
     }
+}
 
-    /// Verifies that a header's hash matches the expected hash when `trust_rpc` is false.
-    fn verify_header_hash(
-        &self,
-        header: &Header,
-        expected_hash: B256,
-    ) -> Result<(), AlloyChainProviderError> {
-        if self.trust_rpc {
-            return Ok(());
-        }
-
-        let actual_hash = header.hash_slow();
-        if actual_hash != expected_hash {
-            return Err(AlloyChainProviderError::Transport(RpcError::Transport(
-                TransportErrorKind::Custom(
-                    format!(
-                        "Header hash mismatch: expected {expected_hash:?}, got {actual_hash:?}"
-                    )
-                    .into(),
-                ),
-            )));
-        }
-
-        Ok(())
+/// Verifies that `header` hashes to `expected`.
+fn verify_header(header: &Header, expected: B256) -> Result<(), AlloyChainProviderError> {
+    let actual = header.hash_slow();
+    if actual != expected {
+        return Err(AlloyChainProviderError::HeaderHashMismatch { expected, actual });
     }
+    Ok(())
 }
 
 /// An error for the [`AlloyChainProvider`].
@@ -356,6 +432,56 @@ pub enum AlloyChainProviderError {
     /// Transport error
     #[error(transparent)]
     Transport(#[from] RpcError<TransportErrorKind>),
+    /// The RPC returned a header that does not hash to the requested hash.
+    #[error("Header hash mismatch: expected {expected}, got {actual}")]
+    HeaderHashMismatch {
+        /// The requested hash.
+        expected: B256,
+        /// The hash of the returned header.
+        actual: B256,
+    },
+    /// The RPC answered a lookup by number with a block at a different number.
+    #[error("Block number mismatch: expected {expected}, got {actual}")]
+    BlockNumberMismatch {
+        /// The requested number.
+        expected: u64,
+        /// The number of the returned block.
+        actual: u64,
+    },
+    /// The RPC returned receipts that do not match the block's receipts root.
+    #[error("Receipts root mismatch for L1 block {hash}: expected {expected}, got {actual}")]
+    ReceiptsRootMismatch {
+        /// The block's hash.
+        hash: B256,
+        /// The receipts root in the block's header.
+        expected: B256,
+        /// The root of the returned receipts.
+        actual: B256,
+    },
+    /// The RPC returned a storage value whose proof does not hold against the block's state root.
+    #[error(
+        "Invalid storage proof for slot {slot} of {address} at L1 block {block_hash}: {reason}"
+    )]
+    InvalidStorageProof {
+        /// The block's hash.
+        block_hash: B256,
+        /// The account whose storage was read.
+        address: Address,
+        /// The storage slot that was read.
+        slot: B256,
+        /// Why the proof was rejected.
+        reason: String,
+    },
+    /// The RPC returned transactions that do not match the block's transactions root.
+    #[error("Transactions root mismatch for L1 block {hash}: expected {expected}, got {actual}")]
+    TransactionsRootMismatch {
+        /// The block's hash.
+        hash: B256,
+        /// The transactions root in the block's header.
+        expected: B256,
+        /// The root of the returned transactions.
+        actual: B256,
+    },
     /// Block not found.
     #[error("Block not found: {0}")]
     BlockNotFound(BlockId),
@@ -379,13 +505,11 @@ pub enum AlloyChainProviderError {
     /// An empty raw receipt response was returned for a block that contains transactions.
     #[error(
         "debug_getRawReceipts returned no receipts for non-empty L1 block {hash} \
-         (transaction count: {transaction_count}, transactions root: {transactions_root})"
+         (transactions root: {transactions_root})"
     )]
     EmptyRawReceiptsForNonEmptyBlock {
         /// The requested L1 block hash.
         hash: B256,
-        /// The transaction count reported by `eth_getBlockByHash`.
-        transaction_count: usize,
         /// The transaction root in the block header.
         transactions_root: B256,
     },
@@ -458,7 +582,12 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
                     "Failed to convert RPC receipts into consensus receipts for L1 block {hash}"
                 )))
             }
-            error @ (AlloyChainProviderError::RawReceiptsNull(_) |
+            error @ (AlloyChainProviderError::HeaderHashMismatch { .. } |
+            AlloyChainProviderError::BlockNumberMismatch { .. } |
+            AlloyChainProviderError::ReceiptsRootMismatch { .. } |
+            AlloyChainProviderError::TransactionsRootMismatch { .. } |
+            AlloyChainProviderError::InvalidStorageProof { .. } |
+            AlloyChainProviderError::RawReceiptsNull(_) |
             AlloyChainProviderError::RawReceiptDecode { .. } |
             AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock { .. }) => {
                 Self::Temporary(PipelineError::Provider(error.to_string()))
@@ -489,19 +618,16 @@ impl AlloyChainProvider {
         if let Some(header) = self.shared.cache.header(hash) {
             return Ok(header);
         }
-
         let block = self
             .inner
             .get_block_by_hash(hash)
             .await?
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
         let header = block.header.into_consensus();
-
-        // Verify the header hash matches what we requested
-        self.verify_header_hash(&header, hash)?;
-
+        if self.verify {
+            verify_header(&header, hash)?;
+        }
         self.shared.cache.insert_header(hash, header.clone());
-
         Ok(header)
     }
 
@@ -524,20 +650,7 @@ impl AlloyChainProvider {
         &self,
         number: u64,
     ) -> Result<BlockInfo, AlloyChainProviderError> {
-        let block = self
-            .inner
-            .get_block_by_number(number.into())
-            .await?
-            .ok_or(AlloyChainProviderError::BlockNotFound(number.into()))?;
-        let header = block.header.into_consensus();
-
-        let block_info = BlockInfo {
-            hash: header.hash_slow(),
-            number,
-            parent_hash: header.parent_hash,
-            timestamp: header.timestamp,
-        };
-        Ok(block_info)
+        self.block_info(number.into()).await
     }
 
     /// Returns the [`BlockInfo`] of the block currently at `label`.
@@ -548,14 +661,30 @@ impl AlloyChainProvider {
         &self,
         label: BlockLabel,
     ) -> Result<BlockInfo, AlloyChainProviderError> {
-        let block =
-            self.inner.get_block_by_number(label.into()).await?.ok_or(
-                AlloyChainProviderError::BlockNotFound(BlockNumberOrTag::from(label).into()),
-            )?;
-        let hash = block.header.hash;
-        let header = block.header.into_consensus();
-        self.verify_header_hash(&header, hash)?;
+        self.block_info(BlockNumberOrTag::from(label).into()).await
+    }
 
+    async fn block_info(&self, block_id: BlockId) -> Result<BlockInfo, AlloyChainProviderError> {
+        let rpc_header = self
+            .inner
+            .get_block(block_id)
+            .await?
+            .ok_or(AlloyChainProviderError::BlockNotFound(block_id))?
+            .header;
+        let hash = rpc_header.hash;
+        let header = rpc_header.into_consensus();
+        if self.verify {
+            verify_header(&header, hash)?;
+        }
+        // A number lookup must return a block at that number, however much the RPC is trusted.
+        if let BlockId::Number(BlockNumberOrTag::Number(expected)) = block_id &&
+            header.number != expected
+        {
+            return Err(AlloyChainProviderError::BlockNumberMismatch {
+                expected,
+                actual: header.number,
+            });
+        }
         let block_info = BlockInfo {
             hash,
             number: header.number,
@@ -604,10 +733,17 @@ impl AlloyChainProvider {
         &self,
         hash: B256,
     ) -> Result<(BlockInfo, Vec<TxEnvelope>), AlloyChainProviderError> {
-        if let Some(block_info_and_txs) = self.shared.cache.block_info_and_transactions(hash) {
-            return Ok(block_info_and_txs);
+        if let (Some(header), Some(transactions)) =
+            (self.shared.cache.header(hash), self.shared.cache.transactions(hash))
+        {
+            let block_info = BlockInfo {
+                hash,
+                number: header.number,
+                parent_hash: header.parent_hash,
+                timestamp: header.timestamp,
+            };
+            return Ok((block_info, transactions));
         }
-
         let block = self
             .inner
             .get_block_by_hash(hash)
@@ -616,23 +752,25 @@ impl AlloyChainProvider {
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?
             .into_consensus()
             .map_transactions(|t| t.inner.into_inner());
-
-        // Verify the block hash matches what we requested
-        self.verify_header_hash(&block.header, hash)?;
-
+        if self.verify {
+            verify_header(&block.header, hash)?;
+            let actual = calculate_transaction_root(&block.body.transactions);
+            if actual != block.header.transactions_root {
+                return Err(AlloyChainProviderError::TransactionsRootMismatch {
+                    hash,
+                    expected: block.header.transactions_root,
+                    actual,
+                });
+            }
+        }
         let block_info = BlockInfo {
-            hash, // Use the already verified hash instead of recomputing
+            hash,
             number: block.header.number,
             parent_hash: block.header.parent_hash,
             timestamp: block.header.timestamp,
         };
-
-        self.shared.cache.insert_block_info_and_transactions(
-            hash,
-            block_info,
-            block.body.transactions.clone(),
-        );
-
+        self.shared.cache.insert_header(hash, block.header);
+        self.shared.cache.insert_transactions(hash, block.body.transactions.clone());
         Ok((block_info, block.body.transactions))
     }
 }
@@ -734,7 +872,10 @@ mod tests {
     #[tokio::test]
     async fn confirmation_depth_tracks_head_regression_and_clones() {
         let asserter = Asserter::new();
-        let block = rpc_block(B256::ZERO, Vec::new(), alloy_consensus::EMPTY_ROOT_HASH);
+        let block = RpcBlock::<TxEnvelope>::new(
+            RpcHeader::new(Header { number: 6, ..Default::default() }),
+            BlockTransactions::Hashes(Vec::new()),
+        );
         asserter.push_success(&Some(block.clone()));
         asserter.push_success(&Some(block));
         let (head_tx, head_rx) = watch::channel(Some(observed_head(10)));
@@ -748,6 +889,31 @@ mod tests {
         head_tx.send_replace(Some(observed_head(10)));
         cloned.block_info_by_number(6).await.unwrap();
         assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn number_lookups_reject_a_block_at_another_number_even_when_trusted() {
+        let asserter = Asserter::new();
+        let header = Header { number: 8, ..Default::default() };
+        let hash = header.hash_slow();
+        asserter.push_success(&Some(RpcBlock::<TxEnvelope>::new(
+            RpcHeader::new(header),
+            BlockTransactions::Hashes(Vec::new()),
+        )));
+        let provider = mocked_provider(asserter.clone());
+
+        let error = provider.block_info_by_number(7).await.unwrap_err();
+
+        assert!(
+            matches!(
+                error,
+                AlloyChainProviderError::BlockNumberMismatch { expected: 7, actual: 8 }
+            ),
+            "{error}"
+        );
+        assert!(matches!(PipelineErrorKind::from(error), PipelineErrorKind::Temporary(_)));
+        // The wrong block is not cached.
+        assert!(provider.shared.cache.header(hash).is_none());
     }
 
     #[tokio::test]
@@ -840,7 +1006,50 @@ mod tests {
             false,
         );
 
-        assert!(provider.block_info_by_label(BlockLabel::Latest).await.is_err());
+        let error = provider.block_info_by_label(BlockLabel::Latest).await.unwrap_err();
+
+        assert!(
+            matches!(
+                error,
+                AlloyChainProviderError::HeaderHashMismatch { expected, .. }
+                    if expected == B256::repeat_byte(0xbb)
+            ),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn untrusted_hash_lookups_reject_a_block_with_another_hash() {
+        // Each lookup by hash gets a block whose header does not hash to the requested hash.
+        let requested = B256::repeat_byte(0xbc);
+        let block = rpc_block(requested, Vec::new(), alloy_consensus::EMPTY_ROOT_HASH);
+        let asserter = Asserter::new();
+        asserter.push_success(&Some(block.clone()));
+        asserter.push_success(&Some(block));
+        let provider = AlloyChainProvider::new(
+            RootProvider::new(RpcClient::mocked(asserter.clone())),
+            CACHE_SIZE,
+            false,
+        );
+
+        let header_error = provider.header_by_hash(requested).await.unwrap_err();
+        let transactions_error =
+            provider.block_info_and_transactions_by_hash(requested).await.unwrap_err();
+
+        for error in [header_error, transactions_error] {
+            assert!(
+                matches!(
+                    error,
+                    AlloyChainProviderError::HeaderHashMismatch { expected, .. }
+                        if expected == requested
+                ),
+                "{error}"
+            );
+        }
+        assert!(asserter.read_q().is_empty());
+        // Nothing unverified reaches the caches.
+        assert!(provider.shared.cache.header(requested).is_none());
+        assert!(provider.shared.cache.transactions(requested).is_none());
     }
 
     #[tokio::test]
@@ -1059,6 +1268,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn untrusted_empty_raw_receipts_for_an_existing_empty_block_are_accepted() {
+        let header = Header {
+            number: 16,
+            transactions_root: alloy_consensus::EMPTY_ROOT_HASH,
+            receipts_root: alloy_consensus::EMPTY_ROOT_HASH,
+            ..Default::default()
+        };
+        let hash = header.hash_slow();
+        let asserter = Asserter::new();
+        asserter.push_success(&Vec::<Bytes>::new());
+        asserter.push_success(&Some(RpcBlock::<TxEnvelope>::new(
+            RpcHeader::new(header),
+            BlockTransactions::Hashes(Vec::new()),
+        )));
+        let provider = AlloyChainProvider::new(
+            RootProvider::new(RpcClient::mocked(asserter.clone())),
+            CACHE_SIZE,
+            false,
+        );
+
+        assert!(provider.receipts_by_hash(hash).await.unwrap().is_empty());
+        assert!(asserter.read_q().is_empty());
+        // The verified header is cached, so the receipts root check reused it.
+        assert!(provider.shared.cache.header(hash).is_some());
+    }
+
+    #[tokio::test]
+    async fn untrusted_empty_raw_receipts_reject_a_header_with_another_hash() {
+        let asserter = Asserter::new();
+        asserter.push_success(&Vec::<Bytes>::new());
+        asserter.push_success(&Some(rpc_block(
+            B256::repeat_byte(0xae),
+            Vec::new(),
+            alloy_consensus::EMPTY_ROOT_HASH,
+        )));
+        let provider = AlloyChainProvider::new(
+            RootProvider::new(RpcClient::mocked(asserter.clone())),
+            CACHE_SIZE,
+            false,
+        );
+
+        let error = provider.raw_receipts_by_hash(B256::repeat_byte(0xae)).await.unwrap_err();
+
+        assert!(matches!(error, AlloyChainProviderError::HeaderHashMismatch { .. }), "{error}");
+    }
+
+    #[tokio::test]
     async fn empty_raw_receipts_for_nonempty_block_are_rejected() {
         let hash = B256::repeat_byte(0xad);
         let transactions_root = B256::repeat_byte(0x11);
@@ -1076,7 +1332,6 @@ mod tests {
             error,
             AlloyChainProviderError::EmptyRawReceiptsForNonEmptyBlock {
                 hash: error_hash,
-                transaction_count: 1,
                 transactions_root: error_root,
             } if error_hash == hash && error_root == transactions_root
         ));
@@ -1446,5 +1701,550 @@ mod tests {
         assert_eq!(provider.receipts_by_hash(block_hash).await.unwrap(), expected);
         raw_mock.assert();
         fallback_mock.assert();
+    }
+
+    /// Two receipts of different types, one with a log, as `(JSON type, receipt, envelope)`.
+    fn verified_receipts() -> Vec<(&'static str, Receipt, ReceiptEnvelope)> {
+        let first = Receipt {
+            status: Eip658Value::Eip658(true),
+            cumulative_gas_used: 21_000,
+            logs: vec![Log::new_unchecked(
+                Address::repeat_byte(0x10),
+                vec![B256::repeat_byte(0x20)],
+                Bytes::from_static(&[0x01]),
+            )],
+        };
+        let second = Receipt {
+            status: Eip658Value::Eip658(false),
+            cumulative_gas_used: 42_000,
+            logs: Vec::new(),
+        };
+        vec![
+            ("0x2", first.clone(), ReceiptEnvelope::Eip1559(first.with_bloom())),
+            ("0x0", second.clone(), ReceiptEnvelope::Legacy(second.with_bloom())),
+        ]
+    }
+
+    /// The `eth_getBlockReceipts` JSON for `receipts`, each given with its JSON type.
+    fn json_receipts(block_hash: B256, receipts: &[(&str, Receipt)]) -> serde_json::Value {
+        receipts
+            .iter()
+            .enumerate()
+            .map(|(index, (tx_type, receipt))| {
+                let logs: Vec<_> = receipt
+                    .logs
+                    .iter()
+                    .enumerate()
+                    .map(|(log_index, log)| {
+                        serde_json::json!({
+                            "address": log.address,
+                            "topics": log.topics(),
+                            "data": log.data.data,
+                            "blockHash": block_hash,
+                            "blockNumber": "0x10",
+                            "transactionHash": B256::with_last_byte(index as u8),
+                            "transactionIndex": format!("{index:#x}"),
+                            "logIndex": format!("{log_index:#x}"),
+                            "removed": false,
+                        })
+                    })
+                    .collect();
+                serde_json::json!({
+                    "type": tx_type,
+                    "status": if receipt.status.coerce_status() { "0x1" } else { "0x0" },
+                    "cumulativeGasUsed": format!("{:#x}", receipt.cumulative_gas_used),
+                    "logs": logs,
+                    "logsBloom": receipt.bloom_slow(),
+                    "transactionHash": B256::with_last_byte(index as u8),
+                    "transactionIndex": format!("{index:#x}"),
+                    "blockHash": block_hash,
+                    "blockNumber": "0x10",
+                    "gasUsed": "0x5208",
+                    "effectiveGasPrice": "0x3b9aca00",
+                    "from": Address::repeat_byte(0x30),
+                    "to": Address::repeat_byte(0x31),
+                    "contractAddress": null,
+                })
+            })
+            .collect()
+    }
+
+    /// An untrusted provider over a server whose block commits to `verified_receipts`, answering
+    /// `debug_getRawReceipts` with `raw` and `eth_getBlockReceipts` with `json`.
+    fn receipts_root_server(
+        raw: serde_json::Value,
+        json: serde_json::Value,
+    ) -> (MockServer, AlloyChainProvider, B256) {
+        let envelopes: Vec<_> =
+            verified_receipts().into_iter().map(|(_, _, envelope)| envelope).collect();
+        let header = Header {
+            number: 16,
+            receipts_root: calculate_receipt_root(&envelopes),
+            ..Default::default()
+        };
+        let hash = header.hash_slow();
+        let block = RpcBlock::<TxEnvelope>::new(
+            RpcHeader::new(header),
+            BlockTransactions::Hashes(Vec::new()),
+        );
+
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockByHash");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 0, "result": block }));
+        });
+        server.mock(|when, then| {
+            when.method(POST).body_includes("debug_getRawReceipts");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 0, "result": raw }));
+        });
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockReceipts");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 0, "result": json }));
+        });
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            false,
+        );
+        (server, provider, hash)
+    }
+
+    /// The raw EIP-2718 encodings of `envelopes`.
+    fn raw_receipts(envelopes: &[ReceiptEnvelope]) -> serde_json::Value {
+        serde_json::json!(
+            envelopes
+                .iter()
+                .map(|envelope| Bytes::from(envelope.encoded_2718()))
+                .collect::<Vec<_>>()
+        )
+    }
+
+    #[tokio::test]
+    async fn untrusted_raw_receipts_matching_the_receipts_root_are_accepted() {
+        let receipts = verified_receipts();
+        let envelopes: Vec<_> = receipts.iter().map(|(_, _, envelope)| envelope.clone()).collect();
+        let (_server, provider, hash) =
+            receipts_root_server(raw_receipts(&envelopes), serde_json::Value::Null);
+
+        let fetched = provider.receipts_by_hash(hash).await.unwrap();
+
+        assert_eq!(
+            fetched,
+            receipts.into_iter().map(|(_, receipt, _)| receipt).collect::<Vec<_>>()
+        );
+    }
+
+    #[tokio::test]
+    async fn untrusted_raw_receipts_failing_the_root_fall_back_to_verified_json_receipts() {
+        let receipts = verified_receipts();
+        // The raw method drops the second receipt; the JSON method answers in full.
+        let raw = raw_receipts(&[receipts[0].2.clone()]);
+        let json = json_receipts(
+            B256::ZERO,
+            &receipts.iter().map(|(ty, receipt, _)| (*ty, receipt.clone())).collect::<Vec<_>>(),
+        );
+        let (_server, provider, hash) = receipts_root_server(raw, json);
+
+        let fetched = provider.receipts_by_hash(hash).await.unwrap();
+
+        assert_eq!(
+            fetched,
+            receipts.into_iter().map(|(_, receipt, _)| receipt).collect::<Vec<_>>()
+        );
+        // A bad answer is not a missing method, so the raw method stays enabled.
+        assert!(provider.shared.raw_receipts_supported.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn receipts_failing_the_root_on_both_methods_are_temporary() {
+        let receipts = verified_receipts();
+        let raw = raw_receipts(&[receipts[0].2.clone()]);
+        // The receipts root commits to each receipt's type, so mislabelling the legacy receipt
+        // as EIP-1559 is caught even though every other field is correct.
+        let json = json_receipts(
+            B256::ZERO,
+            &receipts.iter().map(|(_, receipt, _)| ("0x2", receipt.clone())).collect::<Vec<_>>(),
+        );
+        let (_server, provider, hash) = receipts_root_server(raw, json);
+
+        let error = provider.receipts_by_hash(hash).await.unwrap_err();
+
+        let AlloyChainProviderError::ReceiptMethodsFailed { raw, fallback } = &error else {
+            panic!("expected both methods to fail, got {error}");
+        };
+        assert!(matches!(**raw, AlloyChainProviderError::ReceiptsRootMismatch { .. }), "{raw}");
+        assert!(
+            matches!(**fallback, AlloyChainProviderError::ReceiptsRootMismatch { .. }),
+            "{fallback}"
+        );
+        assert!(matches!(PipelineErrorKind::from(error), PipelineErrorKind::Temporary(_)));
+    }
+
+    /// Two signed transactions of different types.
+    fn signed_transactions() -> Vec<TxEnvelope> {
+        use alloy_consensus::{SignableTransaction, TxEip1559, TxLegacy};
+        use alloy_primitives::{Signature, TxKind};
+
+        let signature = Signature::test_signature();
+        vec![
+            TxLegacy {
+                chain_id: Some(1),
+                nonce: 1,
+                gas_limit: 21_000,
+                to: TxKind::Call(Address::repeat_byte(0x01)),
+                input: Bytes::from_static(&[0xaa]),
+                ..Default::default()
+            }
+            .into_signed(signature)
+            .into(),
+            TxEip1559 {
+                chain_id: 1,
+                nonce: 2,
+                gas_limit: 21_000,
+                to: TxKind::Call(Address::repeat_byte(0x02)),
+                ..Default::default()
+            }
+            .into_signed(signature)
+            .into(),
+        ]
+    }
+
+    /// An untrusted provider over a server whose block commits to `committed` but answers with
+    /// `returned` as its transactions.
+    fn transactions_root_server(
+        committed: &[TxEnvelope],
+        returned: Vec<TxEnvelope>,
+    ) -> (MockServer, AlloyChainProvider, B256) {
+        let header = Header {
+            number: 16,
+            transactions_root: calculate_transaction_root(committed),
+            ..Default::default()
+        };
+        let hash = header.hash_slow();
+        let transactions = returned
+            .into_iter()
+            .enumerate()
+            .map(|(index, tx)| alloy_rpc_types_eth::Transaction {
+                inner: alloy_consensus::transaction::Recovered::new_unchecked(
+                    tx,
+                    Address::repeat_byte(0x30),
+                ),
+                block_hash: Some(hash),
+                block_number: Some(16),
+                transaction_index: Some(index as u64),
+                effective_gas_price: None,
+                block_timestamp: None,
+            })
+            .collect();
+        let block = RpcBlock::new(RpcHeader::new(header), BlockTransactions::Full(transactions));
+
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockByHash");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 0, "result": block }));
+        });
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            false,
+        );
+        (server, provider, hash)
+    }
+
+    #[tokio::test]
+    async fn untrusted_transactions_matching_the_transactions_root_are_accepted() {
+        let transactions = signed_transactions();
+        let (_server, provider, hash) =
+            transactions_root_server(&transactions, transactions.clone());
+
+        let (block_info, fetched) =
+            provider.block_info_and_transactions_by_hash(hash).await.unwrap();
+
+        assert_eq!(block_info.hash, hash);
+        assert_eq!(fetched, transactions);
+    }
+
+    #[tokio::test]
+    async fn untrusted_transactions_failing_the_transactions_root_are_rejected_temporarily() {
+        let transactions = signed_transactions();
+        // The RPC drops the second transaction, as one hiding a batch from derivation might.
+        let (_server, provider, hash) =
+            transactions_root_server(&transactions, transactions[..1].to_vec());
+
+        let error = provider.block_info_and_transactions_by_hash(hash).await.unwrap_err();
+
+        assert!(
+            matches!(
+                error,
+                AlloyChainProviderError::TransactionsRootMismatch { hash: error_hash, .. }
+                    if error_hash == hash
+            ),
+            "{error}"
+        );
+        assert!(matches!(PipelineErrorKind::from(error), PipelineErrorKind::Temporary(_)));
+        // Nothing unverified reaches the cache.
+        assert!(provider.shared.cache.transactions(hash).is_none());
+    }
+
+    /// The root of a trie holding `leaves`, keyed by already-hashed keys, and the proof of
+    /// `target` in it. The proof shows `target` is absent when it is not a leaf.
+    fn trie_with_proof(leaves: &[(B256, Vec<u8>)], target: B256) -> (B256, Vec<Bytes>) {
+        use alloy_trie::{HashBuilder, proof::ProofRetainer};
+
+        let target = Nibbles::unpack(target);
+        let mut leaves: Vec<_> =
+            leaves.iter().map(|(key, value)| (Nibbles::unpack(key), value.clone())).collect();
+        leaves.sort_by_key(|(key, _)| *key);
+        let mut builder =
+            HashBuilder::default().with_proof_retainer(ProofRetainer::from_iter([target]));
+        for (key, value) in &leaves {
+            builder.add_leaf(*key, value);
+        }
+        let root = builder.root();
+        let proof = builder
+            .take_proof_nodes()
+            .matching_nodes_sorted(&target)
+            .into_iter()
+            .map(|(_, node)| node)
+            .collect();
+        (root, proof)
+    }
+
+    const SIGNER_SLOT: B256 =
+        b256!("65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08");
+    const SYSTEM_CONFIG: Address = Address::repeat_byte(0x01);
+    const SIGNER: Address = Address::repeat_byte(0x0b);
+
+    /// The signer slot's value for `signer`.
+    fn signer_value(signer: Address) -> U256 {
+        U256::from_be_bytes(signer.into_word().0)
+    }
+
+    /// A state root over `accounts`, and the `eth_getProof` response for `target`'s signer slot.
+    /// Each account has code, stores 7 in slot 1 and, if given, a value in the signer slot.
+    fn proven_state(
+        accounts: &[(Address, Option<U256>)],
+        target: Address,
+    ) -> (B256, serde_json::Value) {
+        let accounts: Vec<_> = accounts
+            .iter()
+            .map(|&(address, signer)| {
+                let mut slots =
+                    vec![(keccak256(B256::with_last_byte(1)), alloy_rlp::encode(U256::from(7)))];
+                if let Some(signer) = signer {
+                    slots.push((keccak256(SIGNER_SLOT), alloy_rlp::encode(signer)));
+                }
+                let (storage_root, storage_proof) = trie_with_proof(&slots, keccak256(SIGNER_SLOT));
+                let account = TrieAccount {
+                    nonce: 1,
+                    balance: U256::ZERO,
+                    storage_root,
+                    code_hash: keccak256([0x60]),
+                };
+                (address, signer.unwrap_or_default(), account, storage_proof)
+            })
+            .collect();
+        let leaves: Vec<_> = accounts
+            .iter()
+            .map(|(address, _, account, _)| (keccak256(address), alloy_rlp::encode(account)))
+            .collect();
+        let (state_root, account_proof) = trie_with_proof(&leaves, keccak256(target));
+        let (_, value, account, storage_proof) =
+            accounts.iter().find(|(address, ..)| *address == target).expect("target is an account");
+        let response = serde_json::json!({
+            "address": target,
+            "balance": account.balance,
+            "codeHash": account.code_hash,
+            "nonce": format!("{:#x}", account.nonce),
+            "storageHash": account.storage_root,
+            "accountProof": account_proof,
+            "storageProof": [{ "key": SIGNER_SLOT, "value": value, "proof": storage_proof }],
+        });
+        (state_root, response)
+    }
+
+    /// A state root in which `SYSTEM_CONFIG` stores `SIGNER` in its signer slot, alongside another
+    /// account, and the `eth_getProof` response proving it.
+    fn proven_signer() -> (B256, serde_json::Value) {
+        proven_state(
+            &[(SYSTEM_CONFIG, Some(signer_value(SIGNER))), (Address::repeat_byte(0x02), None)],
+            SYSTEM_CONFIG,
+        )
+    }
+
+    /// An untrusted provider over a server whose block has `state_root`, answering
+    /// `eth_getProof` with `response`.
+    fn storage_proof_server(
+        state_root: B256,
+        response: serde_json::Value,
+    ) -> (MockServer, AlloyChainProvider, B256) {
+        let header = Header { number: 16, state_root, ..Default::default() };
+        let hash = header.hash_slow();
+        let block = RpcBlock::<TxEnvelope>::new(
+            RpcHeader::new(header),
+            BlockTransactions::Hashes(Vec::new()),
+        );
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockByHash");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 0, "result": block }));
+        });
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getProof");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 0, "result": response }));
+        });
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            false,
+        );
+        (server, provider, hash)
+    }
+
+    #[tokio::test]
+    async fn untrusted_unsafe_block_signer_is_proven_against_the_state_root() {
+        let (state_root, response) = proven_signer();
+        let (_server, provider, hash) = storage_proof_server(state_root, response);
+
+        assert_eq!(provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap(), SIGNER);
+    }
+
+    #[tokio::test]
+    async fn untrusted_unsafe_block_signer_rejects_a_value_the_storage_proof_does_not_hold() {
+        let (state_root, mut response) = proven_signer();
+        response["storageProof"][0]["value"] =
+            serde_json::json!(U256::from_be_bytes(Address::repeat_byte(0x0c).into_word().0));
+        let (_server, provider, hash) = storage_proof_server(state_root, response);
+
+        let error = provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap_err();
+
+        assert!(
+            matches!(&error, AlloyChainProviderError::InvalidStorageProof { reason, .. }
+                if reason.starts_with("invalid storage proof")),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn untrusted_unsafe_block_signer_rejects_an_account_the_state_root_does_not_hold() {
+        // A forged account could carry a forged storage root, so the account itself is proven.
+        let (state_root, mut response) = proven_signer();
+        response["balance"] = serde_json::json!(U256::from(1));
+        let (_server, provider, hash) = storage_proof_server(state_root, response);
+
+        let error = provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap_err();
+
+        assert!(
+            matches!(&error, AlloyChainProviderError::InvalidStorageProof { reason, .. }
+                if reason.starts_with("invalid account proof")),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn untrusted_storage_of_an_absent_account_is_proven_zero() {
+        // The state holds only another account, so the proof shows `SYSTEM_CONFIG` is absent.
+        let (state_root, account_proof) = trie_with_proof(
+            &[(
+                keccak256(Address::repeat_byte(0x02)),
+                alloy_rlp::encode(TrieAccount { nonce: 5, ..Default::default() }),
+            )],
+            keccak256(SYSTEM_CONFIG),
+        );
+        // RPCs report an absent account's code hash and storage root either as their empty values
+        // or as zero.
+        for (code_hash, storage_hash) in [(KECCAK_EMPTY, EMPTY_ROOT_HASH), (B256::ZERO, B256::ZERO)]
+        {
+            let response = |value: U256| {
+                serde_json::json!({
+                    "address": SYSTEM_CONFIG,
+                    "balance": U256::ZERO,
+                    "codeHash": code_hash,
+                    "nonce": "0x0",
+                    "storageHash": storage_hash,
+                    "accountProof": account_proof,
+                    "storageProof": [{ "key": SIGNER_SLOT, "value": value, "proof": [] }],
+                })
+            };
+
+            let (_server, provider, hash) = storage_proof_server(state_root, response(U256::ZERO));
+            assert_eq!(
+                provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap(),
+                Address::ZERO
+            );
+
+            let (_server, provider, hash) =
+                storage_proof_server(state_root, response(U256::from(1)));
+            let error = provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap_err();
+            assert!(
+                matches!(error, AlloyChainProviderError::InvalidStorageProof { .. }),
+                "{error}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn untrusted_unsafe_block_signer_rejects_another_accounts_storage() {
+        // An attacker's contract stores the attacker's address in the same slot. Its proofs are
+        // valid against the state root, but they prove the wrong account, whichever address the
+        // response claims.
+        let attacker = Address::repeat_byte(0x0a);
+        let (state_root, mut response) = proven_state(
+            &[
+                (SYSTEM_CONFIG, Some(signer_value(SIGNER))),
+                (attacker, Some(signer_value(attacker))),
+            ],
+            attacker,
+        );
+        for claimed in [attacker, SYSTEM_CONFIG] {
+            response["address"] = serde_json::json!(claimed);
+            let (_server, provider, hash) = storage_proof_server(state_root, response.clone());
+
+            let error = provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap_err();
+
+            assert!(
+                matches!(error, AlloyChainProviderError::InvalidStorageProof { .. }),
+                "{error}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn untrusted_unset_signer_of_an_existing_account_is_proven_zero() {
+        let (state_root, response) = proven_state(
+            &[(SYSTEM_CONFIG, None), (Address::repeat_byte(0x02), None)],
+            SYSTEM_CONFIG,
+        );
+        let (_server, provider, hash) = storage_proof_server(state_root, response);
+
+        assert_eq!(provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap(), Address::ZERO);
+    }
+
+    #[tokio::test]
+    async fn untrusted_unsafe_block_signer_rejects_a_set_slot_reported_as_zero() {
+        // Claiming the slot is unset needs a proof that it is absent, which a set slot has not.
+        let (state_root, mut response) = proven_signer();
+        response["storageProof"][0]["value"] = serde_json::json!(U256::ZERO);
+        let (_server, provider, hash) = storage_proof_server(state_root, response);
+
+        let error = provider.unsafe_block_signer(SYSTEM_CONFIG, hash).await.unwrap_err();
+
+        assert!(
+            matches!(&error, AlloyChainProviderError::InvalidStorageProof { reason, .. }
+                if reason.starts_with("invalid storage proof")),
+            "{error}"
+        );
     }
 }

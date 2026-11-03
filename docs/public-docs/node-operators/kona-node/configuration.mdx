@@ -200,7 +200,7 @@ flag group. `--interop.dependency-set` is the node's only interop flag.
 
 ## RPC Trust Flags
 
-The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona verifies the block hashes of RPC responses. For guidance on when to disable trust and worked examples for trusted, untrusted, and mixed provider setups, see [configure RPC trust](/node-operators/kona-node/run/rpc-trust).
+The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona verifies RPC responses. Without L1 trust, Kona checks L1 headers against their block hashes, and L1 transactions and receipts against the header's roots, and proves the unsafe block signer with `eth_getProof`, which the L1 RPC must therefore serve. For guidance on when to disable trust and worked examples for trusted, untrusted, and mixed provider setups, see [configure RPC trust](/node-operators/kona-node/run/rpc-trust).
 
 ## Default Behavior
 
