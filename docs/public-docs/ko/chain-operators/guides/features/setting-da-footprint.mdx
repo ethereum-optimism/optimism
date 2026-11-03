@@ -1,0 +1,87 @@
+---
+title: DA Footprint Gas Scalar 설정하기
+description: OP-Stack 체인에서 데이터 가용성(DA) Footprint를 설정하는 방법을 알아봅니다
+diataxis: how-to
+---
+
+## 개요
+
+| 파라미터 | 유형 | 기본값 | 권장값 | 단위 |
+| ---------- | ---- | -------- | ------------ | ------------ |
+|<Tooltip tip="기본값 0은 scalar를 `400`으로 설정하는 것과 같습니다. 이 기능을 사실상 비활성화하려면 scalar를 1과 같은 매우 낮은 값으로 설정하십시오." cta="자세한 내용은 specs를 참고하십시오" href="https://specs.optimism.io/protocol/jovian/l1-attributes.html" > `daFootprintGasScalar` </Tooltip>| 숫자 | `0` (`400`)  | `400` | 바이트당 gas |
+
+<Warning>
+기본값 `0`은 scalar를 `400`으로 설정하는 것과 같습니다. 이 기능을 사실상 비활성화하려면 scalar를 `1`과 같은 매우 낮은 값으로 설정하십시오.
+[자세한 내용은 specs](https://specs.optimism.io/protocol/jovian/l1-attributes.html)를 참고하십시오.
+</Warning>
+
+`daFootprintGasScalar`는 [Jovian 하드포크](https://docs.optimism.io/notices/upgrade-17)에서 도입된 **데이터 가용성(DA) Footprint 블록 한도(DA Footprint Block Limit)**를 제어합니다. 이 한도는 압축된 크기에 대한 스케일링된 추정치를 기반으로 블록에 들어갈 수 있는 트랜잭션 데이터의 총량을 제한합니다.
+블록당 추정 DA 사용량의 실질적인 한도는 `gasLimit / daFootprintGasScalar` 바이트이므로, scalar를 _높이면_ 한도가 _낮아지고_, 그 반대도 마찬가지입니다.
+
+DA footprint가 계산되는 방식, 이 한도가 존재하는 이유, 기본값 `400`이 선택된 방식에 대해서는 [DA footprint 블록 한도의 동작 방식](/ko/chain-operators/reference/da-footprint)을 참고하십시오.
+
+## 값 선택하기
+
+<Warning>
+  - `SystemConfig`에서 `daFootprintGasScalar`에 한도가 설정되지 않았거나 값이 0으로 설정된 경우, 기본값 `400`이 사용됩니다
+  - 이 기능을 사실상 비활성화하려면 scalar를 `1`과 같은 매우 낮은 값으로 설정하십시오.
+  - `daFootprintGasScalar`를 너무 높게 설정하면 블록에서 너무 많은 트랜잭션이 제외될 수 있습니다.
+  - `daFootprintGasScalar`를 너무 낮게 설정하면 batcher 스로틀링을 방지하거나 DA를 많이 사용하는 트랜잭션이 지속적으로 유입되는 것을 막는 데 효과가 없을 수 있습니다.
+  - 체인의 gas limit이 변경되면 DA footprint는 설계상 비례하여 조정됩니다. 그러나 동일한 절대 DA footprint 한도를 유지하려면 `daFootprintGasScalar`도 그에 맞게 조정해야 합니다.
+</Warning>
+
+## `daFootprintGasScalar` 업데이트하기
+
+아래 단계는 `SystemConfig` 컨트랙트를 사용하여 온체인에서 `daFootprintGasScalar` 파라미터를 업데이트하는 방법을 설명합니다.
+
+<Steps>
+  <Step title="SystemConfig 컨트랙트 주소 찾기">
+    [SystemConfig](https://specs.optimism.io/protocol/system-config.html) 컨트랙트는 gas limit 및 수수료 설정과 같은 구성 가능한 프로토콜 파라미터를 저장합니다.  
+    proxy 주소는 [op-deployer가 생성한 state.json](https://docs.optimism.io/chain-operators/tutorials/create-l2-rollup/op-deployer-setup#deploy-l1-contracts)에서 찾을 수 있습니다.
+  </Step>
+
+  <Step title="setDAFootprintGasScalar() 메서드 호출">
+   <Info>
+    [SystemConfig owner](/ko/op-stack/protocol/privileged-roles)만이 이러한 변경을 할 수 있는 유일한 주소입니다.
+    </Info>
+    `daFootprintGasScalar`를 업데이트하려면 `SystemConfig` 컨트랙트에서 다음 메서드를 호출하십시오.
+
+    `setDAFootprintGasScalar(uint16 daFootprintGasScalar) external onlyOwner;`
+   
+    scalar를 두 배로 늘려 실질적인 DA 사용량 한도를 절반으로 낮추는 예시([cast](https://getfoundry.sh/cast/reference/cast/) 사용):
+
+    ```bash title="Cast"
+    cast send -r <L1_RPC_URL> <SYSTEM_CONFIG_PROXY_ADDRESS> "setDAFootprintGasScalar(uint16)" 800 
+    ```
+  </Step>
+
+  <Step title="새 값 확인">
+    트랜잭션이 확정되면 `SystemConfig` 컨트랙트에서 다음 getter 메서드를 호출하여 현재 값을 확인하십시오.
+    
+    `function daFootprintGasScalar() external view returns (uint16);`
+
+    예시([cast](https://getfoundry.sh/cast/reference/cast/) 사용):
+
+    ```bash title="cast"
+    cast call -r <L1_RPC_URL> <SYSTEM_CONFIG_PROXY_ADDRESS> "daFootprintGasScalar()"
+    ```
+
+    또한 L2 체인에서 [L1Block predeploy](https://specs.optimism.io/protocol/predeploys.html#l1block)의 scalar를 쿼리하여 새 scalar가 체인에 전파되었는지 확인할 수 있습니다.
+
+    ```bash title="cast"
+    cast call -r <L2_RPC_URL> 0x4200000000000000000000000000000000000015 "daFootprintGasScalar()"
+    ```
+  </Step>
+</Steps>
+
+## 다음 단계
+
+*   [DA footprint 블록 한도의 동작 방식](/ko/chain-operators/reference/da-footprint) — 계산 방식, scalar의 의미, 기본값의 근거를 설명합니다.
+*   [수수료 파라미터 레퍼런스](/ko/chain-operators/reference/fee-parameters) — 수수료 관련 `SystemConfig` 파라미터 전체 목록입니다.
+
+## 참고 자료
+
+* [DA Footprint 구성 명세](https://specs.optimism.io/protocol/jovian/system-config.html#da-footprint-configuration)
+* [Jovian 업그레이드 명세](https://specs.optimism.io/protocol/jovian/overview.html)
+* [SystemConfig 컨트랙트 명세](https://specs.optimism.io/protocol/system-config.html)
+* [설계 문서](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/da-footprint-block-limit.md)

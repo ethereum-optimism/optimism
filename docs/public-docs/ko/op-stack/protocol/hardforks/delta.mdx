@@ -1,0 +1,34 @@
+---
+title: Delta
+description: span batch를 도입한 Delta 네트워크 업그레이드의 하드포크 레지스트리 항목입니다.
+diataxis: reference
+hardfork_name: delta
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/delta/overview.html
+hardfork_activation_mainnet: 1708560000
+hardfork_activation_sepolia: 1703203200
+hardfork_governance: https://gov.optimism.io/t/final-upgrade-proposal-3-delta-network-upgrade/7310
+---
+
+import DeltaFacts from "/ko/snippets/generated/hardforks/delta.mdx"
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="이 업그레이드"
+  title="Delta 명세"
+  href="https://specs.optimism.io/protocol/delta/overview.html"
+  note="이 페이지는 활성화 데이터와 운영 관련 참고 정보를 기록하며, 명세의 내용을 다시 서술하지 않습니다."
+/>
+
+Delta는 단일 합의 계층 기능인 span batch로 구성되었습니다. span batch는 batch
+제출 시 블록당 고정 오버헤드를 줄여 줍니다.
+
+<DeltaFacts />
+
+## 변경 사항
+
+[명세 개요](https://specs.optimism.io/protocol/delta/overview.html)에 따른 변경 사항은 다음과 같습니다.
+
+*   합의 계층: [span batch](https://specs.optimism.io/protocol/delta/span-batches.html).
+    Delta는 rollup node(`delta_time`)에서만 지정되며, 실행 엔진 변경은
+    필요하지 않았습니다.

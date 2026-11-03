@@ -1,0 +1,56 @@
+---
+title: "kona-node 설치"
+description: "사전 요구 사항과 kona-node를 얻는 세 가지 방법(Docker 이미지, 사전 빌드된 바이너리, 소스에서 빌드)을 안내합니다."
+diataxis: how-to
+---
+
+## 사전 요구 사항
+
+Kona를 설치하기 전에 다음 사전 요구 사항을 갖추었는지 확인하십시오.
+
+- **Rust 툴체인** (MSRV: 1.82)
+- **`just`** 명령 실행기
+- **Docker** (선택 사항, 컨테이너 빌드용)
+
+### Rust 설치
+
+Rust가 설치되어 있지 않다면 [rustup](https://rustup.rs/)을 사용해 설치할 수 있습니다.
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Rustup은 Rust 컴파일러를 쉽게 업데이트할 수 있는 방법이며, 모든 플랫폼에서 동작합니다.
+
+<Tip>
+-   설치 중 메시지가 표시되면 기본 설치를 위해 `1`을 입력하십시오.
+-   Rust 설치가 완료되면 `cargo version`을 실행해 보십시오. 명령을 찾을 수
+    없다면 `source $HOME/.cargo/env`를 실행하십시오. 그 후 `cargo version`을 실행하면 `cargo 1.68.2`와 같은 버전이 반환되어야 합니다.
+-   일반적으로 `~/.bashrc`에 `source $HOME/.cargo/env`를 추가하는 것이 좋습니다.
+</Tip>
+
+이 프로젝트의 최소 지원 Rust 버전(MSRV)은 1.82.0입니다. 이미 Rust가
+설치되어 있다면 `rustc --version`을 실행하여 버전을 확인할 수 있습니다.
+Rust 버전을 업데이트하려면 rustup update를 실행하십시오.
+
+
+### Just 설치
+
+`just`는 Kona가 빌드 작업에 사용하는 명령 실행기입니다. 다음 명령으로 설치하십시오.
+
+```bash
+cargo install just
+```
+
+## 설치 방법
+
+Kona를 얻는 방법은 세 가지입니다.
+
+-   [Docker 이미지](/ko/node-operators/kona-node/run/docker#getting-the-kona-node-image): 게시된 이미지를 가져오거나 로컬에서 빌드합니다
+-   [사전 빌드된 바이너리](https://github.com/ethereum-optimism/optimism/releases): GitHub에서 최신 릴리스를 다운로드한 다음 [바이너리 가이드](/ko/node-operators/kona-node/run/binary)를 따릅니다
+-   [소스에서 빌드](/ko/node-operators/kona-node/install/source)
+
+<Note>
+Docker가 설치되어 있다면 [Docker 레시피](/ko/node-operators/kona-node/run/docker) 구성을 사용하는 것을 권장합니다.
+이 구성을 사용하면 명령 하나로 kona-node, op-reth, Prometheus, Grafana를 실행하고 동기화할 수 있습니다.
+</Note>

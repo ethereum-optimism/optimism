@@ -1,0 +1,62 @@
+{/*
+  Shared app-developer tutorial setup: create the Node.js demo project.
+
+  Hand-maintained; not generated. Extracted from the duplicated setup
+  sections of the app-developer tutorials (duplication census cluster S1).
+
+  Usage:
+    import TutorialSetupNodeProject from '/snippets/tutorial-setup-node-project.mdx';
+
+    ## Create a demo project
+
+    <TutorialSetupNodeProject lib="Viem" folder="bridge-eth" packages="viem" />
+
+  Props (all required):
+    lib      - library display name used in the intro prose, for example
+               "Viem", "viem", or "@eth-optimism/viem".
+    folder   - project folder name used in the mkdir and cd commands.
+    packages - space-separated package list for the pnpm add command.
+
+  Consumer pages:
+    app-developers/tutorials/bridging/cross-dom-bridge-eth.mdx
+    app-developers/tutorials/bridging/cross-dom-bridge-erc20.mdx
+    app-developers/tutorials/transactions/sdk-estimate-costs.mdx
+    app-developers/tutorials/transactions/sdk-trace-txns.mdx
+    app-developers/tutorials/transactions/send-tx-from-eth.mdx
+
+  The empty component export below declares the props so that they also
+  interpolate inside the fenced code blocks, following the fenced-code
+  variables example in the Mintlify reusable-snippets guide (its example
+  names the empty component identically to the component name the
+  destination file imports, so this one is named TutorialSetupNodeProject).
+*/}
+
+export const TutorialSetupNodeProject = ({ lib, folder, packages }) => <></>;
+
+이 튜토리얼에서는 {lib} 라이브러리를 사용합니다.
+{lib}는 [Node.js](https://nodejs.org/en/) 라이브러리이므로, 이를 사용하려면 Node.js 프로젝트를 생성해야 합니다.
+
+<Steps>
+  <Step title="프로젝트 폴더 만들기">
+
+  ```bash
+  mkdir {folder}
+  cd {folder}
+  ```
+
+  </Step>
+  <Step title="프로젝트 초기화">
+
+  ```bash
+  pnpm init
+  ```
+
+  </Step>
+  <Step title="의존성 설치">
+
+  ```bash
+  pnpm add {packages}
+  ```
+
+  </Step>
+</Steps>

@@ -1,0 +1,136 @@
+---
+title: "콘텐츠 유형: 커리큘럼 허브"
+description: 커리큘럼 허브에 대해 공개된 계약으로, 목적, 어조, 필수 구성 요소, 제목 문법, 복사해 쓸 수 있는 템플릿을 다룹니다.
+diataxis: reference
+---
+
+**커리큘럼 허브(curriculum hub)**는 결함 증명(fault proof)이나 interop처럼 하나의 기능을
+완전히 익히는 데 필요한 모든 것을 하나의 사이드바 노드 아래에 모으고, 가벼운
+소개부터 규범적 스펙까지 순서대로 배열합니다. 이는 "X를 제대로
+이해하고 싶다"는 요구에 대한 답입니다. 하나의 위치, 하나의 읽기 순서로, 네 가지 문서화 방식을
+모두 하나의 주제에 맞게 구성합니다.
+
+이 페이지는 이 유형에 대한 계약입니다. 새 커리큘럼 허브는 이 계약을 기준으로 리뷰되며,
+리뷰 시 다시 논쟁하는 대신 관련 섹션을 인용합니다.
+
+## 목적
+
+*   각 주요 기능에 **하나의 정문**과 권장 읽기 순서를 제공하여,
+    페이지가 여러 내비게이션 그룹에 흩어지지 않게 합니다.
+*   **다시 쓰지 말고 구성합니다**: 허브는 기존 페이지의 순서를 재구성하고,
+    순서에 공백이 있는 곳에만 최대 몇 개의 짧은 학습 단위 페이지를 추가합니다.
+*   출구를 명확히 합니다: 모든 허브는 **규범적 스펙**(그리고 감사 보고서가 있다면
+    감사 보고서)으로 끝나며, 더 깊이 알고 싶은 독자를 의도적으로 외부 사이트로 안내하고
+    결코 막다른 길에 남겨 두지 않습니다.
+
+## 구성
+
+커리큘럼 허브는 하나의 기능에 대해 네 사분면을 모두 구성합니다. 설명
+(가벼운 소개와 심층 분석), 튜토리얼/how-to(실습 단계),
+레퍼런스(컴포넌트 및 구성 페이지), 그리고 스펙 출구입니다. 허브의
+인덱스 페이지는 `diataxis: explanation`(독자에게 기능의 전체 그림을 제시함)과
+`content-type: curriculum-hub`를 포함합니다. 허브 내부의 각 단계 페이지는
+자체 사분면 값을 유지하며, 공백을 메우기 위한 새 단계 페이지는
+[학습 단위 계약](/ko/op-stack/contribute/learning-unit)을 따릅니다.
+
+구성된 유형들이 `diataxis:` 분류 체계와 어떻게 연관되는지는
+[콘텐츠 유형 선택](/ko/op-stack/contribute/choose-a-content-type)을 참고하세요.
+
+## 어조
+
+*   인덱스 페이지는 방향을 잡아 줍니다. 기능이 무엇인지, 왜 중요한지,
+    자료들이 어떻게 맞물리는지를 에세이가 아니라 몇 개의 짧은 단락으로 설명합니다.
+*   나열된 모든 단계에는 한 줄의 이유("…하려면 이 문서를 읽으세요")를 붙입니다. 이는 요약이 아니라
+    클릭할지 결정하는 학습자를 위해 작성합니다.
+*   순서에 대해서는 확신을 갖고, 깊이에 대해서는 정직하게: 무엇을 건너뛸 수 있고
+    무엇이 규범적인지 밝힙니다.
+
+## 필수 구성 요소
+
+모든 커리큘럼 허브에는 다음이 있어야 합니다.
+
+1.  **하나의 사이드바 노드**: 허브는 하나의 내비게이션 그룹입니다. 여러 그룹에 걸친
+    허브는 목적을 달성하지 못한 것입니다.
+2.  프런트매터에 `title`, `description`,
+    `diataxis: explanation`, `content-type: curriculum-hub`,
+    `last-reviewed: YYYY-MM-DD`를 갖춘 **인덱스 페이지**(허브는 큐레이션 산출물이며
+    병합 시 리뷰 점검 대상에 들어갑니다).
+3.  인덱스에 다음 형태의 **순서가 있는 경로**(기능에 해당 자료가 실제로 없는 경우에만
+    섹션을 합치거나 생략할 수 있습니다):
+    *   `## Start here` — 가벼운 소개.
+    *   `## Go deeper` — 메커니즘 및 아키텍처 자료.
+    *   `## Get hands-on` — 튜토리얼과 how-to(있는 경우).
+    *   `## Economics and incentives` — 기능에 해당 내용이 있는 경우.
+    *   `## The normative spec` — [콘텐츠 가이드](/ko/op-stack/contribute/content-guide)에 따라
+        **현재 스펙 경로**(폐기된 이전 세대 경로는 사용하지 않음)로
+        [specs.optimism.io](https://specs.optimism.io/)에 딥링크합니다.
+    *   `## Audits and security` — 감사 보고서가 있는 경우.
+4.  모든 링크에 **한 줄의 이유**.
+5.  **중복 콘텐츠 금지**: 허브는 기존 페이지에 링크합니다. 수정이 필요한 단계는
+    포크하지 말고 이슈를 등록합니다. 공백을 메우는 단계는 새
+    [학습 단위](/ko/op-stack/contribute/learning-unit)로 작성하며, 허브당
+    몇 개로 제한합니다.
+
+## 제목 문법
+
+허브의 내비게이션 그룹과 인덱스 제목은 기능의 평이한 이름을 sentence case로
+작성합니다: "Fault proofs", "Interoperability". 제목에 "hub", "curriculum", "guide to",
+"learn"을 넣지 않습니다. 형태는 사이드바에서 보이며, 이름은
+독자가 검색하는 단어와 일치해야 합니다.
+
+## 템플릿
+
+새 허브의 인덱스 페이지에 다음 템플릿을 복사해 사용합니다.
+
+```mdx
+---
+title: <Feature name>
+description: <One sentence: what the feature is and what this hub covers.>
+diataxis: explanation
+content-type: curriculum-hub
+last-reviewed: <YYYY-MM-DD>
+---
+
+<Two or three short paragraphs: what <feature> is, why it matters to this
+audience, and how the materials below fit together.>
+
+## Start here
+
+*   [<Gentle introduction>](</path>) — read this first for the mental model.
+
+## Go deeper
+
+*   [<Mechanism page>](</path>) — <what it explains, one line>.
+*   [<Architecture page>](</path>) — <what it explains, one line>.
+
+## Get hands-on
+
+*   [<Tutorial or how-to>](</path>) — <what you'll build or do, one line>.
+
+## Economics and incentives
+
+*   [<Economics page>](</path>) — <what it covers, one line>.
+
+## The normative spec
+
+The definitive definition of <feature> behavior lives in the OP Stack
+specifications:
+
+*   [<Spec section title>](https://specs.optimism.io/<current-path>) —
+    <what it defines, one line>.
+
+## Audits and security
+
+*   [<Audit or security page>](</path>) — <what was audited or what the
+    security model is, one line>.
+```
+
+## 모범 사례
+
+이미 배포된 허브를 기준으로 맞춥니다.
+
+*   [결함 증명](/ko/op-stack/fault-proofs/index): 처음 배포된 허브로,
+    기존 결함 증명 페이지 6개와 실습
+    가이드, bond 경제학, 스펙 출구, 보안 자료의 순서를 정합니다.
+*   [상호운용성](/ko/op-stack/interop/index): 두 번째로 배포된 허브로,
+    아직 활발히 개발 중인 기능에 대해 허브를 정직하게 구성하는 방법을 보여 줍니다.

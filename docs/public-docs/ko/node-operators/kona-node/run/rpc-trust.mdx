@@ -1,0 +1,64 @@
+---
+title: "RPC 신뢰 설정"
+description: "kona-node에서 RPC 응답 검증을 언제 활성화할지 결정하고, 신뢰할 수 있는 공급자와 신뢰할 수 없는 공급자에 맞게 --l1-trust-rpc 및 --l2-trust-rpc 플래그를 설정합니다."
+diataxis: how-to
+---
+
+`--l1-trust-rpc` 및 `--l2-trust-rpc` 플래그는 악의적이거나 결함이 있는 RPC 공급자로부터 보호하기 위해 Kona가 RPC 응답에 대해 추가 검증을 수행할지 여부를 제어합니다. 이 가이드는 인프라에 적합한 설정을 선택하는 데 도움을 주고 설정 방법을 보여 줍니다.
+
+## 신뢰 모드
+
+기본값은 op-node와 동일합니다. L1 신뢰는 비활성화(`false`)되어 있고, L2 엔진 신뢰는 활성화(`true`)되어 있습니다. 이전의 L1 신뢰 동작을 유지하려면 `--l1-trust-rpc=true` 또는 `KONA_NODE_L1_TRUST_RPC=true`를 설정하십시오.
+
+**신뢰 모드(신뢰 활성화, `true`):**
+- 추가 블록 해시 검증을 수행하지 않습니다.
+- 성능에 최적화되어 있습니다.
+- 로컬 node와 신뢰할 수 있는 인프라에 적합합니다.
+- RPC 공급자가 신뢰할 수 있고 정직하다고 가정합니다.
+
+**검증 모드(신뢰 비활성화, `false`):**
+- 블록 해시 검증이 활성화됩니다.
+- 잘못된 블록을 반환하는 악의적인 RPC 공급자로부터 보호합니다.
+- 공개 또는 서드파티 RPC 엔드포인트에 권장됩니다.
+- 해시 검증으로 인해 약간의 성능 오버헤드가 발생합니다.
+
+## 예시
+
+**신뢰할 수 있는 로컬 RPC 사용:**
+```bash
+kona-node node \
+  --l1-eth-rpc http://localhost:8545 \
+  --l1-trust-rpc=true \
+  --l2-engine-rpc http://localhost:8551 \
+  # L2 trust-rpc defaults to true
+```
+
+**신뢰할 수 없는 공개 RPC 사용:**
+```bash
+kona-node node \
+  --l1-eth-rpc https://public-eth-rpc.com \
+  --l1-trust-rpc=false \
+  --l2-engine-rpc https://public-l2-rpc.com \
+  --l2-trust-rpc=false
+```
+
+**혼합 신뢰 설정:**
+```bash
+kona-node node \
+  --l1-eth-rpc https://public-eth-rpc.com \
+  --l1-trust-rpc=false \
+  --l2-engine-rpc http://localhost:8551 \
+  # L2 trust-rpc defaults to true for local engine
+```
+
+## 보안 권장 사항
+
+1. **로컬 인프라**: 신뢰 모드(`true`)는 직접 제어하는 RPC에만 사용하십시오.
+2. **공개 RPC**: 서드파티 엔드포인트에는 `--l1-trust-rpc=false` 및 `--l2-trust-rpc=false`를 사용하십시오.
+3. **공유 인프라**: 두 RPC 모두 신뢰를 비활성화하는 것을 고려하십시오.
+4. **성능 테스트**: 검증 오버헤드는 최소한이지만 높은 처리량 시나리오에서는 측정될 수 있습니다.
+
+## 다음 단계
+
+- 두 플래그는 node의 다른 옵션과 함께 [Kona node CLI 레퍼런스](/ko/node-operators/kona-node/configuration)에 정리되어 있습니다.
+- node를 처음부터 끝까지 실행하려면 [바이너리 가이드](/ko/node-operators/kona-node/run/binary) 또는 [Docker 가이드](/ko/node-operators/kona-node/run/docker)를 따르십시오.

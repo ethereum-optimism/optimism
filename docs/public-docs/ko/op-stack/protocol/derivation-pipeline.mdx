@@ -1,0 +1,42 @@
+---
+title: Derivation pipeline
+description: OP Stack 프로토콜의 derivation pipeline에 대한 개요입니다.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="Derivation pipeline"
+  title="L2 체인 derivation 명세"
+  href="https://specs.optimism.io/protocol/derivation.html"
+  note="이 페이지는 간단한 안내이며, 명세의 내용을 다시 서술하지 않습니다."
+/>
+
+Derivation pipeline은 OP Stack 프로토콜의 핵심 구성 요소로, Optimism 네트워크에서 트랜잭션을 처리하고 검증하는 역할을 합니다. Derivation pipeline은 sequencer가 제출한 시퀀싱된 트랜잭션과 batch로부터 일관된 상태를 도출하여 블록체인의 무결성과 보안을 보장합니다.
+
+## Derivation pipeline의 주요 기능
+
+Derivation pipeline의 주요 기능은 다음과 같습니다.
+
+*   **Batch 제출 및 시퀀싱**: sequencer가 트랜잭션을 수집하고 시퀀싱하여 batch로 만듭니다. 이 batch는 최종성 확보와 블록체인 포함을 위해 Layer 1(L1)에 제출됩니다.
+*   **Safe Head와 Unsafe 블록**: Derivation pipeline은 Safe Head와 Unsafe Head라는 두 가지 유형의 head를 유지합니다. Safe Head는 L1에서 확인된 가장 최신 상태를 나타내며, Unsafe Head는 rollup node가 알고 있는 가장 높은 unsafe L2 블록을 나타냅니다. Unsafe 블록은 시퀀싱되었지만 아직 L1에서 확인되지 않은 블록입니다(즉, Safe Head 이후부터 Unsafe Head까지의 블록이며 Unsafe Head를 포함합니다).
+*   **Reorg 및 복구**: L1에서 유효한 batch가 발견되지 않은 채 시퀀싱 윈도우(일반적으로 12시간)가 초과되면, pipeline은 해당 기간의 모든 Unsafe 블록을 되돌립니다. 그런 다음 pipeline은 입금(디파짓)을 제외하고는 비어 있는 기본 블록을 사용하여 진행하며, 이를 통해 네트워크가 복구되고 새로운 트랜잭션을 계속 처리할 수 있습니다.
+
+## Sequencer 윈도우
+
+Sequencer 윈도우는 batch가 L1에 제출되고 확인되기까지 허용되는 최대 시간을 정의합니다. 이 윈도우가 초과되면 derivation pipeline은 네트워크의 무결성과 지속적인 운영을 보장하기 위해 시정 조치를 취합니다.
+
+예를 들면 다음과 같습니다.
+
+*   12시간 시퀀싱 윈도우에서 L1에서 유효한 batch가 발견되지 않으면, pipeline은 Unsafe 블록을 되돌리고 기본 블록을 사용하여 진행합니다.
+*   윈도우를 24시간으로 늘리면 node가 unsafe 블록을 reorg하기 전에 더 오래 기다릴 수 있지만, 리소스 제약 증가 및 더 큰 batch 처리의 어려움과 같은 추가적인 문제가 발생할 수 있습니다.
+
+## 구성 및 조정
+
+`sequencerWindowSize` 파라미터는 배포 구성 시 설정되며, 한 번 설정되면 변경하기 어려울 수 있습니다. 체인 운영자는 네트워크 성능과 안정성의 균형을 맞추기 위해 적절한 윈도우 크기를 신중하게 고려해야 합니다.
+
+## 다음 단계
+
+*   자세한 내용은 [derivation pipeline 명세](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs)를 참조하십시오.
+*   질문이 있으십니까? [개발자 지원 포럼](https://github.com/ethereum-optimism/developers/discussions)에서 질문할 수 있습니다.

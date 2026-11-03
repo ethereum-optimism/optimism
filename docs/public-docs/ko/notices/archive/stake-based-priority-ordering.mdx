@@ -1,0 +1,210 @@
+---
+title: OP Mainnet의 스테이크 기반 우선순위 정렬
+description: OP Mainnet에서 OP 스테이커가 트랜잭션 정렬 우선순위를 받을 수 있도록 하는 4주간의 실험입니다.
+date: 2026-05-26
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: stake-based-priority-ordering
+personas:
+  - app-developer
+  - chain-operator
+  - node-operator
+categories:
+  - protocol
+  - infrastructure
+is_imported_content: 'false'
+---
+
+OP Mainnet에서 스테이크 기반 트랜잭션 정렬에 대한 기간 한정 실험이 진행됩니다. `PolicyEngineStaking` 컨트랙트에 OP를 예치한 참여자는 트랜잭션 정렬에서 우선 처리를 받을 수 있습니다. 처음에는 자격을 갖춘 스테이커 간의 엄격한 FIFO 방식(Phase 1)으로, 이후에는 유효 우선순위 수수료에 스테이크 가중 배수를 적용하는 방식(Phase 2)으로 진행됩니다. 이 실험은 OP Mainnet에서 **최대 4주** 동안 진행되며, 이후 정렬 방식은 표준 PGA로 되돌아갑니다.
+
+이는 OP Stack 체인에 배포된 최초의 스테이크 기반 트랜잭션 정렬 메커니즘이며, 거버넌스를 넘어서는 직접적인 OP 토큰 유틸리티를 만들어 냅니다.
+
+<Warning>
+  이 실험은 OP Mainnet에서 **2026년 5월 26일 10:00 EST**부터 최대 4주 동안 진행됩니다. 그 이후에는 결과와 관계없이 OP Mainnet이 표준 PGA 정렬로 되돌아갑니다. 스테이크 기반 우선순위에 의존하는 모든 전략은 이 확정된 종료 시점을 고려해야 합니다.
+</Warning>
+
+## 의미
+
+*   **Phase 1 (최대 1주):** 유효 스테이크가 100,000 OP 이상인 주소 간에 엄격한 FIFO 정렬을 적용합니다. 최소 기준을 초과하는 추가 스테이크는 영향을 주지 않습니다. 자격이 없는 트랜잭션은 표준 PGA로 대체 처리됩니다.
+*   **Phase 2 (최대 3주):** FIFO 대신 유효 우선순위 수수료에 스테이크 가중 배수를 적용합니다. 제곱근 곡선으로 수확 체감을 적용하며, 이점은 최대 3배로 제한됩니다.
+*   **스테이킹은 비수탁(non-custodial) 방식입니다.** OP Labs나 Optimism Foundation의 어떤 주체도 스테이킹된 OP에 접근할 수 없습니다. 언스테이킹은 락업이나 대기 기간 없이 즉시 이루어집니다.
+*   **정렬 보장은 최선의 노력(best-effort) 기준입니다.** 스테이킹은 트랜잭션 포함, 실행 순서, 최종성(finality) 또는 특정 경제적 결과를 보장하지 않습니다.
+
+## PolicyEngineStaking 컨트랙트
+
+스테이킹 컨트랙트 `PolicyEngineStaking`([소스](https://github.com/ethereum-optimism/optimism/pull/19192/changes#diff-dfad1cdbadfef03b98f7bbadd22222fbcc4ea2a0f3dbcc21f21c645758dffaa0R17), [감사 보고서](https://github.com/ethereum-optimism/optimism/blob/develop/docs/security-reviews/2026_03-PolicyEngineStaking-Cantina.pdf))는 Optimism 모노레포의 `packages/contracts-bedrock/src/periphery/staking/PolicyEngineStaking.sol`에 있습니다("실험적 스마트 컨트랙트(Experimental Smart Contract)"). 이 컨트랙트는 의도적으로 업그레이드할 수 없도록 설계되었으며, 핵심 OP Stack의 일부가 아닌 주변(periphery) 컨트랙트로 분류됩니다.
+
+Solidity 인터페이스는 6개의 주요 함수를 제공합니다.
+
+```solidity
+interface IPolicyEngineStaking {
+    function stake(uint256 _amount, address _beneficiary) external;
+    function unstake(uint256 _amount) external;
+    function changeBeneficiary(address _beneficiary) external;
+    function stakingData(address _account) external view returns (uint256 stakedAmount, address linkedTo);
+    function setAllowedStaker(address _staker, bool _allowed) external;
+    function setAllowedStakers(address[] calldata _stakers, bool _allowed) external;
+}
+```
+
+### 스테이킹 및 위임
+
+사용자는 `stake(amount, beneficiary)`를 호출하여 OP를 예치합니다. 이때 선택에 따라 스테이킹 주소를 수혜자(beneficiary)로 지정하여 자신이 우선순위를 얻거나, 별도의 트랜잭션 전송 주소를 수혜자로 지정하여 해당 주소에 우선순위를 위임할 수 있습니다.
+
+연결 모델은 **나가는 방향으로는 일대일, 들어오는 방향으로는 다대일**입니다. 스테이커는 한 번에 하나의 수혜자(스테이킹 주소 또는 별도의 트랜잭션 전송 주소)만 지정할 수 있지만, 수혜자는 여러 스테이커로부터 연결을 받을 수 있습니다. 스테이커가 다른 주소에 연결하면 스테이커 자신의 주소는 혜택을 잃습니다. `effectiveStake(staker)`는 0이 되며 전부 수혜자에게 귀속됩니다.
+
+수혜자는 `setAllowedStaker()` 또는 일괄 처리 버전인 `setAllowedStakers()`를 호출하여 스테이커의 위임을 수락하도록 옵트인해야 합니다. 그렇지 않으면 스테이커가 수혜자에게 위임한 우선순위가 적용되지 않습니다.
+
+### 락업 및 대기 기간 없음
+
+언스테이킹은 즉시 이루어지며 컨트랙트가 일시 중지된 상태에서도 항상 가능합니다. 전체 언스테이킹 시 활성 연결은 자동으로 해제됩니다. `changeBeneficiary()`를 사용하면 비용 없이 원자적으로 연결을 변경할 수 있습니다. 동일한 주소로 `changeBeneficiary()`를 호출하면 revert됩니다(no-op이 아닙니다).
+
+### 관리자 제어
+
+유일한 관리자 권한은 `pause()`/`unpause()`이며, OP Labs PBC("OP Labs")가 관리하는 전용 EOA가 보유합니다. 일시 중지 상태에서는 `stake()`가 차단되지만 `unstake()`, `changeBeneficiary()` 및 허용 목록 관리는 정상적으로 작동합니다. OP Labs나 Optimism Foundation의 어떤 주체도 스테이킹된 OP에 접근할 수 있는 능력이 없습니다.
+
+### 타임스탬프 동작
+
+`effectiveStake`를 변경하는 모든 작업은 `lastUpdate`를 `block.timestamp`로 재설정합니다. 이는 아래에 설명된 Phase 2 시간 배수와 관련이 있습니다.
+
+### OP Mainnet 배포
+
+이 컨트랙트는 OP Mainnet의 [`0xb5CB7a05DD1311195982A26DFC8222477f9D8179`](https://optimistic.etherscan.io/address/0xb5CB7a05DD1311195982A26DFC8222477f9D8179#code)에 배포되어 있으며, [`0x4200000000000000000000000000000000000042`](https://optimistic.etherscan.io/address/0x4200000000000000000000000000000000000042#code)의 정식 OP 토큰을 스테이킹합니다.
+
+### Sepolia 배포
+
+이 컨트랙트는 OP Sepolia의 [`0xeFcb172De9aA254910A2E93E596F7F5721c17677`](https://sepolia-optimism.etherscan.io/address/0xeFcb172De9aA254910A2E93E596F7F5721c17677#code)에 배포되어 있으며, [`0x3d2536BC0Bc0BAdE9e836C0934419c25b2e0B58C`](https://sepolia-optimism.etherscan.io/address/0x3d2536BC0Bc0BAdE9e836C0934419c25b2e0B58C#code)의 mock ERC20을 스테이킹합니다.
+
+## Phase 1: 자격을 갖춘 스테이커 간 FIFO 정렬
+
+Phase 1은 유효 스테이크가 100,000 OP(최소 자격 기준) 이상인 모든 주소 간에 엄격한 선입선출(FIFO) 정렬을 적용합니다. 이 등급 내에서는 최소 기준을 초과하는 추가 스테이크가 영향을 주지 않습니다.
+
+자격이 없는 트랜잭션은 표준 PGA 정렬로 대체 처리됩니다. 전체 정렬 순서는 점수 내림차순, 우선순위 수수료 내림차순, 삽입 순서 오름차순입니다.
+
+<Info>
+  Phase 1은 OP Mainnet에서 최대 1주 동안 진행됩니다.
+</Info>
+
+## Phase 2: 제한된 스테이크 가중 정렬
+
+Phase 2는 FIFO 대신 유효 우선순위 수수료에 스테이크 가중 배수를 적용합니다.
+
+```
+effectivePriorityGas = priorityGas x m_total(S, t)
+```
+
+여기서 자격을 갖춘 주소의 경우 `m_total(S, t) = min[m_stake(S) x m_time(age), M_cap]`이며, 자격이 없는 주소의 경우 `m_total = 0`(표준 PGA로 대체)입니다.
+
+### 스테이크 배수
+
+스테이크 배수는 수확 체감을 적용하기 위해 제곱근 함수를 사용합니다.
+
+```
+m_stake(S) = min(1 + (M_cap - 1) x sqrt((S - S_min) / (S_cap - S_min)), M_cap)
+```
+
+세 가지 주요 파라미터는 다음과 같습니다.
+
+| 파라미터 | 값 | 의미 |
+| --- | --- | --- |
+| `M_cap` | 3x | 모든 이점에 대한 엄격한 상한 |
+| `S_min` | 100,000 OP | 자격 기준 |
+| `S_cap` | 1,000,000 OP | 최대 부스트에 완전히 도달하는 스테이크 수준 |
+
+제곱근 곡선이므로 스테이크를 두 배로 늘려도 이점은 두 배보다 적게 증가합니다.
+
+### 시간 배수
+
+`m_time(age)`는 장기간 스테이킹한 스테이커에게 최대 +10%의 소폭 보너스를 추가합니다.
+
+| 스테이크 기간 | m\_time |
+| --- | --- |
+| < 7일 | 1.00x |
+| 7--15일 | 1.05x |
+| >= 15일 | 1.10x |
+
+스테이크 변경으로 주소의 자격 상태가 바뀔 때마다 기간은 0으로 재설정됩니다.
+
+<Info>
+  Phase 2는 OP Mainnet에서 최대 3주 동안 진행됩니다.
+</Info>
+
+## 스테이킹 신호가 블록 빌딩에 반영되는 방식
+
+스테이킹 신호는 규칙 기반 점수 시스템을 통해 블록 빌더에 반영됩니다. 이 엔진은 블록 구성 파이프라인의 일부로 실행되며, 트랜잭션이 유입될 때 각 트랜잭션에 점수를 할당합니다.
+
+알아 두어야 할 주요 특성은 다음과 같습니다.
+
+*   **점수는 한 번만 계산됩니다.** 트랜잭션은 mempool에 들어올 때 점수가 매겨지며, 진행 중에 정렬 규칙이 변경되더라도 소급하여 다시 점수가 매겨지지 않습니다.
+*   **PGA로 대체 처리.** 어떤 이유로든 빌더의 점수 시스템이 실패하면 블록 구성은 자동으로 기본 빌더로 대체되어 체인 다운타임이 발생하지 않습니다. 이 대체 상태에서의 정렬은 표준 PGA입니다.
+
+## 참여자를 위한 위험 요소
+
+이 섹션은 참여 여부를 검토하는 마켓 메이커, searcher 및 블록 공간을 많이 사용하는 운영자를 위한 내용입니다.
+
+### 정렬 보장은 절대적이지 않으며 최선의 노력 기준입니다
+
+스테이킹은 트랜잭션 포함, 실행 순서, 최종성 또는 특정 경제적 결과를 보장하지 않습니다. 점수 시스템은 후보 집합 내에서의 위치를 개선하지만, 블록 구성은 gas 한도, 시간 예산, sequencer 상태 제약을 받습니다. 높은 점수가 sequencer의 구속력 있는 약속은 아닙니다. 스테이크 기반 우선순위와 관계없이 트랜잭션은 여전히 지연되거나, 재정렬되거나, 우선순위가 낮아지거나, 누락되거나, 실패할 수 있습니다.
+
+### 포함 지연을 모니터링하고 PGA 대체 경로를 마련하십시오
+
+이 실험은 정렬 규칙을 변경할 뿐 포함 보장을 변경하지 않습니다. 점수 시스템의 성능이 저하되거나 예상치 못한 상태에 빠지면, 체인 자체는 정상이더라도 트랜잭션의 포함 지연 시간이 늘어날 수 있습니다. 참여자는 다음을 수행해야 합니다.
+
+*   트랜잭션 파이프라인을 계측하여 포함 시간(제출과 온체인 확인 사이의 차이)을 추적합니다.
+*   포함 시간이 허용 기준을 초과하면 표준 PGA 입찰로 전환하는 자동 또는 수동 대체 경로를 유지합니다.
+
+구체적으로, 이상 징후가 관찰되면 스테이크 기반 우선순위를 우회하고 순수 우선순위 수수료로 경쟁할 준비가 되어 있어야 합니다. 시스템적인 문제가 발생하면 OP Labs는 PGA 정렬로 되돌리지만, 대응 시간에 대한 SLA는 보장되지 않습니다. 문제가 발생한 시점부터 OP Labs가 대응하기까지의 기간 동안 트랜잭션은 그때 존재하는 저하된 정렬 상태의 영향을 받습니다.
+
+### 단계 전환 시 짧은 정렬 불확실성 기간이 발생합니다
+
+sequencer가 정렬 메커니즘 간에 전환될 때(표준 PGA -> Phase 1 -> Phase 2 -> PGA로 복귀), 새로 제출된 트랜잭션이 여전히 이전 메커니즘으로 정렬될 수 있는 여러 블록 분량의 지연이 예상됩니다. 정확한 지연 기간은 예측할 수 없습니다. 어떤 정렬 체제가 적용되는지에 따라 전략이 민감하게 영향을 받는다면, 발표된 전환 시간 전후에는 트랜잭션 제출을 피하십시오.
+
+Optimism Foundation은 공식 채널과 docs.optimism.io를 통해 최소 24시간 전에 전환을 공지하도록 노력할 것입니다. 긴급 복귀는 사전 공지 없이 이루어질 수 있습니다.
+
+### 수혜자에 대한 신뢰 가정
+
+스테이크를 수혜자 주소에 위임한 경우, 해당 수혜자는 언제든지 허용 목록에서 사용자를 제거할 수 있습니다. 이렇게 하면 연결이 해제되고 수혜자의 `lastUpdate`가 재설정됩니다. 스테이커에게는 이를 막을 온체인 수단이 없습니다.
+
+직접 관리하는 주소 간에 위임하는 경우(예: 콜드 월렛에서 핫 트레이딩 주소로)에는 문제가 없습니다. 제3자의 주소에 위임하는 경우에는 상대방이 일방적으로 연결을 끊을 수 있다는 점을 이해해야 합니다.
+
+### 추가 스테이킹 시 스테이크 기간이 재설정됩니다
+
+이미 스테이킹한 주소에 `stake()`를 호출하여 OP를 추가하면 `lastUpdate` 타임스탬프가 재설정됩니다. Phase 2에서는 시간 배수가 1.00x로 떨어지고 누적된 시간 보너스를 잃게 됩니다. 이미 15일 이상 구간(1.10x)에 있다면, 스테이크 추가는 더 높은 `m_stake`와 시간 보너스 상실 간의 트레이드오프입니다. 추가 토큰을 예치하기 전에 두 시나리오를 모두 모델링하십시오.
+
+### 스테이킹은 공개적으로 관찰 가능합니다
+
+스테이킹 활동은 온체인에서 완전히 공개되므로 경쟁자가 사용자의 유효 스테이크를 관찰하고 그에 따라 전략을 조정할 수 있습니다. 이러한 투명성은 양면적입니다. 합리적인 경쟁 대응을 가능하게 하지만, 표적화된 경쟁도 가능하게 합니다. 또한 이 실험은 사전에 모델링하기 어려운 방식으로 더 넓은 시장 역학(입찰 행태, 혼잡 패턴, MEV 추출)을 변화시킬 수 있습니다.
+
+### 실험은 자동으로 종료됩니다
+
+OP Mainnet 실험 기간은 총 4주(Phase 1 최대 1주, Phase 2 최대 3주)로 제한됩니다. 종료 시 OP Mainnet은 결과와 관계없이 표준 PGA 정렬로 되돌아갑니다. 스테이크 기반 우선순위에 의존하는 모든 전략은 이 확정된 종료 시점을 고려해야 합니다. 스테이킹된 OP는 실험 이전, 진행 중, 종료 이후 언제든지 인출할 수 있습니다.
+
+## 일정 및 주요 링크
+
+### 일정
+
+| 네트워크 | 목표 배포일 |
+| --- | --- |
+| OP Sepolia | 2026년 4월 16일 |
+| OP Mainnet | 2026년 5월 26일 — 10:00 EST |
+
+### 주요 링크
+
+| 자료 | 링크 |
+| --- | --- |
+| 컨트랙트 소스 | [PolicyEngineStaking.sol](https://github.com/ethereum-optimism/optimism/pull/19192/changes#diff-dfad1cdbadfef03b98f7bbadd22222fbcc4ea2a0f3dbcc21f21c645758dffaa0R17) |
+| 감사 보고서 | [2026\_03-PolicyEngineStaking-Cantina.pdf](https://github.com/ethereum-optimism/optimism/blob/develop/docs/security-reviews/2026_03-PolicyEngineStaking-Cantina.pdf) |
+| 거버넌스 제안 | [스테이크 기반 우선순위 정렬 실험](https://gov.optimism.io/t/upgrade-proposal-stake-based-priority-ordering-experiment/10655) |
+| Mainnet 컨트랙트 | [`0xb5CB7a05DD1311195982A26DFC8222477f9D8179`](https://optimistic.etherscan.io/address/0xb5CB7a05DD1311195982A26DFC8222477f9D8179) |
+| Sepolia 컨트랙트 | [`0xeFcb172De9aA254910A2E93E596F7F5721c17677`](https://sepolia-optimism.etherscan.io/address/0xeFcb172De9aA254910A2E93E596F7F5721c17677) |
+
+## 공시 및 면책 조항
+
+이 실험에 참여함으로써 귀하는 전체 <a href="/public/disclosures/stake-based-priority-ordering-disclosure.pdf" target="_blank" rel="noopener noreferrer">공시 및 면책 조항(Disclosures & Disclaimers)</a>과 [거버넌스 제안](https://gov.optimism.io/t/upgrade-proposal-stake-based-priority-ordering-experiment/10655)을 검토하고 이해했음을 확인합니다. 실험적 정렬 메커니즘(Experimental Ordering Mechanism)과 실험적 스마트 컨트랙트(Experimental Smart Contract)는 어떠한 종류의 보증도 없이 "있는 그대로(AS-IS)" 제공됩니다. 귀하는 스테이크 기반 sequencer 정렬 메커니즘과 실험적 스마트 컨트랙트를 포함하여, 실험 기간 동안 OP Mainnet 사용과 관련된 모든 위험을 부담합니다. Optimism Community Agreement 및 서비스 약관(Terms of Service)은 공시 및 면책 조항에 명시된 범위 내에서 적용됩니다.
+
+<Card
+  title="스테이크 기반 우선순위 정렬 공시 (PDF)"
+  href="/public/disclosures/stake-based-priority-ordering-disclosure.pdf"
+  icon="file-pdf"
+/>

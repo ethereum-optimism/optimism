@@ -1,0 +1,567 @@
+---
+title: 두 체인을 공유 분쟁 게임으로 병합하기
+lang: en-US
+description: opcm.migrate로 interop 이전 상태의 OP Stack 체인 두 개를 공유 DisputeGameFactory 및 AnchorStateRegistry로 병합한 다음, op-proposer, op-challenger, op-dispute-mon을 공유 factory로 전환합니다.
+diataxis: how-to
+---
+
+import RunbookToolVersions from "/ko/snippets/runbook-tool-versions.mdx"
+import { SuperchainOpsPrereqs } from "/ko/snippets/superchain-ops-prereqs.mdx"
+
+# 두 체인을 공유 분쟁 게임으로 병합하기
+
+<Warning>이 가이드는 아직 개발 중인 interop 기능에 의존합니다. 프로덕션 체인에서는 이 가이드를 따르지 마십시오.</Warning>
+
+<Info>이 가이드에는 Upgrade 21에 포함되어 배포되는 `op-contracts/v9.0.0`이 필요합니다. Upgrade 21은 Optimism Governance 승인을 기다리고 있으며, 해당 업그레이드가 체인에 실행된 이후에만 이 가이드를 따를 수 있습니다.</Info>
+
+이 런북은 `OPContractsManagerV2.migrate`(`opcm.migrate`)를 호출하여 기존 OP Stack 체인 두 개를 공유 분쟁 게임(dispute game)으로 병합하는 과정을 안내합니다. `OPContractsManagerV2.migrate`는 각 체인의 릴리스를 확인한 후 `OPContractsManagerMigrator`에 처리를 위임하므로, 아래에 나열된 revert 대부분에는 `OPContractsManagerMigrator_` 접두사가 붙습니다. 마이그레이션 후에는 두 체인이 새로 배포된 `DisputeGameFactory`, `AnchorStateRegistry`, `ETHLockbox`를 공유합니다. 새 제안은 공유 factory에서 방어되는 super-root 클레임이며, 체인별 dispute game factory는 구현이 모두 비워진 상태로 진행 중인 게임이 resolve되어 본드를 회수할 수 있도록 하기 위해서만 존재합니다.
+
+이 런북을 마치면 다음 구성을 갖추게 됩니다. 두 체인을 모두 derive하는 `op-supernode`를 기준으로 공유 factory에 super-root 클레임을 제안하는 `op-proposer` 하나, 공유 factory에서 super-root 게임을 방어하는 `op-challenger` 하나, 이를 감시하는 `op-dispute-mon` 하나, 그리고 이전 체인별 factory의 퇴역한 게임을 정리하는 체인별 `op-challenger` 및 `op-dispute-mon` "drain" 인스턴스입니다. drain 인스턴스는 각각 공유 op-supernode의 `/<chainID>/` 엔드포인트를 사용합니다.
+
+<Warning>`opcm.migrate`는 되돌릴 수 없는 단방향 작업이며, 어느 체인에서든 제출되었지만 최종 확정(finalization)되지 않은 모든 출금 증명을 무효화합니다. 영향을 받는 사용자는 마이그레이션 후 새 super-root 게임을 기준으로 다시 증명해야 합니다. 마이그레이션 기간을 최소 7일 전에 사용자에게 공지하십시오. 이는 공지 직전에 증명된 출금이 `PROOF_MATURITY_DELAY_SECONDS`를 지나 최종 확정될 수 있을 만큼 충분한 기간입니다.</Warning>
+
+체인을 병합하지 않고 단일 체인의 증명 방식을 output root에서 super root로 바꾸려는 경우에는 [체인을 Output Root에서 Super Root로 업그레이드하기](/ko/chain-operators/tutorials/upgrade-chain-to-super-roots)를 따르십시오. 이 런북은 공유 interop 세트로 병합되는 두 체인을 위한 것입니다.
+
+## 시작하기 전에
+
+<SuperchainOpsPrereqs scope="for both chains" />
+
+이 런북은 다음을 전제로 합니다.
+
+* 정확히 두 개의 체인(아래에서는 `chainA`와 `chainB`로 지칭)을 병합합니다.
+* 두 체인 모두 아직 interop을 활성화하지 않았습니다.
+* 두 체인 모두 현재 `SUPER_CANNON_KONA`(game type `9`)를 respected game type으로 하여 permissionless 결함 증명(fault proof)을 실행하고 있습니다.
+* [단일 체인 super-roots 업그레이드](/ko/chain-operators/tutorials/upgrade-chain-to-super-roots)에서 구성한 체인별 `op-proposer`, `op-challenger`, `op-dispute-mon` 인스턴스가 두 체인 모두에서 실행 중입니다. 체인별 challenger와 모니터는 마이그레이션 전환과 이후의 drain 기간 동안 계속 실행됩니다.
+* 별도의 `op-supernode` 인스턴스가 동기화되어 있으며, 하나의 프로세스에서 **정확히 `chainA`와 `chainB`만**(다른 체인 없이) derive합니다. 이 supernode는 마이그레이션 후 새로운 공유 `op-proposer`, `op-challenger`, `op-dispute-mon`이 가리키는 supernode이며, 다른 체인이나 interop 클러스터를 위한 멀티체인 supernode로 겸용해서는 안 됩니다.
+* 두 체인 모두 Upgrade 21에 포함되고 `OPContractsManagerV2.migrate`를 제공하는 `op-contracts/v9.0.0` 이상으로 이미 업그레이드되었으며, `SystemConfig`에서 `Features.ETH_LOCKBOX`가 활성화되어 있습니다. `ETH_LOCKBOX`는 `OPContractsManagerV2.upgrade()`에 의해 자동으로 활성화되며, 이 사전 업그레이드는 이 런북의 전제 조건입니다. `Features.INTEROP`은 시작 시점에 반드시 **비활성화** 상태여야 하며, `migrate()`가 이를 활성화합니다.
+* `migrate`를 호출하는 OPCM은 각 체인을 마지막으로 업그레이드한 OPCM이거나, 해당 OPCM과 major 버전이 같고 minor 버전이 같거나 더 높아야 합니다. 그렇지 않으면 `migrate`가 `OPContractsManagerV2_InvalidUpgradeSequence`로 revert됩니다.
+
+### 필수 도구 설치
+
+<RunbookToolVersions />
+
+### 필수 입력값 수집
+
+시작하기 전에 아래 항목을 모두 수집하십시오. `<chainA>`와 `<chainB>` 플레이스홀더를 각 체인의 실제 값으로 바꾸십시오. 이 런북에서 `<X>`라고 표기된 곳은 직접 확보해야 하는 값을 의미합니다.
+
+**체인별 식별 정보, 주소, 역할.** 각 체인에 대해 `superchain-registry`의 `superchain/configs/<network>/<chain-name>.toml` 항목을 열어 `chain_id`, `addresses.SystemConfigProxy`, `addresses.L1StandardBridgeProxy`를 확인합니다. 이 두 proxy를 [`op-fetcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-fetcher)에 전달하여 나머지 값을 L1에서 조회하고, 나중에 참조할 수 있도록 JSON을 파일로 저장합니다.
+
+```bash
+op-fetcher fetch \
+  --l1-rpc-url $L1_RPC \
+  --system-config <SystemConfigProxy> \
+  --l1-standard-bridge <L1StandardBridgeProxy> \
+  --output-file <chainX>.json
+```
+
+portal에서 파생되는 조회는 마이그레이션이 실행되기 전까지 체인의 현재 `DisputeGameFactory`, `AnchorStateRegistry`, `ETHLockbox`를 반환합니다. 마이그레이션 후에는 같은 selector가 새로운 공유 주소를 반환하므로, 지금 두 체인의 값을 모두 확보해 두십시오. 각 체인의 JSON 출력에서 다음 필드를 확보합니다.
+
+| 항목 | 출처 |
+| --- | --- |
+| L2 chain ID | 체인 registry TOML의 `chain_id` |
+| `SystemConfig` proxy | 체인 registry TOML의 `addresses.SystemConfigProxy` |
+| `L1StandardBridge` proxy | 체인 registry TOML의 `addresses.L1StandardBridgeProxy` |
+| `OptimismPortal2` proxy | `<chainX>.json`의 `addresses.OptimismPortalProxy` |
+| 기존 `AnchorStateRegistry` proxy (`<oldASR_chainX>`) | `<chainX>.json`의 `addresses.AnchorStateRegistryProxy` |
+| 기존 `DisputeGameFactory` proxy (`<oldDGF_chainX>`) | `<chainX>.json`의 `addresses.DisputeGameFactoryProxy` |
+| 기존 `ETHLockbox` proxy | `<chainX>.json`의 `addresses.EthLockboxProxy` |
+| `SuperchainConfig` proxy | `<chainX>.json`의 `addresses.SuperchainConfigProxy` |
+| `ProxyAdmin` owner Safe | `<chainX>.json`의 `roles.OpChainProxyAdminOwner` |
+
+`migrate`는 실행 시점에 `SystemConfig.delayedWETH()`에서 각 체인의 `DelayedWETH`를 직접 읽으므로, 여기서 따로 확보할 필요가 없습니다.
+
+**초기 본드(init bond).** 마이그레이션은 새로운 공유 factory에 두 가지 super game type을 등록합니다. `SUPER_PERMISSIONED`(game type `5`)는 본드가 없으며 `initBond`로 `0`을 사용해야 합니다. `SUPER_CANNON_KONA`(game type `9`)는 `0.08 ether`(`80000000000000000` wei)를 사용합니다.
+
+**릴리스 아티팩트와 인프라.**
+
+| 항목 | 출처 |
+| --- | --- |
+| `OPCM` 주소 | 체인이 전제 조건인 `OPCMv2.upgrade()`에 사용한 것과 동일한 OPCM입니다. 이 실행이 각 `SystemConfig`에서 `Features.ETH_LOCKBOX`를 활성화합니다. `Features.INTEROP`은 이 업그레이드에서 설정되지 않으며 `migrate()`가 설정합니다. |
+| `SUPER_CANNON_KONA` absolute prestate 해시 | `superchain-registry`의 `validation/standard/standard-prestates.toml`. 해당 OPCM 릴리스 버전에 대해 `type="cannon64-kona-interop"`인 항목을 사용합니다. |
+| Prestate 아티팩트 URL | 마이그레이션 전에 kona-interop prestate가 업로드된 `cannon-kona-prestates-url` 서버입니다. |
+| 공유 `op-supernode` RPC URL | 인프라 팀에 문의하십시오. 이 인스턴스는 **정확히 `chainA`와 `chainB`만**(다른 체인 없이) derive해야 합니다. 병합된 factory를 위한 공유 `op-proposer`, `op-challenger`, `op-dispute-mon`은 모두 이 동일한 인스턴스를 가리킵니다. 체인별 서비스는 이 URL 아래의 체인별 엔드포인트를 가리키게 됩니다. |
+| `SUPER_PERMISSIONED`용 권한 있는 `proposer` | permissioned super game에 제안을 게시할 권한이 있는 주소입니다. `op-proposer`는 이 키로 서명하도록 구성됩니다. |
+
+### 사전 조건 확인
+
+아래 검사를 모두 실행하십시오. 각 검사는 migrator가 강제하는 불변 조건에 대응합니다. 실패한 항목이 있으면 진행하기 전에 해결하십시오.
+
+* **두 체인의 `ProxyAdmin` owner가 같은지 확인합니다.** 그렇지 않으면 `migrate`가 `OPContractsManagerMigrator_ProxyAdminOwnerMismatch`로 revert됩니다. owner Safe가 두 체인에서 동일하기만 하면 각 체인의 `ProxyAdmin` proxy는 달라도 됩니다.
+
+  ```bash
+  diff <(jq -r '.roles.OpChainProxyAdminOwner' <chainA>.json) <(jq -r '.roles.OpChainProxyAdminOwner' <chainB>.json)
+  # Expect: no output (identical).
+  ```
+
+* **두 체인의 `SuperchainConfig`가 같은지 확인합니다.** 그렇지 않으면 `migrate`가 `OPContractsManagerMigrator_SuperchainConfigMismatch`로 revert됩니다.
+
+  ```bash
+  diff <(jq -r '.addresses.SuperchainConfigProxy' <chainA>.json) <(jq -r '.addresses.SuperchainConfigProxy' <chainB>.json)
+  # Expect: no output (identical).
+  ```
+
+* **두 체인의 finality delay와 `DelayedWETH` delay가 같은지 확인합니다.** 그렇지 않으면 `migrate`가 `OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch` 또는 `OPContractsManagerMigrator_WithdrawalDelayMismatch`로 revert됩니다.
+
+  ```bash
+  cast call <oldASR_chainA> 'disputeGameFinalityDelaySeconds()(uint256)' --rpc-url $L1_RPC
+  cast call <oldASR_chainB> 'disputeGameFinalityDelaySeconds()(uint256)' --rpc-url $L1_RPC
+  for SC in <SystemConfig_chainA> <SystemConfig_chainB>; do
+      cast call "$(cast call $SC 'delayedWETH()(address)' --rpc-url $L1_RPC)" 'delay()(uint256)' --rpc-url $L1_RPC
+  done
+  # Expect: the two finality delays match, and the two DelayedWETH delays match.
+  ```
+
+* **두 체인 모두에서 `Features.INTEROP`이 비활성화되어 있고 `Features.ETH_LOCKBOX`가 활성화되어 있는지 확인합니다.** L1에서 `INTEROP`을 설정하는 것은 `migrate()`뿐이므로, 이미 `INTEROP`이 켜져 있는 체인은 이미 interop 세트에 속해 있는 것입니다. `_validateChainSystemConfigs`는 INTEROP이 이미 켜져 있으면 `OPContractsManagerMigrator_ChainAlreadyMigrated`로 revert되므로, `SystemConfig.setFeature`를 통해 직접 `INTEROP`을 활성화하지 **마십시오**. 그렇게 하면 마이그레이션이 영구적으로 차단됩니다. `ETH_LOCKBOX`는 전제 조건인 `OPCMv2.upgrade()` 중에 자동으로 켜집니다. 아래 `ETH_LOCKBOX` 검사 중 하나라도 `false`를 반환하면 먼저 해당 사전 업그레이드를 실행하십시오. `Features` 상수는 short-string `bytes32` 값이므로 `cast format-bytes32-string`을 거쳐 전달합니다.
+
+  ```bash
+  for SC in <SystemConfig_chainA> <SystemConfig_chainB>; do
+      for F in INTEROP ETH_LOCKBOX; do
+          echo "$SC $F = $(cast call $SC 'isFeatureEnabled(bytes32)(bool)' "$(cast format-bytes32-string $F)" --rpc-url $L1_RPC)"
+      done
+  done
+  # Expect: both INTEROP lines end in false, both ETH_LOCKBOX lines end in true.
+  ```
+
+* **사전 업그레이드 전에 scoped pause를 해제합니다.** `OPCMv2.upgrade()`는 `ETH_LOCKBOX`를 켜는데, `SystemConfig.setFeature`는 portal이 scoped pause 상태인 동안에는 이를 거부합니다. lockbox를 활성화하면 pause 검사 대상이 portal 주소에서 lockbox 주소로 옮겨지므로, 이 보호 장치가 없으면 체인이 업그레이드 후 pause가 해제된 상태가 됩니다. 어느 한 portal이라도 pause 상태라면 Guardian이 먼저 이를 해제해야 합니다.
+
+* **두 체인 모두 Custom Gas Token 모드로 실행되지 않는지 확인합니다.** `_migratePortal`은 CGT 체인에 대해 `OPContractsManagerMigrator_CustomGasTokenNotSupported`로 revert됩니다.
+
+  ```bash
+  cast call <SystemConfig_chainA> 'isCustomGasToken()(bool)' --rpc-url $L1_RPC
+  cast call <SystemConfig_chainB> 'isCustomGasToken()(bool)' --rpc-url $L1_RPC
+  # Expect: both false.
+  ```
+
+* **두 체인의 현재 respected game type이 `SUPER_CANNON_KONA`(`9`)인지 확인합니다.**
+
+  ```bash
+  cast call <oldASR_chainA> 'respectedGameType()(uint32)' --rpc-url $L1_RPC
+  cast call <oldASR_chainB> 'respectedGameType()(uint32)' --rpc-url $L1_RPC
+  # Expect: 9 for both.
+  ```
+
+* **공유 supernode가 병합할 두 체인만 정확히 derive하는지 확인합니다.** `$SUPERNODE_RPC` 뒤의 인스턴스가 dependency set에 `chainA`와 `chainB`를 포함하고 다른 체인은 **포함하지 않는지** 인프라 팀과 함께 확인하십시오. 관련 없는 체인(또는 그런 체인을 포함하는 interop 클러스터)도 추적하는 supernode는 더 넓은 세트에 대해 super root를 계산하며, 그 root는 공유 `SUPER_CANNON_KONA` 및 `SUPER_PERMISSIONED` 게임이 검증하는 값과 일치하지 않습니다.
+* **공유 supernode가 동기화되어 있는지 확인합니다.** 두 체인의 예상 finality 기간 내에 있는 finalized L2 head를 보고해야 합니다.
+
+  ```bash
+  cast rpc supernode_syncStatus --rpc-url $SUPERNODE_RPC | jq -r '.finalized_timestamp'
+  ```
+
+  supernode가 어느 한 체인보다 크게 뒤처져 있다면 마이그레이션을 연기하십시오.
+
+* **prestate 서버가 `SUPER_CANNON_KONA` prestate를 제공하는지 확인합니다.**
+
+  ```bash
+  curl -fI "$PRESTATE_URL/$SUPER_CANNON_KONA_PRESTATE.bin.gz"
+  ```
+
+* **chain B의 `DelayedWETH` 불일치에 유의합니다.** `migrate`는 새 공유 super game에 chain A의 `DelayedWETH`를 재사용하며 chain B의 것은 건드리지 않습니다. 마이그레이션 후에도 chain B의 `SystemConfig.delayedWETH()`는 여전히 chain B의 이전 `DelayedWETH`를 참조하며, 이 컨트랙트는 더 이상 어떤 super game에도 연결되어 있지 않습니다. 따라서 이후 chain B를 대상으로 `SystemConfig.delayedWETH()`를 읽는 `OPCMv2.upgrade()` 호출은 공유 게임이 사용하는 것과 다른 컨트랙트를 참조하게 됩니다. 향후 업그레이드에서 예상치 못한 상황이 발생하지 않도록 운영 런북에 이를 기록해 두십시오. chain B의 진행 중인 마이그레이션 이전 게임이 게시한 본드는 계속 chain B의 이전 `DelayedWETH`에서 청구되므로, 이 불일치가 [마이그레이션 이전 게임 drain 및 본드 회수](#drain-pre-migration-games-and-reclaim-bonds)에 설명된 drain을 막지는 않습니다.
+
+## 오프체인 구성 준비
+
+온체인 마이그레이션을 제출하기 전에 이 변경 사항을 적용하십시오. 체인별 마이그레이션 이전 `op-challenger` 및 `op-dispute-mon` 인스턴스는 체인별 factory에서 진행 중인 게임이 resolve될 때까지 이를 방어하고 감시하기 위해 계속 실행되어야 합니다. 공유 factory를 위해 각 구성 요소의 세 번째 인스턴스를 추가합니다. 두 체인별 `op-proposer` 인스턴스는 전환 시점, 즉 [마이그레이션 실행](#execute-the-migration)에서 중지합니다.
+
+### 체인별 서비스가 공유 op-supernode를 가리키도록 설정
+
+마이그레이션 전에 기존의 모든 체인별 서비스가 공유 op-supernode에서 해당 체인의 RPC 네임스페이스를 가리키도록 설정합니다.
+
+| 서비스 플래그 | chainA 값 | chainB 값 |
+| --- | --- | --- |
+| `op-proposer --superroot-rpcs` | `$SUPERNODE_RPC/$CHAIN_A_CHAINID` | `$SUPERNODE_RPC/$CHAIN_B_CHAINID` |
+| `op-challenger --supernode-rpc` | `$SUPERNODE_RPC/$CHAIN_A_CHAINID` | `$SUPERNODE_RPC/$CHAIN_B_CHAINID` |
+| `op-dispute-mon --supernode-rpc` | `$SUPERNODE_RPC/$CHAIN_A_CHAINID` | `$SUPERNODE_RPC/$CHAIN_B_CHAINID` |
+
+이 체인별 인스턴스가 chain ID 접미사 없이 `$SUPERNODE_RPC`를 가리키게 하지 마십시오. 루트 엔드포인트는 두 체인의 super root를 반환합니다. 각 서비스를 재시작하고 정상적으로 연결되는지 확인한 후 계속 진행하십시오. 이렇게 하면 interop 활성화 전에 별도의 단일 체인 op-node 또는 op-supernode 프로세스에 대한 운영상의 의존성이 제거됩니다.
+
+### 공유 op-challenger 구성
+
+하나의 `op-challenger` 프로세스는 하나의 `DisputeGameFactory`만 감시할 수 있으므로, 기존 체인별 인스턴스가 새로운 공유 factory까지 담당할 수는 없습니다. 기존 체인별 인스턴스에 더해, 공유 factory 전용의 세 번째 `op-challenger` 인스턴스를 실행하십시오.
+
+새 공유 인스턴스를 아래 플래그로 구성합니다.
+
+| 플래그 (환경 변수) | 값 |
+| --- | --- |
+| `--game-factory-address` (`OP_CHALLENGER_GAME_FACTORY_ADDRESS`) | 새로운 공유 `<DGF>` ([마이그레이션 실행](#execute-the-migration) 후 chain A의 portal에서 확보) |
+| `--superroot-rpc` (`OP_CHALLENGER_SUPERNODE_RPC`) | `$SUPERNODE_RPC` |
+| `--l2-eth-rpc` (`OP_CHALLENGER_L2_ETH_RPC`) | `<chainA-EL>,<chainB-EL>` (쉼표로 구분) |
+| `--game-types` (`OP_CHALLENGER_GAME_TYPES`) | `super-cannon-kona`. `super-permissioned`는 추가하지 마십시오. 단순화된 `SUPER_PERMISSIONED` 게임은 `op-challenger`가 클레임을 게시할 필요가 없습니다. `op-challenger`는 permissioned 전용 네트워크에서도 여전히 필요하며, 게임이 최종 확정되면 `AnchorStateRegistry`를 자동으로 업데이트합니다. |
+| `--network` (`OP_CHALLENGER_NETWORK`) | `<chainA-network>,<chainB-network>` (registry 체인 이름. challenger는 `op-supernode`와 같은 방식으로 `superchain-registry`에서 depset을 로드합니다) |
+| `--cannon-kona-prestates-url` (`OP_CHALLENGER_CANNON_KONA_PRESTATES_URL`) | 사전 조건에서 검증한 prestate 서버 URL |
+
+어느 한 체인이라도 `superchain-registry`에 없다면 `--network`를 생략하고, 대신 각 체인의 rollup config와 L2 genesis를 `--rollup-config`(`OP_CHALLENGER_ROLLUP_CONFIG`)와 `--l2-genesis`(`OP_CHALLENGER_L2_GENESIS`)에 쉼표로 구분된 경로로 전달하고, 공유 depset은 `--depset-config`(`OP_CHALLENGER_DEPSET_CONFIG`)로 전달합니다.
+
+공유 인스턴스의 `--game-factory-address`는 새로운 공유 factory이며, 이 factory는 `migrate`가 브로드캐스트된 후에야 존재합니다. 지금은 다른 모든 플래그를 설정한 상태로 배포를 준비해 두십시오. 주소는 마이그레이션이 온체인에서 검증된 후 [공유 op-challenger 및 op-dispute-mon 시작](#start-the-shared-op-challenger-and-op-dispute-mon)에서 채우고 프로세스를 시작합니다.
+
+drain 기간 동안에는 체인별 `op-challenger` 인스턴스를 네임스페이스가 지정된 RPC 구성으로 계속 실행하십시오.
+
+### 공유 op-dispute-mon 구성
+
+`op-dispute-mon`도 프로세스당 하나의 factory만 지원합니다. 두 체인별 인스턴스에 더해, 새로운 공유 factory를 가리키는 세 번째 인스턴스를 실행하십시오.
+
+| 플래그 (환경 변수) | 값 |
+| --- | --- |
+| `--game-factory-address` (`OP_DISPUTE_MON_GAME_FACTORY_ADDRESS`) | 새로운 공유 `<DGF>` |
+| `--superroot-rpc` (`OP_DISPUTE_MON_SUPERNODE_RPC`) | `$SUPERNODE_RPC` 또는 동일한 dependency set에 대한 고가용성 루트 엔드포인트의 쉼표 구분 목록 |
+| `--l1-eth-rpc` (`OP_DISPUTE_MON_L1_ETH_RPC`) | 변경 없음 |
+
+공유 `op-challenger`와 마찬가지로, 지금은 `--game-factory-address`를 제외한 모든 플래그를 설정한 상태로 배포를 준비해 두십시오. 주소는 마이그레이션이 온체인에서 검증된 후 [공유 op-challenger 및 op-dispute-mon 시작](#start-the-shared-op-challenger-and-op-dispute-mon)에서 채우고 프로세스를 시작합니다.
+
+두 체인별 `op-dispute-mon` 인스턴스는 네임스페이스가 지정된 RPC 구성으로 계속 실행하여, 진행 중인 마이그레이션 이전 게임이 resolve될 때까지 추적하도록 하십시오.
+
+### 나머지 op-proposer 설정은 당분간 유지
+
+위에서 체인별 `op-proposer` RPC 엔드포인트를 전환한 후, 나머지 설정은 [마이그레이션 실행](#execute-the-migration) 전까지 변경하지 마십시오. 전환 시점에 두 체인별 proposer를 중지하고 하나의 공유 proposer로 대체합니다. [단일 공유 op-proposer로 전환](#cut-over-to-a-single-shared-op-proposer)을 참조하십시오.
+
+## 시작 앵커 Super Root 생성
+
+새로운 공유 `AnchorStateRegistry`는 시작 앵커 super root로 초기화됩니다. 이 값은 `superroot_atTimestamp`를 사용하여 supernode에서 계산합니다. supernode의 현재 finalized timestamp(또는 최근의 아무 finalized timestamp)를 선택한 다음, 해당 timestamp의 super root를 supernode에 요청합니다.
+
+```bash
+# .finalized_timestamp is a JSON number (decimal unix seconds).
+TS=$(cast rpc supernode_syncStatus --rpc-url $SUPERNODE_RPC | jq -r '.finalized_timestamp')
+# superroot_atTimestamp expects a hex-encoded JSON string (hexutil.Uint64); cast 2h handles the conversion.
+cast rpc superroot_atTimestamp "$(cast 2h $TS)" --rpc-url $SUPERNODE_RPC | jq -r '.data.super_root'
+echo "timestamp=$TS"
+```
+
+두 값을 확보합니다.
+
+* `super_root`(`.data.super_root`의 `bytes32` 해시) — `startingAnchorRoot`의 `Proposal.root`로 전달됩니다.
+* `timestamp`(전달한 uint64 값) — `Proposal.l2SequenceNumber`로 전달됩니다. super game에서 이 필드는 블록 번호가 아니라 timestamp 자체입니다.
+
+**누군가 서명하기 전에 다른 사람이 이 값을 다시 계산하도록 하십시오.** 온체인에서는 올바른 앵커와 잘못된 앵커를 구분할 방법이 없습니다. `migrate`는 0인 `startingAnchorRoot` 또는 0인 `absolutePrestate`만 거부합니다. 잘못된 timestamp에서 가져온 super root는 두 검사를 모두 통과하고, 두 체인의 모든 super-root 게임의 시작점이 됩니다.
+
+task 작성자가 아닌 다른 사람이 다음을 수행해야 합니다.
+
+* 별도로 실행되는 `op-supernode`에 동일한 `timestamp`의 super root를 요청합니다. 이 supernode도 같은 두 체인을 derive해야 합니다.
+* 이 OPCM 릴리스에 대한 `SUPER_CANNON_KONA` prestate를 `standard-prestates.toml`에서 조회합니다.
+* 두 결과를 task의 `config.toml`에 있는 값과 비교합니다.
+
+## superchain-ops task 작성
+
+`OPCMMigrateInterop` 템플릿을 사용하여 `superchain-ops/src/tasks/<network>/<NNN-name>/` 아래에 새 task 디렉터리를 작성합니다. 이 템플릿은 `OPContractsManagerV2.migrate(MigrateInput)`을 래핑하고, 결과 상태에 대해 `OPContractsManagerMigrationValidator`를 실행합니다.
+
+### config.toml 구성
+
+```toml
+l2chains = [
+    {name = "<chainA name>", chainId = <chainA id>},
+    {name = "<chainB name>", chainId = <chainB id>},
+]
+
+templateName = "OPCMMigrateInterop"
+
+[addresses]
+OPCM = "0x<OPCM address>"
+
+# One stanza per chain, both required.
+[[migrateChains]]
+chainId = <chainA id>
+systemConfigProxy = "0x<SystemConfig_chainA>"
+
+[[migrateChains]]
+chainId = <chainB id>
+systemConfigProxy = "0x<SystemConfig_chainB>"
+
+# Starting anchor for the new shared AnchorStateRegistry, computed in the previous step.
+[startingAnchorRoot]
+root = "0x<super root hash>"
+l2SequenceNumber = <timestamp>
+
+# 9 = SUPER_CANNON_KONA. Required because both chains run permissionless fault proofs today.
+startingRespectedGameType = 9
+
+# Both super game types must be registered. The migration validator requires it.
+# The template assembles the on-chain DisputeGameConfig.gameArgs bytes from these
+# fields: abi.encode(absolutePrestate) for game type 9, and
+# abi.encode(proposer) for game type 5.
+
+[[disputeGameConfigs]]
+gameType = 9                             # SUPER_CANNON_KONA
+enabled = true
+initBond = 80000000000000000             # match the value gathered in the inputs
+absolutePrestate = "0x<super-cannon-kona prestate>"
+
+[[disputeGameConfigs]]
+gameType = 5                             # SUPER_PERMISSIONED
+enabled = true
+initBond = 0                             # SUPER_PERMISSIONED does not charge init bonds
+proposer = "0x<privileged proposer>"
+
+expectedValidationErrors = ""            # fill in after the dry run if any structurally expected codes appear
+```
+
+### expectedValidationErrors 확보
+
+task 디렉터리 안에서 L1 fork를 대상으로 시뮬레이션 모드로 task를 실행합니다.
+
+```bash
+cd superchain-ops/src/tasks/<network>/<NNN-name>
+just simulate
+```
+
+validator는 결과가 기대값과 일치한다는 것만 증명합니다. 각 체인의 레거시 주소는 [필수 입력값 수집](#gather-the-required-inputs)에서 저장한 마이그레이션 이전 `op-fetcher` 파일에서 가져오십시오. 기대되는 공유 `DelayedWETH`는 마이그레이션 전에 chain A의 `SystemConfig.delayedWETH()`에서 가져옵니다. 공유 lockbox, factory, `AnchorStateRegistry`는 실행 블록의 timestamp를 포함하는 salt를 사용해 CREATE2로 배포되므로, 시뮬레이션된 마이그레이션 후 portal에서 읽어 오지 말고 해당 입력값으로 주소를 계산하십시오. portal에서 다시 읽어 오면 validator가 결과를 자기 자신과 비교하게 되어 항상 통과합니다.
+
+`OPContractsManagerMigrationValidator` 뒤의 validator는 구조적으로 잘못된 부분이 있으면 쉼표로 구분된 오류 코드 문자열을 반환합니다. 기본 기대값은 오류 없음, 즉 `expectedValidationErrors = ""`이며 시뮬레이션이 깔끔하게 통과하는 것입니다. 나타날 수 있는 코드는 아래 범주로 나뉩니다. 코드를 `expectedValidationErrors`에 그대로 복사해 넣지 말고 모든 코드를 해결하십시오. 이 필드에 추가하는 코드에는 이번 마이그레이션에서 구조적으로 예상되는 이유를 설명하는 인라인 TOML 주석이 있어야 합니다.
+
+| 코드 | 의미 |
+| --- | --- |
+| `MIG-DGF-10` | `SUPER_PERMISSIONED`가 공유 factory에 등록되어 있지 않습니다. |
+| `MIG-DGF-20` | `SUPER_CANNON_KONA`가 공유 factory에 등록되어 있지 않습니다. |
+| `MIG-DGF-30` | `CANNON`이 여전히 공유 factory에 등록되어 있습니다. |
+| `MIG-DGF-40` | `PERMISSIONED_CANNON`이 여전히 공유 factory에 등록되어 있습니다. |
+| `MIG-DGF-50` | `CANNON_KONA`가 여전히 공유 factory에 등록되어 있습니다. |
+| `MIG-SDGF-10` ~ `-40` | 공유 factory의 버전, proxy 구현 포인터, owner 또는 `ProxyAdmin`이 기대 구성과 일치하지 않습니다. |
+| `MIG-SASR-RGT` | 공유 `AnchorStateRegistry.respectedGameType()`이 super game type이 아닙니다. |
+| `MIG-SLOCKBOX-10` ~ `-30` | 공유 lockbox의 버전, proxy 구현 포인터 또는 `ProxyAdmin`이 일치하지 않습니다. |
+| `MIG-CHAIN-EMPTY` | validator가 빈 체인 목록을 받았습니다. |
+| `MIG-LOCKBOX-MISSING` | chain A의 portal이 공유 lockbox를 가리키지 않습니다. |
+| `MIG-CHAIN-{i}-10` | 체인 `i`의 portal이 공유 `AnchorStateRegistry`를 참조하지 않습니다. |
+| `MIG-CHAIN-{i}-20` | 체인 `i`의 체인별 factory에 여전히 `CANNON`이 등록되어 있습니다. |
+| `MIG-CHAIN-{i}-30` | 체인 `i`의 체인별 factory에 여전히 `PERMISSIONED_CANNON`이 등록되어 있습니다. |
+| `MIG-CHAIN-{i}-40` | 체인 `i`의 체인별 factory에 여전히 `CANNON_KONA`가 등록되어 있습니다. |
+| `MIG-CHAIN-{i}-60` | 체인 `i`의 체인별 factory에 여전히 `SUPER_PERMISSIONED`가 등록되어 있습니다. |
+| `MIG-CHAIN-{i}-70` | 체인 `i`의 체인별 factory에 여전히 `SUPER_CANNON_KONA`가 등록되어 있습니다. |
+| `MIG-CHAIN-{i}-80` | 공유 lockbox가 체인 `i`의 portal을 승인된 portal로 등록하지 않았습니다. |
+| `MIG-CHAIN-{i}-90` | 체인 `i`의 portal `ethLockbox`가 공유 lockbox와 같지 않습니다. |
+| `MIG-CHAIN-{i}-100` | 체인 `i`의 `SystemConfig`에서 `Features.INTEROP`이 활성화되어 있지 않습니다. |
+| `MIG-CHAIN-{i}-110` | 체인 `i`의 `SystemConfig`에서 `Features.ETH_LOCKBOX`가 활성화되어 있지 않습니다. |
+| `MIG-SPDG-*` 또는 `MIG-SCKDG-*` | super game 세부 검사입니다. 첫 번째 접두사는 `SUPER_PERMISSIONED`를, 두 번째는 `SUPER_CANNON_KONA`를 다룹니다. `MIG-SPDG-*` 하위 코드는 단순화된 permissioned 게임의 args, proposer, `AnchorStateRegistry`를 다루며, `MIG-SCKDG-*`는 결함 증명 게임 검사를 다룹니다. |
+
+## 마이그레이션 실행
+
+<Warning>브로드캐스트하기 전에 사용자 공지가 나갔고 공지 후 최소 7일이 지났는지 확인하십시오. 어느 체인에서든 이전 게임을 기준으로 증명된 출금은 새로운 공유 registry에서 최종 확정되지 않습니다. 사용자는 전환 전에 다시 증명하거나 최종 확정을 완료해야 합니다.</Warning>
+
+1. 두 체인별 `op-proposer` 프로세스를 중지합니다. 마이그레이션이 브로드캐스트되면 체인별 factory에 더 이상 `SUPER_CANNON_KONA`가 등록되어 있지 않으므로 `DisputeGameFactory.create`가 revert됩니다. proposer를 먼저 중지하면 gas 낭비를 막을 수 있습니다.
+2. 두 체인별 `op-challenger` 및 `op-dispute-mon` 인스턴스는 계속 실행합니다. 이 인스턴스들은 체인별 factory에서 진행 중인 마이그레이션 이전 게임을 계속 방어하고 관찰합니다.
+3. 팀의 표준 `superchain-ops` 서명 워크플로를 사용하여 task에 서명하고 브로드캐스트합니다.
+4. L1 트랜잭션이 확정될 때까지 기다립니다.
+
+온체인 효과는 다음과 같습니다.
+
+* `OPCM`이 새로운 `ETHLockbox`, `DisputeGameFactory`, `AnchorStateRegistry` proxy를 배포하고 초기화합니다. 새 `AnchorStateRegistry`는 새 factory에 바인딩되며, 초기화 시 `retirementTimestamp`를 `block.timestamp`로 설정합니다.
+* `OPCM`이 각 체인에서 `OptimismPortal2.migrateToSharedDisputeGame`을 호출하여 portal이 새 lockbox와 새 `AnchorStateRegistry`를 가리키도록 합니다. 또한 각 체인의 기존 portal을 공유 lockbox에 승인하고, 각 체인의 기존 lockbox가 유동성을 전달할 수 있도록 승인한 뒤, 해당 유동성을 공유 lockbox로 마이그레이션합니다.
+* `OPCM`이 각 체인의 기존 체인별 `DisputeGameFactory`에 있는 모든 구현 포인터를 0으로 설정합니다. 해당 factory에 이미 배포된 게임 proxy는 영향을 받지 않으며 계속 resolve됩니다.
+
+각 체인에 대해 op-fetcher를 다시 실행하여 새로운 공유 주소를 확보합니다. 마이그레이션 후에는 `optimismPortal().anchorStateRegistry()`, `disputeGameFactory()`, `ethLockbox()`가 모두 새로운 공유 proxy를 반환하므로, [필수 입력값 수집](#gather-the-required-inputs)에서 사용한 것과 동일한 op-fetcher 입력값으로 마이그레이션 이후 주소를 조회할 수 있습니다. 마이그레이션 이후 출력은 새 파일에 저장하십시오(마이그레이션 이전 파일을 덮어쓰지 마십시오. drain 기간 동안 체인별 `<oldASR>`와 `<oldDGF>`를 참조하는 데 여전히 필요합니다).
+
+```bash
+op-fetcher fetch \
+  --l1-rpc-url $L1_RPC \
+  --system-config <SystemConfig_chainA> \
+  --l1-standard-bridge <L1StandardBridge_chainA> \
+  --output-file <chainA>-postmigrate.json
+
+op-fetcher fetch \
+  --l1-rpc-url $L1_RPC \
+  --system-config <SystemConfig_chainB> \
+  --l1-standard-bridge <L1StandardBridge_chainB> \
+  --output-file <chainB>-postmigrate.json
+```
+
+chain A의 마이그레이션 이후 출력에서 공유 주소를 확보합니다.
+
+```bash
+SHARED_ASR=$(jq -r '.addresses.AnchorStateRegistryProxy' <chainA>-postmigrate.json)
+SHARED_DGF=$(jq -r '.addresses.DisputeGameFactoryProxy' <chainA>-postmigrate.json)
+SHARED_LOCKBOX=$(jq -r '.addresses.EthLockboxProxy' <chainA>-postmigrate.json)
+```
+
+chain B의 portal이 동일한 공유 proxy로 조회되는지 확인합니다.
+
+```bash
+diff <(jq -r '.addresses.AnchorStateRegistryProxy, .addresses.DisputeGameFactoryProxy, .addresses.EthLockboxProxy' <chainA>-postmigrate.json) \
+     <(jq -r '.addresses.AnchorStateRegistryProxy, .addresses.DisputeGameFactoryProxy, .addresses.EthLockboxProxy' <chainB>-postmigrate.json)
+# Expect: no output (identical).
+```
+
+## 온체인에서 마이그레이션 검증
+
+새 `op-proposer`를 시작하기 전에 아래 검사를 모두 실행하십시오. 어느 검사라도 실패하면 중단하고 표준 사고 대응 채널을 통해 에스컬레이션하십시오. proposer가 오작동하는 반쯤 전환된 상태에서 복구하는 것은 pause된 상태에서 복구하는 것보다 훨씬 어렵습니다.
+
+### 공유 Registry와 Factory 검증
+
+```bash
+# Respected game type on the new ASR
+cast call $SHARED_ASR 'respectedGameType()(uint32)' --rpc-url $L1_RPC
+# Expect: 9 (SUPER_CANNON_KONA)
+
+# Anchor root and timestamp on the new ASR
+cast call $SHARED_ASR 'getAnchorRoot()(bytes32,uint256)' --rpc-url $L1_RPC
+# Expect: (<super root hash>, <timestamp>) from "Generate the Starting Anchor Super Root"
+
+# Retirement timestamp on the new ASR
+cast call $SHARED_ASR 'retirementTimestamp()(uint64)' --rpc-url $L1_RPC
+# Expect: equal to the migration block's timestamp
+
+# Game implementations registered on the shared factory
+cast call $SHARED_DGF 'gameImpls(uint32)(address)' 5 --rpc-url $L1_RPC   # SUPER_PERMISSIONED
+cast call $SHARED_DGF 'gameImpls(uint32)(address)' 9 --rpc-url $L1_RPC   # SUPER_CANNON_KONA
+# Expect both: non-zero
+
+# Init bonds match each game type's configuration
+cast call $SHARED_DGF 'initBonds(uint32)(uint256)' 5 --rpc-url $L1_RPC
+# Expect: 0
+cast call $SHARED_DGF 'initBonds(uint32)(uint256)' 9 --rpc-url $L1_RPC
+# Expect: 80000000000000000
+
+# No legacy implementations registered on the shared factory
+cast call $SHARED_DGF 'gameImpls(uint32)(address)' 0 --rpc-url $L1_RPC   # CANNON
+cast call $SHARED_DGF 'gameImpls(uint32)(address)' 1 --rpc-url $L1_RPC   # PERMISSIONED_CANNON
+cast call $SHARED_DGF 'gameImpls(uint32)(address)' 8 --rpc-url $L1_RPC   # CANNON_KONA
+# Expect each: 0x0000000000000000000000000000000000000000
+```
+
+### 체인별 Factory가 비워졌는지 확인
+
+```bash
+for OLD_DGF in <oldDGF_chainA> <oldDGF_chainB>; do
+    for GT in 0 1 5 8 9; do
+        echo "$OLD_DGF gameImpls($GT)= $(cast call $OLD_DGF 'gameImpls(uint32)(address)' $GT --rpc-url $L1_RPC)"
+    done
+done
+# Expect every entry: 0x0000000000000000000000000000000000000000
+```
+
+### 공유 Lockbox 승인 확인
+
+```bash
+cast call $SHARED_LOCKBOX 'authorizedPortals(address)(bool)' <OptimismPortal2_chainA> --rpc-url $L1_RPC
+cast call $SHARED_LOCKBOX 'authorizedPortals(address)(bool)' <OptimismPortal2_chainB> --rpc-url $L1_RPC
+# Expect both: true
+```
+
+## 공유 op-challenger 및 op-dispute-mon 시작
+
+두 공유 인스턴스는 [오프체인 구성 준비](#stage-the-off-chain-configuration)에서 `--game-factory-address`를 제외한 모든 플래그가 설정된 상태로 준비되었습니다. 이제 `$SHARED_DGF`를 알고 있고 마이그레이션이 온체인에서 검증되었으므로, 두 인스턴스에 주소를 채우고 가능한 한 빨리 프로세스를 시작하십시오.
+
+`SUPER_CANNON_KONA`는 permissionless game type이므로, 공유 factory가 활성화되는 순간 `op-proposer`뿐 아니라 누구나 이를 대상으로 게임을 생성할 수 있습니다. 게임이 생성되면 시계가 흐르기 시작하며, 누군가 이의를 제기하든 하지 않든 게임은 resolve됩니다. 게임 시계가 만료되기 전에 잘못된 클레임에 대응하려면 `op-challenger`가 실행 중이어야 하며, 관찰하고 경고하려면 `op-dispute-mon`이 실행 중이어야 합니다. 이는 아래의 [단일 공유 op-proposer로 전환](#cut-over-to-a-single-shared-op-proposer)과는 별개이므로, proposer 전환 시점과 관계없이 먼저 완료하십시오.
+
+1. **공유 `op-challenger`의 `--game-factory-address`(`OP_CHALLENGER_GAME_FACTORY_ADDRESS`)를 `$SHARED_DGF`로 설정하고 프로세스를 시작합니다.** 시작 로그에 `super-cannon-kona`가 등록된 trace type으로 표시되고, 공유 supernode 루트 RPC 엔드포인트 연결 오류가 없는지 확인합니다.
+2. **공유 `op-dispute-mon`의 `--game-factory-address`(`OP_DISPUTE_MON_GAME_FACTORY_ADDRESS`)를 `$SHARED_DGF`로 설정하고 프로세스를 시작합니다.** supernode 루트 연결이 정상이고 metrics 엔드포인트가 제공되고 있는지 확인합니다.
+
+정상적인 시작 로그와 조용한 오류 스트림이 다음 단계로 진행하기 위한 기준입니다. 두 인스턴스 모두 시작 시 기존 게임을 탐색하므로, 인스턴스가 올라올 때 공유 factory에 super-root 게임이 이미 존재하는지 여부는 중요하지 않습니다.
+
+## 단일 공유 op-proposer로 전환
+
+공유 factory를 위한 새 `op-proposer` 프로세스 하나를 시작합니다. supernode가 timestamp마다 두 체인을 모두 포괄하는 super root 하나를 생성하므로, 하나의 proposer가 두 체인별 proposer를 대체합니다.
+
+새 인스턴스를 아래 플래그로 구성합니다.
+
+| 플래그 (환경 변수) | 값 |
+| --- | --- |
+| `--game-factory-address` (`OP_PROPOSER_GAME_FACTORY_ADDRESS`) | 새로운 공유 `<DGF>` |
+| `--superroot-rpcs` (`OP_PROPOSER_SUPERROOT_RPCS`) | `$SUPERNODE_RPC` 또는 동일한 dependency set에 대한 고가용성 루트 엔드포인트 |
+| `--game-type` (`OP_PROPOSER_GAME_TYPE`) | `9` (SUPER_CANNON_KONA) |
+| `--l1-eth-rpc` (`OP_PROPOSER_L1_ETH_RPC`) | 기존 proposer와 동일 |
+| `--proposal-interval`, `--poll-interval`, `--mnemonic` 또는 `--private-key` | 기존 proposer와 동일 |
+
+시작 후 다음을 확인합니다.
+
+* 로그에 proposer가 supernode를 폴링하고 공유 factory에 기록하는 내용이 표시됩니다.
+* `--proposal-interval` 한 번 이내에 proposer가 공유 factory에 새 게임을 제출합니다. 이를 검사합니다.
+
+  ```bash
+  COUNT=$(cast call $SHARED_DGF 'gameCount()(uint256)' --rpc-url $L1_RPC)
+  echo "gameCount=$COUNT"
+
+  read -r GAME_TYPE CREATED_AT GAME_PROXY < <(cast call $SHARED_DGF 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
+  # Expect: GAME_TYPE=9 and GAME_PROXY non-zero.
+  echo "gameType=$GAME_TYPE createdAt=$CREATED_AT gameProxy=$GAME_PROXY"
+
+  cast call $GAME_PROXY 'rootClaim()(bytes32)'        --rpc-url $L1_RPC
+  cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC
+  ```
+
+* 제안된 timestamp에 대한 super root를 다시 계산하여 제안과 일치하는지 확인합니다.
+
+  ```bash
+  cast rpc superroot_atTimestamp "$(cast 2h <l2SequenceNumber from above>)" \
+    --rpc-url $SUPERNODE_RPC | jq -r '.data.super_root'
+  # Expect: equals rootClaim from above.
+  ```
+
+proposer가 안정화된 후에도 체인별 `op-challenger` 또는 `op-dispute-mon` 인스턴스를 중지하지 마십시오. 다음에 설명하는 drain 기간 동안 여전히 필요합니다.
+
+## 마이그레이션 이전 게임 drain 및 본드 회수
+
+마이그레이션은 체인별 factory의 구현 포인터를 비워 새로운 마이그레이션 이전 게임이 생성되지 않도록 했지만, 마이그레이션 시점에 해당 factory에 이미 존재하던 모든 게임 proxy는 계속 동작합니다. 각 게임의 구현, `AnchorStateRegistry`, `DelayedWETH` 참조는 proxy가 생성될 때 immutable 인자로 저장되었으므로, factory 포인터가 비워져도 resolve에는 영향이 없습니다. `FaultDisputeGame.claimCredit`을 통한 본드 청구는 portal이나 새로운 공유 factory와 무관하게, 본드가 게시된 것과 같은 `DelayedWETH`로 흘러갑니다.
+
+구체적으로는 다음과 같습니다.
+
+* 두 체인별 `op-challenger` 인스턴스는 퇴역한 게임을 `DEFENDER_WINS` 또는 `CHALLENGER_WINS`까지 계속 진행하고, 게임이 최종 확정되면 본드 청구를 예약합니다.
+* 본드 청구는 운영자의 개입 없이 성공합니다. chain A의 퇴역한 게임은 chain A의 `DelayedWETH`(새로운 공유 게임이 사용하는 것과 같은 컨트랙트)를 통해 청구하고, chain B의 퇴역한 게임은 마이그레이션 후 달리 사용되지 않는 chain B의 `DelayedWETH`를 통해 청구합니다.
+* 두 체인별 `op-dispute-mon` 인스턴스는 해당 게임을 계속 관찰합니다. game type별 metric인 `op_dispute_mon_games{game_type="super-cannon-kona"}`와 `super-permissioned`에 대한 동일한 metric은 drain 기간 동안 단조 감소하여 0에 가까워져야 합니다.
+* `op-challenger`의 기본 `--game-window`는 28일로, 최대 16일의 게임 진행 기간, 7일의 `DelayedWETH` 출금 지연, 5일의 버퍼를 포괄하도록 설정되어 있습니다. 체인별 인스턴스에서 이를 줄이지 마십시오. 줄이면 본드를 청구할 수 있게 되기 전에 게임을 놓칠 위험이 있습니다.
+
+진행 중인 마이그레이션 이전 게임 하나를 골라 resolve와 본드 청구까지 지켜보십시오.
+
+```bash
+cast call <gameProxy> 'status()(uint8)' --rpc-url $L1_RPC
+# 0 = IN_PROGRESS, 1 = CHALLENGER_WINS, 2 = DEFENDER_WINS
+
+cast call <gameProxy> 'resolvedAt()(uint64)' --rpc-url $L1_RPC
+# Non-zero once the game has resolved.
+```
+
+게임이 resolve되고 `DelayedWETH` finality 기간이 지나면 challenger가 `claimCredit`을 예약합니다. 체인별 인스턴스에서 `op_challenger_bonds_total` metric을 지켜보고 `op_challenger_claim_failures_total`이 변하지 않는지 확인하여, 본드가 구성된 청구자에게 도달하는지 확인하십시오.
+
+## 마이그레이션 후 검증
+
+새 proposer가 안정화되면 다음 검사를 실행하십시오.
+
+* **공유 `op-challenger`가 super-root 게임을 방어하고 있는지 확인합니다.** challenger는 game type별로 metric을 구분하지 않으므로, 시작 로그(`super-cannon-kona`와 `super-permissioned`를 포함한 구성된 모든 trace type이 등록된 것으로 표시되어야 함)와 지속적인 로그(공유 factory에 super game이 나타날 때 scheduler 또는 game-poll 오류가 없어야 함)로 확인하십시오. 집계 metric인 `op_challenger_tracked_games{status="in_progress"}`는 super game이 생성되면 0이 아닌 값이 되고, 게임이 진행 중인 동안 0이 아닌 값을 유지합니다.
+* **공유 `op-dispute-mon`이 super-root 게임을 보고하는지 확인합니다.** 공유 인스턴스에서 게임이 생성되면 `op_dispute_mon_games{game_type="super-cannon-kona"}`와 `op_dispute_mon_games{game_type="super-permissioned"}`가 0이 아닌 값이 됩니다. `op_dispute_mon_failed_games`는 0에 가깝게 유지되어야 합니다. 0이 아닌 값은 일반적으로 `--supernode-rpc` 누락 또는 supernode 사용 불가를 의미합니다.
+* **새로운 마이그레이션 이전 게임을 생성할 수 없는지 확인합니다.** 선택적으로, 어느 한 체인별 factory에서 비워진 game type 중 하나로 `DisputeGameFactory.create`를 호출하여 revert되는지 확인합니다.
+* **첫 번째 super game 최종 확정을 지켜봅니다.** 첫 번째 앵커 업데이트는 일반적으로 첫 번째 super-root 게임이 생성된 후 약 7일(게임 진행 기간 + `disputeGameFinalityDelaySeconds()`) 뒤에 이루어집니다. 이 때문에 롤아웃을 막지는 마십시오. 해당 기간 후 `getAnchorRoot()`를 다시 실행하여 시작 앵커 대신 새 게임의 클레임이 반환되는지 확인하는 후속 작업을 예약하십시오.
+
+## drain 후 정리
+
+체인별 인스턴스는 `op_dispute_mon_games{game_type="super-cannon-kona"}`와 `op_dispute_mon_games{game_type="super-permissioned"}`가 최소 한 번의 전체 `--game-window`(기본 28일) 동안 0이었고, 대응하는 체인별 `op-challenger`의 `op_challenger_tracked_games{status="in_progress"}`가 0이며 본드 청구 metric이 안정적일 때 안전하게 퇴역시킬 수 있습니다.
+
+두 조건이 모두 충족된 체인에 대해 체인별 `op-challenger` 및 `op-dispute-mon` 인스턴스를 중지하십시오.
+
+두 체인의 drain이 모두 끝나면, 정상 상태의 운영 구성은 공유 factory와 두 체인을 모두 derive하는 단일 supernode를 가리키는 `op-proposer` 하나, `op-challenger` 하나, `op-dispute-mon` 하나가 됩니다.
+
+## 마이그레이션 후 운영상 주의 사항
+
+마이그레이션 후 두 체인은 하나의 `ETHLockbox`, 하나의 `AnchorStateRegistry`, 하나의 pause 식별자를 공유합니다. 이 섹션에서 다루는 실수 대부분은 공유 컨트랙트를 여전히 한 체인에 속한 것처럼 취급하는 데서 비롯됩니다. 온체인에서는 이러한 실수를 막지 않으므로, 어느 체인이든 운영하는 모든 사람과 함께 이 내용을 검토하십시오.
+
+### 공유 Lockbox를 통해 세트 전체를 pause
+
+이제 세트에는 하나의 pause 식별자, 즉 공유 lockbox 주소인 `$SHARED_LOCKBOX`만 있습니다. 이를 pause하면 두 체인이 모두 중단됩니다.
+
+이전 식별자도 여전히 pause를 받아들입니다. 어느 체인의 이전 `OptimismPortal2` 또는 이전 `ETHLockbox` 주소로 `pause`를 호출해도 여전히 `Paused`가 발생하지만, 실제로는 아무것도 pause되지 않습니다. 필요해지기 전에 Guardian 도구가 `$SHARED_LOCKBOX`를 가리키도록 설정하십시오.
+
+pause는 저절로 만료됩니다. 만료 후 `paused`는 `false`를 반환하지만, 같은 식별자로 `pause`를 호출하면 `SuperchainConfig_AlreadyPaused`로 revert됩니다. 다시 pause하려면 `extend`를 호출하십시오.
+
+### Guardian 작업은 두 체인 모두에 적용
+
+`$SHARED_ASR`에 대한 `updateRetirementTimestamp`, `setRespectedGameType`, `blacklistDisputeGame`은 두 체인에 동시에 적용됩니다.
+
+퇴역한 체인별 registry도 같은 Guardian으로부터 같은 호출을 여전히 받아들입니다. 호출은 성공하지만 진행 중인 출금에는 아무런 변화도 주지 않습니다. 사고 대응 중에는 서명하기 전에 주소를 확인하십시오.
+
+### `migrateToSharedDisputeGame`을 직접 호출하지 마십시오
+
+온체인에서는 이전 컨트랙트를 퇴역시키는 장치가 없습니다. 각 체인의 이전 `ETHLockbox`는 여전히 해당 portal을 승인하고 있으므로, portal이 이전 lockbox와 `<oldASR_chainX>`를 다시 가리키게 하는 수동 `OptimismPortal2.migrateToSharedDisputeGame` 호출은 모든 검사를 통과합니다. 그러면 체인이 세트에서 빠지지만, 해당 체인의 ETH는 공유 lockbox에 남아 다른 체인이 여전히 출금할 수 있습니다. 해당 체인의 출금은 이제 비어 있는 이전 lockbox에서 인출되어 `ETHLockbox_InsufficientBalance`로 revert됩니다. 또한 이전 `AnchorStateRegistry`가 게임 구현이 없는 factory를 가리키므로 새 출금을 증명할 수도 없습니다.
+
+### 두 체인을 함께 업그레이드
+
+두 체인은 동일한 공유 컨트랙트에서 실행되므로 한 쌍으로 업그레이드됩니다. 공유 컨트랙트가 더 새로운 릴리스로 업그레이드되면, 어느 체인에서든 더 오래된 OPCM을 실행하면 `OPContractsManagerUtils_DowngradeNotAllowed`로 실패합니다.
+
+한 체인을 업그레이드하면 다른 체인도 재구성됩니다. `upgrade`는 해당 업그레이드의 `disputeGameConfigs`로 공유 `DisputeGameFactory`에 모든 game type을 다시 등록합니다. 따라서 한 체인을 대상으로 한 task가 세트 전체의 구현, prestate, 본드, respected game type을 설정합니다. 업그레이드 task를 작성할 때 다음 세 가지 규칙을 따르십시오.
+
+* 공유 factory에서 각 멤버의 `disputeGameConfigs`를 읽어 복사하십시오. **절대 체인별로 작성하지 마십시오.**
+* factory에 `CANNON_KONA` 구현이 있는지 확인하는 방식으로 `SUPER_CANNON_KONA` 활성화 여부를 결정하지 마십시오. 공유 factory에는 `CANNON_KONA`가 절대 없으므로, `startingRespectedGameType = 5`인 경우 그 검사는 두 체인 모두에 대해 세트의 permissionless 게임을 비활성화합니다.
+* 두 체인을 모두 업그레이드한 후, task에 명시된 체인뿐 아니라 각 체인에 대해 `StandardValidator`를 실행하고 둘 다 통과하는지 확인하십시오.
+
+### INTEROP과 ProxyAdmin Owner는 고정된 것으로 취급
+
+`Features.INTEROP`은 끌 수 없으며, 시도하면 `SystemConfig.setFeature`가 revert됩니다. 이로써 세트에서 빠져나가는 명백한 방법이 막힙니다. 이는 또한 마이그레이션 전에 `INTEROP`이 수동으로 활성화된 체인은 마이그레이션하기 전에 dev 플래그를 해제하기 위한 관리용 업그레이드가 필요하다는 의미이기도 합니다.
+
+두 체인은 또한 같은 `ProxyAdmin` owner를 가져야 합니다. `ETHLockbox.authorizePortal`, `ETHLockbox.migrateLiquidity`, 그리고 공유 컨트랙트를 건드리는 업그레이드는 모두 owner가 공유되는지 확인합니다. 한 체인에서 owner를 변경하면, owner가 다시 일치할 때까지 해당 체인에서 이러한 호출이 revert됩니다.
+
+## 다음 단계
+
+* 전체 interop 활성화 마일스톤을 계획하십시오. `migrate`는 체인들을 공유 분쟁 게임 아래로 통합하지만, 크로스체인 메시징을 활성화하는 것은 별도의 단계입니다. 준비가 되면 [Interop 설명](/ko/op-stack/interop/explainer)을 참조하십시오.
+* 새 proposer의 첫 제안 후 약 7일 뒤, 첫 번째 super game 최종 확정 시 앵커가 전진하는지 확인하는 후속 작업을 예약하십시오. `cast call $SHARED_ASR 'getAnchorRoot()(bytes32,uint256)' --rpc-url $L1_RPC`를 다시 실행하여 새 게임의 클레임이 반환되는지 확인하십시오.

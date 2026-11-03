@@ -1,0 +1,38 @@
+---
+title: Lagoon
+description: Superchain 상호운용성(interop)을 활성화하는 Lagoon 네트워크 업그레이드의 하드포크 레지스트리 항목입니다.
+diataxis: reference
+hardfork_name: lagoon
+hardfork_lifecycle: development
+hardfork_spec: https://specs.optimism.io/protocol/lagoon/overview.html
+hardfork_notice: /ko/notices/interop-prep
+---
+
+import LagoonFacts from "/ko/snippets/generated/hardforks/lagoon.mdx"
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="이 업그레이드"
+  title="Lagoon 명세"
+  href="https://specs.optimism.io/protocol/lagoon/overview.html"
+  note="이 페이지는 활성화 데이터와 운영 관련 참고 정보를 기록하며, 명세의 내용을 다시 서술하지 않습니다. Lagoon 명세는 아직 확정되지 않았습니다."
+/>
+
+Lagoon은 Superchain [상호운용성(interop)](/ko/op-stack/interop/explainer)을 활성화하는
+예정된 하드포크입니다. superchain-registry에는 아직 Superchain 전체에 적용되는 활성화
+기본값이 설정되어 있지 않으며, 첫 활성화는 체인별로 준비되고 있습니다. OP Mainnet과
+Unichain에 대해서는 [interop 활성화 준비 공지](/ko/notices/interop-prep)를 참조하십시오.
+OP Sepolia와 Unichain Sepolia가 먼저 활성화됩니다.
+
+<LagoonFacts />
+
+## 포함 사항
+
+[명세 개요](https://specs.optimism.io/protocol/lagoon/overview.html)에 따른 포함 사항은 다음과 같습니다
+(명세가 개발 중인 동안 변경될 수 있습니다).
+
+*   Interop: dependency set, 크로스체인 메시징, derivation, sequencer 및
+    verifier 동작, super root, interop 결함 증명(fault proof), interop
+    bridge 컨트랙트.
+*   실행 계층: post-execution 트랜잭션 및
+    [sequencer defined metering](/ko/op-stack/features/sdm).

@@ -1,0 +1,36 @@
+---
+title: Fjord
+description: FastLZ 수수료 추정과 Brotli 압축을 도입한 Fjord 네트워크 업그레이드의 하드포크 레지스트리 항목입니다.
+diataxis: reference
+hardfork_name: fjord
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/fjord/overview.html
+hardfork_activation_mainnet: 1720627201
+hardfork_activation_sepolia: 1716998400
+hardfork_governance: https://gov.optimism.io/t/upgrade-proposal-9-fjord-network-upgrade/8236
+---
+
+import FjordFacts from "/ko/snippets/generated/hardforks/fjord.mdx"
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="이 업그레이드"
+  title="Fjord 명세"
+  href="https://specs.optimism.io/protocol/fjord/overview.html"
+  note="이 페이지는 활성화 데이터와 운영 관련 참고 정보를 기록하며, 명세의 내용을 다시 서술하지 않습니다."
+/>
+
+Fjord는 수수료 추정과 batch 압축을 개선하고, secp256r1 precompile을
+추가했습니다.
+
+<FjordFacts />
+
+## 변경 사항
+
+[명세 개요](https://specs.optimism.io/protocol/fjord/overview.html)에 따른 변경 사항은 다음과 같습니다.
+
+*   실행 계층: secp256r1 곡선 지원을 위한 [RIP-7212](https://github.com/ethereum/RIPs/blob/master/RIPS/rip-7212.md)
+    precompile, L1 데이터 수수료 계산을 위한 FastLZ 압축, `GasPriceOracle`
+    predeploy의 `getL1GasUsed` 메서드와 `L1GasUsed` receipt 필드 지원 중단.
+*   합의 계층: 상수 최대 sequencer drift, Brotli channel 압축, channel당 최대
+    바이트 수 및 최대 channel bank 크기 증가.

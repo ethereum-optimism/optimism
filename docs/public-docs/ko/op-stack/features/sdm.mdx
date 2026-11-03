@@ -1,0 +1,93 @@
+---
+title: "Sequencer Defined Metering"
+description: "Sequencer Defined Metering을 통해 sequencer가 gas를 리베이트하는 방식, 리베이트가 커밋되고 검증되는 방식, 그리고 Lagoon에서 node와 애플리케이션에 무엇이 달라지는지 알아봅니다."
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="Sequencer Defined Metering"
+  title="Sequencer-Defined Metering 사양"
+  href="https://specs.optimism.io/protocol/lagoon/sdm.html"
+  note="이 페이지는 메커니즘과 그것이 노드 운영자 및 애플리케이션에 가져오는 변화를 설명하며, 사양 내용을 다시 서술하지 않습니다. Lagoon 사양은 아직 확정되지 않았습니다."
+/>
+
+<Warning>
+  SDM은 아직 어떤 체인에서도 활성화되지 않았습니다. [Lagoon 하드포크](/ko/op-stack/protocol/hardforks/lagoon)와 함께 활성화됩니다.
+</Warning>
+
+*Sequencer Defined Metering(SDM)*을 사용하면 sequencer가 EVM이 측정한 것보다 적은 gas를 트랜잭션에
+청구하고, 그 결정을 블록에 커밋하여 모든 검증자(verifier)가 이를 재현할 수 있습니다.
+
+gas 일정은 균일합니다. 즉, 같은 블록의 이전 트랜잭션이 이미 비용을 지불한 작업인지 여부와 관계없이
+트랜잭션은 해당 작업에 대해 동일한 비용을 지불합니다. SDM은 sequencer가 그중 일부를 돌려줄 수 있는
+방법을 제공합니다. 사양이 정한 범위 내에서 sequencer가 금액을 선택하며, 이것이 "sequencer defined"의
+의미입니다. 리베이트는 검증자가 다시 도출하는 정책이 아니라 검증자가 적용하는 데이터로서 블록에 담겨
+전달되므로, 체인은 각 트랜잭션에 청구된 금액에 대해 여전히 단일한 정규(canonical) 답을 유지합니다.
+
+이 페이지에서는 이 메커니즘이 무엇을 하는지, 그리고 체인을 운영하거나 체인 위에서 개발하는 사람들에게
+무엇이 달라지는지 설명합니다. 체인 운영자로서 SDM을 켜거나 끄려면
+[SDM 운영자 가이드](/ko/chain-operators/guides/features/sequencer-defined-metering)를 따르십시오.
+
+## 리베이트가 커밋되는 방식
+
+리베이트를 발행하는 sequencer는 블록의 마지막 트랜잭션으로 단일 **post-exec 트랜잭션**(타입 `0x7D`)을
+추가합니다. 이 트랜잭션은 코드로 실행되지 않으며, 수수료를 청구하지 않고 gas도 소비하지 않습니다.
+이 트랜잭션은 트랜잭션 인덱스와 gas 환불 쌍으로 구성된 페이로드를 담고 있습니다. sequencer가 환불을
+할당하지 않으면 블록에는 post-exec 트랜잭션이 전혀 없습니다.
+
+입금(디파짓)과 post-exec 트랜잭션 자체는 절대 리베이트될 수 없습니다. 페이로드 인코딩과 전체 유효성
+규칙은 [SDM 사양](https://specs.optimism.io/protocol/lagoon/sdm.html#validity-rules)을 참조하십시오.
+
+## SDM에서 `gasUsed`의 의미
+
+리베이트된 트랜잭션의 경우, EVM의 측정값과 체인의 회계가 서로 달라집니다. 영수증의 gas-used 필드는
+**정규(canonical)** gas, 즉 EVM이 측정한 값에서 환불액을 뺀 값을 보고합니다. 블록의 `gasUsed`도
+이 값을 합산합니다. 환불액은 EVM이 측정한 값을 초과할 수 없으므로 정규 gas는 결코 음수가 되지 않습니다.
+
+환불이 적용되는 시점에 EVM은 이미 리베이트 전 수치를 기준으로 수수료를 청구했으므로, SDM은 같은
+트랜잭션 내에서 그 차액을 다시 정산합니다. 즉, 별도의 영수증 없이 원자적으로 발신자에게 입금하고
+수수료 수령인에게서 차감합니다. 수령인별 정확한 금액은
+[사양의 정산 규칙](https://specs.optimism.io/protocol/lagoon/sdm.html#settlement)에 나와 있습니다.
+
+## Lagoon에서 달라지는 점
+
+Lagoon이 활성화되기 전에는 post-exec 트랜잭션을 포함한 블록이 유효하지 않으며, 블록은 SDM을 전혀
+명시하지 않은 체인과 똑같이 생성되고 검증됩니다. 활성화 시점부터 다음 두 가지를 관찰할 수 있게 됩니다.
+
+*   현재 사용되는 것과 동일한 트랜잭션 목록 인터페이스를 통해 `0x7D` 트랜잭션이 블록의 마지막
+    트랜잭션으로 나타날 수 있습니다.
+*   표준 트랜잭션의 영수증에 `opGasRefund` 필드가 추가됩니다.
+
+`opGasRefund`는 JSON-RPC 필드일 뿐입니다. 영수증의 RLP 인코딩에 포함되지 않으며 receipts trie에
+커밋되지도 않으므로, 알 수 없는 필드를 무시하는 도구(`cast receipt` 포함)는 영향을 받지 않습니다.
+이를 명시적으로 활용하는 소비자만 이 필드를 관찰합니다.
+
+Post-exec 트랜잭션은 사용자가 제출할 수 없으며 공개 트랜잭션 gossip을 통해 전파되지 않으므로,
+mempool 및 트랜잭션 풀 인터페이스는 변경되지 않습니다.
+
+## 누가 무엇을 해야 하는가
+
+| 운영 대상 | SDM이 요구하는 사항 |
+| --- | --- |
+| 검증자 또는 full node | Lagoon을 구현한 소프트웨어를 실행하는 것 외에는 없습니다. 검증자에는 SDM 구성이 없습니다. |
+| sequencer | Lagoon을 구현한 소프트웨어와 명시적인 옵트인이 필요합니다. [운영자 가이드](/ko/chain-operators/guides/features/sequencer-defined-metering)를 참조하십시오. |
+| 애플리케이션 | 일반적으로 없습니다. 트랜잭션의 `gasUsed`는 이미 청구된 정규 금액이며, 리베이트를 표시하려면 `opGasRefund`를 사용할 수 있습니다. |
+| 블록 탐색기, 인덱서 또는 블록과 영수증을 파싱하는 기타 모든 것 | 팔로우하는 체인에 Lagoon이 적용되기 전에 인식되지 않는 트랜잭션 타입을 어떻게 처리하는지 확인하십시오. |
+
+마지막 행에 대한 추가 설명: 이제 블록이 디코더가 한 번도 본 적 없는 트랜잭션 타입으로 끝날 수 있습니다.
+`from`은 제로 주소이고, 서명 필드는 0으로 채워진 것이 아니라 아예 없으며, 청구된 모든 항목이 0으로
+설정된 자체 영수증을 발생시킵니다. 이는 엄격한 디코더를 중단시키거나 잘못된 형식의 행으로 나타나기에
+충분합니다. gas 합계도 다시 확인할 필요가 있습니다. 트랜잭션별 `gasUsed`를 합산하면 여전히 블록과
+일치하지만, 더 이상 EVM이 측정한 값과 같지 않으므로 gas를 독립적으로 다시 계산하는 모든 것은
+`opGasRefund`를 고려하지 않는 한 결과가 일치하지 않습니다.
+
+리베이트는 sequencer 측의 기능입니다. 리베이트 발행을 중단한 sequencer는 그 시점부터 자신이 구축하는
+블록만 변경합니다. 이미 체인에 있는 post-exec 트랜잭션은 계속 유효하며, 검증자는 계속해서 이를 검증합니다.
+
+## 다음 단계
+
+*   [SDM 운영자 가이드](/ko/chain-operators/guides/features/sequencer-defined-metering)를 참조하여 SDM을 켜고, 확인하고, 끄십시오.
+*   [Lagoon 하드포크](/ko/op-stack/protocol/hardforks/lagoon)에 포함된 다른 기능을 확인하십시오.
+*   [SDM 사양](https://specs.optimism.io/protocol/lagoon/sdm.html)과 [post-exec 트랜잭션 사양](https://specs.optimism.io/protocol/lagoon/post-exec.html)에서 규범적 규칙을 읽어 보십시오.
