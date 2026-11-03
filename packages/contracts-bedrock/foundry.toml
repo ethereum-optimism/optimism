@@ -63,6 +63,7 @@ fs_permissions = [
   { access='read', path='./deploy-config-periphery/' },
   { access='read', path='./broadcast/' },
   { access='read', path = './forge-artifacts/' },
+  { access='read', path = './cache/solar-artifacts/' },
   { access='read-write', path='./.testdata/' },
   { access='read', path='./kout-deployment' },
   { access='read', path='./test/fixtures' },
@@ -190,6 +191,15 @@ timeout = 300
 # test thoroughness should match CI.
 
 [profile.liteci]
+# Keep incremental builds cached; contracts-bedrock-checks-fast still rejects warnings with solc.
+deny = 'never'
+# Solar is experimental: keep its artifacts separate from deployment inputs.
+solc = './scripts/ops/solar'
+out = 'cache/solar-artifacts'
+cache_path = 'cache/solar'
+build_info_path = 'cache/solar-build-info'
+# 2264 = experimental codegen; 5333 = Solar accepts the pinned 0.8.x pragmas.
+ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159, 8429, 2424, 2264, 5333]
 optimizer = false
 optimizer_runs = 0
 
@@ -226,6 +236,15 @@ depth = 32
 ################################################################
 
 [profile.lite]
+# Keep local incremental builds cached; CI still rejects warnings.
+deny = 'never'
+# Solar is experimental: keep its artifacts separate from deployment inputs.
+solc = './scripts/ops/solar'
+out = 'cache/solar-artifacts'
+cache_path = 'cache/solar'
+build_info_path = 'cache/solar-build-info'
+# 2264 = experimental codegen; 5333 = Solar accepts the pinned 0.8.x pragmas.
+ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159, 8429, 2424, 2264, 5333]
 optimizer = false
 optimizer_runs = 0
 

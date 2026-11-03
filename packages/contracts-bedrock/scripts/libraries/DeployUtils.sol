@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 // Scripts
 import { Vm, VmSafe } from "forge-std/Vm.sol";
 import { console2 as console } from "forge-std/console2.sol";
+import { Config } from "scripts/libraries/Config.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 
 // Libraries
@@ -24,11 +25,16 @@ library DeployUtils {
 
     bytes32 internal constant DEFAULT_SALT = keccak256("op-stack-contract-impls-salt-v0");
 
+    /// @notice Returns a contract's default-profile artifact path in the active output directory.
+    function _defaultArtifactPath(string memory _name) private view returns (string memory) {
+        return string.concat(Config.artifactDirectory(), _name, ".sol/", _name, ".json");
+    }
+
     /// @notice Returns the creation bytecode for a contract from the default compiler profile's artifact.
     ///         When `additional_compiler_profiles` is configured in foundry.toml, a contract may be compiled
     ///         with multiple profiles (e.g., default and dispute). Using `vm.getCode(name)` alone can
     ///         non-deterministically resolve to the wrong profile's artifact. By constructing the explicit
-    ///         artifact file path (`forge-artifacts/<Name>.sol/<Name>.json`), we ensure the default profile's
+    ///         artifact file path (`<out>/<Name>.sol/<Name>.json`), we ensure the default profile's
     ///         bytecode is always returned.
     ///         If the name already contains a colon or slash (e.g., "File.sol:Contract" or an explicit path),
     ///         it is passed through to vm.getCode as-is since the caller has already provided disambiguation.
@@ -62,7 +68,7 @@ library DeployUtils {
         // Try explicit default-profile artifact path for deterministic profile resolution.
         // Falls back to vm.getCode(_name) for hosts that don't support artifact paths
         // (e.g., the Go script host in op-chain-ops, which has no profile ambiguity).
-        try vm.getCode(string.concat("forge-artifacts/", _name, ".sol/", _name, ".json")) returns (bytes memory code_) {
+        try vm.getCode(_defaultArtifactPath(_name)) returns (bytes memory code_) {
             return code_;
         } catch {
             return vm.getCode(_name);
@@ -72,7 +78,7 @@ library DeployUtils {
     /// @notice Returns the deployed (runtime) bytecode for a contract from the default compiler profile's
     ///         artifact. The runtime-code analog of {getCode}: with `additional_compiler_profiles` configured
     ///         in foundry.toml, `vm.getDeployedCode(name)` can resolve to the wrong profile's artifact.
-    ///         Constructing the explicit artifact path (`forge-artifacts/<Name>.sol/<Name>.json`) pins the
+    ///         Constructing the explicit artifact path (`<out>/<Name>.sol/<Name>.json`) pins the
     ///         default profile's runtime bytecode.
     ///         If the name already contains a colon or slash, it is passed through as-is (the caller has
     ///         provided disambiguation). Under coverage, forge-artifacts/ holds the default profile's
@@ -102,9 +108,7 @@ library DeployUtils {
         // Try explicit default-profile artifact path for deterministic profile resolution.
         // Falls back to vm.getDeployedCode(_name) for hosts that don't support artifact paths
         // (e.g., the Go script host in op-chain-ops, which has no profile ambiguity).
-        try vm.getDeployedCode(string.concat("forge-artifacts/", _name, ".sol/", _name, ".json")) returns (
-            bytes memory code_
-        ) {
+        try vm.getDeployedCode(_defaultArtifactPath(_name)) returns (bytes memory code_) {
             return code_;
         } catch {
             return vm.getDeployedCode(_name);

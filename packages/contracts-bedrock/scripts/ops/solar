@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Foundry also bundles a solar binary; use the separately pinned release.
+exec "$(mise where github:paradigmxyz/solar)/solar" "$@"

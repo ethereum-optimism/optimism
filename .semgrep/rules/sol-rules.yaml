@@ -462,3 +462,22 @@ rules:
     paths:
       exclude:
         - /packages/contracts-bedrock/scripts/libraries/DeployUtils.sol
+
+  - id: sol-safety-test-block-values-via-cheatcodes
+    languages: [solidity]
+    severity: ERROR
+    message: Read block values with vm.getBlockTimestamp(), vm.getBlockNumber() or vm.getChainId(). Solar re-reads a local copied from block.timestamp, block.number or block.chainid where it is used, so a later vm.warp, vm.roll or vm.chainId silently changes it.
+    patterns:
+      - pattern-either:
+          - pattern: $T $X = block.$FIELD;
+          - patterns:
+              - pattern: $T $X = $CAST(block.$FIELD);
+              - metavariable-regex:
+                  metavariable: $CAST
+                  regex: ^uint\d*$
+      - metavariable-regex:
+          metavariable: $FIELD
+          regex: ^(timestamp|number|chainid)$
+    paths:
+      include:
+        - /packages/contracts-bedrock/test

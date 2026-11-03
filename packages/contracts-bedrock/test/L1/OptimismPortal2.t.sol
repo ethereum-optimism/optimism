@@ -609,7 +609,7 @@ contract OptimismPortal2_SetProofMaturityDelaySeconds_Test is OptimismPortal2_Te
 
         // Prove the withdrawal.
         optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
-        uint256 provenAt = block.timestamp;
+        uint256 provenAt = vm.getBlockTimestamp();
 
         // Treat the game as resolved for the defender at creation so only the delays gate finalization.
         vm.mockCall(address(game), abi.encodeCall(game.resolvedAt, ()), abi.encode(game.createdAt()));
@@ -643,7 +643,7 @@ contract OptimismPortal2_SetProofMaturityDelaySeconds_Test is OptimismPortal2_Te
 
         // Prove the withdrawal.
         optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
-        uint256 provenAt = block.timestamp;
+        uint256 provenAt = vm.getBlockTimestamp();
 
         // Treat the game as resolved for the defender at creation so only the delays gate finalization.
         vm.mockCall(address(game), abi.encodeCall(game.resolvedAt, ()), abi.encode(game.createdAt()));

@@ -269,7 +269,7 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         assertEq(uint8(status_), uint8(ZKDisputeGame.ProposalStatus.Unchallenged));
 
         // The child's initial deadline is block.timestamp + maxChallengeDuration.
-        uint256 currentTime = block.timestamp;
+        uint256 currentTime = vm.getBlockTimestamp();
         uint256 expectedDeadline = currentTime + maxChallengeDuration.raw();
         assertEq(deadline_.raw(), expectedDeadline);
     }

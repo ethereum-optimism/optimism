@@ -85,7 +85,8 @@ phases:
 
   # Phase 4: Dev build checks - needs test artifacts
   - name: dev
-    build: just forge-build-dev
+    # Test naming checks need solc ASTs, which Solar does not emit.
+    build: FOUNDRY_PROFILE=cicoverage just forge-build
     checks:
       - name: forge-test-names
         description: Validate forge test conventions
