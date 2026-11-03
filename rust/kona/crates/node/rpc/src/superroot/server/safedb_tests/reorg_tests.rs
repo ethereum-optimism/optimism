@@ -177,7 +177,7 @@ async fn fixture(recorded_head: u64, mutation: Mutation) -> ReorgFixture {
     config.genesis.l2 = block_info(&original[&0]).block_info.id();
     let config = Arc::new(config);
     let engine = EngineClient::new(
-        RpcMock::default().provider(),
+        RpcMock::default().l1_provider(),
         EngineClient::rpc_client(
             format!("http://{address}").parse().unwrap(),
             JwtSecret::from_hex("00".repeat(32)).unwrap(),

@@ -2,11 +2,13 @@ use super::*;
 use crate::{L1OriginSelector, OriginSelector};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Log, LogData, TxKind, U256, map::HashMap};
+use alloy_transport::{TransportError, TransportErrorKind};
 use kona_derive::{
     AttributesBuilder, StatefulAttributesBuilder, test_utils::TestSystemConfigL2Fetcher,
 };
 use kona_genesis::{CONFIG_UPDATE_TOPIC, RollupConfig, SystemConfig};
 use kona_protocol::{DEPOSIT_EVENT_ABI_HASH, L2BlockInfo};
+use kona_providers_alloy::AlloyChainProviderError;
 use op_alloy_consensus::{TxDeposit, UserDepositSource};
 use rstest::rstest;
 use std::sync::{
@@ -42,12 +44,23 @@ impl MemoryL1 {
         Self::info(&self.blocks.lock().unwrap()[number as usize])
     }
 
-    async fn count_call(&self) {
+    async fn count_call(&self) -> Result<(), TransportError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         if self.stalled.load(Ordering::SeqCst) {
-            std::future::pending::<()>().await;
+            return stall().await;
         }
+        Ok(())
     }
+}
+
+/// A stalled request fails once the L1 transport's per-request deadline expires.
+async fn stall() -> Result<(), TransportError> {
+    tokio::time::sleep(kona_engine::RPC_TIMEOUT).await;
+    Err(TransportErrorKind::custom_str("RPC request timed out"))
+}
+
+fn transport_failure(error: TransportError) -> PipelineErrorKind {
+    PipelineError::Provider(error.to_string()).temp()
 }
 
 #[async_trait]
@@ -56,7 +69,7 @@ impl L1OriginSelectorProvider for MemoryL1 {
         &self,
         hash: B256,
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
-        self.count_call().await;
+        self.count_call().await.map_err(AlloyChainProviderError::from)?;
         Ok(self
             .blocks
             .lock()
@@ -78,7 +91,7 @@ impl L1OriginSelectorProvider for MemoryL1 {
         {
             return Ok(None);
         }
-        self.count_call().await;
+        self.count_call().await.map_err(AlloyChainProviderError::from)?;
         Ok(self.blocks.lock().unwrap().get(number as usize).map(Self::info))
     }
 }
@@ -87,7 +100,7 @@ impl L1OriginSelectorProvider for MemoryL1 {
 impl ChainProvider for MemoryL1 {
     type Error = PipelineErrorKind;
     async fn header_by_hash(&mut self, hash: B256) -> Result<Header, Self::Error> {
-        self.count_call().await;
+        self.count_call().await.map_err(transport_failure)?;
         self.blocks
             .lock()
             .unwrap()
@@ -97,7 +110,7 @@ impl ChainProvider for MemoryL1 {
             .ok_or_else(|| PipelineError::Provider("missing header".into()).temp())
     }
     async fn receipts_by_hash(&mut self, hash: B256) -> Result<Vec<Receipt>, Self::Error> {
-        self.count_call().await;
+        self.count_call().await.map_err(transport_failure)?;
         self.receipt_requests.lock().unwrap().push(hash);
         let latency = self.receipt_latency_ms.load(Ordering::SeqCst);
         if latency != 0 {
@@ -106,7 +119,7 @@ impl ChainProvider for MemoryL1 {
         if self.stalled_receipts.load(Ordering::SeqCst) ||
             *self.stalled_receipt_hash.lock().unwrap() == Some(hash)
         {
-            std::future::pending::<()>().await;
+            stall().await.map_err(transport_failure)?;
         }
         Ok(self
             .receipts
@@ -160,9 +173,13 @@ impl Harness {
             head: head_rx.clone(),
             depth,
         };
-        let rpc = alloy_provider::RootProvider::new_http("http://127.0.0.1:1".parse().unwrap());
+        let rpc = kona_providers_alloy::AlloyChainProvider::new(
+            alloy_provider::RootProvider::new_http("http://127.0.0.1:1".parse().unwrap()),
+            std::num::NonZeroUsize::new(8).unwrap(),
+            true,
+        );
         let OriginPreparation { prefetcher: worker, origins: provider, attributes } =
-            OriginPreparation::new(rpc, head_rx, depth, l1.clone());
+            OriginPreparation::new(rpc, head_rx, depth);
         let worker = OriginPrefetcher {
             origins: l1.clone(),
             chain: l1.clone(),
@@ -170,7 +187,6 @@ impl Harness {
             window: worker.window,
             l1_head: worker.l1_head,
             retry: worker.retry,
-            fetch_timeout: worker.fetch_timeout,
         };
         let selector = L1OriginSelector::new(
             Arc::new(RollupConfig {
@@ -444,7 +460,7 @@ async fn stalled_rpc_is_off_path_and_max_drift_wait_is_bounded() {
     ));
     assert_eq!(start.elapsed(), Duration::from_millis(500));
     h.head.send_replace(Some(h.l1.at(10)));
-    assert!(matches!(h.fill(true).await, Err(L1OriginSelectorError::Timeout)));
+    assert!(matches!(h.fill(true).await, Err(L1OriginSelectorError::Provider(_))));
 }
 
 #[tokio::test]
@@ -550,7 +566,7 @@ async fn slow_receipts_are_never_exposed_as_a_ready_origin() {
     assert_eq!(h.selector.next_l1_origin(h.parent, false).await.unwrap().number, 0);
     assert!(h.attributes.get(h.l1.at(1).hash).is_err());
     assert_eq!(h.l1.calls.load(Ordering::SeqCst), calls);
-    assert!(matches!(fill.await, Err(L1OriginSelectorError::Timeout)));
+    assert!(matches!(fill.await, Err(L1OriginSelectorError::Attributes(_))));
     h.l1.stalled_receipts.store(false, Ordering::SeqCst);
     h.fill(true).await.unwrap();
     assert_eq!(h.selector.next_l1_origin(h.parent, false).await.unwrap().number, 1);

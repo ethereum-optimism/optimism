@@ -2,11 +2,10 @@
 
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
-use alloy_provider::{Provider, RootProvider};
-use alloy_transport::{RpcError, TransportErrorKind};
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_providers_alloy::{AlloyChainProvider, AlloyChainProviderError};
 use std::{fmt::Debug, sync::Arc, time::Duration};
 use tokio::sync::watch;
 
@@ -216,9 +215,9 @@ pub enum L1OriginSelectorError {
     /// Preparing the attributes inputs failed; retry in the background.
     #[error("L1 attributes preparation failed: {0}")]
     Attributes(String),
-    /// An error produced by the [`RootProvider`].
+    /// An error produced by the L1 provider.
     #[error(transparent)]
-    Provider(#[from] RpcError<TransportErrorKind>),
+    Provider(#[from] AlloyChainProviderError),
     /// The L1 provider does not have enough data to select the next L1 origin block.
     #[error(
         "Waiting for more L1 data to be available to select the next L1 origin block. Current L1 origin: {0:?}"
@@ -265,12 +264,12 @@ pub trait L1OriginSelectorProvider: Debug + Sync {
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError>;
 }
 
-/// A wrapper around the [`RootProvider`] that delays the view of the L1 chain by a configurable
-/// amount of blocks.
+/// A wrapper around the [`AlloyChainProvider`] that delays the view of the L1 chain by a
+/// configurable amount of blocks.
 #[derive(Debug)]
 pub struct DelayedL1OriginSelectorProvider {
-    /// The inner [`RootProvider`].
-    inner: RootProvider,
+    /// The node's L1 provider.
+    inner: AlloyChainProvider,
     /// The L1 head watch channel.
     l1_head: watch::Receiver<Option<BlockInfo>>,
     /// The confirmation depth to delay the view of the L1 chain.
@@ -280,7 +279,7 @@ pub struct DelayedL1OriginSelectorProvider {
 impl DelayedL1OriginSelectorProvider {
     /// Creates a new [`DelayedL1OriginSelectorProvider`].
     pub const fn new(
-        inner: RootProvider,
+        inner: AlloyChainProvider,
         l1_head: watch::Receiver<Option<BlockInfo>>,
         confirmation_depth: u64,
     ) -> Self {
@@ -299,6 +298,17 @@ impl DelayedL1OriginSelectorProvider {
     }
 }
 
+/// Treats a missing block as absent rather than as an error.
+fn found<T>(
+    result: Result<T, AlloyChainProviderError>,
+) -> Result<Option<T>, L1OriginSelectorError> {
+    match result {
+        Ok(value) => Ok(Some(value)),
+        Err(AlloyChainProviderError::BlockNotFound(_)) => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
 #[async_trait]
 impl L1OriginSelectorProvider for DelayedL1OriginSelectorProvider {
     async fn get_block_by_hash(
@@ -306,7 +316,10 @@ impl L1OriginSelectorProvider for DelayedL1OriginSelectorProvider {
         hash: B256,
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
         // By-hash lookups are not delayed, as they're direct indexes.
-        Ok(Provider::get_block_by_hash(&self.inner, hash).await?.map(Into::into))
+        let header = found(self.inner.header_by_hash(hash).await)?;
+        Ok(header.map(|header| {
+            BlockInfo::new(hash, header.number, header.parent_hash, header.timestamp)
+        }))
     }
 
     async fn get_block_by_number(
@@ -314,7 +327,7 @@ impl L1OriginSelectorProvider for DelayedL1OriginSelectorProvider {
         number: u64,
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
         if self.is_confirmed(number) {
-            Ok(Provider::get_block_by_number(&self.inner, number.into()).await?.map(Into::into))
+            found(self.inner.block_info_by_number(number).await)
         } else {
             Ok(None)
         }
@@ -360,7 +373,11 @@ mod test {
         let (_observations, state) =
             watch::channel(head.map(|number| BlockInfo { number, ..Default::default() }));
         let provider = DelayedL1OriginSelectorProvider::new(
-            RootProvider::new(RpcClient::mocked(responses.clone())),
+            AlloyChainProvider::new(
+                alloy_provider::RootProvider::new(RpcClient::mocked(responses.clone())),
+                std::num::NonZeroUsize::new(8).unwrap(),
+                true,
+            ),
             state,
             depth,
         );
@@ -388,7 +405,11 @@ mod test {
         responses.push_success(&block);
         let (observations, state) = watch::channel(None);
         let provider = DelayedL1OriginSelectorProvider::new(
-            RootProvider::new(RpcClient::mocked(responses.clone())),
+            AlloyChainProvider::new(
+                alloy_provider::RootProvider::new(RpcClient::mocked(responses.clone())),
+                std::num::NonZeroUsize::new(8).unwrap(),
+                true,
+            ),
             state,
             2,
         );

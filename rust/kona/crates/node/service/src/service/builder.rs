@@ -16,7 +16,7 @@ use url::Url;
 
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_providers_alloy::OnlineBeaconClient;
+use kona_providers_alloy::{AlloyChainProvider, OnlineBeaconClient};
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::RpcBuilder;
 use kona_safedb::SafeDb;
@@ -26,12 +26,10 @@ use kona_safedb::SafeDb;
 pub struct L1ConfigBuilder {
     /// The L1 chain configuration.
     pub chain_config: L1ChainConfig,
-    /// Whether to trust the L1 RPC.
-    pub trust_rpc: bool,
+    /// The node's L1 client, shared by every component that reads L1.
+    pub provider: AlloyChainProvider,
     /// The L1 beacon API.
     pub beacon: Url,
-    /// The L1 RPC URL.
-    pub rpc_url: Url,
     /// The duration in seconds of an L1 slot. This can be used to hardcode a fixed slot
     /// duration if the l1-beacon's slot configuration is not available.
     pub slot_duration_override: Option<u64>,
@@ -152,9 +150,8 @@ impl RollupNodeBuilder {
 
         let l1_config = L1Config {
             chain_config: Arc::new(self.l1_config_builder.chain_config),
-            trust_rpc: self.l1_config_builder.trust_rpc,
             beacon_client: l1_beacon,
-            engine_provider: RootProvider::new_http(self.l1_config_builder.rpc_url.clone()),
+            provider: self.l1_config_builder.provider,
         };
 
         let jwt_secret = self.engine_config.l2_jwt_secret;

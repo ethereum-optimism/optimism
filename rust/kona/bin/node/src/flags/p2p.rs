@@ -10,13 +10,12 @@ use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
 use clap::Parser;
 use enr::k256;
-use kona_derive::ChainProvider;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::{GaterConfig, PeerAddr};
 use kona_node_service::NetworkConfig;
 use kona_peers::{BootNode, BootStoreFile, PeerMonitoring, PeerScoreLevel};
-use kona_providers_alloy::AlloyChainProvider;
+use kona_providers_alloy::{AlloyChainProvider, BlockLabel};
 use libp2p::{identity::Keypair, multiaddr::Protocol};
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
@@ -25,7 +24,6 @@ use std::{
     str::FromStr,
 };
 use tokio::time::Duration;
-use url::Url;
 
 /// Resolves a hostname or IP address string to an [`IpAddr`].
 ///
@@ -409,18 +407,13 @@ impl P2PArgs {
         &self,
         args: &GlobalArgs,
         rollup_config: &RollupConfig,
-        l1_eth_rpc: Option<Url>,
+        l1_provider: Option<&AlloyChainProvider>,
     ) -> anyhow::Result<alloy_primitives::Address> {
-        if let Some(l1_eth_rpc) = l1_eth_rpc {
-            let mut provider = AlloyChainProvider::new_http(l1_eth_rpc, 1024);
-            let latest_block_num = provider.latest_block_number().await?;
-            let block_info = provider.block_info_by_number(latest_block_num).await?;
-            return Ok(kona_providers_alloy::unsafe_block_signer(
-                &provider.inner,
-                rollup_config.l1_system_config_address,
-                block_info.hash,
-            )
-            .await?);
+        if let Some(provider) = l1_provider {
+            let block_info = provider.block_info_by_label(BlockLabel::Latest).await?;
+            return Ok(provider
+                .unsafe_block_signer(rollup_config.l1_system_config_address, block_info.hash)
+                .await?);
         }
 
         // Otherwise use the genesis signer or the configured unsafe block signer.
@@ -441,7 +434,7 @@ impl P2PArgs {
         self,
         config: &RollupConfig,
         args: &GlobalArgs,
-        l1_rpc: Option<Url>,
+        l1_provider: Option<&AlloyChainProvider>,
     ) -> anyhow::Result<NetworkConfig> {
         for warning in self.peering_warnings() {
             tracing::warn!(target: "p2p::flags", "{warning}");
@@ -499,7 +492,7 @@ impl P2PArgs {
         let mut gossip_address = libp2p::Multiaddr::from(self.listen_ip);
         gossip_address.push(libp2p::multiaddr::Protocol::Tcp(self.listen_tcp_port));
 
-        let unsafe_block_signer = self.unsafe_block_signer(args, config, l1_rpc).await?;
+        let unsafe_block_signer = self.unsafe_block_signer(args, config, l1_provider).await?;
 
         let bootstore = if self.disable_bootstore {
             None

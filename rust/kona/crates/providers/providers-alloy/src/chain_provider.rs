@@ -1,20 +1,18 @@
 //! Providers that use alloy provider types on the backend.
 
-#[cfg(feature = "metrics")]
-use crate::Metrics;
+mod cache;
 use alloy_consensus::{Header, Receipt, ReceiptEnvelope, TxEnvelope};
 use alloy_eips::{
-    BlockId,
+    BlockId, BlockNumberOrTag,
     eip2718::{Decodable2718, Eip2718Error},
 };
-use alloy_primitives::{B256, Bytes};
+use alloy_primitives::{Address, B256, Bytes, b256};
 use alloy_provider::{Provider, RootProvider};
-use alloy_transport::{RpcError, TransportErrorKind};
-use alloy_transport_http::reqwest;
+use alloy_transport::{RpcError, TransportErrorKind, TransportResult};
 use async_trait::async_trait;
+use cache::Cache;
 use kona_derive::{ChainProvider, PipelineError, PipelineErrorKind, ResetError};
 use kona_protocol::BlockInfo;
-use lru::LruCache;
 use std::{
     boxed::Box,
     num::NonZeroUsize,
@@ -49,60 +47,90 @@ impl ConfirmationDepth {
     }
 }
 
+/// An L1 block identified by its position relative to the chain head.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockLabel {
+    /// The chain head.
+    Latest,
+    /// The most recent block that the consensus layer considers safe.
+    Safe,
+    /// The most recent finalized block.
+    Finalized,
+}
+
+impl From<BlockLabel> for BlockNumberOrTag {
+    fn from(label: BlockLabel) -> Self {
+        match label {
+            BlockLabel::Latest => Self::Latest,
+            BlockLabel::Safe => Self::Safe,
+            BlockLabel::Finalized => Self::Finalized,
+        }
+    }
+}
+
 /// The [`AlloyChainProvider`] is a concrete implementation of the [`ChainProvider`] trait,
 /// providing data over Ethereum JSON-RPC using an alloy provider as the backend.
+///
+/// Clones share their caches and RPC capabilities, so every component holding a clone benefits
+/// from what any other clone has fetched.
 #[derive(Debug, Clone)]
 pub struct AlloyChainProvider {
     /// The inner Ethereum JSON-RPC provider.
-    pub inner: RootProvider,
+    inner: RootProvider,
     /// Whether to trust the RPC without verification.
-    pub trust_rpc: bool,
+    trust_rpc: bool,
     /// Optional confirmation policy for online derivation's forward traversal only.
     confirmation_depth: Option<ConfirmationDepth>,
-    /// `header_by_hash` LRU cache.
-    header_by_hash_cache: LruCache<B256, Header>,
-    /// `receipts_by_hash_cache` LRU cache.
-    receipts_by_hash_cache: LruCache<B256, Vec<Receipt>>,
-    /// Whether the L1 RPC supports `debug_getRawReceipts`.
-    ///
-    /// The flag is shared across clones because a pipeline contains multiple clones of this
-    /// provider. Once any clone observes `MethodNotFound`, all clones must use the fallback.
-    raw_receipts_supported: Arc<AtomicBool>,
-    /// `block_info_and_transactions_by_hash` LRU cache.
-    block_info_and_transactions_by_hash_cache: LruCache<B256, (BlockInfo, Vec<TxEnvelope>)>,
+    /// State shared by all clones.
+    shared: Arc<Shared>,
+}
+
+/// State shared by all clones of an [`AlloyChainProvider`].
+#[derive(Debug)]
+struct Shared {
+    /// Responses cached by block hash.
+    cache: Cache,
+    /// Whether the L1 RPC supports `debug_getRawReceipts`. Once any clone observes
+    /// `MethodNotFound`, all clones use the fallback.
+    raw_receipts_supported: AtomicBool,
+}
+
+impl Shared {
+    fn new(cache_size: NonZeroUsize) -> Self {
+        Self { cache: Cache::new(cache_size), raw_receipts_supported: AtomicBool::new(true) }
+    }
 }
 
 impl AlloyChainProvider {
-    /// Creates a new [`AlloyChainProvider`] with the given alloy provider.
-    ///
-    /// ## Panics
-    /// - Panics if `cache_size` is zero.
-    pub fn new(inner: RootProvider, cache_size: usize) -> Self {
-        Self::new_with_trust(inner, cache_size, true)
-    }
-
     /// Creates a new [`AlloyChainProvider`] with the given alloy provider and trust setting.
-    ///
-    /// ## Panics
-    /// - Panics if `cache_size` is zero.
-    pub fn new_with_trust(inner: RootProvider, cache_size: usize, trust_rpc: bool) -> Self {
+    pub fn new(inner: RootProvider, cache_size: NonZeroUsize, trust_rpc: bool) -> Self {
         Self {
             inner,
             trust_rpc,
             confirmation_depth: None,
-            header_by_hash_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
-            receipts_by_hash_cache: LruCache::new(NonZeroUsize::new(cache_size).unwrap()),
-            raw_receipts_supported: Arc::new(AtomicBool::new(true)),
-            block_info_and_transactions_by_hash_cache: LruCache::new(
-                NonZeroUsize::new(cache_size).unwrap(),
-            ),
+            shared: Arc::new(Shared::new(cache_size)),
         }
     }
 
-    /// Creates a new [`AlloyChainProvider`] from the provided [`reqwest::Url`].
-    pub fn new_http(url: reqwest::Url, cache_size: usize) -> Self {
-        let inner = RootProvider::new_http(url);
-        Self::new(inner, cache_size)
+    /// Reads the unsafe block signer from `SystemConfig` at `block_hash`.
+    ///
+    /// Reading state rather than individual update logs also recovers rotations missed between
+    /// polls and restores the previous signer when a rotation is reorged out. The value is not yet
+    /// verified against the block's state root, so the read trusts the RPC.
+    pub async fn unsafe_block_signer(
+        &self,
+        system_config: Address,
+        block_hash: B256,
+    ) -> TransportResult<Address> {
+        // bytes32(uint256(keccak256("systemconfig.unsafeblocksigner")) - 1)
+        const SLOT: B256 =
+            b256!("65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08");
+        let value = self
+            .inner
+            .get_storage_at(system_config, SLOT.into())
+            .hash_canonical(block_hash)
+            .await?;
+        Ok(Address::from_slice(&value.to_be_bytes::<32>()[12..]))
     }
 
     /// Hides L1 blocks with fewer than `depth` confirmations from forward traversal.
@@ -119,21 +147,12 @@ impl AlloyChainProvider {
     }
 
     /// Returns the latest L2 block number.
-    pub async fn latest_block_number(&mut self) -> Result<u64, RpcError<TransportErrorKind>> {
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "block_number");
-
-        let result = self.inner.get_block_number().await;
-
-        #[cfg(feature = "metrics")]
-        if result.is_err() {
-            kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "block_number");
-        }
-
-        result
+    pub async fn latest_block_number(&self) -> Result<u64, RpcError<TransportErrorKind>> {
+        self.inner.get_block_number().await
     }
 
     /// Returns the chain ID.
-    pub async fn chain_id(&mut self) -> Result<u64, RpcError<TransportErrorKind>> {
+    pub async fn chain_id(&self) -> Result<u64, RpcError<TransportErrorKind>> {
         self.inner.get_chain_id().await
     }
 
@@ -213,7 +232,7 @@ impl AlloyChainProvider {
     ) -> Result<Vec<Receipt>, AlloyChainProviderError> {
         let method_not_found = raw_error.is_method_not_found();
         let newly_disabled =
-            method_not_found && self.raw_receipts_supported.swap(false, Ordering::SeqCst);
+            method_not_found && self.shared.raw_receipts_supported.swap(false, Ordering::SeqCst);
 
         if newly_disabled {
             tracing::warn!(
@@ -239,13 +258,14 @@ impl AlloyChainProvider {
                 tracing::info!(
                     target: "l1_provider",
                     %hash,
-                    raw_receipts_disabled = !self.raw_receipts_supported.load(Ordering::SeqCst),
+                    raw_receipts_disabled = !self.shared.raw_receipts_supported.load(Ordering::SeqCst),
                     "eth_getBlockReceipts fallback succeeded; derivation will continue"
                 );
                 Ok(receipts)
             }
             Err(fallback_error) => {
-                let raw_receipts_disabled = !self.raw_receipts_supported.load(Ordering::SeqCst);
+                let raw_receipts_disabled =
+                    !self.shared.raw_receipts_supported.load(Ordering::SeqCst);
                 if fallback_error.is_hash_block_not_found() {
                     tracing::warn!(
                         target: "l1_provider",
@@ -463,41 +483,34 @@ impl From<AlloyChainProviderError> for PipelineErrorKind {
     }
 }
 
-#[async_trait]
-impl ChainProvider for AlloyChainProvider {
-    type Error = AlloyChainProviderError;
-
-    async fn header_by_hash(&mut self, hash: B256) -> Result<Header, Self::Error> {
-        if let Some(header) = self.header_by_hash_cache.get(&hash) {
-            kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_HITS, "cache" => "header_by_hash");
-            return Ok(header.clone());
+impl AlloyChainProvider {
+    /// Returns the header with the given hash.
+    pub async fn header_by_hash(&self, hash: B256) -> Result<Header, AlloyChainProviderError> {
+        if let Some(header) = self.shared.cache.header(hash) {
+            return Ok(header);
         }
-
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_MISSES, "cache" => "header_by_hash");
-
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "header_by_hash");
 
         let block = self
             .inner
             .get_block_by_hash(hash)
-            .await
-            .inspect_err(|_e| {
-                kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "header_by_hash");
-            })?
+            .await?
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
         let header = block.header.into_consensus();
 
         // Verify the header hash matches what we requested
         self.verify_header_hash(&header, hash)?;
 
-        self.header_by_hash_cache.put(hash, header.clone());
-
-        kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "header_by_hash");
+        self.shared.cache.insert_header(hash, header.clone());
 
         Ok(header)
     }
 
-    async fn block_info_by_number(&mut self, number: u64) -> Result<BlockInfo, Self::Error> {
+    /// Returns the [`BlockInfo`] of the block with the given number, subject to the confirmation
+    /// depth.
+    pub async fn block_info_by_number(
+        &self,
+        number: u64,
+    ) -> Result<BlockInfo, AlloyChainProviderError> {
         if self.confirmation_depth.as_ref().is_some_and(|depth| !depth.allows(number)) {
             // A number-based not-found is temporary: traversal waits for more confirmations.
             return Err(AlloyChainProviderError::BlockNotFound(number.into()));
@@ -505,19 +518,16 @@ impl ChainProvider for AlloyChainProvider {
         self.block_info_by_number_for_reset(number).await
     }
 
-    async fn block_info_by_number_for_reset(
-        &mut self,
+    /// Returns the [`BlockInfo`] of the block with the given number, ignoring the confirmation
+    /// depth.
+    pub async fn block_info_by_number_for_reset(
+        &self,
         number: u64,
-    ) -> Result<BlockInfo, Self::Error> {
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "block_by_number");
-
+    ) -> Result<BlockInfo, AlloyChainProviderError> {
         let block = self
             .inner
             .get_block_by_number(number.into())
-            .await
-            .inspect_err(|_e| {
-                kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "block_by_number");
-            })?
+            .await?
             .ok_or(AlloyChainProviderError::BlockNotFound(number.into()))?;
         let header = block.header.into_consensus();
 
@@ -530,17 +540,42 @@ impl ChainProvider for AlloyChainProvider {
         Ok(block_info)
     }
 
-    async fn receipts_by_hash(&mut self, hash: B256) -> Result<Vec<Receipt>, Self::Error> {
-        if let Some(receipts) = self.receipts_by_hash_cache.get(&hash) {
-            kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_HITS, "cache" => "receipts_by_hash");
-            return Ok(receipts.clone());
+    /// Returns the [`BlockInfo`] of the block currently at `label`.
+    ///
+    /// Which block holds a label is the RPC's claim. Without trusting the RPC, only the returned
+    /// header's hash is verified. The header is cached by that hash.
+    pub async fn block_info_by_label(
+        &self,
+        label: BlockLabel,
+    ) -> Result<BlockInfo, AlloyChainProviderError> {
+        let block =
+            self.inner.get_block_by_number(label.into()).await?.ok_or(
+                AlloyChainProviderError::BlockNotFound(BlockNumberOrTag::from(label).into()),
+            )?;
+        let hash = block.header.hash;
+        let header = block.header.into_consensus();
+        self.verify_header_hash(&header, hash)?;
+
+        let block_info = BlockInfo {
+            hash,
+            number: header.number,
+            parent_hash: header.parent_hash,
+            timestamp: header.timestamp,
+        };
+        self.shared.cache.insert_header(hash, header);
+        Ok(block_info)
+    }
+
+    /// Returns the receipts of the block with the given hash.
+    pub async fn receipts_by_hash(
+        &self,
+        hash: B256,
+    ) -> Result<Vec<Receipt>, AlloyChainProviderError> {
+        if let Some(receipts) = self.shared.cache.receipts(hash) {
+            return Ok(receipts);
         }
 
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_MISSES, "cache" => "receipts_by_hash");
-
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "receipts_by_hash");
-
-        let receipts = if self.raw_receipts_supported.load(Ordering::SeqCst) {
+        let receipts = if self.shared.raw_receipts_supported.load(Ordering::SeqCst) {
             match self.raw_receipts_by_hash(hash).await {
                 Ok(receipts) => Ok(receipts),
                 Err(error) if error.is_hash_block_not_found() => {
@@ -557,40 +592,27 @@ impl ChainProvider for AlloyChainProvider {
             }
         } else {
             self.sticky_fallback_receipts_by_hash(hash).await
-        }
-        .inspect_err(|_e| {
-            kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "receipts_by_hash");
-        })?;
+        }?;
 
-        self.receipts_by_hash_cache.put(hash, receipts.clone());
-
-        kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "receipts_by_hash");
+        self.shared.cache.insert_receipts(hash, receipts.clone());
 
         Ok(receipts)
     }
 
-    async fn block_info_and_transactions_by_hash(
-        &mut self,
+    /// Returns the [`BlockInfo`] and transactions of the block with the given hash.
+    pub async fn block_info_and_transactions_by_hash(
+        &self,
         hash: B256,
-    ) -> Result<(BlockInfo, Vec<TxEnvelope>), Self::Error> {
-        if let Some(block_info_and_txs) = self.block_info_and_transactions_by_hash_cache.get(&hash)
-        {
-            kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_HITS, "cache" => "block_info_and_tx");
-            return Ok(block_info_and_txs.clone());
+    ) -> Result<(BlockInfo, Vec<TxEnvelope>), AlloyChainProviderError> {
+        if let Some(block_info_and_txs) = self.shared.cache.block_info_and_transactions(hash) {
+            return Ok(block_info_and_txs);
         }
-
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_CACHE_MISSES, "cache" => "block_info_and_tx");
-
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "block_by_hash");
 
         let block = self
             .inner
             .get_block_by_hash(hash)
             .full()
-            .await
-            .inspect_err(|_e| {
-                kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "block_by_hash");
-            })?
+            .await?
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?
             .into_consensus()
             .map_transactions(|t| t.inner.into_inner());
@@ -605,12 +627,44 @@ impl ChainProvider for AlloyChainProvider {
             timestamp: block.header.timestamp,
         };
 
-        self.block_info_and_transactions_by_hash_cache
-            .put(hash, (block_info, block.body.transactions.clone()));
-
-        kona_macros::inc!(gauge, Metrics::CACHE_ENTRIES, "cache" => "block_info_and_tx");
+        self.shared.cache.insert_block_info_and_transactions(
+            hash,
+            block_info,
+            block.body.transactions.clone(),
+        );
 
         Ok((block_info, block.body.transactions))
+    }
+}
+
+#[async_trait]
+impl ChainProvider for AlloyChainProvider {
+    type Error = AlloyChainProviderError;
+
+    async fn header_by_hash(&mut self, hash: B256) -> Result<Header, Self::Error> {
+        Self::header_by_hash(self, hash).await
+    }
+
+    async fn block_info_by_number(&mut self, number: u64) -> Result<BlockInfo, Self::Error> {
+        Self::block_info_by_number(self, number).await
+    }
+
+    async fn block_info_by_number_for_reset(
+        &mut self,
+        number: u64,
+    ) -> Result<BlockInfo, Self::Error> {
+        Self::block_info_by_number_for_reset(self, number).await
+    }
+
+    async fn receipts_by_hash(&mut self, hash: B256) -> Result<Vec<Receipt>, Self::Error> {
+        Self::receipts_by_hash(self, hash).await
+    }
+
+    async fn block_info_and_transactions_by_hash(
+        &mut self,
+        hash: B256,
+    ) -> Result<(BlockInfo, Vec<TxEnvelope>), Self::Error> {
+        Self::block_info_and_transactions_by_hash(self, hash).await
     }
 }
 
@@ -624,6 +678,8 @@ mod tests {
     use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
     use alloy_transport::mock::Asserter;
     use httpmock::prelude::*;
+
+    const CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(8).unwrap();
 
     type EthereumBlock =
         <alloy_provider::network::Ethereum as alloy_provider::Network>::BlockResponse;
@@ -644,7 +700,7 @@ mod tests {
 
     /// Creates a chain provider backed by a FIFO mock RPC transport.
     fn mocked_provider(asserter: Asserter) -> AlloyChainProvider {
-        AlloyChainProvider::new(RootProvider::new(RpcClient::mocked(asserter)), 8)
+        AlloyChainProvider::new(RootProvider::new(RpcClient::mocked(asserter)), CACHE_SIZE, true)
     }
 
     fn observed_head(number: u64) -> BlockInfo {
@@ -682,8 +738,8 @@ mod tests {
         asserter.push_success(&Some(block.clone()));
         asserter.push_success(&Some(block));
         let (head_tx, head_rx) = watch::channel(Some(observed_head(10)));
-        let mut provider = mocked_provider(asserter.clone()).with_confirmation_depth(4, head_rx);
-        let mut cloned = provider.clone();
+        let provider = mocked_provider(asserter.clone()).with_confirmation_depth(4, head_rx);
+        let cloned = provider.clone();
         provider.block_info_by_number(6).await.unwrap();
         head_tx.send_replace(Some(observed_head(9)));
         let error = cloned.block_info_by_number(6).await.unwrap_err();
@@ -700,9 +756,91 @@ mod tests {
         let block = rpc_block(B256::ZERO, Vec::new(), alloy_consensus::EMPTY_ROOT_HASH);
         asserter.push_success(&Some(block));
         let (_head_tx, head_rx) = watch::channel(Some(observed_head(10)));
-        let mut provider = mocked_provider(asserter.clone()).with_confirmation_depth(4, head_rx);
+        let provider = mocked_provider(asserter.clone()).with_confirmation_depth(4, head_rx);
         provider.header_by_hash(B256::repeat_byte(0xbb)).await.unwrap();
         assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn unsafe_block_signer_snapshots_are_pinned_to_the_requested_contract_and_branch() {
+        let server = MockServer::start();
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.url("/").parse().unwrap()),
+            CACHE_SIZE,
+            true,
+        );
+        let contract = Address::repeat_byte(1);
+        // Distinct branches can have different signers, including a return to the old signer.
+        for (request_id, index) in [2, 3, 2].into_iter().enumerate() {
+            let hash = B256::repeat_byte(index);
+            let signer = Address::repeat_byte(index + 10);
+            let mut mock = server.mock(|when, then| {
+                when.method("POST").json_body(serde_json::json!({
+                    "jsonrpc": "2.0", "id": request_id,
+                    "method": "eth_getStorageAt",
+                    "params": [contract, "0x65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08", {"blockHash": hash, "requireCanonical": true}]
+                }));
+                then.json_body(serde_json::json!({"jsonrpc":"2.0", "id":request_id, "result": signer.into_word()}));
+            });
+            let result = provider.unsafe_block_signer(contract, hash).await;
+            mock.assert();
+            assert_eq!(result.unwrap(), signer);
+            mock.delete();
+        }
+    }
+
+    #[tokio::test]
+    async fn clones_share_cached_lookups() {
+        // The mock serves one response; any second RPC call would fail.
+        let asserter = Asserter::new();
+        let hash = B256::repeat_byte(0xbb);
+        asserter.push_success(&Some(rpc_block(hash, Vec::new(), alloy_consensus::EMPTY_ROOT_HASH)));
+        let provider = mocked_provider(asserter.clone());
+        let clone = provider.clone();
+
+        let fetched = provider.header_by_hash(hash).await.unwrap();
+        assert_eq!(clone.header_by_hash(hash).await.unwrap(), fetched);
+        assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn label_lookups_fill_the_header_cache() {
+        let asserter = Asserter::new();
+        let header = Header { number: 7, ..Default::default() };
+        let hash = header.hash_slow();
+        asserter.push_success(&Some(RpcBlock::<TxEnvelope>::new(
+            RpcHeader::new(header.clone()),
+            BlockTransactions::Hashes(Vec::new()),
+        )));
+        let provider = AlloyChainProvider::new(
+            RootProvider::new(RpcClient::mocked(asserter.clone())),
+            CACHE_SIZE,
+            false,
+        );
+
+        let block_info = provider.block_info_by_label(BlockLabel::Finalized).await.unwrap();
+        assert_eq!(block_info.hash, hash);
+        assert_eq!(block_info.number, 7);
+        assert_eq!(provider.header_by_hash(hash).await.unwrap(), header);
+        assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn untrusted_label_lookups_reject_a_mismatched_hash() {
+        let asserter = Asserter::new();
+        let mut rpc_header = RpcHeader::new(Header::default());
+        rpc_header.hash = B256::repeat_byte(0xbb);
+        asserter.push_success(&Some(RpcBlock::<TxEnvelope>::new(
+            rpc_header,
+            BlockTransactions::Hashes(Vec::new()),
+        )));
+        let provider = AlloyChainProvider::new(
+            RootProvider::new(RpcClient::mocked(asserter)),
+            CACHE_SIZE,
+            false,
+        );
+
+        assert!(provider.block_info_by_label(BlockLabel::Latest).await.is_err());
     }
 
     #[tokio::test]
@@ -874,7 +1012,11 @@ mod tests {
             when.method(POST).body_includes("eth_getBlockReceipts");
             then.status(500);
         });
-        let mut provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            true,
+        );
 
         assert_eq!(provider.receipts_by_hash(B256::repeat_byte(0xaa)).await.unwrap(), [expected]);
         raw_mock.assert();
@@ -886,7 +1028,7 @@ mod tests {
         let asserter = Asserter::new();
         asserter.push_success(&Vec::<Bytes>::new());
         asserter.push_success(&Option::<EthereumBlock>::None);
-        let mut provider = mocked_provider(asserter.clone());
+        let provider = mocked_provider(asserter.clone());
         let hash = B256::repeat_byte(0xab);
 
         let error = provider.receipts_by_hash(hash).await.unwrap_err();
@@ -910,7 +1052,7 @@ mod tests {
         let asserter = Asserter::new();
         asserter.push_success(&Vec::<Bytes>::new());
         asserter.push_success(&Some(rpc_block(hash, Vec::new(), alloy_consensus::EMPTY_ROOT_HASH)));
-        let mut provider = mocked_provider(asserter.clone());
+        let provider = mocked_provider(asserter.clone());
 
         assert!(provider.receipts_by_hash(hash).await.unwrap().is_empty());
         assert!(asserter.read_q().is_empty());
@@ -979,15 +1121,19 @@ mod tests {
                 .header("content-type", "application/json")
                 .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": [] }));
         });
-        let mut provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
-        let mut provider_clone = provider.clone();
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            true,
+        );
+        let provider_clone = provider.clone();
 
         assert!(provider.receipts_by_hash(B256::repeat_byte(0xba)).await.unwrap().is_empty());
         assert!(provider_clone.receipts_by_hash(B256::repeat_byte(0xbb)).await.unwrap().is_empty());
         assert_eq!(raw_mock.calls(), 1, "the clone must share the sticky fallback state");
         assert_eq!(fallback_mock.calls(), 2);
-        assert!(!provider.raw_receipts_supported.load(Ordering::SeqCst));
-        assert!(!provider_clone.raw_receipts_supported.load(Ordering::SeqCst));
+        assert!(!provider.shared.raw_receipts_supported.load(Ordering::SeqCst));
+        assert!(!provider_clone.shared.raw_receipts_supported.load(Ordering::SeqCst));
     }
 
     #[tokio::test]
@@ -1005,13 +1151,17 @@ mod tests {
                 .header("content-type", "application/json")
                 .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": [] }));
         });
-        let mut provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            true,
+        );
 
         assert!(provider.receipts_by_hash(B256::repeat_byte(0xbc)).await.unwrap().is_empty());
         assert!(provider.receipts_by_hash(B256::repeat_byte(0xbd)).await.unwrap().is_empty());
         assert_eq!(raw_mock.calls(), 1);
         assert_eq!(fallback_mock.calls(), 2);
-        assert!(!provider.raw_receipts_supported.load(Ordering::SeqCst));
+        assert!(!provider.shared.raw_receipts_supported.load(Ordering::SeqCst));
     }
 
     #[tokio::test]
@@ -1037,7 +1187,11 @@ mod tests {
                 }),
             );
         });
-        let mut provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            true,
+        );
 
         let first_error = provider.receipts_by_hash(B256::repeat_byte(0xbc)).await.unwrap_err();
         assert!(matches!(first_error, AlloyChainProviderError::ReceiptMethodsFailed { .. }));
@@ -1048,7 +1202,7 @@ mod tests {
         assert!(matches!(PipelineErrorKind::from(second_error), PipelineErrorKind::Temporary(_)));
         assert_eq!(raw_mock.calls(), 1);
         assert_eq!(fallback_mock.calls(), 2);
-        assert!(!provider.raw_receipts_supported.load(Ordering::SeqCst));
+        assert!(!provider.shared.raw_receipts_supported.load(Ordering::SeqCst));
     }
 
     #[tokio::test]
@@ -1070,13 +1224,17 @@ mod tests {
                 .header("content-type", "application/json")
                 .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": [] }));
         });
-        let mut provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            true,
+        );
 
         assert!(provider.receipts_by_hash(B256::repeat_byte(0xca)).await.unwrap().is_empty());
         assert!(provider.receipts_by_hash(B256::repeat_byte(0xcb)).await.unwrap().is_empty());
         assert_eq!(raw_mock.calls(), 2);
         assert_eq!(fallback_mock.calls(), 2);
-        assert!(provider.raw_receipts_supported.load(Ordering::SeqCst));
+        assert!(provider.shared.raw_receipts_supported.load(Ordering::SeqCst));
     }
 
     #[tokio::test]
@@ -1094,12 +1252,16 @@ mod tests {
                 .header("content-type", "application/json")
                 .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": [] }));
         });
-        let mut provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            true,
+        );
 
         assert!(provider.receipts_by_hash(B256::repeat_byte(0xda)).await.unwrap().is_empty());
         raw_mock.assert();
         fallback_mock.assert();
-        assert!(provider.raw_receipts_supported.load(Ordering::SeqCst));
+        assert!(provider.shared.raw_receipts_supported.load(Ordering::SeqCst));
     }
 
     #[tokio::test]
@@ -1125,7 +1287,11 @@ mod tests {
                 }),
             );
         });
-        let mut provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            true,
+        );
 
         let error = provider.receipts_by_hash(B256::repeat_byte(0xea)).await.unwrap_err();
         assert!(matches!(error, AlloyChainProviderError::ReceiptMethodsFailed { .. }));
@@ -1159,7 +1325,11 @@ mod tests {
                 .header("content-type", "application/json")
                 .json_body(serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": null }));
         });
-        let mut provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            true,
+        );
         let hash = B256::repeat_byte(0xfa);
 
         let error = provider.receipts_by_hash(hash).await.unwrap_err();
@@ -1267,7 +1437,11 @@ mod tests {
                 serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": json_receipts }),
             );
         });
-        let mut provider = AlloyChainProvider::new_http(server.base_url().parse().unwrap(), 8);
+        let provider = AlloyChainProvider::new(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            CACHE_SIZE,
+            true,
+        );
 
         assert_eq!(provider.receipts_by_hash(block_hash).await.unwrap(), expected);
         raw_mock.assert();

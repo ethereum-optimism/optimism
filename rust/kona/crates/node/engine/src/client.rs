@@ -3,8 +3,8 @@
 use crate::Metrics;
 use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
 use alloy_json_rpc::{RequestPacket, ResponsePacket};
-use alloy_network::{Ethereum, Network};
-use alloy_primitives::Bytes;
+use alloy_network::Network;
+use alloy_primitives::{B256, Bytes};
 use alloy_provider::{EthGetBlock, Provider, RootProvider, ext::EngineApi};
 use alloy_rpc_client::ClientBuilder;
 use alloy_rpc_types_engine::{ExecutionPayloadV1, JwtSecret, PayloadStatus};
@@ -19,6 +19,7 @@ use alloy_transport_http::{
 use http_body_util::Full;
 use kona_genesis::RollupConfig;
 use kona_protocol::FromBlockError;
+use kona_providers_alloy::{AlloyChainProvider, AlloyChainProviderError};
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types::Transaction;
 use std::{
@@ -33,22 +34,23 @@ use url::Url;
 mod query;
 pub use query::EngineQueryClient;
 
-/// Deadline for each request the engine client sends, to the Engine API or to L1.
+/// Deadline for each request the node sends to an execution-layer RPC, on L1 or to the Engine API.
 ///
 /// It bounds one request, never an operation made of many requests, such as the block traversal
 /// of a reset, so a long but healthy operation is not cut off.
-const RPC_TIMEOUT: Duration = Duration::from_secs(10);
+pub const RPC_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Bounds one request on an alloy transport by [`RPC_TIMEOUT`].
 ///
 /// This wraps the transport's future rather than the HTTP client below it, because the HTTP
 /// client's future completes when the response headers arrive and the transport reads the body
 /// after that.
-fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
+///
+/// A request that runs out of time fails with a [`TransportErrorKind::Custom`] holding a
+/// [`tokio::time::error::Elapsed`], so outer layers can tell a timeout from other failures.
+pub fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
     Box::pin(async move {
-        tokio::time::timeout(RPC_TIMEOUT, request)
-            .await
-            .map_err(|_| TransportErrorKind::custom_str("RPC request timed out"))?
+        tokio::time::timeout(RPC_TIMEOUT, request).await.map_err(TransportErrorKind::custom)?
     })
 }
 
@@ -169,18 +171,19 @@ pub enum EngineClientError {
 #[derive(Clone, Debug)]
 pub struct EngineClient {
     engine: RootProvider<Optimism>,
-    l1_provider: RootProvider,
+    /// The node's shared L1 client.
+    l1: AlloyChainProvider,
     cfg: Arc<RollupConfig>,
 }
 
 impl EngineClient {
     /// Creates a client from existing providers.
     pub const fn new(
-        l1_provider: RootProvider,
+        l1: AlloyChainProvider,
         engine: RootProvider<Optimism>,
         cfg: Arc<RollupConfig>,
     ) -> Self {
-        Self { engine, l1_provider, cfg }
+        Self { engine, l1, cfg }
     }
 
     /// Returns the rollup configuration.
@@ -188,12 +191,17 @@ impl EngineClient {
         &self.cfg
     }
 
-    /// Fetches an L1 block.
-    pub fn get_l1_block(
+    /// Returns the hash of the canonical L1 block at `number`, or `None` if the L1 chain does not
+    /// reach that height yet.
+    pub async fn l1_block_hash_by_number(
         &self,
-        block: BlockId,
-    ) -> EthGetBlock<<Ethereum as Network>::BlockResponse> {
-        self.l1_provider.get_block(block)
+        number: u64,
+    ) -> Result<Option<B256>, AlloyChainProviderError> {
+        match self.l1.block_info_by_number(number).await {
+            Ok(block) => Ok(Some(block.hash)),
+            Err(AlloyChainProviderError::BlockNotFound(_)) => Ok(None),
+            Err(error) => Err(error),
+        }
     }
 
     /// Fetches an L2 block.
@@ -252,21 +260,17 @@ pub struct EngineClientBuilder {
     pub l2: Url,
     /// The L2 JWT secret.
     pub l2_jwt: JwtSecret,
-    /// The L1 RPC URL.
-    pub l1_rpc: Url,
+    /// The node's shared L1 client.
+    pub l1: AlloyChainProvider,
     /// The rollup configuration.
     pub cfg: Arc<RollupConfig>,
 }
 
 impl EngineClientBuilder {
-    /// Connects to the authenticated L2 engine and unauthenticated L1 RPC. Each request has a
-    /// deadline.
+    /// Connects to the authenticated L2 engine, whose requests each have a deadline.
     pub fn build(self) -> EngineClient {
         let engine = EngineClient::rpc_client(self.l2, self.l2_jwt);
-        let l1_provider = RootProvider::new(
-            ClientBuilder::default().layer(MapFutureLayer::new(with_deadline)).http(self.l1_rpc),
-        );
-        EngineClient::new(l1_provider, engine, self.cfg)
+        EngineClient::new(self.l1, engine, self.cfg)
     }
 }
 
@@ -427,7 +431,15 @@ mod request_observability_tests {
                     let mut config = RollupConfig::default();
                     config.hardforks.ecotone_time = Some(0);
                     let config = Arc::new(config);
-                    let engine = EngineClient::new(l1.provider(), provider, config.clone());
+                    let engine = EngineClient::new(
+                        AlloyChainProvider::new(
+                            l1.provider(),
+                            std::num::NonZeroUsize::new(8).unwrap(),
+                            true,
+                        ),
+                        provider,
+                        config.clone(),
+                    );
                     let attributes = TestAttributesBuilder::new()
                         .with_parent(parent)
                         .with_timestamp(2)
@@ -543,26 +555,22 @@ mod deadline_tests {
         b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 64\r\n\r\n"
     )]
     #[tokio::test]
-    async fn stalled_engine_and_l1_requests_have_a_deadline(#[case] response: &'static [u8]) {
+    async fn stalled_engine_requests_have_a_deadline(#[case] response: &'static [u8]) {
         let (answered_tx, mut answered) = mpsc::unbounded_channel();
-        let client = Arc::new(
-            EngineClientBuilder {
-                l2: stalled_endpoint(response, answered_tx.clone()).await,
-                l2_jwt: JwtSecret::random(),
-                l1_rpc: stalled_endpoint(response, answered_tx).await,
-                cfg: Arc::new(RollupConfig::default()),
-            }
-            .build(),
-        );
+        let client = EngineClientBuilder {
+            l2: stalled_endpoint(response, answered_tx).await,
+            l2_jwt: JwtSecret::random(),
+            l1: AlloyChainProvider::new(
+                RootProvider::new_http("http://127.0.0.1:1".parse().unwrap()),
+                std::num::NonZeroUsize::new(8).unwrap(),
+                true,
+            ),
+            cfg: Arc::new(RollupConfig::default()),
+        }
+        .build();
 
-        let engine = client.clone();
         fails_at_deadline(
-            async move { engine.l2_block_by_label(BlockNumberOrTag::Latest).await.is_err() },
-            &mut answered,
-        )
-        .await;
-        fails_at_deadline(
-            async move { client.get_l1_block(BlockId::latest()).await.is_err() },
+            async move { client.l2_block_by_label(BlockNumberOrTag::Latest).await.is_err() },
             &mut answered,
         )
         .await;
@@ -591,11 +599,7 @@ mod provider_tests {
             let config = Arc::new(config);
             let (client, l1, l2) = test_engine_client(config);
             let query = client.query_client();
-            l1.expect_params(
-                "eth_getBlockByNumber",
-                json!(["latest", false]),
-                Option::<Block>::None,
-            );
+            l1.expect_params("eth_getBlockByNumber", json!(["0x4", false]), Option::<Block>::None);
             l2.expect_params(
                 "eth_getBlockByNumber",
                 json!(["latest", false]),
@@ -610,7 +614,7 @@ mod provider_tests {
                     EIP1186AccountProofResponse { storage_hash, ..Default::default() },
                 );
             }
-            assert!(client.get_l1_block(BlockId::latest()).await.unwrap().is_none());
+            assert!(client.l1_block_hash_by_number(4).await.unwrap().is_none());
             assert!(client.get_l2_block(BlockId::latest()).await.unwrap().is_none());
             let (info, root) = query.output_at_block(BlockNumberOrTag::Number(0)).await.unwrap();
             assert_eq!(info.block_info.hash, block.header.hash);

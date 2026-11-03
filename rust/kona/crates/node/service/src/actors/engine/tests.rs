@@ -85,12 +85,11 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
     for tag in ["finalized", "safe", "latest"] {
         l2.expect_params("eth_getBlockByNumber", serde_json::json!([tag, true]), &block);
     }
-    // The default block's hash is zero, as is the default genesis L1 origin's, so the origin is
-    // canonical.
+    // L1 has not reached the origin's height, so the origin stays plausible.
     l1.expect_params(
         "eth_getBlockByNumber",
         serde_json::json!(["0x0", false]),
-        alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
+        Option::<alloy_rpc_types_eth::Block<alloy_rpc_types_eth::Transaction>>::None,
     );
     l2.expect(
         "engine_forkchoiceUpdatedV3",
@@ -199,12 +198,11 @@ async fn admin_reset_recovers_and_completes_original_request(
     for _ in 0..3 {
         l2.expect_with_delay("eth_getBlockByNumber", &block, read_delay);
     }
-    // The default block's hash is zero, as is the default genesis L1 origin's, so the origin is
-    // canonical.
+    // L1 has not reached the origin's height, so the origin stays plausible.
     l1.expect_params(
         "eth_getBlockByNumber",
         serde_json::json!(["0x0", false]),
-        alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default(),
+        Option::<alloy_rpc_types_eth::Block<alloy_rpc_types_eth::Transaction>>::None,
     );
     l2.expect(
         "engine_forkchoiceUpdatedV3",
