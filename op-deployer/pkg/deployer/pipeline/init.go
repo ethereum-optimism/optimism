@@ -172,9 +172,8 @@ var (
 )
 
 // PopulateSuperchainState reads the superchain deployment behind a SuperchainConfig proxy. OP's
-// Proxy answers admin() and implementation() itself only when the sender is its admin or address(0).
-// CallGetter sets no sender, so ethclient sends the call from address(0). From any other sender,
-// both calls would reach the SuperchainConfig implementation and revert.
+// Proxy answers admin() and implementation() only when the sender is its admin or address(0), and
+// CallGetter sends the call from address(0).
 func PopulateSuperchainState(ctx context.Context, client bind.ContractCaller, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
 	code, err := client.CodeAt(ctx, superchainConfigProxy, nil)
 	if err != nil {
