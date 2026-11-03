@@ -21,7 +21,7 @@ pub struct L1ConfigBuilder {
     /// The node does not bound its L1 requests itself, so this client's transport must: a stalled
     /// endpoint would otherwise hang L1 traversal, the sequencer's origin preparation and the
     /// unsafe block signer refresh. kona-node wraps its transport with
-    /// [`kona_engine::with_deadline`].
+    /// [`kona_sources::rpc::with_deadline`].
     pub provider: AlloyChainProvider,
     /// The L1 beacon API.
     pub beacon: Url,

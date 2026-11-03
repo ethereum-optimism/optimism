@@ -15,8 +15,8 @@ pub struct EngineConfig {
     /// The node's authenticated L2 engine connection, shared by the engine actor and by every
     /// derivation provider that reads L2.
     ///
-    /// kona-node builds it once with [`EngineClient::rpc_client`], so each request has a deadline
-    /// and is recorded in the engine request metrics and logs.
+    /// kona-node builds it once with [`kona_sources::rpc::engine`], so each request has a deadline
+    /// and is recorded in the request metrics and logs.
     pub provider: RootProvider<Optimism>,
 
     /// The mode of operation for the node.

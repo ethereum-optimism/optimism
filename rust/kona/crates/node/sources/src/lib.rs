@@ -13,6 +13,8 @@ pub use signer::{
     RemoteSignerError, RemoteSignerHandler, RemoteSignerStartError,
 };
 
+pub mod rpc;
+
 mod tls;
 pub use tls::{
     CertificateError, ClientCert, ReloadingRpcClient, ReloadingRpcClientError, TlsPaths,
