@@ -1093,6 +1093,10 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 		{"DisputeGameFactoryImpl", st.ImplementationsDeployment.DisputeGameFactoryImpl},
 		{"MipsImpl", st.ImplementationsDeployment.MipsImpl},
 		{"PreimageOracleImpl", st.ImplementationsDeployment.PreimageOracleImpl},
+		{"SuperPermissionedDisputeGameImpl", st.ImplementationsDeployment.SuperPermissionedDisputeGameImpl},
+		{"SuperFaultDisputeGameImpl", st.ImplementationsDeployment.SuperFaultDisputeGameImpl},
+		{"ZkDisputeGameImpl", st.ImplementationsDeployment.ZkDisputeGameImpl},
+		{"SP1PlonkAdapterImpl", st.ImplementationsDeployment.SP1PlonkAdapterImpl},
 	}
 
 	for _, addr := range implAddrs {
