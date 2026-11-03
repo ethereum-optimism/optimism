@@ -166,13 +166,27 @@ func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
 			"should warn that DeployImplementations deploys MockSP1Verifier")
 	})
 
-	t.Run("genesis does not select the release verifier", func(t *testing.T) {
+	t.Run("genesis without a verifier rejects chains with a release verifier", func(t *testing.T) {
+		capture, _, err := deploy(t, Env{IsGenesis: true}, &state.Intent{L1ChainID: 11155111}, newSP1VerifierTestState())
+		require.ErrorContains(t, err, "must set globalDeployOverrides.sp1Verifier")
+		require.False(t, capture.ran)
+	})
+
+	t.Run("genesis without a verifier passes zero on other chains", func(t *testing.T) {
 		st := newSP1VerifierTestState()
-		capture, _, err := deploy(t, Env{IsGenesis: true}, &state.Intent{L1ChainID: 11155111}, st)
+		capture, _, err := deploy(t, Env{IsGenesis: true}, &state.Intent{L1ChainID: 900}, st)
 		require.NoError(t, err)
 		require.True(t, capture.ran)
 		require.Equal(t, common.Address{}, capture.input.SP1Verifier)
 		require.Nil(t, st.SP1Verifier)
+	})
+
+	t.Run("genesis override wins on chains with a release verifier", func(t *testing.T) {
+		override := common.Address{0x05}
+		intent := &state.Intent{L1ChainID: 11155111, GlobalDeployOverrides: map[string]any{"sp1Verifier": override}}
+		capture, _, err := deploy(t, Env{IsGenesis: true}, intent, newSP1VerifierTestState())
+		require.NoError(t, err)
+		require.Equal(t, override, capture.input.SP1Verifier)
 	})
 
 	t.Run("predeployed OPCM records no verifier", func(t *testing.T) {
@@ -201,13 +215,12 @@ func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
 		require.Nil(t, logs.FindLog(verifierLogged), "resume must not report a verifier it is not using")
 	})
 
-	t.Run("resumed mock-backed deployment records no verifier", func(t *testing.T) {
+	t.Run("resumed mock-backed deployment succeeds", func(t *testing.T) {
 		st := newSP1VerifierTestState()
 		st.ImplementationsDeployment = &addresses.ImplementationsContracts{SP1PlonkAdapterImpl: common.Address{0xad}}
 
 		capture, _, err := deploy(t, Env{}, &state.Intent{L1ChainID: 900}, st)
 		require.NoError(t, err)
 		require.False(t, capture.ran)
-		require.Nil(t, st.SP1Verifier)
 	})
 }

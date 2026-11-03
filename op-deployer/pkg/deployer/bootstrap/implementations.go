@@ -139,9 +139,8 @@ func (c *ImplementationsConfig) Check() error {
 	return nil
 }
 
-// resolveSP1Verifier selects the release's default SP1 verifier for the L1 chain unless one is
-// already configured. It leaves the verifier zero when the chain has no default; DeployImplementations
-// then deploys MockSP1Verifier on local dev chains and reverts on any other chain.
+// resolveSP1Verifier sets the release's default SP1 verifier for the L1 chain unless one is
+// configured or the chain has none.
 func (c *ImplementationsConfig) resolveSP1Verifier(chainID *big.Int) {
 	if c.SP1Verifier != (common.Address{}) || !chainID.IsUint64() {
 		return
@@ -244,7 +243,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	if cfg.SP1Verifier != (common.Address{}) {
 		lgr.Info("using SP1 verifier", "address", cfg.SP1Verifier)
 	} else {
-		lgr.Warn("no SP1 verifier configured; DeployImplementations deploys an accept-all MockSP1Verifier on local dev chains and reverts elsewhere")
+		lgr.Warn("no SP1 verifier configured; DeployImplementations deploys an accept-all MockSP1Verifier on local dev chains and reverts elsewhere (set --sp1-verifier-address)")
 	}
 
 	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)

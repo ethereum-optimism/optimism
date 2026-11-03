@@ -63,8 +63,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	}
 	selectedSP1Verifier := requestedSP1Verifier
 	// A generated genesis contains no release-approved verifier, so only live deploys use the
-	// release default. Without a verifier, DeployImplementations deploys MockSP1Verifier on local
-	// dev chains and reverts on any other chain.
+	// release default.
 	if intent.OPCMAddress == nil && !hasSP1VerifierOverride && !env.IsGenesis {
 		if v, err := standard.SP1VerifierFor(intent.L1ChainID); err == nil {
 			selectedSP1Verifier = v
@@ -88,6 +87,14 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		}
 		lgr.Info("implementations deployment not needed")
 		return nil
+	}
+
+	// The genesis script host runs at a local dev chain ID, so DeployImplementations would wrap an
+	// accept-all MockSP1Verifier even for an intent targeting a chain with a release verifier.
+	if env.IsGenesis && !hasSP1VerifierOverride {
+		if _, err := standard.SP1VerifierFor(intent.L1ChainID); err == nil {
+			return fmt.Errorf("genesis deployments for L1 chain %d must set globalDeployOverrides.sp1Verifier", intent.L1ChainID)
+		}
 	}
 
 	lgr.Info("deploying implementations")
@@ -116,8 +123,10 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	}
 	if input.SP1Verifier != (common.Address{}) {
 		lgr.Info("using SP1 verifier", "address", input.SP1Verifier)
+	} else if env.IsGenesis {
+		lgr.Warn("no SP1 verifier configured; genesis deploys an accept-all MockSP1Verifier")
 	} else {
-		lgr.Warn("no SP1 verifier configured; DeployImplementations deploys an accept-all MockSP1Verifier on local dev chains and reverts elsewhere")
+		lgr.Warn("no SP1 verifier configured; DeployImplementations deploys an accept-all MockSP1Verifier on local dev chains and reverts elsewhere (set globalDeployOverrides.sp1Verifier)")
 	}
 
 	if env.UseForge {

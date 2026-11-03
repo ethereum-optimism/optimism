@@ -33,18 +33,11 @@ The bitmap has **two operator-facing input surfaces**, both in op-deployer:
    - `--dev-feature-bitmap` (env: `DEPLOYER_DEV_FEATURE_BITMAP`), defined in `op-deployer/pkg/deployer/bootstrap/flags.go`
    - Raw 32-byte hex; default empty
    - Flows into `ImplementationsConfig.DevFeatureBitmap` and on into `DeployImplementationsInput` for L1 implementation deployment.
-   - Every implementations deploy includes `ZKDisputeGame` and `SP1PlonkAdapter`, so it always needs a raw SP1 verifier. Ethereum mainnet and Sepolia default to Succinct's v6.1.0 PLONK verifier, resolved by `standard.SP1VerifierFor`. `--sp1-verifier-address` (env: `DEPLOYER_SP1_VERIFIER_ADDRESS`) overrides that release input and is required on every other L1. The one exception is local dev chains (the `block.chainid` allowlist in `DeployImplementations.deployMockSP1Verifier`: 900, 1337, 31337, 77799777, 900100): there an unset verifier makes `DeployImplementations` deploy an accept-all `MockSP1Verifier`. On any other chain it reverts.
 
 2. **Intent file (`globalDeployOverrides.devFeatureBitmap`)**
    - Schema field on `Intent`, `op-deployer/pkg/deployer/state/intent.go`
    - Lives in the operator's intent TOML/JSON
    - Read by the L2 genesis pipeline.
-   - All of the following applies only when `apply` deploys new implementations. With a predeployed OPCM (`opcmAddress` set), the implementations already exist and `ValidateInputs` rejects `sp1Verifier` outright, so those operators must not set the override.
-   - A live `apply` selects the same release-approved verifier as bootstrap on Ethereum mainnet and Sepolia; `globalDeployOverrides.sp1Verifier` always wins where it is set. Other L1 networks must set the override unless they are local dev chains, which get the `MockSP1Verifier` fallback. Deploying the ZK implementations never enables ZK on a chain: that stays an explicit `upgrade()`/`migrate()` game config.
-   - Both surfaces read the mapping from `standard.SP1VerifierFor`, so bootstrap and apply can never drift.
-   - `op-deployer/pkg/deployer/standard/sp1-verifier.json` records, per chain, the `VERIFIER_HASH()` of that verifier, the PLONK circuit it accepts proofs for; `standard.SP1VerifierHashFor` reads it. `TestApplyDefaultsSP1VerifierOnSepolia` holds it to the chain, `VerifyOPCM` re-checks it at release, and `op-zk-proposer`'s release-pin test holds the linked sp1-sdk to it, so bumping sp1-sdk to a new circuit fails CI until the address and the file move together. The proposer also derives the hash from its SDK at runtime and pauses creation and skips proving for any adapter whose verifier hash differs.
-   - A verifier selected by op-deployer is recorded in deployment state (`State.SP1Verifier`) and never written back into intent. A resumed deployment reuses the recorded address rather than re-resolving the default, so upgrading op-deployer mid-deployment cannot swap the verifier under a chain. Mock-backed deployments record no verifier.
-   - Genesis deployments never select the release verifier: it does not exist in a generated genesis. The genesis script host runs at chain ID 1337, so without an explicit `sp1Verifier` they get the `MockSP1Verifier` fallback.
 
 There is no other production operator-facing surface. `op-node`, `kona`, and rollup config do not take a bitmap at runtime.
 
@@ -94,7 +87,7 @@ The Foundry test-only assembler in `FeatureFlags.sol` is a separate composition 
 From op-deployer the bitmap fans out two ways:
 
 1. **Into L2 genesis state** — `scripts/L2Genesis.s.sol` (Foundry script) writes the bitmap into the **`L2DevFeatureFlags` predeploy at `0x42...2D`** via `setDevFeatureBitmap()`. Only `DEPOSITOR_ACCOUNT` can write; effectively write-once at genesis.
-2. **Into L1 implementation deployment** — `scripts/deploy/DeployImplementations.s.sol` consults the bitmap to decide which implementation contracts to deploy / configure.
+2. **Into L1 implementation deployment** — `scripts/deploy/DeployImplementations.s.sol` passes the bitmap on to the OPCM container and the StandardValidator. The deployed implementation set no longer depends on it, because the only remaining branch (`SUPER_ROOT_GAMES_MIGRATION`) is default-on.
 
 It does **not** flow to op-node or kona at runtime. They learn about feature activation through other channels (hardfork timestamps in rollup config, primarily).
 
@@ -125,6 +118,17 @@ Super-root migration has no parallel hardfork timestamp, and it is default-on in
 - SuperRootGamesMigration is **default-on**: `IsDevFeatureEnabled` / `isDevFeatureEnabled` return `true` for it regardless of the bitmap.
 - **#21662** tracks removing the SuperRootGamesMigration flag and its remaining scaffolding.
 
+## SP1 verifier selection (not dev-feature gated)
+
+ZK implementations are not behind a dev feature. Every implementations deploy includes `ZKDisputeGame` and `SP1PlonkAdapter`, so it always needs a raw SP1 verifier. Deploying them never enables ZK on a chain; that takes an `upgrade()`/`migrate()` game config, or op-deployer's `dangerousAdditionalDisputeGames` on a custom intent.
+
+- Selection applies only when implementations are deployed. With a predeployed OPCM (`opcmAddress` set), `ValidateInputs` rejects `sp1Verifier`.
+- An explicit `--sp1-verifier-address` (bootstrap) or `globalDeployOverrides.sp1Verifier` (apply) always wins. Otherwise live deploys on Ethereum mainnet and Sepolia use `standard.SP1VerifierFor` (`op-deployer/pkg/deployer/standard/standard.go`), so bootstrap and apply cannot drift.
+- With no verifier, `DeployImplementations` deploys an accept-all `MockSP1Verifier` on the local dev chains allowlisted in `deployMockSP1Verifier`, and reverts on every other chain.
+- A generated genesis contains no release verifier, and the genesis script host runs at a local dev chain ID, so genesis without `sp1Verifier` gets the mock. op-deployer rejects that for L1 chain IDs that have a release verifier.
+- `op-deployer/pkg/deployer/standard/sp1-verifier.json` records, per chain, the `VERIFIER_HASH()` of that verifier, the PLONK circuit it accepts proofs for; `standard.SP1VerifierHashFor` reads it. `TestApplyDefaultsSP1VerifierOnSepolia` holds it to the chain, `VerifyOPCM` re-checks it at release, and `op-zk-proposer`'s release-pin test holds the linked sp1-sdk to it, so bumping sp1-sdk to a new circuit fails CI until the address and the file move together. The proposer also derives the hash from its SDK at runtime and pauses creation and skips proving for any adapter whose verifier hash differs.
+- A verifier op-deployer passed is recorded in deployment state (`State.SP1Verifier`) and never written back into intent. A resumed deployment reuses the recorded address rather than re-resolving the default, so upgrading op-deployer mid-deployment cannot swap the verifier under a chain. Mock-backed deployments record no verifier.
+
 ## File index
 
 | Concern | Path |
@@ -133,7 +137,6 @@ Super-root migration has no parallel hardfork timestamp, and it is default-on in
 | Solidity constants & predicate | `packages/contracts-bedrock/src/libraries/DevFeatures.sol` |
 | CLI input | `op-deployer/pkg/deployer/bootstrap/flags.go` |
 | Intent input + composition | `op-deployer/pkg/deployer/pipeline/l2genesis.go` |
-| Release-approved SP1 verifier | `op-deployer/pkg/deployer/standard/standard.go` |
 | Genesis writer | `packages/contracts-bedrock/scripts/L2Genesis.s.sol` |
 | L2 storage | `packages/contracts-bedrock/src/L2/L2DevFeatureFlags.sol` |
 | Predeploy gating | `packages/contracts-bedrock/src/libraries/Predeploys.sol` |

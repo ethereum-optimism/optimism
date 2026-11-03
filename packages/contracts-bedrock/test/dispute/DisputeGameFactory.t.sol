@@ -653,7 +653,7 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
     )
         public
     {
-        // Bound the bond so that adding it to the existing DelayedWETH balance on a fork cannot overflow.
+        // Bound the bond so adding it to a fork's DelayedWETH balance cannot overflow.
         _challengerBond = bound(_challengerBond, 1, type(uint128).max);
 
         ZKDisputeGameParams memory params = ZKDisputeGameParams({

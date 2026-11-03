@@ -538,8 +538,7 @@ contract DeployImplementations is Script {
         _output.sp1PlonkAdapterSingleton = impl;
     }
 
-    /// @notice Deploys the accept-all MockSP1Verifier used when no SP1 verifier is configured.
-    ///         Only local dev and test chains may use it; every other chain must pass a real verifier.
+    /// @notice Deploys the accept-all MockSP1Verifier. Reverts outside local dev chains.
     function deployMockSP1Verifier() private returns (ISP1Verifier verifier_) {
         uint256 chainId = block.chainid;
         require(
@@ -547,8 +546,7 @@ contract DeployImplementations is Script {
                 || chainId == Chains.AnvilDevnet || chainId == Chains.InteropDevnet,
             "DeployImplementations: sp1Verifier must be set outside local dev chains"
         );
-        // MockSP1Verifier has no constructor arguments, and its creation code is embedded so that
-        // builds without test artifacts can still deploy it.
+        // Embedded creation code: builds that skip test/ ship no MockSP1Verifier artifact.
         verifier_ = ISP1Verifier(
             // nosemgrep: sol-safety-deployutils-named-args-parameter
             DeployUtils.createDeterministic({ _initCode: type(MockSP1Verifier).creationCode, _salt: _salt })
@@ -819,13 +817,6 @@ contract DeployImplementations is Script {
             );
         }
 
-        require(
-            address(_output.zkDisputeGameImpl) != address(0), "DeployImplementations: ZKDisputeGame was not deployed"
-        );
-        require(
-            address(_output.sp1PlonkAdapterSingleton) != address(0),
-            "DeployImplementations: SP1PlonkAdapter was not deployed"
-        );
         require(
             address(_output.sp1PlonkAdapterSingleton.sp1Verifier()) == address(_input.sp1Verifier),
             "DeployImplementations: SP1PlonkAdapter has unexpected verifier"

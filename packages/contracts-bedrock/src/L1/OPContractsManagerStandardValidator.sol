@@ -1133,7 +1133,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        // ZK_DISPUTE_GAME is an optional super game: when it is not registered there is nothing to validate.
+        // ZK_DISPUTE_GAME is optional; there is nothing to validate when it is not registered.
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         if (address(_factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) == address(0)) {
             return _errors;
