@@ -471,7 +471,8 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Asserts that dispute games are correctly configured for super root mode.
-    ///         Checks that legacy game types are disabled and super game types are registered.
+    ///         Checks that legacy game types and SUPER_CANNON are unregistered, SUPER_PERMISSIONED is
+    ///         registered, and SUPER_CANNON_KONA or ZK_DISPUTE_GAME is registered.
     ///         This only validates system shape, not full game configuration. State transition
     ///         checks (e.g., "was this chain already migrated?") belong in Superchain Ops scripts.
     function assertValidSuperRootDisputeGames(
@@ -850,11 +851,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         });
     }
 
-    /// @notice Returns whether the respected game type is one the selected validation branch
-    ///         requires to be registered. In super mode SUPER_PERMISSIONED is always required
-    ///         (enforced by SPDG-SHAPE). SUPER_CANNON_KONA and ZK_DISPUTE_GAME are optional
-    ///         permissionless super games, so they only count as validated when the factory
-    ///         registers an implementation for them.
+    /// @notice Returns whether the selected validation branch validates the respected game type.
+    ///         SUPER_CANNON_KONA and ZK_DISPUTE_GAME count only when the factory registers them;
+    ///         the SHAPE checks require every other accepted type.
     function isRespectedGameTypeValidated(
         GameType _gameType,
         bool _isSuperMode,
@@ -959,8 +958,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                 _overrides,
                 "SPDG"
             );
-            // SUPER_CANNON_KONA is optional when ZK_DISPUTE_GAME is the permissionless super game;
-            // DF-60 requires at least one of them.
+            // Optional: DF-60 requires SUPER_CANNON_KONA or ZK_DISPUTE_GAME.
             if (
                 address(IDisputeGameFactory(_input.sysCfg.disputeGameFactory()).gameImpls(GameTypes.SUPER_CANNON_KONA))
                     != address(0)
