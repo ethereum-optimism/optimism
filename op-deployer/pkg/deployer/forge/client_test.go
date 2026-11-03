@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,8 +57,9 @@ func TestMinimalSources(t *testing.T) {
 		Slice: []uint32{0x01, 0x02, 0x03, 0x04},
 		Array: [3]uint64{0x01, 0x02, 0x03},
 	}
-	out, err := caller(ctx, in)
+	out, transactions, err := caller(ctx, in)
 	require.NoError(t, err)
+	require.Empty(t, transactions)
 	require.EqualValues(t, ioStruct{
 		ID:    2,
 		Data:  in.Data,
@@ -111,11 +113,11 @@ func TestScriptCaller(t *testing.T) {
 		Slice: []uint32{0x01, 0x02, 0x03, 0x04},
 		Array: [3]uint64{0x01, 0x02, 0x03},
 	}
-	_, err := caller(ctx, in)
+	_, _, err := caller(ctx, in)
 	require.ErrorContains(t, err, "compile cache", "a cleaned project has no compile cache")
 
 	require.NoError(t, cl.Build(ctx))
-	out, err := caller(ctx, in)
+	out, _, err := caller(ctx, in)
 	require.NoError(t, err)
 	require.EqualValues(t, ioStruct{
 		ID:    2,
@@ -146,7 +148,7 @@ func TestScriptCaller_RejectsCompile(t *testing.T) {
 		&BytesScriptEncoder[ioStruct]{TypeName: "ioStruct"},
 		&BytesScriptDecoder[ioStruct]{TypeName: "ioStruct"},
 	)
-	_, err := caller(ctx, ioStruct{ID: 1})
+	_, _, err := caller(ctx, ioStruct{ID: 1})
 	require.ErrorContains(t, err, "forge compiled the project")
 }
 
@@ -165,6 +167,16 @@ func stubBinary(t *testing.T, script string) Binary {
 	p := filepath.Join(t.TempDir(), "stub-forge")
 	require.NoError(t, os.WriteFile(p, []byte("#!/bin/sh\n"+script+"\n"), 0o755))
 	return StaticBinary(p)
+}
+
+// scriptRan is what forge prints after a script that ran.
+const scriptRan = "Script ran successfully.\n"
+
+// stubScript returns a stub forge that runs script, then prints what forge prints after a script
+// run that sends nothing.
+func stubScript(t *testing.T, script string) Binary {
+	t.Helper()
+	return stubBinary(t, script+"\nprintf '"+scriptRan+"'")
 }
 
 // TestClient_TimeoutUnblocksHungCommand reproduces the CI hang shape: a forge
@@ -188,32 +200,7 @@ func TestClient_TimeoutUnblocksHungCommand(t *testing.T) {
 	require.Less(t, time.Since(start), 10*time.Second)
 }
 
-func TestClient_SlowBroadcast(t *testing.T) {
-	tests := []struct {
-		name     string
-		opts     []string
-		wantSlow bool
-	}{
-		{name: "broadcast", opts: []string{"--broadcast"}, wantSlow: true},
-		{name: "read-only", opts: nil, wantSlow: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cl := NewClient(stubBinary(t, `echo "$@"`))
-			cl.Wd = stubProject(t)
-			cl.Stdout = io.Discard
-
-			out, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil, tt.opts...)
-			require.NoError(t, err)
-			require.Equal(t, tt.wantSlow, strings.Contains(out, "--slow"))
-			require.Equal(t, tt.wantSlow, strings.Contains(out, "--skip-simulation --gas-estimate-multiplier 100"),
-				"a broadcast uses the node's gas estimate of each transaction, as txmgr does")
-		})
-	}
-}
-
-// TestClient_RunScriptStopsOnCompile checks that a run stops at the compile, before any broadcast.
+// TestClient_RunScriptStopsOnCompile checks that a run stops at the compile, before the script runs.
 func TestClient_RunScriptStopsOnCompile(t *testing.T) {
 	// The stub's sleep can start before the kill and hold the output pipe; do not wait for it.
 	oldDelay := waitDelay
@@ -223,16 +210,16 @@ func TestClient_RunScriptStopsOnCompile(t *testing.T) {
 	oldSlots := runSlots
 	runSlots = &slotPool{dir: filepath.Join(t.TempDir(), "slots"), size: 1}
 	t.Cleanup(func() { runSlots = oldSlots })
-	broadcast := filepath.Join(t.TempDir(), "broadcast")
-	cl := NewClient(stubBinary(t, "echo 'Compiling 1 files with Solc 0.8.15'\nsleep 5\ntouch "+broadcast))
+	ran := filepath.Join(t.TempDir(), "ran")
+	cl := NewClient(stubBinary(t, "echo 'Compiling 1 files with Solc 0.8.15'\nsleep 5\ntouch "+ran))
 	cl.Wd = stubProject(t)
 	cl.Stdout = io.Discard
 
 	start := time.Now()
-	_, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil, "--broadcast")
+	_, _, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
 	require.ErrorContains(t, err, "forge compiled the project")
 	require.Less(t, time.Since(start), 4*time.Second, "the run must stop when the compile starts")
-	require.NoFileExists(t, broadcast)
+	require.NoFileExists(t, ran)
 }
 
 // TestClient_LimitsConcurrentRuns checks that forge runs wait for a free slot.
@@ -241,7 +228,7 @@ func TestClient_LimitsConcurrentRuns(t *testing.T) {
 	runSlots = &slotPool{dir: filepath.Join(t.TempDir(), "slots"), size: 1}
 	t.Cleanup(func() { runSlots = oldSlots })
 
-	cl := NewClient(stubBinary(t, "sleep 0.4"))
+	cl := NewClient(stubScript(t, "sleep 0.4"))
 	cl.Wd = stubProject(t)
 	cl.Stdout = io.Discard
 
@@ -251,8 +238,8 @@ func TestClient_LimitsConcurrentRuns(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
-			require.NoError(t, err)
+			_, _, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+			assert.NoError(t, err)
 		}()
 	}
 	wg.Wait()
@@ -264,7 +251,7 @@ func TestClient_RunScriptErrorHasReason(t *testing.T) {
 	cl.Wd = stubProject(t)
 	cl.Stderr = io.Discard
 
-	_, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	_, _, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
 	require.ErrorContains(t, err, "Error: script failed: boom")
 }
 
@@ -290,8 +277,93 @@ contract Sandbox {
     function readHosts(bytes memory) public view returns (string memory) {
         return vm.readFile("/etc/hosts");
     }
+
+    function noop(bytes memory) public pure returns (bytes memory) {
+        return "";
+    }
 }
 `
+
+// sandboxProject builds the Sandbox script in a new project, with settings added to its default
+// profile, and returns its directory.
+func sandboxProject(t *testing.T, ctx context.Context, settings string) string {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "script"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "script", "Sandbox.s.sol"), []byte(sandboxScript), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "foundry.toml"), []byte("[profile.default]\nsrc = \"script\"\nlibs = []\n"+settings), 0o644))
+	cl := NewClient(PathBinary())
+	cl.Wd = dir
+	cl.Stdout = io.Discard
+	cl.Stderr = io.Discard
+	require.NoError(t, cl.Build(ctx))
+	return dir
+}
+
+// TestClient_SandboxIgnoresProjectConfig checks that a project cannot turn the sandbox off through
+// the parts of its config that forge reads besides the default profile.
+func TestClient_SandboxIgnoresProjectConfig(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	appendFile := func(t *testing.T, path string, data string) {
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		require.NoError(t, err)
+		_, err = f.WriteString(data)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+	}
+	run := func(t *testing.T, dir string, sig string) error {
+		cl := NewClient(PathBinary())
+		cl.Wd = dir
+		cl.Stdout = io.Discard
+		cl.Stderr = io.Discard
+		cl.FsPermissions = []FsPermission{}
+		_, _, err := cl.RunScript(ctx, "script/Sandbox.s.sol:Sandbox", sig, nil)
+		if err != nil {
+			require.NotContains(t, err.Error(), "forge compiled", "the sandbox config must keep the compile cache valid")
+		}
+		return err
+	}
+
+	t.Run("profile from .env", func(t *testing.T) {
+		dir := sandboxProject(t, ctx, "")
+		appendFile(t, filepath.Join(dir, "foundry.toml"), "[profile.alt]\nffi = true\n")
+		appendFile(t, filepath.Join(dir, ".env"), "FOUNDRY_PROFILE=alt\n")
+		err := run(t, dir, "runFfi(bytes)")
+		require.Error(t, err)
+		require.Contains(t, strings.ToLower(err.Error()), "ffi")
+	})
+	t.Run("setting from .env", func(t *testing.T) {
+		dir := sandboxProject(t, ctx, "")
+		appendFile(t, filepath.Join(dir, ".env"), "FOUNDRY_FFI=true\n")
+		err := run(t, dir, "runFfi(bytes)")
+		require.Error(t, err)
+		require.Contains(t, strings.ToLower(err.Error()), "ffi")
+	})
+	t.Run("extends", func(t *testing.T) {
+		dir := sandboxProject(t, ctx, "")
+		base := filepath.Join(dir, "base.toml")
+		require.NoError(t, os.WriteFile(base, []byte("[profile.default]\nfs_permissions = [{ access = \"read-write\", path = \"/\" }]\n"), 0o644))
+		appendFile(t, filepath.Join(dir, "foundry.toml"), "extends = { path = \""+base+"\", strategy = \"extend-arrays\" }\n")
+		err := run(t, dir, "readHosts(bytes)")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "not allowed")
+	})
+	t.Run("solc binary", func(t *testing.T) {
+		dir := sandboxProject(t, ctx, "")
+		marker := filepath.Join(t.TempDir(), "solc-ran")
+		solc := filepath.Join(dir, "solc.sh")
+		require.NoError(t, os.WriteFile(solc, []byte("#!/bin/sh\ntouch "+marker+"\nexit 1\n"), 0o755))
+		appendFile(t, filepath.Join(dir, "foundry.toml"), "solc = \""+solc+"\"\n")
+		require.ErrorContains(t, run(t, dir, "noop(bytes)"), "only a compiler version")
+		require.NoFileExists(t, marker, "forge must not run a compiler that the project names")
+	})
+	t.Run("solc version", func(t *testing.T) {
+		dir := sandboxProject(t, ctx, "solc_version = \"0.8.15\"\n")
+		require.NoError(t, run(t, dir, "noop(bytes)"), "a pinned compiler version is kept")
+	})
+}
 
 // TestClient_SandboxesScripts checks that a script can neither run commands nor read files outside
 // FsPermissions, whatever the project config allows.
@@ -324,13 +396,13 @@ fs_permissions = [{ access = "read", path = "/" }]
 	}
 	before := entries()
 
-	_, err := cl.RunScript(ctx, "script/Sandbox.s.sol:Sandbox", "runFfi(bytes)", nil)
+	_, _, err := cl.RunScript(ctx, "script/Sandbox.s.sol:Sandbox", "runFfi(bytes)", nil)
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "forge compiled", "the sandbox config must keep the compile cache valid")
 	require.Contains(t, strings.ToLower(err.Error()), "ffi")
 
 	cl.FsPermissions = []FsPermission{}
-	_, err = cl.RunScript(ctx, "script/Sandbox.s.sol:Sandbox", "readHosts(bytes)", nil)
+	_, _, err = cl.RunScript(ctx, "script/Sandbox.s.sol:Sandbox", "readHosts(bytes)", nil)
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "forge compiled")
 	require.Contains(t, err.Error(), "not allowed")
@@ -338,8 +410,8 @@ fs_permissions = [{ access = "read", path = "/" }]
 	require.Equal(t, before, entries(), "the runs must leave nothing in the project")
 }
 
-// TestClient_ForgeEnvironment checks that script runs inherit only the variables they need: a script
-// can read the environment, and FOUNDRY_*, DAPP_* and ETH_* variables configure forge.
+// TestClient_ForgeEnvironment checks that script runs inherit only inheritedEnvNames and the
+// client's own variables.
 func TestClient_ForgeEnvironment(t *testing.T) {
 	t.Setenv("FOUNDRY_OPTIMIZER_RUNS", "1")
 	t.Setenv("DAPP_LIBRARIES", "x")
@@ -347,13 +419,13 @@ func TestClient_ForgeEnvironment(t *testing.T) {
 	t.Setenv("DEPLOYER_PRIVATE_KEY", "secret")
 	t.Setenv("HTTPS_PROXY", "http://proxy")
 	// The stub prints only the variables under test, so that a failure does not log the environment.
-	cl := NewClient(stubBinary(t, `echo "runs=$FOUNDRY_OPTIMIZER_RUNS libs=$DAPP_LIBRARIES rpc=$ETH_RPC_URL key=$DEPLOYER_PRIVATE_KEY proxy=$HTTPS_PROXY home=${HOME:+set} broadcast=${FOUNDRY_BROADCAST:+set}"`))
+	cl := NewClient(stubScript(t, `echo "runs=$FOUNDRY_OPTIMIZER_RUNS libs=$DAPP_LIBRARIES rpc=$ETH_RPC_URL key=$DEPLOYER_PRIVATE_KEY proxy=$HTTPS_PROXY home=${HOME:+set} broadcast=${FOUNDRY_BROADCAST:+set}"`))
 	cl.Wd = stubProject(t)
 	cl.Stdout = io.Discard
 
-	out, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	out, _, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
 	require.NoError(t, err)
-	require.Equal(t, "runs= libs= rpc= key= proxy=http://proxy home=set broadcast=set\n", out, "the client's own variables reach forge")
+	require.Equal(t, "runs= libs= rpc= key= proxy=http://proxy home=set broadcast=set\n"+scriptRan, out, "the client's own variables reach forge")
 }
 
 // TestClient_BuildEnvironment checks that a build gets inheritedEnv too: a FOUNDRY_* setting would
@@ -382,8 +454,7 @@ func TestClient_VerifyContractEnvironment(t *testing.T) {
 	require.Equal(t, "key=set\n", out)
 }
 
-// TestClient_CertDirs checks that forge trusts the certificates that Go trusts. On Linux, Go reads every
-// certificate file in its certificate directories; forge 1.8.3 reads them only through SSL_CERT_DIR.
+// TestClient_CertDirs checks that forge trusts the certificates that Go trusts.
 func TestClient_CertDirs(t *testing.T) {
 	want := "dirs=\n"
 	if runtime.GOOS == "linux" {
@@ -391,42 +462,79 @@ func TestClient_CertDirs(t *testing.T) {
 	}
 	t.Setenv("SSL_CERT_DIR", "")
 	require.NoError(t, os.Unsetenv("SSL_CERT_DIR"))
-	cl := NewClient(stubBinary(t, `echo "dirs=$SSL_CERT_DIR"`))
+	cl := NewClient(stubScript(t, `echo "dirs=$SSL_CERT_DIR"`))
 	cl.Wd = stubProject(t)
 	cl.Stdout = io.Discard
 
-	out, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	out, _, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
 	require.NoError(t, err)
-	require.Equal(t, want, out, "script run")
+	require.Equal(t, want+scriptRan, out, "script run")
 	out, err = cl.VerifyContract(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, want, out, "verify-contract")
+	require.Equal(t, want+scriptRan, out, "verify-contract")
 
 	t.Setenv("SSL_CERT_DIR", "")
-	out, err = cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	out, _, err = cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
 	require.NoError(t, err)
-	require.Equal(t, want, out, "an empty SSL_CERT_DIR counts as unset, as in Go")
+	require.Equal(t, want+scriptRan, out, "an empty SSL_CERT_DIR counts as unset, as in Go")
 
 	t.Setenv("SSL_CERT_DIR", "/custom")
-	out, err = cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	out, _, err = cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
 	require.NoError(t, err)
-	require.Equal(t, "dirs=/custom\n", out, "the user's SSL_CERT_DIR wins")
+	require.Equal(t, "dirs=/custom\n"+scriptRan, out, "the user's SSL_CERT_DIR wins")
+}
+
+// TestClient_ScriptTarget checks that a script path is made absolute in the project, since forge runs
+// in a scratch directory, and that a bare contract name is left for forge to look up.
+func TestClient_ScriptTarget(t *testing.T) {
+	// The target is the argument before the script's input.
+	cl := NewClient(stubScript(t, `prev=""; for arg in "$@"; do target="$prev"; prev="$arg"; done; echo "target=$target"`))
+	cl.Wd = stubProject(t)
+	cl.Stdout = io.Discard
+	root, err := filepath.Abs(cl.Wd)
+	require.NoError(t, err)
+
+	for target, want := range map[string]string{
+		"script/Test.s.sol:TestScript": filepath.Join(root, "script/Test.s.sol") + ":TestScript",
+		"script/Test.s.sol":            filepath.Join(root, "script/Test.s.sol"),
+		"TestScript":                   "TestScript",
+	} {
+		out, _, err := cl.RunScript(context.Background(), target, "run()", nil)
+		require.NoError(t, err)
+		require.Equal(t, "target="+want+"\n"+scriptRan, out, target)
+	}
+}
+
+// TestClient_SandboxConfigKebabKeys checks that a kebab-case key of the project config is treated as
+// forge treats it: as its snake-case name.
+func TestClient_SandboxConfigKebabKeys(t *testing.T) {
+	project := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(project, "foundry.toml"), []byte(`[profile.default]
+optimizer-runs = 5
+eth-rpc-url = "http://127.0.0.1:1"
+`), 0o644))
+	path, err := NewClient(nil).sandboxConfig(project, t.TempDir())
+	require.NoError(t, err)
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Contains(t, string(data), "optimizer_runs = 5")
+	require.NotContains(t, string(data), "rpc")
 }
 
 func TestClient_WithEnv(t *testing.T) {
-	base := NewClient(stubBinary(t, `echo "A=$OP_DEPLOYER_TEST_A B=$OP_DEPLOYER_TEST_B"`))
+	base := NewClient(stubScript(t, `echo "A=$OP_DEPLOYER_TEST_A B=$OP_DEPLOYER_TEST_B"`))
 	base.Wd = stubProject(t)
 	base.Stdout = io.Discard
 	base = base.WithEnv("OP_DEPLOYER_TEST_A=1")
 	withB := base.WithEnv("OP_DEPLOYER_TEST_B=2")
 
-	out, err := withB.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	out, _, err := withB.RunScript(context.Background(), "Script.s.sol", "run()", nil)
 	require.NoError(t, err)
-	require.Equal(t, "A=1 B=2\n", out)
+	require.Equal(t, "A=1 B=2\n"+scriptRan, out)
 
-	out, err = base.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+	out, _, err = base.RunScript(context.Background(), "Script.s.sol", "run()", nil)
 	require.NoError(t, err)
-	require.Equal(t, "A=1 B=\n", out, "WithEnv must not change the client it copies")
+	require.Equal(t, "A=1 B=\n"+scriptRan, out, "WithEnv must not change the client it copies")
 }
 
 func copyDir(src, dst string) error {

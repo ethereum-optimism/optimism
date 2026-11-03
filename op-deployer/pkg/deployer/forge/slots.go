@@ -19,10 +19,23 @@ type slotPool struct {
 	size int
 }
 
-// runSlots allows one forge run per two CPUs.
+// runSlots allows one forge run per two CPUs, within the memory limit of the process's container.
 var runSlots = &slotPool{
 	dir:  filepath.Join(os.TempDir(), fmt.Sprintf("op-deployer-forge-slots-%d", os.Getuid())),
-	size: max(1, runtime.GOMAXPROCS(0)/2),
+	size: slotCount(runtime.GOMAXPROCS(0), memoryLimit()),
+}
+
+// forgeRunMemory is about the memory that a forge run on contracts-bedrock takes.
+const forgeRunMemory = 1536 << 20
+
+// slotCount returns the number of forge runs that cpus and memLimit allow, at least one: one run
+// per two CPUs and per forgeRunMemory. A memLimit of zero means no limit.
+func slotCount(cpus int, memLimit uint64) int {
+	n := cpus / 2
+	if memLimit > 0 {
+		n = min(n, int(memLimit/forgeRunMemory))
+	}
+	return max(1, n)
 }
 
 // acquire waits for a free slot and returns its release function.

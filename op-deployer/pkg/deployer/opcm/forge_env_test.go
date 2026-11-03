@@ -3,6 +3,7 @@ package opcm
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +15,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -31,6 +34,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -128,7 +132,8 @@ func TestNonceGuardSigner(t *testing.T) {
 	from := crypto.PubkeyToAddress(key.PublicKey)
 	chainID := big.NewInt(31337)
 	expected := uint64(3)
-	sign := nonceGuardSigner(key, chainID, &expected)
+	var stopped error
+	sign := nonceGuardSigner(key, chainID, &expected, func(err error) { stopped = err })
 	tx := func(nonce uint64, tip int64) *types.Transaction {
 		return types.NewTx(&types.DynamicFeeTx{ChainID: chainID, Nonce: nonce, GasTipCap: big.NewInt(tip), GasFeeCap: big.NewInt(100), Gas: 21_000})
 	}
@@ -137,13 +142,245 @@ func TestNonceGuardSigner(t *testing.T) {
 	require.NoError(t, err)
 	_, err = sign(context.Background(), from, tx(3, 2))
 	require.NoError(t, err, "a fee bump signs again at the same nonce")
+	require.NoError(t, stopped)
 	_, err = sign(context.Background(), from, tx(4, 1))
 	require.ErrorContains(t, err, "deployment nonce changed")
+	require.Equal(t, stopped, err, "a refusal stops the send")
 	expected++
 	_, err = sign(context.Background(), from, tx(4, 1))
 	require.NoError(t, err)
 	_, err = sign(context.Background(), from, tx(3, 1))
 	require.ErrorContains(t, err, "deployment nonce changed")
+}
+
+// rpcRequest is a JSON-RPC request that a test RPC proxy reads.
+type rpcRequest struct {
+	ID     json.RawMessage   `json:"id"`
+	Method string            `json:"method"`
+	Params []json.RawMessage `json:"params"`
+}
+
+// newRPCProxy serves target's RPC at a new URL. answer can answer a request in target's place.
+func newRPCProxy(t *testing.T, target string, answer func(rpcRequest) (json.RawMessage, bool)) string {
+	t.Helper()
+	u, err := url.Parse(target)
+	require.NoError(t, err)
+	proxy := httputil.NewSingleHostReverseProxy(u)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		var req rpcRequest
+		if json.Unmarshal(body, &req) == nil {
+			if result, ok := answer(req); ok {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":%s}`, req.ID, result)
+				return
+			}
+		}
+		proxy.ServeHTTP(w, r)
+	}))
+	t.Cleanup(server.Close)
+	return server.URL
+}
+
+// fakeLiveCaller returns a script caller that runs no forge. Like a simulation on the L1 head, it
+// returns one call from the deployer at its nonce. It calls onRun after it reads the nonce.
+func fakeLiveCaller(live *ethclient.Client, from common.Address, onRun func(ctx context.Context)) newScriptCaller[byte, forge.None] {
+	return func(*forge.Client) forge.ScriptCaller[byte, forge.None] {
+		return func(ctx context.Context, _ byte, _ ...string) (forge.None, []forge.Transaction, error) {
+			nonce, err := live.NonceAt(ctx, from, nil)
+			if err != nil {
+				return forge.None{}, nil, err
+			}
+			chainID, err := live.ChainID(ctx)
+			if err != nil {
+				return forge.None{}, nil, err
+			}
+			if onRun != nil {
+				onRun(ctx)
+			}
+			to := common.Address{'T'}
+			return forge.None{}, []forge.Transaction{{
+				From: from, To: &to, Nonce: hexutil.Uint64(nonce), Value: (*hexutil.U256)(uint256.NewInt(0)),
+				ChainID: (*hexutil.Big)(chainID), Type: types.DynamicFeeTxType,
+			}}, nil
+		}
+	}
+}
+
+// sendTransfer sends a transfer from key and waits for its receipt.
+func sendTransfer(t *testing.T, ctx context.Context, client *ethclient.Client, key *ecdsa.PrivateKey) {
+	t.Helper()
+	from := crypto.PubkeyToAddress(key.PublicKey)
+	chainID, err := client.ChainID(ctx)
+	require.NoError(t, err)
+	nonce, err := client.PendingNonceAt(ctx, from)
+	require.NoError(t, err)
+	head, err := client.HeaderByNumber(ctx, nil)
+	require.NoError(t, err)
+	to := common.Address{'X'}
+	tx, err := types.SignNewTx(key, types.LatestSignerForChainID(chainID), &types.DynamicFeeTx{
+		ChainID: chainID, Nonce: nonce, GasTipCap: big.NewInt(1), GasFeeCap: new(big.Int).Add(new(big.Int).Mul(head.BaseFee, big.NewInt(2)), big.NewInt(1)),
+		Gas: 21_000, To: &to, Value: big.NewInt(1),
+	})
+	require.NoError(t, err)
+	require.NoError(t, client.SendTransaction(ctx, tx))
+	require.Eventually(t, func() bool {
+		_, err := client.TransactionReceipt(ctx, tx.Hash())
+		return err == nil
+	}, 30*time.Second, 50*time.Millisecond)
+}
+
+// TestBroadcastLiveScriptWaitsForPendingTransactions checks that a pending transaction of the
+// deployer, such as a funding transfer from the same key, delays the deployment instead of failing it.
+func TestBroadcastLiveScriptWaitsForPendingTransactions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	logger := testlog.Logger(t, slog.LevelInfo)
+	liveURL, live := devnet.DefaultAnvilRPC(t, logger)
+	key, err := crypto.HexToECDSA(strings.TrimPrefix(testutil.AnvilDefaultPrivateKey, "0x"))
+	require.NoError(t, err)
+	from := crypto.PubkeyToAddress(key.PublicKey)
+
+	// Longer than the five reads of two seconds that op-deployer used to allow.
+	var mu sync.Mutex
+	pendingReads := 6
+	proxyURL := newRPCProxy(t, liveURL, func(req rpcRequest) (json.RawMessage, bool) {
+		if req.Method != "eth_getTransactionCount" || len(req.Params) != 2 || string(req.Params[1]) != `"pending"` {
+			return nil, false
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if pendingReads == 0 {
+			return nil, false
+		}
+		pendingReads--
+		nonce, err := live.NonceAt(ctx, from, nil)
+		if err != nil {
+			return nil, false
+		}
+		return json.RawMessage(fmt.Sprintf(`"%#x"`, nonce+1)), true
+	})
+
+	env := &ForgeEnv{Context: ctx, L1RPCUrl: proxyURL, PrivateKey: testutil.AnvilDefaultPrivateKey, Logger: logger, ReceiptQueryInterval: 50 * time.Millisecond}
+	_, err = broadcastLiveScript(ctx, env, fakeLiveCaller(live, from, nil), byte(0))
+	require.NoError(t, err)
+	nonce, err := live.NonceAt(ctx, from, nil)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, nonce)
+}
+
+// TestBroadcastLiveScriptSimulatesAgain checks that a deployer transaction that lands between the
+// simulation and the first send makes the script run again at the new nonce, instead of failing.
+func TestBroadcastLiveScriptSimulatesAgain(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	logger := testlog.Logger(t, slog.LevelInfo)
+	liveURL, live := devnet.DefaultAnvilRPC(t, logger)
+	key, err := crypto.HexToECDSA(strings.TrimPrefix(testutil.AnvilDefaultPrivateKey, "0x"))
+	require.NoError(t, err)
+	from := crypto.PubkeyToAddress(key.PublicKey)
+
+	runs := 0
+	onRun := func(ctx context.Context) {
+		runs++
+		if runs == 1 {
+			sendTransfer(t, ctx, live, key)
+		}
+	}
+	env := &ForgeEnv{Context: ctx, L1RPCUrl: liveURL, PrivateKey: testutil.AnvilDefaultPrivateKey, Logger: logger, ReceiptQueryInterval: 50 * time.Millisecond}
+	_, err = broadcastLiveScript(ctx, env, fakeLiveCaller(live, from, onRun), byte(0))
+	require.NoError(t, err)
+	require.Equal(t, 2, runs)
+	nonce, err := live.NonceAt(ctx, from, nil)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, nonce, "the transfer, then the deployment at the next nonce")
+}
+
+// TestSendReplayStopsOnNonceRefusal checks that a send that txmgr signs at another nonce than the
+// simulated one fails at once with the signer's error, not after txmgr's retries.
+func TestSendReplayStopsOnNonceRefusal(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	logger := testlog.Logger(t, slog.LevelInfo)
+	_, live := devnet.DefaultAnvilRPC(t, logger)
+	key, err := crypto.HexToECDSA(strings.TrimPrefix(testutil.AnvilDefaultPrivateKey, "0x"))
+	require.NoError(t, err)
+	from := crypto.PubkeyToAddress(key.PublicKey)
+	chainID, err := live.ChainID(ctx)
+	require.NoError(t, err)
+
+	// The deployer's nonce is 0, but the transaction was simulated at 5.
+	bcasts := []broadcaster.Broadcast{{From: from, To: common.Address{'T'}, Type: broadcaster.BroadcastCall, Nonce: 5, Value: (*hexutil.U256)(uint256.NewInt(0))}}
+	start := time.Now()
+	_, err = sendReplay(ctx, logger, live, key, chainID, 5, bcasts, 50*time.Millisecond)
+	require.ErrorContains(t, err, "deployment nonce changed")
+	require.Less(t, time.Since(start), 15*time.Second)
+}
+
+// TestReadLiveScriptSeesEarlierSends checks that a read after a send forks at the block of the send's
+// receipt or later, even while the RPC serves an older head, as a lagging backend of a load-balanced
+// RPC does.
+func TestReadLiveScriptSeesEarlierSends(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	logger := testlog.Logger(t, slog.LevelInfo)
+	liveURL, live := devnet.DefaultAnvilRPC(t, logger)
+	key, err := crypto.HexToECDSA(strings.TrimPrefix(testutil.AnvilDefaultPrivateKey, "0x"))
+	require.NoError(t, err)
+	from := crypto.PubkeyToAddress(key.PublicKey)
+
+	var mu sync.Mutex
+	laggingHeads := 0
+	proxyURL := newRPCProxy(t, liveURL, func(req rpcRequest) (json.RawMessage, bool) {
+		if req.Method != "eth_getBlockByNumber" || len(req.Params) != 2 || string(req.Params[0]) != `"latest"` {
+			return nil, false
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if laggingHeads == 0 {
+			return nil, false
+		}
+		laggingHeads--
+		head, err := live.BlockNumber(ctx)
+		if err != nil {
+			return nil, false
+		}
+		var block json.RawMessage
+		if err := live.Client().CallContext(ctx, &block, "eth_getBlockByNumber", hexutil.EncodeUint64(head-1), false); err != nil {
+			return nil, false
+		}
+		return block, true
+	})
+
+	env := &ForgeEnv{Client: new(forge.Client), Context: ctx, L1RPCUrl: proxyURL, PrivateKey: testutil.AnvilDefaultPrivateKey, Logger: logger, ReceiptQueryInterval: 50 * time.Millisecond}
+	_, err = broadcastScript(env, fakeLiveCaller(live, from, nil), byte(0))
+	require.NoError(t, err)
+	sent, err := live.BlockNumber(ctx)
+	require.NoError(t, err)
+
+	mu.Lock()
+	laggingHeads = 2
+	mu.Unlock()
+	var forkBlock string
+	read := func(*forge.Client) forge.ScriptCaller[byte, forge.None] {
+		return func(_ context.Context, _ byte, opts ...string) (forge.None, []forge.Transaction, error) {
+			if i := slices.Index(opts, "--fork-block-number"); i >= 0 && i+1 < len(opts) {
+				forkBlock = opts[i+1]
+			}
+			return forge.None{}, nil, nil
+		}
+	}
+	_, err = readScript(env, read, byte(0))
+	require.NoError(t, err)
+	require.Equal(t, strconv.FormatUint(sent, 10), forkBlock, "the read forks at the block of the send, not at the lagging head")
+	mu.Lock()
+	defer mu.Unlock()
+	require.Zero(t, laggingHeads, "the read waits for the head to catch up")
 }
 
 // TestForgeLiveReplay exercises real forge/anvil execution and real txmgr delivery. The first
@@ -156,7 +393,7 @@ func TestForgeLiveReplay(t *testing.T) {
 	defer cancel()
 	logger := testlog.Logger(t, slog.LevelInfo)
 	liveURL, live := devnet.DefaultAnvilRPC(t, logger)
-	key, err := crypto.HexToECDSA("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+	key, err := crypto.HexToECDSA(strings.TrimPrefix(testutil.AnvilDefaultPrivateKey, "0x"))
 	require.NoError(t, err)
 	from := crypto.PubkeyToAddress(key.PublicKey)
 
@@ -240,7 +477,7 @@ func TestForgeLiveReplay(t *testing.T) {
 	privateKey := fmt.Sprintf("%x", crypto.FromECDSA(key))
 	env := &ForgeEnv{Client: client, Context: ctx, L1RPCUrl: server.URL, PrivateKey: privateKey, Logger: logger, ReceiptQueryInterval: 50 * time.Millisecond}
 	caller := func(c *forge.Client) forge.ScriptCaller[byte, forge.None] {
-		return func(ctx context.Context, mode byte, opts ...string) (forge.None, error) {
+		return func(ctx context.Context, mode byte, opts ...string) (forge.None, []forge.Transaction, error) {
 			// A private key or keystore must never be passed to forge, even during simulation.
 			args := strings.Join(opts, " ")
 			require.NotContains(t, args, privateKey)
@@ -249,8 +486,8 @@ func TestForgeLiveReplay(t *testing.T) {
 			require.NotContains(t, args, "--broadcast")
 			require.NotContains(t, args, "--unlocked")
 			require.Contains(t, args, "--rpc-url "+server.URL)
-			_, err := c.RunScript(ctx, "script/Replay.s.sol:Replay", "runWithBytes(bytes)", []byte{mode}, opts...)
-			return forge.None{}, err
+			_, transactions, err := c.RunScript(ctx, "script/Replay.s.sol:Replay", "runWithBytes(bytes)", []byte{mode}, opts...)
+			return forge.None{}, transactions, err
 		}
 	}
 
@@ -276,11 +513,15 @@ func TestForgeLiveReplay(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, nonce)
 
-	// A pending deployer transaction would shift every simulated CREATE address: nothing is sent.
+	// A deployer transaction that stays pending would shift every simulated CREATE address: nothing
+	// is sent.
+	oldWait := l1WaitTimeout
+	l1WaitTimeout = 2 * l1PollInterval
 	mu.Lock()
 	servePendingAhead = true
 	mu.Unlock()
 	_, err = broadcastScript(env, caller, byte(0))
+	l1WaitTimeout = oldWait
 	require.ErrorContains(t, err, "nonce mismatch")
 	mu.Lock()
 	servePendingAhead = false

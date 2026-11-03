@@ -39,6 +39,13 @@ func DeployAdditionalDisputeGames(
 		return fmt.Errorf("cannot deploy additional dispute games when deployer is not L1PAO")
 	}
 
+	// Every game is checked before the first one sends: state is written only after the stage, so a
+	// game that fails after others sent leaves them registered on L1 but not in state.
+	for _, game := range thisIntent.AdditionalDisputeGames {
+		if err := checkDisputeGame(st, game); err != nil {
+			return fmt.Errorf("invalid additional dispute game of type %d: %w", game.DisputeGameType, err)
+		}
+	}
 	for _, game := range thisIntent.AdditionalDisputeGames {
 		if err := deployDisputeGame(env, st, thisIntent, thisState, game); err != nil {
 			return fmt.Errorf("failed to deploy additional dispute game: %w", err)
@@ -46,6 +53,33 @@ func DeployAdditionalDisputeGames(
 	}
 
 	return nil
+}
+
+// checkDisputeGame checks what a game needs from its intent and from the deployed implementations.
+func checkDisputeGame(st *state.State, game state.AdditionalDisputeGame) error {
+	switch game.VMType {
+	case state.VMTypeAlphabet, state.VMTypeCannon, state.VMTypeCannonNext:
+		return nil
+	case state.VMTypeZK:
+		if st.ImplementationsDeployment.ZkDisputeGameImpl == (common.Address{}) {
+			return fmt.Errorf("ZkDisputeGameImpl is not deployed")
+		}
+		if game.ZKDisputeGame == nil {
+			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")
+		}
+		if game.DisputeGameType != uint32(opcm.GameTypeZKDisputeGame) {
+			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", opcm.GameTypeZKDisputeGame, game.DisputeGameType)
+		}
+		if st.ImplementationsDeployment.SP1PlonkAdapterImpl == (common.Address{}) {
+			return fmt.Errorf("SP1PlonkAdapterImpl is not deployed")
+		}
+		if bond := game.ZKDisputeGame.ChallengerBond; bond == nil || bond.ToInt().Sign() <= 0 {
+			return fmt.Errorf("ZKDisputeGame.ChallengerBond must be set to a positive value")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported VM type: %v", game.VMType)
+	}
 }
 
 func deployDisputeGame(
@@ -111,23 +145,8 @@ func deployDisputeGame(
 		}
 	case state.VMTypeZK:
 		zkImpl := st.ImplementationsDeployment.ZkDisputeGameImpl
-		if zkImpl == (common.Address{}) {
-			return fmt.Errorf("ZkDisputeGameImpl is not deployed")
-		}
-		if game.ZKDisputeGame == nil {
-			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")
-		}
-		if game.DisputeGameType != uint32(opcm.GameTypeZKDisputeGame) {
-			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", opcm.GameTypeZKDisputeGame, game.DisputeGameType)
-		}
 		sp1PlonkAdapter := st.ImplementationsDeployment.SP1PlonkAdapterImpl
-		if sp1PlonkAdapter == (common.Address{}) {
-			return fmt.Errorf("SP1PlonkAdapterImpl is not deployed")
-		}
 		zk := game.ZKDisputeGame
-		if zk.ChallengerBond == nil || zk.ChallengerBond.ToInt().Sign() <= 0 {
-			return fmt.Errorf("ZKDisputeGame.ChallengerBond must be set to a positive value")
-		}
 		gameArgs := gameargs.ZKGameArgs{
 			AbsolutePrestate:     zk.AbsolutePrestate,
 			Verifier:             sp1PlonkAdapter,

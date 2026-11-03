@@ -171,9 +171,9 @@ func (p *RetryProxy) doProxyReq(ctx context.Context, body []byte) (*http.Respons
 		return nil, err
 	}
 	status := res.StatusCode
-	// A client error other than a rate limit does not go away on a retry; proxyd answers 403 for a
-	// method that it does not serve.
-	clientErr := status >= 400 && status < 500 && status != http.StatusTooManyRequests
+	// A client error other than a timeout or a rate limit does not go away on a retry; proxyd answers
+	// 403 for a method that it does not serve.
+	clientErr := status >= 400 && status < 500 && status != http.StatusRequestTimeout && status != http.StatusTooManyRequests
 	if status != http.StatusOK && !clientErr {
 		res.Body.Close()
 		p.lgr.Warn("unexpected status code", "status", status)

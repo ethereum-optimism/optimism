@@ -44,6 +44,13 @@ func TestRetryProxy(t *testing.T) {
 		require.EqualValues(t, 2, calls)
 	})
 
+	t.Run("retries a request timeout", func(t *testing.T) {
+		status, body, calls := proxy(t, http.StatusRequestTimeout, http.StatusOK)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(t, http.StatusText(http.StatusOK), body)
+		require.EqualValues(t, 2, calls)
+	})
+
 	t.Run("retries a server error", func(t *testing.T) {
 		status, body, calls := proxy(t, http.StatusBadGateway, http.StatusOK)
 		require.Equal(t, http.StatusOK, status)
