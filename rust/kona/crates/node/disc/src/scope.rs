@@ -334,10 +334,12 @@ mod tests {
         assert_eq!(AddrScope::check_relayed_addr(AddrScope::of(sender), addr), expected);
     }
 
-    /// Our own scope is that of the IP we advertise. Without one, it is the most local among our
-    /// bootnodes', ignoring special-purpose ones, and public if there are none. A special-purpose
-    /// IP is public too. Our scope is never unspecified or special-purpose, which say nothing about
-    /// what we can reach, but the most conservative scope. See [`AddrScope::own`].
+    /// Our own scope is that of the IP we advertise. Without one, it is the most public among our
+    /// bootnodes', ignoring special-purpose ones, and public if there are none: one local bootnode
+    /// among public ones must not make the node accept local records from public peers. A
+    /// special-purpose IP is public too. Our scope is never unspecified or special-purpose, which
+    /// say nothing about what we can reach, but the most conservative scope. See
+    /// [`AddrScope::own`].
     #[rstest]
     #[case::public("1.2.3.4", &[], AddrScope::Public)]
     #[case::lan("10.0.0.1", &[], AddrScope::Lan)]
@@ -346,9 +348,32 @@ mod tests {
     #[case::special_ignores_bootnodes("192.0.2.1", &["127.0.0.1"], AddrScope::Public)]
     #[case::unspecified_no_bootnodes("0.0.0.0", &[], AddrScope::Public)]
     #[case::unspecified_public_bootnodes("0.0.0.0", &["1.2.3.4", "5.6.7.8"], AddrScope::Public)]
-    #[case::unspecified_lan_bootnode("0.0.0.0", &["1.2.3.4", "10.0.0.1"], AddrScope::Lan)]
-    #[case::unspecified_loopback_bootnode("0.0.0.0", &["10.0.0.1", "127.0.0.1"], AddrScope::Loopback)]
+    #[case::unspecified_public_and_lan_bootnodes(
+        "0.0.0.0",
+        &["1.2.3.4", "10.0.0.1"],
+        AddrScope::Public
+    )]
+    #[case::unspecified_public_and_loopback_bootnodes(
+        "0.0.0.0",
+        &["127.0.0.1", "1.2.3.4"],
+        AddrScope::Public
+    )]
+    #[case::unspecified_lan_and_loopback_bootnodes(
+        "0.0.0.0",
+        &["10.0.0.1", "127.0.0.1"],
+        AddrScope::Lan
+    )]
+    #[case::unspecified_loopback_bootnodes(
+        "0.0.0.0",
+        &["127.0.0.1", "127.0.0.2"],
+        AddrScope::Loopback
+    )]
     #[case::unspecified_special_bootnode("0.0.0.0", &["192.0.2.1"], AddrScope::Public)]
+    #[case::unspecified_special_and_loopback_bootnodes(
+        "0.0.0.0",
+        &["192.0.2.1", "127.0.0.1"],
+        AddrScope::Loopback
+    )]
     #[case::unspecified_v6("::", &["::1"], AddrScope::Loopback)]
     fn test_own_scope(
         #[case] ip: IpAddr,
@@ -356,6 +381,7 @@ mod tests {
         #[case] expected: AddrScope,
     ) {
         let bootnode_ips = bootnode_ips.iter().map(|ip| ip.parse().expect("a valid IP"));
+        // TODO(#23766): the mixed cases fail, as the most local bootnode decides.
         assert_eq!(AddrScope::own(ip, bootnode_ips), expected);
     }
 

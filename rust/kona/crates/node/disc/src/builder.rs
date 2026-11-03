@@ -407,8 +407,8 @@ mod tests {
     }
 
     /// The builder installs the table filter for our own scope in discv5, chosen from the IP we
-    /// advertise, or from our bootnodes while we advertise none. The node listens on loopback
-    /// whatever it advertises, and isn't started, so nothing is sent.
+    /// advertise, or from our bootnodes while we advertise none: the most public of theirs. The
+    /// node listens on loopback whatever it advertises, and isn't started, so nothing is sent.
     #[rstest]
     #[case::public("1.2.3.4", &[], AddrScope::Public, [false, false, true])]
     #[case::lan("10.0.0.1", &[], AddrScope::Lan, [false, true, true])]
@@ -421,6 +421,12 @@ mod tests {
         &["127.0.0.2"],
         AddrScope::Loopback,
         [true, true, true]
+    )]
+    #[case::unspecified_public_and_loopback_bootnodes(
+        "0.0.0.0",
+        &["127.0.0.2", "1.2.3.5"],
+        AddrScope::Public,
+        [false, false, true]
     )]
     #[case::advertised_wins_over_bootnodes(
         "1.2.3.4",
