@@ -2275,8 +2275,10 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         address hook = makeAddr("bridgeHook");
         deployConfig.bridgeHook = IBridgeHook(hook);
 
+        // The standard validator reports PORTAL-110 for any configured hook, because a chain that
+        // screens its bridge is not a Stage 1 rollup and so is never standard.
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        string memory expectedErrors = superRoot ? "PORTAL-110,SCKDG-SHAPE,SCKDG-10" : "PORTAL-110,CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         assertEq(address(cts.optimismPortal.bridgeHook()), hook, "portal bridge hook mismatch");
