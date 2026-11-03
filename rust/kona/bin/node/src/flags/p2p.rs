@@ -118,7 +118,9 @@ pub struct P2PArgs {
     pub private_key: Option<B256>,
 
     /// IP address or DNS hostname to advertise to external peers from Discv5.
-    /// Optional argument. Use the `p2p.listen.ip` if not set.
+    /// Optional argument. If not set, the node advertises `p2p.listen.ip` if it is a specific
+    /// address. On all interfaces (`0.0.0.0` or `::`), it advertises no IP until discovery learns
+    /// one from the peers it contacts.
     /// Accepts either an IP address (e.g., "1.2.3.4") or a DNS hostname (e.g.,
     /// "node1.example.com"). DNS hostnames are resolved to IP addresses at startup.
     ///

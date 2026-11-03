@@ -194,6 +194,7 @@ mod tests {
     use discv5::{ConfigBuilder, ListenConfig};
     use enr::CombinedKey;
     use libp2p::gossipsub::IdentTopic;
+    use rstest::rstest;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     #[derive(Debug)]
@@ -340,14 +341,21 @@ mod tests {
         assert!(handler.discovery.is_none());
     }
 
-    /// A node listening on all interfaces doesn't know which of its addresses peers can reach, so
-    /// its ENR advertises no IP once it starts, only the TCP port gossip bound.
+    /// Once a node starts, its ENR advertises the TCP port gossip bound, and keeps the IP it
+    /// listens on, if specific. A node listening on all interfaces doesn't know which of its
+    /// addresses peers can reach, so it advertises no IP.
+    #[rstest]
+    #[case::all_interfaces(Ipv4Addr::UNSPECIFIED, None)]
+    #[case::loopback(Ipv4Addr::LOCALHOST, Some(Ipv4Addr::LOCALHOST))]
     #[tokio::test]
-    async fn test_start_on_all_interfaces_advertises_no_ip() {
+    async fn test_start_advertises_only_a_specific_ip(
+        #[case] ip: Ipv4Addr,
+        #[case] advertised: Option<Ipv4Addr>,
+    ) {
         let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
             unreachable!()
         };
-        let ip = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
+        let ip = IpAddr::V4(ip);
         let handler = network_builder(Default::default())
             .with_gossip_address(Multiaddr::from(ip).with(libp2p::multiaddr::Protocol::Tcp(0)))
             .with_discovery_address(LocalNode::new(secret_key, ip, 0, 0))
@@ -369,7 +377,7 @@ mod tests {
             .expect("gossip listens on TCP");
         let enr = handler.discovery.unwrap().handler.local_enr().await.unwrap();
 
-        assert_eq!(enr.ip4(), None);
+        assert_eq!(enr.ip4(), advertised);
         assert_eq!(enr.tcp4(), Some(bound_tcp_port));
     }
 }

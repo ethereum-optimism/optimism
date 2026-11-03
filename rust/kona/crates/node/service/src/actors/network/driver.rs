@@ -1,5 +1,3 @@
-use std::net::{IpAddr, SocketAddr};
-
 use kona_disc::Discv5Driver;
 use kona_gossip::{ConnectionGater, GossipDriverStarter, PEER_SCORE_INSPECT_FREQUENCY, StartError};
 use libp2p::{Multiaddr, multiaddr::Protocol};
@@ -13,7 +11,9 @@ pub struct NetworkDriver {
     pub gossip: GossipDriverStarter<ConnectionGater>,
     /// The discovery driver, or `None` if discovery is disabled.
     pub discovery: Option<Discv5Driver>,
-    /// Whether to update the ENR socket after the libp2p Swarm is started.
+    /// Whether to advertise the TCP port gossip bound in the ENR, once the libp2p Swarm is
+    /// started. Only the port: the ENR's IP is the one it was built with, or none on all
+    /// interfaces.
     /// This is set to true by default.
     /// This may be set to false if the node is configured to use a static advertised address (when
     /// used with a nat for example).
@@ -29,6 +29,9 @@ pub enum NetworkDriverError {
     /// An error occurred parsing the gossip listen address.
     #[error("error parsing gossip listen address: {0}")]
     InvalidGossipListenAddr(Multiaddr),
+    /// The TCP port gossip bound could not be written into the local ENR.
+    #[error("error updating the local ENR: {0}")]
+    EnrUpdate(enr::Error),
 }
 
 impl NetworkDriver {
@@ -41,13 +44,14 @@ impl NetworkDriver {
         if self.enr_update &&
             let Some(discovery) = &mut self.discovery
         {
-            // Update the local ENR socket to the gossip listen address.
-            // Parse the multiaddr to a socket address.
-            let ip_address = gossip_listen_addr
+            // Advertise the TCP port gossip bound, which may have been 0 in the config. Not its
+            // IP: on all interfaces, libp2p reports one listen address per interface, and the
+            // first is arbitrary. The ENR keeps the IP it was built with, if any.
+            let key = gossip_listen_addr
                 .iter()
                 .find_map(|p| match p {
-                    Protocol::Ip4(ip) => Some(IpAddr::V4(ip)),
-                    Protocol::Ip6(ip) => Some(IpAddr::V6(ip)),
+                    Protocol::Ip4(_) => Some("tcp"),
+                    Protocol::Ip6(_) => Some("tcp6"),
                     _ => None,
                 })
                 .ok_or_else(|| {
@@ -63,7 +67,7 @@ impl NetworkDriver {
                     NetworkDriverError::InvalidGossipListenAddr(gossip_listen_addr.clone())
                 })?;
 
-            discovery.disc.update_local_enr_socket(SocketAddr::new(ip_address, port), true);
+            discovery.disc.enr_insert(key, &port).map_err(NetworkDriverError::EnrUpdate)?;
         }
 
         // Start the discovery service.

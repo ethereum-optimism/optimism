@@ -52,6 +52,9 @@ impl LocalNode {
     /// broadcast to the other nodes in the network. See
     /// [the op-node implementation](https://github.com/ethereum-optimism/optimism/blob/174e55f0a1e73b49b80a561fd3fedd4fea5770c6/op-node/p2p/discovery.go#L61-L97)
     /// for the go equivalent
+    ///
+    /// An unspecified IP (`0.0.0.0` or `::`) is left out: it is no address peers can reach, so
+    /// the record advertises only the ports until discovery learns its IP from peers.
     pub fn build_enr(self, chain_id: u64) -> Result<Enr, enr::Error> {
         let opstack = OpStackEnr::from_chain_id(chain_id);
         let mut opstack_data = Vec::new();
@@ -62,10 +65,16 @@ impl LocalNode {
         enr_builder.add_value_rlp(OpStackEnr::OP_CL_KEY, opstack_data.into());
         match self.ip {
             IpAddr::V4(addr) => {
-                enr_builder.ip4(addr).tcp4(self.tcp_port).udp4(self.udp_port);
+                if !addr.is_unspecified() {
+                    enr_builder.ip4(addr);
+                }
+                enr_builder.tcp4(self.tcp_port).udp4(self.udp_port);
             }
             IpAddr::V6(addr) => {
-                enr_builder.ip6(addr).tcp6(self.tcp_port).udp6(self.udp_port);
+                if !addr.is_unspecified() {
+                    enr_builder.ip6(addr);
+                }
+                enr_builder.tcp6(self.tcp_port).udp6(self.udp_port);
             }
         }
 
@@ -285,7 +294,8 @@ mod tests {
     use discv5::ConfigBuilder;
     use enr::CombinedKey;
     use kona_peers::EnrValidation;
-    use std::net::{IpAddr, Ipv4Addr};
+    use rstest::rstest;
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
     #[test]
     fn test_builds_valid_enr() {
@@ -307,6 +317,32 @@ mod tests {
         let driver = builder.build().unwrap();
         let enr = driver.disc.local_enr();
         assert!(EnrValidation::validate(&enr, 10).is_valid());
+    }
+
+    /// An unspecified IP is left out of the ENR, a specific one is advertised, and the ports are
+    /// advertised either way.
+    #[rstest]
+    #[case::ipv4_unspecified(IpAddr::V4(Ipv4Addr::UNSPECIFIED), None)]
+    #[case::ipv6_unspecified(IpAddr::V6(Ipv6Addr::UNSPECIFIED), None)]
+    #[case::ipv4_loopback(IpAddr::V4(Ipv4Addr::LOCALHOST), Some(IpAddr::V4(Ipv4Addr::LOCALHOST)))]
+    #[case::ipv6_loopback(IpAddr::V6(Ipv6Addr::LOCALHOST), Some(IpAddr::V6(Ipv6Addr::LOCALHOST)))]
+    fn test_build_enr_advertises_only_a_specific_ip(
+        #[case] ip: IpAddr,
+        #[case] advertised: Option<IpAddr>,
+    ) {
+        let CombinedKey::Secp256k1(k256_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+
+        let enr = LocalNode::new(k256_key, ip, 9098, 9099).build_enr(10).unwrap();
+
+        let (enr_ip, tcp, udp) = match ip {
+            IpAddr::V4(_) => (enr.ip4().map(IpAddr::V4), enr.tcp4(), enr.udp4()),
+            IpAddr::V6(_) => (enr.ip6().map(IpAddr::V6), enr.tcp6(), enr.udp6()),
+        };
+        assert_eq!(enr_ip, advertised);
+        assert_eq!(tcp, Some(9098));
+        assert_eq!(udp, Some(9099));
     }
 
     #[test]

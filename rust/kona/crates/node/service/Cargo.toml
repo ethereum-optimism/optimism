@@ -51,6 +51,7 @@ op-alloy-provider.workspace = true
 url.workspace = true
 libp2p = { workspace = true, features = ["metrics"] }
 discv5.workspace = true
+enr.workspace = true
 futures.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
@@ -77,7 +78,6 @@ alloy-json-rpc.workspace = true
 serde_json.workspace = true
 kona-engine = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true, features = ["test-util"] }
-enr.workspace = true
 rstest.workspace = true
 arbitrary.workspace = true
 rand.workspace = true
