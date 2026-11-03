@@ -473,8 +473,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         );
     }
 
-    /// @notice Returns the ZK_DISPUTE_GAME prestate enabled by the upgrade input, or zero when the
-    ///         upgrade leaves ZK_DISPUTE_GAME disabled.
+    /// @notice Returns the enabled ZK_DISPUTE_GAME prestate in the upgrade input, or zero.
     function _upgradeZKPrestate() internal view returns (bytes32) {
         IOPContractsManagerUtils.DisputeGameConfig[] memory configs = v2UpgradeInput.disputeGameConfigs;
         for (uint256 i = 0; i < configs.length; i++) {

@@ -149,7 +149,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         address proposer;
     }
 
-    /// @notice Struct containing the input parameters for the validation process when dev features are enabled.
+    /// @notice Validation input carrying the expected Cannon, Cannon-Kona and ZK prestates.
     struct ValidationInputDev {
         ISystemConfig sysCfg;
         bytes32 cannonPrestate;
@@ -873,13 +873,14 @@ contract OPContractsManagerStandardValidator is ISemver {
         return address(IDisputeGameFactory(_sysCfg.disputeGameFactory()).gameImpls(_gameType)) != address(0);
     }
 
-    /// @notice Validates the configuration of the L1 contracts.
+    /// @notice Validates the configuration of the L1 contracts. Passes zero Cannon-Kona and ZK
+    ///         prestates, so chains registering those games report their prestate errors.
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
         ValidationInputDev memory devInput = _toValidationInputDev(_input);
         return validate(devInput, _allowFailure);
     }
 
-    /// @notice Validates the configuration of the L1 contracts when dev features are enabled.
+    /// @notice Validates the configuration of the L1 contracts against the given prestates.
     function validate(ValidationInputDev memory _input, bool _allowFailure) public view returns (string memory) {
         return validateWithOverrides(
             _input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) })
@@ -887,7 +888,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
-    /// the ValidationOverrides struct.
+    /// the ValidationOverrides struct. Passes zero Cannon-Kona and ZK prestates.
     function validateWithOverrides(
         ValidationInput memory _input,
         bool _allowFailure,
@@ -902,7 +903,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
-    /// the ValidationOverrides struct. Includes validation fields relevant for dev features.
+    /// the ValidationOverrides struct.
     function validateWithOverrides(
         ValidationInputDev memory _input,
         bool _allowFailure,
@@ -1026,7 +1027,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         return finalErrors;
     }
 
-    /// @notice Transforms current ValidationInput structs into the dev feature format.
+    /// @notice Converts a ValidationInput into a ValidationInputDev with zero Cannon-Kona and ZK
+    ///         prestates.
     function _toValidationInputDev(ValidationInput memory _input) internal pure returns (ValidationInputDev memory) {
         return ValidationInputDev({
             sysCfg: _input.sysCfg,
@@ -1069,7 +1071,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
     }
 
-    /// @notice Validates the decoded ZK game args against the chain config.
+    /// @notice Validates the decoded ZK game args against the chain config and the expected ZK
+    ///         prestate.
     function _assertValidZKGameArgs(
         string memory _errors,
         ISystemConfig _sysCfg,

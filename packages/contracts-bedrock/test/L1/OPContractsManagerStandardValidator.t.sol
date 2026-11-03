@@ -2412,8 +2412,7 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is OPContractsMan
         assertEq("ZKDG-150", _validate(true));
     }
 
-    /// @notice Tests ZKDG-70 when the absolutePrestate encoded in the ZK game args differs from the
-    ///         expected zkPrestate.
+    /// @notice Tests ZKDG-70 when the ZK game args' absolutePrestate differs from zkPrestate.
     function test_validate_zkDisputeGameWrongAbsolutePrestate_succeeds() public {
         // absolutePrestate occupies bytes [0-31] of the packed ZK args.
         DisputeGames.mockZKGameArg(
@@ -2608,7 +2607,7 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is OPContractsMan
 /// @title OPContractsManagerStandardValidator_ValidateInterop_Test
 /// @notice Tests ordinary validation of members with distinct chain admins and shared interop contracts.
 contract OPContractsManagerStandardValidator_ValidateInterop_Test is OPContractsManagerMigrationValidator_TestInit {
-    /// @notice The ZK_DISPUTE_GAME absolute prestate used when an upgrade registers the ZK game.
+    /// @notice The ZK prestate that _upgradeMemberWithZK registers and _validationInput expects.
     Claim internal zkPrestate = Claim.wrap(bytes32(keccak256("zkPrestate")));
 
     /// @notice Both members must validate immediately after migration, including the non-first member.
