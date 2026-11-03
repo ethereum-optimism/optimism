@@ -68,6 +68,138 @@ async fn reset_adopts_safe_head_and_resumes_atomically(#[case] previous_head: u6
     assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingL1Data);
 }
 
+/// A temporary reset failure, as when an L1 or L2 RPC is unavailable. Unlike `Eof`, which the
+/// real pipeline treats as a completed stage reset, it leaves the reset unapplied.
+fn unavailable() -> PipelineErrorKind {
+    PipelineError::Provider("RPC unavailable".into()).temp()
+}
+
+/// The update that resumes derivation after a failed reset.
+#[derive(Debug, Clone, Copy)]
+enum Resume {
+    L1Head,
+    ElSync,
+}
+
+/// A failed pipeline reset still adopts the engine's reset head, but the pipeline is not stepped
+/// until a retried reset succeeds. The update that would resume derivation retries the reset
+/// first, and a retry that fails again waits for the next L1 head.
+#[rstest]
+#[case::unchanged(RESUME_HEAD, Resume::L1Head, false)]
+#[case::rewound(DERIVED_HEAD, Resume::L1Head, false)]
+#[case::before_el_sync(RESUME_HEAD, Resume::ElSync, false)]
+#[case::retry_fails(RESUME_HEAD, Resume::L1Head, true)]
+#[case::retry_fails_before_el_sync(RESUME_HEAD, Resume::ElSync, true)]
+#[tokio::test]
+async fn failed_reset_is_retried_before_deriving(
+    #[case] previous_head: u64,
+    #[case] resume: Resume,
+    #[case] retry_fails: bool,
+) {
+    let before_el_sync = matches!(resume, Resume::ElSync);
+    let (derivation_origin_tx, derivation_origin_rx) = watch::channel(None);
+    let (request_tx, request_rx) = mpsc::channel(1);
+    let origin = l1_block(100);
+    let mut actor = DerivationActor::new(
+        MockDerivationEngineClient::new(),
+        request_rx,
+        StubPipeline {
+            rollup_config: Arc::new(RollupConfig::default()),
+            origin,
+            step_result: StepResult::StepFailed(PipelineError::Eof.temp()),
+            reset_error: None,
+        },
+        None,
+        l1_block(0).id(),
+        derivation_origin_tx,
+    );
+    let request = |resume| match resume {
+        Resume::L1Head => {
+            DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::new(l1_block(DERIVED_FROM_L1)))
+        }
+        Resume::ElSync => DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(
+            l2_block(previous_head),
+        )),
+    };
+    if !before_el_sync {
+        request_tx.send(request(Resume::ElSync)).await.unwrap();
+        actor.step().await.unwrap();
+    }
+
+    actor.pipeline.step_result = StepResult::AdvancedOrigin;
+    actor.pipeline.reset_error = Some(unavailable());
+    request_tx
+        .send(DerivationActorRequest::ProcessEngineSignalRequest(Box::new(Signal::Reset(
+            kona_derive::ResetSignal { l2_safe_head: l2_block(RESUME_HEAD) },
+        ))))
+        .await
+        .unwrap();
+    actor.step().await.unwrap();
+    let state = if before_el_sync {
+        DerivationState::AwaitingELSyncCompletion
+    } else {
+        DerivationState::AwaitingL1Data
+    };
+    assert_eq!(actor.derivation_state_machine.current_state(), state);
+    assert_eq!(actor.derivation_state_machine.last_confirmed_safe_head(), l2_block(RESUME_HEAD));
+    assert_eq!(actor.pipeline.origin, origin);
+    assert!(matches!(actor.pipeline.step_result, StepResult::AdvancedOrigin));
+    assert!(derivation_origin_rx.borrow().is_none());
+
+    let resume = if retry_fails {
+        actor.pipeline.reset_error = Some(unavailable());
+        request_tx.send(request(resume)).await.unwrap();
+        actor.step().await.unwrap();
+        assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingL1Data);
+        assert_eq!(actor.pipeline.origin, origin);
+        assert!(matches!(actor.pipeline.step_result, StepResult::AdvancedOrigin));
+        assert!(derivation_origin_rx.borrow().is_none());
+        Resume::L1Head
+    } else {
+        resume
+    };
+
+    // Each `reset_error` fails a single reset, so this retry succeeds.
+    request_tx.send(request(resume)).await.unwrap();
+    actor.step().await.unwrap();
+    assert_eq!(actor.derivation_state_machine.current_state(), DerivationState::AwaitingL1Data);
+    assert_eq!(actor.pipeline.origin.number, l2_block(RESUME_HEAD).l1_origin.number + 1);
+    assert_eq!(*derivation_origin_rx.borrow(), Some(actor.pipeline.origin));
+}
+
+/// A critical pipeline reset error cannot be retried, so it stops the actor, as in op-node.
+#[tokio::test]
+async fn critical_reset_error_is_fatal() {
+    let (request_tx, request_rx) = mpsc::channel(1);
+    let mut actor = DerivationActor::new(
+        MockDerivationEngineClient::new(),
+        request_rx,
+        StubPipeline {
+            rollup_config: Arc::new(RollupConfig::default()),
+            origin: l1_block(100),
+            step_result: StepResult::StepFailed(PipelineError::Eof.temp()),
+            reset_error: Some(PipelineError::Provider("corrupted data".into()).crit()),
+        },
+        None,
+        l1_block(0).id(),
+        watch::channel(None).0,
+    );
+    request_tx
+        .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(l2_block(
+            RESUME_HEAD,
+        ))))
+        .await
+        .unwrap();
+    actor.step().await.unwrap();
+    request_tx
+        .send(DerivationActorRequest::ProcessEngineSignalRequest(Box::new(Signal::Reset(
+            kona_derive::ResetSignal { l2_safe_head: l2_block(RESUME_HEAD) },
+        ))))
+        .await
+        .unwrap();
+    assert!(actor.step().await.is_err());
+}
+
 /// An L1 update following reset cannot make a delayed reset acknowledgement consume the newly
 /// derived block's outstanding confirmation or its safe-head database record.
 #[tokio::test]
@@ -292,7 +424,7 @@ async fn test_non_reset_signal_does_not_publish_uninitialized_origin(#[case] sig
         derivation_origin_tx,
     );
 
-    actor.signal(signal).await.unwrap();
+    assert!(actor.signal(signal).await.unwrap());
     assert!(derivation_origin_rx.borrow().is_none());
     assert!(matches!(actor.produce_next_attributes().await, Err(DerivationError::Yield)));
     assert_eq!(actor.pipeline.origin.number, 1);
@@ -333,26 +465,27 @@ async fn test_failed_reset_keeps_origin_unpublished_until_successful_reset(#[cas
     assert_eq!(derivation_origin_rx.borrow().map(|origin| origin.id()), Some(safe_head.l1_origin));
 
     // A reset can fail before it replaces the old origin, for example on an L2 RPC error.
-    actor.pipeline.reset_error = Some(PipelineError::Eof.temp());
+    actor.pipeline.reset_error = Some(unavailable());
     request_tx.send(reset()).await.unwrap();
     actor.step().await.unwrap();
     assert_eq!(actor.pipeline.origin.id(), safe_head.l1_origin);
     assert!(derivation_origin_rx.borrow().is_none());
 
-    // Neither a successful non-reset signal nor a step makes that origin valid again.
+    // A successful non-reset signal does not make that origin valid again.
     request_tx
         .send(DerivationActorRequest::ProcessEngineSignalRequest(Box::new(signal)))
         .await
         .unwrap();
     actor.step().await.unwrap();
     assert!(derivation_origin_rx.borrow().is_none());
+    // EL sync completion retries the failed reset before stepping, which publishes the origin.
     request_tx
         .send(DerivationActorRequest::ProcessEngineSyncCompletionRequest(Box::new(safe_head)))
         .await
         .unwrap();
     actor.step().await.unwrap();
-    assert_eq!(actor.pipeline.origin.number, 11);
-    assert!(derivation_origin_rx.borrow().is_none());
+    assert_eq!(actor.pipeline.origin.number, safe_head.l1_origin.number + 1);
+    assert_eq!(*derivation_origin_rx.borrow(), Some(actor.pipeline.origin));
 
     request_tx.send(reset()).await.unwrap();
     actor.step().await.unwrap();
@@ -366,6 +499,8 @@ struct QueuedPipeline {
     attributes: VecDeque<OpAttributesWithParent>,
     derived_from: BlockInfo,
     rollup_config: Arc<RollupConfig>,
+    /// How many of the next resets fail, as when an RPC is unavailable.
+    reset_failures: usize,
 }
 
 impl Iterator for QueuedPipeline {
@@ -386,6 +521,10 @@ impl kona_derive::OriginProvider for QueuedPipeline {
 impl SignalReceiver for QueuedPipeline {
     async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
         if matches!(signal, Signal::Reset(_)) {
+            if self.reset_failures > 0 {
+                self.reset_failures -= 1;
+                return Err(unavailable());
+            }
             self.attributes.push_back(derived_attributes());
         }
         Ok(())
@@ -481,6 +620,7 @@ impl RecordingActor {
             attributes: VecDeque::from([derived_attributes()]),
             derived_from: l1_block(DERIVED_FROM_L1),
             rollup_config: Arc::new(RollupConfig::default()),
+            reset_failures: 0,
         };
         let (request_tx, request_rx) = mpsc::channel(1);
         let actor = DerivationActor::new(
@@ -556,6 +696,34 @@ async fn a_reset_with_no_earlier_history_leaves_the_database_empty() {
     node.reset_to_resume_head().await;
 
     assert!(matches!(node.db.last_entry(), Err(SafeDbError::NotFound)));
+}
+
+/// While a failed pipeline reset is pending, the database keeps the history truncated to the
+/// reset head. Once the retry succeeds, the re-derived block is recorded against its derivation
+/// source.
+#[tokio::test]
+async fn a_failed_reset_records_nothing_until_its_retry_succeeds() {
+    let mut node = RecordingActor::new(engine_client_accepting_attributes());
+    node.db.safe_head_updated(l2_block(RESUME_HEAD - 10), l1_block(EARLIEST_L1).id()).unwrap();
+    node.db.safe_head_updated(l2_block(RESUME_HEAD), l1_block(EARLIER_L1).id()).unwrap();
+    node.derive_and_confirm_one_block().await;
+    let truncated = record(EARLIER_L1, RESUME_HEAD);
+
+    node.actor.pipeline.reset_failures = 1;
+    node.reset_to_resume_head().await;
+    assert_eq!(node.db.last_entry().unwrap(), truncated);
+
+    node.handle(DerivationActorRequest::ProcessL1HeadUpdateRequest(Box::new(l1_block(
+        DERIVED_FROM_L1 + 1,
+    ))))
+    .await;
+    assert_eq!(
+        node.actor.derivation_state_machine.current_state(),
+        DerivationState::AwaitingSafeHeadConfirmation
+    );
+    assert_eq!(node.db.last_entry().unwrap(), truncated);
+    node.confirm_safe_head(DERIVED_HEAD).await;
+    assert_eq!(node.db.last_entry().unwrap(), record(DERIVED_FROM_L1, DERIVED_HEAD));
 }
 
 /// With history below the reset point, everything from the entry where the reset head first

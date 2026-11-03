@@ -9,7 +9,7 @@ use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, PipelineResult, ResetError,
-    Signal, SignalReceiver, StepResult,
+    ResetSignal, Signal, SignalReceiver, StepResult,
 };
 use kona_engine::FinalizeBlockId;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
@@ -48,6 +48,8 @@ where
     l1_block_zero: BlockNumHash,
     /// The attributes sent to the engine and not yet confirmed as a safe head.
     pub(super) attributes_awaiting_confirmation: Option<OpAttributesWithParent>,
+    /// A reset from the engine that the pipeline has not yet applied.
+    pending_reset: Option<ResetSignal>,
 }
 
 impl<DerivationEngineClient_, PipelineSignalReceiver>
@@ -75,18 +77,16 @@ where
             safe_db,
             l1_block_zero,
             attributes_awaiting_confirmation: None,
+            pending_reset: None,
         }
     }
 
-    /// Handles a [`Signal`] received over the derivation signal receiver channel.
-    pub(super) async fn signal(&mut self, signal: Signal) -> Result<(), DerivationError> {
+    /// Passes a [`Signal`] to the pipeline and reports whether the pipeline applied it. A failed
+    /// signal can be retried, unless the pipeline reports a critical error, which is returned.
+    pub(super) async fn signal(&mut self, signal: Signal) -> Result<bool, DerivationError> {
         let result = match signal {
-            Signal::Reset(reset) => {
-                self.derivation_origin_tx.send_replace(None);
-                self.finalizer.clear();
-                self.attributes_awaiting_confirmation = None;
-                self.truncate_safe_db(reset.l2_safe_head, "engine reset")?;
-                let result = self.pipeline.signal(Signal::Reset(reset)).await;
+            Signal::Reset(_) => {
+                let result = self.pipeline.signal(signal).await;
                 if result.is_ok() {
                     self.derivation_origin_tx.send_replace(self.pipeline.origin());
                 }
@@ -95,13 +95,57 @@ where
             Signal::Activation(activation) => self.signal_activation(activation).await,
             Signal::FlushChannel => self.signal_flush_channel().await,
         };
-        match result {
-            Ok(()) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
-            Err(e) => {
-                error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline")
+        let applied = match result {
+            Ok(()) => {
+                info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully");
+                true
             }
-        }
+            Err(e) => {
+                error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline");
+                if matches!(e, PipelineErrorKind::Critical(_)) {
+                    metrics::counter!(Metrics::DERIVATION_CRITICAL_ERROR).increment(1);
+                    return Err(e.into());
+                }
+                false
+            }
+        };
         self.publish_origin();
+        Ok(applied)
+    }
+
+    /// Handles a reset to the engine's reset head. Clearing derived state happens once, here,
+    /// while [`Self::apply_pending_reset`] retries a failed pipeline reset.
+    async fn handle_reset(&mut self, reset: ResetSignal) -> Result<(), DerivationError> {
+        self.derivation_origin_tx.send_replace(None);
+        self.finalizer.clear();
+        self.attributes_awaiting_confirmation = None;
+        self.truncate_safe_db(reset.l2_safe_head, "engine reset")?;
+        self.pending_reset = Some(reset);
+        self.derivation_state_machine.update(&DerivationStateUpdate::SignalProcessed)?;
+        // The engine is already at the reset head, so adopt it and resume in this request, even
+        // if the pipeline reset fails. A separate confirmation could arrive after an L1 update
+        // has already resumed derivation.
+        self.derivation_state_machine
+            .update(&DerivationStateUpdate::NewAttributesConfirmed(Box::new(reset.l2_safe_head)))?;
+        if self.derivation_state_machine.current_state() ==
+            DerivationState::AwaitingELSyncCompletion
+        {
+            // There is no derivation to resume before EL sync completes, so reset the pipeline
+            // now. EL sync completion retries the reset if it fails.
+            self.apply_pending_reset().await?;
+            return Ok(());
+        }
+        self.attempt_derivation().await
+    }
+
+    /// Applies the pending pipeline reset, if any. A failed reset stays pending so that the next
+    /// attempt retries it.
+    async fn apply_pending_reset(&mut self) -> Result<(), DerivationError> {
+        if let Some(reset) = self.pending_reset &&
+            self.signal(Signal::Reset(reset)).await?
+        {
+            self.pending_reset = None;
+        }
         Ok(())
     }
 
@@ -218,21 +262,15 @@ where
     ) -> Result<(), DerivationError> {
         match request_type {
             DerivationActorRequest::ProcessEngineSignalRequest(signal) => {
-                self.signal(*signal).await?;
-                // A channel flush leaves the outstanding engine confirmation pending.
-                if !matches!(*signal, Signal::FlushChannel) {
-                    self.derivation_state_machine
-                        .update(&DerivationStateUpdate::SignalProcessed)?;
-                }
                 if let Signal::Reset(reset) = *signal {
-                    // Adopt the reset head and resume in this request. A separate confirmation
-                    // could arrive after an L1 update has already resumed derivation.
-                    self.derivation_state_machine.update(
-                        &DerivationStateUpdate::NewAttributesConfirmed(Box::new(
-                            reset.l2_safe_head,
-                        )),
-                    )?;
-                    self.attempt_derivation().await?;
+                    self.handle_reset(reset).await?;
+                } else {
+                    self.signal(*signal).await?;
+                    // A channel flush leaves the outstanding engine confirmation pending.
+                    if !matches!(*signal, Signal::FlushChannel) {
+                        self.derivation_state_machine
+                            .update(&DerivationStateUpdate::SignalProcessed)?;
+                    }
                 }
             }
             DerivationActorRequest::ProcessFinalizedL1Block(finalized_l1_block) => {
@@ -267,6 +305,11 @@ where
                 self.derivation_state_machine
                     .update(&DerivationStateUpdate::ELSyncCompleted(safe_head.clone()))?;
                 self.truncate_safe_db(*safe_head, "EL sync completion")?;
+                // A reset that failed before EL sync completed is retried from the head derivation
+                // now resumes from, so the pipeline and the safe head database agree.
+                if let Some(reset) = &mut self.pending_reset {
+                    reset.l2_safe_head = *safe_head;
+                }
 
                 self.attempt_derivation().await?;
             }
@@ -359,6 +402,13 @@ where
     async fn attempt_derivation(&mut self) -> Result<(), DerivationError> {
         if self.derivation_state_machine.current_state() != DerivationState::Deriving {
             info!(target: "derivation", derivation_state=?self.derivation_state_machine, "Skipping derivation.");
+            return Ok(());
+        }
+        self.apply_pending_reset().await?;
+        if self.pending_reset.is_some() {
+            // Like op-node, never step a pipeline whose reset failed. Unlike op-node, which
+            // retries with backoff, wait for the next L1 head to retry.
+            self.derivation_state_machine.update(&DerivationStateUpdate::MoreDataNeeded)?;
             return Ok(());
         }
 
