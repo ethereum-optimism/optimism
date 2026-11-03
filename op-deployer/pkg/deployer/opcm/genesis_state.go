@@ -102,7 +102,11 @@ func (g *GenesisState) run(client *forge.Client, writes bool, fn func(client *fo
 	if err := jsonutil.WriteJSON(in, ioutil.ToBasicFile(stateIn, 0o644)); err != nil {
 		return fmt.Errorf("failed to write the genesis state: %w", err)
 	}
-	env := []string{"OP_DEPLOYER_STATE_IN=" + stateIn}
+	// forge isolates the top-level calls of a script unless the config turns it off, and the
+	// contracts bundle turns it on for its tests. An isolated call runs as a transaction, so a call
+	// that the script pranks bumps the nonce of the pranked address, such as the L2 depositor, and
+	// leaves it in the state. The Go script host does not isolate calls.
+	env := []string{"OP_DEPLOYER_STATE_IN=" + stateIn, "FOUNDRY_ISOLATE=false"}
 	if writes {
 		env = append(env, "OP_DEPLOYER_STATE_OUT="+stateOut, "OP_DEPLOYER_SENDER_OUT="+senderOut)
 	}

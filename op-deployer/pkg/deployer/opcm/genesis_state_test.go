@@ -21,9 +21,44 @@ import (
 func TestGenesisStateReadOnlyBundle(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
+	client := newGenesisTestClient(ctx, t, "")
+	project := client.Wd
 
+	before := listTree(t, project)
+	t.Cleanup(func() { setTreeWritable(t, project, true) })
+	setTreeWritable(t, project, false)
+
+	genesis := NewGenesisState(common.Address{0x5e}, false)
+	env := &ForgeEnv{Client: client, Context: ctx, Genesis: genesis}
+	_, err := broadcastScript(env, genesisTestCaller("Genesis"), 0)
+	require.NoError(t, err)
+
+	require.Equal(t, big.NewInt(5), genesis.Allocs.Accounts[common.Address{0x12, 0x34}].Balance)
+	require.Equal(t, before, listTree(t, project), "the run wrote into the bundle")
+}
+
+// TestGenesisStateWithoutIsolation runs a genesis script in a bundle that turns on forge's call
+// isolation, as the contracts bundle does for its tests. A pranked top-level call must not leave
+// the pranked address in the state, as it does not on the Go script host.
+func TestGenesisStateWithoutIsolation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	client := newGenesisTestClient(ctx, t, "isolate = true\n")
+
+	genesis := NewGenesisState(common.Address{0x5e}, false)
+	env := &ForgeEnv{Client: client, Context: ctx, Genesis: genesis}
+	_, err := broadcastScript(env, genesisTestCaller("GenesisPrank"), 0)
+	require.NoError(t, err)
+
+	require.NotContains(t, genesis.Allocs.Accounts, common.Address{0x56, 0x78})
+}
+
+// newGenesisTestClient builds a forge project with the test scripts and config appended to its
+// default profile.
+func newGenesisTestClient(ctx context.Context, t *testing.T, config string) *forge.Client {
+	t.Helper()
 	project := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(project, "foundry.toml"), []byte("[profile.default]\nsolc_version = '0.8.15'\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(project, "foundry.toml"), []byte("[profile.default]\nsolc_version = '0.8.15'\n"+config), 0o644))
 	require.NoError(t, os.Mkdir(filepath.Join(project, "script"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(project, "script", "Genesis.s.sol"), []byte(genesisTestScript), 0o644))
 	client, err := forge.NewStandardClient(project)
@@ -31,25 +66,17 @@ func TestGenesisStateReadOnlyBundle(t *testing.T) {
 	client.Stdout, client.Stderr = io.Discard, io.Discard
 	require.NoError(t, client.Build(ctx))
 	client.FsPermissions = []forge.FsPermission{{Access: "read", Path: "./out/"}}
+	return client
+}
 
-	before := listTree(t, project)
-	t.Cleanup(func() { setTreeWritable(t, project, true) })
-	setTreeWritable(t, project, false)
-
-	sender := common.Address{0x5e}
-	genesis := NewGenesisState(sender, false)
-	env := &ForgeEnv{Client: client, Context: ctx, Genesis: genesis}
-	caller := func(c *forge.Client) forge.ScriptCaller[byte, forge.None] {
+// genesisTestCaller calls runWithBytes of a contract of the test scripts.
+func genesisTestCaller(contract string) newScriptCaller[byte, forge.None] {
+	return func(c *forge.Client) forge.ScriptCaller[byte, forge.None] {
 		return func(ctx context.Context, input byte, opts ...string) (forge.None, []forge.Transaction, error) {
-			_, txs, err := c.RunScript(ctx, "script/Genesis.s.sol:Genesis", "runWithBytes(bytes)", []byte{input}, opts...)
+			_, txs, err := c.RunScript(ctx, "script/Genesis.s.sol:"+contract, "runWithBytes(bytes)", []byte{input}, opts...)
 			return forge.None{}, txs, err
 		}
 	}
-	_, err = broadcastScript(env, caller, 0)
-	require.NoError(t, err)
-
-	require.Equal(t, big.NewInt(5), genesis.Allocs.Accounts[common.Address{0x12, 0x34}].Balance)
-	require.Equal(t, before, listTree(t, project), "the run wrote into the bundle")
 }
 
 // listTree returns the paths under dir.
@@ -88,16 +115,34 @@ interface Vm {
     function writeFile(string calldata path, string calldata data) external;
     function toString(uint256 value) external pure returns (string memory);
     function getNonce(address account) external view returns (uint64);
+    function prank(address sender) external;
 }
-contract Genesis {
+contract Target {
+    function poke() external {}
+}
+contract GenesisBase {
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-    function runWithBytes(bytes calldata) external returns (bytes memory) {
-        vm.deal(address(0x1234000000000000000000000000000000000000), 5);
+    function dump() internal {
         vm.dumpState(vm.envString("OP_DEPLOYER_STATE_OUT"));
         vm.writeFile(vm.envString("OP_DEPLOYER_SENDER_OUT"), string.concat(
             '{"nonce":"', vm.toString(uint256(vm.getNonce(msg.sender))),
             '","balance":"', vm.toString(msg.sender.balance), '"}'
         ));
+    }
+}
+contract Genesis is GenesisBase {
+    function runWithBytes(bytes calldata) external returns (bytes memory) {
+        vm.deal(address(0x1234000000000000000000000000000000000000), 5);
+        dump();
+        return "";
+    }
+}
+contract GenesisPrank is GenesisBase {
+    function runWithBytes(bytes calldata) external returns (bytes memory) {
+        Target target = new Target();
+        vm.prank(address(0x5678000000000000000000000000000000000000));
+        target.poke();
+        dump();
         return "";
     }
 }
