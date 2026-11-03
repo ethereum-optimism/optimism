@@ -48,6 +48,35 @@ const EVENT_STREAM_MAX_ATTEMPTS: u32 = 10;
 /// The delay between attempts to start the [`Discv5`] event stream.
 const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
 
+/// Returns the record a discovery event brings, with the event's name for metrics and logs, if the
+/// driver forwards it to gossip, which dials it, and saves it in the bootstore. Only a record valid
+/// for `chain_id` is forwarded, from these events:
+///
+/// - `Discovered`: a record in another node's answer to one of our lookups. discv5 sends it for
+///   every record in the answer, before it applies its table filter or checks that the record has
+///   an address to contact, so the record may not be live or reachable. It is forwarded because
+///   that is how gossip learns about nodes we have no session with.
+///
+///   TODO(#23766): a record from another node may hold an address we can't reach, such as that
+///   node's loopback or LAN address.
+/// - `SessionEstablished`: a session with the node started, in either direction, and discv5 checked
+///   that its record's UDP address, if it has one, is the one its packets came from. The node is
+///   live, and reachable at its record's address, so this is the record most worth forwarding.
+/// - `UnverifiableEnr`: a node started a session with us, but its record's UDP address is not the
+///   one its packets came from. discv5 keeps the session but leaves the node out of its table. It
+///   is forwarded because the record's address may still be reachable: a NAT may have rewritten the
+///   address the packets came from, while the record holds the one forwarded to the node. The
+///   record may also be wrong, or hold an address the node can't be reached at.
+fn forwarded_record(event: discv5::Event, chain_id: u64) -> Option<(&'static str, Enr)> {
+    let (kind, enr) = match event {
+        discv5::Event::Discovered(enr) => ("discovered", enr),
+        discv5::Event::SessionEstablished(enr, _) => ("session_established", enr),
+        discv5::Event::UnverifiableEnr { enr, .. } => ("unverifiable_enr", enr),
+        _ => return None,
+    };
+    EnrValidation::validate(&enr, chain_id).is_valid().then_some((kind, enr))
+}
+
 /// The [`Discv5Driver`] drives the discovery service.
 ///
 /// Calling [`Discv5Driver::start`] spawns a new [`Discv5`]
@@ -380,41 +409,16 @@ impl Discv5Driver {
                             error!(target: "discovery", "Discv5 event stream ended, stopping discovery");
                             return;
                         };
-                        match event {
-                            discv5::Event::Discovered(enr) if EnrValidation::validate(&enr, chain_id).is_valid() => {
-                                debug!(target: "discovery", "Valid ENR discovered, forwarding to swarm: {:?}", enr);
-                                metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "discovered").increment(1);
-                                store.add_enr(enr.clone());
-                                let sender = enr_sender.clone();
-                                spawn_in_current_span(async move {
-                                    if let Err(e) = sender.send(enr).await {
-                                        debug!(target: "discovery", "Failed to send enr: {:?}", e);
-                                    }
-                                });
-                            }
-                            discv5::Event::SessionEstablished(enr, addr) if EnrValidation::validate(&enr, chain_id).is_valid() => {
-                                debug!(target: "discovery", "Session established with valid ENR, forwarding to swarm. Address: {:?}, ENR: {:?}", addr, enr);
-                                metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "session_established").increment(1);
-                                store.add_enr(enr.clone());
-                                let sender = enr_sender.clone();
-                                spawn_in_current_span(async move {
-                                    if let Err(e) = sender.send(enr).await {
-                                        debug!(target: "discovery", "Failed to send enr: {:?}", e);
-                                    }
-                                });
-                            }
-                            discv5::Event::UnverifiableEnr { enr, .. } if EnrValidation::validate(&enr, chain_id).is_valid() => {
-                                debug!(target: "discovery", "Valid ENR discovered, forwarding to swarm: {:?}", enr);
-                                metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "unverifiable_enr").increment(1);
-                                store.add_enr(enr.clone());
-                                let sender = enr_sender.clone();
-                                spawn_in_current_span(async move {
-                                    if let Err(e) = sender.send(enr).await {
-                                        debug!(target: "discovery", "Failed to send enr: {:?}", e);
-                                    }
-                                });
-                            }
-                            _ => {}
+                        if let Some((kind, enr)) = forwarded_record(event, chain_id) {
+                            debug!(target: "discovery", event = kind, ?enr, "Valid ENR, forwarding to swarm");
+                            metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
+                            store.add_enr(enr.clone());
+                            let sender = enr_sender.clone();
+                            spawn_in_current_span(async move {
+                                if let Err(e) = sender.send(enr).await {
+                                    debug!(target: "discovery", "Failed to send enr: {:?}", e);
+                                }
+                            });
                         }
                     }
                     _ = interval.tick() => {
@@ -498,6 +502,51 @@ mod tests {
         .expect("Failed to build discovery service");
         let (handle, _) = discovery.start();
         assert_eq!(handle.chain_id, OP_SEPOLIA_CHAIN_ID);
+    }
+
+    /// A record of a new node on `127.0.0.1`, for `chain_id`.
+    fn record(chain_id: u64) -> Enr {
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 9222, 9223)
+            .build_enr(chain_id)
+            .expect("a node's own ENR builds")
+    }
+
+    /// The socket a session in these tests is with.
+    const SOCKET: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9223);
+
+    /// The driver forwards the record a discovery, a session or an unverifiable record brings, if
+    /// it is for the driver's chain, and nothing for other events.
+    #[rstest]
+    #[case::discovered(discv5::Event::Discovered, Some("discovered"))]
+    #[case::session_established(
+        |enr| discv5::Event::SessionEstablished(enr, SOCKET),
+        Some("session_established")
+    )]
+    #[case::unverifiable_enr(
+        |enr: Enr| discv5::Event::UnverifiableEnr { node_id: enr.node_id(), enr, socket: SOCKET },
+        Some("unverifiable_enr")
+    )]
+    #[case::node_inserted(
+        |enr: Enr| discv5::Event::NodeInserted { node_id: enr.node_id(), replaced: None },
+        None
+    )]
+    fn test_forwarded_record(
+        #[case] event: impl Fn(Enr) -> discv5::Event,
+        #[case] expected: Option<&str>,
+    ) {
+        let enr = record(OP_SEPOLIA_CHAIN_ID);
+        assert_eq!(
+            forwarded_record(event(enr.clone()), OP_SEPOLIA_CHAIN_ID),
+            expected.map(|kind| (kind, enr))
+        );
+        assert_eq!(
+            forwarded_record(event(record(OP_MAINNET_CHAIN_ID)), OP_SEPOLIA_CHAIN_ID),
+            None,
+            "a record for another chain is never forwarded"
+        );
     }
 
     /// Builds a driver listening on localhost that does not contact any remote peer.
