@@ -78,7 +78,6 @@ Many configuration options can be set via environment variables:
 - `KONA_NODE_L1_BEACON` - L1 beacon API URL
 - `KONA_NODE_VERIFIER_L1_CONFS` - L1 confirmation depth before deriving L2 data (default: 0)
 - `KONA_NODE_L2_ENGINE_RPC` - L2 engine API URL
-- `KONA_NODE_L2_TRUST_RPC` - Whether to trust the L2 RPC without verification (default: true)
 - `KONA_NODE_L2_ENGINE_AUTH` - Path to L2 engine JWT secret file
 - `KONA_NODE_MODE` - Node operation mode (default: validator)
 - `RUST_LOG` - Logging configuration
@@ -122,23 +121,23 @@ kona-node node --help
 
 ### RPC Trust Configuration
 
-Kona defaults to verifying L1 RPC responses (`--l1-trust-rpc=false`) and trusting the local L2 engine (`--l2-trust-rpc=true`), matching op-node. Verification checks each L1 header against its block hash, and each block's transactions and receipts against the header's transactions and receipts roots. It also proves the unsafe block signer it reads from L1 with `eth_getProof`, so the L1 RPC must serve that method. To retain the previous L1 trust behavior, set `--l1-trust-rpc=true` or `KONA_NODE_L1_TRUST_RPC=true`. Both settings accept a space-separated value (such as `--l1-trust-rpc false`) or an equals sign (`--l1-trust-rpc=false`). A bare flag enables trust. Both settings can be configured explicitly:
+Kona defaults to verifying L1 RPC responses (`--l1-trust-rpc=false`), matching op-node. Verification checks each L1 header against its block hash, and each block's transactions and receipts against the header's transactions and receipts roots. It also proves the unsafe block signer it reads from L1 with `eth_getProof`, so the L1 RPC must serve that method. To retain the previous L1 trust behavior, set `--l1-trust-rpc=true` or `KONA_NODE_L1_TRUST_RPC=true`. The setting accepts a space-separated value (such as `--l1-trust-rpc false`) or an equals sign (`--l1-trust-rpc=false`). A bare flag enables trust. It can be configured explicitly:
 
 ```bash
-# For untrusted/public RPC providers (adds verification)
+# For untrusted/public L1 RPC providers (adds verification)
 kona-node node \
   --l1 https://public-rpc-endpoint.com \
   --l1-trust-rpc=false \
-  --l2 https://another-public-rpc.com \
-  --l2-trust-rpc=false \
   # ... other options
 ```
 
+The L2 engine is the node's own execution client and is always trusted, as in op-node: there is no `--l2-trust-rpc` flag.
+
 **Security Considerations:**
-- Trust mode (`true`): No additional block hash verification, assumes RPC is trustworthy
-- Verification mode (`false`): Enables block hash verification
-- Use verification (`false`) for public or third-party RPC endpoints
-- Trust mode (`true`) is suitable for local nodes and trusted infrastructure
+- Trust mode (`true`): L1 RPC responses are used as returned, assumes the L1 RPC is trustworthy
+- Verification mode (`false`): checks L1 headers, transactions, receipts and the unsafe block signer proof
+- Use verification (`false`) for public or third-party L1 RPC endpoints
+- Trust mode (`true`) is suitable for an L1 node you run yourself
 
 ### Production Deployments
 
