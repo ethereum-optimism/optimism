@@ -339,4 +339,37 @@ mod tests {
 
         assert!(handler.discovery.is_none());
     }
+
+    /// A node listening on all interfaces doesn't know which of its addresses peers can reach, so
+    /// its ENR advertises no IP once it starts, only the TCP port gossip bound.
+    #[tokio::test]
+    async fn test_start_on_all_interfaces_advertises_no_ip() {
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let ip = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
+        let handler = network_builder(Default::default())
+            .with_gossip_address(Multiaddr::from(ip).with(libp2p::multiaddr::Protocol::Tcp(0)))
+            .with_discovery_address(LocalNode::new(secret_key, ip, 0, 0))
+            .with_discovery_config(ConfigBuilder::new(ListenConfig::from_ip(ip, 0)).build())
+            .build()
+            .unwrap()
+            .start()
+            .await
+            .unwrap();
+
+        let bound_tcp_port = handler
+            .gossip
+            .addr()
+            .iter()
+            .find_map(|p| match p {
+                libp2p::multiaddr::Protocol::Tcp(port) => Some(port),
+                _ => None,
+            })
+            .expect("gossip listens on TCP");
+        let enr = handler.discovery.unwrap().handler.local_enr().await.unwrap();
+
+        assert_eq!(enr.ip4(), None);
+        assert_eq!(enr.tcp4(), Some(bound_tcp_port));
+    }
 }
