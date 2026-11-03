@@ -1,4 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Foundry also bundles a solar binary; use the separately pinned release.
-exec "$(mise where github:paradigmxyz/solar)/solar" "$@"
+solar="$(mise where github:paradigmxyz/solar)/solar"
+
+# mise pins Solar by tag, and a release asset can be replaced under the same tag, so only run
+# the 0.3.0 release binaries. Update these hashes when bumping Solar in mise.toml.
+pinned=(
+  a5945a750b613cf7615d7c899c5e9443222193449f43f17be89c7580ed28fde3 # aarch64-apple-darwin
+  0dd6754ba28f8830c849a437b76b9b175038abfeb196dde7b3f50d46593fba3e # x86_64-apple-darwin
+  4498731b6b113a91383a9873cee595ec2b9631ebccc38c8bad06a1a37d0dfef4 # aarch64-unknown-linux-gnu
+  5c089825de113d856c522017569d52b6ce51c427a884bd82990405c6767fb40f # x86_64-unknown-linux-gnu
+  fb4a0aaa5a765ae045ef003c68982420f78f7629c40b1497d2bd0fcae4945fc2 # x86_64-unknown-linux-musl
+)
+hash="$(shasum -a 256 "$solar" | cut -d' ' -f1)"
+if [[ " ${pinned[*]} " != *" $hash "* ]]; then
+  echo "error: $solar has SHA-256 $hash, which is not a pinned Solar release" >&2
+  exit 1
+fi
+
+exec "$solar" "$@"
