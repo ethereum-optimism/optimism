@@ -181,7 +181,7 @@ On a devnet, where every node runs on loopback, or on all interfaces with loopba
 
 <Info>
 
-op-node, through geth's discovery, checks each record another node returns against the address of that node. kona-node checks it against its own address instead, as its discovery doesn't say which node returned a record. On a public network, where the nodes that return records are public, both drop loopback and LAN records. They differ in other cases:
+op-node's discovery is built on geth's discv5 library, which checks each record another node returns against the address of that node. kona-node checks it against its own address instead, as its discovery doesn't say which node returned a record. On a public network, where the nodes that return records are public, both drop loopback and LAN records. They differ in other cases:
 
 - op-node with a public address accepts the LAN records a node on its LAN returns, such as a neighbour in a VPC. kona-node doesn't.
 - kona-node with a LAN address accepts the LAN records a public node returns. op-node doesn't.
