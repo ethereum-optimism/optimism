@@ -93,7 +93,7 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | Directory to store the bootstore | - |
 | `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | Peer redialing threshold | `500` |
 | `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `60` |
-| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs or enode URLs | - |
+| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs or enode URLs. A bootnode the node can't reach from its own address is skipped, see [discovered addresses](#discovered-addresses) | - |
 | `--p2p.static-peers <MULTIADDR,...>` | `KONA_NODE_P2P_STATIC_PEERS` | Peers to dial at startup and keep connected, see [static peers](#static-peers). Alias: `--p2p.static` | - |
 | `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
 | `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
@@ -128,6 +128,58 @@ On a chain without built-in bootnodes, the node logs a warning at startup if it 
 <Info>
 
 op-node never advertises its listen IP: without `--p2p.advertise.ip`, it learns its address from the peers' votes, with a fixed threshold of 10. So op-node needs `--p2p.advertise.ip` on small networks too, even when it listens on a specific address.
+
+</Info>
+
+The advertised IP also decides which addresses the node accepts from other nodes, see [discovered addresses](#discovered-addresses).
+
+### Discovered addresses
+
+<Unreleased component="kona-node" />
+
+The node only uses the records it can reach from its own address. A node with a public address can't reach another host's loopback or LAN address, so a record holding one names a host it can't connect to, or the wrong host: a record with `127.0.0.1` would make it dial itself.
+
+The node's scope comes from its [advertised IP](#advertised-address), and is chosen once, at startup:
+
+| Advertised IP | Scope |
+|---------------|-------|
+| Loopback, such as `127.0.0.1` or `::1` | Loopback |
+| Private (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), shared (`100.64.0.0/10`), link-local, or IPv6 unique-local (`fc00::/7`) or link-local (`fe80::/10`) | LAN |
+| Any other address | Public |
+| Special-purpose, such as a documentation address | Public |
+| None, as when listening on all interfaces without `--p2p.advertise.ip` | The most local scope among the bootnodes, the chain's built-in ones included. Public if none is loopback or LAN. |
+
+Public is the scope that accepts the fewest records, so it applies whenever nothing tells the node otherwise. An IP that votes set later doesn't change the scope.
+
+A record is accepted if none of its addresses is more local than the node's scope:
+
+| Scope | Accepts records on |
+|-------|--------------------|
+| Loopback | Loopback, LAN, public |
+| LAN | LAN, public |
+| Public | Public |
+
+A record with an unspecified address, a special-purpose one (multicast, broadcast, documentation, benchmarking, reserved and the other blocks of the IANA special-purpose registries), or no IP is never accepted.
+
+The node checks:
+
+- **Records other nodes return to its lookups.** A record it doesn't accept isn't contacted, kept in the discovery table, passed on to other nodes, saved or dialed.
+- **Bootnodes**, from `--p2p.bootnodes` or the chain's built-in ones. A bootnode it doesn't accept is skipped, with a warning. So a node with a public address can't bootstrap from a loopback or LAN bootnode: to connect to a node outside its scope, list it in `--p2p.static-peers`, which isn't checked, nor is [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer).
+- **The bootstore.** At startup, the node doesn't dial the saved records it doesn't accept, such as those saved by an earlier version or while it ran with another address.
+
+A peer that starts a session with the node is dialed whatever its address, since it reached the node from the address in its record. If its record holds another address, the record is checked against the address the peer's packets came from, as geth does: a loopback record only from loopback, and a LAN record only from loopback or a LAN.
+
+<Warning>
+
+Discovery keeps a peer that starts a session in its table, whatever its address, and passes its record on to the nodes that look it up, even nodes that can't reach it, such as a peer on the node's own loopback. Discovery has no way to check a record against the node asking for it. Nodes that apply these rules drop such records when they get them.
+
+</Warning>
+
+On a devnet, where every node runs on loopback, or on all interfaces with loopback or LAN bootnodes, every node accepts the others' records. A node on all interfaces without bootnodes, such as a new network's first node, is public, but still learns about the nodes that start sessions with it.
+
+<Info>
+
+op-node, through geth's discovery, checks each record against the address of the node that returned it. kona-node checks it against its own address instead, as its discovery doesn't say which node returned a record. On a public network both drop the same records. kona-node's special-purpose list follows the current IANA registries, which geth's is a subset of, and it counts the shared address space, `100.64.0.0/10`, as LAN, where geth counts it as public.
 
 </Info>
 
