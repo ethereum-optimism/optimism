@@ -2,18 +2,10 @@
 
 #[cfg(feature = "metrics")]
 use crate::Metrics;
-use alloy_primitives::{B256, Bytes};
+use alloy_primitives::B256;
 use alloy_provider::{Provider, RootProvider};
-use alloy_rpc_client::RpcClient;
-use alloy_rpc_types_engine::JwtSecret;
 use alloy_transport::{RpcError, TransportErrorKind};
-use alloy_transport_http::{
-    AuthLayer, Http, HyperClient,
-    hyper_util::{client::legacy::Client, rt::TokioExecutor},
-    reqwest,
-};
 use async_trait::async_trait;
-use http_body_util::Full;
 use kona_derive::{L2ChainProvider, PipelineError, PipelineErrorKind, ResetError};
 use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{BatchValidationProvider, L2BlockInfo, to_system_config};
@@ -21,7 +13,6 @@ use lru::LruCache;
 use op_alloy_consensus::OpBlock;
 use op_alloy_network::Optimism;
 use std::{num::NonZeroUsize, sync::Arc};
-use tower::ServiceBuilder;
 
 /// The [`AlloyL2ChainProvider`] is a concrete implementation of the [`L2ChainProvider`] trait,
 /// providing data over Ethereum JSON-RPC using an alloy provider as the backend.
@@ -92,26 +83,6 @@ impl AlloyL2ChainProvider {
     /// Returns the latest L2 block number.
     pub async fn latest_block_number(&mut self) -> Result<u64, RpcError<TransportErrorKind>> {
         self.inner.get_block_number().await
-    }
-
-    /// Creates a new [`AlloyL2ChainProvider`] from the provided [`reqwest::Url`].
-    pub fn new_http(
-        url: reqwest::Url,
-        rollup_config: Arc<RollupConfig>,
-        cache_size: usize,
-        jwt: JwtSecret,
-    ) -> Self {
-        let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
-
-        let auth_layer = AuthLayer::new(jwt);
-        let service = ServiceBuilder::new().layer(auth_layer).service(hyper_client);
-
-        let layer_transport = HyperClient::with_service(service);
-        let http_hyper = Http::with_client(layer_transport, url);
-        let rpc_client = RpcClient::new(http_hyper, false);
-
-        let rpc = RootProvider::<Optimism>::new(rpc_client);
-        Self::new(rpc, rollup_config, cache_size)
     }
 }
 
