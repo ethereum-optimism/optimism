@@ -1,0 +1,223 @@
+---
+title: Upgrade 21
+description: 모든 체인에서 ETHLockbox를 보관(custody) 및 일시 중지 식별자로 지정하고 interop을 위한 L1 컨트랙트 변경 사항을 배포하는 L1 컨트랙트 업그레이드인 Upgrade 21을 준비합니다.
+lang: en-US
+diataxis: reference
+content_type: notice
+date: 2026-11-16
+topic: upgrade-21
+personas:
+  - chain-operator
+  - node-operator
+  - app-developer
+  - partner
+  - user
+categories:
+  - contract-upgrades
+  - l1-contracts
+  - interop
+  - pause
+is_imported_content: 'false'
+---
+
+Upgrade 21은 OP Stack 체인을 위한 L1 스마트 컨트랙트 업그레이드입니다.
+이 업그레이드는 `op-contracts/v9.0.0`에 포함되어 배포되며, 모든 체인에서 `ETHLockbox`를 보관(custody) 및 일시 중지 식별자로 지정하고, 상호운용성(interop)에 필요한 L1 컨트랙트 변경 사항을 포함합니다.
+L2 하드포크가 없으므로 구성해야 할 활성화 타임스탬프는 없습니다.
+각 네트워크는 온체인 작업을 실행하여 업그레이드됩니다.
+
+<Info>
+  이 공지는 잠정적인 내용입니다.
+  아래 날짜는 Optimism Governance 승인에 따라 달라지는 목표이며, 컨트랙트 및 구성 요소 버전은 릴리스 후보가 게시되면 추가됩니다.
+</Info>
+
+## 포함 내용
+
+### 보관 및 일시 중지 식별자로서의 ETHLockbox
+
+Upgrade 21 이후 모든 체인에는 `ETHLockbox`가 있으며, lockbox는 체인별 일시 중지에 사용되는 유일한 식별자가 됩니다.
+`SystemConfig`의 `ETH_LOCKBOX` 기능은 더 이상 비활성화할 수 없습니다.
+
+* ETH가 아직 `OptimismPortal`에 보관되어 있는 체인은 업그레이드를 통해 이 기능이 활성화되며, portal의 ETH 잔액은 동일한 트랜잭션에서 체인의 `ETHLockbox`로 이동합니다.
+* 이미 `ETHLockbox`를 사용하는 체인은 ETH를 현재 위치에 그대로 유지합니다.
+* custom gas token을 사용하는 체인은 portal에 보관을 유지하며 ETH를 이동하지 않습니다.
+
+이 업그레이드 이전에는 `ETH_LOCKBOX` 기능이 활성화된 경우에만 lockbox 주소가 일시 중지 식별자였고, 그렇지 않은 경우에는 `OptimismPortal` 주소가 식별자였습니다.
+업그레이드 이후에는 `OptimismPortal`, `SystemConfig`, `AnchorStateRegistry`, `DelayedWETH`가 모두 lockbox를 통해 체인별 일시 중지를 확인합니다.
+이러한 컨트랙트의 initializer 인자 타입은 변경되지만, 함수 selector는 변경되지 않습니다.
+신뢰할 수 있는 확인 수단은 여전히 `OptimismPortal.paused()`입니다.
+일시 중지 식별자의 작동 방식은 [bridge 일시 중지](/ko/op-stack/security/pause)를 참조하세요.
+
+### Interop 컨트랙트 변경 사항
+
+Upgrade 21에는 interop에 필요한 L1 컨트랙트 변경 사항이 포함됩니다.
+이러한 변경 사항은 이후 업그레이드에서 사용되기 전까지는 아무런 동작도 하지 않습니다. Upgrade 21은 마이그레이션을 호출하지 않으며 interop을 활성화하지도 않습니다.
+
+`OPContractsManagerV2.migrate`는 독립적인 체인 집합을 단일 트랜잭션으로 하나의 interop set으로 병합합니다.
+이 함수는 공유 `ETHLockbox`, `DisputeGameFactory`, `AnchorStateRegistry`를 배포하고, 모든 체인의 ETH를 공유 lockbox로 이동하며, 각 portal이 공유 컨트랙트를 가리키도록 설정하고, `INTEROP` 기능을 활성화합니다.
+`ProxyAdmin` 소유자만 이 함수를 호출할 수 있습니다.
+`INTEROP`은 비활성화할 수 없고 이미 마이그레이션된 체인을 다시 마이그레이션하려고 하면 거부되므로, 이 마이그레이션은 단방향입니다.
+또한 마이그레이션 이전에 이루어진 모든 출금 증명이 무효화되므로, 사용자는 해당 출금을 다시 증명해야 합니다.
+
+[공유 dispute game 런북](/ko/chain-operators/tutorials/merge-shared-dispute-game)에서 마이그레이션 흐름을 설명하며, 이 런북은 아직 프로덕션 체인에 사용하도록 승인되지 않았습니다.
+interop에 필요한 노드 토폴로지는 [Interop 활성화 준비](/ko/notices/interop-prep)를 참조하세요.
+
+### 출금 증명 정리
+
+`OptimismPortal.deleteProvenWithdrawal(bytes32,address)`를 사용하면 누구나 분쟁 게임(dispute game)이 절대 최종 확정으로 이어질 수 없는 출금 증명, 즉 게임이 challenger에게 유리하게 해결되었거나 blacklist에 등록된 출금 증명을 삭제할 수 있습니다.
+이 함수는 `WithdrawalProofDeleted`를 emit합니다.
+유효한 게임에 대한 증명은 영향을 받지 않습니다.
+
+### OPCM 및 StandardValidator 업데이트
+
+`OPContractsManagerV2`와 `OPContractsManagerStandardValidator`가 위 변경 사항에 맞게 업데이트됩니다.
+validator는 새로운 lockbox 및 일시 중지 구성에 대한 assertion을 추가하고, interop 체인의 공유 `ProxyAdmin`을 처리합니다.
+
+## 필요한 조치
+
+### 체인 운영자
+
+* Guardian 일시 중지 도구와 런북이 `OptimismPortal`의 `ethLockbox()`에서 읽은 체인의 `ETHLockbox` 주소를 체인별 일시 중지 식별자로 전달하도록 업데이트합니다.
+* `Paused` 및 `Unpaused` 이벤트를 `OptimismPortal` 주소로 필터링하는 모니터링을 업데이트합니다.
+* `OptimismPortal`의 ETH 잔액을 모니터링하는 경우, 업그레이드 이후에는 대신 `ETHLockbox` 잔액을 모니터링합니다.
+* Optimism Security Council이 관리하는 체인은 Optimism Governance를 통해 업그레이드됩니다.
+* OP Enterprise Fully Managed 체인: Optimism이 업그레이드를 처리하며, 컨트랙트 업그레이드 자체에 대해서는 별도의 조치가 필요하지 않습니다.
+* OP Enterprise Self Managed 체인: 이미 Upgrade 20이 적용되어 있어야 합니다. superchain-ops에 Upgrade 21 작업을 담은 PR을 열면 OP Labs 팀이 검토합니다. 지원이 필요한 경우 Optimism 담당자에게 문의하세요.
+* 기타 모든 체인: 이미 Upgrade 20이 적용되어 있어야 합니다. OPCM으로 L1 컨트랙트를 업그레이드합니다.
+* `op-challenger`를 [v1.11.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.11.0)으로 업데이트하고, permissionless 체인에서는 [absolute prestate 업데이트](#update-the-absolute-prestate)에 설명된 대로 새 absolute prestate를 구성합니다.
+
+<Info>
+  체인별 일시 중지 식별자의 작동 방식과 체인을 일시 중지하는 방법은 [bridge 일시 중지](/ko/op-stack/security/pause)를 참조하세요.
+</Info>
+
+#### absolute prestate 업데이트
+
+Upgrade 21에는 하드포크가 없지만, [`kona-client/v1.9.0`](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.9.0)에서 빌드된 새 absolute prestate가 함께 배포됩니다.
+[`op-challenger` v1.11.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.11.0)에는 이에 맞는 `kona-host` v1.9.0이 포함되어 있으므로, 오프체인 구성 요소 변경은 `op-challenger` 업데이트뿐입니다.
+prestate를 위해 새 버전이 필요한 다른 OP Stack 구성 요소는 없습니다.
+
+* **permissioned 체인**은 `SUPER_PERMISSIONED` 게임에 absolute prestate를 사용하지 않습니다. `op-challenger`를 업데이트하면 되며, 추가적인 prestate 작업은 필요하지 않습니다.
+* **superchain registry에 포함된 permissionless 체인**(OP, Ink, Unichain, Soneium의 Sepolia와 Mainnet 모두)은 표준 prestate가 적용되며, Optimism이 거버넌스 업그레이드의 일부로 이를 온체인에 설정합니다. `op-challenger`를 업데이트하고 새 prestate를 가져올 수 있는지 확인합니다.
+* **superchain registry에 포함되지 않은 permissionless 체인**은 표준 prestate가 적용되지 않습니다. 아래 단계에 따라 자체 prestate를 빌드하고, `op-challenger`용으로 호스팅한 다음, OPCM 업그레이드의 일부로 온체인에 설정합니다.
+
+<Steps>
+  <Step title="absolute prestate 빌드 또는 검증">
+    <Tabs>
+      <Tab title="표준 체인 구성">
+        `kona-client` v1.9.0은 [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)에 두 개의 해시를 게시합니다.
+
+        * **`cannon64-kona-interop`**: `0x03b985a286da46ca88c0a965a53942daade9ffe1ae6b854a8f2d083df1cfaf59`. Upgrade 20 이후 `SUPER_CANNON_KONA` 게임에서 사용됩니다.
+        * **`cannon64-kona`**: `0x033c000916b4a88cfffeceddd6cf0f4be3897a89195941e5a7c3f8209b4dbb6e`.
+
+        monorepo에서 `kona-client/v1.9.0`을 체크아웃하고, 두 prestate를 재현한 다음 해시를 읽습니다.
+
+        ```bash
+        just reproducible-prestate-kona
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json  # cannon64-kona-interop
+        jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json          # cannon64-kona
+        ```
+
+        출력이 게시된 해시와 일치하는지 확인합니다.
+      </Tab>
+
+      <Tab title="사용자 정의 체인 구성">
+        먼저 [사용자 정의 kona-client absolute prestate 생성](/ko/chain-operators/tutorials/kona-custom-prestate)에 설명된 대로 체인 데이터를 준비합니다.
+        `kona-client/v1.9.0`을 체크아웃하고, monorepo 루트에서 동일한 사용자 정의 구성으로 prestate를 빌드합니다.
+
+        ```bash
+        KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/custom-configs \
+          just reproducible-prestate-kona
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json
+        ```
+
+        체인이 빌드에 포함되었는지 확인합니다. 체인이 조용히 누락된 빌드는 대신 표준 해시를 생성합니다.
+
+        ```bash
+        gunzip -c rust/kona/prestate-artifacts-cannon-interop/prestate.bin.gz | strings | grep "<your-chain-name>"
+        ```
+
+        `chainList.json`의 체인마다 `grep`을 한 번씩 실행하고, 모든 체인이 최소 한 번 이상 일치하는지 확인합니다.
+        동일한 입력으로 깨끗한 체크아웃에서 다시 빌드하여 해시가 동일한지 확인합니다.
+        사용자 정의 prestate 해시는 포함된 체인 구성에 종속되며 `standard-prestates.toml`에는 나타나지 않습니다.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="새 preimage 파일 업로드">
+    새 preimage 파일을 다른 absolute preimage 파일을 저장하는 위치에 업로드합니다. 이 위치는 `--prestates-url` 또는 `--cannon-kona-prestates-url`이 가리키는 곳입니다. `op-challenger`는 게임을 진행해야 할 때 해당 위치에서 파일을 가져옵니다.
+
+    빌드 시 absolute prestate 해시를 이름으로 하는 사본(예: `0x<hash>.bin.gz`)이 생성됩니다. 업로드할 때 이 파일 이름을 유지하세요.
+    `op-challenger`가 업그레이드 이전에 생성된 게임을 완료할 수 있도록 Upgrade 20 prestate 파일은 그대로 유지합니다.
+    사용자 정의 prestate는 해당 체인에 참여하는 모든 challenger가 접근할 수 있는 URL에 호스팅해야 합니다.
+  </Step>
+
+  <Step title="op-challenger 업데이트">
+    L1 컨트랙트 업그레이드 전에 `op-challenger`를 [v1.11.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.11.0)으로 업데이트합니다.
+    기존 game type과 prestate URL 플래그는 변경 없이 그대로 유지됩니다.
+    업그레이드 전에 릴리스 노트를 검토하세요. v1.11.0은 `list-games` 및 `list-claims` 출력 필드의 이름을 변경하고, `run-trace`에서 사용할 수 없는 `--run` 항목을 거부하며, dependency set 파일이 없거나 유효하지 않으면 `kona-host` 시작을 거부합니다.
+
+    표준 OP Labs `op-challenger` Docker 이미지를 사용하지 않는 경우, `kona-host/v1.9.0`에서 빌드한 `kona-host` 바이너리 경로를 설정합니다.
+
+    ```bash
+    OP_CHALLENGER_CANNON_KONA_SERVER=/path/to/kona-host
+    # or
+    --cannon-kona-server=/path/to/kona-host
+    ```
+  </Step>
+
+  <Step title="새 prestate를 온체인에 설정">
+    OPCM 업그레이드 입력의 dispute game 구성에서 새 해시를 `absolutePrestate`로 전달하여, 업그레이드 트랜잭션이 이를 `DisputeGameFactory`에 등록하도록 합니다.
+    트랜잭션을 실행하기 전에 예상 출력을 시뮬레이션하고 검증합니다.
+
+    업그레이드 후 온체인 prestate가 빌드와 일치하는지 확인합니다. prestate는 `DisputeGameFactory`의 `gameArgs(<gameType>)` 또는 생성된 게임 인스턴스의 처음 32바이트에 저장됩니다. 구현 컨트랙트 자체의 `absolutePrestate()`는 0을 반환합니다.
+  </Step>
+</Steps>
+
+### 노드 운영자
+
+Upgrade 21에는 L2 하드포크가 없습니다.
+필요한 구성 요소 버전이 있다면 릴리스 후보가 게시될 때 여기에 나열됩니다.
+
+### 앱 개발자 및 인프라 통합 업체
+
+일반적인 L2 컨트랙트와 트랜잭션은 영향을 받지 않습니다.
+통합이 다음 중 하나에 해당하는 경우 업데이트해야 합니다.
+
+* 체인에 보관된 ETH를 측정하기 위해 `OptimismPortal`의 ETH 잔액을 읽는 경우. 업그레이드 이후에는 체인의 `ETHLockbox` 잔액을 읽어야 합니다.
+* `SuperchainConfig`의 `Paused` 이벤트를 `OptimismPortal` 주소로 필터링하는 경우
+* 출금 증명을 추적하며 새로운 `WithdrawalProofDeleted` 이벤트를 처리해야 하는 경우
+
+<Info>
+  체인 잔액과 일시 중지 상태 모니터링에 대한 안내는 [거래소 및 bridge](/ko/op-stack/security/exchanges-and-bridges)를 참조하세요.
+</Info>
+
+### 사용자
+
+별도의 조치는 필요하지 않습니다.
+
+## 업그레이드 일정
+
+Upgrade 21은 L1 컨트랙트 업그레이드로 적용되므로, 각 네트워크는 온체인 작업을 실행하여 업그레이드됩니다.
+
+| 마일스톤 | 목표 날짜 |
+| --- | --- |
+| 거버넌스 제안 게시 | **2026년 11월 2일 월요일** |
+| Sepolia 실행 | **2026년 11월 9일 월요일** |
+| 거버넌스 거부권(veto) 기간 종료 | **2026년 11월 11일 수요일** |
+| Mainnet 실행 | **2026년 11월 16일 월요일** |
+
+OP Enterprise Fully Managed 체인은 이 잠정 일정을 따릅니다.
+OP Enterprise Self Managed 체인은 지원이 필요한 경우 Optimism 담당자에게 문의할 수 있습니다.
+
+거버넌스가 관리하는 Sepolia OP Stack 체인이 먼저 업그레이드되며, 이후 mainnet 실행 전까지 7일간의 안정화(soak) 기간을 거칩니다.
+Mainnet 실행은 Optimism Governance 승인과 Sepolia 안정화 기간의 정상 진행 여부에 따라 달라지므로, 이 날짜는 변경될 수 있습니다.
+거버넌스 제안과 온체인 투표는 게시되면 여기에 링크됩니다.
+
+## 준비 상태 확인
+
+Sepolia 실행 후, mainnet 실행 전에 다음을 수행합니다.
+
+* Guardian 일시 중지 도구가 `ETHLockbox`를 대상으로 하는지, 그리고 테스트 일시 중지가 `OptimismPortal.paused()`에 반영되는지 확인합니다.
+* 대시보드와 알림이 `ETHLockbox` 잔액과 lockbox 일시 중지 식별자를 읽는지 확인합니다.
+* 이 공지에 나열된 모든 portal 잔액 읽기와 `Paused` 이벤트 필터를 다루는 통합 테스트를 실행합니다.
+
+질문이 있거나 지원이 필요한 경우 Optimism 담당자에게 문의하세요.

@@ -1,0 +1,71 @@
+---
+title: 블록 탐색기
+description: OP Mainnet 및 OP Sepolia의 컨트랙트와 상호작용하고 트랜잭션 기록을 조회하는 데 사용할 수 있는 다양한 블록 탐색기에 대해 알아봅니다.
+diataxis: reference
+---
+
+## Blockscout
+
+[OP Mainnet](https://optimism.blockscout.com) 및 [OP Sepolia](https://optimism-sepolia.blockscout.com/)용 Blockscout 탐색기가 있습니다. 다음 기능이 포함되어 있습니다.
+
+*   [검증된 testnet 컨트랙트 소스 코드 및 해당 컨트랙트와 상호작용하는 기능](https://optimism.blockscout.com/verified-contracts)
+*   [상세한 testnet 트랜잭션 정보](https://optimism.blockscout.com/tx/0xa1b04233084d4067ec0bb3e09301012900f0e209f14a3d406f3d6dc696eea138)
+
+Blockscout에는 OP Mainnet 전용 기능도 있습니다.
+
+*   [입금(디파짓) 대화형 목록(L1-L2)](https://optimism.blockscout.com/l2-deposits)
+*   [출금 대화형 목록(L2-L1)](https://optimism.blockscout.com/l2-withdrawals)
+*   [트랜잭션 배치](https://optimism.blockscout.com/l2-txn-batches)
+*   [앱 마켓플레이스](https://optimism.blockscout.com/apps)
+*   그 외에도 많은 기능이 있습니다!
+
+## Etherscan
+
+[OP Mainnet](https://explorer.optimism.io) 및 [OP Sepolia](https://testnet-explorer.optimism.io/)용 Etherscan 탐색기가 있습니다.
+Etherscan에는 트랜잭션 디버깅에 도움이 되는 다양한 도구가 있습니다.
+
+Optimistic Etherscan은 다음과 같이 Etherscan에서 기대할 수 있는 모든 도구를 갖추고 있습니다.
+
+*   [검증된 컨트랙트 소스 코드 및 해당 컨트랙트와 상호작용하는 기능](https://explorer.optimism.io/address/0x420000000000000000000000000000000000000F#code)
+*   [상세한 트랜잭션 정보](https://explorer.optimism.io/tx/0x292423266d6da24126dc4e0e81890c22a67295cc8b1a987e71ad84748511452f)
+*   그 밖에 Etherscan에서 찾을 수 있는 모든 기능!
+
+OP Mainnet 전용 기능도 있습니다.
+
+*   [L1에서 L2로의 트랜잭션 목록](https://explorer.optimism.io/txsEnqueued)
+*   [L2에서 L1으로의 트랜잭션 목록](https://explorer.optimism.io/txsExit)
+*   [L2에서 L1으로의 트랜잭션을 최종 확정하는 도구](https://explorer.optimism.io/messagerelayer)
+*   그 외에도 더 있습니다! 직접 살펴보고 클릭해 보면서 사용 가능한 모든 기능을 확인해 보십시오.
+
+## Superscan by Routescan
+
+[Superscan](https://superscan.network)은 [Routescan](https://routescan.io)이 제공하는, 생태계 수준에서 통합된 개발자 중심의 OP Stack 탐색기입니다. 개발자는 Superscan에서 여러 OP Stack 체인의 트랜잭션, 블록, 주소, 배포된 컨트랙트 등을 통합된 페이지에서 빠르게 확인할 수 있습니다.
+
+현재 Superscan에는 다음이 포함되어 있습니다.
+
+*   Mainnet - OP Mainnet, Base, Zora, Mode, Cyber, Orderly, Fraxtal, Public Goods Network
+*   Testnet - Zora, Mode, Orderly, Fraxtal
+
+
+## Tenderly
+
+OP Mainnet 및 OP Sepolia용 Tenderly의 [Developer Explorer](https://docs.tenderly.co/developer-explorer?mtm_campaign=ext-docs&mtm_kwd=optimism)를 사용하면 트랜잭션을 모니터링하고 검사할 수 있으며, 높은 수준의 세부 정보와 추가 도구를 제공합니다.
+
+Tenderly Developer Explorer를 사용하면 다음을 수행할 수 있습니다.
+
+*   특정 [컨트랙트](https://docs.tenderly.co/developer-explorer/contracts?mtm_campaign=ext-docs&mtm_kwd=optimism)와 해당 트랜잭션 추적
+*   완전히 디코딩된 트랜잭션 트레이스로 [트랜잭션 실행](https://docs.tenderly.co/developer-explorer/inspect-transaction?mtm_campaign=ext-docs&mtm_kwd=optimism) 검사
+*   온체인으로 전송하기 전에 실패한 트랜잭션을 [디버깅](https://docs.tenderly.co/debugger?mtm_campaign=ext-docs&mtm_kwd=optimism)하고 올바른 트랜잭션을 [시뮬레이션](https://docs.tenderly.co/simulator-ui/using-simulation-ui?mtm_campaign=ext-docs&mtm_kwd=optimism)
+*   모든 트랜잭션의 [함수 수준 gas 사용량](https://docs.tenderly.co/debugger/gas-profiler?mtm_campaign=ext-docs&mtm_kwd=optimism) 평가
+*   상호작용, 접근 제어, 자산 전송, 컨트랙트 상태 변경을 모니터링하도록 [알림](https://docs.tenderly.co/alerts/tutorials-and-quickstarts/alerting-quickstart-guide?mtm_campaign=ext-docs&mtm_kwd=optimism) 설정
+*   체계적인 연구를 위해 특정 OP Mainnet 또는 OP Chain 트랜잭션으로부터 [Virtual TestNet](https://docs.tenderly.co/virtual-testnets?mtm_campaign=ext-docs&mtm_kwd=optimism) 생성
+
+
+## 리제네시스 이전 기록 조회
+
+2021년 11월 11일의 최종 리제네시스(regenesis)로 인해, 이전 트랜잭션은 현재 블록체인의 일부가 아니며 [Etherscan](https://explorer.optimism.io/?utm_source=op-docs&utm_medium=docs)에 표시되지 않습니다.
+하지만 여러 가지 도구를 사용하여 2021년 6월 23일부터 최종 리제네시스까지의 트랜잭션 기록에 **접근할 수 있습니다**. 자세한 방법은 [리제네시스 기록](/ko/op-mainnet/pre-bedrock-history/regenesis-history)을 참조하십시오.
+
+## 다음 단계
+
+*   다른 개발자 도구를 찾고 계십니까? 더 많은 옵션을 살펴보려면 [앱 구축 개요](/ko/app-developers/guides/building-apps)를 참조하십시오!

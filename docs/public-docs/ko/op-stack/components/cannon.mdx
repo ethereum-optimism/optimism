@@ -1,0 +1,71 @@
+---
+title: cannon
+description: OP Stack 결함 증명 가상 머신인 cannon의 정식 허브입니다. cannon이 하는 일, 운영 주체, 그리고 가이드, 릴리스, 소스, 사양의 위치를 안내합니다.
+diataxis: explanation
+---
+
+cannon은 OP Stack의 결함 증명(fault proof) 가상 머신(FPVM)입니다. 분쟁 대상이 된 L2
+상태 전이를 L1에서 명령어 단위로 재실행할 수 있게 해 주는 온체인 MIPS 명령어
+에뮬레이터입니다.
+
+## 개요
+
+cannon은 동일하게 동작해야 하는 두 부분으로 구성됩니다.
+
+*   **온체인 `MIPS64.sol`** — 빅엔디언 64비트 MIPS(MIPS64r1) 명령어 실행을 Solidity로
+    구현한 것으로, L1에서 분쟁 대상인 단일 명령어를 검증하는 데 사용됩니다.
+*   **오프체인 `mipsevm`** — 동일한 명령어 집합에 대한 계측(instrumented) 에뮬레이터로,
+    전체 프로그램을 실행하고 임의의 한 단계를 온체인에서 반복하는 데 필요한 witness
+    데이터를 생성합니다.
+
+cannon이 실행하는 프로그램은 MIPS ELF 바이너리로 컴파일된 결함 증명 프로그램
+[kona-client](/ko/releases/kona-client)이며, [kona-host](/ko/releases/kona-host) 바이너리는
+실행 중 체인 데이터를 제공하는 preimage 서버로 함께 실행됩니다. 이 둘이 함께 결함 분쟁을
+해결 가능하게 만듭니다. 참여자들은 실행 트레이스를 이분 탐색하여 단일 MIPS 명령어까지
+좁히고, 그 하나의 명령어를 온체인에서 증명합니다.
+
+**운영 주체:** 일반 노드 운영자가 아니라 분쟁 게임(dispute game) 참여자입니다.
+[op-challenger](/ko/op-stack/fault-proofs/challenger)는 결함 분쟁이 실행 트레이스 단계에
+도달하면 cannon 바이너리를 자동으로 호출하며, 체인 운영자는 무허가 결함 증명을 구성할 때
+cannon prestate를 빌드합니다. cannon이 분쟁 게임에서 어떤 역할을 하는지는
+[결함 증명 설명](/ko/op-stack/fault-proofs/explainer)과
+[Cannon](/ko/op-stack/fault-proofs/cannon), [MIPS](/ko/op-stack/fault-proofs/mips) 심층 설명
+페이지를 참조하십시오.
+
+## 시작하기
+
+*   [Cannon 사용법](https://github.com/ethereum-optimism/optimism/tree/develop/cannon#usage)
+    — 저장소 내 README에서 cannon 빌드, kona-client ELF를 초기 VM 상태로 로드하는 방법,
+    에뮬레이터 실행 방법을 안내합니다.
+
+## 사용 방법 가이드
+
+*   [절대 prestate 및 preimage 파일 생성](/ko/chain-operators/tutorials/absolute-prestate)
+    — op-challenger가 분쟁 시점에 실행하는 kona-client의 cannon prestate를 빌드하고
+    검증합니다.
+*   [사용자 지정 kona-client 절대 prestate 생성](/ko/chain-operators/tutorials/kona-custom-prestate)
+    — 공개 Superchain Registry에 아직 등록되지 않은 체인을 위한 동일한 작업입니다.
+
+## 구성 및 플래그 레퍼런스
+
+*   이 사이트에는 아직 cannon의 구성 레퍼런스 페이지가 없습니다. cannon은 전적으로 CLI
+    플래그로 구성되며, 플래그는 `cannon --help`와
+    [저장소 내 README](https://github.com/ethereum-optimism/optimism/tree/develop/cannon#usage)에
+    문서화되어 있습니다.
+
+## 릴리스
+
+*   [GitHub의 cannon 릴리스 태그](https://github.com/ethereum-optimism/optimism/releases?q=cannon%2Fv&expanded=false)
+    — cannon은 아직 [릴리스](/ko/releases) 아래에 페이지가 없습니다.
+
+## 소스 및 사양 링크
+
+*   Optimism 모노레포의 [소스: `cannon/`](https://github.com/ethereum-optimism/optimism/tree/develop/cannon).
+    온체인 컨트랙트는
+    [`packages/contracts-bedrock/src/cannon`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/cannon)에
+    있습니다.
+*   [Cannon 개요 문서](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/docs/README.md)
+    — 온체인/오프체인 분할과 witness 데이터(packed state, 메모리 증명, preimage 데이터)에
+    대한 저장소 내 문서입니다.
+*   [Cannon 결함 증명 VM 사양](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html)
+    — VM의 규범적 정의입니다.

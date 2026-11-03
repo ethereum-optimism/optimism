@@ -1,0 +1,17 @@
+---
+title: "RPC Engine 타입"
+diataxis: explanation
+---
+
+[`op-alloy-rpc-types-engine`](https://docs.rs/op-alloy-rpc-types-engine/latest/op_alloy_rpc_types_engine/) crate는 OP Stack에서 Engine API와 상호작용하기 위한
+Optimism 타입을 제공합니다.
+
+Optimism은 [`OpPayloadAttributes`](https://docs.rs/op-alloy-rpc-types-engine/latest/op_alloy_rpc_types_engine/struct.OpPayloadAttributes.html)라는 맞춤 payload attributes 타입을 정의합니다.
+`OpPayloadAttributes`는 alloy의 [`PayloadAttributes`](https://docs.rs/alloy-rpc-types-engine/latest/alloy_rpc_types_engine/payload/struct.PayloadAttributes.html)를 몇 가지 필드로 확장합니다. 해당 필드는 트랜잭션,
+tx pool 활성화 플래그, gas limit, EIP 1559 파라미터, 그리고
+최소 base fee(Jovian 하드포크 이후 사용)입니다.
+
+Optimism은 또한 V3 및 V4 payload envelope 모두에 대해 `engine_getPayload` 요청에
+맞춤 타입을 반환합니다. 이는 [`OpExecutionPayloadEnvelopeV3`](https://docs.rs/op-alloy-rpc-types-engine/latest/op_alloy_rpc_types_engine/payload/v3/struct.OpExecutionPayloadEnvelopeV3.html) 및
+[`OpExecutionPayloadEnvelopeV4`](https://docs.rs/op-alloy-rpc-types-engine/latest/op_alloy_rpc_types_engine/payload/v4/struct.OpExecutionPayloadEnvelopeV4.html) 타입이며, 둘 다
+[`alloy-rpc-types-engine`](https://crates.io/crates/alloy-rpc-types-engine)의 payload envelope 타입을 래핑합니다.

@@ -1,0 +1,61 @@
+---
+title: 지갑 통합하기
+description: Actions SDK가 지원하는 지갑 옵션, 임베디드 지갑 제공업체, gas 후원, 스마트 지갑에 대해 알아봅니다.
+diataxis: explanation
+---
+
+## 내 사용 사례에 맞는 지갑은 무엇인가요?
+
+사용자가 DeFi에 접근하려면 <Tooltip tip="Ethereum Virtual Machine" cta="자세히 알아보기" href="https://ethereum.org/developers/docs/evm/">EVM</Tooltip> 호환 지갑이 필요합니다. 적합한 지갑 구조를 선택할 때는 고려해야 할 사항이 많습니다.
+
+- 누가 자금을 보관(custody)할 것인가요?
+- 내 사용 사례에는 어떤 권한이 있어야 하나요?
+- 스택의 어느 지점에서 트랜잭션 서명이 이루어져야 하나요?
+- 사용자는 어떻게 자금을 입금(on-ramp)하고 출금(off-ramp)할 수 있나요?
+
+Actions SDK는 널리 사용되는 [임베디드 지갑 제공업체](#embedded-wallet-providers)를 지원하여 사용 사례에 유연하게 대응하면서 이러한 모든 질문을 해결합니다.
+
+## 임베디드 지갑 제공업체
+
+임베디드 지갑 제공업체를 사용하면 사용자가 앱의 기존 이메일 인증 및 권한 부여 흐름을 통해 온체인 트랜잭션에 서명할 수 있습니다.
+
+Actions는 다음과 함께 작동합니다.
+
+<CardGroup cols={3}>
+  <Card
+    title="Privy"
+    href="https://www.privy.io/"
+    icon="/public/img/actions/Privy.png"
+  ></Card>
+  <Card
+    title="Turnkey"
+    href="https://www.turnkey.com/"
+    icon="/public/img/actions/turnkey.png"
+  ></Card>
+  <Card
+    title="Dynamic"
+    href="https://www.dynamic.xyz/"
+    icon="/public/img/actions/dynamic.png"
+  ></Card>
+</CardGroup>
+
+## Gas 후원
+
+온체인 트랜잭션에 서명하고 전송하려면 gas, 즉 수수료 지불이 필요하며, 이는 개발자에게 [추가 오버헤드](/ko/app-developers/guides/transactions/estimates)가 되고 사용자에게는 불편함이 됩니다.
+
+Actions는 스마트 컨트랙트 지갑과 [paymaster](https://eips.ethereum.org/EIPS/eip-7677)의 조합을 통해 gas 후원을 지원합니다. 먼저 bundler URL을 지정하여 체인 config에서 paymaster를 구성합니다. 이제 해당 체인에서 Actions SmartWallet을 통해 제출되는 모든 트랜잭션은 자동으로 paymaster를 사용하므로, 지갑이 gas를 지불할 필요가 없습니다.
+
+## Actions에 지갑 연결하기
+
+트랜잭션이 어디서 어떻게 서명되든 Actions가 지원합니다.
+지갑 제공업체를 선택했다면 [Actions SDK에 지갑 연결하기](/ko/app-developers/guides/connect-wallet-to-actions) 가이드에 따라 제공업체 지갑을 Actions에 전달하고 Lend, Borrow, Swap, Pay와 같은 Actions 함수를 호출하세요.
+
+## 스마트 지갑 및 signer
+
+임베디드 제공업체 지갑을 직접 사용하는 것 외에도, Actions는 사용자 지정 스마트 컨트랙트 지갑의 [생성을 지원](/ko/app-developers/quickstarts/actions#choose-a-wallet-provider)합니다. 이 추가 지갑 유형은 임베디드 지갑과는 별개이지만, 여전히 임베디드 지갑의 소유자가 제어합니다.
+
+[구성](/ko/app-developers/guides/configuring-actions)하면 Actions는 지원하기로 선택한 체인에 [EIP-4337](https://eips.ethereum.org/EIPS/eip-4337)을 준수하는 [Coinbase Smart Wallets](https://github.com/coinbase/smart-wallet)를 배포합니다.
+
+생성된 후에는 임베디드 지갑을 스마트 지갑의 signer로 추가할 수 있으며, 이 signer는 Smart Wallet을 대신하여 트랜잭션에 서명할 수 있습니다.
+
+자세한 내용은 [Wallet 문서](/ko/app-developers/reference/actions/wallet-definitions)를 참조하세요.

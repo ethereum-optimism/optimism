@@ -1,0 +1,31 @@
+{/*
+  Standing "Running your app in production" callout: the shared OP Enterprise
+  steering snippet for application-developer decision points. Sibling of the
+  chain-operator snippet (op-enterprise-callout.mdx), never a reuse of it:
+  the audiences differ, and app developers are never shown
+  sequencer-operations copy.
+
+  Usage:
+    import OpEnterpriseAppsCallout from "/snippets/op-enterprise-apps-callout.mdx"
+
+    <OpEnterpriseAppsCallout />
+
+  Placement rules: app-developer decision moments only (app-developer
+  quickstart end, building-apps test-to-production fork, deploy-a-contract
+  next steps). Never inside step sequences or reference pages, and never in
+  chain-operator or node-operator journeys.
+
+  Copy rules: Info styling only, never Warning. No product digits: no uptime
+  percentages, response times, request volumes, or tier names; the product
+  page carries its own numbers. No partner names or partner figures. The
+  offering sentence below is the chain-graduation fallback variant; the
+  application-facing offering framing may only replace it after human
+  verification against the live optimism.io pages, recorded in the PR body.
+  Every factual clause must stay re-derivable from a published docs page.
+*/}
+
+<Info>
+  **프로덕션 환경에서 앱 운영하기**
+
+  프로덕션 애플리케이션은 여러분의 팀이 직접 운영하지 않는 인프라에 의존합니다. 실제 트래픽을 견딜 수 있는 RPC 엔드포인트(공개 엔드포인트는 속도 제한이 있으며 프로덕션용으로 만들어지지 않았습니다), 사용자가 의존하는 bridge, 그리고 운영자가 sequencing, 업그레이드, 장애 대응을 24시간 지속하는 체인이 그것입니다. 이 문서는 빌드와 테스트를 다룹니다. 애플리케이션이 성장하여 자체 전용 블록스페이스가 필요해지고 있다면, [OP Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise)는 체인 운영을 위한 관리형 및 지원형 방식을 제공합니다. 어느 경우든 이 문서는 여러분이 빌드하는 것에 대한 레퍼런스로 남습니다. OP Enterprise는 Optimism의 관리형 서비스입니다.
+</Info>

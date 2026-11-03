@@ -464,7 +464,7 @@ func startMinimalChallenger(
 	var zkChallengerSuperRootRPCProxy *StallableProxy
 	switch {
 	case zkEnabled:
-		// The ZK game validates super roots from the op-node's superroot_atTimestamp endpoint;
+		// The ZK game validates super roots from the rollup node's superroot_atTimestamp endpoint;
 		// it needs no VM config or dependency set.
 		zkChallengerSuperRootRPCProxy = StartStallableProxy(t, "zk-challenger-super-root", l2CL.UserRPC())
 		options = append(options,

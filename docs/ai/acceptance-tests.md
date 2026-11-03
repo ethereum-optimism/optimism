@@ -55,7 +55,9 @@ CI runs two variants of the `op-acceptance-tests` job: `memory-all-opn-op-reth-<
 
 A test that cannot run under a given client skips itself in code rather than being left out of
 a list — `sysgo.SkipOnKonaNode`, `sysgo.SkipOnOpReth`, `sysgo.SkipOnOpGeth` and
-`sysgo.SkipOnOpRethCL` (for tests that stop or start the EL and CL independently).
+`sysgo.SkipOnOpRethCL` (for tests that stop or start the EL and CL independently). Skip only for
+a real client gap. A test that pins the CL kind of every node itself runs the same way in both
+CL variants; let it run twice rather than skipping one variant to save CI time.
 
 ### Kona Prestate
 

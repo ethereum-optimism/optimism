@@ -1,16 +1,16 @@
 use std::net::{IpAddr, SocketAddr};
 
 use kona_disc::Discv5Driver;
-use kona_gossip::{ConnectionGater, GossipDriver, PEER_SCORE_INSPECT_FREQUENCY};
-use libp2p::{Multiaddr, TransportError, multiaddr::Protocol};
+use kona_gossip::{ConnectionGater, GossipDriverStarter, PEER_SCORE_INSPECT_FREQUENCY, StartError};
+use libp2p::{Multiaddr, multiaddr::Protocol};
 
 use crate::actors::network::handler::{NetworkHandler, RunningDiscovery};
 
 /// A network driver. This is the driver that is used to start the network.
 #[derive(Debug)]
 pub struct NetworkDriver {
-    /// The gossip driver.
-    pub gossip: GossipDriver<ConnectionGater>,
+    /// The gossip driver, started with the network.
+    pub gossip: GossipDriverStarter<ConnectionGater>,
     /// The discovery driver, or `None` if discovery is disabled.
     pub discovery: Option<Discv5Driver>,
     /// Whether to update the ENR socket after the libp2p Swarm is started.
@@ -25,7 +25,7 @@ pub struct NetworkDriver {
 pub enum NetworkDriverError {
     /// An error occurred starting the libp2p Swarm.
     #[error("error starting libp2p Swarm")]
-    GossipStartError(#[from] TransportError<std::io::Error>),
+    GossipStartError(#[from] StartError),
     /// An error occurred parsing the gossip listen address.
     #[error("error parsing gossip listen address: {0}")]
     InvalidGossipListenAddr(Multiaddr),
@@ -34,8 +34,9 @@ pub enum NetworkDriverError {
 impl NetworkDriver {
     /// Starts the network.
     pub async fn start(mut self) -> Result<NetworkHandler, NetworkDriverError> {
-        // Start the libp2p Swarm
-        let gossip_listen_addr = self.gossip.start().await?;
+        // Start the libp2p Swarm.
+        let gossip = self.gossip.start().await?;
+        let gossip_listen_addr = gossip.peer_addr().transport_addr();
 
         if self.enr_update &&
             let Some(discovery) = &mut self.discovery
@@ -77,6 +78,6 @@ impl NetworkDriver {
         // We are checking the peer scores every [`PEER_SCORE_INSPECT_FREQUENCY`] seconds.
         let peer_score_inspector = tokio::time::interval(*PEER_SCORE_INSPECT_FREQUENCY);
 
-        Ok(NetworkHandler { gossip: self.gossip, discovery, peer_score_inspector })
+        Ok(NetworkHandler { gossip, discovery, peer_score_inspector })
     }
 }

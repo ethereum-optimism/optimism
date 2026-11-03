@@ -1,0 +1,91 @@
+---
+title: Legacy Geth 구성 옵션
+description: Legacy Geth(l2geth) 환경 변수와 Legacy Geth로 라우팅되는 RPC 메서드에 대한 레퍼런스입니다.
+diataxis: reference
+---
+
+이 페이지에서는 Legacy Geth(`l2geth`)가 받는 환경 변수와 실행 클라이언트가 Legacy Geth로 라우팅하는 RPC 메서드를 정리합니다.
+Legacy Geth가 무엇이며 어떻게 설정하는지는 [Legacy Geth 가이드](/ko/node-operators/guides/configuration/legacy-geth)를 참조하십시오.
+
+Legacy Geth는 OP Mainnet처럼 Bedrock을 통해 업그레이드된 네트워크에만 적용되며, 이러한 네트워크에서 Bedrock 이전 블록에 대한 실행 요청과 체인 데이터를 제공합니다.
+
+## 환경 변수
+
+Legacy Geth는 다음 환경 변수를 받습니다.
+
+| 변수 | 설명 | 기본값 |
+|----------|-------------|---------|
+| `USING_OVM` | **필수**. OVM 모드를 활성화합니다 | N/A (반드시 `true`로 설정해야 함) |
+| `ETH1_SYNC_SERVICE_ENABLE` | L1 동기화 서비스를 활성화합니다 | `true` (읽기 전용의 경우 `false`로 설정) |
+| `RPC_API` | 활성화할 RPC API | `eth,net,web3` |
+| `RPC_ADDR` | RPC 수신 주소 | `localhost` |
+| `RPC_CORS_DOMAIN` | CORS 도메인 | `localhost` |
+| `RPC_ENABLE` | RPC 서버 활성화 | `false` |
+| `RPC_PORT` | RPC 포트 | `8545` |
+| `RPC_VHOSTS` | 가상 호스트 | `localhost` |
+
+<Warning>
+  `USING_OVM=true`는 항상 설정해야 합니다.
+  설정하지 않으면 `l2geth`가 시작 시 패닉을 일으키거나 잘못된 실행 트레이스를 반환합니다.
+</Warning>
+
+## 실행 클라이언트 라우팅 플래그
+
+op-reth와 op-geth는 모두 동일한 `--rollup.historicalrpc` 플래그를 사용하여 Bedrock 이전 요청을 Legacy Geth로 라우팅합니다.
+이 플래그는 Legacy Geth RPC 엔드포인트의 URL을 받습니다. 예: `--rollup.historicalrpc=http://localhost:8545`.
+
+## Legacy Geth로 라우팅되는 RPC 메서드
+
+이 섹션은 op-reth에 대해 설명합니다.
+`--rollup.historicalrpc`가 설정되면 op-reth는 Bedrock 이전 블록을 대상으로 하는 요청을 Legacy Geth로 전달하고, 나머지 요청은 모두 직접 처리합니다.
+여기에는 트랜잭션 실행이 필요한 메서드(op-reth는 Bedrock 이전 블록에 대해 이를 수행할 수 없음)와 Bedrock 이전 블록 또는 트랜잭션 데이터를 읽는 메서드가 모두 포함됩니다.
+아래에 나열되지 않은 메서드(예: `eth_getLogs`)는 Legacy Geth로 라우팅되지 않습니다.
+
+<Info>
+  op-geth는 다르게 동작했습니다. op-geth는 마이그레이션된 데이터베이스에서 Bedrock 이전 블록과 트랜잭션 데이터를 로컬로 제공하고, 실행 메서드만 Legacy Geth로 라우팅했습니다.
+  op-geth는 지원이 종료되었으며 이 동작은 더 이상 여기에서 문서화하지 않습니다. [op-geth 지원 중단 공지](/ko/notices/archive/op-geth-deprecation)를 참조하십시오.
+</Info>
+
+### 상태 및 실행 메서드
+
+메서드의 블록 파라미터가 Bedrock 이전 블록을 가리키는 경우 Legacy Geth로 라우팅됩니다.
+
+- `eth_call`
+- `eth_estimateGas`
+- `eth_createAccessList`
+- `eth_getBalance`
+- `eth_getCode`
+- `eth_getStorageAt`
+- `eth_getTransactionCount`
+- `eth_getProof`
+- `debug_traceCall`
+
+### 블록 데이터 메서드
+
+요청된 블록이 Bedrock 이전 블록이거나, 요청된 블록 해시를 op-reth가 알지 못하는 경우 Legacy Geth로 라우팅됩니다.
+
+- `eth_getBlockByNumber` / `eth_getBlockByHash`
+- `eth_getBlockReceipts`
+- `eth_getHeaderByNumber` / `eth_getHeaderByHash`
+- `eth_getBlockTransactionCountByNumber` / `eth_getBlockTransactionCountByHash`
+- `eth_getUncleCountByBlockNumber` / `eth_getUncleCountByBlockHash`
+- `eth_getUncleByBlockNumberAndIndex` / `eth_getUncleByBlockHashAndIndex`
+- `eth_getTransactionByBlockNumberAndIndex` / `eth_getTransactionByBlockHashAndIndex`
+- `eth_getRawTransactionByBlockNumberAndIndex` / `eth_getRawTransactionByBlockHashAndIndex`
+- `debug_traceBlockByNumber` / `debug_traceBlockByHash`
+
+### 트랜잭션 데이터 메서드
+
+트랜잭션이 Bedrock 이전 블록에 속하거나, op-reth가 해당 트랜잭션을 알지 못하는 경우 Legacy Geth로 라우팅됩니다.
+
+- `eth_getTransactionByHash`
+- `eth_getTransactionReceipt`
+- `eth_getRawTransactionByHash`
+- `debug_traceTransaction`
+
+### `eth_getBlockReceipts` 에뮬레이션
+
+Legacy Geth(`l2geth`)는 `eth_getBlockReceipts`가 도입되기 전에 만들어졌으므로 이를 구현하지 않습니다.
+op-reth는 먼저 요청을 전달합니다. Legacy Geth가 해당 메서드가 존재하지 않는다고 응답하면, op-reth는 Legacy Geth에서 블록의 트랜잭션 해시를 가져온 뒤 트랜잭션마다 `eth_getTransactionReceipt`를 한 번씩 호출하여 응답을 구성합니다.
+영수증(receipt)은 트랜잭션 순서대로 반환되며, 레거시 필드가 그대로 유지된 채 원본 그대로 전달됩니다. 이는 동일한 트랜잭션에 대해 전달된 `eth_getTransactionReceipt`가 반환하는 결과와 정확히 같습니다.
+Legacy Geth가 알지 못하는 블록은 `null`을 반환하고, 트랜잭션이 없는 블록은 `[]`를 반환합니다.

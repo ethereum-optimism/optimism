@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { OptimismPortal2_TestInit } from "test/L1/OptimismPortal2.t.sol";
+import { OptimismPortal2_TestInit } from "test/setup/OptimismPortal2TestInit.sol";
 
 // Libraries
 import { Types } from "src/libraries/Types.sol";
