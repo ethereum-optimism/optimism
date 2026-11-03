@@ -86,8 +86,9 @@ pub struct Discv5Driver {
     /// The chain ID of the network.
     pub chain_id: u64,
     /// Our own address scope, which discovered records and bootnodes must be reachable from. See
-    /// [`AddrScope::own`].
-    pub own_scope: AddrScope,
+    /// [`AddrScope::own`]. Not public, as discv5's table filter was chosen for it and can't
+    /// change.
+    pub(crate) own_scope: AddrScope,
     /// The interval to discovery random nodes.
     pub interval: Duration,
     /// Whether to forward ENRs to the enr receiver on startup.
