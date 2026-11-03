@@ -36,9 +36,10 @@ pub enum AdvertiseTcpPortError {
     EnrUpdateFailed(#[source] enr::Error),
 }
 
-/// Why an address another node relayed is not worth dialing. See [`check_relay_addr`].
+/// Why an address another node relayed is not worth dialing. See
+/// [`AddrScope::check_relayed_addr`].
 ///
-/// [`check_relay_addr`]: crate::check_relay_addr
+/// [`AddrScope::check_relayed_addr`]: crate::AddrScope::check_relayed_addr
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
 pub enum RelayAddrError {
     /// The address is `0.0.0.0` or `::`.

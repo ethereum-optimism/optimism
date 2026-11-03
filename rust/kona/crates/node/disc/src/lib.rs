@@ -74,4 +74,4 @@ mod metrics;
 pub use metrics::Metrics;
 
 mod scope;
-pub use scope::{AddrScope, check_relay_addr};
+pub use scope::AddrScope;

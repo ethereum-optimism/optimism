@@ -132,26 +132,24 @@ impl AddrScope {
             Self::Public
         }
     }
-}
 
-/// Checks whether `addr`, relayed by a node of scope `sender`, is worth dialing, as geth's
-/// `CheckRelayAddr` does:
-///
-/// - an unspecified or special-purpose address never is;
-/// - a loopback address is only from a loopback sender;
-/// - a LAN address is only from a loopback or LAN sender;
-/// - a public address always is.
-///
-/// An unspecified or special-purpose sender counts as public.
-pub fn check_relay_addr(sender: AddrScope, addr: IpAddr) -> Result<(), RelayAddrError> {
-    match AddrScope::of(addr) {
-        AddrScope::Unspecified => Err(RelayAddrError::Unspecified),
-        AddrScope::Special => Err(RelayAddrError::Special),
-        AddrScope::Loopback if sender != AddrScope::Loopback => Err(RelayAddrError::Loopback),
-        AddrScope::Lan if !matches!(sender, AddrScope::Loopback | AddrScope::Lan) => {
-            Err(RelayAddrError::Lan)
+    /// Checks whether `addr`, relayed by a node of scope `sender`, is worth dialing, as geth's
+    /// `CheckRelayAddr` does:
+    ///
+    /// - an unspecified or special-purpose address never is;
+    /// - a loopback address is only from a loopback sender;
+    /// - a LAN address is only from a loopback or LAN sender;
+    /// - a public address always is.
+    ///
+    /// An unspecified or special-purpose sender counts as public.
+    pub fn check_relayed_addr(sender: Self, addr: IpAddr) -> Result<(), RelayAddrError> {
+        match Self::of(addr) {
+            Self::Unspecified => Err(RelayAddrError::Unspecified),
+            Self::Special => Err(RelayAddrError::Special),
+            Self::Loopback if sender != Self::Loopback => Err(RelayAddrError::Loopback),
+            Self::Lan if !matches!(sender, Self::Loopback | Self::Lan) => Err(RelayAddrError::Lan),
+            _ => Ok(()),
         }
-        _ => Ok(()),
     }
 }
 
@@ -252,11 +250,11 @@ mod tests {
     #[case::lan_from_shared("100.64.0.1", "192.168.0.1", Ok(()))]
     #[case::lan_from_unspecified("0.0.0.0", "192.168.0.1", Err(RelayAddrError::Lan))]
     #[case::public_from_special("192.0.2.1", "23.55.1.242", Ok(()))]
-    fn test_check_relay_addr(
+    fn test_check_relayed_addr(
         #[case] sender: IpAddr,
         #[case] addr: IpAddr,
         #[case] expected: Result<(), RelayAddrError>,
     ) {
-        assert_eq!(check_relay_addr(AddrScope::of(sender), addr), expected);
+        assert_eq!(AddrScope::check_relayed_addr(AddrScope::of(sender), addr), expected);
     }
 }
