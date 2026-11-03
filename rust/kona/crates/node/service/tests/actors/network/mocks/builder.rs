@@ -44,6 +44,8 @@ pub(crate) struct TestNetworkBuilder {
     udp_port: Option<u16>,
     /// The IP the next node built listens on, if not `127.0.0.1`.
     listen_ip: Option<IpAddr>,
+    /// The IP the next node built advertises, if not the one it listens on.
+    advertise_ip: Option<IpAddr>,
     /// How many peers must agree on the next node's address before it advertises it, if not
     /// [`IpVotes::DEFAULT`].
     ip_votes: Option<IpVotes>,
@@ -82,6 +84,7 @@ impl TestNetworkBuilder {
             discovery_enabled: true,
             udp_port: None,
             listen_ip: None,
+            advertise_ip: None,
             ip_votes: None,
             unsafe_block_signer: Address::ZERO,
             custom_keypair: None,
@@ -130,6 +133,14 @@ impl TestNetworkBuilder {
     /// advertises `ip` unless that is unspecified, as with no `--p2p.advertise.ip`.
     pub(crate) const fn with_listen_ip(mut self, ip: IpAddr) -> Self {
         self.listen_ip = Some(ip);
+        self
+    }
+
+    /// Makes the next node built, and only that one, advertise `ip` instead of the IP it listens
+    /// on, as `--p2p.advertise.ip` does. It then ignores IP votes, so [`Self::with_ip_votes`] has
+    /// no effect on it.
+    pub(crate) const fn with_advertise_ip(mut self, ip: IpAddr) -> Self {
+        self.advertise_ip = Some(ip);
         self
     }
 
@@ -212,12 +223,13 @@ impl TestNetworkBuilder {
         // at an address its ENR can advertise.
         let node_addr = self.listen_ip.take().unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST));
 
+        let advertise_ip = self.advertise_ip.take();
         let udp_port = self.udp_port.take().unwrap_or(0);
-        // As the node configures discovery, without `--p2p.advertise.ip`.
+        // As the node configures discovery: an advertised IP turns IP votes off.
         let ip_votes = self.ip_votes.take().unwrap_or(IpVotes::DEFAULT);
         let mut discovery_config = NetworkConfig::discv5_config(
             ListenConfig::from_ip(node_addr, udp_port),
-            Some(ip_votes),
+            advertise_ip.is_none().then_some(ip_votes),
         );
         // Only allow loopback addresses.
         discovery_config.table_filter = |enr| enr.ip4().is_some_and(|ip| ip.is_loopback());
@@ -235,7 +247,7 @@ impl TestNetworkBuilder {
             self.unsafe_block_signer,
             gossip_multiaddr,
             keypair,
-            LocalNode::new(local_node_key, node_addr, 0, udp_port),
+            LocalNode::new(local_node_key, advertise_ip.unwrap_or(node_addr), 0, udp_port),
             discovery_config,
         )
         .with_discovery_enabled(self.discovery_enabled)

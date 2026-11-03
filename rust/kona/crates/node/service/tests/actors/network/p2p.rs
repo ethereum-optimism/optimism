@@ -135,6 +135,42 @@ async fn test_node_on_all_interfaces_gets_no_votes_from_bootnodes() -> anyhow::R
     Ok(())
 }
 
+/// A public node doesn't dial a loopback record it learns from another node. All three nodes listen
+/// on `127.0.0.1`:
+///
+/// - B (`bootnode`) advertises `127.0.0.1`.
+/// - R (`relayed`) advertises `127.0.0.1` and joins through B, so B's table holds R.
+/// - P (`node`) advertises the public IP `192.0.2.1` and joins through B.
+///
+/// P's lookups through B return R. P is public, so R's loopback address is not one it can reach,
+/// and P must not dial it.
+///
+/// On a real network B would be public too, and geth would reject R because B relayed it. On one
+/// host B can't be public, so here it is P's own address that must rule R out.
+///
+/// `192.0.2.1` is a documentation address (RFC 5737), so B and R don't reach a real host when they
+/// dial P's record. It is special-purpose, which counts as public.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_node_advertising_a_public_ip_does_not_dial_relayed_loopback_records()
+-> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().with_discovery_interval(Duration::from_millis(100));
+    let bootnode = builder.build(vec![]).await;
+    let bootnode_enr = bootnode.peer_enr().await?;
+    let relayed = builder.build(vec![bootnode_enr.clone()]).await;
+    bootnode.check_in_discovery_table_with_retries(relayed.node_id().await?).await?;
+
+    let mut builder = builder.with_advertise_ip(IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1)));
+    let node = builder.build(vec![bootnode_enr]).await;
+    node.check_connected_to_with_retries(&bootnode).await?;
+
+    // Give it many lookups through the bootnode.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    assert!(!node.is_connected_to(&relayed).await?, "the node dialed a relayed loopback record");
+
+    Ok(())
+}
+
 /// Nodes gossiping over the in-memory transport, without discovery, connect through the
 /// `ConnectPeer` command that `opp2p_connectPeer` sends.
 #[tokio::test(flavor = "multi_thread")]
