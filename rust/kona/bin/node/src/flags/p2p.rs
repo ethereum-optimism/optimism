@@ -15,7 +15,7 @@ use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::{GaterConfig, PeerAddr};
 use kona_node_service::NetworkConfig;
-use kona_peers::{BootNode, BootStoreFile, PeerMonitoring, PeerScoreLevel};
+use kona_peers::{BootNode, BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_providers_alloy::AlloyChainProvider;
 use libp2p::{identity::Keypair, multiaddr::Protocol};
 use std::{
@@ -379,8 +379,9 @@ impl P2PArgs {
         Ok(())
     }
 
-    /// Returns what an operator should know about how the node can find peers with these flags.
-    fn peering_warnings(&self) -> Vec<&'static str> {
+    /// Returns what an operator should know about how the node can find peers with these flags,
+    /// and how they can find it, on the chain with `chain_id`.
+    fn peering_warnings(&self, chain_id: u64) -> Vec<&'static str> {
         let mut warnings = Vec::new();
         if self.no_discovery {
             if self.static_peers.is_empty() {
@@ -398,6 +399,21 @@ impl P2PArgs {
             warnings.push(
                 "--p2p.discovery.ip-votes is ignored with --p2p.advertise.ip, which keeps the \
                  advertised IP fixed",
+            );
+        }
+        // On all interfaces, the ENR has no IP until enough peers agree on one. A chain without
+        // built-in bootnodes, such as a devnet, may have too few nodes for that.
+        if !self.no_discovery &&
+            self.advertise_ip.is_none() &&
+            self.listen_ip.is_unspecified() &&
+            BootNodes::from_chain_id(chain_id).0.is_empty()
+        {
+            warnings.push(
+                "The node listens on all interfaces without --p2p.advertise.ip, so it advertises \
+                 no IP until --p2p.discovery.ip-votes of the peers it contacts agree on its \
+                 address, and other nodes can't find it before. This chain has no built-in \
+                 bootnodes, so its network may be too small for that: consider setting \
+                 --p2p.advertise.ip, or a specific --p2p.listen.ip",
             );
         }
         warnings
@@ -471,7 +487,7 @@ impl P2PArgs {
         args: &GlobalArgs,
         l1_rpc: Option<Url>,
     ) -> anyhow::Result<NetworkConfig> {
-        for warning in self.peering_warnings() {
+        for warning in self.peering_warnings(config.l2_chain_id.id()) {
             tracing::warn!(target: "p2p::flags", "{warning}");
         }
 
@@ -599,10 +615,14 @@ mod tests {
     use super::*;
     use alloy_primitives::b256;
     use clap::Parser;
+    use kona_genesis::OP_MAINNET_CHAIN_ID;
     use kona_node_service::NetworkBuilder;
     use kona_peers::NodeRecord;
     use libp2p::PeerId;
     use rstest::rstest;
+
+    /// A chain ID in no registry, so it has no built-in bootnodes, as on a devnet.
+    const DEVNET_CHAIN_ID: u64 = 0;
 
     /// A mock command that uses the `P2PArgs`.
     #[derive(Parser, Debug, Clone)]
@@ -660,6 +680,29 @@ mod tests {
         assert_eq!(args.p2p.discovery_randomize, Some(10));
         let args = MockCommand::parse_from(["test"]);
         assert_eq!(args.p2p.discovery_randomize, None);
+    }
+
+    /// On a chain without built-in bootnodes, a node that listens on all interfaces without an
+    /// advertise IP warns that it may never learn its address. A specific listen IP, an advertise
+    /// IP, no discovery or a chain with built-in bootnodes don't warn.
+    #[rstest]
+    #[case::ipv4_all_interfaces(DEVNET_CHAIN_ID, &[], true)]
+    #[case::ipv6_all_interfaces(DEVNET_CHAIN_ID, &["--p2p.listen.ip", "::"], true)]
+    #[case::specific_listen_ip(DEVNET_CHAIN_ID, &["--p2p.listen.ip", "127.0.0.1"], false)]
+    #[case::advertise_ip(DEVNET_CHAIN_ID, &["--p2p.advertise.ip", "1.2.3.4"], false)]
+    #[case::no_discovery(DEVNET_CHAIN_ID, &["--p2p.no-discovery"], false)]
+    #[case::chain_with_bootnodes(OP_MAINNET_CHAIN_ID, &[], false)]
+    fn test_peering_warnings_on_all_interfaces(
+        #[case] chain_id: u64,
+        #[case] flags: &[&str],
+        #[case] warns: bool,
+    ) {
+        let warnings = peering_warnings_on(chain_id, flags);
+        assert_eq!(
+            warnings.iter().any(|w| w.contains("listens on all interfaces")),
+            warns,
+            "{warnings:?}"
+        );
     }
 
     /// The votes default to 10, as discv5's and op-node's do. Fewer than 2 are rejected, since
@@ -724,15 +767,19 @@ mod tests {
         assert!(check("0", false).is_err());
     }
 
+    /// Returns the peering warnings for these P2P flags on the chain with `chain_id`.
+    fn peering_warnings_on(chain_id: u64, args: &[&str]) -> Vec<&'static str> {
+        let args = MockCommand::parse_from(std::iter::once("test").chain(args.iter().copied()));
+        args.p2p.peering_warnings(chain_id)
+    }
+
     /// Without discovery, the node warns if nothing gives it peers, and that bootnodes go unused.
     /// With an advertise IP, it warns that the IP votes go unused.
     #[test]
     fn test_peering_warnings() {
         let static_peer = format!("/ip4/10.0.0.1/tcp/9222/p2p/{}", PeerId::random());
-        let warnings = |args: &[&str]| {
-            let args = MockCommand::parse_from(std::iter::once("test").chain(args.iter().copied()));
-            args.p2p.peering_warnings()
-        };
+        // OP Mainnet has built-in bootnodes, so listening on all interfaces doesn't warn.
+        let warnings = |args: &[&str]| peering_warnings_on(OP_MAINNET_CHAIN_ID, args);
 
         assert!(warnings(&[]).is_empty());
         assert!(warnings(&["--p2p.bootnodes", ENODE_1]).is_empty());
