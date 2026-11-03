@@ -546,7 +546,7 @@ mod tests {
     use super::*;
     use crate::{
         LocalNode,
-        test_utils::{enr_at, localhost_enr},
+        test_utils::{enr_at, enr_with, localhost_enr},
     };
     use discv5::{ConfigBuilder, ListenConfig, NodeContact};
     use enr::{CombinedKey, CombinedPublicKey};
@@ -702,6 +702,41 @@ mod tests {
         let event = event(enr_at(ip, OP_SEPOLIA_CHAIN_ID));
         let dialed_record = Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID, own_scope);
         assert_eq!(dialed_record.is_some(), dialed);
+    }
+
+    /// A session's record without a UDP address, holding loopback with a TCP port. discv5 checks
+    /// only a record's UDP address against the address its packets came from, and passes a record
+    /// without one.
+    fn loopback_record_without_udp() -> Enr {
+        enr_with(OP_SEPOLIA_CHAIN_ID, |record| {
+            record.ip4(Ipv4Addr::LOCALHOST).tcp4(6379);
+        })
+    }
+
+    /// A session's record whose IPv4 address matches the session, holding loopback with a TCP
+    /// port in its IPv6 address. discv5 checks only the record's address of the family its packets
+    /// came in on.
+    fn loopback_record_in_other_family() -> Enr {
+        enr_with(OP_SEPOLIA_CHAIN_ID, |record| {
+            record.ip4(Ipv4Addr::new(1, 1, 1, 1)).udp4(9223).ip6(Ipv6Addr::LOCALHOST).tcp6(6379);
+        })
+    }
+
+    /// A node should dial a session's record only at addresses plausible from the address the
+    /// session's packets came from, as it does an unverifiable record. Gossip dials a record's TCP
+    /// address, which discv5 doesn't check, so a public peer could otherwise start a session with
+    /// a record that has gossip dial a port on our own loopback.
+    #[rstest]
+    #[case::without_udp(loopback_record_without_udp())]
+    #[case::in_other_family(loopback_record_in_other_family())]
+    fn test_session_record_is_checked_against_its_sender(#[case] enr: Enr) {
+        let event = session_from("1.1.1.1")(enr);
+        // TODO(#23766): fails, as a session's record is dialed unchecked.
+        assert_eq!(
+            Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID, AddrScope::Public),
+            None,
+            "a public node dialed a loopback session record"
+        );
     }
 
     /// A public node should dial only the saved records it can reach, as with the records other
