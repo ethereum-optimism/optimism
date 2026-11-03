@@ -23,17 +23,29 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
-// replayNonceAttempts and replayNonceDelay bound the reads of the deployer nonce before the first
-// send. A backend of a load-balanced RPC can lag the one that served the previous receipt, and
-// nothing has been sent yet, so reading again is safe.
-const (
-	replayNonceAttempts = 5
-	replayNonceDelay    = 2 * time.Second
-)
+// l1WaitTimeout bounds each wait for the L1 RPC: for the deployer's pending transactions to be
+// mined, and for the head to reach the block of the last send. A transaction that another program
+// sends with the deployer key, such as a funding transfer, is mined within a few blocks. Variable
+// to allow tests to shorten it.
+var l1WaitTimeout = 2 * time.Minute
 
-// broadcastLiveScript keeps script execution separate from signing and transaction delivery.
-// Each script dry-runs against the current L1 head, so it sees earlier scripts' confirmed
-// deployments. Only forge's private transaction file is replayed; no unlocked RPC is exposed.
+// l1PollInterval is how often a wait reads the L1 RPC again.
+const l1PollInterval = 2 * time.Second
+
+// maxSimulations bounds the runs of a script whose deployer nonce moves between its simulation and
+// its first send.
+const maxSimulations = 3
+
+// forkAttempts bounds the runs of a script on a fork, before anything is sent: a backend of a
+// load-balanced RPC that has not seen the fork block fails the run, and a later run can reach another
+// backend. A script that reverts runs that often too.
+const forkAttempts = 3
+
+// broadcastLiveScript runs a script with forge on a fork of the L1 head, without a key, and sends
+// the transactions that forge recorded with txmgr. Only forge's private transaction file is
+// replayed, and no unlocked RPC is exposed. The simulated CREATE addresses depend on the deployer
+// nonce, so the script runs again when the nonce moves before the first send, and the signer
+// refuses any other nonce.
 func broadcastLiveScript[I, O any](ctx context.Context, env *ForgeEnv, newCaller newScriptCaller[I, O], input I) (O, error) {
 	var out O
 	if env.PrivateKey == "" {
@@ -53,91 +65,161 @@ func broadcastLiveScript[I, O any](ctx context.Context, env *ForgeEnv, newCaller
 	if err != nil {
 		return out, fmt.Errorf("failed to read L1 chain ID: %w", err)
 	}
-	head, nonce, err := retry.Do2(ctx, replayNonceAttempts, retry.Fixed(replayNonceDelay), func() (*types.Header, uint64, error) {
-		head, err := client.HeaderByNumber(ctx, nil)
+	logger := env.logger()
+
+	for run := 1; ; run++ {
+		head, nonce, err := waitForSettledNonce(ctx, logger, client, from, env.sentBlock)
 		if err != nil {
-			return nil, 0, fmt.Errorf("failed to read L1 head: %w", err)
+			return out, err
+		}
+		fork := strconv.FormatUint(bigs.Uint64Strict(head.Number), 10)
+		var transactions []forge.Transaction
+		out, transactions, err = retry.Do2(ctx, forkAttempts, retry.Fixed(l1PollInterval), func() (O, []forge.Transaction, error) {
+			return newCaller(env.Client)(ctx, input, "--rpc-url", env.L1RPCUrl, "--sender", from.Hex(),
+				"--fork-block-number", fork, "--skip-simulation")
+		})
+		if err != nil {
+			return out, fmt.Errorf("deployment simulation failed: %w", err)
+		}
+		bcasts, err := replayBroadcasts(transactions, chainID, from, nonce)
+		if err != nil {
+			return out, err
+		}
+		if len(bcasts) == 0 {
+			return out, nil
+		}
+		// Checked once, before the first send. After it, txmgr owns the nonce, so that a lagging
+		// backend of a load-balanced RPC cannot abort a script that has sent a part.
+		if err := requireReplayNonce(ctx, client, from, nonce); err != nil {
+			if run == maxSimulations {
+				return out, fmt.Errorf("deployer nonce check failed after %d simulations: %w", maxSimulations, err)
+			}
+			logger.Warn("deployer nonce check failed after the simulation; simulating again", "err", err)
+			continue
+		}
+		sentBlock, err := sendReplay(ctx, logger, client, key, chainID, nonce, bcasts, env.ReceiptQueryInterval)
+		env.sentBlock = max(env.sentBlock, sentBlock)
+		return out, err
+	}
+}
+
+// readLiveScript runs a script that only reads, on a fork of an L1 head that includes the block of
+// the last send.
+func readLiveScript[I, O any](ctx context.Context, env *ForgeEnv, newCaller newScriptCaller[I, O], input I) (O, error) {
+	var out O
+	client, err := ethclient.DialContext(ctx, env.L1RPCUrl)
+	if err != nil {
+		return out, fmt.Errorf("failed to connect to L1: %w", err)
+	}
+	defer client.Close()
+	logger := env.logger()
+	head, err := retry.Do(ctx, l1WaitAttempts(), retry.Fixed(l1PollInterval), func() (*types.Header, error) {
+		head, err := l1Head(ctx, client, env.sentBlock)
+		if err != nil {
+			logger.Info("waiting for the L1 head", "err", err)
+		}
+		return head, err
+	})
+	if err != nil {
+		return out, err
+	}
+	fork := strconv.FormatUint(bigs.Uint64Strict(head.Number), 10)
+	return retry.Do(ctx, forkAttempts, retry.Fixed(l1PollInterval), func() (O, error) {
+		out, _, err := newCaller(env.Client)(ctx, input, "--rpc-url", env.L1RPCUrl, "--fork-block-number", fork)
+		return out, err
+	})
+}
+
+// waitForSettledNonce waits until the L1 head includes the block of the last send and the deployer
+// has no pending transaction, and returns the head and the deployer's nonce at it.
+func waitForSettledNonce(ctx context.Context, logger log.Logger, client *ethclient.Client, from common.Address, sentBlock uint64) (*types.Header, uint64, error) {
+	return retry.Do2(ctx, l1WaitAttempts(), retry.Fixed(l1PollInterval), func() (*types.Header, uint64, error) {
+		head, err := l1Head(ctx, client, sentBlock)
+		if err != nil {
+			logger.Info("waiting for the L1 head", "err", err)
+			return nil, 0, err
 		}
 		nonce, err := client.NonceAt(ctx, from, head.Number)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to read deployer nonce: %w", err)
 		}
-		return head, nonce, requireReplayNonce(ctx, client, from, nonce)
-	})
-	if err != nil {
-		return out, err
-	}
-
-	transactions, err := env.Client.CaptureTransactions(func(client *forge.Client) error {
-		var err error
-		out, err = newCaller(client)(ctx, input, "--rpc-url", env.L1RPCUrl, "--sender", from.Hex(),
-			"--fork-block-number", strconv.FormatUint(bigs.Uint64Strict(head.Number), 10), "--skip-simulation")
-		return err
-	})
-	if err != nil {
-		return out, fmt.Errorf("deployment simulation failed: %w", err)
-	}
-	bcasts := make([]broadcaster.Broadcast, 0, len(transactions))
-	for i, tx := range transactions {
-		bcast, err := replayBroadcast(tx, chainID, from, nonce+uint64(i))
-		if err != nil {
-			return out, err
+		if err := requireReplayNonce(ctx, client, from, nonce); err != nil {
+			logger.Info("waiting for the deployer's pending transactions", "err", err)
+			return nil, 0, err
 		}
-		bcasts = append(bcasts, bcast)
-	}
-	if len(bcasts) == 0 {
-		return out, nil
-	}
-	// Revalidate after simulation, before the first live send. After that, txmgr owns nonce
-	// sequencing: a lagging load-balanced RPC must not abort a partly completed script.
-	if err := retry.Do0(ctx, replayNonceAttempts, retry.Fixed(replayNonceDelay), func() error {
-		return requireReplayNonce(ctx, client, from, nonce)
-	}); err != nil {
-		return out, err
-	}
+		return head, nonce, nil
+	})
+}
 
-	logger := env.Logger
-	if logger == nil {
-		logger = log.Root()
+func l1WaitAttempts() int {
+	return max(1, int(l1WaitTimeout/l1PollInterval))
+}
+
+// l1Head returns the L1 head, or an error when it is behind sentBlock: a backend of a load-balanced
+// RPC can lag the one that served the receipt of the last send.
+func l1Head(ctx context.Context, client *ethclient.Client, sentBlock uint64) (*types.Header, error) {
+	head, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read L1 head: %w", err)
 	}
+	if number := bigs.Uint64Strict(head.Number); number < sentBlock {
+		return nil, fmt.Errorf("L1 head %d is behind block %d of the last deployment transaction", number, sentBlock)
+	}
+	return head, nil
+}
+
+// sendReplay sends bcasts with txmgr, one at a time from nonce on, and returns the block of the last
+// receipt.
+func sendReplay(ctx context.Context, logger log.Logger, client *ethclient.Client, key *ecdsa.PrivateKey, chainID *big.Int, nonce uint64, bcasts []broadcaster.Broadcast, receiptQueryInterval time.Duration) (uint64, error) {
+	// The signer stops the send when it refuses a nonce: txmgr would retry the signing for a minute.
+	sendCtx, stop := context.WithCancelCause(ctx)
+	defer stop(nil)
 	expectedNonce := nonce
 	live, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
 		Logger:               logger,
 		ChainID:              chainID,
 		Client:               client,
-		Signer:               nonceGuardSigner(key, chainID, &expectedNonce),
-		From:                 from,
-		ReceiptQueryInterval: env.ReceiptQueryInterval,
+		Signer:               nonceGuardSigner(key, chainID, &expectedNonce, stop),
+		From:                 crypto.PubkeyToAddress(key.PublicKey),
+		ReceiptQueryInterval: receiptQueryInterval,
 	})
 	if err != nil {
-		return out, fmt.Errorf("failed to create live broadcaster: %w", err)
+		return 0, fmt.Errorf("failed to create live broadcaster: %w", err)
 	}
+	var sentBlock uint64
 	for i, tx := range bcasts {
 		logger.Info("sending forge transaction", "index", i+1, "total", len(bcasts), "nonce", expectedNonce)
 		live.Hook(tx)
-		if _, err := live.Broadcast(ctx); err != nil {
-			return out, fmt.Errorf("failed to broadcast deployment transaction at nonce %d: %w", expectedNonce, err)
+		results, err := live.Broadcast(sendCtx)
+		if err != nil {
+			if cause := context.Cause(sendCtx); cause != nil && ctx.Err() == nil {
+				err = cause
+			}
+			return sentBlock, fmt.Errorf("failed to broadcast deployment transaction at nonce %d: %w", expectedNonce, err)
 		}
+		sentBlock = bigs.Uint64Strict(results[len(results)-1].Receipt.BlockNumber)
 		expectedNonce++
 	}
-	return out, nil
+	return sentBlock, nil
 }
 
-// nonceGuardSigner signs only a transaction at *expected, the nonce that forge simulated: another
-// nonce would change the simulated CREATE addresses. txmgr signs again at the same nonce to bump a
-// fee, which the guard allows.
-func nonceGuardSigner(key *ecdsa.PrivateKey, chainID *big.Int, expected *uint64) opcrypto.SignerFn {
+// nonceGuardSigner signs only a transaction at *expected, the nonce that forge simulated, and calls
+// stop with its error when it refuses one. txmgr signs again at the same nonce to bump a fee, which
+// the guard allows.
+func nonceGuardSigner(key *ecdsa.PrivateKey, chainID *big.Int, expected *uint64, stop context.CancelCauseFunc) opcrypto.SignerFn {
 	sign := opcrypto.PrivateKeySignerFn(key, chainID)
 	return func(_ context.Context, address common.Address, tx *types.Transaction) (*types.Transaction, error) {
 		if tx.Nonce() != *expected {
-			return nil, fmt.Errorf("deployment nonce changed: expected %d, got %d", *expected, tx.Nonce())
+			err := fmt.Errorf("deployment nonce changed: expected %d, got %d", *expected, tx.Nonce())
+			stop(err)
+			return nil, err
 		}
 		return sign(address, tx)
 	}
 }
 
-// requireReplayNonce rejects pending transactions and unexpected account activity before
-// replay starts: using another nonce would change the simulated CREATE addresses.
+// requireReplayNonce checks that the deployer's latest and pending nonces are both expected: that it
+// has no pending transaction and no other activity.
 func requireReplayNonce(ctx context.Context, client *ethclient.Client, from common.Address, expected uint64) error {
 	latest, err := client.NonceAt(ctx, from, nil)
 	if err != nil {
@@ -151,6 +233,20 @@ func requireReplayNonce(ctx context.Context, client *ethclient.Client, from comm
 		return fmt.Errorf("deployer %s nonce mismatch: expected latest and pending %d, got latest %d and pending %d; resolve pending transactions or concurrent account activity, or use an RPC endpoint whose backends agree, before retrying", from, expected, latest, pending)
 	}
 	return nil
+}
+
+// replayBroadcasts checks the transactions that forge recorded and returns them as broadcasts, from
+// nonce on.
+func replayBroadcasts(transactions []forge.Transaction, chainID *big.Int, from common.Address, nonce uint64) ([]broadcaster.Broadcast, error) {
+	bcasts := make([]broadcaster.Broadcast, 0, len(transactions))
+	for i, tx := range transactions {
+		bcast, err := replayBroadcast(tx, chainID, from, nonce+uint64(i))
+		if err != nil {
+			return nil, err
+		}
+		bcasts = append(bcasts, bcast)
+	}
+	return bcasts, nil
 }
 
 func replayBroadcast(tx forge.Transaction, chainID *big.Int, from common.Address, nonce uint64) (broadcaster.Broadcast, error) {

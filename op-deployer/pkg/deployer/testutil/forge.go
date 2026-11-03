@@ -10,7 +10,7 @@ import (
 
 // NewForgeClient returns a forge client hardened for devnet tests: each
 // invocation is bounded so a stuck forge fails the test instead of hanging
-// until the CI job timeout, and broadcasts run with --slow.
+// until the CI job timeout. Its scripts read the artifacts, as in op-deployer.
 //
 // The timeout only needs to be an order of magnitude below the 90-minute job
 // watchdog, not tight: the worst healthy forge-using test on develop finishes
@@ -22,5 +22,6 @@ func NewForgeClient(t *testing.T, workdir string) *forge.Client {
 	client, err := forge.NewStandardClient(workdir)
 	require.NoError(t, err)
 	client.Timeout = 5 * time.Minute
+	client.FsPermissions = []forge.FsPermission{forge.ArtifactsReadPermission}
 	return client
 }

@@ -93,10 +93,10 @@ func TestReadTransactionsRejectsInvalidManifest(t *testing.T) {
 	}
 }
 
-// TestCaptureTransactions reads only the private per-run file, not any shared project's
-// broadcast directory. A second capture gets a fresh directory, so stale/injected records
-// from another invocation cannot become transactions to sign.
-func TestCaptureTransactions(t *testing.T) {
+// TestRunScriptTransactions checks that a run returns the transactions of its private dry-run file,
+// not of any shared broadcast directory of the project, so that stale or injected records of
+// another run cannot become transactions to sign.
+func TestRunScriptTransactions(t *testing.T) {
 	project := stubProject(t)
 	writeManifest(t, filepath.Join(project, "broadcast"), "Injected.s.sol", `{"transactions":[{"transactionType":"CALL","transaction":{}}]}`)
 	cl := NewClient(stubBinary(t, fmt.Sprintf(`
@@ -106,42 +106,10 @@ echo 'Script ran successfully.'`, testManifest)))
 	cl.Wd = project
 	cl.Stdout = io.Discard
 	for range 2 {
-		out, err := cl.CaptureTransactions(func(client *Client) error {
-			_, err := client.RunScript(context.Background(), "Script.s.sol", "run()", nil)
-			return err
-		})
+		_, transactions, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
 		require.NoError(t, err)
-		require.Len(t, out, 1)
-		require.Equal(t, common.Address{19: 'T'}, *out[0].To)
-	}
-}
-
-func TestCaptureTransactionsRequiresSingleScript(t *testing.T) {
-	cl := NewClient(stubBinary(t, "echo 'Script ran successfully.'"))
-	cl.Wd = stubProject(t)
-	cl.Stdout = io.Discard
-	_, err := cl.CaptureTransactions(func(*Client) error { return nil })
-	require.ErrorContains(t, err, "did not capture a script run")
-
-	_, err = cl.CaptureTransactions(func(client *Client) error {
-		if _, err := client.RunScript(context.Background(), "Script.s.sol", "run()", nil); err != nil {
-			return err
-		}
-		_, err := client.RunScript(context.Background(), "Script.s.sol", "run()", nil)
-		return err
-	})
-	require.ErrorContains(t, err, "exactly one script run")
-}
-
-func TestCaptureTransactionsRejectsBroadcast(t *testing.T) {
-	cl := NewClient(stubBinary(t, "exit 99"))
-	cl.Wd = stubProject(t)
-	for _, flag := range []string{"--broadcast", "--broadcast=true", "--resume"} {
-		_, err := cl.CaptureTransactions(func(client *Client) error {
-			_, err := client.RunScript(context.Background(), "Script.s.sol", "run()", nil, flag)
-			return err
-		})
-		require.ErrorContains(t, err, "keyless dry run")
+		require.Len(t, transactions, 1)
+		require.Equal(t, common.Address{19: 'T'}, *transactions[0].To)
 	}
 }
 

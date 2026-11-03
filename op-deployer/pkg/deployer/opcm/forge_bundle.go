@@ -52,10 +52,7 @@ func NewForgeClient(artifactsFS foundry.StatDirFs, cacheDir string, scripts []Fo
 	if _, err := os.Stat(filepath.Join(client.Wd, "foundry.toml")); err != nil {
 		return nil, fmt.Errorf("the contracts bundle is not a forge project: %w", err)
 	}
-	// The scripts read the artifacts.
-	client.FsPermissions = []forge.FsPermission{
-		{Access: "read", Path: "./forge-artifacts/"},
-	}
+	client.FsPermissions = []forge.FsPermission{forge.ArtifactsReadPermission}
 	return client, nil
 }
 
@@ -68,7 +65,7 @@ func CheckForgeScripts(artifactsFS foundry.StatDirFs, scripts []ForgeScript) err
 			return fmt.Errorf("the contracts bundle has no %s script: %w", script.Contract, err)
 		}
 		if _, ok := artifact.ABI.Methods["runWithBytes"]; !ok {
-			return fmt.Errorf("the %s script of the contracts bundle has no runWithBytes entrypoint; use the contracts release of this op-deployer release", script.Contract)
+			return fmt.Errorf("the %s script of the contracts bundle has no runWithBytes entrypoint; use the contracts release of this op-deployer release, such as the embedded artifacts, or --use-forge=false", script.Contract)
 		}
 	}
 	return nil

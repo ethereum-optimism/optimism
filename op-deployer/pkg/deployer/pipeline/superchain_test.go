@@ -164,7 +164,7 @@ func TestDeploySuperchain_WithForge_ManualCall(t *testing.T) {
 		Paused:                    false,
 	}
 
-	output, err := deploySuperchain(ctx, input)
+	output, _, err := deploySuperchain(ctx, input)
 	require.NoError(t, err)
 	require.NotNil(t, output)
 
