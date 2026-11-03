@@ -283,15 +283,11 @@ impl Discv5Builder {
 
         bind_free_listen_port(&mut config, &local_node)?;
         local_node.udp_port = advertised_udp_port(&config, &local_node)?;
-        // Records reach us through the bootnodes, the registry's included, while we have no IP.
-        let bootnode_ips = self
-            .bootnodes
-            .0
-            .iter()
-            .chain(BootNodes::from_chain_id(chain_id).0.iter())
-            .flat_map(bootnode_ips)
-            .collect::<Vec<_>>();
-        let own_scope = AddrScope::own(local_node.ip, bootnode_ips);
+        // Records reach us through the bootnodes while we have no IP. The registry's are on public
+        // networks, so on a chain in the registry the node is public.
+        let registry_bootnodes = BootNodes::from_chain_id(chain_id);
+        let bootnodes = self.bootnodes.0.iter().chain(&registry_bootnodes.0);
+        let own_scope = AddrScope::own(local_node.ip, bootnodes.flat_map(bootnode_ips));
         config.table_filter = AddrScope::table_filter(own_scope);
 
         let enr = local_node.build_enr(chain_id).map_err(Discv5BuilderError::EnrBuildFailed)?;
