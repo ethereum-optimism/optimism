@@ -1,5 +1,5 @@
 use super::*;
-use crate::QueuedEngineDerivationClient;
+use crate::{DerivationActorRequest, QueuedEngineDerivationClient};
 use alloy_primitives::Sealed;
 use alloy_rpc_types_engine::{
     ExecutionPayloadV1, ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum,
@@ -86,4 +86,95 @@ async fn healthy_unsafe_imports_keep_engine_queue_bounded() {
     assert_eq!(state_rx.borrow().sync_state.unsafe_head(), expected_heads[40]);
     l1.assert_finished();
     l2.assert_finished();
+}
+
+/// Derivation can send attributes and finalizations from its old pipeline after the engine
+/// reset, while the reset signal is still queued for it. They carry the reset epoch derivation
+/// had then, and are dropped on arrival instead of running against the reset head.
+#[tokio::test]
+async fn work_derived_before_the_latest_reset_is_dropped() {
+    let config = Arc::new(RollupConfig::default());
+    let (client, _l1, _l2) = test_engine_client(config.clone());
+    let head = test_block_info(5);
+    let state = TestEngineStateBuilder::new().with_unsafe_head(head).build();
+    let (state_tx, _state_rx) = watch::channel(state);
+    let (requests, request_rx) = mpsc::channel(2);
+    let (derivation_tx, _derivation_rx) = mpsc::channel(2);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    actor.reset_epoch = 2;
+    let attributes = |reset_epoch| EngineActorRequest::ProcessDerivedAttributes {
+        attributes: Box::new(
+            kona_engine::test_utils::TestAttributesBuilder::new().with_parent(head).build(),
+        ),
+        reset_epoch,
+    };
+    let finalization =
+        |reset_epoch| EngineActorRequest::ProcessDerivedFinalization { number: 5, reset_epoch };
+
+    for request in [attributes(1), finalization(1)] {
+        requests.send(request).await.unwrap();
+        actor.step().await.unwrap();
+        assert!(actor.engine.is_empty());
+    }
+    // Hold the queue so the accepted work is counted, not run.
+    actor.retry_at = Instant::now() + Duration::from_secs(3600);
+    for (request, queued) in [(attributes(2), 1), (finalization(2), 2)] {
+        requests.send(request).await.unwrap();
+        actor.step().await.unwrap();
+        assert_eq!(actor.engine.len(), queued);
+    }
+}
+
+/// A drain can move the local-safe head and then hit a task that asks for a reset. The new head
+/// is reported before the reset starts, or derivation would never record it.
+#[tokio::test]
+async fn local_safe_head_is_reported_before_a_reset() {
+    let config = Arc::new(RollupConfig::default());
+    let (client, _l1, _l2) = test_engine_client(config.clone());
+    let client = Arc::new(client);
+    let head = test_block_info(5);
+    let state = TestEngineStateBuilder::new().with_unsafe_head(head).build();
+    let (state_tx, _state_rx) = watch::channel(state);
+    let (_requests, request_rx) = mpsc::channel(1);
+    let (derivation_tx, mut derivation_rx) = mpsc::channel(2);
+    let mut actor = EngineActor::new(
+        client.clone(),
+        config.clone(),
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    // As if earlier tasks in this drain moved the local-safe head past the last head sent.
+    actor.last_engine_safe_head_sent = test_block_info(4);
+    // Attributes that don't extend the local-safe head ask for a reset without an engine call.
+    actor.engine.enqueue(EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+        client,
+        config,
+        ConsolidateInput::Attributes(Box::new(
+            kona_engine::test_utils::TestAttributesBuilder::new()
+                .with_parent(test_block_info(9))
+                .build(),
+        )),
+        Arc::new(NoopBlockSink),
+    ))));
+
+    actor.drain().await.unwrap();
+
+    assert!(actor.reset_pending);
+    let Ok(DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(sent)) =
+        derivation_rx.try_recv()
+    else {
+        panic!("expected the local-safe head before the reset");
+    };
+    assert_eq!(*sent, head);
 }

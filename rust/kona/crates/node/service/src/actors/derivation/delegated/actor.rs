@@ -194,7 +194,7 @@ where
         self.derivation_origin_tx.send_replace(Some(sync_status.current_l1));
 
         self.engine_client
-            .send_safe_l2_signal(sync_status.safe_l2.into())
+            .send_delegated_safe_head(sync_status.safe_l2)
             .await
             .map_err(|e| DerivationError::Sender(Box::new(e)))?;
 

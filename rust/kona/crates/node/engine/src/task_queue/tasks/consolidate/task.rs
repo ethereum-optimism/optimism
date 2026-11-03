@@ -281,6 +281,19 @@ impl ExecutableEngineTask for ConsolidateTask {
     //   injected safe head is ahead of the EngineActor's unsafe head, we reconcile the unsafe chain
     //   up to the safe head instead of consolidating.
     async fn execute(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
+        if let ConsolidateInput::Attributes(attributes) = &self.input {
+            let parent = attributes.parent.block_info;
+            let local_safe = state.sync_state.local_safe_head().block_info;
+            if parent.id() != local_safe.id() {
+                // The engine drops attributes derived before its latest reset, so these are
+                // current: derivation and the engine disagree about the safe chain. Consolidating
+                // them would mark blocks safe that were never derived on it, so reset instead.
+                return Err(ConsolidateTaskError::DoesNotExtendLocalSafe {
+                    parent: parent.id(),
+                    local_safe: local_safe.id(),
+                });
+            }
+        }
         let safe_head_number = match &self.input {
             ConsolidateInput::Attributes { .. } => state.sync_state.safe_head().block_info.number,
             ConsolidateInput::BlockInfo(safe_block_info) => safe_block_info.block_info.number,
@@ -478,5 +491,48 @@ mod tests {
             matches!(&err, ConsolidateTaskError::BuildTaskFailed(build) if build.is_invalid_attributes()),
             "got {err:?}"
         );
+    }
+
+    // Derived attributes whose parent is not the local-safe head mean derivation and the engine
+    // disagree about the safe chain. The task asks for a reset, with no engine call, instead of
+    // marking blocks safe that were never derived or moving the safe head backwards.
+    #[rstest::rstest]
+    #[case::parent_above_local_safe(-1, false)]
+    #[case::parent_below_local_safe(1, false)]
+    #[case::parent_on_another_chain(0, true)]
+    #[tokio::test]
+    async fn attributes_off_the_local_safe_chain_reset(
+        #[case] local_safe_offset: i64,
+        #[case] other_hash: bool,
+    ) {
+        use crate::ExecutableEngineTask;
+        let attributes = derived(vec![alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01])]);
+        // The local-safe head differs from the attributes' parent in only one way: its number, or
+        // its hash at the same number.
+        let mut head = attributes.parent;
+        head.block_info.number =
+            head.block_info.number.checked_add_signed(local_safe_offset).unwrap();
+        if other_hash {
+            head.block_info.hash = B256::repeat_byte(0xab);
+        }
+        let mut state =
+            crate::test_utils::TestEngineStateBuilder::new().with_unsafe_head(head).build();
+        let before = state.sync_state;
+        let cfg = holocene_cfg();
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        let task = ConsolidateTask::new(
+            Arc::new(client),
+            cfg,
+            ConsolidateInput::Attributes(Box::new(attributes)),
+            Arc::new(crate::NoopBlockSink),
+        );
+
+        let err = task.execute(&mut state).await.unwrap_err();
+
+        assert!(matches!(err, ConsolidateTaskError::DoesNotExtendLocalSafe { .. }), "{err:?}");
+        assert_eq!(err.severity(), crate::EngineTaskErrorSeverity::Reset);
+        assert_eq!(state.sync_state, before);
+        l1.assert_finished();
+        l2.assert_finished();
     }
 }

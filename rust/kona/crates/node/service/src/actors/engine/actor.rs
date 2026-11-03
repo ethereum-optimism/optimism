@@ -4,9 +4,9 @@ use crate::{
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildTask, CanonicalizeTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient,
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, ImportedBlockSink,
-    InsertTask, SealTask,
+    BuildTask, CanonicalizeTask, ConsolidateInput, ConsolidateTask, Engine, EngineActorRequest,
+    EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId,
+    FinalizeTask, ImportedBlockSink, InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -34,6 +34,12 @@ where
     el_sync_complete: bool,
     /// The last local-safe head sent to the derivation actor.
     last_engine_safe_head_sent: L2BlockInfo,
+    /// How many reset signals have been sent to the [`crate::DerivationActor`]. Derivation counts
+    /// the reset signals it handles and stamps its attributes and finalizations with that count.
+    /// The channel is FIFO, a failed send stops this actor, and the node stops every actor when
+    /// one exits, so both counts start together and a lower count means the work was derived
+    /// before the latest reset.
+    reset_epoch: u64,
     /// A channel to use to relay the current unsafe head.
     /// ## Note
     /// This is `Some` when the node is in sequencer mode, and `None` when the node is in validator
@@ -81,6 +87,7 @@ where
             el_sync_complete: false,
             engine,
             last_engine_safe_head_sent: L2BlockInfo::default(),
+            reset_epoch: 0,
             rollup: config,
             unsafe_head_tx,
             inbound_request_rx,
@@ -127,6 +134,10 @@ where
     async fn reset(&mut self) -> Result<(), EngineError> {
         // Reset the engine.
         let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
+        // Requests received while the reset was pending were queued behind it. Derivation resets
+        // too, so work it derived before the reset is stale. Work still on its way carries an
+        // older reset epoch and is dropped when it arrives.
+        self.engine.drop_derived_tasks();
         // The sequencer must observe the same reset head as RPC readers before its reset
         // acknowledgement can release a queued start command.
         self.publish_unsafe_head();
@@ -141,7 +152,10 @@ where
         // Signal the derivation actor to reset.
         let signal = Signal::Reset(ResetSignal { l2_safe_head });
         match self.derivation_client.send_signal(signal).await {
-            Ok(_) => info!(target: "engine", "Sent reset signal to derivation actor"),
+            Ok(_) => {
+                self.reset_epoch += 1;
+                info!(target: "engine", reset_epoch = self.reset_epoch, "Sent reset signal to derivation actor");
+            }
             Err(err) => {
                 error!(target: "engine", ?err, "Failed to send reset signal to the derivation actor");
                 return Err(EngineError::ChannelClosed);
@@ -185,6 +199,9 @@ where
                     }
                     EngineTaskErrorSeverity::Reset => {
                         warn!(target: "engine", ?err, "Received reset request");
+                        // Tasks that succeeded earlier in this drain may have moved the local-safe
+                        // head. Report it before the reset, or derivation never records it.
+                        self.send_derivation_actor_safe_head_if_updated().await?;
                         self.begin_reset();
                         return Ok(());
                     }
@@ -207,6 +224,9 @@ where
                     }
                     EngineTaskErrorSeverity::Temporary => {
                         trace!(target: "engine", ?err, "Temporary error draining engine tasks");
+                        // Report a local-safe head that earlier tasks in this drain moved,
+                        // rather than delaying it until the retry succeeds.
+                        self.send_derivation_actor_safe_head_if_updated().await?;
                         self.defer_retry();
                         return Ok(());
                     }
@@ -242,10 +262,40 @@ where
             })?
     }
 
+    /// Whether derivation sent this work before handling the latest reset signal.
+    fn is_stale(&self, reset_epoch: u64, work: &str) -> bool {
+        debug_assert!(
+            reset_epoch <= self.reset_epoch,
+            "derivation counted {reset_epoch} engine resets, but only {} were sent",
+            self.reset_epoch
+        );
+        let stale = reset_epoch < self.reset_epoch;
+        if stale {
+            warn!(
+                target: "engine",
+                work,
+                reset_epoch,
+                current = self.reset_epoch,
+                "Dropping derived work from before the latest reset"
+            );
+        }
+        stale
+    }
+
+    fn enqueue_consolidation(&mut self, input: ConsolidateInput) {
+        self.engine.enqueue(EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+            self.client.clone(),
+            self.rollup.clone(),
+            input,
+            Arc::clone(&self.block_sink),
+        ))));
+    }
+
     /// Sends the [`crate::DerivationActor`] the local-safe head if it changed since the last send.
     ///
     /// Derivation continues from, and records, the head that L1 data made safe. That is the
-    /// local-safe label; the safe label can lag it by cross-chain verification.
+    /// local-safe label; the safe label can lag it by cross-chain verification. Consolidating
+    /// derived attributes always advances it, because they must extend it.
     async fn send_derivation_actor_safe_head_if_updated(&mut self) -> Result<(), EngineError> {
         let local_safe_head = self.engine.state().sync_state.local_safe_head();
         if local_safe_head == self.last_engine_safe_head_sent {
@@ -307,14 +357,24 @@ where
                 )));
                 self.engine.enqueue(task);
             }
-            EngineActorRequest::ProcessSafeL2Signal(safe_signal) => {
-                let task = EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+            EngineActorRequest::ProcessDerivedAttributes { attributes, reset_epoch } => {
+                if self.is_stale(reset_epoch, "attributes") {
+                    return Ok(());
+                }
+                self.enqueue_consolidation(ConsolidateInput::Attributes(attributes));
+            }
+            EngineActorRequest::ProcessDerivedFinalization { number, reset_epoch } => {
+                if self.is_stale(reset_epoch, "finalization") {
+                    return Ok(());
+                }
+                self.engine.enqueue(EngineTask::Finalize(Box::new(FinalizeTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
-                    safe_signal,
-                    Arc::clone(&self.block_sink),
-                )));
-                self.engine.enqueue(task);
+                    FinalizeBlockId::ByNumber(number),
+                ))));
+            }
+            EngineActorRequest::ProcessDelegatedSafeHead(safe_head) => {
+                self.enqueue_consolidation(ConsolidateInput::BlockInfo(*safe_head));
             }
             EngineActorRequest::ProcessFinalizedL2Block(finalized_l2_block_id) => {
                 // Finalize the L2 block identified by the provided [`FinalizeBlockId`].

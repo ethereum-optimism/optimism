@@ -1,10 +1,8 @@
 //! Requests sent to the node engine actor and their replies.
 
-use crate::{
-    BuildTaskError, CanonicalizeTaskError, ConsolidateInput, FinalizeBlockId, SealTaskError,
-};
+use crate::{BuildTaskError, CanonicalizeTaskError, FinalizeBlockId, SealTaskError};
 use alloy_rpc_types_engine::PayloadId;
-use kona_protocol::OpAttributesWithParent;
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -14,8 +12,24 @@ use tokio::sync::mpsc;
 pub enum EngineActorRequest {
     /// Request to start building a block.
     Build(Box<BuildRequest>),
-    /// Request to process derived attributes or delegated safe block information.
-    ProcessSafeL2Signal(ConsolidateInput),
+    /// Request to consolidate attributes from the derivation pipeline.
+    ProcessDerivedAttributes {
+        /// The derived attributes.
+        attributes: Box<OpAttributesWithParent>,
+        /// How many engine resets derivation had handled when it derived the attributes. The
+        /// engine drops attributes derived before its latest reset.
+        reset_epoch: u64,
+    },
+    /// Request to finalize an L2 block that derivation recorded as safe.
+    ProcessDerivedFinalization {
+        /// The L2 block number to finalize.
+        number: u64,
+        /// How many engine resets derivation had handled when it recorded the block. The engine
+        /// drops finalizations recorded before its latest reset.
+        reset_epoch: u64,
+    },
+    /// Request to adopt a safe block reported by a derivation delegate.
+    ProcessDelegatedSafeHead(Box<L2BlockInfo>),
     /// Request to process the finalized L2 block.
     ProcessFinalizedL2Block(Box<FinalizeBlockId>),
     /// Request to process a received unsafe L2 block.
