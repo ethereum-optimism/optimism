@@ -505,7 +505,7 @@ mod tests {
     }
 
     /// A record of a new node on `127.0.0.1`, for `chain_id`.
-    fn record(chain_id: u64) -> Enr {
+    fn localhost_enr(chain_id: u64) -> Enr {
         let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
             unreachable!()
         };
@@ -537,15 +537,29 @@ mod tests {
         #[case] event: impl Fn(Enr) -> discv5::Event,
         #[case] expected: Option<&str>,
     ) {
-        let enr = record(OP_SEPOLIA_CHAIN_ID);
+        let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
         assert_eq!(
             forwarded_record(event(enr.clone()), OP_SEPOLIA_CHAIN_ID),
             expected.map(|kind| (kind, enr))
         );
         assert_eq!(
-            forwarded_record(event(record(OP_MAINNET_CHAIN_ID)), OP_SEPOLIA_CHAIN_ID),
+            forwarded_record(event(localhost_enr(OP_MAINNET_CHAIN_ID)), OP_SEPOLIA_CHAIN_ID),
             None,
             "a record for another chain is never forwarded"
+        );
+    }
+
+    /// A public node doesn't forward a loopback record another node relayed: it is that node's
+    /// loopback, which the public node can't reach.
+    #[test]
+    fn test_public_node_does_not_forward_relayed_loopback_record() {
+        let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
+        // TODO(#23766): fails, as `forwarded_record` checks no address, and doesn't know that this
+        // node is public.
+        assert_eq!(
+            forwarded_record(discv5::Event::Discovered(enr), OP_SEPOLIA_CHAIN_ID),
+            None,
+            "a public node forwarded a relayed loopback record"
         );
     }
 
