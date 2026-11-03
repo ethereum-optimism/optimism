@@ -10,14 +10,17 @@ const FAILSAFE_ENABLED_CODE: i32 = -320602;
 /// definitive rejection, because it signals a filter-internal failure rather than a verdict.
 const JSON_RPC_INTERNAL_ERROR_CODE: i32 = -32603;
 
-/// Filter codes meaning "this node does not have the data yet" (it is out of sync), as opposed to
-/// a verdict that the entry is invalid. These are soft, non-response failures: a single out-of-sync
-/// node is ignored as long as the quorum is met by other nodes.
+/// Filter codes meaning "this node does not have the data yet", as opposed to a verdict that the
+/// entry is invalid. These are soft, non-response failures: a node that has not caught up is
+/// ignored as long as the quorum is met by other nodes. A healthy filter returns
+/// `OUT_OF_SCOPE_CODE` while it has not yet ingested or cross-validated the initiating message.
 ///
-/// `FUTURE_DATA_CODE` is also a [`SuperchainDAError`] variant, so this check must run before the
-/// `SuperchainDAError` mapping; `UNINITIALIZED_CODE` is not in that enum and needs the raw check.
+/// `FUTURE_DATA_CODE` and `OUT_OF_SCOPE_CODE` are also [`SuperchainDAError`] variants, so this
+/// check must run before the `SuperchainDAError` mapping; `UNINITIALIZED_CODE` is not in that enum
+/// and needs the raw check.
 const FUTURE_DATA_CODE: i32 = -321401;
 const UNINITIALIZED_CODE: i32 = -320400;
+const OUT_OF_SCOPE_CODE: i32 = -321100;
 
 /// Starts the message of every definitive rejection. RPC clients such as op-service/txinclude
 /// match it to stop resubmitting a transaction, so it must not change.
@@ -110,12 +113,12 @@ impl InteropTxValidatorError {
     /// Classifies a JSON-RPC error from the interop filter.
     ///
     /// Any error *response* from the filter is a definitive rejection verdict — the filter
-    /// evaluated the request and refused it — except a JSON-RPC internal error
-    /// (`-32603`), which signals a filter-internal failure rather than a verdict. Only
-    /// transport-level failures (no error response at all) are non-responses.
+    /// evaluated the request and refused it — except failsafe, the codes meaning the filter does
+    /// not have the data yet, and a JSON-RPC internal error (`-32603`), which signals a
+    /// filter-internal failure rather than a verdict.
     ///
     /// - failsafe code (`-320602`) → [`FailsafeEnabled`](Self::FailsafeEnabled)
-    /// - data-not-yet-available code (`-321401` / `-320400`) →
+    /// - data-not-yet-available code (`-321401` / `-320400` / `-321100`) →
     ///   [`DataUnavailable`](Self::DataUnavailable) (soft, non-response)
     /// - known [`SuperchainDAError`] code → [`InvalidEntry`](Self::InvalidEntry)
     /// - internal error (`-32603`) → [`Other`](Self::Other) (non-response)
@@ -138,9 +141,10 @@ impl InteropTxValidatorError {
         }
 
         // An out-of-sync node that does not have the data yet is a soft, non-response failure.
-        // Must precede the `SuperchainDAError` mapping because `FUTURE_DATA_CODE` is one of its
-        // variants but should be treated as soft, not as a definitive invalid.
-        if code == FUTURE_DATA_CODE || code == UNINITIALIZED_CODE {
+        // Must precede the `SuperchainDAError` mapping because `FUTURE_DATA_CODE` and
+        // `OUT_OF_SCOPE_CODE` are among its variants but should be treated as soft, not as a
+        // definitive invalid.
+        if code == FUTURE_DATA_CODE || code == UNINITIALIZED_CODE || code == OUT_OF_SCOPE_CODE {
             return Self::DataUnavailable { code };
         }
 
@@ -162,7 +166,24 @@ impl InteropTxValidatorError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_json_rpc::ErrorPayload;
     use rstest::rstest;
+
+    /// A filter that has not caught up to a message has no verdict on it. Treating its answer as
+    /// a verdict would evict the transaction from the pool and stop clients from resubmitting it.
+    #[rstest]
+    #[case::future_data(-321401)]
+    #[case::uninitialized(-320400)]
+    #[case::out_of_scope(-321100)]
+    fn filter_lag_is_not_a_verdict(#[case] code: i64) {
+        let err = InteropTxValidatorError::from_json_rpc(RpcError::<std::io::Error>::err_resp(
+            ErrorPayload { code, message: "not yet".into(), data: None },
+        ));
+        assert!(
+            matches!(err, InteropTxValidatorError::DataUnavailable { code: c } if i64::from(c) == code),
+            "got {err:?}"
+        );
+    }
 
     /// RPC clients see only the message, and match this exact text.
     #[rstest]
