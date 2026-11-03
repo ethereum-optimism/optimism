@@ -1087,7 +1087,11 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
-        _errors = internalRequire(args.absolutePrestate == _zkPrestate, string.concat(_errorPrefix, "-70"), _errors);
+        _errors = internalRequire(
+            _zkPrestate != bytes32(0) && args.absolutePrestate == _zkPrestate,
+            string.concat(_errorPrefix, "-70"),
+            _errors
+        );
         _errors = internalRequire(
             args.verifier == sp1PlonkAdapterImpl && sp1PlonkAdapterImpl.code.length > 0,
             string.concat(_errorPrefix, "-80"),
