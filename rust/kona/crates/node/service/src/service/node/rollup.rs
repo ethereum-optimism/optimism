@@ -98,8 +98,6 @@ pub struct RollupNode {
     pub(crate) l1_config: L1Config,
     /// The L2 EL provider.
     pub(crate) l2_provider: RootProvider<Optimism>,
-    /// Whether to trust the L2 RPC.
-    pub(crate) l2_trust_rpc: bool,
     /// The [`EngineConfig`] for the node.
     pub(crate) engine_config: EngineConfig,
     /// The [`RpcBuilder`] for the node.
@@ -190,25 +188,28 @@ impl RollupNode {
         self.rpc_builder.clone()
     }
 
+    /// Returns the L2 provider that derivation reads from: the engine, behind the buffer of
+    /// blocks the engine has imported.
+    fn l2_derivation_provider(&self) -> BufferedAlloyL2ChainProvider {
+        BufferedAlloyL2ChainProvider::new(
+            self.l2_block_buffer.clone(),
+            AlloyL2ChainProvider::new(
+                self.l2_provider.clone(),
+                self.config.clone(),
+                DERIVATION_PROVIDER_CACHE_SIZE,
+            ),
+        )
+    }
+
     /// Returns the sequencer builder for the node.
     fn create_attributes_builder(
         &self,
         l1_derivation_provider: PreparedAttributesProvider,
     ) -> StatefulAttributesBuilder<PreparedAttributesProvider, BufferedAlloyL2ChainProvider> {
-        let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
-            self.l2_block_buffer.clone(),
-            AlloyL2ChainProvider::new_with_trust(
-                self.l2_provider.clone(),
-                self.config.clone(),
-                DERIVATION_PROVIDER_CACHE_SIZE,
-                self.l2_trust_rpc,
-            ),
-        );
-
         StatefulAttributesBuilder::new(
             self.config.clone(),
             self.l1_config.chain_config.clone(),
-            l2_derivation_provider,
+            self.l2_derivation_provider(),
             l1_derivation_provider,
             self.dependency_set.clone(),
         )
@@ -223,22 +224,13 @@ impl RollupNode {
             .provider
             .clone()
             .with_confirmation_depth(self.verifier_l1_confs, l1_head);
-        let l2_derivation_provider = BufferedAlloyL2ChainProvider::new(
-            self.l2_block_buffer.clone(),
-            AlloyL2ChainProvider::new_with_trust(
-                self.l2_provider.clone(),
-                self.config.clone(),
-                DERIVATION_PROVIDER_CACHE_SIZE,
-                self.l2_trust_rpc,
-            ),
-        );
 
         Ok(OnlinePipeline::new_polled(
             self.config.clone(),
             self.l1_config.chain_config.clone(),
             OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await?,
             l1_derivation_provider,
-            l2_derivation_provider,
+            self.l2_derivation_provider(),
             self.dependency_set.clone(),
         ))
     }

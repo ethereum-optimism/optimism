@@ -103,12 +103,12 @@ That's it! Your node should connect to P2P and start syncing
 quickly.
 
 <Note>
-By default, `kona-node` verifies L1 RPC responses and trusts the local L2
-engine, matching op-node. Verification requires the L1 RPC to serve
-`eth_getProof`. When pointing the node at public
-RPC endpoints, follow
+By default, `kona-node` verifies L1 RPC responses, matching op-node.
+Verification requires the L1 RPC to serve `eth_getProof`. The L2 engine is
+the node's own execution client and is always trusted. When pointing the
+node at a public L1 RPC endpoint, follow
 [configure RPC trust](/node-operators/kona-node/run/rpc-trust) to configure
-verification for both RPCs.
+verification.
 </Note>
 
 

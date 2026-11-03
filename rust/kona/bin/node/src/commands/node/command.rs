@@ -362,7 +362,6 @@ impl NodeCommand {
             crate::version::version().to_owned(),
             cfg,
             l1_config,
-            self.l2_client_args.l2_trust_rpc,
             engine_config,
             p2p_config,
             rpc_config,

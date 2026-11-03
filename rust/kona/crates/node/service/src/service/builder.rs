@@ -49,8 +49,6 @@ pub struct RollupNodeBuilder {
     pub config: RollupConfig,
     /// The L1 chain configuration.
     pub l1_config_builder: L1ConfigBuilder,
-    /// Whether to trust the L2 RPC.
-    pub l2_trust_rpc: bool,
     /// Engine builder configuration.
     pub engine_config: EngineConfig,
     /// The [`NetworkConfig`].
@@ -76,7 +74,6 @@ impl RollupNodeBuilder {
         version: String,
         config: RollupConfig,
         l1_config_builder: L1ConfigBuilder,
-        l2_trust_rpc: bool,
         engine_config: EngineConfig,
         p2p_config: NetworkConfig,
         rpc_config: Option<RpcBuilder>,
@@ -85,7 +82,6 @@ impl RollupNodeBuilder {
             version,
             config,
             l1_config_builder,
-            l2_trust_rpc,
             engine_config,
             p2p_config,
             rpc_config,
@@ -188,7 +184,6 @@ impl RollupNodeBuilder {
             l1_config,
             l2_provider,
             l2_block_buffer,
-            l2_trust_rpc: self.l2_trust_rpc,
             engine_config: self.engine_config,
             rpc_builder: self.rpc_config,
             p2p_config,
