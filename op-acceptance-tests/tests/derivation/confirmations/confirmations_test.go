@@ -40,9 +40,9 @@ func testShallowL1Reorg(gt *testing.T, confirmations uint64) {
 	t := capturedTest{T: devtest.SerialT(gt), logger: logger}
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
 		NodeSpecs: []sysgo.MixedSingleChainNodeSpec{
-			{ELKey: "sequencer-el", CLKey: "sequencer-cl", ELKind: sysgo.MixedL2ELOpGeth, CLKind: sysgo.MixedL2CLOpNode, IsSequencer: true},
-			{ELKey: "go-el", CLKey: "go-cl", ELKind: sysgo.MixedL2ELOpGeth, CLKind: sysgo.MixedL2CLOpNode, VerifierL1Confs: confirmations},
-			{ELKey: "kona-el", CLKey: "kona-cl", ELKind: sysgo.MixedL2ELOpGeth, CLKind: sysgo.MixedL2CLKona, VerifierL1Confs: confirmations},
+			{ELKey: "sequencer-el", CLKey: "sequencer-cl", ELKind: sysgo.MixedL2ELOpReth, CLKind: sysgo.MixedL2CLOpNode, IsSequencer: true},
+			{ELKey: "go-el", CLKey: "go-cl", ELKind: sysgo.MixedL2ELOpReth, CLKind: sysgo.MixedL2CLOpNode, VerifierL1Confs: confirmations},
+			{ELKey: "kona-el", CLKey: "kona-cl", ELKind: sysgo.MixedL2ELOpReth, CLKind: sysgo.MixedL2CLKona, VerifierL1Confs: confirmations},
 		},
 		WithTestSequencer: true,
 		// Keep all manually produced empty blocks within one sequencing window.
