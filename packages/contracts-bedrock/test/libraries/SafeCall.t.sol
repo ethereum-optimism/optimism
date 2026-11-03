@@ -290,7 +290,10 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
             // Because forge coverage always runs with the optimizer disabled, if forge coverage is
             // run before testing this with forge test or forge snapshot, forge clean should be run
             // first so that it recompiles the contracts using the foundry.toml optimizer settings.
-            if (Config.isUnoptimized()) {
+            if (Config.isSolar()) {
+                // 65_694 is the exact amount of gas required with Solar.
+                expected = 65_694;
+            } else if (Config.isUnoptimized()) {
                 // 66_358 is the exact amount of gas required with the optimizer disabled.
                 expected = 66_358;
             } else {
@@ -327,7 +330,10 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
             // Because forge coverage always runs with the optimizer disabled, if forge coverage is
             // run before testing this with forge test or forge snapshot, forge clean should be run
             // first so that it recompiles the contracts using the foundry.toml optimizer settings.
-            if (Config.isUnoptimized()) {
+            if (Config.isSolar()) {
+                // 15_278_393 is the exact amount of gas required with Solar.
+                expected = 15_278_393;
+            } else if (Config.isUnoptimized()) {
                 // 15_279_057 is the exact amount of gas required with the optimizer disabled.
                 expected = 15_279_057;
             } else {

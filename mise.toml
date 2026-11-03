@@ -75,6 +75,18 @@ git-cliff = "2.12.0"
 kontrol = "1.0.255"
 binary_signer = "1.0.4"
 
+# Solar compiles the lite and liteci contract profiles. Pinned separately because
+# Foundry bundles an older Solar. Release assets can be replaced under the same
+# tag, so the checksums pin the exact downloads.
+[tools."github:paradigmxyz/solar"]
+version = "0.3.0"
+platforms.linux-arm64.checksum = "sha256:8da0507426756ec175d281d421ea4fb44d02e3fb9f46ff8ff79802c5d547e95c"
+platforms.linux-arm64-musl.checksum = "sha256:8da0507426756ec175d281d421ea4fb44d02e3fb9f46ff8ff79802c5d547e95c"
+platforms.linux-x64.checksum = "sha256:15a613746dd30ca772664824d97feddb5c5163ec2380aa556a2d270eacedc5fc"
+platforms.linux-x64-musl.checksum = "sha256:e01eece887e28438a2398e9ec17f1038cfd2b2f93e721382a9b6422020a7fa66"
+platforms.macos-arm64.checksum = "sha256:6d213a61324b77d55868795b516661c84ec77b41c60befddb4f0cb7a0168d0b1"
+platforms.macos-x64.checksum = "sha256:df93b34f1568d4bd7bd2ddf46d5d5056be76166c99d008c4186166c2dbe8238a"
+
 [tool_alias]
 forge = "github:foundry-rs/foundry[bin=forge,version_prefix=v]"
 cast = "github:foundry-rs/foundry[bin=cast,version_prefix=v]"

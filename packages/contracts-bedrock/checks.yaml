@@ -87,7 +87,8 @@ phases:
   # This build is the compiler-warning gate: it keeps foundry.toml's `deny = "warnings"`, under
   # which forge compiles everything without a cache.
   - name: dev
-    build: just forge-build-dev
+    # Solar does not emit the ASTs the test naming check needs, so this builds with solc.
+    build: FOUNDRY_PROFILE=cicoverage forge build
     checks:
       - name: forge-test-names
         description: Validate forge test conventions
