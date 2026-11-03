@@ -135,6 +135,69 @@ async fn test_node_on_all_interfaces_gets_no_votes_from_bootnodes() -> anyhow::R
     Ok(())
 }
 
+/// The IP this host would send from to another host, if it isn't loopback: usually a LAN address,
+/// or a public one on a host with one on its interface. Neither can reach another node's loopback.
+///
+/// Connecting a UDP socket only picks the route to an address, and sends nothing, so this connects
+/// to a documentation address (RFC 5737), which no host has.
+fn host_ip() -> Option<IpAddr> {
+    let socket = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).ok()?;
+    socket.connect((Ipv4Addr::new(192, 0, 2, 1), 9)).ok()?;
+    let ip = socket.local_addr().ok()?.ip();
+    (!ip.is_loopback() && !ip.is_unspecified()).then_some(ip)
+}
+
+/// A node on a LAN neither keeps nor dials a loopback record another node relays: it is that
+/// node's loopback, not one the LAN node can reach. All three nodes run on this host:
+///
+/// - B (`bootnode`) listens on, and advertises, the host's own IP.
+/// - R (`relayed`) listens on, and advertises, `127.0.0.1`, and joins through B. B adds R to its
+///   table, as R started a session with it from the address R advertises, and hands R out to the
+///   nodes that look it up.
+/// - P (`node`) listens on, and advertises, the host's own IP, and joins through B.
+///
+/// P's lookups through B return R, which P drops: its discovery doesn't contact R or keep it in its
+/// table, and its gossip doesn't dial it.
+///
+/// B and R run their only lookup at startup, before P joins, so R never learns of P. Given more
+/// lookups, R would find P through B and contact it, which works on one host. P would then keep R
+/// and dial it, as a node that reached it from the address it advertises.
+///
+/// Skipped on a host with no address but loopback.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_lan_node_ignores_relayed_loopback_records() -> anyhow::Result<()> {
+    let Some(host_ip) = host_ip() else {
+        eprintln!("skipping, this host has no address but loopback");
+        return Ok(());
+    };
+    let mut builder = TestNetworkBuilder::new()
+        .with_discovery_interval(Duration::from_secs(3600))
+        .with_listen_ip(host_ip);
+    let bootnode = builder.build(vec![]).await;
+    let bootnode_enr = bootnode.peer_enr().await?;
+    let relayed = builder.build(vec![bootnode_enr.clone()]).await;
+    let relayed_id = relayed.node_id().await?;
+    bootnode.check_in_discovery_table_with_retries(relayed_id).await?;
+
+    let mut builder =
+        builder.with_discovery_interval(Duration::from_millis(100)).with_listen_ip(host_ip);
+    let node = builder.build(vec![bootnode_enr]).await;
+    node.check_connected_to_with_retries(&bootnode).await?;
+    // Discovery reached B, so its lookups go through B.
+    bootnode.check_in_discovery_table_with_retries(node.node_id().await?).await?;
+
+    // Give it many lookups through B.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    assert!(
+        !node_ids(&node.discovery_table().await?).contains(&relayed_id),
+        "the node keeps a relayed loopback record"
+    );
+    assert!(!node.is_connected_to(&relayed).await?, "the node dialed a relayed loopback record");
+
+    Ok(())
+}
+
 /// Nodes gossiping over the in-memory transport, without discovery, connect through the
 /// `ConnectPeer` command that `opp2p_connectPeer` sends.
 #[tokio::test(flavor = "multi_thread")]
