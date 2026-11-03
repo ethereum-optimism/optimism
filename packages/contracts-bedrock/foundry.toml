@@ -9,6 +9,10 @@ out = 'forge-artifacts'
 script = 'scripts'
 build_info_path = 'artifacts/build-info'
 
+# PoC: every profile compiles with Solar, including the default artifacts in forge-artifacts/
+# that op-deployer, snapshots and the Go tooling consume. Do not merge.
+solc = './scripts/ops/solar'
+
 optimizer = true
 optimizer_runs = 999999
 
@@ -76,7 +80,8 @@ fs_permissions = [
 # 5159 = selfdestruct deprecation
 # 8429 = virtual modifiers deprecated (solc 0.8.31, triggered by solmate)
 # 2424 = natspec memory-safe-assembly comment deprecated (solc 0.8.31, triggered by forge-std)
-ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159, 8429, 2424]
+# 2264 = experimental codegen; 5333 = Solar accepts the pinned 0.8.x pragmas.
+ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159, 8429, 2424, 2264, 5333]
 # Scoped to these libraries so our own sources still fail on the warnings they trigger:
 # 6335 = future `at` keyword collision (solc 0.8.35, triggered by solady)
 # 9207 = send deprecation (solc 0.8.31, triggered by safe-contracts)

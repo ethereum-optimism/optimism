@@ -263,15 +263,18 @@ library Config {
         return vm.envOr("FOUNDRY_PROFILE", string("default"));
     }
 
-    /// @notice Returns true for the development and PR profiles compiled with Solar.
-    function isSolar() internal view returns (bool) {
-        string memory profile = foundryProfile();
-        return LibString.eq(profile, "lite") || LibString.eq(profile, "liteci");
+    /// @notice Returns true when the active profile is compiled with Solar. On this PoC branch every
+    ///         profile is, so the Solar-specific test expectations apply everywhere.
+    function isSolar() internal pure returns (bool) {
+        return true;
     }
 
-    /// @notice Keeps Solar artifacts separate from solc deployment artifacts.
+    /// @notice Returns the active profile's artifact output directory. The lite profiles keep their
+    ///         separate output directory; every other profile writes Solar output to forge-artifacts/.
     function artifactDirectory() internal view returns (string memory) {
-        return isSolar() ? "cache/solar-artifacts/" : "forge-artifacts/";
+        string memory profile = foundryProfile();
+        bool liteProfile = LibString.eq(profile, "lite") || LibString.eq(profile, "liteci");
+        return liteProfile ? "cache/solar-artifacts/" : "forge-artifacts/";
     }
 
     /// @notice Returns true when the compiler output is not production-like. This includes
