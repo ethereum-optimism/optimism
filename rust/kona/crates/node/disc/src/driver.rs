@@ -50,57 +50,13 @@ const EVENT_STREAM_MAX_ATTEMPTS: u32 = 10;
 /// The delay between attempts to start the [`Discv5`] event stream.
 const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
 
-/// Returns the record a discovery event brings, with the event's name for metrics and logs, if our
-/// own gossip should dial it. The driver then hands it to gossip and saves it in the bootstore; it
-/// doesn't send it to other nodes. Only a record valid for `chain_id` is dialed, from these events:
-///
-/// - `Discovered`: a record in another node's answer to one of our lookups. discv5 sends it for
-///   every record in the answer, before it applies its table filter or checks that the record has
-///   an address to contact, so the record may not be live or reachable. It is dialed because that
-///   is how gossip learns about nodes we have no session with, but only if a node of scope
-///   `own_scope` can reach it, as the table filter checks: discv5 doesn't say which node relayed
-///   it.
-/// - `SessionEstablished`: a session with the node started, in either direction, and discv5 checked
-///   that its record's UDP address, if it has one, is the one its packets came from. The node is
-///   live, and reachable at its record's address, so this is the record most worth dialing, even if
-///   our own scope couldn't reach it otherwise, such as a node on our own host's loopback.
-///
-///   discv5 also adds such a node to its table without the table filter, and relays its record
-///   to the nodes that look it up, who may not be able to reach it. discv5 has no hook to check a
-///   record against the node asking for it, as geth does, so it is left to that node to reject it.
-/// - `UnverifiableEnr`: a node started a session with us, but its record's UDP address is not the
-///   one its packets came from. discv5 keeps the session but leaves the node out of its table. It
-///   is dialed because the record's address may still be reachable: a NAT may have rewritten the
-///   address the packets came from, while the record holds the one the NAT maps to the node. The
-///   record may also be wrong, or hold an address the node can't be reached at, so it is only
-///   dialed if its addresses are plausible from the address the packets came from.
-fn record_to_dial(
-    event: discv5::Event,
-    chain_id: u64,
-    own_scope: AddrScope,
-) -> Option<(&'static str, Enr)> {
-    let (kind, enr, check) = match event {
-        discv5::Event::Discovered(enr) => {
-            let check = AddrScope::check_reachable_enr(own_scope, &enr);
-            ("discovered", enr, check)
-        }
-        discv5::Event::SessionEstablished(enr, _) => ("session_established", enr, Ok(())),
-        discv5::Event::UnverifiableEnr { enr, socket, .. } => {
-            let check = AddrScope::check_relayed_enr(AddrScope::of(socket.ip()), &enr);
-            ("unverifiable_enr", enr, check)
-        }
-        _ => return None,
-    };
-    if EnrValidation::validate(&enr, chain_id).is_invalid() {
-        return None;
-    }
-    if let Err(reason) = check {
-        debug!(target: "discovery", event = kind, %reason, ?enr, "Ignoring a record with an address we can't reach");
-        metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "unreachable_address")
-            .increment(1);
-        return None;
-    }
-    Some((kind, enr))
+/// A record our own gossip should dial, see [`Discv5Driver::record_to_dial`].
+#[derive(Debug, PartialEq, Eq)]
+struct RecordToDial {
+    /// The name of the discovery event that brought it, for metrics and logs.
+    event: &'static str,
+    /// The record.
+    enr: Enr,
 }
 
 /// The [`Discv5Driver`] drives the discovery service.
@@ -190,6 +146,62 @@ impl Discv5Driver {
             })
             .await;
         res.map(|_| s)
+    }
+
+    /// Returns the record a discovery event brings, if our own gossip should dial it. The driver
+    /// then hands it to gossip and saves it in the bootstore; it doesn't send it to other nodes.
+    /// Only a record valid for `chain_id` is dialed, from these events:
+    ///
+    /// - `Discovered`: a record in another node's answer to one of our lookups. discv5 sends it for
+    ///   every record in the answer, before it applies its table filter or checks that the record
+    ///   has an address to contact, so the record may not be live or reachable. It is dialed
+    ///   because that is how gossip learns about nodes we have no session with, but only if a node
+    ///   of scope `own_scope` can reach it, as the table filter checks: discv5 doesn't say which
+    ///   node relayed it.
+    /// - `SessionEstablished`: a session with the node started, in either direction, and discv5
+    ///   checked that its record's UDP address, if it has one, is the one its packets came from.
+    ///   The node is live, and reachable at its record's address, so this is the record most worth
+    ///   dialing, even if our own scope couldn't reach it otherwise, such as a node on our own
+    ///   host's loopback.
+    ///
+    ///   discv5 also adds such a node to its table without the table filter, and relays its record
+    ///   to the nodes that look it up, who may not be able to reach it. discv5 has no hook to check
+    ///   a record against the node asking for it, as geth does, so it is left to that node to
+    ///   reject it.
+    /// - `UnverifiableEnr`: a node started a session with us, but its record's UDP address is not
+    ///   the one its packets came from. discv5 keeps the session but leaves the node out of its
+    ///   table. It is dialed because the record's address may still be reachable: a NAT may have
+    ///   rewritten the address the packets came from, while the record holds the one the NAT maps
+    ///   to the node. The record may also be wrong, or hold an address the node can't be reached
+    ///   at, so it is only dialed if its addresses are plausible from the address the packets came
+    ///   from.
+    fn record_to_dial(
+        event: discv5::Event,
+        chain_id: u64,
+        own_scope: AddrScope,
+    ) -> Option<RecordToDial> {
+        let (kind, enr, check) = match event {
+            discv5::Event::Discovered(enr) => {
+                let check = AddrScope::check_reachable_enr(own_scope, &enr);
+                ("discovered", enr, check)
+            }
+            discv5::Event::SessionEstablished(enr, _) => ("session_established", enr, Ok(())),
+            discv5::Event::UnverifiableEnr { enr, socket, .. } => {
+                let check = AddrScope::check_relayed_enr(AddrScope::of(socket.ip()), &enr);
+                ("unverifiable_enr", enr, check)
+            }
+            _ => return None,
+        };
+        if EnrValidation::validate(&enr, chain_id).is_invalid() {
+            return None;
+        }
+        if let Err(reason) = check {
+            debug!(target: "discovery", event = kind, %reason, ?enr, "Ignoring a record with an address we can't reach");
+            metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "unreachable_address")
+                .increment(1);
+            return None;
+        }
+        Some(RecordToDial { event: kind, enr })
     }
 
     /// Bootstraps the [`Discv5`] table with bootnodes.
@@ -462,7 +474,9 @@ impl Discv5Driver {
                             error!(target: "discovery", "Discv5 event stream ended, stopping discovery");
                             return;
                         };
-                        if let Some((kind, enr)) = record_to_dial(event, chain_id, own_scope) {
+                        if let Some(RecordToDial { event: kind, enr }) =
+                            Self::record_to_dial(event, chain_id, own_scope)
+                        {
                             debug!(target: "discovery", event = kind, ?enr, "Valid ENR, passing it to gossip to dial");
                             metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
                             store.add_enr(enr.clone());
@@ -582,15 +596,19 @@ mod tests {
     )]
     fn test_record_to_dial(
         #[case] event: impl Fn(Enr) -> discv5::Event,
-        #[case] expected: Option<&str>,
+        #[case] expected: Option<&'static str>,
     ) {
         let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
         assert_eq!(
-            record_to_dial(event(enr.clone()), OP_SEPOLIA_CHAIN_ID, AddrScope::Loopback),
-            expected.map(|kind| (kind, enr))
+            Discv5Driver::record_to_dial(
+                event(enr.clone()),
+                OP_SEPOLIA_CHAIN_ID,
+                AddrScope::Loopback
+            ),
+            expected.map(|event| RecordToDial { event, enr })
         );
         assert_eq!(
-            record_to_dial(
+            Discv5Driver::record_to_dial(
                 event(localhost_enr(OP_MAINNET_CHAIN_ID)),
                 OP_SEPOLIA_CHAIN_ID,
                 AddrScope::Loopback
@@ -682,7 +700,8 @@ mod tests {
         #[case] dialed: bool,
     ) {
         let event = event(enr_at(ip, OP_SEPOLIA_CHAIN_ID));
-        assert_eq!(record_to_dial(event, OP_SEPOLIA_CHAIN_ID, own_scope).is_some(), dialed);
+        let dialed_record = Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID, own_scope);
+        assert_eq!(dialed_record.is_some(), dialed);
     }
 
     /// A public node should dial only the saved records it can reach, as with the records other
