@@ -72,21 +72,39 @@ func processFile(file string) (*SnapshotResult, []error) {
 		return nil, []error{fmt.Errorf("failed to parse artifact name %q: %w", file, err)}
 	}
 
-	// Skip anything that isn't in the src directory, with the exception of
-	// GnosisSafe because it's used for decoding storage changes in superchain-ops.
-	if !strings.HasPrefix(artifact.Ast.AbsolutePath, "src/") && contractName != "GnosisSafe" {
-		return nil, nil
-	}
-
-	// Skip anything that isn't a proper contract.
+	// Solar emits no AST: take the source path from the compiler metadata and classify the
+	// declaration from the source file instead.
+	sourcePath := artifact.Ast.AbsolutePath
 	isContract := false
-	for _, node := range artifact.Ast.Nodes {
-		if node.NodeType == "ContractDefinition" &&
-			node.Name == contractName &&
-			node.ContractKind == "contract" &&
-			!node.Abstract {
-			isContract = true
-			break
+	if len(artifact.Ast.Nodes) == 0 {
+		for path := range artifact.Metadata.Settings.CompilationTarget {
+			sourcePath = path
+		}
+		if !strings.HasPrefix(sourcePath, "src/") && contractName != "GnosisSafe" {
+			return nil, nil
+		}
+		content, err := os.ReadFile(sourcePath)
+		if err != nil {
+			return nil, []error{fmt.Errorf("failed to read source %q for %s: %w", sourcePath, contractName, err)}
+		}
+		re := regexp.MustCompile(`(?m)^\s*(abstract\s+)?contract\s+` + regexp.QuoteMeta(contractName) + `\b`)
+		m := re.FindSubmatch(content)
+		isContract = m != nil && len(m[1]) == 0
+	} else {
+		// Skip anything that isn't in the src directory, with the exception of
+		// GnosisSafe because it's used for decoding storage changes in superchain-ops.
+		if !strings.HasPrefix(sourcePath, "src/") && contractName != "GnosisSafe" {
+			return nil, nil
+		}
+		// Skip anything that isn't a proper contract.
+		for _, node := range artifact.Ast.Nodes {
+			if node.NodeType == "ContractDefinition" &&
+				node.Name == contractName &&
+				node.ContractKind == "contract" &&
+				!node.Abstract {
+				isContract = true
+				break
+			}
 		}
 	}
 	if !isContract {
