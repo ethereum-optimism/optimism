@@ -1,0 +1,74 @@
+---
+title: "Subblocks: 200 ms 간격 및 스트림 페이로드 변경"
+description: OP Sepolia와 OP Mainnet에서 Subblocks(이전 명칭 Flashblocks)가 200 ms 간격으로 전환되며, 스트림 페이로드의 4개 필드가 0으로 설정됩니다.
+date: 2026-08-17
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: subblocks
+personas:
+  - app-developer
+  - node-operator
+categories:
+  - protocol
+  - infrastructure
+is_imported_content: 'false'
+audit-source:
+  - rust/op-alloy/crates/rpc-types-engine/src/flashblock/delta.rs
+---
+
+Subblocks(이전 명칭 Flashblocks)는 OP Stack 체인에서 사전 확인(pre-confirmation)을 스트리밍합니다.
+OP Sepolia와 OP Mainnet에 두 가지 변경 사항이 배포됩니다. subblock 간격이 250 ms에서 200 ms로 줄어들고, 스트림 페이로드의 4개 필드가 0 값으로 설정됩니다.
+
+스트림은 기존 wire format을 유지하며, 페이로드 타입 이름도 여전히 `ExecutionPayloadFlashblockDeltaV1`입니다.
+
+<Warning>
+  subblock 스트림은 `state_root`, `block_hash`, `withdrawals_root`, `withdrawals`를 0 값으로 설정합니다.
+  스트림은 wire 호환성을 유지하므로, 읽기 시 오류가 발생하지 않고 0 값이 반환됩니다.
+  **2026년 8월 17일** 전에 스트림 통합을 점검하세요.
+</Warning>
+
+## 의미
+
+*   **간격이 250 ms에서 200 ms로 줄어듭니다.** 이에 따라 OP Sepolia와 OP Mainnet은 `FLASHBLOCKS_TIME = 200ms`가 됩니다.
+*   **4개의 페이로드 필드가 0 값으로 설정됩니다.** 4개 필드 모두 `ExecutionPayloadFlashblockDeltaV1`에 계속 존재합니다. wire format에서 제거되는 항목은 없습니다.
+*   **`receipts_root`와 `logs_bloom`을 포함한 나머지 모든 필드는 계속 실제 값을 전달합니다.**
+
+| 필드 | 스트림상의 0 값 |
+| --- | --- |
+| `state_root` | `0x0000...0000` |
+| `block_hash` | `0x0000...0000` |
+| `withdrawals_root` | `0x0000...0000` |
+| `withdrawals` | `[]` |
+
+이러한 필드를 읽는 통합은 파싱 단계에서 명확하게 실패하지 않고 0 값을 받은 채 계속 진행됩니다.
+마이그레이션 전에 애플리케이션 또는 통합에서 이러한 필드를 읽는 부분을 직접 점검할 것을 권장합니다.
+
+## 점진적 배포
+
+이 변경은 한 번에 전환되는 것이 아니라 점진적으로 배포되므로, 일정 기간 동안 이전 동작과 새 동작이 모두 나타날 수 있습니다.
+
+## 필요한 조치
+
+subblock 스트림을 직접 사용하는 팀의 경우:
+
+*   통합에서 `state_root`, `block_hash`, `withdrawals_root`, `withdrawals`를 읽는 부분을 점검합니다.
+*   이들 중 어느 필드의 0 값도 다운스트림 상태, 잔액 또는 증명으로 전파되지 않는지 확인합니다.
+*   스트림 페이로드를 자체 소비자에게 전달하는 RPC 제공업체는 이 공지를 해당 소비자에게 전달해야 합니다.
+
+## 일정
+
+| 네트워크 | 목표 배포일 |
+| --- | --- |
+| OP Sepolia | 2026년 8월 17일 |
+| OP Mainnet | 2026년 8월 31일 |
+
+두 날짜 모두 목표이며 변경될 수 있습니다.
+
+## 주요 링크
+
+| 자료 | 링크 |
+| --- | --- |
+| Subblocks 사양 | [specs.optimism.io](https://specs.optimism.io/protocol/subblocks.html) |
+| Subblocks 설명서 | [Subblocks 작동 방식](/ko/op-stack/features/subblocks) |
+| 앱 통합 가이드 | [앱에 Subblocks 통합하기](/ko/app-developers/guides/transactions/integrating-subblocks) |

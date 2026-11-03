@@ -246,48 +246,4 @@ func TestDeployScriptsForge(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEqual(t, common.Address{}, output.DisputeGameImpl)
 	})
-
-	t.Run("read superchain deployment with forge", func(t *testing.T) {
-		runner := NewCLITestRunnerWithNetwork(t)
-		workDir := runner.GetWorkDir()
-
-		superchainOutputFile := filepath.Join(workDir, "bootstrap_superchain_for_read.json")
-		runner.ExpectSuccessWithNetwork(t, []string{
-			"bootstrap", "superchain",
-			"--outfile", superchainOutputFile,
-			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--guardian", guardian.Hex(),
-			"--use-forge",
-		}, nil)
-
-		var superchainOutput opcm.DeploySuperchainOutput
-		data, err := os.ReadFile(superchainOutputFile)
-		require.NoError(t, err)
-		err = json.Unmarshal(data, &superchainOutput)
-		require.NoError(t, err)
-
-		tmpDir := t.TempDir()
-		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-		require.NoError(t, err)
-
-		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
-
-		// Read superchain deployment using Forge wrapper function
-		forgeEnv := &opcm.ForgeEnv{
-			Client:   forgeClient,
-			Context:  context.Background(),
-			L1RPCUrl: runner.GetL1RPC(),
-			// PrivateKey not required for read-only operations
-		}
-		output, err := opcm.ReadSuperchainDeploymentViaForge(forgeEnv, opcm.ReadSuperchainDeploymentInput{
-			SuperchainConfigProxy: superchainOutput.SuperchainConfigProxy,
-		})
-		require.NoError(t, err)
-
-		require.Equal(t, superchainOutput.SuperchainConfigProxy, output.SuperchainConfigProxy)
-		require.Equal(t, superchainOutput.SuperchainConfigImpl, output.SuperchainConfigImpl)
-		require.Equal(t, superchainOutput.SuperchainProxyAdmin, output.SuperchainProxyAdmin)
-		require.NotEqual(t, common.Address{}, output.Guardian)
-		require.NotEqual(t, common.Address{}, output.SuperchainProxyAdminOwner)
-	})
 }

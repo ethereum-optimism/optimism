@@ -1,0 +1,141 @@
+---
+title: OPCM으로 새 분쟁 게임 배포하기
+description: OPCM을 사용하여 OP Stack 체인에 새 분쟁 게임을 배포하는 방법을 알아봅니다
+diataxis: how-to
+---
+
+이 가이드는 [OPCM(OP Contracts Manager)](/ko/chain-operators/reference/opcm)을 사용하여 OP Stack 체인에 새 분쟁 게임(dispute game)을 배포하는 방법을 안내합니다. 이 과정은 특히 무허가형(permissionless) 분쟁 게임을 지원하도록 체인을 업그레이드하려는 팀과 관련이 있습니다.
+
+## 사전 요구 사항
+
+시작하기 전에 다음 사항을 확인하십시오.
+
+*   체인에서 op-contracts/v2.0.0 이상을 실행하고 있어야 합니다
+*   체인의 L1 `ProxyAdmin` 컨트랙트를 소유하고 있어야 합니다
+*   Forge 툴킷을 설치해야 합니다([Foundry 문서](https://getfoundry.sh/) 참조)
+
+## 분쟁 게임 이해하기
+
+OP Stack은 두 가지 유형의 분쟁 게임을 사용합니다.
+
+*   **허가형(permissioned) 분쟁 게임**: 특정 proposer 및 challenger 주소로 제한됩니다
+*   **무허가형(permissionless) 분쟁 게임**: 누구나 제안하거나 이의를 제기할 수 있습니다
+
+<Info>
+  허가형 분쟁 게임(PDG)에서 [challenger 역할](/ko/op-stack/protocol/privileged-roles)은 특정 주소에 할당되는 프로토콜 수준의 권한으로, 해당 주소가 분쟁을 시작하거나 대응할 수 있게 합니다. 이 역할은 불일치를 자동으로 감지하고 이의 제기를 제출하는 오프체인 모니터링 서비스인 op-challenger 서비스와는 구별됩니다.
+  op-challenger 서비스는 일반적으로 challenger 역할이 할당된 주소를 사용하여 작동하지만, 프로토콜 수준의 역할 자체는 op-challenger 서비스의 사용 여부와 관계없이 독립적으로 할당될 수 있습니다.
+  자세한 내용은 [OP Stack 구성 가능성 스펙](https://specs.optimism.io/protocol/configurability.html)을 참조하십시오.
+</Info>
+
+`op-deployer`로 배포된 모든 체인은 처음에는 허가형 분쟁 게임만 포함합니다.
+이 가이드는 무허가형 게임을 추가하는 방법을 설명합니다.
+
+## `addGameType` 함수
+
+OPCM 컨트랙트에는 새 분쟁 게임의 배포를 처리하는 `addGameType` 함수가 있습니다. 이 함수는 다음을 수행합니다.
+
+1.  새 분쟁 게임 구현을 배포합니다
+2.  선택적으로 새 [`DelayedWETH`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DelayedWETH.sol) 컨트랙트를 배포합니다
+3.  `DisputeGameFactory`에 게임을 등록합니다
+4.  초기 본드 금액을 설정합니다
+
+### 1. 올바른 OPCM 인스턴스 찾기
+
+각 OP Contracts 릴리스에는 고유한 OPCM 인스턴스가 있습니다. 체인의 컨트랙트 버전과 정확히 일치하는 OPCM을 사용해야 합니다. 예를 들어 시스템이 컨트랙트 버전 **v3.0.0**을 사용한다면 **v3.0.0**용 OPCM을 사용해야 합니다.
+
+올바른 OPCM 주소를 찾으려면 다음을 참조하십시오.
+
+*   **Mainnet**의 경우 superchain-registry의 [standard-versions-mainnet.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml) 파일을 참조하십시오.
+*   **Sepolia**의 경우 superchain-registry의 [standard-versions-sepolia.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-sepolia.toml) 파일을 참조하십시오.
+
+이 레지스트리 파일에는 OP 컨트랙트 버전과 해당 OPCM 주소 간의 매핑이 포함되어 있습니다.
+
+### 2. `addGameType` 호출 준비하기
+
+`addGameType` 함수는 `AddGameInput` 구조체의 배열을 인자로 받습니다. 구조는 다음과 같습니다.
+
+```solidity
+struct AddGameInput {
+    string saltMixer;
+    ISystemConfig systemConfig;
+    IProxyAdmin proxyAdmin;
+    IDelayedWETH delayedWETH;
+    GameType disputeGameType;
+    Claim disputeAbsolutePrestate;
+    uint256 disputeMaxGameDepth;
+    uint256 disputeSplitDepth;
+    Duration disputeClockExtension;
+    Duration disputeMaxClockDuration;
+    uint256 initialBond;
+    IBigStepper vm;
+    bool permissioned;
+}
+```
+
+**주요 매개변수 설명:**
+
+*   **saltMixer:** 고유한 컨트랙트 주소를 생성하는 데 사용되는 문자열
+*   **systemConfig:** 체인의 `SystemConfig` 컨트랙트 주소
+*   **proxyAdmin:** 체인의 `ProxyAdmin` 컨트랙트 주소
+*   **delayedWETH:** `DelayedWETH` 컨트랙트 주소(새로 배포하려면 zero 주소 사용)
+*   **disputeGameType:** 무허가형 게임의 경우 `GameTypes.CANNON` 사용
+*   **disputeAbsolutePrestate:** 게임의 절대 사전 상태(absolute prestate) 해시
+*   **permissioned:** 무허가형 게임의 경우 `false`로 설정
+
+무허가형 게임의 경우 일반적으로 기존 허가형 게임의 매개변수 대부분을 그대로 따르되, permissioned를 `false`로 설정하고 GameType `CANNON`을 사용합니다.
+
+3.  addGameType 함수 실행하기
+    다음은 Forge의 cast를 사용하여 addGameType 함수를 호출하는 템플릿입니다.
+
+<Info>
+  수동으로 실행하기보다는 스크립트를 사용하여 이 호출을 실행하는 방법을 가장 권장합니다.
+</Info>
+
+```bash
+# Retrieve existing values from chain for reference
+# Get permissioned game implementation
+PERMISSIONED_GAME=$(cast call --rpc-url $RPC_URL $DISPUTE_GAME_FACTORY "gameImpls(uint32)" $PERMISSIONED_GAME_TYPE)
+
+# Retrieve parameters from existing permissioned game
+ABSOLUTE_PRESTATE=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "absolutePrestate()")
+MAX_GAME_DEPTH=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "maxGameDepth()")
+SPLIT_DEPTH=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "splitDepth()")
+CLOCK_EXTENSION=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "clockExtension()")
+MAX_CLOCK_DURATION=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "maxClockDuration()")
+VM=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "vm()")
+ANCHOR_STATE_REGISTRY=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "anchorStateRegistry()")
+L2_CHAIN_ID=$(cast call --rpc-url $RPC_URL $PERMISSIONED_GAME "l2ChainId()")
+
+# Create call data for addGameType function
+# Note: Set delayedWETH to 0x0 to deploy a new one
+CALLDATA=$(cast calldata "addGameType((string,address,address,address,uint32,bytes32,uint256,uint256,uint64,uint64,uint256,address,bool)[])" \
+"[(\
+\"unique_salt_mixer\",\
+$SYSTEM_CONFIG,\
+$PROXY_ADMIN,\
+0x0000000000000000000000000000000000000000,\
+$CANNON_GAME_TYPE,\
+$ABSOLUTE_PRESTATE,\
+$MAX_GAME_DEPTH,\
+$SPLIT_DEPTH,\
+$CLOCK_EXTENSION,\
+$MAX_CLOCK_DURATION,\
+$INITIAL_BOND,\
+$VM,\
+false\
+)]")
+
+# Execute the transaction
+cast send --rpc-url $RPC_URL --private-key $PRIVATE_KEY $OPCM_ADDRESS $CALLDATA
+```
+
+4.  respected game type 설정하기
+    무허가형 분쟁 게임을 배포한 후에는 이를 사용하기 시작하도록 OptimismPortal의 respectedGameType을 업데이트해야 합니다.
+    respected game type을 설정하고 체인을 허가형에서 무허가형 결함 증명(fault proof)으로 마이그레이션하는 자세한 방법은 [무허가형 결함 증명으로 마이그레이션 가이드](/ko/chain-operators/tutorials/migrating-permissionless)를 참조하십시오.
+
+## 다음 단계
+
+*   OPCM으로 새 분쟁 게임을 배포하는 방법에 대한 자세한 내용은 [문서를 참조하십시오](/ko/chain-operators/tutorials/dispute-games).
+*   [절대 사전 상태(absolute prestate)](/ko/chain-operators/tutorials/absolute-prestate)에 대해 알아보십시오
+*   [무허가형 결함 증명으로 마이그레이션](/ko/chain-operators/tutorials/migrating-permissionless) 가이드를 확인하십시오
+*   [결함 증명 설명](/ko/op-stack/fault-proofs/explainer)

@@ -1,0 +1,86 @@
+---
+title: op-reth storage v1 지원 중단 및 storage v2로의 마이그레이션
+description: op-reth storage v1은 지원 중단(deprecated)되었으며 2027년 1월 26일에 지원이 종료됩니다. 기존 datadir을 storage v2로 마이그레이션하세요.
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: op-reth-storage-v1-deprecation
+personas:
+  - node-operator
+categories:
+  - infrastructure
+is_imported_content: 'false'
+audit-source:
+  - rust/op-reth/crates/node/src/node.rs
+  - rust/op-reth/crates/cli/tests/snapshots/cli.snap
+  - rust/op-reth/crates/node/src/args.rs
+---
+
+op-reth storage layout v1은 storage v2로 대체되어 지원 중단(deprecated)되었습니다.
+새 datadir은 기본적으로 storage v2를 사용합니다. op-reth 바이너리를 업그레이드해도 기존 v1 데이터베이스는 마이그레이션되지 않습니다.
+
+<Warning>
+  **storage v1 지원은 2027년 1월 26일에 종료됩니다.**
+  기존 storage v1 datadir을 사용하는 운영자는 그 전에 storage v2 스냅샷을 복원하거나 `op-reth db migrate-v2`를 실행하여 storage v2로 전환해야 합니다.
+</Warning>
+
+## 의미
+
+*   **공지일: 2026년 10월 26일.** **지원 종료(EOL): 2027년 1월 26일**(공지 후 3개월)
+*   **storage v1 지원은 EOL 시점에 종료됩니다.**
+*   **영향 대상:** v1 스냅샷에서 복원한 datadir을 포함하여, 기존 storage v1 datadir로 op-reth를 실행하는 운영자
+*   **영향 없음:** 기본적으로 storage v2를 사용하는 새 datadir 및 이미 storage v2를 사용하는 datadir
+*   **historical proofs와는 별개입니다.** 이 공지는 실행 데이터베이스 storage layout에 관한 것입니다. historical proofs storage 버전(`--proofs-history.storage-version`)은 변경되지 않습니다.
+
+## 필요한 조치
+
+### 노드 운영자
+
+storage v1을 사용하는 운영자는 EOL 날짜 전에 storage v2 스냅샷을 복원하거나 `op-reth db migrate-v2`로 제자리(in-place) 마이그레이션하여 storage v2로 전환해야 합니다.
+
+**옵션 1: storage v2 스냅샷 사용.** storage v2 스냅샷은 [snapshots.optimism.io](https://snapshots.optimism.io/)와 [datadirs.optimism.io](https://datadirs.optimism.io/)에서 제공됩니다. 스냅샷 사용 방법은 [스냅샷 사용 방법](/ko/op-mainnet/network-information/snapshots)을 참조하세요.
+
+**옵션 2: 제자리 마이그레이션.** 스냅샷을 사용할 수 없는 경우에 사용합니다. 노드를 중지한 상태에서 아래 단계를 실행합니다.
+
+<Steps>
+  <Step title="storage 버전 확인">
+    노드를 중지하고, 노드와 동일한 datadir 및 체인 구성을 사용하여 데이터베이스 설정을 확인합니다.
+
+    ```bash
+    op-reth db --datadir <datadir> --chain <chain-or-genesis-path> settings get
+    ```
+
+    `storage_v2: true`는 데이터베이스가 이미 v2를 사용하고 있음을 의미합니다.
+    `storage_v2: false` 또는 `No storage settings found`는 v1임을 나타냅니다.
+  </Step>
+
+  <Step title="백업 및 용량 준비">
+    시작하기 전에 전체 datadir의 복원 가능한 스냅샷을 만듭니다.
+    현재 datadir 크기의 약 1.4~2배에 해당하는 여유 디스크 공간을 확보합니다.
+    절차가 진행되는 동안 노드를 계속 중지된 상태로 유지합니다.
+  </Step>
+
+  <Step title="데이터베이스 마이그레이션">
+    ```bash
+    op-reth db --datadir <datadir> --chain <chain-or-genesis-path> migrate-v2
+    ```
+
+    <Warning>
+      마이그레이션이 중단되면 재개할 수 없습니다. 다시 시작하기 전에 백업을 복원하세요.
+    </Warning>
+  </Step>
+
+  <Step title="완료 확인">
+    데이터베이스 설정을 다시 확인하고, `op-reth db --datadir <datadir> --chain <chain-or-genesis-path> stage-checkpoints get`으로 stage checkpoint를 확인합니다.
+    노드를 재시작하고 체인을 다시 따라가는지 확인합니다.
+  </Step>
+</Steps>
+
+## 참고 자료
+
+*   [`op-reth db migrate-v2` 참조](/ko/node-operators/op-reth/cli/op-reth/db/migrate-v2)
+*   [`op-reth db settings get` 참조](/ko/node-operators/op-reth/cli/op-reth/db/settings/get)
+*   [`op-reth db stage-checkpoints get` 참조](/ko/node-operators/op-reth/cli/op-reth/db/stage-checkpoints/get)
+*   [스냅샷](https://snapshots.optimism.io/)
+*   [데이터 디렉터리](https://datadirs.optimism.io/)
+*   [스냅샷 사용 방법](/ko/op-mainnet/network-information/snapshots)

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"math/big"
 	"path/filepath"
 	"testing"
@@ -100,10 +101,11 @@ func TestCLIPrepareCommitsSuperchainDeployment(t *testing.T) {
 	})
 
 	t.Run("writes no state when the superchain cannot be read", func(t *testing.T) {
-		workdir := newWorkdir(t, common.Address{'n', 'o', 'c', 'o', 'd', 'e'})
+		noCode := common.Address{'n', 'o', 'c', 'o', 'd', 'e'}
+		workdir := newWorkdir(t, noCode)
 
 		runner.ExpectErrorContainsWithNetwork(t, []string{"prepare", "--workdir", workdir}, nil,
-			"superchainConfigProxy has no code")
+			fmt.Sprintf("the SuperchainConfig proxy %s has no code", noCode))
 
 		unwritten, err := pipeline.ReadState(workdir)
 		require.NoError(t, err)

@@ -1,0 +1,285 @@
+---
+title: Actions SDK 설정하기
+description: 애플리케이션에 맞게 Actions SDK를 설정하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+Actions SDK를 사용하면 설정 파일을 통해 애플리케이션에서 지원할 자산, 마켓, 체인, 프로토콜, 제공업체를 선택할 수 있습니다.
+
+<Steps>
+  <Step title="Actions SDK 설치">
+    [빠른 시작](/ko/app-developers/quickstarts/actions) 가이드를
+    따라 앱에 Actions SDK를 의존성으로
+    추가합니다.
+  </Step>
+  <Step title="임베디드 지갑 통합">
+    [Actions SDK에 지갑
+    연결하기](/ko/app-developers/guides/connect-wallet-to-actions) 가이드를 따라
+    Wallet Provider를 선택하고 설치합니다.
+  </Step>
+  <Step title="설정 파일 생성">
+		`actions.ts` - 모든 설정 기본값을 담는 접근 가능한 파일입니다.
+  </Step>
+  <Step title="Wallet Provider 설정">
+    선택한 Wallet Provider를 Actions SDK에 알려 줍니다.
+
+    <Tabs>
+      <Tab title="프런트엔드">
+        지갑 제공업체를 선택합니다.
+
+        <Tabs>
+          <Tab title="Privy">
+            ```typescript title="actions.ts"
+            const walletConfig = {
+              hostedWalletConfig: {
+                provider: {
+                  type: "privy" as const,
+                },
+              },
+              smartWalletConfig: {
+                provider: {
+                  type: "default" as const,
+                  attributionSuffix: "actions",
+                },
+              },
+            };
+            ```
+          </Tab>
+          <Tab title="Turnkey">
+            ```typescript title="actions.ts"
+            const walletConfig = {
+              hostedWalletConfig: {
+                provider: {
+                  type: "turnkey" as const,
+                },
+              },
+              smartWalletConfig: {
+                provider: {
+                  type: "default" as const,
+                  attributionSuffix: "actions",
+                },
+              },
+            };
+            ```
+          </Tab>
+          <Tab title="Dynamic">
+            ```typescript title="actions.ts"
+            const walletConfig = {
+              hostedWalletConfig: {
+                provider: {
+                  type: "dynamic" as const,
+                },
+              },
+              smartWalletConfig: {
+                provider: {
+                  type: "default" as const,
+                  attributionSuffix: "actions",
+                },
+              },
+            };
+            ```
+          </Tab>
+        </Tabs>
+      </Tab>
+
+      <Tab title="백엔드">
+        지갑 제공업체를 선택합니다.
+
+        <Tabs>
+          <Tab title="Privy">
+            ```typescript title="actions.ts"
+            import { PrivyClient } from '@privy-io/node'
+
+            const privyClient = new PrivyClient(
+              process.env.PRIVY_APP_ID,
+              process.env.PRIVY_APP_SECRET,
+            )
+
+            const walletConfig = {
+              hostedWalletConfig: {
+                provider: {
+                  type: "privy" as const,
+                  config: {
+                    privyClient,
+                  },
+                },
+              },
+              smartWalletConfig: {
+                provider: {
+                  type: "default" as const,
+                  attributionSuffix: "actions",
+                },
+              },
+            };
+            ```
+          </Tab>
+          <Tab title="Turnkey">
+            ```typescript title="actions.ts"
+            import { Turnkey } from '@turnkey/sdk-server'
+
+            const turnkeyClient = new Turnkey({
+              apiBaseUrl: 'https://api.turnkey.com',
+              apiPublicKey: process.env.TURNKEY_API_KEY,
+              apiPrivateKey: process.env.TURNKEY_API_SECRET,
+              defaultOrganizationId: process.env.TURNKEY_ORGANIZATION_ID,
+            })
+
+            const walletConfig = {
+              hostedWalletConfig: {
+                provider: {
+                  type: "turnkey" as const,
+                  config: {
+                    client: turnkeyClient.apiClient(),
+                  },
+                },
+              },
+              smartWalletConfig: {
+                provider: {
+                  type: "default" as const,
+                  attributionSuffix: "actions",
+                },
+              },
+            };
+            ```
+          </Tab>
+        </Tabs>
+      </Tab>
+    </Tabs>
+
+  </Step>
+  <Step title="지원 자산 설정">
+    모든 lend 제공업체에서 지원할 자산을 설정합니다.
+
+    ```typescript title="actions.ts"
+    // Additional config from previous steps...
+
+    // Import popular assets
+    import { USDC } from '@eth-optimism/actions-sdk/assets'
+    import type { Asset, AssetsConfig } from "@eth-optimism/actions-sdk";
+
+    // Or define custom assets
+    export const CustomToken: Asset = {
+      address: {
+        [mainnet.id]: '0x123...',
+        [unichain.id]: '0x456...',
+        [baseSepolia.id]: '0x789...',
+      },
+      metadata: {
+        decimals: 6,
+        name: 'Custom Token',
+        symbol: 'CUSTOM',
+      },
+      type: 'erc20',
+    }
+
+    // Configure allowed/blocked assets
+    const assetsConfig: AssetsConfig = {
+      allow: [USDC, CustomToken],
+      block: [],  // Optional
+    }
+    ```
+
+  </Step>
+  <Step title="마켓 설정">
+    앱에서 지원하거나 차단할 마켓을 정의합니다.
+
+    ```typescript title="actions.ts"
+    // Additional config from previous steps...
+
+    export const GauntletUSDC: LendMarketConfig = {
+      address: '0xabc...',
+      chainId: unichain.id,
+      name: 'Gauntlet USDC',
+      asset: USDC,
+      lendProvider: 'morpho',
+    }
+    ```
+
+  </Step>
+  <Step title="Lend 제공업체 설정">
+    지원할 lend 프로토콜을 설정합니다. 하나 또는 여러 제공업체를 활성화할 수 있습니다.
+
+    ```typescript title="actions.ts"
+    // Additional config from previous steps...
+
+    import type { LendConfig } from "@eth-optimism/actions-sdk";
+
+    const lendConfig: LendConfig = {
+      morpho: {
+        marketAllowlist: [GauntletUSDC],
+        marketBlocklist: [],  // Optional
+      },
+      aave: {
+        marketAllowlist: [AaveWETH],
+        marketBlocklist: [],  // Optional
+      },
+    };
+    ```
+
+  </Step>
+  <Step title="지원 체인 설정">
+    지원할 체인을 설정합니다.
+
+    ```typescript title="actions.ts"
+    // Additional config from previous steps...
+
+    import { optimism, base } from "viem/chains";
+
+    // Define any EVM chain
+    const OPTIMISM = {
+      chainId: optimism.id,
+      rpcUrls: env.OPTIMISM_RPC_URL,
+      bundler: {
+        // Bundle and sponsor txs with a gas paymaster
+        type: "simple" as const,
+        url: env.OPTIMISM_BUNDLER_URL,
+      },
+    };
+
+    const BASE = {
+      chainId: base.id,
+      rpcUrls: env.BASE_RPC_URL,
+      bundler: {
+        // Bundle and sponsor txs with a gas paymaster
+        type: "simple" as const,
+        url: env.BASE_BUNDLER_URL,
+      },
+    };
+
+    const chains = [OPTIMISM, BASE];
+    ```
+
+  </Step>
+  <Step title="Actions 초기화">
+    마지막으로 모든 설정을 하나로 모아 Actions를 초기화합니다.
+
+    ```typescript title="actions.ts"
+    // Additional config from previous steps...
+
+    export const actions = createActions({
+      wallet: walletConfig,
+      assets: assetsConfig,
+      lend: lendConfig,
+      chains,
+    });
+    ```
+
+  </Step>
+  <Step title="작업 실행">
+    actions 인스턴스를 초기화한 후에는 작업을 실행해야 하는 곳 어디에서든 import하여 사용할 수 있습니다.
+
+    ```typescript
+    import { actions } from './actions';
+
+    // Use actions anywhere in your app
+    const market = await actions.lend.getMarket({ ... });
+    const wallet = await actions.wallet.createSmartWallet({ ... });
+    const receipt = await wallet.lend.openPosition({ ... });
+    ```
+
+  </Step>
+</Steps>
+
+## 다음 단계
+
+자세한 API 문서와 타입 정의는 [Actions SDK 레퍼런스](/ko/app-developers/reference/actions/integrating-wallets)를 참고하십시오.

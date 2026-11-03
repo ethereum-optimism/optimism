@@ -1,0 +1,59 @@
+---
+title: Karst
+description: L2 Contract Manager와 L2의 Osaka EIP를 도입한 Karst 네트워크 업그레이드의 하드포크 레지스트리 항목입니다.
+diataxis: reference
+hardfork_name: karst
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/karst/overview.html
+hardfork_activation_mainnet: 1783526401
+hardfork_activation_sepolia: 1781712001
+hardfork_notice: /ko/notices/archive/upgrade-19
+hardfork_upgrade_number: 19
+hardfork_min_versions:
+  - op-node v1.19.1
+  - op-reth v2.3.3
+  - op-challenger v1.9.3
+  - op-dispute-mon v1.5.2
+  - op-contracts v7.0.0
+hardfork_min_versions_source: "[Upgrade 19 공지](/ko/notices/archive/upgrade-19)"
+---
+
+import KarstFacts from "/ko/snippets/generated/hardforks/karst.mdx"
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="이 업그레이드"
+  title="Karst 명세"
+  href="https://specs.optimism.io/protocol/karst/overview.html"
+  note="이 페이지는 활성화 데이터와 운영 관련 참고 정보를 기록하며, 명세의 내용을 다시 서술하지 않습니다."
+/>
+
+Karst(Upgrade 19)는 L2 Contract Manager를 도입하고, L2에서 Osaka EIP의 일부를
+활성화했으며, `CANNON_KONA`를 respected game type으로 승격하고, Glamsterdam에 대한
+선제적 방어 조치로 `bn256Pairing` precompile 입력 한도를 줄였습니다. `op-geth`와
+`op-program`은 Karst를 지원하지 않습니다. 자세한 내용은
+[지원 종료 공지](/ko/notices/archive/op-geth-deprecation)를 참조하십시오.
+
+<KarstFacts />
+
+## 변경 사항
+
+[명세 개요](https://specs.optimism.io/protocol/karst/overview.html) 및
+[Upgrade 19 공지](/ko/notices/archive/upgrade-19)에 따른 변경 사항은 다음과 같습니다.
+
+*   [L2 Contract Manager (L2CM)](/ko/op-stack/features/l2-contract-manager):
+    합의 계층 메커니즘을 통한 거버넌스 승인 L2 predeploy 업그레이드.
+*   L2에 Osaka EIP 적용. 여기에는
+    [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825)(트랜잭션 gas 한도
+    상한, 입금(디파짓)에는 적용되지 않음),
+    [EIP-7823](https://eips.ethereum.org/EIPS/eip-7823) 및
+    [EIP-7883](https://eips.ethereum.org/EIPS/eip-7883)(MODEXP 범위 및 gas),
+    [EIP-7910](https://eips.ethereum.org/EIPS/eip-7910)(`eth_config`),
+    [EIP-7939](https://eips.ethereum.org/EIPS/eip-7939)(CLZ opcode),
+    [EIP-7951](https://eips.ethereum.org/EIPS/eip-7951)(secp256r1 gas 비용
+    정렬)이 포함됩니다.
+*   `bn256Pairing` precompile의 최대 입력 크기를 427쌍에서 300쌍으로
+    줄였습니다(Glamsterdam 방어).
+*   `CANNON_KONA`(game type 8)를 respected game type으로 승격하여,
+    `kona-client`를 출금에 사용되는 기본 결함 증명(fault proof) 프로그램으로 만들었습니다.
+*   합의 계층: derivation 중에 적용되는 네트워크 업그레이드 트랜잭션.

@@ -1,0 +1,48 @@
+---
+title: OP Mainnet에 연결하기
+description: OP Mainnet 및 OP Sepolia 문서입니다. 이 페이지에서는 네트워크 이름, chain ID, RPC 엔드포인트, 통화 기호, 블록 탐색기, 컨트랙트 주소 등의 네트워크 정보를 다룹니다.
+diataxis: reference
+---
+
+이 페이지에서는 RPC 엔드포인트, chain ID, 블록 탐색기 등 OP Mainnet 및 OP Sepolia의 네트워크 정보를 제공합니다.
+
+<Info>
+  아래에 제공된 공개 RPC URL은 속도 제한이 적용되며 websocket 연결을 지원하지 않습니다.
+  속도 제한 문제가 발생하거나 websocket 기능이 필요한 경우, [자체 노드 실행](/ko/node-operators/overview)이나 [서드파티 RPC 제공업체](/ko/app-developers/reference/rpc-providers) 가입을 고려하세요.
+</Info>
+
+## OP Mainnet
+
+| 매개변수                                 | 값                                                                                       |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 네트워크 이름                            | `OP Mainnet`                                                                             |
+| Chain ID                                 | `10`                                                                                     |
+| 통화 기호<sup>1</sup>                    | ETH                                                                                      |
+| 탐색기                                   | [https://explorer.optimism.io](https://explorer.optimism.io)                             |
+| 공개 RPC URL                             | [https://mainnet.optimism.io](https://mainnet.optimism.io)                               |
+| Sequencer URL<sup>2</sup>                | [https://mainnet-sequencer.optimism.io](https://mainnet-sequencer.optimism.io)           |
+| Subblocks websocket URL <sup>3</sup>     | [wss://op-mainnet-fb-ws-pub.optimism.io/ws](wss://op-mainnet-fb-ws-pub.optimism.io/ws)   |
+| 컨트랙트 주소                            | [컨트랙트 주소 페이지](/ko/op-mainnet/network-information/op-addresses#op-mainnet)를 참조하세요 |
+| 지갑 연결                                | [여기를 클릭하여 지갑을 OP Mainnet에 연결하세요](https://chainid.link?network=optimism) |
+
+1.  "통화 기호"는 MetaMask 등 일부 지갑에서 필요합니다.
+2.  sequencer URL은 쓰기 전용입니다.
+3.  엄격하게 속도 제한이 적용되는 공개 URL입니다. Ethereum JSON RPC를 사용하거나, 제한이 완화된 비공개 엔드포인트가 필요한 경우 Optimism 팀에 문의하세요.
+
+## OP Sepolia
+
+| 매개변수                                 | 값                                                                                         |
+| ---------------------------              | ------------------------------------------------------------------------------------------ |
+| 네트워크 이름                            | `OP Sepolia`                                                                               |
+| Chain ID                                 | `11155420`                                                                                 |
+| 통화 기호<sup>1</sup>                    | ETH                                                                                        |
+| 탐색기                                   | [https://testnet-explorer.optimism.io](https://testnet-explorer.optimism.io)               |
+| 공개 RPC URL                             | [https://sepolia.optimism.io](https://sepolia.optimism.io)                                 |
+| Subblocks websocket URL <sup>3</sup>     | [wss://op-sepolia-fb-ws.optimism.io/ws](wss://op-sepolia-fb-ws.optimism.io/ws)             |
+| Sequencer URL<sup>2</sup>                | [https://sepolia-sequencer.optimism.io](https://sepolia-sequencer.optimism.io)             |
+| 컨트랙트 주소                            | [컨트랙트 주소 페이지](/ko/op-mainnet/network-information/op-addresses#op-sepolia)를 참조하세요 |
+| 지갑 연결                                | [여기를 클릭하여 지갑을 OP Sepolia에 연결하세요](https://chainid.link?network=op-sepolia) |
+
+1.  "통화 기호"는 MetaMask 등 일부 지갑에서 필요합니다.
+2.  sequencer URL은 쓰기 전용입니다.
+3.  엄격하게 속도 제한이 적용되는 공개 URL입니다. Ethereum JSON RPC를 사용하거나, 제한이 완화된 비공개 엔드포인트가 필요한 경우 Optimism 팀에 문의하세요.
