@@ -46,9 +46,9 @@ type SuperRootQuerier struct {
 	userRPC string
 }
 
-// NewOpNodeSuperRoots wraps a single op-node's superroot_atTimestamp endpoint as a
-// super-root source. Only superroot_atTimestamp is served by op-node; SyncStatus
-// (supernode_syncStatus) is not available on this source.
+// NewOpNodeSuperRoots wraps a single rollup node's (op-node or kona-node)
+// superroot_atTimestamp endpoint as a super-root source. Only superroot_atTimestamp is
+// served by a rollup node; SyncStatus (supernode_syncStatus) is not available on this source.
 func NewOpNodeSuperRoots(cl *L2CLNode) *SuperRootQuerier {
 	return &SuperRootQuerier{
 		commonImpl: commonFromT(cl.t),
