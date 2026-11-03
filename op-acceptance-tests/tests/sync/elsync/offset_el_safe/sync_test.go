@@ -25,7 +25,8 @@ import (
 //  5. Assert safe/finalized are behind unsafe.
 func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpReth(t, "not supported (peering issue)")
+	// TODO(#23828): remove once kona-node supports OffsetELSafe.
+	sysgo.SkipOnKonaNode(t, "kona-node does not support OffsetELSafe")
 	sys := newOffsetELSafeSystem(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -39,6 +40,7 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 
 	// Stop verifier and wipe its EL to force a full EL sync on restart.
 	sys.L2ELB.Stop()
+	sys.L2ELB.Wipe()
 	sys.L2CLB.Stop()
 
 	// Stop the batcher so new sequencer blocks are unsafe-only.

@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"os/exec"
 	"strings"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
@@ -118,6 +121,12 @@ type OpReth struct {
 	// Each entry is of the form "key=value".
 	env []string
 
+	// dataDir is the node's --datadir. dataDirs lists every directory holding
+	// chain data, including dataDir; initCmds populate them from genesis.
+	dataDir  string
+	dataDirs []string
+	initCmds [][]string
+
 	p devtest.T
 
 	sub *SubProcess
@@ -126,6 +135,7 @@ type OpReth struct {
 }
 
 var _ L2ELNode = (*OpReth)(nil)
+var _ stack.Wipeable = (*OpReth)(nil)
 
 func (n *OpReth) Start() {
 	n.mu.Lock()
@@ -237,6 +247,30 @@ func (n *OpReth) Stop() {
 	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
 	n.sub = nil
+}
+
+// Wipe deletes the node's chain data and re-initializes it from genesis, so the
+// next Start begins with an empty chain. Unlike op-geth, op-reth keeps its
+// datadir across Stop/Start.
+func (n *OpReth) Wipe() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().Nil(n.sub, "op-reth %s must be stopped before wiping", n.name)
+	n.p.Logger().Info("Wiping op-reth", "name", n.name, "chain", n.chainID)
+	n.initData()
+}
+
+// initData resets dataDirs and runs initCmds. Callers must hold n.mu or have exclusive access.
+func (n *OpReth) initData() {
+	require := n.p.Require()
+	for _, dir := range n.dataDirs {
+		require.NoError(os.RemoveAll(dir), "must remove %s", dir)
+	}
+	require.NoError(os.MkdirAll(n.dataDir, 0o755), "must create datadir")
+	for _, args := range n.initCmds {
+		out, err := exec.CommandContext(n.p.Ctx(), n.execPath, args...).CombinedOutput()
+		require.NoError(err, "must run op-reth %s: %s", strings.Join(args, " "), string(out))
+	}
 }
 
 // Callers must hold n.mu.
