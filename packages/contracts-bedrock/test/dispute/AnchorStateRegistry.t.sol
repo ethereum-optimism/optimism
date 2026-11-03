@@ -1168,9 +1168,10 @@ contract AnchorStateRegistry_IsGameFinalized_Test is AnchorStateRegistry_TestIni
         assertTrue(anchorStateRegistry.isGameFinalized(gameProxy));
     }
 
-    /// @notice Tests that isGameFinalized will return false if the game is not finalized.
+    /// @notice Tests that isGameFinalized will return false if the game resolved within the
+    ///         finality delay.
     /// @param _resolvedAtTimestamp The resolvedAt timestamp to use for the test.
-    function testFuzz_isGameFinalized_isNotAirgapped_succeeds(uint256 _resolvedAtTimestamp) public {
+    function testFuzz_isGameFinalized_withinFinalityDelay_succeeds(uint256 _resolvedAtTimestamp) public {
         // Warp forward by disputeGameFinalityDelaySeconds.
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds());
 
@@ -1181,6 +1182,10 @@ contract AnchorStateRegistry_IsGameFinalized_Test is AnchorStateRegistry_TestIni
 
         // Mock the resolvedAt timestamp.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(_resolvedAtTimestamp));
+
+        // Mock the status to be DEFENDER_WINS so that only the finality delay keeps the game
+        // from being finalized.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
 
         // Game should not be finalized.
         assertFalse(anchorStateRegistry.isGameFinalized(gameProxy));
@@ -1321,9 +1326,10 @@ contract AnchorStateRegistry_IsGameClaimValid_Test is AnchorStateRegistry_TestIn
         assertFalse(anchorStateRegistry.isGameClaimValid(gameProxy));
     }
 
-    /// @notice Tests that isGameClaimValid will return false if the game is not airgapped.
+    /// @notice Tests that isGameClaimValid will return false if the game resolved within the
+    ///         finality delay.
     /// @param _resolvedAtTimestamp The resolvedAt timestamp to use for the test.
-    function testFuzz_isGameClaimValid_notAirgapped_succeeds(uint256 _resolvedAtTimestamp) public {
+    function testFuzz_isGameClaimValid_withinFinalityDelay_succeeds(uint256 _resolvedAtTimestamp) public {
         // Warp forward by disputeGameFinalityDelaySeconds.
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds());
 
@@ -1332,8 +1338,15 @@ contract AnchorStateRegistry_IsGameClaimValid_Test is AnchorStateRegistry_TestIn
             _resolvedAtTimestamp, block.timestamp - optimismPortal2.disputeGameFinalityDelaySeconds(), block.timestamp
         );
 
+        // Mock that the game was respected.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
+
         // Mock the resolvedAt timestamp.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(_resolvedAtTimestamp));
+
+        // Mock the status to be DEFENDER_WINS so that only the finality delay keeps the claim
+        // from being valid.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
 
         // Claim should not be valid.
         assertFalse(anchorStateRegistry.isGameClaimValid(gameProxy));
