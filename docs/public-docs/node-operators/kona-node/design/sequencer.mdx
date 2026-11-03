@@ -80,8 +80,9 @@ let sequencer_config = SequencerConfig {
     l1_conf_delay: 4,                   // L1 origin confirmation delay
 };
 
-// engine_config carries `mode: NodeMode::Sequencer` along with the
-// L2 engine URL and JWT secret. The L1 client travels in l1_config_builder. A sequencer needs a block
+// engine_config carries `mode: NodeMode::Sequencer` along with the node's
+// authenticated L2 engine connection, built once with `EngineClient::rpc_client`.
+// The L1 client travels in l1_config_builder. A sequencer needs a block
 // signer: `p2p_config.gossip_signer` must be `Some`, or `start` fails.
 // `version` is the string the node reports as its version over RPC.
 RollupNodeBuilder::new(

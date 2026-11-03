@@ -1,17 +1,7 @@
 //! Contains the builder for the [`RollupNode`].
 
 use crate::{EngineConfig, NetworkConfig, RollupNode, SequencerConfig, service::node::L1Config};
-use alloy_primitives::Bytes;
-use alloy_provider::RootProvider;
-use alloy_rpc_client::RpcClient;
-use alloy_transport_http::{
-    AuthLayer, Http, HyperClient,
-    hyper_util::{client::legacy::Client, rt::TokioExecutor},
-};
-use http_body_util::Full;
-use op_alloy_network::Optimism;
 use std::sync::Arc;
-use tower::ServiceBuilder;
 use url::Url;
 
 use kona_genesis::{L1ChainConfig, RollupConfig};
@@ -133,16 +123,6 @@ impl RollupNodeBuilder {
     }
 
     /// Assembles the [`RollupNode`] service.
-    ///
-    /// ## Panics
-    ///
-    /// Panics if:
-    /// - The L1 provider RPC URL is not set.
-    /// - The L1 beacon API URL is not set.
-    /// - The L2 provider RPC URL is not set.
-    /// - The L2 engine URL is not set.
-    /// - The jwt secret is not set.
-    /// - The P2P config is not set.
     pub fn build(self) -> RollupNode {
         let mut l1_beacon = OnlineBeaconClient::new_http(self.l1_config_builder.beacon.to_string());
         if let Some(l1_slot_duration) = self.l1_config_builder.slot_duration_override {
@@ -154,17 +134,6 @@ impl RollupNodeBuilder {
             beacon_client: l1_beacon,
             provider: self.l1_config_builder.provider,
         };
-
-        let jwt_secret = self.engine_config.l2_jwt_secret;
-        let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
-
-        let auth_layer = AuthLayer::new(jwt_secret);
-        let service = ServiceBuilder::new().layer(auth_layer).service(hyper_client);
-
-        let layer_transport = HyperClient::with_service(service);
-        let http_hyper = Http::with_client(layer_transport, self.engine_config.l2_url.clone());
-        let rpc_client = RpcClient::new(http_hyper, false);
-        let l2_provider = RootProvider::<Optimism>::new(rpc_client);
 
         let rollup_config = Arc::new(self.config);
         // The buffer's reorg depth governs its handling of chain events, which nothing feeds it:
@@ -182,7 +151,6 @@ impl RollupNodeBuilder {
             version: self.version,
             config: rollup_config,
             l1_config,
-            l2_provider,
             l2_block_buffer,
             engine_config: self.engine_config,
             rpc_builder: self.rpc_config,

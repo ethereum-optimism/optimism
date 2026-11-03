@@ -253,27 +253,6 @@ impl Provider<Optimism> for EngineClient {
     }
 }
 
-/// Connection settings for an [`EngineClient`].
-#[derive(Debug, Clone)]
-pub struct EngineClientBuilder {
-    /// The L2 Engine API endpoint URL.
-    pub l2: Url,
-    /// The L2 JWT secret.
-    pub l2_jwt: JwtSecret,
-    /// The node's shared L1 client.
-    pub l1: AlloyChainProvider,
-    /// The rollup configuration.
-    pub cfg: Arc<RollupConfig>,
-}
-
-impl EngineClientBuilder {
-    /// Connects to the authenticated L2 engine, whose requests each have a deadline.
-    pub fn build(self) -> EngineClient {
-        let engine = EngineClient::rpc_client(self.l2, self.l2_jwt);
-        EngineClient::new(self.l1, engine, self.cfg)
-    }
-}
-
 #[cfg(test)]
 mod request_observability_tests {
     use super::*;
@@ -557,17 +536,18 @@ mod deadline_tests {
     #[tokio::test]
     async fn stalled_engine_requests_have_a_deadline(#[case] response: &'static [u8]) {
         let (answered_tx, mut answered) = mpsc::unbounded_channel();
-        let client = EngineClientBuilder {
-            l2: stalled_endpoint(response, answered_tx).await,
-            l2_jwt: JwtSecret::random(),
-            l1: AlloyChainProvider::new(
+        let client = EngineClient::new(
+            AlloyChainProvider::new(
                 RootProvider::new_http("http://127.0.0.1:1".parse().unwrap()),
                 std::num::NonZeroUsize::new(8).unwrap(),
                 true,
             ),
-            cfg: Arc::new(RollupConfig::default()),
-        }
-        .build();
+            EngineClient::rpc_client(
+                stalled_endpoint(response, answered_tx).await,
+                JwtSecret::random(),
+            ),
+            Arc::new(RollupConfig::default()),
+        );
 
         fails_at_deadline(
             async move { client.l2_block_by_label(BlockNumberOrTag::Latest).await.is_err() },
