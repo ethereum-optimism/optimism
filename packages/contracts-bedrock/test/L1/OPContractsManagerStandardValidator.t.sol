@@ -2359,12 +2359,18 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
 
     /// @notice Runs the OPContractsManagerStandardValidator.validate function.
     function _validate(bool _allowFailure) internal view returns (string memory) {
+        return _validate(_allowFailure, zkPrestate.raw());
+    }
+
+    /// @notice Runs the OPContractsManagerStandardValidator.validate function with the given
+    ///         expected ZK prestate.
+    function _validate(bool _allowFailure, bytes32 _zkPrestate) internal view returns (string memory) {
         return standardValidator.validate(
             IOPContractsManagerStandardValidator.ValidationInputDev({
                 sysCfg: systemConfig,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
-                zkPrestate: zkPrestate.raw(),
+                zkPrestate: _zkPrestate,
                 l2ChainID: l2ChainId,
                 proposer: proposer
             }),
@@ -2419,6 +2425,25 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is OPContractsMan
             dgf, GameTypes.ZK_DISPUTE_GAME, 0, abi.encodePacked(bytes32(keccak256("otherZkPrestate")))
         );
         assertEq("ZKDG-70", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-70 when both the registered and the expected ZK prestate are zero.
+    function test_validate_zkDisputeGameZeroAbsolutePrestate_succeeds() public {
+        // absolutePrestate occupies bytes [0-31] of the packed ZK args.
+        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 0, abi.encodePacked(bytes32(0)));
+        assertEq("ZKDG-70", _validate(true, bytes32(0)));
+    }
+
+    /// @notice Tests that the ValidationInput overload, which passes zero Cannon-Kona and ZK
+    ///         prestates, reports their prestate errors on a correctly configured ZK chain.
+    function test_validate_legacyInputOnZKChain_succeeds() public view {
+        string memory errors = standardValidator.validate(
+            IOPContractsManagerStandardValidator.ValidationInput({
+                sysCfg: systemConfig, absolutePrestate: cannonPrestate.raw(), l2ChainID: l2ChainId, proposer: proposer
+            }),
+            true
+        );
+        assertEq("SCKDG-40,ZKDG-70", errors);
     }
 
     /// @notice Tests ZKDG-80 when the verifier encoded in the ZK game args is the zero address.
