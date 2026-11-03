@@ -1029,6 +1029,7 @@ var (
 // that the proxies of each chain point at them.
 func requireOPCMImplementations(t *testing.T, ctx context.Context, l1Client *ethclient.Client, st *state.State) {
 	t.Helper()
+	require.NotNil(t, st.ImplementationsDeployment)
 	impls, err := opcm.ReadImplementations(ctx, l1Client, st.ImplementationsDeployment.OpcmV2Impl)
 	require.NoError(t, err)
 	require.Equal(t, *impls, *st.ImplementationsDeployment)

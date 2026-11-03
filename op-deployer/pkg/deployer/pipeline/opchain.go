@@ -76,7 +76,7 @@ func ExecuteOPChainDeployment(
 			chainID.Big(),
 		)
 	}
-	if impls == nil {
+	if impls == nil || impls.OpcmV2Impl != dci.Opcm || impls.MipsImpl == (common.Address{}) {
 		return result, fmt.Errorf("the implementations of OPCM %s are unknown", dci.Opcm)
 	}
 

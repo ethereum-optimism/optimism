@@ -193,6 +193,7 @@ func TestExecuteOPChainDeploymentRejectsInvalidInputBeforeExecution(t *testing.T
 	tests := []struct {
 		name       string
 		l2ChainID  *big.Int
+		impls      *addresses.ImplementationsContracts
 		wantErrMsg string
 	}{
 		{
@@ -208,6 +209,18 @@ func TestExecuteOPChainDeploymentRejectsInvalidInputBeforeExecution(t *testing.T
 		{
 			name:       "unknown implementations",
 			l2ChainID:  chainID.Big(),
+			wantErrMsg: "the implementations of OPCM",
+		},
+		{
+			name:       "only the OPCM recorded",
+			l2ChainID:  chainID.Big(),
+			impls:      &addresses.ImplementationsContracts{},
+			wantErrMsg: "the implementations of OPCM",
+		},
+		{
+			name:       "implementations of another OPCM",
+			l2ChainID:  chainID.Big(),
+			impls:      &addresses.ImplementationsContracts{OpcmV2Impl: common.Address{0x01}, MipsImpl: common.Address{0x02}},
 			wantErrMsg: "the implementations of OPCM",
 		},
 	}
@@ -230,7 +243,7 @@ func TestExecuteOPChainDeploymentRejectsInvalidInputBeforeExecution(t *testing.T
 				}},
 			}
 
-			result, err := ExecuteOPChainDeployment(&Env{}, st, chainID, dci, nil)
+			result, err := ExecuteOPChainDeployment(&Env{}, st, chainID, dci, tt.impls)
 			require.ErrorContains(t, err, tt.wantErrMsg)
 			require.Equal(t, OPChainDeploymentResult{}, result)
 			require.Equal(t, expectedState, st)
@@ -284,7 +297,7 @@ func TestRecordOPChainDeploymentRejectsUninitializedResult(t *testing.T) {
 	require.ErrorContains(t, err, "uninitialized OP chain deployment result")
 }
 
-func TestRecordOPChainDeploymentRecordsBoundChainWithoutImplementations(t *testing.T) {
+func TestRecordOPChainDeploymentRecordsOnlyBoundChain(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 	otherChainID := common.HexToHash("0x0301")
 
@@ -308,7 +321,7 @@ func TestRecordOPChainDeploymentRecordsBoundChainWithoutImplementations(t *testi
 				Deployed: ptr.New(false),
 			},
 		},
-		ImplementationsDeployment: nil,
+		ImplementationsDeployment: &addresses.ImplementationsContracts{SystemConfigImpl: common.Address{0x22}},
 	}
 
 	require.NoError(t, RecordOPChainDeployment(st, result))
@@ -323,7 +336,7 @@ func TestRecordOPChainDeploymentRecordsBoundChainWithoutImplementations(t *testi
 	require.False(t, *otherChain.Deployed)
 	var emptyContracts addresses.OpChainContracts
 	require.Equal(t, emptyContracts, otherChain.OpChainContracts)
-	require.Nil(t, st.ImplementationsDeployment)
+	require.Equal(t, &addresses.ImplementationsContracts{SystemConfigImpl: common.Address{0x22}}, st.ImplementationsDeployment)
 
 	afterFirstRecord, err := json.Marshal(st)
 	require.NoError(t, err)

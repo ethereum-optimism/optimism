@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	opbindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -551,6 +552,50 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	// Verify ImplementationsDeployment was set
 	require.NotNil(t, st.ImplementationsDeployment)
 	require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmV2Impl)
+}
+
+// TestInitLiveStrategy_CompletesRecordedOPCM checks that init reads the implementations of a
+// predeployed OPCM when the state records only the OPCM, as an earlier op-deployer left it.
+func TestInitLiveStrategy_CompletesRecordedOPCM(t *testing.T) {
+	t.Parallel()
+
+	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
+	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
+
+	lgr := testlog.Logger(t, slog.LevelInfo)
+	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
+	require.NoError(t, retryProxy.Start())
+	t.Cleanup(func() {
+		require.NoError(t, retryProxy.Stop())
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
+	require.NoError(t, err)
+	client := ethclient.NewClient(rpcClient)
+
+	l1ChainID := uint64(11155111)
+	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainID, standard.CurrentTag)
+	require.NoError(t, err)
+
+	intent := &state.Intent{
+		ConfigType:         state.IntentTypeStandard,
+		L1ChainID:          l1ChainID,
+		L1ContractsLocator: artifacts.EmbeddedLocator,
+		L2ContractsLocator: artifacts.EmbeddedLocator,
+		OPCMAddress:        &opcmAddr,
+	}
+	st := &state.State{
+		Version:                   1,
+		ImplementationsDeployment: &addresses.ImplementationsContracts{OpcmV2Impl: opcmAddr},
+	}
+	require.NoError(t, InitLiveStrategy(ctx, &Env{L1Client: client, Logger: lgr}, intent, st))
+
+	impls, err := opcm.ReadImplementations(ctx, client, opcmAddr)
+	require.NoError(t, err)
+	require.Equal(t, impls, st.ImplementationsDeployment)
 }
 
 // Validates that the correct flow is chosen when
