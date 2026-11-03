@@ -13,6 +13,7 @@ interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
     error L1StandardBridge_NotPortal();
     error L1StandardBridge_NoBridgeHook();
     error L1StandardBridge_InvalidTokenTransfer();
+    error L1StandardBridge_InsufficientDeposits();
 
     event ERC20DepositInitiated(
         address indexed l1Token,

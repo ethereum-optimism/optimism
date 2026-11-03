@@ -959,6 +959,11 @@
   },
   {
     "inputs": [],
+    "name": "L1StandardBridge_InsufficientDeposits",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "L1StandardBridge_InvalidTokenTransfer",
     "type": "error"
   },

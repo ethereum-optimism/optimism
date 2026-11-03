@@ -42,6 +42,9 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     /// @notice Thrown when the message is not a finalizeBridgeERC20 call.
     error L1StandardBridge_InvalidTokenTransfer();
 
+    /// @notice Thrown when the escrow of the token pair is below the amount to hold.
+    error L1StandardBridge_InsufficientDeposits();
+
     /// @custom:legacy
     /// @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
     /// @param from      Address of the depositor.
@@ -295,6 +298,7 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
         if (!valid) revert L1StandardBridge_InvalidTokenTransfer();
         if (_isOptimismMintableERC20(l1Token)) return;
 
+        if (deposits[l1Token][l2Token] < amount) revert L1StandardBridge_InsufficientDeposits();
         deposits[l1Token][l2Token] -= amount;
         IERC20(l1Token).safeTransfer(hook, amount);
         emit ERC20Held(l1Token, l2Token, amount);

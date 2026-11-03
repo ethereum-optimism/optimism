@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Testing
 import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
-import { stdError } from "forge-std/StdError.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
@@ -928,7 +927,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         _escrow(L1Token, address(L2Token), _deposits);
         _escrow(L1Token, address(LegacyL2Token), _amount);
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IL1StandardBridge.L1StandardBridge_InsufficientDeposits.selector);
         vm.prank(address(optimismPortal2));
         l1StandardBridge.holdERC20(
             BridgeHookTypes.Direction.Deposit,
