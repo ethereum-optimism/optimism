@@ -10,8 +10,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/lmittmann/w3"
 )
 
 func IsSupportedStateVersion(version int) bool {
@@ -67,7 +69,7 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 			}
 			superchainConfigAddr = resolved
 		}
-		superDeployment, superRoles, err := PopulateSuperchainState(env, opcmAddr, superchainConfigAddr)
+		superDeployment, superRoles, err := PopulateSuperchainState(ctx, env.L1Client, superchainConfigAddr)
 		if err != nil {
 			return fmt.Errorf("error populating superchain state: %w", err)
 		}
@@ -162,44 +164,50 @@ func resolveSuperchainConfig(ctx context.Context, client *ethclient.Client, opcm
 	return opcmContract.SuperchainConfig(ctx)
 }
 
-func PopulateSuperchainState(env *Env, opcmAddr common.Address, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
-	input := opcm.ReadSuperchainDeploymentInput{
-		SuperchainConfigProxy: superchainConfigProxy,
+var (
+	proxyAdminMethod          = w3.MustNewFunc("admin()", "address")
+	proxyImplementationMethod = w3.MustNewFunc("implementation()", "address")
+	guardianMethod            = w3.MustNewFunc("guardian()", "address")
+	ownerMethod               = w3.MustNewFunc("owner()", "address")
+)
+
+// PopulateSuperchainState reads the superchain deployment behind a SuperchainConfig proxy. OP's
+// Proxy answers admin() and implementation() itself only when the sender is its admin or address(0).
+// CallGetter sets no sender, so ethclient sends the call from address(0). From any other sender,
+// both calls would reach the SuperchainConfig implementation and revert.
+func PopulateSuperchainState(ctx context.Context, client bind.ContractCaller, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
+	code, err := client.CodeAt(ctx, superchainConfigProxy, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read the code of the SuperchainConfig proxy %s: %w", superchainConfigProxy, err)
 	}
-
-	var out opcm.ReadSuperchainDeploymentOutput
-	var err error
-
-	if env.UseForge {
-		forgeEnv := &opcm.ForgeEnv{
-			Client:   env.ForgeClient,
-			Context:  env.Context,
-			L1RPCUrl: env.L1RPCUrl,
-		}
-		out, err = opcm.ReadSuperchainDeploymentViaForge(forgeEnv, input)
-		if err != nil {
-			return nil, nil, err
-		}
-	} else {
-		readScript, err := opcm.NewReadSuperchainDeploymentScript(env.L1ScriptHost)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error generating read superchain deployment script: %w", err)
-		}
-
-		out, err = readScript.Run(input)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error reading superchain deployment: %w", err)
-		}
+	if len(code) == 0 {
+		return nil, nil, fmt.Errorf("the SuperchainConfig proxy %s has no code", superchainConfigProxy)
+	}
+	proxyAdmin, err := opcm.CallGetter[common.Address](ctx, client, superchainConfigProxy, proxyAdminMethod)
+	if err != nil {
+		return nil, nil, err
+	}
+	impl, err := opcm.CallGetter[common.Address](ctx, client, superchainConfigProxy, proxyImplementationMethod)
+	if err != nil {
+		return nil, nil, err
+	}
+	guardian, err := opcm.CallGetter[common.Address](ctx, client, superchainConfigProxy, guardianMethod)
+	if err != nil {
+		return nil, nil, err
+	}
+	owner, err := opcm.CallGetter[common.Address](ctx, client, proxyAdmin, ownerMethod)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	deployment := &addresses.SuperchainContracts{
-		SuperchainProxyAdminImpl: out.SuperchainProxyAdmin,
-		SuperchainConfigProxy:    out.SuperchainConfigProxy,
-		SuperchainConfigImpl:     out.SuperchainConfigImpl,
+		SuperchainProxyAdminImpl: proxyAdmin,
+		SuperchainConfigProxy:    superchainConfigProxy,
+		SuperchainConfigImpl:     impl,
 	}
 	roles := &addresses.SuperchainRoles{
-		SuperchainProxyAdminOwner: out.SuperchainProxyAdminOwner,
-		SuperchainGuardian:        out.Guardian,
+		SuperchainProxyAdminOwner: owner,
+		SuperchainGuardian:        guardian,
 	}
 	return deployment, roles, nil
 }
