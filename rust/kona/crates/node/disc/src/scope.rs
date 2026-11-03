@@ -52,9 +52,9 @@ const SHARED_V4: Ipv4Net = Ipv4Net::new_assert(Ipv4Addr::new(100, 64, 0, 0), 10)
 /// geth's list is a subset of it.
 ///
 /// As in [`SPECIAL_V4`], this includes anycast blocks. The unique-local and link-local blocks are
-/// LAN instead, and loopback has its own scope. The IPv4-IPv6 translation blocks are left public:
-/// their scope is that of the IPv4 address in them, which they don't map to as IPv4-mapped
-/// addresses do.
+/// LAN instead, and loopback has its own scope. The IPv4-IPv6 translation blocks, `64:ff9b::/96`
+/// and `64:ff9b:1::/48`, are left public, although the second isn't globally reachable: an address
+/// in them stands for an IPv4 address behind a translator, whose scope isn't worked out here.
 ///
 /// [IANA registry]: https://www.iana.org/assignments/iana-ipv6-special-registry/
 const SPECIAL_V6: [Ipv6Net; 8] = [
@@ -221,9 +221,11 @@ impl AddrScope {
         Self::check_relayed_enr(own, enr)
     }
 
-    /// Returns discv5's table filter for a node of scope `own`. It keeps the records
-    /// [`Self::check_reachable_enr`] rejects out of the table, so that they are not relayed to
-    /// others, and out of lookups, so that discovery doesn't contact them.
+    /// Returns discv5's table filter for a node of scope `own`. discv5 applies it to the records in
+    /// other nodes' answers to our lookups, and to those added with `add_enr`, such as bootnodes.
+    /// It keeps those [`Self::check_reachable_enr`] rejects out of the table, so that they are not
+    /// relayed to others, and out of lookups, so that discovery doesn't contact them. A node we
+    /// have a session with gets into the table without it.
     ///
     /// discv5 takes a plain `fn`, which can't hold the scope, so there is one for each scope. An
     /// unspecified or special-purpose own scope gets the public one.
