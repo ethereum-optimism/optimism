@@ -72,7 +72,7 @@ func (ie *InvalidExecMsgSpammer) Spam(t devtest.T) error {
 	execMsg := planExecMsg(t, &invalidInitMsg)
 	if _, err := ie.eoa.Include(t, execMsg); err == nil {
 		t.Require().Failf("included invalid executing message", "message: %v", invalidInitMsg)
-	} else if !strings.Contains(err.Error(), txinclude.ErrInteropAccessListRejected.Error()) { // TODO(13408): we should be able to use errors.Is.
+	} else if !strings.Contains(err.Error(), txinclude.ErrInteropAccessListRejected.Error()) { // The rejection arrives as JSON-RPC error text.
 		t.Logger().Warn("Invalid message hit an unexpected error", "want", txinclude.ErrInteropAccessListRejected, "got", err)
 	}
 	return nil
