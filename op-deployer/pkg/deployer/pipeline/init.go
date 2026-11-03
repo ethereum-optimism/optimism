@@ -77,9 +77,11 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 		st.SuperchainRoles = superRoles
 
 		if hasPredeployedOPCM && st.ImplementationsDeployment == nil {
-			st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-				OpcmV2Impl: opcmAddr,
+			impls, err := opcm.ReadImplementations(ctx, env.L1Client, opcmAddr)
+			if err != nil {
+				return fmt.Errorf("failed to read implementations from OPCM at %s: %w", opcmAddr, err)
 			}
+			st.ImplementationsDeployment = impls
 		}
 	}
 
