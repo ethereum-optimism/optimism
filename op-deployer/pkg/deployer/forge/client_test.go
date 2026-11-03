@@ -160,6 +160,19 @@ func TestClient_TimeoutUnblocksHungCommand(t *testing.T) {
 	require.Less(t, time.Since(start), 10*time.Second)
 }
 
+func TestClient_DeploymentProfile(t *testing.T) {
+	for _, profile := range []string{"lite", "liteci", "ci"} {
+		t.Run(profile, func(t *testing.T) {
+			t.Setenv("FOUNDRY_PROFILE", profile)
+			cl := NewClient(stubBinary(t, `echo "$FOUNDRY_PROFILE"`))
+			cl.Stdout = io.Discard
+			out, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+			require.NoError(t, err)
+			require.Equal(t, "default", strings.TrimSpace(out))
+		})
+	}
+}
+
 func TestClient_SlowBroadcast(t *testing.T) {
 	tests := []struct {
 		name     string

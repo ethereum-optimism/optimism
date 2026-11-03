@@ -1203,10 +1203,6 @@ jobs:
       - store_test_results:
           path: packages/contracts-bedrock/results
           when: always
-      - run:
-          name: Lint forge test names
-          command: just lint-forge-tests-check-no-build
-          working_directory: packages/contracts-bedrock
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 

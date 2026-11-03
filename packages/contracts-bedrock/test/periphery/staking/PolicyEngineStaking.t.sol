@@ -904,7 +904,7 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
         vm.prank(alice);
         staking.stake(uint128(100 ether), alice);
         (, uint128 lastUpdate0) = staking.peData(alice);
-        uint256 ts0 = block.timestamp;
+        uint256 ts0 = vm.getBlockTimestamp();
         assertEq(lastUpdate0, ts0);
 
         // Warp time and stake again; lastUpdate should advance
