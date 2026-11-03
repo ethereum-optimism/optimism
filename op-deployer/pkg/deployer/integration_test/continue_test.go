@@ -582,6 +582,7 @@ func newContinuationEnvWithIntentMutator(
 		FaultGameSplitDepth:                standard.DisputeSplitDepth,
 		FaultGameClockExtension:            standard.DisputeClockExtension,
 		FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
+		SP1Verifier:                        deployMockSP1Verifier(t, l1Client, key),
 	})
 	require.NoError(t, err)
 

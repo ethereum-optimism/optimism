@@ -58,9 +58,7 @@ type State struct {
 	// contracts required for the Superchain to function.
 	ImplementationsDeployment *addresses.ImplementationsContracts `json:"implementationsDeployment"`
 
-	// SP1Verifier is the raw verifier op-deployer passed to DeployImplementations. It is nil when
-	// op-deployer passed none (DeployImplementations then deployed MockSP1Verifier) or reused
-	// predeployed implementations.
+	// SP1Verifier is the raw verifier selected when deploying the implementations bundle.
 	SP1Verifier *common.Address `json:"sp1Verifier,omitempty"`
 
 	// Chains contains data about L2 chain deployments.

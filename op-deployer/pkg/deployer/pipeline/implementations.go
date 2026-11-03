@@ -49,6 +49,9 @@ func ResolveSuperchainProofParams(intent *state.Intent) (state.SuperchainProofPa
 
 func DeployImplementations(env *Env, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-implementations")
+	if env.DeployMockSP1Verifier && !env.IsGenesis {
+		return fmt.Errorf("mock SP1 verifier deployment is only supported for genesis")
+	}
 
 	requestedSP1Verifier, hasSP1VerifierOverride, err := parseSP1VerifierOverride(intent.GlobalDeployOverrides)
 	if err != nil {
@@ -62,11 +65,14 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		return fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 	selectedSP1Verifier := requestedSP1Verifier
-	// A generated genesis contains no release-approved verifier, so only live deploys use the
-	// release default.
-	if intent.OPCMAddress == nil && !hasSP1VerifierOverride && !env.IsGenesis {
-		if v, err := standard.SP1VerifierFor(intent.L1ChainID); err == nil {
-			selectedSP1Verifier = v
+	if intent.OPCMAddress == nil && !hasSP1VerifierOverride && !env.DeployMockSP1Verifier {
+		// A generated genesis contains no release-approved verifier, so it must be selected explicitly.
+		if env.IsGenesis {
+			return fmt.Errorf("sp1Verifier must be specified for genesis deployments")
+		}
+		selectedSP1Verifier, err = standard.SP1VerifierFor(intent.L1ChainID)
+		if err != nil {
+			return fmt.Errorf("sp1Verifier must be specified on L1 chain ID %d: %w", intent.L1ChainID, err)
 		}
 	}
 
@@ -84,17 +90,13 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 					return err
 				}
 			}
+		} else if intent.OPCMAddress == nil {
+			if st.SP1Verifier == nil || *st.SP1Verifier == (common.Address{}) {
+				return fmt.Errorf("reused implementations do not record an SP1 verifier")
+			}
 		}
 		lgr.Info("implementations deployment not needed")
 		return nil
-	}
-
-	// The genesis script host runs at a local dev chain ID, so DeployImplementations would wrap an
-	// accept-all MockSP1Verifier even for an intent targeting a chain with a release verifier.
-	if env.IsGenesis && !hasSP1VerifierOverride {
-		if _, err := standard.SP1VerifierFor(intent.L1ChainID); err == nil {
-			return fmt.Errorf("genesis deployments for L1 chain %d must set globalDeployOverrides.sp1Verifier", intent.L1ChainID)
-		}
 	}
 
 	lgr.Info("deploying implementations")
@@ -121,13 +123,13 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		Challenger:                         st.SuperchainRoles.Challenger,
 		SP1Verifier:                        selectedSP1Verifier,
 	}
-	if input.SP1Verifier != (common.Address{}) {
-		lgr.Info("using SP1 verifier", "address", input.SP1Verifier)
-	} else if env.IsGenesis {
-		lgr.Warn("no SP1 verifier configured; genesis deploys an accept-all MockSP1Verifier")
-	} else {
-		lgr.Warn("no SP1 verifier configured; DeployImplementations deploys an accept-all MockSP1Verifier on local dev chains and reverts elsewhere (set globalDeployOverrides.sp1Verifier)")
+	if env.DeployMockSP1Verifier && input.SP1Verifier == (common.Address{}) {
+		input.SP1Verifier, err = deployGenesisMockSP1Verifier(env)
+		if err != nil {
+			return err
+		}
 	}
+	lgr.Info("using SP1 verifier", "address", input.SP1Verifier)
 
 	if env.UseForge {
 		lgr.Info("using Forge for DeployImplementations")
@@ -244,6 +246,13 @@ func readReusedSP1Verifier(env *Env, adapter common.Address) (common.Address, er
 		return common.Address{}, fmt.Errorf("failed to decode sp1Verifier from reused SP1PlonkAdapter %s: %w", adapter, err)
 	}
 	return deployed, nil
+}
+
+func deployGenesisMockSP1Verifier(env *Env) (common.Address, error) {
+	if env.L1ScriptHost == nil {
+		return common.Address{}, fmt.Errorf("cannot deploy genesis MockSP1Verifier without an L1 script host")
+	}
+	return opcm.DeployMockSP1Verifier(env.L1ScriptHost, env.Deployer)
 }
 
 func shouldDeployImplementations(intent *state.Intent, st *state.State) bool {

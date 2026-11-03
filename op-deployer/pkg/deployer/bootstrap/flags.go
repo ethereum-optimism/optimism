@@ -120,7 +120,7 @@ var (
 	}
 	SP1VerifierAddressFlag = &cli.StringFlag{
 		Name:    SP1VerifierAddressFlagName,
-		Usage:   "Raw SP1 verifier wrapped by the release's SP1PlonkAdapter. Defaults to Succinct's v6.1.0 PLONK verifier on Ethereum mainnet and Sepolia and is required on every other L1, except local dev chains, where DeployImplementations deploys an accept-all MockSP1Verifier when it is unset.",
+		Usage:   "Raw SP1 verifier wrapped by the release's SP1PlonkAdapter. Defaults to Succinct's v6.1.0 PLONK verifier on Ethereum mainnet and Sepolia; required on every other L1.",
 		EnvVars: deployer.PrefixEnvVar("SP1_VERIFIER_ADDRESS"),
 		Value:   common.Address{}.Hex(),
 	}

@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
-import { MockSP1Verifier } from "test/dispute/zk/MockSP1Verifier.sol";
 
 // Libraries
 import { Chains } from "scripts/libraries/Chains.sol";
@@ -108,7 +107,6 @@ contract DeployImplementations is Script {
     }
 
     function run(Input memory _input) public returns (Output memory output_) {
-        if (address(_input.sp1Verifier) == address(0)) _input.sp1Verifier = deployMockSP1Verifier();
         assertValidInput(_input);
 
         // Deploy the implementations.
@@ -536,22 +534,6 @@ contract DeployImplementations is Script {
         );
         vm.label(address(impl), "SP1PlonkAdapter");
         _output.sp1PlonkAdapterSingleton = impl;
-    }
-
-    /// @notice Deploys the accept-all MockSP1Verifier. Reverts outside local dev chains.
-    function deployMockSP1Verifier() private returns (ISP1Verifier verifier_) {
-        uint256 chainId = block.chainid;
-        require(
-            chainId == Chains.LocalDevnet || chainId == Chains.GethDevnet || chainId == Chains.Hardhat
-                || chainId == Chains.AnvilDevnet || chainId == Chains.InteropDevnet,
-            "DeployImplementations: sp1Verifier must be set outside local dev chains"
-        );
-        // Embedded creation code: builds that skip test/ ship no MockSP1Verifier artifact.
-        verifier_ = ISP1Verifier(
-            // nosemgrep: sol-safety-deployutils-named-args-parameter
-            DeployUtils.createDeterministic({ _initCode: type(MockSP1Verifier).creationCode, _salt: _salt })
-        );
-        vm.label(address(verifier_), "MockSP1Verifier");
     }
 
     function deployOPCMContainer(

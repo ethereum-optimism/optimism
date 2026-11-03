@@ -495,10 +495,10 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         deployImplementations.run(input);
     }
 
-    /// @notice Tests that the raw SP1 verifier must be a contract.
+    /// @notice Tests that the raw SP1 verifier must be set to a contract.
     function test_run_sp1VerifierNotContract_reverts() public {
         DeployImplementations.Input memory input = defaultInput();
-        input.sp1Verifier = ISP1Verifier(makeAddr("eoaVerifier"));
+        input.sp1Verifier = ISP1Verifier(address(0));
 
         vm.expectRevert("DeployImplementations: sp1Verifier must be a contract");
         deployImplementations.run(input);
@@ -513,45 +513,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
         vm.expectRevert("DeployImplementations: sp1Verifier must expose VERSION()");
         deployImplementations.run(input);
-    }
-
-    /// @notice Tests that a zero SP1 verifier makes the script deploy and wrap a MockSP1Verifier.
-    function test_run_zeroSP1VerifierDeploysMock_succeeds() public {
-        DeployImplementations.Input memory input = defaultInput();
-        input.sp1Verifier = ISP1Verifier(address(0));
-
-        DeployImplementations.Output memory output = deployImplementations.run(input);
-
-        ISP1Verifier verifier = output.sp1PlonkAdapterSingleton.sp1Verifier();
-        assertGt(address(verifier).code.length, 0, "SP1 verifier has no code");
-        assertEq(verifier.VERSION(), "v0.0.0-MOCK", "SP1 verifier is not the mock");
-    }
-
-    /// @notice Tests that a zero SP1 verifier reverts on any chain that is not a local dev chain.
-    function testFuzz_run_zeroSP1VerifierOnNonDevChain_reverts(uint64 _chainId) public {
-        vm.assume(
-            _chainId != Chains.LocalDevnet && _chainId != Chains.GethDevnet && _chainId != Chains.Hardhat
-                && _chainId != Chains.AnvilDevnet && _chainId != Chains.InteropDevnet
-        );
-        DeployImplementations.Input memory input = defaultInput();
-        input.sp1Verifier = ISP1Verifier(address(0));
-
-        vm.chainId(_chainId);
-        vm.expectRevert("DeployImplementations: sp1Verifier must be set outside local dev chains");
-        deployImplementations.run(input);
-    }
-
-    /// @notice Tests that a zero SP1 verifier reverts on Ethereum mainnet, Sepolia and OP Mainnet.
-    function test_run_zeroSP1VerifierOnPublicChain_reverts() public {
-        uint256[3] memory chainIds = [Chains.Mainnet, Chains.Sepolia, Chains.OPMainnet];
-        for (uint256 i = 0; i < chainIds.length; i++) {
-            DeployImplementations.Input memory input = defaultInput();
-            input.sp1Verifier = ISP1Verifier(address(0));
-
-            vm.chainId(chainIds[i]);
-            vm.expectRevert("DeployImplementations: sp1Verifier must be set outside local dev chains");
-            deployImplementations.run(input);
-        }
     }
 
     /// @notice Test that the deployImplementations script reverts when the V2 game parameters are invalid.

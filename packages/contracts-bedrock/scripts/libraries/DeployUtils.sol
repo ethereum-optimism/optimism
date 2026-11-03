@@ -237,21 +237,13 @@ library DeployUtils {
         internal
         returns (address payable addr_)
     {
-        return createDeterministic(abi.encodePacked(getCode(_name), _args), _salt);
-    }
-
-    /// @notice Deploys a contract from raw init code using CREATE2. If the contract is already
-    /// deployed, this method does nothing.
-    /// @param _initCode Init code of the contract to deploy, including any constructor arguments.
-    /// @param _salt CREATE2 salt.
-    /// @return addr_ Address of the deployed (or already deployed) contract.
-    function createDeterministic(bytes memory _initCode, bytes32 _salt) internal returns (address payable addr_) {
-        address preComputedAddress = vm.computeCreate2Address(_salt, keccak256(_initCode));
+        bytes memory initCode = abi.encodePacked(getCode(_name), _args);
+        address preComputedAddress = vm.computeCreate2Address(_salt, keccak256(initCode));
         if (preComputedAddress.code.length > 0) {
             addr_ = payable(preComputedAddress);
         } else {
             vm.broadcast(msg.sender);
-            addr_ = create2asm(_initCode, _salt);
+            addr_ = create2asm(initCode, _salt);
         }
     }
 

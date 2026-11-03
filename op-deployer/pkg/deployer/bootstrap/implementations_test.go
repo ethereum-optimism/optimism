@@ -104,32 +104,35 @@ func TestImplementationsConfigSP1Verifier(t *testing.T) {
 func TestImplementationsConfigResolveSP1Verifier(t *testing.T) {
 	t.Run("mainnet default", func(t *testing.T) {
 		var cfg ImplementationsConfig
-		cfg.resolveSP1Verifier(big.NewInt(1))
+		require.NoError(t, cfg.resolveSP1Verifier(big.NewInt(1)))
 		require.Equal(t, common.HexToAddress("0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"), cfg.SP1Verifier)
 	})
 
 	t.Run("sepolia default", func(t *testing.T) {
 		var cfg ImplementationsConfig
-		cfg.resolveSP1Verifier(big.NewInt(11155111))
+		require.NoError(t, cfg.resolveSP1Verifier(big.NewInt(11155111)))
 		require.Equal(t, common.HexToAddress("0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"), cfg.SP1Verifier)
 	})
 
-	t.Run("unknown network selects nothing", func(t *testing.T) {
+	t.Run("unknown network fails", func(t *testing.T) {
 		var cfg ImplementationsConfig
-		cfg.resolveSP1Verifier(big.NewInt(900))
-		require.Equal(t, common.Address{}, cfg.SP1Verifier)
+		err := cfg.resolveSP1Verifier(big.NewInt(900))
+		require.ErrorContains(t, err, "no default SP1 verifier for L1 chain ID 900")
+		require.ErrorContains(t, err, "--sp1-verifier-address")
 	})
 
-	t.Run("large unknown network selects nothing", func(t *testing.T) {
+	t.Run("large unknown network fails", func(t *testing.T) {
 		var cfg ImplementationsConfig
-		cfg.resolveSP1Verifier(new(big.Int).Lsh(big.NewInt(1), 80))
-		require.Equal(t, common.Address{}, cfg.SP1Verifier)
+		chainID := new(big.Int).Lsh(big.NewInt(1), 80)
+		err := cfg.resolveSP1Verifier(chainID)
+		require.ErrorContains(t, err, "no default SP1 verifier for L1 chain ID")
+		require.ErrorContains(t, err, "--sp1-verifier-address")
 	})
 
-	t.Run("override wins", func(t *testing.T) {
+	t.Run("override permits unknown network", func(t *testing.T) {
 		override := common.Address{0x05}
 		cfg := ImplementationsConfig{SP1Verifier: override}
-		cfg.resolveSP1Verifier(big.NewInt(1))
+		require.NoError(t, cfg.resolveSP1Verifier(big.NewInt(900)))
 		require.Equal(t, override, cfg.SP1Verifier)
 	})
 }

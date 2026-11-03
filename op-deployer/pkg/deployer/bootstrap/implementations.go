@@ -139,15 +139,29 @@ func (c *ImplementationsConfig) Check() error {
 	return nil
 }
 
-// resolveSP1Verifier sets the release's default SP1 verifier for the L1 chain unless one is
-// configured or the chain has none.
-func (c *ImplementationsConfig) resolveSP1Verifier(chainID *big.Int) {
-	if c.SP1Verifier != (common.Address{}) || !chainID.IsUint64() {
-		return
+func (c *ImplementationsConfig) resolveSP1Verifier(chainID *big.Int) error {
+	if c.SP1Verifier != (common.Address{}) {
+		return nil
 	}
-	if verifier, err := standard.SP1VerifierFor(bigs.Uint64Strict(chainID)); err == nil {
-		c.SP1Verifier = verifier
+
+	if !chainID.IsUint64() {
+		return fmt.Errorf(
+			"no default SP1 verifier for L1 chain ID %s; specify --%s",
+			chainID,
+			SP1VerifierAddressFlagName,
+		)
 	}
+	chainIDUint64 := bigs.Uint64Strict(chainID)
+	verifier, err := standard.SP1VerifierFor(chainIDUint64)
+	if err != nil {
+		return fmt.Errorf(
+			"no default SP1 verifier for L1 chain ID %d; specify --%s",
+			chainIDUint64,
+			SP1VerifierAddressFlagName,
+		)
+	}
+	c.SP1Verifier = verifier
+	return nil
 }
 
 func ImplementationsCLI(cliCtx *cli.Context) error {
@@ -236,15 +250,13 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 		if err != nil {
 			return dio, fmt.Errorf("failed to select default SP1 verifier: %w", err)
 		}
-		cfg.resolveSP1Verifier(chainID)
+		if err := cfg.resolveSP1Verifier(chainID); err != nil {
+			return dio, err
+		}
 	}
 
 	lgr := cfg.Logger
-	if cfg.SP1Verifier != (common.Address{}) {
-		lgr.Info("using SP1 verifier", "address", cfg.SP1Verifier)
-	} else {
-		lgr.Warn("no SP1 verifier configured; DeployImplementations deploys an accept-all MockSP1Verifier on local dev chains and reverts elsewhere (set --sp1-verifier-address)")
-	}
+	lgr.Info("using SP1 verifier", "address", cfg.SP1Verifier)
 
 	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)
 	if err != nil {

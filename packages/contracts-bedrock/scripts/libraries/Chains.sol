@@ -13,8 +13,4 @@ library Chains {
     uint256 internal constant OPLocalDevnet = 901;
     uint256 internal constant GethDevnet = 1337;
     uint256 internal constant Hardhat = 31337;
-    /// @notice L1 chain ID of op-deployer's test anvil (devnet.DefaultChainID in op-service).
-    uint256 internal constant AnvilDevnet = 77799777;
-    /// @notice L1 chain ID of the interopgen dev recipes.
-    uint256 internal constant InteropDevnet = 900100;
 }

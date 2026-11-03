@@ -6,6 +6,7 @@ import { VmSafe } from "forge-std/Vm.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { MockSP1Verifier } from "test/dispute/zk/MockSP1Verifier.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
@@ -150,8 +151,12 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy all L1 contracts and write the state diff to a file.
-    ///         Used to generate kontrol tests.
+    ///         Used to generate kontrol tests. The dev chain has no SP1 verifier, so it uses the
+    ///         accept-all MockSP1Verifier.
     function runWithStateDiff() public stateDiff {
+        vm.broadcast(msg.sender);
+        MockSP1Verifier sp1Verifier = new MockSP1Verifier();
+        cfg.setSP1Verifier(address(sp1Verifier));
         _run({ _needsSuperchain: true });
     }
 

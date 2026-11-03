@@ -3,6 +3,7 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"encoding/hex"
 	"log/slog"
 	"math/big"
@@ -80,6 +81,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	l2ChainID := uint256.NewInt(1)
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 	superchainPAO := common.Address{'S', 'P', 'A', 'O'}
+	sp1Verifier := deployMockSP1Verifier(t, l1Client, pk)
 
 	apply := func(t *testing.T, loc *artifacts.Locator) {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -121,6 +123,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			FaultGameSplitDepth:                standard.DisputeSplitDepth,
 			FaultGameClockExtension:            standard.DisputeClockExtension,
 			FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
+			SP1Verifier:                        sp1Verifier,
 		})
 		require.NoError(t, err)
 
@@ -242,12 +245,14 @@ func TestEndToEndApply(t *testing.T) {
 	l2ChainID2 := uint256.NewInt(2)
 	loc, _ := testutil.LocalArtifacts(t)
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	sp1Verifier := deployMockSP1Verifier(t, l1Client, pk)
 
 	t.Run("two chains one after another", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 		defer cancel()
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
+		setSP1VerifierOverride(intent, sp1Verifier)
 		cg := ethClientCodeGetter(ctx, l1Client)
 
 		require.NoError(t, deployer.ApplyPipeline(
@@ -293,6 +298,7 @@ func TestEndToEndApply(t *testing.T) {
 		defer cancel()
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
+		setSP1VerifierOverride(intent, sp1Verifier)
 
 		// CGT config for L2 genesis
 		amount := new(big.Int)
@@ -353,6 +359,7 @@ func TestEndToEndApply(t *testing.T) {
 		testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
+		setSP1VerifierOverride(intent, deployMockSP1Verifier(t, l1Client, pk))
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
@@ -997,16 +1004,32 @@ func setupGenesisChain(t *testing.T, l1ChainID uint64) (deployer.ApplyPipelineOp
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
 	opts := deployer.ApplyPipelineOpts{
-		DeploymentTarget:   deployer.DeploymentTargetGenesis,
-		DeployerPrivateKey: priv,
-		Intent:             intent,
-		State:              st,
-		Logger:             lgr,
-		StateWriter:        pipeline.NoopStateWriter(),
-		CacheDir:           testCacheDir,
+		DeploymentTarget:      deployer.DeploymentTargetGenesis,
+		DeployerPrivateKey:    priv,
+		Intent:                intent,
+		State:                 st,
+		Logger:                lgr,
+		StateWriter:           pipeline.NoopStateWriter(),
+		CacheDir:              testCacheDir,
+		DeployMockSP1Verifier: true,
 	}
 
 	return opts, intent, st
+}
+
+// deployMockSP1Verifier deploys the accept-all MockSP1Verifier on a live test L1, which has no
+// release-approved SP1 verifier.
+func deployMockSP1Verifier(t *testing.T, client *ethclient.Client, key *ecdsa.PrivateKey) common.Address {
+	_, afacts := testutil.LocalArtifacts(t)
+	return testutil.DeployMockSP1Verifier(t, client, key, afacts)
+}
+
+// setSP1VerifierOverride pins the raw SP1 verifier wrapped by the deployed SP1PlonkAdapter.
+func setSP1VerifierOverride(intent *state.Intent, verifier common.Address) {
+	if intent.GlobalDeployOverrides == nil {
+		intent.GlobalDeployOverrides = make(map[string]any)
+	}
+	intent.GlobalDeployOverrides["sp1Verifier"] = verifier
 }
 
 type codeGetter func(t *testing.T, addr common.Address) []byte

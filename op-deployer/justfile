@@ -7,7 +7,7 @@ test args='./...': build-contracts copy-contract-artifacts
 
 build-contracts:
   just ../packages/contracts-bedrock/build-no-tests
-  # op-deployer unit tests deploy this mock directly.
+  # Test and devstack deployments pass this mock as the SP1 verifier.
   just ../packages/contracts-bedrock/forge-build test/dispute/zk/MockSP1Verifier.sol
 
 copy-contract-artifacts:
