@@ -94,7 +94,12 @@ func TestKonaL2CLEnvAcceptsSyncModeCompatibilityInputs(t *testing.T) {
 				})}
 				// Neither compatibility mode emits a flag pretending to select a
 				// native mode: Kona always drives EL sync through Engine API responses.
-				require.Equal(t, []string{"KONA_NODE_P2P_NO_DISCOVERY=true", "KONA_NODE_VERIFIER_L1_CONFS=0"},
+				// EL sync only adds its safe offset, as it does for op-node.
+				want := []string{"KONA_NODE_P2P_NO_DISCOVERY=true", "KONA_NODE_VERIFIER_L1_CONFS=0"}
+				if mode == nodeSync.ELSync {
+					want = append(want, "KONA_NODE_SYNCMODE_OFFSET_EL_SAFE=0ms")
+				}
+				require.Equal(t, want,
 					konaL2CLEnv(resolveKonaL2CLConfig(devtest.SerialT(t), "node", eth.ChainIDFromUInt64(901), isSequencer, "", opts), false))
 			})
 		}
@@ -136,7 +141,7 @@ func TestKonaL2CLConfigRejectsUnsupportedOptions(t *testing.T) {
 		apply       func(*L2CLConfig)
 		message     string
 	}{
-		{"safe offset", true, func(cfg *L2CLConfig) { cfg.OffsetELSafe = time.Second }, "unsupported L2CL option"},
+		{"negative safe offset", true, func(cfg *L2CLConfig) { cfg.OffsetELSafe = -time.Second }, "must not be negative"},
 		{"role override", true, func(cfg *L2CLConfig) { cfg.IsSequencer = false }, "unsupported L2CL option"},
 		{"sequencer sync", true, func(cfg *L2CLConfig) { cfg.SequencerSyncMode = nodeSync.Mode(99) }, "unknown effective sync mode"},
 		{"verifier sync", false, func(cfg *L2CLConfig) { cfg.VerifierSyncMode = nodeSync.Mode(99) }, "unknown effective sync mode"},
@@ -213,6 +218,31 @@ func TestKonaL2CLEnvVerifierL1Confs(t *testing.T) {
 				cfg := resolveKonaL2CLConfig(devtest.SerialT(t), "node", eth.ChainIDFromUInt64(901), isSequencer, "", opts)
 				require.Contains(t, konaL2CLEnv(cfg, false), fmt.Sprintf("KONA_NODE_VERIFIER_L1_CONFS=%d", confirmations))
 			})
+		}
+	}
+}
+
+func TestKonaL2CLEnvOffsetELSafe(t *testing.T) {
+	t.Setenv("KONA_NODE_P2P_NO_DISCOVERY", "true")
+	for _, isSequencer := range []bool{false, true} {
+		for _, mode := range nodeSync.Modes {
+			for offset, want := range map[time.Duration]string{0: "0ms", 90 * time.Second: "90000ms", 1500 * time.Millisecond: "1500ms"} {
+				t.Run(fmt.Sprintf("sequencer=%t/mode=%s/offset=%s", isSequencer, mode, offset), func(t *testing.T) {
+					opts := []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+						cfg.SequencerSyncMode, cfg.VerifierSyncMode = mode, mode
+						cfg.OffsetELSafe = offset
+					})}
+					env := konaL2CLEnv(resolveKonaL2CLConfig(devtest.SerialT(t), "node", eth.ChainIDFromUInt64(901), isSequencer, "", opts), false)
+					if mode == nodeSync.ELSync {
+						require.Contains(t, env, "KONA_NODE_SYNCMODE_OFFSET_EL_SAFE="+want)
+					} else {
+						// Like op-node, the offset applies only to EL sync.
+						for _, entry := range env {
+							require.NotContains(t, entry, "KONA_NODE_SYNCMODE_OFFSET_EL_SAFE")
+						}
+					}
+				})
+			}
 		}
 	}
 }
