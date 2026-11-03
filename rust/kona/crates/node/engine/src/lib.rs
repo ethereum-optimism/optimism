@@ -74,7 +74,9 @@ mod metrics;
 pub use metrics::Metrics;
 
 mod sync;
-pub use sync::{L2ForkchoiceState, SyncStartError, find_starting_forkchoice};
+pub use sync::{
+    DEFAULT_EL_SYNC_SAFE_OFFSET, L2ForkchoiceState, SyncStartError, find_starting_forkchoice,
+};
 
 #[cfg(any(test, feature = "test-utils"))]
 /// Utilities that are useful when creating unit tests using structs within this library.

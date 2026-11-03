@@ -2,14 +2,14 @@
 
 use super::ExecutableEngineTask;
 use crate::{
-    EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTaskError,
+    DEFAULT_EL_SYNC_SAFE_OFFSET, EngineClient, EngineState, EngineSyncStateUpdate, EngineTask,
+    EngineTaskError, EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTaskError,
     find_starting_forkchoice,
     task_queue::{EngineTaskErrors, synchronize},
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use std::{cmp::Ordering, collections::BinaryHeap, sync::Arc};
+use std::{cmp::Ordering, collections::BinaryHeap, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::sync::watch::Sender;
 
@@ -63,6 +63,9 @@ pub struct Engine {
     /// Preserve the task being retried ahead of newly enqueued work: it may have already
     /// performed part of an Engine API operation.
     active: Option<EngineTask>,
+    /// How far behind an EL-synced tip a reset places safe and finalized when the execution
+    /// layer's labels are missing or stale.
+    el_sync_safe_offset: Duration,
 }
 
 impl Engine {
@@ -74,7 +77,15 @@ impl Engine {
             tasks: BinaryHeap::default(),
             active: None,
             next_sequence: 0,
+            el_sync_safe_offset: DEFAULT_EL_SYNC_SAFE_OFFSET,
         }
+    }
+
+    /// Sets how far behind an EL-synced tip a reset places safe and finalized when the execution
+    /// layer's labels are missing or stale. Defaults to [`DEFAULT_EL_SYNC_SAFE_OFFSET`].
+    pub const fn with_el_sync_safe_offset(mut self, el_sync_safe_offset: Duration) -> Self {
+        self.el_sync_safe_offset = el_sync_safe_offset;
+        self
     }
 
     /// Returns a reference to the inner [`EngineState`].
@@ -113,7 +124,8 @@ impl Engine {
         client: Arc<EngineClient>,
         config: Arc<RollupConfig>,
     ) -> Result<L2BlockInfo, EngineResetError> {
-        let start = find_starting_forkchoice(&config, client.as_ref()).await?;
+        let start =
+            find_starting_forkchoice(&config, client.as_ref(), self.el_sync_safe_offset).await?;
 
         // One attempt. The actor retains the reset request and retries transient failures.
         synchronize(
@@ -184,7 +196,11 @@ impl EngineResetError {
     /// Whether retrying the reset can recover without changing the node configuration.
     pub fn is_temporary(&self) -> bool {
         match self {
-            Self::SyncStart(SyncStartError::RpcError(_)) => true,
+            Self::SyncStart(
+                SyncStartError::RpcError(_) |
+                SyncStartError::ChainViewChanged |
+                SyncStartError::BlockNotFound(_),
+            ) => true,
             Self::SyncStart(_) => false,
             Self::Forkchoice(err) => err.severity() != EngineTaskErrorSeverity::Critical,
         }

@@ -119,6 +119,8 @@ pub struct RollupNode {
     pub(crate) safe_db: Option<Arc<dyn SafeDb>>,
     /// L1 confirmation depth for online derivation, independent of sequencing.
     pub(crate) verifier_l1_confs: u64,
+    /// How far behind an EL-synced tip a reset places safe and finalized.
+    pub(crate) el_sync_safe_offset: Duration,
 }
 
 /// A RollupNode-level derivation actor wrapper.
@@ -262,7 +264,8 @@ impl RollupNode {
         // Share engine state with RPC without routing reads through the actor.
         let engine_state = EngineState::default();
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
-        let engine = Engine::new(engine_state, engine_state_tx);
+        let engine = Engine::new(engine_state, engine_state_tx)
+            .with_el_sync_safe_offset(self.el_sync_safe_offset);
 
         let engine_client = Arc::new(self.engine_config.clone().build_engine_client());
 

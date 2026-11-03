@@ -21,7 +21,9 @@ use std::{
 use tower::Service;
 
 /// Queues replies and checks the method and optional parameters of every outgoing RPC request.
-/// Unexpected requests panic rather than silently satisfying a different operation's reply.
+/// A request takes the first queued reply whose method and parameters match, so tests pin which
+/// requests are made without pinning the order of unrelated ones. Unexpected requests panic
+/// rather than silently satisfying a different operation's reply.
 #[derive(Clone, Debug, Default)]
 pub struct RpcMock {
     requests: Arc<Mutex<VecDeque<ExpectedRequest>>>,
@@ -141,18 +143,22 @@ impl Service<RequestPacket> for RpcMock {
         let RequestPacket::Single(ref rpc) = request else {
             panic!("engine tests expect individual RPC requests");
         };
-        let expected = self
-            .requests
-            .lock()
-            .unwrap()
-            .pop_front()
-            .unwrap_or_else(|| panic!("unexpected RPC request: {}", rpc.method()));
-        assert_eq!(rpc.method(), expected.method, "wrong RPC method");
-        if let Some(params) = expected.params {
-            let actual: Value =
-                serde_json::from_str(rpc.params().expect("request has parameters").get()).unwrap();
-            assert_eq!(actual, params, "wrong RPC parameters for {}", expected.method);
-        }
+        let actual: Option<Value> =
+            rpc.params().map(|params| serde_json::from_str(params.get()).unwrap());
+        let expected = {
+            let mut requests = self.requests.lock().unwrap();
+            let index = requests
+                .iter()
+                .position(|expected| {
+                    expected.method == rpc.method() &&
+                        expected
+                            .params
+                            .as_ref()
+                            .is_none_or(|params| actual.as_ref() == Some(params))
+                })
+                .unwrap_or_else(|| panic!("unexpected RPC request: {} {actual:?}", rpc.method()));
+            requests.remove(index).expect("index is in bounds")
+        };
         let replies = Asserter::new();
         let Some(reply) = expected.response else {
             return Box::pin(async {
