@@ -1,18 +1,39 @@
 use crate::{
-    DerivationActorRequest, DerivationEngineClient, NodeActor,
-    actors::derivation::{DerivationDelegateProvider, DerivationError},
+    DerivationActorRequest, DerivationEngineClient, NodeActor, actors::derivation::DerivationError,
 };
 use alloy_primitives::BlockHash;
 use async_trait::async_trait;
+use jsonrpsee::core::ClientError;
 use kona_derive::{ChainProvider, Signal};
 use kona_engine::FinalizeBlockId;
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
+use kona_rpc::RollupNodeApiClient;
 use thiserror::Error;
 use tokio::{
     select,
     sync::{mpsc, watch},
     time,
 };
+
+/// Supplies the sync status of the external OP Stack CL node that derivation is delegated to.
+#[async_trait]
+pub trait SyncStatusSource: Send + Sync {
+    /// The error returned when the sync status cannot be fetched.
+    type Error: core::fmt::Display + Send;
+
+    /// Fetches the delegate's current sync status.
+    async fn sync_status(&self) -> Result<SyncStatus, Self::Error>;
+}
+
+/// Any jsonrpsee client can serve the delegate's `optimism_syncStatus`.
+#[async_trait]
+impl<C: RollupNodeApiClient + Send + Sync> SyncStatusSource for C {
+    type Error = ClientError;
+
+    async fn sync_status(&self) -> Result<SyncStatus, ClientError> {
+        self.op_sync_status().await
+    }
+}
 
 /// The [`NodeActor`] for the delegate derivation sub-routine.
 ///
@@ -24,10 +45,10 @@ use tokio::{
 /// Once validated, the actor sends the derived safe and finalized L2 info
 /// to the [`NodeActor`] responsible for the execution sub-routine.
 #[derive(Debug)]
-pub struct DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
+pub struct DelegateDerivationActor<DerivationEngineClient_, Delegate, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient,
-    DelegateProvider: DerivationDelegateProvider,
+    Delegate: SyncStatusSource,
     L1Provider: ChainProvider,
 {
     /// The channel on which all inbound requests are received by the [`DelegateDerivationActor`].
@@ -35,8 +56,8 @@ where
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
 
-    /// Derivation delegate provider.
-    derivation_delegate_provider: DelegateProvider,
+    /// Source of the sync status of the node that derivation is delegated to.
+    delegate: Delegate,
     /// L1 provider for validating L1 info for derivation delegation.
     l1_provider: L1Provider,
     /// Publishes the delegate's `current_l1`: the L1 block that its derivation has reached.
@@ -46,22 +67,22 @@ where
     engine_l2_safe_head: L2BlockInfo,
     /// Whether the engine sync has completed. This will only ever go from false -> true.
     has_engine_sync_completed: bool,
-    /// Ticker driving periodic polls of the derivation delegate provider.
+    /// Ticker driving periodic polls of the derivation delegate.
     delegated_derivation_ticker: time::Interval,
 }
 
-impl<DerivationEngineClient_, DelegateProvider, L1Provider>
-    DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
+impl<DerivationEngineClient_, Delegate, L1Provider>
+    DelegateDerivationActor<DerivationEngineClient_, Delegate, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient + 'static,
-    DelegateProvider: DerivationDelegateProvider + 'static,
+    Delegate: SyncStatusSource + 'static,
     L1Provider: ChainProvider + 'static,
 {
     /// Creates a new instance of the [`DelegateDerivationActor`].
     pub fn new(
         engine_client: DerivationEngineClient_,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
-        derivation_delegate_provider: DelegateProvider,
+        delegate: Delegate,
         l1_provider: L1Provider,
         derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
     ) -> Self {
@@ -71,7 +92,7 @@ where
         Self {
             inbound_request_rx,
             engine_client,
-            derivation_delegate_provider,
+            delegate,
             l1_provider,
             derivation_origin_tx,
             engine_l2_safe_head: L2BlockInfo::default(),
@@ -82,11 +103,11 @@ where
 }
 
 #[async_trait]
-impl<DerivationEngineClient_, DelegateProvider, L1Provider> NodeActor
-    for DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
+impl<DerivationEngineClient_, Delegate, L1Provider> NodeActor
+    for DelegateDerivationActor<DerivationEngineClient_, Delegate, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient + 'static,
-    DelegateProvider: DerivationDelegateProvider + 'static,
+    Delegate: SyncStatusSource + 'static,
     L1Provider: ChainProvider + Send + 'static,
 {
     type Error = DerivationError;
@@ -113,11 +134,11 @@ where
     }
 }
 
-impl<DerivationEngineClient_, DelegateProvider, L1Provider>
-    DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
+impl<DerivationEngineClient_, Delegate, L1Provider>
+    DelegateDerivationActor<DerivationEngineClient_, Delegate, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient + 'static,
-    DelegateProvider: DerivationDelegateProvider + 'static,
+    Delegate: SyncStatusSource + 'static,
     L1Provider: ChainProvider + 'static,
 {
     /// Hardcoded poll interval for Derivation Delegation
@@ -177,10 +198,14 @@ where
 
     /// Fetches, validates, and applies sync status from the derivation delegate.
     async fn fetch_and_apply_delegate_safe_head(&mut self) -> Result<(), DerivationError> {
-        let sync_status = match self.derivation_delegate_provider.fetch_sync_status().await {
+        let sync_status = match self.delegate.sync_status().await {
             Ok(status) => status,
-            Err(_) => {
-                warn!(target: "derivation", "Failed to fetch sync status from delegate");
+            Err(err) => {
+                warn!(
+                    target: "derivation",
+                    error = %err,
+                    "Failed to fetch sync status from delegate"
+                );
                 return Ok(());
             }
         };
