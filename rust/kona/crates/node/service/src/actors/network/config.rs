@@ -24,8 +24,6 @@ pub struct NetworkConfig {
     /// Whether to run discovery. Without it, the node binds no UDP socket, and connects only to
     /// its static peers, the peers that dial it, and the peers added with `opp2p_connectPeer`.
     pub discovery_enabled: bool,
-    /// Whether to update the ENR socket when the gossip listen address changes.
-    pub enr_update: bool,
     /// The gossip address.
     pub gossip_address: libp2p::Multiaddr,
     /// The unsafe block signer.
@@ -95,7 +93,6 @@ impl NetworkConfig {
             discovery_enabled: true,
             gossip_address,
             unsafe_block_signer,
-            enr_update: true,
             keypair: Keypair::generate_secp256k1(),
             bootnodes: Default::default(),
             static_peers: Default::default(),

@@ -53,11 +53,6 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
     }
 }
 
-/// Returns the port to advertise: `advertise` if set to a non-zero port, `listen` otherwise.
-fn advertised_port(advertise: Option<u16>, listen: u16) -> u16 {
-    advertise.filter(|&port| port != 0).unwrap_or(listen)
-}
-
 /// Parses one `--p2p.bootnodes` entry: an ENR (`enr:...`) or an enode URL (`enode://...`).
 fn parse_bootnode(raw: &str) -> Result<BootNode, String> {
     let raw = raw.trim();
@@ -129,8 +124,8 @@ pub struct P2PArgs {
     /// behind a NAT for instance).
     #[arg(long = "p2p.advertise.ip", env = "KONA_NODE_P2P_ADVERTISE_IP", value_parser = resolve_host)]
     pub advertise_ip: Option<IpAddr>,
-    /// TCP port to advertise to external peers from the discovery layer. Same as `p2p.listen.tcp`
-    /// if set to zero.
+    /// TCP port to advertise to external peers from the discovery layer. If not set or zero, the
+    /// port `LibP2P` binds: `p2p.listen.tcp`, or the port picked for a listen port of zero.
     #[arg(long = "p2p.advertise.tcp", env = "KONA_NODE_P2P_ADVERTISE_TCP_PORT")]
     pub advertise_tcp_port: Option<u16>,
     /// UDP port to advertise to external peers from the discovery layer.
@@ -458,7 +453,8 @@ impl P2PArgs {
         // If the advertise ip is set, we will disable the dynamic ENR updates.
         let static_ip = self.advertise_ip.is_some();
 
-        let advertise_tcp_port = advertised_port(self.advertise_tcp_port, self.listen_tcp_port);
+        // Gossip advertises the port it binds for 0, see `LocalNode::tcp_port`.
+        let advertise_tcp_port = self.advertise_tcp_port.unwrap_or_default();
         // Discovery advertises the port it listens on for 0, see `Discv5Builder::build`.
         let advertise_udp_port = self.advertise_udp_port.unwrap_or_default();
 
@@ -520,7 +516,6 @@ impl P2PArgs {
             discovery_address,
             discovery_randomize: self.discovery_randomize.map(Duration::from_secs),
             discovery_enabled: !self.no_discovery,
-            enr_update: !static_ip,
             gossip_address,
             keypair,
             unsafe_block_signer,
@@ -738,13 +733,6 @@ mod tests {
     fn test_p2p_args_listen_tcp_port() {
         let args = MockCommand::parse_from(["test", "--p2p.listen.tcp", "1234"]);
         assert_eq!(args.p2p.listen_tcp_port, 1234);
-    }
-
-    #[test]
-    fn test_advertised_port_falls_back_to_listen_port() {
-        assert_eq!(advertised_port(None, 9223), 9223);
-        assert_eq!(advertised_port(Some(0), 9223), 9223);
-        assert_eq!(advertised_port(Some(30303), 9223), 30303);
     }
 
     /// A started node advertises `--p2p.advertise.tcp` if set, and otherwise the TCP port gossip

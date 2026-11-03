@@ -171,6 +171,12 @@ impl TestNetworkBuilder {
     ///
     /// Its discovery table only accepts loopback addresses.
     pub(crate) async fn build(&mut self, bootnodes: Vec<Enr>) -> TestNetwork {
+        // A `/memory` address has no TCP port for the ENR to advertise, so the network would fail
+        // to start.
+        assert!(
+            !(self.in_memory && self.discovery_enabled),
+            "in-memory nodes run without discovery, see the `in_memory` field"
+        );
         let keypair = self.custom_keypair.take().unwrap_or_else(Keypair::generate_secp256k1);
 
         // LocalNode takes enr's k256 key and BlockSignerHandler alloy's signer; both share one
@@ -212,8 +218,7 @@ impl TestNetworkBuilder {
             builder = builder.with_discovery_interval(interval);
         }
         if self.in_memory {
-            // A `/memory` address has no IP or TCP port to put in the ENR.
-            builder = builder.with_enr_update(false).with_gossip_transport(memory_transport());
+            builder = builder.with_gossip_transport(memory_transport());
         }
 
         // Logs from this node's tasks are prefixed with `node{id=..}`.

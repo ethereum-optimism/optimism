@@ -101,8 +101,7 @@ impl GossipCommand {
         };
 
         let disc_ip = Ipv4Addr::UNSPECIFIED;
-        let disc_addr =
-            LocalNode::new(secret_key, IpAddr::V4(disc_ip), self.disc_port, self.disc_port);
+        let disc_addr = LocalNode::new(secret_key, IpAddr::V4(disc_ip), 0, self.disc_port);
 
         let (unsafe_blocks_tx, mut unsafe_blocks_rx) = mpsc::channel(1024);
         let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
@@ -135,7 +134,6 @@ impl GossipCommand {
             static_peers: Default::default(),
             rollup_config: rollup_config.clone(),
             gossip_signer: None,
-            enr_update: true,
         }
         .into();
 

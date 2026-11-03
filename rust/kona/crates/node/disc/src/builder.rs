@@ -20,9 +20,9 @@ pub struct LocalNode {
     pub signing_key: k256::ecdsa::SigningKey,
     /// The IP address to advertise.
     pub ip: IpAddr,
-    /// The TCP port to advertise.
+    /// The TCP port to advertise. 0 advertises the port gossip binds, once the network starts.
     pub tcp_port: u16,
-    /// Fallback UDP port.
+    /// The UDP port to advertise. 0 advertises the port discovery listens on.
     pub udp_port: u16,
 }
 

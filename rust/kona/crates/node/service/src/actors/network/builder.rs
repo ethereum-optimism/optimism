@@ -24,11 +24,6 @@ pub struct NetworkBuilder {
     pub(super) discovery_enabled: bool,
     /// The gossip driver.
     pub(super) gossip: GossipDriverBuilder,
-    /// Whether to update the ENR socket after the libp2p Swarm is started.
-    /// This is set to true by default.
-    /// This may be set to false if the node is configured to use a static advertised address (when
-    /// used with a nat for example).
-    pub(super) enr_update: bool,
 }
 
 impl From<NetworkConfig> for NetworkBuilder {
@@ -41,7 +36,6 @@ impl From<NetworkConfig> for NetworkBuilder {
             config.discovery_address,
             config.discovery_config,
         )
-        .with_enr_update(config.enr_update)
         .with_discovery_enabled(config.discovery_enabled)
         .with_discovery_randomize(config.discovery_randomize)
         .with_bootstore(config.bootstore)
@@ -79,13 +73,7 @@ impl NetworkBuilder {
                 gossip_addr,
                 keypair,
             ),
-            enr_update: true,
         }
-    }
-
-    /// Sets the ENR update flag for the [`NetworkBuilder`].
-    pub fn with_enr_update(self, enr_update: bool) -> Self {
-        Self { enr_update, ..self }
     }
 
     /// Sets whether to build and run discovery. Without it, the node binds no UDP socket, and the
@@ -178,12 +166,12 @@ impl NetworkBuilder {
 
     /// Builds the [`NetworkDriver`].
     pub fn build(self) -> Result<NetworkDriver, NetworkBuilderError> {
-        let Self { discovery, discovery_enabled, gossip, enr_update } = self;
+        let Self { discovery, discovery_enabled, gossip } = self;
         let gossip = gossip.build()?;
         // Not even built when disabled, since building can bind the UDP socket.
         let discovery = discovery_enabled.then(|| discovery.build()).transpose()?;
 
-        Ok(NetworkDriver { gossip, discovery, enr_update })
+        Ok(NetworkDriver { gossip, discovery })
     }
 }
 

@@ -7,13 +7,14 @@ use enr::NodeId;
 use kona_peers::{
     BootNode, BootNodes, BootStore, BootStoreFile, EnrValidation, peer_id_to_node_id,
 };
+use libp2p::{Multiaddr, multiaddr::Protocol};
 use tokio::{
     sync::mpsc::channel,
     task::JoinHandle,
     time::{Duration, sleep},
 };
 
-use crate::{Discv5Builder, Discv5Handler, HandlerRequest, LocalNode};
+use crate::{AdvertiseTcpPortError, Discv5Builder, Discv5Handler, HandlerRequest, LocalNode};
 
 /// The number of times to retry starting the [`Discv5`] service, with exponential backoff.
 const START_MAX_RETRIES: usize = 3;
@@ -178,6 +179,40 @@ impl Discv5Driver {
     pub fn start(self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>) {
         let (handler, enr_recv, _task) = self.spawn();
         (handler, enr_recv)
+    }
+
+    /// Sets the IPv4 `tcp` and IPv6 `tcp6` ports of the local ENR to the TCP port of
+    /// `gossip_addr`, but only those that are unset, which [`LocalNode::tcp_port`] marks with 0.
+    ///
+    /// A port that is missing from the ENR is not added, and a port that is already set is kept,
+    /// so calling this again with another address has no effect. The IP of `gossip_addr` is never
+    /// used.
+    ///
+    /// Call it once gossip has bound its listen address, and before [`Self::start`], so that no
+    /// peer sees a TCP port of 0.
+    ///
+    /// Fails if a port is unset and `gossip_addr` has no TCP port to set it to.
+    pub fn advertise_gossip_tcp_port(
+        &self,
+        gossip_addr: &Multiaddr,
+    ) -> Result<(), AdvertiseTcpPortError> {
+        let enr = self.disc.local_enr();
+        for (key, port) in [("tcp", enr.tcp4()), ("tcp6", enr.tcp6())] {
+            if port != Some(0) {
+                continue;
+            }
+            let gossip_port = gossip_addr
+                .iter()
+                .find_map(|p| match p {
+                    Protocol::Tcp(port) => Some(port),
+                    _ => None,
+                })
+                .ok_or_else(|| AdvertiseTcpPortError::NoGossipTcpPort(gossip_addr.clone()))?;
+            self.disc
+                .enr_insert(key, &gossip_port)
+                .map_err(AdvertiseTcpPortError::EnrUpdateFailed)?;
+        }
+        Ok(())
     }
 
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
@@ -411,6 +446,7 @@ mod tests {
     use discv5::{ConfigBuilder, NodeContact};
     use enr::{CombinedKey, CombinedPublicKey};
     use kona_genesis::{OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
+    use rstest::rstest;
     use tempfile::tempdir;
 
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -449,6 +485,48 @@ mod tests {
         )
         .build()
         .expect("Failed to build discovery service")
+    }
+
+    /// Only an unset TCP port of 0 is set to the gossip TCP port, and only once: another port is
+    /// kept, and so is the first gossip port. It fails if the gossip address has no TCP port to set
+    /// it to, as with the memory transport.
+    #[rstest]
+    #[case::unset(0, "/ip4/127.0.0.1/tcp/9222", Some(9222))]
+    #[case::set(30303, "/ip4/127.0.0.1/tcp/9222", Some(30303))]
+    #[case::set_without_gossip_port(30303, "/memory/0", Some(30303))]
+    #[case::unset_without_gossip_port(0, "/memory/0", None)]
+    #[tokio::test]
+    async fn test_advertise_gossip_tcp_port(
+        #[case] tcp_port: u16,
+        #[case] gossip_addr: Multiaddr,
+        #[case] advertised: Option<u16>,
+    ) {
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+        let driver = Discv5Driver::builder(
+            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), tcp_port, 0),
+            0xdead_beef,
+            ConfigBuilder::new(socket.into()).build(),
+        )
+        .build()
+        .unwrap();
+
+        let result = driver.advertise_gossip_tcp_port(&gossip_addr);
+
+        match advertised {
+            Some(port) => {
+                result.unwrap();
+                assert_eq!(driver.disc.local_enr().tcp4(), Some(port));
+                // A second address changes nothing.
+                driver.advertise_gossip_tcp_port(&"/ip4/127.0.0.1/tcp/1".parse().unwrap()).unwrap();
+                assert_eq!(driver.disc.local_enr().tcp4(), Some(port));
+            }
+            None => {
+                assert!(matches!(result, Err(AdvertiseTcpPortError::NoGossipTcpPort(_))));
+            }
+        }
     }
 
     /// Waits until the driver has finished startup and runs its main loop.
