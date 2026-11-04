@@ -3,6 +3,7 @@ package main
 import (
 	"archive/tar"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -25,6 +26,10 @@ func (m *multiFlag) Set(value string) error {
 	*m = append(*m, value)
 	return nil
 }
+
+// archiveTime is the modification time of every archived file, so that the archive's metadata
+// doesn't depend on when or by whom it was built.
+var archiveTime = time.Unix(0, 0)
 
 var (
 	baseDir = flag.String("base", "", "directory to archive")
@@ -77,29 +82,30 @@ func main() {
 	}
 	defer f.Close()
 
-	gz, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(22)))
-	if err != nil {
-		log.Fatalf("create zstd writer: %v", err)
+	if err := writeArchive(f, absBase, getGitCommit(absBase)); err != nil {
+		log.Fatalf("write archive: %v", err)
 	}
-	defer func() {
-		if err := gz.Close(); err != nil {
-			log.Fatalf("close zstd: %v", err)
-		}
-	}()
+
+	log.Printf("wrote %s", *outFile)
+}
+
+// writeArchive writes base as a zstd-compressed tarball to w. If commit is non-empty, it is added
+// as a COMMIT file. On error the tarball is left unterminated, so that readers don't mistake it for
+// a complete archive.
+func writeArchive(w io.Writer, base string, commit string) error {
+	gz, err := zstd.NewWriter(w, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(22)))
+	if err != nil {
+		return fmt.Errorf("create zstd writer: %w", err)
+	}
 
 	tw := tar.NewWriter(gz)
-	defer func() {
-		if err := tw.Close(); err != nil {
-			log.Fatalf("close tar: %v", err)
-		}
-	}()
 
-	if err := filepath.WalkDir(absBase, func(path string, d os.DirEntry, walkErr error) error {
+	if err := filepath.WalkDir(base, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
 
-		rel, err := filepath.Rel(absBase, path)
+		rel, err := filepath.Rel(base, path)
 		if err != nil {
 			return err
 		}
@@ -126,8 +132,10 @@ func main() {
 		}
 
 		hdr.Name = filepath.ToSlash(rel)
-		hdr.ModTime = info.ModTime()
-		hdr.AccessTime = info.ModTime()
+		hdr.ModTime = archiveTime
+		hdr.Uid, hdr.Gid = 0, 0
+		hdr.Uname, hdr.Gname = "", ""
+		hdr.Mode = archiveMode(info)
 
 		// tar-like progress output
 		log.Printf("a %s", hdr.Name)
@@ -149,21 +157,30 @@ func main() {
 
 		return nil
 	}); err != nil {
-		log.Fatalf("walk: %v", err)
+		return fmt.Errorf("walk: %w", err)
 	}
 
-	// Add COMMIT file if git is available
-	if commit := getGitCommit(absBase); commit != "" {
+	if commit != "" {
 		if err := addCommitFile(tw, commit); err != nil {
-			log.Fatalf("failed to add COMMIT file: %v", err)
+			return fmt.Errorf("add COMMIT file: %w", err)
 		}
 	}
 
-	if err := tw.Flush(); err != nil {
-		log.Fatalf("flush tar: %v", err)
+	if err := tw.Close(); err != nil {
+		return fmt.Errorf("close tar: %w", err)
 	}
+	if err := gz.Close(); err != nil {
+		return fmt.Errorf("close zstd: %w", err)
+	}
+	return nil
+}
 
-	log.Printf("wrote %s", *outFile)
+// archiveMode returns the file mode to archive for info, independent of the builder's umask.
+func archiveMode(info os.FileInfo) int64 {
+	if info.IsDir() || info.Mode()&0o100 != 0 {
+		return 0o755
+	}
+	return 0o644
 }
 
 func shouldExclude(rel string, d os.DirEntry) bool {
@@ -238,13 +255,11 @@ func getGitCommit(baseDir string) string {
 
 func addCommitFile(tw *tar.Writer, commit string) error {
 	hdr := &tar.Header{
-		Name:       "COMMIT",
-		Size:       int64(len(commit)),
-		Mode:       0644,
-		ModTime:    time.Now(),
-		AccessTime: time.Now(),
-		ChangeTime: time.Now(),
-		Typeflag:   tar.TypeReg,
+		Name:     "COMMIT",
+		Size:     int64(len(commit)),
+		Mode:     0644,
+		ModTime:  archiveTime,
+		Typeflag: tar.TypeReg,
 	}
 
 	if err := tw.WriteHeader(hdr); err != nil {
