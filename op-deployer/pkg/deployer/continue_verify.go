@@ -809,7 +809,7 @@ func (v *continuationVerifier) verifyStandardValidator() {
 		v.addMismatch(
 			"StandardValidator result",
 			"frozen DeployOPChainInput",
-			"successful call with an empty result",
+			"the expected override markers and error codes",
 			err,
 		)
 	}
@@ -877,6 +877,8 @@ func standardValidatorInput(
 		L1PAOMultisig:       dci.OpChainProxyAdminOwner,
 		Challenger:          dci.Challenger,
 		UseDevFeaturesInput: useDevInput,
+		// CHECK-OP2-125 verifies the hook address.
+		BridgeHookConfigured: dci.BridgeHook != (common.Address{}),
 	}
 }
 

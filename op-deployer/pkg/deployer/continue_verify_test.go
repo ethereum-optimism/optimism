@@ -176,7 +176,7 @@ func newContinuationVerificationFixtureWithMode(
 		AllowCustomDisputeParameters: false,
 		OperatorFeeScalar:            17,
 		OperatorFeeConstant:          23,
-		UseCustomGasToken:            true,
+		UseCustomGasToken:            false,
 		StartingAnchorRoot: opcm.Proposal{
 			Root:             startingAnchor.Root,
 			L2SequenceNumber: big.NewInt(7),
@@ -185,7 +185,7 @@ func newContinuationVerificationFixtureWithMode(
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(standard.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(standard.DisputeGameFinalityDelaySeconds),
 		WithdrawalDelaySeconds:          new(big.Int).SetUint64(standard.WithdrawalDelaySeconds),
-		BridgeHook:                      common.Address{0xb3},
+		BridgeHook:                      common.Address{0xb5},
 	}
 	if gameType == opcm.GameTypeSuperPermissioned {
 		expected.Prestate = common.Hash{}
@@ -422,7 +422,8 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType opcm.GameT
 
 	if gameType != opcm.GameTypeSuperPermissioned {
 		f.backend.validator = common.Address{0xb4}
-		f.backend.validatorResult = "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER"
+		// The fixture configures a bridge hook, which the validator always reports as PORTAL-110.
+		f.backend.validatorResult = "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PORTAL-110"
 		f.backend.set(
 			t,
 			f.dci.Opcm,
@@ -896,6 +897,14 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 			},
 		},
 		{
+			// Permissionless, where the validator accepts any hook and CHECK-OP2-125 alone checks it.
+			name:    "OptimismPortal bridge hook differs from frozen input",
+			wantErr: "CHECK-OP2-125 OptimismPortal bridge hook",
+			mutate: func(_ *testing.T, f *continuationVerificationFixture) {
+				f.dci.BridgeHook = common.Address{0xff}
+			},
+		},
+		{
 			name:         "permissioned proposer",
 			wantErr:      "selected game proposer",
 			permissioned: true,
@@ -964,6 +973,13 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 			wantErr: "StandardValidator result",
 			mutate: func(_ *testing.T, f *continuationVerificationFixture) {
 				f.backend.validatorResult = "TEST-FAIL"
+			},
+		},
+		{
+			name:    "StandardValidator result missing PORTAL-110 for a configured hook",
+			wantErr: "StandardValidator result",
+			mutate: func(_ *testing.T, f *continuationVerificationFixture) {
+				f.backend.validatorResult = "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER"
 			},
 		},
 	}
