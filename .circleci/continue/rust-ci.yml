@@ -50,7 +50,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
@@ -75,7 +75,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &clippy-cache-args
           directory: <<parameters.directory>>
@@ -103,7 +103,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
@@ -132,7 +132,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
@@ -153,7 +153,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
@@ -178,7 +178,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &no-std-cache-args
           directory: <<parameters.directory>>
@@ -204,7 +204,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &docs-cache-args
           directory: <<parameters.directory>>
@@ -230,7 +230,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &doctest-cache-args
           directory: <<parameters.directory>>
@@ -263,7 +263,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &tests-cache-args
           directory: <<parameters.directory>>
@@ -341,7 +341,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &interop-diff-cache-args
           directory: rust
@@ -374,7 +374,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &udeps-cache-args
           directory: <<parameters.directory>>
@@ -403,7 +403,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &hack-build-cache-args
           directory: <<parameters.directory>>
@@ -427,7 +427,7 @@ jobs:
     resource_class: large.gen2
     parallelism: <<parameters.parallelism>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &hack-cache-args
           directory: rust
@@ -471,7 +471,7 @@ jobs:
     # This job frequently gets killed for smaller resource_class
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: rust
@@ -526,7 +526,7 @@ jobs:
       docker_layer_caching: true
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - install-zstd
       - apt-install:
@@ -577,7 +577,7 @@ jobs:
       docker_layer_caching: true
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           needs_clang: false
@@ -601,7 +601,7 @@ jobs:
       docker_layer_caching: true
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare:
           needs_clang: false
@@ -623,7 +623,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: rust
@@ -660,7 +660,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: rust
@@ -695,7 +695,7 @@ jobs:
       docker_layer_caching: true
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       # No sccache here: the prestates are built reproducibly in Docker
       # (just build-kona-reproducible-prestate), so the host never compiles and
@@ -778,9 +778,9 @@ jobs:
       docker_layer_caching: true
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
-      # utils/checkout-with-mise provides cargo-prove and just. rust-prepare
+      # checkout-with-mise provides cargo-prove and just. rust-prepare
       # puts cargo on PATH, which check-sp1-guest-lock and cargo-prove need.
       # No sccache: the guests are built in Docker so the host never compiles,
       # and the sccache-gcs-optimism context would define

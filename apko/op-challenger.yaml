@@ -7,7 +7,7 @@ contents:
   repositories:
     - https://packages.wolfi.dev/os
   packages:
-    - ca-certificates-bundle
+    - ca-certificates-bundle>=20260909-r3
     - busybox
     - apk-tools
     # ca-certificates provides update-ca-certificates binary (ca-certificates-bundle is cert data only).
