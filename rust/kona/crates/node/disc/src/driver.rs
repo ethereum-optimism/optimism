@@ -414,15 +414,17 @@ impl Discv5Driver {
             let enrs = self.disc.table_entries_enr();
             info!(target: "discovery", "Discv5 Started with {} ENRs", enrs.len());
 
-            // Step 3: Forward ENRs in the bootstore to the enr receiver, for gossip to dial. Only
-            // those the address filter lets through: the bootstore may hold records saved by an
-            // earlier version, which didn't check them, or while the filter allowed more.
+            // Step 3: Remove the saved records the address filter rejects: the bootstore may hold
+            // records saved by an earlier version, which didn't check them, or while the filter
+            // allowed more. The file changes at the next sync, once the driver has started.
+            let removed = store.retain(|enr| addr_filter.check_enr(enr).is_ok());
+            if removed > 0 {
+                debug!(target: "discovery", removed, "Removed saved records at addresses discovery doesn't use");
+            }
+
+            // Step 4: Forward the rest to the enr receiver, for gossip to dial.
             if self.forward {
                 for enr in store.valid_peers_with_chain_id(self.chain_id) {
-                    if let Err(reason) = addr_filter.check_enr(enr) {
-                        debug!(target: "discovery", %reason, ?enr, "Ignoring a saved record at an address discovery doesn't use");
-                        continue;
-                    }
                     let Some(peer) = DiscoveredPeer::at_record_address(enr.clone()) else {
                         continue;
                     };
@@ -454,7 +456,7 @@ impl Discv5Driver {
                 }
             };
 
-            // Step 4: Run the core driver loop.
+            // Step 5: Run the core driver loop.
             let mut handlers_dropped = false;
             loop {
                 tokio::select! {
@@ -776,7 +778,6 @@ mod tests {
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
         };
-        // TODO(#23766): fails, as saved records are left out but kept.
         tokio::time::timeout(Duration::from_secs(5), saved_without_loopback)
             .await
             .expect("a public node kept a saved loopback record");
