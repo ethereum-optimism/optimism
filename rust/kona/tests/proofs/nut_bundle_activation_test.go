@@ -3,7 +3,6 @@ package proofs
 import (
 	"context"
 	"math/big"
-	"slices"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -56,15 +55,12 @@ var forksWithoutNUTBundle = map[forks.Name]bool{}
 //
 // Every fork from Lagoon onward also gets a multi-chain case. In that case, the
 // chain's dependency set holds a second chain, so the Lagoon activation block
-// activates the interop contracts. The multi-chain case then checks with
-// [assertCrossL2InboxAccessList] that the CrossL2Inbox proxy enforces its access
-// list under the fork's rules. For a fork after Lagoon, the frozen pre-fork state
-// comes from a single-chain activation, so the CrossL2Inbox proxy has no
-// implementation and the multi-chain case fails until it gets a multi-chain
-// pre-fork state.
+// activates the interop contracts. A fork after Lagoon boots its multi-chain
+// case from the predecessor's multi-chain pre-fork state. The multi-chain case
+// then checks with [assertCrossL2InboxAccessList] that the CrossL2Inbox proxy
+// enforces its access list under the fork's rules.
 func TestActivationBlockNUTBundle(gt *testing.T) {
 	matrix := helpers.NewMatrix[forks.Name]()
-	interopForks := forks.From(forks.Lagoon)
 
 	for _, fork := range forks.From(forks.Karst) {
 		_, _, err := derive.UpgradeTransactions(fork)
@@ -94,7 +90,7 @@ func TestActivationBlockNUTBundle(gt *testing.T) {
 				testActivationBlockNUTBundle(gt, testCfg, false)
 			},
 		)
-		if slices.Contains(interopForks, fork) {
+		if nutsstate.HasMultiChainState(fork) {
 			matrix.AddDefaultTestCasesWithName(
 				string(fork)+"-multichain",
 				fork,
@@ -276,11 +272,17 @@ func testKarstActivationKeepUpgradeGas(gt *testing.T, testCfg *helpers.TestCfg[f
 // activateFork boots a fault-proof env for testCfg.Custom and advances to that
 // fork's activation block, returning the env and the activation block header.
 // It requires a committed pre-fork state for the fork (the state as of the
-// predecessor fork) and overlays it onto the genesis predeploy set.
+// predecessor fork) and overlays it onto the genesis predeploy set. When
+// testCfg.DependencySetPeers is not empty, the chain is in a multi-chain
+// dependency set and boots from the multi-chain pre-fork state.
 // Shared by the validation test (testActivationBlockNUTBundle) and the artifact
 // generator (TestGenerateForkState), so they exercise the same flow.
 func activateFork(t actionsHelpers.Testing, testCfg *helpers.TestCfg[forks.Name], keepKarstUpgradeGas bool) (*helpers.L2FaultProofEnv, *types.Header) {
 	fork := testCfg.Custom
+	loadState := nutsstate.PreForkState
+	if len(testCfg.DependencySetPeers) > 0 {
+		loadState = nutsstate.PreForkMultiChainState
+	}
 
 	offset := uint64(4)
 	testSetup := func(dc *genesis.DeployConfig) {
@@ -289,7 +291,7 @@ func activateFork(t actionsHelpers.Testing, testCfg *helpers.TestCfg[forks.Name]
 		dc.KeepKarstUpgradeGas = keepKarstUpgradeGas
 	}
 
-	alloc, err := nutsstate.PreForkState(fork)
+	alloc, err := loadState(fork)
 	require.NoErrorf(t, err, "no committed pre-fork state for %s — generate the predecessor fork's state (see op-core/nuts/state)", fork)
 	testCfg.Allocs = &e2eutils.AllocParams{
 		PrefundTestUsers:            true,
@@ -423,9 +425,7 @@ func assertCrossL2InboxAccessList(t actionsHelpers.Testing, env *helpers.L2Fault
 	impl, err := ethCl.StorageAt(t.Ctx(), inbox, genesis.ImplementationSlot, actHeader.Number)
 	require.NoError(t, err, "read CrossL2Inbox impl slot")
 	require.NotEqualf(t, common.Address{}, common.BytesToAddress(impl),
-		"CrossL2Inbox proxy has no implementation after %s activation; the frozen %s pre-fork state "+
-			"comes from a single-chain activation, so it needs a multi-chain pre-fork state",
-		fork, forks.Prev(fork))
+		"CrossL2Inbox proxy must have an implementation after multi-chain %s activation", fork)
 
 	msg := messages.Message{
 		Identifier: messages.Identifier{
