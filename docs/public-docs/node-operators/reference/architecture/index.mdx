@@ -8,14 +8,40 @@ import OpGethEol from "/snippets/op-geth-eol.mdx"
 
 This page explains how an OP Stack node is put together: what its components are, what each one is responsible for, and how they relate to the equivalent parts of an Ethereum node. It is background reading to build a mental model before you run a node; for the steps to actually stand one up, see the [Next steps](#next-steps) below.
 
-Every node on an OP Stack network is composed of two core software services, the Rollup Node and the Execution Client.
-OP Mainnet also optionally supports a third component, Legacy Geth, that can serve stateful queries for blocks and transactions created before the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/).
+Every OP Stack node is composed of two required core services: the **Rollup Node** (consensus client) and the **Execution Client** (execution engine).
+
+Depending on the network and node role, an OP Stack node may also run two optional components:
+
+*   **[OP-Supervisor](https://specs.optimism.io/interop/supervisor.html)** (`op-supervisor`): Required on chains participating in [OP Stack interoperability](/op-stack/interop/explainer) to verify cross-chain messages and coordinate cross-chain block safety levels.
+*   **[Legacy Geth](/node-operators/guides/configuration/legacy-geth)** (`l2geth`): Optional and **only applicable to OP Mainnet** archive nodes that need to serve historical stateful execution queries for blocks created prior to the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/).
 
 ## Node flow diagram
-The following diagram shows how the Rollup Node, Execution Client, and Legacy Geth components work together to form a complete node running on OP Stack networks.
+
+The following diagram shows how the Rollup Node, Execution Client, OP-Supervisor, and Legacy Geth components work together to form a complete node running on OP Stack networks.
 This diagram uses the `op-node` implementation of the Rollup Node and shows the general architecture that applies to all execution client implementations.
 
-![OP Mainnet node architecture diagram.](/public/img/guides/node-operators/node-arch.svg)
+```mermaid
+graph LR
+  subgraph node["OP Stack Node"]
+    exec["Execution Client (op-reth / Nethermind)"]
+    rollup["Rollup Node (op-node)"]
+    supervisor["OP-Supervisor (Interop)"]
+    l2geth["l2geth (Legacy - OP Mainnet Only)"]
+  end
+
+  users["Users & Apps"] <-->|"JSON-RPC"| exec
+  exec <-->|"Engine API"| rollup
+  exec <-->|"Historical RPC (Pre-Bedrock)"| l2geth
+  rollup <-->|"Safety & head updates"| supervisor
+  exec -->|"Message checks"| supervisor
+  rollup <-->|"L1 data"| l1["Ethereum (L1)"]
+  rollup <-->|"Unsafe block gossip"| p2p["L2 P2P Network"]
+  dep["Dependency Set Chains"] -->|"Initiating log events"| supervisor
+  l1 -->|"Block status"| supervisor
+
+  style l2geth stroke-dasharray: 5 5
+  style supervisor stroke-dasharray: 5 5
+```
 
 ## Rollup node
 
@@ -43,10 +69,27 @@ The Execution Client is largely analogous to an [execution client](https://ether
 
 op-program has also reached end of support, replaced by kona-client for fault proofs; the same [notice](/notices/archive/op-geth-deprecation) covers both migrations.
 
+## OP-Supervisor
+
+On networks participating in [OP Stack interoperability](/op-stack/interop/explainer), node operators run [`op-supervisor`](https://specs.optimism.io/interop/supervisor.html) alongside the Rollup Node and Execution Client to verify cross-chain messages and manage cross-chain safety.
+
+*   **Cross-chain log indexing**: `op-supervisor` connects to the RPC endpoints of all chains in the [dependency set](https://specs.optimism.io/interop/dependency-set.html) to index log events that may serve as initiating messages, and monitors the L1 consensus layer for block finality.
+*   **Execution client verification**: During block building and validation, the Execution Client queries `op-supervisor` to verify that every executing message sent to `CrossL2Inbox` references a valid initiating message on the source chain.
+*   **Rollup node safety coordination**: `op-node` reports local unsafe, local-safe, and finalized head updates to `op-supervisor` and queries cross-chain safety views (`UnsafeView`, `SafeView`, `Finalized`) to promote L2 blocks to `cross-safe` and `finalized` status.
+
 ## Legacy Geth
 
-OP Mainnet blocks and transactions from before the 2023 [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) can be read from any current execution client, but re-executing them (RPC calls such as `eth_call` against pre-Bedrock blocks) requires an optional third component, Legacy Geth (`l2geth`), the client that ran OP Mainnet before the upgrade.
-It is typically only needed for complete OP Mainnet archive nodes; see the [Legacy Geth configuration guide](/node-operators/guides/configuration/legacy-geth) for setup and request routing, and [accessing pre-regenesis history](/op-mainnet/pre-bedrock-history/regenesis-history) for the even older history that predates the current chain data entirely.
+<Info>
+  Legacy Geth (`l2geth`) is **only applicable to OP Mainnet**. Any OP Stack chain launched after the Bedrock upgrade—or any OP Mainnet node that does not need pre-Bedrock historical execution traces—does **not** require `l2geth`.
+</Info>
+
+OP Mainnet underwent a large database migration as part of the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) in 2023.
+While modern execution clients directly serve historical block and transaction data (`eth_getBlockByNumber`, `eth_getTransactionReceipt`, `eth_getLogs`) for pre-Bedrock blocks, stateful execution queries prior to the Bedrock Upgrade require Legacy Geth (`l2geth`).
+This means that you only need to run Legacy Geth if you are operating an **OP Mainnet** archive node and want to serve historical execution RPC calls such as `eth_call`, `eth_estimateGas`, or `debug_trace*` on blocks created before the Bedrock Upgrade.
+
+Legacy Geth is the software that was used to run OP Mainnet nodes prior to the Bedrock Upgrade.
+If you run an instance of Legacy Geth alongside your OP Mainnet node, your node forwards stateful requests against pre-Bedrock transactions to the Legacy Geth instance.
+See the [Legacy Geth configuration guide](/node-operators/guides/configuration/legacy-geth) for setup and request routing, and [accessing pre-regenesis history](/op-mainnet/pre-bedrock-history/regenesis-history) for the even older history that predates the current chain data entirely.
 
 ## Next steps
 
