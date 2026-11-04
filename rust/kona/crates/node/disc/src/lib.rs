@@ -65,7 +65,7 @@ mod error;
 pub use error::{AddrError, AdvertiseTcpPortError, Discv5BuilderError};
 
 mod driver;
-pub use driver::{DiscoveredPeer, Discv5Driver};
+pub use driver::Discv5Driver;
 
 mod handler;
 pub use handler::{DiscoveryStopped, Discv5Handler, HandlerRequest};

@@ -67,42 +67,22 @@ fn bootnode_ips(bootnode: &BootNode) -> Vec<IpAddr> {
     }
 }
 
-/// A peer for gossip to dial, which discovery found.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DiscoveredPeer {
-    /// Its record, which discovery also saves in the bootstore.
-    pub enr: Enr,
-    /// The address to dial it at, the TCP address in its record, ending in its `/p2p/<peer id>`.
-    pub addr: Multiaddr,
+/// Returns whether the TCP address gossip dials from `enr`, see [`kona_peers::enr_tcp_socket`], has
+/// `session_ip`, the IP that a session with the node came from. Then the session has confirmed the
+/// address gossip dials, which is also the one it dials after a restart, once the bootstore has
+/// saved the record.
+fn holds_session_ip(enr: &Enr, session_ip: IpAddr) -> bool {
+    kona_peers::enr_tcp_socket(enr)
+        .is_some_and(|socket| socket.ip().to_canonical() == session_ip.to_canonical())
 }
 
-impl DiscoveredPeer {
-    /// The peer with `enr`, at the TCP address in its record, or `None` if it has none.
-    fn at_record_address(enr: Enr) -> Option<Self> {
-        let addr = kona_peers::enr_to_multiaddr(&enr)?;
-        Some(Self { enr, addr })
-    }
-
-    /// The peer with `enr`, at the TCP address in its record, if that address has `session_ip`,
-    /// the IP that a session with the node came from. Then the session has confirmed the address
-    /// gossip dials, which is also the one it dials after a restart, once the bootstore has saved
-    /// the record. `None` if the record has no TCP address, or names another host.
-    fn confirmed_by_session(enr: Enr, session_ip: IpAddr) -> Option<Self> {
-        let socket = kona_peers::enr_tcp_socket(&enr)?;
-        if socket.ip().to_canonical() != session_ip.to_canonical() {
-            return None;
-        }
-        Self::at_record_address(enr)
-    }
-}
-
-/// A peer our own gossip should dial, see [`Discv5Driver::record_to_dial`].
+/// A record our own gossip should dial, see [`Discv5Driver::record_to_dial`].
 #[derive(Debug, PartialEq, Eq)]
 struct RecordToDial {
     /// The name of the discovery event that brought it, for metrics and logs.
     event: &'static str,
-    /// The peer, and where to dial it.
-    peer: DiscoveredPeer,
+    /// The record.
+    enr: Enr,
 }
 
 /// The [`Discv5Driver`] drives the discovery service.
@@ -232,11 +212,11 @@ impl Discv5Driver {
         if EnrValidation::validate(&enr, chain_id).is_invalid() {
             return None;
         }
-        let Some(peer) = DiscoveredPeer::confirmed_by_session(enr, socket.ip()) else {
+        if !holds_session_ip(&enr, socket.ip()) {
             debug!(target: "discovery", event = kind, %socket, "Ignoring a record without a TCP address at the IP its session came from");
             return None;
-        };
-        Some(RecordToDial { event: kind, peer })
+        }
+        Some(RecordToDial { event: kind, enr })
     }
 
     /// Bootstraps the [`Discv5`] table with bootnodes.
@@ -326,7 +306,7 @@ impl Discv5Driver {
     /// completes. If the task stops for another reason, pending requests are dropped, so their
     /// response receivers return an error. When the task stops, the ENR receiver returns `None`
     /// once drained.
-    pub fn start(self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<DiscoveredPeer>) {
+    pub fn start(self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>) {
         let enr = self.disc.local_enr();
         if enr.tcp4() == Some(0) || enr.tcp6() == Some(0) {
             warn!(
@@ -376,13 +356,11 @@ impl Discv5Driver {
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
     ///
     /// Same as [`Discv5Driver::start`], but also returns the [`JoinHandle`] of the task.
-    fn spawn(
-        mut self,
-    ) -> (Discv5Handler, tokio::sync::mpsc::Receiver<DiscoveredPeer>, JoinHandle<()>) {
+    fn spawn(mut self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>, JoinHandle<()>) {
         let chain_id = self.chain_id;
         let addr_filter = self.addr_filter;
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
-        let (enr_sender, enr_recv) = channel::<DiscoveredPeer>(1024);
+        let (enr_sender, enr_recv) = channel::<Enr>(1024);
 
         let task = spawn_in_current_span(async move {
             let remove = self.remove_interval.is_some();
@@ -423,11 +401,8 @@ impl Discv5Driver {
             // Step 4: Forward the rest to the enr receiver, for gossip to dial.
             if self.forward {
                 for enr in store.valid_peers_with_chain_id(self.chain_id) {
-                    let Some(peer) = DiscoveredPeer::at_record_address(enr.clone()) else {
-                        continue;
-                    };
                     // Fails only once the receiver is dropped, after which every send fails.
-                    if enr_sender.send(peer).await.is_err() {
+                    if enr_sender.send(enr.clone()).await.is_err() {
                         debug!(target: "discovery", "ENR receiver dropped, not forwarding the rest of the bootstore");
                         break;
                     }
@@ -529,15 +504,15 @@ impl Discv5Driver {
                             error!(target: "discovery", "Discv5 event stream ended, stopping discovery");
                             return;
                         };
-                        if let Some(RecordToDial { event: kind, peer }) =
+                        if let Some(RecordToDial { event: kind, enr }) =
                             Self::record_to_dial(event, chain_id)
                         {
-                            debug!(target: "discovery", event = kind, addr = %peer.addr, enr = ?peer.enr, "Valid ENR, passing it to gossip to dial");
+                            debug!(target: "discovery", event = kind, ?enr, "Valid ENR, passing it to gossip to dial");
                             metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
-                            store.add_enr(peer.enr.clone());
+                            store.add_enr(enr.clone());
                             let sender = enr_sender.clone();
                             spawn_in_current_span(async move {
-                                if let Err(e) = sender.send(peer).await {
+                                if let Err(e) = sender.send(enr).await {
                                     debug!(target: "discovery", "Failed to send enr: {:?}", e);
                                 }
                             });
@@ -649,10 +624,7 @@ mod tests {
         let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
         assert_eq!(
             Discv5Driver::record_to_dial(event(enr.clone()), OP_SEPOLIA_CHAIN_ID),
-            expected.map(|event| RecordToDial {
-                event,
-                peer: DiscoveredPeer::at_record_address(enr).expect("the record has a TCP address")
-            })
+            expected.map(|event| RecordToDial { event, enr })
         );
         assert_eq!(
             Discv5Driver::record_to_dial(
@@ -731,8 +703,12 @@ mod tests {
         #[case] record: Enr,
         #[case] tcp_port: Option<u16>,
     ) {
-        let dialed = Discv5Driver::record_to_dial(event(record), OP_SEPOLIA_CHAIN_ID)
-            .map(|record| record.peer.addr.iter().take(2).map(|p| p.acquire()).collect::<Vec<_>>());
+        let dialed =
+            Discv5Driver::record_to_dial(event(record), OP_SEPOLIA_CHAIN_ID).map(|record| {
+                let addr = kona_peers::enr_to_multiaddr(&record.enr)
+                    .expect("a dialed record has a TCP address");
+                addr.iter().take(2).map(|p| p.acquire()).collect::<Vec<_>>()
+            });
         assert_eq!(
             dialed,
             tcp_port
@@ -761,7 +737,7 @@ mod tests {
             .await
             .expect("the driver hands over the saved public record")
             .expect("the driver runs");
-        assert_eq!(first.enr, public, "a public node dialed a saved loopback record");
+        assert_eq!(first, public, "a public node dialed a saved loopback record");
     }
 
     /// A public node should also remove the saved records it leaves out from its bootstore, so
