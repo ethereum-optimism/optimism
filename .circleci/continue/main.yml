@@ -169,42 +169,6 @@ commands:
             gcloud auth login --brief --cred-file "<< parameters.gcp_cred_config_file_path >>"
             echo "export GOOGLE_APPLICATION_CREDENTIALS='<< parameters.gcp_cred_config_file_path >>'" | tee -a "$BASH_ENV"
 
-  github-app-token:
-    description: "Mint a short-lived GitHub App installation token scoped to the optimism repo and export it as GITHUB_TOKEN via BASH_ENV."
-    steps:
-      - run:
-          name: "Mint GitHub App installation token"
-          command: |
-            set -euo pipefail
-            key_file="$(mktemp)"
-            trap 'rm -f "$key_file"' EXIT
-            echo "$GITHUB_RELEASE_APP_PRIVATE_KEY_B64" | base64 -d > "$key_file"
-            b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
-            now=$(date +%s)
-            header=$(printf '{"alg":"RS256","typ":"JWT"}' | b64url)
-            payload=$(printf '{"iat":%d,"exp":%d,"iss":"%s"}' "$((now - 60))" "$((now + 540))" "$GITHUB_RELEASE_APP_ID" | b64url)
-            signature=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "$key_file" -binary | b64url)
-            jwt="$header.$payload.$signature"
-            installation_id=$(curl -fsSL \
-              -H "Authorization: Bearer $jwt" \
-              -H "Accept: application/vnd.github+json" \
-              https://api.github.com/repos/ethereum-optimism/optimism/installation | jq -r '.id')
-            if [ -z "$installation_id" ] || [ "$installation_id" = "null" ]; then
-              echo "Failed to resolve GitHub App installation id" >&2
-              exit 1
-            fi
-            token=$(curl -fsSL -X POST \
-              -H "Authorization: Bearer $jwt" \
-              -H "Accept: application/vnd.github+json" \
-              -H "Content-Type: application/json" \
-              -d '{"repositories":["optimism"],"permissions":{"contents":"write"}}' \
-              "https://api.github.com/app/installations/${installation_id}/access_tokens" | jq -r '.token')
-            if [ -z "$token" ] || [ "$token" = "null" ]; then
-              echo "Failed to mint GitHub App installation token" >&2
-              exit 1
-            fi
-            echo "export GITHUB_TOKEN=$token" >> "$BASH_ENV"
-
   rust-sccache-setup:
     description: >
       sccache GCS compile cache for the Rust build jobs. The GCP Workload
@@ -2523,7 +2487,6 @@ jobs:
           name: Configure Docker
           command: |
             gcloud auth configure-docker us-docker.pkg.dev
-      - github-app-token
       - run:
           name: Run goreleaser
           # Without an explicit tag, goreleaser picks the highest version-sorted tag on HEAD.
@@ -2910,7 +2873,6 @@ workflows:
             - oplabs-gcr-release
             - circleci-repo-readonly-authenticated-github-token
             - github-checkout-app
-            - github-release-app
           requires:
             - build-contracts-go-release-op-deployer
 
@@ -2938,7 +2900,6 @@ workflows:
             - oplabs-gcr-release
             - circleci-repo-readonly-authenticated-github-token
             - github-checkout-app
-            - github-release-app
           requires:
             - build-contracts-go-release-op-up
 
