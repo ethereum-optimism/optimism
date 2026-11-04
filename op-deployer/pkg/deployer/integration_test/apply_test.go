@@ -584,14 +584,13 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	require.True(t, *chainState.Deployed)
 
 	caller := &shared.HostCaller{Host: host}
-	gameImpls := w3.MustNewFunc("gameImpls(uint32)", "address")
 	readGameImpl := func(gameType opcm.GameType) common.Address {
-		callData, err := gameImpls.EncodeArgs(uint32(gameType))
+		callData, err := gameImplsMethod.EncodeArgs(uint32(gameType))
 		require.NoError(t, err)
 		ret, err := caller.Call(chainState.DisputeGameFactoryProxy, callData)
 		require.NoError(t, err)
 		var implementation common.Address
-		require.NoError(t, gameImpls.DecodeReturns(ret, &implementation))
+		require.NoError(t, gameImplsMethod.DecodeReturns(ret, &implementation))
 		require.NotZero(t, implementation)
 		return implementation
 	}
