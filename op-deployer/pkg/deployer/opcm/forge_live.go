@@ -103,33 +103,6 @@ func broadcastLiveScript[I, O any](ctx context.Context, env *ForgeEnv, newCaller
 	}
 }
 
-// readLiveScript runs a script that only reads, on a fork of an L1 head that includes the block of
-// the last send.
-func readLiveScript[I, O any](ctx context.Context, env *ForgeEnv, newCaller newScriptCaller[I, O], input I) (O, error) {
-	var out O
-	client, err := ethclient.DialContext(ctx, env.L1RPCUrl)
-	if err != nil {
-		return out, fmt.Errorf("failed to connect to L1: %w", err)
-	}
-	defer client.Close()
-	logger := env.logger()
-	head, err := retry.Do(ctx, l1WaitAttempts(), retry.Fixed(l1PollInterval), func() (*types.Header, error) {
-		head, err := l1Head(ctx, client, env.sentBlock)
-		if err != nil {
-			logger.Info("waiting for the L1 head", "err", err)
-		}
-		return head, err
-	})
-	if err != nil {
-		return out, err
-	}
-	fork := strconv.FormatUint(bigs.Uint64Strict(head.Number), 10)
-	return retry.Do(ctx, forkAttempts, retry.Fixed(l1PollInterval), func() (O, error) {
-		out, _, err := newCaller(env.Client)(ctx, input, "--rpc-url", env.L1RPCUrl, "--fork-block-number", fork)
-		return out, err
-	})
-}
-
 // waitForSettledNonce waits until the L1 head includes the block of the last send and the deployer
 // has no pending transaction, and returns the head and the deployer's nonce at it.
 func waitForSettledNonce(ctx context.Context, logger log.Logger, client *ethclient.Client, from common.Address, sentBlock uint64) (*types.Header, uint64, error) {

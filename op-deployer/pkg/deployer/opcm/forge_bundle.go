@@ -24,8 +24,6 @@ var (
 		DeploySuperchainForgeScript,
 		DeployImplementationsForgeScript,
 		{"DeployOPChain.s.sol", "DeployOPChain"},
-		{"ReadImplementationAddresses.s.sol", "ReadImplementationAddresses"},
-		{"ReadSuperchainDeployment.s.sol", "ReadSuperchainDeployment"},
 		{"DeployAltDA.s.sol", "DeployAltDA"},
 		{"DeployDisputeGame.s.sol", "DeployDisputeGame"},
 		{"DeployMIPS.s.sol", "DeployMIPS"},

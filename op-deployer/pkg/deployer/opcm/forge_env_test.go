@@ -322,10 +322,10 @@ func TestSendReplayStopsOnNonceRefusal(t *testing.T) {
 	require.Less(t, time.Since(start), 15*time.Second)
 }
 
-// TestReadLiveScriptSeesEarlierSends checks that a read after a send forks at the block of the send's
-// receipt or later, even while the RPC serves an older head, as a lagging backend of a load-balanced
-// RPC does.
-func TestReadLiveScriptSeesEarlierSends(t *testing.T) {
+// TestBroadcastLiveScriptSeesEarlierSends checks that a script after a send forks at the block of the
+// send's receipt or later, even while the RPC serves an older head, as a lagging backend of a
+// load-balanced RPC does.
+func TestBroadcastLiveScriptSeesEarlierSends(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	logger := testlog.Logger(t, slog.LevelInfo)
@@ -336,25 +336,34 @@ func TestReadLiveScriptSeesEarlierSends(t *testing.T) {
 
 	var mu sync.Mutex
 	laggingHeads := 0
+	// While it lags, the backend serves the block before the send and the nonce at that block, as a
+	// backend that has not seen the send does.
 	proxyURL := newRPCProxy(t, liveURL, func(req rpcRequest) (json.RawMessage, bool) {
-		if req.Method != "eth_getBlockByNumber" || len(req.Params) != 2 || string(req.Params[0]) != `"latest"` {
-			return nil, false
-		}
 		mu.Lock()
 		defer mu.Unlock()
-		if laggingHeads == 0 {
+		if laggingHeads == 0 || len(req.Params) != 2 {
 			return nil, false
 		}
-		laggingHeads--
 		head, err := live.BlockNumber(ctx)
 		if err != nil {
 			return nil, false
 		}
-		var block json.RawMessage
-		if err := live.Client().CallContext(ctx, &block, "eth_getBlockByNumber", hexutil.EncodeUint64(head-1), false); err != nil {
-			return nil, false
+		switch {
+		case req.Method == "eth_getBlockByNumber" && string(req.Params[0]) == `"latest"`:
+			laggingHeads--
+			var block json.RawMessage
+			if err := live.Client().CallContext(ctx, &block, "eth_getBlockByNumber", hexutil.EncodeUint64(head-1), false); err != nil {
+				return nil, false
+			}
+			return block, true
+		case req.Method == "eth_getTransactionCount" && (string(req.Params[1]) == `"latest"` || string(req.Params[1]) == `"pending"`):
+			nonce, err := live.NonceAt(ctx, from, new(big.Int).SetUint64(head-1))
+			if err != nil {
+				return nil, false
+			}
+			return json.RawMessage(fmt.Sprintf(`"%#x"`, nonce)), true
 		}
-		return block, true
+		return nil, false
 	})
 
 	env := &ForgeEnv{Client: new(forge.Client), Context: ctx, L1RPCUrl: proxyURL, PrivateKey: testutil.AnvilDefaultPrivateKey, Logger: logger, ReceiptQueryInterval: 20 * time.Millisecond}
@@ -367,7 +376,7 @@ func TestReadLiveScriptSeesEarlierSends(t *testing.T) {
 	laggingHeads = 2
 	mu.Unlock()
 	var forkBlock string
-	read := func(*forge.Client) forge.ScriptCaller[byte, forge.None] {
+	next := func(*forge.Client) forge.ScriptCaller[byte, forge.None] {
 		return func(_ context.Context, _ byte, opts ...string) (forge.None, []forge.Transaction, error) {
 			if i := slices.Index(opts, "--fork-block-number"); i >= 0 && i+1 < len(opts) {
 				forkBlock = opts[i+1]
@@ -375,12 +384,12 @@ func TestReadLiveScriptSeesEarlierSends(t *testing.T) {
 			return forge.None{}, nil, nil
 		}
 	}
-	_, err = readScript(env, read, byte(0))
+	_, err = broadcastScript(env, next, byte(0))
 	require.NoError(t, err)
-	require.Equal(t, strconv.FormatUint(sent, 10), forkBlock, "the read forks at the block of the send, not at the lagging head")
+	require.Equal(t, strconv.FormatUint(sent, 10), forkBlock, "the next script forks at the block of the send, not at the lagging head")
 	mu.Lock()
 	defer mu.Unlock()
-	require.Zero(t, laggingHeads, "the read waits for the head to catch up")
+	require.Zero(t, laggingHeads, "the next script waits for the head to catch up")
 }
 
 // TestForgeLiveReplay exercises real forge/anvil execution and real txmgr delivery. The first

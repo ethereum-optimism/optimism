@@ -317,6 +317,7 @@ func TestEndToEndApply(t *testing.T) {
 		}))
 		validateSuperchainDeployment(t, st, cg, true)
 		validateOPChainDeployment(t, cg, st, intent, false)
+		requireOPCMImplementations(t, ctx, l1Client, st)
 	})
 
 	t.Run("with alt-da and additional dispute games", func(t *testing.T) {

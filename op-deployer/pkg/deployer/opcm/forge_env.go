@@ -33,15 +33,6 @@ type newScriptCaller[I, O any] func(*forge.Client) forge.ScriptCaller[I, O]
 
 // broadcastScript simulates a script and sends its transactions to L1 with txmgr.
 func broadcastScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I) (O, error) {
-	return runScript(env, newCaller, input, true)
-}
-
-// readScript runs a script that only reads.
-func readScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I) (O, error) {
-	return runScript(env, newCaller, input, false)
-}
-
-func runScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I, broadcast bool) (O, error) {
 	var out O
 	if env.Client == nil {
 		return out, errors.New("forge client is nil")
@@ -52,9 +43,6 @@ func runScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], input I
 	}
 	if env.L1RPCUrl == "" {
 		return out, errors.New("L1 RPC URL is required for Forge deployments")
-	}
-	if !broadcast {
-		return readLiveScript(ctx, env, newCaller, input)
 	}
 	return broadcastLiveScript(ctx, env, newCaller, input)
 }
