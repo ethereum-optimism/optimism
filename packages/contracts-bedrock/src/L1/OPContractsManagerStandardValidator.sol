@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// after an upgrade. It expects the chain to already run this release's contracts.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 5.0.0
-    string public constant version = "5.0.0";
+    /// @custom:semver 5.1.0
+    string public constant version = "5.1.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -852,8 +852,8 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns whether the respected game type is one the selected validation branch
     ///         requires to be registered. The ZK game is a super game type, but it is a per-chain
-    ///         opt-in, so it only counts as validated when its dev feature is enabled and the
-    ///         factory registers an implementation for it.
+    ///         opt-in, so it only counts as validated when the factory registers an
+    ///         implementation for it.
     function isRespectedGameTypeValidated(
         GameType _gameType,
         bool _isSuperMode,
@@ -871,9 +871,6 @@ contract OPContractsManagerStandardValidator is ISemver {
             return true;
         }
         if (raw != GameTypes.ZK_DISPUTE_GAME.raw()) {
-            return false;
-        }
-        if (!DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
             return false;
         }
         IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
@@ -976,6 +973,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                 _overrides,
                 "SCKDG"
             );
+            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides);
         } else {
             // Super game types must not be registered in non-super mode.
             _errors = assertValidNonSuperRootDisputeGames(_errors, _input.sysCfg);
@@ -999,19 +997,6 @@ contract OPContractsManagerStandardValidator is ISemver {
                 _sharedProxyAdmin,
                 _overrides,
                 "CKDG"
-            );
-        }
-
-        // ZK dispute game validation: gated on the ZK_DISPUTE_GAME dev feature flag.
-        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides);
-        } else {
-            // ZK game type must not be registered when the ZK feature is not enabled.
-            _errors = internalRequire(
-                address(IDisputeGameFactory(_input.sysCfg.disputeGameFactory()).gameImpls(GameTypes.ZK_DISPUTE_GAME))
-                    == address(0),
-                "ZKDG-NOSHAPE",
-                _errors
             );
         }
 
@@ -1148,13 +1133,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        // If the DisputeGameFactory does not have a ZKDisputeGame implementation registered,
-        // this chain has opted out of ZKDisputeGame. In this case, there is nothing to validate.
-        // Note: Even if the devFeatureBitmap is on for ZK_DISPUTE_GAME, we treat the deployment pipeline and
-        // as extension, the factory as the source of truth for deciding whether to validate the ZK game.
-        // ZK is the only per-chain opt-in game type; mandatory game types fail loud in getGameImplementation()
-        // TODO(#21529): once ZK is mandatory (not opt-in), drop this early return so chains without a ZK game fail
-        // validation. Pairs with the ZKDG-NOSHAPE TODO in StandardValidatorUtils.sol.
+        // ZK_DISPUTE_GAME is optional; there is nothing to validate when it is not registered.
+        // TODO(#21529): once SUPER_CANNON_KONA is removed, drop this early return so chains without a ZK game
+        // fail validation.
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         if (address(_factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) == address(0)) {
             return _errors;

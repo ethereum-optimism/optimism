@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/lmittmann/w3"
@@ -1210,6 +1211,11 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 
 	err = DeploySuperchain(pEnv, intent, st)
 	require.NoError(t, err)
+
+	// DeployImplementations requires a raw SP1 verifier contract on the L1 that Forge broadcasts to.
+	deployerKey, err := crypto.HexToECDSA(privateKey)
+	require.NoError(t, err)
+	intent.GlobalDeployOverrides["sp1Verifier"] = testutil.DeployMockSP1Verifier(t, l1Client, deployerKey, afacts)
 
 	err = DeployImplementations(pEnv, intent, st)
 	require.NoError(t, err)
