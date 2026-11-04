@@ -38,10 +38,10 @@ func TestSequencerRestart(gt *testing.T) {
 
 	var stopCheckFuns []dsl.CheckFunc
 	for _, node := range nodes {
-		// Ensure that the node is no longer connected to the sequencer
-		nodePeers := node.Peers()
+		// Ensure that the node is no longer connected to the sequencer.
+		// The node drops the connection only once it notices the sequencer is gone, so read its peers on every attempt.
 		_, err := retry.Do(t.Ctx(), 5, &retry.ExponentialStrategy{Max: 10 * time.Second, Min: 1 * time.Second, MaxJitter: 250 * time.Millisecond}, func() (any, error) {
-			for _, peer := range nodePeers.Peers {
+			for _, peer := range node.Peers().Peers {
 				if peer.PeerID == seqPeerId {
 					return nil, fmt.Errorf("expected node %s to be disconnected from sequencer %s", node.Escape().Name(), sequencer.Escape().Name())
 				}
