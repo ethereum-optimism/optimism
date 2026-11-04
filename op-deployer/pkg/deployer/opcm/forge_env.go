@@ -45,7 +45,7 @@ func broadcastScript[I, O any](env *ForgeEnv, newCaller newScriptCaller[I, O], i
 		ctx = context.Background()
 	}
 	if env.Genesis != nil {
-		err := env.Genesis.run(env.Client, true, func(client *forge.Client, flags []string) error {
+		err := env.Genesis.run(env.Client, func(client *forge.Client, flags []string) error {
 			var err error
 			out, _, err = newCaller(client)(ctx, input, flags...)
 			return err
