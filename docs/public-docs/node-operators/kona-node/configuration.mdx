@@ -140,7 +140,7 @@ The advertised IP also decides whether discovery uses private addresses, see [di
 
 The node learns about other nodes from the records that nodes hand it. A record can name an address the node can't reach, such as another host's `127.0.0.1`, or a host that isn't a node at all, such as a web server. So the node follows two rules.
 
-**It dials only nodes discovery has had a session with, at the address the session came from.** A session, started by either side, shows that a node runs discovery at that address. The node dials it there, with the TCP port from its record, whatever address the record holds. A record that another node returns is first contacted by the node's own lookup, and dialed once that session is set up. Static peers and [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer) are dialed as given.
+**It dials only nodes discovery has had a session with, and only if their record holds the address the session came from.** A session, started by either side, shows that a node runs discovery at that address. The node dials the TCP address in the record, its IPv4 one or else its IPv6 one, only if that address has the session's IP, and saves only such records in its bootstore. A record that names another host is dropped. A record that another node returns is first contacted by the node's own lookup, and dialed once that session is set up. Static peers and [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer) are dialed as given.
 
 **It uses private addresses in records only on a private network.** Discovery never uses unspecified or special-purpose addresses: multicast, broadcast, documentation, benchmarking, reserved, and the other blocks of the IANA special-purpose registries. Private addresses are loopback, and LAN addresses: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, the shared `100.64.0.0/10`, link-local, and IPv6 unique-local (`fc00::/7`) and link-local (`fe80::/10`). Discovery uses them only if:
 
@@ -168,7 +168,7 @@ Discovery keeps a node it has a session with in its table, whatever its address,
 
 <Info>
 
-op-node's discovery is built on geth's discv5 library, which checks each record another node returns against the address of that node: it accepts a LAN address from a node on its LAN, but not from a public one. kona-node's discovery library doesn't say which node returned a record, so kona-node uses a fixed rule instead, as Lighthouse does, and dials only after a session, as reth does. Compared with op-node:
+op-node's discovery is built on geth's discv5 library, which checks each record another node returns against the address of that node: it accepts a LAN address from a node on its LAN, but not from a public one. kona-node's discovery library doesn't say which node returned a record, so kona-node uses a fixed rule instead, as Lighthouse does, and dials only after a session, much as reth does. Compared with op-node:
 
 - op-node with a public address accepts LAN records from its LAN neighbours, and can bootstrap from a LAN bootnode. kona-node needs `--p2p.discovery.private` for both.
 - kona-node checks every address in a record. op-node checks the one it would use.
