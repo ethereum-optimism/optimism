@@ -144,7 +144,6 @@ orbs:
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@6.0.0
-  shellcheck: circleci/shellcheck@3.2.0
   docker: circleci/docker@2.8.2
   github-cli: circleci/github-cli@2.7.0
 
@@ -646,7 +645,7 @@ commands:
         type: boolean
         default: false
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           needs_clang: << parameters.needs_clang >>
@@ -728,7 +727,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - run:
           name: Check CircleCI schedule triggers
@@ -887,7 +886,7 @@ jobs:
         type: boolean
         default: false
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
@@ -945,7 +944,7 @@ jobs:
         type: string
         default: ci
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - install-contracts-dependencies
@@ -1014,7 +1013,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           enable-mise-cache: true
       - attach_workspace:
           at: .
@@ -1060,7 +1059,7 @@ jobs:
         type: string
         default: ""
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
       - run:
@@ -1127,7 +1126,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
       - install-contracts-dependencies
@@ -1197,7 +1196,7 @@ jobs:
         type: string
         default: ""
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
       - install-contracts-dependencies
@@ -1294,7 +1293,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           enable-mise-cache: true
       - go-restore-cache:
           namespace: contracts-bedrock-tests-upgrade
@@ -1410,7 +1409,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           enable-mise-cache: true
       - go-restore-cache:
           namespace: contracts-bedrock-tests-l2-fork
@@ -1513,7 +1512,7 @@ jobs:
     machine: true
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - install-contracts-dependencies
@@ -1543,7 +1542,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
@@ -1560,11 +1559,23 @@ jobs:
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
+  shell-check:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    steps:
+      - checkout-with-mise:
+          enable-mise-cache: true
+          checkout-method: blobless
+      - run:
+          name: Run shellcheck
+          command: |
+            find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -not -path './rust/*target*/*' -print0 | xargs -0 shellcheck
+
   l2-chains-sync-check:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           enable-mise-cache: false
       - run:
           name: Check l2-rpcs.json and daily matrix are in sync
@@ -1578,7 +1589,7 @@ jobs:
     machine:
       image: <<pipeline.parameters.c-base_image>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -1593,7 +1604,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
@@ -1628,7 +1639,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - go-restore-cache:
@@ -1648,7 +1659,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -1671,7 +1682,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -1702,7 +1713,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - restore-go-mod-cache
@@ -1731,7 +1742,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - go-restore-cache:
@@ -1748,7 +1759,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
@@ -1767,7 +1778,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
@@ -1816,7 +1827,7 @@ jobs:
     resource_class: xlarge.gen2
     parallelism: <<parameters.parallelism>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
@@ -1887,7 +1898,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: <<parameters.resource_class>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
@@ -1962,7 +1973,7 @@ jobs:
     parallelism: <<parameters.parallelism>>
     steps:
       # apt-install needs the working tree, so it runs after checkout.
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - apt-install:
@@ -2061,7 +2072,7 @@ jobs:
     machine:
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -2088,7 +2099,7 @@ jobs:
     machine: true
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
       # `just verify-reproducibility` runs `go run ...verify.go` on the host.
@@ -2106,7 +2117,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - setup_remote_docker
@@ -2141,7 +2152,8 @@ jobs:
       - image: returntocorp/semgrep
     resource_class: xlarge.gen2
     steps:
-      - checkout # no need to use mise here since the docker image contains the only dependency
+      - github-checkout: # no need to use mise here since the docker image contains the only dependency
+          method: blobless
       - unless:
           condition:
             equal: ["develop", << pipeline.git.branch >>]
@@ -2173,7 +2185,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - check-changed:
@@ -2191,7 +2203,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - check-changed:
@@ -2208,7 +2220,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -2220,7 +2232,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - install-contracts-dependencies
@@ -2267,7 +2279,7 @@ jobs:
           oidc_token_file_path: /tmp/oidc_token.json
           project_id: GCP_TOOLS_ARTIFACTS_PROJECT_ID
           service_account_email: GCP_CONTRACTS_PUBLISHER_SERVICE_ACCOUNT_EMAIL
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -2306,7 +2318,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - install-contracts-dependencies
@@ -2374,7 +2386,7 @@ jobs:
     machine: true
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -2529,13 +2541,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
-      - shellcheck/check:
-          name: shell-check
-          # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
-          dir: .
-          ignore-dirs: |
-            ./packages/contracts-bedrock/lib
-            ./docs/public-docs
+      - shell-check:
           context:
             - circleci-repo-readonly-authenticated-github-token
       # Acceptance test jobs (formerly in separate acceptance-tests workflow)
