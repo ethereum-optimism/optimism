@@ -83,8 +83,8 @@ func (g *GenesisState) account(addr common.Address) types.Account {
 	return acc
 }
 
-// run runs one script on the state through fn. With writes, the state it leaves replaces this one.
-func (g *GenesisState) run(client *forge.Client, writes bool, fn func(client *forge.Client, flags []string) error) error {
+// run runs one script on the state through fn, and replaces this state with the one it leaves.
+func (g *GenesisState) run(client *forge.Client, fn func(client *forge.Client, flags []string) error) error {
 	// The state files stay out of the bundle, which may be read-only.
 	dir, err := os.MkdirTemp("", "op-deployer-genesis-")
 	if err != nil {
@@ -106,9 +106,11 @@ func (g *GenesisState) run(client *forge.Client, writes bool, fn func(client *fo
 	// contracts bundle turns it on for its tests. An isolated call runs as a transaction, so a call
 	// that the script pranks bumps the nonce of the pranked address, such as the L2 depositor, and
 	// leaves it in the state. The Go script host does not isolate calls.
-	env := []string{"OP_DEPLOYER_STATE_IN=" + stateIn, "FOUNDRY_ISOLATE=false"}
-	if writes {
-		env = append(env, "OP_DEPLOYER_STATE_OUT="+stateOut, "OP_DEPLOYER_SENDER_OUT="+senderOut)
+	env := []string{
+		"OP_DEPLOYER_STATE_IN=" + stateIn,
+		"OP_DEPLOYER_STATE_OUT=" + stateOut,
+		"OP_DEPLOYER_SENDER_OUT=" + senderOut,
+		"FOUNDRY_ISOLATE=false",
 	}
 	flags := []string{
 		"--sender", g.Sender.Hex(),
@@ -125,9 +127,6 @@ func (g *GenesisState) run(client *forge.Client, writes bool, fn func(client *fo
 	runClient.FsPermissions = append(slices.Clone(client.FsPermissions), forge.FsPermission{Access: "read-write", Path: dir})
 	if err := fn(runClient, flags); err != nil {
 		return err
-	}
-	if !writes {
-		return nil
 	}
 
 	allocs, err := foundry.LoadForgeAllocs(stateOut)
