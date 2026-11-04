@@ -867,11 +867,13 @@ func standardValidatorInput(
 ) opcm.StandardValidatorInput {
 	gameType := opcm.GameType(dci.DisputeGameType)
 	useDevInput := gameType == opcm.GameTypeCannonKona || gameType == opcm.GameTypeSuperCannonKona
+	// ZKPrestate stays zero: deploy() never registers ZK_DISPUTE_GAME, so a fresh chain has none.
 	return opcm.StandardValidatorInput{
 		SystemConfig:        contracts.SystemConfigProxy,
 		AbsolutePrestate:    dci.DisputeAbsolutePrestate,
 		CannonPrestate:      dci.CannonAbsolutePrestate,
 		CannonKonaPrestate:  dci.DisputeAbsolutePrestate,
+		ZKPrestate:          common.Hash{},
 		L2ChainID:           dci.L2ChainId,
 		Proposer:            dci.Proposer,
 		L1PAOMultisig:       dci.OpChainProxyAdminOwner,

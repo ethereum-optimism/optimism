@@ -1,0 +1,715 @@
+---
+title: op-reth JSON-RPC API
+description: OP Stack 확장 기능을 포함한 op-reth 실행 클라이언트 RPC 메서드의 전체 레퍼런스입니다.
+diataxis: reference
+---
+
+`op-reth`는 [Reth](https://github.com/paradigmxyz/reth)를 기반으로 한 OP Stack용 Rust 실행 클라이언트입니다. `op-geth`와 동일한 Engine API 및 Ethereum JSON-RPC 인터페이스를 구현하므로, OP Stack 체인에서 그대로 교체하여 사용할 수 있는 대안입니다.
+
+이 페이지는 V2 (Jovian) 수수료 모델이 활성화된 상태에서 `op-reth v2.2.3`(빌드 `reth/v2.2.0-88505c7`)을 실행하는 OP Stack devnet을 대상으로 테스트한 JSON-RPC 메서드를 설명합니다.
+
+## 개요
+
+`op-reth`는 `op-geth`와 동일한 OP Stack 추가 기능을 포함하여 표준 Ethereum JSON-RPC API를 구현합니다. 익숙한 Ethereum 도구(cast, web3.js, ethers, viem 등)를 수정 없이 사용할 수 있습니다.
+
+<Info>
+  실행 엔진의 RPC 인터페이스는 [업스트림 Reth RPC 인터페이스](https://reth.rs/run/run-a-node.html#rpc-namespaces)와 기능적으로 동일합니다. OP 전용 동작은 `op-geth`와 일치합니다. 트랜잭션 영수증에는 추가적인 L1 데이터 가용성(data availability) 수수료 필드가 포함되며, 입금(디파짓) 트랜잭션(type `0x7e`)에는 OP 전용 필드가 포함됩니다.
+</Info>
+
+## Ethereum과의 주요 차이점
+
+`op-reth`는 Ethereum의 JSON-RPC API와 호환성을 유지하지만, OP Stack 전반에 공통적으로 적용되는 중요한 차이점이 있습니다.
+
+### 트랜잭션 영수증
+
+사용자 트랜잭션 영수증에는 추가적인 L1 데이터 수수료 정보가 포함됩니다. **V2 (Jovian) 수수료 모델**에서의 필드는 다음과 같습니다.
+
+* **`l1GasUsed`** — L1 데이터 가용성에 귀속되는 L1 gas 양입니다.
+* **`l1GasPrice`** — 실행 시점의 L1 base fee입니다.
+* **`l1Fee`** — 부과된 총 L1 데이터 수수료(wei 단위)입니다.
+* **`l1BaseFeeScalar`** — L1 base fee 구성 요소에 적용되는 scalar입니다.
+* **`l1BlobBaseFee`** — 실행 시점의 L1 blob base fee입니다.
+* **`l1BlobBaseFeeScalar`** — L1 blob base fee 구성 요소에 적용되는 scalar입니다.
+* **`daFootprintGasScalar`** — 데이터 가용성 footprint에 적용되는 scalar입니다.
+
+<Warning>
+  레거시 단일 scalar 필드인 **`l1FeeScalar`**(Bedrock 시기 체인에서 사용되었으며 이전 `op-geth` 문서에 아직 표시됨)는 V2 체인에 존재하지 **않습니다**. `l1FeeScalar`를 하드코딩한 클라이언트는 위의 새 scalar 필드를 읽도록 변경해야 합니다. `l1GasUsed`, `l1GasPrice`, `l1Fee` 필드는 변경되지 않았습니다.
+</Warning>
+
+### 입금(디파짓) 트랜잭션
+
+OP Stack 입금 트랜잭션(`type: 0x7e`)은 트랜잭션 응답과 영수증 응답 모두에 추가 필드를 포함합니다.
+
+* 트랜잭션: `sourceHash`, `mint`, `depositReceiptVersion`.
+* 영수증: `depositNonce`, `depositReceiptVersion`.
+
+### Gas 가격 계산
+
+L2 gas 가격에는 표준 [`eth_gasPrice`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gasprice) 메서드를 사용하십시오.
+
+L1 gas 가격과 전체(end-to-end) 수수료 추정에는 [`GasPriceOracle`](https://explorer.optimism.io/address/0x420000000000000000000000000000000000000F) predeploy 또는 [Optimism SDK](/ko/app-developers/tutorials/transactions/sdk-estimate-costs)를 사용하십시오.
+
+## 표준 JSON-RPC 메서드
+
+아래의 모든 예시는 `op-reth v2.2.3`을 대상으로 실제 검증되었습니다.
+
+### eth_blockNumber
+
+가장 최근 블록의 번호를 반환합니다.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+      '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+      http://localhost:8545
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast block-number --rpc-url http://localhost:8545
+    ```
+  </Tab>
+</Tabs>
+
+성공 시 출력 예시:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": "0x1202c"
+}
+```
+
+### eth_chainId
+
+현재 구성된 chain ID를 반환합니다. 이 값은 replay 보호 트랜잭션 서명에 사용됩니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0x190a85e3" }
+```
+
+### eth_syncing
+
+동기화 상태를 반환합니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' \
+  http://localhost:8545
+```
+
+<Info>
+  `op-geth`와 달리 `op-reth`는 node가 완전히 동기화된 경우에도 각 pipeline 단계(`Headers`, `Bodies`, `Execution`, `MerkleExecute` 등)와 단계별 진행 상황을 나열하는 **구조화된 객체**를 항상 반환합니다. `false`가 아닌 응답을 "아직 동기화 중"으로 처리하는 클라이언트는 대신 `currentBlock`과 `highestBlock`을 비교해야 합니다.
+</Info>
+
+출력 예시(동기화 완료된 node):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "startingBlock": "0x1202c",
+    "currentBlock": "0x1202c",
+    "highestBlock": "0x1202c",
+    "stages": [
+      { "name": "Headers", "block": "0x1202c" },
+      { "name": "Bodies", "block": "0x1202c" },
+      { "name": "Execution", "block": "0x1202c" },
+      { "name": "MerkleExecute", "block": "0x1202c" },
+      { "name": "Finish", "block": "0x1202c" }
+    ]
+  }
+}
+```
+
+### eth_getBalance
+
+지정한 주소에 있는 계정의 잔액을 반환합니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getBalance","params":["0x4200000000000000000000000000000000000015","latest"],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0x0" }
+```
+
+### eth_getTransactionByHash
+
+트랜잭션 해시로 트랜잭션 정보를 반환합니다. 입금 트랜잭션에는 `sourceHash`, `mint`, `depositReceiptVersion`이 포함됩니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getTransactionByHash","params":["0x38a7db9aa2d7ec70d55ac7de90384279bdcad38ecdf68e3fcc4c6b649761daf9"],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시(입금 트랜잭션):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "type": "0x7e",
+    "sourceHash": "0xdbad163233eb082b43df51b26625dcfbd997bcd2f0810a58a651c633516c4941",
+    "from": "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
+    "to": "0x4200000000000000000000000000000000000015",
+    "mint": "0x0",
+    "value": "0x0",
+    "gas": "0xf4240",
+    "input": "0x3db6be2b…",
+    "hash": "0x38a7db9aa2d7ec70d55ac7de90384279bdcad38ecdf68e3fcc4c6b649761daf9",
+    "blockHash": "0x5bbabb299894fa2f763a0b6bbccc966b80e791aa49663b80fc9789e0f04183ea",
+    "blockNumber": "0x1202c",
+    "transactionIndex": "0x0",
+    "blockTimestamp": "0x69fda224",
+    "depositReceiptVersion": "0x1",
+    "gasPrice": "0x0",
+    "nonce": "0x1202b",
+    "r": "0x0", "s": "0x0", "v": "0x0", "yParity": "0x0"
+  }
+}
+```
+
+### eth_getTransactionReceipt
+
+해시로 트랜잭션 영수증을 반환합니다. OP Stack 전용 L1 수수료 필드가 포함됩니다. 아래 예시는 입금 트랜잭션 영수증입니다(`depositNonce` / `depositReceiptVersion` 필드와 `l1Fee = 0`에 주목하십시오). 일반 사용자 트랜잭션 영수증에는 V2 scalar로 계산된 0이 아닌 `l1Fee`가 포함됩니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getTransactionReceipt","params":["0x38a7db9aa2d7ec70d55ac7de90384279bdcad38ecdf68e3fcc4c6b649761daf9"],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "type": "0x7e",
+    "status": "0x1",
+    "cumulativeGasUsed": "0xb44e",
+    "logs": [],
+    "logsBloom": "0x000…",
+    "transactionHash": "0x38a7db9aa2d7ec70d55ac7de90384279bdcad38ecdf68e3fcc4c6b649761daf9",
+    "transactionIndex": "0x0",
+    "blockHash": "0x5bbabb299894fa2f763a0b6bbccc966b80e791aa49663b80fc9789e0f04183ea",
+    "blockNumber": "0x1202c",
+    "gasUsed": "0xb44e",
+    "effectiveGasPrice": "0x0",
+    "blobGasUsed": "0xabe0",
+    "from": "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
+    "to": "0x4200000000000000000000000000000000000015",
+    "contractAddress": null,
+    "depositNonce": "0x1202b",
+    "depositReceiptVersion": "0x1",
+    "l1GasPrice": "0x35",
+    "l1GasUsed": "0x6e7",
+    "l1Fee": "0x0",
+    "l1BaseFeeScalar": "0x558",
+    "l1BlobBaseFee": "0x3",
+    "l1BlobBaseFeeScalar": "0xc3c9d",
+    "daFootprintGasScalar": "0x190"
+  }
+}
+```
+
+<Info>
+  영수증 끝부분의 OP 전용 필드에 주목하십시오: `l1GasUsed`, `l1GasPrice`, `l1Fee`, 그리고 V2 scalar인 `l1BaseFeeScalar`, `l1BlobBaseFee`, `l1BlobBaseFeeScalar`, `daFootprintGasScalar`입니다. Bedrock 시기의 `l1FeeScalar` 필드는 V2 체인에 존재하지 **않습니다**.
+</Info>
+
+### eth_call
+
+블록체인에 트랜잭션을 생성하지 않고 새 메시지 호출을 즉시 실행합니다. 예시는 `GasPriceOracle.l1BaseFee()`를 호출합니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_call","params":[{"to":"0x420000000000000000000000000000000000000F","data":"0x519b4bd3"},"latest"],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": "0x0000000000000000000000000000000000000000000000000000000000000030"
+}
+```
+
+### eth_estimateGas
+
+트랜잭션을 완료하는 데 필요한 gas 추정치를 생성하여 반환합니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_estimateGas","params":[{"from":"0x0000000000000000000000000000000000000001","to":"0x0000000000000000000000000000000000000002","value":"0x0"}],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0x52e9" }
+```
+
+<Warning>
+  `eth_estimateGas`는 L2 실행 gas만 추정합니다. L1 데이터 수수료를 포함한 총 트랜잭션 비용을 계산하려면 [Optimism SDK](/ko/app-developers/tutorials/transactions/sdk-estimate-costs)를 사용하거나 [`GasPriceOracle` predeploy 컨트랙트](https://explorer.optimism.io/address/0x420000000000000000000000000000000000000F)를 조회하십시오.
+</Warning>
+
+### eth_sendRawTransaction
+
+서명된 트랜잭션을 네트워크에 제출합니다. 예시 페이로드는 오류 형태를 보여 주기 위해 의도적으로 유효하지 않게 작성되었습니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["0xd46e8dd67c5d32be8d46e8dd67c5d32be8058bb8eb970870f072445675058bb8eb970870f072445675"],"id":1}' \
+  http://localhost:8545
+```
+
+오류 출력 예시:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": { "code": -32602, "message": "failed to decode signed transaction" }
+}
+```
+
+올바른 형식의 서명된 트랜잭션은 `result`로 트랜잭션 해시를 반환합니다.
+
+### eth_getBlockByNumber
+
+블록 번호로 블록 정보를 반환합니다. Op-reth는 Ecotone/Cancun 이후의 표준 필드인 `withdrawalsRoot`, `blobGasUsed`, `excessBlobGas`, `parentBeaconBlockRoot`, `requestsHash`를 채웁니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["0x1b4",false],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "hash": "0x791e5f88a078641354af3c85dbd009b5658e36e1509a2262c11f8a7fc51c2883",
+    "parentHash": "0xa4d2ce03caea13be2262673a58860ac2e717a00d6cf02fee63d7ce61327c32b9",
+    "miner": "0x4200000000000000000000000000000000000011",
+    "number": "0x1b4",
+    "gasLimit": "0x3938700",
+    "gasUsed": "0xb44e",
+    "timestamp": "0x69fb6534",
+    "baseFeePerGas": "0xa787b25",
+    "withdrawalsRoot": "0x8ed4baae3a927be3dea54996b4d5899f8c01e7594bf50b17dc1e741388ce3d12",
+    "blobGasUsed": "0x0",
+    "excessBlobGas": "0x0",
+    "parentBeaconBlockRoot": "0x22096025070f565b96c8aaf633cb809ca242170c6188818cdebca9ead88756d5",
+    "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "transactions": [ "0xd9531a51bda284c199328f058383e8376b65c311b0671056344ad3af4700787a" ],
+    "withdrawals": []
+  }
+}
+```
+
+### eth_getLogs
+
+지정한 필터 객체와 일치하는 모든 로그의 배열을 반환합니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getLogs","params":[{"fromBlock":"0x1","toBlock":"0x2","address":"0x8320fe7702b96808f7bbc0d4a888ed1468216cfd"}],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시(빈 필터 결과):
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": [] }
+```
+
+## Gas 가격 메서드
+
+### eth_gasPrice
+
+L2 실행에 대한 현재 gas 가격을 wei 단위로 반환합니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_gasPrice","params":[],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0xf433b" }
+```
+
+<Info>
+  이 메서드는 L2 gas 가격만 반환합니다. L1 데이터 수수료를 포함한 종합적인 트랜잭션 비용 추정에는 [`GasPriceOracle` predeploy 컨트랙트](https://explorer.optimism.io/address/0x420000000000000000000000000000000000000F) 또는 [Optimism SDK](/ko/app-developers/tutorials/transactions/sdk-estimate-costs)를 사용하십시오.
+</Info>
+
+### eth_maxPriorityFeePerGas
+
+현재 gas당 최대 priority fee(EIP-1559)를 반환합니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_maxPriorityFeePerGas","params":[],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0xf4240" }
+```
+
+### eth_feeHistory
+
+수수료 추정을 위해 과거 base fee, gas 사용 비율, blob base fee, priority fee 백분위 데이터를 반환합니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_feeHistory","params":["0x4","latest",[25,50,75]],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "oldestBlock": "0x12396",
+    "baseFeePerGas": ["0xfb","0xfb","0xfb","0xfb","0xfb"],
+    "gasUsedRatio": [0.0007691,0.0007691,0.0007691,0.0007691],
+    "baseFeePerBlobGas": ["0x1","0x1","0x1","0x1","0x1"],
+    "blobGasUsedRatio": [0.0,0.0,0.0,0.0],
+    "reward": [["0x0","0x0","0x0"],["0x0","0x0","0x0"],["0x0","0x0","0x0"],["0x0","0x0","0x0"]]
+  }
+}
+```
+
+## 계정 및 상태 메서드
+
+### eth_getCode
+
+지정한 주소의 코드를 반환합니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getCode","params":["0x420000000000000000000000000000000000000F","latest"],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시(일부 생략):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": "0x60806040526004361061005e5760003560e01c80635c60da1b…"
+}
+```
+
+### eth_getStorageAt
+
+지정한 주소의 스토리지 위치에 있는 값을 반환합니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getStorageAt","params":["0x420000000000000000000000000000000000000F","0x0","latest"],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": "0x0000000000000000000000000000000000000000000000000000000001010101"
+}
+```
+
+### eth_getTransactionCount
+
+주소에서 전송된 트랜잭션 수(nonce)를 반환합니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getTransactionCount","params":["0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001","latest"],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0x12146" }
+```
+
+## Txpool 메서드
+
+`txpool` 네임스페이스가 활성화되면(`--http.api eth,net,web3,debug,txpool`) `op-reth`는 표준 txpool 검사 메서드를 노출합니다.
+
+### txpool_status
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"txpool_status","params":[],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": { "pending": "0x0", "queued": "0x0" }
+}
+```
+
+## Debug 메서드
+
+`op-reth`는 트랜잭션 검사를 위한 `debug_*` 네임스페이스를 지원합니다. `--http.api …,debug`로 활성화하십시오.
+
+<Warning>
+  Debug 메서드는 리소스를 많이 사용할 수 있습니다. 대부분의 공개 RPC 제공자는 이를 비활성화합니다. 이 메서드에 접근하려면 `debug` 네임스페이스를 활성화한 자체 node를 실행해야 합니다.
+</Warning>
+
+### debug_traceTransaction
+
+트랜잭션의 trace를 반환하여 모든 내부 호출과 상태 변경을 보여 줍니다. 대부분의 사용 사례에는 `callTracer`를 권장합니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"debug_traceTransaction","params":["0x38a7db9aa2d7ec70d55ac7de90384279bdcad38ecdf68e3fcc4c6b649761daf9",{"tracer":"callTracer"}],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시(L1Block predeploy 구현으로 프록시되는 입금 트랜잭션):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "from": "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
+    "gas": "0xf4240",
+    "gasUsed": "0xb44e",
+    "to": "0x4200000000000000000000000000000000000015",
+    "input": "0x3db6be2b…",
+    "calls": [
+      {
+        "from": "0x4200000000000000000000000000000000000015",
+        "gas": "0xe9b56",
+        "gasUsed": "0x489b",
+        "to": "0xc0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30015",
+        "input": "0x3db6be2b…",
+        "value": "0x0",
+        "type": "DELEGATECALL"
+      }
+    ],
+    "value": "0x0",
+    "type": "CALL"
+  }
+}
+```
+
+### debug_traceCall
+
+온체인에서 실행하지 않고 호출을 trace합니다.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"debug_traceCall","params":[{"to":"0x420000000000000000000000000000000000000F","data":"0x519b4bd3"},"latest",{"tracer":"callTracer"}],"id":1}' \
+  http://localhost:8545
+```
+
+성공 시 출력 예시(`GasPriceOracle.l1BaseFee()` 호출):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "from": "0x0000000000000000000000000000000000000000",
+    "gas": "0x2faf080",
+    "gasUsed": "0x8e85",
+    "to": "0x420000000000000000000000000000000000000f",
+    "input": "0x519b4bd3",
+    "output": "0x0000000000000000000000000000000000000000000000000000000000000030",
+    "calls": [
+      {
+        "from": "0x420000000000000000000000000000000000000f",
+        "to": "0xc0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3000f",
+        "input": "0x519b4bd3",
+        "output": "0x0000000000000000000000000000000000000000000000000000000000000030",
+        "type": "DELEGATECALL",
+        "calls": [
+          {
+            "from": "0x420000000000000000000000000000000000000f",
+            "to": "0x4200000000000000000000000000000000000015",
+            "input": "0x5cf24969",
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000030",
+            "type": "STATICCALL"
+          }
+        ]
+      }
+    ],
+    "value": "0x0",
+    "type": "CALL"
+  }
+}
+```
+
+## WebSocket 지원
+
+`op-reth`는 `eth_subscribe` 메서드를 사용한 실시간 이벤트 구독을 위해 WebSocket 연결을 지원합니다. 기본 포트는 `8546`입니다.
+
+### eth_subscribe
+
+특정 이벤트에 대한 구독을 생성합니다. 검증된 구독 토픽에는 `newHeads`, `logs`, `newPendingTransactions`, `syncing`이 있습니다.
+
+```js
+// Connect to WebSocket
+const ws = new WebSocket('ws://localhost:8546');
+
+// Subscribe to new block headers
+ws.send(JSON.stringify({
+  "jsonrpc": "2.0",
+  "method": "eth_subscribe",
+  "params": ["newHeads"],
+  "id": 1
+}));
+
+// Subscribe to logs
+ws.send(JSON.stringify({
+  "jsonrpc": "2.0",
+  "method": "eth_subscribe",
+  "params": [
+    "logs",
+    {
+      "address": "0x8320fe7702b96808f7bbc0d4a888ed1468216cfd",
+      "topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"]
+    }
+  ],
+  "id": 2
+}));
+```
+
+구독 확인 응답:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0x8045a58dd94ddef0a9b0ac15ab397550" }
+```
+
+이벤트 알림(newHeads):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "eth_subscription",
+  "params": {
+    "subscription": "0x8045a58dd94ddef0a9b0ac15ab397550",
+    "result": {
+      "hash": "0xabcc886e14fdb89b4df093032bf984e98a1704d8037a21260689d19e7bf72154",
+      "number": "0x124b2",
+      "timestamp": "0x69fdab30",
+      "baseFeePerGas": "0xfb",
+      "…": "…"
+    }
+  }
+}
+```
+
+### eth_unsubscribe
+
+활성 구독을 취소합니다.
+
+```js
+ws.send(JSON.stringify({
+  "jsonrpc": "2.0",
+  "method": "eth_unsubscribe",
+  "params": ["0x8045a58dd94ddef0a9b0ac15ab397550"],
+  "id": 1
+}));
+```
+
+## op-geth와 다르게 동작하는 메서드
+
+클라이언트 기능을 자동으로 감지하는 도구에서는 다음 호출에 주의해야 합니다.
+
+| 메서드 | op-geth | op-reth |
+| --- | --- | --- |
+| `rpc_modules` | 네임스페이스 → 버전 맵을 반환합니다. | **구현되지 않음** — `-32601 Method not found`를 반환합니다. 클라이언트를 식별하려면 `web3_clientVersion`을 사용하십시오. |
+| `eth_syncing` | 동기화가 완료되면 `false`를 반환합니다. | 항상 단계별 진행 상황이 담긴 구조화된 객체를 반환합니다. "동기화 완료" 여부를 판단하려면 `currentBlock`과 `highestBlock`을 비교하십시오. |
+| `trace_*` (Parity) 네임스페이스 | 노출되지 않습니다. `op-geth`는 `debug_*`를 사용합니다. | `op-reth`에서 사용할 수 있지만, `--http.api`에 `trace`를 추가한 경우에만 가능합니다. 당사의 compose 파일에서는 기본적으로 활성화되어 있지 않습니다. |
+| 영수증 L1 수수료 scalar | Ecotone 이전 영수증의 단일 레거시 `l1FeeScalar` 필드. | V2 (Jovian) 필드: `l1BaseFeeScalar`, `l1BlobBaseFee`, `l1BlobBaseFeeScalar`, `daFootprintGasScalar`. `l1FeeScalar`는 제거되었습니다. (V2가 활성화되면 `op-geth`에서도 동일합니다.) |
+
+## 추가 자료
+
+지원되는 모든 JSON-RPC 메서드의 전체 목록은 다음을 참고하십시오.
+
+* [Reth JSON-RPC / 네임스페이스 문서](https://reth.rs/run/run-a-node.html#rpc-namespaces)
+* [Geth JSON-RPC 문서](https://geth.ethereum.org/docs/interacting-with-geth/rpc)
+* [Ethereum JSON-RPC 사양](https://ethereum.org/en/developers/docs/apis/json-rpc/)
+* [OP Stack 트랜잭션 비용 추정](/ko/app-developers/tutorials/transactions/sdk-estimate-costs)
+
+## RPC 접근이 가능한 node 실행하기
+
+전체 RPC 접근이 가능한 자체 `op-reth` node를 실행하려면 다음을 사용하십시오.
+
+```sh
+op-reth node \
+  --chain /config/genesis.json \
+  --datadir /data \
+  --http \
+  --http.addr 0.0.0.0 \
+  --http.port 8545 \
+  --http.api eth,net,web3,debug,txpool,trace \
+  --ws \
+  --ws.addr 0.0.0.0 \
+  --ws.port 8546 \
+  --ws.api eth,net,web3 \
+  --authrpc.addr 0.0.0.0 \
+  --authrpc.port 9551 \
+  --authrpc.jwtsecret /config/jwt.hex \
+  --rollup.sequencer-http https://<sequencer-rpc> \
+  --rollup.disable-tx-pool-gossip
+```
+
+<Warning>
+  RPC 엔드포인트를 공개적으로 노출할 때는 주의하십시오. 남용을 방지하려면 인증, 속도 제한(rate limiting), 방화벽 규칙을 사용하십시오. `debug` 및 `trace` 네임스페이스는 신뢰할 수 있는 클라이언트에게만 활성화해야 합니다.
+</Warning>
+
+### 테스트 환경
+
+위 예시는 `u19-beta-v223` devnet(chain ID `0x190a85e3` / `420120035`)의 `op-reth v2.2.3`(`reth/v2.2.0-88505c7`) node(HTTP 포트 `8555`, WS 포트 `8556`)를 대상으로 각 curl/websocat 명령을 실행하여 생성되었습니다. 나열된 모든 메서드는 성공(또는 예상된 오류) 응답을 반환했습니다.

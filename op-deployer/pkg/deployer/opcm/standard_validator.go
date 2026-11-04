@@ -23,6 +23,7 @@ type StandardValidatorInput struct {
 	AbsolutePrestate    common.Hash
 	CannonPrestate      common.Hash
 	CannonKonaPrestate  common.Hash
+	ZKPrestate          common.Hash
 	L2ChainID           *big.Int
 	Proposer            common.Address
 	L1PAOMultisig       common.Address
@@ -44,6 +45,7 @@ type validationInputDev struct {
 	SystemConfig       common.Address `abi:"sysCfg"`
 	CannonPrestate     common.Hash    `abi:"cannonPrestate"`
 	CannonKonaPrestate common.Hash    `abi:"cannonKonaPrestate"`
+	ZKPrestate         common.Hash    `abi:"zkPrestate"`
 	L2ChainID          *big.Int       `abi:"l2ChainID"`
 	Proposer           common.Address `abi:"proposer"`
 }
@@ -66,6 +68,7 @@ func newStandardValidationMethod(dev bool) abi.Method {
 		components = append(components,
 			abi.ArgumentMarshaling{Name: "cannonPrestate", Type: "bytes32"},
 			abi.ArgumentMarshaling{Name: "cannonKonaPrestate", Type: "bytes32"},
+			abi.ArgumentMarshaling{Name: "zkPrestate", Type: "bytes32"},
 		)
 	} else {
 		components = append(components, abi.ArgumentMarshaling{Name: "absolutePrestate", Type: "bytes32"})
@@ -125,6 +128,7 @@ func ValidateStandardDeployment(
 			SystemConfig:       input.SystemConfig,
 			CannonPrestate:     input.CannonPrestate,
 			CannonKonaPrestate: input.CannonKonaPrestate,
+			ZKPrestate:         input.ZKPrestate,
 			L2ChainID:          input.L2ChainID,
 			Proposer:           input.Proposer,
 		}

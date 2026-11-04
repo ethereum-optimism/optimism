@@ -257,22 +257,32 @@ git push git@github.com:ethereum-optimism/reth.git refs/tags/v<version>
 ```
 
 **Start** a branch from the upstream base. Cherry-pick the fork's CI commit
-first so every push runs the fork's CI, then the patches retained by the step 2
-audit and any upstream fixes picked in the forward sweep
-(`docs/ai/reth-update-review.md`), oldest first. The first push may already
-carry all of them:
+first so every push runs the fork's CI, then carry over the previous branch's
+OP `.github/CODEOWNERS`, then the patches retained by the step 2 audit and any
+upstream fixes picked in the forward sweep (`docs/ai/reth-update-review.md`),
+oldest first. The first push may already carry all of them:
 
 ```bash
 git switch -c op-v<version> v<version>
-git cherry-pick <ci-commit> <retained-sha>...
+git cherry-pick <ci-commit>
+git checkout <previous-branch> -- .github/CODEOWNERS
+git commit -m "chore: replace upstream CODEOWNERS with OP owners"
+git cherry-pick <retained-sha>...
 git push git@github.com:ethereum-optimism/reth.git op-v<version>
+gh api 'repos/ethereum-optimism/reth/codeowners/errors?ref=op-v<version>' --jq '.errors'
 ```
+
+Upstream's CODEOWNERS names paradigm maintainers who have no access to the
+fork, so it requests no reviewers. Copy the file rather than cherry-picking
+it: upstream edits it often, so a cherry-pick would conflict. The errors check
+must print `[]`.
 
 `<ci-commit>` is the previous branch's CI commit squashed with every later CI
 fix on that branch, so the chain of CI commits does not grow. It may need
 adapting to the new base; its comments name what to re-check. Check the fork's
 lockfile advisories separately: downstream lockfile fixes do not repair the
-fork's CI.
+fork's CI. `<previous-branch>` is the fork's prior `op-*` branch, fetched from
+the fork.
 
 **Work** on the branch through pull requests into it afterwards. The `op-*`
 ruleset forbids force-pushes and deletion and requires a reviewed PR with

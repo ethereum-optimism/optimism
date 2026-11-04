@@ -1,0 +1,372 @@
+---
+title: 트랜잭션 수동 릴레이하기
+description: 올바른 트랜잭션을 전송하여 트랜잭션을 직접 릴레이하는 방법을 알아봅니다.
+diataxis: tutorial
+---
+<Info>OP Stack 상호운용성(interop)은 Lagoon 하드포크와 함께 활성화됩니다.</Info>
+
+<Note>interop devnet에서는 메시지가 자동으로 릴레이됩니다.</Note>
+
+## 개요
+
+올바른 트랜잭션을 전송하여 트랜잭션을 직접 릴레이하는 방법을 알아봅니다.
+
+<Accordion title="이 튜토리얼 소개">
+
+  **필요한 사전 기술 지식**
+
+  * 블록체인 개념에 대한 이해
+  * [Foundry](https://book.getfoundry.sh/getting-started/installation), 특히 `cast`에 대한 이해
+
+  **학습 내용**
+
+  * autorelay가 작동하지 않을 때 `cast`를 사용하여 트랜잭션을 릴레이하는 방법
+  * JavaScript를 사용하여 트랜잭션을 릴레이하는 방법
+
+  **개발 환경 요구 사항**
+
+  * Unix 계열 운영 체제(Linux, macOS 또는 Windows용 WSL)
+  * Node.js 버전 16 이상
+  * 버전 관리를 위한 Git
+  * 구성되어 실행 중인 Supersim 환경
+  * 설치된 Foundry 도구(forge, cast, anvil)
+</Accordion>
+
+### 빌드할 내용
+
+* [JavaScript 라이브러리](https://www.npmjs.com/package/@eth-optimism/viem)를 사용하여 메시지를 릴레이하는 프로그램
+* [`cast`](https://book.getfoundry.sh/cast/)를 사용하여 메시지를 릴레이하는 셸 스크립트
+
+## 설정
+
+다음 단계는 `cast`를 사용하든 JavaScript API를 사용하든 관계없이 튜토리얼을 실행하는 데 필요합니다.
+
+<Steps>
+  <Step title="Supersim 실행하기">
+    이 실습은 Supersim에서 수행해야 합니다.
+    devnet에서는 autorelay를 비활성화할 수 없으므로 devnet을 사용할 수 없습니다.
+
+    1. [Supersim 설치하기](/ko/app-developers/tutorials/development/supersim/installation)를 따릅니다.
+    2. `--interop.relay` *없이* Supersim을 실행합니다.
+
+    ```sh
+    ./supersim
+    ```
+  </Step>
+
+  <Step title="메시지 릴레이를 위한 상태 생성하기">
+    이 단계의 결과는 autorelay를 켜지 않은 상태에서 [메시지 전달 튜토리얼](/ko/app-developers/tutorials/interoperability/message-passing)을 실행했을 때의 결과와 유사합니다.
+
+    다음 스크립트를 실행합니다.
+
+    ```sh
+    #! /bin/sh
+    # full shell script preserved here...
+    # (Greeter.sol, GreetingSender.sol, sendAndRelay.sh setup)
+    # ...
+    ```
+
+    이 스크립트는 chain B에 `Greeter.sol`을, chain A에 `GreetingSender.sol`을 설치합니다.
+    이 스마트 컨트랙트를 사용하면 chain A에서 chain B로 릴레이되어야 하는 메시지를 보낼 수 있습니다.
+
+    그런 다음 스크립트는 chain A에서 chain B로 메시지를 수동으로 릴레이하기 위한 `./manual-relay/sendAndRelay.sh`를 생성합니다.
+    해당 스크립트는 [아래에서 설명합니다](#manual-relay-using-cast).
+
+    마지막으로, 이 스크립트는 계속 진행하기 전에 메인 셸에서 실행해야 하는 몇 가지 파라미터 설정 줄을 출력합니다.
+    새로 시작한 Supersim에서는 다음과 같아야 합니다.
+
+    ```sh
+    GREETER_A_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
+    GREETER_B_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
+    PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+    ```
+  </Step>
+</Steps>
+
+## API를 사용한 수동 릴레이
+
+<Steps>
+  <Step title="설정">
+    [Node](https://nodejs.org/en) 프로젝트를 사용합니다.
+
+    1. 새 Node 프로젝트를 초기화합니다.
+
+    ```sh
+    mkdir -p manual-relay/offchain
+    cd manual-relay/offchain
+    npm init -y
+    npm install --save-dev viem @eth-optimism/viem
+    mkdir src
+    ```
+
+    2. 환경 변수를 export합니다.
+
+    ```sh
+    export GREETER_A_ADDRESS GREETER_B_ADDRESS PRIVATE_KEY
+    ```
+  </Step>
+
+  <Step title="수동 릴레이 앱">
+    다음 내용으로 `manual-relay.mjs` 파일을 생성합니다.
+
+    ```javascript
+        import {
+        createWalletClient,
+        http,
+        publicActions,
+        getContract,
+    } from 'viem'
+    import { privateKeyToAccount } from 'viem/accounts'
+    import { supersimL2A, supersimL2B } from '@eth-optimism/viem/chains'
+    import { walletActionsL2, publicActionsL2 } from '@eth-optimism/viem'
+
+    import { readFileSync } from 'fs';
+
+    const greeterData = JSON.parse(readFileSync('../onchain/out/Greeter.sol/Greeter.json'))
+    const greetingSenderData = JSON.parse(readFileSync('../onchain/out/Greeter.sol/Greeter.json'))
+
+    const account = privateKeyToAccount(process.env.PRIVATE_KEY)
+
+    const walletA = createWalletClient({
+        chain: supersimL2A,
+        transport: http(),
+        account
+    }).extend(publicActions)
+        .extend(publicActionsL2())
+    //    .extend(walletActionsL2())
+
+    const walletB = createWalletClient({
+        chain: supersimL2B,
+        transport: http(),
+        account
+    }).extend(publicActions)
+    //    .extend(publicActionsL2())
+        .extend(walletActionsL2())
+
+    const greeter = getContract({
+        address: process.env.GREETER_B_ADDRESS,
+        abi: greeterData.abi,
+        client: walletB
+    })
+
+    const greetingSender = getContract({
+        address: process.env.GREETER_A_ADDRESS,
+        abi: greetingSenderData.abi,
+        client: walletA
+    })
+
+    const txnBHash = await greeter.write.setGreeting(
+        ["Greeting directly to chain B"])
+    await walletB.waitForTransactionReceipt({hash: txnBHash})
+
+    const greeting1 = await greeter.read.greet()
+    console.log(`Chain B Greeting: ${greeting1}`)
+
+    const txnAHash = await greetingSender.write.setGreeting(
+        ["Greeting through chain A"])
+    const receiptA = await walletA.waitForTransactionReceipt({hash: txnAHash})
+
+    const greeting2 = await greeter.read.greet()
+    console.log(`Greeting before the relay transaction: ${greeting2}`)
+
+    const sentMessages = await walletA.interop.getCrossDomainMessages({
+      logs: receiptA.logs,
+    })
+    const sentMessage = sentMessages[0] // We only sent 1 message
+    const relayMessageParams = await walletA.interop.buildExecutingMessage({
+      log: sentMessage.log,
+    })
+    const relayMsgTxnHash = await walletB.interop.relayCrossDomainMessage(relayMessageParams)
+
+    const receiptRelay = await walletB.waitForTransactionReceipt({
+      hash: relayMsgTxnHash,
+    })
+
+    const greeting3 = await greeter.read.greet()
+    console.log(`Greeting after the relay transaction: ${greeting3}`)
+    ```
+
+    <Accordion title="설명">
+
+      ```javascript
+      import { supersimL2A, supersimL2B } from '@eth-optimism/viem/chains'
+      import { walletActionsL2, publicActionsL2 } from '@eth-optimism/viem'
+      ```
+    </Accordion>
+
+    JavaScript 프로그램을 실행합니다.
+
+    ```sh
+    node manual-relay.mjs
+    ```
+  </Step>
+
+  <Step title="디버깅">
+    특정 트랜잭션에 의해 어떤 메시지가 릴레이되었는지 확인하려면 다음을 사용합니다.
+
+    ```javascript
+    import { decodeRelayedL2ToL2Messages } from '@eth-optimism/viem'
+
+    const decodedRelays = decodeRelayedL2ToL2Messages({ receipt: receiptRelay })
+
+    console.log(decodedRelays)
+    console.log(decodedRelays.successfulMessages[0].log)
+    ```
+  </Step>
+</Steps>
+
+## Manual relay using `cast`
+
+`manual-relay/sendAndRelay.sh`에서 `cast`를 사용하여 수동으로 릴레이하는 예제를 확인할 수 있습니다.
+이 과정은 다소 복잡하므로, 설정 단계에서 사용자 환경에 맞춘 스크립트를 생성합니다.
+
+스크립트를 실행합니다.
+
+```sh
+./manual-relay/sendAndRelay.sh
+```
+
+자세한 설명은 다음과 같습니다.
+
+1.  구성 파라미터
+
+    ```sh
+    #! /bin/sh
+    PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+    USER_ADDRESS=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    URL_CHAIN_A=http://localhost:9545
+    URL_CHAIN_B=http://localhost:9546
+    GREETER_A_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
+    GREETER_B_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
+    CHAIN_ID_B=902
+    ```
+
+    이것은 구성입니다.
+    사용자 주소의 nonce가 두 체인에서 동일하므로 greeter 주소도 동일합니다.
+
+2.  릴레이가 필요한 메시지 보내기
+
+    ```sh
+    cast send -q --private-key $PRIVATE_KEY --rpc-url $URL_CHAIN_A $GREETER_A_ADDRESS "setGreeting(string)" "Hello from chain A $$"
+    ```
+
+    chain A에서 chain B로 메시지를 보냅니다. `$$`는 프로세스 ID이므로, 스크립트를 다시 실행하면 정보가 바뀌는 것을 확인할 수 있습니다.
+
+3.  릴레이할 로그 항목 찾기
+
+    ```sh
+    cast logs "SentMessage(uint256,address,uint256,address,bytes)" --rpc-url $URL_CHAIN_A | tail -14 > log-entry
+    ```
+
+    `L2ToL2CrossDomainMessenger`는 다른 블록체인으로 메시지를 보낼 때마다 `SentMessage` 이벤트를 발생시킵니다.
+    로그에서 최신 `SendMessage` 이벤트만 추출합니다.
+
+    <Accordion title="`log-entry` 예시">
+
+      ```yaml
+      - address: 0x4200000000000000000000000000000000000023
+        blockHash: 0xcd0be97ffb41694faf3a172ac612a23f224afc1bfecd7cb737a7a464cf5d133e
+        blockNumber: 426
+        data: 0x0000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa300000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000064a41368620000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001948656c6c6f2066726f6d20636861696e2041203131333030370000000000000000000000000000000000000000000000000000000000000000000000
+        logIndex: 0
+        removed: false
+        topics: [
+                0x382409ac69001e11931a28435afef442cbfd20d9891907e8fa373ba7d351f320
+                0x0000000000000000000000000000000000000000000000000000000000000386
+                0x0000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa3
+                0x0000000000000000000000000000000000000000000000000000000000000000
+        ]
+        transactionHash: 0x1d6f2e5e2c8f3eb055e95741380ca36492f784b9782848b66b66c65c5937ff3a
+        transactionIndex: 0
+      ```
+    </Accordion>
+
+4.  로그 항목을 가공하여 정보 얻기
+
+    ```sh
+    TOPICS=`cat log-entry | grep -A4 topics | awk '{print $1}' | tail -4 | sed 's/0x//'`
+    TOPICS=`echo $TOPICS | sed 's/ //g'`
+    ```
+
+    로그 topic을 하나의 16진수 문자열로 통합합니다.
+
+    ```sh
+    ORIGIN=0x4200000000000000000000000000000000000023
+    BLOCK_NUMBER=`cat log-entry | awk '/blockNumber/ {print $2}'`
+    LOG_INDEX=`cat log-entry | awk '/logIndex/ {print $2}'`
+    TIMESTAMP=`cast block $BLOCK_NUMBER --rpc-url $URL_CHAIN_A | awk '/timestamp/ {print $2}'`
+    CHAIN_ID_A=`cast chain-id --rpc-url $URL_CHAIN_A`
+    SENT_MESSAGE=`cat log-entry | awk '/data/ {print $2}'`
+    ```
+
+    로그 항목에서 추가 필드를 읽습니다.
+
+    ```sh
+    LOG_ENTRY=0x`echo $TOPICS$SENT_MESSAGE | sed 's/0x//'`
+    ```
+
+    전체 로그 항목을 통합합니다.
+
+5.  실행 메시지(executing message)를 위한 액세스 리스트 생성하기
+
+
+```sh
+RPC_PARAMS=$(cat <<INNER_END_OF_FILE
+{
+    "origin": "$ORIGIN",
+    "blockNumber": "$BLOCK_NUMBER",
+    "logIndex": "$LOG_INDEX",
+    "timestamp": "$TIMESTAMP",
+    "chainId": "$CHAIN_ID_A",
+    "payload": "$LOG_ENTRY"
+}
+INNER_END_OF_FILE
+)
+
+ACCESS_LIST=`cast rpc admin_getAccessListForIdentifier --rpc-url http://localhost:8420 "$RPC_PARAMS" | jq .accessList`
+
+```
+
+    크로스체인 메시징을 보호하고 잠재적인 [서비스 거부(denial-of-service) 공격](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/interop-access-list.md)을 방지하기 위해, 릴레이 트랜잭션에는 메시지 데이터에서 파생된 체크섬을 포함하는 올바른 형식의 액세스 리스트가 필요합니다.
+    이를 통해 sequencer는 트랜잭션에서 어떤 실행 메시지를 예상해야 하는지 알 수 있으므로, 전송된 적 없는 메시지에 의존하여 유효하지 않은 트랜잭션을 쉽게 제외할 수 있습니다.
+
+    (`CrossL2Inbox`에서) 액세스 리스트를 계산하는 알고리즘은 다소 복잡하지만, 이에 대해 걱정할 필요는 없습니다.
+    Supersim은 포트 8420에서 이를 계산해 주는 [RPC 호출](https://supersim.pages.dev/guides/interop/cast?highlight=manuall#7-construct-the-access-list-for-the-message)을 제공합니다.
+    위 코드는 autorelay가 작동하지 않는 다른 interop 클러스터를 사용하는 경우에도 올바른 액세스 리스트를 계산합니다.
+    이는 이 코드가 외부 상태와 관계없이 일관된 결과를 생성하는 [순수 함수(pure function)](https://en.wikipedia.org/wiki/Pure_function)를 구현하기 때문입니다.
+    반면 `admin_getAccessListByMsgHash` RPC 호출은 순수 함수가 아니며, 시스템 상태에 의존하므로 이러한 상황에서는 유연성이 떨어집니다.
+
+6.  수동 릴레이가 필요함을 확인하기
+
+    ```sh
+    echo Old greeting
+    cast call $GREETER_B_ADDRESS "greet()(string)" --rpc-url $URL_CHAIN_B
+    ```
+
+    현재 인사말을 표시합니다.
+    메시지가 아직 릴레이되지 않았으므로 여전히 이전 인사말입니다.
+
+7.  실제로 메시지 릴레이하기
+
+    ```sh
+    cast send -q $ORIGIN "relayMessage((address,uint256,uint256,uint256,uint256),bytes)" "($ORIGIN,$BLOCK_NUMBER,$LOG_INDEX,$TIMESTAMP,$CHAIN_ID_A)" $LOG_ENTRY --access-list "$ACCESS_LIST" --rpc-url $URL_CHAIN_B --private-key $PRIVATE_KEY
+    ```
+
+    `L2ToL2CrossDomainMessenger`에서 `relayMessage`를 호출하여 메시지를 릴레이합니다.
+
+8.  릴레이 결과 확인하기
+
+    ```sh
+    echo New greeting
+    cast call $GREETER_B_ADDRESS "greet()(string)" --rpc-url $URL_CHAIN_B
+    ```
+
+    다시 현재 인사말을 표시합니다.
+    이제 새 인사말이 표시됩니다.
+
+
+## 다음 단계
+
+*   상호운용성에 관한 일반적인 질문에 대한 답변은 [OP Stack interop 설명](/ko/op-stack/interop/explainer)을 검토하십시오.
+*   내부적으로 어떤 일이 일어나는지 이해하려면 [메시지 전달 설명](/ko/app-developers/guides/interoperability/message-passing)을 읽어 보십시오.
+*   OP Stack 생태계 내에서 여러 블록체인을 사용하는 혁신적인 앱을 작성해 보십시오.

@@ -72,8 +72,9 @@ impl InteropFilterClient {
     /// Executes an `interop_checkAccessList` against every configured endpoint concurrently and
     /// combines the results by quorum agreement.
     ///
-    /// A "response" counts only when an endpoint returns a definitive verdict (valid, or a known
-    /// validation rejection). Transport errors and timeouts are non-responses. The aggregator
+    /// A "response" counts only when an endpoint returns a definitive verdict (valid, or a
+    /// validation rejection). Transport errors, timeouts and an endpoint that does not have the
+    /// data yet are non-responses. The aggregator
     /// decides as soon as `min_responses` definitive verdicts arrive and does not await slower
     /// endpoints; dropping the in-flight futures cancels their requests.
     ///
@@ -673,6 +674,10 @@ mod tests {
         /// Responds immediately with `Uninitialized` (-320400): the node is out of sync. Maps to
         /// the soft, non-response `DataUnavailable`.
         OutOfSyncUninitialized,
+        /// Responds immediately with `OutOfScope` (-321100): the node has not yet ingested or
+        /// cross-validated the initiating message. Maps to the soft, non-response
+        /// `DataUnavailable`.
+        OutOfSyncOutOfScope,
         /// Responds immediately with the filter's failsafe rejection (maps to `FailsafeEnabled`).
         Failsafe,
         /// Sleeps far longer than the client timeout before responding valid (a slow endpoint).
@@ -732,6 +737,9 @@ mod tests {
                             }
                             Verdict::OutOfSyncUninitialized => {
                                 Err(ErrorObjectOwned::owned(-320400, "uninitialized", None::<()>))
+                            }
+                            Verdict::OutOfSyncOutOfScope => {
+                                Err(ErrorObjectOwned::owned(-321100, "out of scope", None::<()>))
                             }
                             // The filter emits the dedicated failsafe code -320602. The message is
                             // intentionally unrelated to "failsafe" to prove detection is by code,
@@ -834,9 +842,14 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn out_of_sync_endpoint_is_soft() {
-        // One endpoint is out of sync (FutureData / Uninitialized), the others are valid and meet
-        // the quorum. The soft node must be ignored (treated as a non-response), not a rejection.
-        for soft in [Verdict::OutOfSyncFutureData, Verdict::OutOfSyncUninitialized] {
+        // One endpoint is out of sync (FutureData / Uninitialized / OutOfScope), the others are
+        // valid and meet the quorum. The soft node must be ignored (treated as a non-response), not
+        // a rejection.
+        for soft in [
+            Verdict::OutOfSyncFutureData,
+            Verdict::OutOfSyncUninitialized,
+            Verdict::OutOfSyncOutOfScope,
+        ] {
             let a = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
             let b = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
             let out_of_sync = MockEndpoint::start(soft, Failsafe::Reply(false)).await;
@@ -854,10 +867,11 @@ mod tests {
         // Every endpoint is out of sync: no definitive verdicts collected, so fail closed.
         let a = MockEndpoint::start(Verdict::OutOfSyncFutureData, Failsafe::Reply(false)).await;
         let b = MockEndpoint::start(Verdict::OutOfSyncUninitialized, Failsafe::Reply(false)).await;
-        let client = client_for(&[&a, &b], None).await;
+        let c = MockEndpoint::start(Verdict::OutOfSyncOutOfScope, Failsafe::Reply(false)).await;
+        let client = client_for(&[&a, &b, &c], None).await;
         let err = check(&client).await.unwrap_err();
         assert!(
-            matches!(err, InteropTxValidatorError::QuorumNotReached { received: 0, required: 2 }),
+            matches!(err, InteropTxValidatorError::QuorumNotReached { received: 0, required: 3 }),
             "all endpoints out of sync must fail closed, got {err:?}"
         );
     }

@@ -1,0 +1,25 @@
+---
+title: op-deployer 설치
+description: 사전 빌드된 바이너리 또는 소스에서 op-deployer를 설치하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+OP Deployer는 사전 빌드된 바이너리와 소스 모두에서 설치할 수 있습니다. 이 가이드에서는 두 가지
+방법을 모두 안내합니다.
+
+## 바이너리에서 설치
+
+사전 빌드된 바이너리로 OP Deployer를 설치하는 것이 가장 쉽고 권장되는 시작 방법입니다. 바이너리에서
+설치하려면 [릴리스 페이지](https://github.com/ethereum-optimism/optimism/releases?q=op-deployer&expanded=true)에서 최신 릴리스를 다운로드하고, 바이너리를
+`$PATH`에 포함된 디렉터리에 압축 해제하십시오.
+
+## 소스에서 설치
+
+소스에서 설치하려면 Go, `just`, `git`이 필요합니다. 그런 다음 다음 명령을 실행하십시오.
+
+```shell
+git clone git@github.com:ethereum-optimism/optimism.git # you can skip this if you already have the repo
+cd optimism/op-deployer
+just build
+cp ./bin/op-deployer /usr/local/bin/op-deployer # or any other directory in your $PATH
+```

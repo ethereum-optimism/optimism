@@ -1,0 +1,282 @@
+---
+title: challenger 실행
+description: OP Stack 체인을 위한 challenger를 구성하는 방법을 알아봅니다.
+diataxis: tutorial
+---
+
+import OpChallengerAbout from '/ko/snippets/op-challenger-about.mdx';
+import OpChallengerDockerIntro from '/ko/snippets/op-challenger-docker-intro.mdx';
+import OpChallengerDisputeMon from '/ko/snippets/op-challenger-dispute-mon.mdx';
+import OpEnterpriseCallout from '/ko/snippets/op-enterprise-callout.mdx';
+
+sequencer, batcher, proposer를 실행한 후 마지막 단계는 분쟁을 모니터링하고 대응하도록 challenger를 구성하는 것입니다.
+
+<Info>
+  **5단계 중 5단계**: 이 튜토리얼은 단계별로 따라 하도록 설계되었습니다.
+  각 단계는 이전 단계를 기반으로 하며, 이번이 튜토리얼의 마지막 부분입니다.
+</Info>
+
+<Info>
+  **자동 설정 제공**
+
+  자동 prestate 생성을 포함하여 모든 구성 요소를 갖춘 완전한 작동 설정은 코드 디렉터리의 [자동화된 방식](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs/create-l2-rollup-example/)을 확인하십시오.
+</Info>
+
+<OpChallengerAbout />
+
+## 사전 요구 사항
+
+### 필수 요구 사항
+
+challenger를 연결하기 전에 다음 사전 요구 사항을 완료하십시오.
+
+<Steps>
+<Step title="결함 증명이 활성화된 OP Stack 체인 배포">
+
+<Accordion title="absolute prestate 생성(필수)">
+
+challenger가 분쟁 게임(dispute game)에 참여하려면 absolute prestate가 필요합니다. prestate는 현재 유지 관리되는 결함 증명(fault proof) 프로그램인 `kona-client`의 특정 빌드에 대한 온체인 커밋먼트입니다. (이전에 이 역할을 담당했던 `op-program`은 지원이 종료되었습니다. [op-geth 및 op-program 지원 종료](/ko/notices/archive/op-geth-deprecation)를 참조하십시오.) 생성 방법은 다음과 같습니다.
+
+1.  **저장소를 클론하고 올바른 버전을 체크아웃합니다**:
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    git checkout kona-node/v1.6.1  # Use the latest release
+    ```
+
+2.  **체인 구성을 준비합니다**:
+
+    체인이 공개 Superchain Registry에 등록되어 있지 않으므로 prestate 빌드에 체인 구성이 포함되어야 합니다. [사용자 지정 kona-client absolute prestate 생성](/ko/chain-operators/tutorials/kona-custom-prestate)을 따라 `rollup.json`, L2 genesis, `op-deployer` 상태로부터 두 개의 준비 파일(`chainList.json` 및 `configs.json`)을 생성한 다음, 빌드가 해당 파일을 가리키도록 합니다.
+
+    ```bash
+    # Assuming you're in rollup/challenger/optimism directory
+    export KONA_CUSTOM_CONFIGS_DIR="$PWD/rust/kona/crates/protocol/registry/etc/custom-configs/<YOUR-CHAIN-NAME>"
+    ```
+
+3.  **prestate를 생성합니다**:
+    ```bash
+    just reproducible-prestate-kona
+    jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json
+    ```
+    빌드는 Docker에서 실행되며 해시로 이름이 지정된 preimage 파일(`0x<PRESTATE_HASH>.bin.gz`)을 포함한 아티팩트를 `rust/kona/prestate-artifacts-cannon/`에 기록합니다. `jq` 명령으로 출력된 해시가 체인의 absolute prestate입니다.
+
+4.  **체인이 prestate에 포함되었는지 확인합니다**:
+    ```bash
+    gunzip -c rust/kona/prestate-artifacts-cannon/prestate.bin.gz | strings | grep "<YOUR-CHAIN-NAME>"
+    ```
+    일치하는 항목이 없다면 사용자 지정 구성이 병합되지 않은 것입니다(이 경우 빌드는 경고 없이 표준 prestate를 대신 생성합니다). 문제 해결은 [사용자 지정 prestate 튜토리얼](/ko/chain-operators/tutorials/kona-custom-prestate)을 참조하십시오.
+
+<Info>
+  *   `0x<PRESTATE_HASH>.bin.gz` 파일을 접근 가능한 곳에 보관하십시오. challenger 설정에 필요합니다.
+  *   Superchain registry 체인의 경우 [레지스트리](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)에서 공식 `cannon64-kona` prestate를 확인할 수 있습니다.
+</Info>
+</Accordion>
+</Step>
+
+<Step title="필요한 인프라 접근 설정">
+
+이전 단계에서 구성한 sequencer 스택이 challenger에 필요한 L2 엔드포인트(op-reth 및 op-node)를 이미 제공합니다. 그 외에 challenger에는 다음이 필요합니다.
+
+*   정산 레이어(이 튜토리얼에서는 Sepolia)를 위한 L1 RPC 엔드포인트
+*   blob을 가져오는 데 사용되는 L1 beacon API 엔드포인트
+</Step>
+
+<Step title="구성 파일 준비">
+
+*   `0x<PRESTATE_HASH>.bin.gz` - 1단계에서 생성한 absolute prestate preimage 파일
+*   `rollup.json` - `op-deployer` 가이드에서 생성한 rollup 구성 파일
+</Step>
+</Steps>
+
+## 소프트웨어 설치
+
+challenger 배포에는 일관되고 격리된 환경을 제공하는 Docker 사용을 권장합니다. 고급 사용자는 소스에서 빌드할 수도 있습니다.
+
+<Tabs>
+
+    <Tab title="Docker 사용">
+    ### Docker 설정
+
+    <OpChallengerDockerIntro />
+
+    <Steps>
+    <Step title="challenger 디렉터리 생성">
+    
+    ```bash
+    # Create your challenger directory inside rollup
+    cd ../    # Go back to rollup directory if you're in proposer
+    mkdir challenger
+    cd challenger
+    ```
+    </Step>
+
+    <Step title="환경 파일 생성">
+
+    <Info>
+      **OP Stack 표준 변수**
+
+      challenger는 OP Stack 규칙을 따르는 OP Stack 표준 환경 변수를 사용합니다. challenger 전용 설정에는 `OP_CHALLENGER_` 접두사가 붙습니다.
+    </Info>
+
+    ```bash
+    # Create .env file with your actual values
+    cat > .env << 'EOF'
+    # Core configuration (required)
+    OP_CHALLENGER_L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+    OP_CHALLENGER_L1_BEACON_URL=https://ethereum-sepolia-beacon-api.publicnode.com
+    OP_CHALLENGER_PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+
+    # L2 Configuration - Replace with your actual node endpoints  
+    OP_CHALLENGER_L2_ETH_RPC=http://op-reth:8545
+    OP_CHALLENGER_ROLLUP_RPC=http://op-node:8547
+
+    # OP Stack challenger configuration (optional - defaults provided)
+    OP_CHALLENGER_GAME_FACTORY_ADDRESS=YOUR_GAME_FACTORY_ADDRESS
+    OP_CHALLENGER_CANNON_KONA_L2_GENESIS=/workspace/genesis.json
+    OP_CHALLENGER_CANNON_KONA_ROLLUP_CONFIG=/workspace/rollup.json
+
+
+    # Prestate configuration - Replace with the file from 'just reproducible-prestate-kona'
+    OP_CHALLENGER_CANNON_KONA_PRESTATE=/workspace/${PRESTATE_HASH}.bin.gz
+    EOF
+    ```
+
+    **중요:** 모든 `YOUR_ACTUAL_*` 자리 표시자를 배포의 실제 값으로 바꾸십시오.
+    </Step>
+
+    <Step title="Docker Compose 설정">
+
+    `docker-compose.yml`에 challenger 서비스를 정의합니다. 이 서비스는 몇 가지 중요한 파일을 마운트합니다.
+    *   `${PRESTATE_HASH}.bin.gz`: 분쟁 게임에 필요한 absolute prestate입니다. `PRESTATE_HASH`를 실제 해시(`just reproducible-prestate-kona`가 기록한 `prestate-proof.json`의 `.pre` 필드)로 바꾸십시오.
+
+    ```yaml
+    
+    services:
+      challenger:
+        image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.4
+        user: "1000"
+        volumes:
+          - ./challenger-data:/data
+          - ./rollup.json:/workspace/rollup.json:ro
+          - ./genesis-l2.json:/workspace/genesis-l2.json:ro
+          - ./${PRESTATE_HASH}.bin.gz:/workspace/${PRESTATE_HASH}.bin.gz:ro
+        command: >
+          op-challenger run-trace
+          --trace-type=cannon-kona
+          --datadir=/data
+          --log.level=info
+          --log.format=json
+        restart: unless-stopped
+        networks:
+          - sequencer-node_default
+
+    networks:
+      sequencer-node_default:
+        external: false
+
+
+    ```
+    </Step>
+
+    <Step title="challenger 시작">
+
+    challenger 서비스를 시작하고 로그를 확인합니다.
+
+    ```bash
+    # Start the challenger service
+    docker-compose up -d
+
+    # View logs
+    docker-compose logs -f challenger
+    ```
+    </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="소스에서 빌드">
+
+    일반적인 소스 빌드 안내는
+    [challenger 구성 가이드](/ko/chain-operators/guides/configuration/op-challenger-config-guide#software-installation)의 "소스에서 빌드" 탭에 있습니다.
+    해당 안내에서는 릴리스 선택, `op-challenger`, Cannon, `kona-host` 빌드,
+    바이너리 확인, 환경 파일, 시작 스크립트를 다룹니다. 처음부터 끝까지
+    따라 한 다음, 이 튜토리얼 시리즈에 맞게 다음과 같이 조정하십시오.
+
+    *   **작업 공간**: 이전 단계의 `deployer`, `sequencer`, `batcher`, `proposer` 디렉터리 옆에
+        `rollup/challenger`로 작업 디렉터리를 생성합니다. 모노레포가 `rollup/optimism`에
+        체크아웃되어 있으면 시작 스크립트에서 `../../optimism/op-challenger/bin/op-challenger`
+        및 `CANNON_BIN=../../optimism/cannon/bin/cannon`으로 바이너리에 접근할 수 있습니다.
+    *   **kona-host**: 서버가 체인의 absolute prestate와 일치하도록 사전 요구 사항에서
+        prestate를 생성한 체크아웃(`kona-node/v1.6.1`)에서 빌드하고,
+        `CANNON_KONA_SERVER`가 생성된 바이너리를 가리키도록 설정합니다.
+    *   **구성 파일**: op-deployer 단계의 `rollup.json`과 `genesis-l2.json`을
+        `rollup/challenger`로 복사하고, `CANNON_ROLLUP_CONFIG=./rollup.json`
+        및 `CANNON_L2_GENESIS=./genesis-l2.json`을 설정합니다(가이드의 시작 스크립트가 이를
+        `--cannon-kona-rollup-config` 및 `--cannon-kona-l2-genesis`에 전달합니다). 또한
+        사전 요구 사항에서 생성한 preimage 파일인 `CANNON_KONA_PRESTATE=./0x<PRESTATE_HASH>.bin.gz`를
+        설정합니다.
+    *   **Trace 유형 및 지갑**: 이 체인은 superchain-registry에 등록되어 있지 않으므로
+        `GAME_FACTORY_ADDRESS`를 명시적으로 유지하고, `--trace-type cannon-kona`를 사용하며,
+        다른 구성 요소에 사용한 자금이 충전된 개인 키로 서명합니다(가이드의 니모닉 예제 대신
+        `--private-key` 사용).
+  </Tab>
+  </Tabs>
+
+
+### op-dispute-mon을 사용한 모니터링
+
+<OpChallengerDisputeMon />
+
+## 축하합니다
+
+L2 rollup testnet 튜토리얼 전체를 성공적으로 완료했습니다! 이제 모든 구성 요소가 실행되며 rollup이 완전히 작동합니다.
+
+*   **op-deployer** - L1 컨트랙트 배포 완료
+*   **Sequencer** - 트랜잭션 처리
+*   **Batcher** - L1에 데이터 게시
+*   **Proposer** - 상태 루트 제출
+*   **Challenger** - 분쟁 모니터링
+
+## 체인에 지갑 연결
+
+이제 `http://localhost:8545`에서 Sequencer node가 실행되는 완전히 작동하는 OP Stack Rollup을 보유하게 되었습니다. 다른 EVM 체인에 지갑을 연결하는 것과 같은 방식으로 이 체인에 지갑을 연결할 수 있습니다.
+
+## 체인에서 ETH 받기
+
+지갑을 연결하면 체인에서 gas를 지불할 ETH가 없다는 것을 알게 될 것입니다.
+
+Sepolia ETH를 체인에 입금(디파짓)하는 가장 쉬운 방법은 `L1StandardBridge` 컨트랙트에 ETH를 직접 보내는 것입니다.
+
+### L1StandardBridge 주소 가져오기
+
+`L1StandardBridge` 프록시 주소는 배포 상태 파일에서 찾을 수 있습니다. 주소를 가져오려면 다음을 실행하십시오.
+
+```bash
+# From your project root
+jq -r .l1StandardBridgeProxyAddress <PATH_TO_YOUR_OP_DEPLOYER_FOLDER>/.deployer/state.json
+```
+
+이 명령은 입금에 사용해야 하는 `L1StandardBridge` 프록시 주소를 출력합니다. 구현(implementation) 주소가 아닌 프록시 주소를 사용해야 합니다.
+
+### L2로 ETH 입금
+
+`L1StandardBridge` 주소를 확인했으면 L2에서 사용할 지갑에서 해당 주소로 소량의 Sepolia ETH(0.1 이하)를 보내십시오.
+이렇게 하면 L2의 지갑에 ETH를 발행(mint)하는 입금이 트리거됩니다.
+
+<Info>
+  L2의 지갑에 ETH가 표시되기까지 최대 5분이 걸릴 수 있습니다.
+  이 지연은 입금 트랜잭션이 처리되고 최종 확정되는 데 필요한 시간 때문입니다.
+</Info>
+
+## rollup 동작 확인
+
+다른 EVM 체인과 상호작용하는 것과 같은 방식으로 Rollup과 상호작용할 수 있습니다.
+트랜잭션을 보내고, 컨트랙트를 배포하며, 어떤 일이 일어나는지 확인해 보십시오!
+
+이제 작동하는 testnet이 준비되었습니다. 프로덕션까지 남은 과정은 다음과 같습니다.
+
+<OpEnterpriseCallout />
+
+## 도움이 필요하신가요?
+
+*   **OP Challenger 설명**: [결함 증명 개요](/ko/op-stack/fault-proofs/challenger)
+*   **기술 사양**: [Honest Challenger 사양](https://specs.optimism.io/fault-proof/stage-one/honest-challenger-fdg.html)

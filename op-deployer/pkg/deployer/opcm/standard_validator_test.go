@@ -22,6 +22,8 @@ type standardValidatorBackend struct {
 	wantValidator    common.Address
 	result           string
 	err              error
+	// wantWords pins calldata words by index, independently of wantMethod's own ABI definition.
+	wantWords map[int]common.Hash
 }
 
 func (b *standardValidatorBackend) CallContract(
@@ -36,6 +38,9 @@ func (b *standardValidatorBackend) CallContract(
 	wantArgs, err := b.wantMethod.Inputs.Pack(b.wantInput, b.wantAllowFailure, b.wantOverrides)
 	require.NoError(b.t, err)
 	require.Equal(b.t, wantArgs, call.Data[4:])
+	for i, want := range b.wantWords {
+		require.Equal(b.t, want, common.BytesToHash(call.Data[4+32*i:4+32*(i+1)]), "calldata word %d", i)
+	}
 	if b.err != nil {
 		return nil, b.err
 	}
@@ -50,7 +55,7 @@ func TestValidateStandardDeployment(t *testing.T) {
 	)
 	require.Equal(
 		t,
-		crypto.Keccak256([]byte("validateWithOverrides((address,bytes32,bytes32,uint256,address),bool,(address,address))"))[:4],
+		crypto.Keccak256([]byte("validateWithOverrides((address,bytes32,bytes32,bytes32,uint256,address),bool,(address,address))"))[:4],
 		standardValidationDevMethod.ID,
 	)
 
@@ -148,6 +153,7 @@ func TestValidateStandardDeployment(t *testing.T) {
 		input.UseDevFeaturesInput = true
 		input.CannonPrestate = common.Hash{0x08}
 		input.CannonKonaPrestate = common.Hash{0x09}
+		input.ZKPrestate = common.Hash{0x0a}
 		backend := &standardValidatorBackend{
 			t:          t,
 			wantMethod: standardValidationDevMethod,
@@ -155,12 +161,16 @@ func TestValidateStandardDeployment(t *testing.T) {
 				SystemConfig:       input.SystemConfig,
 				CannonPrestate:     input.CannonPrestate,
 				CannonKonaPrestate: input.CannonKonaPrestate,
+				ZKPrestate:         input.ZKPrestate,
 				L2ChainID:          input.L2ChainID,
 				Proposer:           input.Proposer,
 			},
 			wantOverrides: wantOverrides,
 			wantValidator: validator,
 			result:        wantResult,
+			// ValidationInputDev is a static tuple encoded inline, in Solidity's field order:
+			// sysCfg, cannonPrestate, cannonKonaPrestate, zkPrestate, l2ChainID, proposer.
+			wantWords: map[int]common.Hash{1: input.CannonPrestate, 2: input.CannonKonaPrestate, 3: input.ZKPrestate},
 		}
 		require.NoError(t, ValidateStandardDeployment(t.Context(), backend, validator, input))
 	})

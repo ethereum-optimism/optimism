@@ -9,12 +9,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	opbindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -92,17 +90,6 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 
 	t.Run("embedded L1 locator with standard intent types and standard roles", func(t *testing.T) {
 		runTest := func(configType state.IntentType) {
-			_, afacts := testutil.LocalArtifacts(t)
-			host, err := env.DefaultForkedScriptHost(
-				ctx,
-				broadcaster.NoopBroadcaster(),
-				testlog.Logger(t, log.LevelInfo),
-				common.Address{'D'},
-				afacts,
-				rpcClient,
-			)
-			require.NoError(t, err)
-
 			stdSuperchainRoles, err := state.GetStandardSuperchainRoles(l1ChainID)
 			require.NoError(t, err)
 
@@ -122,9 +109,8 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			require.NoError(t, InitLiveStrategy(
 				ctx,
 				&Env{
-					L1Client:     client,
-					Logger:       lgr,
-					L1ScriptHost: host,
+					L1Client: client,
+					Logger:   lgr,
 				},
 				intent,
 				st,
@@ -225,10 +211,9 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	})
 }
 
-// TestPopulateSuperchainState validates that the ReadSuperchainDeployment script successfully returns data about the
-// given Superchain. For testing purposes, we use a forked script host that points to a pinned block on Sepolia. Pinning
-// the block lets us use constant values in the test without worrying about changes on chain. We use values from the SR
-// whenever possible, however some (like the Superchain PAO) are not included in the SR and are therefore hardcoded.
+// TestPopulateSuperchainState reads the Sepolia superchain at a pinned block, so that upgrades on
+// Sepolia don't change the expected values. Some of them, like the Superchain PAO, are not in the
+// superchain registry and are therefore hardcoded.
 func TestPopulateSuperchainState(t *testing.T) {
 	t.Parallel()
 
@@ -244,34 +229,14 @@ func TestPopulateSuperchainState(t *testing.T) {
 
 	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
 	require.NoError(t, err)
+	// The latest block on Sepolia as of 04/30/2025.
+	client := pinnedCaller{client: ethclient.NewClient(rpcClient), block: big.NewInt(8227159)}
 
-	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.ForkedScriptHost(
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		afacts,
-		rpcClient,
-		// corresponds to the latest block on sepolia as of 04/30/2025. used to prevent config drift on sepolia
-		// from failing this test
-		big.NewInt(8227159),
-	)
-	require.NoError(t, err)
-
-	env := &Env{
-		L1ScriptHost: host,
-		UseForge:     false,
-		Context:      context.Background(),
-	}
-
-	l1Versions, err := standard.L1VersionsFor(11155111)
-	require.NoError(t, err)
 	superchain, err := standard.SuperchainFor(11155111)
 	require.NoError(t, err)
-	opcmAddr := l1Versions["op-contracts/v2.0.0-rc.1"].OPContractsManager.Address
 
-	t.Run("OPCM address with SuperchainConfigProxy", func(t *testing.T) {
-		dep, roles, err := PopulateSuperchainState(env, common.Address(*opcmAddr), superchain.SuperchainConfigAddr)
+	t.Run("Sepolia superchain", func(t *testing.T) {
+		dep, roles, err := PopulateSuperchainState(context.Background(), client, superchain.SuperchainConfigAddr)
 		require.NoError(t, err)
 		require.Equal(t, addresses.SuperchainContracts{
 			SuperchainProxyAdminImpl: common.HexToAddress("0x189aBAAaa82DfC015A588A7dbaD6F13b1D3485Bc"),
@@ -284,132 +249,28 @@ func TestPopulateSuperchainState(t *testing.T) {
 		}, *roles)
 	})
 
-	t.Run("invalid OPCM address", func(t *testing.T) {
-		// Use an invalid address (non-existent contract)
-		invalidOpcmAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
-		dep, roles, err := PopulateSuperchainState(env, invalidOpcmAddr, common.Address{})
-		require.Error(t, err)
-		require.Nil(t, dep)
-		require.Nil(t, roles)
-		require.Contains(t, err.Error(), "error reading superchain deployment")
-	})
-
-	t.Run("output mapping validation", func(t *testing.T) {
-		dep, roles, err := PopulateSuperchainState(env, common.Address(*opcmAddr), superchain.SuperchainConfigAddr)
-		require.NoError(t, err)
-		require.NotNil(t, dep)
-		require.NotNil(t, roles)
-
-		// Verify SuperchainConfig fields are populated correctly
-		require.NotEqual(t, common.Address{}, dep.SuperchainProxyAdminImpl, "SuperchainProxyAdminImpl should be populated")
-		require.NotEqual(t, common.Address{}, dep.SuperchainConfigProxy, "SuperchainConfigProxy should be populated")
-		require.NotEqual(t, common.Address{}, dep.SuperchainConfigImpl, "SuperchainConfigImpl should be populated")
-		require.NotEqual(t, dep.SuperchainConfigImpl, dep.SuperchainConfigProxy, "SuperchainConfigImpl should differ from proxy")
-
-		// Verify SuperchainRoles fields are populated correctly
-		require.NotEqual(t, common.Address{}, roles.SuperchainProxyAdminOwner, "SuperchainProxyAdminOwner should be populated")
-		require.NotEqual(t, common.Address{}, roles.SuperchainGuardian, "SuperchainGuardian should be populated")
-
-		// Verify expected values match
-		require.Equal(t, superchain.SuperchainConfigAddr, dep.SuperchainConfigProxy)
+	t.Run("proxy without code", func(t *testing.T) {
+		for _, proxy := range []common.Address{{}, common.HexToAddress("0x1234567890123456789012345678901234567890")} {
+			dep, roles, err := PopulateSuperchainState(context.Background(), client, proxy)
+			require.ErrorContains(t, err, "has no code", "proxy %s", proxy)
+			require.Nil(t, dep)
+			require.Nil(t, roles)
+		}
 	})
 }
 
-// TestPopulateSuperchainState_OPCMV2 validates that PopulateSuperchainState handles the OPCM v2 flow, where only a SuperchainConfigProxy
-// is provided. This test uses a forked script host configured to a pinned Sepolia block to guarantee deterministic results.
-// It asserts that returned roles and addresses are correct for the superchain config under OPCM v2.
-func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
-	t.Parallel()
+// pinnedCaller reads the state of one block.
+type pinnedCaller struct {
+	client *ethclient.Client
+	block  *big.Int
+}
 
-	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
+func (c pinnedCaller) CodeAt(ctx context.Context, contract common.Address, _ *big.Int) ([]byte, error) {
+	return c.client.CodeAt(ctx, contract, c.block)
+}
 
-	lgr := testlog.Logger(t, slog.LevelInfo)
-	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
-	require.NoError(t, retryProxy.Start())
-	t.Cleanup(func() {
-		require.NoError(t, retryProxy.Stop())
-	})
-
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
-	require.NoError(t, err)
-
-	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.ForkedScriptHost(
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		afacts,
-		rpcClient,
-		// corresponds to the latest block on sepolia as of 04/30/2025. used to prevent config drift on sepolia
-		// from failing this test
-		big.NewInt(8227159),
-	)
-	require.NoError(t, err)
-
-	env := &Env{
-		L1ScriptHost: host,
-		UseForge:     false,
-		Context:      context.Background(),
-	}
-
-	superchain, err := standard.SuperchainFor(11155111)
-	require.NoError(t, err)
-
-	t.Run("SuperchainConfigProxy only", func(t *testing.T) {
-		// opcmAddr is set to 0, all config is provided in the superchainConfigProxy
-		dep, roles, err := PopulateSuperchainState(env, common.Address{}, superchain.SuperchainConfigAddr)
-		require.NoError(t, err)
-
-		require.Equal(t, addresses.SuperchainContracts{
-			SuperchainProxyAdminImpl: common.HexToAddress("0x189aBAAaa82DfC015A588A7dbaD6F13b1D3485Bc"),
-			SuperchainConfigProxy:    superchain.SuperchainConfigAddr,
-			SuperchainConfigImpl:     common.HexToAddress("0x4da82a327773965b8d4D85Fa3dB8249b387458E7"),
-		}, *dep)
-		require.Equal(t, addresses.SuperchainRoles{
-			SuperchainProxyAdminOwner: common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2"),
-			SuperchainGuardian:        common.HexToAddress("0x7a50f00e8D05b95F98fE38d8BeE366a7324dCf7E"),
-		}, *roles)
-	})
-
-	t.Run("both addresses zero", func(t *testing.T) {
-		// When both are zero, the script requires SuperchainConfigProxy to have code, so it should error
-		dep, roles, err := PopulateSuperchainState(env, common.Address{}, common.Address{})
-		require.Error(t, err)
-		require.Nil(t, dep)
-		require.Nil(t, roles)
-		require.Contains(t, err.Error(), "superchainConfigProxy has no code")
-	})
-
-	t.Run("invalid SuperchainConfigProxy", func(t *testing.T) {
-		// Use an invalid address (non-existent contract)
-		invalidSuperchainConfigProxy := common.HexToAddress("0x1234567890123456789012345678901234567890")
-		dep, roles, err := PopulateSuperchainState(env, common.Address{}, invalidSuperchainConfigProxy)
-		require.Error(t, err)
-		require.Nil(t, dep)
-		require.Nil(t, roles)
-		require.Contains(t, err.Error(), "error reading superchain deployment")
-	})
-
-	t.Run("output mapping validation", func(t *testing.T) {
-		dep, roles, err := PopulateSuperchainState(env, common.Address{}, superchain.SuperchainConfigAddr)
-		require.NoError(t, err)
-		require.NotNil(t, dep)
-		require.NotNil(t, roles)
-
-		// Verify SuperchainConfig fields are populated
-		require.NotEqual(t, common.Address{}, dep.SuperchainProxyAdminImpl, "SuperchainProxyAdminImpl should be populated")
-		require.NotEqual(t, common.Address{}, dep.SuperchainConfigProxy, "SuperchainConfigProxy should be populated")
-		require.NotEqual(t, common.Address{}, dep.SuperchainConfigImpl, "SuperchainConfigImpl should be populated")
-		require.NotEqual(t, dep.SuperchainConfigImpl, dep.SuperchainConfigProxy, "SuperchainConfigImpl should differ from proxy")
-
-		// Verify SuperchainRoles fields are populated correctly
-		require.NotEqual(t, common.Address{}, roles.SuperchainProxyAdminOwner, "SuperchainProxyAdminOwner should be populated")
-		require.NotEqual(t, common.Address{}, roles.SuperchainGuardian, "SuperchainGuardian should be populated")
-
-		// Verify expected values match
-		require.Equal(t, superchain.SuperchainConfigAddr, dep.SuperchainConfigProxy)
-	})
+func (c pinnedCaller) CallContract(ctx context.Context, call ethereum.CallMsg, _ *big.Int) ([]byte, error) {
+	return c.client.CallContract(ctx, call, c.block)
 }
 
 // Validates the OPCM v2 flow in InitLiveStrategy
@@ -438,17 +299,6 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	superchain, err := standard.SuperchainFor(l1ChainID)
 	require.NoError(t, err)
 
-	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		afacts,
-		rpcClient,
-	)
-	require.NoError(t, err)
-
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
@@ -464,9 +314,8 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	err = InitLiveStrategy(
 		ctx,
 		&Env{
-			L1Client:     client,
-			Logger:       lgr,
-			L1ScriptHost: host,
+			L1Client: client,
+			Logger:   lgr,
 		},
 		intent,
 		st,
@@ -565,19 +414,7 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainID, standard.CurrentTag)
 	require.NoError(t, err)
 
-	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		afacts,
-		rpcClient,
-	)
-	require.NoError(t, err)
-
 	// Provide both OPCM address and SuperchainConfigProxy
-	// The script will check the OPCM version and handle accordingly
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
@@ -594,14 +431,12 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	err = InitLiveStrategy(
 		ctx,
 		&Env{
-			L1Client:     client,
-			Logger:       lgr,
-			L1ScriptHost: host,
+			L1Client: client,
+			Logger:   lgr,
 		},
 		intent,
 		st,
 	)
-	// Should succeed - the script handles version detection
 	require.NoError(t, err)
 
 	require.NotNil(t, st.SuperchainDeployment)
@@ -663,7 +498,7 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainRoles_reverts(t *testing.T) {
 }
 
 // Validates that the correct flow is chosen when
-// hasPredeployedOPCM && !opcmV2Enabled, and that PopulateSuperchainState is called with correct parameters.
+// hasPredeployedOPCM && !opcmV2Enabled, and that the superchain deployment is read.
 func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	t.Parallel()
 
@@ -688,17 +523,6 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainID, standard.CurrentTag)
 	require.NoError(t, err)
 
-	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		afacts,
-		rpcClient,
-	)
-	require.NoError(t, err)
-
 	// Don't set opcmV2Enabled flag (defaults to false)
 	intent := &state.Intent{
 		ConfigType:         state.IntentTypeStandard,
@@ -715,9 +539,8 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	err = InitLiveStrategy(
 		ctx,
 		&Env{
-			L1Client:     client,
-			Logger:       lgr,
-			L1ScriptHost: host,
+			L1Client: client,
+			Logger:   lgr,
 		},
 		intent,
 		st,
@@ -731,8 +554,52 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmV2Impl)
 }
 
+// TestInitLiveStrategy_CompletesRecordedOPCM checks that init reads the implementations of a
+// predeployed OPCM when the state records only the OPCM, as an earlier op-deployer left it.
+func TestInitLiveStrategy_CompletesRecordedOPCM(t *testing.T) {
+	t.Parallel()
+
+	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
+	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
+
+	lgr := testlog.Logger(t, slog.LevelInfo)
+	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
+	require.NoError(t, retryProxy.Start())
+	t.Cleanup(func() {
+		require.NoError(t, retryProxy.Stop())
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
+	require.NoError(t, err)
+	client := ethclient.NewClient(rpcClient)
+
+	l1ChainID := uint64(11155111)
+	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainID, standard.CurrentTag)
+	require.NoError(t, err)
+
+	intent := &state.Intent{
+		ConfigType:         state.IntentTypeStandard,
+		L1ChainID:          l1ChainID,
+		L1ContractsLocator: artifacts.EmbeddedLocator,
+		L2ContractsLocator: artifacts.EmbeddedLocator,
+		OPCMAddress:        &opcmAddr,
+	}
+	st := &state.State{
+		Version:                   1,
+		ImplementationsDeployment: &addresses.ImplementationsContracts{OpcmV2Impl: opcmAddr},
+	}
+	require.NoError(t, InitLiveStrategy(ctx, &Env{L1Client: client, Logger: lgr}, intent, st))
+
+	impls, err := opcm.ReadImplementations(ctx, client, opcmAddr)
+	require.NoError(t, err)
+	require.Equal(t, impls, st.ImplementationsDeployment)
+}
+
 // Validates that the correct flow is chosen when
-// hasSuperchainConfigProxy && opcmV2Enabled, and that PopulateSuperchainState is called with correct parameters.
+// hasSuperchainConfigProxy && opcmV2Enabled, and that the superchain deployment is read.
 func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	t.Parallel()
 
@@ -757,17 +624,6 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	superchain, err := standard.SuperchainFor(l1ChainID)
 	require.NoError(t, err)
 
-	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		afacts,
-		rpcClient,
-	)
-	require.NoError(t, err)
-
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
@@ -783,9 +639,8 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	err = InitLiveStrategy(
 		ctx,
 		&Env{
-			L1Client:     client,
-			Logger:       lgr,
-			L1ScriptHost: host,
+			L1Client: client,
+			Logger:   lgr,
 		},
 		intent,
 		st,

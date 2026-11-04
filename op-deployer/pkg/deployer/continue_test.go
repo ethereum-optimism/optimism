@@ -487,6 +487,8 @@ func TestStandardValidatorInput(t *testing.T) {
 	require.Equal(t, contracts.SystemConfigProxy, input.SystemConfig)
 	require.Equal(t, selected, input.CannonKonaPrestate)
 	require.Equal(t, fallback, input.CannonPrestate)
+	// deploy() never registers ZK_DISPUTE_GAME, so continue verification expects no ZK prestate.
+	require.Zero(t, input.ZKPrestate)
 	require.Equal(t, dci.OpChainProxyAdminOwner, input.L1PAOMultisig)
 	require.Equal(t, dci.Challenger, input.Challenger)
 	require.True(t, input.UseDevFeaturesInput)

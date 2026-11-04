@@ -852,14 +852,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // ZK_DISPUTE_GAME can only be enabled when the dev flag is on (upgrade path).
-            if (
-                isZkDisputeGame && _cfg.disputeGameConfigs[i].enabled
-                    && !isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)
-            ) {
-                revert OPContractsManagerV2_InvalidGameConfigs();
-            }
-
             if (_cfg.disputeGameConfigs[i].enabled && (isCannonGame || isCannonKonaGame || isSuperCannonKonaGame)) {
                 if (
                     _isInitialDeployment

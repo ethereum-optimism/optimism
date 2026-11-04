@@ -45,6 +45,7 @@ var contractNameExceptions = map[string]string{
 	"Mips":                        "MIPS64.sol/MIPS64.json",
 	"EthLockbox":                  "ETHLockbox.sol/ETHLockbox.json",
 	"Sp1PlonkAdapter":             "SP1PlonkAdapter.sol/SP1PlonkAdapter.json",
+	"ZkDisputeGame":               "ZKDisputeGame.sol/ZKDisputeGame.json",
 }
 
 func getArtifactPath(name string) string {

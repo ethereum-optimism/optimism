@@ -1,0 +1,64 @@
+---
+title: op-conductor
+description: 고가용성 sequencer 조정 서비스인 op-conductor의 정식 허브입니다. op-conductor가 하는 일, 운영 주체, 그리고 가이드, 레퍼런스, 릴리스, 소스의 위치를 안내합니다.
+diataxis: explanation
+---
+
+op-conductor는 OP Stack의 고가용성 sequencer 조정 서비스입니다. sequencer 클러스터를 관리하여 한
+번에 정확히 하나의 sequencer만 체인을 주도하도록 하고, 단일 node 장애가 발생해도 블록 생성이
+계속되도록 합니다.
+
+## 개요
+
+op-conductor는 다중 node 클러스터(일반적으로 여러 리전 또는 가용 영역에 분산된 세 개의 node)에서 각
+sequencer와 함께 실행됩니다. Raft 합의 계층에 참여하여 리더를 선출하고 최신 unsafe 블록을 저장하며,
+자신의 sequencer 상태를 모니터링하고, 리더십과 상태에 따라 sequencing을 시작하거나 중지하며, 수동
+복구 시나리오를 위한 admin RPC를 제공합니다. 이 설계는 세 가지를 보장합니다. unsafe reorg가 없고,
+네트워크 분할 중 unsafe head가 멈추지 않으며, 표준 3-node 구성에서 node 장애가 하나 이하라면 가동이
+계속됩니다. 자세한 동작 방식은
+[OP Conductor 설명](/ko/chain-operators/tools/op-conductor)을 참조하십시오.
+
+op-conductor가 존재하는 이유는 단일 sequencer가 단일 장애 지점이기 때문입니다. 조정이 없으면 충돌한
+sequencer가 블록 생성을 중단시키고, 단순한 장애 조치(failover)는 두 개의 활성 sequencer를 만들거나
+unsafe 블록을 reorg할 수 있습니다.
+op-conductor는 비잔틴 장애 허용(Byzantine fault tolerant)이 아닙니다. 참여하는 모든 node가 정직하다고
+가정하고, RPC 요청에 대한 인증이나 권한 부여를 수행하지 않으며, 사설 네트워크 내부에서 실행하도록
+설계되었습니다.
+
+**운영 주체:** 고가용성 sequencer 구성을 운영하는 체인 운영자가 sequencer node당 하나의 conductor
+인스턴스를 운영합니다. rollup node의 sequencer 모드는 op-node(`--conductor.enabled` 및
+`--conductor.rpc`)와 kona-node(`--conductor.rpc`) 모두에서 op-conductor와 연동됩니다. 단일 sequencer를
+운영하는 체인에는 필요하지 않습니다.
+
+## 시작하기
+
+*   [설정](/ko/chain-operators/tools/op-conductor/setup): 다운타임 없이 기존 다중 sequencer OP Stack
+    네트워크에 op-conductor를 추가합니다.
+
+## 사용 방법 가이드
+
+*   [결함 증명과 HA sequencing을 갖춘 체인 출시](/ko/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing):
+    컨트랙트 배포부터 conductor 클러스터 설정과 장애 조치 훈련까지, 전체 프로덕션 경로를 한 번에
+    다룹니다.
+*   [네트워크 아키텍처](/ko/chain-operators/guides/management/network-architecture):
+    op-batcher를 위한 리더 인식 RPC 프록시로서의 활용을 포함하여, 프로덕션 토폴로지에서 op-conductor가
+    위치하는 곳을 설명합니다.
+
+## 구성 및 플래그 레퍼런스
+
+*   [구성 및 RPC](/ko/chain-operators/tools/op-conductor/reference):
+    페이지에 명시된 op-conductor 릴리스에서 생성된 플래그 표와 함께 모든 CLI 플래그와 환경 변수, 그리고
+    클러스터 관리를 위한 `conductor` 네임스페이스 RPC 메서드를 다룹니다.
+
+## 릴리스
+
+*   [op-conductor 릴리스 이력](/ko/releases/op-conductor)
+
+## 소스 및 사양 링크
+
+*   Optimism 모노레포의 [소스: `op-conductor/`](https://github.com/ethereum-optimism/optimism/tree/develop/op-conductor).
+    [README](https://github.com/ethereum-optimism/optimism/blob/develop/op-conductor/README.md)에
+    아키텍처, conductor 상태 전이, 각 장애 시나리오에 대한 설명이 문서화되어 있습니다.
+*   op-conductor는 운영 도구이므로 OP Stack 사양에 별도의 섹션이 없습니다. op-conductor가 조정하는
+    sequencing 역할은
+    [rollup node 사양](https://specs.optimism.io/protocol/rollup-node.html)에 명시되어 있습니다.

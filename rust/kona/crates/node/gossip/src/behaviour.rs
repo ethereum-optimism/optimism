@@ -8,7 +8,7 @@ use libp2p::{
     swarm::NetworkBehaviour,
 };
 
-use crate::{Event, Handler};
+use crate::{Event, Handler, gate};
 
 /// An error that can occur when creating a [`Behaviour`].
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -31,6 +31,10 @@ pub type Gossipsub = libp2p::gossipsub::Behaviour<IdentityTransform, WhitelistSu
 #[derive(NetworkBehaviour, Debug)]
 #[behaviour(out_event = "Event")]
 pub struct Behaviour {
+    /// The peers, addresses and subnets the operator blocked.
+    ///
+    /// First, so that the swarm asks it about a connection before the other behaviours.
+    pub gate: gate::Behaviour,
     /// Responds to inbound pings and send outbound pings.
     #[debug(skip)]
     pub ping: libp2p::ping::Behaviour,
@@ -39,10 +43,6 @@ pub struct Behaviour {
     /// Enables the identify protocol.
     #[debug(skip)]
     pub identify: libp2p::identify::Behaviour,
-    /// Enables the sync request/response protocol.
-    /// See `<https://specs.optimism.io/protocol/rollup-node-p2p.html#payload_by_number>`
-    #[debug(skip)]
-    pub sync_req_resp: libp2p_stream::Behaviour,
 }
 
 impl Behaviour {
@@ -69,8 +69,6 @@ impl Behaviour {
                 .with_agent_version("kona".to_string()),
         );
 
-        let sync_req_resp = libp2p_stream::Behaviour::new();
-
         if !topics.is_empty() {
             tracing::info!(target: "gossip", "Subscribed to topics:");
         }
@@ -80,7 +78,7 @@ impl Behaviour {
             tracing::info!(target: "gossip", "-> {}", topic);
         }
 
-        Ok(Self { identify, ping, gossipsub, sync_req_resp })
+        Ok(Self { gate: gate::Behaviour::default(), identify, ping, gossipsub })
     }
 }
 

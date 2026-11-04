@@ -1,0 +1,55 @@
+---
+title: 계정 추상화
+description: 이 가이드는 계정 추상화를 사용하여 앱 경험의 마찰을 줄이는 방법을 설명합니다.
+diataxis: reference
+---
+
+<Info>
+  이 페이지에는 아래에 설명된 특정 [포함 기준](#inclusion-criteria)을 충족하는 제공업체가 포함되어 있습니다. 서드파티 계정 추상화 도구의 추가 목록은 [커뮤니티 계정 추상화 페이지](https://github.com/ethereum-optimism/developers/blob/main/community/tools/account-abstraction.md)를 참조하십시오.
+</Info>
+
+계정 추상화(Account Abstraction)라고도 하는 [ERC-4337](https://www.erc4337.io/docs/paymasters/introduction)은 앱 및 지갑 개발자가 사용자 경험을 혁신할 수 있는 더 많은 기회를 제공합니다. 예를 들어 다음과 같은 기능이 가능합니다.
+
+*   트랜잭션을 함께 묶어 처리(예: 스왑 승인과 실행을 한 번에 처리)
+*   시드 문구 없이 쉽게 복구할 수 있는 지갑 제공
+*   트랜잭션의 gas 수수료 대납(sponsor)
+*   사용자가 원하는 토큰으로 gas 지불
+
+## 번들러(Bundler)
+
+OP Stack은 공유 4337 mempool에서 번들러를 지원하기 위해 `eth_sendRawTransactionConditional` RPC 메서드를 지원합니다. 이 메서드가 op-geth에서 어떻게 구현되는지는 [사양](/ko/op-stack/features/send-raw-transaction-conditional)을 참조하십시오.
+
+체인 운영자가 이를 사용하는 경우, 블록 빌더에 도달하기 전에 추가 제한을 적용할 수 있는 보조 서비스인 [op-txproxy](/ko/chain-operators/tools/op-txproxy)도 참조하십시오.
+
+<Info>
+    현재 이 엔드포인트는 스택에서 기본적으로 활성화되어 있지 않습니다. 운영자가 명시적으로 구성해야 합니다.
+</Info>
+
+## 계정 추상화 도구
+
+앱에서 계정 추상화 경험을 활성화할 준비가 되셨습니까? 다음은 OP Mainnet에서 사용할 수 있는 ERC-4337 번들러 및 gas manager API와 같은 계정 추상화 인프라에 대한 유용한 정보입니다.
+
+*   [Alchemy](https://www.alchemy.com/account-abstraction): 
+    Account Kit은 계정 추상화를 위한 완전한 솔루션입니다. Account Kit을 사용하면 계정 추상화를 활용하여 모든 사용자를 위한 스마트 컨트랙트 지갑을 생성하고, 앱 온보딩 경험의 모든 단계를 단순화할 수 있습니다. 또한 gas 대납 및 트랜잭션 일괄 처리를 위한 Gas Manager 및 Bundler API를 제공합니다.
+
+*   [Biconomy](https://docs.biconomy.io/): 앱이나 지갑에 가장 간단한 UX를 제공할 수 있도록 지원하는 계정 추상화 툴킷입니다. 모듈식 스마트 계정과 함께, 대규모로 gas를 대납하고 트랜잭션을 실행하기 위한 서비스형 paymaster 및 번들러를 제공합니다.
+
+*   [GroupOS](https://docs.groupos.xyz/introduction/group-os): ERC-4337을 준수하는 스마트 지갑인 Smart Wallets를 제공합니다. 완전한 유연성, 프로그래밍 가능성, 확장성을 제공하며, 그룹이 게임, 애플리케이션, 프로토콜에 gas 없이 지갑을 온보딩하고 활성화하는 데 필요한 즉시 사용 가능한 툴킷을 제공합니다.
+
+*   [Openfort](https://openfort.io/docs/?utm_source=optimism&utm_medium=docs&utm_campaign=backlinks): 오픈소스 지갑 인프라 솔루션입니다. 핵심 제품으로는 임베디드 지갑, 글로벌 지갑, AA 인프라(Paymaster 및 Bundler)가 있습니다. 지갑 기능의 신속한 통합, 직관적인 온보딩, 스테이블코인 흐름을 지원합니다.
+
+*   [Pimlico](https://docs.pimlico.io/): 스마트 계정 구축을 더 간단하게 만들어 주는 인프라 플랫폼을 제공합니다. ERC-4337 스마트 계정을 개발하는 경우 번들러, verifying paymaster, ERC-20 paymaster 등 다양한 기능을 제공합니다.
+
+*   [Reown](https://reown.com/?utm_source=optimism&utm_medium=docs&utm_campaign=backlinks)은 디지털 소유권을 손쉽고 직관적이며 안전하게 만드는 사용자 경험을 구축할 수 있는 도구를 개발자에게 제공합니다. Reown의 AppKit SDK를 사용하면 사용자가 소셜 로그인으로 스마트 지갑을 생성하도록 하고, gas 수수료를 대납하도록 paymaster를 구성하며, 체인 추상화를 활성화하는 등 다양한 작업을 할 수 있습니다.
+
+*   [Safe](https://docs.safe.global/home/what-is-safe): Safe\{Core\} Account Abstraction SDK, API, 프로토콜을 통해 모듈식 스마트 계정 인프라와 계정 추상화 스택을 제공합니다.
+
+*   [Stackup](https://docs.stackup.sh/docs): 앱 내에서 계정 추상화를 구축하기 위한 스마트 계정 도구를 제공합니다. gas 대납 및 계정 추상화 트랜잭션 전송을 위한 Paymaster 및 Bundler API를 제공합니다.
+
+*   [thirdweb](https://portal.thirdweb.com/react/v5/account-abstraction/get-started?utm_source=opdocs&utm_medium=docs):
+    계정 추상화 기술을 활용하여 사용자에게 원활한 경험을 제공할 수 있는 완전한 툴킷을 제공합니다. 여기에는 사용자가 Smart Account를 생성할 수 있는 Account Factory 컨트랙트, UserOps 지원을 위한 Bundler, gas 대납을 가능하게 하는 Paymaster가 포함됩니다. 
+
+## 유용한 팁
+
+*   [EIP-1271 서명 검증](https://eip1271.io/)
+*   [WalletConnect v2에서 스마트 계정이 작동하도록 하기](https://safe-global.notion.site/WalletConnect-v2-update-Issues-and-solutions-for-smart-wallets-3fc32fad6af4485fa5823eaebd486819)

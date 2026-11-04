@@ -25,6 +25,8 @@ kona-node node \
   --chain=123456
 ```
 
+A chain that isn't in the superchain registry has no built-in bootnodes, so its network may be too small for the other nodes to tell the sequencer its address. Set `--p2p.advertise.ip` to the address they reach it at, see [advertised address](/node-operators/kona-node/configuration#advertised-address).
+
 ## Required Arguments
 
 <Warning>

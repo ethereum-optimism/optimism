@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -22,7 +21,7 @@ func TestGenesisMockSP1VerifierArtifactAndDeployment(t *testing.T) {
 	artifactsFS, err := artifacts.Download(context.Background(), artifacts.EmbeddedLocator, nil, t.TempDir())
 	require.NoError(t, err)
 	af := &foundry.ArtifactsFS{FS: artifactsFS}
-	artifact, err := af.ReadArtifact(genesisMockSP1VerifierArtifact, genesisMockSP1VerifierContract)
+	artifact, err := af.ReadArtifact(opcm.MockSP1VerifierArtifact, opcm.MockSP1VerifierContract)
 	require.NoError(t, err)
 	require.NotEmpty(t, artifact.Bytecode.Object, "genesis MockSP1Verifier must have bytecode in op-deployer artifacts")
 
@@ -59,26 +58,13 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 	newState := newSP1VerifierTestState
 	env := &Env{Logger: testlog.Logger(t, slog.LevelDebug)}
 
-	t.Run("disabled rejects verifier", func(t *testing.T) {
-		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"sp1Verifier": common.Address{0x05},
-		}}
-		err := DeployImplementations(env, intent, newState())
-		require.ErrorContains(t, err, "must not be specified")
-	})
-
-	t.Run("live enabled requires verifier", func(t *testing.T) {
-		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
-		}}
-		err := DeployImplementations(env, intent, newState())
+	t.Run("live requires verifier", func(t *testing.T) {
+		err := DeployImplementations(env, &state.Intent{}, newState())
 		require.ErrorContains(t, err, "must be specified")
 	})
 
-	t.Run("genesis enabled still requires an explicit verifier selection", func(t *testing.T) {
-		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
-		}}
+	t.Run("genesis requires an explicit verifier selection", func(t *testing.T) {
+		intent := &state.Intent{}
 		genesisEnv := *env
 		genesisEnv.IsGenesis = true
 		genesisEnv.AllowUnoptimizedContracts = true
@@ -87,9 +73,7 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 	})
 
 	t.Run("explicit mock selection requires a script host", func(t *testing.T) {
-		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
-		}}
+		intent := &state.Intent{}
 		mockEnv := *env
 		mockEnv.IsGenesis = true
 		mockEnv.DeployMockSP1Verifier = true
@@ -99,8 +83,7 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 
 	t.Run("explicit zero verifier is rejected", func(t *testing.T) {
 		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
-			"sp1Verifier":      common.Address{},
+			"sp1Verifier": common.Address{},
 		}}
 		err := DeployImplementations(env, intent, newState())
 		require.ErrorContains(t, err, "sp1Verifier override must not be zero")
@@ -130,20 +113,11 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 		resumeEnv := *env
 		resumeEnv.L1ScriptHost = host
 
-		disabledIntent := &state.Intent{GlobalDeployOverrides: map[string]any{"sp1Verifier": rawVerifier}}
-		err = DeployImplementations(&resumeEnv, disabledIntent, st)
-		require.ErrorContains(t, err, "ZK dispute games are disabled")
-
-		unselectedLiveIntent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
-		}}
+		unselectedLiveIntent := &state.Intent{GlobalDeployOverrides: map[string]any{}}
 		err = DeployImplementations(&resumeEnv, unselectedLiveIntent, st)
 		require.ErrorContains(t, err, "sp1Verifier must be specified")
 
-		sameIntent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
-			"sp1Verifier":      rawVerifier,
-		}}
+		sameIntent := &state.Intent{GlobalDeployOverrides: map[string]any{"sp1Verifier": rawVerifier}}
 		require.NoError(t, DeployImplementations(&resumeEnv, sameIntent, st))
 
 		restartedGenesisEnv := *env
@@ -155,30 +129,20 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 		require.NoError(t, json.Unmarshal(checkpoint, &resumedState))
 		explicitGenesisEnv := *env
 		explicitGenesisEnv.IsGenesis = true
-		explicitGenesisIntent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
-			"sp1Verifier":      rawVerifier,
-		}}
+		explicitGenesisIntent := &state.Intent{GlobalDeployOverrides: map[string]any{"sp1Verifier": rawVerifier}}
 		require.NoError(t, DeployImplementations(&explicitGenesisEnv, explicitGenesisIntent, &resumedState))
 
 		unselectedGenesisEnv := *env
 		unselectedGenesisEnv.IsGenesis = true
-		unselectedGenesisIntent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
-		}}
+		unselectedGenesisIntent := &state.Intent{GlobalDeployOverrides: map[string]any{}}
 		err = DeployImplementations(&unselectedGenesisEnv, unselectedGenesisIntent, &resumedState)
 		require.ErrorContains(t, err, "sp1Verifier must be specified")
 
-		resumedGenesisIntent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
-		}}
+		resumedGenesisIntent := &state.Intent{GlobalDeployOverrides: map[string]any{}}
 		require.NoError(t, DeployImplementations(&restartedGenesisEnv, resumedGenesisIntent, &resumedState))
 		require.NotContains(t, resumedGenesisIntent.GlobalDeployOverrides, "sp1Verifier")
 
-		changedIntent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
-			"sp1Verifier":      common.Address{0x08},
-		}}
+		changedIntent := &state.Intent{GlobalDeployOverrides: map[string]any{"sp1Verifier": common.Address{0x08}}}
 		err = DeployImplementations(&resumeEnv, changedIntent, st)
 		require.ErrorContains(t, err, "does not match")
 	})
@@ -199,8 +163,8 @@ func (c *capturingDeployImplementations) Run(input opcm.DeployImplementationsInp
 	return out, nil
 }
 
-// TestDeployImplementationsSelectsStandardSP1Verifier pins which raw SP1 verifier a live
-// ZK-enabled apply hands to DeployImplementations.
+// TestDeployImplementationsSelectsStandardSP1Verifier pins which raw SP1 verifier a live apply
+// hands to DeployImplementations.
 func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
 	const standardVerifier = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
 
@@ -215,12 +179,8 @@ func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
 		return capture, logs, DeployImplementations(&env, intent, st)
 	}
 
-	zkIntent := func(l1ChainID uint64, overrides map[string]any) *state.Intent {
-		merged := map[string]any{"devFeatureBitmap": devfeatures.ZKDisputeGameFlag}
-		for k, v := range overrides {
-			merged[k] = v
-		}
-		return &state.Intent{L1ChainID: l1ChainID, GlobalDeployOverrides: merged}
+	intentFor := func(l1ChainID uint64, overrides map[string]any) *state.Intent {
+		return &state.Intent{L1ChainID: l1ChainID, GlobalDeployOverrides: overrides}
 	}
 
 	for _, tt := range []struct {
@@ -232,7 +192,7 @@ func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
 	} {
 		t.Run(tt.name+" defaults to the release verifier", func(t *testing.T) {
 			st := newSP1VerifierTestState()
-			intent := zkIntent(tt.l1ChainID, nil)
+			intent := intentFor(tt.l1ChainID, nil)
 			capture, logs, err := deploy(t, Env{}, intent, st)
 			require.NoError(t, err)
 			require.Equal(t, common.HexToAddress(standardVerifier), capture.input.SP1Verifier)
@@ -248,29 +208,20 @@ func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
 
 	t.Run("explicit override wins", func(t *testing.T) {
 		override := common.Address{0x05}
-		capture, _, err := deploy(t, Env{}, zkIntent(11155111, map[string]any{"sp1Verifier": override}), newSP1VerifierTestState())
+		capture, _, err := deploy(t, Env{}, intentFor(11155111, map[string]any{"sp1Verifier": override}), newSP1VerifierTestState())
 		require.NoError(t, err)
 		require.Equal(t, override, capture.input.SP1Verifier)
 	})
 
 	t.Run("unsupported network requires an override", func(t *testing.T) {
-		capture, _, err := deploy(t, Env{}, zkIntent(900, nil), newSP1VerifierTestState())
+		capture, _, err := deploy(t, Env{}, intentFor(900, nil), newSP1VerifierTestState())
 		require.ErrorContains(t, err, "sp1Verifier must be specified")
 		require.ErrorContains(t, err, "900")
 		require.False(t, capture.ran)
 	})
 
-	t.Run("disabled ZK selects nothing", func(t *testing.T) {
-		st := newSP1VerifierTestState()
-		capture, logs, err := deploy(t, Env{}, &state.Intent{L1ChainID: 11155111}, st)
-		require.NoError(t, err)
-		require.Equal(t, common.Address{}, capture.input.SP1Verifier)
-		require.Nil(t, st.SP1Verifier)
-		require.Nil(t, logs.FindLog(verifierLogged))
-	})
-
 	t.Run("genesis does not select the release verifier", func(t *testing.T) {
-		capture, _, err := deploy(t, Env{IsGenesis: true}, zkIntent(11155111, nil), newSP1VerifierTestState())
+		capture, _, err := deploy(t, Env{IsGenesis: true}, intentFor(11155111, nil), newSP1VerifierTestState())
 		require.ErrorContains(t, err, "sp1Verifier must be specified")
 		require.False(t, capture.ran)
 	})
@@ -280,7 +231,7 @@ func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
 		st := newSP1VerifierTestState()
 		st.ImplementationsDeployment = &addresses.ImplementationsContracts{OpcmV2Impl: opcmAddr}
 		// An L1 with no release verifier proves the bypass: selection would otherwise error here.
-		intent := zkIntent(900, nil)
+		intent := intentFor(900, nil)
 		intent.OPCMAddress = &opcmAddr
 
 		capture, logs, err := deploy(t, Env{}, intent, st)
@@ -296,7 +247,7 @@ func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
 		st.ImplementationsDeployment = &addresses.ImplementationsContracts{SP1PlonkAdapterImpl: common.Address{0xad}}
 		st.SP1Verifier = &recorded
 
-		capture, logs, err := deploy(t, Env{}, zkIntent(11155111, nil), st)
+		capture, logs, err := deploy(t, Env{}, intentFor(11155111, nil), st)
 		require.NoError(t, err)
 		require.False(t, capture.ran)
 		require.Equal(t, recorded, *st.SP1Verifier)
