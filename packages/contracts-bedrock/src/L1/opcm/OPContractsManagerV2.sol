@@ -176,9 +176,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 9.0.7
+    /// @custom:semver 10.0.0
     function version() public pure returns (string memory) {
-        return "9.0.7";
+        return "10.0.0";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -367,12 +367,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // developers start working on the next release this will automatically become false so
         // even if the code is somehow forgotten it will not actually apply to the deployment. Make
         // sure to REMOVE the allowance once the upgrade is complete.
-        if (SemverComp.parse(_version()).major == 9) {
-            // Allow deploying an ETHLockbox for existing chains only in the v9 release.
-            if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"))) {
-                return true;
-            }
-        }
 
         // Allow overriding the starting respected game type during upgrades. This is needed when
         // disabling the currently-respected game type, since the validation requires the starting
