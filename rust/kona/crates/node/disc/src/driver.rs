@@ -8,7 +8,7 @@ use kona_peers::{
     BootNode, BootNodes, BootStore, BootStoreFile, EnrValidation, peer_id_to_node_id,
 };
 use libp2p::{Multiaddr, multiaddr::Protocol};
-use std::pin::Pin;
+use std::{net::IpAddr, pin::Pin};
 use tokio::{
     sync::mpsc::channel,
     task::JoinHandle,
@@ -51,13 +51,43 @@ const EVENT_STREAM_MAX_ATTEMPTS: u32 = 10;
 /// The delay between attempts to start the [`Discv5`] event stream.
 const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
 
-/// A record our own gossip should dial, see [`Discv5Driver::record_to_dial`].
+/// A peer for gossip to dial, which discovery found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiscoveredPeer {
+    /// Its record, which discovery also saves in the bootstore.
+    pub enr: Enr,
+    /// The address to dial it at, ending in its `/p2p/<peer id>`.
+    pub addr: Multiaddr,
+}
+
+impl DiscoveredPeer {
+    /// The peer with `enr`, at the TCP address in its record, or `None` if it has none.
+    fn at_record_address(enr: Enr) -> Option<Self> {
+        let addr = kona_peers::enr_to_multiaddr(&enr)?;
+        Some(Self { enr, addr })
+    }
+
+    /// The peer with `enr`, at `ip` with the TCP port from its record for `ip`'s family, or `None`
+    /// if its record has no such port.
+    fn at(enr: Enr, ip: IpAddr) -> Option<Self> {
+        let ip = ip.to_canonical();
+        let port = match ip {
+            IpAddr::V4(_) => enr.tcp4(),
+            IpAddr::V6(_) => enr.tcp6(),
+        }?;
+        let peer_id = kona_peers::enr_to_peer_id(&enr)?;
+        let addr = Multiaddr::from(ip).with(Protocol::Tcp(port)).with(Protocol::P2p(peer_id));
+        Some(Self { enr, addr })
+    }
+}
+
+/// A peer our own gossip should dial, see [`Discv5Driver::record_to_dial`].
 #[derive(Debug, PartialEq, Eq)]
 struct RecordToDial {
     /// The name of the discovery event that brought it, for metrics and logs.
     event: &'static str,
-    /// The record.
-    enr: Enr,
+    /// The peer, and where to dial it.
+    peer: DiscoveredPeer,
 }
 
 /// The [`Discv5Driver`] drives the discovery service.
@@ -184,18 +214,20 @@ impl Discv5Driver {
         chain_id: u64,
         own_scope: AddrScope,
     ) -> Option<RecordToDial> {
-        let (kind, enr, check) = match event {
+        // A session's peer is dialed at the address its packets came from: only that one has
+        // shown that it runs discovery.
+        let (kind, enr, check, session_ip) = match event {
             discv5::Event::Discovered(enr) => {
                 let check = AddrScope::check_reachable_enr(own_scope, &enr);
-                ("discovered", enr, check)
+                ("discovered", enr, check, None)
             }
             discv5::Event::SessionEstablished(enr, socket) => {
                 let check = AddrScope::check_relayed_enr(AddrScope::of(socket.ip()), &enr);
-                ("session_established", enr, check)
+                ("session_established", enr, check, Some(socket.ip()))
             }
             discv5::Event::UnverifiableEnr { enr, socket, .. } => {
                 let check = AddrScope::check_relayed_enr(AddrScope::of(socket.ip()), &enr);
-                ("unverifiable_enr", enr, check)
+                ("unverifiable_enr", enr, check, Some(socket.ip()))
             }
             _ => return None,
         };
@@ -208,7 +240,15 @@ impl Discv5Driver {
                 .increment(1);
             return None;
         }
-        Some(RecordToDial { event: kind, enr })
+        let peer = match session_ip {
+            Some(ip) => DiscoveredPeer::at(enr, ip),
+            None => DiscoveredPeer::at_record_address(enr),
+        };
+        let Some(peer) = peer else {
+            debug!(target: "discovery", event = kind, "Ignoring a record with no TCP port to dial");
+            return None;
+        };
+        Some(RecordToDial { event: kind, peer })
     }
 
     /// Returns whether our own gossip should dial `enr`, a record one of our lookups returned. A
@@ -307,7 +347,7 @@ impl Discv5Driver {
     /// completes. If the task stops for another reason, pending requests are dropped, so their
     /// response receivers return an error. When the task stops, the ENR receiver returns `None`
     /// once drained.
-    pub fn start(self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>) {
+    pub fn start(self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<DiscoveredPeer>) {
         let enr = self.disc.local_enr();
         if enr.tcp4() == Some(0) || enr.tcp6() == Some(0) {
             warn!(
@@ -357,11 +397,13 @@ impl Discv5Driver {
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
     ///
     /// Same as [`Discv5Driver::start`], but also returns the [`JoinHandle`] of the task.
-    fn spawn(mut self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>, JoinHandle<()>) {
+    fn spawn(
+        mut self,
+    ) -> (Discv5Handler, tokio::sync::mpsc::Receiver<DiscoveredPeer>, JoinHandle<()>) {
         let chain_id = self.chain_id;
         let own_scope = self.own_scope;
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
-        let (enr_sender, enr_recv) = channel::<Enr>(1024);
+        let (enr_sender, enr_recv) = channel::<DiscoveredPeer>(1024);
 
         let task = spawn_in_current_span(async move {
             let remove = self.remove_interval.is_some();
@@ -400,8 +442,11 @@ impl Discv5Driver {
                         debug!(target: "discovery", %reason, ?enr, "Ignoring a saved record with an address we can't reach");
                         continue;
                     }
+                    let Some(peer) = DiscoveredPeer::at_record_address(enr.clone()) else {
+                        continue;
+                    };
                     // Fails only once the receiver is dropped, after which every send fails.
-                    if enr_sender.send(enr.clone()).await.is_err() {
+                    if enr_sender.send(peer).await.is_err() {
                         debug!(target: "discovery", "ENR receiver dropped, not forwarding the rest of the bootstore");
                         break;
                     }
@@ -503,15 +548,15 @@ impl Discv5Driver {
                             error!(target: "discovery", "Discv5 event stream ended, stopping discovery");
                             return;
                         };
-                        if let Some(RecordToDial { event: kind, enr }) =
+                        if let Some(RecordToDial { event: kind, peer }) =
                             Self::record_to_dial(event, chain_id, own_scope)
                         {
-                            debug!(target: "discovery", event = kind, ?enr, "Valid ENR, passing it to gossip to dial");
+                            debug!(target: "discovery", event = kind, addr = %peer.addr, enr = ?peer.enr, "Valid ENR, passing it to gossip to dial");
                             metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
-                            store.add_enr(enr.clone());
+                            store.add_enr(peer.enr.clone());
                             let sender = enr_sender.clone();
                             spawn_in_current_span(async move {
-                                if let Err(e) = sender.send(enr).await {
+                                if let Err(e) = sender.send(peer).await {
                                     debug!(target: "discovery", "Failed to send enr: {:?}", e);
                                 }
                             });
@@ -526,9 +571,12 @@ impl Discv5Driver {
                         spawn_in_current_span(async move {
                             match fut.await {
                                 Ok(nodes) => {
-                                    let enrs = nodes.into_iter().filter(|node| Self::is_lookup_record_to_dial(node, chain_id, own_scope));
-                                    for enr in enrs {
-                                        _ = enr_sender.send(enr).await;
+                                    let peers = nodes
+                                        .into_iter()
+                                        .filter(|node| Self::is_lookup_record_to_dial(node, chain_id, own_scope))
+                                        .filter_map(DiscoveredPeer::at_record_address);
+                                    for peer in peers {
+                                        _ = enr_sender.send(peer).await;
                                     }
                                 }
                                 Err(err) => {
@@ -634,7 +682,10 @@ mod tests {
                 OP_SEPOLIA_CHAIN_ID,
                 AddrScope::Loopback
             ),
-            expected.map(|event| RecordToDial { event, enr })
+            expected.map(|event| RecordToDial {
+                event,
+                peer: DiscoveredPeer::at_record_address(enr).expect("the record has a TCP address")
+            })
         );
         assert_eq!(
             Discv5Driver::record_to_dial(
@@ -796,11 +847,8 @@ mod tests {
             AddrScope::Public,
         )
         .expect("a session's record is dialed");
-        let dialed =
-            kona_peers::enr_to_multiaddr(&record.enr).expect("the record has a TCP address");
-        // TODO(#23766): fails, as gossip dials the address in the record.
         assert_eq!(
-            dialed.iter().take(2).collect::<Vec<_>>(),
+            record.peer.addr.iter().take(2).collect::<Vec<_>>(),
             [Protocol::Ip4(Ipv4Addr::new(1, 2, 3, 4)), Protocol::Tcp(443)],
             "gossip would dial the host the record names, not the session's"
         );
@@ -872,7 +920,7 @@ mod tests {
             .await
             .expect("the driver hands over the saved public record")
             .expect("the driver runs");
-        assert_eq!(first, public, "a public node dialed a saved loopback record");
+        assert_eq!(first.enr, public, "a public node dialed a saved loopback record");
     }
 
     /// A public node should neither contact nor keep a loopback bootnode given by enode URL, as it

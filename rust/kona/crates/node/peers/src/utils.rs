@@ -32,16 +32,18 @@ pub fn enr_to_multiaddr(enr: &Enr) -> Option<Multiaddr> {
         addr
     };
 
+    addr.push(Protocol::P2p(enr_to_peer_id(enr)?));
+    Some(addr)
+}
+
+/// Returns the libp2p peer ID of the node with `enr`, or `None` if the record doesn't hold a
+/// secp256k1 key, as every OP Stack node's does.
+pub fn enr_to_peer_id(enr: &Enr) -> Option<libp2p::PeerId> {
     let CombinedPublicKey::Secp256k1(pub_key) = enr.public_key() else {
         return None;
     };
-
     let pub_key = libp2p_identity::secp256k1::PublicKey::try_from_bytes(&pub_key.encode()).ok()?;
-    let pub_key = libp2p_identity::PublicKey::from(pub_key);
-
-    addr.push(Protocol::P2p(libp2p::PeerId::from_public_key(&pub_key)));
-
-    Some(addr)
+    Some(libp2p::PeerId::from_public_key(&libp2p_identity::PublicKey::from(pub_key)))
 }
 
 /// Converts an uncompressed [`PeerId`] to a [`secp256k1::PublicKey`] by prepending the [`PeerId`]

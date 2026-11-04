@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
-use discv5::Enr;
-use kona_disc::{Discv5Handler, HandlerRequest};
+use kona_disc::{DiscoveredPeer, Discv5Handler, HandlerRequest};
 use kona_gossip::{ConnectionGater, GossipDriver};
 use tokio::sync::mpsc;
 
@@ -21,8 +20,8 @@ pub struct NetworkHandler {
 pub struct RunningDiscovery {
     /// The handler to send requests to the discovery service.
     pub handler: Discv5Handler,
-    /// The receiver of the ENRs it discovers.
-    pub enr_receiver: mpsc::Receiver<Enr>,
+    /// The receiver of the peers it discovers, for gossip to dial.
+    pub enr_receiver: mpsc::Receiver<DiscoveredPeer>,
 }
 
 impl NetworkHandler {

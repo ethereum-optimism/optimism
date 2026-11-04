@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use discv5::Enr;
-use kona_gossip::{GossipCommandReceiver, GossipQueryHandle, GossipState};
+use kona_disc::DiscoveredPeer;
+use kona_gossip::{GossipCommandReceiver, GossipQueryHandle, GossipState, PeerAddr};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 use thiserror::Error;
@@ -95,9 +95,9 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
     }
 }
 
-/// Receives the next ENR from `discovery`. Never completes if discovery is disabled, and returns
+/// Receives the next peer from `discovery`. Never completes if discovery is disabled, and returns
 /// `None` once it stopped.
-async fn next_enr(discovery: Option<&mut RunningDiscovery>) -> Option<Enr> {
+async fn next_peer(discovery: Option<&mut RunningDiscovery>) -> Option<DiscoveredPeer> {
     match discovery {
         Some(discovery) => discovery.enr_receiver.recv().await,
         None => std::future::pending().await,
@@ -170,14 +170,15 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 }
                 Ok(())
             }
-            enr = next_enr(self.handler.discovery.as_mut()) => {
-                let Some(enr) = enr else {
+            peer = next_peer(self.handler.discovery.as_mut()) => {
+                let Some(peer) = peer else {
                     error!(target: "node::p2p", "The enr receiver channel has closed");
                     return Err(NetworkActorError::ChannelClosed);
                 };
-                // Discovery hands over the ENRs of connected peers again and again.
+                // Discovery hands over connected peers again and again. It ends the address in the
+                // peer ID, so it converts.
                 let gossip = &mut self.handler.gossip;
-                if let Some(peer) = gossip.enr_to_peer_addr(&enr) &&
+                if let Ok(peer) = PeerAddr::try_from(peer.addr) &&
                     !gossip.is_connected(&peer.peer_id())
                 {
                     // A refusal is logged in `dial_peer`, and discovery hands the ENR over again.

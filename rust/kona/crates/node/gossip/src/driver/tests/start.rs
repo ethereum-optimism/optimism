@@ -148,36 +148,3 @@ async fn test_sync_request_protocol_is_unsupported() {
         "{opened:?}"
     );
 }
-
-/// An ENR for `chain_id` signed with `keypair`, with an IPv4 socket that has a TCP port only
-/// if `tcp` is set.
-fn enr(keypair: &libp2p_identity::Keypair, chain_id: u64, tcp: bool) -> discv5::Enr {
-    use alloy_rlp::Encodable;
-    let mut secret = keypair.clone().try_into_secp256k1().unwrap().secret().to_bytes();
-    let key = enr::CombinedKey::secp256k1_from_bytes(&mut secret).unwrap();
-    let mut opstack = Vec::new();
-    kona_peers::OpStackEnr::from_chain_id(chain_id).encode(&mut opstack);
-    let mut builder = discv5::Enr::builder();
-    builder.ip4(std::net::Ipv4Addr::LOCALHOST).udp4(9223);
-    if tcp {
-        builder.tcp4(9222);
-    }
-    builder.add_value_rlp(kona_peers::OpStackEnr::OP_CL_KEY, opstack.into());
-    builder.build(&key).unwrap()
-}
-
-/// An ENR from discovery gives the peer ID and TCP address to dial, if it is for this chain
-/// and has a TCP port.
-#[tokio::test]
-async fn test_enr_to_peer_addr() {
-    let driver = memory_driver().start().await.expect("listen");
-    let chain_id = driver.handler.rollup_config.l2_chain_id.id();
-    let keypair = libp2p_identity::Keypair::generate_secp256k1();
-    let peer_id = keypair.public().to_peer_id();
-
-    let peer_addr = driver.enr_to_peer_addr(&enr(&keypair, chain_id, true)).unwrap();
-    assert_eq!(peer_addr.peer_id(), peer_id);
-    assert_eq!(peer_addr.to_string(), format!("/ip4/127.0.0.1/tcp/9222/p2p/{peer_id}"));
-    assert_eq!(driver.enr_to_peer_addr(&enr(&keypair, chain_id + 1, true)), None);
-    assert_eq!(driver.enr_to_peer_addr(&enr(&keypair, chain_id, false)), None);
-}

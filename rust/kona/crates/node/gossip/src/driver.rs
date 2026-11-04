@@ -2,11 +2,10 @@
 
 use alloy_primitives::{Address, Signature};
 use derive_more::Debug;
-use discv5::Enr;
 use futures::stream::StreamExt;
 use ipnet::IpNet;
 use kona_genesis::RollupConfig;
-use kona_peers::{EnrValidation, PeerMonitoring, enr_to_multiaddr};
+use kona_peers::PeerMonitoring;
 use libp2p::{
     Multiaddr, PeerId, Swarm,
     core::transport::ListenerId,
@@ -551,26 +550,6 @@ where
             })
             .copied()
             .collect()
-    }
-
-    /// Returns the address to dial the peer that an [`Enr`] from discovery describes, for
-    /// [`Self::dial_peer`].
-    ///
-    /// Returns `None` for an ENR of another OP Stack chain, or one without a TCP socket.
-    pub fn enr_to_peer_addr(&self, enr: &Enr) -> Option<PeerAddr> {
-        let chain_id = self.handler.rollup_config.l2_chain_id.id();
-        let validation = EnrValidation::validate(enr, chain_id);
-        if validation.is_invalid() {
-            trace!(target: "gossip", "Invalid OP Stack ENR for chain id {chain_id}: {validation}");
-            return None;
-        }
-        let Some(addr) = enr_to_multiaddr(enr) else {
-            debug!(target: "gossip", "Failed to extract tcp socket from enr: {:?}", enr);
-            metrics::gauge!(crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_enr").increment(1);
-            return None;
-        };
-        // `enr_to_multiaddr` ends the address in the peer ID.
-        PeerAddr::try_from(addr).ok()
     }
 
     /// Dials the given [`Multiaddr`], which must end in the peer's `/p2p/<peer id>`. See
