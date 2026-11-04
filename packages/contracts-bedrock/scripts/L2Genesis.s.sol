@@ -132,6 +132,10 @@ contract L2Genesis is Script {
 
     /// @notice Entrypoint of op-deployer: runs on ABI-encoded input and dumps the state.
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        // Offline, forge starts the sender at nonce 1. The loaded state resets it, which matters
+        // when the sender is also the proxy admin owner, whose nonce decides where setEAS() and
+        // setGovernanceToken() create the contracts whose code they copy.
+        DeployState.load();
         run(abi.decode(_input, (Input)));
         DeployState.dump(msg.sender);
         return "";

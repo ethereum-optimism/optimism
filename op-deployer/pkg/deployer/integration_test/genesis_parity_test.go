@@ -123,6 +123,16 @@ func TestGenesisForgeMatchesGoHost(t *testing.T) {
 			},
 		},
 		{
+			name: "deployer owns the L2 ProxyAdmin",
+			mutate: func(t *testing.T, intent *state.Intent, opts *deployer.ApplyPipelineOpts) {
+				intent.Chains[0].Roles.L2ProxyAdminOwner = crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
+				intent.Chains[0].DeployOverrides = map[string]any{
+					"enableGovernance":     true,
+					"governanceTokenOwner": common.Address{0x60},
+				}
+			},
+		},
+		{
 			name: "prefunded deployer",
 			mutate: func(t *testing.T, intent *state.Intent, opts *deployer.ApplyPipelineOpts) {
 				deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
