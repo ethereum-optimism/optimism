@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing
 import { console } from "forge-std/console.sol";
 import { VmSafe } from "forge-std/Vm.sol";
+import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 import { PastUpgrades } from "test/setup/PastUpgrades.sol";
@@ -1669,6 +1670,8 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
 /// @title OPContractsManagerV2_Deploy_Test
 /// @notice Tests OPContractsManagerV2.deploy
 contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
+    using stdStorage for StdStorage;
+
     /// @notice Default deploy config.
     IOPContractsManagerV2.FullConfig deployConfig;
 
@@ -1888,72 +1891,6 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             reason,
             abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeInstruction.selector, _key)
         );
-    }
-
-    /// @notice Tests first lockbox activation and repeat upgrades for ETH and CGT chains.
-    /// @param _useCustomGasToken Whether the chain uses a custom gas token.
-    /// @param _enableFeatureBeforeUpgrade Whether to enable the flag without configuring a lockbox.
-    function _testUpgradeMissingLockbox(bool _useCustomGasToken, bool _enableFeatureBeforeUpgrade) internal {
-        deployConfig.useCustomGasToken = _useCustomGasToken;
-        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
-        _setLegacyLockboxState(cts.systemConfig, cts.optimismPortal);
-        if (_enableFeatureBeforeUpgrade) {
-            vm.prank(cts.proxyAdmin.owner());
-            cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-        }
-        assertEq(cts.systemConfig.isCustomGasToken(), _useCustomGasToken);
-        vm.deal(address(cts.optimismPortal), 1 ether);
-
-        IOPContractsManagerV2.UpgradeInput memory input;
-        input.systemConfig = cts.systemConfig;
-        input.disputeGameConfigs = deployConfig.disputeGameConfigs;
-        address pao = cts.proxyAdmin.owner();
-
-        // Without the instruction, the upgrade must stop before changing any chain state.
-        prankDelegateCall(pao);
-        (bool success, bytes memory reason) =
-            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
-        assertFalse(success);
-        // nosemgrep: sol-style-use-abi-encodecall
-        assertEq(
-            reason,
-            abi.encodeWithSelector(
-                IOPContractsManagerUtils.OPContractsManagerUtils_ProxyMustLoad.selector, "ETHLockbox"
-            )
-        );
-        assertEq(address(cts.optimismPortal.ethLockbox()), address(0));
-        assertEq(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), _enableFeatureBeforeUpgrade);
-        assertEq(address(cts.optimismPortal).balance, 1 ether);
-
-        input.extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
-        input.extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("ETHLockbox")
-        });
-        prankDelegateCall(pao);
-        (success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
-        assertTrue(success, "upgrade failed");
-
-        IETHLockbox lockbox = cts.optimismPortal.ethLockbox();
-        assertNotEq(address(lockbox), address(0));
-        assertTrue(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
-        assertFalse(cts.systemConfig.isFeatureEnabled(Features.INTEROP));
-        assertEq(cts.systemConfig.isCustomGasToken(), _useCustomGasToken);
-        assertTrue(lockbox.authorizedPortals(cts.optimismPortal));
-        assertEq(address(lockbox.superchainConfig()), address(cts.systemConfig.superchainConfig()));
-        assertEq(address(cts.anchorStateRegistry.ethLockbox()), address(lockbox));
-        assertEq(address(cts.delayedWETH.ethLockbox()), address(lockbox));
-        assertEq(address(cts.optimismPortal).balance, _useCustomGasToken ? 1 ether : 0);
-        assertEq(address(lockbox).balance, _useCustomGasToken ? 0 : 1 ether);
-
-        // Repeating the upgrade reuses the lockbox and does not migrate portal liquidity again.
-        vm.deal(address(cts.optimismPortal), 2 ether);
-        prankDelegateCall(pao);
-        (success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
-        assertTrue(success, "repeat upgrade failed");
-        assertEq(address(cts.optimismPortal.ethLockbox()), address(lockbox));
-        assertEq(cts.systemConfig.isCustomGasToken(), _useCustomGasToken);
-        assertEq(address(cts.optimismPortal).balance, 2 ether);
-        assertEq(address(lockbox).balance, _useCustomGasToken ? 0 : 1 ether);
     }
 
     /// @notice Writes a bridge hook straight into a portal's storage slot, so a test can start
