@@ -1,0 +1,100 @@
+---
+title: 릴리스 워크플로
+description: 이전 OP Deployer 버전에 수정 사항을 백포트하고 새 컨트랙트 버전 지원을 추가하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+<Note>
+이 페이지는 OP Deployer 자체를 개발하는 사람을 위한 페이지입니다. 사용하는 컨트랙트 버전에 맞는 OP Deployer 릴리스만
+선택하면 되는 경우에는 [릴리스 레퍼런스](/ko/chain-operators/tools/op-deployer/reference/releases)를 참고하십시오.
+</Note>
+
+## 이전 버전에 수정 사항 백포트
+
+때때로 develop의 버그 수정 사항을 이전 버전의 OP Deployer에 백포트할 수 있습니다. 이 프로세스는 다음과
+같습니다.
+
+1.  아직 존재하지 않는 경우, 패치하려는 버전 계열(예: `v0.2.x`)에 대한 새 브랜치를 만듭니다. 이 브랜치는
+    보호되어야(삭제 불가) 하며 해당 계열의 최신 릴리스를 기반으로 해야 합니다. 브랜치 이름은 다음과 같이
+    지정합니다.
+    `backports/op-deployer/<lineage, i.e. v0.2.0>`.
+2.  해당 브랜치를 대상으로 백포트 PR을 엽니다. 백포트에서 원본 커밋을 반드시 참조하십시오.
+3.  해당 계열에 새 태그를 만들고 push합니다.
+
+`develop`의 수정 사항을 백포트하여 새 릴리스 `op-deployer/v0.2.1`을 만드는 예시:
+
+```
+git checkout -b backports/op-deployer/v0.2.0 op-deployer/v0.2.0
+git push origin backports/op-deployer/v0.2.0
+git checkout -b fixes/deployer-v0.2.0 backports/op-deployer/v0.2.0
+git cherry-pick <commit-hash>
+git push origin fixes/deployer-v0.2.0
+
+1. open pr from fixes/deployer-v0.2.0 targeting backports/op-deployer/v0.2.0
+2. merge the pr
+3. push a new tag for op-deployer/v0.2.1 on backports/op-deployer/v0.2.0 branch (goreleaser will create the release)
+```
+
+## 새 컨트랙트 버전 지원 추가
+
+새 컨트랙트 버전에 대한 지원을 추가하는 작업은 여러 단계로 이루어집니다. 다음은 개략적인 개요입니다.
+편의상 새 `rc` 릴리스에 대한 지원을 추가한다고 가정합니다.
+
+### 1단계: develop에 지원 추가
+
+먼저 `develop` 브랜치에 새 컨트랙트 버전에 대한 지원을 추가해야 합니다. 즉, 배포 파이프라인이 새 버전에
+필요한 모든 변경 사항을 지원하도록 해야 합니다. 일반적으로 새 배포 변수를 전달하고, Solidity 스크립트/OPCM의
+ABI 변경에 대응하는 작업이 포함됩니다.
+
+### 2단계: 게시된 artifact 추가
+
+모노레포의 루트에서 다음을 실행합니다.
+
+```bash
+cd packages/contracts-bedrock
+just clean
+just build
+bash scripts/ops/calculate-checksum.sh
+# copy the outputted checksum
+cd ../../op-deployer
+just calculate-artifacts-hash <checksum>
+```
+
+이렇게 하면 artifact의 체크섬과 artifact tarball의 해시가 계산됩니다. OP Deployer는 이 값을 사용하여 태그된
+컨트랙트 locator를 다운로드하고 검증합니다.
+
+이제 새 artifact tarball을 다운로드할 수 있도록 `standard/standard.go`를 이 값으로 업데이트합니다.
+
+```go
+// Add a new const for your release
+
+const ContractsVXTag = "op-contracts/vX.Y.Z"
+
+var taggedReleases = map[string]TaggedRelease{
+// Other releases...
+ContractsVXTag: {
+ArtifactsHash: common.HexToHash("<the artifacts hash>"),
+ContentHash:   common.HexToHash("<the checksum>"),
+},
+}
+
+// Update the L1/L2 versions accordingly
+func IsSupportedL1Version(tag string) bool {
+return tag == ContractsVXTag
+}
+```
+
+### 3단계: 새 릴리스로 SR 업데이트
+
+superchain-registry의 [표준 버전](https://github.com/ethereum-optimism/superchain-registry/tree/main/validation/standard)에 새 RC를 추가합니다.
+
+### 4단계: validation 패키지 업데이트
+
+SR은 `validation` 패키지를 통해 OP Deployer로 가져옵니다. 모노레포의 루트에서 다음 명령을 실행하여
+업데이트합니다.
+
+```shell
+go get -u github.com/ethereum-optimism/superchain-registry/validation@<SR commit SHA>
+```
+
+이것으로 완료입니다!

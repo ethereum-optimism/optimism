@@ -1,5 +1,6 @@
-//! Error type when building the discovery service.
+//! Error types of the discovery service.
 
+use libp2p::Multiaddr;
 use thiserror::Error;
 
 /// An error that can occur when building the discovery service.
@@ -22,4 +23,15 @@ pub enum Discv5BuilderError {
     /// which is not bound in advance.
     #[error("no discovery UDP port to advertise")]
     UdpPortZero,
+}
+
+/// An error that can occur when advertising the gossip TCP port in the ENR.
+#[derive(Debug, Error)]
+pub enum AdvertiseTcpPortError {
+    /// The ENR leaves its TCP port to gossip, but the gossip address has no TCP port.
+    #[error("no TCP port to advertise in the gossip address {0}")]
+    NoGossipTcpPort(Multiaddr),
+    /// Failed to write the gossip TCP port into the ENR.
+    #[error("failed to update the ENR")]
+    EnrUpdateFailed(#[source] enr::Error),
 }

@@ -63,6 +63,11 @@ impl Metrics {
     /// gossipsub `message_id` function, are counted by [`Self::MESSAGE_ID_INVALID_SNAPPY`].
     pub const INVALID_MESSAGE: &str = "kona_node_gossip_invalid_message";
 
+    /// Identifier for the counter of inbound connections the gate refused, by reason:
+    /// `blocked_peer`, `banned_peer`, `blocked_address` or `blocked_subnet`. op-node counts its
+    /// gater's decisions in `op_node_default_p2p_accepts`, by whether it allowed them.
+    pub const INBOUND_CONNECTIONS_REFUSED: &str = "kona_node_gossip_inbound_connections_refused";
+
     /// Identifier for the counter that tracks inbound frames the gossipsub `message_id` function
     /// could not decompress within the gossip size bound.
     ///
@@ -130,6 +135,10 @@ impl Metrics {
             "Duration of block validation in seconds"
         );
         metrics::describe_counter!(Self::BLOCK_VERSION, "Distribution of block versions");
+        metrics::describe_counter!(
+            Self::INBOUND_CONNECTIONS_REFUSED,
+            "Number of inbound connections the gate refused, by reason"
+        );
         metrics::describe_counter!(
             Self::INVALID_MESSAGE,
             "Number of inbound gossip messages the block handler rejected before block validation, by reason"
@@ -208,6 +217,11 @@ impl Metrics {
         metrics::counter!(Self::INVALID_MESSAGE, "reason" => "invalid_snappy_length").absolute(0);
         metrics::counter!(Self::INVALID_MESSAGE, "reason" => "decode_error").absolute(0);
         metrics::counter!(Self::INVALID_MESSAGE, "reason" => "unknown_topic").absolute(0);
+
+        // Inbound connections the gate refused, by reason
+        for reason in ["blocked_peer", "banned_peer", "blocked_address", "blocked_subnet"] {
+            metrics::counter!(Self::INBOUND_CONNECTIONS_REFUSED, "reason" => reason).absolute(0);
+        }
 
         // Malformed frames caught in the message-id function (per receipt, before dedup)
         metrics::counter!(Self::MESSAGE_ID_INVALID_SNAPPY).absolute(0);

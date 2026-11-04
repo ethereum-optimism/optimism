@@ -1,0 +1,193 @@
+---
+title: 크로스체인 이벤트 읽기 (tic-tac-toe)
+description: 수평 확장 가능한 TicTacToe 구현이 CrossL2Inbox 이벤트 읽기를 사용하여 interop 체인 전반에서 게임 플레이를 조정하는 방식을 이해합니다.
+diataxis: explanation
+---
+
+<Info>OP Stack 상호운용성(interop)은 Lagoon 하드포크와 함께 활성화됩니다.</Info>
+이 페이지에서는 수평 확장 가능한 TicTacToe 구현을 설명합니다. 이 [구현](https://github.com/ethereum-optimism/supersim/blob/main/contracts/src/tictactoe/TicTacToe.sol)을 사용하면 플레이어는 크로스체인 호출 없이 크로스체인 이벤트 읽기에 의존하여 어느 체인에서든 서로 게임을 할 수 있습니다. OP Stack interop은 1블록의 지연 시간으로 이벤트 읽기를 지원할 수 있으므로, 사용자 경험은 **단일 체인 구현과 동일**합니다.
+
+<Info>
+  게임 UI가 플레이어에게 표시되는 방식은 [프런트엔드 문서](https://github.com/ethereum-optimism/supersim/tree/main/examples/tictactoe)를 참조하십시오.
+</Info>
+
+## 작동 방식
+
+플레이어는 로컬 뷰만 유지하며, 게임의 순서는 이벤트를 사용하여 정의합니다. 기본적으로 체인은 자체 상호운용 의존성 집합(dependency set)에도 포함되므로, 같은 체인에 있는 플레이어끼리도 **코드 변경 없이** 게임을 할 수 있습니다!
+
+검증된 크로스체인 이벤트를 가져올 수 있게 해 주는 시스템 predeploy는 [CrossL2Inbox](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs#crossl2inbox)입니다.
+
+```solidity
+contract ICrossL2Inbox {
+    function validateMessage(Identifier calldata _id, bytes32 _msgHash) external view;
+}
+```
+
+이 컨트랙트는 모든 체인에서 일관된 주소를 보장하기 위해 **CREATE2** 배포에 의존하며, 이 주소는 가져온 게임 이벤트의 출처를 확인하는 데 사용됩니다.
+
+<Steps>
+  <Step title="게임 참여 의사 표시">
+  게임은 게임이 시작된 체인과 고유한 nonce로 고유하게 식별됩니다. 이 식별자는 모든 이벤트 필드에 포함되므로 각 플레이어가 로컬에서 고유하게 참조할 수 있습니다.
+
+    게임을 시작하려면 플레이어가 `newGame`을 호출합니다. 이 함수는 **모든 체인의** 상대방이 반응할 수 있는 `NewGame` 이벤트를 브로드캐스트합니다.
+
+    ```solidity
+    event NewGame(uint256 chainId, uint256 gameId, address player);
+
+    function newGame() external {
+        emit NewGame(block.chainid, nextGameId, msg.sender);
+        nextGameId++;
+    }
+    ```
+  </Step>
+
+  <Step title="게임 수락하기">
+  `NewGame` 이벤트가 관찰되면, 모든 플레이어는 `NewGame` 이벤트를 참조하여 `acceptGame`을 통해 게임 참여 의사를 선언할 수 있습니다. 게임을 시작할 준비가 되었음을 생성자에게 알리기 위해 `AcceptedGame` 이벤트가 발생합니다.
+
+    ```solidity
+    event AcceptedGame(uint256 chainId, uint256 gameId, address opponent, address player);
+
+    function acceptGame(ICrossL2Inbox.Identifier calldata _newGameId, bytes calldata _newGameData) external {
+        if (_newGameId.origin != address(this)) revert IdOriginNotTicTacToe();
+        ICrossL2Inbox(Predeploys.CROSS_L2_INBOX).validateMessage(_newGameId, keccak256(_newGameData));
+
+        bytes32 selector = abi.decode(_newGameData[:32], (bytes32));
+        if (selector != NewGame.selector) revert DataNotNewGame();
+
+        ...
+
+        emit AcceptedGame(chainId, gameId, game.opponent, game.player);
+    }
+    ```
+
+    게임을 준비하기 위해 이벤트 데이터를 디코딩하고 이 게임의 로컬 뷰를 저장합니다.
+
+    ```solidity
+    (uint256 chainId, uint256 gameId, address opponent) = abi.decode(_newGameData[32:], (uint256, uint256, address));
+    if (opponent == msg.sender) revert SenderIsOpponent();
+
+    // Record Game Metadata (no moves)
+    Game storage game = games[chainId][gameId][msg.sender];
+    game.player = msg.sender;
+    game.opponent = opponent;
+    game.gameId = gameId;
+    game.lastOpponentId = _newGameId;
+    game.movesLeft = 9;
+
+    emit AcceptedGame(chainId, gameId, game.opponent, game.player);
+    ```
+  </Step>
+
+  <Step title="게임 시작하기">
+  `AcceptedGame` 이벤트가 발생하면 플레이어는 게임을 할 상대방 한 명을 선택해야 합니다. 상대방의 `AcceptedGame` 이벤트는 게임을 인스턴스화하고 `MovePlayed` 이벤트를 통해 첫 수를 두는 데 사용됩니다.
+
+    ```solidity
+    event MovePlayed(uint256 chainId, uint256 gameId, address player, uint8 _x, uint8 _y);
+
+    function startGame(ICrossL2Inbox.Identifier calldata _acceptedGameId, bytes calldata _acceptedGameData, uint8 _x, uint8 _y) external {
+        if (_acceptedGameId.origin != address(this)) revert IdOriginNotTicTacToe();
+        ICrossL2Inbox(Predeploys.CROSS_L2_INBOX).validateMessage(_acceptedGameId, keccak256(_acceptedGameData));
+
+        bytes32 selector = abi.decode(_acceptedGameData[:32], (bytes32));
+        if (selector != AcceptedGame.selector) revert DataNotAcceptedGame();
+
+        ...
+
+        emit MovePlayed(chainId, gameId, game.player, _x, _y);
+    ```
+
+    이벤트 필드에는 필요한 검증을 수행하는 데 필요한 정보가 포함되어 있습니다.
+
+    *   조회를 위한 게임 식별자
+    *   호출자가 해당 플레이어인지 여부
+    *   플레이어가 동일한 시작 체인에서 수락하는지 여부
+
+    ```solidity
+    (uint256 chainId, uint256 gameId, address player, address opponent) = // player, opponent swapped in local view
+        abi.decode(_acceptedGameData[32:], (uint256, uint256, address, address));
+
+    // The accepted game was started from this chain, from the sender
+    if (chainId != block.chainid) revert GameChainMismatch();
+    if (msg.sender != player) revert SenderNotPlayer();
+
+    // Game has not already been started with an opponent.
+    Game storage game = games[chainId][gameId][msg.sender];
+    if (game.opponent != address(0)) revert GameStarted();
+
+    // Store local view of this game
+    ...
+
+    // Locally record the move by the player with 1
+    game.moves[_x][_y] = 1;
+    game.lastOpponentId = _acceptedGameId;
+
+    emit MovePlayed(chainId, gameId, game.player, _x, _y);
+    ```
+  </Step>
+
+  <Step title="수 두기">
+  게임이 시작되면 플레이어는 상대방의 `MovePlayed` 이벤트에 반응하여 `makeMove`를 호출함으로써 계속해서 수를 둘 수 있습니다.
+
+    ```solidity
+    function makeMove(ICrossL2Inbox.Identifier calldata _movePlayedId, bytes calldata _movePlayedData, uint8 _x, uint8 _y) external {
+        if (_movePlayedId.origin != address(this)) revert IdOriginNotTicTacToe();
+        ICrossL2Inbox(Predeploys.CROSS_L2_INBOX).validateMessage(_movePlayedId, keccak256(_movePlayedData));
+
+        bytes32 selector = abi.decode(_movePlayedData[:32], (bytes32));
+        if (selector != MovePlayed.selector) revert DataNotMovePlayed();
+    }
+    ```
+
+    `acceptGame`과 유사하게 검증이 수행되며, 상대방의 수가 먼저 로컬에 기록됩니다.
+
+    *   조회를 위한 게임 식별자
+    *   호출자가 이 게임의 플레이어인지 여부
+    *   상대방 이벤트가 동일한 게임에 해당하는지 여부
+    *   제공된 이벤트가 항상 앞으로 진행되도록 보장하여 순서를 강제합니다.
+
+    ```solidity
+    (uint256 chainId, uint256 gameId,, uint8 oppX, uint8 oppY) = abi.decode(_movePlayedData[32:], (uint256, uint256, address, uint8, uint8));
+
+    // Game was instantiated for this player & the move is for the same game
+    Game storage game = games[chainId][gameId][msg.sender];
+    if (game.player != msg.sender) revert GameNotExists();
+    if (game.gameId != gameId) revert GameNotExists();
+
+    // The move played event is forward progressing from the last observed event
+    if (_movePlayedId.chainId != game.lastOpponentId.chainId) revert IdChainMismatch();
+    if (_movePlayedId.blockNumber <= game.lastOpponentId.blockNumber) revert MoveNotForwardProgressing();
+    game.lastOpponentId = _movePlayedId;
+
+    // Mark the opponents move
+    game.moves[oppX][oppY] = 2;
+    game.movesLeft--;
+    ```
+
+    수를 두면 게임이 무승부인지 승리인지 확인하여 다음에 발생시킬 이벤트를 결정합니다.
+
+    `makeMove` 함수는 상대방에게 새로운 `MovePlayed` 이벤트가 있을 때만 호출할 수 있습니다. 따라서 게임에서 승리하거나 무승부가 되면 상대방은 더 이상 게임을 진행할 수 없습니다.
+
+    ```solidity
+    // Make the players move
+    game.moves[_x][_y] = 1;
+    game.movesLeft--;
+
+    // Determine the status of the game
+    if (_isGameWon(game)) {
+        emit GameWon(chainId, gameId, game.player, _x, _y);
+    } else if (game.movesLeft == 0) {
+        emit GameDraw(chainId, gameId, game.player, _x, _y);
+    } else {
+        emit MovePlayed(chainId, gameId, game.player, _x, _y);
+    }
+    ```
+  </Step>
+</Steps>
+
+## 핵심 정리
+
+Superchain 상호운용성을 활용하면 relayer를 통한 허브/스포크 메시징에 의존하지 않는 새로운 유형의 수평 확장 가능한 컨트랙트를 구축할 수 있습니다.
+
+*   Superchain에 새 체인이 추가되면 누구나 이 컨트랙트를 설치할 수 있으며, 코드 변경 없이 즉시 게임을 할 수 있습니다. 프런트엔드는 새 체인의 추가에 반응하기만 하면 됩니다.
+*   "체인"이라는 개념을 사용자로부터 완전히 추상화할 수 있습니다. 사용자가 지갑을 연결하면 프런트엔드는 사용자가 자금을 보유한 체인 중 gas 수수료가 가장 낮은 체인을 선택하기만 하면 됩니다.
+*   이벤트 읽기는 크로스체인 상호작용에 새로운 수준의 조합성(composability)을 제공합니다. 신뢰할 수 있는 오라클이나 TicTacToe 컨트랙트에 대한 권한 또는 네이티브 통합 없이도, `GameWon` 또는 `GameLost` 이벤트를 통해 TicTacToe 게임의 결과에 따라 결과가 확정되는 [contests](/ko/app-developers/tutorials/interoperability/event-contests) 컨트랙트를 상상해 보십시오.

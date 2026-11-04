@@ -1,0 +1,66 @@
+{/*
+  Shared app-developer tutorial setup: testnet faucets and the tutorial
+  private key.
+
+  Hand-maintained; not generated. Extracted from the duplicated setup
+  sections of the app-developer tutorials (duplication census cluster S1).
+
+  Usage:
+    import TutorialSetupWalletAndFunds, { TutorialFaucets } from '/snippets/tutorial-setup-wallet-and-funds.mdx';
+
+    <TutorialFaucets />                    faucet links for Sepolia and OP Sepolia
+    <TutorialFaucets opSepolia={false} />  faucet link for Sepolia only
+    <TutorialFaucets sepolia={false} />    faucet link for OP Sepolia only
+
+    ## Add a private key to your environment
+
+    <TutorialSetupWalletAndFunds networks="both Sepolia and OP Sepolia" />
+
+  Props:
+    networks (default export, required) - prose phrase naming the network or
+      networks where the private key's address needs ETH, for example
+      "Sepolia", "OP Sepolia", or "both Sepolia and OP Sepolia".
+    sepolia, opSepolia (TutorialFaucets, optional, default true) - which
+      faucet links to show.
+
+  Consumer pages:
+    app-developers/tutorials/bridging/cross-dom-bridge-eth.mdx
+    app-developers/tutorials/bridging/cross-dom-bridge-erc20.mdx
+    app-developers/tutorials/bridging/cross-dom-solidity.mdx
+    app-developers/tutorials/bridging/standard-bridge-standard-token.mdx
+    app-developers/tutorials/transactions/sdk-estimate-costs.mdx
+    app-developers/tutorials/transactions/send-tx-from-eth.mdx
+*/}
+
+export const TutorialFaucets = ({ sepolia = true, opSepolia = true }) => (
+  <Info>
+    {sepolia && (
+      <>
+        <a href="https://sepoliafaucet.com">이 faucet</a>을 사용하여 Sepolia에서
+        ETH를 받을 수 있습니다.
+      </>
+    )}
+    {sepolia && opSepolia && " "}
+    {opSepolia && (
+      <>
+        <a href="https://console.optimism.io/faucet?utm_source=op-docs&utm_medium=docs">
+          Superchain Faucet
+        </a>
+        을 사용하여 OP Sepolia에서 ETH를 받을 수 있습니다.
+      </>
+    )}
+  </Info>
+);
+
+트랜잭션에 서명하려면 개인 키가 필요합니다.
+`export` 명령으로 개인 키를 환경 변수로 설정하십시오.
+이 개인 키가 {networks}에서 ETH를 보유한 주소에 해당하는지 확인하십시오.
+
+<Info>
+  이 튜토리얼을 위해 새 지갑을 만들고 싶으신가요?
+  [`cast`](https://book.getfoundry.sh/getting-started/installation)가 설치되어 있다면 터미널에서 `cast wallet new`를 실행하여 새 지갑을 만들고 개인 키를 얻을 수 있습니다.
+</Info>
+
+```bash
+export TUTORIAL_PRIVATE_KEY=0x...
+```

@@ -1,0 +1,21 @@
+---
+title: "노드 운영자를 위한 op-reth"
+description: "op-reth는 reth 기반의 OP Stack 실행 클라이언트입니다. rollup node와 함께 실행하는 방법과 CLI 레퍼런스를 여기에서 시작하십시오."
+diataxis: explanation
+---
+
+`op-reth`는 [reth](https://github.com/paradigmxyz/reth)를 기반으로 구축된 [OP Stack](https://docs.optimism.io/) 실행 클라이언트입니다. Optimism과 모든 OP Stack 체인에 고성능 실행 계층을 제공합니다.
+
+## 기능
+
+- **완전한 OP Stack 지원** — 입금(디파짓) 트랜잭션, L2 전용 수수료 처리 및 모든 OP Stack 프로토콜 변경 사항을 지원합니다.
+- **Superchain Registry** — [superchain registry](https://github.com/ethereum-optimism/superchain-registry)에 있는 모든 체인을 기본 지원합니다. `--chain unichain`, `--chain base` 등을 사용하십시오.
+- **고성능** — 병렬 실행과 효율적인 스토리지를 갖춘 reth의 모듈형 아키텍처를 기반으로 구축되었습니다.
+
+## 시작하기
+
+- [실행 클라이언트 구성](/ko/node-operators/guides/configuration/execution-clients): op-reth를 설치하고, 합의 클라이언트와 연결하고, OP Stack 전용 플래그를 설정합니다.
+- [Docker로 node 실행하기](/ko/node-operators/tutorials/node-from-docker): 공식 이미지로 op-reth와 op-node를 실행합니다.
+- [OP Mainnet 동기화](/ko/node-operators/op-reth/run/faq/sync-op-mainnet) — Bedrock 상태를 가져와 OP Mainnet을 처음부터 동기화합니다.
+- [op-reth CLI 이해하기](/ko/node-operators/op-reth/cli/overview) — 명령, 체인 선택, 구성이 어떻게 맞물리는지 설명합니다.
+- [CLI 레퍼런스](/ko/node-operators/op-reth/cli/op-reth) — op-reth의 전체 명령줄 레퍼런스입니다.

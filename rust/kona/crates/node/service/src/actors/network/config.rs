@@ -6,7 +6,8 @@ use kona_genesis::RollupConfig;
 use kona_gossip::{GaterConfig, PeerAddr};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_sources::BlockSigner;
-use libp2p::{Multiaddr, identity::Keypair};
+use libp2p::identity::Keypair;
+use std::{fmt, str::FromStr};
 use tokio::time::Duration;
 
 /// Configuration for kona's P2P stack.
@@ -24,8 +25,6 @@ pub struct NetworkConfig {
     /// Whether to run discovery. Without it, the node binds no UDP socket, and connects only to
     /// its static peers, the peers that dial it, and the peers added with `opp2p_connectPeer`.
     pub discovery_enabled: bool,
-    /// Whether to update the ENR socket when the gossip listen address changes.
-    pub enr_update: bool,
     /// The gossip address.
     pub gossip_address: libp2p::Multiaddr,
     /// The unsafe block signer.
@@ -55,14 +54,52 @@ pub struct NetworkConfig {
     pub gossip_signer: Option<BlockSigner>,
 }
 
-impl NetworkConfig {
-    const DEFAULT_DISCOVERY_INTERVAL: Duration = Duration::from_secs(5);
-    const DEFAULT_DISCOVERY_RANDOMIZE: Option<Duration> = None;
+/// How many peers must report the same external address before discovery advertises it. At least
+/// 2, below which discv5 panics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IpVotes(usize);
 
+impl IpVotes {
+    /// The default: discv5's, and op-node's, which is a constant.
+    pub const DEFAULT: Self = Self(10);
+
+    /// Returns `votes`, if it is at least 2.
+    pub const fn new(votes: usize) -> Option<Self> {
+        if votes < 2 { None } else { Some(Self(votes)) }
+    }
+
+    /// Returns the number of votes.
+    pub const fn get(self) -> usize {
+        self.0
+    }
+}
+
+impl FromStr for IpVotes {
+    type Err = String;
+
+    fn from_str(raw: &str) -> Result<Self, Self::Err> {
+        let votes: usize = raw.parse().map_err(|e| format!("invalid number of votes: {e}"))?;
+        Self::new(votes).ok_or_else(|| format!("needs at least 2 votes, got {votes}"))
+    }
+}
+
+impl fmt::Display for IpVotes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl NetworkConfig {
     /// Returns the [`discv5::Config`] from the CLI arguments.
-    pub fn discv5_config(listen_config: discv5::ListenConfig, static_ip: bool) -> discv5::Config {
-        // We can use a default listen config here since it
-        // will be overridden by the discovery service builder.
+    ///
+    /// With `ip_votes`, discovery updates the ENR's address once that many peers report the same
+    /// external address. Without, the ENR's address stays as it was built, for a static IP.
+    pub fn discv5_config(
+        listen_config: discv5::ListenConfig,
+        ip_votes: Option<IpVotes>,
+    ) -> discv5::Config {
+        // Discovery binds `listen_config` as is, except that a port of 0 is bound to a free port
+        // by `Discv5Builder::build`, so that the ENR can advertise it.
         let mut builder = discv5::ConfigBuilder::new(listen_config);
 
         // When a node sees too few new inbound sessions, discv5's auto-NAT strips `ip`/`udp` from
@@ -71,42 +108,16 @@ impl NetworkConfig {
         // never ran it.
         builder.auto_nat_listen_duration(None);
 
-        if static_ip {
-            builder.disable_enr_update();
+        match ip_votes {
+            Some(votes) => {
+                builder.enr_peer_update_min(votes.get());
+            }
+            None => {
+                builder.disable_enr_update();
+            }
         }
 
         builder.build()
-    }
-
-    /// Creates a new [`NetworkConfig`] with the given [`RollupConfig`] with the minimum required
-    /// fields. Generates a random keypair for the node.
-    pub fn new(
-        rollup_config: RollupConfig,
-        discovery_listen: LocalNode,
-        gossip_address: Multiaddr,
-        unsafe_block_signer: Address,
-    ) -> Self {
-        Self {
-            rollup_config,
-            discovery_config: Self::discv5_config((&discovery_listen).into(), false),
-            discovery_address: discovery_listen,
-            discovery_interval: Self::DEFAULT_DISCOVERY_INTERVAL,
-            discovery_randomize: Self::DEFAULT_DISCOVERY_RANDOMIZE,
-            discovery_enabled: true,
-            gossip_address,
-            unsafe_block_signer,
-            enr_update: true,
-            keypair: Keypair::generate_secp256k1(),
-            bootnodes: Default::default(),
-            static_peers: Default::default(),
-            bootstore: Default::default(),
-            gater_config: Default::default(),
-            gossip_config: Default::default(),
-            scoring: Default::default(),
-            topic_scoring: Default::default(),
-            monitor_peers: Default::default(),
-            gossip_signer: Default::default(),
-        }
     }
 }
 
@@ -119,28 +130,34 @@ mod tests {
         discv5::ListenConfig::from_ip(IpAddr::V4(Ipv4Addr::LOCALHOST), 0)
     }
 
+    /// discv5 panics below 2 votes, so they can't be made, nor parsed.
     #[test]
-    fn discv5_config_disables_auto_nat() {
-        for static_ip in [false, true] {
-            let config = NetworkConfig::discv5_config(listen(), static_ip);
-            assert_eq!(config.auto_nat_listen_duration, None, "static_ip = {static_ip}");
-        }
+    fn ip_votes_are_at_least_2() {
+        assert_eq!(IpVotes::new(0), None);
+        assert_eq!(IpVotes::new(1), None);
+        assert_eq!(IpVotes::new(2).map(IpVotes::get), Some(2));
+        assert_eq!("10".parse(), Ok(IpVotes::DEFAULT));
+        assert!("1".parse::<IpVotes>().is_err());
+        assert!("two".parse::<IpVotes>().is_err());
     }
 
     #[test]
-    fn new_disables_auto_nat() {
-        let local_node = LocalNode::new(
-            enr::k256::ecdsa::SigningKey::from_bytes(&[1u8; 32].into()).unwrap(),
-            IpAddr::V4(Ipv4Addr::LOCALHOST),
-            0,
-            0,
-        );
-        let config = NetworkConfig::new(
-            RollupConfig::default(),
-            local_node,
-            Multiaddr::empty(),
-            Address::ZERO,
-        );
-        assert_eq!(config.discovery_config.auto_nat_listen_duration, None);
+    fn discv5_config_disables_auto_nat() {
+        for ip_votes in [Some(IpVotes::DEFAULT), None] {
+            let config = NetworkConfig::discv5_config(listen(), ip_votes);
+            assert_eq!(config.auto_nat_listen_duration, None, "ip_votes = {ip_votes:?}");
+        }
+    }
+
+    /// With votes, the ENR's address is updated once that many peers agree on it. Without, it is
+    /// never updated.
+    #[test]
+    fn discv5_config_sets_ip_votes() {
+        let config = NetworkConfig::discv5_config(listen(), IpVotes::new(3));
+        assert!(config.enr_update);
+        assert_eq!(config.enr_peer_update_min, 3);
+
+        let config = NetworkConfig::discv5_config(listen(), None);
+        assert!(!config.enr_update);
     }
 }

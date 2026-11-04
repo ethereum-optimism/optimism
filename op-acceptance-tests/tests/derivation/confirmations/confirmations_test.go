@@ -28,7 +28,6 @@ type capturedTest struct {
 func (t capturedTest) Logger() log.Logger { return t.logger }
 
 func TestVerifierConfirmationsProtectDerivationFromShallowL1Reorg(gt *testing.T) {
-	sysgo.SkipOnKonaNode(devtest.SerialT(gt), "pins op-node and kona-node explicitly; covered by the op-node variant")
 	for _, confirmations := range []uint64{0, 4} {
 		gt.Run(fmt.Sprintf("confirmations_%d", confirmations), func(gt *testing.T) {
 			testShallowL1Reorg(gt, confirmations)
@@ -41,9 +40,9 @@ func testShallowL1Reorg(gt *testing.T, confirmations uint64) {
 	t := capturedTest{T: devtest.SerialT(gt), logger: logger}
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
 		NodeSpecs: []sysgo.MixedSingleChainNodeSpec{
-			{ELKey: "sequencer-el", CLKey: "sequencer-cl", ELKind: sysgo.MixedL2ELOpGeth, CLKind: sysgo.MixedL2CLOpNode, IsSequencer: true},
-			{ELKey: "go-el", CLKey: "go-cl", ELKind: sysgo.MixedL2ELOpGeth, CLKind: sysgo.MixedL2CLOpNode, VerifierL1Confs: confirmations},
-			{ELKey: "kona-el", CLKey: "kona-cl", ELKind: sysgo.MixedL2ELOpGeth, CLKind: sysgo.MixedL2CLKona, VerifierL1Confs: confirmations},
+			{ELKey: "sequencer-el", CLKey: "sequencer-cl", ELKind: sysgo.MixedL2ELOpReth, CLKind: sysgo.MixedL2CLOpNode, IsSequencer: true},
+			{ELKey: "go-el", CLKey: "go-cl", ELKind: sysgo.MixedL2ELOpReth, CLKind: sysgo.MixedL2CLOpNode, VerifierL1Confs: confirmations},
+			{ELKey: "kona-el", CLKey: "kona-cl", ELKind: sysgo.MixedL2ELOpReth, CLKind: sysgo.MixedL2CLKona, VerifierL1Confs: confirmations},
 		},
 		WithTestSequencer: true,
 		// Keep all manually produced empty blocks within one sequencing window.

@@ -2339,6 +2339,76 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
     }
 
+    /// @notice Tests that `finalizeWithdrawalTransaction` reverts if the AnchorStateRegistry's
+    ///         finality delay is zero, as it is when its proxy is upgraded without calling
+    ///         `initialize`.
+    function test_finalizeWithdrawalTransaction_zeroFinalityDelay_reverts() external {
+        uint256 delay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Resolve the dispute game.
+        game.resolveClaim(0, 0);
+        game.resolve();
+
+        // Warp past both the proof maturity delay and the finality delay.
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + delay + 1);
+
+        // Clear the AnchorStateRegistry's finality delay.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("AnchorStateRegistry", "disputeGameFinalityDelaySeconds");
+        vm.store(address(anchorStateRegistry), bytes32(slot.slot), bytes32(0));
+
+        // Attempt to finalize the withdrawal. This should fail.
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidRootClaim.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Set the delay again and finalize the withdrawal. This should succeed.
+        vm.prank(anchorStateRegistry.proxyAdminOwner());
+        anchorStateRegistry.setDisputeGameFinalityDelaySeconds(delay);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+    }
+
+    /// @notice Tests that `finalizeWithdrawalTransaction` reverts if the proof maturity delay is
+    ///         zero, as it is when the portal proxy is upgraded without calling `initialize`.
+    function test_finalizeWithdrawalTransaction_zeroProofMaturityDelay_reverts() external {
+        uint256 delay = optimismPortal2.proofMaturityDelaySeconds();
+
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Resolve the dispute game.
+        game.resolveClaim(0, 0);
+        game.resolve();
+
+        // Warp past both the proof maturity delay and the finality delay.
+        vm.warp(block.timestamp + delay + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
+
+        // Clear the proof maturity delay.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "proofMaturityDelaySeconds");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+        assertEq(optimismPortal2.proofMaturityDelaySeconds(), 0);
+
+        // Attempt to finalize the withdrawal. This should fail.
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ProofNotOldEnough.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Set the delay again and finalize the withdrawal. This should succeed.
+        vm.prank(optimismPortal2.proxyAdminOwner());
+        optimismPortal2.setProofMaturityDelaySeconds(delay);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+    }
+
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts if the respected game type was
     ///         updated after the dispute game was created.
     function test_finalizeWithdrawalTransaction_gameOlderThanRespectedGameTypeUpdate_reverts() external {

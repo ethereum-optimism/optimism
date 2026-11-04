@@ -107,11 +107,20 @@ func p2pPeersAndPeerStats(t devtest.T, out *node_utils.MixedOpKonaPreset) {
 	wg.Wait()
 }
 
+// Check that `opp2p_blockPeer` lists the peer as blocked, and `opp2p_unblockPeer` lifts the block.
+//
+// kona closes the connections to a peer it blocks, so it is reconnected after the unblock, for the
+// next node's turn. op-node leaves them open.
 func p2pBanPeer(t devtest.T, out *node_utils.MixedOpKonaPreset) {
 	nodes := out.L2CLNodes()
+	konaNodes := make(map[string]bool)
+	for _, node := range out.L2CLKonaNodes() {
+		konaNodes[node.Escape().Name()] = true
+	}
 	for _, node := range nodes {
 		clRPC := node_utils.GetNodeRPCEndpoint(&node)
 		clName := node.Escape().Name()
+		closesConnections := konaNodes[clName]
 
 		peers := &apis.PeerDump{}
 		require.NoError(t, node_utils.SendRPCRequest(clRPC, "opp2p_peers", peers, true), "failed to send RPC request to node %s: %s", clName)
@@ -128,13 +137,29 @@ func p2pBanPeer(t devtest.T, out *node_utils.MixedOpKonaPreset) {
 
 		require.NotEmpty(t, peerToBan, "no connected peer found")
 
+		var bannedNode *dsl.L2CLNode
+		for i := range nodes {
+			if nodes[i].PeerInfo().PeerID.String() == peerToBan {
+				bannedNode = &nodes[i]
+			}
+		}
+		require.NotNil(t, bannedNode, "peer %s is not a node of the network", peerToBan)
+
 		require.NoError(t, node_utils.SendRPCRequest[any](clRPC, "opp2p_blockPeer", nil, peerToBan), "failed to send RPC request to node %s: %s", clName)
+
+		if closesConnections {
+			bannedNode.WaitForPeerDisconnected(&node)
+		}
 
 		// Check that the peer is banned.
 		peersAfterBan := &apis.PeerDump{}
 		require.NoError(t, node_utils.SendRPCRequest(clRPC, "opp2p_peers", peersAfterBan, true), "failed to send RPC request to node %s: %s", clName)
 
-		require.Equal(t, connectedPeers, peersAfterBan.TotalConnected, "totalConnected mismatch node %s", clName)
+		if closesConnections {
+			require.Equal(t, connectedPeers-1, peersAfterBan.TotalConnected, "totalConnected mismatch node %s", clName)
+		} else {
+			require.Equal(t, connectedPeers, peersAfterBan.TotalConnected, "totalConnected mismatch node %s", clName)
+		}
 
 		contains := false
 		// Loop over all the banned peers and check that the peer is banned.
@@ -149,6 +174,12 @@ func p2pBanPeer(t devtest.T, out *node_utils.MixedOpKonaPreset) {
 
 		// Try to unban the peer.
 		require.NoError(t, node_utils.SendRPCRequest[any](clRPC, "opp2p_unblockPeer", nil, peerToBan), "failed to send RPC request to node %s: %s", clName)
+
+		if closesConnections {
+			node.ConnectPeer(bannedNode)
+			bannedNode.IsP2PConnected(&node)
+			node.IsP2PConnected(bannedNode)
+		}
 
 		// Check that the peer is unbanned.
 		peersAfterUnban := &apis.PeerDump{}

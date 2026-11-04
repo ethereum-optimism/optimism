@@ -96,7 +96,7 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 
 	// Set the batcher key to the secret key of the batcher
 	batcherCfg.BatcherKey = dp.Secrets.Batcher
-	batcher := helpers.NewL2Batcher(log, sd.RollupCfg, batcherCfg, sequencer.RollupClient(), miner.EthClient(), engine.EthClient(), engCl)
+	batcher := helpers.NewL2Batcher(log, sd.RollupCfg, batcherCfg, sequencer.RollupClient(), miner.EthClient(), engCl)
 
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l1EthCl := miner.EthClient()
@@ -281,7 +281,7 @@ func (env *L2FaultProofEnv) RotateBatcher(t helpers.Testing, newBatcherKey *ecds
 	env.Batcher = helpers.NewL2Batcher(
 		env.log, env.Sd.RollupCfg, batcherCfg,
 		env.Sequencer.RollupClient(), env.Miner.EthClient(),
-		env.Engine.EthClient(), env.engCl,
+		env.engCl,
 	)
 }
 

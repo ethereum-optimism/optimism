@@ -1,0 +1,88 @@
+---
+title: FP 시스템 컴포넌트
+description: 결함 증명 시스템(Fault Proof System)의 컴포넌트와 이들이 함께 작동하여 Optimism 생태계의 탈중앙화를 강화하는 방식에 대해 알아봅니다.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="결함 증명 시스템의 컴포넌트 스택"
+  title="결함 증명 명세"
+  href="https://specs.optimism.io/fault-proof/index.html"
+  note="이 페이지는 컴포넌트들이 어떻게 맞물려 동작하는지 설명하며, 명세 내용을 다시 서술하지 않습니다."
+/>
+
+이 페이지에서는 결함 증명(fault proof) 시스템 컴포넌트와 이들이 함께 작동하여 Optimism 생태계의 탈중앙화를 강화하는 방식을 설명합니다.
+
+결함 증명 시스템은 세 가지 주요 컴포넌트로 구성됩니다: 결함 증명 프로그램(Fault Proof Program, FPP), 결함 증명 가상 머신(Fault Proof Virtual Machine, FPVM), 분쟁 게임(dispute game) 프로토콜입니다.
+이 시스템은 궁극적으로 중앙화된 대체 수단 없이 안전한 브리징을 가능하게 하도록 설계되었습니다.
+결함 증명 시스템의 모듈식 설계는 ZK 증명을 포함하는 multi-proof의 미래를 위한 기반을 마련하며, 생태계 기여자들이 시스템을 보호하기 위한 대체 결함 증명 컴포넌트를 구축할 기회를 크게 늘려 줍니다.
+
+<Info>
+  견고한 결함 증명 시스템을 테스트하고 구축하는 데 도움을 주는 방법에 대한 자세한 내용은 [Immunefi 버그 바운티 페이지](https://immunefi.com/bounty/optimism/)를 방문하십시오.
+</Info>
+
+## 시스템 설계와 모듈성
+
+결함 증명 시스템은 세 가지 주요 컴포넌트로 구성됩니다: 결함 증명 프로그램(FPP), 결함 증명 가상 머신(FPVM), 분쟁 게임 프로토콜입니다.
+이 컴포넌트들은 함께 작동하여 네트워크상의 악의적이거나 잘못된 활동에 이의를 제기함으로써 시스템 내 신뢰와 일관성을 유지합니다.
+OP Stack의 첫 번째 결함 증명 시스템에 대한 전체 기술 안내는 아래 동영상을 참고하십시오.
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/nIN5sNc6nQM?si=TL9TcoV01PNcD8D2" title="안내: OP Stack 결함 증명 시스템 Alpha 릴리스" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen />
+
+OP Stack의 고유한 모듈식 설계는 FPP와 FPVM을 분리할 수 있게 하며, 그 결과는 다음과 같습니다.
+
+*   향후 여러 증명 시스템, 고유한 분쟁 게임, 다양한 FPVM 개발
+*   validity proof, attestation proof 또는 ZKVM을 포함하여 이러한 독립 컴포넌트를 원하는 대로 조합한 맞춤형 결함 증명 시스템
+*   여러 보안 메커니즘이 뒷받침하는 분쟁 프로토콜 내 분쟁 게임
+
+## 결함 증명 프로그램
+
+결함 증명 프로그램(FPP)은 OP Stack 결함 증명 시스템의 모듈 중 하나입니다. 
+FPP는 프로토콜의 합의(consensus) "부분"과 실행(execution) "부분"을 단일 프로세스로 결합한 것입니다. 즉, 일반적으로 HTTP를 통해 이루어지는 Engine API 호출이 대신 실행 클라이언트 코드에 대한 직접 메서드 호출로 이루어집니다.
+이 시스템 컴포넌트의 기본값은 `kona-node`와 `op-reth`를 결합한 Rust 구현인 `kona-client`입니다. 이전 구현인 `op-program`(Go로 작성된 `op-geth`와 `op-node`의 조합)은 지원 종료되었으며 현재 활성화된 Karst 하드포크를 지원하지 않습니다. [op-geth 및 op-program 지원 종료](/ko/notices/archive/op-geth-deprecation)를 참고하십시오.
+두 구현 모두 L1 입력으로부터 L2 output을 검증하기 위해 rollup 상태 전이를 실행하는 결함 증명 프로그램을 구현합니다. 이렇게 검증 가능한 output은 L1에서 분쟁 중인 output을 해결하는 데 사용될 수 있습니다.
+
+FPP는 결정론적으로 실행될 수 있도록 설계되어, 동일한 입력 데이터로 두 번 호출하면 동일한 출력뿐만 아니라 동일한 프로그램 실행 트레이스가 생성됩니다. 따라서 분쟁 해결 프로세스의 일부로 onchain VM에서 실행할 수 있습니다.
+
+모든 데이터는 [Preimage Oracle API](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs#pre-image-oracle)를 통해 조회됩니다. preimage는 onchain에서는 FPVM을 통해 제공되거나, JSON-RPC 요청으로 node에서 필요한 데이터를 다운로드할 수 있는 네이티브 "host" 구현을 통해 제공될 수 있습니다. `kona-client`의 경우 해당 네이티브 host 구현은 `kona-host`이며, onchain 실행의 일부로 실행되지 않습니다. 기본적으로 결함 증명 프로그램은 두 부분으로 나뉩니다. 이 섹션에서 다루는 "client" 결함 증명 프로그램 부분과 필요한 preimage를 가져오는 데 사용되는 "host" 부분입니다. (지원 종료된 `op-program`도 동일한 client/host 분리 구조를 따랐습니다.)
+
+## 결함 증명 가상 머신
+
+결함 증명 가상 머신(FPVM)은 OP Stack 결함 증명 시스템의 모듈 중 하나입니다.
+FPVM은 하위 수준의 명령어 실행을 담당합니다. FPP는 에뮬레이션되어야 합니다. VM 요구 사항은 낮습니다. 프로그램은 동기식이며 모든 입력은 동일한 pre-image oracle을 통해 로드되지만, 이 모든 것은 여전히 L1 EVM의 onchain에서 증명되어야 합니다.
+이를 위해 한 번에 하나의 명령어만 증명합니다. bisection 게임은 전체 실행 트레이스를 증명하는 작업을 단일 명령어로 좁힙니다. 명령어를 증명하는 방식은 FPVM마다 다를 수 있지만, 일반적으로는 다음과 같이 명령어를 증명하는 Cannon과 비슷합니다.
+
+*   명령어를 실행하기 위해 VM은 스레드 컨텍스트의 명령어 사이클과 유사한 것을 에뮬레이션합니다. 명령어를 메모리에서 읽고 해석하며, 레지스터 파일과 메모리가 약간 변경될 수 있습니다.
+*   pre-image oracle과 메모리 할당 같은 기본적인 프로그램 런타임 요구 사항을 지원하기 위해, 실행은 linux syscall의 하위 집합도 지원합니다. read/write syscall을 통해 pre-image oracle과 상호작용할 수 있습니다. 프로그램은 pre-image 요청으로 해시를 쓴 다음, 값을 한 번에 작은 청크 단위로 읽습니다.
+
+OP Stack의 모듈성은 결함 증명 프로그램(FPP)을 결함 증명 가상 머신(FPVM)과 분리하여 한 단계 높은 조합성과 두 컴포넌트에 대한 효율적인 병렬 업그레이드를 가능하게 합니다. FPVM 내에서 실행되는 FPP(client 측)는 L2 상태 전이를 표현하는 부분이며, FPVM과 FPP 간의 인터페이스는 [명세](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs)에 표준화되어 문서화되어 있습니다.
+
+이러한 분리를 통해 VM은 극도로 최소한의 상태를 유지합니다. EVM op-code 추가와 같은 Ethereum 프로토콜 변경은 VM에 영향을 주지 않습니다. 대신 프로토콜이 변경되면 FPP를 업데이트하여 node 소프트웨어에서 새 상태 전이 컴포넌트를 가져오기만 하면 됩니다. 같은 게임 콘솔에서 새 버전의 게임을 플레이하는 것처럼, L1 증명 시스템을 업데이트하여 다른 프로그램을 증명할 수 있습니다.
+
+[Cannon](/ko/op-stack/fault-proofs/cannon)은 모든 분쟁에서 사용되는 기본 FPVM입니다. [MIPS](/ko/op-stack/fault-proofs/mips)는 분쟁 게임의 모듈성 덕분에 구현할 수 있는 Cannon의 onchain 스마트 컨트랙트 구현입니다.
+
+## 분쟁 게임 프로토콜
+
+분쟁 프로토콜에서는 [DisputeGameFactory](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L24)를 통해 다양한 유형의 분쟁 게임을 생성, 관리, 업그레이드할 수 있습니다.
+이는 집계 증명 시스템(aggregate proof system)과 같은 혁신적인 기능, 그리고 onchain 바이너리 검증을 위한 `FaultDisputeGame`처럼 L2 상태 외의 대상에 대해서도 분쟁할 수 있도록 프로토콜을 확장하는 기능의 가능성을 열어 줍니다.
+
+분쟁 게임은 분쟁 프로토콜의 핵심 기본 요소입니다. 분쟁 게임은 간단한 상태 머신을 모델링하며, 유효성에 대해 분쟁할 수 있는 모든 정보에 대한 32바이트 커밋먼트로 초기화됩니다.
+분쟁 게임에는 이 커밋먼트를 참 또는 거짓으로 해결하는 함수가 있으며, 이 함수의 정의는 기본 요소를 구현하는 사람에게 맡겨집니다. 분쟁 게임 자체는 두 가지 근본적인 속성에 의존합니다.
+
+*   인센티브 호환성(Incentive Compatibility): 시스템은 공정한 참여를 보장하기 위해 거짓 claim에는 불이익을 주고 진실한 claim에는 보상을 제공합니다.
+*   해결(Resolution): 각 게임에는 root claim을 확정적으로 검증하거나 무효화하는 메커니즘이 있습니다.
+
+표준은 bisection 게임입니다. 이는 분쟁 게임의 특정 유형이며, OP Stack의 분쟁 프로토콜에서 처음 구축된 게임입니다.
+단일 블록 `n -> n+1` 상태 전이에 도달할 때까지 output root(각각 단일 L2 블록에 대응)를 기준으로 bisection을 수행합니다. 그런 다음 앞에서 설명한 것처럼 단일 블록 상태 전이의 실행 트레이스를 기준으로 bisection을 수행합니다. 이는 offchain VM의 실행 시간을 줄이기 위한 최적화입니다.
+bisection이 개별 트레이스 명령어에서의 상태에 대한 커밋먼트에 도달하면, `FaultDisputeGame`은 범용 VM을 사용하여 onchain에서 단일 명령어 step을 실행합니다.
+VM의 상태 전이 함수(`T`라고 부르겠습니다)는 `T(s, i) -> s'` 형식을 따르기만 하면 무엇이든 될 수 있습니다. 여기서 `s`는 합의된 prestate, `i`는 상태 전이 입력, `s'`는 사후 상태(post state)입니다.
+
+bisection 게임에서 범용 VM의 첫 번째 완전한 구현은 EVM 위에 단일 MIPS 스레드 컨텍스트를 포함하며, `Cannon`과 결함 증명 프로그램(원래는 `op-program`이었으나 이후 [지원 종료](/ko/notices/archive/op-geth-deprecation)되었으며, 현재 게임은 `kona-client`를 사용)이 생성한 실행 트레이스 내의 단일 명령어를 실행합니다.
+
+## 다음 단계
+
+*   Cannon과 Optimism의 결함 증명 가상 머신으로서 Cannon의 기본 동작에 대한 자세한 내용은 [Cannon FPVM](/ko/op-stack/fault-proofs/cannon)을 참고하십시오.
+*   Fault Proof Mainnet의 주요 변경 사항에 대한 자세한 안내는 [FP 보안](/ko/op-stack/fault-proofs/fp-security)을 참고하십시오.
+*   전체 FP 프로그램, FP 가상 머신, 분쟁 게임에 대한 자세한 정보는 [명세](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs)를 참고하십시오.

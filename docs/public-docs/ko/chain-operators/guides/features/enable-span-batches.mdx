@@ -1,0 +1,79 @@
+---
+title: span batch 활성화하기
+description: Delta 활성화를 확인하고 op-batcher에서 batch type을 구성하여 OP Stack 체인에서 span batch를 활성화하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+span batch는 연속된 L2 블록 구간을 단일 배치로 인코딩하여 배치 제출의 오버헤드를 줄입니다.
+이는 트랜잭션이 드물고 처리량이 낮은 체인에 특히 유용합니다.
+이 형식은 Delta 네트워크 업그레이드에서 도입되었으며, 체인은 `op-batcher` 구성을 통해 이를 선택적으로 사용할 수 있습니다.
+span batch가 무엇이며 왜 존재하는지에 대한 배경 지식은 [Span batches](/ko/op-stack/features/span-batches)를 참고하십시오.
+
+## 시작하기 전에
+
+span batch는 체인에서 Delta 업그레이드가 활성화된 이후에만 유효합니다.
+`op-node` 도출(derivation) 파이프라인은 L1 origin이 Delta 활성화 이전인 모든 span batch를 폐기하며, `dropping span batch before Delta activation` 로그를 남깁니다.
+
+<Warning>
+  체인에서 Delta가 활성화되기 전에 batcher에서 span batch를 활성화하지 마십시오.
+  검증자 node가 batcher가 게시한 span batch를 폐기하므로, 비용을 지불하고 제출한 데이터가 safe 체인을 진전시키지 못합니다.
+</Warning>
+
+## span batch 활성화
+
+<Steps>
+  <Step title="체인에서 Delta가 활성화되었는지 확인">
+    Delta 활성화 시점은 체인의 rollup 구성(`op-node`에 전달되는 `rollup.json` 파일)에 `delta_time`으로 기록됩니다.
+    `delta_time`이 설정되어 있고 L2 블록 타임스탬프가 그 값을 지나면 Delta가 활성화된 것입니다.
+
+    rollup 구성 파일에서 직접 읽거나, 실행 중인 `op-node`에 쿼리할 수 있습니다.
+
+    ```bash
+    cast rpc --rpc-url <OP_NODE_RPC_URL> optimism_rollupConfig | jq .delta_time
+    ```
+
+    결과가 과거의 타임스탬프이면 Delta가 활성화된 것입니다.
+    `null`이면 체인에 Delta가 예약되어 있지 않으므로 먼저 활성화해야 합니다.
+    새 체인의 경우, `l2GenesisDeltaTimeOffset` 배포 구성 파라미터가 genesis를 기준으로 Delta 일정을 정합니다(`0`이면 genesis에서 활성화). [rollup 배포 구성 레퍼런스](/ko/chain-operators/reference/rollup-deployment-configuration)를 참고하십시오.
+    OP Mainnet 및 OP Sepolia의 Delta 활성화 시점은 [네트워크 업그레이드](/ko/op-stack/protocol/network-upgrades)를 참고하십시오.
+  </Step>
+
+  <Step title="op-batcher에서 batch type 설정">
+    `op-batcher`의 `--batch-type` 플래그(환경 변수 `OP_BATCHER_BATCH_TYPE`)는 배치 형식을 선택합니다. `0`은 단일 배치(singular batch, 기본값), `1`은 span batch입니다.
+
+    `1`로 설정하고 batcher를 재시작하십시오.
+
+    ```bash
+    --batch-type=1
+    ```
+
+    또는 환경 변수로 설정합니다.
+
+    ```bash
+    OP_BATCHER_BATCH_TYPE=1
+    ```
+
+    선택적으로 `--max-blocks-per-span-batch`(`OP_BATCHER_MAX_BLOCKS_PER_SPAN_BATCH`)를 사용하여 단일 span batch에 추가되는 L2 블록 수의 상한을 설정할 수 있습니다.
+    기본값은 `0`이며, 이는 최대값이 없음을 의미합니다.
+    두 플래그에 대한 자세한 내용은 [batcher 구성 레퍼런스](/ko/chain-operators/reference/batcher-configuration)를 참고하십시오.
+  </Step>
+
+  <Step title="batcher 구성 확인">
+    시작 시 batcher는 채널 구성을 로그로 출력합니다.
+    `Initialized channel-config` 로그 라인을 확인하여 `batch_type=1`이 표시되는지 확인하십시오.
+
+    ```text
+    INFO [...] Initialized channel-config ... batch_type=1 ...
+    ```
+  </Step>
+</Steps>
+
+## 단일 배치로 되돌리기
+
+단일 배치는 Delta 이후에도 유효하므로, 언제든지 `--batch-type=0`을 설정하거나(`0`이 기본값이므로 `OP_BATCHER_BATCH_TYPE` 설정을 해제해도 됨) batcher를 재시작하여 다시 전환할 수 있습니다.
+
+## 다음 단계
+
+*   [span batch 설명서](/ko/op-stack/features/span-batches)에서 span batch가 무엇이며 형식이 어떻게 동작하는지 알아보십시오.
+*   [batcher 구성하기](/ko/chain-operators/guides/configuration/batcher)에서 비용과 안정성에 영향을 주는 다른 batcher 설정을 검토하십시오.
+*   전체 형식 정의는 [span batch 명세](https://specs.optimism.io/protocol/delta/span-batches.html?utm_source=op-docs&utm_medium=docs)를 읽어 보십시오.

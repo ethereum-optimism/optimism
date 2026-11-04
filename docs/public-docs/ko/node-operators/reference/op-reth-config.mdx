@@ -1,0 +1,27 @@
+---
+title: op-reth 구성 옵션
+description: op-reth CLI 레퍼런스를 찾을 수 있는 위치와 op-reth를 op-node와 함께 구성하는 방법을 설명합니다.
+diataxis: reference
+---
+
+op-reth의 플래그 레퍼런스는 한곳에 모여 있습니다.
+[op-reth CLI 레퍼런스](/ko/node-operators/op-reth/cli/overview)는 op-reth 소스 트리에서 이 문서로
+가져온 것이며, 소스와 함께 버전이 관리됩니다. 명령 체계와 구성 모델은
+해당 페이지에서 시작하거나, node 운영자가 실행하는 명령의 전체
+`--help` 출력을 보려면 [`op-reth node` 플래그 목록](/ko/node-operators/op-reth/cli/op-reth/node)으로
+바로 이동하십시오.
+
+이 페이지에는 이전에 오래된 릴리스에 고정된, 수동으로 관리되는 op-reth 플래그
+목록 사본이 있었습니다. 두 페이지 간에 플래그 정보가 어긋나지 않도록 해당 사본은 폐기되었으며,
+위의 단일 레퍼런스로 대체되었습니다.
+
+<Info>
+  **op-reth는 새로운 OP Stack 배포에 권장되는 실행 클라이언트입니다.** op-node의 `--l2.enginekind` 플래그 기본값은 `reth`이므로 두 클라이언트를 함께 사용할 때 별도의 engine-kind 구성이 필요하지 않습니다. 다른 실행 클라이언트(`geth` 또는 `erigon`)를 실행하는 경우에만 명시적으로 설정하십시오. engine 측 플래그는 [op-node 구성 옵션](/ko/node-operators/reference/op-node-config) 페이지를 참고하십시오.
+</Info>
+
+## 관련 레퍼런스
+
+*   [op-reth JSON-RPC 레퍼런스](/ko/node-operators/reference/op-reth-json-rpc)
+*   [op-reth historical proofs 구성](/ko/node-operators/reference/op-reth-historical-proof-config)
+*   [아카이브 node 구축 / op-reth pruning](/ko/node-operators/guides/management/archive-node)
+*   업스트림 상호 참조: [Reth CLI 문서](https://reth.rs/cli/reth.html)
