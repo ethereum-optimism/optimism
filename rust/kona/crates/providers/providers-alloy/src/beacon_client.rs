@@ -220,11 +220,21 @@ impl OnlineBeaconClient {
         slot: u64,
         blob_hashes: &[B256],
     ) -> Result<Vec<BoxedBlob>, BeaconClientError> {
-        let params = blob_hashes.iter().map(|hash| hash.to_string()).collect::<Vec<_>>();
+        // The Beacon API defines `versioned_hashes` as a query array:
+        // https://github.com/ethereum/beacon-APIs/blob/e20dfabd6230a3e0de8a8964fee7a4f276e480d6/apis/beacon/blobs/blobs.yaml#L20-L28
+        // Encode its default exploded form with one query parameter per hash. Some clients reject
+        // a single comma-separated value. The array also requires unique items, but a block may
+        // reference the same blob more than once, so only request each distinct hash once.
+        let params = blob_hashes
+            .iter()
+            .enumerate()
+            .filter(|(index, hash)| !blob_hashes[..*index].contains(hash))
+            .map(|(_, hash)| ("versioned_hashes", hash.to_string()))
+            .collect::<Vec<_>>();
         let response = self
             .inner
             .get(format!("{}/{}/{}", self.base, BLOBS_METHOD_PREFIX, slot))
-            .query(&[("versioned_hashes", &params.join(","))])
+            .query(&params)
             .send()
             .await?;
 
@@ -248,18 +258,22 @@ impl OnlineBeaconClient {
             .collect::<Result<Vec<_>, BeaconClientError>>()?;
 
         // Map the input blob hashes into the output while moving each blob's existing allocation.
-        // Using a vector also preserves duplicate blobs in a response.
-        blob_hashes
-            .iter()
-            .map(|blob_hash| -> Result<BoxedBlob, BeaconClientError> {
-                let position = returned_blobs
-                    .iter()
-                    .position(|candidate| candidate.versioned_hash == *blob_hash)
-                    .ok_or(BeaconClientError::BlobNotFound(blob_hash.to_string()))?;
-                let HashedBlob { blob, .. } = returned_blobs.swap_remove(position);
-                Ok(BoxedBlob { blob })
-            })
-            .collect::<Result<Vec<_>, BeaconClientError>>()
+        // The request only names each distinct hash once, so a repeated input hash reuses a copy
+        // of the blob already matched for its first occurrence.
+        let mut blobs = Vec::<BoxedBlob>::with_capacity(blob_hashes.len());
+        for (index, blob_hash) in blob_hashes.iter().enumerate() {
+            let blob = if let Some(position) =
+                returned_blobs.iter().position(|candidate| candidate.versioned_hash == *blob_hash)
+            {
+                returned_blobs.swap_remove(position).blob
+            } else if let Some(first) = blob_hashes[..index].iter().position(|h| h == blob_hash) {
+                blobs[first].blob.clone()
+            } else {
+                return Err(BeaconClientError::BlobNotFound(blob_hash.to_string()));
+            };
+            blobs.push(BoxedBlob { blob });
+        }
+        Ok(blobs)
     }
 }
 
@@ -341,22 +355,24 @@ mod tests {
 
     struct BlobResponseTest {
         requested_blob_hashes: Vec<B256>,
+        queried_blob_hashes: Vec<B256>,
         response_data: Vec<Blob>,
     }
 
     impl BlobResponseTest {
         async fn run(self) -> Result<Vec<BoxedBlob>, BeaconClientError> {
-            let required_query_param = self
-                .requested_blob_hashes
-                .iter()
-                .map(B256::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
             let server = MockServer::start();
             let blobs_mock = server.mock(|when, then| {
-                when.method(GET)
-                    .path(format!("/eth/v1/beacon/blobs/{TEST_SLOT}"))
-                    .query_param("versioned_hashes", required_query_param);
+                self.queried_blob_hashes.iter().fold(
+                    when.method(GET)
+                        .path(format!("/eth/v1/beacon/blobs/{TEST_SLOT}"))
+                        .query_param_count(
+                            "^versioned_hashes$",
+                            ".*",
+                            self.queried_blob_hashes.len(),
+                        ),
+                    |when, hash| when.query_param("versioned_hashes", hash.to_string()),
+                );
                 then.status(200).json_body(json!({
                     "execution_optimistic": false,
                     "finalized": false,
@@ -425,6 +441,7 @@ mod tests {
 
         let blobs = BlobResponseTest {
             requested_blob_hashes: vec![blob_a_hash, blob_b_hash],
+            queried_blob_hashes: vec![blob_a_hash, blob_b_hash],
             response_data: vec![blob_b, extra_blob, TEST_BLOB_A],
         }
         .run()
@@ -438,11 +455,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_filtered_beacon_blobs_preserves_duplicates() {
+    async fn test_filtered_beacon_blobs_deduplicates_query_and_preserves_duplicates() {
         let blob_hash = B256::from_hex(TEST_BLOB_A_HASH_HEX).unwrap();
         let blobs = BlobResponseTest {
             requested_blob_hashes: vec![blob_hash, blob_hash],
-            response_data: vec![TEST_BLOB_A, TEST_BLOB_A],
+            queried_blob_hashes: vec![blob_hash],
+            response_data: vec![TEST_BLOB_A],
         }
         .run()
         .await
@@ -458,15 +476,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_filtered_beacon_blobs_requires_duplicate_response_cardinality() {
-        let blob_hash = B256::from_hex(TEST_BLOB_A_HASH_HEX).unwrap();
+    async fn test_filtered_beacon_blobs_reports_missing_blob() {
+        let blob_a_hash = B256::from_hex(TEST_BLOB_A_HASH_HEX).unwrap();
+        let blob_b_hash = blob_versioned_hash(&FixedBytes::repeat_byte(2)).unwrap();
         let response = BlobResponseTest {
-            requested_blob_hashes: vec![blob_hash, blob_hash],
+            requested_blob_hashes: vec![blob_a_hash, blob_b_hash, blob_b_hash],
+            queried_blob_hashes: vec![blob_a_hash, blob_b_hash],
             response_data: vec![TEST_BLOB_A],
         }
         .run()
         .await;
-        let expected_hash = blob_hash.to_string();
+        let expected_hash = blob_b_hash.to_string();
 
         assert!(
             matches!(
