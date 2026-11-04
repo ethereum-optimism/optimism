@@ -68,6 +68,6 @@ func SetupReorgTestActors(t Testing, dp *e2eutils.DeployParams, sd *e2eutils.Set
 	verifEngine, verifier := SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
 	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
-		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+		rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 	return sd, dp, miner, sequencer, seqEngine, verifier, verifEngine, batcher
 }
