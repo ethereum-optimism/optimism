@@ -95,8 +95,8 @@ func (g *GenesisState) run(client *forge.Client, fn func(client *forge.Client, f
 	stateIn := filepath.Join(dir, "in.json")
 	stateOut := filepath.Join(dir, "out.json")
 	senderOut := filepath.Join(dir, "sender.json")
-	// forge deploys the script contract from the sender, so the state always holds the sender, to
-	// reset its nonce.
+	// Offline, forge starts the sender at nonce 1, so the state always holds the sender, to reset
+	// its nonce.
 	in := g.Allocs.Copy()
 	in.Accounts[g.Sender] = g.account(g.Sender)
 	if err := jsonutil.WriteJSON(in, ioutil.ToBasicFile(stateIn, 0o644)); err != nil {
