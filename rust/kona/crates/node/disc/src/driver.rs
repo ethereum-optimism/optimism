@@ -769,13 +769,63 @@ mod tests {
             .expect("a public node kept a saved loopback record");
     }
 
+    /// The bootstore should save only the records a session confirmed, and the bootnodes, not the
+    /// rest of discv5's table. The table also holds records from other nodes' answers to our
+    /// lookups, which nothing has shown are at the address in them, and the bootstore would dial
+    /// them after a restart.
+    ///
+    /// The node allows private addresses, and every record is on loopback or a documentation
+    /// address, so it contacts nothing outside this host.
+    #[tokio::test]
+    async fn test_bootstore_saves_only_confirmed_records() {
+        // Kept in the bootstore, and the documentation address is removed from it at startup, so
+        // a read with the one and without the other was written after startup.
+        let kept = enr_at(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), BOOTSTORE_CHAIN_ID);
+        let removed = enr_at(IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1)), BOOTSTORE_CHAIN_ID);
+        let (driver, dir) = driver_with_bootstore(
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
+            &[kept.clone(), removed.clone()],
+        );
+        // As if another node had returned it to one of our lookups.
+        let unconfirmed = enr_at(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), BOOTSTORE_CHAIN_ID);
+        driver.disc.add_enr(unconfirmed.clone()).expect("the table takes the record");
+        let path = dir.path().join("bootstore.json");
+        let (_handler, _records) = driver.start();
+
+        let saved_after_startup = async {
+            loop {
+                let store: BootStore =
+                    BootStoreFile::Custom(path.clone()).try_into().expect("the bootstore opens");
+                let saved = store.valid_peers().into_iter().cloned().collect::<Vec<_>>();
+                if saved.contains(&kept) && !saved.contains(&removed) {
+                    return saved;
+                }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        };
+        let saved = tokio::time::timeout(Duration::from_secs(5), saved_after_startup)
+            .await
+            .expect("the driver saves its bootstore at startup");
+        // TODO(#23766): fails, as the driver saves its whole table.
+        assert!(!saved.contains(&unconfirmed), "the bootstore saved an unconfirmed record");
+    }
+
     /// The chain ID of the bootstore tests: not in the registry, so it has no bootnodes of its own.
     const BOOTSTORE_CHAIN_ID: u64 = 0xdead_beef;
 
-    /// A driver that advertises a public address, with a bootstore of `records` in a new temporary
-    /// directory, which is removed when the returned guard drops. The node has no bootnodes, and
-    /// listens on loopback whatever it advertises, so it contacts nobody.
+    /// A driver that advertises a public address, with a bootstore of `records`, see
+    /// [`driver_with_bootstore`].
     fn public_driver_with_bootstore(records: &[Enr]) -> (Discv5Driver, tempfile::TempDir) {
+        driver_with_bootstore(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), records)
+    }
+
+    /// A driver that advertises `advertised`, with a bootstore of `records` in a new temporary
+    /// directory, which is removed when the returned guard drops. The node has no bootnodes, and
+    /// listens on loopback whatever it advertises.
+    fn driver_with_bootstore(
+        advertised: IpAddr,
+        records: &[Enr],
+    ) -> (Discv5Driver, tempfile::TempDir) {
         let dir = tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
         let mut store: BootStore =
@@ -790,7 +840,7 @@ mod tests {
             unreachable!()
         };
         let mut driver = Discv5Driver::builder(
-            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 0, 0),
+            LocalNode::new(secret_key, advertised, 0, 0),
             BOOTSTORE_CHAIN_ID,
             ConfigBuilder::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).into()).build(),
         )
