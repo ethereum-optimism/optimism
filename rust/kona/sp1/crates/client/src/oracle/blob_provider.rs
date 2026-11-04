@@ -14,7 +14,7 @@ use kzg_rs::get_kzg_settings;
 /// returned at most once per instance.
 #[derive(Clone, Debug, Default)]
 pub struct BlobStore {
-    /// Verified blobs keyed by versioned hash, in witness order per hash.
+    /// Verified blobs keyed by versioned hash, one entry per witness occurrence.
     blobs_by_hash: Arc<BTreeMap<B256, Vec<Blob>>>,
     /// Number of blobs per versioned hash already returned by this instance.
     consumed: BTreeMap<B256, usize>,
@@ -69,7 +69,9 @@ impl BlobProvider for BlobStore {
                     .get(hash)
                     .and_then(|blobs| blobs.get(*taken))
                     .unwrap_or_else(|| {
-                        panic!("requested blob hash not present in BlobStore: {hash}")
+                        panic!(
+                            "requested blob hash missing or already consumed in BlobStore: {hash}"
+                        )
                     });
                 *taken += 1;
                 Box::new(*blob)
@@ -85,6 +87,10 @@ mod tests {
     use kona_proof::block_on;
     use kona_protocol::BlockInfo;
 
+    fn store_with<const N: usize>(entries: [(B256, Vec<Blob>); N]) -> BlobStore {
+        BlobStore { blobs_by_hash: Arc::new(BTreeMap::from(entries)), consumed: BTreeMap::new() }
+    }
+
     // Looking up blobs must be by versioned hash, not by position in the witness — derivation
     // does not guarantee that requested hashes arrive in the same order they were packed in the
     // witness.
@@ -97,13 +103,7 @@ mod tests {
         let mut blob_b = Blob::default();
         blob_b[0] = 0xBB;
 
-        let mut store = BlobStore {
-            blobs_by_hash: Arc::new(BTreeMap::from([
-                (hash_b, vec![blob_b]),
-                (hash_a, vec![blob_a]),
-            ])),
-            consumed: BTreeMap::new(),
-        };
+        let mut store = store_with([(hash_b, vec![blob_b]), (hash_a, vec![blob_a])]);
 
         let result =
             block_on(store.get_and_validate_blobs(&BlockInfo::default(), &[hash_b, hash_a]))
@@ -115,34 +115,41 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "requested blob hash not present in BlobStore")]
+    #[should_panic(expected = "requested blob hash missing or already consumed in BlobStore")]
     fn missing_hash_request_panics() {
         let hash_a = B256::repeat_byte(0xAA);
         let hash_missing = B256::repeat_byte(0xCC);
-        let mut store = BlobStore {
-            blobs_by_hash: Arc::new(BTreeMap::from([(hash_a, vec![Blob::default()])])),
-            consumed: BTreeMap::new(),
-        };
+        let mut store = store_with([(hash_a, vec![Blob::default()])]);
         let _ = block_on(store.get_and_validate_blobs(&BlockInfo::default(), &[hash_missing]));
     }
 
-    // Clones share blob storage but consume independently; each instance still returns a
-    // stored blob at most once.
+    /// Pins that a clone's reads do not consume the original's blobs.
     #[test]
-    #[should_panic(expected = "requested blob hash not present in BlobStore")]
-    fn blob_is_consumed_once_per_instance() {
+    fn clones_consume_independently() {
         let hash = B256::repeat_byte(0xAA);
-        let mut store = BlobStore {
-            blobs_by_hash: Arc::new(BTreeMap::from([(hash, vec![Blob::default()])])),
-            consumed: BTreeMap::new(),
-        };
+        let mut store = store_with([(hash, vec![Blob::default()])]);
         let mut clone = store.clone();
+        block_on(clone.get_and_validate_blobs(&BlockInfo::default(), &[hash])).unwrap();
+        block_on(store.get_and_validate_blobs(&BlockInfo::default(), &[hash])).unwrap();
+    }
 
-        block_on(clone.get_and_validate_blobs(&BlockInfo::default(), &[hash]))
-            .expect("clone returns the blob");
-        block_on(store.get_and_validate_blobs(&BlockInfo::default(), &[hash]))
-            .expect("original returns the blob independently of the clone");
-        let _ = block_on(store.get_and_validate_blobs(&BlockInfo::default(), &[hash]));
+    /// Pins that a stored blob is returned at most once per instance.
+    #[test]
+    #[should_panic(expected = "requested blob hash missing or already consumed in BlobStore")]
+    fn blob_is_returned_once() {
+        let hash = B256::repeat_byte(0xAA);
+        let mut store = store_with([(hash, vec![Blob::default()])]);
+        let _ = block_on(store.get_and_validate_blobs(&BlockInfo::default(), &[hash, hash]));
+    }
+
+    /// Pins that a hash witnessed twice serves two requests.
+    #[test]
+    fn duplicate_hash_serves_each_occurrence() {
+        let hash = B256::repeat_byte(0xAA);
+        let mut store = store_with([(hash, vec![Blob::default(), Blob::default()])]);
+        let blobs =
+            block_on(store.get_and_validate_blobs(&BlockInfo::default(), &[hash, hash])).unwrap();
+        assert_eq!(blobs.len(), 2);
     }
 
     // The local length asserts reject a mismatch before any blob is decoded or verified.
