@@ -11,7 +11,7 @@ use discv5::{Enr, ListenConfig};
 use crate::actors::network::TestNetwork;
 use alloy_primitives::Address;
 use async_trait::async_trait;
-use kona_disc::LocalNode;
+use kona_disc::{AddrFilter, LocalNode};
 use kona_genesis::RollupConfig;
 use kona_gossip::{GossipTransport, PeerAddr};
 use kona_node_service::{
@@ -44,6 +44,9 @@ pub(crate) struct TestNetworkBuilder {
     udp_port: Option<u16>,
     /// The IP the next node built listens on, if not `127.0.0.1`.
     listen_ip: Option<IpAddr>,
+    /// Which addresses the next node built uses in other nodes' records, if not the default for
+    /// its address.
+    addr_filter: Option<AddrFilter>,
     /// How many peers must agree on the next node's address before it advertises it, if not
     /// [`IpVotes::DEFAULT`].
     ip_votes: Option<IpVotes>,
@@ -82,6 +85,7 @@ impl TestNetworkBuilder {
             discovery_enabled: true,
             udp_port: None,
             listen_ip: None,
+            addr_filter: None,
             ip_votes: None,
             unsafe_block_signer: Address::ZERO,
             custom_keypair: None,
@@ -130,6 +134,14 @@ impl TestNetworkBuilder {
     /// advertises `ip` unless that is unspecified, as with no `--p2p.advertise.ip`.
     pub(crate) const fn with_listen_ip(mut self, ip: IpAddr) -> Self {
         self.listen_ip = Some(ip);
+        self
+    }
+
+    /// Makes the next node built, and only that one, use `addr_filter` for the addresses in other
+    /// nodes' records, instead of the default for its address. A node on all interfaces allows
+    /// private addresses, as a devnet node there sets `--p2p.discovery.private`.
+    pub(crate) const fn with_addr_filter(mut self, addr_filter: AddrFilter) -> Self {
+        self.addr_filter = Some(addr_filter);
         self
     }
 
@@ -217,6 +229,16 @@ impl TestNetworkBuilder {
             Some(ip_votes),
         );
 
+        // A node on all interfaces allows private addresses, as a devnet node there sets
+        // `--p2p.discovery.private`.
+        let addr_filter = self.addr_filter.take().unwrap_or_else(|| {
+            if node_addr.is_unspecified() {
+                AddrFilter::AllowPrivate
+            } else {
+                AddrFilter::for_advertised_ip(node_addr)
+            }
+        });
+
         let gossip_multiaddr = if self.in_memory {
             Multiaddr::empty().with(Protocol::Memory(0))
         } else {
@@ -234,6 +256,7 @@ impl TestNetworkBuilder {
             discovery_config,
         )
         .with_discovery_enabled(self.discovery_enabled)
+        .with_discovery_addr_filter(addr_filter)
         .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into())
         .with_static_peers(std::mem::take(&mut self.static_peers));
         if let Some(interval) = self.discovery_interval {

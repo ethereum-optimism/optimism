@@ -62,7 +62,7 @@ mod builder;
 pub use builder::{Discv5Builder, LocalNode};
 
 mod error;
-pub use error::{AdvertiseTcpPortError, Discv5BuilderError, RelayAddrError};
+pub use error::{AddrError, AdvertiseTcpPortError, Discv5BuilderError};
 
 mod driver;
 pub use driver::{DiscoveredPeer, Discv5Driver};
@@ -74,7 +74,7 @@ mod metrics;
 pub use metrics::Metrics;
 
 mod scope;
-pub use scope::AddrScope;
+pub use scope::{AddrFilter, AddrScope};
 
 #[cfg(test)]
 mod test_utils;

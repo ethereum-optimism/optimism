@@ -2,8 +2,7 @@
 
 use discv5::{Config, Discv5, Enr, ListenConfig};
 use enr::k256;
-use kona_peers::{BootNode, BootNodes, BootStoreFile, OpStackEnr};
-use libp2p::multiaddr;
+use kona_peers::{BootNodes, BootStoreFile, OpStackEnr};
 use socket2::{Domain, Protocol, Socket, Type};
 use std::{
     net::{IpAddr, SocketAddr},
@@ -11,7 +10,7 @@ use std::{
 };
 use tokio::time::Duration;
 
-use crate::{AddrScope, Discv5BuilderError, Discv5Driver, driver::CurrentSpanExecutor};
+use crate::{AddrFilter, Discv5BuilderError, Discv5Driver, driver::CurrentSpanExecutor};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// The local node information exposed by the discovery service to the network.
@@ -161,23 +160,6 @@ fn advertised_udp_port(config: &Config, local_node: &LocalNode) -> Result<u16, D
     Ok(listen_port)
 }
 
-/// Returns the IP addresses of `bootnode`: those in its record, or in its enode URL.
-pub(crate) fn bootnode_ips(bootnode: &BootNode) -> Vec<IpAddr> {
-    match bootnode {
-        BootNode::Enr(enr) => {
-            enr.ip4().map(IpAddr::V4).into_iter().chain(enr.ip6().map(IpAddr::V6)).collect()
-        }
-        BootNode::Enode(addr) => addr
-            .iter()
-            .filter_map(|protocol| match protocol {
-                multiaddr::Protocol::Ip4(ip) => Some(IpAddr::V4(ip)),
-                multiaddr::Protocol::Ip6(ip) => Some(IpAddr::V6(ip)),
-                _ => None,
-            })
-            .collect(),
-    }
-}
-
 /// Discovery service builder.
 #[derive(Debug, Clone)]
 pub struct Discv5Builder {
@@ -199,6 +181,9 @@ pub struct Discv5Builder {
     store_interval: Option<Duration>,
     /// Whether or not to forward the initial set of valid ENRs to the gossip layer.
     forward: bool,
+    /// Which addresses discovery uses in other nodes' records, if not the default for the IP the
+    /// node advertises.
+    addr_filter: Option<AddrFilter>,
 }
 
 impl Discv5Builder {
@@ -214,6 +199,7 @@ impl Discv5Builder {
             bootnodes: BootNodes::default(),
             store_interval: None,
             forward: true,
+            addr_filter: None,
         }
     }
 
@@ -253,8 +239,8 @@ impl Discv5Builder {
         self
     }
 
-    /// Sets the discovery config for the discovery service. Its table filter is replaced by one
-    /// for our own address scope, see [`AddrScope::table_filter`].
+    /// Sets the discovery config for the discovery service. Its table filter is replaced by the one
+    /// for the builder's [`AddrFilter`], see [`Self::with_addr_filter`].
     pub fn with_discovery_config(mut self, config: Config) -> Self {
         self.discovery_config = config;
         self
@@ -263,6 +249,15 @@ impl Discv5Builder {
     /// Sets the interval to randomize discovery peers.
     pub const fn with_discovery_randomize(mut self, interval: Option<Duration>) -> Self {
         self.randomize = interval;
+        self
+    }
+
+    /// Sets which addresses discovery uses in other nodes' records. By default, private addresses
+    /// are allowed if the node advertises a loopback or LAN address, see
+    /// [`AddrFilter::for_advertised_ip`]. The discovery config's table filter is replaced by this
+    /// filter's.
+    pub const fn with_addr_filter(mut self, addr_filter: AddrFilter) -> Self {
+        self.addr_filter = Some(addr_filter);
         self
     }
 
@@ -283,12 +278,9 @@ impl Discv5Builder {
 
         bind_free_listen_port(&mut config, &local_node)?;
         local_node.udp_port = advertised_udp_port(&config, &local_node)?;
-        // Records reach us through the bootnodes while we have no IP. The registry's are on public
-        // networks, so on a chain in the registry the node is public.
-        let registry_bootnodes = BootNodes::from_chain_id(chain_id);
-        let bootnodes = self.bootnodes.0.iter().chain(&registry_bootnodes.0);
-        let own_scope = AddrScope::own(local_node.ip, bootnodes.flat_map(bootnode_ips));
-        config.table_filter = AddrScope::table_filter(own_scope);
+        let addr_filter =
+            self.addr_filter.unwrap_or_else(|| AddrFilter::for_advertised_ip(local_node.ip));
+        config.table_filter = addr_filter.table_filter();
 
         let enr = local_node.build_enr(chain_id).map_err(Discv5BuilderError::EnrBuildFailed)?;
         // discv5 spawns its tasks when the driver starts it, which is in the driver's span.
@@ -298,8 +290,9 @@ impl Discv5Builder {
         let disc = Discv5::new(enr, key.into(), config)
             .map_err(|e| Discv5BuilderError::Discv5CreationFailed(e.to_string()))?;
         let mut driver =
-            Discv5Driver::new(disc, interval, chain_id, own_scope, self.bootstore, self.bootnodes)
+            Discv5Driver::new(disc, interval, chain_id, self.bootstore, self.bootnodes)
                 .map_err(|e| Discv5BuilderError::Discv5CreationFailed(e.to_string()))?;
+        driver.addr_filter = addr_filter;
         driver.store_interval = self.store_interval.unwrap_or(Duration::from_secs(60));
         driver.forward = self.forward;
         driver.remove_interval = self.randomize;
@@ -402,39 +395,32 @@ mod tests {
         assert!(std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, port)).is_err());
     }
 
-    /// The builder installs the table filter for our own scope in discv5, chosen from the IP we
-    /// advertise, or from our bootnodes while we advertise none: the most public of theirs. The
-    /// node listens on loopback whatever it advertises, and isn't started, so nothing is sent.
+    /// The builder installs the table filter for its address filter in discv5: by default, private
+    /// addresses only if the node advertises a loopback or LAN address. The node listens on
+    /// loopback whatever it advertises, and isn't started, so nothing is sent.
     #[rstest]
-    #[case::public("1.2.3.4", &[], AddrScope::Public, [false, false, true])]
-    #[case::lan("10.0.0.1", &[], AddrScope::Lan, [false, true, true])]
-    #[case::loopback("127.0.0.1", &[], AddrScope::Loopback, [true, true, true])]
-    #[case::special("192.0.2.1", &[], AddrScope::Public, [false, false, true])]
-    #[case::unspecified("0.0.0.0", &[], AddrScope::Public, [false, false, true])]
-    #[case::unspecified_lan_bootnode("0.0.0.0", &["10.0.0.2"], AddrScope::Lan, [false, true, true])]
-    #[case::unspecified_loopback_bootnode(
+    #[case::public("1.2.3.4", None, AddrFilter::PublicOnly, [false, false, true])]
+    #[case::lan("10.0.0.1", None, AddrFilter::AllowPrivate, [true, true, true])]
+    #[case::loopback("127.0.0.1", None, AddrFilter::AllowPrivate, [true, true, true])]
+    #[case::special("192.0.2.1", None, AddrFilter::PublicOnly, [false, false, true])]
+    #[case::unspecified("0.0.0.0", None, AddrFilter::PublicOnly, [false, false, true])]
+    #[case::unspecified_allowing_private(
         "0.0.0.0",
-        &["127.0.0.2"],
-        AddrScope::Loopback,
+        Some(AddrFilter::AllowPrivate),
+        AddrFilter::AllowPrivate,
         [true, true, true]
     )]
-    #[case::unspecified_public_and_loopback_bootnodes(
-        "0.0.0.0",
-        &["127.0.0.2", "1.2.3.5"],
-        AddrScope::Public,
-        [false, false, true]
-    )]
-    #[case::advertised_wins_over_bootnodes(
-        "1.2.3.4",
-        &["127.0.0.2"],
-        AddrScope::Public,
+    #[case::loopback_public_only(
+        "127.0.0.1",
+        Some(AddrFilter::PublicOnly),
+        AddrFilter::PublicOnly,
         [false, false, true]
     )]
     #[tokio::test]
-    async fn test_build_installs_table_filter_for_own_scope(
+    async fn test_build_installs_table_filter(
         #[case] advertised: IpAddr,
-        #[case] bootnodes: &[&str],
-        #[case] own_scope: AddrScope,
+        #[case] set: Option<AddrFilter>,
+        #[case] addr_filter: AddrFilter,
         // Whether a record on loopback, on a LAN and public gets into discv5's table.
         #[case] added: [bool; 3],
     ) {
@@ -444,20 +430,17 @@ mod tests {
         let CombinedKey::Secp256k1(k256_key) = CombinedKey::generate_secp256k1() else {
             unreachable!()
         };
-        let bootnodes = bootnodes
-            .iter()
-            .map(|ip| BootNode::Enr(enr_at(ip.parse().expect("a valid IP"), CHAIN_ID)))
-            .collect::<Vec<_>>();
-        let driver = Discv5Builder::new(
+        let mut builder = Discv5Builder::new(
             LocalNode::new(k256_key, advertised, 0, 0),
             CHAIN_ID,
             ConfigBuilder::new(ListenConfig::Ipv4 { ip: Ipv4Addr::LOCALHOST, port: 0 }).build(),
-        )
-        .with_bootnodes(BootNodes(bootnodes))
-        .build()
-        .expect("the driver builds");
+        );
+        if let Some(set) = set {
+            builder = builder.with_addr_filter(set);
+        }
+        let driver = builder.build().expect("the driver builds");
 
-        assert_eq!(driver.own_scope, own_scope);
+        assert_eq!(driver.addr_filter, addr_filter);
         // `add_enr` applies the table filter, as discv5 does to the records other nodes relay.
         let records = ["127.0.0.1", "10.0.0.1", "1.2.3.4"]
             .map(|ip| enr_at(ip.parse().expect("a valid IP"), CHAIN_ID));

@@ -17,8 +17,7 @@ use tokio::{
 use tracing::Instrument;
 
 use crate::{
-    AddrScope, AdvertiseTcpPortError, Discv5Builder, Discv5Handler, HandlerRequest, LocalNode,
-    builder::bootnode_ips,
+    AddrFilter, AdvertiseTcpPortError, Discv5Builder, Discv5Handler, HandlerRequest, LocalNode,
 };
 
 /// Spawns `future` on Tokio in the current span, so that its logs carry the span discovery was
@@ -50,6 +49,23 @@ const EVENT_STREAM_MAX_ATTEMPTS: u32 = 10;
 
 /// The delay between attempts to start the [`Discv5`] event stream.
 const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
+
+/// Returns the IP addresses of `bootnode`: those in its record, or in its enode URL.
+fn bootnode_ips(bootnode: &BootNode) -> Vec<IpAddr> {
+    match bootnode {
+        BootNode::Enr(enr) => {
+            enr.ip4().map(IpAddr::V4).into_iter().chain(enr.ip6().map(IpAddr::V6)).collect()
+        }
+        BootNode::Enode(addr) => addr
+            .iter()
+            .filter_map(|protocol| match protocol {
+                Protocol::Ip4(ip) => Some(IpAddr::V4(ip)),
+                Protocol::Ip6(ip) => Some(IpAddr::V6(ip)),
+                _ => None,
+            })
+            .collect(),
+    }
+}
 
 /// A peer for gossip to dial, which discovery found.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,10 +131,9 @@ pub struct Discv5Driver {
     pub bootnodes: BootNodes,
     /// The chain ID of the network.
     pub chain_id: u64,
-    /// Our own address scope, which discovered records and bootnodes must be reachable from. See
-    /// [`AddrScope::own`]. Not public, as discv5's table filter was chosen for it and can't
-    /// change.
-    pub(crate) own_scope: AddrScope,
+    /// Which addresses discovery uses in other nodes' records, which saved records and bootnodes
+    /// must pass too. Not public, as discv5's table filter was chosen for it and can't change.
+    pub(crate) addr_filter: AddrFilter,
     /// The interval to discovery random nodes.
     pub interval: Duration,
     /// Whether to forward ENRs to the enr receiver on startup.
@@ -146,14 +161,13 @@ impl Discv5Driver {
         disc: Discv5,
         interval: Duration,
         chain_id: u64,
-        own_scope: AddrScope,
         bootstore: Option<BootStoreFile>,
         bootnodes: BootNodes,
     ) -> Result<Self, std::io::Error> {
         Ok(Self {
             disc,
             chain_id,
-            own_scope,
+            addr_filter: AddrFilter::PublicOnly,
             bootnodes,
             interval,
             forward: true,
@@ -217,14 +231,7 @@ impl Discv5Driver {
             discv5::Event::UnverifiableEnr { enr, socket, .. } => ("unverifiable_enr", enr, socket),
             _ => return None,
         };
-        let check = AddrScope::check_relayed_enr(AddrScope::of(socket.ip()), &enr);
         if EnrValidation::validate(&enr, chain_id).is_invalid() {
-            return None;
-        }
-        if let Err(reason) = check {
-            debug!(target: "discovery", event = kind, %reason, ?enr, "Ignoring a record with an address we can't reach");
-            metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "unreachable_address")
-                .increment(1);
             return None;
         }
         let Some(peer) = DiscoveredPeer::at(enr, socket.ip()) else {
@@ -239,7 +246,7 @@ impl Discv5Driver {
         bootstore: Option<BootStoreFile>,
         bootnodes: BootNodes,
         chain_id: u64,
-        own_scope: AddrScope,
+        addr_filter: AddrFilter,
         disc: &Discv5,
     ) -> BootStore {
         // Note: if the bootstore file cannot be created, we use a default bootstore.
@@ -254,11 +261,11 @@ impl Discv5Driver {
                 BootNode::Enode(enode) => {
                     // Asking it for its record starts a session, which puts it in discv5's table
                     // without the table filter, so check its address first.
-                    let unreachable = bootnode_ips(&bn)
+                    let rejected = bootnode_ips(&bn)
                         .into_iter()
-                        .find_map(|ip| AddrScope::check_reachable_addr(own_scope, ip).err());
-                    if let Some(reason) = unreachable {
-                        warn!(target: "discovery::bootstrap", %reason, ?own_scope, %enode, "Ignoring a boot node that is not reachable from our own address");
+                        .find_map(|ip| addr_filter.check_addr(ip).err());
+                    if let Some(reason) = rejected {
+                        warn!(target: "discovery::bootstrap", %reason, %enode, "Ignoring a boot node at an address discovery doesn't use; --p2p.discovery.private allows private ones");
                         continue;
                     }
                     disc.request_enr(enode.clone()).await
@@ -278,8 +285,8 @@ impl Discv5Driver {
 
             // discv5's table filter would reject it too, but without saying why. A bootnode given
             // by enode URL is in the table already, from the session that fetched its record.
-            if let Err(reason) = AddrScope::check_reachable_enr(own_scope, &enr) {
-                warn!(target: "discovery::bootstrap", %reason, ?own_scope, ?enr, "Ignoring a boot node that is not reachable from our own address");
+            if let Err(reason) = addr_filter.check_enr(&enr) {
+                warn!(target: "discovery::bootstrap", %reason, ?enr, "Ignoring a boot node at an address discovery doesn't use; --p2p.discovery.private allows private ones");
                 disc.remove_node(&enr.node_id());
                 continue;
             }
@@ -375,7 +382,7 @@ impl Discv5Driver {
         mut self,
     ) -> (Discv5Handler, tokio::sync::mpsc::Receiver<DiscoveredPeer>, JoinHandle<()>) {
         let chain_id = self.chain_id;
-        let own_scope = self.own_scope;
+        let addr_filter = self.addr_filter;
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
         let (enr_sender, enr_recv) = channel::<DiscoveredPeer>(1024);
 
@@ -399,7 +406,7 @@ impl Discv5Driver {
                 self.bootstore,
                 self.bootnodes,
                 chain_id,
-                own_scope,
+                addr_filter,
                 &self.disc,
             )
             .await;
@@ -408,12 +415,12 @@ impl Discv5Driver {
             info!(target: "discovery", "Discv5 Started with {} ENRs", enrs.len());
 
             // Step 3: Forward ENRs in the bootstore to the enr receiver, for gossip to dial. Only
-            // those our own scope can reach: the bootstore may hold records saved by an earlier
-            // version, which didn't check them, or while we ran in another scope.
+            // those the address filter lets through: the bootstore may hold records saved by an
+            // earlier version, which didn't check them, or while the filter allowed more.
             if self.forward {
                 for enr in store.valid_peers_with_chain_id(self.chain_id) {
-                    if let Err(reason) = AddrScope::check_reachable_enr(own_scope, enr) {
-                        debug!(target: "discovery", %reason, ?enr, "Ignoring a saved record with an address we can't reach");
+                    if let Err(reason) = addr_filter.check_enr(enr) {
+                        debug!(target: "discovery", %reason, ?enr, "Ignoring a saved record at an address discovery doesn't use");
                         continue;
                     }
                     let Some(peer) = DiscoveredPeer::at_record_address(enr.clone()) else {
@@ -670,58 +677,6 @@ mod tests {
         move |enr: Enr| discv5::Event::UnverifiableEnr { node_id: enr.node_id(), enr, socket }
     }
 
-    /// A session's or an unverifiable record is dialed only if its addresses are plausible from the
-    /// address its packets came from: an honest node's record holds that address.
-    #[rstest]
-    #[case::unverifiable_lan_from_loopback_sender(unverifiable_from("127.0.0.1"), "10.0.0.1", true)]
-    #[case::unverifiable_lan_from_public_sender(unverifiable_from("1.1.1.1"), "10.0.0.1", false)]
-    #[case::unverifiable_special(unverifiable_from("127.0.0.1"), "192.0.2.1", false)]
-    #[case::session_loopback_from_loopback_sender(session_from("127.0.0.1"), "127.0.0.1", true)]
-    #[case::session_lan_from_public_sender(session_from("1.1.1.1"), "10.0.0.1", false)]
-    fn test_record_to_dial_by_sender(
-        #[case] event: impl Fn(Enr) -> discv5::Event,
-        #[case] ip: IpAddr,
-        #[case] dialed: bool,
-    ) {
-        let event = event(enr_at(ip, OP_SEPOLIA_CHAIN_ID));
-        let dialed_record = Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID);
-        assert_eq!(dialed_record.is_some(), dialed);
-    }
-
-    /// A session's record without a UDP address, holding loopback with a TCP port. discv5 checks
-    /// only a record's UDP address against the address its packets came from, and passes a record
-    /// without one.
-    fn loopback_record_without_udp() -> Enr {
-        enr_with(OP_SEPOLIA_CHAIN_ID, |record| {
-            record.ip4(Ipv4Addr::LOCALHOST).tcp4(6379);
-        })
-    }
-
-    /// A session's record whose IPv4 address matches the session, holding loopback with a TCP
-    /// port in its IPv6 address. discv5 checks only the record's address of the family its packets
-    /// came in on.
-    fn loopback_record_in_other_family() -> Enr {
-        enr_with(OP_SEPOLIA_CHAIN_ID, |record| {
-            record.ip4(Ipv4Addr::new(1, 1, 1, 1)).udp4(9223).ip6(Ipv6Addr::LOCALHOST).tcp6(6379);
-        })
-    }
-
-    /// A node should dial a session's record only at addresses plausible from the address the
-    /// session's packets came from, as it does an unverifiable record. Gossip dials a record's TCP
-    /// address, which discv5 doesn't check, so a public peer could otherwise start a session with
-    /// a record that has gossip dial a port on our own loopback.
-    #[rstest]
-    #[case::without_udp(loopback_record_without_udp())]
-    #[case::in_other_family(loopback_record_in_other_family())]
-    fn test_session_record_is_checked_against_its_sender(#[case] enr: Enr) {
-        let event = session_from("1.1.1.1")(enr);
-        assert_eq!(
-            Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID),
-            None,
-            "a public node dialed a loopback session record"
-        );
-    }
-
     /// A session's record holding another public host's address, such as a web server's, with a
     /// TCP port and no UDP port, which discv5 doesn't check against the session.
     fn third_party_record() -> Enr {
@@ -730,22 +685,46 @@ mod tests {
         })
     }
 
-    /// A node should dial a session's peer at the address the session's packets came from, with
-    /// the TCP port from its record, not at the address in its record: only the session's address
-    /// has shown that it runs discovery. Otherwise a peer could have gossip dial any other host, by
-    /// starting a session with a record holding that host's address.
+    /// A session's record holding loopback with a TCP port, and no UDP port.
+    fn loopback_record_without_udp() -> Enr {
+        enr_with(OP_SEPOLIA_CHAIN_ID, |record| {
+            record.ip4(Ipv4Addr::LOCALHOST).tcp4(6379);
+        })
+    }
+
+    /// A session's record whose IPv4 address has a UDP port but no TCP port, with loopback and a
+    /// TCP port in its IPv6 address.
+    fn record_with_tcp_only_in_other_family() -> Enr {
+        enr_with(OP_SEPOLIA_CHAIN_ID, |record| {
+            record.ip4(Ipv4Addr::new(1, 2, 3, 4)).udp4(9223).ip6(Ipv6Addr::LOCALHOST).tcp6(6379);
+        })
+    }
+
+    /// A node should dial a session's peer at the IP the session's packets came from, with the TCP
+    /// port from its record for that IP's family, whatever address its record holds: only the
+    /// session's address has shown that the node runs discovery. Otherwise a peer could have
+    /// gossip dial any other host, or our own loopback, by starting a session with a record that
+    /// names it. A record without a TCP port for that family isn't dialed.
     #[rstest]
-    #[case::session(session_from("1.2.3.4"))]
-    #[case::unverifiable(unverifiable_from("1.2.3.4"))]
+    #[case::third_party(session_from("1.2.3.4"), third_party_record(), Some(443))]
+    #[case::third_party_unverifiable(unverifiable_from("1.2.3.4"), third_party_record(), Some(443))]
+    #[case::loopback(session_from("1.2.3.4"), loopback_record_without_udp(), Some(6379))]
+    #[case::tcp_only_in_other_family(
+        session_from("1.2.3.4"),
+        record_with_tcp_only_in_other_family(),
+        None
+    )]
     fn test_session_peer_is_dialed_at_the_session_address(
         #[case] event: impl Fn(Enr) -> discv5::Event,
+        #[case] record: Enr,
+        #[case] tcp_port: Option<u16>,
     ) {
-        let record = Discv5Driver::record_to_dial(event(third_party_record()), OP_SEPOLIA_CHAIN_ID)
-            .expect("a session's record is dialed");
+        let dialed = Discv5Driver::record_to_dial(event(record), OP_SEPOLIA_CHAIN_ID)
+            .map(|record| record.peer.addr.iter().take(2).map(|p| p.acquire()).collect::<Vec<_>>());
         assert_eq!(
-            record.peer.addr.iter().take(2).collect::<Vec<_>>(),
-            [Protocol::Ip4(Ipv4Addr::new(1, 2, 3, 4)), Protocol::Tcp(443)],
-            "gossip would dial the host the record names, not the session's"
+            dialed,
+            tcp_port
+                .map(|port| vec![Protocol::Ip4(Ipv4Addr::new(1, 2, 3, 4)), Protocol::Tcp(port)]),
         );
     }
 
@@ -827,13 +806,13 @@ mod tests {
         .init()
         .await
         .expect("the node starts");
-        assert_eq!(node.own_scope, AddrScope::Public);
+        assert_eq!(node.addr_filter, AddrFilter::PublicOnly);
 
         Discv5Driver::bootstrap_peers(
             None,
             BootNodes(vec![BootNode::Enode(enode)]),
             node.chain_id,
-            node.own_scope,
+            node.addr_filter,
             &node.disc,
         )
         .await;
@@ -1085,7 +1064,7 @@ mod tests {
             discovery.bootstore,
             discovery.bootnodes,
             OP_SEPOLIA_CHAIN_ID,
-            discovery.own_scope,
+            discovery.addr_filter,
             &discovery.disc,
         )
         .await;
@@ -1179,7 +1158,7 @@ mod tests {
             discovery.bootstore,
             discovery.bootnodes,
             OP_MAINNET_CHAIN_ID,
-            discovery.own_scope,
+            discovery.addr_filter,
             &discovery.disc,
         )
         .await;

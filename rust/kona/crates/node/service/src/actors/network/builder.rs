@@ -2,7 +2,7 @@
 
 use alloy_primitives::Address;
 use discv5::Config as Discv5Config;
-use kona_disc::{Discv5Builder, LocalNode};
+use kona_disc::{AddrFilter, Discv5Builder, LocalNode};
 use kona_genesis::RollupConfig;
 use kona_gossip::{GaterConfig, GossipDriverBuilder, GossipTransport, PeerAddr};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
@@ -137,6 +137,13 @@ impl NetworkBuilder {
     /// Sets the discovery interval for the [`Discv5Builder`].
     pub fn with_discovery_interval(self, interval: tokio::time::Duration) -> Self {
         Self { discovery: self.discovery.with_interval(interval), ..self }
+    }
+
+    /// Sets which addresses discovery uses in other nodes' records, for the [`Discv5Builder`]. By
+    /// default, private addresses are allowed only if the node advertises a loopback or LAN
+    /// address.
+    pub fn with_discovery_addr_filter(self, addr_filter: AddrFilter) -> Self {
+        Self { discovery: self.discovery.with_addr_filter(addr_filter), ..self }
     }
 
     /// Sets the address for the [`Discv5Builder`].

@@ -36,23 +36,22 @@ pub enum AdvertiseTcpPortError {
     EnrUpdateFailed(#[source] enr::Error),
 }
 
-/// Why an address another node relayed is not worth dialing. See
-/// [`AddrScope::check_relayed_addr`].
+/// Why discovery doesn't use an address. See [`AddrFilter`].
 ///
-/// [`AddrScope::check_relayed_addr`]: crate::AddrScope::check_relayed_addr
+/// [`AddrFilter`]: crate::AddrFilter
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
-pub enum RelayAddrError {
+pub enum AddrError {
     /// The address is `0.0.0.0` or `::`.
     #[error("unspecified address")]
     Unspecified,
     /// The address is a multicast, broadcast, documentation or other special-purpose address.
     #[error("special-purpose address")]
     Special,
-    /// The address is a loopback address, from a sender that is not on loopback.
-    #[error("loopback address from a non-loopback sender")]
+    /// The address is a loopback address, and private addresses aren't allowed.
+    #[error("loopback address, and private addresses are not allowed")]
     Loopback,
-    /// The address is a LAN address, from a sender that is on neither loopback nor a LAN.
-    #[error("LAN address from a public sender")]
+    /// The address is a LAN address, and private addresses aren't allowed.
+    #[error("LAN address, and private addresses are not allowed")]
     Lan,
     /// The record has no IP address.
     #[error("no IP address")]

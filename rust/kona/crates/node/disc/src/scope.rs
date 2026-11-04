@@ -1,14 +1,14 @@
-//! Address scopes, for deciding whether an address another node relayed is worth dialing.
+//! Address scopes, for deciding which addresses discovery uses.
 //!
-//! Ported from geth's `p2p/netutil/net.go`, with its special-purpose lists brought up to date with
-//! the IANA registries.
+//! The scope classes are ported from geth's `p2p/netutil/net.go`, with its special-purpose lists
+//! brought up to date with the IANA registries.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use discv5::Enr;
 use ipnet::{Ipv4Net, Ipv6Net};
 
-use crate::RelayAddrError;
+use crate::AddrError;
 
 /// The IPv4 blocks of the [IANA registry] that no peer can listen on, as of its 2025-10-09 update.
 /// geth's list is a subset of it.
@@ -133,109 +133,65 @@ impl AddrScope {
             Self::Public
         }
     }
+}
 
-    /// Returns our own scope: that of `ip`, the IP our record advertises, or, while it advertises
-    /// none (`ip` is unspecified), the most public scope among `bootnode_ips`, as records reach us
-    /// through our bootnodes. Public if there are none.
-    ///
-    /// The most public, not the most local: a node with public bootnodes is on a public network,
-    /// so one local bootnode among them, such as a sidecar on loopback, must not make it accept
-    /// local records from every public peer. Such a bootnode is then skipped, as out of scope. On a
-    /// devnet, all bootnodes are local, so the node accepts local records.
-    ///
-    /// Our scope is never unspecified or special-purpose: such an address names no host we are
-    /// on, so it says nothing about which addresses we can reach. When nothing else tells us, we
-    /// take the most conservative scope, which is, perhaps counter-intuitively, public: a public
-    /// node can reach the fewest addresses, only public ones, so it accepts the fewest relayed
-    /// records. A loopback node would accept them all. A special-purpose `ip`, such as a
-    /// documentation address, is public for the same reason: it is a mistake or a test, and
-    /// bootnodes can't tell us better than the address we were told to advertise.
-    ///
-    /// Being conservative costs a node without bootnodes, such as the first node of a network,
-    /// little: it still learns of the nodes that start sessions with it, as discv5 adds those to
-    /// its table without the table filter, and the driver dials their records, which hold the
-    /// address they reach it from. It only misses the loopback and LAN records those nodes relay.
-    ///
-    /// It doesn't follow an IP that votes set later, as discv5's table filter is chosen once.
-    pub fn own(ip: IpAddr, bootnode_ips: impl IntoIterator<Item = IpAddr>) -> Self {
-        match Self::of(ip) {
-            Self::Unspecified => {}
-            Self::Special => return Self::Public,
-            scope => return scope,
+/// Which addresses discovery uses in other nodes' records: in its table and lookups, and when
+/// dialing saved records and bootnodes. It never uses unspecified or special-purpose addresses.
+///
+/// A node on a public network can't reach other hosts' loopback or LAN addresses, so it uses only
+/// public ones. A node on a devnet allows private ones too.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AddrFilter {
+    /// Only public addresses.
+    PublicOnly,
+    /// Public, loopback and LAN addresses.
+    AllowPrivate,
+}
+
+impl AddrFilter {
+    /// Returns the filter for a node that advertises `ip`. Private addresses are allowed if `ip` is
+    /// a loopback or LAN address, as on a devnet. They aren't if it is public, special-purpose, or
+    /// unspecified, as when listening on all interfaces, which says nothing about the network the
+    /// node is on.
+    pub fn for_advertised_ip(ip: IpAddr) -> Self {
+        match AddrScope::of(ip) {
+            AddrScope::Loopback | AddrScope::Lan => Self::AllowPrivate,
+            AddrScope::Unspecified | AddrScope::Special | AddrScope::Public => Self::PublicOnly,
         }
-        bootnode_ips
-            .into_iter()
-            .map(Self::of)
-            .fold(None, |most_public, scope| match (most_public, scope) {
-                // These name no host, so they say nothing about the network we are on.
-                (_, Self::Unspecified | Self::Special) => most_public,
-                (Some(Self::Public), _) | (_, Self::Public) => Some(Self::Public),
-                (Some(Self::Lan), _) | (_, Self::Lan) => Some(Self::Lan),
-                _ => Some(Self::Loopback),
-            })
-            .unwrap_or(Self::Public)
     }
 
-    /// Checks whether `addr`, relayed by a node of scope `sender`, is worth dialing, as geth's
-    /// `CheckRelayAddr` does:
-    ///
-    /// - an unspecified or special-purpose address never is;
-    /// - a loopback address is only from a loopback sender;
-    /// - a LAN address is only from a loopback or LAN sender;
-    /// - a public address always is.
-    ///
-    /// An unspecified or special-purpose sender counts as public.
-    pub fn check_relayed_addr(sender: Self, addr: IpAddr) -> Result<(), RelayAddrError> {
-        match Self::of(addr) {
-            Self::Unspecified => Err(RelayAddrError::Unspecified),
-            Self::Special => Err(RelayAddrError::Special),
-            Self::Loopback if sender != Self::Loopback => Err(RelayAddrError::Loopback),
-            Self::Lan if !matches!(sender, Self::Loopback | Self::Lan) => Err(RelayAddrError::Lan),
+    /// Checks whether discovery may use `addr`.
+    pub fn check_addr(self, addr: IpAddr) -> Result<(), AddrError> {
+        match (AddrScope::of(addr), self) {
+            (AddrScope::Unspecified, _) => Err(AddrError::Unspecified),
+            (AddrScope::Special, _) => Err(AddrError::Special),
+            (AddrScope::Loopback, Self::PublicOnly) => Err(AddrError::Loopback),
+            (AddrScope::Lan, Self::PublicOnly) => Err(AddrError::Lan),
             _ => Ok(()),
         }
     }
 
-    /// Checks every IP address in `enr`, a record relayed by a node of scope `sender`, with
-    /// [`Self::check_relayed_addr`]. A record with no IP address fails, as it has none to dial.
-    pub fn check_relayed_enr(sender: Self, enr: &Enr) -> Result<(), RelayAddrError> {
+    /// Checks every IP address in `enr` with [`Self::check_addr`]. A record with no IP address
+    /// fails, as it has none to contact.
+    pub fn check_enr(self, enr: &Enr) -> Result<(), AddrError> {
         let ips = [enr.ip4().map(IpAddr::V4), enr.ip6().map(IpAddr::V6)];
         if ips.iter().all(Option::is_none) {
-            return Err(RelayAddrError::NoAddress);
+            return Err(AddrError::NoAddress);
         }
-        ips.into_iter().flatten().try_for_each(|ip| Self::check_relayed_addr(sender, ip))
+        ips.into_iter().flatten().try_for_each(|ip| self.check_addr(ip))
     }
 
-    /// Checks whether a node of scope `own` can reach `addr`, an address it was given without
-    /// knowing who it came from, such as a bootnode's enode URL. It is [`Self::check_relayed_addr`]
-    /// with `own` in place of the sender, as [`Self::check_reachable_enr`] is.
-    pub fn check_reachable_addr(own: Self, addr: IpAddr) -> Result<(), RelayAddrError> {
-        Self::check_relayed_addr(own, addr)
-    }
-
-    /// Checks whether a node of scope `own` can reach every IP address in `enr`, a record another
-    /// node relayed, without knowing which node that was.
+    /// Returns discv5's table filter for this filter. discv5 applies it to the records in other
+    /// nodes' answers to our lookups, and to those added with `add_enr`, such as bootnodes. It
+    /// keeps those [`Self::check_enr`] rejects out of the table, so that they aren't relayed to
+    /// others, and out of lookups, so that discovery doesn't contact them. A node we have a session
+    /// with gets into the table without it, and is dialed at the address it reached us from.
     ///
-    /// It is [`Self::check_relayed_enr`] with `own` in place of the sender: what matters for a
-    /// record we would dial is that none of its addresses is more local than our own.
-    pub fn check_reachable_enr(own: Self, enr: &Enr) -> Result<(), RelayAddrError> {
-        Self::check_relayed_enr(own, enr)
-    }
-
-    /// Returns discv5's table filter for a node of scope `own`. discv5 applies it to the records in
-    /// other nodes' answers to our lookups, and to those added with `add_enr`, such as bootnodes.
-    /// It keeps those [`Self::check_reachable_enr`] rejects out of the table, so that they are not
-    /// relayed to others, and out of lookups, so that discovery doesn't contact them. A node we
-    /// have a session with gets into the table without it.
-    ///
-    /// discv5 takes a plain `fn`, which can't hold the scope, so there is one for each scope. An
-    /// unspecified or special-purpose own scope gets the public one.
-    pub fn table_filter(own: Self) -> fn(&Enr) -> bool {
-        match own {
-            Self::Loopback => |enr| Self::check_reachable_enr(Self::Loopback, enr).is_ok(),
-            Self::Lan => |enr| Self::check_reachable_enr(Self::Lan, enr).is_ok(),
-            Self::Unspecified | Self::Special | Self::Public => {
-                |enr| Self::check_reachable_enr(Self::Public, enr).is_ok()
-            }
+    /// discv5 takes a plain `fn`, so there is one for each filter.
+    pub fn table_filter(self) -> fn(&Enr) -> bool {
+        match self {
+            Self::PublicOnly => |enr| Self::PublicOnly.check_enr(enr).is_ok(),
+            Self::AllowPrivate => |enr| Self::AllowPrivate.check_enr(enr).is_ok(),
         }
     }
 }
@@ -305,94 +261,37 @@ mod tests {
         assert_eq!(AddrScope::of(ip), expected);
     }
 
-    /// geth's `TestCheckRelayIP` table, plus IPv6 cases.
+    /// Private addresses are allowed for a node that advertises a loopback or LAN address, and
+    /// not for one that advertises a public, special-purpose or no address.
     #[rstest]
-    #[case::unspecified_from_loopback("127.0.0.1", "0.0.0.0", Err(RelayAddrError::Unspecified))]
-    #[case::unspecified_from_lan("192.168.0.1", "0.0.0.0", Err(RelayAddrError::Unspecified))]
-    #[case::unspecified_from_public("23.55.1.242", "0.0.0.0", Err(RelayAddrError::Unspecified))]
-    #[case::broadcast_from_loopback("127.0.0.1", "255.255.255.255", Err(RelayAddrError::Special))]
-    #[case::broadcast_from_lan("192.168.0.1", "255.255.255.255", Err(RelayAddrError::Special))]
-    #[case::broadcast_from_public("23.55.1.242", "255.255.255.255", Err(RelayAddrError::Special))]
-    #[case::loopback_from_lan("192.168.0.1", "127.0.2.19", Err(RelayAddrError::Loopback))]
-    #[case::lan_from_public("23.55.1.242", "192.168.0.1", Err(RelayAddrError::Lan))]
-    #[case::loopback_from_loopback("127.0.0.1", "127.0.2.19", Ok(()))]
-    #[case::lan_from_loopback("127.0.0.1", "192.168.0.1", Ok(()))]
-    #[case::public_from_loopback("127.0.0.1", "23.55.1.242", Ok(()))]
-    #[case::lan_from_lan("192.168.0.1", "192.168.0.1", Ok(()))]
-    #[case::public_from_lan("192.168.0.1", "23.55.1.242", Ok(()))]
-    #[case::public_from_public("23.55.1.242", "23.55.1.242", Ok(()))]
-    // Beyond geth's tests.
-    #[case::loopback_from_public("23.55.1.242", "127.0.0.1", Err(RelayAddrError::Loopback))]
-    #[case::loopback_v6_from_lan_v6("fc00::4", "::1", Err(RelayAddrError::Loopback))]
-    #[case::loopback_v6_from_loopback_v4("127.0.0.1", "::1", Ok(()))]
-    #[case::mapped_loopback_from_lan(
-        "192.168.0.1",
-        "::ffff:127.0.0.1",
-        Err(RelayAddrError::Loopback)
-    )]
-    #[case::loopback_from_mapped_loopback("::ffff:127.0.0.1", "127.0.0.1", Ok(()))]
-    #[case::lan_v6_from_public_v6("2a00:1450:4001::1", "fe80::1", Err(RelayAddrError::Lan))]
-    #[case::lan_v4_from_lan_v6("fc00::4", "10.0.0.1", Ok(()))]
-    #[case::shared_from_public("23.55.1.242", "100.64.0.1", Err(RelayAddrError::Lan))]
-    #[case::lan_from_shared("100.64.0.1", "192.168.0.1", Ok(()))]
-    #[case::lan_from_unspecified("0.0.0.0", "192.168.0.1", Err(RelayAddrError::Lan))]
-    #[case::public_from_special("192.0.2.1", "23.55.1.242", Ok(()))]
-    fn test_check_relayed_addr(
-        #[case] sender: IpAddr,
-        #[case] addr: IpAddr,
-        #[case] expected: Result<(), RelayAddrError>,
-    ) {
-        assert_eq!(AddrScope::check_relayed_addr(AddrScope::of(sender), addr), expected);
+    #[case::loopback("127.0.0.1", AddrFilter::AllowPrivate)]
+    #[case::lan("10.0.0.1", AddrFilter::AllowPrivate)]
+    #[case::shared("100.64.0.1", AddrFilter::AllowPrivate)]
+    #[case::loopback_v6("::1", AddrFilter::AllowPrivate)]
+    #[case::public("1.2.3.4", AddrFilter::PublicOnly)]
+    #[case::special("192.0.2.1", AddrFilter::PublicOnly)]
+    #[case::unspecified("0.0.0.0", AddrFilter::PublicOnly)]
+    #[case::unspecified_v6("::", AddrFilter::PublicOnly)]
+    fn test_for_advertised_ip(#[case] ip: IpAddr, #[case] expected: AddrFilter) {
+        assert_eq!(AddrFilter::for_advertised_ip(ip), expected);
     }
 
-    /// Our own scope is that of the IP we advertise. Without one, it is the most public among our
-    /// bootnodes', ignoring special-purpose ones, and public if there are none: one local bootnode
-    /// among public ones must not make the node accept local records from public peers. A
-    /// special-purpose IP is public too. Our scope is never unspecified or special-purpose, which
-    /// say nothing about what we can reach, but the most conservative scope. See
-    /// [`AddrScope::own`].
     #[rstest]
-    #[case::public("1.2.3.4", &[], AddrScope::Public)]
-    #[case::lan("10.0.0.1", &[], AddrScope::Lan)]
-    #[case::advertised_wins_over_bootnodes("1.2.3.4", &["127.0.0.1"], AddrScope::Public)]
-    #[case::special("192.0.2.1", &[], AddrScope::Public)]
-    #[case::special_ignores_bootnodes("192.0.2.1", &["127.0.0.1"], AddrScope::Public)]
-    #[case::unspecified_no_bootnodes("0.0.0.0", &[], AddrScope::Public)]
-    #[case::unspecified_public_bootnodes("0.0.0.0", &["1.2.3.4", "5.6.7.8"], AddrScope::Public)]
-    #[case::unspecified_public_and_lan_bootnodes(
-        "0.0.0.0",
-        &["1.2.3.4", "10.0.0.1"],
-        AddrScope::Public
-    )]
-    #[case::unspecified_public_and_loopback_bootnodes(
-        "0.0.0.0",
-        &["127.0.0.1", "1.2.3.4"],
-        AddrScope::Public
-    )]
-    #[case::unspecified_lan_and_loopback_bootnodes(
-        "0.0.0.0",
-        &["10.0.0.1", "127.0.0.1"],
-        AddrScope::Lan
-    )]
-    #[case::unspecified_loopback_bootnodes(
-        "0.0.0.0",
-        &["127.0.0.1", "127.0.0.2"],
-        AddrScope::Loopback
-    )]
-    #[case::unspecified_special_bootnode("0.0.0.0", &["192.0.2.1"], AddrScope::Public)]
-    #[case::unspecified_special_and_loopback_bootnodes(
-        "0.0.0.0",
-        &["192.0.2.1", "127.0.0.1"],
-        AddrScope::Loopback
-    )]
-    #[case::unspecified_v6("::", &["::1"], AddrScope::Loopback)]
-    fn test_own_scope(
-        #[case] ip: IpAddr,
-        #[case] bootnode_ips: &[&str],
-        #[case] expected: AddrScope,
+    #[case::public("23.55.1.242", Ok(()), Ok(()))]
+    #[case::lan("192.168.0.1", Err(AddrError::Lan), Ok(()))]
+    #[case::loopback("127.0.0.1", Err(AddrError::Loopback), Ok(()))]
+    #[case::mapped_loopback("::ffff:127.0.0.1", Err(AddrError::Loopback), Ok(()))]
+    #[case::unique_local_v6("fc00::4", Err(AddrError::Lan), Ok(()))]
+    #[case::special("192.0.2.1", Err(AddrError::Special), Err(AddrError::Special))]
+    #[case::broadcast("255.255.255.255", Err(AddrError::Special), Err(AddrError::Special))]
+    #[case::unspecified("0.0.0.0", Err(AddrError::Unspecified), Err(AddrError::Unspecified))]
+    fn test_check_addr(
+        #[case] addr: IpAddr,
+        #[case] public_only: Result<(), AddrError>,
+        #[case] allow_private: Result<(), AddrError>,
     ) {
-        let bootnode_ips = bootnode_ips.iter().map(|ip| ip.parse().expect("a valid IP"));
-        assert_eq!(AddrScope::own(ip, bootnode_ips), expected);
+        assert_eq!(AddrFilter::PublicOnly.check_addr(addr), public_only);
+        assert_eq!(AddrFilter::AllowPrivate.check_addr(addr), allow_private);
     }
 
     /// A record with the given addresses.
@@ -408,51 +307,34 @@ mod tests {
         builder.build(&key).expect("the record builds")
     }
 
-    /// Our own scope reaches an address as a sender of that scope may relay it.
-    #[rstest]
-    #[case::loopback_while_public("127.0.0.1", AddrScope::Public, Err(RelayAddrError::Loopback))]
-    #[case::lan_while_public("10.0.0.1", AddrScope::Public, Err(RelayAddrError::Lan))]
-    #[case::public_while_public("23.55.1.242", AddrScope::Public, Ok(()))]
-    #[case::loopback_while_loopback("127.0.0.1", AddrScope::Loopback, Ok(()))]
-    fn test_check_reachable_addr(
-        #[case] addr: IpAddr,
-        #[case] own: AddrScope,
-        #[case] expected: Result<(), RelayAddrError>,
-    ) {
-        assert_eq!(AddrScope::check_reachable_addr(own, addr), expected);
-    }
-
     /// Every address in a record must pass, and a record without one fails.
     #[rstest]
     #[case::ip4_only(Some("23.55.1.242"), None, Ok(()))]
     #[case::ip6_only(None, Some("2a00:1450:4001::1"), Ok(()))]
     #[case::both(Some("23.55.1.242"), Some("2a00:1450:4001::1"), Ok(()))]
-    #[case::bad_ip4(Some("192.168.0.1"), Some("2a00:1450:4001::1"), Err(RelayAddrError::Lan))]
-    #[case::bad_ip6(Some("23.55.1.242"), Some("fe80::1"), Err(RelayAddrError::Lan))]
-    #[case::none(None, None, Err(RelayAddrError::NoAddress))]
-    fn test_check_relayed_enr(
+    #[case::private_ip4(Some("192.168.0.1"), Some("2a00:1450:4001::1"), Err(AddrError::Lan))]
+    #[case::private_ip6(Some("23.55.1.242"), Some("fe80::1"), Err(AddrError::Lan))]
+    #[case::none(None, None, Err(AddrError::NoAddress))]
+    fn test_check_enr(
         #[case] ip4: Option<&str>,
         #[case] ip6: Option<&str>,
-        #[case] expected: Result<(), RelayAddrError>,
+        #[case] expected: Result<(), AddrError>,
     ) {
-        let enr = enr(ip4, ip6);
-        assert_eq!(AddrScope::check_relayed_enr(AddrScope::Public, &enr), expected);
-        assert_eq!(AddrScope::check_reachable_enr(AddrScope::Public, &enr), expected);
+        assert_eq!(AddrFilter::PublicOnly.check_enr(&enr(ip4, ip6)), expected);
     }
 
-    /// Each own scope gets the table filter that keeps out the records it can't reach. An
-    /// unspecified or special-purpose own scope gets the public one.
+    /// Each filter's table filter keeps out the records it rejects.
     #[rstest]
-    #[case::loopback(AddrScope::Loopback, [true, true, true])]
-    #[case::lan(AddrScope::Lan, [false, true, true])]
-    #[case::public(AddrScope::Public, [false, false, true])]
-    #[case::unspecified(AddrScope::Unspecified, [false, false, true])]
-    #[case::special(AddrScope::Special, [false, false, true])]
-    fn test_table_filter(#[case] own: AddrScope, #[case] expected: [bool; 3]) {
-        let filter = AddrScope::table_filter(own);
+    #[case::public_only(AddrFilter::PublicOnly, [false, false, true])]
+    #[case::allow_private(AddrFilter::AllowPrivate, [true, true, true])]
+    fn test_table_filter(#[case] filter: AddrFilter, #[case] expected: [bool; 3]) {
+        let table_filter = filter.table_filter();
         let records = ["127.0.0.1", "10.0.0.1", "23.55.1.242"].map(|ip| enr(Some(ip), None));
-        assert_eq!(records.each_ref().map(filter), expected);
-        assert!(!filter(&enr(Some("192.0.2.1"), None)), "a special-purpose record never passes");
-        assert!(!filter(&enr(None, None)), "a record without an address never passes");
+        assert_eq!(records.each_ref().map(table_filter), expected);
+        assert!(
+            !table_filter(&enr(Some("192.0.2.1"), None)),
+            "a special-purpose record never passes"
+        );
+        assert!(!table_filter(&enr(None, None)), "a record without an address never passes");
     }
 }
