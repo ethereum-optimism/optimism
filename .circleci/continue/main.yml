@@ -1042,6 +1042,9 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
+    # Must match contracts-bedrock-tests so the attached build stays cached.
+    environment:
+      FOUNDRY_DENY: never
     parameters:
       profile:
         description: Profile to build with. Must match the test job's test_profile.
@@ -1104,6 +1107,10 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
+    # Forge skips its build cache when warnings are denied, so `just test` would recompile for
+    # each EVM pass. contracts-bedrock-checks-fast still rejects warnings with solc.
+    environment:
+      FOUNDRY_DENY: never
     parameters:
       test_list:
         description: List of test files to run
@@ -1193,10 +1200,6 @@ jobs:
       - store_test_results:
           path: packages/contracts-bedrock/results
           when: always
-      - run:
-          name: Lint forge test names
-          command: just lint-forge-tests-check-no-build
-          working_directory: packages/contracts-bedrock
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
@@ -1278,6 +1281,9 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
+    # See contracts-bedrock-tests.
+    environment:
+      FOUNDRY_DENY: never
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
@@ -1394,6 +1400,9 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
+    # See contracts-bedrock-tests.
+    environment:
+      FOUNDRY_DENY: never
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true

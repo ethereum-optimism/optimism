@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Foundry also bundles a solar binary; use the separately pinned release.
+# SOLAR_BIN lets environments without mise (melange package builds) point at an
+# installed binary; otherwise fall back to a solar on PATH.
+if [ -n "${SOLAR_BIN:-}" ]; then
+  exec "$SOLAR_BIN" "$@"
+fi
+if command -v mise >/dev/null 2>&1; then
+  exec "$(mise where github:paradigmxyz/solar)/solar" "$@"
+fi
+exec solar "$@"

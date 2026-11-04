@@ -1219,7 +1219,7 @@ contract VerifyOPCM is Script {
         }
 
         // Return computed path, relative to the contracts-bedrock directory.
-        return string.concat("forge-artifacts/", sourceName, ".sol/", _contractName, ".json");
+        return string.concat(Config.artifactDirectory(), sourceName, ".sol/", _contractName, ".json");
     }
 
     /// @notice Checks if a field name represents an OPCM component contract that has contractsContainer().

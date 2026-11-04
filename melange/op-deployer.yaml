@@ -30,6 +30,9 @@ pipeline:
 
   - uses: op-deployer/install-forge
 
+  # PoC: contracts-bedrock compiles with Solar on this branch.
+  - uses: op-deployer/install-solar
+
   # Compile contracts-bedrock and pack the artifacts op-deployer embeds via
   # //go:embed — must exist before `go build`, or `op-deployer apply` fails at
   # runtime with "artifacts.tzst: file does not exist".

@@ -1,0 +1,51 @@
+name: Install the pinned Solar release used by contracts-bedrock's scripts/ops/solar wrapper.
+
+# PoC: the melange sandbox has no mise, so the wrapper that foundry.toml points
+# `solc` at cannot resolve the mise-installed Solar. Install the same release
+# into the package and let op-deployer/embed-artifacts hand it to the wrapper
+# through SOLAR_BIN.
+
+needs:
+  packages:
+    - busybox
+    - ca-certificates-bundle
+    - curl
+
+inputs:
+  version:
+    description: "Solar release tag"
+    default: "v0.3.0"
+
+pipeline:
+  - runs: |
+      set -euo pipefail
+
+      case "${{build.arch}}" in
+        x86_64)
+          target=x86_64-unknown-linux-musl
+          checksum=e01eece887e28438a2398e9ec17f1038cfd2b2f93e721382a9b6422020a7fa66
+          ;;
+        aarch64)
+          # No musl build is published for aarch64; the gnu build needs gcompat at runtime.
+          target=aarch64-unknown-linux-gnu
+          checksum=8da0507426756ec175d281d421ea4fb44d02e3fb9f46ff8ff79802c5d547e95c
+          ;;
+        *) echo "unsupported melange arch for Solar: ${{build.arch}}" >&2; exit 1 ;;
+      esac
+
+      archive="solar-${target}.tar.gz"
+      url="https://github.com/paradigmxyz/solar/releases/download/${{inputs.version}}/${archive}"
+      work="$(mktemp -d)"
+      trap 'rm -rf "$work"' EXIT
+
+      curl -fsSL --retry 3 -o "$work/$archive" "$url"
+      printf '%s  %s\n' "$checksum" "$work/$archive" | sha256sum -c -
+      tar -xzf "$work/$archive" -C "$work"
+
+      solar_path="$(find "$work" -type f -name solar | head -n1)"
+      if [ -z "$solar_path" ] || [ ! -x "$solar_path" ]; then
+        echo "Solar binary not found in $archive" >&2
+        exit 1
+      fi
+
+      install -Dm755 "$solar_path" "${{targets.contextdir}}/usr/local/bin/solar"

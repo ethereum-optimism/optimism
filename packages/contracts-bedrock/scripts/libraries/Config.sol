@@ -263,6 +263,20 @@ library Config {
         return vm.envOr("FOUNDRY_PROFILE", string("default"));
     }
 
+    /// @notice Returns true when the active profile is compiled with Solar. On this PoC branch every
+    ///         profile is, so the Solar-specific test expectations apply everywhere.
+    function isSolar() internal pure returns (bool) {
+        return true;
+    }
+
+    /// @notice Returns the active profile's artifact output directory. The lite profiles keep their
+    ///         separate output directory; every other profile writes Solar output to forge-artifacts/.
+    function artifactDirectory() internal view returns (string memory) {
+        string memory profile = foundryProfile();
+        bool liteProfile = LibString.eq(profile, "lite") || LibString.eq(profile, "liteci");
+        return liteProfile ? "cache/solar-artifacts/" : "forge-artifacts/";
+    }
+
     /// @notice Returns true when the compiler output is not production-like. This includes
     ///         coverage mode (which adds instrumentation) and unoptimized Foundry profiles
     ///         (which produce different bytecode, CREATE2 addresses, and gas costs).

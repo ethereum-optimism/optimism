@@ -106,8 +106,13 @@ func processFile(artifactPath string) (*common.Void, []error) {
 	}
 
 	contractDef := getContractDefinition(artifact, contractName)
+	sourcePath, sourcePragma := "", ""
 	if contractDef == nil {
-		return nil, nil // Skip processing if contract definition is not found
+		// Solar emits no AST: classify the declaration from the source file instead.
+		sourcePath, contractDef, sourcePragma = sourceInfo(artifactPath, contractName)
+		if contractDef == nil {
+			return nil, nil // Skip processing if contract definition is not found
+		}
 	}
 
 	// If this is not an interface, make sure that it has a corresponding interface
@@ -124,15 +129,20 @@ func processFile(artifactPath string) (*common.Void, []error) {
 			return nil, nil
 		}
 
+		absolutePath := forgeArtifact.Ast.AbsolutePath
+		if absolutePath == "" {
+			absolutePath = sourcePath
+		}
+
 		// Skip if it's not in the src directory
-		if !strings.HasPrefix(forgeArtifact.Ast.AbsolutePath, "src/") {
+		if !strings.HasPrefix(absolutePath, "src/") {
 			return nil, nil
 		}
 
 		// Create an array of the folders to exclude
 		excludeFolders := []string{"src/libraries", "src/vendor"}
 		for _, folder := range excludeFolders {
-			if strings.HasPrefix(forgeArtifact.Ast.AbsolutePath, folder) {
+			if strings.HasPrefix(absolutePath, folder) {
 				return nil, nil
 			}
 		}
@@ -143,13 +153,13 @@ func processFile(artifactPath string) (*common.Void, []error) {
 		}
 
 		// Otherwise, expect that this file has a corresponding interface
-		dirPath := filepath.Dir(strings.TrimPrefix(forgeArtifact.Ast.AbsolutePath, "src/"))
+		dirPath := filepath.Dir(strings.TrimPrefix(absolutePath, "src/"))
 		newFileName := "I" + contractName + ".sol"
 		interfacePath := filepath.Join(cwd, "interfaces", dirPath, newFileName)
 		_, err = os.Stat(interfacePath)
 		if os.IsNotExist(err) {
 			return nil, []error{fmt.Errorf("Contract %s in %s does not have a corresponding interface at %s",
-				contractName, forgeArtifact.Ast.AbsolutePath, interfacePath)}
+				contractName, absolutePath, interfacePath)}
 		}
 
 		// Ok we can return now
@@ -160,9 +170,12 @@ func processFile(artifactPath string) (*common.Void, []error) {
 		return nil, []error{fmt.Errorf("%s: Interface does not start with 'I'", contractName)}
 	}
 
-	semver, err := getContractSemver(artifact)
-	if err != nil {
-		return nil, []error{fmt.Errorf("failed to get contract semver: %w", err)}
+	semver := sourcePragma
+	if len(artifact.AST.Nodes) > 0 {
+		semver, err = getContractSemver(artifact)
+		if err != nil {
+			return nil, []error{fmt.Errorf("failed to get contract semver: %w", err)}
+		}
 	}
 
 	if semver != "solidity^0.8.0" {
@@ -448,4 +461,36 @@ func getString(m map[string]interface{}, key string) string {
 		}
 	}
 	return ""
+}
+
+// sourceInfo reads the source file an artifact was compiled from, named in the compiler metadata,
+// and returns its path, the declaration of contractName in it, and the solidity pragma in the
+// AST's literal form. Used when the artifact carries no AST.
+func sourceInfo(artifactPath, contractName string) (string, *ContractDefinition, string) {
+	forgeArtifact, err := common.ReadForgeArtifact(artifactPath)
+	if err != nil {
+		return "", nil, ""
+	}
+	sourcePath := ""
+	for path := range forgeArtifact.Metadata.Settings.CompilationTarget {
+		sourcePath = path
+	}
+	if sourcePath == "" {
+		return "", nil, ""
+	}
+	content, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return sourcePath, nil, ""
+	}
+	var def *ContractDefinition
+	declRe := regexp.MustCompile(`(?m)^\s*(?:abstract\s+)?(contract|library|interface)\s+` + regexp.QuoteMeta(contractName) + `\b`)
+	if m := declRe.FindSubmatch(content); m != nil {
+		def = &ContractDefinition{ContractKind: string(m[1]), Name: contractName}
+	}
+	pragma := ""
+	pragmaRe := regexp.MustCompile(`(?m)^\s*pragma\s+solidity\s+([^;]+);`)
+	if m := pragmaRe.FindSubmatch(content); m != nil {
+		pragma = "solidity" + strings.ReplaceAll(string(m[1]), " ", "")
+	}
+	return sourcePath, def, pragma
 }

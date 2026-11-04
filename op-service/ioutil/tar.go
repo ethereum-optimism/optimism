@@ -55,7 +55,9 @@ func Untar(outDir string, tr *tar.Reader) error {
 }
 
 func untarFile(root *os.Root, name string, tr *tar.Reader, hdr *tar.Header) error {
-	f, err := root.Create(name)
+	// Keep the archived permission bits: the contracts bundle carries executable helper scripts
+	// (scripts/ops/solar) that forge has to run.
+	f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, hdr.FileInfo().Mode().Perm())
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}

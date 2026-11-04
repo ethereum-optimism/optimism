@@ -163,6 +163,8 @@ func (c *Client) execCmd(ctx context.Context, stdout io.Writer, stderr io.Writer
 	}
 
 	cmd := exec.CommandContext(ctx, c.Binary.Path(), args...)
+	// Deployment commands must not inherit a developer's Solar profile.
+	cmd.Env = append(os.Environ(), "FOUNDRY_PROFILE=default")
 	cmd.WaitDelay = waitDelay
 	cStdout := c.Stdout
 	if cStdout == nil {

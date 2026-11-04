@@ -36,7 +36,10 @@ pipeline:
       fi
       "$forge_bin" --version
       # Compile contracts-bedrock (mirrors `just build-no-tests`).
-      ( cd "${{inputs.contracts-dir}}" && "$forge_bin" build --skip "/**/test/**" )
+      # PoC: foundry.toml points `solc` at scripts/ops/solar, which needs the
+      # installed Solar when mise is absent.
+      solar_bin="${{targets.contextdir}}/usr/local/bin/solar"
+      ( cd "${{inputs.contracts-dir}}" && SOLAR_BIN="$solar_bin" "$forge_bin" build --skip "/**/test/**" )
       # Pack the compiled artifacts into the embedded tarball (mirrors
       # `just copy-contract-artifacts`).
       go run "${{inputs.mktar-pkg}}" \

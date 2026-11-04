@@ -85,10 +85,15 @@ contract MIPS64 is ISemver {
     bytes32 internal constant EMPTY_THREAD_ROOT = hex"ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5";
 
     // State memory offset allocated during step
-    uint256 internal constant STATE_MEM_OFFSET = 0x80;
+    // PoC: the state and thread structs are placed at a fixed base that lies above any compiler's own
+    // initial allocations (solc ends them at 0x760, Solar at 0x800 to 0x820), so the absolute offsets
+    // used throughout this contract hold under any allocator. doStep moves the free memory pointer past
+    // them. The cost is the memory expansion for the unused gap below the base.
+    uint256 internal constant STATE_MEM_OFFSET = 0x1000;
 
     // ThreadState memory offset allocated during step
-    uint256 internal constant TC_MEM_OFFSET = 0x260;
+    uint256 internal constant TC_MEM_OFFSET = 0x11E0; // STATE_MEM_OFFSET + 15 * 32
+    uint256 internal constant STRUCTS_MEM_END = 0x16E0; // TC_MEM_OFFSET + 40 * 32 (8 slots + 32 registers)
 
     /// @param _oracle The address of the preimage oracle contract.
     constructor(IPreimageOracle _oracle, uint256 _stateVersion) {
@@ -156,21 +161,17 @@ contract MIPS64 is ISemver {
             ThreadState memory thread;
             uint32 exited;
             assembly {
-                if iszero(eq(state, STATE_MEM_OFFSET)) {
-                    // expected state mem offset check
+                if gt(mload(0x40), STATE_MEM_OFFSET) {
+                    // the compiler already allocated past the fixed base; the structs would overlap it
                     revert(0, 0)
                 }
-                if iszero(eq(thread, TC_MEM_OFFSET)) {
-                    // expected thread mem offset check
-                    // STATE_MEM_OFFSET = 0x80 = 128
-                    // 32 bytes per state field = 32 * 15 = 480
-                    // TC_MEM_OFFSET = 480 + 128 = 608 = 0x260
-                    revert(0, 0)
-                }
-                if iszero(eq(mload(0x40), shl(5, 59))) {
-                    // 4 + 15 state slots + 40 thread slots = 59 expected memory check
-                    revert(0, 0)
-                }
+                // Place the structs at the fixed base (fresh memory, so zeroed), point the thread's
+                // registers array right behind the thread slots as every compiler lays it out, and
+                // bump the free memory pointer past both.
+                state := STATE_MEM_OFFSET
+                thread := TC_MEM_OFFSET
+                mstore(add(thread, 224), add(thread, 256))
+                mstore(0x40, STRUCTS_MEM_END)
                 if iszero(eq(_stateData.offset, 132)) {
                     // 32*4+4=132 expected state data offset
                     revert(0, 0)

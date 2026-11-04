@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -113,6 +114,10 @@ func processFile(file string) (*SemverLockResult, []error) {
 
 	// Check if the contract has a version function or variable with @custom:semver tag
 	hasSemverTag := false
+	if len(artifact.Ast.Nodes) == 0 {
+		// Solar emits no AST: look for the tag and a version declaration in the source.
+		hasSemverTag = semverTagInSource(sourceFilePath)
+	}
 	for _, node := range artifact.Ast.Nodes {
 		if node.NodeType != "ContractDefinition" || node.Name != contractName {
 			continue
@@ -179,4 +184,16 @@ func processFile(file string) (*SemverLockResult, []error) {
 			SourceCodeHash: sourceCodeHash,
 		},
 	}, nil
+}
+
+// Reports whether the source declares a `version` function or variable documented with
+// `@custom:semver`. Used when the artifact carries no AST.
+func semverTagInSource(path string) bool {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	tag := regexp.MustCompile(`@custom:semver`)
+	decl := regexp.MustCompile(`(?m)^\s*(function\s+version\s*\(|string\s+(public\s+)?(constant\s+)?version\b)`)
+	return tag.Match(content) && decl.Match(content)
 }

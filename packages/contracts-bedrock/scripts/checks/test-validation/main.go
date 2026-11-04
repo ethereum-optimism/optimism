@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -364,8 +365,57 @@ func findArtifactPath(contractFileName, contractName string) (string, error) {
 	return files[0], nil
 }
 
+// Returns the source file and contract name an artifact was compiled from.
+func compilationTarget(artifact *solc.ForgeArtifact) (string, string, bool) {
+	for path, name := range artifact.Metadata.Settings.CompilationTarget {
+		return path, name, true
+	}
+	return "", "", false
+}
+
+// Returns the declaration keyword ("contract", "library", "interface") and whether it is abstract
+// by reading the source file. Used when the artifact carries no AST (Solar emits none).
+func declarationFromSource(artifact *solc.ForgeArtifact) (string, bool, bool) {
+	path, name, ok := compilationTarget(artifact)
+	if !ok {
+		return "", false, false
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", false, false
+	}
+	re := regexp.MustCompile(`(?m)^\s*(abstract\s+)?(contract|library|interface)\s+` + regexp.QuoteMeta(name) + `\b`)
+	m := re.FindSubmatch(content)
+	if m == nil {
+		return "", false, false
+	}
+	return string(m[2]), len(m[1]) > 0, true
+}
+
+// Extracts function names from the source file. Used when the artifact carries no AST.
+func extractFunctionsFromSource(artifact *solc.ForgeArtifact) []string {
+	path, _, ok := compilationTarget(artifact)
+	if !ok {
+		return nil
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	re := regexp.MustCompile(`(?m)^\s*function\s+([A-Za-z_][A-Za-z0-9_]*)`)
+	var functions []string
+	for _, m := range re.FindAllSubmatch(content, -1) {
+		functions = append(functions, string(m[1]))
+	}
+	return functions
+}
+
 // Checks if the artifact represents a library
 func isLibrary(artifact *solc.ForgeArtifact) bool {
+	if len(artifact.Ast.Nodes) == 0 {
+		kind, _, ok := declarationFromSource(artifact)
+		return ok && kind == "library"
+	}
 	// Check the AST for ContractKind == "library"
 	for _, node := range artifact.Ast.Nodes {
 		if node.NodeType == "ContractDefinition" && node.ContractKind == "library" {
@@ -377,6 +427,9 @@ func isLibrary(artifact *solc.ForgeArtifact) bool {
 
 // Extracts function names from the AST (for libraries with internal functions)
 func extractFunctionsFromAST(artifact *solc.ForgeArtifact) []string {
+	if len(artifact.Ast.Nodes) == 0 {
+		return extractFunctionsFromSource(artifact)
+	}
 	var functions []string
 
 	// Navigate through AST to find function definitions
