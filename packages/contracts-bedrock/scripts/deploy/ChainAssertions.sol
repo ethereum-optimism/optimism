@@ -261,7 +261,8 @@ library ChainAssertions {
         address _opChainProxyAdminOwner,
         bool _isProxy,
         uint256 _minProofMaturityDelaySeconds,
-        uint256 _maxProofMaturityDelaySeconds
+        uint256 _maxProofMaturityDelaySeconds,
+        address _bridgeHook
     )
         internal
         view
@@ -292,8 +293,8 @@ library ChainAssertions {
             require(portal.l2Sender() == address(0), "CHECK-OP2-110");
             require(address(portal.ethLockbox()) == address(0), "CHECK-OP2-120");
         }
-        // No deploy path configures a bridge hook, on the proxy or on the implementation.
-        require(address(portal.bridgeHook()) == address(0), "CHECK-OP2-125");
+        // Check the configured bridgeHook in the portal matches the expectation.
+        require(address(portal.bridgeHook()) == (_isProxy ? _bridgeHook : address(0)), "CHECK-OP2-125");
         // This slot is the custom gas token _balance and this check ensures
         // that it stays unset for forwards compatibility with custom gas token.
         require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "CHECK-OP2-130");

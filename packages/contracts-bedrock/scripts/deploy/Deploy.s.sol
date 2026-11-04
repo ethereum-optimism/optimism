@@ -300,7 +300,8 @@ contract Deploy is Deployer {
             _opChainProxyAdminOwner: cfg.finalSystemOwner(),
             _isProxy: false,
             _minProofMaturityDelaySeconds: cfg.minProofMaturityDelaySeconds(),
-            _maxProofMaturityDelaySeconds: cfg.maxProofMaturityDelaySeconds()
+            _maxProofMaturityDelaySeconds: cfg.maxProofMaturityDelaySeconds(),
+            _bridgeHook: address(0)
         });
         ChainAssertions.checkETHLockboxImpl(
             IETHLockbox(impls.ETHLockbox), IOptimismPortal2(payable(impls.OptimismPortal))

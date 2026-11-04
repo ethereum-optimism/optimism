@@ -870,7 +870,8 @@ contract DeployImplementations is Script {
             _opChainProxyAdminOwner: address(0),
             _isProxy: false,
             _minProofMaturityDelaySeconds: _input.minProofMaturityDelaySeconds,
-            _maxProofMaturityDelaySeconds: _input.maxProofMaturityDelaySeconds
+            _maxProofMaturityDelaySeconds: _input.maxProofMaturityDelaySeconds,
+            _bridgeHook: address(0)
         });
         ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
         ChainAssertions.checkSystemConfigImpls(impls);
