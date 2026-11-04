@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// after an upgrade. It expects the chain to already run this release's contracts.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 5.1.0
-    string public constant version = "5.1.0";
+    /// @custom:semver 5.2.0
+    string public constant version = "5.2.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -471,7 +471,8 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Asserts that dispute games are correctly configured for super root mode.
-    ///         Checks that legacy game types are disabled and super game types are registered.
+    ///         Checks that legacy game types and SUPER_CANNON are unregistered, SUPER_PERMISSIONED is
+    ///         registered, and SUPER_CANNON_KONA or ZK_DISPUTE_GAME is registered.
     ///         This only validates system shape, not full game configuration. State transition
     ///         checks (e.g., "was this chain already migrated?") belong in Superchain Ops scripts.
     function assertValidSuperRootDisputeGames(
@@ -850,10 +851,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         });
     }
 
-    /// @notice Returns whether the respected game type is one the selected validation branch
-    ///         requires to be registered. The ZK game is a super game type, but it is a per-chain
-    ///         opt-in, so it only counts as validated when the factory registers an
-    ///         implementation for it.
+    /// @notice Returns whether the selected validation branch validates the respected game type.
+    ///         SUPER_CANNON_KONA and ZK_DISPUTE_GAME count only when the factory registers them;
+    ///         the SHAPE checks require every other accepted type.
     function isRespectedGameTypeValidated(
         GameType _gameType,
         bool _isSuperMode,
@@ -867,14 +867,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         if (!_isSuperMode) {
             return raw == GameTypes.PERMISSIONED_CANNON.raw() || raw == GameTypes.CANNON_KONA.raw();
         }
-        if (raw == GameTypes.SUPER_PERMISSIONED.raw() || raw == GameTypes.SUPER_CANNON_KONA.raw()) {
-            return true;
-        }
-        if (raw != GameTypes.ZK_DISPUTE_GAME.raw()) {
-            return false;
-        }
-        IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        return address(factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0);
+        if (raw == GameTypes.SUPER_PERMISSIONED.raw()) return true;
+        if (raw != GameTypes.SUPER_CANNON_KONA.raw() && raw != GameTypes.ZK_DISPUTE_GAME.raw()) return false;
+        return address(IDisputeGameFactory(_sysCfg.disputeGameFactory()).gameImpls(_gameType)) != address(0);
     }
 
     /// @notice Validates the configuration of the L1 contracts.
@@ -963,16 +958,22 @@ contract OPContractsManagerStandardValidator is ISemver {
                 _overrides,
                 "SPDG"
             );
-            _errors = assertValidPermissionlessDisputeGame(
-                _errors,
-                _input.sysCfg,
-                GameTypes.SUPER_CANNON_KONA,
-                _input.cannonKonaPrestate,
-                _input.l2ChainID,
-                _sharedProxyAdmin,
-                _overrides,
-                "SCKDG"
-            );
+            // Optional: DF-60 requires SUPER_CANNON_KONA or ZK_DISPUTE_GAME.
+            if (
+                address(IDisputeGameFactory(_input.sysCfg.disputeGameFactory()).gameImpls(GameTypes.SUPER_CANNON_KONA))
+                    != address(0)
+            ) {
+                _errors = assertValidPermissionlessDisputeGame(
+                    _errors,
+                    _input.sysCfg,
+                    GameTypes.SUPER_CANNON_KONA,
+                    _input.cannonKonaPrestate,
+                    _input.l2ChainID,
+                    _sharedProxyAdmin,
+                    _overrides,
+                    "SCKDG"
+                );
+            }
             _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides);
         } else {
             // Super game types must not be registered in non-super mode.

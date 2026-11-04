@@ -802,7 +802,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                     key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_PERMISSIONED)
                 })
             );
-        runCurrentUpgradeV2(chainPAO, hex"", "SCKDG-SHAPE,SCKDG-10");
+        runCurrentUpgradeV2(chainPAO, hex"", "DF-60");
         assertEq(
             address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)), address(0), "game impl not cleared"
         );
@@ -877,7 +877,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                     key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_PERMISSIONED)
                 })
             );
-        runCurrentUpgradeV2(chainPAO, hex"", "SCKDG-SHAPE,SCKDG-10");
+        runCurrentUpgradeV2(chainPAO, hex"", "DF-60");
         assertEq(
             address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)), address(0), "game impl not cleared"
         );
@@ -2004,7 +2004,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         // Run the deploy and standard validator checks.
         // In standard mode, CANNON_KONA is disabled. In super root mode, SUPER_CANNON_KONA is disabled.
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        string memory expectedErrors = superRoot ? "DF-60" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         // Verify key contracts are deployed.
@@ -2031,7 +2031,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.useCustomGasToken = true;
 
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        string memory expectedErrors = superRoot ? "DF-60" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         assertTrue(cts.systemConfig.isCustomGasToken(), "CGT not enabled");
@@ -2064,7 +2064,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.withdrawalDelaySeconds = 1 days;
 
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        string memory expectedErrors = superRoot ? "DF-60" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         assertEq(cts.optimismPortal.proofMaturityDelaySeconds(), 2 days, "proof maturity delay mismatch");
@@ -2462,7 +2462,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.startingAnchorRoot =
             Proposal({ root: Hash.wrap(Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT), l2SequenceNumber: 0 });
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        string memory expectedErrors = superRoot ? "DF-60" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
         Proposal memory startingAnchorRoot = cts.anchorStateRegistry.getStartingAnchorRoot();
         assertEq(
