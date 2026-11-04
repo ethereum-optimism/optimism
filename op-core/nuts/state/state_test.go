@@ -1,6 +1,8 @@
 package state
 
 import (
+	"io/fs"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -52,10 +54,16 @@ func TestMultiChainState(t *testing.T) {
 	interopSlot := crypto.Keccak256Hash(featureKey[:], common.LeftPadBytes([]byte{9}, 32))
 	// EIP-1967 implementation slot.
 	implSlot := common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
-	for _, fork := range forks.From(forks.Lagoon) {
-		require.True(t, HasMultiChainState(fork))
-		alloc, err := loadState(fork, string(fork)+"_multichain_state.json")
-		require.NoErrorf(t, err, "a multi-chain state must exist for %s", fork)
+	// Check every committed multi-chain state. A fork gets its own state only after its bundle is
+	// frozen, so this does not require a state for the newest fork. check-nut-locks requires it.
+	names, err := fs.Glob(stateFS, "*_multichain_state.json")
+	require.NoError(t, err)
+	require.NotEmpty(t, names)
+	for _, name := range names {
+		fork := forks.Name(strings.TrimSuffix(name, "_multichain_state.json"))
+		require.Truef(t, HasMultiChainState(fork), "%s has no multi-chain variant", fork)
+		alloc, err := loadState(fork, name)
+		require.NoError(t, err)
 		require.NotEqualf(t, common.Hash{}, alloc[predeploys.L1BlockAddr].Storage[interopSlot],
 			"INTEROP must be set in the %s multi-chain state", fork)
 		impl := common.BytesToAddress(alloc[predeploys.CrossL2InboxAddr].Storage[implSlot].Bytes())
@@ -67,6 +75,12 @@ func TestMultiChainState(t *testing.T) {
 			require.NoError(t, err)
 			require.Equalf(t, alloc, selected, "%s multi-chain case must boot from the %s multi-chain state", next, fork)
 		}
+	}
+
+	// Every fork after Lagoon boots its multi-chain case from its predecessor's multi-chain state.
+	for _, fork := range forks.From(forks.Lagoon)[1:] {
+		_, err := PreForkMultiChainState(fork)
+		require.NoErrorf(t, err, "a multi-chain pre-fork state should back %s", fork)
 	}
 }
 
