@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// after an upgrade. It expects the chain to already run this release's contracts.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 5.2.0
-    string public constant version = "5.2.0";
+    /// @custom:semver 6.0.0
+    string public constant version = "6.0.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -149,11 +149,12 @@ contract OPContractsManagerStandardValidator is ISemver {
         address proposer;
     }
 
-    /// @notice Struct containing the input parameters for the validation process when dev features are enabled.
+    /// @notice Validation input carrying the expected Cannon, Cannon-Kona and ZK prestates.
     struct ValidationInputDev {
         ISystemConfig sysCfg;
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
+        bytes32 zkPrestate;
         uint256 l2ChainID;
         address proposer;
     }
@@ -872,13 +873,14 @@ contract OPContractsManagerStandardValidator is ISemver {
         return address(IDisputeGameFactory(_sysCfg.disputeGameFactory()).gameImpls(_gameType)) != address(0);
     }
 
-    /// @notice Validates the configuration of the L1 contracts.
+    /// @notice Validates the configuration of the L1 contracts. Passes zero Cannon-Kona and ZK
+    ///         prestates, so chains registering those games report their prestate errors.
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
         ValidationInputDev memory devInput = _toValidationInputDev(_input);
         return validate(devInput, _allowFailure);
     }
 
-    /// @notice Validates the configuration of the L1 contracts when dev features are enabled.
+    /// @notice Validates the configuration of the L1 contracts against the given prestates.
     function validate(ValidationInputDev memory _input, bool _allowFailure) public view returns (string memory) {
         return validateWithOverrides(
             _input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) })
@@ -886,7 +888,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
-    /// the ValidationOverrides struct.
+    /// the ValidationOverrides struct. Passes zero Cannon-Kona and ZK prestates.
     function validateWithOverrides(
         ValidationInput memory _input,
         bool _allowFailure,
@@ -901,7 +903,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
-    /// the ValidationOverrides struct. Includes validation fields relevant for dev features.
+    /// the ValidationOverrides struct.
     function validateWithOverrides(
         ValidationInputDev memory _input,
         bool _allowFailure,
@@ -974,7 +976,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                     "SCKDG"
                 );
             }
-            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides);
+            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides, _input.zkPrestate);
         } else {
             // Super game types must not be registered in non-super mode.
             _errors = assertValidNonSuperRootDisputeGames(_errors, _input.sysCfg);
@@ -1025,12 +1027,14 @@ contract OPContractsManagerStandardValidator is ISemver {
         return finalErrors;
     }
 
-    /// @notice Transforms current ValidationInput structs into the dev feature format.
+    /// @notice Converts a ValidationInput into a ValidationInputDev with zero Cannon-Kona and ZK
+    ///         prestates.
     function _toValidationInputDev(ValidationInput memory _input) internal pure returns (ValidationInputDev memory) {
         return ValidationInputDev({
             sysCfg: _input.sysCfg,
             cannonPrestate: _input.absolutePrestate,
             cannonKonaPrestate: bytes32(0),
+            zkPrestate: bytes32(0),
             l2ChainID: _input.l2ChainID,
             proposer: _input.proposer
         });
@@ -1067,12 +1071,14 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
     }
 
-    /// @notice Validates the decoded ZK game args against the chain config.
+    /// @notice Validates the decoded ZK game args against the chain config and the expected ZK
+    ///         prestate.
     function _assertValidZKGameArgs(
         string memory _errors,
         ISystemConfig _sysCfg,
         IProxyAdmin _admin,
         ValidationOverrides memory _overrides,
+        bytes32 _zkPrestate,
         string memory _errorPrefix
     )
         private
@@ -1081,7 +1087,11 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
-        _errors = internalRequire(args.absolutePrestate != bytes32(0), string.concat(_errorPrefix, "-70"), _errors);
+        _errors = internalRequire(
+            _zkPrestate != bytes32(0) && args.absolutePrestate == _zkPrestate,
+            string.concat(_errorPrefix, "-70"),
+            _errors
+        );
         _errors = internalRequire(
             args.verifier == sp1PlonkAdapterImpl && sp1PlonkAdapterImpl.code.length > 0,
             string.concat(_errorPrefix, "-80"),
@@ -1128,7 +1138,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         string memory _errors,
         ISystemConfig _sysCfg,
         IProxyAdmin _admin,
-        ValidationOverrides memory _overrides
+        ValidationOverrides memory _overrides,
+        bytes32 _zkPrestate
     )
         internal
         view
@@ -1155,7 +1166,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         );
         _errors =
             internalRequire(gameImpl.gameAddress == zkDisputeGameImpl, string.concat(errorPrefix, "-150"), _errors);
-        _errors = _assertValidZKGameArgs(_errors, _sysCfg, _admin, _overrides, errorPrefix);
+        _errors = _assertValidZKGameArgs(_errors, _sysCfg, _admin, _overrides, _zkPrestate, errorPrefix);
         // ZK game creation is permissionless, so a zero init bond leaves root claims free to spam.
         return internalRequire(
             _factory.initBonds(GameTypes.ZK_DISPUTE_GAME) > 0, string.concat(errorPrefix, "-160"), _errors
