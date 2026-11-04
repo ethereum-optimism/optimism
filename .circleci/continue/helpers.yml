@@ -228,7 +228,6 @@ commands:
               fi
             fi
 
-            git config --global --get-regexp '^url\.' || true
   checkout-with-mise:
     description: "Checkout then initialize the mise environment."
     parameters:

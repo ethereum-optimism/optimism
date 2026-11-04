@@ -191,7 +191,6 @@ commands:
               fi
             fi
 
-            git config --global --get-regexp '^url\.' || true
 
 jobs:
   # --------------------------------------------------------------------------
