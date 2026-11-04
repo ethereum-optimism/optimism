@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/nuts"
+	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
 
@@ -65,17 +67,24 @@ func validateEntry(fork string, entry nuts.ForkLockEntry, bundleContent []byte) 
 	return nil
 }
 
-// checkPreForkState verifies the locked fork's own pre-fork state artifact exists
-// — op-core/nuts/state/<fork>_state.json, the state as of this fork. Locking a
-// fork's bundle should also produce this state (post-activation) so the NEXT
-// fork's activation test can boot from it. Catching a forgotten one here keeps
-// the chain of states complete, and cheaply (the proofs suite needs kona-host).
+// checkPreForkState verifies the locked fork's own pre-fork state artifacts exist
+// — op-core/nuts/state/<fork>_state.json, the state as of this fork, and from
+// Lagoon onward <fork>_multichain_state.json. Locking a fork's bundle should also
+// produce these states (post-activation) so the NEXT fork's activation test can
+// boot from them. Catching a forgotten one here keeps the chain of states
+// complete, and cheaply (the proofs suite needs kona-host).
 func checkPreForkState(root, fork string) error {
-	rel := filepath.Join("op-core", "nuts", "state", fork+"_state.json")
-	if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
-		return fmt.Errorf(
-			"fork %s is locked but its pre-fork state %s is missing — generate and commit it so "+
-				"the next fork can boot from it (see op-core/nuts/state/README.md)", fork, rel)
+	names := []string{fork + "_state.json"}
+	if nutsstate.HasMultiChainState(forks.Name(fork)) {
+		names = append(names, fork+"_multichain_state.json")
+	}
+	for _, name := range names {
+		rel := filepath.Join("op-core", "nuts", "state", name)
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			return fmt.Errorf(
+				"fork %s is locked but its pre-fork state %s is missing — generate and commit it so "+
+					"the next fork can boot from it (see op-core/nuts/state/README.md)", fork, rel)
+		}
 	}
 	return nil
 }
