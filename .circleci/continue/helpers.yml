@@ -137,7 +137,7 @@ commands:
             token=""
             basic=""
 
-            if [ -n "${GITHUB_CHECKOUT_APP_ID:-}" ] && [ -n "${GITHUB_CHECKOUT_APP_PRIVATE_KEY_B64:-}" ]; then
+            if [ -n "${GITHUB_CHECKOUT_APP_ID:-}" ] && [ -n "${GITHUB_CHECKOUT_APP_PRIVATE_KEY_B64:-}" ] && command -v openssl curl jq >/dev/null 2>&1; then
               key_file="$(mktemp)"
               trap 'rm -f "$key_file"' EXIT
               printf '%s' "$GITHUB_CHECKOUT_APP_PRIVATE_KEY_B64" | base64 -d > "$key_file"
@@ -192,6 +192,12 @@ commands:
               git remote set-url origin "$repo_url"
             else
               git remote add origin "$repo_url"
+            fi
+
+            if [ -n "$token" ]; then
+              echo "Checking out with GitHub App token"
+            else
+              echo "Checking out anonymously"
             fi
 
             fetch_repo --force --tags origin '+refs/heads/*:refs/remotes/origin/*'
