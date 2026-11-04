@@ -772,6 +772,40 @@ mod tests {
         );
     }
 
+    /// A session's record holding another public host's address, such as a web server's, with a
+    /// TCP port and no UDP port, which discv5 doesn't check against the session.
+    fn third_party_record() -> Enr {
+        enr_with(OP_SEPOLIA_CHAIN_ID, |record| {
+            record.ip4(Ipv4Addr::new(93, 184, 216, 34)).tcp4(443);
+        })
+    }
+
+    /// A node should dial a session's peer at the address the session's packets came from, with
+    /// the TCP port from its record, not at the address in its record: only the session's address
+    /// has shown that it runs discovery. Otherwise a peer could have gossip dial any other host, by
+    /// starting a session with a record holding that host's address.
+    #[rstest]
+    #[case::session(session_from("1.2.3.4"))]
+    #[case::unverifiable(unverifiable_from("1.2.3.4"))]
+    fn test_session_peer_is_dialed_at_the_session_address(
+        #[case] event: impl Fn(Enr) -> discv5::Event,
+    ) {
+        let record = Discv5Driver::record_to_dial(
+            event(third_party_record()),
+            OP_SEPOLIA_CHAIN_ID,
+            AddrScope::Public,
+        )
+        .expect("a session's record is dialed");
+        let dialed =
+            kona_peers::enr_to_multiaddr(&record.enr).expect("the record has a TCP address");
+        // TODO(#23766): fails, as gossip dials the address in the record.
+        assert_eq!(
+            dialed.iter().take(2).collect::<Vec<_>>(),
+            [Protocol::Ip4(Ipv4Addr::new(1, 2, 3, 4)), Protocol::Tcp(443)],
+            "gossip would dial the host the record names, not the session's"
+        );
+    }
+
     /// A lookup's results include nodes from discv5's own table, which may have got there through a
     /// session, without the table filter, so they are checked against our own scope too.
     #[rstest]
