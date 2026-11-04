@@ -24,8 +24,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 5.0.0
-    string public constant version = "5.0.0";
+    /// @custom:semver 5.1.0
+    string public constant version = "5.1.0";
 
     /// @notice The lowest value in seconds that `disputeGameFinalityDelaySeconds` may be set to.
     uint256 internal immutable MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS;
@@ -364,6 +364,12 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     function isGameFinalized(IDisputeGame _game) public view returns (bool) {
         // Game must be resolved.
         if (!isGameResolved(_game)) {
+            return false;
+        }
+
+        // Finality delay must be set. A zero delay means the proxy was upgraded without calling
+        // `initialize`, so fail closed rather than finalize games with no review period.
+        if (disputeGameFinalityDelaySeconds == 0) {
             return false;
         }
 
