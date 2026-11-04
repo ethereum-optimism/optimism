@@ -738,22 +738,64 @@ mod tests {
     /// one. If it hands over the loopback record, gossip gets that one first. If it leaves it out,
     /// gossip gets the public one first. So the first record shows whether the loopback one was
     /// left out, without waiting to see that it never comes.
-    ///
-    /// The node has no bootnodes, and listens on loopback whatever it advertises, so it contacts
-    /// nobody.
     #[tokio::test]
     async fn test_public_node_leaves_out_saved_loopback_record() {
-        // Not in the registry, so it has no bootnodes of its own.
-        const CHAIN_ID: u64 = 0xdead_beef;
+        let loopback = localhost_enr(BOOTSTORE_CHAIN_ID);
+        let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), BOOTSTORE_CHAIN_ID);
+        let (driver, _dir) = public_driver_with_bootstore(&[loopback, public.clone()]);
+        let (_handler, mut records) = driver.start();
 
+        let first = tokio::time::timeout(Duration::from_secs(5), records.recv())
+            .await
+            .expect("the driver hands over the saved public record")
+            .expect("the driver runs");
+        assert_eq!(first.enr, public, "a public node dialed a saved loopback record");
+    }
+
+    /// A public node should also remove the saved records it leaves out from its bootstore, so
+    /// that they don't stay there for good. The driver saves the bootstore once it has started, and
+    /// then every minute.
+    #[tokio::test]
+    async fn test_public_node_removes_saved_loopback_record() {
+        let loopback = localhost_enr(BOOTSTORE_CHAIN_ID);
+        let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), BOOTSTORE_CHAIN_ID);
+        let (driver, dir) = public_driver_with_bootstore(&[loopback.clone(), public.clone()]);
+        let path = dir.path().join("bootstore.json");
+        let (_handler, _records) = driver.start();
+
+        // Read while the driver may be writing, so a read can come back empty: wait for one that
+        // holds the public record too.
+        let saved_without_loopback = async {
+            loop {
+                let store: BootStore =
+                    BootStoreFile::Custom(path.clone()).try_into().expect("the bootstore opens");
+                let saved = store.valid_peers();
+                if saved.contains(&&public) && !saved.contains(&&loopback) {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        };
+        // TODO(#23766): fails, as saved records are left out but kept.
+        tokio::time::timeout(Duration::from_secs(5), saved_without_loopback)
+            .await
+            .expect("a public node kept a saved loopback record");
+    }
+
+    /// The chain ID of the bootstore tests: not in the registry, so it has no bootnodes of its own.
+    const BOOTSTORE_CHAIN_ID: u64 = 0xdead_beef;
+
+    /// A driver that advertises a public address, with a bootstore of `records` in a new temporary
+    /// directory, which is removed when the returned guard drops. The node has no bootnodes, and
+    /// listens on loopback whatever it advertises, so it contacts nobody.
+    fn public_driver_with_bootstore(records: &[Enr]) -> (Discv5Driver, tempfile::TempDir) {
         let dir = tempdir().unwrap();
         let path = dir.path().join("bootstore.json");
-        let loopback = localhost_enr(CHAIN_ID);
-        let public = enr_at(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), CHAIN_ID);
         let mut store: BootStore =
             BootStoreFile::Custom(path.clone()).try_into().expect("the bootstore opens");
-        store.add_enr(loopback);
-        store.add_enr(public.clone());
+        for record in records {
+            store.add_enr(record.clone());
+        }
         store.sync().expect("the bootstore saves");
         drop(store);
 
@@ -762,19 +804,13 @@ mod tests {
         };
         let mut driver = Discv5Driver::builder(
             LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 0, 0),
-            CHAIN_ID,
+            BOOTSTORE_CHAIN_ID,
             ConfigBuilder::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0).into()).build(),
         )
         .build()
         .expect("the driver builds");
         driver.bootstore = Some(BootStoreFile::Custom(path));
-        let (_handler, mut records) = driver.start();
-
-        let first = tokio::time::timeout(Duration::from_secs(5), records.recv())
-            .await
-            .expect("the driver hands over the saved public record")
-            .expect("the driver runs");
-        assert_eq!(first.enr, public, "a public node dialed a saved loopback record");
+        (driver, dir)
     }
 
     /// A public node should neither contact nor keep a loopback bootnode given by enode URL, as it
