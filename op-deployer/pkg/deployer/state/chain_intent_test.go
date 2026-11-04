@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -401,21 +403,25 @@ func TestChainIntentBridgeHookTOMLRoundTrip(t *testing.T) {
 func TestChainIntentCheck_BridgeHookCustomGasToken(t *testing.T) {
 	hook := common.HexToAddress("0x44")
 	cgt := CustomGasToken{Name: "Custom Gas Token", Symbol: "CGT"}
+	altDA := genesis.AltDADeployConfig{UseAltDA: true, DACommitmentType: altda.GenericCommitmentString}
 	tests := []struct {
-		name string
-		hook *common.Address
-		cgt  CustomGasToken
-		err  error
+		name  string
+		hook  *common.Address
+		cgt   CustomGasToken
+		altDA genesis.AltDADeployConfig
+		err   error
 	}{
 		{name: "hook without custom gas token", hook: &hook},
 		{name: "custom gas token without hook", cgt: cgt},
 		{name: "hook with custom gas token", hook: &hook, cgt: cgt, err: ErrIncompatibleValue},
+		{name: "hook with custom gas token on alt-DA", hook: &hook, cgt: cgt, altDA: altDA, err: ErrIncompatibleValue},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			chain := validBaseChainIntent()
 			chain.BridgeHook = tt.hook
 			chain.CustomGasToken = tt.cgt
+			chain.DangerousAltDAConfig = tt.altDA
 
 			err := chain.Check()
 			if tt.err == nil {

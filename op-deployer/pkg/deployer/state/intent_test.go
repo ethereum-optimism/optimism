@@ -260,7 +260,7 @@ func TestValidateCustomValues(t *testing.T) {
 	}
 }
 
-func TestValidateCustomValuesBridgeHookInterop(t *testing.T) {
+func TestValidateCustomValues_BridgeHookInterop(t *testing.T) {
 	hook := common.HexToAddress("0x9999")
 	tests := []struct {
 		name       string
