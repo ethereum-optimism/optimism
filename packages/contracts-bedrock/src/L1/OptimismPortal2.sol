@@ -263,9 +263,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_WithdrawerNotAllowed();
 
     /// @notice Semantic version.
-    /// @custom:semver 6.1.0+deposit-allowlist
+    /// @custom:semver 6.1.0+allowlist
     function version() public pure virtual returns (string memory) {
-        return "6.1.0+deposit-allowlist";
+        return "6.1.0+allowlist";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
