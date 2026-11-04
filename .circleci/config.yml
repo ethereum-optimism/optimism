@@ -169,8 +169,9 @@ commands:
               echo "Checking out anonymously"
             fi
 
-            fetch_repo --force --tags origin '+refs/heads/*:refs/remotes/origin/*'
+            fetch_repo --quiet --force --tags origin '+refs/heads/*:refs/remotes/origin/*'
             fetch_repo origin "$CIRCLE_SHA1"
+            git branch --force develop refs/remotes/origin/develop
 
             if [ -n "${CIRCLE_BRANCH:-}" ]; then
               git checkout --force -B "$CIRCLE_BRANCH" "$CIRCLE_SHA1"
