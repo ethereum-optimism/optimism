@@ -184,9 +184,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 9.0.7
+    /// @custom:semver 9.0.8
     function version() public pure returns (string memory) {
-        return "9.0.7";
+        return "9.0.8";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
