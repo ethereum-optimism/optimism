@@ -133,7 +133,8 @@ commands:
 
             : "${CIRCLE_SHA1:?CIRCLE_SHA1 is not set}"
 
-            repo_url="https://github.com/ethereum-optimism/optimism.git"
+            repo_url="https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+            repo_path="${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
             token=""
             basic=""
 
@@ -153,40 +154,39 @@ commands:
               payload=$(printf '{"iat":%d,"exp":%d,"iss":"%s"}' "$((now - 60))" "$((now + 540))" "$GITHUB_CHECKOUT_APP_ID" | b64url)
               signature=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "$key_file" -binary | b64url)
               jwt="$header.$payload.$signature"
-              installation_id=$(curl -fsSL \
+              installation_id=$(curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 \
                 -H "Authorization: Bearer $jwt" \
                 -H "Accept: application/vnd.github+json" \
-                https://api.github.com/repos/ethereum-optimism/optimism/installation | jq -r '.id')
-              if [ -z "$installation_id" ] || [ "$installation_id" = "null" ]; then
-                echo "Failed to resolve GitHub App installation id" >&2
-                exit 1
+                "https://api.github.com/repos/${repo_path}/installation" | jq -r '.id') || installation_id=""
+              if [ -n "$installation_id" ] && [ "$installation_id" != "null" ]; then
+                token=$(curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 -X POST \
+                  -H "Authorization: Bearer $jwt" \
+                  -H "Accept: application/vnd.github+json" \
+                  -H "Content-Type: application/json" \
+                  -d "{\"repositories\":[\"${CIRCLE_PROJECT_REPONAME}\"],\"permissions\":{\"contents\":\"read\"}}" \
+                  "https://api.github.com/app/installations/${installation_id}/access_tokens" | jq -r '.token') || token=""
               fi
-              token=$(curl -fsSL -X POST \
-                -H "Authorization: Bearer $jwt" \
-                -H "Accept: application/vnd.github+json" \
-                -H "Content-Type: application/json" \
-                -d '{"repositories":["optimism"],"permissions":{"contents":"read"}}' \
-                "https://api.github.com/app/installations/${installation_id}/access_tokens" | jq -r '.token')
-              if [ -z "$token" ] || [ "$token" = "null" ]; then
-                echo "Failed to mint GitHub App installation token" >&2
-                exit 1
+              if [ -n "$token" ] && [ "$token" != "null" ]; then
+                basic=$(printf 'x-access-token:%s' "$token" | base64 | tr -d '\n')
+              else
+                token=""
+                echo "GitHub App token unavailable, checking out anonymously" >&2
               fi
-              basic=$(printf 'x-access-token:%s' "$token" | base64 | tr -d '\n')
             fi
 
-            git_fetch() {
+            git_auth() {
               if [ -n "$token" ]; then
-                git -c "http.https://github.com/ethereum-optimism/optimism.git.extraheader=AUTHORIZATION: basic ${basic}" fetch "$@"
+                GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.${repo_url}.extraheader" GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${basic}" git "$@"
               else
-                git fetch "$@"
+                git "$@"
               fi
             }
 
             fetch_repo() {
               if [ "$CHECKOUT_METHOD" = "blobless" ]; then
-                git_fetch --filter=blob:none "$@"
+                git_auth fetch --filter=blob:none "$@"
               else
-                git_fetch "$@"
+                git_auth fetch "$@"
               fi
             }
 
@@ -211,9 +211,9 @@ commands:
             git branch --force develop refs/remotes/origin/develop
 
             if [ -n "${CIRCLE_BRANCH:-}" ]; then
-              git checkout --force -B "$CIRCLE_BRANCH" "$CIRCLE_SHA1"
+              git_auth checkout -q --force -B "$CIRCLE_BRANCH" "$CIRCLE_SHA1"
             else
-              git checkout --force "$CIRCLE_SHA1"
+              git_auth checkout -q --force "$CIRCLE_SHA1"
             fi
 
             if [ "$(git rev-parse HEAD)" != "$CIRCLE_SHA1" ]; then

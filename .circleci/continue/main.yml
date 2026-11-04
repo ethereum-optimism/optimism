@@ -1560,9 +1560,11 @@ jobs:
     steps:
       - checkout-with-mise:
           enable-mise-cache: true
+          checkout-method: blobless
       - run:
           name: Run shellcheck
-          command: just shellcheck
+          command: |
+            find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' -not -path './rust/*target*/*' -print0 | xargs -0 shellcheck
 
   l2-chains-sync-check:
     docker:
@@ -2278,7 +2280,8 @@ jobs:
       - image: returntocorp/semgrep
     resource_class: xlarge.gen2
     steps:
-      - github-checkout # no need to use mise here since the docker image contains the only dependency
+      - github-checkout: # no need to use mise here since the docker image contains the only dependency
+          method: blobless
       - unless:
           condition:
             equal: ["develop", << pipeline.git.branch >>]
@@ -2584,14 +2587,12 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - github-checkout-app
       - semgrep-scan:
           name: semgrep-test
           scan_command: semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - github-checkout-app
       - go-lint:
           requires:
             - prep-superchain
