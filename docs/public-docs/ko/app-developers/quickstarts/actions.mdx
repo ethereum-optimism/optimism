@@ -1,0 +1,439 @@
+---
+title: Actions SDK로 DeFi 통합하기
+description: 가볍고 조합 가능하며 타입 안전한 모듈로 DeFi 작업을 수행합니다.
+diataxis: tutorial
+---
+
+<Warning>
+  Actions SDK는 아직 개발 중이며 프로덕션 환경에서 사용할 준비가 되지 않았습니다! 이
+  가이드는 초기 테스트 목적으로만 제공됩니다.
+</Warning>
+
+[Actions SDK](https://actions.money/)는 애플리케이션에 DeFi를 통합하는 작업을 단순화하는 오픈 소스 Typescript 개발 툴킷입니다.
+
+## 작동 방식
+
+내부 구성은 다음과 같습니다.
+
+- **모듈식 Provider**: Actions는 "Provider"라고 하는 핵심 어댑터 세트로 구성되어 있습니다. Provider를 사용하면 사용 사례에 맞는 서비스와 프로토콜을 선택할 수 있습니다.
+
+- **임베디드 지갑**: Actions는 널리 사용되는 임베디드 [지갑 제공업체](https://actions.money/#wallet)를 지원하므로, 사용자는 이메일 인증 흐름만으로 DeFi에 접근할 수 있습니다.
+
+- **Actions 구성**: Lend, Borrow, Swap, Pay와 같은 DeFi 작업으로 임베디드 지갑을 확장하세요. 각 Action에 여러 provider를 설정하여 DeFi 전반에서 가장 좋은 마켓을 선택할 수 있습니다.
+
+- **자산 및 체인 사용자 지정**: 하나의 config에서 애플리케이션의 자산, 마켓, 체인, 프로토콜을 허용하거나 차단할 수 있습니다.
+
+## 설치
+
+프로젝트에 Actions SDK를 설치합니다.
+
+<CodeGroup>
+```bash npm
+npm install @eth-optimism/actions-sdk
+```
+
+```bash pnpm
+pnpm add @eth-optimism/actions-sdk
+```
+
+```bash yarn
+yarn add @eth-optimism/actions-sdk
+```
+
+```bash bun
+bun add @eth-optimism/actions-sdk
+```
+
+```bash deno
+deno add @eth-optimism/actions-sdk
+```
+
+</CodeGroup>
+
+## 지갑 제공업체 선택하기
+
+Actions는 필요에 따라 프런트엔드 지갑과 백엔드 지갑 모두에서 작동합니다.
+
+<Tabs>
+  <Tab title="프런트엔드">
+    지갑 제공업체를 선택하세요.
+
+    <Tabs>
+      <Tab title="Privy">
+        **Privy 설정하기**
+
+        Privy에 가입한 후 전체 Privy 설치 [가이드](https://docs.privy.io/basics/react/installation)를 따르세요.
+
+        **지갑 제공업체 구성하기**
+
+        Privy 임베디드 지갑을 설정한 후 Actions SDK에 전달합니다.
+
+        ```typescript
+        import { actions } from './config'
+        import { useWallets } from '@privy-io/react-auth'
+
+        // PRIVY: Fetch wallet
+        const { wallets } = useWallets()
+        const embeddedWallet = wallets.find(
+          (wallet) => wallet.walletClientType === 'privy',
+        )
+
+        // ACTIONS: Let wallet make onchain Actions
+        const wallet = await actions.wallet.toActionsWallet({
+          connectedWallet: embeddedWallet,
+        })
+        ```
+
+        **스마트 지갑 구성하기**
+
+        선택적으로, 직접 제어하는 스마트 지갑용 signer를 생성할 수 있습니다.
+
+        ```typescript
+        import { actions } from './config'
+        import { useWallets } from '@privy-io/react-auth'
+
+        // PRIVY: Fetch wallet
+        const { wallets } = useWallets()
+        const embeddedWallet = wallets.find(
+          (wallet) => wallet.walletClientType === 'privy',
+        )
+
+        // ACTIONS: Create signer from hosted wallet
+        const signer = await actions.wallet.createSigner({
+          connectedWallet: embeddedWallet,
+        })
+
+        // ACTIONS: Create smart wallet
+        const { wallet } = await actions.wallet.createSmartWallet({
+          signer: signer
+        })
+        ```
+      </Tab>
+
+      <Tab title="Turnkey">
+        **Turnkey 설정하기**
+
+        Turnkey에 가입한 후 전체 Turnkey 설치 [가이드](https://docs.turnkey.com/sdks/react/getting-started)를 따르세요.
+
+        **지갑 제공업체 구성하기**
+
+        Turnkey 임베디드 지갑을 설정한 후 Actions SDK에 전달합니다.
+
+        ```typescript
+        import { useTurnkey, WalletSource } from "@turnkey/react-wallet-kit"
+        import { actions, USDC, ExampleMarket } from './config'
+
+        // Fetch Turnkey wallet
+        const { wallets, httpClient, session } = useTurnkey()
+        const embeddedWallet = wallets.find(
+          (wallet) =>
+            wallet.accounts.some(
+              (account) => account.addressFormat === 'ADDRESS_FORMAT_ETHEREUM',
+            ) && wallet.source === WalletSource.Embedded,
+        )
+
+        const walletAddress = embeddedWallet.accounts[0].address
+
+        // Convert to Actions wallet
+        const wallet = await actions.wallet.toActionsWallet({
+          client: httpClient,
+          organizationId: session.organizationId,
+          signWith: walletAddress,
+        })
+
+        // Wallet can now take action
+        const receipt = await wallet.lend.openPosition({
+          amount: 100,
+          asset: USDC,
+          ...ExampleMarket
+        })
+        ```
+
+        **스마트 지갑 구성하기**
+
+        선택적으로, 직접 제어하는 스마트 지갑용 signer를 생성할 수 있습니다.
+
+        ```typescript
+        import { useTurnkey, WalletSource } from "@turnkey/react-wallet-kit"
+        import { actions } from './config'
+
+        // Fetch Turnkey wallet
+        const { wallets, httpClient, session } = useTurnkey()
+        const embeddedWallet = wallets.find(
+          (wallet) =>
+            wallet.accounts.some(
+              (account) => account.addressFormat === 'ADDRESS_FORMAT_ETHEREUM',
+            ) && wallet.source === WalletSource.Embedded,
+        )
+        const walletAddress = embeddedWallet.accounts[0].address
+
+        // Create signer
+        const signer = await actions.wallet.createSigner({
+          client: httpClient,
+          organizationId: session.organizationId,
+          signWith: walletAddress,
+        })
+
+        // Create smart wallet
+        const { wallet } = await actions.wallet.createSmartWallet({
+          signer: signer
+        })
+        ```
+      </Tab>
+
+      <Tab title="Dynamic">
+        **Dynamic 설정하기**
+
+        Dynamic에 가입한 후 전체 Dynamic 설치 [가이드](https://www.dynamic.xyz/docs/wallets/embedded-wallets/mpc/setup)를 따르세요.
+
+        **지갑 제공업체 구성하기**
+
+        Dynamic 임베디드 지갑을 설정한 후 Actions SDK에 전달합니다.
+
+        ```typescript
+        import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
+        import { actions, USDC, ExampleMarket } from './config'
+
+        // Fetch Dynamic wallet
+        const { primaryWallet } = useDynamicContext()
+
+        // Convert to Actions wallet
+        const wallet = await actions.wallet.toActionsWallet({
+          wallet: primaryWallet,
+        })
+
+        // Wallet can now take action
+        const receipt = await wallet.lend.openPosition({
+          amount: 100,
+          asset: USDC,
+          ...ExampleMarket
+        })
+        ```
+
+        **스마트 지갑 구성하기**
+
+        선택적으로, 직접 제어하는 스마트 지갑용 signer를 생성할 수 있습니다.
+
+        ```typescript
+        import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
+        import { actions } from './config'
+
+        // Fetch Dynamic wallet
+        const { primaryWallet } = useDynamicContext()
+
+        // Create signer
+        const signer = await actions.wallet.createSigner({
+          wallet: primaryWallet
+        })
+
+        // Create smart wallet
+        const { wallet } = await actions.wallet.createSmartWallet({
+          signer: signer
+        })
+        ```
+      </Tab>
+    </Tabs>
+
+  </Tab>
+
+  <Tab title="백엔드">
+    지갑 제공업체를 선택하세요.
+
+    <Tabs>
+      <Tab title="Privy">
+        **Privy 설정하기**
+
+        Privy에 가입한 후 전체 Privy 설치 [가이드](https://docs.privy.io/basics/nodeJS/installation)를 따르세요.
+
+        **지갑 제공업체 구성하기**
+
+        Privy 임베디드 지갑을 설정한 후 Actions SDK에 전달합니다.
+
+        ```typescript
+        import { actions } from './config'
+        import { PrivyClient } from '@privy-io/node'
+
+        // PRIVY: Create wallet
+        const privyClient = new PrivyClient(env.PRIVY_APP_ID, env.PRIVY_APP_SECRET)
+
+        const privyWallet = await privyClient.wallets().create({
+          chain_type: 'ethereum',
+          owner: { user_id: 'privy:did:xxxxx' },
+        })
+
+        // ACTIONS: Let wallet make onchain Actions
+        const wallet = await actions.wallet.toActionsWallet({
+          walletId: privyWallet.id,
+          address: privyWallet.address,
+        })
+        ```
+
+        **스마트 지갑 구성하기**
+
+        선택적으로, 직접 제어하는 스마트 지갑용 signer를 생성할 수 있습니다.
+
+        ```typescript
+        import { actions } from './config'
+        import { PrivyClient } from '@privy-io/node'
+        import { getAddress } from 'viem'
+
+        const privyClient = new PrivyClient(env.PRIVY_APP_ID, env.PRIVY_APP_SECRET)
+
+        // PRIVY: Create wallet
+        const privyWallet = await privyClient.wallets().create({
+          chain_type: 'ethereum',
+          owner: { user_id: 'privy:did:xxxxx' },
+        })
+
+        // ACTIONS: Create signer
+        const signer = await actions.wallet.createSigner({
+          walletId: privyWallet.id,
+          address: getAddress(privyWallet.address),
+        })
+
+        // ACTIONS: Create smart wallet
+        const { wallet } = await actions.wallet.createSmartWallet({
+          signer: signer
+        })
+        ```
+      </Tab>
+
+      <Tab title="Turnkey">
+        **Turnkey 설정하기**
+
+        Turnkey에 가입한 후 전체 Turnkey 설치 [가이드](https://docs.turnkey.com/sdks/javascript-server)를 따르세요.
+
+        **지갑 제공업체 구성하기**
+
+        Turnkey 임베디드 지갑을 설정한 후 Actions SDK에 전달합니다.
+
+        ```typescript
+        import { Turnkey } from '@turnkey/sdk-server'
+        import { actions, USDC, ExampleMarket } from './config'
+
+        const turnkeyClient = new Turnkey({
+          apiBaseUrl: 'https://api.turnkey.com',
+          apiPublicKey: process.env.TURNKEY_API_KEY,
+          apiPrivateKey: process.env.TURNKEY_API_SECRET,
+          defaultOrganizationId: process.env.TURNKEY_ORGANIZATION_ID,
+        })
+
+        // Create Turnkey wallet
+        const turnkeyWallet = await turnkeyClient.apiClient().createWallet({
+          walletName: 'ETH Wallet',
+          accounts: [{
+            curve: 'CURVE_SECP256K1',
+            pathFormat: 'PATH_FORMAT_BIP32',
+            path: "m/44'/60'/0'/0/0",
+            addressFormat: 'ADDRESS_FORMAT_ETHEREUM',
+          }],
+        })
+
+        // Convert to Actions wallet
+        const wallet = await actions.wallet.toActionsWallet({
+          organizationId: turnkeyWallet.activity.organizationId,
+          signWith: turnkeyWallet.addresses[0],
+        })
+
+        // Wallet can now take action
+        const receipt = await wallet.lend.openPosition({
+          amount: 100,
+          asset: USDC,
+          ...ExampleMarket
+        })
+        ```
+
+        **스마트 지갑 구성하기**
+
+        선택적으로, 직접 제어하는 스마트 지갑용 signer를 생성할 수 있습니다.
+
+        ```typescript
+        import { Turnkey } from '@turnkey/sdk-server'
+        import { actions } from './config'
+
+        const turnkeyClient = new Turnkey({
+          apiBaseUrl: 'https://api.turnkey.com',
+          apiPublicKey: process.env.TURNKEY_API_KEY,
+          apiPrivateKey: process.env.TURNKEY_API_SECRET,
+          defaultOrganizationId: process.env.TURNKEY_ORGANIZATION_ID,
+        })
+
+        // Create Turnkey wallet
+        const turnkeyWallet = await turnkeyClient.apiClient().createWallet({
+          walletName: 'ETH Wallet',
+          accounts: [{
+            curve: 'CURVE_SECP256K1',
+            pathFormat: 'PATH_FORMAT_BIP32',
+            path: "m/44'/60'/0'/0/0",
+            addressFormat: 'ADDRESS_FORMAT_ETHEREUM',
+          }],
+        })
+
+        // Create signer
+        const signer = await actions.wallet.createSigner({
+          organizationId: turnkeyWallet.activity.organizationId,
+          signWith: turnkeyWallet.addresses[0],
+        })
+
+        // Create smart wallet
+        const { wallet } = await actions.wallet.createSmartWallet({
+          signer: signer
+        })
+        ```
+      </Tab>
+    </Tabs>
+
+  </Tab>
+</Tabs>
+
+## ActionsConfig 생성하기
+
+[Actions 구성하기](/ko/app-developers/guides/configuring-actions) 가이드에 따라 지원할 프로토콜, 체인, 자산을 정의하세요.
+
+## Action 수행하기
+
+구성이 완료되면 Actions를 사용하여 DeFi 작업을 수행할 수 있습니다.
+
+```typescript
+import { USDC, ETH, USDT } from "@eth-optimism/actions-sdk/assets";
+import { ExampleMarket } from "@/actions/markets";
+
+// Enable asset lending in DeFi
+const lendReceipt = await wallet.lend.openPosition({
+  amount: 1,
+  asset: USDC,
+  ...ExampleMarket,
+});
+
+// Manage user market positions
+const lendPosition = await wallet.lend.getPosition(market);
+
+// Fetch wallet balance
+const balance = await wallet.getBalance();
+
+// ⚠️ COMING SOON
+const borrowReceipt = await wallet.borrow.openPosition({
+  amount: 1,
+  asset: USDT,
+  ...market,
+});
+
+// ⚠️ COMING SOON
+const swapReceipt = await wallet.swap.execute({
+  amountIn: 1,
+  assetIn: USDC,
+  assetOut: ETH,
+});
+
+// ⚠️ COMING SOON
+const sendReceipt = await wallet.send({
+  amount: 1,
+  asset: USDC,
+  to: "vitalik.eth",
+});
+```
+
+## 다음 단계
+
+- [Actions를 구성](/ko/app-developers/guides/configuring-actions)하여 프로토콜, 체인, 자산을 사용자 지정하세요
+- 완전한 예제 애플리케이션은 [Actions 데모](https://actions.money/earn)를 확인하세요

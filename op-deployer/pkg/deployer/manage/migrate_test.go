@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
@@ -49,12 +48,6 @@ func TestInteropMigration(t *testing.T) {
 	// Deploy a complete chain using ApplyPipeline
 	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, 30_000_000)
 
-	devBitmap := devfeatures.EnableDevFeature(common.Hash{}, devfeatures.OptimismPortalInteropFlag)
-	intent.GlobalDeployOverrides = map[string]any{
-		"devFeatureBitmap": devBitmap,
-	}
-
-	// Since we are enabling Interop in the bitmap we enable the UseInterop flag
 	intent.UseInterop = true
 
 	err = deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
@@ -144,12 +137,6 @@ func TestInteropMigration(t *testing.T) {
 	require.Len(t, dump, 1, "Should have one transaction (migration)")
 	require.True(t, dump[0].Value.ToInt().Cmp(common.Big0) == 0, "Transaction value should be zero")
 	require.Equal(t, l1ProxyAdminOwner, *dump[0].To, "Transaction should be sent to prank address")
-}
-
-func TestCommandsDoNotIncludeMigrate(t *testing.T) {
-	for _, command := range Commands {
-		require.NotEqual(t, "migrate", command.Name)
-	}
 }
 
 func TestEncodedMigrateInputV2(t *testing.T) {

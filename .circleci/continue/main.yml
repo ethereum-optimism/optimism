@@ -56,9 +56,6 @@ parameters:
   stale_check_dispatch:
     type: boolean
     default: false
-  contracts_coverage_dispatch:
-    type: boolean
-    default: false
   heavy_fuzz_dispatch:
     type: boolean
     default: false
@@ -396,7 +393,13 @@ commands:
           name: Determine target branch for this pipeline
           command: |
             # Use the get-target-branch.sh script
-            GH_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-}}" source scripts/ops/get-target-branch.sh
+            GH_TOKEN="${REPO_GITHUB_TOKEN:-${GH_TOKEN:-${MISE_GITHUB_TOKEN:-}}}" source scripts/ops/get-target-branch.sh
+
+            # A release branch's own pushes compare against itself, not develop.
+            # Not in the script: setup change detection would see an empty diff.
+            if [ -z "${CIRCLE_PULL_REQUEST:-}" ] && [[ "${CIRCLE_BRANCH:-}" == proposal/* ]]; then
+              TARGET_BRANCH="$CIRCLE_BRANCH"
+            fi
 
             # Make TARGET_BRANCH available to subsequent steps
             echo "export TARGET_BRANCH=$TARGET_BRANCH" >> "$BASH_ENV"
@@ -408,13 +411,13 @@ commands:
     parameters:
       features:
         description: "Comma-separated list of features (can mix dev and system features,
-          e.g., 'OPTIMISM_PORTAL_INTEROP,CUSTOM_GAS_TOKEN')"
+          e.g., 'INTEROP,CUSTOM_GAS_TOKEN')"
         type: string
         default: ""
       system_features:
         description: "Registry of system features (others treated as dev features)"
         type: string
-        default: "CUSTOM_GAS_TOKEN"
+        default: "CUSTOM_GAS_TOKEN,INTEROP"
     steps:
       - run:
           name: Set feature environment variables
@@ -1119,7 +1122,7 @@ jobs:
         default: contracts-bedrock
       features:
         description: Comma-separated list of features to enable (e.g.,
-          "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
+          "INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
       attach_build:
@@ -1170,15 +1173,12 @@ jobs:
           features: <<parameters.features>>
       - run:
           name: Run tests
+          # `just test` partitions the shard between Amsterdam and default-EVM tests.
           command: |
             TEST_FILES=$(<<parameters.test_list>>)
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
-            TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
-            MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
-            mkdir -p results
-            forge test --match-path "$MATCH_PATH" --junit > results/results.xml
-            # Forge exits 0 when the filter matches nothing; fail if no tests ran.
-            ./scripts/checks/check-junit-tests-ran.sh results/results.xml
+            export TEST_FILES
+            JUNIT_TEST_DIR=results just test
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
@@ -1225,12 +1225,10 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Run heavy fuzz tests
-          command: |
-            mkdir -p results
-            just test
+          command: just test
           environment:
             FOUNDRY_PROFILE: ciheavy
-            JUNIT_TEST_PATH: results/results.xml
+            JUNIT_TEST_DIR: results
           working_directory: packages/contracts-bedrock
           no_output_timeout: 90m
       - run:
@@ -1254,99 +1252,6 @@ jobs:
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
-  contracts-bedrock-coverage:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge+.gen2
-    parameters:
-      test_timeout:
-        description: Timeout for running tests
-        type: string
-        default: 15m
-      test_profile:
-        description: Profile to use for testing
-        type: string
-        default: ci
-      l1_archive_rpc_url_env_var:
-        description: Mainnet L1 archive RPC URL environment variable
-        type: env_var_name
-        default: OP_CI_MAINNET_L1_ARCHIVE_RPC_URL
-      features:
-        description: Comma-separated list of features to enable (e.g.,
-          "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
-        type: string
-        default: ""
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: full
-          enable-mise-cache: true
-      - install-contracts-dependencies
-      - check-changed:
-          patterns: contracts-bedrock
-      - install-solc-compilers
-      - run:
-          name: Print dependencies
-          command: just dep-status
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: Print forge version
-          command: forge --version
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: Resolve L1 archive RPC URL
-          command: |
-            printf 'export ETH_RPC_URL="${%s:?%s must be set}"\n' "<<parameters.l1_archive_rpc_url_env_var>>" "<<parameters.l1_archive_rpc_url_env_var>>" >> "$BASH_ENV"
-      - run:
-          name: Write pinned block number for cache key
-          command: |
-            just print-pinned-block-number > ./pinnedBlockNumber.txt
-            cat pinnedBlockNumber.txt
-          working_directory: packages/contracts-bedrock
-      - restore_cache:
-          name: Restore forked state
-          key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum
-            "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
-      - setup-features:
-          features: <<parameters.features>>
-      - go-restore-cache:
-          namespace: contracts-bedrock-coverage
-      - run:
-          name: Build go-ffi
-          command: just build-go-ffi
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: Build contract source
-          command: just build-source
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: Run coverage tests
-          command: just coverage-lcov-all
-          environment:
-            FOUNDRY_PROFILE: <<parameters.test_profile>>
-          working_directory: packages/contracts-bedrock
-          no_output_timeout: <<parameters.test_timeout>>
-      - run:
-          name: Print failed test traces
-          command: just test-rerun | tee failed-test-traces.log
-          environment:
-            FOUNDRY_PROFILE: <<parameters.test_profile>>
-          working_directory: packages/contracts-bedrock
-          when: on_fail
-      - go-save-cache:
-          namespace: contracts-bedrock-coverage
-      - save_cache:
-          name: Save forked state
-          key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum
-            "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
-          when: always
-          paths:
-            - "~/.foundry/cache"
-      - store_artifacts:
-          path: packages/contracts-bedrock/failed-test-traces.log
-          when: on_fail
-      - notify-failures-on-develop:
-          mentions: "<!subteam^S07K486JEH4>"
-
   contracts-bedrock-tests-upgrade:
     parameters:
       fork_op_chain:
@@ -1367,7 +1272,7 @@ jobs:
         default: ci
       features:
         description: Comma-separated list of features to enable (e.g.,
-          "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
+          "INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
     docker:
@@ -1911,6 +1816,7 @@ jobs:
           patterns: op-core/nuts
       # The verify script runs `go run ./ops/scripts/nut-provenance-verify`.
       - restore-go-mod-cache
+      - get-target-branch
       - run:
           name: verify NUT bundle provenance
           command: ./ops/scripts/nut-provenance-verify-changed.sh
@@ -2643,7 +2549,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
-      # contracts-bedrock test/coverage/upgrade/l2-fork/checks-fast jobs have moved
+      # contracts-bedrock test/upgrade/l2-fork/checks-fast jobs have moved
       # to the contracts-feature-tests workflow below, which is gated on
       # c-contracts_changed. Keeping them here as well was duplicating every
       # contracts run on PRs that touch non-contract files.
@@ -3169,11 +3075,11 @@ workflows:
           features: <<matrix.features>>
           matrix:
             parameters:
-              # BRIDGE_HOOK is not supported with OPTIMISM_PORTAL_INTEROP or CUSTOM_GAS_TOKEN.
+              # BRIDGE_HOOK is not supported with INTEROP or CUSTOM_GAS_TOKEN.
               features: &features_matrix
                 - main
                 - CUSTOM_GAS_TOKEN
-                - OPTIMISM_PORTAL_INTEROP
+                - INTEROP
                 - ZK_DISPUTE_GAME
                 - BRIDGE_HOOK
                 - BRIDGE_HOOK,ZK_DISPUTE_GAME
@@ -3228,21 +3134,6 @@ workflows:
           filters:
             branches:
               only: develop
-      - contracts-bedrock-coverage:
-          # Generate coverage reports.
-          name: contracts-bedrock-coverage <<matrix.features>>
-          requires:
-            - prep-go-modules
-          test_timeout: 1h
-          test_profile: cicoverage
-          features: <<matrix.features>>
-          matrix:
-            parameters:
-              features: *features_matrix
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-repo-rpc-secrets
-            - slack
       # On PRs, run upgrade tests with lite profile for better build times.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
@@ -3344,28 +3235,21 @@ workflows:
           requires:
             - contracts-bedrock-tests main: terminal
             - contracts-bedrock-tests CUSTOM_GAS_TOKEN: terminal
-            - contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP: terminal
+            - contracts-bedrock-tests INTEROP: terminal
             - contracts-bedrock-tests ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests BRIDGE_HOOK: terminal
             - contracts-bedrock-tests BRIDGE_HOOK,ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests OP_PRIVATE: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN: terminal
-            - contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified INTEROP: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified BRIDGE_HOOK: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified BRIDGE_HOOK,ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified OP_PRIVATE: terminal
-            - contracts-bedrock-coverage main: terminal
-            - contracts-bedrock-coverage CUSTOM_GAS_TOKEN: terminal
-            - contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP: terminal
-            - contracts-bedrock-coverage ZK_DISPUTE_GAME: terminal
-            - contracts-bedrock-coverage BRIDGE_HOOK: terminal
-            - contracts-bedrock-coverage BRIDGE_HOOK,ZK_DISPUTE_GAME: terminal
-            - contracts-bedrock-coverage OP_PRIVATE: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN: terminal
-            - contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet INTEROP: terminal
             - contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests-upgrade op-mainnet BRIDGE_HOOK: terminal
             - contracts-bedrock-tests-upgrade op-mainnet BRIDGE_HOOK,ZK_DISPUTE_GAME: terminal

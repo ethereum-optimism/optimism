@@ -1,0 +1,63 @@
+---
+title: Fee vault
+description: OP Stack 체인에서 fee vault가 작동하는 방식, 트랜잭션 수수료가 수집되는 위치, 그리고 출금 메커니즘이 작동하는 방식에 대해 알아봅니다.
+diataxis: reference
+---
+
+import FeeVaultAddresses from "/ko/snippets/fee-vault-addresses.mdx"
+
+Fee vault는 OP Stack L2 체인에 사전 배포된(predeploy) 컨트랙트로, 트랜잭션 수수료의 각 구성 요소를 수집하고 보관합니다. base fee가 소각되는 Ethereum과 달리, OP Stack 체인은 모든 수수료를 전용 vault 컨트랙트로 보내므로 체인 운영자가 수집된 수익을 출금하고 관리할 수 있습니다.
+
+## 개요
+
+모든 OP Stack 체인에는 4개의 fee vault가 있으며, 각 vault는 특정 수수료 구성 요소를 수집합니다.
+
+<FeeVaultAddresses />
+
+### 수수료가 vault로 흘러가는 방식
+
+OP Stack 체인에서 트랜잭션이 실행되면 총 수수료는 여러 vault로 나뉩니다.
+
+- **Base fee**(`gasUsed × baseFee`)는 `BaseFeeVault`로 갑니다
+- **Priority fee**(`gasUsed × priorityFee`)는 `SequencerFeeVault`로 갑니다
+- **L1 데이터 수수료**(L1 data fee)는 `L1FeeVault`로 갑니다
+- **운영자 수수료(Operator fee)**(`operatorFeeScalar × gasUsed + operatorFeeConstant`)는 `OperatorFeeVault`로 갑니다
+
+각 구성 요소에는 고유한 공식이 있습니다. 전체 내역은 [트랜잭션 수수료](/ko/op-stack/transactions/fees)를 참조하십시오.
+
+## Vault 구성
+
+각 fee vault에는 구성 가능한 매개변수가 3개 있습니다.
+
+| 매개변수 | 설명 |
+|-----------|-------------|
+| **recipient** | 출금된 자금을 받는 주소 |
+| **minWithdrawalAmount** | 출금을 실행하기 전에 필요한 최소 ETH 잔액 |
+| **withdrawalNetwork** | 자금을 L1 주소로 출금할지 L2 주소로 출금할지 여부 |
+
+### 출금 네트워크
+
+`withdrawalNetwork` 매개변수는 출금 시 자금이 전달되는 방식을 결정합니다.
+
+- **L1 (`0`)**: 자금은 `L2ToL1MessagePasser`를 통해 L1의 recipient에게 전송됩니다. 이는 L1에서 증명 및 최종 확정되어야 하는 표준 L2-to-L1 출금을 시작합니다.
+- **L2 (`1`)**: 자금은 단순 ETH 전송을 통해 L2의 recipient에게 직접 전송됩니다.
+
+## 출금 메커니즘
+
+Fee vault 출금은 **무허가(permissionless)** 방식입니다. 누구나 어떤 vault에서든 `withdraw()` 함수를 호출하여 출금을 실행할 수 있습니다. 이 설계 덕분에 특정 운영자에 의존하지 않고도 수집된 수수료를 언제든지 구성된 recipient에게 옮길 수 있습니다.
+
+### 출금 작동 방식
+
+1. 호출자가 vault 컨트랙트에서 `withdraw()`를 호출합니다.
+2. vault는 자신의 잔액이 `minWithdrawalAmount` 임계값을 충족하는지 확인합니다.
+3. vault 잔액 전체가 출금됩니다(일부 금액만 출금되지 않습니다).
+4. `totalProcessed` 카운터가 증가합니다.
+5. 자금은 `withdrawalNetwork`에 따라 전달됩니다.
+   - **L2**: recipient에게 ETH를 직접 전송합니다.
+   - **L1**: 400,000 gas 한도로 `L2ToL1MessagePasser`를 통해 출금이 시작됩니다. 이후 이 출금은 L1에서 [증명 및 최종 확정](/ko/op-stack/bridging/withdrawal-flow)되어야 합니다.
+
+## 다음 단계
+
+- 체인 운영자로서 [fee vault를 구성하고 출금하는 방법](/ko/chain-operators/guides/management/fee-vaults)을 알아보십시오.
+- [트랜잭션 수수료 구성 요소](/ko/op-stack/transactions/fees)를 자세히 이해하십시오.
+- 모든 predeploy 주소는 [스마트 컨트랙트 레퍼런스](/ko/op-stack/protocol/smart-contracts)를 참조하십시오.

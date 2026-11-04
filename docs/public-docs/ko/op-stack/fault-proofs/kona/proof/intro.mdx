@@ -1,0 +1,61 @@
+---
+title: "Kona Proof SDK"
+diataxis: explanation
+---
+
+Kona Proof SDK에 오신 것을 환영합니다. Kona Proof SDK는 OP Stack의 FPVM과
+[SP-1][sp-1], [Risc0][rzero], [Intel TDX][tdx], [AMD SEV-SNP][sev-snp] 같은
+다른 검증 가능 백엔드 위에서 OP Stack STF로 증명을 만들기 위해 기본 원칙부터
+설계된 강력한 라이브러리 모음입니다. Kona의 핵심은 모듈성, 확장성,
+그리고 개발자 역량 강화라는 원칙 위에 구축되어 있습니다.
+
+## 유연성의 기반
+
+kona 저장소는 단순히 OP Stack을 위한 결함 증명 프로그램(fault proof program)에 그치지 않습니다.
+재사용성과 확장성을 주요 목표로 하여 만들어진 상호 운용 가능한 구성 요소들의
+생태계입니다. `kona-derive`와 `kona-executor` 같은 핵심 구성 요소에 대해
+[Fault Proof VM](https://specs.optimism.io/fault-proof/index.html#fault-proof-vm) 및 "online" 백엔드를
+제공하지만, `kona`의 진정한 강점은 적응성에 있습니다.
+
+## 포크 없이 확장하기
+
+Kona의 두드러진 특징 중 하나는 전체 프로젝트를 포크하지 않고도 커스텀
+기능과 데이터 소스를 지원할 수 있다는 점입니다. Rust의 강력한 trait 시스템과
+추상 인터페이스를 신중하게 활용하여, 자신만의 기능과 아이디어를
+매끄럽게 연결할 수 있는 프레임워크를 만들었습니다.
+
+## 학습 내용
+
+개발자 문서의 이 섹션에서는 Kona SDK를 깊이 있게 살펴보며 다음 내용을 다룹니다.
+* **FPVM 백엔드 기반 구축**: Fault Proof VM 도구를 활용하여 자체 결함 증명 프로그램을 만드는 방법을 알아봅니다.
+* **커스텀 백엔드 만들기**: 다양한 타깃에서 `kona-client` 또는 그 변형을 실행하기 위한 자체 백엔드를 설계하고 구현하는 과정을 알아봅니다.
+* **핵심 구성 요소 확장**: `kona-derive`, `kona-executor` 같은 crate와 매끄럽게 통합되는 새로운 구성 요소를 만드는 기법을 살펴봅니다.
+
+Kona를 그대로 사용하려는 경우, 기능을 확장하려는 경우, 또는 Kona의 라이브러리를 기반으로 완전히 새로운 프로그램을 만들려는 경우 모두,
+이 가이드는 성공에 필요한 지식과 도구를 제공하는 것을 목표로 합니다.
+
+[sp-1]: https://github.com/succinctlabs/sp1
+[rzero]: https://github.com/risc0/risc0
+[tdx]: https://www.intel.com/content/www/us/en/developer/tools/trust-domain-extensions/documentation.html
+[sev-snp]: https://www.amd.com/en/developer/sev.html
+
+[op-stack]: https://github.com/ethereum-optimism/optimism
+[op-program]: https://github.com/ethereum-optimism/optimism/tree/develop/op-program
+[cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
+[cannon-rs]: https://github.com/op-rs/cannon-rs
+[asterisc]: https://github.com/ethereum-optimism/asterisc
+[fp-specs]: https://specs.optimism.io/fault-proof/index.html
+[fpp-specs]: https://specs.optimism.io/fault-proof/index.html#fault-proof-program
+[preimage-specs]: https://specs.optimism.io/fault-proof/index.html#pre-image-oracle
+[cannon-specs]: https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html
+[l2-output-root]: https://specs.optimism.io/protocol/proposals.html#l2-output-commitment-construction
+[op-succinct]: https://github.com/succinctlabs/op-succinct
+[revm]: https://github.com/bluealloy/revm
+
+[kona]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona
+[issues]: https://github.com/ethereum-optimism/optimism/issues
+[new-issue]: https://github.com/ethereum-optimism/optimism/issues/new
+[contributing]: https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md
+
+[op-labs]: https://github.com/ethereum-optimism
+[bad-boi-labs]: https://github.com/BadBoiLabs

@@ -618,7 +618,7 @@ case "$DEPLOY_TYPE" in
     echo -e "${GREEN}🚀 Starting apply...${NC}"
     echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
     echo ""
-    echo -e "${YELLOW}Note:${NC} If you see 'ReadImplementationAddresses' errors, this usually means:"
+    echo -e "${YELLOW}Note:${NC} If you see 'failed to read implementations from OPCM' errors, this usually means:"
     echo "  - Implementation contracts need to be deployed first (run option 2: bootstrap implementations)"
     echo "  - Or there's an issue with the OPCM contract configuration"
     echo ""

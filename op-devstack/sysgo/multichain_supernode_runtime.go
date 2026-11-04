@@ -15,7 +15,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
@@ -450,7 +449,7 @@ func buildMultiL2RuntimeWorld(
 	}
 	if enableInterop {
 		deployerOpts = append([]DeployerOption{
-			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+			WithUseInterop(),
 		}, deployerOpts...)
 		for _, l2Cfg := range wb.builder.L2s() {
 			if delaySeconds > 0 {
@@ -929,15 +928,14 @@ func startTestSequencerForL2Chains(
 		}
 		ensemble.Sequencers[seqID] = &workconfig.SequencerEntry{
 			Full: &fullseq.Config{
-				ChainID:             target.chainID,
-				Builder:             bid,
-				Signer:              sid,
-				Committer:           cid,
-				Publisher:           pid,
-				SequencerConfDepth:  2,
-				SequencerEnabled:    true,
-				SequencerStopped:    false,
-				SequencerMaxSafeLag: 0,
+				ChainID:            target.chainID,
+				Builder:            bid,
+				Signer:             sid,
+				Committer:          cid,
+				Publisher:          pid,
+				SequencerConfDepth: 2,
+				SequencerEnabled:   true,
+				SequencerStopped:   false,
 			},
 		}
 

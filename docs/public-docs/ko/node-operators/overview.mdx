@@ -1,0 +1,67 @@
+---
+title: 노드 운영자 개요
+description: OP Stack 네트워크에서 node를 운영하는 방법을 알아봅니다.
+diataxis: explanation
+---
+
+## 개요
+
+이 섹션은 OP Stack 네트워크에서 node를 구성하고 운영하는 방법을 알고자 하는 노드 운영자(node operator)를 위한 문서입니다.
+OP Stack은 오픈 소스이며 모듈형이고 확장 가능한 스택이므로, 목표와 대상 네트워크에 따라 다양한 클라이언트, 구성, 요구 사항이 있습니다.
+이 섹션에서는 OP Stack의 표준 구성과 기능을 다룹니다.
+
+## node를 운영하는 이유
+
+직접 node를 운영하면 신뢰가 필요 없는(trustless) 검증, 향상된 프라이버시, 블록체인에 대한 로컬 접근이라는 이점을 얻을 수 있습니다.
+하지만 설정과 유지 관리에 시간과 자원이 필요합니다.
+서드파티 RPC 제공업체도 많이 있으므로, node 운영을 결정하기 전에 목표와 사용 사례를 고려해야 합니다.
+
+## 시스템 요구 사항
+
+시작하기 전에 대상 네트워크와 node 유형을 머신이 감당할 수 있는지 확인하십시오.
+요구 사항은 두 가지 모두에 따라 달라집니다.
+
+*   **RAM:** OP Mainnet node의 권장 최소 사양은 16GB입니다.
+*   **CPU:** 적당히 최신인 CPU.
+*   **디스크:** 네트워크와 node 유형에 맞는 용량의 SSD. OP Mainnet 풀 node는 수백 기가바이트가 필요하며 꾸준히 증가합니다. 아카이브 node는 수 테라바이트가 필요하고 훨씬 빠르게 증가하므로, 아카이브 node에는 NVMe SSD를 사용하십시오.
+
+테스트 네트워크는 OP Mainnet보다 훨씬 가볍습니다. OP Sepolia 풀 node는 수백이 아닌 수십 기가바이트로 동기화됩니다.
+처음 설정하는 경우, OP Mainnet 규모의 디스크를 투입하기 전에 OP Sepolia에서 시작하여 설정을 검증하십시오.
+
+현재 OP Mainnet 스토리지 수치와 증가율은 소스 빌드 튜토리얼의 [하드웨어 요구 사항](/ko/node-operators/tutorials/run-node-from-source#hardware-requirements)을 참조하십시오.
+
+## node 아키텍처
+
+어떤 OP Stack 네트워크용 node를 운영하든, 모든 node는 동일한 기본 2-클라이언트 아키텍처를 공유합니다. 합의 클라이언트(rollup node, [op-node](/ko/op-stack/components/op-node) 또는 [kona-node](/ko/op-stack/components/kona-node))가 실행 클라이언트([op-reth](/ko/op-stack/components/op-reth))와 짝을 이루며, JWT 인증을 사용하는 Engine API로 통신합니다.
+[interop](/ko/op-stack/interop/explainer) 의존성 집합(dependency set)의 모든 체인을 따르는 node는 대신 [op-supernode](/ko/op-stack/interop/supernode)를 합의 계층으로 실행합니다.
+구성 요소가 어떻게 맞물리는지와 현재 클라이언트 지원 현황은 [아키텍처 레퍼런스](/ko/node-operators/reference/architecture)를 참조하십시오.
+
+## node 유형
+
+node 유형마다 용도가 다릅니다.
+
+* **풀 node(Full node)**: 블록체인의 전체 사본을 보관하고, 모든 트랜잭션과 블록을 검증하며, P2P 네트워크에 참여합니다.
+* **아카이브 node(Archive node)**: 추가로 모든 블록의 과거 상태를 모두 보관합니다.
+  OP Mainnet에서 아카이브 node는 동기화 전에 [데이터베이스 스냅샷](/ko/op-mainnet/network-information/snapshots)으로 복원해야 합니다.
+* **Sequencer node**: 풀 node 또는 아카이브 node일 수 있으며, 새 L2 블록을 생성할 수 있습니다.
+
+## 네트워크 업그레이드
+
+OP Stack 네트워크의 네트워크 업그레이드는 일반적으로 [타임스탬프로 활성화](/ko/op-stack/protocol/network-upgrades#activations)됩니다.
+활성화 타임스탬프 전에 node를 업그레이드하지 않으면 체인 분기가 발생하여 재동기화가 필요합니다. 따라서 정식 체인(canonical chain)에 머무르려면 [node 업그레이드 절차](/ko/op-stack/protocol/network-upgrades#upgrade-process)를 따르십시오.
+
+## 최신 정보 확인
+
+업그레이드 공지, 지원 중단 및 노드 운영자에게 영향을 미치는 기타 변경 사항은 [네트워크 공지](/ko/notices) 페이지에 게시됩니다.
+
+## 다음 단계
+
+*   [**Docker로 node 실행하기**](/ko/node-operators/tutorials/node-from-docker): 권장 방법이며, 공식 op-reth + op-node 이미지를 사용합니다.
+*   [**소스에서 node 빌드 및 실행하기**](/ko/node-operators/tutorials/run-node-from-source): op-reth와 Nethermind를 다룹니다.
+*   [**과거 증명과 함께 op-reth 실행하기**](/ko/node-operators/tutorials/reth-historical-proofs): 무허가(permissionless) 출금 증명을 위해 op-reth의 proofs-history 저장소를 구성합니다.
+*   [**합의 클라이언트 구성**](/ko/node-operators/guides/configuration/consensus-clients): rollup node를 위한 기본 작동 구성과 권장 플래그입니다.
+*   [**실행 클라이언트 구성**](/ko/node-operators/guides/configuration/execution-clients): 실행 클라이언트를 위한 기본 작동 구성과 권장 플래그입니다.
+*   [**Supernode 구성**](/ko/node-operators/guides/configuration/supernode): interop 의존성 집합에서 op-supernode를 실행하기 위한 권장 설정과 시작 구성입니다.
+*   [**node 메트릭 및 모니터링**](/ko/node-operators/guides/monitoring/metrics): node 실행 후 상태를 지속적으로 확인합니다.
+*   [**node 문제 해결**](/ko/node-operators/guides/troubleshooting): 일반적인 문제 해결에 도움을 줍니다.
+*   [**아키텍처 레퍼런스**](/ko/node-operators/reference/architecture): 2-클라이언트 아키텍처에 대한 자세한 내용입니다.

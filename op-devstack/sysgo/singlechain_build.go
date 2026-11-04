@@ -322,6 +322,15 @@ func startL2CLNode(
 
 	logger := t.Logger().New("component", "l2cl-"+startCfg.Key)
 
+	var altDACfg altda.CLIConfig
+	if cfg.AltDAServerURL != "" {
+		altDACfg = altda.CLIConfig{
+			Enabled:      true,
+			DAServerURL:  cfg.AltDAServerURL,
+			VerifyOnRead: true,
+		}
+	}
+
 	// Build P2P config through the same path as sysgo op-node setup.
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 	for _, f := range opNodeFlags.P2PFlags(opNodeFlags.EnvVarPrefix) {
@@ -386,10 +395,10 @@ func startL2CLNode(
 			BeaconAddr: l1CL.beaconHTTPAddr,
 		},
 		Driver: driver.Config{
-			SequencerEnabled:    cfg.IsSequencer,
-			SequencerStopped:    startCfg.SequencerStopped,
-			SequencerConfDepth:  2,
-			SequencerMaxSafeLag: cfg.SequencerMaxSafeLag,
+			SequencerEnabled:   cfg.IsSequencer,
+			SequencerStopped:   startCfg.SequencerStopped,
+			SequencerConfDepth: 2,
+			VerifierConfDepth:  cfg.VerifierL1Confs,
 		},
 		Rollup:        *l2Net.rollupCfg,
 		DependencySet: startCfg.DependencySet,
@@ -421,7 +430,7 @@ func startL2CLNode(
 		ConductorEnabled:                false,
 		ConductorRpc:                    nil,
 		ConductorRpcTimeout:             0,
-		AltDA:                           altda.CLIConfig{},
+		AltDA:                           altDACfg,
 		IgnoreMissingPectraBlobSchedule: false,
 		ExperimentalOPStackAPI:          true,
 	}
@@ -571,15 +580,14 @@ func startTestSequencer(
 	}
 	ensemble.Sequencers[seqIDL2] = &workconfig.SequencerEntry{
 		Full: &fullseq.Config{
-			ChainID:             l2ChainID,
-			Builder:             bidL2,
-			Signer:              sidL2,
-			Committer:           cidL2,
-			Publisher:           pidL2,
-			SequencerConfDepth:  2,
-			SequencerEnabled:    true,
-			SequencerStopped:    false,
-			SequencerMaxSafeLag: 0,
+			ChainID:            l2ChainID,
+			Builder:            bidL2,
+			Signer:             sidL2,
+			Committer:          cidL2,
+			Publisher:          pidL2,
+			SequencerConfDepth: 2,
+			SequencerEnabled:   true,
+			SequencerStopped:   false,
 		},
 	}
 

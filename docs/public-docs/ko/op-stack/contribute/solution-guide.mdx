@@ -1,0 +1,152 @@
+---
+title: "콘텐츠 유형: 솔루션 가이드"
+description: 솔루션 가이드에 대해 공개된 계약으로, 목적, 어조, 필수 구성 요소, 제목 문법, 복사해 쓸 수 있는 템플릿을 다룹니다.
+diataxis: reference
+---
+
+**솔루션 가이드(solution guide)**는 여러 컴포넌트에 걸친 실제 목표 — "batcher
+비용 조정하기", "결함 증명 challenger 실행하기" — 를 가진 독자를 위해
+기존 문서를 하나의 잘 닦인 경로로 순서를 정합니다. 솔루션 가이드가 없다면 독자는
+여러 사이트에 흩어진 가이드, 레퍼런스 페이지, 스펙, README를 직접
+조합해야 합니다.
+
+이 페이지는 이 유형에 대한 계약입니다. 새 솔루션 가이드는 이 계약을 기준으로 리뷰되며,
+리뷰 시 다시 논쟁하는 대신 관련 섹션을 인용합니다.
+
+## 목적
+
+*   추적한 독자 여정을 **선별된 출구를 갖춘 하나의 사이트 내 페이지**로
+    바꾸어, 가이드가 의도적으로 선택한 출구 외에는 docs.optimism.io를
+    떠나지 않고도 목표를 달성할 수 있게 합니다.
+*   어떤 단일 컴포넌트 페이지도 담을 수 없는 **연결 의사결정 로직** — 언제
+    어떤 옵션을 왜 선택해야 하는지 — 을 추가합니다.
+*   **파생하되, 절대 중복하지 않습니다.** 각 단계는 정식 페이지에 링크하고
+    그 페이지에서 무엇을 가져와야 하는지 밝힙니다. 링크된 페이지의 단계나 사실을
+    다시 서술하는 것은
+    [이중 소싱 금지 원칙](/ko/op-stack/contribute/content-guide#link-dont-restate-the-dual-sourcing-ban)을 위반합니다.
+
+## 구성
+
+솔루션 가이드는 다섯 번째 사분면이 아니라 기존 분류 체계의 구성입니다.
+프런트매터에는 `diataxis: how-to`(목표 및 행동
+지향적이므로)와 `content-type: solution-guide`를 포함합니다. 일반 how-to 가이드나
+튜토리얼과 어떻게 다른지는
+[콘텐츠 유형 선택](/ko/op-stack/contribute/choose-a-content-type)을 참고하세요.
+
+## 어조
+
+*   직접적이고 간결하게. 독자에게는 목표와 작동하는 시스템이 있으므로,
+    한 단락의 목표 진술 외에는 배경 설명을 하지 않습니다.
+*   의사결정은 조건으로 서술합니다: "X라면 W이므로 Y를 선택합니다" — 단순히
+    "Y를 권장합니다"라고 쓰지 않습니다.
+*   낡은 정보에 대해 정직하게: 수동 관리되거나 버전에 고정된
+    자료로 나가는 출구에는 최신인 것처럼 암시하지 말고 "기준 시점(as of)" 표시를 붙입니다.
+
+## 필수 구성 요소
+
+모든 솔루션 가이드에는 다음이 순서대로 있어야 합니다.
+
+1.  **프런트매터**: `title`, `description`, `diataxis: how-to`,
+    `content-type: solution-guide`, `last-reviewed: YYYY-MM-DD`(솔루션
+    가이드는 큐레이션 산출물이며,
+    [큐레이션 리뷰 정책](/ko/op-stack/contribute/curation-policy)에 따라 병합 시 리뷰 점검 대상에 들어갑니다).
+2.  **목표 진술**: 결과, 대상 독자, 관련 컴포넌트를 명시하는
+    한 단락.
+3.  **적합성 확인**(`## Is this guide for you?`): 가이드를 사용해야 하는 조건을
+    나열한 글머리 기호와, 맞지 않을 때 대신 갈 곳.
+4.  **시작 상태**(`## Before you start`): 가이드가 전제하는 작동 상태와 접근
+    권한. 솔루션 가이드에는 환경 설정이 절대 포함되지 않습니다.
+    그것은 튜토리얼의 영역이므로, 필요하다면 튜토리얼에 링크합니다.
+5.  **순서가 있는 단계**(`## Step 1: …`, `## Step 2: …`): 번호가 매겨진 `##`
+    섹션으로, 각각 명령형 행동입니다. 다른 페이지에서 파생된 단계는
+    그 페이지에 링크하고 무엇을 가져와야 하는지 정확히 밝힙니다. 의사결정 단계는
+    의사결정 로직을 밝히며, 가급적
+    if/choose/because 표로 작성합니다.
+6.  **확인**(마지막 단계): 독자가 목표 달성을 확인하는
+    방법.
+7.  **다음 단계**(`## Next steps`): 의도적으로 선별한 출구 —
+    심층 레퍼런스, 규범적 스펙, 상위 저장소 자료 — 로, 각각
+    한 줄의 이유를 붙이고, 대상이 버전에 고정되었거나
+    수동 관리되는 경우 "기준 시점(as of)" 표시를 붙입니다.
+
+## 제목 문법
+
+독자의 목표를 나타내는 sentence case의 `<Imperative verb> <object>` 형식:
+"Tune batcher costs", "Run a fault-proof challenger", "Choose your node
+stack". "How to" 접두사, 동명사("Tuning…"), 컴포넌트로 시작하는
+제목("op-batcher cost tuning")은 사용하지 않습니다.
+
+## 템플릿
+
+새 솔루션 가이드를 시작하려면 다음 템플릿을 복사합니다.
+
+```mdx
+---
+title: <Verb> <object>
+description: <One sentence naming the outcome and who it serves.>
+diataxis: how-to
+content-type: solution-guide
+last-reviewed: <YYYY-MM-DD>
+---
+
+<One paragraph: the goal, the intended reader, and the components involved.>
+
+## Is this guide for you?
+
+Use this guide if:
+
+*   <condition on the reader's role or system>
+*   <condition on the goal>
+
+If you <adjacent need>, see [<other page>](</path/to/page>) instead.
+
+## Before you start
+
+You should already have:
+
+*   <working state this guide assumes>
+*   <tools or access required>
+
+## Step 1: <Imperative action>
+
+<What to do. When this stop derives from another page, link it and state
+what to extract:>
+
+Read [<page title>](</path/to/page>) and take away:
+
+*   <the specific values, concepts, or commands this goal needs>
+
+## Step 2: <Imperative decision>
+
+<The connective decision logic this guide adds — the material that exists
+nowhere else:>
+
+| If ... | Choose ... | Because ... |
+| --- | --- | --- |
+| <scenario> | <option> | <rationale> |
+
+## Step 3: Verify the outcome
+
+<How the reader confirms the goal is reached: the metric, output, or state
+to check, and what a good result looks like.>
+
+## Next steps
+
+*   [<Exit title>](<url>) — <what the reader gets there>. <As of `<tag or
+    date>` for version-pinned or hand-maintained targets.>
+*   [<Normative spec section>](https://specs.optimism.io/<path>) — <why a
+    reader would need the normative definition>.
+```
+
+## 모범 사례
+
+*   [batcher 비용 조정하기](/ko/use-cases/tune-batcher-costs): 첫 번째 솔루션
+    가이드이자 이 형식의 증명으로, 가져갈 내용을 명시한 파생 링크,
+    if/choose/because 표, 배지가 붙은 출구를 갖추고 있습니다.
+*   [batcher 구성하기](/ko/chain-operators/guides/configuration/batcher) —
+    batcher 비용 여정의 핵심 단계로, 솔루션
+    가이드가 재현하지 않고 *링크해 들어가는* 깊이 있는 내용입니다.
+*   [합의 클라이언트 구성](/ko/node-operators/guides/configuration/consensus-clients)
+    — 옵션 간 의사결정 기준을 명시한 사이트 내 선례입니다.
+*   Cloudflare의 [문서 콘텐츠 전략](https://developers.cloudflare.com/style-guide/documentation-content-strategy/)
+    — 이 계약이 따르는 공개 콘텐츠 유형 패턴입니다.

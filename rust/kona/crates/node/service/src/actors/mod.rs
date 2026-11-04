@@ -41,7 +41,7 @@ pub use signer::{SignedPayload, SignerActor, SignerActorError};
 
 mod network;
 pub use network::{
-    NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
+    IpVotes, NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
     NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
     QueuedNetworkEngineClient, QueuedUnsafePayloadGossipClient, RunningDiscovery,
     UnsafePayloadGossipClient, UnsafePayloadGossipClientError,

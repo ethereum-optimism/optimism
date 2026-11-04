@@ -14,7 +14,6 @@ import (
 	opchallenger "github.com/ethereum-optimism/optimism/op-challenger"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	challengermetrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -68,7 +67,7 @@ func newDefaultSingleChainWorld(t devtest.T, keys devkeys.Keys, cfg PresetConfig
 	deployerOpts := cfg.DeployerOptions
 	if cfg.InteropAtGenesis {
 		deployerOpts = append([]DeployerOption{
-			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+			WithUseInterop(),
 		}, deployerOpts...)
 	}
 	migration, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorld(t, keys, cfg.InteropAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), startL1, deployerOpts...)
@@ -158,6 +157,10 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
 	jwtPath, jwtSecret := writeJWTSecret(t)
+
+	if cfg.AltDAStore != nil {
+		cfg = withAltDA(t, cfg)
+	}
 
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
@@ -461,7 +464,7 @@ func startMinimalChallenger(
 	var zkChallengerSuperRootRPCProxy *StallableProxy
 	switch {
 	case zkEnabled:
-		// The ZK game validates super roots from the op-node's superroot_atTimestamp endpoint;
+		// The ZK game validates super roots from the rollup node's superroot_atTimestamp endpoint;
 		// it needs no VM config or dependency set.
 		zkChallengerSuperRootRPCProxy = StartStallableProxy(t, "zk-challenger-super-root", l2CL.UserRPC())
 		options = append(options,

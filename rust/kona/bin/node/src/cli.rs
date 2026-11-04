@@ -1,33 +1,20 @@
 //! Contains the node CLI.
 
 use crate::{
-    commands::{BootstoreCommand, InfoCommand, NetCommand, NodeCommand, RegistryCommand},
+    commands::NodeCommand,
     flags::{GlobalArgs, init_unified_metrics},
     version,
 };
 use anyhow::Result;
 use clap::{Command, CommandFactory, FromArgMatches, Parser, Subcommand};
 use kona_cli::cli_styles;
-use strum::Display;
 
 /// Subcommands for the CLI.
-#[derive(Debug, Clone, Subcommand, Display)]
-#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, Subcommand)]
 pub enum Commands {
     /// Runs the consensus node.
     #[command(alias = "n")]
     Node(NodeCommand),
-    /// Runs the networking stack for the node.
-    #[command(alias = "p2p", alias = "network")]
-    Net(NetCommand),
-    /// Lists the OP Stack chains available in the superchain-registry.
-    #[command(alias = "r", alias = "scr")]
-    Registry(RegistryCommand),
-    /// Utility tool to interact with local bootstores.
-    #[command(alias = "b", alias = "boot", alias = "store")]
-    Bootstore(BootstoreCommand),
-    /// Get info about op chain.
-    Info(InfoCommand),
 }
 
 /// The node CLI.
@@ -65,34 +52,11 @@ impl Cli {
 
     /// Runs the CLI.
     pub fn run(self) -> Result<()> {
-        // Initialize telemetry - allow subcommands to customize the filter.
-        match self.subcommand {
-            Commands::Node(ref node) => node.init_logs(&self.global)?,
-            Commands::Net(ref net) => net.init_logs(&self.global)?,
-            Commands::Registry(ref registry) => registry.init_logs(&self.global)?,
-            Commands::Bootstore(ref bootstore) => bootstore.init_logs(&self.global)?,
-            Commands::Info(ref info) => info.init_logs(&self.global)?,
-        }
-
-        // Initialize unified metrics
+        let Commands::Node(node) = self.subcommand;
+        node.init_logs(&self.global)?;
         init_unified_metrics(&self.global.metrics)?;
-
-        // Allow subcommands to initialize cli metrics.
-        match self.subcommand {
-            Commands::Node(ref node) => node.init_cli_metrics(&self.global.metrics)?,
-            _ => {
-                tracing::debug!(target: "cli", "No CLI metrics initialized for subcommand: {:?}", self.subcommand)
-            }
-        }
-
-        // Run the subcommand.
-        match self.subcommand {
-            Commands::Node(node) => Self::run_until_ctrl_c(node.run(&self.global)),
-            Commands::Net(net) => Self::run_until_ctrl_c(net.run(&self.global)),
-            Commands::Registry(registry) => registry.run(&self.global),
-            Commands::Bootstore(bootstore) => bootstore.run(&self.global),
-            Commands::Info(info) => info.run(&self.global),
-        }
+        node.init_cli_metrics(&self.global.metrics)?;
+        Self::run_until_ctrl_c(node.run(&self.global))
     }
 
     /// Run until ctrl-c is pressed.
@@ -138,8 +102,25 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    /// A list flag under a subcommand, as the p2p list flags are under `node` and `net`, bound to
-    /// an environment variable no other test uses.
+    /// Parses the CLI with `global_args` before the `node` subcommand, invoked as `subcommand`,
+    /// with its required flags.
+    fn try_parse(global_args: &[&str], subcommand: &str) -> Result<Cli, clap::Error> {
+        let node_args = [
+            subcommand,
+            "--l1-eth-rpc",
+            "http://localhost:8545",
+            "--l1-beacon",
+            "http://localhost:5052",
+            "--l2-engine-rpc",
+            "http://localhost:8551",
+        ];
+        Cli::try_parse_from(
+            std::iter::once("kona-node").chain(global_args.iter().copied()).chain(node_args),
+        )
+    }
+
+    /// A list flag under a subcommand, as the p2p list flags are under `node`, bound to an
+    /// environment variable no other test uses.
     #[derive(Parser, Debug)]
     struct ListCommand {
         #[command(subcommand)]
@@ -187,21 +168,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case::node_subcommand_long(Commands::Node(Default::default()), "node")]
-    #[case::node_subcommand_short(Commands::Node(Default::default()), "n")]
-    #[case::net_subcommand_extra_long(Commands::Net(Default::default()), "network")]
-    #[case::net_subcommand_long(Commands::Net(Default::default()), "net")]
-    #[case::net_subcommand_short(Commands::Net(Default::default()), "p2p")]
-    #[case::registry_subcommand_short(Commands::Registry(Default::default()), "r")]
-    #[case::registry_subcommand_long(Commands::Registry(Default::default()), "scr")]
-    #[case::bootstore_subcommand_short(Commands::Bootstore(Default::default()), "b")]
-    #[case::bootstore_subcommand_long(Commands::Bootstore(Default::default()), "boot")]
-    #[case::bootstore_subcommand_long2(Commands::Bootstore(Default::default()), "store")]
-    #[case::info_subcommand(Commands::Info(Default::default()), "info")]
-    fn test_parse_cli(#[case] subcommand: Commands, #[case] subcommand_alias: &str) {
-        let args = vec!["kona-node", subcommand_alias, "--help"];
-        let cli = Cli::parse_from(args);
-        assert_eq!(cli.subcommand.to_string(), subcommand.to_string());
+    #[case::node_subcommand_long("node")]
+    #[case::node_subcommand_short("n")]
+    fn test_parse_cli(#[case] subcommand: &str) {
+        try_parse(&[], subcommand).unwrap();
     }
 
     #[rstest]
@@ -218,7 +188,7 @@ mod tests {
         #[case] value: &str,
         #[case] expected_id: u64,
     ) {
-        let cli = Cli::try_parse_from(["kona-node", flag, value, "registry"]).unwrap();
+        let cli = try_parse(&[flag, value], "node").unwrap();
         assert_eq!(cli.global.l2_chain_id.id(), expected_id);
     }
 
@@ -226,14 +196,14 @@ mod tests {
     #[case::invalid_string("invalid_chain")]
     #[case::empty_string("")]
     fn test_cli_l2_chain_id_invalid(#[case] invalid_value: &str) {
-        let result = Cli::try_parse_from(["kona-node", "--l2-chain-id", invalid_value, "registry"]);
+        let result = try_parse(&["--l2-chain-id", invalid_value], "node");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_cli_l2_chain_id_default() {
         // Test that the default chain ID is 10 (Optimism)
-        let cli = Cli::try_parse_from(["kona-node", "registry"]).unwrap();
+        let cli = try_parse(&[], "node").unwrap();
         assert_eq!(cli.global.l2_chain_id.id(), 10);
     }
 }

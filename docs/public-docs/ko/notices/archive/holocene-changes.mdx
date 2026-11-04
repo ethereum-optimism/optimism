@@ -1,0 +1,90 @@
+---
+title: Holocene 호환성을 깨는 변경 사항 대비
+description: Holocene 업그레이드의 호환성을 깨는 변경 사항에 대비하는 방법을 알아봅니다.
+diataxis: reference
+content_type: notice
+date: 2025-01-09
+---
+
+이 페이지에서는 체인 운영자와 노드 운영자를 위해 Holocene 네트워크 업그레이드와 관련된 호환성을 깨는 변경 사항(breaking changes)을 설명합니다.
+이 과정의 어느 단계에서든 어려움이 있다면 [개발자 지원](https://github.com/ethereum-optimism/developers/discussions)에 문의하십시오.
+
+<Info>
+  Sepolia Superchain의 Holocene 업그레이드는 **11월 26일(화) 15:00:00 UTC** (`1732633200`)에 활성화됩니다.
+  
+  Unichain Sepolia의 Holocene 업그레이드는 **12월 18일(수) 22:00:00 UTC** (`1734559200`)에 활성화됩니다.
+
+  Soneium Minato (Sepolia)의 Holocene 업그레이드는 **12월 20일(금) 09:00:00 UTC** (`1734685200`)에 활성화됩니다.
+
+  Mainnet Superchain의 Holocene 업그레이드는 **2025년 1월 9일(목) 18:00:01 UTC**로 예정되어 있습니다. [거버넌스 승인](https://vote.optimism.io/proposals/20127877429053636874064552098716749508236019236440427814457915785398876262515)을 참조하십시오.
+
+  Soneium Mainnet의 Holocene 업그레이드는 **2월 3일(월) 09:00:00 UTC** (`1738573200`)에 활성화됩니다.
+</Info>
+
+## Holocene에 포함된 내용
+
+Holocene에는 세 가지 변경 사항이 포함되어 있습니다.
+
+*   **Holocene 블록 도출(derivation)**: 도출 파이프라인을 더 엄격하고 단순하게 만드는 일련의 변경 사항으로, 결함 증명 시스템(Fault Proof System)과 상호운용성(interoperability)의 최악의 시나리오를 개선합니다.
+*   **EIP-1559 구성 가능성**: EIP-1559의 elasticity 및 denominator 파라미터를 `SystemConfig` L1 컨트랙트를 통해 구성할 수 있게 되어, gas 목표치와 gas 한도를 독립적으로 구성할 수 있습니다.
+*   **MIPS 컨트랙트 업그레이드**: 새 `op-program` 버전에서 수행하는 추가 호출을 지원하기 위한 업데이트입니다.
+
+Holocene 구현 세부 사항에 대한 자세한 내용은 [Holocene 사양](https://specs.optimism.io/protocol/holocene/overview.html?utm_source=op-docs&utm_medium=docs)을 검토하십시오.
+
+## 체인 운영자 대상
+
+체인 운영자는 활성화 시간 이전에 Holocene 변경 사항이 포함되어 있고 해당 체인의 활성화 시간이 내장된 릴리스로 node를 업그레이드하거나, 오버라이드를 통해 활성화 시간을 수동으로 설정해야 합니다.
+
+이 외에도 여러 L1 컨트랙트 업데이트를 수행해야 합니다. 결함 증명 컨트랙트는 Holocene 활성화 이전에 업데이트해야 하며, `SystemConfig`는 Holocene 활성화 이후에 업그레이드해야 합니다. 대부분의 배포와 superchain-ops 작업 생성 또는 Safe 멀티시그 입력 번들 생성을 자동화하는 [업그레이드 스크립트](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene)(`op-contracts/v1.8.0-rc.4` 기준)를 준비했습니다.
+
+EIP-1559 구성 가능성을 활용하려면 체인 운영자는 체인의 `SystemConfig`를 최신 OP Contracts [v1.8.0-rc.3 릴리스](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv1.8.0-rc.3)로 업그레이드해야 합니다. 업데이트된 `SystemConfig` 구현은 다음 주소에 배포되어 있습니다.
+
+*   Sepolia: `0x33b83E4C305c908B2Fc181dDa36e230213058d7d` - [Superchain Registry 검증 파일](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-sepolia.toml#L9) (`ca80c8f` 기준)
+*   Mainnet: `0xAB9d6cB7A427c0765163A7f45BB91cAfe5f2D375` - [Superchain Registry 검증 파일](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L9) (`ca80c8f` 기준)
+
+체인 운영자는 프록시 컨트랙트가 이 새 구현을 가리키도록 업데이트해야 합니다. 모노레포의 업그레이드 스크립트를 사용하여 업그레이드를 진행할 수 있으며, 이 [README](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene/README.md)(`op-contracts/v1.8.0-rc.4` 기준)의 안내를 따르십시오. `SystemConfig`는 Holocene 활성화 이후에 업그레이드하는 것을 권장합니다. EIP-1559 파라미터를 재구성하려면 업그레이드가 필요합니다.
+
+### 결함 증명이 활성화된 체인 대상
+
+Holocene 업그레이드는 실행 및 도출 규칙을 변경하므로, 결함 증명(fault proof) 시스템에서 사용하는 `op-program` 버전을 해당 체인의 Holocene 활성화 날짜가 포함된 버전으로 업그레이드해야 합니다. 사용되는 `op-program` 버전은 `FaultDisputeGame` 및 `PermissionedDisputeGame` 컨트랙트의 일부로 배포되는 `faultGameAbsolutePrestate` 설정으로 지정됩니다. 또한 새 `op-program`이 수행하는 추가 호출을 지원하도록 `MIPS` 컨트랙트도 업그레이드해야 합니다.
+
+`FaultDisputeGame` 및 `PermissionedDisputeGame` 컨트랙트는 체인마다 별도로 배포해야 합니다. `MIPS` 컨트랙트 구현은 모든 체인이 공유할 수 있으며 다음 주소에 배포되어 있습니다.
+
+*   Sepolia: `0x69470D6970Cd2A006b84B1d4d70179c892cFCE01` - [Superchain Registry 검증 파일](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L12) (`ca80c8f` 기준)
+*   Mainnet: `0x5fE03a12C1236F9C22Cb6479778DDAa4bce6299C` - [Superchain Registry 검증 파일](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L12) (`ca80c8f` 기준)
+
+체인 운영자는 `DisputeGameFactory.setImplementation`을 호출하여 `DisputeGameFactory`가 새 `FaultDisputeGame` 및 `PermissionedDisputeGame` 컨트랙트를 사용하도록 업데이트해야 합니다. 모노레포의 동일한 업그레이드 스크립트를 사용하여 업그레이드를 진행할 수 있으며, 이 [README](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene/README.md)(`op-contracts/v1.8.0-rc.4` 기준)의 안내를 따르십시오.
+
+## 노드 운영자 대상
+
+노드 운영자는 활성화 날짜 이전에 해당 Holocene 릴리스로 업그레이드해야 합니다.
+
+모든 노드 운영자는 다음 단계를 수행해야 합니다.
+
+<Steps>
+  <Step title="최신 릴리스로 업데이트">
+  *   [`op-node` `v1.10.2`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.10.2)
+    *   [`op-geth` `v1.101411.4`](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101411.4)
+  </Step>
+
+  <Step title="Holocene 활성화 날짜 구성">
+  <Info>
+      [하드포크 활성화 상속 동작(hardfork activation inheritance behavior)](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md)에 참여한 OP Chain의 node를 운영하는 경우, Holocene 활성화 날짜는 `op-node` 및 `op-geth` node에 포함되어 있습니다. 따라서 최신 릴리스로 업그레이드한 후 sequencer에 대해 별도의 조치가 필요하지 않습니다. [3단계: 구성 확인](#verify-your-configuration)으로 건너뛰십시오.
+  
+      Sepolia의 경우 해당 체인은 `OP Sepolia`, `Base Sepolia`, `Mode Sepolia`, `Zora Sepolia`, `Metal Sepolia`입니다.
+    </Info>
+  
+    [하드포크 활성화 상속 동작](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md)에 포함되지 않은 체인의 노드 운영자는 활성화를 수동으로 구성해야 합니다. 다음 두 가지 방법 중 하나를 사용할 수 있습니다.
+  
+    *   **옵션 1:** `op-node`의 `rollup.json`에 활성화 시간을 설정합니다. 이 옵션을 사용하는 경우에도 `op-geth`에는 `override.holocene` 플래그를 설정해야 합니다.
+    *   **옵션 2:** `op-node`와 `op-geth` 모두에서 오버라이드(CLI)를 통해 활성화 시간을 설정합니다. sequencer와 다른 모든 node의 `op-node` 및 `op-geth`에 이를 설정해야 합니다.
+  </Step>
+
+  <Step title="구성 확인">
+  다음 사항을 확인하여 node가 올바르게 구성되었는지 검증하십시오.
+  
+    *   `op-node`와 `op-geth`는 시작 시 구성을 로그로 출력합니다
+    *   op-node 시작 로그에서 Holocene 시간이 `activation-timestamp`로 설정되어 있는지 확인합니다
+    *   op-geth 시작 로그에서 Holocene 시간이 `activation-timestamp`로 설정되어 있는지 확인합니다
+  </Step>
+</Steps>
