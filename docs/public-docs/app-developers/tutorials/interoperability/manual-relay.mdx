@@ -330,7 +330,7 @@ ACCESS_LIST=`cast rpc admin_getAccessListForIdentifier --rpc-url http://localhos
     To secure cross-chain messaging and prevent potential [denial-of-service attacks](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/interop-access-list.md), relay transactions require properly formatted access lists that include a checksum derived from the message data.
     This lets sequencers know what executing messages to expect in a transaction, which makes it easy not to include transactions that are invalid because they rely on messages that were never sent.
 
-    The algorithm to calculate the access list (in `CrossL2Inbox`) is a bit complicated, but you dont need to worry about it.
+    The algorithm to calculate the access list (in `CrossL2Inbox`) is a bit complicated, but you don't need to worry about it.
     Supersim exposes [RPC calls](https://supersim.pages.dev/guides/interop/cast?highlight=manuall#7-construct-the-access-list-for-the-message) that calculates it for you on port 8420.
     The code above will calculate the correct access list even if you're using a different interop cluster where autorelay is not functioning.
     This is because the code implements a [pure function](https://en.wikipedia.org/wiki/Pure_function), which produces consistent results regardless of external state.
