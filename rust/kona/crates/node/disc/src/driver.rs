@@ -180,57 +180,44 @@ impl Discv5Driver {
         res.map(|_| s)
     }
 
-    /// Returns the record a discovery event brings, if our own gossip should dial it. The driver
-    /// then hands it to gossip and saves it in the bootstore; it doesn't send it to other nodes.
-    /// Only a record valid for `chain_id` is dialed, from these events:
+    /// Returns the peer a discovery event brings, if our own gossip should dial it: only a peer
+    /// discovery has had a session with, at the IP the session's packets came from, with the TCP
+    /// port from its record, as only that address has shown that the node runs discovery. The
+    /// driver then hands it to gossip and saves its record in the bootstore; it doesn't send it to
+    /// other nodes. Only a record valid for `chain_id` is dialed, from these events:
     ///
-    /// - `Discovered`: a record in another node's answer to one of our lookups. discv5 sends it for
-    ///   every record in the answer, before it applies its table filter or checks that the record
-    ///   has an address to contact, so the record may not be live or reachable. It is dialed
-    ///   because that is how gossip learns about nodes we have no session with, but only if a node
-    ///   of scope `own_scope` can reach it, as the table filter checks: discv5 doesn't say which
-    ///   node relayed it.
-    /// - `SessionEstablished`: a session with the node started, in either direction, so the node is
-    ///   live. discv5 only checked the record's UDP address of the family the packets came in on,
-    ///   if it has one, against the address they came from. Gossip dials the record's TCP address,
-    ///   so the record is only dialed if all its addresses are plausible from the address the
-    ///   packets came from, as an unverifiable record is. An honest node's record holds that
-    ///   address, so it is dialed even if our own scope couldn't reach it otherwise, such as a node
-    ///   on our own host's loopback.
+    /// - `SessionEstablished`: a session with the node started, in either direction. Our lookups
+    ///   start one with each node they contact. discv5 only checked the record's UDP address of the
+    ///   family the packets came in on, if it has one, so the record is only dialed if all its
+    ///   addresses are plausible from the address the packets came from, as an unverifiable record
+    ///   is.
     ///
     ///   discv5 also adds such a node to its table without the table filter, and relays its record
     ///   to the nodes that look it up, who may not be able to reach it. discv5 has no hook to check
     ///   a record against the node asking for it, as geth does, so it is left to that node to
     ///   reject it.
     /// - `UnverifiableEnr`: a node started a session with us, but its record's UDP address is not
-    ///   the one its packets came from. discv5 keeps the session but leaves the node out of its
-    ///   table. It is dialed because the record's address may still be reachable: a NAT may have
-    ///   rewritten the address the packets came from, while the record holds the one the NAT maps
-    ///   to the node. The record may also be wrong, or hold an address the node can't be reached
-    ///   at, so it is only dialed if its addresses are plausible from the address the packets came
-    ///   from.
-    fn record_to_dial(
-        event: discv5::Event,
-        chain_id: u64,
-        own_scope: AddrScope,
-    ) -> Option<RecordToDial> {
-        // A session's peer is dialed at the address its packets came from: only that one has
-        // shown that it runs discovery.
-        let (kind, enr, check, session_ip) = match event {
+    ///   the one its packets came from, such as when a NAT rewrote them. discv5 keeps the session
+    ///   but leaves the node out of its table. It is dialed at the address its packets came from,
+    ///   if its record's addresses are plausible from there.
+    ///
+    /// A `Discovered` record, from another node's answer to one of our lookups, isn't dialed:
+    /// discv5 sends it before any check, and nothing shows that the node is at the address in it.
+    /// The lookup that found it contacts it, if the table filter lets it, and a session follows.
+    fn record_to_dial(event: discv5::Event, chain_id: u64) -> Option<RecordToDial> {
+        let (kind, enr, socket) = match event {
             discv5::Event::Discovered(enr) => {
-                let check = AddrScope::check_reachable_enr(own_scope, &enr);
-                ("discovered", enr, check, None)
+                if EnrValidation::validate(&enr, chain_id).is_valid() {
+                    metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "discovered")
+                        .increment(1);
+                }
+                return None;
             }
-            discv5::Event::SessionEstablished(enr, socket) => {
-                let check = AddrScope::check_relayed_enr(AddrScope::of(socket.ip()), &enr);
-                ("session_established", enr, check, Some(socket.ip()))
-            }
-            discv5::Event::UnverifiableEnr { enr, socket, .. } => {
-                let check = AddrScope::check_relayed_enr(AddrScope::of(socket.ip()), &enr);
-                ("unverifiable_enr", enr, check, Some(socket.ip()))
-            }
+            discv5::Event::SessionEstablished(enr, socket) => ("session_established", enr, socket),
+            discv5::Event::UnverifiableEnr { enr, socket, .. } => ("unverifiable_enr", enr, socket),
             _ => return None,
         };
+        let check = AddrScope::check_relayed_enr(AddrScope::of(socket.ip()), &enr);
         if EnrValidation::validate(&enr, chain_id).is_invalid() {
             return None;
         }
@@ -240,24 +227,11 @@ impl Discv5Driver {
                 .increment(1);
             return None;
         }
-        let peer = match session_ip {
-            Some(ip) => DiscoveredPeer::at(enr, ip),
-            None => DiscoveredPeer::at_record_address(enr),
-        };
-        let Some(peer) = peer else {
+        let Some(peer) = DiscoveredPeer::at(enr, socket.ip()) else {
             debug!(target: "discovery", event = kind, "Ignoring a record with no TCP port to dial");
             return None;
         };
         Some(RecordToDial { event: kind, peer })
-    }
-
-    /// Returns whether our own gossip should dial `enr`, a record one of our lookups returned. A
-    /// lookup returns records from other nodes' answers, which discv5's table filter checked, but
-    /// also nodes from discv5's own table, which got there through a session, without the filter.
-    /// So check them all against our own scope, and the chain.
-    fn is_lookup_record_to_dial(enr: &Enr, chain_id: u64, own_scope: AddrScope) -> bool {
-        EnrValidation::validate(enr, chain_id).is_valid() &&
-            AddrScope::check_reachable_enr(own_scope, enr).is_ok()
     }
 
     /// Bootstraps the [`Discv5`] table with bootnodes.
@@ -549,7 +523,7 @@ impl Discv5Driver {
                             return;
                         };
                         if let Some(RecordToDial { event: kind, peer }) =
-                            Self::record_to_dial(event, chain_id, own_scope)
+                            Self::record_to_dial(event, chain_id)
                         {
                             debug!(target: "discovery", event = kind, addr = %peer.addr, enr = ?peer.enr, "Valid ENR, passing it to gossip to dial");
                             metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
@@ -567,21 +541,11 @@ impl Discv5Driver {
                         trace!(target: "discovery", "Finding random node: {}", id);
                         metrics::gauge!(crate::Metrics::FIND_NODE_REQUEST, "find_node" => "find_node").increment(1);
                         let fut = self.disc.find_node(id);
-                        let enr_sender = enr_sender.clone();
+                        // Its results aren't dialed: the lookup contacts them, and gossip dials
+                        // those discovery gets a session with.
                         spawn_in_current_span(async move {
-                            match fut.await {
-                                Ok(nodes) => {
-                                    let peers = nodes
-                                        .into_iter()
-                                        .filter(|node| Self::is_lookup_record_to_dial(node, chain_id, own_scope))
-                                        .filter_map(DiscoveredPeer::at_record_address);
-                                    for peer in peers {
-                                        _ = enr_sender.send(peer).await;
-                                    }
-                                }
-                                Err(err) => {
-                                    info!(target: "discovery", "Failed to find node: {:?}", err);
-                                }
+                            if let Err(err) = fut.await {
+                                info!(target: "discovery", "Failed to find node: {:?}", err);
                             }
                         });
                     }
@@ -654,11 +618,11 @@ mod tests {
     /// The socket a session in these tests is with.
     const SOCKET: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9223);
 
-    /// Gossip dials the record a discovery, a session or an unverifiable record brings, if
-    /// it is for the driver's chain, and nothing for other events. The driver is on loopback, so it
-    /// can reach the records' loopback address.
+    /// Gossip dials the peer a session or an unverifiable record brings, if it is for the driver's
+    /// chain, and nothing for other events: a discovered record isn't dialed until a session with
+    /// its node shows where it is.
     #[rstest]
-    #[case::discovered(discv5::Event::Discovered, Some("discovered"))]
+    #[case::discovered(discv5::Event::Discovered, None)]
     #[case::session_established(
         |enr| discv5::Event::SessionEstablished(enr, SOCKET),
         Some("session_established")
@@ -677,11 +641,7 @@ mod tests {
     ) {
         let enr = localhost_enr(OP_SEPOLIA_CHAIN_ID);
         assert_eq!(
-            Discv5Driver::record_to_dial(
-                event(enr.clone()),
-                OP_SEPOLIA_CHAIN_ID,
-                AddrScope::Loopback
-            ),
+            Discv5Driver::record_to_dial(event(enr.clone()), OP_SEPOLIA_CHAIN_ID),
             expected.map(|event| RecordToDial {
                 event,
                 peer: DiscoveredPeer::at_record_address(enr).expect("the record has a TCP address")
@@ -690,8 +650,7 @@ mod tests {
         assert_eq!(
             Discv5Driver::record_to_dial(
                 event(localhost_enr(OP_MAINNET_CHAIN_ID)),
-                OP_SEPOLIA_CHAIN_ID,
-                AddrScope::Loopback
+                OP_SEPOLIA_CHAIN_ID
             ),
             None,
             "a record for another chain is never dialed"
@@ -711,81 +670,21 @@ mod tests {
         move |enr: Enr| discv5::Event::UnverifiableEnr { node_id: enr.node_id(), enr, socket }
     }
 
-    /// A relayed record is dialed only if a node of our own scope can reach it, as discv5
-    /// doesn't say which node relayed it: a public node doesn't dial another node's loopback or
-    /// LAN address. A session's or an unverifiable record only if it is plausible from the address
-    /// its packets came from, whatever our own scope: an honest node's record holds that address.
+    /// A session's or an unverifiable record is dialed only if its addresses are plausible from the
+    /// address its packets came from: an honest node's record holds that address.
     #[rstest]
-    #[case::discovered_lan_while_lan(discv5::Event::Discovered, "10.0.0.1", AddrScope::Lan, true)]
-    #[case::discovered_loopback_while_lan(
-        discv5::Event::Discovered,
-        "127.0.0.1",
-        AddrScope::Lan,
-        false
-    )]
-    #[case::discovered_loopback_while_public(
-        discv5::Event::Discovered,
-        "127.0.0.1",
-        AddrScope::Public,
-        false
-    )]
-    #[case::discovered_lan_while_public(
-        discv5::Event::Discovered,
-        "10.0.0.1",
-        AddrScope::Public,
-        false
-    )]
-    #[case::discovered_public_while_public(
-        discv5::Event::Discovered,
-        "1.1.1.1",
-        AddrScope::Public,
-        true
-    )]
-    #[case::discovered_lan_while_loopback(
-        discv5::Event::Discovered,
-        "10.0.0.1",
-        AddrScope::Loopback,
-        true
-    )]
-    #[case::discovered_special(discv5::Event::Discovered, "192.0.2.1", AddrScope::Loopback, false)]
-    #[case::unverifiable_lan_from_loopback_sender(
-        unverifiable_from("127.0.0.1"),
-        "10.0.0.1",
-        AddrScope::Public,
-        true
-    )]
-    #[case::unverifiable_lan_from_public_sender(
-        unverifiable_from("1.1.1.1"),
-        "10.0.0.1",
-        AddrScope::Loopback,
-        false
-    )]
-    #[case::unverifiable_special(
-        unverifiable_from("127.0.0.1"),
-        "192.0.2.1",
-        AddrScope::Loopback,
-        false
-    )]
-    #[case::session_loopback_while_public(
-        session_from("127.0.0.1"),
-        "127.0.0.1",
-        AddrScope::Public,
-        true
-    )]
-    #[case::session_lan_from_public_sender(
-        session_from("1.1.1.1"),
-        "10.0.0.1",
-        AddrScope::Loopback,
-        false
-    )]
-    fn test_record_to_dial_by_scope(
+    #[case::unverifiable_lan_from_loopback_sender(unverifiable_from("127.0.0.1"), "10.0.0.1", true)]
+    #[case::unverifiable_lan_from_public_sender(unverifiable_from("1.1.1.1"), "10.0.0.1", false)]
+    #[case::unverifiable_special(unverifiable_from("127.0.0.1"), "192.0.2.1", false)]
+    #[case::session_loopback_from_loopback_sender(session_from("127.0.0.1"), "127.0.0.1", true)]
+    #[case::session_lan_from_public_sender(session_from("1.1.1.1"), "10.0.0.1", false)]
+    fn test_record_to_dial_by_sender(
         #[case] event: impl Fn(Enr) -> discv5::Event,
         #[case] ip: IpAddr,
-        #[case] own_scope: AddrScope,
         #[case] dialed: bool,
     ) {
         let event = event(enr_at(ip, OP_SEPOLIA_CHAIN_ID));
-        let dialed_record = Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID, own_scope);
+        let dialed_record = Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID);
         assert_eq!(dialed_record.is_some(), dialed);
     }
 
@@ -817,7 +716,7 @@ mod tests {
     fn test_session_record_is_checked_against_its_sender(#[case] enr: Enr) {
         let event = session_from("1.1.1.1")(enr);
         assert_eq!(
-            Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID, AddrScope::Public),
+            Discv5Driver::record_to_dial(event, OP_SEPOLIA_CHAIN_ID),
             None,
             "a public node dialed a loopback session record"
         );
@@ -841,36 +740,12 @@ mod tests {
     fn test_session_peer_is_dialed_at_the_session_address(
         #[case] event: impl Fn(Enr) -> discv5::Event,
     ) {
-        let record = Discv5Driver::record_to_dial(
-            event(third_party_record()),
-            OP_SEPOLIA_CHAIN_ID,
-            AddrScope::Public,
-        )
-        .expect("a session's record is dialed");
+        let record = Discv5Driver::record_to_dial(event(third_party_record()), OP_SEPOLIA_CHAIN_ID)
+            .expect("a session's record is dialed");
         assert_eq!(
             record.peer.addr.iter().take(2).collect::<Vec<_>>(),
             [Protocol::Ip4(Ipv4Addr::new(1, 2, 3, 4)), Protocol::Tcp(443)],
             "gossip would dial the host the record names, not the session's"
-        );
-    }
-
-    /// A lookup's results include nodes from discv5's own table, which may have got there through a
-    /// session, without the table filter, so they are checked against our own scope too.
-    #[rstest]
-    #[case::public_while_public("1.1.1.1", OP_SEPOLIA_CHAIN_ID, AddrScope::Public, true)]
-    #[case::loopback_while_public("127.0.0.1", OP_SEPOLIA_CHAIN_ID, AddrScope::Public, false)]
-    #[case::lan_while_lan("10.0.0.1", OP_SEPOLIA_CHAIN_ID, AddrScope::Lan, true)]
-    #[case::other_chain("1.1.1.1", OP_MAINNET_CHAIN_ID, AddrScope::Public, false)]
-    fn test_is_lookup_record_to_dial(
-        #[case] ip: IpAddr,
-        #[case] record_chain_id: u64,
-        #[case] own_scope: AddrScope,
-        #[case] dialed: bool,
-    ) {
-        let enr = enr_at(ip, record_chain_id);
-        assert_eq!(
-            Discv5Driver::is_lookup_record_to_dial(&enr, OP_SEPOLIA_CHAIN_ID, own_scope),
-            dialed
         );
     }
 
