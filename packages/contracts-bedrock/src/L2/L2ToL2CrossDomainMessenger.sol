@@ -82,8 +82,8 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyA
     uint256 internal constant MAX_EXPIRY_PERIOD = 365 days;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.0
-    string public constant version = "2.1.0";
+    /// @custom:semver 2.1.1
+    string public constant version = "2.1.1";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -318,11 +318,13 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware, ProxyA
     }
 
     /// @notice Checks whether a message may not target an address. No relayed message may call the
-    ///         L2CrossDomainMessenger or the L2ToL1MessagePasser, so this contract never initiates
-    ///         a withdrawal, and nothing that trusts it as a withdrawal's sender, today or in a
-    ///         future L1 contract, can be fooled by a relayed message. Expiry does not rely on
-    ///         this: L1CrossDomainMessengers trust a dedicated exporter predeploy as the sender of
-    ///         undelivered-message word, not this contract.
+    ///         L2CrossDomainMessenger or the L2ToL1MessagePasser directly, so this contract is
+    ///         never the sender of a message through either of them, and nothing that trusts it as
+    ///         such a sender, today or in a future L1 contract, can be fooled by a relayed
+    ///         message. A relayed message can still start a withdrawal through another contract,
+    ///         such as the L2StandardBridge, but that contract is then the message's sender.
+    ///         Expiry does not rely on this: L1CrossDomainMessengers trust a dedicated exporter
+    ///         predeploy as the sender of undelivered-message word, not this contract.
     /// @param _target Target of the message.
     /// @return Whether the target is unsafe.
     function _isUnsafeTarget(address _target) internal pure returns (bool) {
