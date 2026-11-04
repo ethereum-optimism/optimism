@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 // Testing
 import { console } from "forge-std/console.sol";
 import { VmSafe } from "forge-std/Vm.sol";
-import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 import { PastUpgrades } from "test/setup/PastUpgrades.sol";
@@ -291,14 +290,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         // Set up the default v2 upgrade input dispute game configs.
         address initialProposerForV2 = DisputeGames.permissionedGameProposer(disputeGameFactory);
         v2UpgradeInput.systemConfig = systemConfig;
-        if (SemverComp.parse(opcmV2.version()).major == 9) {
-            v2UpgradeInput.extraInstructions
-                .push(
-                    IOPContractsManagerUtils.ExtraInstruction({
-                        key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("ETHLockbox")
-                    })
-                );
-        }
         v2UpgradeInput.disputeGameConfigs
             .push(
                 IOPContractsManagerUtils.DisputeGameConfig({
@@ -1678,8 +1669,6 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
 /// @title OPContractsManagerV2_Deploy_Test
 /// @notice Tests OPContractsManagerV2.deploy
 contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
-    using stdStorage for StdStorage;
-
     /// @notice Default deploy config.
     IOPContractsManagerV2.FullConfig deployConfig;
 
@@ -1845,60 +1834,11 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         });
     }
 
-    /// @notice Recreates the legacy disabled-lockbox storage state for upgrade tests.
-    function _setLegacyLockboxState(ISystemConfig _systemConfig, IOptimismPortal2 _portal) internal {
-        stdstore.target(address(_systemConfig))
-            .sig("isFeatureEnabled(bytes32)")
-            .with_key(Features.ETH_LOCKBOX)
-            .checked_write(false);
-        stdstore.target(address(_systemConfig))
-            .sig("isFeatureEnabled(bytes32)")
-            .with_key(Features.INTEROP)
-            .checked_write(false);
-        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "ethLockbox");
-        vm.store(address(_portal), bytes32(slot.slot), bytes32(0));
-        assertFalse(_systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
-        assertEq(address(_portal.ethLockbox()), address(0));
-    }
-
-    /// @notice Tests lockbox deployment permission and first activation without requiring a fork.
-    function test_upgrade_missingLockbox_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
-        _testUpgradeMissingLockbox(false, false);
-    }
-
-    /// @notice Tests that a CGT chain without a lockbox can upgrade without migrating portal ETH.
-    function test_upgrade_missingLockboxCGT_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
-        _testUpgradeMissingLockbox(true, false);
-    }
-
-    /// @notice Tests first lockbox activation with a v9 development version.
-    function test_upgrade_missingLockboxV9Dev_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0-dev"));
-        _testUpgradeMissingLockbox(false, false);
-    }
-
-    /// @notice Tests liquidity migration when the flag was enabled without configuring a lockbox.
-    function test_upgrade_missingLockboxFeatureEnabled_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
-        _testUpgradeMissingLockbox(false, true);
-    }
-
-    /// @notice Tests that an enabled flag without a lockbox does not migrate CGT portal ETH.
-    function test_upgrade_missingLockboxCGTFeatureEnabled_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
-        _testUpgradeMissingLockbox(true, true);
-    }
-
-    /// @notice Tests that v8 rejects the ETHLockbox deployment instruction.
-    function test_upgrade_lockboxInstructionV8_reverts() public {
-        _assertUpgradeInstructionRejected("8.0.4", Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"));
-    }
-
-    /// @notice Tests that the ETHLockbox deployment allowance expires in v10.
-    function test_upgrade_lockboxInstructionV10_reverts() public {
-        _assertUpgradeInstructionRejected("10.0.0", Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"));
+    /// @notice Tests that an upgrade cannot deploy an ETHLockbox for an existing chain.
+    function test_upgrade_lockboxInstruction_reverts() public {
+        _assertUpgradeInstructionRejected(
+            opcmV2.version(), Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox")
+        );
     }
 
     /// @notice Tests that the per-chain withdrawal delays cannot be overridden during an upgrade.
