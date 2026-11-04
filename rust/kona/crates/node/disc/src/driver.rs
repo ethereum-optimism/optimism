@@ -730,6 +730,48 @@ mod tests {
         );
     }
 
+    /// A record whose address matches its session's: `1.2.3.4`, with UDP and TCP ports.
+    fn matching_record() -> Enr {
+        enr_with(OP_SEPOLIA_CHAIN_ID, |record| {
+            record.ip4(Ipv4Addr::new(1, 2, 3, 4)).udp4(9223).tcp4(9222);
+        })
+    }
+
+    /// A session should confirm the address gossip dials: a node should dial, and save, a
+    /// session's record only if the address gossip would dial from it, its IPv4 TCP address or else
+    /// its IPv6 one, has the IP the session's packets came from. Then it dials that address. A
+    /// record naming another host is dropped, not dialed elsewhere, because the bootstore saves
+    /// the record: after a restart, it would be dialed at the address in it.
+    ///
+    /// An unverifiable record whose IP matches, but not its UDP port, as behind a NAT that
+    /// rewrites ports, is dialed too.
+    #[rstest]
+    #[case::matching(session_from("1.2.3.4"), matching_record(), Some(9222))]
+    #[case::matching_ip_unverifiable(unverifiable_from("1.2.3.4"), matching_record(), Some(9222))]
+    #[case::third_party(session_from("1.2.3.4"), third_party_record(), None)]
+    #[case::third_party_unverifiable(unverifiable_from("1.2.3.4"), third_party_record(), None)]
+    #[case::loopback(session_from("1.2.3.4"), loopback_record_without_udp(), None)]
+    #[case::tcp_only_in_other_family(
+        session_from("1.2.3.4"),
+        record_with_tcp_only_in_other_family(),
+        None
+    )]
+    fn test_session_record_is_dialed_only_at_the_session_address(
+        #[case] event: impl Fn(Enr) -> discv5::Event,
+        #[case] record: Enr,
+        #[case] tcp_port: Option<u16>,
+    ) {
+        let dialed = Discv5Driver::record_to_dial(event(record), OP_SEPOLIA_CHAIN_ID)
+            .map(|record| record.peer.addr.iter().take(2).map(|p| p.acquire()).collect::<Vec<_>>());
+        // TODO(#23766): the third-party and loopback cases fail, as their peers are dialed at the
+        // session's address while their records, which the bootstore saves, name another host.
+        assert_eq!(
+            dialed,
+            tcp_port
+                .map(|port| vec![Protocol::Ip4(Ipv4Addr::new(1, 2, 3, 4)), Protocol::Tcp(port)]),
+        );
+    }
+
     /// A public node should dial only the saved records it can reach, as with the records other
     /// nodes relay to it, so it should leave out a loopback record in its bootstore. Such a record
     /// may have been saved by a version that didn't check the records it dials, or while the node
