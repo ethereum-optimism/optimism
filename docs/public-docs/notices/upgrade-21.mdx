@@ -110,20 +110,16 @@ No other OP Stack component needs a new version for the prestate.
   <Step title="Build or verify the absolute prestate">
     <Tabs>
       <Tab title="Standard chain configuration">
-        `kona-client` v1.9.0 publishes two hashes in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml):
+        `kona-client` v1.9.0 publishes the **`cannon64-kona-interop`** hash in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml): `0x03b985a286da46ca88c0a965a53942daade9ffe1ae6b854a8f2d083df1cfaf59`. `SUPER_CANNON_KONA` games use this prestate after Upgrade 20.
 
-        * **`cannon64-kona-interop`**: `0x03b985a286da46ca88c0a965a53942daade9ffe1ae6b854a8f2d083df1cfaf59`. Used by `SUPER_CANNON_KONA` games after Upgrade 20.
-        * **`cannon64-kona`**: `0x033c000916b4a88cfffeceddd6cf0f4be3897a89195941e5a7c3f8209b4dbb6e`.
-
-        Check out `kona-client/v1.9.0` in the monorepo, reproduce both prestates, and read the hashes:
+        Check out `kona-client/v1.9.0` in the monorepo, reproduce the prestate, and read the hash:
 
         ```bash
         just reproducible-prestate-kona
-        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json  # cannon64-kona-interop
-        jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json          # cannon64-kona
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json
         ```
 
-        Confirm the output matches the published hashes.
+        Confirm the output matches the published hash.
       </Tab>
 
       <Tab title="Custom chain configuration">
