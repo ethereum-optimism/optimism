@@ -494,6 +494,9 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	l1ChainID, err := l1Client.ChainID(ctx)
 	require.NoError(t, err)
 	require.NotEqualValues(t, 1337, bigs.Uint64Strict(l1ChainID))
+	deployerKey, err := crypto.HexToECDSA(privateKey)
+	require.NoError(t, err)
+	sp1Verifier := testutil.DeployMockSP1Verifier(t, l1Client, deployerKey, afacts)
 
 	host, err := opdenv.DefaultScriptHost(
 		broadcaster.NoopBroadcaster(),
@@ -580,7 +583,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deployIntent := &state.Intent{
-				GlobalDeployOverrides: map[string]any{"devFeatureBitmap": tt.devFeatureBitmap},
+				GlobalDeployOverrides: map[string]any{
+					"devFeatureBitmap": tt.devFeatureBitmap,
+					"sp1Verifier":      sp1Verifier,
+				},
 			}
 			deployState := &state.State{
 				Version:              1,

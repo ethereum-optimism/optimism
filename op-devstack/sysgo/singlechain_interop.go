@@ -3,7 +3,6 @@ package sysgo
 import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 )
 
@@ -86,9 +85,6 @@ func NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t devtest.T, cfg
 // its safe DB (required by superroot_atTimestamp).
 func NewSingleChainInteropNoSupernodeZKDisputeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
 	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
-	cfg.DeployerOptions = append([]DeployerOption{
-		WithDevFeatureEnabled(devfeatures.ZKDisputeGameFlag),
-	}, cfg.DeployerOptions...)
 	// ZK games resolve only after the challenge/prove windows elapse, so time travel is required.
 	cfg.EnableTimeTravel = true
 	cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.ZKDisputeGameType)

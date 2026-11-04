@@ -176,9 +176,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 9.0.6
+    /// @custom:semver 9.0.7
     function version() public pure returns (string memory) {
-        return "9.0.6";
+        return "9.0.7";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -787,14 +787,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 ? (isSuperPermissionedGame || isSuperCannonKonaGame)
                 : (isPermissionedCannonGame || isCannonKonaGame);
             if (_isInitialDeployment && _cfg.disputeGameConfigs[i].enabled && !validForInitialDeploy) {
-                revert OPContractsManagerV2_InvalidGameConfigs();
-            }
-
-            // ZK_DISPUTE_GAME can only be enabled when the dev flag is on (upgrade path).
-            if (
-                isZkDisputeGame && _cfg.disputeGameConfigs[i].enabled
-                    && !isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)
-            ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 

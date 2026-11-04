@@ -192,6 +192,7 @@ contract OPContractsManagerV2_TestInit is CommonTest {
                 sysCfg: cts_.systemConfig,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
+                zkPrestate: bytes32(0),
                 l2ChainID: _deployConfig.l2ChainId,
                 proposer: deployProposer
             }),
@@ -463,12 +464,27 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
                 sysCfg: v2UpgradeInput.systemConfig,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
+                zkPrestate: _upgradeZKPrestate(),
                 l2ChainID: l2ChainId,
                 proposer: initialProposer
             }),
             false,
             validationOverrides
         );
+    }
+
+    /// @notice Returns the enabled ZK_DISPUTE_GAME prestate in the upgrade input, or zero.
+    function _upgradeZKPrestate() internal view returns (bytes32) {
+        IOPContractsManagerUtils.DisputeGameConfig[] memory configs = v2UpgradeInput.disputeGameConfigs;
+        for (uint256 i = 0; i < configs.length; i++) {
+            if (configs[i].enabled && configs[i].gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+                return
+                    abi.decode(configs[i].gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig))
+                        .absolutePrestate
+                        .raw();
+            }
+        }
+        return bytes32(0);
     }
 
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the
@@ -802,7 +818,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                     key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_PERMISSIONED)
                 })
             );
-        runCurrentUpgradeV2(chainPAO, hex"", "SCKDG-SHAPE,SCKDG-10");
+        runCurrentUpgradeV2(chainPAO, hex"", "DF-60");
         assertEq(
             address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)), address(0), "game impl not cleared"
         );
@@ -877,7 +893,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                     key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_PERMISSIONED)
                 })
             );
-        runCurrentUpgradeV2(chainPAO, hex"", "SCKDG-SHAPE,SCKDG-10");
+        runCurrentUpgradeV2(chainPAO, hex"", "DF-60");
         assertEq(
             address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)), address(0), "game impl not cleared"
         );
@@ -1082,8 +1098,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that enabling the ZK dispute game registers it in the factory.
     function test_upgrade_enableZKGame_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         address zkImpl = opcmV2.implementations().zkDisputeGameImpl;
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
@@ -1110,8 +1124,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         factory game args. As a super game, chain scoping comes from the SuperRootProof
     ///         preimage committed to via rootClaim, so no l2ChainId field is included.
     function test_upgrade_zkGameArgsLayout_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
@@ -1140,8 +1152,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     /// @notice Tests that enabling the ZK dispute game with a zero absolute prestate reverts. The
     ///         prestate is the verification key, so an empty one makes the game unplayable.
     function test_upgrade_enableZKGameZeroPrestate_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
@@ -1187,8 +1197,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         zero, which lets an unchallenged root win immediately, or above uint32 max, which can
     ///         overflow the game's uint64 deadline into the past.
     function test_upgrade_enableZKGameInvalidMaxChallengeDuration_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         uint64[3] memory bad = [uint64(0), uint64(type(uint32).max) + 1, type(uint64).max];
         for (uint256 i = 0; i < bad.length; i++) {
             _setZKUpgradeConfig(bad[i], uint64(3 days), 1 ether);
@@ -1203,8 +1211,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     /// @notice Tests that enabling the ZK dispute game reverts when the max prove duration is
     ///         zero or above uint32 max.
     function test_upgrade_enableZKGameInvalidMaxProveDuration_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         uint64[3] memory bad = [uint64(0), uint64(type(uint32).max) + 1, type(uint64).max];
         for (uint256 i = 0; i < bad.length; i++) {
             _setZKUpgradeConfig(uint64(7 days), bad[i], 1 ether);
@@ -1219,8 +1225,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     /// @notice Tests that enabling the ZK dispute game reverts when the challenger bond is zero,
     ///         which would make challenges free.
     function test_upgrade_enableZKGameZeroChallengerBond_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         _setZKUpgradeConfig(uint64(7 days), uint64(3 days), 0);
 
         // nosemgrep: sol-style-use-abi-encodecall
@@ -1232,8 +1236,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     /// @notice Tests that enabling the ZK dispute game accepts the inclusive bounds: uint32 max
     ///         durations and a challenger bond of one wei.
     function test_upgrade_enableZKGameMaxDurations_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         _setZKUpgradeConfig(type(uint32).max, type(uint32).max, 1);
 
         runCurrentUpgradeV2(chainPAO);
@@ -1245,37 +1247,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(args.challengerBond, 1, "challenger bond not set");
     }
 
-    /// @notice Tests that setting ZK config to enabled without the dev feature reverts.
-    function test_upgrade_enableZKGameWithoutDevFeature_reverts() public {
-        // Mock the container to report ZK_DISPUTE_GAME dev feature as disabled, regardless of
-        // what the real deployed container has in its bitmap.
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.ZK_DISPUTE_GAME)),
-            abi.encode(false)
-        );
-
-        v2UpgradeInput.disputeGameConfigs[5].enabled = true;
-        v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
-        v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
-            IOPContractsManagerUtils.ZKDisputeGameConfig({
-                absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                maxChallengeDuration: Duration.wrap(uint64(7 days)),
-                maxProveDuration: Duration.wrap(uint64(3 days)),
-                challengerBond: 1 ether
-            })
-        );
-
-        // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgradeV2(
-            chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
-        );
-    }
-
     /// @notice Tests that the ZK prestate can be rotated while the release adapter remains fixed.
     function test_upgrade_updateZKPrestate_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         // Enable ZK with initial config.
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
@@ -1311,8 +1284,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that disabling the ZK game sets the init bond to zero in the factory.
     function test_upgrade_disableZKGame_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         // First enable ZK game.
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
@@ -2049,7 +2020,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         // Run the deploy and standard validator checks.
         // In standard mode, CANNON_KONA is disabled. In super root mode, SUPER_CANNON_KONA is disabled.
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        string memory expectedErrors = superRoot ? "DF-60" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         // Verify key contracts are deployed.
@@ -2076,7 +2047,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.useCustomGasToken = true;
 
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        string memory expectedErrors = superRoot ? "DF-60" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         assertTrue(cts.systemConfig.isCustomGasToken(), "CGT not enabled");
@@ -2109,7 +2080,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.withdrawalDelaySeconds = 1 days;
 
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        string memory expectedErrors = superRoot ? "DF-60" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         assertEq(cts.optimismPortal.proofMaturityDelaySeconds(), 2 days, "proof maturity delay mismatch");
@@ -2211,8 +2182,6 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests that enabling the ZK game during initial deployment reverts.
     function test_deploy_enableZKGame_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         deployConfig.disputeGameConfigs[5].enabled = true;
         deployConfig.disputeGameConfigs[5].initBond = 1 ether;
 
@@ -2509,7 +2478,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.startingAnchorRoot =
             Proposal({ root: Hash.wrap(Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT), l2SequenceNumber: 0 });
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        string memory expectedErrors = superRoot ? "DF-60" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
         Proposal memory startingAnchorRoot = cts.anchorStateRegistry.getStartingAnchorRoot();
         assertEq(
@@ -2996,8 +2965,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     ///         The shared contracts are reachable from every chain in the set, so upgrading a
     ///         single chain applies the new dispute game config to the whole set.
     function test_upgrade_migratedSetSwapsSharedDisputeGames_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         _enableEthLockboxes();
         _doMigration(_getDefaultMigrateInput());
 
@@ -3744,28 +3711,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidAbsolutePrestate.selector);
     }
 
-    /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config is supplied
-    ///         while the ZK_DISPUTE_GAME dev feature is disabled.
-    function test_migrate_zkDisputeGameNotEnabled_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-
-        // Game args are irrelevant: validation rejects the config before they are decoded.
-        _appendDisputeGameConfig(
-            input,
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true, initBond: 0.08 ether, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: hex""
-            })
-        );
-
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.ZK_DISPUTE_GAME)),
-            abi.encode(false)
-        );
-
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ZKDisputeGameNotEnabled.selector);
-    }
-
     /// @notice Tests that the migration function reverts when a supplied game config is for a game
     ///         type that does not use super roots.
     function test_migrate_nonSuperGameType_reverts() public {
@@ -3807,8 +3752,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config has a zero
     ///         absolute prestate.
     function test_migrate_zkZeroAbsolutePrestate_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         _appendDisputeGameConfig(input, _zkDisputeGameConfig(1 ether, Claim.wrap(bytes32(0))));
 
@@ -3818,8 +3761,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config has a zero
     ///         or greater-than-uint32-max challenge or prove duration.
     function test_migrate_zkInvalidDurations_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         Claim zkPrestate = Claim.wrap(bytes32(keccak256("zk prestate")));
         uint64[3] memory bad = [uint64(0), uint64(type(uint32).max) + 1, type(uint64).max];
         for (uint256 i = 0; i < bad.length; i++) {
@@ -3840,8 +3781,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the migration function reverts when a ZK_DISPUTE_GAME config has a zero
     ///         challenger bond.
     function test_migrate_zkZeroChallengerBond_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         _appendDisputeGameConfig(
             input,
@@ -3853,11 +3792,8 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidZKDisputeGameConfig.selector);
     }
 
-    /// @notice Tests that the migration function registers a ZK_DISPUTE_GAME config when the dev
-    ///         feature is enabled.
+    /// @notice Tests that the migration function registers a ZK_DISPUTE_GAME config.
     function test_migrate_zkDisputeGame_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         Claim zkPrestate = Claim.wrap(bytes32(keccak256("zk prestate")));
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         _appendDisputeGameConfig(input, _zkDisputeGameConfig(1 ether, zkPrestate));
