@@ -397,3 +397,32 @@ func TestChainIntentBridgeHookTOMLRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+func TestChainIntentCheck_BridgeHookCustomGasToken(t *testing.T) {
+	hook := common.HexToAddress("0x44")
+	cgt := CustomGasToken{Name: "Custom Gas Token", Symbol: "CGT"}
+	tests := []struct {
+		name string
+		hook *common.Address
+		cgt  CustomGasToken
+		err  error
+	}{
+		{name: "hook without custom gas token", hook: &hook},
+		{name: "custom gas token without hook", cgt: cgt},
+		{name: "hook with custom gas token", hook: &hook, cgt: cgt, err: ErrIncompatibleValue},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chain := validBaseChainIntent()
+			chain.BridgeHook = tt.hook
+			chain.CustomGasToken = tt.cgt
+
+			err := chain.Check()
+			if tt.err == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.err)
+			}
+		})
+	}
+}

@@ -172,6 +172,11 @@ func (c *ChainIntent) Check() error {
 		// LiquidityControllerOwner is optional - if not set, L2ProxyAdminOwner will be used as default
 	}
 
+	// Mirrors OPContractsManagerV2_BridgeHookNotSupported, so the user gets a readable error.
+	if c.GetBridgeHook() != emptyAddress && c.IsCustomGasTokenEnabled() {
+		return fmt.Errorf("%w: bridgeHook is not supported with a custom gas token, chainId=%s", ErrIncompatibleValue, c.ID)
+	}
+
 	if c.DangerousAltDAConfig.UseAltDA {
 		return c.DangerousAltDAConfig.Check(nil)
 	}

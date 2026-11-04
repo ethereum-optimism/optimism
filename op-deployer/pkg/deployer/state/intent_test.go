@@ -133,6 +133,14 @@ func TestValidateStandardValues(t *testing.T) {
 			ErrIncompatibleValue,
 		},
 		{
+			"BridgeHook",
+			func(intent *Intent) {
+				hook := common.HexToAddress("0x9999")
+				intent.Chains[0].BridgeHook = &hook
+			},
+			ErrNonStandardValue,
+		},
+		{
 			"UseInterop",
 			func(intent *Intent) {
 				intent.UseInterop = true
@@ -248,6 +256,40 @@ func TestValidateCustomValues(t *testing.T) {
 			err = intent.Check()
 			require.Error(t, err)
 			require.ErrorIs(t, err, tt.err)
+		})
+	}
+}
+
+func TestValidateCustomValuesBridgeHookInterop(t *testing.T) {
+	hook := common.HexToAddress("0x9999")
+	tests := []struct {
+		name       string
+		hook       *common.Address
+		useInterop bool
+		err        error
+	}{
+		{name: "hook without interop", hook: &hook},
+		{name: "interop without hook", useInterop: true},
+		{name: "hook with interop", hook: &hook, useInterop: true, err: ErrIncompatibleValue},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			intent, err := NewIntentCustom(11155111, []common.Hash{common.HexToHash("0x336")})
+			require.NoError(t, err)
+			setSuperchainRoles(&intent)
+			setChainRoles(&intent)
+			setEip1559Params(&intent)
+			setFeeAddresses(&intent)
+
+			intent.Chains[0].BridgeHook = tt.hook
+			intent.UseInterop = tt.useInterop
+
+			err = intent.Check()
+			if tt.err == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.err)
+			}
 		})
 	}
 }
