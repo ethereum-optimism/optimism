@@ -7,6 +7,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod metrics;
+mod verify;
 pub use beacon_client::BeaconClientError;
 pub use metrics::Metrics;
 
@@ -33,3 +34,6 @@ pub use pipeline::OnlinePipeline;
 
 mod runtime_config;
 pub use runtime_config::unsafe_block_signer;
+
+#[cfg(test)]
+mod test_utils;
