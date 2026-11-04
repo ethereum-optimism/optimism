@@ -642,7 +642,7 @@ commands:
         type: boolean
         default: false
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           needs_clang: << parameters.needs_clang >>
@@ -724,7 +724,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - run:
           name: Check CircleCI schedule triggers
@@ -884,7 +884,7 @@ jobs:
         type: boolean
         default: false
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
@@ -952,13 +952,13 @@ jobs:
       - when:
           condition: << parameters.use_caches >>
           steps:
-            - utils/checkout-with-mise:
+            - checkout-with-mise:
                 checkout-method: blobless
                 enable-mise-cache: true
       - unless:
           condition: << parameters.use_caches >>
           steps:
-            - utils/checkout-with-mise:
+            - checkout-with-mise:
                 checkout-method: blobless
                 fresh-install: true
       - install-contracts-dependencies:
@@ -1052,7 +1052,7 @@ jobs:
         type: string
         default: 25m
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - install-contracts-dependencies
@@ -1080,7 +1080,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           enable-mise-cache: true
       - attach_workspace:
           at: .
@@ -1133,7 +1133,7 @@ jobs:
         type: boolean
         default: false
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
       - when:
@@ -1205,7 +1205,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
       - install-contracts-dependencies
@@ -1279,7 +1279,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           enable-mise-cache: true
       - go-restore-cache:
           namespace: contracts-bedrock-tests-upgrade
@@ -1395,7 +1395,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           enable-mise-cache: true
       - go-restore-cache:
           namespace: contracts-bedrock-tests-l2-fork
@@ -1498,7 +1498,7 @@ jobs:
     machine: true
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - install-contracts-dependencies
@@ -1528,7 +1528,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
@@ -1549,7 +1549,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           enable-mise-cache: true
       - run:
           name: Check shell script formatting
@@ -1559,7 +1559,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           enable-mise-cache: false
       - run:
           name: Check l2-rpcs.json and daily matrix are in sync
@@ -1573,7 +1573,7 @@ jobs:
     machine:
       image: <<pipeline.parameters.c-base_image>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -1588,7 +1588,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
@@ -1623,7 +1623,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - go-restore-cache:
@@ -1643,7 +1643,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -1657,7 +1657,7 @@ jobs:
     # Seconds and under 1 GB with a warm build cache; about 2 minutes on 2 cores when cold.
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
@@ -1708,7 +1708,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -1739,7 +1739,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - restore-go-mod-cache
@@ -1768,7 +1768,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - go-restore-cache:
@@ -1788,7 +1788,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
@@ -1809,7 +1809,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
@@ -1861,7 +1861,7 @@ jobs:
     resource_class: xlarge.gen2
     parallelism: <<parameters.parallelism>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
@@ -1937,7 +1937,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
@@ -2005,7 +2005,7 @@ jobs:
       - image: <<parameters.image>>
     resource_class: <<parameters.resource_class>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
@@ -2083,7 +2083,7 @@ jobs:
     parallelism: <<parameters.parallelism>>
     steps:
       # apt-install needs the working tree, so it runs after checkout.
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       # eatmydata only speeds up fsync; it is skipped on images without apt (the Wolfi runner).
@@ -2189,7 +2189,7 @@ jobs:
     machine:
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -2216,7 +2216,7 @@ jobs:
     machine: true
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
       # `just verify-reproducibility` runs `go run ...verify.go` on the host.
@@ -2234,7 +2234,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - setup_remote_docker
@@ -2269,7 +2269,7 @@ jobs:
       - image: returntocorp/semgrep
     resource_class: xlarge.gen2
     steps:
-      - checkout # no need to use mise here since the docker image contains the only dependency
+      - github-checkout # no need to use mise here since the docker image contains the only dependency
       - unless:
           condition:
             equal: ["develop", << pipeline.git.branch >>]
@@ -2301,7 +2301,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - check-changed:
@@ -2319,7 +2319,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: large.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - check-changed:
@@ -2336,7 +2336,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -2348,7 +2348,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - install-contracts-dependencies
@@ -2395,7 +2395,7 @@ jobs:
           oidc_token_file_path: /tmp/oidc_token.json
           project_id: GCP_TOOLS_ARTIFACTS_PROJECT_ID
           service_account_email: GCP_CONTRACTS_PUBLISHER_SERVICE_ACCOUNT_EMAIL
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -2458,12 +2458,12 @@ jobs:
       - when:
           condition: << parameters.use_caches >>
           steps:
-            - utils/checkout-with-mise:
+            - checkout-with-mise:
                 enable-mise-cache: true
       - unless:
           condition: << parameters.use_caches >>
           steps:
-            - utils/checkout-with-mise:
+            - checkout-with-mise:
                 fresh-install: true
       - attach_workspace: {at: "."}
       # goreleaser compiles the Go release binaries on the host.
@@ -2505,7 +2505,7 @@ jobs:
     machine: true
     resource_class: medium.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
@@ -2543,12 +2543,14 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+            - github-checkout-app
       - check-kontrol-build:
           requires:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+            - github-checkout-app
       # contracts-bedrock test/upgrade/l2-fork/checks-fast jobs have moved
       # to the contracts-feature-tests workflow below, which is gated on
       # c-contracts_changed. Keeping them here as well was duplicating every
@@ -2556,52 +2558,63 @@ workflows:
       - l2-chains-sync-check:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - contracts-bedrock-upload:
           requires:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - op-deployer-forge-version:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - semgrep-scan:
           name: semgrep-scan-local
           scan_command: semgrep scan --timeout=100 --config .semgrep/rules/ --error .
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - semgrep-scan:
           name: semgrep-test
           scan_command: semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - go-lint:
           requires:
             - prep-superchain
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - check-op-geth-version:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - opgeth-ratchet:
           requires:
             - prep-superchain
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - prep-superchain:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - prep-go-modules:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - check-nut-locks:
           requires:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - check-nut-prefork-states:
           requires:
             - contracts-bedrock-build
@@ -2610,11 +2623,13 @@ workflows:
             - rust-op-reth-binary
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - nut-provenance-verify:
           requires:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       # One job on every branch: -short gates only a handful of tests, and a
       # single job name lets CircleCI reuse timing data across branches (develop
       # runs keep the store fresh). Slack notify fires on develop only
@@ -2640,6 +2655,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
             - slack
+            - github-checkout-app
       - go-actions-tests:
           notify: true
           mentions: "<!subteam^S09D13R3HJ7>" # @protocol-oncall
@@ -2651,15 +2667,19 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+            - github-checkout-app
       - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - check-generated-mocks-op-node:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - check-generated-mocks-op-service:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - cannon-go-lint-and-test:
           requires:
             - contracts-bedrock-build
@@ -2668,15 +2688,18 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+            - github-checkout-app
       - todo-issues:
           name: todo-issues-check
           check_closed: false
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+            - github-checkout-app
       - shfmt-check:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - shellcheck/check:
           name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
@@ -2686,20 +2709,24 @@ workflows:
             ./docs/public-docs
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       # Acceptance test jobs (formerly in separate acceptance-tests workflow)
       - rust-kona-binaries:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
+            - github-checkout-app
       - rust-op-reth-binary:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
+            - github-checkout-app
       - rust-build-sp1-super-range-executor:
           name: rust-sp1-super-range-executor
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
+            - github-checkout-app
       # Gates compilation of the SP1 test guest ELFs. The acceptance tests
       # no longer consume this job's workspace (they run with stub prestate
       # artifacts against the mock verifier), so it is required directly by
@@ -2709,6 +2736,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
+            - github-checkout-app
       - rust-binaries-for-sysgo:
           requires:
             - rust-kona-binaries
@@ -2719,6 +2747,7 @@ workflows:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       # OP Node retains 20 vCPU / 40 GiB after a 38.5 GiB observed peak; Kona trials
       # 16 vCPU / 32 GiB after a 21.3 GiB observed peak.
       # IN-MEMORY - op-node/op-reth
@@ -2737,6 +2766,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
             - discord
+            - github-checkout-app
           requires:
             - contracts-bedrock-build
             - cannon-prestate
@@ -2762,6 +2792,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
             - discord
+            - github-checkout-app
           requires:
             - contracts-bedrock-build
             - cannon-prestate
@@ -2801,6 +2832,7 @@ workflows:
             - nut-provenance-verify: terminal
           context:
             - circleci-api-token
+            - github-checkout-app
           filters:
             branches:
               ignore: develop
@@ -2810,6 +2842,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-api-token
+            - github-checkout-app
 
   go-release-op-deployer:
     jobs:
@@ -2824,6 +2857,7 @@ workflows:
           use_caches: false
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - go-release:
           filters:
             tags:
@@ -2835,6 +2869,7 @@ workflows:
           context:
             - oplabs-gcr-release
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
           requires:
             - build-contracts-go-release-op-deployer
 
@@ -2850,6 +2885,7 @@ workflows:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - go-release:
           filters:
             tags:
@@ -2860,6 +2896,7 @@ workflows:
           context:
             - oplabs-gcr-release
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
           requires:
             - build-contracts-go-release-op-up
 
@@ -2869,6 +2906,7 @@ workflows:
       - initialize:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
           filters:
             tags:
               only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
@@ -2883,6 +2921,7 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
 
   publish-contract-artifacts-on-tag:
     jobs:
@@ -2894,6 +2933,7 @@ workflows:
               ignore: /.*/
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
 
   publish-contract-artifacts-auto-or-manual:
     when: << pipeline.parameters.c-run_publish_contract_artifacts >>
@@ -2901,6 +2941,7 @@ workflows:
       - publish-contract-artifacts:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
 
   develop-fault-proofs:
     when: << pipeline.parameters.c-run_develop_fault_proofs >>
@@ -2908,15 +2949,18 @@ workflows:
       - prep-go-modules:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - cannon-stf-verify:
           requires:
             - prep-go-modules
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - contracts-bedrock-build:
           build_args: --deny-warnings --skip test
           requires:
@@ -2924,14 +2968,17 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - rust-kona-binaries:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
+            - github-checkout-app
       - rust-op-reth-binary:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
+            - github-checkout-app
       - go-tests-with-fault-proof-deps:
           name: op-e2e-cannon-tests
           image: <<pipeline.parameters.c-rust_base_image>>
@@ -2944,6 +2991,7 @@ workflows:
             - slack
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
+            - github-checkout-app
           requires:
             - contracts-bedrock-build
             - cannon-prestate
@@ -2958,6 +3006,7 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
 
   scheduled-cannon-full-tests:
     when: << pipeline.parameters.c-run_scheduled_cannon_full_tests >>
@@ -2966,6 +3015,7 @@ workflows:
           build_args: --deny-warnings --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - cannon-go-lint-and-test:
           requires:
             - contracts-bedrock-build
@@ -2975,6 +3025,7 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
 
   scheduled-preimage-reproducibility:
     when: << pipeline.parameters.c-run_scheduled_preimage_reproducibility >>
@@ -2983,6 +3034,7 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
 
   scheduled-stale-check:
     when: << pipeline.parameters.c-run_scheduled_stale_check >>
@@ -2990,6 +3042,7 @@ workflows:
       - stale-check:
           context:
             - circleci-repo-optimism
+            - github-checkout-app
 
   scheduled-heavy-fuzz-tests:
     when: << pipeline.parameters.c-run_scheduled_heavy_fuzz_tests >>
@@ -2997,12 +3050,14 @@ workflows:
       - prep-go-modules:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - contracts-bedrock-heavy-fuzz-nightly:
           requires:
             - prep-go-modules
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
 
   circleci-schedule-trigger-check-workflow:
     when: << pipeline.parameters.c-run_circleci_schedule_trigger_check >>
@@ -3011,6 +3066,7 @@ workflows:
           context:
             - circleci-api-token
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
 
   l2-fork-test-workflow:
     when: << pipeline.parameters.c-run_l2_fork_test >>
@@ -3018,6 +3074,7 @@ workflows:
       - prep-go-modules:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork-dispatch op-mainnet
           fork_op_chain: op-mainnet
@@ -3029,6 +3086,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
             - slack
+            - github-checkout-app
 
   scheduled-daily-tests:
     when: << pipeline.parameters.c-run_scheduled_daily_tests >>
@@ -3036,6 +3094,7 @@ workflows:
       - prep-go-modules:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - contracts-bedrock-tests-l2-fork:
           requires:
             - prep-go-modules
@@ -3056,6 +3115,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
             - slack
+            - github-checkout-app
 
   contracts-feature-tests:
     when: << pipeline.parameters.c-run_contracts_feature_tests >>
@@ -3063,6 +3123,7 @@ workflows:
       - prep-go-modules:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
           name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
@@ -3087,6 +3148,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+            - github-checkout-app
       # On PRs, run tests with lite profile for better build times.
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests <<matrix.features>>
@@ -3101,6 +3163,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+            - github-checkout-app
           filters:
             branches:
               ignore: develop
@@ -3113,6 +3176,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+            - github-checkout-app
           filters:
             branches:
               only: develop
@@ -3131,6 +3195,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+            - github-checkout-app
           filters:
             branches:
               only: develop
@@ -3150,6 +3215,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
             - slack
+            - github-checkout-app
           filters:
             branches:
               ignore: develop
@@ -3169,6 +3235,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
             - slack
+            - github-checkout-app
           filters:
             branches:
               only: develop
@@ -3187,6 +3254,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
             - slack
+            - github-checkout-app
           filters:
             branches:
               ignore: develop
@@ -3205,6 +3273,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
             - slack
+            - github-checkout-app
           filters:
             branches:
               only: develop
@@ -3220,6 +3289,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
             - slack
+            - github-checkout-app
       - contracts-bedrock-checks-fast:
           name: contracts-bedrock-checks-fast-feature-tests
           requires:
@@ -3227,6 +3297,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+            - github-checkout-app
       # -----------------------------------------------------------------------
       # required-contracts-ci: GitHub required status for this workflow. Terminal requires
       # keep this job scheduled even when upstream jobs fail; ci-gate then checks they passed.
@@ -3261,6 +3332,7 @@ workflows:
             - contracts-bedrock-checks-fast-feature-tests: terminal
           context:
             - circleci-api-token
+            - github-checkout-app
 
   # ============================================================================
   # Required contracts CI gate (skip) — runs when no contract changes
@@ -3273,6 +3345,7 @@ workflows:
           always-succeed: true
           context:
             - circleci-api-token
+            - github-checkout-app
 
   # ============================================================================
   # ci-gate (skip) — runs only on the docs-only fast path.
@@ -3287,3 +3360,4 @@ workflows:
           always-succeed: true
           context:
             - circleci-api-token
+            - github-checkout-app
