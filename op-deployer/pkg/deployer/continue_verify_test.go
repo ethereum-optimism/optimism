@@ -185,6 +185,7 @@ func newContinuationVerificationFixtureWithMode(
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(standard.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(standard.DisputeGameFinalityDelaySeconds),
 		WithdrawalDelaySeconds:          new(big.Int).SetUint64(standard.WithdrawalDelaySeconds),
+		BridgeHook:                      common.Address{},
 	}
 	if gameType == opcm.GameTypeSuperPermissioned {
 		expected.Prestate = common.Hash{}

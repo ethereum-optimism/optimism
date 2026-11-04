@@ -3,10 +3,13 @@ package state
 import (
 	"math"
 	"math/big"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -361,6 +364,36 @@ func TestIsCustomGasTokenEnabled(t *testing.T) {
 			}
 			result := chainIntent.IsCustomGasTokenEnabled()
 			require.Equal(t, tt.expected, result, "IsCustomGasTokenEnabled() should return the expected value")
+		})
+	}
+}
+
+func TestChainIntentBridgeHookTOMLRoundTrip(t *testing.T) {
+	hook := common.HexToAddress("0x44")
+	tests := []struct {
+		name     string
+		hook     *common.Address
+		expected common.Address
+	}{
+		{name: "unset hook is omitted", hook: nil, expected: common.Address{}},
+		{name: "set hook survives", hook: &hook, expected: hook},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chain := validBaseChainIntent()
+			chain.BridgeHook = tt.hook
+			path := filepath.Join(t.TempDir(), "intent.toml")
+			require.NoError(t, (&Intent{Chains: []*ChainIntent{chain}}).WriteToFile(path))
+
+			data, err := os.ReadFile(path)
+			require.NoError(t, err)
+			require.Equal(t, tt.hook != nil, strings.Contains(string(data), "bridgeHook"))
+
+			got, err := jsonutil.LoadTOML[Intent](path)
+			require.NoError(t, err)
+			require.Equal(t, tt.hook, got.Chains[0].BridgeHook)
+			require.Equal(t, tt.expected, got.Chains[0].GetBridgeHook())
 		})
 	}
 }

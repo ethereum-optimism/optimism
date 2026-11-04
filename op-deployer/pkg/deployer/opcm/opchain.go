@@ -74,6 +74,10 @@ type DeployOPChainInput struct {
 	ProofMaturityDelaySeconds       *big.Int
 	DisputeGameFinalityDelaySeconds *big.Int
 	WithdrawalDelaySeconds          *big.Int
+
+	// BridgeHook is the hook the portal screens deposits and withdrawals through, or the zero
+	// address for no hook.
+	BridgeHook common.Address
 }
 
 type DeployOPChainOutput struct {

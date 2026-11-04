@@ -24,6 +24,8 @@ func TestIntentClone(t *testing.T) {
 	setChainRolesForStandard(&intent)
 	proxy := common.HexToAddress("0x11")
 	intent.SuperchainConfigProxy = &proxy
+	hook := common.HexToAddress("0x44")
+	intent.Chains[0].BridgeHook = &hook
 	intent.GlobalDeployOverrides = map[string]any{"faultGameMaxDepth": float64(73)}
 
 	clone, err := intent.Clone()
@@ -32,10 +34,12 @@ func TestIntentClone(t *testing.T) {
 
 	// Mutating the clone's pointers, slices, and maps must not reach back into the original.
 	*clone.SuperchainConfigProxy = common.HexToAddress("0x22")
+	*clone.Chains[0].BridgeHook = common.HexToAddress("0x55")
 	clone.Chains[0].Roles.Challenger = common.HexToAddress("0x33")
 	clone.GlobalDeployOverrides["faultGameMaxDepth"] = float64(1)
 
 	require.Equal(t, common.HexToAddress("0x11"), proxy)
+	require.Equal(t, common.HexToAddress("0x44"), hook)
 	require.NotEqual(t, common.HexToAddress("0x33"), intent.Chains[0].Roles.Challenger)
 	require.Equal(t, float64(73), intent.GlobalDeployOverrides["faultGameMaxDepth"])
 }
