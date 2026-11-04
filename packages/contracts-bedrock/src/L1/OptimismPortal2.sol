@@ -316,9 +316,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 7.5.0
+    /// @custom:semver 7.6.0
     function version() public pure virtual returns (string memory) {
-        return "7.5.0";
+        return "7.6.0";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -938,11 +938,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         );
     }
 
-    /// @notice Executes a held withdrawal on its original terms. Only callable by the bridge hook,
-    ///         which can also complete withdrawals held under an earlier hook. The hook must
-    ///         attach the item's ETH and approve the bridge to reclaim escrowed tokens.
+    /// @notice Executes a held withdrawal on its original terms. Only callable by the bridge hook.
+    ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens. Always
+    ///         reverts until the Portal can hold withdrawals.
     /// @param _item Held withdrawal.
-    function completeWithdrawalTransaction(BridgeHookTypes.Item memory _item) external payable { }
+    function completeWithdrawalTransaction(BridgeHookTypes.Item memory _item) external payable {
+        _item; // silence unused variable warning
+        revert OptimismPortal_NotBridgeHook();
+    }
 
     /// @notice Locks ETH in the ETHLockbox.
     /// @param _amount Amount of ETH to lock.
