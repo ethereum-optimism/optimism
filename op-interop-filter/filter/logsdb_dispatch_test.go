@@ -7,10 +7,8 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
-	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -75,7 +73,7 @@ func fetchedBlock(num, ts uint64, parent common.Hash) blockFetch {
 	return blockFetch{
 		blockNum:  num,
 		blockInfo: info,
-		receipts:  optypes.Receipts{{Receipt: gethTypes.Receipt{TxHash: common.Hash{byte(num)}, Logs: []*gethTypes.Log{plainLog(0, num)}}}},
+		logs:      []blockLog{{hash: messages.LogToLogHash(plainLog(0, num))}},
 	}
 }
 
@@ -157,6 +155,36 @@ func TestWriteFetchedBlock_WriteErrorPassthrough(t *testing.T) {
 			require.Error(t, err)
 			require.Nil(t, ing.Error(),
 				"non-classified sentinel must not set IngesterError")
+		})
+	}
+}
+
+// TestWriteFetchedBlock_LogsErr pins how a log that failed to decode in the
+// fetch worker is surfaced: as an invalid-log error state, but only after the
+// parent-hash check, so a reorg still takes precedence.
+func TestWriteFetchedBlock_LogsErr(t *testing.T) {
+	t.Parallel()
+
+	logsErr := fmt.Errorf("decode: %w", ErrInvalidLog)
+	cases := []struct {
+		name       string
+		db         *fakeLogsDB
+		wantReason IngesterErrorReason
+	}{
+		{"InvalidLog", &fakeLogsDB{}, ErrorInvalidExecutingMessage},
+		{"ReorgFirst", &fakeLogsDB{hasSealed: true, latest: eth.BlockID{Hash: common.Hash{0x01}, Number: 99}}, ErrorReorg},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ing := newIngesterWithFakeDB(t, tc.db)
+
+			fetched := fetchedBlock(100, 1200, common.Hash{0x02})
+			fetched.logsErr = logsErr
+			require.Error(t, ing.writeFetchedBlock(fetched))
+			ingErr := ing.Error()
+			require.NotNil(t, ingErr)
+			require.Equal(t, tc.wantReason, ingErr.Reason)
 		})
 	}
 }
