@@ -1,7 +1,7 @@
 //! Configuration for the `Network`.
 
 use alloy_primitives::Address;
-use kona_disc::LocalNode;
+use kona_disc::{AddrFilter, LocalNode};
 use kona_genesis::RollupConfig;
 use kona_gossip::{GaterConfig, PeerAddr};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
@@ -25,6 +25,9 @@ pub struct NetworkConfig {
     /// Whether to run discovery. Without it, the node binds no UDP socket, and connects only to
     /// its static peers, the peers that dial it, and the peers added with `opp2p_connectPeer`.
     pub discovery_enabled: bool,
+    /// Which addresses discovery uses in other nodes' records, or `None` for the default for the
+    /// IP the node advertises, see [`AddrFilter::for_advertised_ip`].
+    pub discovery_addr_filter: Option<AddrFilter>,
     /// The gossip address.
     pub gossip_address: libp2p::Multiaddr,
     /// The unsafe block signer.

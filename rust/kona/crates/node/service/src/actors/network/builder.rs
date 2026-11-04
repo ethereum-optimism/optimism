@@ -28,7 +28,7 @@ pub struct NetworkBuilder {
 
 impl From<NetworkConfig> for NetworkBuilder {
     fn from(config: NetworkConfig) -> Self {
-        Self::new(
+        let builder = Self::new(
             config.rollup_config,
             config.unsafe_block_signer,
             config.gossip_address,
@@ -46,7 +46,11 @@ impl From<NetworkConfig> for NetworkBuilder {
         .with_peer_scoring(config.scoring)
         .with_peer_monitoring(config.monitor_peers)
         .with_topic_scoring(config.topic_scoring)
-        .with_gater_config(config.gater_config)
+        .with_gater_config(config.gater_config);
+        match config.discovery_addr_filter {
+            Some(addr_filter) => builder.with_discovery_addr_filter(addr_filter),
+            None => builder,
+        }
     }
 }
 
