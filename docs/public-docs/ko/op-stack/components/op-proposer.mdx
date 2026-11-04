@@ -1,0 +1,58 @@
+---
+title: op-proposer
+description: OP Stack output proposer인 op-proposer의 정식 허브입니다. op-proposer가 하는 일, 운영 주체, 그리고 가이드, 레퍼런스, 릴리스, 소스, 사양의 위치를 안내합니다.
+diataxis: explanation
+---
+
+op-proposer는 OP Stack의 output proposer입니다. L2 체인 상태에 대한 주장인 output root를 L1에 제출하여
+이를 기준으로 출금을 증명할 수 있게 하는 서비스입니다.
+
+## 개요
+
+op-proposer는 rollup node에 output root(특정 블록 시점의 L2 상태에 대한 커밋먼트)를 조회하고, 구성된
+간격마다 이를 L1에 제출합니다. 결함 증명(fault proof)을 실행하는 체인에서 각 제안은 새로운 분쟁
+게임(dispute game)을 생성하는 `DisputeGameFactory`로의 트랜잭션이며, 성공적으로 이의가 제기되지 않는
+한 유효한 주장으로 유지됩니다. 기본적으로 op-proposer는 최종 확정된 L2 상태만 제안합니다. 나중에
+사실이 아닌 것으로 밝혀지는 상태를 제안하면 분쟁 게임 페널티가 따르는 유효하지 않은 주장이 되기
+때문입니다. (결함 증명 이전의 제안 경로가 코드에 아직 남아 있지만 사실상 사용되지 않습니다.)
+
+op-proposer가 존재하는 이유는 제안이 L1이 L2 상태를 알게 되는 방법이기 때문입니다. 출금은 해결된
+제안을 기준으로 인증되므로, 사용자는 제안된 output root를 기준으로 출금을 증명하고 해당 제안의 분쟁
+게임이 제안에 유리하게 해결되면 출금을 최종 확정합니다. op-proposer가 없으면 새로운 output root가
+L1에 도달하지 않으며 출금을 증명할 수 없습니다.
+
+**운영 주체:** 체인 운영자가 체인의 핵심 서비스 중 하나로 운영합니다. 허가형 결함 증명을 사용하는
+체인에서는 지정된 [proposer 역할](/ko/op-stack/protocol/privileged-roles)만 제안을 제출할 수 있습니다.
+[무허가 결함 증명](/ko/op-stack/fault-proofs/explainer)에서는 누구나 제안할 수 있지만, 제안이 정기적으로
+반영되도록 운영자가 여전히 op-proposer를 운영합니다.
+
+## 시작하기
+
+*   [proposer 구동](/ko/chain-operators/tutorials/create-l2-rollup/op-proposer-setup):
+    OP Stack 체인 구축의 일부로 op-proposer를 설정하고 구성합니다.
+
+## 사용 방법 가이드
+
+*   [무허가 결함 증명으로 마이그레이션](/ko/chain-operators/tutorials/migrating-permissionless):
+    분쟁 구성 요소를 구성하고 인정되는(respected) 게임 유형을 전환합니다.
+*   [Kona proofs로 전환](/ko/chain-operators/guides/features/switching-to-kona-proofs):
+    op-proposer가 생성하는 게임 유형의 업데이트를 포함하여 체인을 Kona 기반 결함 증명으로 전환합니다.
+
+## 구성 및 플래그 레퍼런스
+
+*   [Proposer 구성](/ko/chain-operators/guides/configuration/proposer):
+    모든 구성 옵션과 환경 변수, 그리고 무엇을 언제 제안할지를 규정하는 proposer 정책 제약을 다룹니다.
+
+## 릴리스
+
+*   [op-proposer 릴리스 이력](/ko/releases/op-proposer)
+
+## 소스 및 사양 링크
+
+*   Optimism 모노레포의 [소스: `op-proposer/`](https://github.com/ethereum-optimism/optimism/tree/develop/op-proposer).
+    [README](https://github.com/ethereum-optimism/optimism/blob/develop/op-proposer/README.md)에 제안
+    흐름(시퀀스 다이어그램 포함), 설계 원칙, 장애 모드가 문서화되어 있습니다.
+*   [L2 output root 제안 사양](https://specs.optimism.io/protocol/proposals.html):
+    output root 제안의 규범적 정의입니다.
+*   [출금 사양](https://specs.optimism.io/protocol/withdrawals.html):
+    제안을 기준으로 출금을 증명하는 방식을 다룹니다.

@@ -1,0 +1,130 @@
+---
+title: 커스텀 배포
+description: OP Deployer로 커스텀 배포를 관리하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+OP Deployer는 주로 Optimism이 거버넌스를 담당하는 체인에서 사용하도록 설계되었지만, 커스텀 배포 관리도
+지원합니다. 이는 특히 RaaS 제공업체에서 흔하며, 이들의 고객은 커스텀 L1(L3의 경우 L2)이나 거버넌스를 사용하는
+배포를 요청하는 경우가 많습니다. 이 가이드에서는 OP Deployer를 사용하여 이러한 체인을 관리하는 과정을
+안내합니다.
+
+<Warning>
+이 방식으로 배포된 체인은 Optimism Governance의 적용을 받지 않습니다. 커스터마이징되었거나 감사를 받지 않은
+코드를 실행하고 있을 수 있습니다. 사용에 따른 위험은 본인이 부담해야 합니다.
+</Warning>
+
+## Bootstrap
+
+커스텀 OP Stack을 배포하는 첫 번째 단계는 L1에 bootstrap하는 것입니다. 이 과정에서 다음 작업이 수행됩니다.
+
+*   `SuperchainConfig` 및 `SuperchainVersions`와 같은 공유 관리 컨트랙트를 배포합니다.
+*   이 배포의 모든 OP Chain이 공유할 컨트랙트 구현을 배포합니다.
+*   배포를 제어할 수 있도록 소유권을 설정합니다.
+
+이를 위해 `op-deployer`의 [`bootstrap`](/ko/chain-operators/tools/op-deployer/usage/bootstrap) 계열 명령을 사용합니다.
+
+### 공유 컨트랙트 Bootstrap
+
+모든 OP Chain은 논리적인 배포 그룹에 속합니다. 이 그룹은 OP Chain 그룹의 동작을 제어하는 공유 컨트랙트
+집합으로 구성됩니다. 여기에는 다음이 포함됩니다.
+
+*   bridge 일시 정지
+*   필수 및 권장 프로토콜 버전 신호 전달
+
+각 OP Chain마다 새로운 공유 컨트랙트 집합을 배포할 수도 있고, 한 번 배포한 후 여러 OP Chain에서 공유할 수도
+있습니다. 선택은 배포자에게 달려 있습니다. 단, 공유 컨트랙트 집합을 여러 L1에서 공유하는 것은 **불가능**합니다.
+
+먼저 다음 명령으로 선택한 L1에 공유 컨트랙트를 bootstrap합니다.
+
+```shell
+op-deployer bootstrap superchain \
+  --l1-rpc-url="<rpc url>" \
+  --private-key="<contract deployer private key>" \
+  --artifacts-locator="<locator>" \
+  --outfile="<path to outfile>" \
+  --superchain-proxy-admin-owner="<role address>" \
+  --guardian="<role address>"
+```
+
+이 명령은 관련 컨트랙트의 주소가 포함된 JSON 파일을 출력합니다. 이후 단계에서 필요하므로 이 파일을 잘
+보관하십시오.
+
+bootstrap할 때는 다음 모범 사례를 따르는 것을 권장합니다.
+
+1.  `guardian` 및 `superchain-proxy-admin-owner`와 같은 소유권 역할에는 Gnosis SAFE를 사용하십시오. 향후 업그레이드를
+    지원하려면 소유자는 **반드시** 스마트 컨트랙트여야 하므로, SAFE가 합리적인 기본 선택입니다.
+2.  배포자로는 일반 EOA를 사용하십시오. 배포가 완료되면 배포자는 배포에 대한 어떠한 제어 권한도 갖지 않습니다.
+3.  표준 컨트랙트 태그(예: `tag://op-contracts/v2.0.0`)를 사용하십시오. 이렇게 하면 업그레이드가 더 쉬워집니다.
+
+### 구현 Bootstrap
+
+OP Chain의 스마트 컨트랙트는 사전 배포된 구현 집합을 가리키는 factory를 사용하여 배포됩니다. 새로운 L1에
+배포할 때마다, 그리고 새로운 스마트 컨트랙트 버전이 릴리스될 때마다 factory와 구현을 배포해야 합니다.
+구현은 `CREATE2`를 사용하여 배포되므로, L1에 이미 존재하는 경우 주소가 재사용될 수 있습니다.
+
+<Warning>
+배포하는 컨트랙트 버전에 따라 다른 버전의 OP Deployer를 사용해야 할 수 있습니다. 올바른 릴리스를 선택하는
+방법에 대한 자세한 내용은 [릴리스 가이드](/ko/chain-operators/tools/op-deployer/reference/releases)를 참고하십시오.
+</Warning>
+
+구현을 배포하려면 다음 명령을 사용합니다.
+
+```shell
+op-deployer bootstrap implementations \
+  --artifacts-locator="<locator, should be the same as the one used in bootstrap superchain>" \
+  --l1-rpc-url="<rpc url>" \
+  --outfile="<path to outfile>" \
+  --mips-version="2" \
+  --private-key="<contract deployer private key>" \
+  --superchain-config-proxy="<address output from bootstrap superchain>" \
+  --upgrade-controller="<superchain-proxy-admin-owner used in bootstrap superchain>"
+```
+
+`bootstrap superchain` 명령과 마찬가지로, 이 명령은 관련 컨트랙트의 주소가 포함된 JSON 파일을 출력합니다.
+이 파일도 잘 보관하십시오.
+
+구현 파일에서 가장 중요한 주소는 OPCM(OP Contracts Manager)입니다. 이 컨트랙트는 이 배포 그룹에 속하는 모든
+OP Chain을 배포할 factory입니다. 또한 서로 다른 컨트랙트 버전 간의 업그레이드도 담당합니다. OPCM과 관련된
+다음의 **매우 중요한** 불변 조건을 명심하십시오.
+
+*   각 OPCM과 컨트랙트 버전 사이에는 일대일 대응 관계가 있습니다.
+*   각 OPCM은 **정확히 하나의** 배포 그룹과 연결됩니다. 즉, 관리하는 새 배포 그룹마다 `bootstrap implementations`
+    명령을 사용하여 새 OPCM을 **반드시** 배포해야 합니다.
+
+## 배포
+
+컨트랙트와 구현을 bootstrap한 후에는 `apply` 명령으로 L2 체인을 배포할 수 있습니다. intent에서 `configType`을
+`standard-overrides`로 지정하고 `opcmAddress` 필드를 위의 OPCM 주소로 설정해야 합니다. **올바른 OPCM을 호출하는지
+반드시 확인하십시오.** 올바른 OPCM을 호출하지 않으면 잘못된 컨트랙트 버전이 배포되거나 체인이 잘못된 배포와
+연결될 수 있습니다.
+
+<Warning>
+bootstrap 명령에서 사용한 것과 동일한 `l1ContractsLocator` 및 `l2ContractsLocator`를 사용해야 합니다. 그렇지 않으면
+배포 오류가 발생할 수 있습니다.
+</Warning>
+
+다음 구성 예시를 참고하십시오.
+
+```toml
+configType = "standard-overrides"
+l1ChainID = 11155420
+opcmAddress = "0x..."
+l1ContractsLocator = "tag://..." # must match the one used in bootstrap
+l2ContractsLocator = "tag://..."
+
+[[chains]]
+# Chain configs...
+```
+
+`apply`가 성공적으로 완료되면 `inspect` 계열 명령을 사용하여 체인의 L2 제네시스 및 rollup 구성 파일을 다운로드할
+수 있습니다.
+
+## 업그레이드
+
+<Warning>
+`op-deployer upgrade` 명령은 `op-contracts/v5.0.0`까지의 업그레이드만 지원합니다. `op-contracts/v5.0.0`에서
+`op-contracts/v6.0.0`으로의 업그레이드는 지원하지 **않습니다**. v5.0.0 이후의 업그레이드에는
+[superchain-ops](/ko/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide)를 사용하거나 OPCM과 직접
+상호작용하십시오. 자세한 내용은 [공지](/ko/notices/archive/op-deployer-upgrade-deprecation)를 참고하십시오.
+</Warning>

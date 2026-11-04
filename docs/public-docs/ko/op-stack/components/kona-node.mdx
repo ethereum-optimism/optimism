@@ -1,0 +1,63 @@
+---
+title: kona-node
+description: OP Stack rollup node의 Rust 구현인 kona-node의 정식 허브로, 가이드, 레퍼런스, 릴리스, 소스, 사양으로 연결합니다.
+diataxis: explanation
+---
+
+kona-node는 [Kona](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona) 프로젝트의
+일부로 빌드되는 OP Stack 합의 계층(rollup node) 클라이언트의 Rust 구현입니다.
+
+## 개요
+
+kona-node는 [op-node](/ko/op-stack/protocol/components)와 동일한 프로토콜 역할을 수행합니다.
+데이터 가용성 계층에서 배치 데이터와 입금(디파짓)을 읽고, 정식 L2 체인을 파생하며, Engine API를
+통해 실행 계층 클라이언트(예: [op-reth](/ko/node-operators/guides/configuration/execution-clients))를
+구동합니다. 또한 unsafe 블록 gossip 네트워크에 참여하며 sequencer 모드로 실행할 수도 있습니다.
+
+kona-node는 OP Stack에 클라이언트 다양성을 제공하기 위해 존재합니다. 독립적인 rollup node 구현이
+있으면 한 클라이언트의 버그가 체인의 모든 node를 중단시킬 수 없습니다. Kona는 활발히 개발 중이며
+kona-node는 실험적인 것으로 간주해야 합니다.
+
+**운영 주체:** 노드 운영자가 실행 클라이언트와 짝을 이루는 node 스택의 합의 계층 절반으로
+운영합니다. 체인 운영자도 sequencer 모드로 실행할 수 있습니다.
+
+## 시작하기
+
+*   [kona-node 설치](/ko/node-operators/kona-node/install/overview): 사전 빌드된 바이너리, Docker
+    이미지 또는 소스에서 빌드하는 방법을 안내합니다. 먼저
+    [시스템 요구 사항](/ko/node-operators/kona-node/requirements)을 확인하십시오.
+
+## 사용 방법 가이드
+
+*   [node 실행](/ko/node-operators/kona-node/run/overview):
+    [바이너리](/ko/node-operators/kona-node/run/binary) 또는
+    [Docker 레시피](/ko/node-operators/kona-node/run/docker)를 사용하는 방법과
+    [동기화 동작 방식](/ko/node-operators/kona-node/run/mechanics),
+    [RPC 신뢰 고려 사항](/ko/node-operators/kona-node/run/rpc-trust)을 다룹니다.
+*   [sequencer node 실행](/ko/node-operators/kona-node/run/sequencer): sequencer 모드의 플래그,
+    키 관리, 구성 예시를 다룹니다.
+*   [모니터링](/ko/node-operators/kona-node/monitoring): 로깅, Prometheus 메트릭, Grafana
+    대시보드를 다룹니다.
+
+## 구성 및 플래그 레퍼런스
+
+*   [kona-node CLI 레퍼런스](/ko/node-operators/kona-node/configuration): `node` 하위 명령의 모든
+    CLI 플래그와 환경 변수, 기본 포트와 기본 런타임 동작을 다룹니다.
+*   [`kona-node` 하위 명령](/ko/node-operators/kona-node/subcommands): 바이너리에 포함된 그 밖의
+    하위 명령을 다룹니다.
+*   [JSON-RPC 레퍼런스](/ko/node-operators/kona-node/rpc/overview): P2P, rollup, admin RPC
+    네임스페이스를 다룹니다.
+
+## 릴리스
+
+*   [kona-node 릴리스 이력](/ko/releases/kona-node)
+
+## 소스 및 사양 링크
+
+*   Optimism 모노레포의 [소스: `rust/kona/bin/node`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/node).
+*   [Kona 소스 및 README](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona): Optimism
+    모노레포의 Kona 프로젝트입니다. node의
+    [설계 내부 구조](/ko/node-operators/kona-node/design/intro)는 운영자 가이드와 함께 문서화되어
+    있습니다.
+*   [Rollup node 사양](https://specs.optimism.io/protocol/rollup-node.html):
+    rollup node 역할의 규범적 정의입니다.

@@ -146,6 +146,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 
 		cg := ethClientCodeGetter(ctx, l1Client)
 		validateOPChainDeployment(t, cg, st, intent, false)
+		requireOPCMImplementations(t, ctx, l1Client, st)
 	}
 
 	t.Run("default tagged artifacts", func(t *testing.T) {
@@ -290,6 +291,7 @@ func TestEndToEndApply(t *testing.T) {
 
 		validateSuperchainDeployment(t, st, cg, true)
 		validateOPChainDeployment(t, cg, st, intent, false)
+		requireOPCMImplementations(t, ctx, l1Client, st)
 	})
 
 	t.Run("with custom gas token", func(t *testing.T) {
@@ -568,7 +570,9 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 
 	dci, err := pipeline.BuildContinuationDCI(chainID, st)
 	require.NoError(t, err)
-	result, err := pipeline.ExecuteOPChainDeployment(pEnv, st, chainID, dci)
+	impls, err := opcm.ReadImplementations(ctx, opcm.NewScriptHostCallBackend(host), dci.Opcm)
+	require.NoError(t, err)
+	result, err := pipeline.ExecuteOPChainDeployment(pEnv, st, chainID, dci, impls)
 	require.NoError(t, err)
 
 	chainState, err := st.Chain(chainID)
@@ -1014,6 +1018,51 @@ func setupGenesisChain(t *testing.T, l1ChainID uint64) (deployer.ApplyPipelineOp
 }
 
 type codeGetter func(t *testing.T, addr common.Address) []byte
+
+var (
+	proxyImplementationMethod      = w3.MustNewFunc("implementation()", "address")
+	chugSplashImplementationMethod = w3.MustNewFunc("getImplementation()", "address")
+	addressManagerGetAddressMethod = w3.MustNewFunc("getAddress(string)", "address")
+)
+
+// requireOPCMImplementations checks that the state records the implementations of its OPCM, and
+// that the proxies of each chain point at them.
+func requireOPCMImplementations(t *testing.T, ctx context.Context, l1Client *ethclient.Client, st *state.State) {
+	t.Helper()
+	require.NotNil(t, st.ImplementationsDeployment)
+	impls, err := opcm.ReadImplementations(ctx, l1Client, st.ImplementationsDeployment.OpcmV2Impl)
+	require.NoError(t, err)
+	require.Equal(t, *impls, *st.ImplementationsDeployment)
+
+	readAddress := func(contract common.Address, method *w3.Func, args ...any) common.Address {
+		calldata, err := method.EncodeArgs(args...)
+		require.NoError(t, err)
+		ret, err := l1Client.CallContract(ctx, ethereum.CallMsg{To: &contract, Data: calldata}, nil)
+		require.NoError(t, err)
+		var addr common.Address
+		require.NoError(t, method.DecodeReturns(ret, &addr))
+		return addr
+	}
+	for _, chain := range st.Chains {
+		for _, proxy := range []struct {
+			name  string
+			proxy common.Address
+			impl  common.Address
+		}{
+			{"SystemConfig", chain.SystemConfigProxy, impls.SystemConfigImpl},
+			{"OptimismPortal", chain.OptimismPortalProxy, impls.OptimismPortalImpl},
+			{"L1ERC721Bridge", chain.L1Erc721BridgeProxy, impls.L1Erc721BridgeImpl},
+			{"OptimismMintableERC20Factory", chain.OptimismMintableErc20FactoryProxy, impls.OptimismMintableErc20FactoryImpl},
+			{"DisputeGameFactory", chain.DisputeGameFactoryProxy, impls.DisputeGameFactoryImpl},
+		} {
+			require.Equal(t, proxy.impl, readAddress(proxy.proxy, proxyImplementationMethod), "%s proxy of chain %s", proxy.name, chain.ID)
+		}
+		require.Equal(t, impls.L1StandardBridgeImpl, readAddress(chain.L1StandardBridgeProxy, chugSplashImplementationMethod), "L1StandardBridge proxy of chain %s", chain.ID)
+		require.Equal(t, impls.L1CrossDomainMessengerImpl, readAddress(chain.AddressManagerImpl, addressManagerGetAddressMethod, "OVM_L1CrossDomainMessenger"), "L1CrossDomainMessenger of chain %s", chain.ID)
+		require.Equal(t, impls.FaultDisputeGameImpl, chain.FaultDisputeGameImpl, "FaultDisputeGame of chain %s", chain.ID)
+		require.Equal(t, impls.PermissionedDisputeGameImpl, chain.PermissionedDisputeGameImpl, "PermissionedDisputeGame of chain %s", chain.ID)
+	}
+}
 
 func ethClientCodeGetter(ctx context.Context, client *ethclient.Client) codeGetter {
 	return func(t *testing.T, addr common.Address) []byte {

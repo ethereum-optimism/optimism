@@ -1,0 +1,104 @@
+---
+title: 저장소 간 링크 정책
+description: docs.optimism.io에서 스펙, 소스 저장소, 다른 페이지로 연결되는 모든 링크의 정식 형식과 이를 강제하는 린터입니다.
+diataxis: reference
+---
+
+이 문서는 세 개의 레이어 — [OP Stack 스펙](https://specs.optimism.io/),
+컴포넌트 소스 저장소, 그리고 이 문서 — 를 링크로 연결합니다. 링크는
+조용히 낡아 갑니다. 폐기된 스펙 경로는 수동으로 관리되는 리디렉션 표 덕분에 계속 "작동"하고,
+커밋에 고정된 컨트랙트 링크는 두 세대 전의 아키텍처를 가르치면서도 결코 404가 나지 않으며,
+잘못 배치된 추적 파라미터는 페이지는 멀쩡한 채로 앵커만 깨뜨립니다. 이 페이지는
+링크 대상마다 하나의 정식 형식을 정의하며, 여기 있는 모든 규칙은 결정론적 린터
+(`scripts/lint-link-policy.mjs`)로 강제됩니다.
+
+이 정책은 [콘텐츠 가이드](/ko/op-stack/contribute/content-guide)의 부록입니다.
+가이드는 콘텐츠가 *어디에* 있어야 하는지, 언제 다시 서술하는 대신 링크해야 하는지를 정하고,
+이 페이지는 그러한 링크를 *어떻게* 작성해야 하는지를 정의합니다.
+
+## 스펙 링크
+
+**항상 렌더링된 사이트를 현재 경로로 링크합니다.**
+
+*   `https://specs.optimism.io/...`에 링크하고, specs 저장소의 `specs/` 디렉터리 아래
+    파일의 GitHub blob에는 절대 링크하지 않습니다. 모든 `specs/**.md` 소스에는
+    렌더링된 페이지가 있으며, 렌더링된 페이지가 정식이자 탐색 가능한 형식입니다.
+    (`book.toml`처럼 렌더링되지 않는 specs 저장소 파일에 대한 GitHub 링크는
+    괜찮습니다.)
+*   페이지의 **현재** 경로를 사용합니다. 폐기된 경로(예를 들어
+    `/experimental/fault-proof/...`, 현재는 `/fault-proof/...`)는 specs 저장소의 `book.toml`에 있는
+    수동 관리 리디렉션 표를 통해서만 유지되며
+    예고 없이 사라질 수 있습니다. 린터는 그 리디렉션 표를 내장하고 있으며
+    사용해야 할 현재 경로를 알려 줍니다.
+*   **딥 앵커는 실제로 연결되어야 합니다.** `#frame-format` 같은 앵커는 대상 페이지의
+    실제 제목 slug와 일치해야 합니다. 린터는 모든 스펙 앵커를 specs 소스 체크아웃
+    (`--specs-src`)과 대조하여 확인하므로, 상위 저장소에서 제목 이름이 바뀌면
+    조용히 죽은 프래그먼트가 되는 대신 여기서 린트 실패로 드러납니다.
+
+## 쿼리 파라미터는 프래그먼트 앞에 둡니다
+
+URL 표준에 따라 UTM 파라미터(또는 모든 쿼리 문자열)는 `#fragment` **앞에** 둡니다.
+프래그먼트 뒤에 붙인 쿼리는 프래그먼트의 일부가 되어 앵커가 절대
+연결되지 않습니다.
+
+```text
+✅ https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#frame-format
+❌ https://specs.optimism.io/protocol/derivation.html#frame-format?utm_source=op-docs&utm_medium=docs
+```
+
+## 소스 코드 링크
+
+**유동 링크를 선호하고, 모든 고정 링크에는 배지를 붙입니다.**
+
+*   브랜치를 따라가는 링크(`.../blob/develop/...`)가 기본입니다. 이러한 링크는
+    코드를 따라가므로 오래된 구조를 가르치지 않습니다.
+*   커밋 sha나 릴리스 태그에 고정된 링크
+    (`.../blob/v1.1.4/...`, `.../blob/op-contracts/v1.6.0/...`,
+    `.../blob/62c7f3b0.../...`)는 고정 자체가 목적일 때 — 특정 릴리스 시점의
+    동작을 인용할 때 — **에만** 허용되며, 같은 줄이나 바로 옆에
+    ``as of `<tag>` `` 배지를 붙여야 합니다.
+
+    ```mdx
+    [OptimismPortal.sol](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol) (as of `op-contracts/v1.6.0`)
+    ```
+
+    배지는 독자에게 그 링크가 스냅샷임을 알려 주고, 유지 관리 점검에는
+    어떤 고정이 의도적인지 알려 줍니다. 배지가 없는 고정 링크는 실수로 생긴
+    낡은 링크로 간주되어 린터에서 실패합니다.
+
+## 내부 링크
+
+*   내부 페이지 링크는 **루트 기준 상대 경로**입니다: `/chain-operators/...`처럼 작성하며,
+    `./sibling-page`나 단순한 단어는 절대 사용하지 않습니다. 대상 페이지가 존재해야 합니다(또는
+    `docs.json`의 리디렉션으로 처리되어야 합니다).
+*   정적 자산은 `public/` 접두사를 포함하여 문서 루트 기준 디스크 경로로
+    참조합니다: `/public/img/...`.
+
+## 린터
+
+`scripts/lint-link-policy.mjs`는 위의 모든 규칙과 함께 죽은 내부 링크
+탐지를 강제합니다. 이 린터는 의존성이 없고 오프라인에서도 결정론적으로 동작합니다. Mintlify의
+`mint broken-links`는 내부 링크에 대한 참고용 보조 의견으로 사용됩니다.
+
+```bash
+# from docs/public-docs/
+node scripts/lint-link-policy.mjs --baseline scripts/lint-link-policy.baseline.json
+
+# with specs anchor resolution
+git clone --depth 1 https://github.com/ethereum-optimism/specs.git /tmp/specs
+node scripts/lint-link-policy.mjs --specs-src /tmp/specs --baseline scripts/lint-link-policy.baseline.json
+
+# verify the linter itself against its embedded self-test fixtures
+node scripts/lint-link-policy.mjs --self-test
+```
+
+린터 도입 이전부터 있던 위반 사항은
+`scripts/lint-link-policy.baseline.json`에 기록되어 있으므로, 실행 시 **새로운**
+위반만 표시됩니다. baseline은 허용 목록이 아니라 소진해 나갈 목록입니다. 개선
+작업 묶음에서 `--update-baseline`으로 목록을 줄여 나가며, pull request가 목록을 늘려서는
+절대 안 됩니다. 린터가 의도적인 예외라고 생각되는 링크를 표시하면 리뷰에서
+제기하세요. 조용히 baseline을 다시 만들지 마세요.
+
+강제 적용은 예약된, 리뷰 게이트가 있는 문서 자동화와 위의 로컬
+실행으로 이루어집니다. 린터, baseline, 내장 self-test fixture는 모두
+`docs/public-docs/` 아래에 있습니다.

@@ -28,13 +28,14 @@ pub struct RunningDiscovery {
 impl NetworkHandler {
     pub(super) async fn handle_peer_monitoring(&mut self) {
         // Inspect peer scores and ban peers that are below the threshold.
-        let Some(ban_duration) = self.gossip.peer_monitoring.as_ref().map(|m| m.ban_duration)
+        let Some(ban_duration) =
+            self.gossip.config().peer_monitoring.as_ref().map(|m| m.ban_duration)
         else {
             return;
         };
 
         // Record the score of every connected peer in the metrics.
-        for peer_id in self.gossip.swarm.connected_peers() {
+        for peer_id in self.gossip.connected_peers() {
             metrics::histogram!(kona_gossip::Metrics::PEER_SCORES)
                 .record(self.gossip.peer_score(peer_id));
         }

@@ -1,0 +1,120 @@
+---
+title: 결함 증명 설명
+description: OP Stack의 결함 증명 시스템(Fault Proof System)에 대해 알아봅니다.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="결함 증명 시스템"
+  title="결함 증명 명세"
+  href="https://specs.optimism.io/fault-proof/index.html"
+  note="이 페이지는 개념 설명 문서이며, 명세 내용을 다시 서술하지 않습니다."
+/>
+
+<Info>
+  **OP Stack 학습하기 — 14단계 중 12단계.**
+  앞에서 직접 출금을 증명하고 최종 확정했습니다. 이 페이지에서는 그
+  과정을 신뢰할 수 있는 이유를 설명합니다. 바로 체인 상태에 대한
+  무허가(permissionless) 제안과 그에 대한 무허가 이의 제기입니다. 다 읽은 후에는
+  [OP Stack 상호운용성 설명](/ko/op-stack/interop/explainer)으로
+  이어서 진행하십시오.
+</Info>
+
+결함 증명(fault proof)은 Optimistic Rollup 시스템의 중요한 부분입니다.
+사용자는 출금이 실제로 OP Stack 체인에 포함되었음을 보여 주는 출금 증명을 제출하여 OP Mainnet과 같은 OP Stack 체인에서 ETH와 토큰을 출금합니다.
+결함 증명을 통해 사용자는 출금 증명에 사용되는 OP Stack 체인 상태에 관한 제안을 허가 없이 제출하고 이의를 제기할 수 있습니다.
+
+2024년 6월 10일, 결함 증명이 공식적으로 OP Stack에 추가되었고 OP Mainnet에서 활성화되었습니다.
+이 결함 증명 업그레이드는 다음을 통해 OP Stack을 기술적 탈중앙화에 한층 더 가깝게 만듭니다.
+*   누구나 L2 상태에 관한 제안을 할 수 있도록 허용
+*   누구나 다른 사용자가 한 제안에 이의를 제기할 수 있도록 허용
+*   신뢰할 수 있는 제3자 없이 사용자가 L2에서 L1으로 메시지를 보낼 수 있도록 허용
+*   신뢰할 수 있는 제3자 없이 사용자가 L2에서 L1으로의 출금을 트리거할 수 있도록 허용
+*   추가 증명 메커니즘을 쉽게 통합할 수 있는 모듈식 결함 증명 설계 도입
+
+결함 증명 게임은 무허가 방식이지만, [Guardian](/ko/op-stack/protocol/privileged-roles#guardian) 역할을 수행하는 Optimism Security Council이 결함 증명 게임에 장애가 발생할 경우를 대비한 안전장치를 제공합니다.
+제안에 대한 지연 기간과 허가형(permissioned) 게임으로 대체할 수 있는 기능을 포함한 Guardian의 안전 장치는 [OP Stack 보안 모델](/ko/op-stack/security/faq-sec-model#fault-proofs)에 설명되어 있습니다.
+
+## 무허가 제안
+
+"제안(Proposal)" 또는 "상태 제안(State Proposal)"은 `DisputeGameFactory` 컨트랙트를 통해 Ethereum에 제출되는 OP Stack 체인 상태에 관한 claim입니다.
+제안은 여러 용도로 사용될 수 있지만, 가장 일반적으로는 최종 사용자가 OP Stack 체인에서 출금을 생성했음을 증명하는 데 사용됩니다.
+OP Stack의 결함 증명 업그레이드로 제안은 무허가 방식이 되어 누구나 제출할 수 있습니다.
+
+자세한 내용은 아래의 무허가 결함 증명 다이어그램을 참고하십시오.
+
+<img src="/public/img/op-stack/protocol/fp-permissionless.png" alt="무허가 결함 증명 흐름" width={700} height={600} />
+
+## 무허가 이의 제기
+
+누구나 제안을 제출할 수 있으므로 유효하지 않은 제안에 이의를 제기할 수 있어야 합니다.
+[OP Stack 체인과 같은 Optimistic Rollup](/ko/op-stack/architecture)에는 약 1주일의 이의 제기 기간(challenge period)이 있으며, 이 기간 동안 사용자는 제안이 잘못되었다고 판단되면 이의를 제기할 수 있습니다.
+OP Stack의 결함 증명 업그레이드로 이의 제기는 무허가 방식이 되어 누구나 제출할 수 있습니다.
+모든 사용자는 해당 OP Stack 체인의 node를 실행하고 `op-challenger` 도구를 사용하여 분쟁 프로세스에 참여할 수 있습니다.
+
+## 모듈식 설계와 다층 보안
+
+OP Stack 결함 증명 시스템은 [모듈식으로 설계](/ko/op-stack/fault-proofs/fp-components#system-design--modularity)되어 있으며 "multi-proof" 시스템을 달성하기 위한 기반을 마련합니다. 이를 통해 OP Stack은 초기 [Cannon](/ko/op-stack/fault-proofs/cannon) 증명 시스템과 함께 여러 증명 시스템을 지원할 수 있습니다.
+여러 증명 시스템을 갖추면 OP Stack은 어느 한 증명 시스템의 잠재적인 공격과 버그에 대해 더 높은 복원력을 가질 수 있습니다.
+
+또한 게임을 중심으로 다음과 같은 [보안 안전장치](/ko/op-stack/fault-proofs/fp-security)가 구축되어 있습니다.
+
+*   제안된 모든 root를 모니터링하고 올바른 상태와 일치하는지 확인하는 offchain 모니터링 시스템이 구축되어 있습니다. 자세한 내용은 [`op-dispute-mon`](https://github.com/ethereum-optimism/optimism/blob/develop/op-dispute-mon/README.md?plain=1)을 참고하십시오.
+*   게임을 통해 root가 최종 확정된 후 출금이 가능해지기 전까지 "airgap window"라는 추가 지연이 추가되었습니다. 이 기간 동안 `GUARDIAN` 역할은 root를 거부할 수 있습니다.
+*   bond를 보관하고 지연 후에만 지급을 허용하는 `DelayedWETH`라는 컨트랙트가 구축되어 있어, 게임이 잘못 해결된 경우 bond를 올바른 수령인에게 재지정할 수 있습니다.
+
+## 다음 단계
+
+*   시작할 준비가 되었습니까? [FP 컴포넌트](/ko/op-stack/fault-proofs/fp-components)를 검토하여 여러 컴포넌트가 함께 작동하며 Optimism 생태계의 탈중앙화를 강화하는 방식을 알아보십시오.
+*   `OptimismPortal` 및 `FaultDisputeGame` 컨트랙트의 변경 사항을 이해하려면 [결함 증명 보안](/ko/op-stack/fault-proofs/fp-security)을 참고하십시오.
+*   FP 시스템의 내부 작동 방식에 대한 자세한 내용은 [명세를 확인하십시오](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs).
+
+## FAQ
+
+### 분쟁을 해결하는 데 필요한 단계/트랜잭션은 몇 개입니까(최악의 경우)?
+
+게임의 최대 깊이는 73이지만, 분쟁 게임 내에는 claim과 counter-claim이 몇 개든 있을 수 있습니다.
+여러 행위자가 같은 게임에 참여할 수 있는 무허가 구조로 인해 하나의 claim에 여러 개의 서로 다른 counter-claim이 대응할 수 있으며, 사실상 여러 분쟁이 하나의 게임으로 결합됩니다.
+
+### (sequencer와 proposer에 장애가 발생한 경우) 새 state root를 제안할 때 고려해야 할 의존성이 있습니까?
+
+사용자는 어떠한 특권 작업에도 의존하지 않고 전체 출금 주기를 완료할 수 있습니다.
+Guardian 역할은 출금을 일시 중지하거나, 게임을 블랙리스트에 등록하거나, 허가형 시스템으로 되돌려 시스템을 오버라이드할 수 있습니다.
+그 결과, 신뢰 가정은 stage 1 요구 사항에 따라 Guardian 역할이 개입하지 않기만 하면 되는 수준으로 줄어듭니다.
+
+### proposer와 challenger 역할이 모두에게 개방되므로, 이를 실행하기 위한 모범 사례를 설명하는 가이드가 있습니까?
+
+일반 사용자가 정기적으로 output root를 제안하기 위해 `op-proposer`를 실행하는 것은 예상되지 않습니다.
+사용자는 일반적으로 출금이 필요하고 체인 운영자가 output을 제안하지 않는 경우에만, Etherscan을 통해 `DisputeGameFactory`를 직접 호출하여 output root 하나를 제안합니다.
+
+<Info>
+`op-challenger`의 [`create-game`](https://github.com/ethereum-optimism/optimism/tree/develop/op-challenger#create-game) 하위 명령은 **테스트 목적으로만** 사용해야 하며 프로덕션 환경에서는 사용해서는 안 됩니다. 이는 적절한 `op-proposer` 인프라를 대체하기 위한 것이 아닙니다.
+</Info>
+
+`op-challenger` 실행에 대한 자세한 안내는 [OP-Challenger 설명](/ko/op-stack/fault-proofs/challenger)과 [체인에 challenger를 구성하는 방법](/ko/chain-operators/guides/configuration/op-challenger-config-guide)을 참고하십시오.
+
+### 체인 운영자는 결함 증명 시스템을 운영하기 위해 ETH를 얼마나 따로 마련해 두어야 합니까?
+
+FP 운영의 명목상 운영 비용(즉, 유효하지 않은 제안이나 악의적인 행위자가 없다고 가정할 때)은 `FaultDisputeGame`에 설정된 초기 bond와 제안 게시 빈도에 따라 달라집니다.
+제안이 매시간 게시되는 OP Mainnet 파라미터를 가정하면 시간당 0.08 ETH입니다.
+7일의 분쟁 기간을 가정하면 제안을 하는 데 약 14 ETH(gas 비용 포함)가 필요합니다.
+체인이 OP Mainnet과 유사한 FP 배포 구성을 사용하는 경우, 초기 bond를 0.08 ETH로 유지하는 것을 권장합니다.
+
+그러나 FP 체인을 운영하는 데 필요한 자본 요구 사항 자체는 14 ETH보다 훨씬 큽니다.
+FP를 사용하여 체인을 보호하는 운영자는 체인을 보호하기 위해 많은 ETH를 스테이킹할 의지가 있어야 합니다.
+자본 요구 사항이 그만한 가치가 없다고 판단하여 허가형(Permissioned) FP 시스템만 사용할 수도 있습니다.
+자본 요구 사항은 결함 증명의 이후 단계에서 개선되어 소규모 체인에서도 더 실현 가능해질 예정입니다.
+
+### 분쟁을 지속하고 이기려면 bond가 얼마나 커야 합니까?
+
+bond는 counter-claim을 게시하는 데 예상되는 비용과 유효하지 않은 claim의 스팸을 억제하는 것을 기준으로 크기가 정해집니다.
+예를 들어 OP Sepolia에서 게임 [`0xcf8f181497DAD07277781517A76cb131C54A1BEE`](https://sepolia.etherscan.io/address/0xcf8f181497DAD07277781517A76cb131C54A1BEE)는 점점 커지는 bond 크기를 보여 줍니다.
+op-challenger의 list-claims 하위 명령을 사용해도 게임 내 claim을 잘 확인할 수 있습니다.
+
+```
+./op-challenger/bin/op-challenger list-claims --l1-eth-rpc <SEPOLIA_L1> --game-address 0xcf8f181497DAD07277781517A76cb131C54A1BEE
+```
+
+자세한 내용은 [명세](https://specs.optimism.io/fault-proof/stage-one/bond-incentives.html?utm_source=op-docs&utm_medium=docs)를 참고하십시오.

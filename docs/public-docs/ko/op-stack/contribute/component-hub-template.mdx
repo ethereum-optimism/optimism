@@ -1,0 +1,115 @@
+---
+title: 컴포넌트 허브 템플릿
+description: 모든 OP Stack 컴포넌트 허브 페이지가 따르는 통일된 골격과 각 섹션별 작성 지침입니다.
+diataxis: reference
+---
+
+[Stack Components](/ko/op-stack/components/index) 섹션에 나열된 모든 컴포넌트는
+정확히 하나의 정체성 페이지, 즉 **허브(hub)**를 가지며, 모든 허브는
+동일한 골격을 따릅니다. 핵심은 구조적 통일성입니다. 허브 하나를 사용해 본 독자는
+다른 모든 허브에서도 어디를 봐야 할지 알 수 있고, 리뷰어는 새 허브를
+이 템플릿과 섹션별로 기계적으로 대조해 검토할 수 있습니다.
+
+이 패턴은 Cloudflare의
+[문서 콘텐츠 전략](https://developers.cloudflare.com/style-guide/documentation-content-strategy/)을
+따릅니다. 이 전략은 모든 제품의 문서 세트에 동일한 형태를 부여하고,
+각 제품을 하나의 정식 위치에서 문서화합니다.
+
+## 골격
+
+허브 페이지는 다음 섹션을 이 순서대로, 아래의 H2 제목을 그대로 사용하여
+포함합니다.
+
+```mdx
+---
+title: <component name>
+description: <one sentence: what the component is and does>
+diataxis: explanation
+---
+
+<One-paragraph orientation: what this component is, in plain language.>
+
+## Overview
+
+<What the component does, why it exists, and who runs it.>
+
+## Get started
+
+<The one canonical starting point: a tutorial or setup guide.>
+
+## How-tos
+
+<Links to the task guides that involve this component.>
+
+## Configuration & flags reference
+
+<Link to the component's configuration reference page.>
+
+## Releases
+
+<Link to the component's release history.>
+
+## Source & spec links
+
+<Links to the source directory, in-repo deep docs, and the normative spec.>
+```
+
+## 섹션별 지침
+
+허브는 콘텐츠 페이지가 아니라 정체성과 링크만 담은 얇은 페이지입니다. 허브는
+[콘텐츠 가이드](/ko/op-stack/contribute/content-guide)의 이중 소싱 금지 원칙을 따릅니다.
+가이드, 레퍼런스 페이지, 스펙 섹션, 저장소 내 문서 등 정식 출처가 존재하는 경우
+허브는 그 출처에 링크하며 내용을 다시 서술하지 않습니다.
+
+### Overview
+
+몇 개의 짧은 단락 이내로 세 가지 질문에 답합니다. 컴포넌트가 **무엇을**
+하는지, **왜** 존재하는지(없으면 무엇이 깨지는지), 그리고 **누가
+운영하는지**(체인 운영자, 노드 운영자, 분쟁 참여자, 또는 아무도 직접 운영하지 않음)입니다.
+버전, 활성화 날짜, 플래그 기본값처럼 자주 바뀌는 사실은 여기에
+두지 않습니다. 이러한 정보는 자동 생성되거나 소스에 연결된 페이지에 둡니다.
+
+### Get started
+
+정식 시작점은 정확히 하나입니다. 이 사이트에 튜토리얼이 있다면
+그것에 링크합니다. 컴포넌트의 유일한 설정 문서가 저장소 내 README라면
+그것에 링크하고 그 사실을 명시합니다.
+
+### How-tos
+
+이 사이트에서 해당 컴포넌트를 구성하거나 운영하는 작업 가이드에 링크합니다.
+가이드를 요약하지 말고, 링크마다 작업을 설명하는 한 줄만 작성합니다.
+
+### Configuration & flags reference
+
+컴포넌트의 구성 레퍼런스 페이지에 링크합니다. 이러한 페이지를 수동으로
+관리하는 동안에는 해당 페이지가 어느 릴리스를 기준으로 작성되었는지 명시합니다(레퍼런스
+페이지 자체에 그 출처 정보가 담겨 있습니다). 자동 생성된 레퍼런스가 생기면
+이 자리는 생성된 페이지를 가리키게 되며, 허브의 형태는 바뀌지 않습니다.
+아직 레퍼런스 페이지가 없다면 README를 통해 컴포넌트의 `--help` 출력에
+링크하고, 문서 레퍼런스가 준비 중이라고 명시합니다.
+
+### Releases
+
+컴포넌트에 [Releases](/ko/releases) 아래 페이지가 있으면 그 페이지에 링크하고,
+없으면 GitHub의 컴포넌트 릴리스 태그에 링크합니다.
+
+### Source & spec links
+
+해당 항목이 존재하는 경우 항상 다음 순서를 따릅니다.
+
+1.  monorepo의 소스 디렉터리(또는 컴포넌트의 홈 저장소).
+2.  드러낼 가치가 있는 저장소 내 심층 문서(설계 문서, 런북).
+3.  [OP Stack 스펙](https://specs.optimism.io/)에서 해당 컴포넌트의 섹션
+    — 스펙 루트가 아니라 정확한 페이지에 딥링크합니다.
+
+## 허브가 아닌 것
+
+*   **두 번째 가이드가 아닙니다.** 지침을 작성하고 있다면 그 내용은
+    허브가 링크하는 how-to 페이지에 들어가야 합니다.
+*   **레퍼런스가 아닙니다.** 플래그 표, RPC 메서드, 버전 매트릭스를 넣지 않습니다.
+*   **뉴스 페이지가 아닙니다.** 릴리스 공지는 릴리스 페이지에 있습니다.
+
+이 템플릿으로 해결되지 않는 허브 관련 질문은
+[콘텐츠 가이드](/ko/op-stack/contribute/content-guide)의 정식 위치 매트릭스를 따릅니다.
+매트릭스에서도 다루지 않는 경우에는 문서 PR에서 제기합니다.

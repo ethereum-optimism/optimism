@@ -1,0 +1,84 @@
+---
+title: DA footprint 블록 제한의 작동 방식
+description: Jovian 하드포크에서 도입된 데이터 가용성(DA) footprint 블록 제한, DA footprint 계산 방식, 그리고 기본 gas scalar가 400인 이유를 이해합니다.
+diataxis: explanation
+---
+
+**데이터 가용성(DA) Footprint 블록 제한**은 **[Jovian 하드포크](https://docs.optimism.io/notices/upgrade-17)**에서 도입되었으며, 트랜잭션 데이터의 압축 크기(또는 "데이터 가용성 footprint")에 대한 스케일링된 추정치를 기반으로 블록에 들어갈 수 있는 트랜잭션 데이터의 총량을 제한합니다.
+이 페이지는 이 제한이 해결하는 문제, DA footprint의 계산 방식, 그리고 `daFootprintGasScalar` 파라미터가 제한을 어떻게 형성하는지 설명합니다.
+체인에서 scalar를 변경하려면 [DA footprint 설정 가이드](/ko/chain-operators/guides/features/setting-da-footprint)를 따르세요.
+
+## DA footprint 제한이 존재하는 이유
+
+OP Stack 체인이 L1의 사용 가능한 blob 공간에 들어갈 수 있는 것보다 많은 calldata 중심 트랜잭션을 받으면, [batcher가 체인의 처리량을 스로틀링할 수 있습니다](https://docs.optimism.io/chain-operators/guides/configuration/batcher#batcher-sequencer-throttling).
+
+그러나 batcher 스로틀링이 지속되면 base fee가 [최소 base fee](https://docs.optimism.io/chain-operators/guides/features/setting-min-base-fee)까지 떨어질 수 있으며,
+이는 체인 운영자에게 불필요한 손실을 초래하고 priority fee 경매와 같은 부정적인 사용자 경험을 유발합니다.
+반대로 스로틀링이 없으면 batcher는 blob 공간에 배치할 체인 데이터에 압도될 위험이 있습니다.
+블록 내 트랜잭션이 차지하는 (추정 압축) calldata의 양을 총 DA footprint로 제한하면 batcher 스로틀링의 필요성과 그에 따른 문제를 줄일 수 있습니다.
+
+## DA footprint 계산 방식
+
+OP Stack 체인이 처리하는 모든 [비입금(non-deposit) 트랜잭션](https://docs.optimism.io/reference/glossary#deposited-transaction)에 대해 트랜잭션의 gas 사용량과 함께 DA footprint 값이 기록됩니다.
+DA footprint는 L1 체인의 `SystemConfig` 컨트랙트에 있는 `daFootprintGasScalar` 변수로 구성할 수 있습니다.
+DA footprint는 모든 트랜잭션에 대해 자동으로 계산되며, 먼저 해당 트랜잭션의 `daUsageEstimate`를 계산합니다.
+
+```python
+daUsageEstimate = max(
+          minTransactionSize,
+          (intercept + fastlzCoef * tx.fastlzSize) // 1e6
+      )
+```
+
+여기서 `minTransactionSize`, `intercept`, `fastlzCoef`, `tx.fastlzSize`는 [Fjord 스펙](https://specs.optimism.io/protocol/fjord/exec-engine.html#fees)에 명시된 대로입니다.
+그런 다음 `daUsageEstimate`에 `daFootprintGasScalar`를 곱하여 개별 트랜잭션의 `daFootprint`를 구합니다.
+
+```python
+      daFootprint += daUsageEstimate * daFootprintGasScalar
+```
+
+그런 다음 블록 내 모든 트랜잭션의 `daFootprint`를 합산하여 해당 블록의 총 `daFootprint`를 계산합니다.
+블록의 총 `daFootprint`가 계산되면 다음이 적용됩니다.
+
+<Info>
+- 블록의 총 `daFootprint`는 해당 블록의 `gasLimit` 미만으로 유지되어야 합니다.
+- 각 블록 헤더의 `blobGasUsed` 속성은 해당 블록의 `daFootprint`로 설정됩니다.
+- base fee 업데이트 계산은 `gasUsed` 변수 대신 `gasMetered := max(gasUsed, blobGasUsed)`를 사용합니다.
+</Info>
+
+Jovian부터 트랜잭션 영수증에도 영수증의 `blobGasUsed` 필드에 트랜잭션의 DA Footprint가 기록되며, 같은 이름의 새 필드에 블록의 `daFootprintGasScalar`가 기록됩니다.
+
+## DA footprint gas scalar가 제어하는 것
+
+_DA footprint gas scalar_는 _바이트 단위의 추정 DA 사용량_을 gas 차원으로 스케일링하며, 이렇게 스케일링된 DA 사용량 추정치를 _DA footprint_라고 합니다.
+이를 통해 블록의 `gasLimit`을 사용하여 추정 DA 사용량을 제한할 수 있습니다. 블록당 추정 DA 사용량의 실질적인 한도는 `gasLimit / daFootprintGasScalar` 바이트입니다.
+따라서 이 scalar를 _높이면_ DA 사용에 더 많은 gas가 필요해지므로 한도가 _낮아지며_, 그 반대도 마찬가지입니다.
+
+이는 0이 아닌 바이트당 `40` gas의 calldata (floor) 비용이 블록 내 calldata의 총량을 제한하는 방식과 밀접하게 관련되어 있습니다.
+DA footprint gas scalar가 `400`이면 DA footprint 블록 제한이 없을 때의 한도에 비해 _압축 불가능한_ calldata를 사실상 `10`배 더 제한합니다.
+따라서 이 기능은 기존 calldata 제한의 확장으로 볼 수 있습니다.
+다만 calldata (floor) gas 비용을 재조정하는 대신, 이 제한은 EVM 실행 gas와 병렬로 계산되며, 단순히 0인 바이트와 0이 아닌 바이트를 세는 대신 더 적절한 FastLZ 기반 DA 사용량 추정치를 기반으로 합니다.
+
+## 기본값이 400인 이유
+
+기본 scalar `400`은 최악의 DA 스팸 시나리오에서 체인을 보호하면서도 정상 운영 중에는 영향이 거의 또는 전혀 없도록 선택되었습니다.
+현재 OP Stack 체인에 미치는 영향을 추정하고 적절한 기본값을 선택하기 위해 신중한 [분석](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/da-footprint-block-limit.md)이 수행되었습니다.
+처리량이 높은 체인만이 결과적인 DA footprint 제한으로 인해 가끔 작은 영향(base fee가 약간 더 빠르게 상승)을 받을 수 있습니다. DA footprint 제한은 대부분 눈에 띄지 않습니다.
+처리량이 중간 이하인 체인에서는 정상적인 사용 조건에서 이 기능이 영향을 미치지 않을 것으로 예상됩니다.
+이는 최악의 _압축 불가능한_ DA 스팸에 대비한 보험에 가깝습니다.
+
+<Info>
+`SystemConfig`의 `daFootprintGasScalar` 값 `0`은 기본값 `400`으로 처리됩니다. 제한을 사실상 비활성화하려면 scalar를 `1`과 같은 매우 낮은 값으로 설정하세요.
+</Info>
+
+## 다음 단계
+
+*   체인에서 scalar를 설정하거나 변경하려면 [DA Footprint Gas Scalar 설정](/ko/chain-operators/guides/features/setting-da-footprint)을 따르세요.
+*   수수료 관련 `SystemConfig` 파라미터 전체는 [수수료 파라미터 레퍼런스](/ko/chain-operators/reference/fee-parameters)를 참조하세요.
+
+## 참고 자료
+
+*   [DA Footprint 구성 스펙](https://specs.optimism.io/protocol/jovian/system-config.html#da-footprint-configuration)
+*   [Jovian 업그레이드 스펙](https://specs.optimism.io/protocol/jovian/overview.html)
+*   [SystemConfig 컨트랙트 스펙](https://specs.optimism.io/protocol/system-config.html)
+*   [설계 문서](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/da-footprint-block-limit.md)

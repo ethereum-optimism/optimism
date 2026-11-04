@@ -80,7 +80,7 @@ func SetupEnv(t Testing, opts ...EnvOpt) (env Env) {
 	env.VerifEngine, env.Verifier = SetupVerifier(t, sd, log, env.Miner.L1Client(t, sd.RollupCfg), env.Miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := env.Seq.RollupClient()
 	env.Batcher = NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
-		rollupSeqCl, env.Miner.EthClient(), env.SeqEngine.EthClient(), env.SeqEngine.EngineClient(t, sd.RollupCfg))
+		rollupSeqCl, env.Miner.EthClient(), env.SeqEngine.EngineClient(t, sd.RollupCfg))
 
 	alice := NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)), e2ecfg.DefaultAllocType)
 	alice.L1.SetUserEnv(env.L1UserEnv(t))

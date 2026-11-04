@@ -1,0 +1,131 @@
+---
+title: 콘텐츠 유형 선택
+description: 올바른 문서 유형, 구성 방식, 운영 메타데이터를 선택하기 위한 유지 관리자용 결정 표입니다.
+diataxis: reference
+---
+
+이 페이지는 독자가 아니라 문서 유지 관리자와 기여자를 위한 것입니다. 거의 모든 콘텐츠 pull request에서
+제기되는 두 가지 질문, 즉 "어떤 종류의 페이지를 작성하고 있는가?"와 "어떤 frontmatter를 포함해야
+하는가?"를 결정 표로 정리하여, PR마다 다시 논쟁하지 않고 이 페이지를 인용하면 되도록 합니다. 이 방식은
+Cloudflare의 [문서 콘텐츠 전략](https://developers.cloudflare.com/style-guide/documentation-content-strategy/)에
+포함된 유지 관리자용 콘텐츠 유형 선택 페이지를 따릅니다.
+
+유형을 선택하기 전에 [콘텐츠 가이드](/ko/op-stack/contribute/content-guide)를 확인하여 해당 콘텐츠가
+애초에 docs.optimism.io에 속하는지 확인하십시오.
+
+## 분류 체계: 네 개의 사분면, 네 개의 구성 유형
+
+docs.optimism.io의 문서 페이지에는 네 가지 [Diátaxis](https://diataxis.fr/) 사분면 값 중 하나,
+즉 `tutorial`, `how-to`, `reference`, `explanation` 중 하나를 값으로 갖는 `diataxis:` frontmatter 키가
+있습니다. 이 분류 체계는 완결되어 있으며 확장되지 않습니다. 아래의 구성 유형(composed type)은
+**사분면의 조합이지 새로운 사분면이 아니며**, `diataxis:` 값으로 사용되지 않습니다.
+
+구성 유형은 `diataxis:`와 *함께* 사용하는 두 번째 선택적 frontmatter 키인 `content-type:`으로
+선언합니다. 이 키는 게시된 사양마다 하나씩, 정확히 네 가지 값을 가집니다.
+
+| 구성 유형 | `content-type:` | `diataxis:` | 구성 방식 |
+| --- | --- | --- | --- |
+| [솔루션 가이드](/ko/op-stack/contribute/solution-guide) | `solution-guide` | `how-to` | 여정 수준의 목표 중심 how-to입니다. 여러 사분면의 기존 페이지를 순서대로 배열하고 연결하는 결정 로직만 추가합니다 |
+| [학습 단위](/ko/op-stack/contribute/learning-unit) | `learning-unit` | 기반 페이지의 사분면(대개 `explanation`, 실습 단계는 `tutorial`) | 순서가 있는 트랙 안에서 하나의 기존 페이지 위에 얹는 얇은 순서 계층입니다 |
+| [커리큘럼 허브](/ko/op-stack/contribute/curriculum-hub) | `curriculum-hub` | `explanation` | 하나의 기능에 대해 네 사분면을 모두 하나의 사이드바 노드 아래에 구성하는 방향 안내형 인덱스입니다 |
+| [라우터/랜딩](/ko/op-stack/contribute/router-landing) | `router-landing` | 생략 — 아래 참조 | 순수한 탐색 페이지입니다. 독자를 사분면의 페이지로 안내하기만 합니다 |
+
+이것이 분기(fork)가 아닌 확장으로 유지되도록 하는 규칙은 다음과 같습니다.
+
+*   **`content-type:`은 `diataxis:`를 대체하지 않습니다.** 무언가를 문서화하거나, 지시하거나, 설명하는
+    모든 페이지는 사분면 태그를 유지합니다. 허용되는 유일한 생략은 `content-type: router-landing`입니다.
+    순수한 라우터에는 분류할 고유한 문서 모드가 없으므로 `content-type:`만 포함하고 `diataxis:` 키는
+    포함하지 않습니다. 라우터에 설명이나 지시 콘텐츠가 추가되면 더 이상 라우터가 아니므로 다시
+    분류하십시오.
+*   **`content-type:` 값은 이 네 가지만 존재합니다.** 다섯 번째 값을 제안하려면 일반적인 문서 검토를
+    거쳐 이 페이지를 수정하고 해당 사양을 게시해야 합니다.
+*   **네 가지 기본 유형의 페이지에는 `content-type:`을 전혀 포함하지 않습니다.** 일반적인 how-to는
+    그냥 `diataxis: how-to`입니다.
+*   **구성 유형을 위해 `keywords.config.yaml`을 확장하지 않습니다.** 구성 유형은 위 표의 각 행에 따라
+    페이지 frontmatter에서만 선언합니다.
+
+### 공지 메타데이터
+
+[공지](/ko/op-stack/contribute/notice)는 독자의 준비가 필요한 업그레이드, 지원 중단 또는 기타 변경에
+대한 기한이 있는 운영 콘텐츠입니다. 독자에게 가장 필요한 것은 특정 변경에 대한 권위 있는 정보이므로,
+공지에는 `diataxis: reference`를 사용합니다.
+
+추가 메타데이터 키인 `content_type: notice`(밑줄 사용)는 공지 인덱스와 사이트 검색을 위해 페이지의
+운영 목적과 생애 주기를 표시합니다. 이는 다섯 번째 사분면이나 구성 유형을 만들지 않습니다.
+`content-type:` 키(하이픈 사용)는 여전히 위의 네 가지 구성 유형 값으로 제한됩니다.
+
+페이지가 다음 질문에 모두 답해야 하는 경우 공지를 사용하십시오.
+
+*   무엇이 왜 변경됩니까?
+*   어떤 페르소나가 영향을 받으며, 각 페르소나에게 무엇이 중단되거나 호환성을 유지합니까?
+*   영향을 받는 각 독자가 전환 전에 해야 할 일은 무엇입니까?
+*   변경은 언제, 어떻게 적용됩니까?
+
+변경이 완료되면 공지를 보관(archive)하고, 지속적으로 유효한 사실은 관련 가이드, 레퍼런스 또는
+[네트워크 업그레이드 레지스트리](/ko/op-stack/protocol/network-upgrades)로 옮기십시오.
+
+## How-to 가이드 vs. 튜토리얼 vs. 솔루션 가이드
+
+이 세 유형은 모두 실행 지향적이어서 혼동하기 쉽습니다. 차이점은 시작 상태, 범위, 그리고 단계를 누가
+소유하는지에 있습니다.
+
+| 질문 | How-to 가이드 | 튜토리얼 | 솔루션 가이드 |
+| --- | --- | --- | --- |
+| 독자는 어떤 상태에서 시작합니까? | 이미 설정된 작동 환경 | 깨끗한 머신(또는 그에 가까운 상태) — 설정이 페이지의 일부입니다 | 작동하는 시스템과 여러 구성 요소에 걸친 목표 |
+| 범위는 얼마나 넓습니까? | 하나의 구성 요소에 대한 하나의 개별 작업 | 환경 설정을 포함한 하나의 엔드투엔드 빌드 | 여러 구성 요소, 흔히 여러 문서 사이트에 걸친 하나의 목표 |
+| 단계를 누가 소유합니까? | 페이지가 자체 단계를 소유합니다 | 페이지가 자체 단계를 소유합니다 | 페이지는 **파생**합니다. 각 단계는 기존 페이지로 연결하고 무엇을 가져올지 명시하며, 페이지는 결정 로직만 추가합니다 |
+| 무엇으로 끝납니까? | 작업 검증 | 전체 작동 상태 검증 후 정리 | 결과 검증 후 선별된 다음 단계 |
+| Frontmatter | `diataxis: how-to` | `diataxis: tutorial` | `diataxis: how-to` + `content-type: solution-guide` |
+
+빠른 판별 기준:
+
+*   실제 작업을 시작하기 전에 페이지에서 환경을 설치하거나 구성해야 한다면 **튜토리얼**입니다.
+*   페이지의 단계가 자체적인 것, 즉 독자가 하나의 구성 요소에서 실행하는 복사-붙여넣기 가능한 명령이라면
+    **how-to 가이드**입니다.
+*   페이지의 주된 역할이 목표를 향해 *다른* 페이지를 순서대로 배열하고 그 과정에서 옵션 간 결정을
+    내리는 것이라면 **솔루션 가이드**입니다. 연결된 페이지의 단계를 다시 서술하기 시작하는 솔루션
+    가이드는 [이중 소스 금지 원칙](/ko/op-stack/contribute/content-guide#link-dont-restate-the-dual-sourcing-ban)을
+    위반하는 것이므로, 다시 서술한 부분을 삭제하고 링크로 대체하십시오.
+
+예시: [batcher 구성](/ko/chain-operators/guides/configuration/batcher)
+(구성 가이드 수준의 how-to),
+[ERC-20 토큰 브리징](/ko/app-developers/tutorials/bridging/cross-dom-bridge-erc20)
+(튜토리얼). 첫 번째 솔루션 가이드는 Use Cases 섹션과 함께 제공됩니다. 그 전까지는
+[솔루션 가이드 사양](/ko/op-stack/contribute/solution-guide)에 템플릿이 있습니다.
+
+## 설명 vs. 학습 단위
+
+두 유형 모두 이해 지향적입니다. 차이점은 독자가 누구이며 페이지가 무엇을 전제할 수 있는지에 있습니다.
+
+| 질문 | 설명 | 학습 단위 |
+| --- | --- | --- |
+| 누가 방문합니까? | 누구나, 순서와 관계없이, 대개 검색이나 상호 링크를 통해 | 순서가 있는 트랙이나 커리큘럼 허브를 따라 진행하는 학습자 |
+| 무엇을 전제할 수 있습니까? | 자체 도입부에서 명시한 내용만 | 트랙의 이전 단계에서 다룬 모든 내용 |
+| 콘텐츠를 누가 소유합니까? | 페이지가 개념 자료를 소유합니다 | 학습 단위는 기존 자료를 **프레이밍**합니다. 순서 맥락(지금까지 알게 된 것, 이 단계에서 추가되는 것, 다음에 갈 곳)과 링크를 추가하며, 절대 복제하지 않습니다 |
+| Frontmatter | `diataxis: explanation` | 기반 페이지의 사분면 + `content-type: learning-unit` |
+
+빠른 판별 기준:
+
+*   페이지를 탐색 그룹에서 제거해도 완전히 이해할 수 있다면 **설명**입니다.
+*   페이지가 "이전 단계에서…"로 시작하거나 순서의 N번째 위치에서만 의미가 있다면 **학습 단위**입니다.
+*   순서를 바꾸기 위해 설명을 트랙으로 *복사*하려 한다면 멈추십시오. 학습 단위는 링크하고 프레이밍할 뿐
+    절대 복제하지 않습니다. 대신 기존 페이지에 프레이밍 헤더를 추가하십시오
+    ([학습 단위 사양](/ko/op-stack/contribute/learning-unit) 참조).
+
+예시: [OP Stack](/ko/op-stack/introduction/op-stack)과
+[결함 증명 설명](/ko/op-stack/fault-proofs/explainer)(다시 작성하지 않고도 트랙 안에서 학습 단위
+프레이밍을 얻을 수 있는 설명 페이지).
+
+## 다음 단계
+
+*   페이지를 작성하기 전에 유형 사양을 읽어 보십시오.
+    [솔루션 가이드](/ko/op-stack/contribute/solution-guide),
+    [학습 단위](/ko/op-stack/contribute/learning-unit),
+    [커리큘럼 허브](/ko/op-stack/contribute/curriculum-hub),
+    [라우터/랜딩](/ko/op-stack/contribute/router-landing),
+    [공지](/ko/op-stack/contribute/notice).
+*   네 가지 기본 사분면에 대해서는
+    [스타일 가이드의 콘텐츠 유형 섹션](https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/STYLE_GUIDE.md#content-types)이
+    여전히 레퍼런스입니다.
+*   어떤 콘텐츠가 사이트에 속하는지는 [콘텐츠 가이드](/ko/op-stack/contribute/content-guide)를
+    참조하십시오.

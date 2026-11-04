@@ -1,0 +1,32 @@
+---
+title: Span Batch
+description: Span batch가 무엇이며 OP Stack 체인의 배치 제출 오버헤드를 어떻게 줄이는지 알아봅니다.
+diataxis: explanation
+---
+
+Span batch는 Delta 네트워크 업그레이드에서 도입된 배치 형식으로, 연속된 L2 블록의 구간(span)을 단일 배치로 인코딩합니다.
+Span batch는 L2 데이터를 L1에 게시하는 오버헤드를 줄여 데이터 가용성 비용을 낮춥니다. 특히 블록당 고정 오버헤드가 제출 데이터의 대부분을 차지하는, 트랜잭션이 드물고 처리량이 낮은 체인에서 효과가 큽니다.
+
+## Span batch가 존재하는 이유
+
+Delta 이전에는 유일한 배치 형식이 L2 블록당 하나의 배치를 사용하는 단일 배치(singular batch)였습니다.
+조용한 체인의 빈 블록을 포함한 모든 블록이 L1에 각자의 배치 오버헤드를 부담했습니다.
+
+반면 span batch는 연속된 L2 블록의 전체 구간을 더 효율적인 인코딩으로 표현하면서도 단일 배치 데이터와 동일한 일관성 검사를 유지합니다.
+따라서 제출 데이터에 블록(특히 빈 블록)을 추가로 포함하는 데 드는 한계 비용이 작아집니다.
+전체 형식은 [span batch 사양](https://specs.optimism.io/protocol/delta/span-batches.html?utm_source=op-docs&utm_medium=docs)에 정의되어 있습니다.
+
+## Span batch 사용 방식
+
+Span batch는 체인 운영자가 선택적으로 사용합니다. `op-batcher`는 `--batch-type` 플래그로 배치 형식을 선택합니다(`0`은 기본값인 단일 배치, `1`은 span batch).
+검증 측에서는 `op-node` 파생 파이프라인이 체인에서 Delta가 활성화된 이후에만 span batch를 수락합니다. L1 origin이 Delta 활성화 이전인 span batch는 모두 폐기됩니다.
+단일 배치는 Delta 이후에도 유효하므로, 체인은 언제든지 두 형식 간에 전환할 수 있습니다.
+
+체인에서 span batch를 활성화하려면 다음 사용 가이드를 따르십시오: [Span batch 활성화](/ko/chain-operators/guides/features/enable-span-batches).
+
+## 관련 페이지 링크
+
+*   [Span batch 활성화](/ko/chain-operators/guides/features/enable-span-batches)
+*   [Batcher 구성](/ko/chain-operators/guides/configuration/batcher)
+*   [Span Batch 사양](https://specs.optimism.io/protocol/delta/span-batches.html?utm_source=op-docs&utm_medium=docs)
+*   [Span Batch 설계 문서](https://op-tip.notion.site/Span-Batch-Design-Docs-b85e599a47774dcdb8171cc84cab2476)

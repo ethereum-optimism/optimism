@@ -1,0 +1,65 @@
+---
+title: node 메트릭 및 모니터링
+description: node의 상태를 모니터링하는 데 사용할 수 있는 다양한 메트릭을 알아봅니다.
+diataxis: reference
+---
+
+Optimism `op-node`는 시스템 상태를 관찰하고 문제를 디버깅하는 데 도움이 되는 다양한 메트릭을 제공합니다. 메트릭은 Prometheus에서 사용할 수 있는 형식이며 메트릭 엔드포인트를 통해 노출됩니다. 기본 메트릭 엔드포인트는 `http://localhost:7300/metrics`입니다.
+
+메트릭을 활성화하려면 `op-node`에 `--metrics.enabled` 플래그를 전달하십시오. 메트릭 포트와 주소는 각각 `--metrics.port` 및 `--metrics.addr` 플래그로 사용자 지정할 수 있습니다.
+
+## Important metrics
+
+node의 상태를 모니터링하려면 다음 메트릭을 확인해야 합니다.
+
+*   `op_node_default_refs_number`: 이 메트릭은 다양한 동기화 유형에 대한 `op-node`의 현재 L1/L2 참조 블록 번호를 나타냅니다. 증가가 멈추면 node가 동기화되지 않고 있다는 의미입니다. 감소하면 node에서 reorg가 발생하고 있다는 의미입니다.
+*   `op_node_default_peer_count`: 이 메트릭은 `op-node`가 연결된 피어 수를 나타냅니다. 피어가 없으면 `op-node`는 unsafe 블록을 동기화할 수 없으며, L1에서만 동기화하는 방식으로 대체되므로 node가 sequencer보다 뒤처지게 됩니다.
+*   `op_node_default_rpc_client_request_duration_seconds`: 이 메트릭은 `op-node`가 시작한 RPC 요청의 지연 시간을 측정합니다. 이 메트릭은 어떤 RPC 호출이 동기화를 느리게 하는지 드러내므로 동기화 성능을 디버깅할 때 중요합니다. 이 메트릭은 RPC 메서드당 하나의 시계열을 제공합니다. 모니터링해야 할 가장 중요한 RPC 메서드는 다음과 같습니다.
+    *   `engine_forkChoiceUpdatedV1`, `engine_getPayloadV1`, `engine_newPayloadV1`: 이 메서드는 `op-geth`에서 블록을 실행하는 데 사용됩니다. 이 메서드가 느리다면 동기화 시간의 병목이 `op-geth` 자체 또는 `op-geth`와의 연결에 있다는 의미입니다.
+    *   `eth_getBlockByHash`, `eth_getTransactionReceipt`, `eth_getBlockByNumber`: 이 메서드는 `op-node`가 L1에서 트랜잭션 데이터를 가져오는 데 사용됩니다. 이 메서드가 느리다면 동기화 시간의 병목이 L1 RPC에 있다는 의미입니다.
+
+## 사용 가능한 메트릭
+
+사용 가능한 전체 메트릭 목록은 다음과 같습니다.
+
+| 메트릭                                                     | 설명                                                                                             | 레이블       | 유형      |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------ | --------- |
+| op\_node\_default\_info                                    | 버전 및 구성 정보를 추적하는 의사(pseudo) 메트릭                                                 | version      | gauge     |
+| op\_node\_default\_up                                      | op node가 시작을 완료하면 1                                                                      |              | gauge     |
+| op\_node\_default\_rpc\_client\_requests\_total            | opnode의 RPC 클라이언트가 시작한 총 RPC 요청 수                                                  | method       | counter   |
+| op\_node\_default\_rpc\_client\_request\_duration\_seconds | RPC 클라이언트 요청 소요 시간 히스토그램                                                         | method       | histogram |
+| op\_node\_default\_rpc\_client\_responses\_total           | opnode의 RPC 클라이언트가 수신한 총 RPC 요청 응답 수                                             | method,error | counter   |
+| op\_node\_default\_l1\_source\_cache\_size                 | L1 Source 캐시 크기                                                                              | type         | gauge     |
+| op\_node\_default\_l1\_source\_cache\_get                  | L1 Source 캐시 조회(적중 여부 포함)                                                              | type,hit     | counter   |
+| op\_node\_default\_l1\_source\_cache\_add                  | L1 Source 캐시 추가(이전 값 축출 여부 포함)                                                      | type,evicted | counter   |
+| op\_node\_default\_l2\_source\_cache\_size                 | L2 Source 캐시 크기                                                                              | type         | gauge     |
+| op\_node\_default\_l2\_source\_cache\_get                  | L2 Source 캐시 조회(적중 여부 포함)                                                              | type,hit     | counter   |
+| op\_node\_default\_l2\_source\_cache\_add                  | L2 Source 캐시 추가(이전 값 축출 여부 포함)                                                      | type,evicted | counter   |
+| op\_node\_default\_derivation\_idle                        | 도출(derivation) 파이프라인이 유휴 상태이면 1                                                    |              | gauge     |
+| op\_node\_default\_pipeline\_resets\_total                 | 도출 파이프라인 리셋 이벤트 수                                                                   |              | counter   |
+| op\_node\_default\_last\_pipeline\_resets\_unix            | 마지막 도출 파이프라인 리셋 이벤트의 타임스탬프                                                  |              | gauge     |
+| op\_node\_default\_unsafe\_payloads\_total                 | unsafe payload 이벤트 수                                                                         |              | counter   |
+| op\_node\_default\_last\_unsafe\_payloads\_unix            | 마지막 unsafe payload 이벤트의 타임스탬프                                                        |              | gauge     |
+| op\_node\_default\_derivation\_errors\_total               | 도출 오류 이벤트 수                                                                              |              | counter   |
+| op\_node\_default\_last\_derivation\_errors\_unix          | 마지막 도출 오류 이벤트의 타임스탬프                                                             |              | gauge     |
+| op\_node\_default\_sequencing\_errors\_total               | 시퀀싱 오류 이벤트 수                                                                            |              | counter   |
+| op\_node\_default\_last\_sequencing\_errors\_unix          | 마지막 시퀀싱 오류 이벤트의 타임스탬프                                                           |              | gauge     |
+| op\_node\_default\_publishing\_errors\_total               | p2p 게시 오류 이벤트 수                                                                          |              | counter   |
+| op\_node\_default\_last\_publishing\_errors\_unix          | 마지막 p2p 게시 오류 이벤트의 타임스탬프                                                         |              | gauge     |
+| op\_node\_default\_unsafe\_payloads\_buffer\_len           | 버퍼링된 L2 unsafe payload 수                                                                    |              | gauge     |
+| op\_node\_default\_unsafe\_payloads\_buffer\_mem\_size     | 버퍼링된 L2 unsafe payload의 총 예상 메모리 크기                                                 |              | gauge     |
+| op\_node\_default\_refs\_number                            | 다양한 L1/L2 참조 블록 번호를 나타내는 게이지                                                    | layer,type   | gauge     |
+| op\_node\_default\_refs\_time                              | 다양한 L1/L2 참조 블록 타임스탬프를 나타내는 게이지                                              | layer,type   | gauge     |
+| op\_node\_default\_refs\_hash                              | float 값으로 잘린 다양한 L1/L2 참조 블록 해시를 나타내는 게이지                                  | layer,type   | gauge     |
+| op\_node\_default\_refs\_seqnr                             | 다양한 L2 참조 시퀀스 번호를 나타내는 게이지                                                     | type         | gauge     |
+| op\_node\_default\_refs\_latency                           | 다양한 L1/L2 참조 블록 타임스탬프에서 현재 시간을 뺀 값(초)을 나타내는 게이지                    | layer,type   | gauge     |
+| op\_node\_default\_l1\_reorg\_depth                        | L1 Reorg 깊이 히스토그램                                                                         |              | histogram |
+| op\_node\_default\_transactions\_sequenced\_total          | 시퀀싱된 총 트랜잭션 수                                                                          |              | gauge     |
+| op\_node\_default\_p2p\_peer\_count                        | 현재 연결된 p2p 피어 수                                                                          |              | gauge     |
+| op\_node\_default\_p2p\_stream\_count                      | 현재 연결된 p2p 스트림 수                                                                        |              | gauge     |
+| op\_node\_default\_p2p\_gossip\_events\_total              | 유형별 gossip 이벤트 수                                                                          | type         | counter   |
+| op\_node\_default\_p2p\_bandwidth\_bytes\_total            | 방향별 P2P 대역폭                                                                                | direction    | gauge     |
+| op\_node\_default\_sequencer\_building\_diff\_seconds      | sequencer 블록 빌드 시간에서 블록 시간을 뺀 값의 히스토그램                                      |              | histogram |
+| op\_node\_default\_sequencer\_building\_diff\_total        | sequencer 블록 빌드 작업 수                                                                      |              | counter   |
+| op\_node\_default\_sequencer\_sealing\_seconds             | sequencer 블록 봉인(sealing) 시간 히스토그램                                                     |              | histogram |
+| op\_node\_default\_sequencer\_sealing\_total               | sequencer 블록 봉인 작업 수                                                                      |              | counter   |
