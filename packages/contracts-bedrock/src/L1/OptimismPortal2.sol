@@ -298,9 +298,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 7.3.0
+    /// @custom:semver 7.4.0
     function version() public pure virtual returns (string memory) {
-        return "7.3.0";
+        return "7.4.0";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -769,7 +769,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
 
         // A proven withdrawal must wait at least `proofMaturityDelaySeconds` before finalizing.
-        if (block.timestamp - provenWithdrawal.timestamp <= proofMaturityDelaySeconds) {
+        // A zero delay means the proxy was upgraded without calling `initialize`, so fail closed
+        // rather than finalize withdrawals with no review period.
+        if (proofMaturityDelaySeconds == 0 || block.timestamp - provenWithdrawal.timestamp <= proofMaturityDelaySeconds)
+        {
             revert OptimismPortal_ProofNotOldEnough();
         }
 
