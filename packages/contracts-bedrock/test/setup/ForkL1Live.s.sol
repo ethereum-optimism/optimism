@@ -327,7 +327,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 enabled: false, initBond: 0, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: hex""
             });
 
-            // V9 preserves the super-root anchor established by v8.
             extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
             extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType", data: abi.encode(targetGameType)
