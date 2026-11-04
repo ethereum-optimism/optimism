@@ -650,6 +650,12 @@ mod tests {
         move |enr: Enr| discv5::Event::UnverifiableEnr { node_id: enr.node_id(), enr, socket }
     }
 
+    /// A session from `sender` with another node than the one whose record it presented.
+    fn unverifiable_with_other_node_from(sender: &str) -> impl Fn(Enr) -> discv5::Event {
+        let socket = SocketAddr::new(sender.parse().expect("a valid IP"), 9223);
+        move |enr: Enr| discv5::Event::UnverifiableEnr { node_id: NodeId::random(), enr, socket }
+    }
+
     /// A session's record holding another public host's address, such as a web server's, with a
     /// TCP port and no UDP port, which discv5 doesn't check against the session.
     fn third_party_record() -> Enr {
@@ -687,10 +693,16 @@ mod tests {
     /// the record: after a restart, it would be dialed at the address in it.
     ///
     /// An unverifiable record whose IP matches, but not its UDP port, as behind a NAT that
-    /// rewrites ports, is dialed too.
+    /// rewrites ports, is dialed too, but only if it is the session's node's: one that another
+    /// node presented hasn't been confirmed by any session with the node it names.
     #[rstest]
     #[case::matching(session_from("1.2.3.4"), matching_record(), Some(9222))]
     #[case::matching_ip_unverifiable(unverifiable_from("1.2.3.4"), matching_record(), Some(9222))]
+    #[case::matching_ip_other_node(
+        unverifiable_with_other_node_from("1.2.3.4"),
+        matching_record(),
+        None
+    )]
     #[case::third_party(session_from("1.2.3.4"), third_party_record(), None)]
     #[case::third_party_unverifiable(unverifiable_from("1.2.3.4"), third_party_record(), None)]
     #[case::loopback(session_from("1.2.3.4"), loopback_record_without_udp(), None)]
@@ -704,6 +716,7 @@ mod tests {
         #[case] record: Enr,
         #[case] tcp_port: Option<u16>,
     ) {
+        // TODO(#23766): the case of another node's record fails, as only its IP is checked.
         let dialed =
             Discv5Driver::record_to_dial(event(record), OP_SEPOLIA_CHAIN_ID).map(|record| {
                 let addr = kona_peers::enr_to_multiaddr(&record.enr)
