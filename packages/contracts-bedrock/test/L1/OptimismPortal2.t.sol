@@ -85,6 +85,9 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
 
     /// @dev Setup the system for a ready-to-use state.
     function setUp() public virtual override {
+        // Portal logic is tested on a chain without an allowlist. The allowlist tests set their own chain ID.
+        if (PortalAllowlist.allowedAddresses().length > 0) vm.chainId(31337);
+
         if (isL1ForkTest()) {
             // Set the proposed block number to be the next block number on the forked network
             (, _proposedBlockNumber) = anchorStateRegistry.getAnchorRoot();
