@@ -15,7 +15,18 @@ diataxis: reference
 
 **op-reth** is the OP Stack execution layer (EL) built on [Reth](https://reth.rs), a modular, high-performance Rust Ethereum node. It is the recommended execution client for OP Stack chains, replacing op-geth.
 
-<Update label="October 1, 2026" description="v2.5.0" tags={["Latest", "Stable"]}>
+<Update label="October 27, 2026" description="v2.8.0" tags={["Latest", "Stable"]}>
+
+## Overview
+
+> [!IMPORTANT]
+> This is a recommended release for all op-reth operators. It contains the update to reth v2.6.0, which removes the block access list flags and changes several defaults, the removal of v1 historical-proofs storage, a fix that makes op-reth reject derived blocks with an invalid transaction so the rollup node replaces them with a deposits-only block, crash recovery for `--proofs-history` nodes, fixes for `--rollup.historicalrpc` lookups, and header `extraData` validation that matches op-geth.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth/v2.8.0)
+
+</Update>
+
+<Update label="October 1, 2026" description="v2.5.0" tags={["Stable"]}>
 
 ## Overview
 
