@@ -21,7 +21,7 @@ is_imported_content: 'false'
 ---
 
 Upgrade 21 is an L1 smart contract upgrade for OP Stack chains.
-It ships in `op-contracts/v9.0.0`, makes the `ETHLockbox` the custody and pause identifier for every chain, and includes the L1 contract changes that interop needs.
+It ships in `op-contracts/v9.0.0`, makes the `ETHLockbox` the custody and pause identifier for every chain, hardens the L1 withdrawal path, and includes the L1 contract changes that interop needs.
 It has no L2 hardfork, so there is no activation timestamp to configure.
 Each network is upgraded by executing an onchain task.
 
@@ -46,6 +46,13 @@ After it, the `OptimismPortal`, `SystemConfig`, `AnchorStateRegistry`, and `Dela
 Initializer argument types change for these contracts, but their function selectors do not.
 `OptimismPortal.paused()` remains the check to rely on.
 See [Pausing the bridge](/op-stack/security/pause) for how pause identifiers work.
+
+### L1 bridge hardening
+
+`OptimismPortal2.finalizeWithdrawalTransaction` reverts with `OptimismPortal_L1CDMCallFailed` when the sender is the `L2CrossDomainMessenger` and the call into the `L1CrossDomainMessenger` fails, so the withdrawal stays retryable instead of being finalized as failed.
+`L1CrossDomainMessenger.relayMessage` reserves more gas to record a relay's outcome, which is what lets a failed message be replayed, and copies the payload into memory before its gas check so the copy no longer uses up the reserved gas.
+The relay gas constants are split into `LOCAL_*` (this chain's relay) and `REMOTE_*` (`baseGas` charged for the other chain).
+The `RELAY_*` getters remain as aliases of `REMOTE_*` on `IL1CrossDomainMessenger`.
 
 ### Interop contract changes
 
@@ -185,6 +192,8 @@ Update an integration if it does any of the following:
 * Reads the ETH balance of the `OptimismPortal` to measure the ETH held for a chain. After the upgrade, read the balance of the chain's `ETHLockbox`.
 * Filters `Paused` events from the `SuperchainConfig` by the `OptimismPortal` address.
 * Tracks withdrawal proofs and should handle the new `WithdrawalProofDeleted` event.
+* Finalizes or relays withdrawals. `finalizeWithdrawalTransaction` now reverts with `OptimismPortal_L1CDMCallFailed` when the call into the L1 messenger fails; treat it as retryable with more gas. A messenger withdrawal that can never be relayed stays proven but unfinalized rather than being finalized as failed.
+* Reads the messenger's relay gas constants. They are split into `LOCAL_*` and `REMOTE_*`; the `RELAY_*` getters remain as aliases of `REMOTE_*`.
 
 <Info>
   See [Exchanges and bridges](/op-stack/security/exchanges-and-bridges) for guidance on monitoring chain balances and pause state.
