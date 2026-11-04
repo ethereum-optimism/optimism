@@ -103,17 +103,15 @@ prestate를 위해 새 버전이 필요한 다른 OP Stack 구성 요소는 없�
   <Step title="absolute prestate 빌드 또는 검증">
     <Tabs>
       <Tab title="표준 체인 구성">
-        `kona-client` v1.9.0은 [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)에 두 개의 해시를 게시합니다.
+        표준 prestate는 [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)에 있는 `kona-client` v1.9.0의 `cannon64-kona-interop` 해시입니다.
 
         * **`cannon64-kona-interop`**: `0x03e5a54835d39c1d83b198314473e1f111c3539c04f65c3e8a9b8ccebe3737c9`. Upgrade 20 이후 `SUPER_CANNON_KONA` 게임에서 사용됩니다.
-        * **`cannon64-kona`**: `0x03f872c2161174453f8841a1ebd1d22bca443a5045d53e662dd835f24e1b6b0b`.
 
-        monorepo에서 `kona-client/v1.9.0`을 체크아웃하고, 두 prestate를 재현한 다음 해시를 읽습니다.
+        monorepo에서 `kona-client/v1.9.0`을 체크아웃하고, prestate를 재현한 다음 해시를 읽습니다.
 
         ```bash
         just reproducible-prestate-kona
         jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json  # cannon64-kona-interop
-        jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json          # cannon64-kona
         ```
 
         출력이 게시된 해시와 일치하는지 확인합니다.
