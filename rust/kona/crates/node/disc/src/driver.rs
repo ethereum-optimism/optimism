@@ -533,9 +533,10 @@ impl Discv5Driver {
                     }
                     _ = store_interval.tick() => {
                         let start = std::time::Instant::now();
-                        let enrs = self.disc.table_entries_enr();
-                        store.merge(enrs);
-
+                        // Only what the driver added: the bootnodes, and the records a session
+                        // confirmed. discv5's table also holds records from other nodes' answers
+                        // to our lookups, which nothing confirmed, and the bootstore would dial
+                        // them at the address in them after a restart.
                         if let Err(e) = store.sync() {
                             warn!(target: "discovery", "Failed to sync bootstore: {:?}", e);
                         }
@@ -806,7 +807,6 @@ mod tests {
         let saved = tokio::time::timeout(Duration::from_secs(5), saved_after_startup)
             .await
             .expect("the driver saves its bootstore at startup");
-        // TODO(#23766): fails, as the driver saves its whole table.
         assert!(!saved.contains(&unconfirmed), "the bootstore saved an unconfirmed record");
     }
 
