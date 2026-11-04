@@ -7,12 +7,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -20,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/flags"
@@ -157,6 +159,31 @@ func (s *Service) initMetricsServer(cfg *Config) error {
 	return nil
 }
 
+// dialL2RPC connects to an L2 EL RPC and queries its chain ID. Both steps retry
+// within the start-up bound, so the filter and the EL can start in any order.
+// Each request has a timeout from the client.RPC defaults.
+func dialL2RPC(ctx context.Context, logger log.Logger, rpcURL string, retryInterval time.Duration) (client.RPC, eth.ChainID, error) {
+	rpcClient, err := client.NewRPC(ctx, logger, rpcURL,
+		client.WithDialAttempts(startAttempts),
+		client.WithFixedDialBackoff(retryInterval))
+	if err != nil {
+		return nil, eth.ChainID{}, fmt.Errorf("failed to connect to %s: %w", rpcURL, err)
+	}
+	chainID, err := retry.Do(ctx, startAttempts, retry.Fixed(retryInterval), func() (eth.ChainID, error) {
+		var id hexutil.Big
+		if err := rpcClient.CallContext(ctx, &id, "eth_chainId"); err != nil {
+			logger.Warn("Failed to query chain ID", "rpc", rpcURL, "err", err)
+			return eth.ChainID{}, err
+		}
+		return eth.ChainIDFromBig(id.ToInt()), nil
+	})
+	if err != nil {
+		rpcClient.Close()
+		return nil, eth.ChainID{}, fmt.Errorf("failed to query chain ID from %s: %w", rpcURL, err)
+	}
+	return rpcClient, chainID, nil
+}
+
 func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 	// Calculate start timestamp once for all components.
 	// History up to startTimestamp is assumed valid; everything after it is cross-validated.
@@ -169,25 +196,20 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 
 	// Create chain ingesters for each L2 RPC
 	for _, rpcURL := range cfg.L2RPCs {
-		// Query chain ID from the RPC
-		ethClient, err := ethclient.Dial(rpcURL)
+		rpcClient, chainID, err := dialL2RPC(ctx, s.log, rpcURL, startRetryInterval)
 		if err != nil {
-			return fmt.Errorf("failed to connect to %s: %w", rpcURL, err)
+			return err
 		}
-		chainIDBig, err := ethClient.ChainID(ctx)
-		ethClient.Close()
-		if err != nil {
-			return fmt.Errorf("failed to query chain ID from %s: %w", rpcURL, err)
-		}
-		chainID := eth.ChainIDFromBig(chainIDBig)
 
 		// Look up rollup config for this chain ID
 		rollupCfg, ok := cfg.RollupConfigs[chainID]
 		if !ok {
+			rpcClient.Close()
 			return fmt.Errorf("no rollup config found for chain %s from RPC %s (use --networks or --rollup-configs)", chainID, rpcURL)
 		}
 
 		if _, exists := chains[chainID]; exists {
+			rpcClient.Close()
 			return fmt.Errorf("duplicate chain ID %s: multiple RPCs return the same chain ID", chainID)
 		}
 
@@ -198,7 +220,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 			s.log,
 			s.metrics,
 			chainID,
-			rpcURL,
+			rpcClient,
 			cfg.DataDir,
 			startTimestamp,
 			cfg.BackfillDuration,
@@ -305,7 +327,8 @@ func (s *Service) Start(ctx context.Context) error {
 
 	// Start backend (begins block ingestion)
 	if err := s.backend.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start backend: %w", err)
+		// Rollback: stop chains that started before the failure
+		return errors.Join(fmt.Errorf("failed to start backend: %w", err), s.backend.Stop(ctx))
 	}
 
 	// Start main RPC server (interop API)
