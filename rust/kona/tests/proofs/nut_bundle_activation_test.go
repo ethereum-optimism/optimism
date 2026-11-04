@@ -125,29 +125,31 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	require.NoError(t, err, "load NUT bundle for %s", fork)
 	require.NotEmpty(t, expectedTxs, "bundle for %s must contain at least one upgrade tx", fork)
 	reservedTxs := expectedTxs
-	if fork == forks.Lagoon {
-		// A multi-chain activation puts setFeature(INTEROP) before the bundle and the
-		// ETHLiquidity funding deposit after it.
-		expectedTxs, _, err = derive.LagoonActivationUpgradeTransactions(multiChain)
-		require.NoError(t, err)
-	}
 
 	engine := env.Engine
 	_, txs, err := engine.SourceClient(t, 10).InfoAndDepositsByHash(t.Ctx(), actHeader.Hash())
 	require.NoError(t, err)
-	// Index 0 is the L1 info deposit; indices 1.. are the upgrade deposits.
-	require.Len(t, txs, 1+len(expectedTxs),
-		"activation block should have 1 L1 info deposit + %d upgrade txs", len(expectedTxs))
+	// Index 0 is the L1 info deposit. The bundle follows, between the Lagoon wrappers if they exist.
+	wrapped := multiChain && fork == forks.Lagoon
+	bundleStart, wrapperCount := 1, 0
+	if wrapped {
+		bundleStart, wrapperCount = 2, 2
+	}
+	require.Len(t, txs, 1+len(expectedTxs)+wrapperCount,
+		"activation block should have 1 L1 info deposit + %d bundle txs + %d wrappers", len(expectedTxs), wrapperCount)
 
 	var totalUpgradeGas uint64
 	for i, rawExpected := range expectedTxs {
-		actualBytes, err := txs[1+i].MarshalBinary()
+		actualBytes, err := txs[bundleStart+i].MarshalBinary()
 		require.NoError(t, err)
-		require.Equal(t, []byte(rawExpected), actualBytes, "upgrade tx %d byte mismatch", i)
+		require.Equal(t, []byte(rawExpected), actualBytes, "bundle tx %d byte mismatch", i)
 
 		expected, err := optypes.UnmarshalDepositTx(rawExpected)
 		require.NoError(t, err)
 		totalUpgradeGas += expected.Gas
+	}
+	if wrapped {
+		totalUpgradeGas += assertLagoonWrapperDeposits(t, txs[1], txs[len(txs)-1])
 	}
 	// The reservation covers wrapper deposits that only a multi-chain activation emits. Sum the
 	// multi-chain deposit set — the one that actually adds up to the reservation — rather than
@@ -348,6 +350,60 @@ func assertKarstActivation(t actionsHelpers.StatefulTesting, env *helpers.L2Faul
 		require.NoError(t, err, "read code at new %s impl", p.name)
 		require.NotEmptyf(t, code, "new %s impl %s must have code", p.name, newImplAddr)
 	}
+}
+
+// assertLagoonWrapperDeposits checks the deposits that a multi-chain Lagoon activation puts around
+// the bundle, and returns their total gas. The expected values are constants here, not the output
+// of the op-node code that builds the deposits, so a change to that code cannot hide its own bug.
+func assertLagoonWrapperDeposits(t actionsHelpers.StatefulTesting, setFeature, funding *optypes.DepositTx) uint64 {
+	maxUint128 := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))
+	var interopFeature [32]byte
+	copy(interopFeature[:], "INTEROP")
+
+	wrappers := []struct {
+		name   string
+		dep    *optypes.DepositTx
+		intent string
+		to     common.Address
+		data   []byte
+		amount *big.Int
+		gas    uint64
+	}{
+		{
+			name:   "setFeature",
+			dep:    setFeature,
+			intent: "Interop pre: setFeature(INTEROP)",
+			to:     predeploys.L1BlockAddr,
+			data:   append(crypto.Keccak256([]byte("setFeature(bytes32)"))[:4], interopFeature[:]...),
+			amount: new(big.Int),
+			gas:    100_000,
+		},
+		{
+			name:   "ETHLiquidity funding",
+			dep:    funding,
+			intent: "Interop post: ETHLiquidity Funding",
+			to:     predeploys.ETHLiquidityAddr,
+			data:   crypto.Keccak256([]byte("fund()"))[:4],
+			amount: maxUint128,
+			gas:    50_000,
+		},
+	}
+	var gas uint64
+	for _, w := range wrappers {
+		dep := w.dep
+		source := derive.UpgradeDepositSource{Intent: w.intent}
+		require.Equal(t, source.SourceHash(), dep.SourceHash, "%s source hash", w.name)
+		require.Equal(t, derive.L1InfoDepositerAddress, dep.From, "%s sender", w.name)
+		require.NotNil(t, dep.To, "%s must not be a contract creation", w.name)
+		require.Equal(t, w.to, *dep.To, "%s target", w.name)
+		require.Equal(t, w.data, dep.Data, "%s calldata", w.name)
+		require.Zero(t, w.amount.Cmp(dep.Mint), "%s mint: got %s, want %s", w.name, dep.Mint, w.amount)
+		require.Zero(t, w.amount.Cmp(dep.Value), "%s value: got %s, want %s", w.name, dep.Value, w.amount)
+		require.Equal(t, w.gas, dep.Gas, "%s gas", w.name)
+		require.False(t, dep.IsSystemTransaction, "%s must not be a system transaction", w.name)
+		gas += dep.Gas
+	}
+	return gas
 }
 
 // assertInteropActivation asserts the Interop activation post-state. A single-chain activation
