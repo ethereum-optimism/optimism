@@ -688,6 +688,7 @@ func (v *continuationVerifier) persistentAddressExpectations(
 		{"CHECK-SCFG-210 SystemConfig mintable factory", "predicted OpChainContracts", contracts.SystemConfigProxy, continuationMintableFactoryMethod, nil, contracts.OptimismMintableErc20FactoryProxy},
 		{"CHECK-OP2-25 OptimismPortal AnchorStateRegistry", "predicted OpChainContracts", contracts.OptimismPortalProxy, continuationAnchorRegistryMethod, nil, contracts.AnchorStateRegistryProxy},
 		{"CHECK-OP2-90 OptimismPortal ProxyAdmin owner", "frozen DeployOPChainInput.OpChainProxyAdminOwner", contracts.OptimismPortalProxy, continuationProxyAdminOwnerMethod, nil, v.dci.OpChainProxyAdminOwner},
+		{"CHECK-OP2-125 OptimismPortal bridge hook", "frozen DeployOPChainInput.BridgeHook", contracts.OptimismPortalProxy, continuationBridgeHookMethod, nil, v.dci.BridgeHook},
 		{"AM-10 AddressManager owner", "predicted OpChainContracts.OpChainProxyAdminImpl", contracts.AddressManagerImpl, continuationOwnerMethod, nil, contracts.OpChainProxyAdminImpl},
 		{"OPCPA-30 ProxyAdmin AddressManager", "predicted OpChainContracts.AddressManagerImpl", contracts.OpChainProxyAdminImpl, continuationAddressManagerMethod, nil, contracts.AddressManagerImpl},
 	}
@@ -937,6 +938,7 @@ var (
 	continuationMintableFactoryMethod     = w3.MustNewFunc("optimismMintableERC20Factory()", "address")
 	continuationAnchorRegistryMethod      = w3.MustNewFunc("anchorStateRegistry()", "address")
 	continuationEthLockboxMethod          = w3.MustNewFunc("ethLockbox()", "address")
+	continuationBridgeHookMethod          = w3.MustNewFunc("bridgeHook()", "address")
 	continuationProxyAdminOwnerMethod     = w3.MustNewFunc("proxyAdminOwner()", "address")
 	continuationPausedMethod              = w3.MustNewFunc("paused()", "bool")
 	continuationConfigMethod              = w3.MustNewFunc("config()", "address")

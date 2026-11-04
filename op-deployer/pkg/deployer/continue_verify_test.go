@@ -185,7 +185,7 @@ func newContinuationVerificationFixtureWithMode(
 		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(standard.ProofMaturityDelaySeconds),
 		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(standard.DisputeGameFinalityDelaySeconds),
 		WithdrawalDelaySeconds:          new(big.Int).SetUint64(standard.WithdrawalDelaySeconds),
-		BridgeHook:                      common.Address{},
+		BridgeHook:                      common.Address{0xb3},
 	}
 	if gameType == opcm.GameTypeSuperPermissioned {
 		expected.Prestate = common.Hash{}
@@ -885,6 +885,14 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 			permissioned: true,
 			mutate: func(t *testing.T, f *continuationVerificationFixture) {
 				f.backend.set(t, f.expected.OptimismPortalProxy, continuationEthLockboxMethod, nil, common.Address{0xff})
+			},
+		},
+		{
+			name:         "OptimismPortal bridge hook",
+			wantErr:      "CHECK-OP2-125 OptimismPortal bridge hook",
+			permissioned: true,
+			mutate: func(t *testing.T, f *continuationVerificationFixture) {
+				f.backend.set(t, f.expected.OptimismPortalProxy, continuationBridgeHookMethod, nil, common.Address{0xff})
 			},
 		},
 		{
