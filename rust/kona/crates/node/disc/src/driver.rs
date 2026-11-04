@@ -72,7 +72,7 @@ fn bootnode_ips(bootnode: &BootNode) -> Vec<IpAddr> {
 pub struct DiscoveredPeer {
     /// Its record, which discovery also saves in the bootstore.
     pub enr: Enr,
-    /// The address to dial it at, ending in its `/p2p/<peer id>`.
+    /// The address to dial it at, the TCP address in its record, ending in its `/p2p/<peer id>`.
     pub addr: Multiaddr,
 }
 
@@ -83,17 +83,16 @@ impl DiscoveredPeer {
         Some(Self { enr, addr })
     }
 
-    /// The peer with `enr`, at `ip` with the TCP port from its record for `ip`'s family, or `None`
-    /// if its record has no such port.
-    fn at(enr: Enr, ip: IpAddr) -> Option<Self> {
-        let ip = ip.to_canonical();
-        let port = match ip {
-            IpAddr::V4(_) => enr.tcp4(),
-            IpAddr::V6(_) => enr.tcp6(),
-        }?;
-        let peer_id = kona_peers::enr_to_peer_id(&enr)?;
-        let addr = Multiaddr::from(ip).with(Protocol::Tcp(port)).with(Protocol::P2p(peer_id));
-        Some(Self { enr, addr })
+    /// The peer with `enr`, at the TCP address in its record, if that address has `session_ip`,
+    /// the IP that a session with the node came from. Then the session has confirmed the address
+    /// gossip dials, which is also the one it dials after a restart, once the bootstore has saved
+    /// the record. `None` if the record has no TCP address, or names another host.
+    fn confirmed_by_session(enr: Enr, session_ip: IpAddr) -> Option<Self> {
+        let socket = kona_peers::enr_tcp_socket(&enr)?;
+        if socket.ip().to_canonical() != session_ip.to_canonical() {
+            return None;
+        }
+        Self::at_record_address(enr)
     }
 }
 
@@ -195,16 +194,15 @@ impl Discv5Driver {
     }
 
     /// Returns the peer a discovery event brings, if our own gossip should dial it: only a peer
-    /// discovery has had a session with, at the IP the session's packets came from, with the TCP
-    /// port from its record, as only that address has shown that the node runs discovery. The
-    /// driver then hands it to gossip and saves its record in the bootstore; it doesn't send it to
-    /// other nodes. Only a record valid for `chain_id` is dialed, from these events:
+    /// discovery has had a session with, and only if the address gossip dials from its record has
+    /// the IP the session's packets came from, as only that address has shown that the node runs
+    /// discovery. The driver then hands it to gossip and saves its record in the bootstore, which
+    /// dials the same address after a restart; it doesn't send it to other nodes. Only a record
+    /// valid for `chain_id` is dialed, from these events:
     ///
     /// - `SessionEstablished`: a session with the node started, in either direction. Our lookups
     ///   start one with each node they contact. discv5 only checked the record's UDP address of the
-    ///   family the packets came in on, if it has one, so the record is only dialed if all its
-    ///   addresses are plausible from the address the packets came from, as an unverifiable record
-    ///   is.
+    ///   family the packets came in on, if it has one, not the TCP address gossip dials.
     ///
     ///   discv5 also adds such a node to its table without the table filter, and relays its record
     ///   to the nodes that look it up, who may not be able to reach it. discv5 has no hook to check
@@ -212,8 +210,8 @@ impl Discv5Driver {
     ///   reject it.
     /// - `UnverifiableEnr`: a node started a session with us, but its record's UDP address is not
     ///   the one its packets came from, such as when a NAT rewrote them. discv5 keeps the session
-    ///   but leaves the node out of its table. It is dialed at the address its packets came from,
-    ///   if its record's addresses are plausible from there.
+    ///   but leaves the node out of its table. It is dialed if the record's IP still matches, as
+    ///   when a NAT rewrites only the port the packets come from.
     ///
     /// A `Discovered` record, from another node's answer to one of our lookups, isn't dialed:
     /// discv5 sends it before any check, and nothing shows that the node is at the address in it.
@@ -234,8 +232,8 @@ impl Discv5Driver {
         if EnrValidation::validate(&enr, chain_id).is_invalid() {
             return None;
         }
-        let Some(peer) = DiscoveredPeer::at(enr, socket.ip()) else {
-            debug!(target: "discovery", event = kind, "Ignoring a record with no TCP port to dial");
+        let Some(peer) = DiscoveredPeer::confirmed_by_session(enr, socket.ip()) else {
+            debug!(target: "discovery", event = kind, %socket, "Ignoring a record without a TCP address at the IP its session came from");
             return None;
         };
         Some(RecordToDial { event: kind, peer })
@@ -702,34 +700,6 @@ mod tests {
         })
     }
 
-    /// A node should dial a session's peer at the IP the session's packets came from, with the TCP
-    /// port from its record for that IP's family, whatever address its record holds: only the
-    /// session's address has shown that the node runs discovery. Otherwise a peer could have
-    /// gossip dial any other host, or our own loopback, by starting a session with a record that
-    /// names it. A record without a TCP port for that family isn't dialed.
-    #[rstest]
-    #[case::third_party(session_from("1.2.3.4"), third_party_record(), Some(443))]
-    #[case::third_party_unverifiable(unverifiable_from("1.2.3.4"), third_party_record(), Some(443))]
-    #[case::loopback(session_from("1.2.3.4"), loopback_record_without_udp(), Some(6379))]
-    #[case::tcp_only_in_other_family(
-        session_from("1.2.3.4"),
-        record_with_tcp_only_in_other_family(),
-        None
-    )]
-    fn test_session_peer_is_dialed_at_the_session_address(
-        #[case] event: impl Fn(Enr) -> discv5::Event,
-        #[case] record: Enr,
-        #[case] tcp_port: Option<u16>,
-    ) {
-        let dialed = Discv5Driver::record_to_dial(event(record), OP_SEPOLIA_CHAIN_ID)
-            .map(|record| record.peer.addr.iter().take(2).map(|p| p.acquire()).collect::<Vec<_>>());
-        assert_eq!(
-            dialed,
-            tcp_port
-                .map(|port| vec![Protocol::Ip4(Ipv4Addr::new(1, 2, 3, 4)), Protocol::Tcp(port)]),
-        );
-    }
-
     /// A record whose address matches its session's: `1.2.3.4`, with UDP and TCP ports.
     fn matching_record() -> Enr {
         enr_with(OP_SEPOLIA_CHAIN_ID, |record| {
@@ -763,8 +733,6 @@ mod tests {
     ) {
         let dialed = Discv5Driver::record_to_dial(event(record), OP_SEPOLIA_CHAIN_ID)
             .map(|record| record.peer.addr.iter().take(2).map(|p| p.acquire()).collect::<Vec<_>>());
-        // TODO(#23766): the third-party and loopback cases fail, as their peers are dialed at the
-        // session's address while their records, which the bootstore saves, name another host.
         assert_eq!(
             dialed,
             tcp_port
