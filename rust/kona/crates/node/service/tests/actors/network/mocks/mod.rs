@@ -61,6 +61,15 @@ pub(crate) enum TestNetworkError {
     /// The other node is connected, but not subscribed to the block topics yet.
     #[error("Peer not gossiping blocks")]
     PeerNotGossipingBlocks,
+    /// This node's ENR has no IP yet.
+    #[error("No IP advertised")]
+    NoAdvertisedIp,
+    /// The node is not in this node's discovery table yet.
+    #[error("Node {0} not in the discovery table")]
+    NotInDiscoveryTable(NodeId),
+    /// Discovery has sessions with another number of peers than expected.
+    #[error("Discovery connected to {0:?} peers")]
+    DiscoveryPeerCount(Option<usize>),
 }
 
 /// Polls every 10ms at first, so in-memory nodes are ready without waiting, then backs off to once
@@ -174,6 +183,52 @@ impl TestNetwork {
             .iter()
             .map(|enr| Enr::from_str(enr).map_err(TestNetworkError::InvalidEnr))
             .collect()
+    }
+
+    /// Returns this node's ENR once it advertises an IP, retrying until then.
+    pub(super) async fn advertised_enr_with_retries(&self) -> Result<Enr, TestNetworkError> {
+        (async || {
+            let enr = self.peer_enr().await?;
+            if enr.ip4().is_none() {
+                return Err(TestNetworkError::NoAdvertisedIp);
+            }
+            Ok(enr)
+        })
+        .retry(retry_backoff())
+        .when(|e| matches!(e, TestNetworkError::NoAdvertisedIp))
+        .await
+    }
+
+    /// Checks that the node with `node_id` is in this node's discovery table, retrying until it
+    /// is.
+    pub(super) async fn check_in_discovery_table_with_retries(
+        &self,
+        node_id: NodeId,
+    ) -> Result<(), TestNetworkError> {
+        (async || {
+            if !self.discovery_table().await?.iter().any(|enr| enr.node_id() == node_id) {
+                return Err(TestNetworkError::NotInDiscoveryTable(node_id));
+            }
+            Ok(())
+        })
+        .retry(retry_backoff())
+        .when(|e| matches!(e, TestNetworkError::NotInDiscoveryTable(_)))
+        .await
+    }
+
+    /// Checks that discovery has sessions with `count` peers, as `opp2p_peerCount` reports them,
+    /// retrying until it has.
+    pub(super) async fn check_discovery_peer_count_with_retries(
+        &self,
+        count: usize,
+    ) -> Result<(), TestNetworkError> {
+        (async || match self.p2p_rpc.opp2p_peer_count().await?.connected_discovery {
+            Some(connected) if connected == count => Ok(()),
+            connected => Err(TestNetworkError::DiscoveryPeerCount(connected)),
+        })
+        .retry(retry_backoff())
+        .when(|e| matches!(e, TestNetworkError::DiscoveryPeerCount(_)))
+        .await
     }
 
     /// Returns whether this node runs without discovery, which `opp2p_discoveryTable` reports with

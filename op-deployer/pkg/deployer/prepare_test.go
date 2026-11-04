@@ -543,6 +543,17 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 
 	require.NoError(t, pipeline.DeploySuperchain(pEnv, superchainIntent, superchainState))
 
+	// Prepare reads the superchain deployment with eth_calls, and finds what DeploySuperchain recorded.
+	superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
+		ctx,
+		l1Client,
+		superchainState.SuperchainDeployment.SuperchainConfigProxy,
+	)
+	require.NoError(t, err)
+	require.Equal(t, *superchainState.SuperchainDeployment, *superDeployment)
+	require.Equal(t, superchainIntent.SuperchainRoles.SuperchainProxyAdminOwner, superRoles.SuperchainProxyAdminOwner)
+	require.Equal(t, superchainIntent.SuperchainRoles.SuperchainGuardian, superRoles.SuperchainGuardian)
+
 	tests := []struct {
 		name             string
 		gameType         opcm.GameType
@@ -595,10 +606,7 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 			}
 			predictState := &state.State{Version: 1, Create2Salt: tt.salt}
 
-			runPrediction := func(
-				beforePredict func(*script.Host),
-				mutate func(*opcm.DeployOPChainInput),
-			) opcm.DeployOPChainOutput {
+			runPrediction := func(mutate func(*opcm.DeployOPChainInput)) opcm.DeployOPChainOutput {
 				predictHost, err := opdenv.DefaultForkedScriptHost(
 					ctx,
 					broadcaster.NoopBroadcaster(),
@@ -608,10 +616,6 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 					l1RPC,
 				)
 				require.NoError(t, err)
-
-				if beforePredict != nil {
-					beforePredict(predictHost)
-				}
 
 				deployScript, err := opcm.NewDeployOPChainScript(predictHost)
 				require.NoError(t, err)
@@ -627,7 +631,7 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 				return out
 			}
 
-			out := runPrediction(nil, nil)
+			out := runPrediction(nil)
 			require.NotEqual(t, common.Address{}, out.SystemConfigProxy)
 			require.NotEqual(t, common.Address{}, out.OptimismPortalProxy)
 			require.NotEqual(t, common.Address{}, out.DisputeGameFactoryProxy)
@@ -637,31 +641,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 			require.NotEqual(t, common.Address{}, out.PermissionedDisputeGame)
 
 			// A different placeholder anchor root must produce identical predicted addresses.
-			outDifferentRoot := runPrediction(nil, func(dci *opcm.DeployOPChainInput) {
+			outDifferentRoot := runPrediction(func(dci *opcm.DeployOPChainInput) {
 				dci.StartingAnchorRoot.Root = common.Hash{0xaa}
 			})
 			require.Equal(t, out, outDifferentRoot)
-
-			// Prepare reads the live superchain deployment on the prediction host before
-			// predicting
-			outAfterSuperchainRead := runPrediction(func(predictHost *script.Host) {
-				superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
-					&pipeline.Env{Logger: lgr, L1ScriptHost: predictHost},
-					opcmAddr,
-					superchainConfigProxy,
-				)
-				require.NoError(t, err)
-				require.Equal(t, superchainConfigProxy, superDeployment.SuperchainConfigProxy)
-				require.NotEqual(t, common.Address{}, superDeployment.SuperchainProxyAdminImpl)
-				require.NotEqual(t, common.Address{}, superDeployment.SuperchainConfigImpl)
-				require.Equal(
-					t,
-					superchainIntent.SuperchainRoles.SuperchainProxyAdminOwner,
-					superRoles.SuperchainProxyAdminOwner,
-				)
-				require.Equal(t, superchainIntent.SuperchainRoles.SuperchainGuardian, superRoles.SuperchainGuardian)
-			}, nil)
-			require.Equal(t, out, outAfterSuperchainRead)
 		})
 	}
 }

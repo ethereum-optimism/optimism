@@ -37,6 +37,14 @@ impl PeerAddr {
         addr
     }
 
+    /// Returns the TCP port to dial the peer at, if the address has one.
+    pub fn tcp_port(&self) -> Option<u16> {
+        self.addr.iter().find_map(|p| match p {
+            Protocol::Tcp(port) => Some(port),
+            _ => None,
+        })
+    }
+
     /// Returns the peer's ID.
     pub const fn peer_id(&self) -> PeerId {
         self.peer_id

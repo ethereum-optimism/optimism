@@ -10,10 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
 	nodeflags "github.com/ethereum-optimism/optimism/op-node/flags"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
 
 func TestNewL1ChainConfig_KnownChains(t *testing.T) {
@@ -50,14 +54,6 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 		BlobScheduleConfig: nil,
 	}
 
-	// Indicative of an L2 chain config
-	// Which is what L3 chains need to provide
-	customOPStack := &params.ChainConfig{
-		ChainID:            testChainID,
-		BlobScheduleConfig: nil,
-		Optimism:           &params.OptimismConfig{},
-	}
-
 	// Prepare temp dir
 	dir := t.TempDir()
 
@@ -84,9 +80,16 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 	}
 	encode(embeddedPath, wrapper{Config: custom})
 
-	// Embedded JSON file that contains { "config": <ChainConfig> }
-	customOPStackPath := filepath.Join(dir, "optimism_chain.json")
-	encode(customOPStackPath, wrapper{Config: customOPStack})
+	// An L3's L1 is an OP Stack chain, given as its genesis file, which holds its fork times, or
+	// as its bare chain config.
+	opGenesisPath := filepath.Join(dir, "op_genesis.json")
+	require.NoError(t, os.WriteFile(opGenesisPath, []byte(`{"config": {"chainId": 424242,
+		"londonBlock": 0, "shanghaiTime": 0, "cancunTime": 1000, "pragueTime": 2000,
+		"bedrockBlock": 0, "regolithTime": 0, "canyonTime": 0, "ecotoneTime": 1000, "isthmusTime": 2000,
+		"optimism": {"eip1559Elasticity": 6, "eip1559Denominator": 50}}}`), 0o644))
+	opChainConfigPath := filepath.Join(dir, "op_chain_config.json")
+	require.NoError(t, os.WriteFile(opChainConfigPath,
+		[]byte(`{"chainId": 424242, "optimism": {"eip1559Elasticity": 6, "eip1559Denominator": 50}}`), 0o644))
 
 	// Helper to run the CLI with a given file path
 	runWithPath := func(path string) (*params.ChainConfig, error) {
@@ -131,9 +134,21 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("nil-blob-schedule-config-returns-no-error-for-l2-chain-config", func(t *testing.T) {
-		cfg, err := runWithPath(customOPStackPath)
-		require.NotNil(t, cfg)
-		require.NoError(t, err)
-	})
+	for _, tc := range []struct{ name, path string }{
+		{"op-genesis", opGenesisPath},
+		{"op-chain-config", opChainConfigPath},
+	} {
+		t.Run(tc.name+"-prices-blobs-at-minimum", func(t *testing.T) {
+			cfg, err := runWithPath(tc.path)
+			require.NoError(t, err)
+			require.Equal(t, testChainID, cfg.ChainID)
+			require.NotNil(t, cfg.BlobScheduleConfig, "upstream go-ethereum needs one to price blobs")
+			// Time 0 is before the genesis file's Cancun (Ecotone) time: a config that honoured the
+			// file's fork times would have no blob config there and panic.
+			for _, l1Time := range []uint64{0, 1 << 40} {
+				header := &types.Header{Number: big.NewInt(1), Time: l1Time, ExcessBlobGas: ptr.New(uint64(0))}
+				require.Equal(t, uint64(1), bigs.Uint64Strict(eth.HeaderBlockInfo(header).BlobBaseFee(cfg)))
+			}
+		})
+	}
 }

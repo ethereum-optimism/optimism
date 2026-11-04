@@ -772,7 +772,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
 
         // A proven withdrawal must wait at least `proofMaturityDelaySeconds` before finalizing.
-        if (block.timestamp - provenWithdrawal.timestamp <= proofMaturityDelaySeconds) {
+        // A zero delay means the proxy was upgraded without calling `initialize`, so fail closed
+        // rather than finalize withdrawals with no review period.
+        if (proofMaturityDelaySeconds == 0 || block.timestamp - provenWithdrawal.timestamp <= proofMaturityDelaySeconds)
+        {
             revert OptimismPortal_ProofNotOldEnough();
         }
 
