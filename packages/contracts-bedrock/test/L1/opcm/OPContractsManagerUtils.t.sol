@@ -704,8 +704,7 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
         // Simulate mainnet.
         vm.chainId(1);
 
-        OPContractsManagerUtils_ImplV2Allowlist_Harness impl =
-            new OPContractsManagerUtils_ImplV2Allowlist_Harness();
+        OPContractsManagerUtils_ImplV2Allowlist_Harness impl = new OPContractsManagerUtils_ImplV2Allowlist_Harness();
 
         utils.upgrade(
             proxyAdmin,
