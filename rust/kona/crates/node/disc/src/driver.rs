@@ -188,10 +188,12 @@ impl Discv5Driver {
     ///   to the nodes that look it up, who may not be able to reach it. discv5 has no hook to check
     ///   a record against the node asking for it, as geth does, so it is left to that node to
     ///   reject it.
-    /// - `UnverifiableEnr`: a node started a session with us, but its record's UDP address is not
-    ///   the one its packets came from, such as when a NAT rewrote them. discv5 keeps the session
-    ///   but leaves the node out of its table. It is dialed if the record's IP still matches, as
-    ///   when a NAT rewrites only the port the packets come from.
+    /// - `UnverifiableEnr`: a node started a session with us, but the record it presented doesn't
+    ///   match the session: its UDP address isn't the one the packets came from, or it is another
+    ///   node's record. discv5 keeps the session but leaves the node out of its table. The record
+    ///   is dialed only if it is the session's node's, and its IP is the session's, as when a NAT
+    ///   rewrites only the port the packets come from. Another node's record isn't: no session has
+    ///   confirmed that node.
     ///
     /// A `Discovered` record, from another node's answer to one of our lookups, isn't dialed:
     /// discv5 sends it before any check, and nothing shows that the node is at the address in it.
@@ -206,7 +208,13 @@ impl Discv5Driver {
                 return None;
             }
             discv5::Event::SessionEstablished(enr, socket) => ("session_established", enr, socket),
-            discv5::Event::UnverifiableEnr { enr, socket, .. } => ("unverifiable_enr", enr, socket),
+            discv5::Event::UnverifiableEnr { enr, socket, node_id } => {
+                if enr.node_id() != node_id {
+                    debug!(target: "discovery", %socket, ?enr, "Ignoring another node's record, presented in a session");
+                    return None;
+                }
+                ("unverifiable_enr", enr, socket)
+            }
             _ => return None,
         };
         if EnrValidation::validate(&enr, chain_id).is_invalid() {
@@ -716,7 +724,6 @@ mod tests {
         #[case] record: Enr,
         #[case] tcp_port: Option<u16>,
     ) {
-        // TODO(#23766): the case of another node's record fails, as only its IP is checked.
         let dialed =
             Discv5Driver::record_to_dial(event(record), OP_SEPOLIA_CHAIN_ID).map(|record| {
                 let addr = kona_peers::enr_to_multiaddr(&record.enr)
