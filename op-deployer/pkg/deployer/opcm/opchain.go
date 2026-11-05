@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -95,13 +94,6 @@ type DeployOPChainOutput struct {
 	DelayedWETHPermissionlessGameProxy common.Address
 }
 
-type DeployOPChainScript script.DeployScriptWithOutput[DeployOPChainInput, DeployOPChainOutput]
-
-// NewDeployOPChainScript loads and validates the DeployOPChain script contract
-func NewDeployOPChainScript(host *script.Host) (DeployOPChainScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployOPChainInput, DeployOPChainOutput](host, "DeployOPChain.s.sol", "DeployOPChain")
-}
-
 func NewDeployOPChainForgeCaller(client *forge.Client) forge.ScriptCaller[DeployOPChainInput, DeployOPChainOutput] {
 	return forge.NewScriptCaller(
 		client,
@@ -112,15 +104,9 @@ func NewDeployOPChainForgeCaller(client *forge.Client) forge.ScriptCaller[Deploy
 	)
 }
 
-// DeployOPChainViaForge deploys OP Chain contracts using Forge
-func DeployOPChainViaForge(env *ForgeEnv, input DeployOPChainInput) (DeployOPChainOutput, error) {
-	var output DeployOPChainOutput
-	if err := env.validate(true); err != nil {
-		return output, err
-	}
-	forgeCaller := NewDeployOPChainForgeCaller(env.Client)
-	var err error
-	output, _, err = forgeCaller(env.Context, input, env.buildForgeOpts()...)
+// DeployOPChain deploys OP Chain contracts using Forge
+func DeployOPChain(env *ForgeEnv, input DeployOPChainInput) (DeployOPChainOutput, error) {
+	output, err := broadcastScript(env, NewDeployOPChainForgeCaller, input)
 	if err != nil {
 		return output, fmt.Errorf("failed to deploy OP Chain with Forge: %w", err)
 	}

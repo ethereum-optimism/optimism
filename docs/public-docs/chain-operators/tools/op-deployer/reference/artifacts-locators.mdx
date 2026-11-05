@@ -20,3 +20,14 @@ Locators can be one of three types. `tag://` locators from older releases are no
     *   ex: `https://<url-to-remote-forge-artifacts>`
 *   `file://` locators, which point to a directory on local disk containing the artifacts.
     *   ex: `file://<path-to-repo-root>/packages/contracts-bedrock/forge-artifacts`
+
+OP Deployer runs the deploy scripts of the artifacts with forge, and it never compiles them. So the artifacts must come
+from the contracts release of the same OP Deployer release, compiled with their compile cache. OP Deployer stops with an
+error if a script has no `runWithBytes` entrypoint, or if forge would have to compile. The default locator, `embedded`,
+uses the artifacts that OP Deployer was built with. To build artifacts for a `file://` locator, run
+`just build-no-tests` in `packages/contracts-bedrock`.
+
+A contracts bundle is code that runs on your machine and decides what OP Deployer deploys with your key. OP Deployer
+runs its scripts without the FFI cheatcode, with read access only to the artifacts, with only the environment
+variables that forge needs, and with only the settings of its forge config that compile or run the scripts. Use only bundles that you trust: `embedded`, or a bundle that
+you built.

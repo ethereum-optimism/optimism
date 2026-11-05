@@ -142,7 +142,6 @@ func preparePreGenesisSuperGame(
 		chainState.StartBlock = state.BlockRefJsonFromHeader(startBlockHeader)
 	}
 	wb.buildL2Genesis()
-	wb.buildFullConfigSet()
 	for _, l2Net := range l2Nets {
 		l2Net.genesis = wb.outL2Genesis[l2Net.ChainID()]
 		l2Net.rollupCfg = wb.outL2RollupCfg[l2Net.ChainID()]

@@ -56,8 +56,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 }
 
 // ExecuteOPChainDeployment runs the deployment without recording state. impls are the
-// implementations of the OPCM in dci. Script-host execution queues transactions. Forge broadcasts
-// directly.
+// implementations of the OPCM in dci. It sends the deployment's transactions before it returns.
 func ExecuteOPChainDeployment(
 	env *Env,
 	st *state.State,
@@ -91,25 +90,9 @@ func ExecuteOPChainDeployment(
 		}
 	}
 
-	var dco opcm.DeployOPChainOutput
-	var err error
-	if env.UseForge {
-		lgr.Info("using Forge for DeployOPChain")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     env.ForgeClient,
-			Context:    env.Context,
-			L1RPCUrl:   env.L1RPCUrl,
-			PrivateKey: env.PrivateKey,
-		}
-		dco, err = opcm.DeployOPChainViaForge(forgeEnv, dci)
-		if err != nil {
-			return result, err
-		}
-	} else {
-		dco, err = env.Scripts.DeployOPChain.Run(dci)
-		if err != nil {
-			return result, fmt.Errorf("error deploying OP chain: %w", err)
-		}
+	dco, err := opcm.DeployOPChain(env.Forge, dci)
+	if err != nil {
+		return result, err
 	}
 
 	return ReconcileOPChainDeployment(chainID, OpChainContractsFromDeployOutput(dco), impls), nil

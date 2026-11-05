@@ -49,7 +49,7 @@ func TestDeployScriptsForge(t *testing.T) {
 			L1RPCUrl:   runner.GetL1RPC(),
 			PrivateKey: runner.GetPrivateKey(),
 		}
-		output, err := opcm.DeployAltDAViaForge(forgeEnv, opcm.DeployAltDAInput{
+		output, err := opcm.DeployAltDA(forgeEnv, opcm.DeployAltDAInput{
 			Salt:                     common.BigToHash(big.NewInt(12345)),
 			ProxyAdmin:               superchainProxyAdminOwner,
 			ChallengeContractOwner:   challenger,
@@ -72,7 +72,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var superchainOutput opcm.DeploySuperchainOutput
@@ -91,7 +90,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
 			"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
-			"--use-forge",
 		}, nil)
 
 		var implsOutput opcm.DeployImplementationsOutput
@@ -113,7 +111,7 @@ func TestDeployScriptsForge(t *testing.T) {
 			L1RPCUrl:   runner.GetL1RPC(),
 			PrivateKey: runner.GetPrivateKey(),
 		}
-		output, err := opcm.DeployAlphabetVMViaForge(forgeEnv, opcm.DeployAlphabetVMInput{
+		output, err := opcm.DeployAlphabetVM(forgeEnv, opcm.DeployAlphabetVMInput{
 			AbsolutePrestate: common.BigToHash(big.NewInt(12345)),
 			PreimageOracle:   implsOutput.PreimageOracleSingleton,
 		})
@@ -131,7 +129,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var superchainOutput opcm.DeploySuperchainOutput
@@ -150,7 +147,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
 			"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
-			"--use-forge",
 		}, nil)
 
 		var implsOutput opcm.DeployImplementationsOutput
@@ -172,7 +168,7 @@ func TestDeployScriptsForge(t *testing.T) {
 			L1RPCUrl:   runner.GetL1RPC(),
 			PrivateKey: runner.GetPrivateKey(),
 		}
-		output, err := opcm.DeployMIPSViaForge(forgeEnv, opcm.DeployMIPSInput{
+		output, err := opcm.DeployMIPS(forgeEnv, opcm.DeployMIPSInput{
 			PreimageOracle: implsOutput.PreimageOracleSingleton,
 			MipsVersion:    big.NewInt(int64(standard.MIPSVersion)),
 		})
@@ -189,7 +185,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var superchainOutput opcm.DeploySuperchainOutput
@@ -208,7 +203,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
 			"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
-			"--use-forge",
 		}, nil)
 
 		var implsOutput opcm.DeployImplementationsOutput
@@ -230,7 +224,7 @@ func TestDeployScriptsForge(t *testing.T) {
 			L1RPCUrl:   runner.GetL1RPC(),
 			PrivateKey: runner.GetPrivateKey(),
 		}
-		output, err := opcm.DeployDisputeGameViaForge(forgeEnv, opcm.DeployDisputeGameInput{
+		output, err := opcm.DeployDisputeGame(forgeEnv, opcm.DeployDisputeGameInput{
 			Release:                  "dev",
 			GameKind:                 "FaultDisputeGame",
 			GameType:                 1,
