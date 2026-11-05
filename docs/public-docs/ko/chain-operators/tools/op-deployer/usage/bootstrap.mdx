@@ -20,7 +20,7 @@ Bootstrap 명령은 새로운 OP Stack 배포를 위한 전역 싱글톤과 구�
 **이 명령들은 hot wallet에서 호출해도 안전합니다.** 이 명령으로 배포되는 컨트랙트는 모두 "ownable"이 아니므로,
 배포 주소는 이후 시스템에 대한 제어 권한을 갖지 않습니다.
 
-## 공유 컨트랙트 Bootstrap
+## 공유 컨트랙트 Bootstrap {#bootstrap-shared-contracts}
 
 ```shell
 op-deployer bootstrap superchain \
@@ -31,13 +31,13 @@ op-deployer bootstrap superchain \
   --guardian="<role address>"
 ```
 
-### CLI 인수
+### CLI 인수 {#cli-arguments}
 
-#### `--superchain-proxy-admin-owner`, `--guardian`
+#### `--superchain-proxy-admin-owner`, `--guardian` {#superchain-proxy-admin-owner-guardian}
 
 개발 환경에서는 이 값들을 모두 hot wallet EOA로 지정해도 됩니다. 프로덕션 환경에서는 `--guardian`은 HSM(하드웨어 보안 모듈)으로 보호되는 hot wallet이어야 하며, `--superchain-proxy-admin-owner`는 멀티시그 cold wallet(예: Gnosis Safe)이어야 합니다.
 
-### 출력
+### 출력 {#output}
 
 이 명령은 여러 컨트랙트를 배포하고 다음과 같은 JSON을 출력합니다.
 
@@ -49,7 +49,7 @@ op-deployer bootstrap superchain \
 }
 ```
 
-## 구현 Bootstrap
+## 구현 Bootstrap {#bootstrap-implementations}
 
 ```shell
 op-deployer bootstrap implementations \
@@ -72,7 +72,11 @@ op-deployer bootstrap implementations \
 | `--min-dispute-game-finality-delay-seconds`, `--max-dispute-game-finality-delay-seconds` | `AnchorStateRegistry` | 게임이 해결된 후 결과가 최종 확정되기까지의 시간 | 12시간~3.5일 |
 | `--min-withdrawal-delay-seconds`, `--max-withdrawal-delay-seconds` | `DelayedWETH` | bond 잠금 해제 후 출금하기까지의 시간 | 12시간~7일 |
 
-### 출력
+<Unreleased component="op-deployer" />
+
+구현 컨트랙트에는 `ZKDisputeGame`과 원시(raw) SP1 verifier를 래핑하는 `SP1PlonkAdapter`가 포함됩니다. Ethereum mainnet과 Sepolia에서는 op-deployer가 Succinct의 릴리스 승인 verifier를 사용합니다. 그 외의 L1에서는 `--sp1-verifier-address`를 전달해야 하며, 그렇지 않으면 명령이 실패합니다.
+
+### 출력 {#output}
 
 이 명령은 구현 컨트랙트, blueprint, OPCM을 배포합니다. 배포는 (대부분) 결정론적이므로, 구현과 생성자
 인수가 동일하게 유지되는 한 컨트랙트는 체인당 한 번만 배포됩니다. 이는 `op-deployer apply` 파이프라인에도
