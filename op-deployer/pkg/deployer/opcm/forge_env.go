@@ -24,13 +24,6 @@ func (e *ForgeEnv) buildForgeOpts() []string {
 	}
 }
 
-// buildForgeOptsReadOnly constructs forge options for read-only operations (no broadcast)
-func (e *ForgeEnv) buildForgeOptsReadOnly() []string {
-	return []string{
-		"--rpc-url", e.L1RPCUrl,
-	}
-}
-
 // validate checks that all required fields are set
 func (e *ForgeEnv) validate(requirePrivateKey bool) error {
 	if e.Client == nil {

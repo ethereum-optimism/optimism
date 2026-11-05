@@ -6,7 +6,7 @@ use std::{
 use alloy_chains::Chain;
 use alloy_signer::k256;
 use alloy_signer_local::PrivateKeySigner;
-use discv5::{ConfigBuilder, Enr, ListenConfig};
+use discv5::{Enr, ListenConfig};
 
 use crate::actors::network::TestNetwork;
 use alloy_primitives::Address;
@@ -15,7 +15,8 @@ use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::{GossipTransport, PeerAddr};
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, SignerActor,
+    EngineClientResult, IpVotes, NetworkActor, NetworkBuilder, NetworkConfig, NetworkEngineClient,
+    NodeActor, SignerActor,
 };
 use kona_peers::BootNode;
 use kona_rpc::P2pRpc;
@@ -41,6 +42,11 @@ pub(crate) struct TestNetworkBuilder {
     discovery_enabled: bool,
     /// The UDP port the next node built listens on for discovery, if not a free one.
     udp_port: Option<u16>,
+    /// The IP the next node built listens on, if not `127.0.0.1`.
+    listen_ip: Option<IpAddr>,
+    /// How many peers must agree on the next node's address before it advertises it, if not
+    /// [`IpVotes::DEFAULT`].
+    ip_votes: Option<IpVotes>,
     /// The block signer of the nodes built from now on: they only accept blocks it signed.
     unsafe_block_signer: Address,
     /// The keypair for the next node built, if it must not be random.
@@ -75,6 +81,8 @@ impl TestNetworkBuilder {
             chain_id,
             discovery_enabled: true,
             udp_port: None,
+            listen_ip: None,
+            ip_votes: None,
             unsafe_block_signer: Address::ZERO,
             custom_keypair: None,
             in_memory: false,
@@ -115,6 +123,20 @@ impl TestNetworkBuilder {
     /// Makes the next node built, and only that one, listen for discovery on `port`.
     pub(crate) const fn with_udp_port(mut self, port: u16) -> Self {
         self.udp_port = Some(port);
+        self
+    }
+
+    /// Makes the next node built, and only that one, listen on `ip` instead of `127.0.0.1`. It
+    /// advertises `ip` unless that is unspecified, as with no `--p2p.advertise.ip`.
+    pub(crate) const fn with_listen_ip(mut self, ip: IpAddr) -> Self {
+        self.listen_ip = Some(ip);
+        self
+    }
+
+    /// Makes the next node built, and only that one, advertise its address once `votes` peers
+    /// agree on it, as `--p2p.discovery.ip-votes` does.
+    pub(crate) const fn with_ip_votes(mut self, votes: IpVotes) -> Self {
+        self.ip_votes = Some(votes);
         self
     }
 
@@ -169,8 +191,15 @@ impl TestNetworkBuilder {
 
     /// Builds and starts one node, which bootstraps discovery from `bootnodes`.
     ///
-    /// Its discovery table only accepts loopback addresses.
+    /// Its discovery table only accepts loopback addresses, so a node listening on all interfaces
+    /// gets into other nodes' tables once it advertises `127.0.0.1`.
     pub(crate) async fn build(&mut self, bootnodes: Vec<Enr>) -> TestNetwork {
+        // A `/memory` address has no TCP port for the ENR to advertise, so the network would fail
+        // to start.
+        assert!(
+            !(self.in_memory && self.discovery_enabled),
+            "in-memory nodes run without discovery, see the `in_memory` field"
+        );
         let keypair = self.custom_keypair.take().unwrap_or_else(Keypair::generate_secp256k1);
 
         // LocalNode takes enr's k256 key and BlockSignerHandler alloy's signer; both share one
@@ -179,13 +208,19 @@ impl TestNetworkBuilder {
         let block_signer = PrivateKeySigner::from_bytes(&secp256k1_secret(&keypair).into())
             .expect("libp2p secp256k1 secret is a valid k256 key");
 
-        let node_addr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
+        // Loopback by default, as devstack runs kona: the node is reachable only from this host,
+        // at an address its ENR can advertise.
+        let node_addr = self.listen_ip.take().unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST));
 
         let udp_port = self.udp_port.take().unwrap_or(0);
-        let discovery_config = ConfigBuilder::new(ListenConfig::from_ip(node_addr, udp_port))
-            // Only allow loopback addresses.
-            .table_filter(|enr| enr.ip4().is_some_and(|ip| ip.is_loopback()))
-            .build();
+        // As the node configures discovery, without `--p2p.advertise.ip`.
+        let ip_votes = self.ip_votes.take().unwrap_or(IpVotes::DEFAULT);
+        let mut discovery_config = NetworkConfig::discv5_config(
+            ListenConfig::from_ip(node_addr, udp_port),
+            Some(ip_votes),
+        );
+        // Only allow loopback addresses.
+        discovery_config.table_filter = |enr| enr.ip4().is_some_and(|ip| ip.is_loopback());
 
         let gossip_multiaddr = if self.in_memory {
             Multiaddr::empty().with(Protocol::Memory(0))
@@ -210,8 +245,7 @@ impl TestNetworkBuilder {
             builder = builder.with_discovery_interval(interval);
         }
         if self.in_memory {
-            // A `/memory` address has no IP or TCP port to put in the ENR.
-            builder = builder.with_enr_update(false).with_gossip_transport(memory_transport());
+            builder = builder.with_gossip_transport(memory_transport());
         }
 
         // Logs from this node's tasks are prefixed with `node{id=..}`.

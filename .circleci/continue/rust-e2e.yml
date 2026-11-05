@@ -70,7 +70,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
@@ -126,7 +126,7 @@ jobs:
     # One test per node via the timing split in test-e2e-sysgo-run.
     parallelism: 3
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
@@ -162,7 +162,7 @@ jobs:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
@@ -200,7 +200,7 @@ jobs:
     # 8 nodes roughly halves per-node test time vs 4.
     parallelism: 8
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
       - attach_workspace:
           at: .
@@ -241,7 +241,7 @@ jobs:
     # The matched pilot includes RWX's engine RAM reserve in its headroom.
     resource_class: << pipeline.git.branch == "codex/rwx-ci-pilot" and "xlarge.gen2" or "large.gen2" >>
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - rust-prepare-and-restore-cache: &sp1-guest-checks-cache-args
@@ -318,7 +318,7 @@ jobs:
     # 32 GB runner instead of competing with parallel acceptance tests.
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - rust-prepare-and-restore-cache:
@@ -407,7 +407,7 @@ jobs:
     # The executor run peaks at ~12.5 GiB RSS (measured locally), too close to xlarge's 16 GB.
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - rust-prepare-and-restore-cache:
@@ -438,7 +438,7 @@ jobs:
     # 32 GB runner.
     resource_class: 2xlarge.gen2
     steps:
-      - utils/checkout-with-mise:
+      - checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
       - attach_workspace:
@@ -508,9 +508,11 @@ workflows:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - cannon-prestate: &rust-e2e-job-base
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       # rust-workspace-release builds the whole rust workspace (no binary filter),
       # so it produces kona-host, kona-node, op-reth, and the rest. Downstream
       # e2e jobs attach the workspace and consume the binaries directly.
@@ -524,6 +526,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
+            - github-checkout-app
       - rust-e2e-sysgo-tests:
           name: rust-e2e-<<matrix.devnet_config>>
           matrix:
@@ -532,6 +535,7 @@ workflows:
                 ["simple-kona", "simple-kona-sequencer"]
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
           requires:
             - contracts-bedrock-build
             - cannon-prestate
@@ -558,6 +562,7 @@ workflows:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       # No kona-build-sp1-elfs here on purpose: main runs the identical job
       # (same template, features, and contexts) and gates it through
       # ci-gate, and main runs in every case rust-e2e-ci does, so a copy in
@@ -578,6 +583,7 @@ workflows:
             - kona-proof-action-single: terminal
           context:
             - circleci-api-token
+            - github-checkout-app
   rust-e2e-gate-skip:
     when: << pipeline.parameters.c-run_rust_e2e_gate_skip >>
     jobs:
@@ -585,6 +591,7 @@ workflows:
           always-succeed: true
           context:
             - circleci-api-token
+            - github-checkout-app
 
   scheduled-sp1-elf-smoke:
     when: << pipeline.parameters.c-run_scheduled_sp1_elf_smoke >>
@@ -592,13 +599,16 @@ workflows:
       - prep-go-modules:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - prep-superchain:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - contracts-bedrock-build:
           build_args: --deny-warnings --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
           requires:
             - prep-go-modules
       - rust-build-binary:
@@ -613,24 +623,29 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
+            - github-checkout-app
       - kona-build-sp1-elfs:
           features: test-config-fallback
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
+            - github-checkout-app
       - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - go-binaries-for-sysgo:
           requires:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - github-checkout-app
       - sp1-super-range-elf-smoke:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
             - slack
+            - github-checkout-app
           requires:
             - prep-go-modules
             - prep-superchain
@@ -643,6 +658,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+            - github-checkout-app
           requires:
             - prep-go-modules
             - prep-superchain
@@ -654,3 +670,4 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
             - slack
+            - github-checkout-app

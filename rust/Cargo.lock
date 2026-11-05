@@ -7303,6 +7303,7 @@ dependencies = [
  "libp2p",
  "metrics",
  "rand 0.9.4",
+ "rstest",
  "serde_json",
  "socket2",
  "tempfile",

@@ -1,10 +1,14 @@
-use std::{net::Ipv4Addr, time::Duration};
+use std::{
+    net::{IpAddr, Ipv4Addr},
+    time::Duration,
+};
 
 use crate::actors::network::mocks::{TestNetwork, builder::TestNetworkBuilder};
 use discv5::Enr;
 use enr::NodeId;
 use kona_genesis::OP_MAINNET_CHAIN_ID;
 use kona_gossip::PeerAddr;
+use kona_node_service::IpVotes;
 use kona_rpc::OpP2PApiServer;
 use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 
@@ -54,6 +58,78 @@ async fn test_large_network_conn() -> anyhow::Result<()> {
 
             node.check_connected_to_with_retries(other_node).await?;
         }
+    }
+
+    Ok(())
+}
+
+/// Few enough votes for a handful of test nodes to agree on an address.
+const TWO_VOTES: IpVotes = IpVotes::new(2).expect("at least 2");
+
+/// A node listening on all interfaces advertises no IP at first, so it learns its address from
+/// the peers it contacts. It finds R1 and R2 through its bootnode, and once both report the same
+/// address, as its 2 IP votes ask, it advertises it. A node that joins later through the same
+/// bootnode then finds it and connects to it.
+///
+/// The bootnode, R1 and R2 don't add it: they ignored it when their sessions with it started, as
+/// it had no IP then, and discv5 doesn't tell them its record changed. The late node gets its
+/// record when the node finds it through the bootnode and starts a new session with it.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_node_on_all_interfaces_learns_its_ip_from_votes() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().with_discovery_interval(Duration::from_millis(100));
+    let bootnode = builder.build(vec![]).await;
+    let bootnode_enr = bootnode.peer_enr().await?;
+    let reachable_1 = builder.build(vec![bootnode_enr.clone()]).await;
+    let reachable_2 = builder.build(vec![bootnode_enr.clone()]).await;
+    for reachable in [&reachable_1, &reachable_2] {
+        bootnode.check_in_discovery_table_with_retries(reachable.node_id().await?).await?;
+    }
+
+    let mut builder =
+        builder.with_listen_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)).with_ip_votes(TWO_VOTES);
+    let node = builder.build(vec![bootnode_enr.clone()]).await;
+
+    let enr = node.advertised_enr_with_retries().await?;
+    assert_eq!(
+        enr.ip4(),
+        Some(Ipv4Addr::LOCALHOST),
+        "on all interfaces the node starts without an IP, so only the votes of R1 and R2 give it one"
+    );
+
+    let late_node = builder.build(vec![bootnode_enr]).await;
+    late_node.check_in_discovery_table_with_retries(node.node_id().await?).await?;
+    late_node.check_connected_to_with_retries(&node).await?;
+
+    Ok(())
+}
+
+/// A node listening on all interfaces gets no votes from its bootnodes: discv5 adds bootnodes as
+/// if they had contacted the node, and only counts the votes of peers the node contacted. So with
+/// two bootnodes that know no other node, the node never advertises an IP, even if 2 votes would
+/// do, and the bootnodes don't keep it in their tables, however many lookups it runs.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_node_on_all_interfaces_gets_no_votes_from_bootnodes() -> anyhow::Result<()> {
+    let mut builder = TestNetworkBuilder::new().with_discovery_interval(Duration::from_millis(100));
+    let bootnode_1 = builder.build(vec![]).await;
+    let bootnode_2 = builder.build(vec![]).await;
+    let bootnodes = vec![bootnode_1.peer_enr().await?, bootnode_2.peer_enr().await?];
+
+    let mut builder =
+        builder.with_listen_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)).with_ip_votes(TWO_VOTES);
+    let node = builder.build(bootnodes).await;
+
+    // Discovery has sessions with both bootnodes, so it reached them. Gossip connecting to them
+    // wouldn't show it: it dials bootnodes whether or not discovery reached them.
+    node.check_discovery_peer_count_with_retries(2).await?;
+    // Give it many lookups to collect votes. discv5 doesn't ping the bootnodes in that time: it
+    // pings at once only peers it contacted, and the others every `ping_interval` (300s). A pong
+    // from a bootnode wouldn't count anyway, for the same reason.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    assert_eq!(node.peer_enr().await?.ip4(), None);
+    let node_id = node.node_id().await?;
+    for bootnode in [&bootnode_1, &bootnode_2] {
+        assert!(!node_ids(&bootnode.discovery_table().await?).contains(&node_id));
     }
 
     Ok(())
@@ -148,7 +224,10 @@ async fn test_static_peer_is_not_discoverable() -> anyhow::Result<()> {
 
 /// Returns a UDP port that is free now.
 fn free_udp_port() -> u16 {
-    let socket = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).expect("bind a free port");
+    // Bind where the test nodes bind, not on all interfaces: whether a socket on one address
+    // blocks the same port on another differs between platforms, so only the same address tells
+    // what the node will find.
+    let socket = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind a free port");
     socket.local_addr().expect("bound socket has an address").port()
 }
 
@@ -176,7 +255,7 @@ async fn test_node_without_discovery_binds_no_udp_port() -> anyhow::Result<()> {
         let node = builder.build(vec![]).await;
 
         node.peers().await?;
-        std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, udp_port))?;
+        std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, udp_port))?;
         assert!(node.has_discovery_disabled().await);
     }
 
@@ -241,7 +320,7 @@ async fn test_node_without_discovery_starts_with_its_udp_port_taken() -> anyhow:
     let static_node = builder.build(vec![]).await;
     let static_peer = PeerAddr::try_from(static_node.listen_addr().await?)?;
 
-    let taken = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))?;
+    let taken = std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
     let mut builder =
         builder.with_static_peers(vec![static_peer]).with_udp_port(taken.local_addr()?.port());
     let node = builder.build(vec![]).await;
