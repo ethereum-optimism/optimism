@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/lmittmann/w3"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
@@ -366,10 +368,16 @@ func checkStatus(r *types.Receipt) error {
 // guardianStep is the SuperchainConfig call (if any) needed to move one identifier to the
 // wanted state.
 type guardianStep struct {
-	// Call is "pause", "extend", "unpause" or "" when the identifier is already there.
-	Call string
+	// Fn is nil when the identifier is already there.
+	Fn *w3.Func
 	// Reason explains the choice for the confirmation print.
 	Reason string
+}
+
+// funcName is fn's name without its argument types.
+func funcName(fn *w3.Func) string {
+	name, _, _ := strings.Cut(fn.Signature, "(")
+	return name
 }
 
 // planGuardianStep picks the SuperchainConfig call for one identifier. pausable is
@@ -379,17 +387,17 @@ type guardianStep struct {
 func planGuardianStep(pause, pausable, active bool) guardianStep {
 	switch {
 	case pause && pausable:
-		return guardianStep{Call: "pause", Reason: "not paused"}
+		return guardianStep{Fn: scPauseFn, Reason: "not paused"}
 	case pause && active:
 		return guardianStep{Reason: "already paused"}
 	case pause:
-		return guardianStep{Call: "extend", Reason: "pause expired but still set, so pause() would revert"}
+		return guardianStep{Fn: scExtendFn, Reason: "pause expired but still set, so pause() would revert"}
 	case pausable:
 		return guardianStep{Reason: "not paused"}
 	case active:
-		return guardianStep{Call: "unpause", Reason: "paused"}
+		return guardianStep{Fn: scUnpauseFn, Reason: "paused"}
 	default:
-		return guardianStep{Call: "unpause", Reason: "pause expired but still set"}
+		return guardianStep{Fn: scUnpauseFn, Reason: "pause expired but still set"}
 	}
 }
 
@@ -464,9 +472,9 @@ func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardi
 			}
 		}
 		steps[i] = planGuardianStep(pause, pausable, active)
-		action := steps[i].Call
-		if action == "" {
-			action = "nothing to do"
+		action := "nothing to do"
+		if steps[i].Fn != nil {
+			action = funcName(steps[i].Fn)
 		}
 		_, _ = fmt.Fprintf(out, "SuperchainConfig %s, ETHLockbox %s (chains %v): %s; %s\n",
 			id.SuperchainConfig, id.Lockbox, id.ChainIDs, steps[i].Reason, action)
@@ -476,7 +484,7 @@ func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardi
 	var failed []error
 	skip := make(map[uint64]bool)
 	for i, id := range ids {
-		if err := applyGuardianStep(ctx, out, conn, guardianMgr, id, steps[i].Call); err != nil {
+		if err := applyGuardianStep(ctx, out, conn, guardianMgr, id, steps[i].Fn); err != nil {
 			failed = append(failed, fmt.Errorf("%w; chains %v not synced", err, id.ChainIDs))
 			for _, cid := range id.ChainIDs {
 				skip[cid] = true
@@ -499,28 +507,16 @@ func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardi
 	return nil
 }
 
-// applyGuardianStep sends call ("pause", "extend", "unpause"; "" does nothing) for one
-// identifier and waits for it.
-func applyGuardianStep(ctx context.Context, out io.Writer, conn *connection, mgr txSender, id pauseIdentifier, call string) error {
-	var (
-		data []byte
-		err  error
-	)
-	switch call {
-	case "":
+// applyGuardianStep sends fn for one identifier and waits for it. A nil fn does nothing.
+func applyGuardianStep(ctx context.Context, out io.Writer, conn *connection, mgr txSender, id pauseIdentifier, fn *w3.Func) error {
+	if fn == nil {
 		return nil
-	case "pause":
-		data, err = scPauseFn.EncodeArgs(id.Lockbox)
-	case "extend":
-		data, err = scExtendFn.EncodeArgs(id.Lockbox)
-	case "unpause":
-		data, err = scUnpauseFn.EncodeArgs(id.Lockbox)
-	default:
-		return fmt.Errorf("unknown SuperchainConfig call %q", call)
 	}
+	data, err := fn.EncodeArgs(id.Lockbox)
 	if err != nil {
 		return err
 	}
+	call := funcName(fn)
 	wrap := func(err error) error {
 		return fmt.Errorf("SuperchainConfig %s %s(%s): %w", id.SuperchainConfig, call, id.Lockbox, err)
 	}
