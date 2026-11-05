@@ -35,6 +35,7 @@ import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsMan
 import { IOPContractsManagerMigrator } from "interfaces/L1/opcm/IOPContractsManagerMigrator.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
+import { IComplianceModule } from "interfaces/compliance/IComplianceModule.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -1926,6 +1927,48 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         });
     }
 
+    /// @notice Creates a hook with code whose getters return the given chain's contracts.
+    /// @param _name The label for the hook address.
+    /// @param _cts The chain to wire the hook to.
+    /// @return hook_ The hook address.
+    function _mockBridgeHook(
+        string memory _name,
+        IOPContractsManagerV2.ChainContracts memory _cts
+    )
+        internal
+        returns (address hook_)
+    {
+        hook_ = makeAddr(_name);
+        vm.etch(hook_, hex"00");
+        vm.mockCall(hook_, abi.encodeCall(IComplianceModule.portal, ()), abi.encode(_cts.optimismPortal));
+        vm.mockCall(hook_, abi.encodeCall(IComplianceModule.bridge, ()), abi.encode(_cts.l1StandardBridge));
+        vm.mockCall(
+            hook_, abi.encodeCall(IComplianceModule.l1CrossDomainMessenger, ()), abi.encode(_cts.l1CrossDomainMessenger)
+        );
+    }
+
+    /// @notice Returns the chain contracts a deploy of deployConfig would create, by deploying and
+    ///         then reverting to the prior state.
+    /// @return cts_ The predicted chain contracts.
+    function _predictChainContracts() internal returns (IOPContractsManagerV2.ChainContracts memory cts_) {
+        uint256 snapshot = vm.snapshotState();
+        cts_ = opcmV2.deploy(deployConfig);
+        vm.revertToState(snapshot);
+    }
+
+    /// @notice Asserts that an upgrade attaching the given hook reverts.
+    /// @param _cts The chain to upgrade.
+    /// @param _hook The hook to attach.
+    function _assertUpgradeRejectsBridgeHook(IOPContractsManagerV2.ChainContracts memory _cts, address _hook) internal {
+        prankDelegateCall(_cts.proxyAdmin.owner());
+        (bool success, bytes memory reason) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(_cts, _hook))));
+
+        assertFalse(success, "upgrade should have reverted");
+        // nosemgrep: sol-style-use-abi-encodecall
+        assertEq(reason, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidBridgeHook.selector));
+    }
+
     /// @notice Tests that an upgrade carrying the bridge hook override attaches a hook to a chain
     ///         that has none.
     function test_upgrade_bridgeHookOverrideSetsHook_succeeds() public {
@@ -1934,7 +1977,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
         assertEq(address(cts.optimismPortal.bridgeHook()), address(0), "chain started with a hook");
 
-        address hook = makeAddr("bridgeHook");
+        address hook = _mockBridgeHook("bridgeHook", cts);
         prankDelegateCall(cts.proxyAdmin.owner());
         (bool success,) = address(opcmV2)
             .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, hook))));
@@ -1951,13 +1994,57 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         address oldHook = makeAddr("oldBridgeHook");
         _forceSetBridgeHook(cts.optimismPortal, oldHook);
 
-        address newHook = makeAddr("newBridgeHook");
+        address newHook = _mockBridgeHook("newBridgeHook", cts);
         prankDelegateCall(cts.proxyAdmin.owner());
         (bool success,) = address(opcmV2)
             .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, newHook))));
 
         assertTrue(success, "upgrade failed");
         assertEq(address(cts.optimismPortal.bridgeHook()), newHook, "bridge hook not replaced");
+    }
+
+    /// @notice Tests that an upgrade rejects a bridge hook with no code.
+    function test_upgrade_bridgeHookNoCode_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+
+        _assertUpgradeRejectsBridgeHook(cts, makeAddr("bridgeHook"));
+    }
+
+    /// @notice Tests that an upgrade rejects a bridge hook built for another portal.
+    function test_upgrade_bridgeHookWrongPortal_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        address hook = _mockBridgeHook("bridgeHook", cts);
+        vm.mockCall(hook, abi.encodeCall(IComplianceModule.portal, ()), abi.encode(makeAddr("otherPortal")));
+
+        _assertUpgradeRejectsBridgeHook(cts, hook);
+    }
+
+    /// @notice Tests that an upgrade rejects a bridge hook built for another L1StandardBridge.
+    function test_upgrade_bridgeHookWrongBridge_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        address hook = _mockBridgeHook("bridgeHook", cts);
+        vm.mockCall(hook, abi.encodeCall(IComplianceModule.bridge, ()), abi.encode(makeAddr("otherBridge")));
+
+        _assertUpgradeRejectsBridgeHook(cts, hook);
+    }
+
+    /// @notice Tests that an upgrade rejects a bridge hook built for another L1CrossDomainMessenger.
+    function test_upgrade_bridgeHookWrongMessenger_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        address hook = _mockBridgeHook("bridgeHook", cts);
+        vm.mockCall(
+            hook, abi.encodeCall(IComplianceModule.l1CrossDomainMessenger, ()), abi.encode(makeAddr("otherMessenger"))
+        );
+
+        _assertUpgradeRejectsBridgeHook(cts, hook);
     }
 
     /// @notice Seeds a held deposit and a held withdrawal on a portal, standing in for items the
@@ -2011,7 +2098,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         bytes32 withdrawalId = keccak256("held withdrawal");
         _forceHoldItems(cts.optimismPortal, depositId, withdrawalId);
 
-        address newHook = makeAddr("newBridgeHook");
+        address newHook = _mockBridgeHook("newBridgeHook", cts);
         prankDelegateCall(cts.proxyAdmin.owner());
         (bool success,) = address(opcmV2)
             .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, newHook))));
@@ -2176,11 +2263,60 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(address(cts.optimismPortal.bridgeHook()), address(0), "portal has a bridge hook");
     }
 
-    /// @notice Tests that a deploy configuring a bridge hook stores it on the portal.
+    /// @notice Tests that a deploy rejects a bridge hook with no code.
+    function test_deploy_bridgeHookNoCode_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        deployConfig.bridgeHook = IBridgeHook(makeAddr("bridgeHook"));
+
+        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_InvalidBridgeHook.selector);
+        opcmV2.deploy(deployConfig);
+    }
+
+    /// @notice Tests that a deploy rejects a bridge hook built for another portal.
+    function test_deploy_bridgeHookWrongPortal_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        address hook = _mockBridgeHook("bridgeHook", _predictChainContracts());
+        vm.mockCall(hook, abi.encodeCall(IComplianceModule.portal, ()), abi.encode(makeAddr("otherPortal")));
+        deployConfig.bridgeHook = IBridgeHook(hook);
+
+        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_InvalidBridgeHook.selector);
+        opcmV2.deploy(deployConfig);
+    }
+
+    /// @notice Tests that a deploy rejects a bridge hook built for another L1StandardBridge.
+    function test_deploy_bridgeHookWrongBridge_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        address hook = _mockBridgeHook("bridgeHook", _predictChainContracts());
+        vm.mockCall(hook, abi.encodeCall(IComplianceModule.bridge, ()), abi.encode(makeAddr("otherBridge")));
+        deployConfig.bridgeHook = IBridgeHook(hook);
+
+        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_InvalidBridgeHook.selector);
+        opcmV2.deploy(deployConfig);
+    }
+
+    /// @notice Tests that a deploy rejects a bridge hook built for another L1CrossDomainMessenger.
+    function test_deploy_bridgeHookWrongMessenger_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        address hook = _mockBridgeHook("bridgeHook", _predictChainContracts());
+        vm.mockCall(
+            hook, abi.encodeCall(IComplianceModule.l1CrossDomainMessenger, ()), abi.encode(makeAddr("otherMessenger"))
+        );
+        deployConfig.bridgeHook = IBridgeHook(hook);
+
+        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_InvalidBridgeHook.selector);
+        opcmV2.deploy(deployConfig);
+    }
+
+    /// @notice Tests that a deploy configuring a bridge hook built for the chain's predicted
+    ///         addresses stores it on the portal.
     function test_deploy_bridgeHookSet_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
 
-        address hook = makeAddr("bridgeHook");
+        address hook = _mockBridgeHook("bridgeHook", _predictChainContracts());
         deployConfig.bridgeHook = IBridgeHook(hook);
 
         // The standard validator reports PORTAL-110 for any configured hook, because a chain that

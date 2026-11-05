@@ -31,6 +31,7 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
+import { IComplianceModule } from "interfaces/compliance/IComplianceModule.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -169,6 +170,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when a bridge hook is configured on a chain that cannot support one.
     error OPContractsManagerV2_BridgeHookNotSupported();
 
+    /// @notice Thrown when a bridge hook has no code or is wired to another chain's contracts.
+    error OPContractsManagerV2_InvalidBridgeHook();
+
     /// @notice Address of the Standard Validator for this OPCM release.
     IOPContractsManagerStandardValidator public immutable opcmStandardValidator;
 
@@ -184,9 +188,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 10.0.1
+    /// @custom:semver 10.1.0
     function version() public pure returns (string memory) {
-        return "10.0.1";
+        return "10.1.0";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -776,6 +780,16 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // During initial deployment systemConfig has not been set yet.
             if (!_isInitialDeployment && _cts.systemConfig.isFeatureEnabled(Features.INTEROP)) {
                 revert OPContractsManagerV2_BridgeHookNotSupported();
+            }
+
+            // A hook configured for other system contracts might revert under their own security checks.
+            IComplianceModule hook = IComplianceModule(address(_cfg.bridgeHook));
+            if (
+                address(hook).code.length == 0 || address(hook.portal()) != address(_cts.optimismPortal)
+                    || address(hook.bridge()) != address(_cts.l1StandardBridge)
+                    || address(hook.l1CrossDomainMessenger()) != address(_cts.l1CrossDomainMessenger)
+            ) {
+                revert OPContractsManagerV2_InvalidBridgeHook();
             }
         }
 

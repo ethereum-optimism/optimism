@@ -93,6 +93,7 @@ interface IOPContractsManagerV2 {
     error OPContractsManagerV2_ZeroGameImplementation(GameType _gameType);
     error OPContractsManagerV2_InvalidDelayConfig();
     error OPContractsManagerV2_BridgeHookNotSupported();
+    error OPContractsManagerV2_InvalidBridgeHook();
     error IdentityPrecompileCallFailed();
     error ReservedBitsSet();
     error BytesArrayTooLong();
