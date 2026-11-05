@@ -3172,6 +3172,7 @@ contract OptimismPortal2_Params_Test is CommonTest {
         }
 
         // Do a deposit, should not revert
+        vm.prank(allowedPortalCaller());
         optimismPortal2.depositTransaction{ gas: MAX_GAS_LIMIT }({
             _to: address(0x20), _value: 0x40, _gasLimit: _gasLimit, _isCreation: false, _data: hex""
         });
