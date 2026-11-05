@@ -210,7 +210,11 @@ test-upgrade *ARGS:
   #!/bin/bash
   export FOUNDRY_HARDFORK=amsterdam
   if [ -n "$JUNIT_TEST_PATH" ]; then
-    just prepare-upgrade-env "forge test {{ARGS}} --junit > \"$JUNIT_TEST_PATH\"" || exit $?
+    if ! just prepare-upgrade-env "forge test {{ARGS}} --junit > \"$JUNIT_TEST_PATH\""; then
+      echo "Upgrade tests failed, rerunning failed tests once in 30s in case of a transient fork RPC error" >&2
+      sleep 30
+      just prepare-upgrade-env "forge test {{ARGS}} --rerun --junit > \"$JUNIT_TEST_PATH\"" || exit $?
+    fi
     ./scripts/checks/check-junit-tests-ran.sh "$JUNIT_TEST_PATH"
   else
     just prepare-upgrade-env "forge test {{ARGS}}"
