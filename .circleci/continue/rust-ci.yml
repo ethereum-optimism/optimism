@@ -377,6 +377,7 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &udeps-cache-args
           directory: <<parameters.directory>>
+          profile: "release"
       - run:
           name: Check unused dependencies
           working_directory: <<parameters.directory>>

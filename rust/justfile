@@ -485,7 +485,7 @@ deny:
 
 # Check for unused dependencies (requires nightly + cargo-udeps)
 check-udeps:
-  cargo +{{NIGHTLY}} udeps --workspace --all-features --all-targets
+  cargo +{{NIGHTLY}} udeps --release --workspace --all-features --all-targets
 
 # Run cargo hack feature checking, enabling each feature one at a time.
 # Cheaper than the full powerset (~n checks per crate vs ~2^n).

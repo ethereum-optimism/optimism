@@ -94,7 +94,7 @@ check stays silent on all of the following:
 - **Orphaned dependencies**: deleting a file or module can strip a crate's last use of
   a dependency. Grep for every symbol the deleted file imported — all of them, no
   "certainly still used" shortcuts — and run the unused-dependency gate
-  (`cargo +nightly udeps --workspace --all-features --all-targets`, the CI
+  (`cargo +nightly udeps --release --workspace --all-features --all-targets`, the CI
   command) locally; it is the only check that catches this class.
 - **Feature-forwarding removal**: when the removed dependency carried entries in the
   crate's `[features]` lists (`"dep/feature"` forwards), verify each downstream
