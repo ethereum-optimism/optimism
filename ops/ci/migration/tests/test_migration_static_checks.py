@@ -48,7 +48,8 @@ class LiveTools(T._LiveToolsFixtures, unittest.TestCase):
         self.assertNotEqual(failed.returncode, 0)
         self.assertIn('SC2086', (d / 'check.log').read_text())
         self.assertNotEqual(json.loads((d / 'final.json').read_text())['exit_code'], 0)
-        self.assertEqual(json.loads((d / 'check.stage.json').read_text())['exit_code'], 1)
+        # xargs reports a failing ShellCheck as 123 (GNU, as in CI) or 1 (BSD).
+        self.assertIn(json.loads((d / 'check.stage.json').read_text())['exit_code'], (1, 123))
         corrupt = d / 'check.log'
         corrupt.write_text(corrupt.read_text() + 'corrupt')
         self.assertNotEqual(C.digest(corrupt), json.loads((d / 'final.json').read_text())['original_sha256']['check.log'])
