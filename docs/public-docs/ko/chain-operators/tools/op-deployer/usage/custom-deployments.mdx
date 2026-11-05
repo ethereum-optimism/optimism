@@ -4,6 +4,8 @@ description: OP Deployer로 커스텀 배포를 관리하는 방법을 알아봅
 diataxis: how-to
 ---
 
+import { Unreleased } from "/ko/snippets/unreleased.mdx"
+
 OP Deployer는 주로 Optimism이 거버넌스를 담당하는 체인에서 사용하도록 설계되었지만, 커스텀 배포 관리도
 지원합니다. 이는 특히 RaaS 제공업체에서 흔하며, 이들의 고객은 커스텀 L1(L3의 경우 L2)이나 거버넌스를 사용하는
 배포를 요청하는 경우가 많습니다. 이 가이드에서는 OP Deployer를 사용하여 이러한 체인을 관리하는 과정을
@@ -14,7 +16,7 @@ OP Deployer는 주로 Optimism이 거버넌스를 담당하는 체인에서 사�
 코드를 실행하고 있을 수 있습니다. 사용에 따른 위험은 본인이 부담해야 합니다.
 </Warning>
 
-## Bootstrap
+## Bootstrap {#bootstrapping}
 
 커스텀 OP Stack을 배포하는 첫 번째 단계는 L1에 bootstrap하는 것입니다. 이 과정에서 다음 작업이 수행됩니다.
 
@@ -24,7 +26,7 @@ OP Deployer는 주로 Optimism이 거버넌스를 담당하는 체인에서 사�
 
 이를 위해 `op-deployer`의 [`bootstrap`](/ko/chain-operators/tools/op-deployer/usage/bootstrap) 계열 명령을 사용합니다.
 
-### 공유 컨트랙트 Bootstrap
+### 공유 컨트랙트 Bootstrap {#bootstrap-shared-contracts}
 
 모든 OP Chain은 논리적인 배포 그룹에 속합니다. 이 그룹은 OP Chain 그룹의 동작을 제어하는 공유 컨트랙트
 집합으로 구성됩니다. 여기에는 다음이 포함됩니다.
@@ -57,7 +59,7 @@ bootstrap할 때는 다음 모범 사례를 따르는 것을 권장합니다.
 2.  배포자로는 일반 EOA를 사용하십시오. 배포가 완료되면 배포자는 배포에 대한 어떠한 제어 권한도 갖지 않습니다.
 3.  표준 컨트랙트 태그(예: `tag://op-contracts/v2.0.0`)를 사용하십시오. 이렇게 하면 업그레이드가 더 쉬워집니다.
 
-### 구현 Bootstrap
+### 구현 Bootstrap {#bootstrapping-implementations}
 
 OP Chain의 스마트 컨트랙트는 사전 배포된 구현 집합을 가리키는 factory를 사용하여 배포됩니다. 새로운 L1에
 배포할 때마다, 그리고 새로운 스마트 컨트랙트 버전이 릴리스될 때마다 factory와 구현을 배포해야 합니다.
@@ -81,6 +83,10 @@ op-deployer bootstrap implementations \
   --upgrade-controller="<superchain-proxy-admin-owner used in bootstrap superchain>"
 ```
 
+<Unreleased component="op-deployer" />
+
+Ethereum mainnet과 Sepolia 이외의 L1에서는 릴리스의 `SP1PlonkAdapter`에 사용할 원시(raw) SP1 verifier를 `--sp1-verifier-address`로 함께 전달해야 하며, 그렇지 않으면 명령이 실패합니다. `op-deployer apply`는 intent의 `globalDeployOverrides.sp1Verifier`로 동일한 입력을 받습니다.
+
 `bootstrap superchain` 명령과 마찬가지로, 이 명령은 관련 컨트랙트의 주소가 포함된 JSON 파일을 출력합니다.
 이 파일도 잘 보관하십시오.
 
@@ -92,7 +98,7 @@ OP Chain을 배포할 factory입니다. 또한 서로 다른 컨트랙트 버전
 *   각 OPCM은 **정확히 하나의** 배포 그룹과 연결됩니다. 즉, 관리하는 새 배포 그룹마다 `bootstrap implementations`
     명령을 사용하여 새 OPCM을 **반드시** 배포해야 합니다.
 
-## 배포
+## 배포 {#deploying}
 
 컨트랙트와 구현을 bootstrap한 후에는 `apply` 명령으로 L2 체인을 배포할 수 있습니다. intent에서 `configType`을
 `standard-overrides`로 지정하고 `opcmAddress` 필드를 위의 OPCM 주소로 설정해야 합니다. **올바른 OPCM을 호출하는지
@@ -120,7 +126,7 @@ l2ContractsLocator = "tag://..."
 `apply`가 성공적으로 완료되면 `inspect` 계열 명령을 사용하여 체인의 L2 제네시스 및 rollup 구성 파일을 다운로드할
 수 있습니다.
 
-## 업그레이드
+## 업그레이드 {#upgrading}
 
 <Warning>
 `op-deployer upgrade` 명령은 `op-contracts/v5.0.0`까지의 업그레이드만 지원합니다. `op-contracts/v5.0.0`에서
