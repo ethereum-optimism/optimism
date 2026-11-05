@@ -186,9 +186,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 10.0.1
+    /// @custom:semver 10.0.2
     function version() public pure returns (string memory) {
-        return "10.0.1";
+        return "10.0.2";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -764,6 +764,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         internal
         view
     {
+        // Only migrate() sets INTEROP, so a fresh deployment is never in a set.
+        // During initial deployment systemConfig has not been set yet.
+        bool interopEnabled = !_isInitialDeployment && _systemConfig.isFeatureEnabled(Features.INTEROP);
+
         if (address(_cfg.bridgeHook) != address(0)) {
             // The feature is still behind its dev flag.
             if (!isDevFeatureEnabled(DevFeatures.BRIDGE_HOOK)) {
@@ -774,8 +778,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             }
 
             // TODO(#24014): support bridge hooks on interop chains.
-            // During initial deployment systemConfig has not been set yet.
-            if (!_isInitialDeployment && _systemConfig.isFeatureEnabled(Features.INTEROP)) {
+            if (interopEnabled) {
                 revert OPContractsManagerV2_BridgeHookNotSupported();
             }
 
@@ -815,6 +818,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // probably a good thing, keeps the config consistent.
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
             uint32 rawGameType = uint32(VALID_GAME_TYPES >> (i * 32));
+            IOPContractsManagerUtils.DisputeGameConfig memory gameConfig = _cfg.disputeGameConfigs[i];
             bool isCannonGame = rawGameType == GameTypes.CANNON.raw();
             bool isPermissionedCannonGame = rawGameType == GameTypes.PERMISSIONED_CANNON.raw();
             bool isCannonKonaGame = rawGameType == GameTypes.CANNON_KONA.raw();
@@ -822,7 +826,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             bool isSuperCannonKonaGame = rawGameType == GameTypes.SUPER_CANNON_KONA.raw();
             bool isZkDisputeGame = rawGameType == GameTypes.ZK_DISPUTE_GAME.raw();
 
-            if (_cfg.disputeGameConfigs[i].gameType.raw() != rawGameType) {
+            if (gameConfig.gameType.raw() != rawGameType) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
@@ -833,22 +837,31 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // The two ways to violate it:
             //   usesBond == true  && initBond == 0 -> check 3
             //   usesBond == false && initBond != 0 -> checks 1, 2
-            bool usesBond = _cfg.disputeGameConfigs[i].enabled && !isSuperPermissionedGame;
-            if (usesBond == (_cfg.disputeGameConfigs[i].initBond == 0)) {
+            if ((gameConfig.enabled && !isSuperPermissionedGame) == (gameConfig.initBond == 0)) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
             // Initial deployments must select game types compatible with the active mode.
             // Upgrade inputs define their game types. Super root migration removes output root support.
             // DeployOPChain adds the permissioned fallback. StandardValidator checks it. OPCM does not require it.
-            bool validForInitialDeploy = superRootGamesMigrationEnabled
-                ? (isSuperPermissionedGame || isSuperCannonKonaGame)
-                : (isPermissionedCannonGame || isCannonKonaGame);
-            if (_isInitialDeployment && _cfg.disputeGameConfigs[i].enabled && !validForInitialDeploy) {
+            if (
+                _isInitialDeployment && gameConfig.enabled
+                    && !(superRootGamesMigrationEnabled
+                            ? (isSuperPermissionedGame || isSuperCannonKonaGame)
+                            : (isPermissionedCannonGame || isCannonKonaGame))
+            ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            if (_cfg.disputeGameConfigs[i].enabled && (isCannonGame || isCannonKonaGame || isSuperCannonKonaGame)) {
+            // A migrated chain shares its DisputeGameFactory with its interop set. A single-chain
+            // game registered there is respected by every portal in the set but proves only this
+            // chain's state, so only super games may be enabled once INTEROP is on.
+            if (interopEnabled && gameConfig.enabled && (isCannonGame || isPermissionedCannonGame || isCannonKonaGame))
+            {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            if (gameConfig.enabled && (isCannonGame || isCannonKonaGame || isSuperCannonKonaGame)) {
                 if (
                     _isInitialDeployment
                         && _cfg.startingAnchorRoot.root.raw() == Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT
@@ -858,7 +871,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
                 // If a permissionless game is being enabled the prestate must be not empty, otherwise revert.
                 IOPContractsManagerUtils.FaultDisputeGameConfig memory faultGameConfig =
-                    abi.decode(_cfg.disputeGameConfigs[i].gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
+                    abi.decode(gameConfig.gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
                 if (faultGameConfig.absolutePrestate.raw() == bytes32(0)) {
                     revert OPContractsManagerV2_InvalidGameConfigs();
                 }
@@ -867,8 +880,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // The ZK game is permissionless too. Its absolute prestate is the verification key, and
             // its durations and challenger bond bound the challenge game, so reject configs that
             // make it unplayable or trivially winnable.
-            if (_cfg.disputeGameConfigs[i].enabled && isZkDisputeGame) {
-                if (!_isValidZKDisputeGameConfig(_cfg.disputeGameConfigs[i].gameArgs)) {
+            if (gameConfig.enabled && isZkDisputeGame) {
+                if (!_isValidZKDisputeGameConfig(gameConfig.gameArgs)) {
                     revert OPContractsManagerV2_InvalidGameConfigs();
                 }
             }
