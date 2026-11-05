@@ -404,10 +404,12 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         IDisputeGameFactory disputeGameFactoryForPastUpgrades =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
-        PastUpgrades.runPastUpgrades(upgrader, systemConfig, superchainConfig, disputeGameFactoryForPastUpgrades);
+        IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
+        PastUpgrades.runPastUpgrades(
+            upgrader, systemConfig, superchainConfig, disputeGameFactoryForPastUpgrades, opcmV2.version()
+        );
 
         // Current upgrade.
-        IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
         _doUpgradeV2(opcmV2, upgrader);
 
         console.log("ForkL1Live: Saving newly deployed contracts");

@@ -101,11 +101,13 @@ library PastUpgrades {
     /// @param _systemConfig The SystemConfig proxy address.
     /// @param _superchainConfig The SuperchainConfig proxy address.
     /// @param _disputeGameFactory The DisputeGameFactory (needed for V2 upgrades).
+    /// @param _currentOPCMVersion Version of the in-tree OPCM; registry OPCMs at or above it are not past upgrades.
     function runPastUpgrades(
         address _delegateCaller,
         ISystemConfig _systemConfig,
         ISuperchainConfig _superchainConfig,
-        IDisputeGameFactory _disputeGameFactory
+        IDisputeGameFactory _disputeGameFactory,
+        string memory _currentOPCMVersion
     )
         internal
     {
@@ -146,6 +148,19 @@ library PastUpgrades {
 
         for (uint256 i = 0; i < resolved.length; i++) {
             ResolvedOPCM memory opcm = resolved[i];
+
+            // Once a release's final registry entry merges, the registry lists the OPCM under test
+            // itself. Replaying it leaves the chain on that version at another address, which the
+            // sequence check refuses, so only strictly older OPCMs are past upgrades.
+            if (SemverComp.gte(opcm.opcmVersion, _currentOPCMVersion)) {
+                console.log(
+                    "PastUpgrades: Skipping OPCM %s (v%s) - not older than the in-tree OPCM (v%s)",
+                    opcm.addr,
+                    opcm.opcmVersion,
+                    _currentOPCMVersion
+                );
+                continue;
+            }
 
             // An applied v8 upgrade can still require the super-root migration.
             bool replayForMigration = needsSuperRootGamesMigration && opcm.semver.major == 8 && hasLastVersion
