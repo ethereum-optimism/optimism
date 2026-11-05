@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 const prefix = "ETH_LIQUIDITY_PAUSE"
@@ -69,11 +70,6 @@ var (
 		Usage:   "Print the result as JSON",
 		EnvVars: op_service.PrefixEnvVar(prefix, "JSON"),
 	}
-	Key = &cli.StringFlag{
-		Name:    "key",
-		Usage:   "Private key (hex) of any funded L1 account; sends the permissionless sync",
-		EnvVars: op_service.PrefixEnvVar(prefix, "KEY"),
-	}
 	GuardianKey = &cli.StringFlag{
 		Name:    "guardian-key",
 		Usage:   "Private key (hex) of the devnet SuperchainConfig guardian",
@@ -81,7 +77,7 @@ var (
 	}
 	Timeout = &cli.DurationFlag{
 		Name:    "timeout",
-		Usage:   "Maximum wait for each L1 receipt, and then for each L2 to apply that sync's message",
+		Usage:   "Maximum wait for each L2 to apply its sync's message, after the L1 receipt (the txmgr flags limit the L1 wait)",
 		EnvVars: op_service.PrefixEnvVar(prefix, "TIMEOUT"),
 		Value:   5 * time.Minute,
 	}
@@ -110,20 +106,53 @@ func statusFlags() []cli.Flag {
 	), logcli.CLIFlags(prefix)...)
 }
 
+// txmgrFlags are the txmgr flags, which also select the L1 sender (--private-key, --mnemonic or
+// --signer.*). --l1 sets the txmgr L1 endpoint.
+func txmgrFlags() []cli.Flag {
+	return tomlFlags(txmgr.CLIFlagsWithDefaults(prefix, txmgr.DefaultChallengerFlagValues))
+}
+
+// tomlFlags lets the config file set flags that other packages define. A flag type without an
+// altsrc wrapper stays CLI and env only.
+func tomlFlags(flags []cli.Flag) []cli.Flag {
+	out := make([]cli.Flag, len(flags))
+	for i, f := range flags {
+		switch f := f.(type) {
+		case *cli.StringFlag:
+			out[i] = altsrc.NewStringFlag(f)
+		case *cli.StringSliceFlag:
+			out[i] = altsrc.NewStringSliceFlag(f)
+		case *cli.BoolFlag:
+			out[i] = altsrc.NewBoolFlag(f)
+		case *cli.IntFlag:
+			out[i] = altsrc.NewIntFlag(f)
+		case *cli.Uint64Flag:
+			out[i] = altsrc.NewUint64Flag(f)
+		case *cli.Float64Flag:
+			out[i] = altsrc.NewFloat64Flag(f)
+		case *cli.DurationFlag:
+			out[i] = altsrc.NewDurationFlag(f)
+		case *cli.GenericFlag:
+			out[i] = altsrc.NewGenericFlag(f)
+		default:
+			out[i] = f
+		}
+	}
+	return out
+}
+
 func syncFlags() []cli.Flag {
-	return append(append(chainFlags(),
-		altsrc.NewStringFlag(Key),
+	return append(append(append(chainFlags(),
 		altsrc.NewDurationFlag(Timeout),
 		altsrc.NewBoolFlag(Force),
-	), logcli.CLIFlags(prefix)...)
+	), txmgrFlags()...), logcli.CLIFlags(prefix)...)
 }
 
 func devnetFlags() []cli.Flag {
-	return append(append(chainFlags(),
+	return append(append(append(chainFlags(),
 		altsrc.NewStringFlag(GuardianKey),
-		altsrc.NewStringFlag(Key),
 		altsrc.NewDurationFlag(Timeout),
-	), logcli.CLIFlags(prefix)...)
+	), txmgrFlags()...), logcli.CLIFlags(prefix)...)
 }
 
 // setup reads the logging config and wires interrupt cancellation onto the context.

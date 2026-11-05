@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"io"
@@ -13,12 +12,14 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/log"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
 // pollInterval is how often receipts and L2 state are re-read while waiting.
@@ -26,16 +27,61 @@ var pollInterval = 2 * time.Second
 
 func syncAction(c *cli.Context) error {
 	logger, ctx := setup(c, c.App.ErrWriter)
-	key, err := parseKey(Key.Name, c.String(Key.Name))
-	if err != nil {
-		return err
+	cfg := readTxMgrConfig(c)
+	if !hasSigner(cfg) {
+		return errors.New("a sender is required: set --private-key, --mnemonic or --signer.endpoint")
 	}
 	conn, err := connectWithL1(ctx, c)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
-	return syncChains(ctx, logger, c.App.Writer, conn, key, c.Duration(Timeout.Name), c.Bool(Force.Name))
+	mgr, err := newTxMgr(logger, cfg)
+	if err != nil {
+		return err
+	}
+	defer mgr.Close()
+	return syncChains(ctx, c.App.Writer, conn, mgr, c.Duration(Timeout.Name), c.Bool(Force.Name))
+}
+
+// txSender is the part of txmgr.TxManager that the tool uses.
+type txSender interface {
+	From() common.Address
+	Send(ctx context.Context, candidate txmgr.TxCandidate) (*types.Receipt, error)
+	SendAsync(ctx context.Context, candidate txmgr.TxCandidate, ch chan txmgr.SendResponse)
+}
+
+// readTxMgrConfig reads the txmgr flags. The L1 endpoint comes from --l1.
+func readTxMgrConfig(c *cli.Context) txmgr.CLIConfig {
+	cfg := txmgr.ReadCLIConfig(c)
+	cfg.L1RPCURL = c.String(L1RPC.Name)
+	return cfg
+}
+
+func hasSigner(cfg txmgr.CLIConfig) bool {
+	return cfg.PrivateKey != "" || cfg.Mnemonic != "" || cfg.SignerCLIConfig.Enabled()
+}
+
+func newTxMgr(logger log.Logger, cfg txmgr.CLIConfig) (*txmgr.SimpleTxManager, error) {
+	mgr, err := txmgr.NewSimpleTxManager("eth-liquidity-pause", logger, &metrics.NoopTxMetrics{}, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create the transaction manager: %w", err)
+	}
+	return mgr, nil
+}
+
+// checkCall fails if a call from from to to with data would revert. It runs before each send,
+// because txmgr retries a failed candidate for a minute and then resets its nonce, which can
+// clash with sends still in flight. Other txmgr prepare failures still reset the nonce; a rerun
+// recovers from that.
+func checkCall(ctx context.Context, l1 l1Backend, from, to common.Address, data []byte) error {
+	if _, err := l1.EstimateGas(ctx, ethereum.CallMsg{From: from, To: &to, Data: data}); err != nil {
+		if r := decodeRevert(err); r != nil {
+			return fmt.Errorf("would revert: %s", r)
+		}
+		return fmt.Errorf("estimate gas: %w", err)
+	}
+	return nil
 }
 
 func connectWithL1(ctx context.Context, c *cli.Context) (*connection, error) {
@@ -60,12 +106,13 @@ func (p *syncPrinter) printf(format string, args ...any) {
 
 // syncChains calls the permissionless sync on each chain's L1CrossDomainMessenger whose L2
 // does not currently match L1 (all of them with force). It sends every sync first, then waits
-// for all of them together: for each L1 receipt, and for L2 to apply the message that sync sent.
+// for all of them together: for each L1 receipt, and then for L2 to apply the message that sync
+// sent. timeout limits each L2 wait; mgr's own timeouts limit each L1 wait.
 //
 // Without force, a chain is skipped when the two sides match right now. That compares current
 // state only: a sync already in flight may still change L2.
-func syncChains(ctx context.Context, logger log.Logger, out io.Writer, conn *connection, key *ecdsa.PrivateKey, timeout time.Duration, force bool) error {
-	sender := crypto.PubkeyToAddress(key.PublicKey)
+func syncChains(ctx context.Context, out io.Writer, conn *connection, mgr txSender, timeout time.Duration, force bool) error {
+	sender := mgr.From()
 	p := &syncPrinter{out: out}
 	p.printf("Syncing the ETHLiquidity pause from L1 (chain %d), sender %s:\n", conn.L1ChainID, sender)
 	var todo []chain
@@ -95,25 +142,16 @@ func syncChains(ctx context.Context, logger log.Logger, out io.Writer, conn *con
 	if err != nil {
 		return err
 	}
-	nonce, err := conn.L1.PendingNonceAt(ctx, sender)
-	if err != nil {
-		return fmt.Errorf("L1 nonce of %s: %w", sender, err)
-	}
 	errs := make([]error, len(todo))
-	sent := make([]*types.Transaction, len(todo))
+	sent := make([]chan txmgr.SendResponse, len(todo))
 	for i, ch := range todo {
-		tx, err := sendTx(ctx, logger, conn.L1, conn.L1ChainID, key, nonce, ch.L1.Messenger, syncData)
-		if err != nil {
+		if err := checkCall(ctx, conn.L1, sender, ch.L1.Messenger, syncData); err != nil {
 			errs[i] = fmt.Errorf("chain %d: %s: %w", ch.L2.ChainID, syncSignature, err)
-			// A failed send may still have reached the node, so don't reuse its nonce blindly.
-			if n, err := conn.L1.PendingNonceAt(ctx, sender); err == nil {
-				nonce = n
-			}
 			continue
 		}
-		nonce++
-		sent[i] = tx
-		p.printf("  chain %d: sent %s (tx %s)\n", ch.L2.ChainID, syncSignature, tx.Hash())
+		sent[i] = make(chan txmgr.SendResponse, 1)
+		mgr.SendAsync(ctx, txmgr.TxCandidate{TxData: syncData, To: &ch.L1.Messenger}, sent[i])
+		p.printf("  chain %d: sending %s\n", ch.L2.ChainID, syncSignature)
 	}
 
 	var wg sync.WaitGroup
@@ -122,7 +160,7 @@ func syncChains(ctx context.Context, logger log.Logger, out io.Writer, conn *con
 			continue
 		}
 		wg.Go(func() {
-			if err := awaitSync(ctx, logger, p, conn.L1, ch, sent[i], timeout); err != nil {
+			if err := awaitSync(ctx, p, ch, <-sent[i], timeout); err != nil {
 				errs[i] = fmt.Errorf("chain %d: %w", ch.L2.ChainID, err)
 			}
 		})
@@ -131,19 +169,18 @@ func syncChains(ctx context.Context, logger log.Logger, out io.Writer, conn *con
 	return errors.Join(errs...)
 }
 
-// awaitSync waits for one chain's sync transaction to be included on L1 and for L2 to apply
-// the message it sent.
-func awaitSync(ctx context.Context, logger log.Logger, p *syncPrinter, l1 l1Backend, ch chain, tx *types.Transaction, timeout time.Duration) error {
-	receipt, err := waitReceipt(ctx, logger, l1, tx, timeout)
+// awaitSync takes one chain's L1 send result and waits for L2 to apply the message it sent.
+func awaitSync(ctx context.Context, p *syncPrinter, ch chain, res txmgr.SendResponse, timeout time.Duration) error {
+	receipt, err := successfulReceipt(res)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %w", syncSignature, err)
 	}
 	msg, err := parseSyncMessage(receipt, ch.L1.Messenger)
 	if err != nil {
-		return fmt.Errorf("tx %s: %w", tx.Hash(), err)
+		return fmt.Errorf("tx %s: %w", receipt.TxHash, err)
 	}
-	p.printf("  chain %d: sync included in L1 block %d with %s, carrying L1 paused=%t; waiting for L2 to apply it\n",
-		ch.L2.ChainID, receipt.BlockNumber, fmtMessageNonce(msg.Nonce), msg.Paused)
+	p.printf("  chain %d: sync included in L1 block %d (tx %s) with %s, carrying L1 paused=%t; waiting for L2 to apply it\n",
+		ch.L2.ChainID, receipt.BlockNumber, receipt.TxHash, fmtMessageNonce(msg.Nonce), msg.Paused)
 	st, err := waitL2Applied(ctx, ch.L2, msg, timeout)
 	if err != nil {
 		return err
@@ -295,83 +332,23 @@ func readL2Applied(ctx context.Context, l2 *l2Client, msg *syncMessage) (*l2Paus
 	return st, nil
 }
 
-// sendTx signs and sends an EIP-1559 call from key with the given account nonce. Gas
-// estimation runs first, so a call that would revert fails before anything is sent.
-func sendTx(ctx context.Context, logger log.Logger, cl l1Backend, chainID uint64, key *ecdsa.PrivateKey, nonce uint64, to common.Address, data []byte) (*types.Transaction, error) {
-	from := crypto.PubkeyToAddress(key.PublicKey)
-	gas, err := cl.EstimateGas(ctx, ethereum.CallMsg{From: from, To: &to, Data: data})
-	if err != nil {
-		if r := decodeRevert(err); r != nil {
-			return nil, fmt.Errorf("would revert: %s", r)
-		}
-		return nil, fmt.Errorf("estimate gas: %w", err)
+// successfulReceipt returns res's receipt, or an error if the send failed or the tx reverted.
+// txmgr returns the receipt of a reverted tx without an error.
+func successfulReceipt(res txmgr.SendResponse) (*types.Receipt, error) {
+	if res.Err != nil {
+		return nil, res.Err
 	}
-	tip, err := cl.SuggestGasTipCap(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("gas tip: %w", err)
-	}
-	head, err := cl.HeaderByNumber(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("head: %w", err)
-	}
-	if head.BaseFee == nil {
-		return nil, fmt.Errorf("L1 head %d has no base fee; the chain must support EIP-1559", head.Number)
-	}
-	feeCap := new(big.Int).Add(tip, new(big.Int).Mul(head.BaseFee, big.NewInt(2)))
-	signer := types.LatestSignerForChainID(new(big.Int).SetUint64(chainID))
-	tx, err := types.SignNewTx(key, signer, &types.DynamicFeeTx{
-		ChainID:   new(big.Int).SetUint64(chainID),
-		Nonce:     nonce,
-		GasTipCap: tip,
-		GasFeeCap: feeCap,
-		Gas:       gas * 6 / 5,
-		To:        &to,
-		Data:      data,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("sign: %w", err)
-	}
-	if err := cl.SendTransaction(ctx, tx); err != nil {
-		return nil, fmt.Errorf("send: %w", err)
-	}
-	logger.Info("sent L1 transaction", "tx", tx.Hash(), "to", to, "nonce", nonce)
-	return tx, nil
-}
-
-// waitReceipt waits up to timeout for tx's receipt and fails if the tx reverted.
-func waitReceipt(ctx context.Context, logger log.Logger, cl l1Backend, tx *types.Transaction, timeout time.Duration) (*types.Receipt, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	for {
-		receipt, err := cl.TransactionReceipt(ctx, tx.Hash())
-		if err == nil {
-			if receipt.Status != types.ReceiptStatusSuccessful {
-				return nil, fmt.Errorf("tx %s reverted in block %d", tx.Hash(), receipt.BlockNumber)
-			}
-			return receipt, nil
-		}
-		if !errors.Is(err, ethereum.NotFound) {
-			logger.Debug("receipt not available yet", "tx", tx.Hash(), "err", err)
-		}
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("tx %s not included: %w", tx.Hash(), ctx.Err())
-		case <-time.After(pollInterval):
-		}
-	}
-}
-
-// sendAndWait sends one call from key at its pending nonce and waits for the receipt.
-func sendAndWait(ctx context.Context, logger log.Logger, cl l1Backend, chainID uint64, key *ecdsa.PrivateKey, to common.Address, data []byte, timeout time.Duration) (*types.Receipt, error) {
-	nonce, err := cl.PendingNonceAt(ctx, crypto.PubkeyToAddress(key.PublicKey))
-	if err != nil {
-		return nil, fmt.Errorf("nonce: %w", err)
-	}
-	tx, err := sendTx(ctx, logger, cl, chainID, key, nonce, to, data)
-	if err != nil {
+	if err := checkStatus(res.Receipt); err != nil {
 		return nil, err
 	}
-	return waitReceipt(ctx, logger, cl, tx, timeout)
+	return res.Receipt, nil
+}
+
+func checkStatus(r *types.Receipt) error {
+	if r.Status != types.ReceiptStatusSuccessful {
+		return fmt.Errorf("tx %s reverted in L1 block %d", r.TxHash, r.BlockNumber)
+	}
+	return nil
 }
 
 // guardianStep is the SuperchainConfig call (if any) needed to move one identifier to the
@@ -406,16 +383,15 @@ func planGuardianStep(pause, pausable, active bool) guardianStep {
 
 func devnetAction(c *cli.Context, pause bool) error {
 	logger, ctx := setup(c, c.App.ErrWriter)
-	guardianKey, err := parseKey(GuardianKey.Name, c.String(GuardianKey.Name))
-	if err != nil {
-		return err
+	if c.String(GuardianKey.Name) == "" {
+		return fmt.Errorf("--%s is required", GuardianKey.Name)
 	}
-	syncKey := guardianKey
-	if c.String(Key.Name) != "" {
-		if syncKey, err = parseKey(Key.Name, c.String(Key.Name)); err != nil {
-			return err
-		}
-	}
+	syncCfg := readTxMgrConfig(c)
+	guardianCfg := syncCfg
+	guardianCfg.PrivateKey = c.String(GuardianKey.Name)
+	guardianCfg.Mnemonic = ""
+	guardianCfg.SignerCLIConfig = opsigner.NewCLIConfig()
+
 	conn, err := connectWithL1(ctx, c)
 	if err != nil {
 		return err
@@ -424,14 +400,30 @@ func devnetAction(c *cli.Context, pause bool) error {
 	if err := refuseProduction(conn.L1ChainID, conn.l2ChainIDs()); err != nil {
 		return err
 	}
-	return devnetSetPause(ctx, logger, c.App.Writer, conn, guardianKey, syncKey, pause, c.Duration(Timeout.Name))
+	guardianMgr, err := newTxMgr(logger, guardianCfg)
+	if err != nil {
+		return err
+	}
+	defer guardianMgr.Close()
+	// Without a separate sender, the guardian's txmgr also sends the sync, so one txmgr tracks
+	// the guardian's nonce.
+	var syncMgr txSender = guardianMgr
+	if hasSigner(syncCfg) {
+		mgr, err := newTxMgr(logger, syncCfg)
+		if err != nil {
+			return err
+		}
+		defer mgr.Close()
+		syncMgr = mgr
+	}
+	return devnetSetPause(ctx, c.App.Writer, conn, guardianMgr, syncMgr, pause, c.Duration(Timeout.Name))
 }
 
 // devnetSetPause moves each chain's ETHLockbox identifier to the wanted pause as the
 // SuperchainConfig guardian, then force-syncs every chain whose identifier got there. The sync
 // is forced because L2 can already show the wanted value while an older sync is in flight.
-func devnetSetPause(ctx context.Context, logger log.Logger, out io.Writer, conn *connection, guardianKey, syncKey *ecdsa.PrivateKey, pause bool, timeout time.Duration) error {
-	guardian := crypto.PubkeyToAddress(guardianKey.PublicKey)
+func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardianMgr, syncMgr txSender, pause bool, timeout time.Duration) error {
+	guardian := guardianMgr.From()
 	ids := pauseIdentifiers(conn.Chains)
 	steps := make([]guardianStep, len(ids))
 	for i, id := range ids {
@@ -462,7 +454,7 @@ func devnetSetPause(ctx context.Context, logger log.Logger, out io.Writer, conn 
 	var failed []error
 	skip := make(map[uint64]bool)
 	for i, id := range ids {
-		if err := applyGuardianStep(ctx, logger, out, conn, guardianKey, id, steps[i].Call, timeout); err != nil {
+		if err := applyGuardianStep(ctx, out, conn, guardianMgr, id, steps[i].Call); err != nil {
 			failed = append(failed, fmt.Errorf("%w; chains %v not synced", err, id.ChainIDs))
 			for _, cid := range id.ChainIDs {
 				skip[cid] = true
@@ -489,7 +481,7 @@ func devnetSetPause(ctx context.Context, logger log.Logger, out io.Writer, conn 
 		}
 	}
 	if len(toSync.Chains) > 0 {
-		failed = append(failed, syncChains(ctx, logger, out, &toSync, syncKey, timeout, true))
+		failed = append(failed, syncChains(ctx, out, &toSync, syncMgr, timeout, true))
 	}
 	if err := errors.Join(failed...); err != nil {
 		return fmt.Errorf("%w\nrerun the command to retry: it skips identifiers already in the wanted state", err)
@@ -499,7 +491,7 @@ func devnetSetPause(ctx context.Context, logger log.Logger, out io.Writer, conn 
 
 // applyGuardianStep sends call ("pause", "extend", "unpause"; "" does nothing) for one
 // identifier and waits for it.
-func applyGuardianStep(ctx context.Context, logger log.Logger, out io.Writer, conn *connection, guardianKey *ecdsa.PrivateKey, id pauseIdentifier, call string, timeout time.Duration) error {
+func applyGuardianStep(ctx context.Context, out io.Writer, conn *connection, mgr txSender, id pauseIdentifier, call string) error {
 	var (
 		data []byte
 		err  error
@@ -519,9 +511,18 @@ func applyGuardianStep(ctx context.Context, logger log.Logger, out io.Writer, co
 	if err != nil {
 		return err
 	}
-	receipt, err := sendAndWait(ctx, logger, conn.L1, conn.L1ChainID, guardianKey, id.SuperchainConfig, data, timeout)
-	if err != nil {
+	wrap := func(err error) error {
 		return fmt.Errorf("SuperchainConfig %s %s(%s): %w", id.SuperchainConfig, call, id.Lockbox, err)
+	}
+	if err := checkCall(ctx, conn.L1, mgr.From(), id.SuperchainConfig, data); err != nil {
+		return wrap(err)
+	}
+	receipt, err := mgr.Send(ctx, txmgr.TxCandidate{TxData: data, To: &id.SuperchainConfig})
+	if err == nil {
+		err = checkStatus(receipt)
+	}
+	if err != nil {
+		return wrap(err)
 	}
 	_, _ = fmt.Fprintf(out, "SuperchainConfig %s: %s(%s) included in L1 block %d (tx %s)\n",
 		id.SuperchainConfig, call, id.Lockbox, receipt.BlockNumber, receipt.TxHash)

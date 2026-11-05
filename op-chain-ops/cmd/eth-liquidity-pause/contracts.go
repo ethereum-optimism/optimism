@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/lmittmann/w3"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -121,19 +122,13 @@ func (r *revertInfo) String() string {
 	}
 }
 
-// dataError is implemented by geth RPC errors that carry revert data.
-type dataError interface {
-	error
-	ErrorData() interface{}
-}
-
 // decodeRevert extracts the revert selector from an eth_call error. It returns nil if err does
 // not look like an execution revert (e.g. a transport failure).
 func decodeRevert(err error) *revertInfo {
 	if err == nil {
 		return nil
 	}
-	var de dataError
+	var de gethrpc.DataError
 	if !errors.As(err, &de) {
 		if strings.Contains(err.Error(), "execution reverted") {
 			return &revertInfo{Message: err.Error()}

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
@@ -92,11 +90,6 @@ type l1Backend interface {
 	ethereum.ChainIDReader
 	ethereum.ContractCaller
 	ethereum.GasEstimator
-	ethereum.GasPricer1559
-	ethereum.PendingStateReader
-	ethereum.ChainReader
-	ethereum.TransactionReader
-	ethereum.TransactionSender
 }
 
 // l2Reader is the L2 RPC surface the tool reads through; *ethclient.Client implements it.
@@ -105,8 +98,7 @@ type l2Reader interface {
 	ethereum.BlockNumberReader
 }
 
-// l2Client is a dialed L2 endpoint. Geth (state-override eth_call) is nil in tests that only
-// read ETHLiquidity.
+// l2Client is a dialed L2 endpoint.
 type l2Client struct {
 	URL     string
 	ChainID uint64
@@ -228,17 +220,6 @@ func connect(ctx context.Context, l1URL string, pairs []chainPair, withL1 bool) 
 		conn.Chains[len(conn.Chains)-1].L1 = l1c
 	}
 	return conn, nil
-}
-
-func parseKey(flagName, keyHex string) (*ecdsa.PrivateKey, error) {
-	if keyHex == "" {
-		return nil, fmt.Errorf("--%s is required", flagName)
-	}
-	key, err := crypto.HexToECDSA(strings.TrimPrefix(keyHex, "0x"))
-	if err != nil {
-		return nil, fmt.Errorf("parse --%s: %w", flagName, err)
-	}
-	return key, nil
 }
 
 // pauseIdentifier is one SuperchainConfig pause scope: chains in an interop set share an

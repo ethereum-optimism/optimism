@@ -113,20 +113,22 @@ func readStatus(ctx context.Context, conn *connection, ch chain, from common.Add
 	st := chainStatus{ChainID: ch.L2.ChainID, RPC: ch.L2.URL, L1: ch.L1}
 
 	paused, err := l2Paused(ctx, ch.L2, nil)
+	r := decodeRevert(err)
 	switch {
 	case err == nil:
 		st.L2Paused = &paused
 		nonce, err := l2PausedMessageNonce(ctx, ch.L2, nil)
+		r := decodeRevert(err)
 		switch {
 		case err == nil:
 			st.L2PausedMessageNonce = (*hexutil.Big)(nonce)
-		case decodeRevert(err) != nil:
-			st.L2PausedMessageNonceError = decodeRevert(err).String()
+		case r != nil:
+			st.L2PausedMessageNonceError = r.String()
 		default:
 			return st, err
 		}
-	case decodeRevert(err) != nil:
-		st.L2PausedError = decodeRevert(err).String()
+	case r != nil:
+		st.L2PausedError = r.String()
 	default:
 		return st, err
 	}
@@ -140,11 +142,12 @@ func readStatus(ctx context.Context, conn *connection, ch chain, from common.Add
 
 	if ch.L1 != nil {
 		p, err := l1Paused(ctx, conn.L1, ch.L1.Messenger, nil)
+		r := decodeRevert(err)
 		switch {
 		case err == nil:
 			st.L1Paused = &p
-		case decodeRevert(err) != nil:
-			st.L1PausedError = decodeRevert(err).String()
+		case r != nil:
+			st.L1PausedError = r.String()
 		default:
 			return st, err
 		}

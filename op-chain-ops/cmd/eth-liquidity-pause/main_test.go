@@ -231,7 +231,8 @@ func TestConfigFileSuppliesChains(t *testing.T) {
 l1 = "http://l1"
 l2 = ["http://a", "http://b"]
 l1-messenger = ["0x0000000000000000000000000000000000000001", "0x0000000000000000000000000000000000000002"]
-key = "abcd"
+private-key = "abcd"
+num-confirmations = 5
 timeout = "30s"
 `), 0o600))
 	app := newApp()
@@ -243,13 +244,16 @@ timeout = "30s"
 				require.Equal(t, "http://l1", c.String(L1RPC.Name))
 				require.Equal(t, []string{"http://a", "http://b"}, c.StringSlice(L2RPCs.Name))
 				require.Len(t, c.StringSlice(L1Messengers.Name), 2)
-				require.Equal(t, "override", c.String(Key.Name)) // the CLI flag beats the file
 				require.Equal(t, "30s", c.Duration(Timeout.Name).String())
+				cfg := readTxMgrConfig(c)
+				require.Equal(t, "http://l1", cfg.L1RPCURL)
+				require.Equal(t, "override", cfg.PrivateKey) // the CLI flag beats the file
+				require.Equal(t, uint64(5), cfg.NumConfirmations)
 				return nil
 			}
 		}
 	}
-	require.NoError(t, app.Run([]string{"eth-liquidity-pause", "sync", "--config", path, "--key", "override"}))
+	require.NoError(t, app.Run([]string{"eth-liquidity-pause", "sync", "--config", path, "--private-key", "override"}))
 	require.True(t, observed)
 }
 

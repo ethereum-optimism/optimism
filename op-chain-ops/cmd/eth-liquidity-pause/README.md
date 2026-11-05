@@ -74,12 +74,19 @@ go run ./op-chain-ops/cmd/eth-liquidity-pause status \
 
 1. checks that each messenger's `SystemConfig.l2ChainId()` matches the paired `--l2`;
 2. prints both sides of each chain;
-3. sends `syncETHLiquidityPause()` from `--key` (any funded L1 account) for every chain whose
-   L2 differs from L1, all before waiting on any of them;
+3. sends `syncETHLiquidityPause()` from the txmgr sender (any funded L1 account) for every
+   chain whose L2 differs from L1, all before waiting on any of them;
 4. waits for all of them together. For each chain it waits for the L1 receipt, reads the
    message nonce from the messenger's `SentMessage` event, then polls L2 until
    `pausedMessageNonce()` reaches that nonce, or `--timeout` passes. Once L2 has applied the
    message, `paused()` must equal the pause the message carried.
+
+The tool sends through `op-service/txmgr`. Set the sender with `--private-key`, `--mnemonic` or
+a remote signer (`--signer.endpoint`, `--signer.address`). txmgr raises the fee and resubmits
+until the tx is included, so a rise in the L1 base fee does not leave the sync stuck. The
+txmgr flags (for example `--num-confirmations` and `--txmgr.send-timeout`) control the L1 side.
+`--timeout` bounds only the wait for L2. A chain whose sync would revert is reported and
+skipped; the other chains still sync.
 
 `paused()` alone can't tell whether this sync landed: L2 may already show the same value from
 an earlier sync. Waiting for the nonce can.
@@ -92,7 +99,7 @@ If the message fails on L2, the L2CrossDomainMessenger records it in `failedMess
 block yet. In either case, run `sync` again.
 
 ```bash
-export ETH_LIQUIDITY_PAUSE_KEY=<funded-l1-key>
+export ETH_LIQUIDITY_PAUSE_PRIVATE_KEY=<funded-l1-key>
 go run ./op-chain-ops/cmd/eth-liquidity-pause sync \
   --l1 http://localhost:8545 \
   --l2 http://localhost:9545 --l1-messenger 0x... \
@@ -111,15 +118,17 @@ The command checks that `--guardian-key` is the SuperchainConfig guardian. It th
 - `pause(lockbox)`, or `extend(lockbox)` if an earlier pause has expired;
 - or `unpause(lockbox)`.
 
-Then it runs `sync` with `--force` from `--key`, or from the guardian key if `--key` is not set.
+Then it runs `sync` with `--force` from the txmgr sender, or from the guardian key if no
+sender is set.
 The sync is always forced, because L2 can already show the wanted value while an older sync
 is in flight. If a guardian call fails, the chains of the other identifiers are still synced,
 and the error says which chains were not; rerun the command to retry them.
 `devnet-unpause` warns when a global pause (`address(0)`) is active, because L1 stays paused
 until that pause is cleared.
 
-Put the keys in the config file (`guardian-key`, `key`) or in `ETH_LIQUIDITY_PAUSE_GUARDIAN_KEY`
-and `ETH_LIQUIDITY_PAUSE_KEY`, not on the command line, where they end up in shell history.
+Put the keys in the config file (`guardian-key`, `private-key`) or in
+`ETH_LIQUIDITY_PAUSE_GUARDIAN_KEY` and `ETH_LIQUIDITY_PAUSE_PRIVATE_KEY`, not on the command
+line, where they end up in shell history.
 
 ```bash
 go run ./op-chain-ops/cmd/eth-liquidity-pause devnet-pause --config devnet.toml

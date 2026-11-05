@@ -23,10 +23,12 @@ expect = ""
 json = false
 
 # --- sync, devnet-pause, devnet-unpause ---
-# Any funded L1 key (hex, no 0x needed); the sync is permissionless.
-# devnet-* default to guardian-key when this is empty.
-key = ""
-# Bounds each L1 receipt wait and each L2 wait. Strings parsed by time.ParseDuration.
+# The sync sender: any funded L1 account, because the sync is permissionless. Set one of
+# private-key (hex), mnemonic or signer.endpoint; every txmgr flag can also go here.
+# devnet-* send the sync from guardian-key when none is set.
+private-key = ""
+# Bounds each wait for L2 to apply a sync. The txmgr flags (txmgr.send-timeout and others)
+# bound the L1 wait. Strings parsed by time.ParseDuration.
 timeout = "5m"
 
 # --- sync only ---
