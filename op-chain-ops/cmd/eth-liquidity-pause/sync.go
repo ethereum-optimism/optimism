@@ -22,8 +22,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
-// pollInterval is how often receipts and L2 state are re-read while waiting.
-var pollInterval = 2 * time.Second
+// waitConfig controls the wait for L2 to apply a sync.
+type waitConfig struct {
+	Timeout      time.Duration
+	PollInterval time.Duration
+}
+
+func readWaitConfig(c *cli.Context) waitConfig {
+	return waitConfig{Timeout: c.Duration(Timeout.Name), PollInterval: 2 * time.Second}
+}
 
 func syncAction(c *cli.Context) error {
 	logger, ctx := setup(c, c.App.ErrWriter)
@@ -41,7 +48,7 @@ func syncAction(c *cli.Context) error {
 		return err
 	}
 	defer mgr.Close()
-	return syncChains(ctx, c.App.Writer, conn, mgr, c.Duration(Timeout.Name), c.Bool(Force.Name))
+	return syncChains(ctx, c.App.Writer, conn, mgr, readWaitConfig(c), c.Bool(Force.Name))
 }
 
 // txSender is the part of txmgr.TxManager that the tool uses.
@@ -111,11 +118,11 @@ func (p *syncPrinter) printf(format string, args ...any) {
 // syncChains calls the permissionless sync on each chain's L1CrossDomainMessenger whose L2
 // does not currently match L1 (all of them with force). It sends every sync first, then waits
 // for all of them together: for each L1 receipt, and then for L2 to apply the message that sync
-// sent. timeout limits each L2 wait; mgr's own timeouts limit each L1 wait.
+// sent. wait.Timeout limits each L2 wait; mgr's own timeouts limit each L1 wait.
 //
 // Without force, a chain is skipped when the two sides match right now. That compares current
 // state only: a sync already in flight may still change L2.
-func syncChains(ctx context.Context, out io.Writer, conn *connection, mgr txSender, timeout time.Duration, force bool) error {
+func syncChains(ctx context.Context, out io.Writer, conn *connection, mgr txSender, wait waitConfig, force bool) error {
 	sender := mgr.From()
 	p := &syncPrinter{out: out}
 	p.printf("Syncing the ETHLiquidity pause from L1 (chain %d), sender %s:\n", conn.L1ChainID, sender)
@@ -165,7 +172,7 @@ func syncChains(ctx context.Context, out io.Writer, conn *connection, mgr txSend
 			continue
 		}
 		wg.Go(func() {
-			if err := awaitSync(ctx, p, ch, <-sent[i], timeout); err != nil {
+			if err := awaitSync(ctx, p, ch, <-sent[i], wait); err != nil {
 				errs[i] = fmt.Errorf("chain %d: %w", ch.L2.ChainID, err)
 			}
 		})
@@ -175,7 +182,7 @@ func syncChains(ctx context.Context, out io.Writer, conn *connection, mgr txSend
 }
 
 // awaitSync takes one chain's L1 send result and waits for L2 to apply the message it sent.
-func awaitSync(ctx context.Context, p *syncPrinter, ch chain, res txmgr.SendResponse, timeout time.Duration) error {
+func awaitSync(ctx context.Context, p *syncPrinter, ch chain, res txmgr.SendResponse, wait waitConfig) error {
 	receipt, err := successfulReceipt(res)
 	if err != nil {
 		return fmt.Errorf("%s: %w", syncSignature, err)
@@ -186,7 +193,7 @@ func awaitSync(ctx context.Context, p *syncPrinter, ch chain, res txmgr.SendResp
 	}
 	p.printf("  chain %d: sync included in L1 block %d (tx %s) with %s, carrying L1 paused=%t; waiting for L2 to apply it\n",
 		ch.L2.ChainID, receipt.BlockNumber, receipt.TxHash, fmtMessageNonce(msg.Nonce), msg.Paused)
-	st, err := waitL2Applied(ctx, ch.L2, msg, timeout)
+	st, err := waitL2Applied(ctx, ch.L2, msg, wait)
 	if err != nil {
 		return err
 	}
@@ -262,8 +269,8 @@ var (
 // waitL2Applied polls L2 until ETHLiquidity.pausedMessageNonce() reaches msg's nonce. At msg's
 // own nonce, paused() must equal msg.Paused; a higher nonce means a later sync superseded msg.
 // It fails early if the message failed on L2, and otherwise times out.
-func waitL2Applied(ctx context.Context, l2 *l2Client, msg *syncMessage, timeout time.Duration) (*l2PauseState, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+func waitL2Applied(ctx context.Context, l2 *l2Client, msg *syncMessage, wait waitConfig) (*l2PauseState, error) {
+	ctx, cancel := context.WithTimeout(ctx, wait.Timeout)
 	defer cancel()
 	var (
 		lastErr error
@@ -298,7 +305,7 @@ func waitL2Applied(ctx context.Context, l2 *l2Client, msg *syncMessage, timeout 
 				return nil, fmt.Errorf("%w (last error: %w)", err, lastErr)
 			}
 			return nil, err
-		case <-time.After(pollInterval):
+		case <-time.After(wait.PollInterval):
 		}
 	}
 }
@@ -421,13 +428,13 @@ func devnetAction(c *cli.Context, pause bool) error {
 		defer mgr.Close()
 		syncMgr = mgr
 	}
-	return devnetSetPause(ctx, c.App.Writer, conn, guardianMgr, syncMgr, pause, c.Duration(Timeout.Name))
+	return devnetSetPause(ctx, c.App.Writer, conn, guardianMgr, syncMgr, pause, readWaitConfig(c))
 }
 
 // devnetSetPause moves each chain's ETHLockbox identifier to the wanted pause as the
 // SuperchainConfig guardian, then force-syncs every chain whose identifier got there. The sync
 // is forced because L2 can already show the wanted value while an older sync is in flight.
-func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardianMgr, syncMgr txSender, pause bool, timeout time.Duration) error {
+func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardianMgr, syncMgr txSender, pause bool, wait waitConfig) error {
 	guardian := guardianMgr.From()
 	ids := pauseIdentifiers(conn.Chains)
 	steps := make([]guardianStep, len(ids))
@@ -486,7 +493,7 @@ func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardi
 		}
 	}
 	if len(toSync.Chains) > 0 {
-		failed = append(failed, syncChains(ctx, out, &toSync, syncMgr, timeout, true))
+		failed = append(failed, syncChains(ctx, out, &toSync, syncMgr, wait, true))
 	}
 	if err := errors.Join(failed...); err != nil {
 		return fmt.Errorf("%w\nrerun the command to retry: it skips identifiers already in the wanted state", err)

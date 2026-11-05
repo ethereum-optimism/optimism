@@ -131,10 +131,11 @@ Put the keys in the config file (`guardian-key`, `private-key`) or in
 line, where they end up in shell history.
 
 ```bash
-go run ./op-chain-ops/cmd/eth-liquidity-pause devnet-pause --config devnet.toml
-go run ./op-chain-ops/cmd/eth-liquidity-pause status --config devnet.toml --expect paused
-go run ./op-chain-ops/cmd/eth-liquidity-pause devnet-unpause --config devnet.toml
-go run ./op-chain-ops/cmd/eth-liquidity-pause status --config devnet.toml --expect unpaused
+cd ./op-chain-ops/cmd/eth-liquidity-pause
+go run . devnet-pause --config devnet.toml
+go run . status --config devnet.toml --expect paused
+go run . devnet-unpause --config devnet.toml
+go run . status --config devnet.toml --expect unpaused
 ```
 
 ## Config

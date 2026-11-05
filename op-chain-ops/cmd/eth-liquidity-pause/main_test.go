@@ -510,6 +510,7 @@ func TestABIMatchesContractSnapshots(t *testing.T) {
 	errs := map[string][]string{
 		"ETHLiquidity":           {pausedErrorName, "ETHLiquidity_NotL1CrossDomainMessenger()"},
 		"L1CrossDomainMessenger": {"L1CrossDomainMessenger_InteropNotEnabled()"},
+		"SuperchainETHBridge":    {"SuperchainETHBridge_SenderIsMessenger()"},
 		"SuperchainConfig": {"SuperchainConfig_OnlyGuardian()", "SuperchainConfig_AlreadyPaused(address)",
 			"SuperchainConfig_NotAlreadyPaused(address)"},
 	}
