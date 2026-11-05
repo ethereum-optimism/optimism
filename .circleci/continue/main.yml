@@ -2733,7 +2733,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
             - discord
-          requires:
+          requires: &memory_all_requires
             - contracts-bedrock-build
             - cannon-prestate
             - rust-kona-binaries
@@ -2760,16 +2760,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
             - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
-            - rust-kona-binaries
-            - rust-op-reth-binary
-            - rust-sp1-super-range-executor
-            - go-binaries-for-sysgo
-            - prep-go-modules
-            # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
-            - prep-superchain
+          requires: *memory_all_requires
       # Gate job - single stable job used as GitHub required status check for develop.
       # Uses terminal requires so it always runs (even when deps fail), giving the
       # merge queue an immediate failure signal instead of a timeout.
