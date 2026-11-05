@@ -38,7 +38,8 @@ const ENDPOINT_QUERY_LATENCY: &str = "optimism_transaction_pool.interop.endpoint
 /// [too recent](InteropTxValidatorError::is_message_too_recent) answer leave it unchanged. That
 /// answer still misses quorum, so `rejected_no_quorum` can fire at full headroom, and a filter
 /// whose ingestion stalled keeps its last value; its `verdicts{verdict="valid"}` rate falls
-/// against its peers instead, and the filter's own `op_interop_filter_ingestion_lag_seconds` rises.
+/// against its peers instead, and the filter's own
+/// `op_interop_filter_default_ingestion_lag_seconds` rises.
 const ENDPOINT_UP: &str = "optimism_transaction_pool.interop.endpoint.up";
 
 /// `result` label values for [`InteropMetrics::record_decision`]. Every transaction that reaches
