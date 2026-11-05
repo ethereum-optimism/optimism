@@ -101,7 +101,8 @@ library PastUpgrades {
     /// @param _systemConfig The SystemConfig proxy address.
     /// @param _superchainConfig The SuperchainConfig proxy address.
     /// @param _disputeGameFactory The DisputeGameFactory (needed for V2 upgrades).
-    /// @param _currentOPCMVersion Version of the in-tree OPCM; registry OPCMs at or above it are not past upgrades.
+    /// @param _currentOPCMVersion Version of the OPCM; OPCMs from the registry with the same or higher version are not
+    /// past upgrades.
     function runPastUpgrades(
         address _delegateCaller,
         ISystemConfig _systemConfig,
