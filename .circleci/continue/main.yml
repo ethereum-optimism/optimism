@@ -205,6 +205,10 @@ commands:
                     # Required for sccache to cache rustc output. rust-setup-env
                     # also sets this; keep it here so direct callers remain correct.
                     echo "export CARGO_INCREMENTAL=0"
+                    # reth-node-core's build script embeds the build time, so without a
+                    # fixed value it and every crate built on it miss the cache on every
+                    # run. The prestate publishing jobs disable sccache, so they keep the real time.
+                    echo "export SOURCE_DATE_EPOCH=1700000000"
                   } >> "$BASH_ENV"
             # develop of the public repo overrides to the writer identity. This
             # selects the SA only; write access is enforced by GCP Workload
@@ -2211,16 +2215,6 @@ jobs:
           paths:
             - "rust/kona/prestate-artifacts-*/"
 
-  # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
-  rust-binaries-for-sysgo:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small.gen2
-    steps:
-      - run:
-          name: All Rust binaries ready
-          command: echo "All Rust binaries built and persisted to workspace"
-
   # ============================================================================
 
   preimage-reproducibility:
@@ -2715,11 +2709,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
-      - rust-binaries-for-sysgo:
-          requires:
-            - rust-kona-binaries
-            - rust-op-reth-binary
-            - rust-sp1-super-range-executor
       - go-binaries-for-sysgo:
           requires:
             - prep-go-modules
@@ -2746,7 +2735,9 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - rust-binaries-for-sysgo
+            - rust-kona-binaries
+            - rust-op-reth-binary
+            - rust-sp1-super-range-executor
             - go-binaries-for-sysgo
             - prep-go-modules
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
@@ -2771,7 +2762,9 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - rust-binaries-for-sysgo
+            - rust-kona-binaries
+            - rust-op-reth-binary
+            - rust-sp1-super-range-executor
             - go-binaries-for-sysgo
             - prep-go-modules
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
