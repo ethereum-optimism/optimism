@@ -43,10 +43,13 @@ const (
 	SepoliaChainID = uint64(11155111)
 )
 
-// GitHub raw URLs for the standard versions TOML files
+// GitHub raw URLs for the standard versions TOML files.
+// The v9 release branch pins the registry commit from go.mod (op-contracts/v9.0.0-rc.1 entries only).
+// Later commits list the final v9 OPCM, and the upgrade tests would then replay v9 as a past
+// upgrade before testing it, which the same-version sequence check refuses (see #23351 for v8).
 const (
-	standardVersionsMainnetURL = "https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/main/validation/standard/standard-versions-mainnet.toml"
-	standardVersionsSepoliaURL = "https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/main/validation/standard/standard-versions-sepolia.toml"
+	standardVersionsMainnetURL = "https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/41553edca76a4d67d7be0b57f857ffc978295153/validation/standard/standard-versions-mainnet.toml"
+	standardVersionsSepoliaURL = "https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/41553edca76a4d67d7be0b57f857ffc978295153/validation/standard/standard-versions-sepolia.toml"
 )
 
 // Global registry instance
