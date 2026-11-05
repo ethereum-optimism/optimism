@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	mipsVersion "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
@@ -137,16 +136,11 @@ func (c *ImplementationsConfig) Check() error {
 	if c.Challenger == (common.Address{}) {
 		return errors.New("challenger must be specified")
 	}
-	zkEnabled := devfeatures.IsDevFeatureEnabled(c.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
-	if !zkEnabled && c.SP1Verifier != (common.Address{}) {
-		return errors.New("sp1 verifier must not be specified when ZK dispute games are disabled")
-	}
 	return nil
 }
 
 func (c *ImplementationsConfig) resolveSP1Verifier(chainID *big.Int) error {
-	if !devfeatures.IsDevFeatureEnabled(c.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag) ||
-		c.SP1Verifier != (common.Address{}) {
+	if c.SP1Verifier != (common.Address{}) {
 		return nil
 	}
 
@@ -251,8 +245,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	if err := cfg.Check(); err != nil {
 		return dio, fmt.Errorf("invalid config for Implementations: %w", err)
 	}
-	zkEnabled := devfeatures.IsDevFeatureEnabled(cfg.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
-	if zkEnabled && cfg.SP1Verifier == (common.Address{}) {
+	if cfg.SP1Verifier == (common.Address{}) {
 		chainID, err := deployer.ChainIDFromRPC(ctx, cfg.L1RPCUrl)
 		if err != nil {
 			return dio, fmt.Errorf("failed to select default SP1 verifier: %w", err)
@@ -263,9 +256,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	}
 
 	lgr := cfg.Logger
-	if zkEnabled {
-		lgr.Info("using SP1 verifier", "address", cfg.SP1Verifier)
-	}
+	lgr.Info("using SP1 verifier", "address", cfg.SP1Verifier)
 
 	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)
 	if err != nil {

@@ -119,8 +119,13 @@ func TestInteropFilter_IngressRejectsInvalidMessage(gt *testing.T) {
 	require.NoError(err)
 	invalidMsg := dsl.MakeInvalidPayloadHash(result.Entries[0])
 	bobAddr := bob.Address()
+	// op-reth reports a filter timeout as "interop quorum not reached", which is not a verdict.
+	// The resubmitter retries it and returns on the definitive rejection.
+	blockTime := time.Duration(sys.L2B.Escape().RollupConfig().BlockTime) * time.Second
+	resubmitter := txinclude.NewResubmitter(sys.L2ELB.EthClient(), blockTime,
+		txinclude.WithObserver(submissionErrorLogger{t}))
 	tx := txplan.NewPlannedTx(bob.Plan(),
-		txplan.WithTransactionSubmitter(sys.L2ELB.EthClient()),
+		txplan.WithTransactionSubmitter(resubmitter),
 		txplan.WithTo(&bobAddr),
 		txplan.WithAccessList(types.AccessList{{
 			Address:     predeploys.CrossL2InboxAddr,
@@ -129,7 +134,19 @@ func TestInteropFilter_IngressRejectsInvalidMessage(gt *testing.T) {
 		txplan.WithGasLimit(100_000),
 	)
 	_, err = tx.Submitted.Eval(ctx)
-	require.ErrorContains(err, txinclude.ErrInteropAccessListRejected.Error())
+	require.ErrorIs(err, txinclude.ErrInteropAccessListRejected)
+}
+
+// submissionErrorLogger logs each failed submission, so a test that times out shows the errors
+// it retried.
+type submissionErrorLogger struct {
+	t devtest.T
+}
+
+func (l submissionErrorLogger) SubmissionError(err error) {
+	if err != nil {
+		l.t.Logf("submission error: %v", err)
+	}
 }
 
 // TestInteropFilter_FailsafeLifecycle verifies the full failsafe lifecycle:

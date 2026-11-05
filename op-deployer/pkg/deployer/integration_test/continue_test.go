@@ -134,6 +134,14 @@ func testContinuePermissionless(t *testing.T) {
 	require.Equal(t, nonceBefore, pendingNonce(t, env))
 	setAnvilCode(t, env.l1Client, env.opcm, opcmCode)
 
+	preparedImpls := *env.prepared.ImplementationsDeployment
+	env.prepared.ImplementationsDeployment.DelayedWethImpl = common.Address{0xff}
+	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
+	err = deployer.Continue(env.ctx, env.config())
+	require.ErrorContains(t, err, "the implementations recorded by prepare do not match")
+	require.Equal(t, nonceBefore, pendingNonce(t, env))
+	*env.prepared.ImplementationsDeployment = preparedImpls
+
 	env.preparedSnapshotChain.SystemConfigProxy = common.Address{0xff}
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	err = deployer.Continue(env.ctx, env.config())
@@ -582,6 +590,7 @@ func newContinuationEnvWithIntentMutator(
 		FaultGameSplitDepth:                standard.DisputeSplitDepth,
 		FaultGameClockExtension:            standard.DisputeClockExtension,
 		FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
+		SP1Verifier:                        deployMockSP1Verifier(t, l1Client, key),
 	})
 	require.NoError(t, err)
 

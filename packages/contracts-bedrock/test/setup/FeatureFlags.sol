@@ -45,10 +45,6 @@ abstract contract FeatureFlags {
             console.log("Setup: DEV_FEATURE__OP_PRIVATE is enabled");
             devFeatureBitmap |= DevFeatures.OP_PRIVATE;
         }
-        if (Config.devFeatureZkDisputeGame()) {
-            console.log("Setup: DEV_FEATURE__ZK_DISPUTE_GAME is enabled");
-            devFeatureBitmap |= DevFeatures.ZK_DISPUTE_GAME;
-        }
         if (Config.devFeatureSuperRootGamesMigration()) {
             console.log("Setup: DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION is enabled");
             devFeatureBitmap |= DevFeatures.SUPER_ROOT_GAMES_MIGRATION;
@@ -59,9 +55,7 @@ abstract contract FeatureFlags {
     /// @param _feature The feature to get the name of.
     /// @return The name of the feature.
     function getFeatureName(bytes32 _feature) public pure returns (string memory) {
-        if (_feature == DevFeatures.ZK_DISPUTE_GAME) {
-            return "DEV_FEATURE__ZK_DISPUTE_GAME";
-        } else if (_feature == DevFeatures.SUPER_ROOT_GAMES_MIGRATION) {
+        if (_feature == DevFeatures.SUPER_ROOT_GAMES_MIGRATION) {
             return "DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION";
         } else if (_feature == DevFeatures.BRIDGE_HOOK) {
             return "DEV_FEATURE__BRIDGE_HOOK";

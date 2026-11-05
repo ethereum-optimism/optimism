@@ -15,7 +15,8 @@ pragma solidity ^0.8.0;
 ///
 ///        1. Add the new feature bit in this file. Do not reuse a retired value unless the reuse is
 ///           intentional and reviewed. Retired values: 0x1 (OPTIMISM_PORTAL_INTEROP), 0x10
-///           (CANNON_KONA), 0x1000 (CUSTOM_GAS_TOKEN), 0x10000 (OPCM_V2) and 0x100000 (L2CM).
+///           (CANNON_KONA), 0x1000 (CUSTOM_GAS_TOKEN), 0x10000 (OPCM_V2), 0x100000 (L2CM) and
+///           0x1000000 (ZK_DISPUTE_GAME).
 ///        2. Add the matching Go flag in `op-core/devfeatures/devfeatures.go`. The Go value MUST
 ///           match the Solidity value byte-for-byte.
 ///        3. Add the env var reader in `packages/contracts-bedrock/scripts/libraries/Config.sol`.
@@ -35,10 +36,6 @@ library DevFeatures {
     /// This feature is no longer used, but is kept here for legacy reasons.
     bytes32 public constant DEPLOY_V2_DISPUTE_GAMES =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000100);
-
-    /// @notice The feature that enables the ZK dispute game system (ZKDisputeGame).
-    bytes32 public constant ZK_DISPUTE_GAME =
-        bytes32(0x0000000000000000000000000000000000000000000000000000000001000000);
 
     /// @notice The feature that enables the super root games migration path in OPCM upgrade.
     bytes32 public constant SUPER_ROOT_GAMES_MIGRATION =

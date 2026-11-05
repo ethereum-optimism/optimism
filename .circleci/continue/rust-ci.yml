@@ -966,7 +966,6 @@ workflows:
             # GCP Workload Identity coords + reader SA + bucket for the sccache
             # GCS compile cache (rust-sccache-setup). Restricted to this project.
             - sccache-gcs-optimism
-            - github-checkout-app
 
       - rust-ci-clippy:
           name: rust-clippy
@@ -987,7 +986,6 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
             - slack
-            - github-checkout-app
           # cargo-deny audits licenses, bans, and sources only (advisories are tracked
           # via image scanning), so it can only fail on a repo change and gates PRs
           # through required-rust-ci.
@@ -1134,7 +1132,6 @@ workflows:
             - op-reth-superchain-snapshot-check: terminal
           context:
             - circleci-api-token
-            - github-checkout-app
   # =====================================
 
   # ==========================================================================
@@ -1149,7 +1146,6 @@ workflows:
           always-succeed: true
           context:
             - circleci-api-token
-            - github-checkout-app
 
   # Kona publish prestate artifacts - on push to develop
   kona-publish-prestates:
@@ -1159,7 +1155,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
-            - github-checkout-app
 
   # Kona publish prestate artifacts - on kona-client/v* tag push
   kona-publish-prestates-on-tag:
@@ -1169,7 +1164,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
-            - github-checkout-app
           filters:
             tags:
               only: /^kona-client\/v.*/
@@ -1186,7 +1180,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
-            - github-checkout-app
 
   # Kona SP1 publish prestate artifacts - on kona-sp1-program/v* tag push
   kona-sp1-publish-prestates-on-tag:
@@ -1196,7 +1189,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
-            - github-checkout-app
           filters:
             tags:
               only: /^kona-sp1-program\/v.*/
