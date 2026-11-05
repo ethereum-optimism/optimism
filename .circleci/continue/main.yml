@@ -255,7 +255,8 @@ commands:
                     echo "export RUSTC_WRAPPER=sccache"
                     # reth-node-core's build script embeds the build time, so without a
                     # fixed value it and every crate built on it miss the cache on every
-                    # run. Binaries built with sccache report this fixed time.
+                    # run. op-reth reports op-version's build info instead, so its version
+                    # output is unchanged.
                     echo "export SOURCE_DATE_EPOCH=1700000000"
                   } >> "$BASH_ENV"
 
