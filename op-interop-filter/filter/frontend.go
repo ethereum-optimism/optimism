@@ -65,8 +65,7 @@ func (a *AdminFrontend) GetPassthroughEnabled(ctx context.Context) (bool, error)
 
 // SetFailsafeEnabled enables or disables failsafe mode
 func (a *AdminFrontend) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
-	a.backend.SetFailsafeEnabled(enabled)
-	return nil
+	return a.backend.SetFailsafeEnabled(enabled)
 }
 
 // Rewind is not implemented. For cross-chain consistency, rewind would need to
