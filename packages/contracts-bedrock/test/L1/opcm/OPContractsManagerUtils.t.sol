@@ -74,6 +74,15 @@ contract OPContractsManagerUtils_ImplV2Interop_Harness is ISemver {
     function initialize() external { }
 }
 
+/// @title ImplV2DepositAllowlist_Harness
+/// @notice Implementation with the deposit allowlist build metadata, which production allows.
+contract OPContractsManagerUtils_ImplV2DepositAllowlist_Harness is ISemver {
+    /// @custom:semver 2.0.0+deposit-allowlist
+    string public constant version = "2.0.0+deposit-allowlist";
+
+    function initialize() external { }
+}
+
 /// @title ImplOZv5_Harness
 /// @notice Implementation that mimics OpenZeppelin Contracts v5 Initializable by writing the
 ///         ERC-7201 namespaced slot in its initializer, used to test that implementations using the
@@ -685,6 +694,29 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
             TEST_SLOT,
             TEST_OFFSET
         );
+    }
+
+    /// @notice Tests that upgrade succeeds with the deposit allowlist build metadata in production.
+    function test_upgrade_depositAllowlistTagInProd_succeeds() public {
+        // Remove testing environment marker to simulate production.
+        vm.etch(Constants.TESTING_ENVIRONMENT_ADDRESS, hex"");
+
+        // Simulate mainnet.
+        vm.chainId(1);
+
+        OPContractsManagerUtils_ImplV2DepositAllowlist_Harness impl =
+            new OPContractsManagerUtils_ImplV2DepositAllowlist_Harness();
+
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(impl),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2DepositAllowlist_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(impl));
     }
 
     /// @notice Tests that upgrade with extra tags succeeds when dev features are enabled.

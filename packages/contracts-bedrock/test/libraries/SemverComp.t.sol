@@ -215,5 +215,11 @@ contract SemverComp_HasExtraTag_Test is SemverComp_TestInit {
         // Both prerelease and build metadata
         assertTrue(SemverComp.hasExtraTag("1.2.3-beta.1+interop"));
         assertTrue(SemverComp.hasExtraTag("1.2.3-rc.1+build.5"));
+
+        // The deposit allowlist build metadata is carved out
+        assertFalse(SemverComp.hasExtraTag("5.8.0+deposit-allowlist"));
+        assertTrue(SemverComp.hasExtraTag("5.8.0-rc.1+deposit-allowlist"));
+        assertTrue(SemverComp.hasExtraTag("5.8.0+deposit-allowlist.1"));
+        assertTrue(SemverComp.hasExtraTag("5.8.0+deposit-allowlist+deposit-allowlist"));
     }
 }
