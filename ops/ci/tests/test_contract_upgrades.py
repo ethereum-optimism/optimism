@@ -304,7 +304,9 @@ class LiveForgeTests(unittest.TestCase):
                 with patch.dict(os.environ, {'CI_UPGRADE_FIXTURE_FAIL':'1'}): self.assertNotEqual(execute(args), 0)
                 failed = root / '.ci/contract-upgrades/feature-main/run'
                 self.assertIn('<failure', (failed / 'original.junit.xml').read_text())
-                self.assertIn('<failure', (failed / 'diagnostic.junit.xml').read_text())
+                rerun = json.loads((failed / 'rerun.stage.json').read_text())
+                self.assertEqual(rerun['argv'], ['just', 'test-upgrade-rerun']); self.assertNotEqual(rerun['exit_code'], 0)
+                self.assertIn('[FAIL', (failed / 'rerun.log').read_text())
                 self.assertNotEqual(json.loads((failed / 'final.json').read_text())['exit_code'], 0)
 
     def test_actual_discovery_matches_actual_junit_including_fuzz_and_skip(self):

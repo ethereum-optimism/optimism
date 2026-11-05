@@ -371,7 +371,9 @@ def main():
                     # Authentication strings can occur in failing test reasons.
                     if (p := directory / 'original.junit.xml').exists(): p.write_bytes(redact_xml(p.read_bytes()))
                     if status and status < 128:
-                        os.environ['JUNIT_TEST_PATH'] = str(directory / 'diagnostic.junit.xml')
+                        # Circle's trace step runs without JUNIT_TEST_PATH, so
+                        # test-upgrade-rerun skips the recipe's own retry.
+                        os.environ.pop('JUNIT_TEST_PATH')
                         stage(directory, 'rerun', ['just', 'test-upgrade-rerun'], redactor)
                     elif status == 0: write(directory / 'coverage.json', junit(directory / 'original.junit.xml',
                         json.loads((directory / 'selection.json').read_text()), json.loads((directory / 'signature-bindings.json').read_text())))
