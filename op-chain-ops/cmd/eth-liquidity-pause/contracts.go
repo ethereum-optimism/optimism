@@ -70,6 +70,7 @@ var knownErrors = func() map[[4]byte]string {
 		"InvalidAmount()",
 		"MessageDestinationSameChain()",
 		"L2ToL2CrossDomainMessenger_MessageTargetUnsafe()",
+		"SuperchainETHBridge_SenderIsMessenger()",
 		"SuperchainConfig_OnlyGuardian()",
 		"SuperchainConfig_AlreadyPaused(address)",
 		"SuperchainConfig_NotAlreadyPaused(address)",

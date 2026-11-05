@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/lmittmann/w3"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
@@ -22,8 +24,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
-// pollInterval is how often receipts and L2 state are re-read while waiting.
-var pollInterval = 2 * time.Second
+// waitConfig controls the wait for L2 to apply a sync.
+type waitConfig struct {
+	Timeout      time.Duration
+	PollInterval time.Duration
+}
+
+func readWaitConfig(c *cli.Context) waitConfig {
+	return waitConfig{Timeout: c.Duration(Timeout.Name), PollInterval: 2 * time.Second}
+}
 
 func syncAction(c *cli.Context) error {
 	logger, ctx := setup(c, c.App.ErrWriter)
@@ -41,7 +50,7 @@ func syncAction(c *cli.Context) error {
 		return err
 	}
 	defer mgr.Close()
-	return syncChains(ctx, c.App.Writer, conn, mgr, c.Duration(Timeout.Name), c.Bool(Force.Name))
+	return syncChains(ctx, c.App.Writer, conn, mgr, readWaitConfig(c), c.Bool(Force.Name))
 }
 
 // txSender is the part of txmgr.TxManager that the tool uses.
@@ -111,11 +120,11 @@ func (p *syncPrinter) printf(format string, args ...any) {
 // syncChains calls the permissionless sync on each chain's L1CrossDomainMessenger whose L2
 // does not currently match L1 (all of them with force). It sends every sync first, then waits
 // for all of them together: for each L1 receipt, and then for L2 to apply the message that sync
-// sent. timeout limits each L2 wait; mgr's own timeouts limit each L1 wait.
+// sent. wait.Timeout limits each L2 wait; mgr's own timeouts limit each L1 wait.
 //
 // Without force, a chain is skipped when the two sides match right now. That compares current
 // state only: a sync already in flight may still change L2.
-func syncChains(ctx context.Context, out io.Writer, conn *connection, mgr txSender, timeout time.Duration, force bool) error {
+func syncChains(ctx context.Context, out io.Writer, conn *connection, mgr txSender, wait waitConfig, force bool) error {
 	sender := mgr.From()
 	p := &syncPrinter{out: out}
 	p.printf("Syncing the ETHLiquidity pause from L1 (chain %d), sender %s:\n", conn.L1ChainID, sender)
@@ -165,7 +174,7 @@ func syncChains(ctx context.Context, out io.Writer, conn *connection, mgr txSend
 			continue
 		}
 		wg.Go(func() {
-			if err := awaitSync(ctx, p, ch, <-sent[i], timeout); err != nil {
+			if err := awaitSync(ctx, p, ch, <-sent[i], wait); err != nil {
 				errs[i] = fmt.Errorf("chain %d: %w", ch.L2.ChainID, err)
 			}
 		})
@@ -175,7 +184,7 @@ func syncChains(ctx context.Context, out io.Writer, conn *connection, mgr txSend
 }
 
 // awaitSync takes one chain's L1 send result and waits for L2 to apply the message it sent.
-func awaitSync(ctx context.Context, p *syncPrinter, ch chain, res txmgr.SendResponse, timeout time.Duration) error {
+func awaitSync(ctx context.Context, p *syncPrinter, ch chain, res txmgr.SendResponse, wait waitConfig) error {
 	receipt, err := successfulReceipt(res)
 	if err != nil {
 		return fmt.Errorf("%s: %w", syncSignature, err)
@@ -186,7 +195,7 @@ func awaitSync(ctx context.Context, p *syncPrinter, ch chain, res txmgr.SendResp
 	}
 	p.printf("  chain %d: sync included in L1 block %d (tx %s) with %s, carrying L1 paused=%t; waiting for L2 to apply it\n",
 		ch.L2.ChainID, receipt.BlockNumber, receipt.TxHash, fmtMessageNonce(msg.Nonce), msg.Paused)
-	st, err := waitL2Applied(ctx, ch.L2, msg, timeout)
+	st, err := waitL2Applied(ctx, ch.L2, msg, wait)
 	if err != nil {
 		return err
 	}
@@ -262,8 +271,8 @@ var (
 // waitL2Applied polls L2 until ETHLiquidity.pausedMessageNonce() reaches msg's nonce. At msg's
 // own nonce, paused() must equal msg.Paused; a higher nonce means a later sync superseded msg.
 // It fails early if the message failed on L2, and otherwise times out.
-func waitL2Applied(ctx context.Context, l2 *l2Client, msg *syncMessage, timeout time.Duration) (*l2PauseState, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+func waitL2Applied(ctx context.Context, l2 *l2Client, msg *syncMessage, wait waitConfig) (*l2PauseState, error) {
+	ctx, cancel := context.WithTimeout(ctx, wait.Timeout)
 	defer cancel()
 	var (
 		lastErr error
@@ -298,7 +307,7 @@ func waitL2Applied(ctx context.Context, l2 *l2Client, msg *syncMessage, timeout 
 				return nil, fmt.Errorf("%w (last error: %w)", err, lastErr)
 			}
 			return nil, err
-		case <-time.After(pollInterval):
+		case <-time.After(wait.PollInterval):
 		}
 	}
 }
@@ -359,10 +368,16 @@ func checkStatus(r *types.Receipt) error {
 // guardianStep is the SuperchainConfig call (if any) needed to move one identifier to the
 // wanted state.
 type guardianStep struct {
-	// Call is "pause", "extend", "unpause" or "" when the identifier is already there.
-	Call string
+	// Fn is nil when the identifier is already there.
+	Fn *w3.Func
 	// Reason explains the choice for the confirmation print.
 	Reason string
+}
+
+// funcName is fn's name without its argument types.
+func funcName(fn *w3.Func) string {
+	name, _, _ := strings.Cut(fn.Signature, "(")
+	return name
 }
 
 // planGuardianStep picks the SuperchainConfig call for one identifier. pausable is
@@ -372,17 +387,17 @@ type guardianStep struct {
 func planGuardianStep(pause, pausable, active bool) guardianStep {
 	switch {
 	case pause && pausable:
-		return guardianStep{Call: "pause", Reason: "not paused"}
+		return guardianStep{Fn: scPauseFn, Reason: "not paused"}
 	case pause && active:
 		return guardianStep{Reason: "already paused"}
 	case pause:
-		return guardianStep{Call: "extend", Reason: "pause expired but still set, so pause() would revert"}
+		return guardianStep{Fn: scExtendFn, Reason: "pause expired but still set, so pause() would revert"}
 	case pausable:
 		return guardianStep{Reason: "not paused"}
 	case active:
-		return guardianStep{Call: "unpause", Reason: "paused"}
+		return guardianStep{Fn: scUnpauseFn, Reason: "paused"}
 	default:
-		return guardianStep{Call: "unpause", Reason: "pause expired but still set"}
+		return guardianStep{Fn: scUnpauseFn, Reason: "pause expired but still set"}
 	}
 }
 
@@ -421,13 +436,13 @@ func devnetAction(c *cli.Context, pause bool) error {
 		defer mgr.Close()
 		syncMgr = mgr
 	}
-	return devnetSetPause(ctx, c.App.Writer, conn, guardianMgr, syncMgr, pause, c.Duration(Timeout.Name))
+	return devnetSetPause(ctx, c.App.Writer, conn, guardianMgr, syncMgr, pause, readWaitConfig(c))
 }
 
 // devnetSetPause moves each chain's ETHLockbox identifier to the wanted pause as the
 // SuperchainConfig guardian, then force-syncs every chain whose identifier got there. The sync
 // is forced because L2 can already show the wanted value while an older sync is in flight.
-func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardianMgr, syncMgr txSender, pause bool, timeout time.Duration) error {
+func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardianMgr, syncMgr txSender, pause bool, wait waitConfig) error {
 	guardian := guardianMgr.From()
 	ids := pauseIdentifiers(conn.Chains)
 	steps := make([]guardianStep, len(ids))
@@ -446,10 +461,20 @@ func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardi
 		if err := callView(ctx, conn.L1, id.SuperchainConfig, nil, pausedForFn, &active, id.Lockbox); err != nil {
 			return fmt.Errorf("SuperchainConfig %s paused(address): %w", id.SuperchainConfig, err)
 		}
+		if !pause {
+			var global bool
+			if err := callView(ctx, conn.L1, id.SuperchainConfig, nil, pausedForFn, &global, globalPauseAddress); err != nil {
+				return fmt.Errorf("SuperchainConfig %s paused(address(0)): %w", id.SuperchainConfig, err)
+			}
+			if global {
+				return fmt.Errorf("SuperchainConfig %s global pause is active, so L1 stays paused for chains %v: clear it, then rerun",
+					id.SuperchainConfig, id.ChainIDs)
+			}
+		}
 		steps[i] = planGuardianStep(pause, pausable, active)
-		action := steps[i].Call
-		if action == "" {
-			action = "nothing to do"
+		action := "nothing to do"
+		if steps[i].Fn != nil {
+			action = funcName(steps[i].Fn)
 		}
 		_, _ = fmt.Fprintf(out, "SuperchainConfig %s, ETHLockbox %s (chains %v): %s; %s\n",
 			id.SuperchainConfig, id.Lockbox, id.ChainIDs, steps[i].Reason, action)
@@ -459,22 +484,10 @@ func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardi
 	var failed []error
 	skip := make(map[uint64]bool)
 	for i, id := range ids {
-		if err := applyGuardianStep(ctx, out, conn, guardianMgr, id, steps[i].Call); err != nil {
+		if err := applyGuardianStep(ctx, out, conn, guardianMgr, id, steps[i].Fn); err != nil {
 			failed = append(failed, fmt.Errorf("%w; chains %v not synced", err, id.ChainIDs))
 			for _, cid := range id.ChainIDs {
 				skip[cid] = true
-			}
-		}
-	}
-	if !pause {
-		for _, id := range ids {
-			var global bool
-			if err := callView(ctx, conn.L1, id.SuperchainConfig, nil, pausedForFn, &global, globalPauseAddress); err != nil {
-				return fmt.Errorf("SuperchainConfig %s paused(address(0)): %w", id.SuperchainConfig, err)
-			}
-			if global {
-				_, _ = fmt.Fprintf(out, "WARNING: SuperchainConfig %s global pause is active, so L1 stays paused for chains %v\n",
-					id.SuperchainConfig, id.ChainIDs)
 			}
 		}
 	}
@@ -486,7 +499,7 @@ func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardi
 		}
 	}
 	if len(toSync.Chains) > 0 {
-		failed = append(failed, syncChains(ctx, out, &toSync, syncMgr, timeout, true))
+		failed = append(failed, syncChains(ctx, out, &toSync, syncMgr, wait, true))
 	}
 	if err := errors.Join(failed...); err != nil {
 		return fmt.Errorf("%w\nrerun the command to retry: it skips identifiers already in the wanted state", err)
@@ -494,28 +507,16 @@ func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardi
 	return nil
 }
 
-// applyGuardianStep sends call ("pause", "extend", "unpause"; "" does nothing) for one
-// identifier and waits for it.
-func applyGuardianStep(ctx context.Context, out io.Writer, conn *connection, mgr txSender, id pauseIdentifier, call string) error {
-	var (
-		data []byte
-		err  error
-	)
-	switch call {
-	case "":
+// applyGuardianStep sends fn for one identifier and waits for it. A nil fn does nothing.
+func applyGuardianStep(ctx context.Context, out io.Writer, conn *connection, mgr txSender, id pauseIdentifier, fn *w3.Func) error {
+	if fn == nil {
 		return nil
-	case "pause":
-		data, err = scPauseFn.EncodeArgs(id.Lockbox)
-	case "extend":
-		data, err = scExtendFn.EncodeArgs(id.Lockbox)
-	case "unpause":
-		data, err = scUnpauseFn.EncodeArgs(id.Lockbox)
-	default:
-		return fmt.Errorf("unknown SuperchainConfig call %q", call)
 	}
+	data, err := fn.EncodeArgs(id.Lockbox)
 	if err != nil {
 		return err
 	}
+	call := funcName(fn)
 	wrap := func(err error) error {
 		return fmt.Errorf("SuperchainConfig %s %s(%s): %w", id.SuperchainConfig, call, id.Lockbox, err)
 	}

@@ -123,18 +123,19 @@ sender is set.
 The sync is always forced, because L2 can already show the wanted value while an older sync
 is in flight. If a guardian call fails, the chains of the other identifiers are still synced,
 and the error says which chains were not; rerun the command to retry them.
-`devnet-unpause` warns when a global pause (`address(0)`) is active, because L1 stays paused
-until that pause is cleared.
+`devnet-unpause` stops before it sends a transaction when a global pause (`address(0)`) is
+active, because L1 stays paused until that pause is cleared.
 
 Put the keys in the config file (`guardian-key`, `private-key`) or in
 `ETH_LIQUIDITY_PAUSE_GUARDIAN_KEY` and `ETH_LIQUIDITY_PAUSE_PRIVATE_KEY`, not on the command
 line, where they end up in shell history.
 
 ```bash
-go run ./op-chain-ops/cmd/eth-liquidity-pause devnet-pause --config devnet.toml
-go run ./op-chain-ops/cmd/eth-liquidity-pause status --config devnet.toml --expect paused
-go run ./op-chain-ops/cmd/eth-liquidity-pause devnet-unpause --config devnet.toml
-go run ./op-chain-ops/cmd/eth-liquidity-pause status --config devnet.toml --expect unpaused
+cd ./op-chain-ops/cmd/eth-liquidity-pause
+go run . devnet-pause --config devnet.toml
+go run . status --config devnet.toml --expect paused
+go run . devnet-unpause --config devnet.toml
+go run . status --config devnet.toml --expect unpaused
 ```
 
 ## Config

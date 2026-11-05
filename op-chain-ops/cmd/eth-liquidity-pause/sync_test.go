@@ -169,6 +169,10 @@ func (s *simSender) count() int {
 	return s.sent
 }
 
+func testWait(timeout time.Duration) waitConfig {
+	return waitConfig{Timeout: timeout, PollInterval: 10 * time.Millisecond}
+}
+
 // syncEnv is a simulated L1 with a sender for the sync.
 type syncEnv struct {
 	ctx    context.Context
@@ -179,8 +183,6 @@ type syncEnv struct {
 }
 
 func newSyncEnv(t *testing.T, alloc types.GenesisAlloc) *syncEnv {
-	pollInterval = 10 * time.Millisecond
-	t.Cleanup(func() { pollInterval = 2 * time.Second })
 	env := &syncEnv{sender: common.HexToAddress("0x00000000000000000000000000000000005e4de7")}
 	alloc[env.sender] = types.Account{Balance: oneETH}
 	env.l1 = simulated.NewBackend(alloc)
@@ -236,13 +238,13 @@ func TestSyncWaitsForItsOwnDeposit(t *testing.T) {
 	env.addChain(t, l2, &l1Contracts{Messenger: messengerA})
 
 	var out bytes.Buffer
-	require.NoError(t, syncChains(env.ctx, &out, env.conn, env.mgr, 10*time.Second, false))
+	require.NoError(t, syncChains(env.ctx, &out, env.conn, env.mgr, testWait(10*time.Second), false))
 	require.Contains(t, out.String(), "chain 901: L1 paused=true, L2 paused=true: in sync now, skipping (this compares current state only")
 	require.Zero(t, env.sent())
 	require.False(t, delivered.Load())
 
 	out.Reset()
-	require.NoError(t, syncChains(env.ctx, &out, env.conn, env.mgr, 10*time.Second, true))
+	require.NoError(t, syncChains(env.ctx, &out, env.conn, env.mgr, testWait(10*time.Second), true))
 	require.True(t, delivered.Load(), "returned before L2 applied the sync's deposit")
 	require.Contains(t, out.String(), "with L1 message nonce 5 (version 1), carrying L1 paused=true")
 	require.Contains(t, out.String(), "chain 901: L2 applied the sync; L2 paused=true")
@@ -263,7 +265,7 @@ func TestSyncSendsEveryChainThenWaitsTogether(t *testing.T) {
 	env.addChain(t, l2B, &l1Contracts{Messenger: messengerB})
 
 	var out bytes.Buffer
-	require.NoError(t, syncChains(env.ctx, &out, env.conn, env.mgr, 5*time.Second, false))
+	require.NoError(t, syncChains(env.ctx, &out, env.conn, env.mgr, testWait(5*time.Second), false))
 	require.True(t, deliveredA.Load())
 	require.Equal(t, 2, env.sent())
 	require.Contains(t, out.String(), "chain 901: L2 applied the sync; L2 paused=true")
@@ -285,7 +287,7 @@ func TestSyncL2Failures(t *testing.T) {
 		l2.views[predeploys.L2CrossDomainMessengerAddr] = map[string][]byte{sel("failedMessages(bytes32)"): word(true)}
 		env.conn.Chains = nil
 		env.addChain(t, l2, &l1Contracts{Messenger: messengerA})
-		err := syncChains(env.ctx, &bytes.Buffer{}, env.conn, env.mgr, 10*time.Second, true)
+		err := syncChains(env.ctx, &bytes.Buffer{}, env.conn, env.mgr, testWait(10*time.Second), true)
 		require.ErrorIs(t, err, errMessageFailed)
 		require.ErrorContains(t, err, "chain 901")
 	})
@@ -293,7 +295,7 @@ func TestSyncL2Failures(t *testing.T) {
 	t.Run("deposit never lands", func(t *testing.T) {
 		env.conn.Chains = nil
 		env.addChain(t, fakeL2(901, false), &l1Contracts{Messenger: messengerA})
-		err := syncChains(env.ctx, &bytes.Buffer{}, env.conn, env.mgr, 2*time.Second, true)
+		err := syncChains(env.ctx, &bytes.Buffer{}, env.conn, env.mgr, testWait(2*time.Second), true)
 		require.ErrorContains(t, err, "L2 did not apply L1 message nonce 3 (version 1)")
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	})
@@ -303,7 +305,7 @@ func TestSyncL2Failures(t *testing.T) {
 		l2.setL2Pause(false, versionedNonce(3))
 		env.conn.Chains = nil
 		env.addChain(t, l2, &l1Contracts{Messenger: messengerA})
-		err := syncChains(env.ctx, &bytes.Buffer{}, env.conn, env.mgr, 10*time.Second, true)
+		err := syncChains(env.ctx, &bytes.Buffer{}, env.conn, env.mgr, testWait(10*time.Second), true)
 		require.ErrorIs(t, err, errAppliedMismatch)
 	})
 
@@ -313,7 +315,7 @@ func TestSyncL2Failures(t *testing.T) {
 		env.conn.Chains = nil
 		env.addChain(t, l2, &l1Contracts{Messenger: messengerA})
 		var out bytes.Buffer
-		require.NoError(t, syncChains(env.ctx, &out, env.conn, env.mgr, 10*time.Second, true))
+		require.NoError(t, syncChains(env.ctx, &out, env.conn, env.mgr, testWait(10*time.Second), true))
 		require.Contains(t, out.String(), "L2 already applied a later sync (L1 message nonce 9 (version 1)); L2 paused=false")
 	})
 
@@ -326,7 +328,7 @@ func TestSyncL2Failures(t *testing.T) {
 		env.addChain(t, fakeL2(901, false), &l1Contracts{Messenger: revertingMessenger})
 		env.addChain(t, l2B, &l1Contracts{Messenger: messengerA})
 		before := env.sent()
-		err := syncChains(env.ctx, &bytes.Buffer{}, env.conn, env.mgr, 5*time.Second, true)
+		err := syncChains(env.ctx, &bytes.Buffer{}, env.conn, env.mgr, testWait(5*time.Second), true)
 		require.ErrorContains(t, err, "chain 901: "+syncSignature+": would revert")
 		require.NotContains(t, err.Error(), "chain 902")
 		require.True(t, deliveredB.Load())
@@ -372,7 +374,7 @@ func TestDevnetPauseForcesTheSync(t *testing.T) {
 	env.addChain(t, fakeL2(902, false), &l1Contracts{Messenger: messengerB, SuperchainConfig: scFailing, Lockbox: common.HexToAddress("0xb2")})
 
 	var out bytes.Buffer
-	err := devnetSetPause(env.ctx, &out, env.conn, newSimSender(env.l1, guardian), env.mgr, true, 10*time.Second)
+	err := devnetSetPause(env.ctx, &out, env.conn, newSimSender(env.l1, guardian), env.mgr, true, testWait(10*time.Second))
 	require.ErrorContains(t, err, "pause("+common.HexToAddress("0xb2").Hex()+"): would revert")
 	require.ErrorContains(t, err, "chains [902] not synced")
 	require.ErrorContains(t, err, "rerun the command")
@@ -404,9 +406,32 @@ func TestDevnetPauseSharesTheGuardianTxMgr(t *testing.T) {
 
 	mgr := newSimSender(env.l1, guardian)
 	var out bytes.Buffer
-	require.NoError(t, devnetSetPause(env.ctx, &out, env.conn, mgr, mgr, true, 10*time.Second))
+	require.NoError(t, devnetSetPause(env.ctx, &out, env.conn, mgr, mgr, true, testWait(10*time.Second)))
 	require.Contains(t, out.String(), "pause("+common.HexToAddress("0xb1").Hex()+") included in L1 block")
 	require.True(t, delivered.Load())
 	require.Equal(t, 2, mgr.count(), "the guardian sends the pause and then the sync")
+	require.Zero(t, env.sent())
+}
+
+// TestDevnetUnpauseRefusesAGlobalPause covers devnet-unpause while the global pause is active:
+// it fails before any transaction, because L1 and L2 would stay paused.
+func TestDevnetUnpauseRefusesAGlobalPause(t *testing.T) {
+	guardian := common.HexToAddress("0x000000000000000000000000000000000000600d")
+	sc := common.HexToAddress("0x5c04")
+	env := newSyncEnv(t, types.GenesisAlloc{
+		guardian:   {Balance: oneETH},
+		messengerA: {Code: messengerCode(t, messengerA, true, versionedNonce(2))},
+		// paused(address) is true for both the lockbox and address(0).
+		sc: {Code: contractCode(map[string]method{
+			"guardian()": {ret: word(guardian)}, "pausable(address)": {ret: word(false)},
+			"paused(address)": {ret: word(true)}, "unpause(address)": {},
+		})},
+	})
+	env.addChain(t, fakeL2(901, true), &l1Contracts{Messenger: messengerA, SuperchainConfig: sc, Lockbox: common.HexToAddress("0xb1")})
+
+	mgr := newSimSender(env.l1, guardian)
+	err := devnetSetPause(env.ctx, &bytes.Buffer{}, env.conn, mgr, env.mgr, false, testWait(10*time.Second))
+	require.ErrorContains(t, err, "global pause is active, so L1 stays paused for chains [901]")
+	require.Zero(t, mgr.count())
 	require.Zero(t, env.sent())
 }

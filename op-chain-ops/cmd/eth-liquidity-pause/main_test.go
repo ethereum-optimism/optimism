@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
+	"github.com/lmittmann/w3"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 
@@ -182,16 +183,16 @@ func TestPauseIdentifiersGroupSharedLockbox(t *testing.T) {
 func TestPlanGuardianStep(t *testing.T) {
 	for _, tc := range []struct {
 		pause, pausable, active bool
-		call                    string
+		fn                      *w3.Func
 	}{
-		{pause: true, pausable: true, call: "pause"},
-		{pause: true, active: true, call: ""},
-		{pause: true, call: "extend"},
-		{pause: false, pausable: true, call: ""},
-		{pause: false, active: true, call: "unpause"},
-		{pause: false, call: "unpause"}, // expired but still set: clear it
+		{pause: true, pausable: true, fn: scPauseFn},
+		{pause: true, active: true},
+		{pause: true, fn: scExtendFn},
+		{pause: false, pausable: true},
+		{pause: false, active: true, fn: scUnpauseFn},
+		{pause: false, fn: scUnpauseFn}, // expired but still set: clear it
 	} {
-		require.Equal(t, tc.call, planGuardianStep(tc.pause, tc.pausable, tc.active).Call, "%+v", tc)
+		require.Same(t, tc.fn, planGuardianStep(tc.pause, tc.pausable, tc.active).Fn, "%+v", tc)
 	}
 	require.Equal(t, "pause expired but still set", planGuardianStep(false, false, false).Reason)
 	require.Equal(t, "paused", planGuardianStep(false, false, true).Reason)
@@ -510,6 +511,7 @@ func TestABIMatchesContractSnapshots(t *testing.T) {
 	errs := map[string][]string{
 		"ETHLiquidity":           {pausedErrorName, "ETHLiquidity_NotL1CrossDomainMessenger()"},
 		"L1CrossDomainMessenger": {"L1CrossDomainMessenger_InteropNotEnabled()"},
+		"SuperchainETHBridge":    {"SuperchainETHBridge_SenderIsMessenger()"},
 		"SuperchainConfig": {"SuperchainConfig_OnlyGuardian()", "SuperchainConfig_AlreadyPaused(address)",
 			"SuperchainConfig_NotAlreadyPaused(address)"},
 	}
