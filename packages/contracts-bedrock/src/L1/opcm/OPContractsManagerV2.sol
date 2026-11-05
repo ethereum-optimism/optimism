@@ -733,15 +733,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         });
     }
 
-    /// @notice Resolves the bridge hook an upgrade should apply.
-    /// @dev    The portal's current hook is deliberately not read back from the chain. A zero
-    ///         value already tells OptimismPortal2.initialize to keep whatever hook the chain has,
-    ///         so preserving it needs no read, and portals from before the hook existed have no
-    ///         bridgeHook() getter for _loadBytes to call. Reading would therefore revert every
-    ///         ordinary upgrade.
+    /// @notice Returns the bridge hook override for an upgrade.
+    ///         Does not call bridgeHook() because older portals lack this getter.
+    ///         The portal initializer preserves the current hook when passed zero.
     /// @param _extraInstructions The extra upgrade instructions for the chain.
-    /// @return The hook named by overrides.cfg.bridgeHook, or the zero address to keep the
-    ///         current one.
+    /// @return The overrides.cfg.bridgeHook value, or zero if no override is supplied.
     function _loadBridgeHook(IOPContractsManagerUtils.ExtraInstruction[] memory _extraInstructions)
         internal
         view

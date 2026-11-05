@@ -1970,10 +1970,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         stdstore.target(address(_portal)).sig("heldWithdrawals(bytes32)").with_key(_withdrawalId).checked_write(true);
     }
 
-    /// @notice Tests that an upgrade preserves the hook, every held item, and the other initialize
-    ///         arguments it reads back from the chain. A held item's commitment is the only record
-    ///         binding the terms its value may later move on, so losing one on an upgrade would
-    ///         strand that value with the hook. Repeating the upgrade must change nothing either.
+    /// @notice Tests that two successive upgrades preserve the hook, held-item records,
+    ///         proof maturity delay, and lockbox address. Losing a held-item record would
+    ///         prevent that item from completing.
     function test_upgrade_preservesHeldItems_succeeds() public {
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
 
@@ -2000,9 +1999,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         }
     }
 
-    /// @notice Tests that replacing the hook leaves items held by the former hook committed. Their
-    ///         value stays with the former hook, so the portal must keep the commitments that bind
-    ///         the terms it would complete them on.
+    /// @notice Tests that replacing the hook preserves existing held-item records. Preserving
+    ///         these records does not transfer value from the former hook.
     function test_upgrade_bridgeHookReplacedKeepsHeldItems_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
 
@@ -2121,8 +2119,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(IDelayedWETH(payable(impls.delayedWETHImpl)).delay(), 0);
     }
 
-    /// @notice Tests that a deploy configuring a bridge hook is rejected while the dev feature is
-    ///         off, so the hook cannot reach a chain outside the feature's CI matrix.
+    /// @notice Tests that deployment with a bridge hook reverts when BRIDGE_HOOK is disabled.
     function test_deploy_bridgeHookDevFeatureDisabled_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.BRIDGE_HOOK);
 
@@ -2132,8 +2129,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         opcmV2.deploy(deployConfig);
     }
 
-    /// @notice Tests that a bridge hook is rejected on a custom gas token chain. The hook's custody
-    ///         model puts held ETH in the ETHLockbox, which a CGT chain does not use.
+    /// @notice Tests that custom gas token chains cannot configure a bridge hook.
     function test_deploy_bridgeHookWithCustomGasToken_reverts() public {
         skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
 
