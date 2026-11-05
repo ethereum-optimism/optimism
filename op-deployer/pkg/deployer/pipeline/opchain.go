@@ -42,6 +42,15 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return fmt.Errorf("failed to get chain intent: %w", err)
 	}
 
+	settlementID, private, err := PrivateChainSettlement(intent, thisIntent)
+	if err != nil {
+		return err
+	}
+	if private {
+		lgr.Info("reusing the L1 contracts of the settlement chain", "id", chainID.Hex(), "settlement", settlementID.Hex())
+		return reuseSettlementContracts(st, chainID, settlementID)
+	}
+
 	dci, err := makeDCI(intent, thisIntent, chainID, st)
 	if err != nil {
 		return fmt.Errorf("error making deploy OP chain input: %w", err)

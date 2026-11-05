@@ -115,6 +115,13 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
 		return err
 	}
+	for _, chain := range intent.Chains {
+		if _, private, err := pipeline.PrivateChainSettlement(intent, chain); err != nil {
+			return err
+		} else if private {
+			return fmt.Errorf("private chain %s: prepare does not support OP Private private chains; use apply", chain.ID.Big())
+		}
+	}
 
 	// A state produced by the apply pipeline MUST NOT be prepared.
 	if err := st.CheckNotApplied(); err != nil {
