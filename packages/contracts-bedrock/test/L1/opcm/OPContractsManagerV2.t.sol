@@ -2921,6 +2921,60 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertEq(address(portal2.anchorStateRegistry()), address(sharedAsr), "chain 2 lost the shared registry");
     }
 
+    /// @notice Tests that an upgrade of a migrated chain cannot enable a single-chain game type.
+    ///         The factory is shared by the interop set, so such a game would be respected by
+    ///         every portal in the set while carrying only this chain's ID.
+    function test_upgrade_migratedSetEnablesSingleChainGame_reverts() public {
+        _enableEthLockboxes();
+        _doMigration(_getDefaultMigrateInput());
+
+        IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
+        dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: bytes("")
+        });
+        dgConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false, initBond: 0, gameType: GameTypes.PERMISSIONED_CANNON, gameArgs: bytes("")
+        });
+        dgConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 1 ether,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(keccak256("prestate")) })
+            )
+        });
+        dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: makeAddr("proposer") })
+            )
+        });
+        dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false, initBond: 0, gameType: GameTypes.SUPER_CANNON_KONA, gameArgs: bytes("")
+        });
+        dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false, initBond: 0, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: bytes("")
+        });
+
+        IOPContractsManagerV2.UpgradeInput memory upgradeInput = IOPContractsManagerV2.UpgradeInput({
+            systemConfig: chainContracts1.systemConfig,
+            disputeGameConfigs: dgConfigs,
+            extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
+        });
+
+        prankDelegateCall(chainContracts1.proxyAdmin.owner());
+        (bool success, bytes memory returndata) =
+            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (upgradeInput)));
+        assertFalse(success, "upgrade registered a single-chain game on the shared factory");
+        // nosemgrep: sol-style-use-abi-encodecall
+        assertEq(
+            returndata, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
     /// @notice Tests that the migration function succeeds and liquidity is migrated.
     function test_migrate_clearsEveryCanonicalGameType_succeeds() public {
         // _deployChainForMigration only enables SUPER_PERMISSIONED, so seed the rest first.
