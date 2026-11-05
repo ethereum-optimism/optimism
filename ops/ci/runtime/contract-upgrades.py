@@ -36,7 +36,9 @@ FEATURES = {'CUSTOM_GAS_TOKEN': 'SYS_FEATURE__CUSTOM_GAS_TOKEN',
             'BRIDGE_HOOK': 'DEV_FEATURE__BRIDGE_HOOK',
             'OP_PRIVATE': 'DEV_FEATURE__OP_PRIVATE'}
 MATCH = 'test/{L1,dispute,cannon}/**'
-ARCHIVE_RPC_POLICY = dict(RPC_PROXY.POLICY, requests_per_second=20)
+# Forge issues fork reads in parallel. One request in flight would cap the
+# archive at one round trip at a time, far below its 20 requests per second.
+ARCHIVE_RPC_POLICY = dict(RPC_PROXY.POLICY, requests_per_second=20, max_in_flight=8)
 
 
 digest = REPORT.digest

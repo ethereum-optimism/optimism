@@ -31,20 +31,28 @@ class Transport:
         self.stopped = stopped
         self.redactor = redactor or (lambda value: value)
         self.lock = threading.Lock(); self.next_request = 0; self.count = 0
+        # A request holds a slot across all its attempts, so retries share the
+        # in-flight bound with new traffic. The default is one at a time.
+        self.slots = threading.BoundedSemaphore(policy.get('max_in_flight', 1))
+
+    def pace(self):
+        # Every attempt takes the next start time in the global request budget.
+        with self.lock:
+            start = max(self.next_request, self.clock())
+            self.next_request = start + 1 / self.policy['requests_per_second']
+        self.wait(max(0, start - self.clock()))
 
     def forward(self, body):
-        # Hold the lock across attempts: retry traffic must obey the same global
-        # budget as new traffic, with at most one upstream request in flight.
         with self.lock:
             number = self.count; self.count += 1
-            prefix = self.directory / ('request-' + str(number))
-            request_path = prefix.with_suffix('.json'); request_path.write_bytes(self.redactor(body))
-            write(prefix.with_suffix('.metadata.json'), {'upstream': self.redactor(self.upstream.encode()).decode(),
-                  'request_sha256': digest(request_path)})
+        prefix = self.directory / ('request-' + str(number))
+        request_path = prefix.with_suffix('.json'); request_path.write_bytes(self.redactor(body))
+        write(prefix.with_suffix('.metadata.json'), {'upstream': self.redactor(self.upstream.encode()).decode(),
+              'request_sha256': digest(request_path)})
+        with self.slots:
             for attempt in range(1, self.policy['max_attempts'] + 1):
-                self.wait(max(0, self.next_request - self.clock()))
+                self.pace()
                 started = time.time(); status, raw, error = None, b'', None
-                self.next_request = self.clock() + 1 / self.policy['requests_per_second']
                 try:
                     if self.stopped.is_set(): raise InterruptedError('RPC transport stopped')
                     request = urllib.request.Request(self.upstream, data=body,
