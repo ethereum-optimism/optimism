@@ -205,10 +205,6 @@ commands:
                     # Required for sccache to cache rustc output. rust-setup-env
                     # also sets this; keep it here so direct callers remain correct.
                     echo "export CARGO_INCREMENTAL=0"
-                    # reth-node-core's build script embeds the build time, so without a
-                    # fixed value it and every crate built on it miss the cache on every
-                    # run. The prestate publishing jobs disable sccache, so they keep the real time.
-                    echo "export SOURCE_DATE_EPOCH=1700000000"
                   } >> "$BASH_ENV"
             # develop of the public repo overrides to the writer identity. This
             # selects the SA only; write access is enforced by GCP Workload
@@ -257,6 +253,10 @@ commands:
                   {
                     echo "export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sccache_gcp_cred.json"
                     echo "export RUSTC_WRAPPER=sccache"
+                    # reth-node-core's build script embeds the build time, so without a
+                    # fixed value it and every crate built on it miss the cache on every
+                    # run. Binaries built with sccache report this fixed time.
+                    echo "export SOURCE_DATE_EPOCH=1700000000"
                   } >> "$BASH_ENV"
 
   rust-sccache-stats:
