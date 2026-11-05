@@ -1068,7 +1068,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "bridgeHook");
         vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(hook))));
 
-        runCurrentUpgradeV2(chainPAO);
+        runCurrentUpgradeV2(chainPAO, hex"", "PORTAL-110");
 
         assertEq(address(optimismPortal2.bridgeHook()), hook, "bridge hook changed");
     }
