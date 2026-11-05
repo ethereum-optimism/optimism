@@ -70,18 +70,22 @@ func newTxMgr(logger log.Logger, cfg txmgr.CLIConfig) (*txmgr.SimpleTxManager, e
 	return mgr, nil
 }
 
-// checkCall fails if a call from from to to with data would revert. It runs before each send,
-// because txmgr retries a failed candidate for a minute and then resets its nonce, which can
-// clash with sends still in flight. Other txmgr prepare failures still reset the nonce; a rerun
-// recovers from that.
-func checkCall(ctx context.Context, l1 l1Backend, from, to common.Address, data []byte) error {
-	if _, err := l1.EstimateGas(ctx, ethereum.CallMsg{From: from, To: &to, Data: data}); err != nil {
+// newCandidate estimates a call from from to to with data, and fails if it would revert. The
+// check runs before each send, because txmgr retries a failed candidate for a minute and then
+// resets its nonce, which can clash with sends still in flight. Other txmgr prepare failures
+// still reset the nonce; a rerun recovers from that.
+//
+// The gas limit is 20% above the estimate: a sync makes a deposit, and the deposit's gas burn
+// depends on the other deposits in its L1 block.
+func newCandidate(ctx context.Context, l1 l1Backend, from, to common.Address, data []byte) (txmgr.TxCandidate, error) {
+	gas, err := l1.EstimateGas(ctx, ethereum.CallMsg{From: from, To: &to, Data: data})
+	if err != nil {
 		if r := decodeRevert(err); r != nil {
-			return fmt.Errorf("would revert: %s", r)
+			return txmgr.TxCandidate{}, fmt.Errorf("would revert: %s", r)
 		}
-		return fmt.Errorf("estimate gas: %w", err)
+		return txmgr.TxCandidate{}, fmt.Errorf("estimate gas: %w", err)
 	}
-	return nil
+	return txmgr.TxCandidate{TxData: data, To: &to, GasLimit: gas * 6 / 5}, nil
 }
 
 func connectWithL1(ctx context.Context, c *cli.Context) (*connection, error) {
@@ -145,12 +149,13 @@ func syncChains(ctx context.Context, out io.Writer, conn *connection, mgr txSend
 	errs := make([]error, len(todo))
 	sent := make([]chan txmgr.SendResponse, len(todo))
 	for i, ch := range todo {
-		if err := checkCall(ctx, conn.L1, sender, ch.L1.Messenger, syncData); err != nil {
+		candidate, err := newCandidate(ctx, conn.L1, sender, ch.L1.Messenger, syncData)
+		if err != nil {
 			errs[i] = fmt.Errorf("chain %d: %s: %w", ch.L2.ChainID, syncSignature, err)
 			continue
 		}
 		sent[i] = make(chan txmgr.SendResponse, 1)
-		mgr.SendAsync(ctx, txmgr.TxCandidate{TxData: syncData, To: &ch.L1.Messenger}, sent[i])
+		mgr.SendAsync(ctx, candidate, sent[i])
 		p.printf("  chain %d: sending %s\n", ch.L2.ChainID, syncSignature)
 	}
 
@@ -514,10 +519,11 @@ func applyGuardianStep(ctx context.Context, out io.Writer, conn *connection, mgr
 	wrap := func(err error) error {
 		return fmt.Errorf("SuperchainConfig %s %s(%s): %w", id.SuperchainConfig, call, id.Lockbox, err)
 	}
-	if err := checkCall(ctx, conn.L1, mgr.From(), id.SuperchainConfig, data); err != nil {
+	candidate, err := newCandidate(ctx, conn.L1, mgr.From(), id.SuperchainConfig, data)
+	if err != nil {
 		return wrap(err)
 	}
-	receipt, err := mgr.Send(ctx, txmgr.TxCandidate{TxData: data, To: &id.SuperchainConfig})
+	receipt, err := mgr.Send(ctx, candidate)
 	if err == nil {
 		err = checkStatus(receipt)
 	}

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -332,11 +333,18 @@ func TestSyncL2Failures(t *testing.T) {
 		require.Equal(t, before+1, env.sent())
 	})
 
-	t.Run("a reverting call is caught before the send", func(t *testing.T) {
+	t.Run("a candidate has a gas margin and a revert is caught before the send", func(t *testing.T) {
 		data, err := syncFn.EncodeArgs()
 		require.NoError(t, err)
-		require.ErrorContains(t, checkCall(env.ctx, env.conn.L1, env.sender, reverting, data), "would revert")
-		require.NoError(t, checkCall(env.ctx, env.conn.L1, env.sender, messengerA, data))
+		_, err = newCandidate(env.ctx, env.conn.L1, env.sender, reverting, data)
+		require.ErrorContains(t, err, "would revert")
+
+		estimate, err := env.conn.L1.EstimateGas(env.ctx, ethereum.CallMsg{From: env.sender, To: &messengerA, Data: data})
+		require.NoError(t, err)
+		candidate, err := newCandidate(env.ctx, env.conn.L1, env.sender, messengerA, data)
+		require.NoError(t, err)
+		require.Equal(t, estimate*6/5, candidate.GasLimit)
+		require.Equal(t, messengerA, *candidate.To)
 	})
 }
 
