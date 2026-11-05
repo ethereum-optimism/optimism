@@ -412,3 +412,26 @@ func TestDevnetPauseSharesTheGuardianTxMgr(t *testing.T) {
 	require.Equal(t, 2, mgr.count(), "the guardian sends the pause and then the sync")
 	require.Zero(t, env.sent())
 }
+
+// TestDevnetUnpauseRefusesAGlobalPause covers devnet-unpause while the global pause is active:
+// it fails before any transaction, because L1 and L2 would stay paused.
+func TestDevnetUnpauseRefusesAGlobalPause(t *testing.T) {
+	guardian := common.HexToAddress("0x000000000000000000000000000000000000600d")
+	sc := common.HexToAddress("0x5c04")
+	env := newSyncEnv(t, types.GenesisAlloc{
+		guardian:   {Balance: oneETH},
+		messengerA: {Code: messengerCode(t, messengerA, true, versionedNonce(2))},
+		// paused(address) is true for both the lockbox and address(0).
+		sc: {Code: contractCode(map[string]method{
+			"guardian()": {ret: word(guardian)}, "pausable(address)": {ret: word(false)},
+			"paused(address)": {ret: word(true)}, "unpause(address)": {},
+		})},
+	})
+	env.addChain(t, fakeL2(901, true), &l1Contracts{Messenger: messengerA, SuperchainConfig: sc, Lockbox: common.HexToAddress("0xb1")})
+
+	mgr := newSimSender(env.l1, guardian)
+	err := devnetSetPause(env.ctx, &bytes.Buffer{}, env.conn, mgr, env.mgr, false, testWait(10*time.Second))
+	require.ErrorContains(t, err, "global pause is active, so L1 stays paused for chains [901]")
+	require.Zero(t, mgr.count())
+	require.Zero(t, env.sent())
+}

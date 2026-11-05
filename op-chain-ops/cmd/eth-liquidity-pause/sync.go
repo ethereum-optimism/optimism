@@ -453,6 +453,16 @@ func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardi
 		if err := callView(ctx, conn.L1, id.SuperchainConfig, nil, pausedForFn, &active, id.Lockbox); err != nil {
 			return fmt.Errorf("SuperchainConfig %s paused(address): %w", id.SuperchainConfig, err)
 		}
+		if !pause {
+			var global bool
+			if err := callView(ctx, conn.L1, id.SuperchainConfig, nil, pausedForFn, &global, globalPauseAddress); err != nil {
+				return fmt.Errorf("SuperchainConfig %s paused(address(0)): %w", id.SuperchainConfig, err)
+			}
+			if global {
+				return fmt.Errorf("SuperchainConfig %s global pause is active, so L1 stays paused for chains %v: clear it, then rerun",
+					id.SuperchainConfig, id.ChainIDs)
+			}
+		}
 		steps[i] = planGuardianStep(pause, pausable, active)
 		action := steps[i].Call
 		if action == "" {
@@ -470,18 +480,6 @@ func devnetSetPause(ctx context.Context, out io.Writer, conn *connection, guardi
 			failed = append(failed, fmt.Errorf("%w; chains %v not synced", err, id.ChainIDs))
 			for _, cid := range id.ChainIDs {
 				skip[cid] = true
-			}
-		}
-	}
-	if !pause {
-		for _, id := range ids {
-			var global bool
-			if err := callView(ctx, conn.L1, id.SuperchainConfig, nil, pausedForFn, &global, globalPauseAddress); err != nil {
-				return fmt.Errorf("SuperchainConfig %s paused(address(0)): %w", id.SuperchainConfig, err)
-			}
-			if global {
-				_, _ = fmt.Fprintf(out, "WARNING: SuperchainConfig %s global pause is active, so L1 stays paused for chains %v\n",
-					id.SuperchainConfig, id.ChainIDs)
 			}
 		}
 	}
