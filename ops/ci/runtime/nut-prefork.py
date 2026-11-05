@@ -40,16 +40,20 @@ def select_states(root):
     states = {}
     for path in paths:
         fork = path.name.removesuffix('_state.json')
-        if not re.fullmatch('[a-z][a-z0-9-]*', fork) or path.is_symlink():
+        if not re.fullmatch('[a-z][a-z0-9-]*(?:_multichain)?', fork) or path.is_symlink():
             raise ValueError('Unsafe pre-fork state input')
         # Reject invalid/empty state inputs before a costly runtime build.
         value = G.read(path)
         if not isinstance(value, dict) or not value: raise ValueError('Invalid pre-fork state input')
         states[fork] = {'path': str(path.relative_to(root)), 'sha256': S.digest(path)}
-    forks = [name for name in states if name != 'jovian']
+    # The original recipe skips the jovian seed. Each fork's generation also
+    # writes its multi-chain state, so the recipe skips *_multichain names.
+    excluded = [{'fork': 'jovian', 'reason': 'Original Just recipe excludes jovian'}] if 'jovian' in states else []
+    excluded += [{'fork': name, 'reason': 'Original Just recipe generates it with ' + name.removesuffix('_multichain')}
+                 for name in states if name.endswith('_multichain')]
+    forks = [name for name in states if name not in {row['fork'] for row in excluded}]
     if not forks: raise ValueError('Empty executable pre-fork state selection')
-    return {'states': states, 'forks': forks,
-            'excluded': [{'fork': 'jovian', 'reason': 'Original Just recipe excludes jovian'}] if 'jovian' in states else [],
+    return {'states': states, 'forks': forks, 'excluded': excluded,
             'authority': 'just _check-nut-prefork-states', 'package': PACKAGE, 'go_flags': FLAGS}
 
 

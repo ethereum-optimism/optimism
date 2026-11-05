@@ -27,11 +27,14 @@ class DiscoveryTests(unittest.TestCase):
     def test_complete_state_selection_includes_new_forks_and_preserves_jovian_exclusion(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); directory = root / 'op-core/nuts/state'; directory.mkdir(parents=True)
-            for name in ('jovian','karst','lagoon','new-fork'): (directory / (name + '_state.json')).write_text('{"state":1}\n')
+            for name in ('jovian','karst','lagoon','lagoon_multichain','new-fork'): (directory / (name + '_state.json')).write_text('{"state":1}\n')
             selected = N.select_states(root)
             self.assertEqual(selected['forks'], ['karst','lagoon','new-fork'])
-            self.assertEqual(len(selected['states']),4)
-            self.assertEqual(selected['excluded'][0]['fork'],'jovian')
+            self.assertEqual(len(selected['states']),5)
+            self.assertEqual([row['fork'] for row in selected['excluded']],['jovian','lagoon_multichain'])
+            (directory / 'lagoon_extra_state.json').write_text('{"state":1}\n')
+            with self.assertRaisesRegex(ValueError,'Unsafe'): N.select_states(root)
+            (directory / 'lagoon_extra_state.json').unlink()
             for data in ('{}','[]','invalid'):
                 (directory / 'karst_state.json').write_text(data)
                 with self.subTest(data=data),self.assertRaises(ValueError): N.select_states(root)
@@ -85,7 +88,8 @@ class _LiveTestsFixtures:
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
-        for fork in ('jovian', 'karst', 'lagoon', 'new-fork'):
+        # The recipe regenerates lagoon_multichain with lagoon, never on its own.
+        for fork in ('jovian', 'karst', 'lagoon', 'lagoon_multichain', 'new-fork'):
             path = self.root / 'op-core/nuts/state' / (fork + '_state.json')
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps({'fork': fork}) + '\n')
