@@ -311,6 +311,12 @@ abstract contract Setup is FeatureFlags {
         }
     }
 
+    /// @notice Returns an address the portal allowlist admits on the current L1 chain.
+    function allowedPortalCaller() public view returns (address) {
+        address[] memory allowed = PortalAllowlist.allowedAddresses();
+        return allowed.length > 0 ? allowed[0] : address(this);
+    }
+
     /// @dev Skips tests when running against a forked production network.
     function skipIfForkTest(string memory message) public {
         if (isL1ForkTest()) {

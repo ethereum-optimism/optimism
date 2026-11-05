@@ -2036,7 +2036,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         uint256 portalBalance = address(cts.optimismPortal).balance;
         uint256 lockboxBalance = address(cts.ethLockbox).balance;
         uint64 gasLimit = cts.optimismPortal.minimumGasLimit(0);
-        vm.deal(address(this), 1 ether);
+        address depositor = allowedPortalCaller();
+        vm.deal(depositor, 1 ether);
+        vm.prank(depositor);
         vm.expectRevert(IOptimismPortal2.OptimismPortal_NotAllowedOnCGTMode.selector);
         cts.optimismPortal.depositTransaction{ value: 1 ether }(address(this), 0, gasLimit, false, bytes(""));
         assertEq(address(cts.optimismPortal).balance, portalBalance, "CGT portal ETH balance changed");

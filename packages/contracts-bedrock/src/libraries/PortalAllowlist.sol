@@ -15,8 +15,11 @@ library PortalAllowlist {
             allowed_[1] = 0x2EA11DcDAEE45D82aAe2Ad6e7255f8d5bb70AbFF;
             allowed_[2] = 0x7d9F14FCd14fdf7A47BC2657949e087aA24f62bA;
             allowed_[3] = 0xcE38EA73Aac620E9aF3d45b53088B9E7294C5a2C;
+        } else if (block.chainid == 1) {
+            allowed_ = new address[](2);
+            allowed_[0] = 0x6307ed2483af904D67cc7EB74d5Bf97BfE3152be;
+            allowed_[1] = 0x93Cd74489167f9885f2D7B5112f9e19224050220;
         }
-        // TODO: add the mainnet addresses. Until then mainnet admits any address.
     }
 
     /// @notice Checks if an address is allowed to use the portal.

@@ -74,11 +74,11 @@ contract OPContractsManagerUtils_ImplV2Interop_Harness is ISemver {
     function initialize() external { }
 }
 
-/// @title ImplV2DepositAllowlist_Harness
-/// @notice Implementation with the deposit allowlist build metadata, which production allows.
-contract OPContractsManagerUtils_ImplV2DepositAllowlist_Harness is ISemver {
-    /// @custom:semver 2.0.0+deposit-allowlist
-    string public constant version = "2.0.0+deposit-allowlist";
+/// @title ImplV2Allowlist_Harness
+/// @notice Implementation with the allowlist build metadata, which production allows.
+contract OPContractsManagerUtils_ImplV2Allowlist_Harness is ISemver {
+    /// @custom:semver 2.0.0+allowlist
+    string public constant version = "2.0.0+allowlist";
 
     function initialize() external { }
 }
@@ -696,22 +696,21 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
         );
     }
 
-    /// @notice Tests that upgrade succeeds with the deposit allowlist build metadata in production.
-    function test_upgrade_depositAllowlistTagInProd_succeeds() public {
+    /// @notice Tests that upgrade succeeds with the allowlist build metadata in production.
+    function test_upgrade_allowlistTagInProd_succeeds() public {
         // Remove testing environment marker to simulate production.
         vm.etch(Constants.TESTING_ENVIRONMENT_ADDRESS, hex"");
 
         // Simulate mainnet.
         vm.chainId(1);
 
-        OPContractsManagerUtils_ImplV2DepositAllowlist_Harness impl =
-            new OPContractsManagerUtils_ImplV2DepositAllowlist_Harness();
+        OPContractsManagerUtils_ImplV2Allowlist_Harness impl = new OPContractsManagerUtils_ImplV2Allowlist_Harness();
 
         utils.upgrade(
             proxyAdmin,
             address(proxy),
             address(impl),
-            abi.encodeCall(OPContractsManagerUtils_ImplV2DepositAllowlist_Harness.initialize, ()),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2Allowlist_Harness.initialize, ()),
             TEST_SLOT,
             TEST_OFFSET
         );
