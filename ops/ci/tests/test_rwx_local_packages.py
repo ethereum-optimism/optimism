@@ -124,6 +124,25 @@ class LocalPackageTests(unittest.TestCase):
             self.assertNotIn('vaults.', json.dumps(definition('packages/toolchain-' + name + '.yml')))
 
 
+    def test_tool_preparation_retries_downloads_and_exports_the_policy(self):
+        # Tool downloads time out intermittently. Each install sees mise's retry
+        # policy, and the exported environment carries it to later installs.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binaries = root / 'bin'; binaries.mkdir()
+            log = root / 'mise.log'
+            stub = binaries / 'mise'
+            stub.write_text('#!/bin/bash\nprintf "%s retries=%s timeout=%s\\n" "$*" "${MISE_HTTP_RETRIES:-}" "${MISE_HTTP_TIMEOUT:-}" >> "$STUB_LOG"\n')
+            stub.chmod(0o755)
+            exports = root / 'exports'
+            env = dict(os.environ, PATH=str(binaries) + os.pathsep + os.environ['PATH'], RWX_ENV=str(exports), STUB_LOG=str(log))
+            env.pop('MISE_HTTP_RETRIES', None); env.pop('MISE_HTTP_TIMEOUT', None)
+            subprocess.run(['bash', str(ROOT / 'ops/ci/runtime/rwx-prepare.sh'), 'go'], env=env, check=True)
+            self.assertIn('install go gotestsum retries=5 timeout=90s', log.read_text().splitlines())
+            self.assertEqual((exports / 'MISE_HTTP_RETRIES').read_text(), '5\n')
+            self.assertEqual((exports / 'MISE_HTTP_TIMEOUT').read_text(), '90s\n')
+
+
 if __name__ == '__main__':
     unittest.main()
 

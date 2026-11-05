@@ -6,6 +6,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "${REPO_ROOT}"
 : "${RWX_ENV:?RWX_ENV must name the exported-environment directory}"
 
+# Tool downloads come from GitHub releases and dl.google.com, which time out
+# intermittently. mise retries each download and allows slower transfers.
+# The common layer exports both settings, so later mise installs retry too.
+export MISE_HTTP_RETRIES=5 MISE_HTTP_TIMEOUT=90s
+
 # Language toolchains are independent layers. In particular, Go/Foundry tasks
 # must not download both Rust toolchains or the Go linter to run their tests.
 case "${1:-common}" in
@@ -32,3 +37,5 @@ printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "${PATH}" > "${RWX_ENV}/PATH
 # unrelated tools from the root configuration in every verdict task.
 printf 'false\n' > "${RWX_ENV}/MISE_AUTO_INSTALL"
 printf 'false\n' > "${RWX_ENV}/MISE_EXEC_AUTO_INSTALL"
+printf '%s\n' "${MISE_HTTP_RETRIES}" > "${RWX_ENV}/MISE_HTTP_RETRIES"
+printf '%s\n' "${MISE_HTTP_TIMEOUT}" > "${RWX_ENV}/MISE_HTTP_TIMEOUT"
