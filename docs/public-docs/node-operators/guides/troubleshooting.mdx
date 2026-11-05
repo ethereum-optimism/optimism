@@ -88,7 +88,7 @@ This situation almost always happens when op-reth's `--rollup.sequencer` (aliase
 ### Solution
 
 1.  Confirm op-reth exposes the `eth` namespace on its HTTP API (the standard set is `--http.api=eth,net,web3,debug`). If `eth` is disabled, raw transactions will be rejected before they reach the sequencer.
-2.  Inspect the CLI flags and environment variables of every component that talks to the sequencer (`op-node`, `op-reth`, `op-batcher`, `op-proposer`, scripts). The `--rollup.sequencer` flag must point to the chain's public sequencer endpoint (for example, `https://mainnet-sequencer.optimism.io`), **not** to your own `op-node`.
+2.  Inspect the CLI flags and service environment (such as a systemd unit's `Environment=` or `EnvironmentFile=`, or the container's environment variables) for your execution client (`op-reth`). Only the execution client forwards `eth_sendRawTransaction` to the sequencer, and `--rollup.sequencer` is an `op-reth` flag (`op-node`, `op-batcher`, and `op-proposer` do not have it). The `--rollup.sequencer` flag must point to the chain's public sequencer endpoint (for example, `https://mainnet-sequencer.optimism.io`), **not** to your own `op-node`.
 3.  For user-deployed L2s where you run the sequencer yourself, leave `--rollup.sequencer` unset so op-reth forwards locally and never falls back to an `op-node` endpoint.
 4.  Restart the affected services after correcting the flag so they pick up the new endpoint. The error should disappear as soon as they can reach the proper sequencer RPC.
 
