@@ -327,8 +327,7 @@ class GateTests(unittest.TestCase):
         result,output,record=self.run_aggregate(env,gate='required-contracts-ci')
         selection=G.configuration('required-contracts-ci')[1]['required-contracts-ci']
         # Each contract feature has standard and modified suites and an upgrade run.
-        features=len(['main','CUSTOM_GAS_TOKEN','INTEROP','ZK_DISPUTE_GAME',
-                      'BRIDGE_HOOK','BRIDGE_HOOK,ZK_DISPUTE_GAME','OP_PRIVATE'])
+        features=len(['main','CUSTOM_GAS_TOKEN','INTEROP','BRIDGE_HOOK','OP_PRIVATE'])
         counts=[1,1,2*features,features+3]
         self.assertEqual(result,0)
         self.assertEqual(len(selection['requires']),sum(counts))

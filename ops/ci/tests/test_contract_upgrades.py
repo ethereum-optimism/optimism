@@ -122,14 +122,11 @@ class UpgradeTests(unittest.TestCase):
             os.environ['CI_BRANCH'] = 'develop'; UP.configure('chain-ink'); self.assertEqual(os.environ['FOUNDRY_PROFILE'], 'ci')
             self.assertNotIn('SYS_FEATURE__CUSTOM_GAS_TOKEN', os.environ)
 
-    def test_bridge_combinations_enable_exact_flags_and_clear_previous_features(self):
+    def test_feature_variants_enable_exact_flags_and_clear_previous_features(self):
         with patch.dict(os.environ, {'CI_BRANCH': 'pilot', 'SYS_FEATURE__CUSTOM_GAS_TOKEN': 'true'}, clear=True):
-            UP.configure('feature-BRIDGE_HOOK,ZK_DISPUTE_GAME')
-            enabled = {k: v for k, v in os.environ.items() if k.startswith(('DEV_FEATURE__', 'SYS_FEATURE__'))}
-            self.assertEqual(enabled, {'DEV_FEATURE__BRIDGE_HOOK': 'true', 'DEV_FEATURE__ZK_DISPUTE_GAME': 'true'})
             UP.configure('feature-BRIDGE_HOOK')
-            self.assertNotIn('DEV_FEATURE__ZK_DISPUTE_GAME', os.environ)
-            self.assertEqual(os.environ['DEV_FEATURE__BRIDGE_HOOK'], 'true')
+            enabled = {k: v for k, v in os.environ.items() if k.startswith(('DEV_FEATURE__', 'SYS_FEATURE__'))}
+            self.assertEqual(enabled, {'DEV_FEATURE__BRIDGE_HOOK': 'true'})
             UP.configure('feature-OP_PRIVATE')
             enabled = {k: v for k, v in os.environ.items() if k.startswith(('DEV_FEATURE__', 'SYS_FEATURE__'))}
             self.assertEqual(enabled, {'DEV_FEATURE__OP_PRIVATE': 'true'})

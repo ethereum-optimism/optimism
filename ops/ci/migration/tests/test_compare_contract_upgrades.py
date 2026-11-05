@@ -94,7 +94,7 @@ class ComparisonTests(ReportFixtures, unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'fresh'):self.compare()
 
     def test_profile_feature_and_submodule_drift_are_not_path_differences(self):
-        d=self.directories['rwx'];p=d/'settings.json';v=json.loads(p.read_text());v['feature']='ZK_DISPUTE_GAME';self.write(p,v);self.seal(d)
+        d=self.directories['rwx'];p=d/'settings.json';v=json.loads(p.read_text());v['feature']='OP_PRIVATE';self.write(p,v);self.seal(d)
         with self.assertRaisesRegex(ValueError,'workload'):self.compare()
         v['feature']='main';self.write(p,v);(d/'submodules.txt').write_text(' ' + 'e' * 40 + ' original-submodule\n');self.seal(d)
         with self.assertRaisesRegex(ValueError,'submodules'):self.compare()

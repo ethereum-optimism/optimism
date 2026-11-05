@@ -13,9 +13,7 @@ FEATURES = {
     "main": None,
     "CUSTOM_GAS_TOKEN": "SYS_FEATURE__CUSTOM_GAS_TOKEN",
     "INTEROP": "SYS_FEATURE__INTEROP",
-    "ZK_DISPUTE_GAME": "DEV_FEATURE__ZK_DISPUTE_GAME",
     "BRIDGE_HOOK": "DEV_FEATURE__BRIDGE_HOOK",
-    "BRIDGE_HOOK,ZK_DISPUTE_GAME": "DEV_FEATURE__BRIDGE_HOOK DEV_FEATURE__ZK_DISPUTE_GAME",
     "OP_PRIVATE": "DEV_FEATURE__OP_PRIVATE",
 }
 FILTERS = ("match_test", "no_match_test", "match_contract", "no_match_contract", "match_path", "no_match_path", "skip")

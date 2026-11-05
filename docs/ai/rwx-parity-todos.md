@@ -89,6 +89,18 @@ changed these PR occurrences:
   coverage workload, its shadow check, its `required-contracts-ci` mappings and
   the go-ffi coverage replay seed were removed with it.
 
+The November 4 and 5 merges of `develop`, ending at
+`9931ba24f0372b384a05c0fc9f803ff324921879`, changed these PR occurrences:
+
+- Retired: the `ZK_DISPUTE_GAME` and `BRIDGE_HOOK,ZK_DISPUTE_GAME` variants of
+  `contracts-bedrock-tests`, `contracts-bedrock-tests-heavy-fuzz-modified` and
+  `contracts-bedrock-tests-upgrade op-mainnet` (#23868). The native verdict
+  tasks and their `required-contracts-ci` mappings were removed with them.
+- Changed execution: `shell-check` runs `find | xargs shellcheck` with the
+  mise-pinned ShellCheck 0.10.0 in place of the ShellCheck orb (#23905). The
+  native task runs the same command and pin. Hosted same-SHA parity is not yet
+  verified for the new command.
+
 The completed workload snapshot is `a1aa49aaf3713a8172f3f615f094488fd8e39c3d`;
 its 92 summary hashes and complete provider originals are recoverable through the
 evidence guide. Historical per-stage percentages and closeouts are archived.

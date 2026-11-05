@@ -28,15 +28,12 @@ ROOT = Path(__file__).resolve().parents[3]
 CONTRACTS = ROOT / 'packages/contracts-bedrock'
 VARIANTS = {'feature-main': ('op', 'main'), 'feature-CUSTOM_GAS_TOKEN': ('op', 'CUSTOM_GAS_TOKEN'),
             'feature-INTEROP': ('op', 'INTEROP'),
-            'feature-ZK_DISPUTE_GAME': ('op', 'ZK_DISPUTE_GAME'),
             'feature-BRIDGE_HOOK': ('op', 'BRIDGE_HOOK'),
-            'feature-BRIDGE_HOOK,ZK_DISPUTE_GAME': ('op', 'BRIDGE_HOOK,ZK_DISPUTE_GAME'),
             'feature-OP_PRIVATE': ('op', 'OP_PRIVATE'),
             'chain-op': ('op', 'main'), 'chain-ink': ('ink', 'main'), 'chain-unichain': ('unichain', 'main')}
 FEATURES = {'CUSTOM_GAS_TOKEN': 'SYS_FEATURE__CUSTOM_GAS_TOKEN',
-            'INTEROP': 'SYS_FEATURE__INTEROP', 'ZK_DISPUTE_GAME': 'DEV_FEATURE__ZK_DISPUTE_GAME',
+            'INTEROP': 'SYS_FEATURE__INTEROP',
             'BRIDGE_HOOK': 'DEV_FEATURE__BRIDGE_HOOK',
-            'BRIDGE_HOOK,ZK_DISPUTE_GAME': 'DEV_FEATURE__BRIDGE_HOOK DEV_FEATURE__ZK_DISPUTE_GAME',
             'OP_PRIVATE': 'DEV_FEATURE__OP_PRIVATE'}
 MATCH = 'test/{L1,dispute,cannon}/**'
 ARCHIVE_RPC_POLICY = dict(RPC_PROXY.POLICY, requests_per_second=20)
