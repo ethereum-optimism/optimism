@@ -70,7 +70,8 @@ func (a *AdminFrontend) SetFailsafeEnabled(ctx context.Context, enabled bool) er
 
 // Rewind is not implemented. For cross-chain consistency, rewind would need to
 // coordinate across all chains to the same timestamp, which is complex.
-// Instead, wipe the filter's data directory and restart fresh.
+// Instead, delete the chain-* logs DB directories in the data directory and restart.
+// Keep failsafe.json, so a manual failsafe stays on.
 func (a *AdminFrontend) Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error {
-	return errors.New("rewind not implemented: wipe the filter's data directory and restart instead")
+	return errors.New("rewind not implemented: delete the chain-* directories in the data directory and restart instead; keep failsafe.json so a manual failsafe stays on")
 }
