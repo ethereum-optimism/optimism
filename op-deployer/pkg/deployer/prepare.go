@@ -115,12 +115,8 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
 		return err
 	}
-	for _, chain := range intent.Chains {
-		if _, private, err := pipeline.PrivateChainSettlement(intent, chain); err != nil {
-			return err
-		} else if private {
-			return fmt.Errorf("private chain %s: prepare does not support OP Private private chains; use apply", chain.ID.Big())
-		}
+	if err := checkNoPrivateChains(intent); err != nil {
+		return err
 	}
 
 	// A state produced by the apply pipeline MUST NOT be prepared.
@@ -525,6 +521,20 @@ func checkReservedOverrides(intent *state.Intent, st *state.State) error {
 				"chain %s: deployOverrides key %q is reserved by the prepare flow: set the anchor block via l1StartBlockHash and the genesis time via --%s",
 				chain.ID.Hex(), key, GenesisTimeOffsetFlagName,
 			)
+		}
+	}
+	return nil
+}
+
+// checkNoPrivateChains refuses OP Private private chains, which prepare does not support yet.
+func checkNoPrivateChains(intent *state.Intent) error {
+	for _, chain := range intent.Chains {
+		_, private, err := pipeline.PrivateChainSettlement(intent, chain)
+		if err != nil {
+			return err
+		}
+		if private {
+			return fmt.Errorf("private chain %s: prepare does not support OP Private private chains; use apply", chain.ID.Hex())
 		}
 	}
 	return nil

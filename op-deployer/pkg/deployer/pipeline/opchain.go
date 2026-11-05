@@ -47,8 +47,11 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return err
 	}
 	if private {
-		lgr.Info("reusing the L1 contracts of the settlement chain", "id", chainID.Hex(), "settlement", settlementID.Hex())
-		return reuseSettlementContracts(st, chainID, settlementID)
+		if err := reuseSettlementContracts(st, chainID, settlementID); err != nil {
+			return err
+		}
+		lgr.Info("opchain deployment not needed, the private chain shares its settlement chain's L1 contracts", "settlement", settlementID.Hex())
+		return nil
 	}
 
 	dci, err := makeDCI(intent, thisIntent, chainID, st)

@@ -28,8 +28,12 @@ func SetStartBlockLiveStrategy(ctx context.Context, intent *state.Intent, env *E
 		lgr.Info("start block already set")
 		return nil
 	}
-	if private, err := reuseSettlementStartBlock(intent, st, chainID); err != nil || private {
+	settlementID, private, err := PrivateChainSettlement(intent, thisIntent)
+	if err != nil {
 		return err
+	}
+	if private {
+		return copySettlementStartBlock(st, thisChainState, settlementID)
 	}
 
 	l1Client := env.L1Client.Client()
@@ -54,9 +58,6 @@ func SetStartBlockGenesisStrategy(env *Env, intent *state.Intent, st *state.Stat
 
 	if st.L1DevGenesis == nil {
 		return errors.New("must seal L1 genesis state before determining start-block")
-	}
-	if private, err := reuseSettlementStartBlock(intent, st, chainID); err != nil || private {
-		return err
 	}
 	thisChainState, err := st.Chain(chainID)
 	if err != nil {
