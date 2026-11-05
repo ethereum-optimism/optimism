@@ -85,3 +85,35 @@ func hardforkActivationMetricKey(metric *io_prometheus_client.Metric) string {
 	}
 	return labels["chain_id"] + "/" + labels["fork"] + "/" + labels["activation_basis"]
 }
+
+func TestSafeDBMetrics(t *testing.T) {
+	m := NewMetrics("test", nil)
+	m.RecordSafeDBLastL2(123)
+	m.RecordSafeDBWriteError("update")
+	m.RecordSafeDBWriteError("reset")
+	families, err := m.registry.Gather()
+	require.NoError(t, err)
+	foundHead, foundErrors := false, false
+	for _, family := range families {
+		switch family.GetName() {
+		case "op_node_test_safedb_last_l2_number":
+			foundHead = true
+			require.Equal(t, float64(123), family.Metric[0].Gauge.GetValue())
+		case "op_node_test_safedb_write_errors_total":
+			foundErrors = true
+			require.Len(t, family.Metric, 2)
+			for _, metric := range family.Metric {
+				require.Equal(t, float64(1), metric.Counter.GetValue())
+				require.Equal(t, "operation", metric.Label[0].GetName())
+			}
+		}
+	}
+	require.True(t, foundHead)
+	require.True(t, foundErrors)
+	m.ClearSafeDBLastL2()
+	families, err = m.registry.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		require.NotEqual(t, "op_node_test_safedb_last_l2_number", family.GetName())
+	}
+}

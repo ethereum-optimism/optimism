@@ -28,6 +28,9 @@ import (
 const Namespace = "op_node"
 
 type Metricer interface {
+	RecordSafeDBWriteError(operation string)
+	RecordSafeDBLastL2(number uint64)
+	ClearSafeDBLastL2()
 	RecordInfo(version string)
 	RecordHardforkActivationTimes(cfg *rollup.Config)
 	RecordUp()
@@ -143,6 +146,8 @@ type Metrics struct {
 	UnsafePayloadsBufferMemSize prometheus.Gauge
 
 	metrics.RefMetrics
+	safeDBWriteErrors *prometheus.CounterVec
+	safeDBLastL2      *prometheus.GaugeVec
 
 	L1ReorgDepth prometheus.Histogram
 
@@ -192,6 +197,12 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 	registerer.MustRegister(collectors.NewGoCollector())
 
 	factory := metrics.With(registerer)
+	safeDBWriteErrors := factory.NewCounterVec(prometheus.CounterOpts{
+		Namespace: ns, Name: "safedb_write_errors_total", Help: "Failed safe head database updates and resets.",
+	}, []string{"operation"})
+	// Export zero before the first failure so increases include the first error.
+	safeDBWriteErrors.WithLabelValues("update")
+	safeDBWriteErrors.WithLabelValues("reset")
 	return &Metrics{
 		Info: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -260,7 +271,11 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 			Help:      "Total estimated memory size of buffered L2 unsafe payloads",
 		}),
 
-		RefMetrics: metrics.MakeRefMetrics(ns, factory),
+		RefMetrics:        metrics.MakeRefMetrics(ns, factory),
+		safeDBWriteErrors: safeDBWriteErrors,
+		safeDBLastL2: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns, Name: "safedb_last_l2_number", Help: "L2 head at the highest persisted SafeDB L1 key; absent when disabled, empty, or unreadable.",
+		}, nil),
 
 		L1ReorgDepth: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: ns,
@@ -850,3 +865,16 @@ func (n *noopMetricer) RecordDial(allow bool) {
 
 func (n *noopMetricer) RecordAccept(allow bool) {
 }
+
+func (m *Metrics) RecordSafeDBWriteError(operation string) {
+	m.safeDBWriteErrors.WithLabelValues(operation).Inc()
+}
+func (m *Metrics) RecordSafeDBLastL2(number uint64) {
+	m.safeDBLastL2.WithLabelValues().Set(float64(number))
+}
+func (m *Metrics) ClearSafeDBLastL2() {
+	m.safeDBLastL2.DeleteLabelValues()
+}
+func (*noopMetricer) RecordSafeDBWriteError(string) {}
+func (*noopMetricer) RecordSafeDBLastL2(uint64)     {}
+func (*noopMetricer) ClearSafeDBLastL2()            {}
