@@ -101,6 +101,15 @@ The November 4 and 5 merges of `develop`, ending at
   native task runs the same command and pin. Hosted same-SHA parity is not yet
   verified for the new command.
 
+The November 5 merge of `develop` at `50115fa6ff8f205845afc12c652ac2fd7a389854`
+changed these PR occurrences:
+
+- Retired: `rust-binaries-for-sysgo` (#23948). The aggregator only echoed a
+  message; its consumers now require the three Rust binary jobs directly. It
+  had no native task or gate mapping, so nothing on the RWX side changed.
+- Changed environment: Circle's sccache setup pins `SOURCE_DATE_EPOCH` so
+  reth-node-core stays cacheable (#23948). RWX does not use that sccache path.
+
 The completed workload snapshot is `a1aa49aaf3713a8172f3f615f094488fd8e39c3d`;
 its 92 summary hashes and complete provider originals are recoverable through the
 evidence guide. Historical per-stage percentages and closeouts are archived.
