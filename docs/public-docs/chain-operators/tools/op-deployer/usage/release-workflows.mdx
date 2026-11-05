@@ -107,7 +107,7 @@ git tag -a op-deployer/v0.X.0-rc.n -m "op-deployer/v0.X.0-rc.n"
 git push origin op-deployer/v0.X.0-rc.n
 ```
 
-The tag triggers two CircleCI workflows: `release` publishes the docker images, and `go-release-op-deployer` runs
-goreleaser, which publishes the binaries and creates the GitHub release. Wait for both to finish, then edit the release
-notes and mark a release candidate as a pre-release (`gh release edit <tag> --prerelease`). Announce the release in
-`#proj-op-deployer` and `#solutions`.
+The tag triggers the CircleCI `release` workflow, which publishes the docker images, and the `release-op-deployer`
+GitHub Actions workflow, which attaches the binaries to a draft GitHub release and marks a release candidate as a
+pre-release. Wait for both to finish, then add the release notes and [publish the draft](#publish-a-release). Announce
+the release in `#proj-op-deployer` and `#solutions`.
