@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -15,7 +16,10 @@ C=importlib.util.module_from_spec(SPEC);SPEC.loader.exec_module(C)
 
 class Reports(unittest.TestCase):
     def test_shell_discovery_and_original_authority(self):
-        self.assertEqual(C.digest(C.ROOT/C.ORB),C.ORB_SHA256)
+        # Discovery and the check run one find; ShellCheck is the mise pin.
+        self.assertEqual(shlex.split(C.SHELL_COMMAND.split(' -print0 |')[0]),C.SHELL_FIND)
+        self.assertEqual(C.COMMANDS['shell-check'],['bash','-eo','pipefail','-c',C.SHELL_COMMAND])
+        self.assertEqual(C.expected_version('shell-check'),C.tomllib.loads((C.ROOT/'mise.toml').read_text())['tools']['shellcheck'])
         self.assertEqual(C.shell_files('./folder with spaces/a.sh\n./b.sh\n'),['./b.sh','./folder with spaces/a.sh'])
         for bad in ('','./a.sh\n./a.sh','../a.sh','./a.sh/../b.sh'):
             with self.subTest(bad=bad),self.assertRaises(ValueError):C.shell_files(bad)
@@ -43,8 +47,8 @@ class _LiveToolsFixtures:
         for source in Path(C.__file__).parent.glob('*.py'):
             if not source.name.startswith('test_'):
                 shutil.copy2(source, root / 'ops/ci/runtime' / source.name)
-        shutil.copy2(C.ROOT / C.ORB, root / C.ORB)
-        (root / '.gitignore').write_text('.ci/\nshellcheck.log\n')
+        shutil.copy2(C.ROOT / 'mise.toml', root / 'mise.toml')
+        (root / '.gitignore').write_text('.ci/\n')
         subprocess.run(['git', 'init', '-q'], cwd=root, check=True)
         self.commit(root)
         return root
@@ -68,12 +72,13 @@ class _LiveToolsFixtures:
 class LiveTools(_LiveToolsFixtures, unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get('RWX_LIVE_SHELL_FIXTURE') == '1', 'Pinned original ShellCheck fixture')
-    def test_original_orb_exclusions_spaces_fresh_failure_and_complete_parity(self):
+    def test_original_exclusions_spaces_fresh_failure_and_complete_parity(self):
         root = self.fixture()
         (root / 'folder with spaces').mkdir()
         for name in ('check.sh', 'folder with spaces/check.sh'):
             (root / name).write_text('#!/bin/bash\nset -euo pipefail\nvalue=original\nprintf "%s\\n" "$value"\n')
-        for name in ('packages/contracts-bedrock/lib/ignored.sh', 'docs/public-docs/ignored.sh'):
+        (root / 'node_modules/tool').mkdir(parents=True)
+        for name in ('packages/contracts-bedrock/lib/ignored.sh', 'docs/public-docs/ignored.sh', 'node_modules/tool/ignored.sh'):
             (root / name).write_text('#!/bin/bash\necho $unquoted\n')
         self.commit(root)
         first, d, sha = self.run_check(root, 'shell-check')
@@ -88,7 +93,7 @@ class LiveTools(_LiveToolsFixtures, unittest.TestCase):
         self.commit(root)
         failed, d, _ = self.run_check(root, 'shell-check', evidence_label='shell-initial-failure')
         self.assertNotEqual(failed.returncode, 0)
-        self.assertIn('SC2086', (d / 'original.shellcheck.log').read_text())
+        self.assertIn('SC2086', (d / 'check.log').read_text())
         self.assertNotEqual(json.loads((d / 'final.json').read_text())['exit_code'], 0)
         self.assertEqual(json.loads((d / 'check.stage.json').read_text())['exit_code'], 1)
         corrupt = d / 'check.log'

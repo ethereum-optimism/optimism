@@ -19,14 +19,14 @@ class CompleteOriginals(unittest.TestCase):
             d=Path(tmp.name)/provider;d.mkdir();self.directories[provider]=d;root='/'+provider
             source={'source.py':'1'*64,'.semgrep/rules/original.yaml':'2'*64,'.semgrep/tests/original.py':'3'*64,'.semgrepignore':'4'*64}
             settings={'source_sha':SHA,'branch':'pilot','job':JOB,'provider':'circleci' if provider=='circle' else 'rwx',
-                'command':C.COMMANDS[JOB],'workspace_root':root,'tool_version':C.VERSIONS[JOB],
+                'command':C.COMMANDS[JOB],'workspace_root':root,'tool_version':C.expected_version(JOB),
                 'environment':C.semgrep_environment('pilot',SHA),'input_sha256':source,
                 'baseline':{'ref':'develop','commit':'b'*40,'merge_base':'b'*40,'changed_files':{'source.py':'M'}},
                 'rwx_run_id':'c'*32 if provider=='rwx' else None,'rwx_task_attempt':'1'}
             self.write(d/'settings.json',settings);self.write(d/'inputs-after.json',source)
             self.write(d/'selection.json',{'rules':{'.semgrep/rules/original.yaml':'2'*64},
                 'fixtures':{'.semgrep/tests/original.py':'3'*64},'ignore':{'.semgrepignore':'4'*64}})
-            self.write(d/'check.json',{'version':C.VERSIONS[JOB],'results':[],
+            self.write(d/'check.json',{'version':C.expected_version(JOB),'results':[],
                 'errors':[{'code':3,'level':'warn','type':'PartialParsing','path':'source.py','message':'original warning'}],
                 'paths':{'scanned':[root+'/source.py'],'skipped':[{'path':'ignored.py','reason':'semgrepignore_patterns_match'}]},
                 'time':{'profiling_times':{provider:1}},'engine_requested':'OSS','skipped_rules':[],

@@ -20,7 +20,7 @@ C = helper('static-checks'); REPORT = helper('ci-report')
 
 def report(directory, job, sha, provider, empty):
     required = {'settings.json', 'selection.json', 'check.stage.json', 'check.log', 'coverage.json', 'inputs-after.json', 'derived.junit.xml'}
-    if job == 'shell-check': required |= {'discovery.log', 'discovery.stage.json', 'original.shellcheck.log'}
+    if job == 'shell-check': required |= {'discovery.log', 'discovery.stage.json'}
     else: required.add('check.json')
     if job == 'semgrep-scan-local': required.add('scanned-source-sha256.json')
     final = REPORT.read(directory / 'final.json')
@@ -38,7 +38,7 @@ def report(directory, job, sha, provider, empty):
     if not s['input_sha256'] or json.loads((directory / 'inputs-after.json').read_text()) != s['input_sha256']:
         raise ValueError('Static verdict changed source inputs')
     version = re.findall(r'^version: (\S+)$', s['tool_version'], re.M) if job == 'shell-check' else [s['tool_version']]
-    if version != [C.VERSIONS[job]]: raise ValueError('Wrong original static tool version')
+    if version != [C.expected_version(job)]: raise ValueError('Wrong original static tool version')
     stages = {p.name.removesuffix('.stage.json') for p in directory.glob('*.stage.json')}
     commands = {'check': C.COMMANDS[job]}
     if job == 'shell-check': commands['discovery'] = C.SHELL_FIND
@@ -50,17 +50,14 @@ def report(directory, job, sha, provider, empty):
             raise ValueError('Wrong or failed original static invocation/output')
     selected = json.loads((directory / 'selection.json').read_text()); recorded = json.loads((directory / 'coverage.json').read_text())
     if job == 'shell-check':
-        if s['baseline'] is not None or s['environment'] != C.SHELL_ENV or selected['orb_command_sha256'] != C.ORB_SHA256 or \
-           selected['orb'] != 'circleci/shellcheck@3.2.0' or s['input_sha256'].get(C.ORB) != C.ORB_SHA256:
-            raise ValueError('Original ShellCheck orb parameters or command changed')
+        if s['baseline'] is not None or s['environment'] != {} or set(selected) != {'files', 'sha256'}:
+            raise ValueError('Original ShellCheck parameters or command changed')
         files = C.shell_files((directory / 'discovery.log').read_text())
-        log = re.sub(r'\x1b\[[0-9;]*m', '', (directory / 'check.log').read_text())
-        actual = C.shell_files('\n'.join(s for s in log.splitlines() if s.startswith('./') and s.endswith('.sh')))
-        if files != actual or files != selected['files'] or set(selected['sha256']) != set(files) or \
+        if files != selected['files'] or set(selected['sha256']) != set(files) or \
            any(selected['sha256'][n] != s['input_sha256'].get(n.removeprefix('./')) for n in files):
             raise ValueError('Missing, extra or changed original ShellCheck file assignment')
         coverage = {'files': files, 'outcome': 'pass'}
-        if (directory / 'original.shellcheck.log').stat().st_size or 'No ShellCheck Errors Found' not in log:
+        if (directory / 'check.log').stat().st_size:
             raise ValueError('Incomplete or failing original ShellCheck verdict')
         cases = {(n, None) for n in files}
     else:

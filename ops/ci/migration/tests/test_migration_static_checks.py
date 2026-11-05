@@ -23,12 +23,13 @@ class LiveTools(T._LiveToolsFixtures, unittest.TestCase):
 
 
     @unittest.skipUnless(os.environ.get('RWX_LIVE_SHELL_FIXTURE') == '1', 'Pinned original ShellCheck fixture')
-    def test_original_orb_exclusions_spaces_fresh_failure_and_complete_parity(self):
+    def test_original_exclusions_spaces_fresh_failure_and_complete_parity(self):
         root = self.fixture()
         (root / 'folder with spaces').mkdir()
         for name in ('check.sh', 'folder with spaces/check.sh'):
             (root / name).write_text('#!/bin/bash\nset -euo pipefail\nvalue=original\nprintf "%s\\n" "$value"\n')
-        for name in ('packages/contracts-bedrock/lib/ignored.sh', 'docs/public-docs/ignored.sh'):
+        (root / 'node_modules/tool').mkdir(parents=True)
+        for name in ('packages/contracts-bedrock/lib/ignored.sh', 'docs/public-docs/ignored.sh', 'node_modules/tool/ignored.sh'):
             (root / name).write_text('#!/bin/bash\necho $unquoted\n')
         self.commit(root)
         first, d, sha = self.run_check(root, 'shell-check')
@@ -45,7 +46,7 @@ class LiveTools(T._LiveToolsFixtures, unittest.TestCase):
         self.commit(root)
         failed, d, _ = self.run_check(root, 'shell-check', evidence_label='shell-initial-failure')
         self.assertNotEqual(failed.returncode, 0)
-        self.assertIn('SC2086', (d / 'original.shellcheck.log').read_text())
+        self.assertIn('SC2086', (d / 'check.log').read_text())
         self.assertNotEqual(json.loads((d / 'final.json').read_text())['exit_code'], 0)
         self.assertEqual(json.loads((d / 'check.stage.json').read_text())['exit_code'], 1)
         corrupt = d / 'check.log'

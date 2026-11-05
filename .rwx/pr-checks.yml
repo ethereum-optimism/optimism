@@ -113,11 +113,11 @@ tasks:
     use: tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
-      mise install uv shellcheck@0.9.0 shfmt
+      mise install uv shellcheck shfmt
       PATH="$(mise bin-paths | paste -sd: -):$PATH"
       export PATH
       mise install pipx:semgrep@1.178.0
-      mise exec shellcheck@0.9.0 shfmt pipx:semgrep@1.178.0 -- sh -c 'printf "%s\n" "$PATH"' >"$RWX_ENV/PATH"
+      mise exec shellcheck shfmt pipx:semgrep@1.178.0 -- sh -c 'printf "%s\n" "$PATH"' >"$RWX_ENV/PATH"
     timeout: 30m
 
   - key: static-helper-tests
