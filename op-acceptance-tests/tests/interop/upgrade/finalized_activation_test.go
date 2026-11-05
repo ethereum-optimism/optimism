@@ -20,8 +20,8 @@ func TestFinalizedL2DoesNotRegressAcrossActivation(gt *testing.T) {
 	sys := presets.NewTwoL2SupernodeInterop(t, 240)
 	require := t.Require()
 
-	interopTimeA := sys.L2A.Escape().ChainConfig().LagoonTime
-	interopTimeB := sys.L2B.Escape().ChainConfig().LagoonTime
+	interopTimeA := sys.L2A.Escape().RollupConfig().LagoonTime
+	interopTimeB := sys.L2B.Escape().RollupConfig().LagoonTime
 	require.NotNil(interopTimeA, "L2A must have LagoonTime configured")
 	require.NotNil(interopTimeB, "L2B must have LagoonTime configured")
 
