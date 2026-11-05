@@ -182,6 +182,9 @@ func (r *continuationRunner) run() error {
 	if err != nil {
 		return fmt.Errorf("failed to read implementations from OPCM at %s: %w", pinnedOPCM, err)
 	}
+	if st.ImplementationsDeployment == nil || *st.ImplementationsDeployment != *r.opcmImpls {
+		return fmt.Errorf("the implementations recorded by prepare do not match those of OPCM %s", pinnedOPCM)
+	}
 	startNonce, err := readContinuationStartNonce(r.ctx, l1Client, deployer)
 	if err != nil {
 		return err

@@ -110,4 +110,3 @@ workflows:
           context:
             - circleci-repo-optimism
             - slack
-            - github-checkout-app

@@ -96,12 +96,12 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
 
     /// @notice Tests that `isDevFeatureEnabled` works correctly with multiple features set.
     function test_isDevFeatureEnabled_multipleFeatures_succeeds() public {
-        bytes32 bitmap = DevFeatures.ZK_DISPUTE_GAME | DevFeatures.BRIDGE_HOOK;
+        bytes32 bitmap = DevFeatures.OP_PRIVATE | DevFeatures.BRIDGE_HOOK;
 
         vm.prank(Constants.DEPOSITOR_ACCOUNT);
         l2DevFeatureFlags.setDevFeatureBitmap(bitmap);
 
-        assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME));
+        assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.OP_PRIVATE));
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.BRIDGE_HOOK));
     }
 }

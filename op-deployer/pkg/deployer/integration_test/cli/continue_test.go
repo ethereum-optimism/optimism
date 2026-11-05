@@ -120,7 +120,7 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 	privateKey, key, dk := shared.DefaultPrivkey(t)
 	l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
 	chainID := uint256.NewInt(1)
-	loc, _ := testutil.LocalArtifacts(t)
+	loc, afacts := testutil.LocalArtifacts(t)
 	setupCacheDir := t.TempDir()
 
 	intent, st := shared.NewIntent(t, l1ChainID, dk, chainID, loc, loc, continueCLIGasLimit)
@@ -135,6 +135,7 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 		Guardian:                  intent.SuperchainRoles.SuperchainGuardian,
 	})
 	require.NoError(t, err)
+	sp1Verifier := testutil.DeployMockSP1Verifier(t, l1Client, key, afacts)
 
 	impls, err := bootstrap.Implementations(ctx, bootstrap.ImplementationsConfig{
 		L1RPCUrl:                           l1RPC,
@@ -159,6 +160,7 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 		FaultGameSplitDepth:                standard.DisputeSplitDepth,
 		FaultGameClockExtension:            standard.DisputeClockExtension,
 		FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
+		SP1Verifier:                        sp1Verifier,
 	})
 	require.NoError(t, err)
 

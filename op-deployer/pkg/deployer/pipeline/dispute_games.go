@@ -124,7 +124,7 @@ func deployDisputeGame(
 	case state.VMTypeZK:
 		zkImpl := st.ImplementationsDeployment.ZkDisputeGameImpl
 		if zkImpl == (common.Address{}) {
-			return fmt.Errorf("ZkDisputeGameImpl is not deployed; ensure ZKDisputeGameFlag is set in devFeatureBitmap")
+			return fmt.Errorf("ZkDisputeGameImpl is not deployed")
 		}
 		if game.ZKDisputeGame == nil {
 			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")
@@ -134,7 +134,7 @@ func deployDisputeGame(
 		}
 		sp1PlonkAdapter := st.ImplementationsDeployment.SP1PlonkAdapterImpl
 		if sp1PlonkAdapter == (common.Address{}) {
-			return fmt.Errorf("SP1PlonkAdapterImpl is not deployed; ensure ZKDisputeGameFlag is set in devFeatureBitmap")
+			return fmt.Errorf("SP1PlonkAdapterImpl is not deployed")
 		}
 		zk := game.ZKDisputeGame
 		if zk.ChallengerBond == nil || zk.ChallengerBond.ToInt().Sign() <= 0 {

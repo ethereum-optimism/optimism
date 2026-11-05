@@ -66,6 +66,7 @@ func TestCLIValidate(t *testing.T) {
 			chain.Eip1559Denominator = standard.Eip1559Denominator
 			chain.Eip1559Elasticity = standard.Eip1559Elasticity
 		}
+		setSP1VerifierOverride(intent, runner.DeployMockSP1Verifier(t))
 		require.NoError(t, intent.WriteToFile(filepath.Join(workDir, "intent.toml")))
 
 		// Apply deployment

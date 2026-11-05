@@ -143,14 +143,15 @@ func generateL2Genesis(t *testing.T, mode allocMode) generatedL2Genesis {
 	mode.configure(t, intent)
 
 	require.NoError(t, deployer.ApplyPipeline(context.Background(), deployer.ApplyPipelineOpts{
-		DeploymentTarget:   deployer.DeploymentTargetGenesis,
-		L1RPCUrl:           "",
-		DeployerPrivateKey: pk,
-		Intent:             intent,
-		State:              st,
-		Logger:             lgr,
-		StateWriter:        pipeline.NoopStateWriter(),
-		CacheDir:           testutils.IsolatedTestDirWithAutoCleanup(t),
+		DeploymentTarget:      deployer.DeploymentTargetGenesis,
+		L1RPCUrl:              "",
+		DeployerPrivateKey:    pk,
+		Intent:                intent,
+		State:                 st,
+		Logger:                lgr,
+		StateWriter:           pipeline.NoopStateWriter(),
+		CacheDir:              testutils.IsolatedTestDirWithAutoCleanup(t),
+		DeployMockSP1Verifier: true,
 	}))
 
 	require.NotEmpty(t, st.Chains)

@@ -15,7 +15,6 @@ import (
 	opchallenger "github.com/ethereum-optimism/optimism/op-challenger"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	challengermetrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -34,11 +33,7 @@ import (
 )
 
 func withSuperProofsDeployerFeature(cfg PresetConfig) PresetConfig {
-	features := []DeployerOption{WithUseInterop()}
-	if cfg.ZKDisputeGame != nil {
-		features = append(features, WithDevFeatureEnabled(devfeatures.ZKDisputeGameFlag))
-	}
-	cfg.DeployerOptions = append(features, cfg.DeployerOptions...)
+	cfg.DeployerOptions = append([]DeployerOption{WithUseInterop()}, cfg.DeployerOptions...)
 	return cfg
 }
 

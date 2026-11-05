@@ -85,7 +85,7 @@ orbs:
 
 commands:
   github-checkout:
-    description: "Check out the optimism repo over HTTPS. Uses a read-only GitHub App installation token when the github-checkout-app context is set, otherwise clones anonymously."
+    description: "Check out the optimism repo over HTTPS, anonymously."
     parameters:
       method:
         description: "Clone method: full or blobless (blob:none filter)."
@@ -103,59 +103,12 @@ commands:
             : "${CIRCLE_SHA1:?CIRCLE_SHA1 is not set}"
 
             repo_url="https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
-            repo_path="${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
-            token=""
-            basic=""
-
-            have_tools() {
-              for tool in openssl curl jq; do
-                command -v "$tool" >/dev/null 2>&1 || return 1
-              done
-            }
-
-            if [ -n "${GITHUB_CHECKOUT_APP_ID:-}" ] && [ -n "${GITHUB_CHECKOUT_APP_PRIVATE_KEY_B64:-}" ] && have_tools; then
-              key_file="$(mktemp)"
-              trap 'rm -f "$key_file"' EXIT
-              printf '%s' "$GITHUB_CHECKOUT_APP_PRIVATE_KEY_B64" | base64 -d > "$key_file"
-              b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
-              now=$(date +%s)
-              header=$(printf '{"alg":"RS256","typ":"JWT"}' | b64url)
-              payload=$(printf '{"iat":%d,"exp":%d,"iss":"%s"}' "$((now - 60))" "$((now + 540))" "$GITHUB_CHECKOUT_APP_ID" | b64url)
-              signature=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "$key_file" -binary | b64url)
-              jwt="$header.$payload.$signature"
-              installation_id=$(curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 \
-                -H "Authorization: Bearer $jwt" \
-                -H "Accept: application/vnd.github+json" \
-                "https://api.github.com/repos/${repo_path}/installation" | jq -r '.id') || installation_id=""
-              if [ -n "$installation_id" ] && [ "$installation_id" != "null" ]; then
-                token=$(curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 -X POST \
-                  -H "Authorization: Bearer $jwt" \
-                  -H "Accept: application/vnd.github+json" \
-                  -H "Content-Type: application/json" \
-                  -d "{\"repositories\":[\"${CIRCLE_PROJECT_REPONAME}\"],\"permissions\":{\"contents\":\"read\"}}" \
-                  "https://api.github.com/app/installations/${installation_id}/access_tokens" | jq -r '.token') || token=""
-              fi
-              if [ -n "$token" ] && [ "$token" != "null" ]; then
-                basic=$(printf 'x-access-token:%s' "$token" | base64 | tr -d '\n')
-              else
-                token=""
-                echo "GitHub App token unavailable, checking out anonymously" >&2
-              fi
-            fi
-
-            git_auth() {
-              if [ -n "$token" ]; then
-                GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.${repo_url}.extraheader" GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${basic}" git "$@"
-              else
-                git "$@"
-              fi
-            }
 
             fetch_repo() {
               if [ "$CHECKOUT_METHOD" = "blobless" ]; then
-                git_auth fetch --filter=blob:none "$@"
+                git fetch --filter=blob:none "$@"
               else
-                git_auth fetch "$@"
+                git fetch "$@"
               fi
             }
 
@@ -169,20 +122,16 @@ commands:
               git remote add origin "$repo_url"
             fi
 
-            if [ -n "$token" ]; then
-              echo "Checking out with GitHub App token"
-            else
-              echo "Checking out anonymously"
-            fi
+            echo "Checking out anonymously"
 
             fetch_repo --quiet --force --tags origin '+refs/heads/*:refs/remotes/origin/*'
             fetch_repo origin "$CIRCLE_SHA1"
             git branch --force develop refs/remotes/origin/develop
 
             if [ -n "${CIRCLE_BRANCH:-}" ]; then
-              git_auth checkout -q --force -B "$CIRCLE_BRANCH" "$CIRCLE_SHA1"
+              git checkout -q --force -B "$CIRCLE_BRANCH" "$CIRCLE_SHA1"
             else
-              git_auth checkout -q --force "$CIRCLE_SHA1"
+              git checkout -q --force "$CIRCLE_SHA1"
             fi
 
             if [ "$(git rev-parse HEAD)" != "$CIRCLE_SHA1" ]; then
@@ -347,7 +296,6 @@ workflows:
           # downloads (5,000 req/h per token vs 60/h/IP anonymous).
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - github-checkout-app
 
   setup-tag:
     when:
@@ -358,7 +306,6 @@ workflows:
           # MISE_GITHUB_TOKEN, as in the setup workflow above.
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - github-checkout-app
           filters:
             tags:
               only: /.*/

@@ -1279,6 +1279,11 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_NotBridgeHook",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_NotUsingInterop",
     "type": "error"
   },

@@ -42,6 +42,8 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 
 		// We'll need some contracts already deployed for this to work
 		proxyAdminAddress, proxyAddress := deployDependencies(host1)
+		sp1Verifier, err := DeployMockSP1Verifier(host1, addresses.ScriptDeployer)
+		require.NoError(t, err)
 
 		deployImplementations, err := NewDeployImplementationsScript(host1)
 		require.NoError(t, err)
@@ -67,7 +69,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			SuperchainProxyAdmin:               proxyAdminAddress,
 			L1ProxyAdminOwner:                  common.BigToAddress(big.NewInt(13)),
 			Challenger:                         common.BigToAddress(big.NewInt(14)),
-			SP1Verifier:                        common.Address{},
+			SP1Verifier:                        sp1Verifier,
 		})
 
 		// And do some simple asserts
