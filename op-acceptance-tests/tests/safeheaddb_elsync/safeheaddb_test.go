@@ -17,6 +17,7 @@ func newSingleChainMultiNodeELSync(t devtest.T) *presets.SingleChainMultiNode {
 	// uses a 4x CrossSafe budget (see singlechain_from_runtime.go), which is
 	// what this test needs.
 	return presets.NewSingleChainMultiNode(t,
+		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
 		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(p devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
 			cfg.VerifierSyncMode = sync.ELSync
 			cfg.SafeDBPath = p.TempDir()
@@ -85,7 +86,7 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	preRestartSafeBlock := sys.L2CLB.SafeHeadDBFloor()
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))
 
-	// Restart the verifier op-node, but not the EL so the existing chain data is not deleted.
+	// Keep the EL's chain data while restarting the verifier CL.
 	sys.L2CLB.Stop()
 
 	sys.L2CL.Advanced(safety.LocalSafe, 3, 30)

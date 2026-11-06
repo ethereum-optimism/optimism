@@ -19,6 +19,19 @@ missed. See [`SafeDb::safe_head_updated`].
 
 The layout carries no compatibility guarantee with any other implementation and is free to change.
 
+## RPC error contract
+
+The node's `optimism_safeHeadAtL1Block` and pre-interop `superroot_atTimestamp` handlers
+translate `SafeDB` failures into JSON-RPC errors with code `-32000`. A missing L1 lookup
+record has the bare message `not found`. The reverse lookup used by `superroot_atTimestamp`
+distinguishes `l1 at safe head not found` (not recorded yet) from
+`l1 at safe head history unavailable` (before the available history), with an operation
+prefix of `l1AtSafeHead@<blockNumber>`. A disabled database has a message containing
+`safe head database not enabled`, prefixed with the attempted operation. These conditions
+remain distinct so clients can identify unavailable historical coverage without treating a
+disabled database as an empty one. Other storage failures return an error with operation
+context rather than a successful historical answer.
+
 The crate exposes:
 
 - [`SafeDb`] — the database trait.
