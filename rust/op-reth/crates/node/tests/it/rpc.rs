@@ -38,11 +38,9 @@ async fn test_admin_external_ip() -> eyre::Result<()> {
 
     let external_ip = "10.64.128.71".parse().unwrap();
     // Node setup
-    let mut network_args = NetworkArgs::default()
+    let network_args = NetworkArgs::default()
         .with_unused_ports()
         .with_nat_resolver(NatResolver::ExternalIp(external_ip));
-    network_args.discovery.discv5_port = Some(0);
-    network_args.discovery.discv5_port_ipv6 = Some(0);
     let node_config = NodeConfig::test()
         .map_chain(OP_SEPOLIA.clone())
         .with_network(network_args)
@@ -95,9 +93,7 @@ async fn test_retain_forwarded_txs() -> eyre::Result<()> {
 
     let exec = Runtime::test();
     for retain_forwarded_txs in [false, true] {
-        let mut network_args = NetworkArgs::default().with_unused_ports();
-        network_args.discovery.discv5_port = Some(0);
-        network_args.discovery.discv5_port_ipv6 = Some(0);
+        let network_args = NetworkArgs::default().with_unused_ports();
         let node_config = NodeConfig::test()
             .map_chain(chain_spec.clone())
             .with_network(network_args)
@@ -130,9 +126,7 @@ async fn test_eth_config_endpoint_exists() -> eyre::Result<()> {
 
     // Node setup
     let network = OP_SEPOLIA.clone();
-    let mut network_args = NetworkArgs::default().with_unused_ports();
-    network_args.discovery.discv5_port = Some(0);
-    network_args.discovery.discv5_port_ipv6 = Some(0);
+    let network_args = NetworkArgs::default().with_unused_ports();
     let node_config = NodeConfig::test()
         .map_chain(network.clone())
         .with_network(network_args)
@@ -161,9 +155,7 @@ async fn test_eth_capabilities_starts_at_bedrock() -> eyre::Result<()> {
     );
 
     let exec = Runtime::test();
-    let mut network_args = NetworkArgs::default().with_unused_ports();
-    network_args.discovery.discv5_port = Some(0);
-    network_args.discovery.discv5_port_ipv6 = Some(0);
+    let network_args = NetworkArgs::default().with_unused_ports();
     let node_config = NodeConfig::test()
         .map_chain(chain_spec)
         .with_network(network_args)
@@ -209,9 +201,7 @@ async fn test_block_access_list_methods_unserved() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
 
     let exec = Runtime::test();
-    let mut network_args = NetworkArgs::default().with_unused_ports();
-    network_args.discovery.discv5_port = Some(0);
-    network_args.discovery.discv5_port_ipv6 = Some(0);
+    let network_args = NetworkArgs::default().with_unused_ports();
     let node_config =
         NodeConfig::test().map_chain(OP_SEPOLIA.clone()).with_network(network_args).with_rpc(
             RpcServerArgs::default()
@@ -245,9 +235,7 @@ async fn test_computed_bal_cache_options_rejected() -> eyre::Result<()> {
             RpcStateCacheArgs { cache_computed_bals: true, ..Default::default() },
         ),
     ] {
-        let mut network_args = NetworkArgs::default().with_unused_ports();
-        network_args.discovery.discv5_port = Some(0);
-        network_args.discovery.discv5_port_ipv6 = Some(0);
+        let network_args = NetworkArgs::default().with_unused_ports();
         let mut rpc = RpcServerArgs::default().with_unused_ports().with_http();
         rpc.rpc_state_cache = cache;
         let node_config = NodeConfig::test()
