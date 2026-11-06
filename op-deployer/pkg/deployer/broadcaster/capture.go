@@ -7,7 +7,7 @@ import (
 )
 
 // CaptureBroadcaster retains broadcasts with every field so callers can
-// validate and replay fields that CalldataBroadcaster intentionally discards.
+// validate and replay them.
 type CaptureBroadcaster struct {
 	broadcasts []Broadcast
 	mu         sync.Mutex

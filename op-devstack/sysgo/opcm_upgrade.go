@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -79,5 +80,5 @@ func executeOPCMUpgrade(
 	t.Require().NoError(err, "failed to encode the OPCM upgrade")
 
 	t.Log("Executing opcm.upgrade via SetCode delegatecall")
-	delegateCallWithSetCode(t, l1PAOKey, client, opcmAddr, calldata)
+	t.Require().NoError(transactions.DelegateCallWithSetCode(t.Ctx(), client, l1PAOKey, opcmAddr, calldata))
 }
