@@ -6,20 +6,14 @@
 //! [SDM-M1]: https://github.com/ethereum-optimism/protocol-team/issues/371
 
 use alloy_consensus::{Sealable, proofs::calculate_transaction_root};
-use alloy_genesis::Genesis;
-use alloy_primitives::B64;
 use alloy_rpc_types_engine::{PayloadStatus, PayloadStatusEnum, PayloadValidationError};
-use op_alloy_consensus::{
-    PostExecPayloadValidationError, SDMGasEntry, build_post_exec_tx, encode_jovian_extra_data,
-};
+use op_alloy_consensus::{PostExecPayloadValidationError, SDMGasEntry, build_post_exec_tx};
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
-use reth_chainspec::BaseFeeParams;
 use reth_e2e_test_utils::{NodeHelperType, setup_engine_with_connection, wallet::Wallet};
-use reth_optimism_chainspec::OpChainSpecBuilder;
 use reth_optimism_node::{
     OpBuiltPayload, OpNode,
     payload::OpExecData,
-    utils::{advance_chain, optimism_payload_attributes, setup},
+    utils::{advance_chain, setup},
 };
 use reth_optimism_primitives::OpTransactionSigned;
 use std::sync::Arc;
@@ -27,24 +21,12 @@ use tokio::sync::Mutex;
 
 /// Creates Lagoon-active nodes without changing the shared Ecotone fixture.
 async fn setup_lagoon(num_nodes: usize) -> eyre::Result<(Vec<NodeHelperType<OpNode>>, Wallet)> {
-    let mut genesis: Genesis = serde_json::from_str(include_str!("../assets/genesis.json"))?;
-    // Lagoon is active at genesis, so the first child's base fee uses Jovian extra data.
-    genesis.extra_data = encode_jovian_extra_data(B64::ZERO, BaseFeeParams::optimism(), 0)?;
-    genesis.base_fee_per_gas = Some(1_000_000_000);
-    let chain_spec = Arc::new(
-        OpChainSpecBuilder::optimism_sepolia().genesis(genesis).lagoon_activated().build(),
-    );
     setup_engine_with_connection(
         num_nodes,
-        chain_spec,
+        crate::lagoon::chain_spec()?,
         false,
         Default::default(),
-        |timestamp| {
-            let mut attributes = optimism_payload_attributes(timestamp);
-            attributes.0.eip_1559_params = Some(B64::ZERO);
-            attributes.0.min_base_fee = Some(0);
-            attributes
-        },
+        crate::lagoon::payload_attributes,
         // The buffered-child test must learn the parent only through its explicit newPayload.
         false,
     )

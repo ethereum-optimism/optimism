@@ -16,6 +16,10 @@ mod debug_trace_post_exec;
 
 mod invalid_post_exec;
 
+mod lagoon;
+
+mod rpc_replay_settlement;
+
 mod estimate_gas_7825;
 
 mod p2p_version;
