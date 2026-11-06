@@ -485,7 +485,13 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
     ///         simulation block has been bumped beyond the execution block.
     /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
     function runPastUpgrades(address _delegateCaller) internal {
-        PastUpgrades.runPastUpgrades(_delegateCaller, v2UpgradeInput.systemConfig, superchainConfig, disputeGameFactory);
+        PastUpgrades.runPastUpgrades({
+            _delegateCaller: _delegateCaller,
+            _systemConfig: v2UpgradeInput.systemConfig,
+            _superchainConfig: superchainConfig,
+            _disputeGameFactory: disputeGameFactory,
+            _currentOPCMVersion: opcmV2.version()
+        });
     }
 
     /// @notice Executes the current V2 upgrade and checks the results.
