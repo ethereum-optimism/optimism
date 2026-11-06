@@ -39,7 +39,7 @@ func TestGenesisStateReadOnlyBundle(t *testing.T) {
 
 // TestGenesisStateWithoutIsolation runs a genesis script in a bundle that turns on forge's call
 // isolation, as the contracts bundle does for its tests. A pranked top-level call must not leave
-// the pranked address in the state, as it does not on the Go script host.
+// the pranked address in the state, as the genesis of earlier releases did not.
 func TestGenesisStateWithoutIsolation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()

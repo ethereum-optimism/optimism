@@ -30,7 +30,6 @@ const (
 	ContractNameFlagName      = flags.ContractNameFlagName
 	VerifierTypeFlagName      = flags.VerifierTypeFlagName
 	VerifierUrlFlagName       = flags.VerifierUrlFlagName
-	UseForgeFlagName          = flags.UseForgeFlagName
 	GenesisTimeOffsetFlagName = flags.GenesisTimeOffsetFlagName
 )
 
@@ -137,12 +136,6 @@ var (
 		EnvVars: PrefixEnvVar("NO_VERIFY"),
 		Value:   false,
 	}
-	UseForgeFlag = &cli.BoolFlag{
-		Name:    UseForgeFlagName,
-		Usage:   "run the deployment scripts with forge; false runs them on the Go script host, which a later release removes",
-		EnvVars: PrefixEnvVar("USE_FORGE"),
-		Value:   true,
-	}
 	GenesisTimeOffsetFlag = &cli.Uint64Flag{
 		Name: GenesisTimeOffsetFlagName,
 		Usage: "Offset in seconds added to the L1 anchor block's timestamp to produce the committed L2 genesis " +
@@ -183,7 +176,6 @@ var ApplyFlags = []cli.Flag{
 	VerifierAPIKeyFlag,
 	VerifierFlag,
 	VerifierUrlFlag,
-	UseForgeFlag,
 }
 
 var PrestateFlags = []cli.Flag{

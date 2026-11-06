@@ -5,7 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 )
 
 // The MockSP1Verifier artifact is test-only: builds that skip test/, such as release builds, lack it.
@@ -14,19 +14,13 @@ const (
 	MockSP1VerifierContract = "MockSP1Verifier"
 )
 
-// DeployMockSP1Verifier deploys the accept-all MockSP1Verifier into a script host. Development
+// DeployMockSP1Verifier puts the accept-all MockSP1Verifier into a genesis state. Development
 // environments pass it as DeployImplementationsInput.SP1Verifier.
-func DeployMockSP1Verifier(host *script.Host, deployer common.Address) (common.Address, error) {
-	artifact, err := host.Artifacts().ReadArtifact(MockSP1VerifierArtifact, MockSP1VerifierContract)
+func DeployMockSP1Verifier(genesis *GenesisState, af *foundry.ArtifactsFS) (common.Address, error) {
+	artifact, err := af.ReadArtifact(MockSP1VerifierArtifact, MockSP1VerifierContract)
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to read MockSP1Verifier artifact: %w", err)
 	}
-	verifier, err := host.Create(deployer, artifact.Bytecode.Object)
-	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to deploy MockSP1Verifier: %w", err)
-	}
-	if verifier == (common.Address{}) {
-		return common.Address{}, fmt.Errorf("MockSP1Verifier deployment produced no contract address")
-	}
-	return verifier, nil
+	// The verifier has no constructor and no immutables, so its runtime code is its genesis code.
+	return genesis.Create(artifact.DeployedBytecode.Object), nil
 }

@@ -58,7 +58,9 @@ func setupClusterWithGenesis(t *testing.T, n int) (*Env, *state.Intent, *state.S
 		Time:   hexutil.Uint64(uint64(genesisTime) - 100),
 	}
 
-	pEnv := &Env{Logger: lgr, Deployer: deployer}
+	l2Forge, err := opcm.NewForgeClient(afacts, "", opcm.L2ForgeScripts)
+	require.NoError(t, err)
+	pEnv := &Env{Logger: lgr, Deployer: deployer, L2Forge: l2Forge}
 	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	ids := make([]common.Hash, 0, n)
 	for _, chain := range intent.Chains {

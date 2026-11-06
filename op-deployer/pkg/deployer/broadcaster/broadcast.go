@@ -15,9 +15,6 @@ type BroadcastType string
 const (
 	BroadcastCall   BroadcastType = "call"
 	BroadcastCreate BroadcastType = "create"
-	// BroadcastCreate2 is sent to the deterministic deployment proxy, with the salt
-	// followed by the init code as calldata.
-	BroadcastCreate2 BroadcastType = "create2"
 )
 
 func (bt BroadcastType) String() string {
@@ -31,7 +28,7 @@ func (bt BroadcastType) MarshalText() ([]byte, error) {
 func (bt *BroadcastType) UnmarshalText(data []byte) error {
 	v := BroadcastType(data)
 	switch v {
-	case BroadcastCall, BroadcastCreate, BroadcastCreate2:
+	case BroadcastCall, BroadcastCreate:
 		*bt = v
 		return nil
 	default:
@@ -42,14 +39,12 @@ func (bt *BroadcastType) UnmarshalText(data []byte) error {
 // Broadcast captures a transaction that a deploy script selected to be broadcast
 // via vm.broadcast(). Actually submitting the transaction is left up to a Broadcaster.
 type Broadcast struct {
-	From    common.Address `json:"from"`
-	To      common.Address `json:"to"`    // set to expected contract address, if this is a deployment
-	Input   hexutil.Bytes  `json:"input"` // set to contract-creation code, if this is a deployment
-	Value   *hexutil.U256  `json:"value"`
-	Salt    common.Hash    `json:"salt"` // set if this is a Create2 broadcast
-	GasUsed uint64         `json:"gasUsed"`
-	Type    BroadcastType  `json:"type"`
-	Nonce   uint64         `json:"nonce"` // pre-state nonce of From, before any increment (always 0 if create2)
+	From  common.Address `json:"from"`
+	To    common.Address `json:"to"`    // set to expected contract address, if this is a deployment
+	Input hexutil.Bytes  `json:"input"` // set to contract-creation code, if this is a deployment
+	Value *hexutil.U256  `json:"value"`
+	Type  BroadcastType  `json:"type"`
+	Nonce uint64         `json:"nonce"` // pre-state nonce of From, before any increment
 }
 
 // ID returns a hash that can be used to identify the broadcast.
@@ -62,7 +57,6 @@ func (b Broadcast) ID() common.Hash {
 	_, _ = h.Write(b.To[:])
 	_, _ = h.Write(b.Input)
 	_, _ = h.Write(((*uint256.Int)(b.Value)).Bytes())
-	_, _ = h.Write(b.Salt[:])
 	nonce := make([]byte, 8)
 	binary.BigEndian.PutUint64(nonce, b.Nonce)
 	_, _ = h.Write(nonce)
