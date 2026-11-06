@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -31,7 +32,9 @@ var cliTestBinary string
 // dropped field would only make the tests slower.
 func requireFastReceiptPoll(t *testing.T, output string) {
 	t.Helper()
-	require.Contains(t, output, `using non-default receipt query interval" interval=`+testReceiptQueryInterval.String())
+	reached := strings.Contains(output, "using non-default receipt query interval") &&
+		strings.Contains(output, "interval="+testReceiptQueryInterval.String())
+	require.True(t, reached, "the receipt query interval did not reach the broadcaster")
 }
 
 // CLITestRunner provides utilities for running op-deployer CLI commands in tests
@@ -160,9 +163,10 @@ func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]s
 	cmd.Dir = r.workDir
 	cmd.Env = append(cmd.Environ(),
 		"DEPLOYER_RECEIPT_QUERY_INTERVAL="+testReceiptQueryInterval.String(),
-		// requireFastReceiptPoll reads this log format.
+		// requireFastReceiptPoll reads this log output.
 		"DEPLOYER_LOG_FORMAT=text",
 		"DEPLOYER_LOG_COLOR=false",
+		"DEPLOYER_LOG_LEVEL=info",
 	)
 	for key, value := range env {
 		cmd.Env = append(cmd.Env, key+"="+value)

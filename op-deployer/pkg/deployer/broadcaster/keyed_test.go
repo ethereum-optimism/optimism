@@ -157,6 +157,21 @@ func TestNewKeyedBroadcasterReceiptQueryInterval(t *testing.T) {
 // there before ten seconds on any machine, and at 50ms a slow host still has plenty of slack.
 func TestKeyedBroadcasterPollsAtConfiguredInterval(t *testing.T) {
 	const receiptOnPoll = 10
+	require.Less(t, timeUntilPoll(t, 50*time.Millisecond, receiptOnPoll), receiptOnPoll*time.Second)
+}
+
+// Real deployments set no interval, so faster polling here would apply to every one of them.
+func TestKeyedBroadcasterPollsEverySecondByDefault(t *testing.T) {
+	for _, interval := range []time.Duration{0, time.Second} {
+		t.Run(interval.String(), func(t *testing.T) {
+			require.GreaterOrEqual(t, timeUntilPoll(t, interval, 1), time.Second)
+		})
+	}
+}
+
+// timeUntilPoll broadcasts a transaction whose receipt appears on the given poll, and returns how long that took.
+func timeUntilPoll(t *testing.T, interval time.Duration, receiptOnPoll int32) time.Duration {
+	t.Helper()
 	var polls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -202,7 +217,7 @@ func TestKeyedBroadcasterPollsAtConfiguredInterval(t *testing.T) {
 		Client:               client,
 		Signer:               opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(key, big.NewInt(1))),
 		From:                 from,
-		ReceiptQueryInterval: 50 * time.Millisecond,
+		ReceiptQueryInterval: interval,
 	})
 	require.NoError(t, err)
 	bcaster.Hook(Broadcast{Type: BroadcastCall, From: from, To: common.Address{'T'}, Value: (*hexutil.U256)(new(uint256.Int))})
@@ -210,6 +225,7 @@ func TestKeyedBroadcasterPollsAtConfiguredInterval(t *testing.T) {
 	start := time.Now()
 	_, err = bcaster.Broadcast(t.Context())
 	require.NoError(t, err)
-	require.Less(t, time.Since(start), receiptOnPoll*time.Second)
+	elapsed := time.Since(start)
 	require.EqualValues(t, receiptOnPoll, polls.Load())
+	return elapsed
 }

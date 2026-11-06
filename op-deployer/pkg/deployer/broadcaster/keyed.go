@@ -23,7 +23,8 @@ import (
 const (
 	// DefaultReceiptQueryInterval is the receipt poll interval when none is set.
 	DefaultReceiptQueryInterval = time.Second
-	// minReceiptQueryInterval limits RPC load: each rebroadcast of a stuck transaction adds a poller.
+	// minReceiptQueryInterval limits RPC load: each rebroadcast of a stuck transaction adds a poller,
+	// so a send stuck for a minute polls about 100 times a second at this rate.
 	minReceiptQueryInterval = 50 * time.Millisecond
 	// maxReceiptQueryInterval is the default. Slower polling leaves less time to see a mined
 	// transaction's receipt before rebroadcasts hit SafeAbortNonceTooLowCount and abort the send.
@@ -68,7 +69,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 	if receiptQueryInterval != DefaultReceiptQueryInterval {
 		// apply --use-forge --deployment-target=live also builds this broadcaster, so it warns even though Forge does its own sending.
 		cfg.Logger.Warn(
-			"using non-default receipt query interval",
+			"using non-default receipt query interval, which is only meant for tests",
 			"interval", receiptQueryInterval,
 			"default", DefaultReceiptQueryInterval,
 		)
