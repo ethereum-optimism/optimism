@@ -472,7 +472,8 @@ _check-nut-prefork-states:
   shopt -s nullglob
   for state in op-core/nuts/state/*_state.json; do
     fork="$(basename "$state" _state.json)"
-    if [ "$fork" = "jovian" ]; then
+    # The jovian seed is not regenerated. _nut-prefork-state-for also writes the multi-chain state.
+    if [ "$fork" = "jovian" ] || [[ "$fork" == *_multichain ]]; then
       continue
     fi
     just _nut-prefork-state-for "$fork"
@@ -492,11 +493,13 @@ nut-snapshot-for fork:
 nut-provenance-verify fork:
   go run ./ops/scripts/nut-provenance-verify {{fork}}
 
-# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
+# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle), and
+# <fork>_multichain_state.json from Lagoon onward.
 _nut-prefork-state-for fork:
   OP_E2E_GEN_PREFORK_STATE={{fork}} go test -count=1 -run TestGenerateForkState ./rust/kona/tests/proofs/
 
-# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
+# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle), and
+# <fork>_multichain_state.json from Lagoon onward.
 nut-prefork-state-for fork: build-contracts build-superchain-go
   just rust/build-op-reth-test-engine
   just _nut-prefork-state-for {{fork}}

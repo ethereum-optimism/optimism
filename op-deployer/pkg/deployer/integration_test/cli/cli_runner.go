@@ -10,10 +10,14 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
 
@@ -114,6 +118,19 @@ func (r *CLITestRunner) GetL1RPC() string {
 // GetPrivateKey returns the private key hex for this test runner
 func (r *CLITestRunner) GetPrivateKey() string {
 	return r.privateKeyHex
+}
+
+// DeployMockSP1Verifier deploys MockSP1Verifier to the runner's L1. The test anvil has no
+// release SP1 verifier, so implementations deploys must be given this one.
+func (r *CLITestRunner) DeployMockSP1Verifier(t *testing.T) common.Address {
+	t.Helper()
+	client, err := ethclient.Dial(r.l1RPC)
+	require.NoError(t, err)
+	defer client.Close()
+	key, err := crypto.HexToECDSA(r.privateKeyHex)
+	require.NoError(t, err)
+	_, afacts := testutil.LocalArtifacts(t)
+	return testutil.DeployMockSP1Verifier(t, client, key, afacts)
 }
 
 // Run executes a CLI command and returns the output

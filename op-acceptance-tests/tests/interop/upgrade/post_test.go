@@ -139,6 +139,11 @@ func testInteropMessageInclusion(t devtest.T, sys *presets.TwoL2SupernodeInterop
 	// Wait for chain A to advance so supernode indexes the init message
 	sys.L2A.WaitForBlock()
 
+	initResult, err := initMsg.Tx.Result.Eval(t.Ctx())
+	t.Require().NoError(err)
+	t.Require().NotEmpty(initResult.Entries)
+	sys.L2ELB.ValidateExecMessageRequiresAccessList(initResult.Entries[0])
+
 	execMsg := bob.SendExecMessage(initMsg)
 
 	// Verify cross-safe progression for both messages

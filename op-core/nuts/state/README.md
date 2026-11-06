@@ -19,10 +19,30 @@ and the intent is to generate each state when its fork ships:
 | `jovian_state.json` | jovian | karst bundle test |
 | `karst_state.json`  | karst  | lagoon bundle test |
 | `lagoon_state.json` | lagoon | (next fork) |
+| `lagoon_multichain_state.json` | lagoon, multi-chain | (next fork, multi-chain case) |
 
 Each state composes from the previous one: `karst_state = jovian_state + (karst
 bundle applied)`, and so on. The chain's seed is `jovian_state.json`, which has no
 predecessor bundle and is built from jovian-era source.
+
+## Multi-chain states
+
+From Lagoon onward, the state depends on the size of the chain's dependency set.
+The Lagoon activation block activates the interop contracts only when the
+dependency set holds more than one chain. It then sets the `INTEROP` feature,
+gives the interop proxies (CrossL2Inbox and others) an implementation and funds
+ETHLiquidity.
+
+`<fork>_multichain_state.json` is the state as of `<fork>` for a chain with a
+dependency set of two chains. The second chain does not exist; only the size of
+the dependency set changes the state. The multi-chain states compose the
+same way: `<fork>_multichain_state = <prev>_multichain_state + (frozen <fork>
+bundle applied)`. Karst has no multi-chain state, so the Lagoon multi-chain state
+composes from `karst_state.json`.
+
+The activation test runs a `-multichain` case for every fork from Lagoon onward.
+That case boots from `<forks.Prev(F)>_multichain_state.json`, or from
+`karst_state.json` for Lagoon.
 
 ## Generating the seed: `jovian_state.json`
 
@@ -48,7 +68,8 @@ just nut-prefork-state-for karst
 ```
 
 It boots the predecessor state, applies the frozen bundle at the activation block,
-and dumps the post-activation predeploy-scoped state to `<fork>_state.json`.
+and dumps the post-activation predeploy-scoped state to `<fork>_state.json`. From
+Lagoon onward, it also writes `<fork>_multichain_state.json`.
 
 Under the hood this runs the env-gated `TestGenerateForkState`, which reuses the
 validation test's `activateFork` so generation and validation stay in lockstep —
@@ -66,8 +87,8 @@ To verify every committed fork state is up to date, run:
 just check-nut-prefork-states
 ```
 
-This regenerates committed non-seed fork states and fails if the committed JSON
-changes.
+This regenerates committed non-seed fork states, including the multi-chain
+states, and fails if the committed JSON changes.
 
 ## Determinism
 

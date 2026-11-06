@@ -9,7 +9,24 @@ diataxis: how-to
 선택하면 되는 경우에는 [릴리스 레퍼런스](/ko/chain-operators/tools/op-deployer/reference/releases)를 참고하십시오.
 </Note>
 
-## 이전 버전에 수정 사항 백포트
+## 릴리스 게시 {#publish-a-release}
+
+`op-deployer/vX.Y.Z` 태그를 push하면 `release-op-deployer` GitHub Actions 워크플로가 실행됩니다. 이 워크플로는
+바이너리를 빌드하고 draft GitHub 릴리스에 첨부합니다. 태그된 커밋에 워크플로가 포함되어 있지 않은 경우,
+태그를 입력값으로 하여 `develop`에서 워크플로를 실행합니다.
+
+워크플로 실행이 성공할 때까지 기다린 다음, 릴리스 노트를 추가하고 draft를 게시합니다.
+
+```bash
+gh release edit op-deployer/vX.Y.Z --notes-file notes.md --draft=false --latest=false
+```
+
+<Warning>
+릴리스는 변경할 수 없습니다(immutable). asset이 첨부되기 전에 게시된 릴리스에는 이후에도 asset을 첨부할 수 없으므로
+새 태그가 필요합니다. netchef와 같은 도구는 릴리스가 게시된 후에만 바이너리를 다운로드할 수 있습니다.
+</Warning>
+
+## 이전 버전에 수정 사항 백포트 {#backport-a-fix-to-an-earlier-version}
 
 때때로 develop의 버그 수정 사항을 이전 버전의 OP Deployer에 백포트할 수 있습니다. 이 프로세스는 다음과
 같습니다.
@@ -32,69 +49,65 @@ git push origin fixes/deployer-v0.2.0
 
 1. open pr from fixes/deployer-v0.2.0 targeting backports/op-deployer/v0.2.0
 2. merge the pr
-3. push a new tag for op-deployer/v0.2.1 on backports/op-deployer/v0.2.0 branch (goreleaser will create the release)
+3. push a new tag for op-deployer/v0.2.1 on backports/op-deployer/v0.2.0 branch and publish its draft release
 ```
 
-## 새 컨트랙트 버전 지원 추가
+## 새 컨트랙트 버전 지원 추가 {#add-support-for-a-new-contract-version}
 
 새 컨트랙트 버전에 대한 지원을 추가하는 작업은 여러 단계로 이루어집니다. 다음은 개략적인 개요입니다.
 편의상 새 `rc` 릴리스에 대한 지원을 추가한다고 가정합니다.
 
-### 1단계: develop에 지원 추가
+OP Deployer는 지원하는 컨트랙트와 같은 `proposal/op-contracts/vX.Y.Z` 브랜치에서 릴리스됩니다. 따라서 컨트랙트
+개발이 `develop`에서 계속되는 동안에도 두 구성 요소의 호환성이 유지됩니다. 컨트랙트 artifact는 빌드 시점에 해당
+checkout에서 바이너리에 포함되므로, artifact를 별도로 게시하거나 고정(pin)할 필요가 없습니다.
+
+### 1단계: develop에 지원 추가 {#step-1-add-support-on-develop}
 
 먼저 `develop` 브랜치에 새 컨트랙트 버전에 대한 지원을 추가해야 합니다. 즉, 배포 파이프라인이 새 버전에
 필요한 모든 변경 사항을 지원하도록 해야 합니다. 일반적으로 새 배포 변수를 전달하고, Solidity 스크립트/OPCM의
 ABI 변경에 대응하는 작업이 포함됩니다.
 
-### 2단계: 게시된 artifact 추가
+### 2단계: 컨트랙트 릴리스 태그 지정 {#step-2-tag-the-contracts-release}
 
-모노레포의 루트에서 다음을 실행합니다.
+컨트랙트 팀은 [컨트랙트 릴리스 프로세스](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/book/src/policies/release-process.md)에
+따라 릴리스에 `op-contracts/vX.Y.Z-rc.n` 태그를 지정하고 OPCM을 배포합니다.
+OP Deployer 릴리스는 같은 커밋에서 만들어집니다.
 
-```bash
-cd packages/contracts-bedrock
-just clean
-just build
-bash scripts/ops/calculate-checksum.sh
-# copy the outputted checksum
-cd ../../op-deployer
-just calculate-artifacts-hash <checksum>
-```
+### 3단계: 새 릴리스로 SR 업데이트 {#step-3-update-the-sr-with-the-new-release}
 
-이렇게 하면 artifact의 체크섬과 artifact tarball의 해시가 계산됩니다. OP Deployer는 이 값을 사용하여 태그된
-컨트랙트 locator를 다운로드하고 검증합니다.
+OPCM 배포에서 얻은 주소와 함께 superchain-registry의 [표준 버전](https://github.com/ethereum-optimism/superchain-registry/tree/main/validation/standard)에
+새 RC를 추가합니다.
 
-이제 새 artifact tarball을 다운로드할 수 있도록 `standard/standard.go`를 이 값으로 업데이트합니다.
+### 4단계: validation 패키지와 현재 태그 업데이트 {#step-4-update-the-validation-package-and-the-current-tag}
 
-```go
-// Add a new const for your release
-
-const ContractsVXTag = "op-contracts/vX.Y.Z"
-
-var taggedReleases = map[string]TaggedRelease{
-// Other releases...
-ContractsVXTag: {
-ArtifactsHash: common.HexToHash("<the artifacts hash>"),
-ContentHash:   common.HexToHash("<the checksum>"),
-},
-}
-
-// Update the L1/L2 versions accordingly
-func IsSupportedL1Version(tag string) bool {
-return tag == ContractsVXTag
-}
-```
-
-### 3단계: 새 릴리스로 SR 업데이트
-
-superchain-registry의 [표준 버전](https://github.com/ethereum-optimism/superchain-registry/tree/main/validation/standard)에 새 RC를 추가합니다.
-
-### 4단계: validation 패키지 업데이트
-
-SR은 `validation` 패키지를 통해 OP Deployer로 가져옵니다. 모노레포의 루트에서 다음 명령을 실행하여
-업데이트합니다.
+SR은 `validation` 패키지를 통해 OP Deployer로 가져옵니다. proposal 브랜치에서 이 패키지를 업데이트합니다.
 
 ```shell
-go get -u github.com/ethereum-optimism/superchain-registry/validation@<SR commit SHA>
+go get github.com/ethereum-optimism/superchain-registry/validation@<SR commit SHA>
+go mod tidy
 ```
 
-이것으로 완료입니다!
+그런 다음 `op-deployer/pkg/deployer/standard/standard.go`에서 새 태그에 대한 상수를 추가하고 `CurrentTag`가 이를 가리키도록 합니다.
+
+```go
+ContractsVXTag = "op-contracts/vX.Y.Z-rc.n"
+CurrentTag     = ContractsVXTag
+```
+
+OP Deployer는 `CurrentTag`를 사용하여 레지스트리에서 표준 OPCM 주소를 확인합니다. proposal 브랜치를 대상으로
+PR을 엽니다. PR이 병합되면 OP Deployer 변경 사항을 `develop`으로 cherry-pick합니다.
+
+### 5단계: 릴리스 태그 지정 {#step-5-tag-the-release}
+
+OP Deployer의 minor 버전은 컨트랙트의 major 버전을 따릅니다. 컨트랙트 `vX.0.0`은 `op-deployer/v0.X.0`과 짝을 이룹니다.
+proposal 브랜치의 head에 태그를 지정하고 태그를 push합니다.
+
+```shell
+git tag -a op-deployer/v0.X.0-rc.n -m "op-deployer/v0.X.0-rc.n"
+git push origin op-deployer/v0.X.0-rc.n
+```
+
+태그는 docker 이미지를 게시하는 CircleCI `release` 워크플로와 `release-op-deployer` GitHub Actions 워크플로를
+트리거합니다. `release-op-deployer` 워크플로는 바이너리를 draft GitHub 릴리스에 첨부하고, release candidate를
+pre-release로 표시합니다. 두 워크플로가 모두 완료될 때까지 기다린 다음, 릴리스 노트를 추가하고
+[draft를 게시](#publish-a-release)합니다. `#proj-op-deployer`와 `#solutions`에 릴리스를 공지합니다.

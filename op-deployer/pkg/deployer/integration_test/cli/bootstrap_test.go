@@ -122,6 +122,7 @@ func TestCLIBootstrap(t *testing.T) {
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(), // Use proxy admin owner as upgrade controller
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
+			"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
 		}, nil)
 
 		t.Logf("Bootstrap implementations output:\n%s", output)

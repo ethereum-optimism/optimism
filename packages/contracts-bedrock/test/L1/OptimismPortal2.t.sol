@@ -27,7 +27,6 @@ import { Features } from "src/libraries/Features.sol";
 import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
 import { BridgeHookHashing } from "src/libraries/BridgeHookHashing.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/dispute/lib/Types.sol";
 import { UnknownChainId } from "src/dispute/lib/Errors.sol";
 
@@ -4308,6 +4307,84 @@ contract OptimismPortal2_CompleteDepositTransaction_Test is OptimismPortal2_Reen
         optimismPortal2.completeDepositTransaction(item);
 
         assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)));
+    }
+
+    /// @notice Tests that changing any field prevents completion but leaves the original deposit valid.
+    function testFuzz_completeDepositTransaction_changedField_reverts(uint256 _field, uint256 _value) external {
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: bob,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 0
+        });
+        uint256 f = bound(_field, 0, 10);
+        BridgeHookTypes.Item memory changed = BridgeHookTypes.Item({
+            direction: f == 0 ? BridgeHookTypes.Direction.Withdrawal : item.direction,
+            asset: f == 1 ? BridgeHookTypes.Asset.ERC20 : item.asset,
+            from: f == 2 ? address(uint160(_value)) : item.from,
+            aliased: f == 3 ? !item.aliased : item.aliased,
+            to: f == 4 ? address(uint160(_value)) : item.to,
+            ethAmount: f == 5 ? bound(_value, 1, type(uint128).max) : item.ethAmount,
+            l2Value: f == 6 ? _value : item.l2Value,
+            gasLimit: f == 7 ? _value : item.gasLimit,
+            isCreation: f == 8 ? !item.isCreation : item.isCreation,
+            data: f == 9 ? abi.encode(_value) : item.data,
+            nonce: f == 10 ? _value : item.nonce
+        });
+        // Use the spec's identifier to keep this check independent of the hashing library.
+        vm.assume(keccak256(abi.encode(changed)) != keccak256(abi.encode(item)));
+
+        vm.deal(hook, changed.ethAmount);
+        vm.prank(hook);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotHeld.selector);
+        optimismPortal2.completeDepositTransaction{ value: changed.ethAmount }(changed);
+
+        vm.prank(hook);
+        optimismPortal2.completeDepositTransaction(item);
+        assertFalse(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)));
+    }
+
+    /// @notice Tests that lowering maxResourceLimit blocks completion until the limit is restored.
+    function test_completeDepositTransaction_limitLoweredBelowGasLimit_reverts() external {
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction(bob, 0, 100_000, false, hex"aa");
+        BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
+            direction: BridgeHookTypes.Direction.Deposit,
+            asset: BridgeHookTypes.Asset.ETH,
+            from: depositor,
+            aliased: false,
+            to: bob,
+            ethAmount: 0,
+            l2Value: 0,
+            gasLimit: 100_000,
+            isCreation: false,
+            data: hex"aa",
+            nonce: 0
+        });
+        IResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
+        IResourceMetering.ResourceConfig memory lowered = systemConfig.resourceConfig();
+        lowered.maxResourceLimit = 90_000;
+        vm.mockCall(address(systemConfig), abi.encodeCall(systemConfig.resourceConfig, ()), abi.encode(lowered));
+        vm.roll(block.number + 1);
+
+        vm.prank(hook);
+        vm.expectRevert(IOptimismPortal.OutOfGas.selector);
+        optimismPortal2.completeDepositTransaction(item);
+        assertTrue(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)), "held");
+
+        vm.mockCall(address(systemConfig), abi.encodeCall(systemConfig.resourceConfig, ()), abi.encode(rcfg));
+        vm.prank(hook);
+        optimismPortal2.completeDepositTransaction(item);
+        assertFalse(optimismPortal2.heldDeposits(BridgeHookHashing.hashItem(item)), "completed");
     }
 
     /// @notice Tests that a completion made while the bridge restores the same deposit's tokens
