@@ -18,9 +18,6 @@ pub use addresses::AddressList;
 mod config;
 pub use config::{ChainConfig, L1ChainConfig};
 
-mod altda;
-pub use altda::AltDAConfig;
-
 mod hardfork;
 pub use hardfork::HardForkConfig;
 

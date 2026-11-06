@@ -1,6 +1,6 @@
 [package]
 name = "kona-genesis"
-version = "0.4.5"
+version = "0.5.0"
 description = "Optimism genesis types"
 
 edition.workspace = true

@@ -1,4 +1,5 @@
 use super::*;
+use crate::flags::GlobalArgs;
 use anyhow::anyhow;
 use clap::Parser;
 use kona_node_service::NodeMode;
@@ -144,4 +145,33 @@ fn a_safe_database_open_failure_reports_the_path() {
     let error = command.open_safe_db().unwrap_err();
 
     assert!(error.to_string().contains(&directory.path().display().to_string()));
+}
+
+#[test]
+fn alt_da_chains_are_refused() {
+    // Redstone uses keccak commitments, Celo Sepolia generic commitments. kona's registry leaves
+    // both out.
+    for chain_id in [690, 11142220] {
+        let args = GlobalArgs {
+            l2_chain_id: alloy_chains::Chain::from_id(chain_id),
+            ..Default::default()
+        };
+        let err = NodeCommand::default().get_l2_config(&args).unwrap_err();
+        assert!(
+            err.to_string().contains("kona does not support alt-DA chains"),
+            "chain {chain_id}: {err}"
+        );
+    }
+}
+
+#[test]
+fn alt_da_config_files_are_refused() {
+    let mut config = serde_json::to_value(&kona_registry::ROLLUP_CONFIGS[&10]).unwrap();
+    config["alt_da"] = serde_json::json!({ "da_commitment_type": "GenericCommitment" });
+    let mut file = tempfile::NamedTempFile::new().unwrap();
+    serde_json::to_writer(&mut file, &config).unwrap();
+
+    let command = NodeCommand { l2_config_file: Some(file.path().into()), ..Default::default() };
+    let err = command.get_l2_config(&GlobalArgs::default()).unwrap_err();
+    assert!(err.to_string().contains("unknown field `alt_da`"), "{err}");
 }

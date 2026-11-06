@@ -12,6 +12,10 @@ use kona_genesis::{
 };
 use serde::de::DeserializeOwned;
 
+/// The `DataAvailabilityType` of chains that post their data to Ethereum, the only kind kona
+/// supports.
+const ETH_DA: &str = "eth-da";
+
 fn main() {
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let committed_etc_dir = manifest_dir.join("etc");
@@ -65,9 +69,12 @@ fn main() {
          from the repo root to initialize it."
     );
 
-    // Copy the `superchain-registry/chainList.json` file into the embedded registry snapshot.
-    let chain_list = format!("{superchain_registry}/chainList.json");
-    fs::copy(chain_list, &chain_list_path).unwrap();
+    // Copy the `superchain-registry/chainList.json` file into the embedded registry snapshot,
+    // leaving out chains that don't use Ethereum DA, as with their configs below.
+    let chain_list = PathBuf::from(format!("{superchain_registry}/chainList.json"));
+    let mut chain_list: ChainList = read_json(&chain_list);
+    chain_list.chains.retain(|chain| chain.data_availability_type == ETH_DA);
+    write_pretty_json(&chain_list_path, &chain_list);
 
     // Get the `superchain-registry/superchain/configs` directory`
     let configs_dir = format!("{superchain_registry}/superchain/configs");
@@ -96,10 +103,21 @@ fn main() {
                     continue;
                 }
 
+                // kona only supports Ethereum DA, so chains that post their data elsewhere are left
+                // out of the registry and can't be selected.
+                let config = std::fs::read_to_string(config_file_path).unwrap();
+                let table: toml::Table = toml::from_str(&config).unwrap();
+                let da_type = table
+                    .get("data_availability_type")
+                    .and_then(toml::Value::as_str)
+                    .unwrap_or_else(|| panic!("{config_file_name} has no data_availability_type"));
+                if da_type != ETH_DA {
+                    continue;
+                }
+
                 // Read the config file as a `ChainConfig`. ChainConfig rejects unknown fields, so a
                 // registry key promoted into the config that ChainConfig does not yet model fails
                 // here rather than being silently dropped.
-                let config = std::fs::read_to_string(config_file_path).unwrap();
                 let config: ChainConfig = toml::from_str(&config).unwrap_or_else(|e| {
                     panic!(
                         "failed to parse superchain-registry chain config {config_file_name}: {e}"
@@ -348,6 +366,13 @@ fn validate_chain_configs(chain_list_path: &Path, superchains_path: &Path) {
             assert!(
                 config_chain_ids.insert(chain.chain_id),
                 "Duplicate chain id {} detected across superchain configs in {}",
+                chain.chain_id,
+                superchains_path.display()
+            );
+            assert_eq!(
+                chain.data_availability_type,
+                ETH_DA,
+                "Chain id {} in {} doesn't use Ethereum DA, which is the only kind kona supports",
                 chain.chain_id,
                 superchains_path.display()
             );
