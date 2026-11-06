@@ -73,6 +73,21 @@ class UpgradeTests(unittest.TestCase):
             p.write_text('<testsuite name="test/A.t.sol:A"><testcase name="setUp()"><skipped message="feature disabled"/></testcase></testsuite>')
             self.assertEqual(UP.junit(p, selected)['outcomes'], {'skip': 2})
 
+    def test_recipe_rerun_report_holds_only_the_rerun_cases(self):
+        # `just test-upgrade` overwrites its JUnit with the rerun of the failed tests.
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / 'junit.xml'; selected = [['test/A.t.sol:A', 'test_a()'], ['test/A.t.sol:A', 'test_b()']]
+            p.write_text('<testsuite><testcase classname="test/A.t.sol:A" name="test_b()"/></testsuite>')
+            with self.assertRaisesRegex(ValueError, 'Missing'): UP.junit(p, selected)
+            result = UP.junit(p, selected, rerun=True)
+            self.assertEqual((result['outcomes'], result['recipe_rerun']), ({'pass': 1}, True))
+            for value in ('<testsuite><testcase classname="test/A.t.sol:A" name="test_extra()"/></testsuite>',
+                          '<testsuite><testcase classname="test/A.t.sol:A" name="test_b()"><failure/></testcase></testsuite>',
+                          '<testsuites/>'):
+                p.write_text(value)
+                with self.subTest(value=value), self.assertRaises(ValueError): UP.junit(p, selected, rerun=True)
+        self.assertIn(UP.RECIPE_RERUN_NOTICE.decode(), (UP.ROOT / 'packages/contracts-bedrock/justfile').read_text())
+
     def test_no_executable_selected_test_is_an_empty_run(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / 'junit.xml'; p.write_text('<testsuites/>')
@@ -140,14 +155,11 @@ class UpgradeTests(unittest.TestCase):
             os.environ['CI_BRANCH'] = 'develop'; UP.configure('chain-ink'); self.assertEqual(os.environ['FOUNDRY_PROFILE'], 'ci')
             self.assertNotIn('SYS_FEATURE__CUSTOM_GAS_TOKEN', os.environ)
 
-    def test_bridge_combinations_enable_exact_flags_and_clear_previous_features(self):
+    def test_feature_variants_enable_exact_flags_and_clear_previous_features(self):
         with patch.dict(os.environ, {'CI_BRANCH': 'pilot', 'SYS_FEATURE__CUSTOM_GAS_TOKEN': 'true'}, clear=True):
-            UP.configure('feature-BRIDGE_HOOK,ZK_DISPUTE_GAME')
-            enabled = {k: v for k, v in os.environ.items() if k.startswith(('DEV_FEATURE__', 'SYS_FEATURE__'))}
-            self.assertEqual(enabled, {'DEV_FEATURE__BRIDGE_HOOK': 'true', 'DEV_FEATURE__ZK_DISPUTE_GAME': 'true'})
             UP.configure('feature-BRIDGE_HOOK')
-            self.assertNotIn('DEV_FEATURE__ZK_DISPUTE_GAME', os.environ)
-            self.assertEqual(os.environ['DEV_FEATURE__BRIDGE_HOOK'], 'true')
+            enabled = {k: v for k, v in os.environ.items() if k.startswith(('DEV_FEATURE__', 'SYS_FEATURE__'))}
+            self.assertEqual(enabled, {'DEV_FEATURE__BRIDGE_HOOK': 'true'})
             UP.configure('feature-OP_PRIVATE')
             enabled = {k: v for k, v in os.environ.items() if k.startswith(('DEV_FEATURE__', 'SYS_FEATURE__'))}
             self.assertEqual(enabled, {'DEV_FEATURE__OP_PRIVATE': 'true'})
@@ -325,7 +337,9 @@ class LiveForgeTests(unittest.TestCase):
                 with patch.dict(os.environ, {'CI_UPGRADE_FIXTURE_FAIL':'1'}): self.assertNotEqual(execute(args), 0)
                 failed = root / '.ci/contract-upgrades/feature-main/run'
                 self.assertIn('<failure', (failed / 'original.junit.xml').read_text())
-                self.assertIn('<failure', (failed / 'diagnostic.junit.xml').read_text())
+                rerun = json.loads((failed / 'rerun.stage.json').read_text())
+                self.assertEqual(rerun['argv'], ['just', 'test-upgrade-rerun']); self.assertNotEqual(rerun['exit_code'], 0)
+                self.assertIn('[FAIL', (failed / 'rerun.log').read_text())
                 self.assertNotEqual(json.loads((failed / 'final.json').read_text())['exit_code'], 0)
 
     def test_actual_discovery_matches_actual_junit_including_fuzz_and_skip(self):

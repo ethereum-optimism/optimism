@@ -10,22 +10,30 @@ import re
 import shutil
 import subprocess
 import sys
+import tomllib
 import xml.etree.ElementTree as ET
 
 SPEC = importlib.util.spec_from_file_location('stages', Path(__file__).with_name('rust-workspace-report.py'))
 S = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(S)
 ROOT = Path(__file__).resolve().parents[3]
-ORB = 'ops/ci/runtime/shellcheck-orb-3.2.0.bash'
-ORB_SHA256 = 'd8f51c02b4a6ce3ebc32024dfaf8a16ec4a4445331a7832e8137d6afc00fb0a4'
-VERSIONS = {'shell-check': '0.9.0', 'semgrep-test': '1.178.0', 'semgrep-scan-local': '1.178.0'}
-COMMANDS = {'shell-check': ['bash', '-eo', 'pipefail', ORB],
+# Circle's shell-check job runs this find with the mise-pinned ShellCheck.
+SHELL_PREDICATES = ['.', '-type', 'f', '-name', '*.sh', '-not', '-path', '*/node_modules/*',
+                    '-not', '-path', './packages/contracts-bedrock/lib/*', '-not', '-path', './packages/contracts-bedrock/kout*/*',
+                    '-not', '-path', './docs/public-docs/*', '-not', '-path', './rust/*target*/*']
+SHELL_FIND = ['find', *SHELL_PREDICATES]
+SHELL_COMMAND = ("find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' "
+                 "-not -path './packages/contracts-bedrock/kout*/*' -not -path './docs/public-docs/*' "
+                 "-not -path './rust/*target*/*' -print0 | xargs -0 shellcheck")
+SEMGREP_VERSION = '1.178.0'
+COMMANDS = {'shell-check': ['bash', '-eo', 'pipefail', '-c', SHELL_COMMAND],
             'semgrep-test': ['semgrep', 'scan', '--test', '--config', '.semgrep/rules/', '--json', '.semgrep/tests/'],
             'semgrep-scan-local': ['semgrep', 'scan', '--timeout=100', '--config', '.semgrep/rules/', '--error', '--json', '--verbose', '.']}
-SHELL_ENV = {'SC_PARAM_DIR': '.', 'SC_PARAM_EXCLUDE': '', 'SC_PARAM_EXTERNAL_SOURCES': 'false',
-             'SC_PARAM_FORMAT': 'tty', 'SC_PARAM_IGNORE_DIRS': './packages/contracts-bedrock/lib\n./docs/public-docs\n',
-             'SC_PARAM_OUTPUT': 'shellcheck.log', 'SC_PARAM_PATTERN': '', 'SC_PARAM_SEVERITY': 'style', 'SC_PARAM_SHELL': ''}
-SHELL_FIND = ['find', '.', '!', '-name', '*\n*', '-name', '*.sh', '-type', 'f',
-              '!', '-path', './packages/contracts-bedrock/lib/*.sh', '!', '-path', './docs/public-docs/*.sh']
+
+
+def expected_version(job):
+    # Circle's shell-check job uses the mise-pinned ShellCheck.
+    if job == 'shell-check': return tomllib.loads((ROOT / 'mise.toml').read_text())['tools']['shellcheck']
+    return SEMGREP_VERSION
 
 
 def digest(path):
@@ -81,7 +89,7 @@ def machine_report(job, data, root):
                         raise ValueError('Original Semgrep annotations and matches differ')
         return normalized(data, root)
     fields = {'version', 'results', 'errors', 'paths', 'time', 'engine_requested', 'skipped_rules', 'profiling_results'}
-    if set(data) != fields or data.get('version') != VERSIONS[job] or not isinstance(data.get('results'), list) or data['results'] or \
+    if set(data) != fields or data.get('version') != expected_version(job) or not isinstance(data.get('results'), list) or data['results'] or \
        not isinstance(data.get('paths', {}).get('scanned'), list) or not isinstance(data['paths'].get('skipped'), list) or \
        not isinstance(data.get('errors'), list) or not isinstance(data.get('skipped_rules'), list):
         raise ValueError('Incomplete, wrong-version or failing original Semgrep scan')
@@ -158,10 +166,9 @@ def semgrep_environment(branch, sha):
 
 def configure(job, branch):
     if job == 'shell-check':
-        for k in list(os.environ):
-            if k.startswith('SC_PARAM_'): del os.environ[k]
-        os.environ.update(SHELL_ENV)
-        return SHELL_ENV
+        # ShellCheck reads SHELLCHECK_OPTS; Circle's job sets none.
+        os.environ.pop('SHELLCHECK_OPTS', None)
+        return {}
     # These are the original Circle adapter's local-scan metadata, without an
     # app token or an additional cloud policy. Both commands use local rules.
     for key in list(os.environ):
@@ -173,15 +180,11 @@ def configure(job, branch):
 
 def selection(directory, job, before):
     if job == 'shell-check':
-        if digest(ROOT / ORB) != ORB_SHA256: raise ValueError('Original ShellCheck orb command changed')
+        # The check reruns this find; unchanged inputs make both selections equal.
         if S.stage(directory, 'discovery', SHELL_FIND, cwd=str(ROOT), stdin=subprocess.DEVNULL):
             raise ValueError('Original ShellCheck find failed')
         files = shell_files((directory / 'discovery.log').read_text())
-        # The original find skips an ignore directory only when it exists.
-        for n in ('packages/contracts-bedrock/lib', 'docs/public-docs'):
-            if not (ROOT / n).exists(): raise ValueError('Missing original ShellCheck ignore directory')
-        return {'files': files, 'sha256': {n: digest(ROOT / n) for n in files},
-                'orb': 'circleci/shellcheck@3.2.0', 'orb_command_sha256': digest(ROOT / ORB)}
+        return {'files': files, 'sha256': {n: digest(ROOT / n) for n in files}}
     return {'rules': {n: v for n, v in before.items() if n.startswith('.semgrep/rules/')},
             'fixtures': {n: v for n, v in before.items() if n.startswith('.semgrep/tests/')},
             'ignore': {n: v for n, v in before.items() if Path(n).name in ('.gitignore', '.semgrepignore')}}
@@ -203,24 +206,20 @@ def execute(job):
         tool = 'shellcheck' if job == 'shell-check' else 'semgrep'
         version = subprocess.check_output([tool, '--version'], text=True).strip()
         parsed = re.findall(r'^version: (\S+)$', version, re.M) if job == 'shell-check' else [version]
-        if parsed != [VERSIONS[job]]: raise ValueError('Static-check tool differs from the recorded Circle image version')
+        if parsed != [expected_version(job)]: raise ValueError('Static-check tool differs from the recorded Circle image version')
         settings = {'source_sha': sha, 'branch': branch, 'job': job, 'provider': os.environ.get('CI_CHECK_PROVIDER', 'circleci'),
                     'workspace_root': str(ROOT), 'tool_version': version, 'environment': environment, 'input_sha256': before,
                     'baseline': baseline(branch) if job != 'shell-check' else None,
                     'command': COMMANDS[job], 'rwx_run_id': os.environ.get('RWX_RUN_ID'),
                     'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}
         S.write(d / 'settings.json', settings); selected = selection(d, job, before); S.write(d / 'selection.json', selected)
-        if job == 'shell-check': (ROOT / 'shellcheck.log').unlink(missing_ok=True)
         status = S.stage(d, 'check', COMMANDS[job], stdout_json=job != 'shell-check', cwd=str(ROOT), stdin=subprocess.DEVNULL)
         if job == 'shell-check':
-            shutil.copy2(ROOT / 'shellcheck.log', d / 'original.shellcheck.log')
-            log = re.sub(r'\x1b\[[0-9;]*m', '', (d / 'check.log').read_text())
-            actual = shell_files('\n'.join(s for s in log.splitlines() if s.startswith('./') and s.endswith('.sh')))
-            if actual != selected['files']: raise ValueError('Original orb executed a different ShellCheck selection')
-            if not status and ((d / 'original.shellcheck.log').stat().st_size or 'No ShellCheck Errors Found' not in log):
+            # ShellCheck prints nothing for a clean selection.
+            if not status and (d / 'check.log').stat().st_size:
                 raise ValueError('ShellCheck success lacks complete original verdict evidence')
-            coverage = {'files': actual, 'outcome': 'pass' if status == 0 else 'fail'}
-            cases = [{'name': n, 'outcome': 'pass'} for n in actual] if not status else [{'name': job, 'outcome': 'fail'}]
+            coverage = {'files': selected['files'], 'outcome': 'pass' if status == 0 else 'fail'}
+            cases = [{'name': n, 'outcome': 'pass'} for n in selected['files']] if not status else [{'name': job, 'outcome': 'fail'}]
         else:
             try: raw = json.loads((d / 'check.json').read_text())
             except ValueError: raw = None

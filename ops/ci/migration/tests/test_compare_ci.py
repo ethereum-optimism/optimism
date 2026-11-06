@@ -18,7 +18,7 @@ CI = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CI)
 SHA = "cb48622213e9aa8408de9904baafac784441ecc6"
 PREFIX = "github.com/ethereum-optimism/optimism/op-node/rollup"
-FEATURES = ["main", "CUSTOM_GAS_TOKEN", "OPTIMISM_PORTAL_INTEROP", "ZK_DISPUTE_GAME"]
+FEATURES = ["main", "CUSTOM_GAS_TOKEN", "INTEROP", "BRIDGE_HOOK", "OP_PRIVATE"]
 
 
 class ComparisonTest(unittest.TestCase):
@@ -347,7 +347,7 @@ class ComparisonTest(unittest.TestCase):
             self.write_json(path, {"tests": self.rows()})
             sources.append(self.source(path, feature=feature))
         collection = self.collection(sources)
-        self.assertEqual(len(CI.normalize(collection, self.root)["cases"]), 4)
+        self.assertEqual(len(CI.normalize(collection, self.root)["cases"]), len(FEATURES))
         collection["sources"].pop()
         with self.assertRaisesRegex(ValueError, "each declared feature"):
             CI.normalize(collection, self.root)

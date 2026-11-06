@@ -58,6 +58,34 @@ class RpcProxyTests(unittest.TestCase):
         final=json.loads((self.directory/'final.json').read_bytes());self.assertEqual(final['requests'],3)
         self.assertEqual(final['sha256'],{p.name:P.digest(p) for p in self.directory.iterdir() if p.name!='final.json'})
 
+    def test_parallel_slots_overlap_slow_requests_but_keep_the_start_budget(self):
+        # The archive policy allows several requests in flight. Starts still obey
+        # the global rate, and the slot count bounds concurrent upstream requests.
+        active=[0];peak=[0];guard=threading.Lock();starts=[]
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.rfile.read(int(self.headers['Content-Length']))
+                with guard:active[0]+=1;peak[0]=max(peak[0],active[0]);starts.append(time.monotonic())
+                time.sleep(0.4)
+                with guard:active[0]-=1
+                body=b'{"jsonrpc":"2.0","id":1,"result":"0x1"}'
+                self.send_response(200);self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
+            def log_message(self,*_):pass
+        server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        worker=threading.Thread(target=server.serve_forever,daemon=True);worker.start()
+        self.addCleanup(server.server_close);self.addCleanup(worker.join,5);self.addCleanup(server.shutdown)
+        policy=dict(P.POLICY,requests_per_second=20,max_in_flight=3)
+        body=b'{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'
+        started=time.monotonic()
+        with P.serve(self.directory,'http://127.0.0.1:'+str(server.server_port)+'/',policy=policy) as endpoint,ThreadPoolExecutor(max_workers=6) as workers:
+            results=list(workers.map(lambda _:self.request(endpoint,body),range(6)))
+        self.assertTrue(all(status==200 for status,_ in results))
+        self.assertEqual(peak[0],3)
+        # Six serial 0.4s requests would take 2.4s; three slots take about 0.8s.
+        self.assertLess(time.monotonic()-started,1.8)
+        self.assertTrue(all(b-a>=0.045 for a,b in zip(sorted(starts),sorted(starts)[1:])))
+        self.assertEqual(json.loads((self.directory/'settings.json').read_text())['policy']['max_in_flight'],3)
+
     def test_transient_transport_retries_retain_every_body_and_do_not_rewrite_ids(self):
         response=b'{"jsonrpc":"2.0","id":9,"result":"0xa"}'
         upstream,observed=self.server([(429,b'original capacity denial'),(503,b'original unavailable'),(200,response)])

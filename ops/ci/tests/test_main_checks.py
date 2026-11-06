@@ -32,6 +32,19 @@ class _MainTestsFixtures:
         for name in ('go.just', 'git.just', 'default.just'):
             shutil.copyfile(MAIN.ROOT / 'justfiles' / name, directory / name)
 
+    def install_forge_package(self, root):
+        version = root / 'op-deployer/pkg/deployer/forge/version.json'
+        version.parent.mkdir(parents=True)
+        version.write_text('{"forge":"v1.8.3"}\n')
+        # check-forge-version also runs the forge package's release-archive test.
+        # This stand-in passes only when the recipe opts in, without downloads.
+        (root / 'go.mod').write_text('module example.invalid/fixture\n\ngo 1.26.0\n')
+        (version.parent / 'binary_test.go').write_text(
+            'package forge\n\nimport (\n\t"os"\n\t"testing"\n)\n\n'
+            'func TestStandardBinary_ForgeBins(t *testing.T) {\n'
+            '\tif os.Getenv("OP_DEPLOYER_TEST_FORGE_RELEASES") != "1" {\n\t\tt.Fatal("missing release opt-in")\n\t}\n}\n')
+        return version
+
     def install_bundle(self, root):
         directory = root / 'op-core/superchain/bundle'
         directory.mkdir(parents=True)
@@ -222,9 +235,7 @@ class MainTests(_MainTestsFixtures, unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.install_helpers(root)
-            version = root / 'op-deployer/pkg/deployer/forge/version.json'
-            version.parent.mkdir(parents=True)
-            version.write_text('{"forge":"v1.8.3"}\n')
+            version = self.install_forge_package(root)
             (root / 'mise.toml').write_text('[tools]\nforge = "1.8.3"\n')
             shutil.copyfile(MAIN.ROOT / 'op-deployer/justfile', root / 'op-deployer/justfile')
             self.install_justfiles(root)

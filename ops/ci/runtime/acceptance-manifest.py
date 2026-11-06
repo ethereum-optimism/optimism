@@ -23,7 +23,8 @@ def sha256(path):
 
 
 def settings():
-    return {'count': 1, 'tags': [], 'package_parallelism': int(os.environ.get('ACCEPTANCE_TEST_JOBS', '12')),
+    # The recipe starts one go test per test, ACCEPTANCE_TEST_JOBS at a time.
+    return {'count': 1, 'tags': [], 'test_jobs': int(os.environ.get('ACCEPTANCE_TEST_JOBS', '8')),
             'parallel': int(os.environ.get('ACCEPTANCE_TEST_PARALLEL', '1')),
             'timeout': os.environ.get('ACCEPTANCE_TEST_TIMEOUT', '30m'), 'rerun_fails': 0,
             'l1_fork': os.environ.get('DEVSTACK_L1_FORK', 'fusaka'),
@@ -111,8 +112,8 @@ def select(path, index, total, listed=None):
     for name, field in [('packages.json', 'packages_sha256'), ('listing.json', 'listing_sha256')]:
         if sha256(path.with_name(name)) != manifest.get(field):
             raise ValueError('Acceptance discovery changed')
-    # The runner lists one line per discovered identity, so a shared name repeats per package.
-    if listed is not None and sorted(listed) != sorted(t['name'] for t in manifest['tests']):
+    # ops/scripts/shard-tests.sh lists each name once, however many packages have it.
+    if listed is not None and set(listed) != {t['name'] for t in manifest['tests']}:
         raise ValueError('Runner test listing differs from acceptance discovery')
     return sorted(manifest['shards'][index])
 

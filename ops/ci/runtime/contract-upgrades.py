@@ -27,19 +27,18 @@ RPC_PROXY = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(RPC_P
 ROOT = Path(__file__).resolve().parents[3]
 CONTRACTS = ROOT / 'packages/contracts-bedrock'
 VARIANTS = {'feature-main': ('op', 'main'), 'feature-CUSTOM_GAS_TOKEN': ('op', 'CUSTOM_GAS_TOKEN'),
-            'feature-OPTIMISM_PORTAL_INTEROP': ('op', 'OPTIMISM_PORTAL_INTEROP'),
-            'feature-ZK_DISPUTE_GAME': ('op', 'ZK_DISPUTE_GAME'),
+            'feature-INTEROP': ('op', 'INTEROP'),
             'feature-BRIDGE_HOOK': ('op', 'BRIDGE_HOOK'),
-            'feature-BRIDGE_HOOK,ZK_DISPUTE_GAME': ('op', 'BRIDGE_HOOK,ZK_DISPUTE_GAME'),
             'feature-OP_PRIVATE': ('op', 'OP_PRIVATE'),
             'chain-op': ('op', 'main'), 'chain-ink': ('ink', 'main'), 'chain-unichain': ('unichain', 'main')}
 FEATURES = {'CUSTOM_GAS_TOKEN': 'SYS_FEATURE__CUSTOM_GAS_TOKEN',
-            'OPTIMISM_PORTAL_INTEROP': 'DEV_FEATURE__OPTIMISM_PORTAL_INTEROP', 'ZK_DISPUTE_GAME': 'DEV_FEATURE__ZK_DISPUTE_GAME',
+            'INTEROP': 'SYS_FEATURE__INTEROP',
             'BRIDGE_HOOK': 'DEV_FEATURE__BRIDGE_HOOK',
-            'BRIDGE_HOOK,ZK_DISPUTE_GAME': 'DEV_FEATURE__BRIDGE_HOOK DEV_FEATURE__ZK_DISPUTE_GAME',
             'OP_PRIVATE': 'DEV_FEATURE__OP_PRIVATE'}
 MATCH = 'test/{L1,dispute,cannon}/**'
-ARCHIVE_RPC_POLICY = dict(RPC_PROXY.POLICY, requests_per_second=20)
+# Forge issues fork reads in parallel. One request in flight would cap the
+# archive at one round trip at a time, far below its 20 requests per second.
+ARCHIVE_RPC_POLICY = dict(RPC_PROXY.POLICY, requests_per_second=20, max_in_flight=8)
 
 
 digest = REPORT.digest
@@ -222,7 +221,12 @@ def deployable(binding):
     return any(row['bytes'] > 0 for row in creation.values())
 
 
-def junit(path, discovered, bindings=None):
+# develop's `just test-upgrade` reruns failed tests once and prints this to stderr.
+# Its JUnit then holds only the rerun's cases.
+RECIPE_RERUN_NOTICE = b'Upgrade tests failed, rerunning failed tests once'
+
+
+def junit(paths, discovered, bindings=None, rerun=False):
     selected = {tuple(r) for r in discovered}
     if not selected or len(selected) != len(discovered): raise ValueError('Empty or duplicate upgrade selection')
     non_executable = set()
@@ -231,7 +235,8 @@ def junit(path, discovered, bindings=None):
             if not deployable(bindings[identity]):
                 non_executable.update(r for r in selected if r[0] == identity)
     actual = {}; outcomes = {}; setup_skips = {}
-    for suite in ET.parse(path).iter('testsuite'):
+    # Contract suites pass one report per EVM pass; a case in two reports is a duplicate.
+    for suite in (s for p in ([paths] if isinstance(paths, (str, Path)) else paths) for s in ET.parse(p).iter('testsuite')):
         for case in suite.findall('testcase'):
             key = (case.get('classname') or suite.get('name', ''), case.attrib['name'])
             if key in actual: raise ValueError('Duplicate original upgrade verdict')
@@ -248,7 +253,10 @@ def junit(path, discovered, bindings=None):
             raise ValueError('Extra, failed or conflicting original upgrade setup verdict')
         value = actual.pop(key); setup_skips[identity] = value
         for member in members: actual[member] = value
-    if set(actual) != selected - non_executable: raise ValueError('Missing or extra original upgrade verdict')
+    # After a recipe rerun, the first attempt's verdicts are gone: require only that
+    # every rerun case was selected. The recipe's exit status covers the rest.
+    if (not set(actual) <= selected - non_executable) if rerun else set(actual) != selected - non_executable:
+        raise ValueError('Missing or extra original upgrade verdict')
     for value in actual.values(): outcomes[value['outcome']] = outcomes.get(value['outcome'], 0) + 1
     # Like check-junit-tests-ran.sh, a skipped case counts as executed: a feature
     # or fork guard can legitimately skip every selected test.
@@ -256,7 +264,8 @@ def junit(path, discovered, bindings=None):
     return {'cases': [{'class': c, 'name': n, 'verdict_source': 'setUp()' if c in setup_skips else n,
                        **actual[c, n]} for c, n in sorted(actual)],
             'non_executable': [{'class': c, 'name': n, 'reason': 'empty compiler creation bytecode'} for c, n in sorted(non_executable)],
-            'original_cases': original, 'suite_setup_skips': setup_skips, 'outcomes': outcomes, 'retries': 0}
+            'original_cases': original, 'suite_setup_skips': setup_skips, 'outcomes': outcomes, 'retries': 0,
+            'recipe_rerun': rerun}
 
 
 def inputs():
@@ -375,10 +384,13 @@ def main():
                     # Authentication strings can occur in failing test reasons.
                     if (p := directory / 'original.junit.xml').exists(): p.write_bytes(redact_xml(p.read_bytes()))
                     if status and status < 128:
-                        os.environ['JUNIT_TEST_PATH'] = str(directory / 'diagnostic.junit.xml')
+                        # Circle's trace step runs without JUNIT_TEST_PATH, so
+                        # test-upgrade-rerun skips the recipe's own retry.
+                        os.environ.pop('JUNIT_TEST_PATH')
                         stage(directory, 'rerun', ['just', 'test-upgrade-rerun'], redactor)
                     elif status == 0: write(directory / 'coverage.json', junit(directory / 'original.junit.xml',
-                        json.loads((directory / 'selection.json').read_text()), json.loads((directory / 'signature-bindings.json').read_text())))
+                        json.loads((directory / 'selection.json').read_text()), json.loads((directory / 'signature-bindings.json').read_text()),
+                        rerun=RECIPE_RERUN_NOTICE in (directory / 'tests.stderr.log').read_bytes()))
             for xml in directory.glob('*.xml'): xml.write_bytes(redact_xml(xml.read_bytes()))
             settings = json.loads((directory / 'settings.json').read_text())
             if settings['input_sha256'] != inputs(): raise ValueError('Contract upgrade source changed during execution')

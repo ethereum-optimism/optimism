@@ -109,9 +109,7 @@ def configuration(gate=None):
             tasks=group_tasks(manifest,group);keys=[task['key'] for task in native['tasks']]
             if len(keys)!=len(set(keys)) or not set(tasks)<=set(keys):raise ValueError('Missing or duplicate native gate workload')
             workloads={task['key']:task for task in native['tasks']}
-            workspace=definition.get('workspace','')
-            if (workspace and not re.fullmatch('[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)*',workspace)
-                    or workloads['code'].get('with',{}).get('path','')!=workspace):
+            if workloads['code'].get('with',{}).get('path',''):
                 raise ValueError('Native gate receipt differs from the original checkout directory')
             def fresh(task, defaults):
                 # Run/attempt keys keep verdicts fresh while retaining native
@@ -126,7 +124,6 @@ def configuration(gate=None):
             receipt=[task for task in native['tasks'] if task['key']==definition['receipt_task']]
             if len(receipt)!=1 or receipt[0]['after']!=terminal_expression(tasks):raise ValueError('Native gate receipt does not wait for every terminal prerequisite')
             expected_run='python3 ops/ci/runtime/pr-gate.py receipt '+group
-            if workspace:expected_run='cd '+workspace+'\n'+expected_run+'\n'
             if receipt[0].get('if')!=definition.get('receipt_if') or receipt[0]['run']!=expected_run:
                 raise ValueError('Native gate receipt changes the authoritative workload mode')
             env=receipt[0]['env']
@@ -140,7 +137,7 @@ def configuration(gate=None):
                     key='TASK_'+task.upper().replace('-','_')+'_'+attribute.upper()
                     if env.get(key)!='${{ tasks.'+task+'.'+attribute+' }}':raise ValueError('Native gate task state is not engine-bound')
             if receipt[0].get('cache') is not False:raise ValueError('Native gate receipt must execute freshly')
-            receipt_path=(workspace+'/' if workspace else '')+'.ci/pr-gates/groups/'+group
+            receipt_path='.ci/pr-gates/groups/'+group
             if receipt[0].get('outputs')!={'filesystem':False,'artifacts':[{'key':'receipt','path':receipt_path}]}:
                 raise ValueError('Native gate receipt artifact does not match its declared producer')
             if 'github' in native['on']:raise ValueError('Native coordinator must execute each workload only once')

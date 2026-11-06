@@ -10,6 +10,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[3]
 PACKAGE = 'github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base'
+# The recipe names each test's JUnit after "<shard>-<package, / as .>.<test>".
+JUNIT = 'results-0-' + PACKAGE.replace('/', '.') + '.TestOne.xml'
 
 
 @unittest.skipUnless(shutil.which('just'), 'Just required')
@@ -44,7 +46,7 @@ elif os.environ.get('DISCOVERY_FAIL'): sys.exit(2)
 elif '-json' in sys.argv:
  for n in names: print(json.dumps({'Action':'output','Package':p,'Output':n+'\\n'}))
  print(json.dumps({'Action':'pass','Package':p}))
-else: print('\\n'.join(names) + '\\nok  ' + p + ' 0.01s')
+else: print('\\n'.join(names) + '\\nok  \\t' + p + '\\t0.01s')
 ''')
         self.script('gotestsum', '''import json, os, re, sys
 from pathlib import Path
@@ -54,11 +56,12 @@ def value(key):
   if s.startswith(key+'='): return s.split('=',1)[1]
   if s == key: return a[i+1]
 p, status = os.environ['FIXTURE_PACKAGE'], int(os.environ.get('VERDICT_STATUS','0'))
-pattern = next((s.split('=',1)[1] for s in a if s.startswith('-run=')), '')
+# The recipe runs one test per call and checks the events as go test writes them.
+pattern, verdict = value('-run'), 'fail' if status else 'pass'
 events = []
 for n in os.environ.get('FIXTURE_TESTS', 'TestOne TestTwo').split():
- if re.search(pattern, n): events += [{'Action':'run','Package':p,'Test':n}, {'Action':'fail' if status else 'pass','Package':p,'Test':n}]
-j=Path(value('--jsonfile')); j.parent.mkdir(parents=True,exist_ok=True); j.write_text(''.join(json.dumps(e)+'\\n' for e in events))
+ if re.search(pattern, n): events += [{'Action':'run','Package':p,'Test':n}, {'Action':'output','Package':p,'Test':n,'Output':'--- '+verdict.upper()+': '+n+' (0.00s)\\n'}, {'Action':verdict,'Package':p,'Test':n}]
+j=Path(value('--jsonfile')); j.parent.mkdir(parents=True,exist_ok=True); j.write_text(''.join(json.dumps(e,separators=(',',':'))+'\\n' for e in events))
 x=Path(value('--junitfile')); x.parent.mkdir(parents=True,exist_ok=True); x.write_text('<testsuite/>')
 Path(os.environ['FIXTURE_ARGS']).write_text(json.dumps(a))
 sys.exit(status)
@@ -113,10 +116,10 @@ sys.exit(status)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         args = json.loads((self.root / 'args.json').read_text())
         self.assertIn('-count=1', args)
-        self.assertIn('-run=^(TestOne)$', args)
+        self.assertEqual(args[args.index('-run') + 1:], ['^TestOne$', PACKAGE])
         coverage = json.loads((self.reports / 'coverage.json').read_text())
         self.assertEqual((coverage['expected'], coverage['observed']), (1, 1))
-        for name in ['original.json', 'native.json', 'junit/results-0.xml']:
+        for name in ['original.json', 'native.json', 'junit/' + JUNIT]:
             self.assertTrue((self.reports / name).is_file(), name)
 
     def test_failing_verdict_preserves_status_and_original_reports(self):
@@ -124,13 +127,14 @@ sys.exit(status)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(json.loads((self.reports / 'coverage.json').read_text())['missing'], [])
         self.assertIn('"fail"', (self.reports / 'original.json').read_text())
-        self.assertTrue((self.reports / 'junit/results-0.xml').is_file())
+        self.assertTrue((self.reports / 'junit' / JUNIT).is_file())
 
-    def test_valid_empty_shard_runs_nothing_and_passes(self):
+    def test_empty_shard_fails_without_running_tests(self):
+        # The recipe treats an empty shard as a failed split.
         result = self.verdict(7)
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('no tests assigned', result.stdout + result.stderr)
         self.assertFalse((self.root / 'args.json').exists())
-        self.assertEqual(json.loads((self.reports / 'coverage.json').read_text())['expected'], 0)
 
     def test_listing_that_differs_from_discovery_never_runs_verdict(self):
         result = self.verdict(0, FIXTURE_TESTS='TestOne TestTwo TestNew')

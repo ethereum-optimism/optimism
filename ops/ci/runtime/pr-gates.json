@@ -381,17 +381,10 @@
           ]
         },
         {
-          "name": "contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP",
+          "name": "contracts-bedrock-tests INTEROP",
           "group": "contracts-suites",
           "tasks": [
-            "verdict-standard-OPTIMISM_PORTAL_INTEROP"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-tests ZK_DISPUTE_GAME",
-          "group": "contracts-suites",
-          "tasks": [
-            "verdict-standard-ZK_DISPUTE_GAME"
+            "verdict-standard-INTEROP"
           ]
         },
         {
@@ -399,13 +392,6 @@
           "group": "contracts-suites",
           "tasks": [
             "verdict-standard-BRIDGE_HOOK"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-tests BRIDGE_HOOK,ZK_DISPUTE_GAME",
-          "group": "contracts-suites",
-          "tasks": [
-            "verdict-standard-BRIDGE_HOOK_ZK_DISPUTE_GAME"
           ]
         },
         {
@@ -430,17 +416,10 @@
           ]
         },
         {
-          "name": "contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP",
+          "name": "contracts-bedrock-tests-heavy-fuzz-modified INTEROP",
           "group": "contracts-suites",
           "tasks": [
-            "verdict-modified-OPTIMISM_PORTAL_INTEROP"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME",
-          "group": "contracts-suites",
-          "tasks": [
-            "verdict-modified-ZK_DISPUTE_GAME"
+            "verdict-modified-INTEROP"
           ]
         },
         {
@@ -451,66 +430,10 @@
           ]
         },
         {
-          "name": "contracts-bedrock-tests-heavy-fuzz-modified BRIDGE_HOOK,ZK_DISPUTE_GAME",
-          "group": "contracts-suites",
-          "tasks": [
-            "verdict-modified-BRIDGE_HOOK_ZK_DISPUTE_GAME"
-          ]
-        },
-        {
           "name": "contracts-bedrock-tests-heavy-fuzz-modified OP_PRIVATE",
           "group": "contracts-suites",
           "tasks": [
             "verdict-modified-OP_PRIVATE"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-coverage main",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-main"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-coverage CUSTOM_GAS_TOKEN",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-CUSTOM_GAS_TOKEN"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-OPTIMISM_PORTAL_INTEROP"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-coverage ZK_DISPUTE_GAME",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-ZK_DISPUTE_GAME"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-coverage BRIDGE_HOOK",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-BRIDGE_HOOK"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-coverage BRIDGE_HOOK,ZK_DISPUTE_GAME",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-BRIDGE_HOOK_ZK_DISPUTE_GAME"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-coverage OP_PRIVATE",
-          "group": "contracts-coverage",
-          "tasks": [
-            "verdict-OP_PRIVATE"
           ]
         },
         {
@@ -528,17 +451,10 @@
           ]
         },
         {
-          "name": "contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP",
+          "name": "contracts-bedrock-tests-upgrade op-mainnet INTEROP",
           "group": "contracts-upgrades",
           "tasks": [
-            "verdict-feature-OPTIMISM_PORTAL_INTEROP"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME",
-          "group": "contracts-upgrades",
-          "tasks": [
-            "verdict-feature-ZK_DISPUTE_GAME"
+            "verdict-feature-INTEROP"
           ]
         },
         {
@@ -546,13 +462,6 @@
           "group": "contracts-upgrades",
           "tasks": [
             "verdict-feature-BRIDGE_HOOK"
-          ]
-        },
-        {
-          "name": "contracts-bedrock-tests-upgrade op-mainnet BRIDGE_HOOK,ZK_DISPUTE_GAME",
-          "group": "contracts-upgrades",
-          "tasks": [
-            "verdict-feature-BRIDGE_HOOK_ZK_DISPUTE_GAME"
           ]
         },
         {
@@ -780,19 +689,6 @@
         "cache-epoch": "v1"
       },
       "receipt_if": "${{ init.cache-warm != 'true' }}"
-    },
-    "contracts-coverage": {
-      "config": ".rwx/contract-coverage.yml",
-      "receipt_task": "contracts-gate-receipt",
-      "route": "run-contracts",
-      "embedded_task": "native-contract-coverage",
-      "check_name": "optimism-contract-coverage-shadow",
-      "init": {
-        "cache-warm": "false",
-        "cache-epoch": "v1"
-      },
-      "receipt_if": "${{ init.cache-warm != 'true' }}",
-      "workspace": "project"
     },
     "contracts-l2-fork": {
       "config": ".rwx/contract-l2-fork.yml",

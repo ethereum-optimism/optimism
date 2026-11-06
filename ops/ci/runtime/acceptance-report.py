@@ -22,6 +22,11 @@ MANIFEST = helper('acceptance-manifest')
 PROJECT = helper('go-report')
 
 
+def report_id(index, package, name):
+    # The recipe names a test's JSON and JUnit after "<shard>-<package, / as .>.<test>".
+    return f"{index}-{package.replace('/', '.')}.{name}"
+
+
 def collect(destination, discovery, index, total):
     runs = sorted((ROOT / 'op-acceptance-tests/logs').glob('testrun-*'))
     if len(runs) != 1:
@@ -35,29 +40,35 @@ def collect(destination, discovery, index, total):
     names = set(MANIFEST.select(discovery / 'manifest.json', index, total))
     tests = json.loads((discovery / 'manifest.json').read_text())['tests']
     expected = {(t['package'], t['name']) for t in tests if t['name'] in names}
-    terminals = Counter()
-    # The recipe runs nothing for an empty assignment. Any other shard must report.
-    if expected:
-        original = logs / f'raw_go_events-{index}.log'
-        if not original.is_file() or not original.stat().st_size:
-            raise ValueError('Missing original acceptance JSON')
-        shutil.copyfile(original, destination / 'original.json')
-        PROJECT.project(destination / 'original.json', destination / 'native.json')
-        junit = ROOT / f'op-acceptance-tests/results/results-{index}.xml'
-        if not junit.is_file() or not junit.stat().st_size:
-            raise ValueError('Missing acceptance JUnit')
-        (destination / 'junit').mkdir(exist_ok=True)
+    # Like the recipe, treat an empty assignment as a failed split.
+    if not expected:
+        raise ValueError('Empty acceptance shard assignment')
+    ids = {report_id(index, *pair) for pair in expected}
+    originals = {path.name.removeprefix('raw_go_events-').removesuffix('.log'): path for path in logs.glob('raw_go_events-*.log')}
+    junits = sorted((ROOT / 'op-acceptance-tests/results').glob('results-*.xml'))
+    (destination / 'junit').mkdir(exist_ok=True)
+    for junit in junits:
         shutil.copyfile(junit, destination / 'junit' / junit.name)
-        for event in PROJECT.events(destination / 'original.json'):
-            name = event.get('Test', '')
-            if name and '/' not in name and event.get('Action') in ('pass', 'skip', 'fail'):
-                terminals[(event['Package'], name)] += 1
+    # The recipe runs one go test per test. Join their events in report order; an
+    # empty stream adds no events, so its test is reported missing below.
+    with (destination / 'original.json').open('wb') as joined:
+        for key in sorted(originals):
+            data = originals[key].read_bytes().strip(b'\n')
+            if data: joined.write(data + b'\n')
+    PROJECT.project(destination / 'original.json', destination / 'native.json')
+    terminals = Counter()
+    for event in PROJECT.events(destination / 'original.json'):
+        name = event.get('Test', '')
+        if name and '/' not in name and event.get('Action') in ('pass', 'skip', 'fail'):
+            terminals[(event['Package'], name)] += 1
     coverage = {'expected': len(expected), 'observed': len(terminals),
                 'missing': sorted(expected - terminals.keys()),
                 'extra': sorted(terminals.keys() - expected),
-                'duplicates': sorted(k for k, count in terminals.items() if count != 1)}
+                'duplicates': sorted(k for k, count in terminals.items() if count != 1),
+                'missing_json': sorted(ids - originals.keys()), 'extra_json': sorted(originals.keys() - ids),
+                'missing_junit': sorted(ids - {j.name.removeprefix('results-').removesuffix('.xml') for j in junits})}
     (destination / 'coverage.json').write_text(json.dumps(coverage, indent=2) + '\n')
-    if coverage['missing'] or coverage['extra'] or coverage['duplicates']:
+    if any(coverage[key] for key in ('missing', 'extra', 'duplicates', 'missing_json', 'extra_json', 'missing_junit')):
         raise ValueError('Acceptance execution differs from assigned test identities')
 
 

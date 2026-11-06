@@ -92,8 +92,7 @@ class LocalPackageTests(unittest.TestCase):
         # producer is isolated, so its static family root contains preparation
         # evidence without including verdict results.
         for name, root in [('contracts', '.ci/contract-suites'),
-                           ('contract-upgrades', '.ci/contract-upgrades'),
-                           ('contract-coverage', 'project/.ci/contract-coverage')]:
+                           ('contract-upgrades', '.ci/contract-upgrades')]:
             leaf = tasks('packages/' + name + '-compile.yml')['build']
             filters = leaf['outputs']['filesystem']['filter']['workspace']
             self.assertIn(root, filters)
@@ -124,21 +123,24 @@ class LocalPackageTests(unittest.TestCase):
         for name in ('common', 'go', 'foundry', 'rust'):
             self.assertNotIn('vaults.', json.dumps(definition('packages/toolchain-' + name + '.yml')))
 
-    def test_coverage_normalizes_tool_inputs_without_moving_the_project_checkout(self):
-        graph = tasks('contract-coverage.yml')
-        self.assertEqual(graph['code']['with']['path'], 'project')
-        bootstrap = graph['bootstrap-inputs']
-        files = bootstrap['outputs']['filesystem']['filter']['workspace']
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            for name in files:
-                destination = root / 'project' / name
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(ROOT / name, destination)
-            subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', bootstrap['run']], cwd=root, check=True)
-            for name in files:
-                self.assertEqual((root / name).read_bytes(), (ROOT / name).read_bytes())
-                self.assertEqual((root / 'project' / name).read_bytes(), (ROOT / name).read_bytes())
+
+    def test_tool_preparation_retries_downloads_and_exports_the_policy(self):
+        # Tool downloads time out intermittently. Each install sees mise's retry
+        # policy, and the exported environment carries it to later installs.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binaries = root / 'bin'; binaries.mkdir()
+            log = root / 'mise.log'
+            stub = binaries / 'mise'
+            stub.write_text('#!/bin/bash\nprintf "%s retries=%s timeout=%s\\n" "$*" "${MISE_HTTP_RETRIES:-}" "${MISE_HTTP_TIMEOUT:-}" >> "$STUB_LOG"\n')
+            stub.chmod(0o755)
+            exports = root / 'exports'
+            env = dict(os.environ, PATH=str(binaries) + os.pathsep + os.environ['PATH'], RWX_ENV=str(exports), STUB_LOG=str(log))
+            env.pop('MISE_HTTP_RETRIES', None); env.pop('MISE_HTTP_TIMEOUT', None)
+            subprocess.run(['bash', str(ROOT / 'ops/ci/runtime/rwx-prepare.sh'), 'go'], env=env, check=True)
+            self.assertIn('install go gotestsum retries=5 timeout=90s', log.read_text().splitlines())
+            self.assertEqual((exports / 'MISE_HTTP_RETRIES').read_text(), '5\n')
+            self.assertEqual((exports / 'MISE_HTTP_TIMEOUT').read_text(), '90s\n')
 
 
 if __name__ == '__main__':
