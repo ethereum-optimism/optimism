@@ -72,3 +72,4 @@ tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 # pulling in a new HTTP-mock crate (e.g. wiremock).
 jsonrpsee-server.workspace = true
 jsonrpsee.workspace = true
+metrics-util = { workspace = true, features = ["debugging"] }
