@@ -39,9 +39,7 @@ class MainTests(T._MainTestsFixtures, unittest.TestCase):
             (root / '.circleci/l2-rpcs.json').write_text('{"op-mainnet":{}}\n')
             (root / '.circleci/continue').mkdir()
             (root / '.circleci/continue/main.yml').write_text('workflows:\n  scheduled-daily-tests:\n    jobs:\n      - contracts-bedrock-tests-l2-fork:\n          matrix:\n            parameters:\n              fork_op_chain:\n                - op-mainnet\n              test_profile: liteci\n')
-            version = root / 'op-deployer/pkg/deployer/forge/version.json'
-            version.parent.mkdir(parents=True)
-            version.write_text('{"forge":"v1.8.3"}\n')
+            version = self.install_forge_package(root)
             (root / 'mise.toml').write_text('[tools]\nforge = "1.8.3"\n')
             shutil.copyfile(MAIN.ROOT / 'op-deployer/justfile', root / 'op-deployer/justfile')
             self.install_justfiles(root)
