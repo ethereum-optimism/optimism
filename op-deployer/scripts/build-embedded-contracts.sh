@@ -25,12 +25,12 @@ if ! grep -q 'is not implemented in your script' <<< "$out"; then
   exit 1
 fi
 # op-deployer never compiles, so check that a second run compiles nothing, as `forge-build` does.
-# Check every script: `forge script` checks the cache of src/ and of its target's imports, not of the
-# other scripts, and op-deployer runs many of them. No --skip, as op-deployer runs them: a script can
-# import from test/.
-scripts=$(find scripts -name '*.s.sol')
+# Check each script that op-deployer can run, the ones with runWithBytes: `forge script` checks the
+# cache of src/ and of its target's imports, not of the other scripts. No --skip, as op-deployer runs
+# them: a script can import from test/.
+scripts=$(find scripts -name '*.s.sol' -exec grep -l 'function runWithBytes' {} +) || true
 if [ -z "$scripts" ]; then
-  echo "found no forge scripts" >&2
+  echo "found no op-deployer scripts" >&2
   exit 1
 fi
 for script in $scripts; do
