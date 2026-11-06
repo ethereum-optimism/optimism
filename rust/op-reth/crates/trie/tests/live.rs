@@ -1,31 +1,23 @@
 //! End-to-end test of the live trie collector.
 
-use alloy_consensus::{
-    BlockHeader, Header, TxEip2930,
-    constants::{EMPTY_WITHDRAWALS, ETH_TO_WEI},
-};
-use alloy_eips::{BlockNumHash, eip4895::Withdrawals};
-use alloy_genesis::{Genesis, GenesisAccount};
-use alloy_primitives::{Address, B256, Bytes, TxKind, U256, keccak256};
+use alloy_consensus::BlockHeader;
+use alloy_eips::BlockNumHash;
+use alloy_primitives::{Address, B256, U256};
 use derive_more::Constructor;
-use reth_chainspec::{
-    ChainSpec, ChainSpecBuilder, EthereumHardfork, EthereumHardforks, MAINNET, MIN_TRANSACTION_GAS,
-};
-use reth_db::Database;
+use reth_chainspec::ChainSpec;
 use reth_db_common::init::init_genesis;
-use reth_ethereum_primitives::{Block, BlockBody, Receipt, Transaction, TransactionSigned};
+use reth_ethereum_primitives::{Block, BlockBody, Receipt};
 use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
-    MdbxProofsStorage, OpProofStoragePruner, OpProofsStorage, OpProofsStore, RethTrieStorageLayout,
+    OpProofStoragePruner, OpProofsStorage, OpProofsStore,
     engine::{EngineError, EngineHandle},
-    initialize::InitializationJob,
 };
 use reth_primitives_traits::{Block as _, RecoveredBlock};
 use reth_provider::{
     BlockWriter as _, ExecutionOutcome, HashedPostStateProvider, LatestStateProviderRef,
-    ProviderFactory, StateRootProvider, StorageSettingsCache,
+    ProviderFactory, StateRootProvider,
     providers::{BlockchainProvider, ProviderNodeTypes},
     test_utils::create_test_provider_factory_with_chain_spec,
 };
@@ -33,38 +25,7 @@ use reth_revm::database::StateProviderDatabase;
 use secp256k1::{Keypair, Secp256k1, rand::rng};
 use serial_test::serial;
 use std::sync::Arc;
-use tempfile::TempDir;
 use test_case::test_case;
-
-/// Seconds between consecutive blocks.
-const BLOCK_TIME: u64 = 2;
-
-/// A proof window no test chain fills, so that the pruner never moves the earliest block.
-const WHOLE_WINDOW: u64 = 1000;
-
-/// Timestamp of the block at `number`.
-const fn block_timestamp(number: u64) -> u64 {
-    number * BLOCK_TIME
-}
-
-/// The engine's persistence and backpressure thresholds.
-#[derive(Clone, Copy, Debug)]
-struct FlushCadence {
-    backpressure: u64,
-    persistence: u64,
-}
-
-impl FlushCadence {
-    const EVERY_BLOCK: Self = Self { backpressure: 2, persistence: 1 };
-    const EVERY_FIFTH_BLOCK: Self = Self { backpressure: 10, persistence: 5 };
-}
-
-/// Which store implementation a case runs over.
-#[derive(Clone, Copy, Debug)]
-enum Backend {
-    InMemory,
-    Mdbx,
-}
 
 /// Runs `$run` over a fresh store of `$backend`.
 macro_rules! over_backend {
@@ -78,6 +39,8 @@ macro_rules! over_backend {
 
 #[path = "live/catch_up_under_pruning.rs"]
 mod catch_up_under_pruning;
+#[path = "live/chain.rs"]
+mod chain;
 #[path = "live/contracts.rs"]
 mod contracts;
 #[path = "live/index_execute_parity.rs"]
@@ -87,86 +50,12 @@ mod parent_states;
 #[path = "live/reorg_revert_edges.rs"]
 mod reorg_revert_edges;
 #[path = "live/simulated_reth.rs"]
+#[allow(dead_code, reason = "each test target uses part of this module")]
 mod simulated_reth;
 #[path = "live/store_view.rs"]
 mod store_view;
 
-fn create_mdbx_proofs_storage() -> Arc<MdbxProofsStorage> {
-    let path = TempDir::new().unwrap().keep();
-    Arc::new(MdbxProofsStorage::new(&path).unwrap())
-}
-
-/// Converts a secp256k1 public key to an Ethereum address.
-fn public_key_to_address(pubkey: secp256k1::PublicKey) -> Address {
-    let hash = keccak256(&pubkey.serialize_uncompressed()[1..]);
-    Address::from_slice(&hash[12..])
-}
-
-/// Signs a transaction with the given keypair.
-fn sign_tx_with_key_pair(key_pair: Keypair, tx: Transaction) -> TransactionSigned {
-    use alloy_consensus::SignableTransaction;
-    use reth_primitives_traits::crypto::secp256k1::sign_message;
-    let secret = B256::from_slice(&key_pair.secret_bytes());
-    let sig = sign_message(secret, tx.signature_hash()).unwrap();
-    tx.into_signed(sig).into()
-}
-
-/// Specification for a transaction within a block
-#[derive(Debug, Clone)]
-struct TxSpec {
-    /// Call recipient or contract creation.
-    to: TxKind,
-    /// Transaction input, including initcode for deployments.
-    data: Bytes,
-    /// Maximum execution gas.
-    gas_limit: u64,
-    /// Value to transfer (in wei)
-    value: U256,
-    /// Nonce for the transaction (will be automatically assigned if None)
-    nonce: Option<u64>,
-}
-
-impl TxSpec {
-    /// Create a simple transfer transaction
-    const fn transfer(to: Address, value: U256) -> Self {
-        Self {
-            to: TxKind::Call(to),
-            data: Bytes::new(),
-            gas_limit: MIN_TRANSACTION_GAS,
-            value,
-            nonce: None,
-        }
-    }
-
-    /// Create a contract deployment running `initcode`.
-    const fn create(initcode: Bytes, gas_limit: u64) -> Self {
-        Self { to: TxKind::Create, data: initcode, gas_limit, value: U256::ZERO, nonce: None }
-    }
-
-    /// Create a call to `contract` with `data` as input.
-    const fn call(contract: Address, data: Bytes, gas_limit: u64) -> Self {
-        Self { to: TxKind::Call(contract), data, gas_limit, value: U256::ZERO, nonce: None }
-    }
-
-    /// Send `value` along with the transaction.
-    fn with_value(self, value: U256) -> Self {
-        Self { value, ..self }
-    }
-}
-
-/// Specification for a block in the test chain
-#[derive(Debug, Clone, Constructor)]
-struct BlockSpec {
-    /// Transactions to include in this block
-    txs: Vec<TxSpec>,
-}
-
-impl BlockSpec {
-    /// A block without transactions.
-    const fn empty() -> Self {
-        Self { txs: Vec::new() }
-    }
-}
+use chain::*;
 
 /// Configuration for a test scenario
 #[derive(Debug, Constructor)]
@@ -175,95 +64,6 @@ struct TestScenario {
     blocks_before_initialization: Vec<BlockSpec>,
     /// Blocks to execute after initialization using the live collector
     blocks_after_initialization: Vec<BlockSpec>,
-}
-
-/// A mainnet-shaped chain spec whose genesis allocation is `alloc`, with the hardforks still to
-/// be chosen.
-fn chain_spec_builder(
-    alloc: impl IntoIterator<Item = (Address, GenesisAccount)>,
-) -> ChainSpecBuilder {
-    ChainSpecBuilder::default()
-        .chain(MAINNET.chain)
-        .genesis(Genesis { alloc: alloc.into_iter().collect(), ..MAINNET.genesis.clone() })
-}
-
-/// A genesis allocation funding `address`.
-fn funded(address: Address) -> (Address, GenesisAccount) {
-    (address, GenesisAccount { balance: U256::from(10 * ETH_TO_WEI), ..Default::default() })
-}
-
-/// Helper to create a chain spec with a genesis account funded
-fn chain_spec_with_address(address: Address) -> Arc<ChainSpec> {
-    Arc::new(chain_spec_builder([funded(address)]).paris_activated().build())
-}
-
-/// Creates a block from a spec, executing transactions with the given keypair
-fn create_block_from_spec(
-    spec: &BlockSpec,
-    block_number: u64,
-    parent_hash: B256,
-    chain_spec: &Arc<ChainSpec>,
-    key_pair: Keypair,
-    nonce_counter: &mut u64,
-) -> RecoveredBlock<Block> {
-    let transactions: Vec<TransactionSigned> = spec
-        .txs
-        .iter()
-        .map(|tx_spec| {
-            let nonce = tx_spec.nonce.unwrap_or_else(|| {
-                let current = *nonce_counter;
-                *nonce_counter += 1;
-                current
-            });
-
-            sign_tx_with_key_pair(
-                key_pair,
-                TxEip2930 {
-                    chain_id: chain_spec.chain.id(),
-                    nonce,
-                    gas_limit: tx_spec.gas_limit,
-                    input: tx_spec.data.clone(),
-                    gas_price: 1_500_000_000,
-                    to: tx_spec.to,
-                    value: tx_spec.value,
-                    ..Default::default()
-                }
-                .into(),
-            )
-        })
-        .collect();
-
-    let gas_total = spec.txs.iter().map(|tx| tx.gas_limit).sum::<u64>();
-    let timestamp = block_timestamp(block_number);
-    let shanghai = chain_spec.is_shanghai_active_at_timestamp(timestamp);
-    let cancun = chain_spec.is_cancun_active_at_timestamp(timestamp);
-
-    Block {
-        header: Header {
-            parent_hash,
-            receipts_root: alloy_primitives::b256!(
-                "0xd3a6acf9a244d78b33831df95d472c4128ea85bf079a1d41e32ed0b7d2244c9e"
-            ),
-            difficulty: chain_spec.fork(EthereumHardfork::Paris).ttd().expect("Paris TTD"),
-            number: block_number,
-            gas_limit: gas_total.max(MIN_TRANSACTION_GAS),
-            gas_used: gas_total,
-            timestamp,
-            state_root: B256::ZERO, // Will be calculated by executor
-            withdrawals_root: shanghai.then_some(EMPTY_WITHDRAWALS),
-            blob_gas_used: cancun.then_some(0),
-            excess_blob_gas: cancun.then_some(0),
-            parent_beacon_block_root: cancun.then(|| keccak256(block_number.to_be_bytes())),
-            ..Default::default()
-        },
-        body: BlockBody {
-            transactions,
-            withdrawals: shanghai.then(Withdrawals::default),
-            ..Default::default()
-        },
-    }
-    .try_into_recovered()
-    .unwrap()
 }
 
 /// Executes a block and returns the updated block with correct state root
@@ -326,26 +126,6 @@ where
     )?;
     provider_rw.commit()?;
 
-    Ok(())
-}
-
-/// Seeds `storage` with reth's state and trie at `block`, the proofs store's starting point.
-fn initialize_storage<N, S>(
-    storage: S,
-    provider_factory: &ProviderFactory<N>,
-    block: BlockNumHash,
-) -> eyre::Result<()>
-where
-    N: NodeTypesWithDB,
-    S: OpProofsStore + Send + Sync + Clone + std::fmt::Debug + 'static,
-{
-    let trie_layout = if provider_factory.cached_storage_settings().is_v2() {
-        RethTrieStorageLayout::Packed
-    } else {
-        RethTrieStorageLayout::Legacy
-    };
-    let tx = provider_factory.db_ref().tx()?;
-    InitializationJob::new(storage, tx, trie_layout).run(block.number, block.hash)?;
     Ok(())
 }
 

@@ -11,7 +11,10 @@
 use super::{
     Backend, BlockSpec, FlushCadence, TxSpec, WHOLE_WINDOW, chain_spec_with_address,
     create_block_from_spec, create_mdbx_proofs_storage, initialize_storage, public_key_to_address,
-    simulated_reth::{RethPersistence, SimulatedReth, fixed_signer, index_executed_block},
+    simulated_reth::{
+        RethPersistence, SimulatedReth, UNRELATED_PARENT, fixed_signer, index_executed_block,
+        reorg_block, reorg_block_without_data,
+    },
     store_view::{BlockView, ProofTarget, assert_same_view},
 };
 use alloy_eips::{NumHash, eip1898::BlockWithParent};
@@ -56,9 +59,6 @@ const RETH_PERSISTENCE_THRESHOLD: u64 = 2 * MAX_BLOCKS_PER_CASE;
 /// under either cadence.
 const PRUNED_WINDOW: u64 = 3;
 
-/// A parent hash no block here has.
-const UNRELATED_PARENT: B256 = B256::repeat_byte(0xBA);
-
 /// How long a case waits for the engine's persistence thread to reach a held write.
 const HELD_WRITE_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -86,14 +86,9 @@ fn fork_blocks(numbers: RangeInclusive<u64>) -> Vec<BlockSpec> {
 
 /// Every address the chain or a fork can touch, none of which has storage.
 fn proof_targets(sender: Address) -> Vec<ProofTarget> {
-    [sender, Address::ZERO]
-        .into_iter()
-        .chain(
-            (1..=MAX_BLOCKS_PER_CASE)
-                .flat_map(|number| [recipient(number), fork_recipient(number)]),
-        )
-        .map(|address| ProofTarget { address, slots: Vec::new() })
-        .collect()
+    ProofTarget::accounts([sender, Address::ZERO].into_iter().chain(
+        (1..=MAX_BLOCKS_PER_CASE).flat_map(|number| [recipient(number), fork_recipient(number)]),
+    ))
 }
 
 /// The disk tip once the engine has saved what its cadence lets it save: `buffered` blocks went
@@ -126,30 +121,13 @@ impl ReorgPath {
             Self::Index => false,
             Self::Mixed => position.is_multiple_of(2),
         };
-        if execute {
-            ReorgBlock::Execute(Arc::clone(&block.recovered_block))
-        } else {
-            ReorgBlock::Index {
-                block: block.recovered_block().block_with_parent(),
-                hashed_state: block.hashed_state(),
-                trie_updates: block.trie_updates(),
-            }
-        }
+        reorg_block(block, execute)
     }
 }
 
 /// `blocks` the way the ExEx hands a reorg to the engine along `path`.
 fn reorg_blocks(blocks: &[ExecutedBlock], path: ReorgPath) -> Vec<ReorgBlock<Block>> {
     blocks.iter().enumerate().map(|(position, block)| path.reorg_block(position, block)).collect()
-}
-
-/// The reorg task's input for `block` without trie data, enough to reach the unwind checks.
-fn reorg_block_without_data(block: BlockWithParent) -> ReorgBlock<Block> {
-    ReorgBlock::Index {
-        block,
-        hashed_state: Arc::new(HashedPostStateSorted::default()),
-        trie_updates: Arc::new(TrieUpdatesSorted::default()),
-    }
 }
 
 /// Which engine task unwinds.

@@ -21,6 +21,13 @@ pub(super) struct ProofTarget {
     pub(super) slots: Vec<B256>,
 }
 
+impl ProofTarget {
+    /// Targets for `addresses`, none of which has storage.
+    pub(super) fn accounts(addresses: impl IntoIterator<Item = Address>) -> Vec<Self> {
+        addresses.into_iter().map(|address| Self { address, slots: Vec::new() }).collect()
+    }
+}
+
 /// One account's storage: its slots and its storage trie nodes.
 pub(super) struct AccountStorage {
     pub(super) slots: BTreeMap<B256, U256>,
@@ -42,7 +49,16 @@ impl BlockView {
         number: u64,
         targets: &[ProofTarget],
     ) -> eyre::Result<Self> {
-        let provider = store.provider_ro()?;
+        Self::read_from(&store.provider_ro()?, number, targets)
+    }
+
+    /// Reads the view through `provider`, so that several views and the window come from one
+    /// read transaction while saves go on.
+    pub(super) fn read_from<P: OpProofsProviderRO + Clone>(
+        provider: &P,
+        number: u64,
+        targets: &[ProofTarget],
+    ) -> eyre::Result<Self> {
         let accounts = collect_hashed(provider.account_hashed_cursor(number)?)?;
         let hashed_addresses: BTreeSet<B256> = accounts
             .keys()

@@ -129,11 +129,11 @@ fn transfer_block(number: u64) -> BlockSpec {
 
 /// Every address the chain touches, none of which has storage.
 fn proof_targets(sender: Address) -> Vec<ProofTarget> {
-    [sender, Address::ZERO]
-        .into_iter()
-        .chain((1..=CATCH_UP_LENGTH + REAL_TIME_LENGTH).map(recipient))
-        .map(|address| ProofTarget { address, slots: Vec::new() })
-        .collect()
+    ProofTarget::accounts(
+        [sender, Address::ZERO]
+            .into_iter()
+            .chain((1..=CATCH_UP_LENGTH + REAL_TIME_LENGTH).map(recipient)),
+    )
 }
 
 fn persisted_tip<S: OpProofsStore>(store: &S) -> eyre::Result<BlockNumHash> {

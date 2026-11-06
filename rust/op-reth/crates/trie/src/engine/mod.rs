@@ -57,6 +57,9 @@ enum EngineAction<Block: reth_primitives_traits::Block> {
     Flush(tasks::FlushTask),
     /// Update the sync catch-up target (fire-and-forget).
     SyncTo(tasks::SyncToTask),
+    /// Report the engine's tip.
+    #[cfg(any(test, feature = "test-utils"))]
+    Tip(tasks::TipTask),
 }
 
 impl<Block: reth_primitives_traits::Block> EngineAction<Block> {
@@ -82,6 +85,8 @@ impl<Block: reth_primitives_traits::Block> EngineAction<Block> {
             #[cfg(any(test, feature = "test-utils"))]
             Self::Flush(task) => task.execute(state),
             Self::SyncTo(task) => task.execute(state),
+            #[cfg(any(test, feature = "test-utils"))]
+            Self::Tip(task) => task.execute(state),
         }
     }
 }

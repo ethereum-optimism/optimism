@@ -3,7 +3,7 @@
 
 use super::{BlockSpec, WHOLE_WINDOW, create_block_from_spec};
 use alloy_consensus::BlockHeader;
-use alloy_eips::BlockNumHash;
+use alloy_eips::{BlockNumHash, eip1898::BlockWithParent};
 use alloy_primitives::B256;
 use reth_chain_state::{CanonicalInMemoryState, ExecutedBlock, NewCanonicalChain};
 use reth_chainspec::ChainSpec;
@@ -14,9 +14,9 @@ use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_optimism_trie::{
     OpProofStoragePruner, OpProofsStore,
-    engine::{EngineError, EngineHandle},
+    engine::{EngineError, EngineHandle, ReorgBlock},
 };
-use reth_primitives_traits::RecoveredBlock;
+use reth_primitives_traits::{RecoveredBlock, SealedHeader};
 use reth_provider::{
     HashedPostStateProvider, ProviderFactory, SaveBlocksInput, StateProviderFactory,
     StateRootProvider, StaticFileProviderFactory, StaticFileSegment,
@@ -24,12 +24,38 @@ use reth_provider::{
     test_utils::{MockNodeTypesWithDB, create_test_provider_factory_with_chain_spec},
 };
 use reth_revm::database::StateProviderDatabase;
-use reth_trie_common::ComputedTrieData;
+use reth_trie_common::{ComputedTrieData, HashedPostStateSorted, updates::TrieUpdatesSorted};
 use secp256k1::{Keypair, Secp256k1};
 use std::sync::Arc;
 
 /// reth's default `--engine.memory-block-buffer-target`.
 const MEMORY_BLOCK_BUFFER_TARGET: u64 = 5;
+
+/// A parent hash no block here has.
+pub(super) const UNRELATED_PARENT: B256 = B256::repeat_byte(0xBA);
+
+/// `block` the way the ExEx hands a block of a reorg to the engine: executed, or indexed with
+/// the trie data reth computed for it.
+pub(super) fn reorg_block(block: &ExecutedBlock, execute: bool) -> ReorgBlock<Block> {
+    if execute {
+        ReorgBlock::Execute(Arc::clone(&block.recovered_block))
+    } else {
+        ReorgBlock::Index {
+            block: block.recovered_block().block_with_parent(),
+            hashed_state: block.hashed_state(),
+            trie_updates: block.trie_updates(),
+        }
+    }
+}
+
+/// The reorg task's input for `block` without trie data, enough to reach the unwind checks.
+pub(super) fn reorg_block_without_data(block: BlockWithParent) -> ReorgBlock<Block> {
+    ReorgBlock::Index {
+        block,
+        hashed_state: Arc::new(HashedPostStateSorted::default()),
+        trie_updates: Arc::new(TrieUpdatesSorted::default()),
+    }
+}
 
 /// Hands `block` to `engine` the way the ExEx indexes a block reth validated.
 pub(super) fn index_executed_block(
@@ -316,12 +342,7 @@ impl SimulatedReth {
         assert!(number > self.last_persisted.number, "only in-memory blocks can be reorged");
         let (first_spec, rest) = specs.split_first().expect("a reorg switches to a new block");
         let old = self.canonical.split_off(number as usize - 1);
-        // The signer's nonce is the number of transactions the remaining chain holds.
-        self.nonce = self
-            .canonical
-            .iter()
-            .map(|block| block.recovered_block().body().transactions.len() as u64)
-            .sum();
+        self.nonce = self.transactions_in_chain();
         let fork = self.build_block(first_spec)?;
         assert_ne!(
             fork.recovered_block().hash(),
@@ -352,6 +373,27 @@ impl SimulatedReth {
         Ok(deleted.iter().filter_map(|header| header.block_range()).map(|range| range.end()).max())
     }
 
+    /// Drops the canonical blocks above `number` without replacing them, the way a forkchoice
+    /// update back to an ancestor does. Only in-memory blocks can go.
+    pub(super) fn revert_to(&mut self, number: u64) {
+        assert!(number >= self.last_persisted.number, "only in-memory blocks can be reverted");
+        let old = self.canonical.split_off(number as usize);
+        self.nonce = self.transactions_in_chain();
+        self.in_memory.update_chain(NewCanonicalChain::Reorg { new: Vec::new(), old });
+        self.in_memory.set_canonical_head(self.sealed_header(number));
+    }
+
+    /// Loses every block held only in memory and starts over from the database, the way reth
+    /// does after an unclean stop: the head is the persisted tip and nothing is in memory.
+    pub(super) fn crash_and_restart(&mut self) -> eyre::Result<()> {
+        self.provider = BlockchainProvider::new(self.factory.clone())?;
+        self.in_memory = self.provider.canonical_in_memory_state();
+        self.canonical.truncate(self.last_persisted.number as usize);
+        self.last_evicted = self.last_persisted;
+        self.nonce = self.transactions_in_chain();
+        Ok(())
+    }
+
     /// Writes every canonical block to the database without evicting any from memory, the state
     /// a `proofs init` run finds on a node that has caught up.
     pub(super) fn persist_all(&mut self) -> eyre::Result<()> {
@@ -366,6 +408,21 @@ impl SimulatedReth {
             self.persist(number)?;
         }
         Ok(())
+    }
+
+    fn sealed_header(&self, number: u64) -> SealedHeader {
+        match number {
+            0 => self.chain_spec.sealed_genesis_header(),
+            _ => self.block(number).clone_sealed_header(),
+        }
+    }
+
+    /// The signer's nonce: the number of transactions the canonical chain holds.
+    fn transactions_in_chain(&self) -> u64 {
+        self.canonical
+            .iter()
+            .map(|block| block.recovered_block().body().transactions.len() as u64)
+            .sum()
     }
 
     fn make_canonical(&mut self, update: NewCanonicalChain) {

@@ -24,6 +24,12 @@ slow-timeout = { period = "1m", terminate-after = 10 }
 filter = "test(eest_fixtures)"
 slow-timeout = { period = "2m", terminate-after = 10 }
 
+# The proofs engine model test runs its whole proptest as one test, and a failing case shrinks
+# for up to a minute on top of the run.
+[[profile.default.overrides]]
+filter = "binary(engine_model)"
+slow-timeout = { period = "1m", terminate-after = 5 }
+
 # E2E tests using the testsuite framework from crates/e2e-test-utils.
 [[profile.default.overrides]]
 filter = "binary(e2e_testsuite)"

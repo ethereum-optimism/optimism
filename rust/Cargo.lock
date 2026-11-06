@@ -14211,6 +14211,7 @@ dependencies = [
  "metrics",
  "mockall",
  "parking_lot",
+ "proptest",
  "reth-chain-state",
  "reth-chainspec",
  "reth-codecs",

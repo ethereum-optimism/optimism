@@ -10,6 +10,8 @@ mod flush;
 mod index_block;
 mod reorg;
 mod sync_to;
+#[cfg(any(test, feature = "test-utils"))]
+mod tip;
 mod unwind;
 
 pub(super) use execute_block::{ExecuteBlockTask, run as execute_block};
@@ -19,4 +21,6 @@ pub(super) use index_block::{IndexBlockTask, run as index_block};
 pub use reorg::ReorgBlock;
 pub(super) use reorg::ReorgTask;
 pub(super) use sync_to::SyncToTask;
+#[cfg(any(test, feature = "test-utils"))]
+pub(super) use tip::TipTask;
 pub(super) use unwind::UnwindTask;
