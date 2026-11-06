@@ -110,6 +110,15 @@ changed these PR occurrences:
 - Changed environment: Circle's sccache setup pins `SOURCE_DATE_EPOCH` so
   reth-node-core stays cacheable (#23948). RWX does not use that sccache path.
 
+The November 6 merge of `develop` at `446b187d3f12499a149d2533601caa1e9b2b296d`
+changed these PR occurrences:
+
+- Changed execution: `memory-all-*` runs each top-level test in its own
+  `go test`, eight at a time, and fails unless every assigned test ran and
+  passed (#23974). The shared recipe keeps the recorded RWX shard selection and
+  runs the same per-test commands; the report joins the per-test event logs.
+  Hosted same-SHA parity is not yet verified for the new execution.
+
 The completed workload snapshot is `a1aa49aaf3713a8172f3f615f094488fd8e39c3d`;
 its 92 summary hashes and complete provider originals are recoverable through the
 evidence guide. Historical per-stage percentages and closeouts are archived.
