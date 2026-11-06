@@ -3,7 +3,6 @@ package sysgo
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -19,7 +18,7 @@ func TestKonaOptionsRejectedBeforeStartup(t *testing.T) {
 			dt := &rejectedKonaOptionTest{T: devtest.SerialT(t)}
 			network := &L2Network{chainID: eth.ChainIDFromUInt64(901)}
 			opts := []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
-				cfg.OffsetELSafe = time.Second
+				cfg.IsSequencer = false
 			})}
 			// Nil startup dependencies ensure validation runs before starting any process or RPC.
 			require.PanicsWithValue(t, "Kona option rejected", func() {
