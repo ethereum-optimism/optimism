@@ -184,6 +184,60 @@ fn canonicalized_result_gas_applies_refund_exactly_once() {
     assert_eq!(executor.gas_used, canonical_gas_used, "block must accumulate canonical gas");
 }
 
+/// A replay of an imported block runs in Verify mode with a tracer attached and reads each
+/// transaction's result before committing it, so that result must already carry the recorded
+/// refund in both its gas and its state.
+#[test]
+fn verify_mode_result_is_settled_before_commit_with_inspector() {
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let hardforks = OpChainHardforks::op_mainnet();
+    let payload = PostExecPayload {
+        version: 1,
+        block_number: 0,
+        gas_refund_entries: vec![SDMGasEntry { index: 0, gas_refund: 1 }],
+    };
+    let priced_tx = legacy_tx_with_price(0, OBSERVER_TEST_CONTRACT, 200_000, 1);
+
+    let mut committed_db = prepare_observer_db();
+    let mut committing = build_policy_executor_with::<NullRefundPolicy>(
+        &mut committed_db,
+        &receipt_builder,
+        &hardforks,
+        1,
+        Address::ZERO,
+        Inspect::Enabled,
+    );
+    committing.set_post_exec_mode(PostExecMode::Verify(payload.clone()));
+    committing.execute_transaction(&priced_tx).expect("refunded transaction commits");
+    drop(committing);
+    let committed_balance = revm::Database::basic(&mut committed_db, Address::ZERO)
+        .expect("sender is readable")
+        .expect("sender exists")
+        .balance;
+
+    let mut db = prepare_observer_db();
+    let mut executor = build_policy_executor_with::<NullRefundPolicy>(
+        &mut db,
+        &receipt_builder,
+        &hardforks,
+        1,
+        Address::ZERO,
+        Inspect::Enabled,
+    );
+    executor.set_post_exec_mode(PostExecMode::Verify(payload));
+    let output = executor
+        .execute_transaction_without_commit(&priced_tx)
+        .expect("refunded transaction executes");
+
+    assert_eq!(output.canonical_gas_used, output.evm_gas_used - 1);
+    assert_eq!(output.inner.result.result.gas().tx_gas_used(), output.canonical_gas_used);
+    assert_eq!(
+        output.inner.result.state[&Address::ZERO].info.balance,
+        committed_balance,
+        "uncommitted state must already carry the refund"
+    );
+}
+
 #[test]
 fn sdm_refund_can_reduce_canonical_gas_across_eip7623_floor() {
     let tx = calldata_floor_test_tx();

@@ -300,11 +300,47 @@ git tag -a op-v<version>-<n> <reth-sha> -m "..."
 git push git@github.com:ethereum-optimism/reth.git op-v<version>-<n>
 ```
 
-Tags are immutable, so a tag pin is as reproducible as a rev pin.
+Tags are immutable, so a tag pin is as reproducible as a rev pin. The org's
+tag ruleset also forbids deleting or re-annotating one, so a tag on the wrong
+commit stays forever with its misleading annotation (`op-v2.6.0-3` is one).
+Tag only after the PR that carries the change is merged, and take the commit
+from the PR, never from the branch tip:
+
+```bash
+gh pr view <pr> --repo ethereum-optimism/reth --json state,mergeCommit \
+  --jq '"\(.state) \(.mergeCommit.oid)"'
+```
+
+Before pushing, compare the commit's subject with the annotation you wrote.
+Do not chain the tag push after a merge command in one script: a failed merge
+must stop the script, not leave the tag pointing at the old tip.
+
+Always use the full 40-character commit id, in `rev = "..."` pins, in
+`git tag -a`, and in `gh` flags such as `--match-head-commit`, which rejects
+abbreviated ids.
 
 **Maintain** the branch until the next update: later backports to the same base
 are PRs into it, tagged when the monorepo pins them. Keep old branches as a
 historical record.
+
+### Carried patches
+
+Patches the current branch carries beyond upstream, and what to do with each
+on the next base:
+
+- **RPC replay through the block executor** (ethereum-optimism/reth#37, a
+  backport of paradigmxyz/reth#28266). Op-reth's SDM refund settlement is only
+  visible to `debug_*`, `trace_*` and `ots_*` replays through it, and
+  `rust/op-reth/crates/node/tests/it/rpc_replay_settlement.rs` fails without
+  it. On a base that still uses alloy-evm 0.39 (`v2.7.0`, `v2.8.0`),
+  cherry-pick the backport and resolve conflicts in `helpers/call.rs`,
+  `helpers/trace.rs` and `rpc/src/debug.rs`. On an evm2 base (`v2.9.0` and
+  later), drop the backport and cherry-pick #28266 itself until a release
+  contains it; there, upstream's `inspect_transaction_without_commit` installs
+  the tracer through the EVM's inspector slot, which op-reth's
+  `PostExecCompositeInspector` occupies, so `OpBlockExecutor` needs an override
+  or composition for it. Upstream's BAL branch skips per-transaction
+  settlement; op-reth rejects computed BALs, keep that invariant under test.
 
 ### Pinning a fork change
 
