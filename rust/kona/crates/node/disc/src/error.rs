@@ -35,3 +35,25 @@ pub enum AdvertiseTcpPortError {
     #[error("failed to update the ENR")]
     EnrUpdateFailed(#[source] enr::Error),
 }
+
+/// Why discovery doesn't use an address. See [`AddrFilter`].
+///
+/// [`AddrFilter`]: crate::AddrFilter
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+pub enum AddrError {
+    /// The address is `0.0.0.0` or `::`.
+    #[error("unspecified address")]
+    Unspecified,
+    /// The address is a multicast, broadcast, documentation or other special-purpose address.
+    #[error("special-purpose address")]
+    Special,
+    /// The address is a loopback address, and private addresses aren't allowed.
+    #[error("loopback address, and private addresses are not allowed")]
+    Loopback,
+    /// The address is a LAN address, and private addresses aren't allowed.
+    #[error("LAN address, and private addresses are not allowed")]
+    Lan,
+    /// The record has no IP address.
+    #[error("no IP address")]
+    NoAddress,
+}

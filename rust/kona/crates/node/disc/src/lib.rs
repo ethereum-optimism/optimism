@@ -62,7 +62,7 @@ mod builder;
 pub use builder::{Discv5Builder, LocalNode};
 
 mod error;
-pub use error::{AdvertiseTcpPortError, Discv5BuilderError};
+pub use error::{AddrError, AdvertiseTcpPortError, Discv5BuilderError};
 
 mod driver;
 pub use driver::Discv5Driver;
@@ -72,3 +72,9 @@ pub use handler::{DiscoveryStopped, Discv5Handler, HandlerRequest};
 
 mod metrics;
 pub use metrics::Metrics;
+
+mod scope;
+pub use scope::{AddrFilter, AddrScope};
+
+#[cfg(test)]
+mod test_utils;

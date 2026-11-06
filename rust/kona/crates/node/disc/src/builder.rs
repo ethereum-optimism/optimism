@@ -10,7 +10,7 @@ use std::{
 };
 use tokio::time::Duration;
 
-use crate::{Discv5BuilderError, Discv5Driver, driver::CurrentSpanExecutor};
+use crate::{AddrFilter, Discv5BuilderError, Discv5Driver, driver::CurrentSpanExecutor};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// The local node information exposed by the discovery service to the network.
@@ -181,6 +181,9 @@ pub struct Discv5Builder {
     store_interval: Option<Duration>,
     /// Whether or not to forward the initial set of valid ENRs to the gossip layer.
     forward: bool,
+    /// Which addresses discovery uses in other nodes' records, if not the default for the IP the
+    /// node advertises.
+    addr_filter: Option<AddrFilter>,
 }
 
 impl Discv5Builder {
@@ -196,6 +199,7 @@ impl Discv5Builder {
             bootnodes: BootNodes::default(),
             store_interval: None,
             forward: true,
+            addr_filter: None,
         }
     }
 
@@ -235,7 +239,8 @@ impl Discv5Builder {
         self
     }
 
-    /// Sets the discovery config for the discovery service.
+    /// Sets the discovery config for the discovery service. Its table filter is replaced by the one
+    /// for the builder's [`AddrFilter`], see [`Self::with_addr_filter`].
     pub fn with_discovery_config(mut self, config: Config) -> Self {
         self.discovery_config = config;
         self
@@ -244,6 +249,15 @@ impl Discv5Builder {
     /// Sets the interval to randomize discovery peers.
     pub const fn with_discovery_randomize(mut self, interval: Option<Duration>) -> Self {
         self.randomize = interval;
+        self
+    }
+
+    /// Sets which addresses discovery uses in other nodes' records. By default, private addresses
+    /// are allowed if the node advertises a loopback or LAN address, see
+    /// [`AddrFilter::for_advertised_ip`]. The discovery config's table filter is replaced by this
+    /// filter's.
+    pub const fn with_addr_filter(mut self, addr_filter: AddrFilter) -> Self {
+        self.addr_filter = Some(addr_filter);
         self
     }
 
@@ -264,6 +278,10 @@ impl Discv5Builder {
 
         bind_free_listen_port(&mut config, &local_node)?;
         local_node.udp_port = advertised_udp_port(&config, &local_node)?;
+        let addr_filter =
+            self.addr_filter.unwrap_or_else(|| AddrFilter::for_advertised_ip(local_node.ip));
+        config.table_filter = addr_filter.table_filter();
+
         let enr = local_node.build_enr(chain_id).map_err(Discv5BuilderError::EnrBuildFailed)?;
         // discv5 spawns its tasks when the driver starts it, which is in the driver's span.
         config.executor = Some(Box::new(CurrentSpanExecutor));
@@ -274,6 +292,7 @@ impl Discv5Builder {
         let mut driver =
             Discv5Driver::new(disc, interval, chain_id, self.bootstore, self.bootnodes)
                 .map_err(|e| Discv5BuilderError::Discv5CreationFailed(e.to_string()))?;
+        driver.addr_filter = addr_filter;
         driver.store_interval = self.store_interval.unwrap_or(Duration::from_secs(60));
         driver.forward = self.forward;
         driver.remove_interval = self.randomize;
@@ -284,6 +303,7 @@ impl Discv5Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::enr_at;
     use discv5::ConfigBuilder;
     use enr::CombinedKey;
     use kona_peers::EnrValidation;
@@ -373,6 +393,58 @@ mod tests {
         assert_ne!(port, 0);
         // The advertised port is the one bound for discovery, so it cannot be bound again.
         assert!(std::net::UdpSocket::bind((Ipv4Addr::LOCALHOST, port)).is_err());
+    }
+
+    /// The builder installs the table filter for its address filter in discv5: by default, private
+    /// addresses only if the node advertises a loopback or LAN address. The node listens on
+    /// loopback whatever it advertises, and isn't started, so nothing is sent.
+    #[rstest]
+    #[case::public("1.2.3.4", None, AddrFilter::PublicOnly, [false, false, true])]
+    #[case::lan("10.0.0.1", None, AddrFilter::AllowPrivate, [true, true, true])]
+    #[case::loopback("127.0.0.1", None, AddrFilter::AllowPrivate, [true, true, true])]
+    #[case::special("192.0.2.1", None, AddrFilter::PublicOnly, [false, false, true])]
+    #[case::unspecified("0.0.0.0", None, AddrFilter::PublicOnly, [false, false, true])]
+    #[case::unspecified_allowing_private(
+        "0.0.0.0",
+        Some(AddrFilter::AllowPrivate),
+        AddrFilter::AllowPrivate,
+        [true, true, true]
+    )]
+    #[case::loopback_public_only(
+        "127.0.0.1",
+        Some(AddrFilter::PublicOnly),
+        AddrFilter::PublicOnly,
+        [false, false, true]
+    )]
+    #[tokio::test]
+    async fn test_build_installs_table_filter(
+        #[case] advertised: IpAddr,
+        #[case] set: Option<AddrFilter>,
+        #[case] addr_filter: AddrFilter,
+        // Whether a record on loopback, on a LAN and public gets into discv5's table.
+        #[case] added: [bool; 3],
+    ) {
+        // Not in the registry, so it has no bootnodes of its own.
+        const CHAIN_ID: u64 = 0xdead_beef;
+
+        let CombinedKey::Secp256k1(k256_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let mut builder = Discv5Builder::new(
+            LocalNode::new(k256_key, advertised, 0, 0),
+            CHAIN_ID,
+            ConfigBuilder::new(ListenConfig::Ipv4 { ip: Ipv4Addr::LOCALHOST, port: 0 }).build(),
+        );
+        if let Some(set) = set {
+            builder = builder.with_addr_filter(set);
+        }
+        let driver = builder.build().expect("the driver builds");
+
+        assert_eq!(driver.addr_filter, addr_filter);
+        // `add_enr` applies the table filter, as discv5 does to the records other nodes relay.
+        let records = ["127.0.0.1", "10.0.0.1", "1.2.3.4"]
+            .map(|ip| enr_at(ip.parse().expect("a valid IP"), CHAIN_ID));
+        assert_eq!(records.map(|enr| driver.disc.add_enr(enr).is_ok()), added);
     }
 
     #[test]

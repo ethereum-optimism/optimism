@@ -29,6 +29,7 @@ enr.workspace = true
 libp2p = { workspace = true, features = ["metrics"] }
 
 # Misc
+ipnet.workspace = true
 tokio = { workspace = true, features = ["net", "rt"] }
 socket2.workspace = true
 tracing.workspace = true
