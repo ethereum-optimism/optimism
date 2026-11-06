@@ -76,6 +76,8 @@ macro_rules! over_backend {
     };
 }
 
+#[path = "live/catch_up_under_pruning.rs"]
+mod catch_up_under_pruning;
 #[path = "live/contracts.rs"]
 mod contracts;
 #[path = "live/index_execute_parity.rs"]

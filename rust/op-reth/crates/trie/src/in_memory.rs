@@ -25,7 +25,9 @@ use std::{collections::BTreeMap, sync::Arc};
 /// In-memory implementation of [`OpProofsStore`] for testing purposes
 #[derive(Debug, Clone)]
 pub struct InMemoryProofsStorage {
-    /// Shared state across all instances
+    /// Shared state across all instances. A reader blocks while a writer holds it rather than
+    /// failing, since this store stands in for MDBX, whose read transactions never fail
+    /// against a writer.
     inner: Arc<RwLock<InMemoryStorageInner>>,
 }
 
@@ -193,7 +195,7 @@ impl InMemoryTrieCursor {
             return Ok(());
         }
 
-        let storage = self.inner.try_read().ok_or(OpProofsStorageError::TryLockError)?;
+        let storage = self.inner.read();
 
         // Common logic: collect latest values for each path
         let mut path_to_latest: std::collections::BTreeMap<
@@ -352,7 +354,7 @@ impl InMemoryStorageCursor {
             return Ok(());
         }
 
-        let storage = self.inner.try_read().ok_or(OpProofsStorageError::TryLockError)?;
+        let storage = self.inner.read();
 
         // Collect latest values for each slot
         let mut slot_to_latest: std::collections::BTreeMap<B256, (u64, U256)> =
@@ -626,7 +628,7 @@ impl OpProofsProviderRO for InMemoryProofsProvider {
         &self,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::AccountHashedCursor<'tx>> {
-        let inner = self.inner.try_read().ok_or(OpProofsStorageError::TryLockError)?;
+        let inner = self.inner.read();
         Ok(InMemoryAccountCursor::new(&inner, max_block_number))
     }
 
@@ -919,6 +921,8 @@ mod tests {
     use alloy_eips::NumHash;
     use alloy_primitives::U256;
     use reth_primitives_traits::Account;
+    use rstest::rstest;
+    use std::{sync::mpsc, thread};
 
     #[test]
     fn test_in_memory_storage_basic_operations() -> Result<(), OpProofsStorageError> {
@@ -968,5 +972,52 @@ mod tests {
         assert_eq!(retrieved_diff.sorted_post_state, sorted_post_state);
 
         Ok(())
+    }
+
+    fn read_account_trie(provider: &InMemoryProofsProvider) -> Result<(), DatabaseError> {
+        provider.account_trie_cursor(0)?.seek(Nibbles::default())?;
+        Ok(())
+    }
+
+    fn read_storage_trie(provider: &InMemoryProofsProvider) -> Result<(), DatabaseError> {
+        provider.storage_trie_cursor(B256::ZERO, 0)?.seek(Nibbles::default())?;
+        Ok(())
+    }
+
+    fn read_account_hashed(provider: &InMemoryProofsProvider) -> Result<(), DatabaseError> {
+        provider.account_hashed_cursor(0)?;
+        Ok(())
+    }
+
+    fn read_storage_hashed(provider: &InMemoryProofsProvider) -> Result<(), DatabaseError> {
+        provider.storage_hashed_cursor(B256::ZERO, 0)?.seek(B256::ZERO)?;
+        Ok(())
+    }
+
+    /// A read that starts while a writer holds the store waits for the writer and completes,
+    /// instead of failing.
+    #[rstest]
+    #[case::account_trie(read_account_trie)]
+    #[case::storage_trie(read_storage_trie)]
+    #[case::account_hashed(read_account_hashed)]
+    #[case::storage_hashed(read_storage_hashed)]
+    fn a_read_started_during_a_write_completes_once_the_write_is_done(
+        #[case] read: fn(&InMemoryProofsProvider) -> Result<(), DatabaseError>,
+    ) {
+        let storage = InMemoryProofsStorage::new();
+        let provider = storage.provider_ro().expect("provider ro");
+        let write_in_progress = storage.inner.write();
+        let (reader_started_tx, reader_started_rx) = mpsc::channel();
+        let reader = thread::spawn(move || {
+            reader_started_tx.send(()).expect("the test thread waits for the reader");
+            read(&provider)
+        });
+        reader_started_rx.recv().expect("the reader thread started");
+        drop(write_in_progress);
+
+        reader
+            .join()
+            .expect("the reader thread")
+            .expect("the read completes once the write is done");
     }
 }
