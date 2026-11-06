@@ -75,6 +75,9 @@ func newL2ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 		if logs, ok := lifecycle[0].(stack.LogObservable); ok {
 			l2EL.logs = logs
 		}
+		if wipeable, ok := lifecycle[0].(stack.DatadirWipeable); ok {
+			l2EL.wipeable = wipeable
+		}
 	}
 	return l2EL
 }

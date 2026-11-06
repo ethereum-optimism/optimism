@@ -26,3 +26,11 @@ type BinarySwitchable interface {
 	// SwitchBinary selects the binary the next Start runs. The component must be stopped.
 	SwitchBinary(binary string)
 }
+
+// DatadirWipeable is implemented by components that keep their chain in a datadir and can empty
+// it, so that their next Start runs the same configuration on an empty chain.
+type DatadirWipeable interface {
+	// WipeDatadir removes everything the component has stored and initializes its storage afresh.
+	// The component must be stopped.
+	WipeDatadir()
+}

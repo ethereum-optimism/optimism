@@ -1,11 +1,14 @@
 package dsl
 
 import (
+	"time"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
@@ -40,6 +43,22 @@ func (s *TestSequencer) SequenceBlock(t devtest.T, chainID eth.ChainID, parent c
 
 	require.NoError(t, ca.New(t.Ctx(), seqtypes.BuildOpts{Parent: parent}))
 	require.NoError(t, ca.Next(t.Ctx()))
+}
+
+// SequenceBlocksUntil builds one block on chainID every 2s until reached passes, which leaves the
+// chain's followers time to take each block in. A build or a check that fails is retried, up to
+// attempts times in all.
+func (s *TestSequencer) SequenceBlocksUntil(t devtest.T, chainID eth.ChainID, attempts int, reached CheckFunc) {
+	ca := s.Escape().ControlAPI(chainID)
+	s.log.Info("Sequencing blocks until a condition holds", "chain", chainID, "attempts", attempts)
+	t.Require().NoError(retry.Do0(t.Ctx(), attempts, &retry.FixedStrategy{Dur: 2 * time.Second}, func() error {
+		// Next opens a block itself and tolerates one that a timed-out attempt left open.
+		if err := ca.Next(t.Ctx()); err != nil {
+			s.log.Warn("Block not built; will retry", "chain", chainID, "err", err)
+			return err
+		}
+		return reached()
+	}), "the condition did not hold within %d blocks on chain %s", attempts, chainID)
 }
 
 // AdvanceToBlockParent sequences empty blocks until the next block lands at timestamp.

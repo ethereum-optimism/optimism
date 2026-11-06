@@ -265,10 +265,16 @@ func (el *L2ELNode) ReachedWithProgressFn(label, progressLabel eth.BlockLabel, t
 	}
 }
 
-func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
+// blockRefByNumber returns the block ref at num and its lookup error, so the polling helpers can
+// retry transient failures. BlockRefByNumber is the one-shot variant that fails the test.
+func (el *L2ELNode) blockRefByNumber(num uint64) (eth.L2BlockRef, error) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
-	block, err := el.inner.L2EthClient().L2BlockRefByNumber(ctx, num)
+	return el.inner.L2EthClient().L2BlockRefByNumber(ctx, num)
+}
+
+func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
+	block, err := el.blockRefByNumber(num)
 	el.require.NoError(err, "block not found using block number %d", num)
 	return block
 }
@@ -403,7 +409,11 @@ func (el *L2ELNode) WaitL1OriginHash(label eth.BlockLabel, target eth.BlockID, a
 	logger.Info("Expecting L2EL L1 origin to match")
 	el.require.NoError(retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 		func() error {
-			head := el.BlockRefByLabel(label)
+			head, err := el.blockRefByLabel(label)
+			if err != nil {
+				logger.Warn("block-label lookup failed; will retry", "err", err)
+				return err
+			}
 			if head.L1Origin.Number < target.Number {
 				logger.Debug("L2EL L1 origin not yet reached", "head", head.ID(), "l1Origin", head.L1Origin)
 				return fmt.Errorf("L1 origin of %s head has not reached target yet", label)
@@ -412,7 +422,11 @@ func (el *L2ELNode) WaitL1OriginHash(label eth.BlockLabel, target eth.BlockID, a
 			// the L2 block whose L1 origin number matches the target.
 			block := head
 			for block.L1Origin.Number > target.Number && block.Number > 0 {
-				block = el.BlockRefByNumber(block.Number - 1)
+				block, err = el.blockRefByNumber(block.Number - 1)
+				if err != nil {
+					logger.Warn("block lookup failed; will retry", "err", err)
+					return err
+				}
 			}
 			if block.L1Origin.Hash == target.Hash {
 				logger.Info("L2EL L1 origin matched", "l2Block", block.ID(), "l1Origin", block.L1Origin)
@@ -522,6 +536,16 @@ func (el *L2ELNode) StopUngracefully() {
 	lifecycle.StopUngracefully()
 }
 
+// WipeDatadir empties the node's storage and initializes it afresh, so the next Start runs the
+// node on an empty chain while whatever drives it keeps its own view of the chain. The node must
+// be stopped.
+func (el *L2ELNode) WipeDatadir() {
+	el.log.Info("Wiping datadir", "name", el.inner.Name())
+	wipeable, ok := el.inner.(stack.DatadirWipeable)
+	el.require.Truef(ok, "L2EL node %s cannot wipe its datadir", el.inner.Name())
+	wipeable.WipeDatadir()
+}
+
 func (el *L2ELNode) Start() {
 	lifecycle, ok := el.inner.(stack.Lifecycle)
 	el.require.Truef(ok, "L2EL node %s is not lifecycle-controllable", el.inner.Name())
@@ -575,6 +599,14 @@ func (el *L2ELNode) NewPayloadRaw(payload *eth.ExecutionPayloadEnvelope) *NewPay
 	el.log.Info("NewPayloadRaw", "number", payload.ExecutionPayload.BlockNumber)
 	status, err := el.inner.L2EngineClient().NewPayload(el.ctx, payload.ExecutionPayload, payload.ParentBeaconBlockRoot)
 	return &NewPayloadResult{T: el.t, Status: status, Err: err}
+}
+
+// GetPayload fetches the payload a forkchoice update with attributes started building.
+func (el *L2ELNode) GetPayload(info eth.PayloadInfo) *eth.ExecutionPayloadEnvelope {
+	el.log.Info("GetPayload", "payload_id", info.ID, "timestamp", info.Timestamp, "node", el)
+	payload, err := el.inner.L2EngineClient().GetPayload(el.ctx, info)
+	el.require.NoError(err, "failed to get payload %s", info.ID)
+	return payload
 }
 
 // ForkchoiceUpdate fetches FCU target hashes from the reference EL node, and FCU update with attributes
