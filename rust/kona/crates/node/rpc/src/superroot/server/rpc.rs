@@ -103,7 +103,12 @@ impl SuperRootRpc {
                 .output_at_ancestor(block_number, record.safe_head)
                 .await
                 .map_err(|error| {
-                    tracing::error!(block_number, ?error, "Failed to read output for super root");
+                    tracing::error!(
+                        block_number,
+                        recorded_head = ?record.safe_head,
+                        ?error,
+                        "Failed to read output for super root"
+                    );
                     ErrorObject::from(ErrorCode::InternalError)
                 })?;
             let current_sync = self.engine_state.borrow().sync_state;
@@ -113,11 +118,7 @@ impl SuperRootRpc {
                 let within_safe_head = block.block_info.number <
                     sync.local_safe_head().block_info.number ||
                     block.block_info.id() == sync.local_safe_head().block_info.id();
-                if history_unchanged &&
-                    safe_head_unchanged &&
-                    within_safe_head &&
-                    block.block_info.number == block_number
-                {
+                if history_unchanged && safe_head_unchanged && within_safe_head {
                     return Ok(Some((output, record.l1, current_sync)));
                 }
             }

@@ -156,10 +156,6 @@ pub enum EngineClientError {
     #[error("No L2 block found for block number or tag: {0}")]
     NoL2BlockFound(BlockNumberOrTag),
 
-    /// No L2 block was found for the requested hash.
-    #[error("No L2 block found for block hash: {0}")]
-    NoL2BlockFoundByHash(alloy_primitives::B256),
-
     /// The block has no withdrawals root while Isthmus is active.
     #[error("No block withdrawals root while Isthmus is active")]
     NoWithdrawalsRoot,
