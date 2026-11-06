@@ -97,7 +97,14 @@ strum.workspace = true
 [dev-dependencies]
 alloy-op-hardforks.workspace = true
 alloy-genesis.workspace = true
+reth-evm-ethereum.workspace = true
+reth-network-api.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
+# Tests run against the metrics-wrapped OpProofsStorage, the production configuration.
+reth-optimism-trie = { workspace = true, features = ["metrics"] }
+reth-provider = { workspace = true, features = ["test-utils"] }
+reth-transaction-pool = { workspace = true, features = ["test-utils"] }
+reth-trie-common.workspace = true
 rstest.workspace = true
 
 [features]
