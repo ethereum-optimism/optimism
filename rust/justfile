@@ -126,7 +126,7 @@ test-sp1-guest:
 
 # Run all lints for the outer workspace. SP1 guests require generated vkeys and are linted by CI
 # after their ELFs are built.
-lint: fmt-check lint-clippy lint-docs check-upstream-mirrors
+lint: fmt-check lint-clippy lint-docs check-upstream-mirrors test-hack-partition
 
 # List the UPSTREAM-MIRROR tags — OP code that reproduces upstream reth/revm/alloy logic —
 # with each one's last-verified version against what the workspace resolves to today.
@@ -489,53 +489,42 @@ check-udeps:
 
 # Run cargo hack feature checking, enabling each feature one at a time.
 # Cheaper than the full powerset (~n checks per crate vs ~2^n).
-# shuffle: "true" to shuffle package order before partitioning (spreads heavy/light crates more evenly)
-# seed: deterministic seed for shuffle (all partition nodes must use the same seed)
-hack partition="" shuffle="false" seed="default":
+# partition: "<index>/<total>" checks only this node's packages (see scripts/hack-partition.py)
+hack partition="":
   #!/usr/bin/env bash
   set -euo pipefail
+  PKG_FLAGS=""
   if [ "{{partition}}" != "" ]; then
-    echo "Running cargo hack with partition {{partition}}"
+    PKG_FLAGS=$(scripts/hack-partition.py "{{partition}}" | sed 's/^/-p /' | tr '\n' ' ')
+    echo "Running cargo hack with partition {{partition}}: $PKG_FLAGS"
   else
     echo "Running cargo hack without partition"
   fi
 
-  PKG_FLAGS=""
-  if [ "{{shuffle}}" = "true" ]; then
-    PKGS=$(cargo metadata --no-deps --format-version 1 \
-      | jq -r '.packages[].name' \
-      | shuf --random-source=<(openssl enc -aes-256-ctr -pass "pass:{{seed}}" -nosalt </dev/zero 2>/dev/null))
-    PKG_FLAGS=$(echo "$PKGS" | sed 's/^/-p /' | tr '\n' ' ')
-    echo "Shuffled package order (seed={{seed}}): $PKGS"
-  fi
-
-  cargo hack check --each-feature --no-dev-deps $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
+  cargo hack check --each-feature --no-dev-deps $PKG_FLAGS
 
 # Check each crate's test targets in isolation with default features only.
 # Catches tests that only compile via workspace feature unification: a crate
 # whose tests use a dependency's feature they never declare, or a non-default
 # feature of the crate itself (enable it for the test build via a self
 # dev-dependency).
-# seed: deterministic seed for shuffle (all partition nodes must use the same seed)
-hack-tests-default partition="" shuffle="false" seed="default":
+# partition: "<index>/<total>" checks only this node's packages (see scripts/hack-partition.py)
+hack-tests-default partition="":
   #!/usr/bin/env bash
   set -euo pipefail
+  PKG_FLAGS=""
   if [ "{{partition}}" != "" ]; then
-    echo "Running cargo hack (tests, default-features) with partition {{partition}}"
+    PKG_FLAGS=$(scripts/hack-partition.py "{{partition}}" | sed 's/^/-p /' | tr '\n' ' ')
+    echo "Running cargo hack (tests, default-features) with partition {{partition}}: $PKG_FLAGS"
   else
     echo "Running cargo hack (tests, default-features) without partition"
   fi
 
-  PKG_FLAGS=""
-  if [ "{{shuffle}}" = "true" ]; then
-    PKGS=$(cargo metadata --no-deps --format-version 1 \
-      | jq -r '.packages[].name' \
-      | shuf --random-source=<(openssl enc -aes-256-ctr -pass "pass:{{seed}}" -nosalt </dev/zero 2>/dev/null))
-    PKG_FLAGS=$(echo "$PKGS" | sed 's/^/-p /' | tr '\n' ' ')
-    echo "Shuffled package order (seed={{seed}}): $PKGS"
-  fi
+  cargo hack check --tests $PKG_FLAGS
 
-  cargo hack check --tests $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
+# Run the rust-cargo-hack node split's contract tests.
+test-hack-partition:
+  python3 -m unittest scripts/test_hack_partition.py
 
 ########################### Release #################################
 

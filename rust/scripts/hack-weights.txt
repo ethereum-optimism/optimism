@@ -1,0 +1,85 @@
+# Relative cost of each package's rust-cargo-hack checks, read by hack-partition.py.
+# Columns: <package> <seconds in CI, both hack steps>
+#
+# Only balance depends on these: a package with no row gets a default weight and is
+# still checked. Regenerate with hack-weights-refresh.py when the job's slowest node
+# drifts well above the mean. This table: mean of jobs 5844080, 5843843, 5843426.
+
+alloy-op-evm 68
+alloy-op-hardforks 4
+example-discovery 5
+example-engine-api-access 25
+example-exex-hello-world 67
+example-gossip 5
+example-op-db-access 7
+execution-fixture 38
+kona-cli 14
+kona-client 22
+kona-derive 30
+kona-disc 10
+kona-driver 14
+kona-engine 33
+kona-executor 114
+kona-genesis 17
+kona-gossip 88
+kona-hardforks 38
+kona-host 113
+kona-interop 20
+kona-macros 1
+kona-mpt 10
+kona-node 147
+kona-node-service 94
+kona-peers 26
+kona-preimage 16
+kona-proof 28
+kona-proof-interop 16
+kona-protocol 36
+kona-providers-alloy 18
+kona-providers-local 11
+kona-registry 6
+kona-rpc 15
+kona-safedb 45
+kona-serde 5
+kona-sources 8
+kona-sp1-bls12-381-check 73
+kona-sp1-build-info 1
+kona-sp1-client-utils 16
+kona-sp1-elfs 1
+kona-sp1-ethereum-client-utils 5
+kona-sp1-host-utils 3
+kona-sp1-super-range-executor 63
+kona-std-fpvm 2
+kona-std-fpvm-proc 3
+kona-zkvm-canary 20
+lokahi 2
+op-alloy 25
+op-alloy-consensus 31
+op-alloy-network 16
+op-alloy-provider 6
+op-alloy-rpc-jsonrpsee 17
+op-alloy-rpc-types 24
+op-alloy-rpc-types-engine 13
+op-reth 539
+op-reth-proof-bench 3
+op-reth-test-engine 24
+op-revm 44
+op-version 1
+op-zk-proposer 31
+reth-op 406
+reth-optimism-chainspec 21
+reth-optimism-cli 328
+reth-optimism-consensus 65
+reth-optimism-evm 43
+reth-optimism-exex 84
+reth-optimism-flashblocks 14
+reth-optimism-forks 8
+reth-optimism-node 317
+reth-optimism-payload-builder 51
+reth-optimism-post-exec-replay 8
+reth-optimism-primitives 46
+reth-optimism-rpc 39
+reth-optimism-storage 12
+reth-optimism-trie 71
+reth-optimism-txpool 18
+revm-ee-tests 9
+spn-wallet 21
