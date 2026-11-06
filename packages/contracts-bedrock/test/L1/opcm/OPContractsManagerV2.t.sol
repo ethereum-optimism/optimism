@@ -2029,6 +2029,23 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(reason.length, 0, "unexpected revert data");
     }
 
+    /// @notice Tests that a bridge hook override shorter than a 32-byte word reverts while being
+    ///         decoded, before any proxy is upgraded.
+    function test_upgrade_bridgeHookMalformedData_reverts() public {
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        IOPContractsManagerV2.UpgradeInput memory input = _bridgeHookUpgradeInput(cts, makeAddr("bridgeHook"));
+        input.extraInstructions[0].data = hex"1234";
+
+        vm.expectCall(address(cts.proxyAdmin), abi.encodePacked(IProxyAdmin.upgrade.selector), 0);
+        vm.expectCall(address(cts.proxyAdmin), abi.encodePacked(IProxyAdmin.upgradeAndCall.selector), 0);
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success, bytes memory reason) =
+            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
+
+        assertFalse(success, "upgrade should have reverted");
+        assertEq(reason.length, 0, "unexpected revert data");
+    }
+
     /// @notice Tests that an upgrade rejects a bridge hook built for another portal.
     function test_upgrade_bridgeHookWrongPortal_reverts() public {
         skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
