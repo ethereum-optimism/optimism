@@ -30,12 +30,14 @@ const ENDPOINT_VERDICTS: &str = "optimism_transaction_pool.interop.endpoint.verd
 const ENDPOINT_QUERY_LATENCY: &str = "optimism_transaction_pool.interop.endpoint.query_latency";
 
 /// Fully-qualified name of the per-endpoint health gauge: `1` if the endpoint answered its last
-/// *completed* check (valid or invalid — both mean it responded), `0` if that check was a
-/// non-response. Left untouched when a check is cancelled by fast-accept, so it reflects the last
-/// real outcome. `sum(endpoint.up)` against
+/// *completed* check (valid or invalid — both mean it responded) or failsafe poll, `0` if that
+/// request was a non-response. The poll runs with or without interop traffic, so the gauge stays
+/// current on an idle pool. It measures reachability: an out-of-sync endpoint still answers the
+/// poll. Left untouched when a request is cancelled by fast-accept or by the
+/// poll's short-circuit, so it reflects the last real outcome. `sum(endpoint.up)` against
 /// [`quorum_min_responses`](InteropMetrics::quorum_min_responses) is the fail-closed headroom: it
 /// drops as endpoints fall away, *before* quorum is lost.
-const ENDPOINT_UP: &str = "optimism_transaction_pool.interop.endpoint.up";
+pub(crate) const ENDPOINT_UP: &str = "optimism_transaction_pool.interop.endpoint.up";
 
 /// `result` label values for [`InteropMetrics::record_decision`]. Every transaction that reaches
 /// the interop filter records exactly one of these. Low-cardinality and stable.
@@ -107,8 +109,8 @@ pub struct EndpointMetrics {
     invalid: Counter,
     /// Non-responses from this endpoint (timeout, transport error, soft out-of-sync).
     unavailable: Counter,
-    /// `1` if this endpoint's last completed check produced a verdict, `0` if it was a
-    /// non-response. See [`ENDPOINT_UP`].
+    /// `1` if this endpoint answered its last completed check or failsafe poll, `0` if it did not.
+    /// See [`ENDPOINT_UP`].
     up: Gauge,
 }
 
@@ -156,6 +158,12 @@ impl EndpointMetrics {
     pub fn record_unavailable(&self) {
         self.unavailable.increment(1);
         self.up.set(0.0);
+    }
+
+    /// Records whether this endpoint replied to a failsafe poll.
+    #[inline]
+    pub fn record_poll(&self, replied: bool) {
+        self.up.set(if replied { 1.0 } else { 0.0 });
     }
 }
 
@@ -315,8 +323,8 @@ fn describe_metrics() {
     );
     describe_gauge!(
         ENDPOINT_UP,
-        "1 if an interop endpoint answered its last completed check, else 0; sum vs \
-         quorum_min_responses is the fail-closed headroom (labels: endpoint)"
+        "1 if an interop endpoint answered its last completed check or failsafe poll, else 0; \
+         sum vs quorum_min_responses is the fail-closed headroom (labels: endpoint)"
     );
 }
 
