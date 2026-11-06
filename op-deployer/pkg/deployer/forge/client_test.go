@@ -217,7 +217,7 @@ func TestClient_RunScriptStopsOnCompile(t *testing.T) {
 
 	start := time.Now()
 	_, _, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
-	require.ErrorContains(t, err, "forge compiled the project")
+	require.ErrorIs(t, err, ErrCompiled)
 	require.Less(t, time.Since(start), 4*time.Second, "the run must stop when the compile starts")
 	require.NoFileExists(t, ran)
 }
@@ -253,6 +253,28 @@ func TestClient_RunScriptErrorHasReason(t *testing.T) {
 
 	_, _, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
 	require.ErrorContains(t, err, "Error: script failed: boom")
+	require.ErrorIs(t, err, ErrScriptReverted)
+}
+
+// TestClient_RunScriptRPCErrorIsNotRevert checks that an RPC error is not reported as a revert: the
+// messages are those of forge 1.8.3 for a fork block that the RPC does not serve yet, and for a
+// backend that has not seen the fork block: before the run, in an opcode, and in a cheatcode, which
+// forge reports as a failed script.
+func TestClient_RunScriptRPCErrorIsNotRevert(t *testing.T) {
+	for _, msg := range []string{
+		"Error: failed to get block number: 500; latest block number: 5",
+		"Error: failed to get account for 0x01: server returned an error response: error code -32000: block not found: hash 0x02",
+		"Error: EVM error\n\nContext:\n- database error: failed to get account for 0x01: server returned an error response: error code -32000: block not found: hash 0x02",
+		"Error: script failed: vm.load: failed to get account for 0x01: server returned an error response: error code -32000: block not found: hash 0x02",
+	} {
+		cl := NewClient(stubBinary(t, "printf '%s\\n' '"+msg+"' >&2; exit 1"))
+		cl.Wd = stubProject(t)
+		cl.Stderr = io.Discard
+
+		_, _, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil)
+		require.ErrorContains(t, err, strings.SplitN(msg, "\n", 2)[0])
+		require.NotErrorIs(t, err, ErrScriptReverted)
+	}
 }
 
 // sandboxScript calls the cheatcodes that the sandbox must refuse.
@@ -276,6 +298,10 @@ contract Sandbox {
 
     function readHosts(bytes memory) public view returns (string memory) {
         return vm.readFile("/etc/hosts");
+    }
+
+    function readArtifact(bytes memory) public view returns (string memory) {
+        return vm.readFile("forge-artifacts/secret");
     }
 
     function noop(bytes memory) public pure returns (bytes memory) {
@@ -408,6 +434,62 @@ fs_permissions = [{ access = "read", path = "/" }]
 	require.Contains(t, err.Error(), "not allowed")
 
 	require.Equal(t, before, entries(), "the runs must leave nothing in the project")
+}
+
+// TestClient_SandboxRefusesLinkedArtifacts checks that a project cannot widen the read access to its
+// artifacts by making forge-artifacts a link: forge grants access to the target of the link.
+func TestClient_SandboxRefusesLinkedArtifacts(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	writeSecret := func(t *testing.T, dir string) {
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "secret"), []byte("s3cret"), 0o644))
+	}
+	run := func(t *testing.T, dir string) (string, error) {
+		cl := NewClient(PathBinary())
+		cl.Wd = dir
+		cl.Stdout = io.Discard
+		cl.Stderr = io.Discard
+		cl.FsPermissions = []FsPermission{ArtifactsReadPermission}
+		out, _, err := cl.RunScript(ctx, "script/Sandbox.s.sol:Sandbox", "readArtifact(bytes)", nil)
+		return out, err
+	}
+
+	t.Run("directory", func(t *testing.T) {
+		dir := sandboxProject(t, ctx, "")
+		writeSecret(t, filepath.Join(dir, "forge-artifacts"))
+		out, err := run(t, dir)
+		require.NoError(t, err)
+		require.Contains(t, out, "s3cret")
+	})
+	t.Run("link", func(t *testing.T) {
+		dir := sandboxProject(t, ctx, "")
+		outside := t.TempDir()
+		writeSecret(t, outside)
+		require.NoError(t, os.Symlink(outside, filepath.Join(dir, "forge-artifacts")))
+		out, err := run(t, dir)
+		require.ErrorContains(t, err, "is a link")
+		require.NotContains(t, out, "s3cret")
+	})
+}
+
+// TestClient_SandboxRefusesLinksInArtifacts checks that a link inside forge-artifacts is refused
+// before forge runs: forge refuses a short one itself, but not a chain whose resolved path is longer
+// than PATH_MAX.
+func TestClient_SandboxRefusesLinksInArtifacts(t *testing.T) {
+	project := t.TempDir()
+	artifacts := filepath.Join(project, "forge-artifacts", "Foo.sol")
+	require.NoError(t, os.MkdirAll(artifacts, 0o755))
+	require.NoError(t, os.Symlink(t.TempDir(), filepath.Join(artifacts, "x")))
+	cl := NewClient(nil)
+	cl.FsPermissions = []FsPermission{ArtifactsReadPermission}
+	_, err := cl.sandboxConfig(project, t.TempDir())
+	require.ErrorContains(t, err, "is a link")
+
+	cl.FsPermissions = []FsPermission{}
+	_, err = cl.sandboxConfig(project, t.TempDir())
+	require.NoError(t, err, "a link outside the granted paths is not read")
 }
 
 // TestClient_ForgeEnvironment checks that script runs inherit only inheritedEnvNames and the
