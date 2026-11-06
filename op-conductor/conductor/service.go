@@ -702,6 +702,9 @@ func (oc *OpConductor) handleLeaderUpdate(leader bool) {
 // handleHealthUpdate handles health update from health monitor.
 func (oc *OpConductor) handleHealthUpdate(hcerr error) {
 	oc.log.Debug("received health update", "server", oc.cons.ServerID(), "error", hcerr)
+	if unsafe := oc.cons.LocalUnsafePayload(); unsafe != nil {
+		oc.metrics.RecordRaftUnsafeHead(uint64(unsafe.ExecutionPayload.BlockNumber))
+	}
 	healthy := hcerr == nil
 	if !healthy {
 		oc.log.Error("Sequencer is unhealthy", "server", oc.cons.ServerID(), "err", hcerr)
