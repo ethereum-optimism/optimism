@@ -147,7 +147,7 @@ op-reth proofs unwind \
 ```
 
 <Note>
-  You can only unwind to a block after the earliest block number in the database. Unwinding to a block before the earliest will fail.
+  You can only unwind to a block at or after the earliest block number in the database; the target block stays and becomes the latest block. Unwinding to a block before the earliest fails.
 </Note>
 
 ## Performance
