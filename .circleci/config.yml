@@ -194,6 +194,10 @@ jobs:
       - run:
           name: Test decision tree
           command: .circleci/scripts/test-decision-tree.sh
+      # The proposal/** gate must require every job required-contracts-ci does.
+      - run:
+          name: Test proposal gate coverage
+          command: .circleci/scripts/test-proposal-gate.sh
       # Forward string pipeline parameters to /tmp/pipeline-parameters.json.
       # collect-params.sh picks up all env vars starting with "c-" and writes them as JSON strings.
       # Add a line here when a new string value needs to reach continuation config jobs
@@ -250,7 +254,9 @@ jobs:
           name: Detect docs-only changes (all-match)
           command: .circleci/scripts/collect-params.sh detect_all
       # Routing policy: enables the c-run_* workflow flags based on trigger,
-      # branch, schedule, and the detected params. The workflow lists are data
+      # branch, schedule, the detected params and, on a PR build, BASE_REVISION
+      # (the PR base resolved above: a PR into a proposal/** branch gets that
+      # branch's gate). The workflow lists are data
       # in routing.yml; the conditions live in compute-workflow-conditions.sh.
       # Each c-run_<name> maps 1:1 to "when: << pipeline.parameters.c-run_<name> >>"
       # in a continuation config under .circleci/continue/.

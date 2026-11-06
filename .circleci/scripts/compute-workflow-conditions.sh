@@ -11,12 +11,15 @@
 #
 # Inputs (set by the config.yml step environment):
 #   BRANCH, TRIGGER_SOURCE, TAG, SCHEDULE_NAME
+#   BASE_REVISION: the PR target branch (develop when there is no PR)
 # Built-in CircleCI inputs:
 #   CIRCLE_PROJECT_USERNAME, CIRCLE_PROJECT_REPONAME
+#   CIRCLE_PULL_REQUEST: set on a build that belongs to a PR
 #
 # Helpers (workflow-helpers.sh):
 #   run <wf...>            enable workflows by literal name
 #   run_group <sec> <key>  enable the workflows listed under routing.yml sec.key
+#   skip <wf...>           disable workflows by literal name
 #   skip_group <sec>       disable the workflows listed under routing.yml sec
 #   is_true <x>            true if c-x is true in the JSON
 #   param <x>              raw value of c-x from the JSON
@@ -33,6 +36,17 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/workflow-helpers.sh"
 init_json
 
+# The branch whose gates apply to a webhook build: the PR base when the build
+# belongs to a PR, else the branch itself (a merge-queue branch name embeds its
+# base). A PR is routed by its base, not its head, so a PR from a proposal
+# branch into develop keeps the develop gates. A branch pushed before its PR
+# exists has no base yet and is routed as a develop PR; a push after the PR
+# is opened re-routes it.
+GATE_BRANCH="${BRANCH}"
+if [[ -n "${CIRCLE_PULL_REQUEST:-}" ]]; then
+  GATE_BRANCH="${BASE_REVISION:-develop}"
+fi
+
 case "${TRIGGER_SOURCE}" in
 
   # Scheduled pipelines: map schedule name -> workflows (routing.yml schedules).
@@ -47,10 +61,19 @@ case "${TRIGGER_SOURCE}" in
       run release
 
     # =========================================================
-    #  Three mutually exclusive lifecycle stages:
+    #  Four mutually exclusive lifecycle stages:
     # =========================================================
 
-    # 1. PR (feature branch push)
+    # 1. Release branch (proposal/**): its own pushes, PRs that target it
+    #    and its merge queue.
+    #    Only the proposal gate runs: the contracts suite, the NUT checks and
+    #    go-tests. The rest of `main` does not ship in an op-contracts release
+    #    and is what rots on a frozen branch (toolchain drift, new advisories).
+    # ---------------------------------------------------------
+    elif [[ "${GATE_BRANCH}" =~ ^(gh-readonly-queue/)?proposal/ ]]; then
+      run ci_gate_proposals
+
+    # 2. PR (feature branch push)
     #    Runs on every push to a feature branch.
     #    Path-based gating: only changed areas are tested.
     #    Docs-only changes skip main/release entirely.
@@ -81,7 +104,7 @@ case "${TRIGGER_SOURCE}" in
         fi
       fi
 
-    # 2. Merge queue (pre-merge validation)
+    # 3. Merge queue (pre-merge validation)
     #    Runs when GitHub merge queue picks up the PR.
     #    Docs-only changes emit the required gates without running test suites.
     #    All other changes run full contract tests and path-gated Rust tests.
@@ -108,7 +131,7 @@ case "${TRIGGER_SOURCE}" in
         fi
       fi
 
-    # 3. After merge (develop push)
+    # 4. After merge (develop push)
     #    Runs after the merge queue completes and pushes to develop.
     #    Adds expensive post-merge jobs: fault proofs, kontrol, prestate publishing.
     #
@@ -141,6 +164,12 @@ case "${TRIGGER_SOURCE}" in
         run_group api_dispatch "${flag}"
       fi
     done
+    # On a release branch the proposal gate replaces main: main_dispatch
+    # defaults to true, so a plain "Trigger pipeline" would otherwise run it.
+    if [[ "${BRANCH}" =~ ^proposal/ ]]; then
+      run ci_gate_proposals
+      skip main contracts_feature_tests
+    fi
     ;;
 esac
 
