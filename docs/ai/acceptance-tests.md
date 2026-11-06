@@ -105,9 +105,9 @@ cd op-acceptance-tests && ACCEPTANCE_TEST_PARALLEL=2 ACCEPTANCE_TEST_TIMEOUT=1h 
 ## Log Output (`acceptance-test` only)
 
 When using `just acceptance-test`, logs are written to `op-acceptance-tests/logs/testrun-<timestamp>/`:
-- `all.log` — full test output
+- `all.log` — console output
 - `raw_go_events-<node>-<package>.<test>.log` — JSON test events, one file per top-level test
-- `per-test/<package>/<test>.log` — each test's own output
+- `per-test/<dotted package>/<test>.log` — each test's own output
 - `failed/<node>-<package>.<test>.log` — console output of each test that failed, plus any still running if the run was cut off
 - `flaky-tests.txt` — tests marked with `MarkFlaky()`
 

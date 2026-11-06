@@ -9,16 +9,17 @@
 #
 # Exits 1 when no test names arrive: `go test -list` failed (compile error,
 # or a crash in TestMain — which -list executes) or a name filter matched
-# nothing. Without this guard every node would receive an empty shard and
-# skip, letting a broken package report green.
+# nothing. Without this guard every node would receive an empty shard, which
+# could let a broken package report green.
 set -euo pipefail
 
 ALL_TESTS_FILE=$(mktemp)
 trap 'rm -f "$ALL_TESTS_FILE"' EXIT
 
-grep -E '^Test' > "$ALL_TESTS_FILE" || true
-# `go test -run` matches a name in every package, so a name listed once for each
-# package that has it would run all of its copies once per node it landed on.
+# grep exits 1 for no matches, handled below, and above 1 for an error.
+grep -E '^Test' > "$ALL_TESTS_FILE" || [ "$?" -eq 1 ]
+# A name is listed once per package that has it. Keep one, so it goes to one node,
+# and that node's caller runs every package's copy.
 LC_ALL=C sort -u -o "$ALL_TESTS_FILE" "$ALL_TESTS_FILE"
 
 TOTAL_TESTS=$(wc -l < "$ALL_TESTS_FILE" | tr -d ' ')

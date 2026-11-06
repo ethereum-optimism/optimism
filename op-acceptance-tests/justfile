@@ -174,8 +174,12 @@ acceptance-test:
         if [ "${PIPESTATUS[0]}" -ne 0 ]; then
             return 1
         fi
-        if ! grep -qF "\"Action\":\"run\",\"Package\":\"$1\",\"Test\":\"$2\"" "$LOG_DIR/raw_go_events-$id.log" \
-            || ! grep -qE "\"Output\":\"--- (PASS|SKIP): $2 \(" "$LOG_DIR/raw_go_events-$id.log"; then
+        # test2json leaves its \u0016 marker on a result line that follows unterminated
+        # output at a multiple of 4096 bytes, and drops the test's pass event.
+        local events="$LOG_DIR/raw_go_events-$id.log"
+        if ! grep -qF "\"Action\":\"run\",\"Package\":\"$1\",\"Test\":\"$2\"" "$events" \
+            || ! grep -qE "\"Output\":\"(\\\\u0016)?--- (PASS|SKIP): $2 \(" "$events" \
+            || grep -qF "\"Action\":\"fail\",\"Package\":\"$1\",\"Test\":\"$2\"" "$events"; then
             echo "FAIL $1.$2 (go test exited 0 but the test did not run and report a pass or skip)" | tee -a "$failed_log"
             return 1
         fi
@@ -194,8 +198,9 @@ acceptance-test:
     TOTAL=$(( $(wc -l < "$LOG_DIR/tests_pairs.txt") ))
     FAILED=$(( $(find "$LOG_DIR/failed" -name '*.log' | wc -l) ))
     echo "Ran $RAN of $TOTAL tests, $FAILED failed" | tee -a "$LOG_DIR/all.log"
-    if [ "$RAN" -ne "$TOTAL" ] && [ "$TEST_STATUS" -eq 0 ]; then
-        echo "error: not every test ran" | tee -a "$LOG_DIR/all.log"
+    ls "$LOG_DIR/failed" | tee -a "$LOG_DIR/all.log"
+    if { [ "$RAN" -ne "$TOTAL" ] || [ "$FAILED" -gt 0 ]; } && [ "$TEST_STATUS" -eq 0 ]; then
+        echo "error: not every test ran and passed" | tee -a "$LOG_DIR/all.log"
         TEST_STATUS=1
     fi
 
