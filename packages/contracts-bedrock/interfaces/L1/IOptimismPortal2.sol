@@ -62,7 +62,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     event BridgeHookSet(IBridgeHook indexed bridgeHook);
     event BridgeHookRemoved(IBridgeHook indexed bridgeHook);
     event DepositHeld(bytes32 indexed id);
-    event WithdrawalHeld(bytes32 indexed id);
+    event WithdrawalHeld(bytes32 indexed id, bytes32 indexed withdrawalHash);
     event PortalMigrated(
         IETHLockbox oldLockbox,
         IETHLockbox newLockbox,

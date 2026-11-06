@@ -185,8 +185,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     event DepositHeld(bytes32 indexed id);
 
     /// @notice Emitted when the bridge hook holds a withdrawal.
-    /// @param id Identifier of the held withdrawal.
-    event WithdrawalHeld(bytes32 indexed id);
+    /// @param id             Identifier of the held withdrawal.
+    /// @param withdrawalHash Hash of the withdrawal transaction.
+    event WithdrawalHeld(bytes32 indexed id, bytes32 indexed withdrawalHash);
 
     /// @notice Emitted when the proof maturity delay is set.
     /// @param proofMaturityDelaySeconds The new proof maturity delay in seconds.
@@ -744,8 +745,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             });
             bytes memory message = _recognize(item);
             if (!bridgeHook.screenWithdrawal(item, finalizableAt)) {
-                emit WithdrawalHeld(BridgeHookHashing.hashItem(item));
-                _commitHold(item, message, heldWithdrawals);
+                bytes32 id = _commitHold(item, message, heldWithdrawals);
+                emit WithdrawalHeld(id, withdrawalHash);
                 bridgeHook.holdWithdrawal{ value: _tx.value }(item);
                 return;
             }
@@ -993,7 +994,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         _releaseHeld(_item, heldWithdrawals);
 
         l2Sender = _item.from;
-        bool success = SafeCall.callWithMinGas(_item.to, _item.gasLimit, msg.value, _item.data);
+        bool success = SafeCall.callWithMinGas(_item.to, _item.gasLimit, _item.ethAmount, _item.data);
         l2Sender = Constants.DEFAULT_L2_SENDER;
 
         if (!success) revert OptimismPortal_TargetCallFailed();

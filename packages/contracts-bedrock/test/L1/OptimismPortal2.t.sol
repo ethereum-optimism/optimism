@@ -58,6 +58,9 @@ abstract contract OptimismPortal2_Reentrancy_TestInit is OptimismPortal2_TestIni
     /// @notice Portal call that the re-entering callback makes.
     bytes internal reentry;
 
+    /// @notice Whether screenWithdrawal runs out of gas.
+    bool internal screenOutOfGas;
+
     function screenDeposit(BridgeHookTypes.Item calldata) external returns (bool) {
         _reenter();
         return pass;
@@ -68,6 +71,7 @@ abstract contract OptimismPortal2_Reentrancy_TestInit is OptimismPortal2_TestIni
     }
 
     function screenWithdrawal(BridgeHookTypes.Item calldata, uint256) external returns (bool) {
+        while (screenOutOfGas) { }
         _reenter();
         return pass;
     }
@@ -1479,7 +1483,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
 /// @title OptimismPortal2_FinalizeWithdrawalTransaction_Test
 /// @notice Test contract for OptimismPortal2 `finalizeWithdrawalTransaction` function.
 contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_Reentrancy_TestInit {
-    event WithdrawalHeld(bytes32 indexed id);
+    event WithdrawalHeld(bytes32 indexed id, bytes32 indexed withdrawalHash);
 
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts when the target is the portal
     ///         contract or the lockbox.
@@ -2705,7 +2709,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
         uint256 lockboxBalanceBefore = address(ethLockbox).balance;
 
         vm.expectEmit(address(optimismPortal2));
-        emit WithdrawalHeld(BridgeHookHashing.hashItem(item));
+        emit WithdrawalHeld(BridgeHookHashing.hashItem(item), withdrawalHash);
 
         // On Amsterdam, each ETH transfer also emits a log (EIP-7708). Count only the Portal's logs.
         vm.recordLogs();
@@ -2899,7 +2903,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
         vm.expectCall(bob, 0, hex"aa", 1);
 
         vm.expectEmit(address(optimismPortal2));
-        emit WithdrawalHeld(BridgeHookHashing.hashItem(item));
+        emit WithdrawalHeld(BridgeHookHashing.hashItem(item), withdrawalHash);
         vm.expectEmit(address(optimismPortal2));
         emit WithdrawalFinalized(withdrawalHash, true);
 
@@ -2911,10 +2915,11 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
     /// @notice Tests that a hook running out of gas reverts the whole finalization.
     function test_finalizeWithdrawalTransaction_hookOutOfGas_reverts() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
-        forceSetBridgeHook(hook);
+        forceSetBridgeHook(address(this));
+        pass = true;
+        // Screening runs out of gas, but holding stays cheap.
+        screenOutOfGas = true;
         bytes32 withdrawalHash = _prepareWithdrawalForFinalization(_defaultTx);
-        // The hook loops until it runs out of gas.
-        vm.etch(hook, hex"5b600056");
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Withdrawal,
             asset: BridgeHookTypes.Asset.ETH,
@@ -2929,10 +2934,11 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_R
             nonce: 0
         });
 
-        // The hook gets 63/64 of the gas and uses it all. The 1/64 that is left is enough to pay the
-        // withdrawal, so a Portal that ignored the failure would not revert here.
+        // Send enough gas that the 1/64 the Portal keeps can pay for a hold or a payout after the hook
+        // runs out of gas. The test then fails if the Portal holds or pays after the hook fails. The
+        // Portal passes on the hook's failure, which has no revert data.
         vm.expectRevert(bytes(""));
-        optimismPortal2.finalizeWithdrawalTransaction{ gas: 10_000_000 }(_defaultTx);
+        optimismPortal2.finalizeWithdrawalTransaction{ gas: 20_000_000 }(_defaultTx);
 
         assertFalse(optimismPortal2.finalizedWithdrawals(withdrawalHash), "finalized");
         assertFalse(optimismPortal2.heldWithdrawals(BridgeHookHashing.hashItem(item)), "held");
@@ -4578,8 +4584,8 @@ contract OptimismPortal2_CompleteWithdrawalTransaction_Test is OptimismPortal2_R
         optimismPortal2.completeWithdrawalTransaction(item);
     }
 
-    /// @notice Tests that a deposit with the terms of a held withdrawal cannot complete it.
-    function test_completeWithdrawalTransaction_depositDirection_reverts() external {
+    /// @notice Tests that changing any field prevents completion but leaves the original withdrawal valid.
+    function testFuzz_completeWithdrawalTransaction_changedField_reverts(uint256 _field, uint256 _value) external {
         BridgeHookTypes.Item memory item = BridgeHookTypes.Item({
             direction: BridgeHookTypes.Direction.Withdrawal,
             asset: BridgeHookTypes.Asset.ETH,
@@ -4597,11 +4603,37 @@ contract OptimismPortal2_CompleteWithdrawalTransaction_Test is OptimismPortal2_R
             .sig(optimismPortal2.heldWithdrawals.selector)
             .with_key(BridgeHookHashing.hashItem(item))
             .checked_write(true);
-        item.direction = BridgeHookTypes.Direction.Deposit;
+        uint256 f = bound(_field, 0, 10);
+        BridgeHookTypes.Item memory changed = BridgeHookTypes.Item({
+            direction: f == 0 ? BridgeHookTypes.Direction.Deposit : item.direction,
+            asset: f == 1 ? BridgeHookTypes.Asset.ERC20 : item.asset,
+            from: f == 2 ? address(uint160(_value)) : item.from,
+            aliased: f == 3 ? !item.aliased : item.aliased,
+            to: f == 4 ? address(uint160(_value)) : item.to,
+            ethAmount: f == 5 ? bound(_value, 1, type(uint128).max) : item.ethAmount,
+            l2Value: f == 6 ? _value : item.l2Value,
+            gasLimit: f == 7 ? _value : item.gasLimit,
+            isCreation: f == 8 ? !item.isCreation : item.isCreation,
+            data: f == 9 ? abi.encode(_value) : item.data,
+            nonce: f == 10 ? _value : item.nonce
+        });
+        // Use the spec's identifier to keep this check independent of the hashing library.
+        vm.assume(keccak256(abi.encode(changed)) != keccak256(abi.encode(item)));
+        // Exclude targets that revert with BadTarget before the held-withdrawal check.
+        // This test must reach that check to verify that the changed item reverts with NotHeld.
+        vm.assume(
+            changed.to != address(optimismPortal2) && changed.to != address(ethLockbox)
+                && changed.to != address(l1StandardBridge) && changed.to != hook
+        );
 
+        vm.deal(hook, changed.ethAmount);
         vm.prank(hook);
         vm.expectRevert(IOptimismPortal.OptimismPortal_NotHeld.selector);
+        optimismPortal2.completeWithdrawalTransaction{ value: changed.ethAmount }(changed);
+
+        vm.prank(hook);
         optimismPortal2.completeWithdrawalTransaction(item);
+        assertFalse(optimismPortal2.heldWithdrawals(BridgeHookHashing.hashItem(item)));
     }
 
     /// @notice Tests that a completion reverts unless it sends exactly the held withdrawal's ETH.
