@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/superchain/bundle"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
@@ -37,14 +38,6 @@ func LoadOPStackRollupConfig(chainID uint64) (*rollup.Config, error) {
 	return rollupConfigFromRegistry(chConfig, superConfig), nil
 }
 
-// deref returns the value behind v, or the zero value of T when v is nil.
-func deref[T any](v *T) (zero T) {
-	if v == nil {
-		return zero
-	}
-	return *v
-}
-
 // rollupConfigFromRegistry converts a superchain-registry chain config (with its parent
 // superchain, which supplies the L1 chain ID) into a rollup Config. It is the single place that
 // maps registry fields onto Config, kept separate from the registry lookup so it can be
@@ -65,13 +58,13 @@ func rollupConfigFromRegistry(chConfig *registry.ChainConfig, superConfig regist
 		Scalar:      eth.Bytes32(sysCfg.Scalar),
 		GasLimit:    sysCfg.GasLimit,
 		OperatorFeeParams: eth.EncodeOperatorFeeParams(eth.OperatorFeeParams{
-			Scalar:   deref(sysCfg.OperatorFeeScalar),
-			Constant: deref(sysCfg.OperatorFeeConstant),
+			Scalar:   ptr.Deref(sysCfg.OperatorFeeScalar),
+			Constant: ptr.Deref(sysCfg.OperatorFeeConstant),
 		}),
-		MinBaseFee: deref(sysCfg.MinBaseFee),
+		MinBaseFee: ptr.Deref(sysCfg.MinBaseFee),
 		// Zero means the protocol default. It is substituted only in
 		// SetDAFootprintGasScalarOrDefault when the L1 info is built, matching kona.
-		DAFootprintGasScalar: deref(sysCfg.DAFootprintGasScalar),
+		DAFootprintGasScalar: ptr.Deref(sysCfg.DAFootprintGasScalar),
 	}
 
 	addrs := chConfig.Addresses
