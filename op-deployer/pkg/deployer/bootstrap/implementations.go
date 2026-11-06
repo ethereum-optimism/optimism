@@ -69,6 +69,9 @@ type ImplementationsConfig struct {
 }
 
 func (c *ImplementationsConfig) Check() error {
+	if err := broadcaster.CheckReceiptQueryInterval(c.ReceiptQueryInterval); err != nil {
+		return err
+	}
 	if c.L1RPCUrl == "" {
 		return errors.New("l1RPCUrl must be specified")
 	}

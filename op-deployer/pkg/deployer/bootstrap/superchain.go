@@ -49,6 +49,9 @@ type SuperchainConfig struct {
 }
 
 func (c *SuperchainConfig) Check() error {
+	if err := broadcaster.CheckReceiptQueryInterval(c.ReceiptQueryInterval); err != nil {
+		return err
+	}
 	if c.L1RPCUrl == "" {
 		return fmt.Errorf("l1RPCUrl must be specified")
 	}

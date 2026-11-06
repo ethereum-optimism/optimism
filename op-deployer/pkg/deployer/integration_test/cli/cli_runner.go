@@ -21,7 +21,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testReceiptQueryInterval replaces the default one-second receipt poll, which is nearly all of a
+// deploy's time because Anvil mines on send.
+const testReceiptQueryInterval = 50 * time.Millisecond
+
 var cliTestBinary string
+
+// requireFastReceiptPoll checks that the interval reached the command's broadcaster. Otherwise a
+// dropped field would only make the tests slower.
+func requireFastReceiptPoll(t *testing.T, output string) {
+	t.Helper()
+	require.Contains(t, output, "using non-default receipt query interval")
+}
 
 // CLITestRunner provides utilities for running op-deployer CLI commands in tests
 type CLITestRunner struct {
@@ -147,7 +158,7 @@ func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]s
 	}
 	cmd.WaitDelay = 5 * time.Second
 	cmd.Dir = r.workDir
-	cmd.Env = cmd.Environ()
+	cmd.Env = append(cmd.Environ(), "DEPLOYER_RECEIPT_QUERY_INTERVAL="+testReceiptQueryInterval.String())
 	for key, value := range env {
 		cmd.Env = append(cmd.Env, key+"="+value)
 	}

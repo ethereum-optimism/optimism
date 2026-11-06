@@ -3,6 +3,7 @@ package broadcaster
 import (
 	"context"
 	"errors"
+	"math/big"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -105,7 +107,42 @@ func TestKeyedBroadcasterStopsAfterFailure(t *testing.T) {
 	require.ErrorIs(t, results[1].Err, sendErr)
 }
 
-func TestNewKeyedBroadcasterRejectsNegativeReceiptQueryInterval(t *testing.T) {
-	_, err := NewKeyedBroadcaster(KeyedBroadcasterOpts{ReceiptQueryInterval: -time.Second})
-	require.ErrorContains(t, err, "receipt query interval must not be negative")
+func TestNewKeyedBroadcasterReceiptQueryInterval(t *testing.T) {
+	const warning = "using non-default receipt query interval"
+	tests := []struct {
+		name     string
+		interval time.Duration
+		wantErr  bool
+		wantWarn bool
+	}{
+		{name: "zero is the one second default", interval: 0},
+		{name: "explicit default", interval: time.Second},
+		{name: "lowest allowed", interval: 10 * time.Millisecond, wantWarn: true},
+		{name: "test value", interval: 50 * time.Millisecond, wantWarn: true},
+		{name: "highest allowed", interval: 12 * time.Second, wantWarn: true},
+		{name: "below minimum", interval: 10*time.Millisecond - 1, wantErr: true},
+		{name: "above maximum", interval: 12*time.Second + 1, wantErr: true},
+		{name: "negative", interval: -time.Second, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.wantErr, CheckReceiptQueryInterval(tt.interval) != nil)
+
+			lgr, logs := testlog.CaptureLogger(t, log.LevelWarn)
+			_, err := NewKeyedBroadcaster(KeyedBroadcasterOpts{
+				Logger:               lgr,
+				ChainID:              big.NewInt(1),
+				Client:               ethclient.NewClient(nil),
+				Signer:               func(context.Context, common.Address, *types.Transaction) (*types.Transaction, error) { return nil, nil },
+				ReceiptQueryInterval: tt.interval,
+			})
+			if tt.wantErr {
+				require.ErrorContains(t, err, "receipt query interval must be 0 or between 10ms and 12s")
+				return
+			}
+			require.NoError(t, err)
+			warned := logs.FindLog(testlog.NewMessageContainsFilter(warning)) != nil
+			require.Equal(t, tt.wantWarn, warned)
+		})
+	}
 }

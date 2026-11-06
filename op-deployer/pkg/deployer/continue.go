@@ -42,6 +42,9 @@ type ContinueConfig struct {
 }
 
 func (c *ContinueConfig) Check() error {
+	if err := broadcaster.CheckReceiptQueryInterval(c.ReceiptQueryInterval); err != nil {
+		return err
+	}
 	if c.Workdir == "" {
 		return fmt.Errorf("workdir must be specified")
 	}

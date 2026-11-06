@@ -2,9 +2,9 @@ package deployer
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
@@ -155,9 +155,10 @@ var (
 	}
 	ReceiptQueryIntervalFlag = &cli.DurationFlag{
 		Name:    ReceiptQueryIntervalFlagName,
-		Usage:   "how often to check whether a broadcast transaction has been mined; ignored with --use-forge",
+		Usage:   "for tests: how often to poll for each broadcast's receipt, from 10ms to 12s; 0 uses the default of 1s. Does not affect transactions sent by Forge",
 		EnvVars: PrefixEnvVar("RECEIPT_QUERY_INTERVAL"),
-		Value:   time.Second,
+		Value:   broadcaster.DefaultReceiptQueryInterval,
+		Hidden:  true,
 	}
 	GenesisTimeOffsetFlag = &cli.Uint64Flag{
 		Name: GenesisTimeOffsetFlagName,

@@ -47,6 +47,9 @@ type ApplyConfig struct {
 }
 
 func (a *ApplyConfig) Check() error {
+	if err := broadcaster.CheckReceiptQueryInterval(a.ReceiptQueryInterval); err != nil {
+		return err
+	}
 	if a.Workdir == "" {
 		return fmt.Errorf("workdir must be specified")
 	}
