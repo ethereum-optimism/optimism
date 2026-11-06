@@ -114,6 +114,9 @@ parameters:
   c-run_ci_gate_skip:
     type: boolean
     default: false
+  c-run_release_branch:
+    type: boolean
+    default: false
   c-run_circleci_schedule_trigger_check:
     type: boolean
     default: false
@@ -341,12 +344,16 @@ commands:
       mentions:
         type: string
         default: ""
+      branch_pattern:
+        description: Regex of branches the failure is reported for
+        type: string
+        default: develop
     steps:
       - slack/notify:
           channel: << parameters.channel >>
           event: fail
           template: basic_fail_1
-          branch_pattern: develop
+          branch_pattern: << parameters.branch_pattern >>
           mentions: "<< parameters.mentions >>"
 
   apt-install:
@@ -704,9 +711,23 @@ jobs:
         description: Force always succeed (skip API gate; for contracts-feature-tests-short)
         type: boolean
         default: false
+      notify_branch_pattern:
+        description: Regex of branches whose gate failure is reported on Slack; empty disables
+        type: string
+        default: ""
+      mentions:
+        description: Slack user or group to mention when notifying of failures
+        type: string
+        default: ""
     steps:
       - utils/ci-gate:
           always-succeed: << parameters.always-succeed >>
+      - when:
+          condition: << parameters.notify_branch_pattern >>
+          steps:
+            - notify-failures-on-develop:
+                branch_pattern: << parameters.notify_branch_pattern >>
+                mentions: << parameters.mentions >>
 
   circleci-schedule-trigger-check:
     docker:
@@ -1092,10 +1113,18 @@ jobs:
           that build, and its profile must match test_profile.
         type: boolean
         default: false
+      resolve_target_branch:
+        description: Export TARGET_BRANCH (the PR base) for test_list to diff against
+        type: boolean
+        default: false
     steps:
       - checkout-with-mise:
           checkout-method: full
           enable-mise-cache: true
+      - when:
+          condition: << parameters.resolve_target_branch >>
+          steps:
+            - get-target-branch
       - when:
           condition: << parameters.attach_build >>
           steps:
@@ -2451,7 +2480,7 @@ workflows:
   main:
     when: << pipeline.parameters.c-run_main >>
     jobs:
-      - contracts-bedrock-build:
+      - contracts-bedrock-build: &contracts_bedrock_build_job
           name: contracts-bedrock-build
           # Build with just core + script contracts.
           build_args: --deny-warnings --skip test
@@ -2538,7 +2567,7 @@ workflows:
       # single job name lets CircleCI reuse timing data across branches (develop
       # runs keep the store fresh). Slack notify fires on develop only
       # (branch_pattern in notify-failures-on-develop).
-      - go-tests:
+      - go-tests: &go_tests_job
           name: go-tests
           image: <<pipeline.parameters.c-rust_base_image>>
           rule: "go-tests-ci"
@@ -2914,12 +2943,17 @@ workflows:
       - prep-go-modules:
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - contracts-bedrock-tests:
+      # The entries below that run on PRs carry YAML anchors so that the
+      # release-branch workflow can reuse them unchanged.
+      - contracts-bedrock-tests: &contracts_tests_heavy_fuzz_modified
           # Heavily fuzz any fuzz tests within added or modified test files.
+          # Diffed against the PR base, so a PR into a release branch fuzzes
+          # its own changes rather than everything since the branch was cut.
           name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
           requires:
             - prep-go-modules
-          test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM --
+          resolve_target_branch: true
+          test_list: git diff "origin/${TARGET_BRANCH}...HEAD" --name-only --diff-filter=AM --
             './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
@@ -2937,7 +2971,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
       # On PRs, run tests with lite profile for better build times.
-      - contracts-bedrock-tests:
+      - contracts-bedrock-tests: &contracts_tests_pr
           name: contracts-bedrock-tests <<matrix.features>>
           requires:
             - prep-go-modules
@@ -2984,7 +3018,7 @@ workflows:
             branches:
               only: develop
       # On PRs, run upgrade tests with lite profile for better build times.
-      - contracts-bedrock-tests-upgrade:
+      - contracts-bedrock-tests-upgrade: &contracts_tests_upgrade_pr
           name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
           requires:
             - prep-go-modules
@@ -3022,7 +3056,7 @@ workflows:
             branches:
               only: develop
       # On PRs, run chain-specific upgrade tests with lite profile for better build times.
-      - contracts-bedrock-tests-upgrade:
+      - contracts-bedrock-tests-upgrade: &contracts_tests_upgrade_chains_pr
           name: contracts-bedrock-tests-upgrade <<matrix.fork_op_chain>>-mainnet
           requires:
             - prep-go-modules
@@ -3058,7 +3092,7 @@ workflows:
             branches:
               only: develop
       # Always run L2 fork tests with ci profile
-      - contracts-bedrock-tests-l2-fork:
+      - contracts-bedrock-tests-l2-fork: &contracts_tests_l2_fork
           name: contracts-bedrock-tests-l2-fork op-mainnet
           requires:
             - prep-go-modules
@@ -3069,7 +3103,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
             - slack
-      - contracts-bedrock-checks-fast:
+      - contracts-bedrock-checks-fast: &contracts_checks_fast
           name: contracts-bedrock-checks-fast-feature-tests
           requires:
             - prep-go-modules
@@ -3131,3 +3165,104 @@ workflows:
           always-succeed: true
           context:
             - circleci-api-token
+
+  # ============================================================================
+  # release-branch is the only workflow that runs on a release branch
+  # (proposal/**). It runs the subset of the develop checks that validate
+  # op-contracts and op-deployer: the required-contracts-ci jobs, the NUT and
+  # op-deployer forge-version checks, and go-tests. Its gate job,
+  # ci-gate-proposals, is the GitHub required status for those branches.
+  # ============================================================================
+  release-branch:
+    when: << pipeline.parameters.c-run_release_branch >>
+    jobs:
+      - prep-go-modules:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - prep-superchain:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-build: *contracts_bedrock_build_job
+      - check-nut-locks:
+          requires:
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - check-nut-prefork-states:
+          requires:
+            - contracts-bedrock-build
+            - prep-superchain
+            - prep-go-modules
+            - rust-op-reth-binary
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - nut-provenance-verify:
+          requires:
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - op-deployer-forge-version:
+          requires:
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-prestate:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - go-binaries-for-sysgo:
+          requires:
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-kona-binaries:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - rust-op-reth-binary:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - go-tests: *go_tests_job
+      - contracts-bedrock-tests: *contracts_tests_heavy_fuzz_modified
+      - contracts-bedrock-tests: *contracts_tests_pr
+      - contracts-bedrock-tests-upgrade: *contracts_tests_upgrade_pr
+      - contracts-bedrock-tests-upgrade: *contracts_tests_upgrade_chains_pr
+      - contracts-bedrock-tests-l2-fork: *contracts_tests_l2_fork
+      - contracts-bedrock-checks-fast: *contracts_checks_fast
+      # The GitHub required status for proposal/** branches. Terminal requires
+      # keep this job scheduled even when an upstream job fails; utils/ci-gate
+      # then verifies through the CircleCI API that every upstream job passed.
+      # Slack is notified when the gate fails on the release branch itself (a
+      # push or an API-triggered run), not on a PR targeting it.
+      - ci-gate:
+          name: ci-gate-proposals
+          notify_branch_pattern: proposal/.*
+          requires:
+            - go-tests: terminal
+            - check-nut-locks: terminal
+            - check-nut-prefork-states: terminal
+            - nut-provenance-verify: terminal
+            - op-deployer-forge-version: terminal
+            - contracts-bedrock-tests main: terminal
+            - contracts-bedrock-tests CUSTOM_GAS_TOKEN: terminal
+            - contracts-bedrock-tests INTEROP: terminal
+            - contracts-bedrock-tests BRIDGE_HOOK: terminal
+            - contracts-bedrock-tests OP_PRIVATE: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified INTEROP: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified BRIDGE_HOOK: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified OP_PRIVATE: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet main: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet INTEROP: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet BRIDGE_HOOK: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet OP_PRIVATE: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet: terminal
+            - contracts-bedrock-tests-upgrade ink-mainnet: terminal
+            - contracts-bedrock-tests-upgrade unichain-mainnet: terminal
+            - contracts-bedrock-tests-l2-fork op-mainnet: terminal
+            - contracts-bedrock-checks-fast-feature-tests: terminal
+          context:
+            - circleci-api-token
+            - slack

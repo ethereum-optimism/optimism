@@ -21,6 +21,10 @@ OUTPUT="$(mktemp)"
 export OUTPUT
 trap 'rm -f "${OUTPUT}"' EXIT
 
+# Scenarios set the PR and its base explicitly; the pipeline's own values must
+# not leak in (CircleCI sets CIRCLE_PULL_REQUEST on every PR build).
+unset CIRCLE_PULL_REQUEST BASE_REVISION
+
 # --- Test harness ---
 PASS=0
 FAIL=0
@@ -69,7 +73,7 @@ run_scenario() {
       all_pass=false
     fi
   done
-  for wf in "${unexpected[@]}"; do
+  for wf in ${unexpected[@]+"${unexpected[@]}"}; do
     local val
     val=$(echo "${_json}" | jq -r ".\"c-run_${wf}\" // false")
     if [[ "${val}" != "false" ]]; then
@@ -163,6 +167,48 @@ run_scenario \
   ci_gate_skip contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip \
   --not main release contracts_feature_tests rust_ci rust_e2e_ci
 
+# Release branches run only the proposal gate, whatever the change detection
+# says: a push to the branch, a PR targeting it (CIRCLE_PULL_REQUEST is set and
+# BASE_REVISION is the PR base) and its merge queue. None of the develop gates
+# are emitted, so a proposal/** ruleset that still requires them blocks rather
+# than passing unverified. A PR is routed by its base, never by its head.
+PR_URL="https://github.com/ethereum-optimism/optimism/pull/1"
+
+run_scenario \
+  "Push to a proposal branch → proposal gate only" \
+  "webhook" "proposal/op-contracts/v8.0.0" "" "" \
+  '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-circleci_changed": true, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
+  release_branch \
+  --not main release contracts_feature_tests contracts_feature_tests_short rust_ci rust_e2e_ci rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip circleci_schedule_trigger_check
+
+CIRCLE_PULL_REQUEST="${PR_URL}" BASE_REVISION="proposal/op-contracts/v8.0.0" run_scenario \
+  "PR targeting a proposal branch → proposal gate only" \
+  "webhook" "feat/backport-fix" "" "" \
+  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
+  release_branch \
+  --not main release contracts_feature_tests contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip
+
+run_scenario \
+  "Merge queue for a proposal branch → proposal gate only" \
+  "webhook" "gh-readonly-queue/proposal/op-contracts/v8.0.0/pr-123-abc" "" "" \
+  '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
+  release_branch \
+  --not main release contracts_feature_tests rust_ci rust_e2e_ci ci_gate_skip
+
+CIRCLE_PULL_REQUEST="${PR_URL}" BASE_REVISION="develop" run_scenario \
+  "PR from a proposal head into develop keeps the develop routing" \
+  "webhook" "proposal/op-contracts/v9.0.0" "" "" \
+  '{"c-rust_changes_detected": false, "c-contracts_changed": true, "c-docs_changes_detected": false}' \
+  main release contracts_feature_tests rust_ci_gate_short rust_e2e_gate_skip \
+  --not release_branch
+
+CIRCLE_PULL_REQUEST="${PR_URL}" BASE_REVISION="develop" run_scenario \
+  "PR targeting develop keeps the develop routing" \
+  "webhook" "feat/my-thing" "" "" \
+  '{"c-rust_changes_detected": false, "c-contracts_changed": true, "c-docs_changes_detected": false}' \
+  main release contracts_feature_tests rust_ci_gate_short rust_e2e_gate_skip \
+  --not release_branch
+
 # Develop runs the full post-merge set unconditionally. The two scenarios below
 # seed opposite change-detection results and assert an identical routing, which
 # is what pins that behaviour: on a develop push the changed-file list is always
@@ -253,6 +299,22 @@ run_scenario \
   "api" "" "" "" \
   '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true}' \
   release publish_contract_artifacts
+
+# A "Trigger pipeline" on a release branch sends main_dispatch: true (its
+# default); the proposal gate replaces main there.
+run_scenario \
+  "API: trigger on a proposal branch → proposal gate replaces main" \
+  "api" "proposal/op-contracts/v8.0.0" "" "" \
+  '{"c-main_dispatch": true}' \
+  release release_branch \
+  --not main contracts_feature_tests
+
+run_scenario \
+  "API: trigger on a feature branch keeps main" \
+  "api" "feat/my-thing" "" "" \
+  '{"c-main_dispatch": true}' \
+  release main contracts_feature_tests \
+  --not release_branch
 
 # --- Summary ---
 echo ""
