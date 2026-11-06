@@ -8,99 +8,32 @@
 //! each of those parent states.
 
 use super::{
-    BlockSpec, TxSpec, chain_spec_with_address, create_block_from_spec, create_mdbx_proofs_storage,
-    initialize_storage, public_key_to_address,
+    BlockSpec, TxSpec, chain_spec_with_address,
+    contracts::{
+        BLOCK_HASH_RECORDER_RUNTIME, BLOCK_HASH_SLOT, CALLED_SLOT, block_number_calldata,
+        initcode_returning,
+    },
+    create_mdbx_proofs_storage, initialize_storage, public_key_to_address,
+    simulated_reth::{Location, RethPersistence, SimulatedReth, fixed_signer},
 };
 use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumHash;
-use alloy_primitives::{Address, B256, Bytes, U256};
+use alloy_primitives::{Address, Bytes, U256};
 use parking_lot::Mutex;
-use reth_chain_state::{CanonicalInMemoryState, ExecutedBlock, NewCanonicalChain};
-use reth_chainspec::ChainSpec;
-use reth_db_common::init::init_genesis;
 use reth_ethereum_primitives::Block;
-use reth_evm::{ConfigureEvm, execute::Executor};
-use reth_evm_ethereum::EthEvmConfig;
 use reth_optimism_trie::{
-    MdbxProofsStorage, OpProofStoragePruner, OpProofsProviderRO, OpProofsStorageResult,
-    OpProofsStore,
-    engine::{EngineError, EngineHandle},
-    provider::OpProofsStateProviderRef,
+    MdbxProofsStorage, OpProofsProviderRO, OpProofsStorageResult, OpProofsStore,
+    engine::EngineError, provider::OpProofsStateProviderRef,
 };
 use reth_primitives_traits::RecoveredBlock;
-use reth_provider::{
-    HashedPostStateProvider, ProviderFactory, SaveBlocksInput, StateProvider, StateProviderFactory,
-    StateRootProvider,
-    noop::NoopProvider,
-    providers::BlockchainProvider,
-    test_utils::{MockNodeTypesWithDB, create_test_provider_factory_with_chain_spec},
-};
-use reth_revm::database::StateProviderDatabase;
-use reth_trie_common::{ComputedTrieData, HashedPostState};
+use reth_provider::{StateProvider, StateRootProvider, noop::NoopProvider};
+use reth_trie_common::HashedPostState;
 use rstest::rstest;
-use secp256k1::{Keypair, Secp256k1};
 use serial_test::serial;
 use std::{fmt, sync::Arc};
 
-/// reth's default `--engine.memory-block-buffer-target`.
-const MEMORY_BLOCK_BUFFER_TARGET: u64 = 5;
-
 /// Covers the contract's deployment and either of its calls.
 const CONTRACT_GAS_LIMIT: u64 = 100_000;
-
-/// Storage slot every call to the contract sets to one.
-const CALLED_SLOT: B256 = B256::ZERO;
-
-/// Storage slot a call with calldata sets to `BLOCKHASH(calldata)`.
-const BLOCK_HASH_SLOT: B256 = B256::with_last_byte(1);
-
-/// Runtime code of the contract: `slot 0 = 1`, then `slot 1 = BLOCKHASH(calldata[0..32])` unless
-/// the call has no calldata.
-///
-/// ```text
-/// PUSH1 1 PUSH1 0 SSTORE
-/// CALLDATASIZE ISZERO PUSH1 0x11 JUMPI
-/// PUSH1 0 CALLDATALOAD BLOCKHASH PUSH1 1 SSTORE
-/// JUMPDEST STOP
-/// ```
-const CONTRACT_RUNTIME: [u8; 19] = [
-    0x60, 0x01, 0x60, 0x00, 0x55, 0x36, 0x15, 0x60, 0x11, 0x57, 0x60, 0x00, 0x35, 0x40, 0x60, 0x01,
-    0x55, 0x5b, 0x00,
-];
-
-/// Initcode returning [`CONTRACT_RUNTIME`], which follows the twelve initcode bytes:
-/// `PUSH1 len PUSH1 12 PUSH1 0 CODECOPY PUSH1 len PUSH1 0 RETURN`.
-fn contract_initcode() -> Bytes {
-    let runtime_len = CONTRACT_RUNTIME.len() as u8;
-    let mut initcode =
-        vec![0x60, runtime_len, 0x60, 0x0c, 0x60, 0x00, 0x39, 0x60, runtime_len, 0x60, 0x00, 0xf3];
-    initcode.extend_from_slice(&CONTRACT_RUNTIME);
-    initcode.into()
-}
-
-fn block_number_calldata(number: u64) -> Bytes {
-    Bytes::copy_from_slice(&U256::from(number).to_be_bytes::<32>())
-}
-
-/// A fixed signer, so a failing case reproduces with the same addresses and trie shape.
-fn signer() -> Keypair {
-    Keypair::from_seckey_byte_array(&Secp256k1::new(), [0x11; 32]).expect("valid secret key")
-}
-
-/// Where reth holds a block.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Location {
-    canonical: bool,
-    in_memory: bool,
-    persisted: bool,
-}
-
-impl Location {
-    const ABANDONED: Self = Self { canonical: false, in_memory: false, persisted: false };
-    const IN_MEMORY: Self = Self { canonical: true, in_memory: true, persisted: false };
-    const PERSISTED_AND_EVICTED: Self = Self { canonical: true, in_memory: false, persisted: true };
-    const PERSISTED_AND_MASKED: Self = Self { canonical: true, in_memory: true, persisted: true };
-}
 
 /// Where reth holds the parent of the block under test when the engine executes the block.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -177,246 +110,6 @@ enum Outcome {
     Stored,
     /// The engine fails the state-root check and stores nothing.
     StateRootMismatch,
-}
-
-/// reth's persistence settings. When the canonical head runs more than `persistence_threshold`
-/// blocks past the database tip, reth persists every block but the newest
-/// `memory_block_buffer_target` and evicts the persisted blocks from memory, except the newest
-/// `num_state_masking_blocks` of them, whose hashed state and trie it has not written yet.
-#[derive(Clone, Copy, Debug)]
-struct RethPersistence {
-    memory_block_buffer_target: u64,
-    num_state_masking_blocks: u64,
-    persistence_threshold: u64,
-}
-
-impl RethPersistence {
-    /// Settings with reth's default buffer target and no masking.
-    fn threshold(persistence_threshold: u64) -> Self {
-        assert!(
-            MEMORY_BLOCK_BUFFER_TARGET <= persistence_threshold,
-            "reth keeps at most persistence_threshold blocks in memory"
-        );
-        Self {
-            memory_block_buffer_target: MEMORY_BLOCK_BUFFER_TARGET,
-            num_state_masking_blocks: 0,
-            persistence_threshold,
-        }
-    }
-
-    /// reth rejects masking that leaves no room between the buffer target and the threshold.
-    fn masking(self, num_state_masking_blocks: u64) -> Self {
-        assert!(
-            num_state_masking_blocks + self.memory_block_buffer_target < self.persistence_threshold,
-            "reth rejects num_state_masking_blocks + memory_block_buffer_target >= persistence_threshold"
-        );
-        Self { num_state_masking_blocks, ..self }
-    }
-
-    /// The block the first persistence cycle evicts through: the cycle fires at head
-    /// `persistence_threshold + 1`, persists through `memory_block_buffer_target` below the head
-    /// and evicts through `num_state_masking_blocks` below that.
-    const fn first_eviction_boundary(self) -> u64 {
-        self.persistence_threshold + 1 -
-            self.memory_block_buffer_target -
-            self.num_state_masking_blocks
-    }
-}
-
-/// reth's database and canonical in-memory state, driven the way reth's engine tree and
-/// persistence task drive them: a block is canonical in memory first and reaches the database
-/// when the persistence rule fires.
-struct SimulatedReth {
-    /// The canonical chain above genesis, indexed by block number minus one.
-    canonical: Vec<ExecutedBlock>,
-    chain_spec: Arc<ChainSpec>,
-    evm_config: EthEvmConfig,
-    factory: ProviderFactory<MockNodeTypesWithDB>,
-    in_memory: CanonicalInMemoryState,
-    key_pair: Keypair,
-    /// Newest block evicted from memory; the persisted blocks above it are the masking window.
-    last_evicted: BlockNumHash,
-    /// Newest block in the database.
-    last_persisted: BlockNumHash,
-    nonce: u64,
-    persistence: RethPersistence,
-    provider: BlockchainProvider<MockNodeTypesWithDB>,
-}
-
-impl SimulatedReth {
-    fn new(
-        chain_spec: Arc<ChainSpec>,
-        key_pair: Keypair,
-        persistence: RethPersistence,
-    ) -> eyre::Result<Self> {
-        let factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
-        init_genesis(&factory)?;
-        let provider = BlockchainProvider::new(factory.clone())?;
-        let genesis = BlockNumHash::new(0, chain_spec.genesis_hash());
-        Ok(Self {
-            canonical: Vec::new(),
-            evm_config: EthEvmConfig::ethereum(chain_spec.clone()),
-            chain_spec,
-            in_memory: provider.canonical_in_memory_state(),
-            factory,
-            key_pair,
-            last_evicted: genesis,
-            last_persisted: genesis,
-            nonce: 0,
-            persistence,
-            provider,
-        })
-    }
-
-    fn num_hash(&self, number: u64) -> BlockNumHash {
-        match number {
-            0 => BlockNumHash::new(0, self.chain_spec.genesis_hash()),
-            _ => self.block(number).num_hash(),
-        }
-    }
-
-    fn head(&self) -> BlockNumHash {
-        self.num_hash(self.canonical.len() as u64)
-    }
-
-    fn block(&self, number: u64) -> &RecoveredBlock<Block> {
-        self.canonical[number as usize - 1].recovered_block()
-    }
-
-    fn locate(&self, block: BlockNumHash) -> Location {
-        let canonical = block.number <= self.head().number && self.num_hash(block.number) == block;
-        Location {
-            canonical,
-            in_memory: self.in_memory.state_by_hash(block.hash).is_some(),
-            persisted: canonical && self.last_persisted.number >= block.number,
-        }
-    }
-
-    /// Appends a block to the canonical chain and runs the persistence rule.
-    fn commit(&mut self, spec: &BlockSpec) -> eyre::Result<RecoveredBlock<Block>> {
-        let block = self.build_block(spec)?;
-        let recovered = block.recovered_block().clone();
-        self.make_canonical(NewCanonicalChain::Commit { new: vec![block] });
-        self.advance_persistence()?;
-        Ok(recovered)
-    }
-
-    /// Appends empty blocks until `reached` holds, which the persistence rule must bring about
-    /// within one cycle.
-    fn commit_fillers_until(&mut self, reached: impl Fn(&Self) -> bool) -> eyre::Result<()> {
-        let limit = self.head().number + self.persistence.persistence_threshold + 1;
-        while !reached(self) {
-            assert!(
-                self.head().number < limit,
-                "the persistence rule did not reach the requested parent state within one cycle"
-            );
-            self.commit(&BlockSpec::new(vec![]))?;
-        }
-        Ok(())
-    }
-
-    /// Replaces the canonical blocks from `number` up with empty blocks on the same ancestor, the
-    /// way a reorg to a sibling fork does.
-    fn reorg_from(&mut self, number: u64) -> eyre::Result<()> {
-        assert!(number > self.last_persisted.number, "only in-memory blocks can be reorged");
-        let old = self.canonical.split_off(number as usize - 1);
-        let fork = self.build_block(&BlockSpec::new(vec![]))?;
-        assert_ne!(
-            fork.recovered_block().hash(),
-            old[0].recovered_block().hash(),
-            "the fork must differ from the chain it replaces"
-        );
-        let depth = old.len();
-        self.make_canonical(NewCanonicalChain::Reorg { new: vec![fork], old });
-        for _ in 1..depth {
-            self.commit(&BlockSpec::new(vec![]))?;
-        }
-        Ok(())
-    }
-
-    fn make_canonical(&mut self, update: NewCanonicalChain) {
-        let tip = update.tip().clone_sealed_header();
-        match &update {
-            NewCanonicalChain::Commit { new } | NewCanonicalChain::Reorg { new, .. } => {
-                self.canonical.extend(new.iter().cloned());
-            }
-        }
-        self.in_memory.update_chain(update);
-        self.in_memory.set_canonical_head(tip);
-    }
-
-    /// Builds `spec` on the head and executes it, giving it the state root and trie data reth
-    /// holds for a block it validated.
-    fn build_block(&mut self, spec: &BlockSpec) -> eyre::Result<ExecutedBlock> {
-        let parent = self.head();
-        let mut block = create_block_from_spec(
-            spec,
-            parent.number + 1,
-            parent.hash,
-            &self.chain_spec,
-            self.key_pair,
-            &mut self.nonce,
-        );
-        let parent_state = self.provider.state_by_block_hash(parent.hash)?;
-        let output = self
-            .evm_config
-            .batch_executor(StateProviderDatabase::new(&parent_state))
-            .execute(&block)?;
-        let hashed_state = parent_state.hashed_post_state(&output.state)?;
-        let (state_root, trie_updates) =
-            parent_state.state_root_with_updates(hashed_state.clone())?;
-        block.set_state_root(state_root);
-        let trie_data = ComputedTrieData::new(
-            Arc::new(hashed_state.into_sorted()),
-            Arc::new(trie_updates.into_sorted()),
-        );
-        Ok(ExecutedBlock::new(Arc::new(block), Arc::new(output), trie_data))
-    }
-
-    /// reth's persistence rule, run after every new canonical block.
-    fn advance_persistence(&mut self) -> eyre::Result<()> {
-        let head = self.head().number;
-        if head - self.last_persisted.number <= self.persistence.persistence_threshold {
-            return Ok(());
-        }
-        let new_db_tip = head.saturating_sub(self.persistence.memory_block_buffer_target);
-        if new_db_tip <= self.last_persisted.number {
-            return Ok(());
-        }
-        let new_evicted = new_db_tip
-            .saturating_sub(self.persistence.num_state_masking_blocks)
-            .max(self.last_evicted.number);
-        self.persist(new_db_tip)?;
-        self.evict_through(new_evicted);
-        Ok(())
-    }
-
-    /// Writes the canonical blocks above the database tip through `new_db_tip` with reth's own
-    /// writer. reth's `partial-persistence` feature is off on develop, so the writer cannot hold
-    /// back the hashed state and trie of masked blocks; it gets both frontiers at the database
-    /// tip, and masking only decides which persisted blocks stay in memory.
-    fn persist(&mut self, new_db_tip: u64) -> eyre::Result<()> {
-        let prev_db_tip = self.last_persisted.number;
-        let input = SaveBlocksInput::new(
-            self.canonical[prev_db_tip as usize..new_db_tip as usize].to_vec(),
-            prev_db_tip,
-            prev_db_tip,
-            new_db_tip,
-            new_db_tip,
-        );
-        let provider_rw = self.factory.provider_rw()?;
-        provider_rw.save_blocks(&input)?;
-        provider_rw.commit()?;
-        self.last_persisted = self.num_hash(new_db_tip);
-        Ok(())
-    }
-
-    /// Drops the persisted blocks through `number` from memory.
-    fn evict_through(&mut self, number: u64) {
-        assert!(number <= self.last_persisted.number, "only persisted blocks leave memory");
-        self.in_memory.remove_persisted_blocks_until(self.last_persisted, number);
-        self.last_evicted = self.num_hash(number);
-    }
 }
 
 type ReadHook = Box<dyn FnOnce() + Send>;
@@ -503,11 +196,14 @@ impl ProofChain {
     ) -> eyre::Result<Self> {
         let mut blocks = Vec::new();
         for _ in 0..leading {
-            blocks.push(reth.commit(&BlockSpec::new(vec![]))?);
+            blocks.push(reth.commit(&BlockSpec::empty())?.recovered_block().clone());
         }
         let deploy_number = leading + 1;
         let specs = [
-            BlockSpec::new(vec![TxSpec::create(contract_initcode(), CONTRACT_GAS_LIMIT)]),
+            BlockSpec::new(vec![TxSpec::create(
+                initcode_returning(&BLOCK_HASH_RECORDER_RUNTIME),
+                CONTRACT_GAS_LIMIT,
+            )]),
             BlockSpec::new(vec![TxSpec::call(contract, Bytes::new(), CONTRACT_GAS_LIMIT)]),
             BlockSpec::new(vec![TxSpec::call(
                 contract,
@@ -516,7 +212,7 @@ impl ProofChain {
             )]),
         ];
         for spec in &specs {
-            blocks.push(reth.commit(spec)?);
+            blocks.push(reth.commit(spec)?.recovered_block().clone());
         }
         let deploy = leading as usize;
         let under_test = match content {
@@ -661,12 +357,12 @@ fn run_parent_state_case(
     parent_state: ParentState,
     outcome: Outcome,
 ) -> eyre::Result<()> {
-    let key_pair = signer();
+    let key_pair = fixed_signer();
     let sender = public_key_to_address(key_pair.public_key());
     let contract = sender.create(0);
     let chain_spec = chain_spec_with_address(sender);
     let store = create_mdbx_proofs_storage();
-    let mut reth = SimulatedReth::new(chain_spec.clone(), key_pair, persistence)?;
+    let mut reth = SimulatedReth::new(chain_spec, key_pair, persistence)?;
     initialize_storage(store.clone(), &reth.factory, reth.head())?;
     let chain = ProofChain::commit(
         &mut reth,
@@ -676,10 +372,7 @@ fn run_parent_state_case(
     )?;
     arrange_parent_state(&mut reth, parent_state, &chain)?;
 
-    let provider = reth.provider.clone();
-    let reth = Arc::new(Mutex::new(reth));
     let store_with_hook = StoreWithReadHook::new(store.clone());
-    let pruner = OpProofStoragePruner::new(store_with_hook.clone(), provider.clone(), 1000);
     // The engine writes its buffer to the store once it holds this many blocks, and `flush` only
     // waits for that write, so the threshold is the number of blocks the case stores. It also
     // keeps the preceding blocks buffered while the block under test executes, which the read
@@ -688,14 +381,8 @@ fn run_parent_state_case(
         Outcome::Stored => chain.preceding().len() + 1,
         Outcome::StateRootMismatch => chain.preceding().len(),
     } as u64;
-    let engine = EngineHandle::spawn_with_thresholds(
-        EthEvmConfig::ethereum(chain_spec),
-        provider,
-        store_with_hook.clone(),
-        pruner,
-        stored_blocks,
-        stored_blocks + 1,
-    );
+    let engine = reth.spawn_engine(store_with_hook.clone(), stored_blocks, stored_blocks + 1);
+    let reth = Arc::new(Mutex::new(reth));
     for block in chain.preceding() {
         engine.execute_block(block)?;
     }
