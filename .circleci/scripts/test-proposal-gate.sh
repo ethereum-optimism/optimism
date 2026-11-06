@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Asserts the proposal/** release-branch gate (ci-gate-proposals) requires every
-# job that required-contracts-ci requires, plus the NUT, op-deployer and Go
-# test jobs it adds. Both lists are kept by hand in continue/main.yml; this
-# stops the release-branch gate from silently falling behind develop's
-# contracts gate when a job is added or renamed.
+# job that required-contracts-ci requires, plus the jobs it keeps from develop's
+# ci-gate: go-tests, the NUT checks and op-deployer-forge-version. Both lists
+# are kept by hand in continue/main.yml; this stops the release-branch gate
+# from silently falling behind develop's contracts gate when a job is added or
+# renamed.
 #
 # Also asserts that every job an entry of the ci-gate-proposals workflow
 # requires is in that workflow: the entries alias `main`'s, so a new dependency
@@ -19,8 +20,9 @@ set -euo pipefail
 MAIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/continue/main.yml"
 WORKFLOW="ci-gate-proposals"
 
-# Jobs the proposal gate requires beyond required-contracts-ci's list.
-PROPOSAL_ONLY_JOBS="go-tests
+# The jobs the proposal gate keeps from develop's ci-gate; the rest of that
+# gate's list does not run on a release branch.
+CI_GATE_JOBS="go-tests
 check-nut-locks
 check-nut-prefork-states
 nut-provenance-verify
@@ -51,7 +53,7 @@ fail_with_list() {
 
 expected=$({
   requires_of contracts-feature-tests required-contracts-ci required-contracts-ci
-  echo "${PROPOSAL_ONLY_JOBS}"
+  echo "${CI_GATE_JOBS}"
 } | sort -u)
 actual=$(requires_of "${WORKFLOW}" ci-gate "${WORKFLOW}")
 
