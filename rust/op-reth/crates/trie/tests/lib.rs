@@ -2110,3 +2110,106 @@ fn test_updates_take_precedence_over_removals<S: OpProofsStore>(
 
     Ok(())
 }
+
+// =============================================================================
+// Unwind
+// =============================================================================
+
+/// Hash of block `number` in the unwind tests' chain; genesis is the zero hash.
+const fn unwind_chain_hash(number: u64) -> B256 {
+    match number {
+        0 => B256::ZERO,
+        _ => B256::repeat_byte(number as u8),
+    }
+}
+
+/// Block `number` of the unwind tests' chain, on block `number - 1`.
+const fn unwind_chain_block(number: u64) -> BlockWithParent {
+    BlockWithParent::new(
+        unwind_chain_hash(number - 1),
+        NumHash::new(number, unwind_chain_hash(number)),
+    )
+}
+
+/// Anchors `storage` at block `anchor` and stores empty blocks through `latest`.
+fn store_unwind_chain<S: OpProofsStore>(
+    storage: &S,
+    anchor: u64,
+    latest: u64,
+) -> Result<(), OpProofsStorageError> {
+    bootstrap_anchor(storage, BlockNumHash::new(anchor, unwind_chain_hash(anchor)));
+    let provider_rw = storage.provider_rw()?;
+    for number in anchor + 1..=latest {
+        provider_rw.store_trie_updates(unwind_chain_block(number), BlockStateDiff::default())?;
+    }
+    provider_rw.commit()
+}
+
+/// `unwind_history` refuses a target at or below the earliest block and leaves the window alone.
+#[test_case(InMemoryProofsStorage::new(), 2; "InMemory at earliest")]
+#[test_case(InMemoryProofsStorage::new(), 1; "InMemory below earliest")]
+#[test_case(MdbxProofsStorage::new(TempDir::new().unwrap().path()).unwrap(), 2; "Mdbx at earliest")]
+#[test_case(MdbxProofsStorage::new(TempDir::new().unwrap().path()).unwrap(), 1; "Mdbx below earliest")]
+#[serial]
+fn test_unwind_history_rejects_target_at_or_below_earliest<S: OpProofsStore>(
+    storage: S,
+    target: u64,
+) -> Result<(), OpProofsStorageError> {
+    store_unwind_chain(&storage, 2, 5)?;
+
+    let provider_rw = storage.provider_rw()?;
+    let err = provider_rw.unwind_history(unwind_chain_block(target)).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            OpProofsStorageError::UnwindBeyondEarliest {
+                unwind_block_number,
+                earliest_block_number: 2,
+            } if unwind_block_number == target
+        ),
+        "unwinding to {target} gave {err:?}"
+    );
+    provider_rw.commit()?;
+
+    let provider = storage.provider_ro()?;
+    assert_eq!(provider.get_earliest_block()?, NumHash::new(2, unwind_chain_hash(2)));
+    assert_eq!(provider.get_latest_block()?, NumHash::new(5, unwind_chain_hash(5)));
+    Ok(())
+}
+
+/// `unwind_history` to the block above the earliest keeps only the earliest block.
+#[test_case(InMemoryProofsStorage::new(); "InMemory")]
+#[test_case(MdbxProofsStorage::new(TempDir::new().unwrap().path()).unwrap(); "Mdbx")]
+#[serial]
+fn test_unwind_history_to_block_above_earliest_keeps_only_earliest<S: OpProofsStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
+    store_unwind_chain(&storage, 2, 5)?;
+
+    let provider_rw = storage.provider_rw()?;
+    provider_rw.unwind_history(unwind_chain_block(3))?;
+    provider_rw.commit()?;
+
+    let provider = storage.provider_ro()?;
+    assert_eq!(provider.get_earliest_block()?, NumHash::new(2, unwind_chain_hash(2)));
+    assert_eq!(provider.get_latest_block()?, NumHash::new(2, unwind_chain_hash(2)));
+    Ok(())
+}
+
+/// `unwind_history` above the latest block changes nothing.
+#[test_case(InMemoryProofsStorage::new(); "InMemory")]
+#[test_case(MdbxProofsStorage::new(TempDir::new().unwrap().path()).unwrap(); "Mdbx")]
+#[serial]
+fn test_unwind_history_above_latest_is_a_no_op<S: OpProofsStore>(
+    storage: S,
+) -> Result<(), OpProofsStorageError> {
+    store_unwind_chain(&storage, 0, 3)?;
+
+    let provider_rw = storage.provider_rw()?;
+    provider_rw.unwind_history(unwind_chain_block(5))?;
+    provider_rw.commit()?;
+
+    let provider = storage.provider_ro()?;
+    assert_eq!(provider.get_latest_block()?, NumHash::new(3, unwind_chain_hash(3)));
+    Ok(())
+}

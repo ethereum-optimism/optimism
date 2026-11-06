@@ -36,27 +36,58 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use test_case::test_case;
 
+/// Seconds between consecutive blocks.
+const BLOCK_TIME: u64 = 2;
+
+/// A proof window no test chain fills, so that the pruner never moves the earliest block.
+const WHOLE_WINDOW: u64 = 1000;
+
+/// Timestamp of the block at `number`.
+const fn block_timestamp(number: u64) -> u64 {
+    number * BLOCK_TIME
+}
+
+/// The engine's persistence and backpressure thresholds.
+#[derive(Clone, Copy, Debug)]
+struct FlushCadence {
+    backpressure: u64,
+    persistence: u64,
+}
+
+impl FlushCadence {
+    const EVERY_BLOCK: Self = Self { backpressure: 2, persistence: 1 };
+    const EVERY_FIFTH_BLOCK: Self = Self { backpressure: 10, persistence: 5 };
+}
+
+/// Which store implementation a case runs over.
+#[derive(Clone, Copy, Debug)]
+enum Backend {
+    InMemory,
+    Mdbx,
+}
+
+/// Runs `$run` over a fresh store of `$backend`.
+macro_rules! over_backend {
+    ($backend:expr, $run:ident($($arg:expr),*)) => {
+        match $backend {
+            Backend::InMemory => $run(InMemoryProofsStorage::new, $($arg),*),
+            Backend::Mdbx => $run(create_mdbx_proofs_storage, $($arg),*),
+        }
+    };
+}
+
 #[path = "live/contracts.rs"]
 mod contracts;
 #[path = "live/index_execute_parity.rs"]
 mod index_execute_parity;
 #[path = "live/parent_states.rs"]
 mod parent_states;
+#[path = "live/reorg_revert_edges.rs"]
+mod reorg_revert_edges;
 #[path = "live/simulated_reth.rs"]
 mod simulated_reth;
 #[path = "live/store_view.rs"]
 mod store_view;
-
-/// Seconds between consecutive blocks.
-const BLOCK_TIME: u64 = 2;
-
-/// Blocks between pruner runs, far beyond any test chain.
-const PRUNE_INTERVAL_BLOCKS: u64 = 1000;
-
-/// Timestamp of the block at `number`.
-const fn block_timestamp(number: u64) -> u64 {
-    number * BLOCK_TIME
-}
 
 fn create_mdbx_proofs_storage() -> Arc<MdbxProofsStorage> {
     let path = TempDir::new().unwrap().keep();
@@ -366,8 +397,7 @@ where
     // state between iterations (the new async-persistence architecture requires this).
     let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
     let blockchain_db = BlockchainProvider::new(provider_factory.clone())?;
-    let pruner =
-        OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), PRUNE_INTERVAL_BLOCKS);
+    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), WHOLE_WINDOW);
     let engine_handle = EngineHandle::spawn(evm_config, blockchain_db, storage, pruner);
 
     for (idx, block_spec) in scenario.blocks_after_initialization.iter().enumerate() {
@@ -479,8 +509,7 @@ where
     );
 
     let blockchain_db = BlockchainProvider::new(provider_factory).unwrap();
-    let pruner =
-        OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), PRUNE_INTERVAL_BLOCKS);
+    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), WHOLE_WINDOW);
     let engine_handle = EngineHandle::spawn(
         EthEvmConfig::ethereum(chain_spec.clone()),
         blockchain_db,
@@ -528,8 +557,7 @@ where
 
     // Generate a second block normally
     let blockchain_db = BlockchainProvider::new(provider_factory.clone()).unwrap();
-    let pruner =
-        OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), PRUNE_INTERVAL_BLOCKS);
+    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), WHOLE_WINDOW);
     let engine_handle = EngineHandle::spawn(
         EthEvmConfig::ethereum(chain_spec.clone()),
         blockchain_db,
@@ -602,8 +630,7 @@ where
     )?;
 
     let blockchain_db = BlockchainProvider::new(provider_factory.clone()).unwrap();
-    let pruner =
-        OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), PRUNE_INTERVAL_BLOCKS);
+    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), WHOLE_WINDOW);
     let engine_handle = EngineHandle::spawn(
         EthEvmConfig::ethereum(chain_spec.clone()),
         blockchain_db,

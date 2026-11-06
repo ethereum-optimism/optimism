@@ -36,7 +36,7 @@ impl IndexBlockTask {
     }
 }
 
-fn run<Evm, Provider, Store>(
+pub(crate) fn run<Evm, Provider, Store>(
     state: &mut EngineState<Evm, Provider, Store>,
     block: BlockWithParent,
     sorted_trie_updates: TrieUpdatesSorted,

@@ -754,20 +754,32 @@ impl OpProofsProviderRw for InMemoryProofsProvider {
         Ok(write_counts)
     }
 
-    fn unwind_history(&self, unwind_upto_block: BlockWithParent) -> OpProofsStorageResult<()> {
+    fn unwind_history(&self, to: BlockWithParent) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write();
-        let unwind_upto_block_number = unwind_upto_block.block.number - 1;
+        let (earliest_block_number, _) =
+            inner.earliest_block.ok_or(OpProofsStorageError::NoBlocksFound)?;
+        let (latest_block_number, _) =
+            inner.latest_block.ok_or(OpProofsStorageError::NoBlocksFound)?;
 
-        // Remove all updates after unwind_upto_block_number
-        inner.trie_updates.retain(|block, _| *block <= unwind_upto_block_number);
-        inner.post_states.retain(|block, _| *block <= unwind_upto_block_number);
-        inner.account_branches.retain(|(block, _), _| *block <= unwind_upto_block_number);
-        inner.storage_branches.retain(|(block, _, _), _| *block <= unwind_upto_block_number);
-        inner.hashed_accounts.retain(|(block, _), _| *block <= unwind_upto_block_number);
-        inner.hashed_storages.retain(|(block, _, _), _| *block <= unwind_upto_block_number);
+        if to.block.number > latest_block_number {
+            return Ok(());
+        }
+        if to.block.number <= earliest_block_number {
+            return Err(OpProofsStorageError::UnwindBeyondEarliest {
+                unwind_block_number: to.block.number,
+                earliest_block_number,
+            });
+        }
 
-        // After unwind the new tip is `unwind_upto_block`'s parent.
-        inner.latest_block = Some((unwind_upto_block_number, unwind_upto_block.parent));
+        // Remove every update from `to` up; the new tip is `to`'s parent.
+        let new_latest_block_number = to.block.number - 1;
+        inner.trie_updates.retain(|block, _| *block <= new_latest_block_number);
+        inner.post_states.retain(|block, _| *block <= new_latest_block_number);
+        inner.account_branches.retain(|(block, _), _| *block <= new_latest_block_number);
+        inner.storage_branches.retain(|(block, _, _), _| *block <= new_latest_block_number);
+        inner.hashed_accounts.retain(|(block, _), _| *block <= new_latest_block_number);
+        inner.hashed_storages.retain(|(block, _, _), _| *block <= new_latest_block_number);
+        inner.latest_block = Some((new_latest_block_number, to.parent));
 
         Ok(())
     }

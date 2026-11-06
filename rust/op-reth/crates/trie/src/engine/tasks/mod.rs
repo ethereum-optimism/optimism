@@ -15,7 +15,8 @@ mod unwind;
 pub(super) use execute_block::{ExecuteBlockTask, run as execute_block};
 #[cfg(any(test, feature = "test-utils"))]
 pub(super) use flush::FlushTask;
-pub(super) use index_block::IndexBlockTask;
+pub(super) use index_block::{IndexBlockTask, run as index_block};
+pub use reorg::ReorgBlock;
 pub(super) use reorg::ReorgTask;
 pub(super) use sync_to::SyncToTask;
 pub(super) use unwind::UnwindTask;
