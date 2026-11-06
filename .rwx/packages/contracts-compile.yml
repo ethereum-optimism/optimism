@@ -1,0 +1,44 @@
+package:
+  parameters:
+    commit-sha:
+      required: true
+    branch:
+      required: true
+    build-probe:
+      required: true
+    cache-key:
+      required: true
+    target-sha:
+      default: ""
+    suite:
+      required: true
+    feature:
+      required: true
+tasks:
+  - key: build
+    use: package.use
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-suites/build"
+      python3 ops/ci/runtime/contract-suites.py prepare --suite "$CI_CONTRACT_SUITE" --feature "$CI_CONTRACT_FEATURE"
+    env:
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      CI_BRANCH: ${{ params.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      BUILD_PROBE: ${{ params.build-probe }}
+      CI_CONTRACT_TARGET_SHA: ${{ params.target-sha }}
+      CI_CONTRACT_SUITE: ${{ params.suite }}
+      CI_CONTRACT_FEATURE: ${{ params.feature }}
+    tool-cache: ${{ params.cache-key }}
+    timeout: 40m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-suites/build, '.ci/contract-suites']
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/contract-suites/${{ params.suite }}-${{ params.feature }}/prepare

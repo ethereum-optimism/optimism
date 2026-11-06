@@ -1,0 +1,9 @@
+package: true
+tasks:
+  - key: prepare
+    use: package.use
+    run: |
+      bash ops/ci/runtime/rwx-prepare.sh
+    filter:
+      workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh]
+    timeout: 30m

@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites><!--Selected original native RWX cases at SHA 02d29aa13f9da3d8e51a1f52a987eb69e1b6bda0; https://cloud.rwx.com/optimism/runs/d10bf0a7eb65404aac0782d41d386ea7 ; intentionally incomplete reporter fixture.--><testsuite name="test/L1/L1StandardBridge.t.sol:L1StandardBridge_DepositETHTo_Test"><testcase name="testFuzz_depositETHTo_withCustomGasToken_reverts(address,uint256,uint32)" time="0.063">
+            <skipped message="Skipping test because SYS_FEATURE__CUSTOM_GAS_TOKEN is disabled" />
+            <system-out>[SKIP: Skipping test because SYS_FEATURE__CUSTOM_GAS_TOKEN is disabled] testFuzz_depositETHTo_withCustomGasToken_reverts(address,uint256,uint32) (runs: 0, μ: 0, ~: 0)</system-out>
+        </testcase>
+        </testsuite><testsuite name="test/L1/OPContractsManagerStandardValidator.t.sol:OPContractsManagerStandardValidator_AnchorStateRegistry_Test"><testcase name="setUp()" time="0.000">
+            <skipped message="skipped: Skipping: standard configs incompatible with SUPER_ROOT_GAMES_MIGRATION" />
+            <system-out>[SKIP: skipped: Skipping: standard configs incompatible with SUPER_ROOT_GAMES_MIGRATION] setUp() (gas: 0)</system-out>
+        </testcase>
+        </testsuite><testsuite name="test/L1/ResourceMetering.t.sol:ArtifactResourceMetering_Metered_Test"><testcase name="test_meter_generateArtifact_succeeds()" time="0.000">
+            <skipped />
+            <system-out>[SKIP] test_meter_generateArtifact_succeeds() (gas: 0)</system-out>
+        </testcase>
+        </testsuite><testsuite name="test/L1/opcm/OPContractsManagerV2.t.sol:OPContractsManagerV2_UpgradeSuperchain_Test"><testcase name="setUp()" time="0.000">
+            <skipped message="skipped" />
+            <system-out>[SKIP: skipped] setUp() (gas: 0)</system-out>
+        </testcase>
+        </testsuite></testsuites>

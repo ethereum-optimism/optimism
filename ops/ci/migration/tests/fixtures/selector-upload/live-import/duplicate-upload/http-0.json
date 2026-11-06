@@ -1,0 +1,8 @@
+{
+  "host": "api.4byte.sourcify.dev",
+  "method": "POST",
+  "path": "/signature-database/v1/import",
+  "request_sha256": "043d5b6d8977872d0e19b2235943fb8fc461642eef2428b404c3416c62adfc0d",
+  "response_sha256": "5691f24facd5dcb91fe6c3fd0733cb3734b5bf73c3ca11df379cd8f5f1c8c1fa",
+  "status": 200
+}

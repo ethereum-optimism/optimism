@@ -1,0 +1,1 @@
+{"ok":true,"result":{"function":{"imported":{"ping(uint256)":"0x773acdef","transform((uint256,address))":"0x3e46ec18","Problem(uint256)":"0x75e81caa"},"duplicated":{},"invalid":[]},"event":{"imported":{"Pong(uint256)":"0x58b69f57828e6962d216502094c54f6562f3bf082ba758966c3454f9e37b1525"},"duplicated":{},"invalid":[]}}}

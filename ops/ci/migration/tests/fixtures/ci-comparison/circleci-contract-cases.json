@@ -1,0 +1,30 @@
+{
+  "sha": "cb48622213e9aa8408de9904baafac784441ecc6",
+  "provenance": {
+    "url": "https://circleci.com/gh/ethereum-optimism/optimism/5622529",
+    "source": "CircleCI test metadata API, selected real records; intentionally incomplete fixture, not a full runtime report"
+  },
+  "cases": [
+    {
+      "classname": "test/L1/DataAvailabilityChallenge.t.sol:DataAvailabilityChallenge_Challenge_Test",
+      "name": "test_challenge_afterChallengeWindow_reverts()",
+      "result": "system-out",
+      "run_time": 0,
+      "message": "[PASS] test_challenge_afterChallengeWindow_reverts() (gas: 70425)"
+    },
+    {
+      "classname": "test/L1/L1StandardBridge.t.sol:L1StandardBridge_DepositETHTo_Test",
+      "name": "testFuzz_depositETHTo_withCustomGasToken_reverts(address,uint256,uint32)",
+      "result": "skipped",
+      "run_time": 0.07,
+      "message": "Skipping test because SYS_FEATURE__CUSTOM_GAS_TOKEN is disabled[SKIP: Skipping test because SYS_FEATURE__CUSTOM_GAS_TOKEN is disabled] testFuzz_depositETHTo_withCustomGasToken_reverts(address,uint256,uint32) (runs: 0, \u03bc: 0, ~: 0)"
+    },
+    {
+      "classname": "test/L1/L1StandardBridge.t.sol:L1StandardBridge_DepositETH_Test",
+      "name": "testFuzz_depositETH_fromEOA7702WithCustomGasToken_reverts(uint256,uint32)",
+      "result": "skipped",
+      "run_time": 0.079,
+      "message": "Skipping test because SYS_FEATURE__CUSTOM_GAS_TOKEN is disabled[SKIP: Skipping test because SYS_FEATURE__CUSTOM_GAS_TOKEN is disabled] testFuzz_depositETH_fromEOA7702WithCustomGasToken_reverts(uint256,uint32) (runs: 0, \u03bc: 0, ~: 0)"
+    }
+  ]
+}

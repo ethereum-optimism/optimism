@@ -1,0 +1,28 @@
+package:
+  parameters:
+    commit-sha:
+    cache-epoch:
+tasks:
+  - key: build
+    use: package.use
+    run: bash ops/ci/runtime/rust-e2e-release.sh
+    env:
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+    tool-cache: rust-e2e-workspace-release-${{ params.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/rust-cache, rust/target]
+          system: []
+      test-results:
+        - path: .ci/rust-workspace/e2e-release/checks.junit.xml
+      artifacts:
+        - key: reports
+          path: .ci/rust-workspace/e2e-release
+        - key: dependency
+          path: .ci/go-tests/dependencies/rust-e2e-release
