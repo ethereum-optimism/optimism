@@ -169,6 +169,17 @@ func (u *EOA) PlanAuth(code common.Address) txplan.Option {
 	)
 }
 
+// PlanOffline creates the tx-planning options to sign a transaction with this Key for its chain
+// without reading anything from the EL node. The nonce and gas default to 0 and 21000, so a caller
+// pins what differs; the fee cap must be pinned with WithGasFeeCap, since the default fee cap
+// reads the base fee from a node.
+func (u *EOA) PlanOffline() txplan.Option {
+	return txplan.Combine(
+		u.key.Plan(),
+		txplan.WithStaticChainID(u.ChainID()),
+	)
+}
+
 // PlanTransfer creates the tx-plan options to perform a transfer
 // of the given amount of ETH to the given account.
 func (u *EOA) PlanTransfer(to common.Address, amount eth.ETH) txplan.Option {
@@ -183,6 +194,24 @@ func (u *EOA) PlanTransfer(to common.Address, amount eth.ETH) txplan.Option {
 // Transfer transfers the given amount of ETH to the given account, immediately.
 func (u *EOA) Transfer(to common.Address, amount eth.ETH) *txplan.PlannedTx {
 	return u.Transact(u.PlanTransfer(to, amount))
+}
+
+// Sign plans and signs a tx without submitting it, and returns the signed tx.
+func (u *EOA) Sign(opts ...txplan.Option) *types.Transaction {
+	tx := txplan.NewPlannedTx(txplan.Combine(opts...))
+	signed, err := tx.Signed.Eval(u.ctx)
+	u.require.NoError(err, "must sign")
+	return signed
+}
+
+// Submit plans, signs and submits a tx, and returns the signed tx without waiting for inclusion.
+func (u *EOA) Submit(opts ...txplan.Option) *types.Transaction {
+	tx := txplan.NewPlannedTx(txplan.Combine(opts...))
+	_, err := tx.Submitted.Eval(u.ctx)
+	u.require.NoError(err, "must submit")
+	signed, err := tx.Signed.Get()
+	u.require.NoError(err, "must have signed")
+	return signed
 }
 
 // Transact plans and executes a tx.
