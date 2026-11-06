@@ -1,5 +1,6 @@
 use super::*;
 use crate::post_exec::{NullRefundPolicy, RevertToCheckpointError};
+use op_revm::constants::OPERATOR_FEE_RECIPIENT;
 
 fn recovered_post_exec(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<OpTxEnvelope> {
     Recovered::new_unchecked(
@@ -186,17 +187,53 @@ fn canonicalized_result_gas_applies_refund_exactly_once() {
 
 /// A replay of an imported block runs in Verify mode with a tracer attached and reads each
 /// transaction's result before committing it, so that result must already carry the recorded
-/// refund in both its gas and its state.
+/// refund in both its gas and its state: the sender keeps the refunded gas at the transaction's
+/// price plus the operator fee the lower canonical gas saves, compared with the same transaction
+/// run without post-exec accounting, and the uncommitted state equals what a commit writes.
 #[test]
 fn verify_mode_result_is_settled_before_commit_with_inspector() {
     let receipt_builder = OpAlloyReceiptBuilder::default();
     let hardforks = OpChainHardforks::op_mainnet();
+    let gas_price = 1u128;
     let payload = PostExecPayload {
         version: 1,
         block_number: 0,
         gas_refund_entries: vec![SDMGasEntry { index: 0, gas_refund: 1 }],
     };
-    let priced_tx = legacy_tx_with_price(0, OBSERVER_TEST_CONTRACT, 200_000, 1);
+    let priced_tx = legacy_tx_with_price(0, OBSERVER_TEST_CONTRACT, 200_000, gas_price);
+    let balance_in = |state: &EvmState, address: Address| {
+        state.get(&address).map(|account| account.info.balance).unwrap_or_default()
+    };
+
+    let uncommitted = |mode: PostExecMode| {
+        let mut db = prepare_observer_db();
+        let mut executor = build_policy_executor_with::<NullRefundPolicy>(
+            &mut db,
+            &receipt_builder,
+            &hardforks,
+            1,
+            Address::ZERO,
+            Inspect::Enabled,
+        );
+        executor.set_post_exec_mode(mode);
+        let output =
+            executor.execute_transaction_without_commit(&priced_tx).expect("transaction executes");
+        let result_gas = output.inner.result.result.gas().tx_gas_used();
+        (output.canonical_gas_used, output.evm_gas_used, result_gas, output.inner.result.state)
+    };
+    let (canonical_gas, evm_gas, result_gas, verify_state) =
+        uncommitted(PostExecMode::Verify(payload.clone()));
+    let (_, _, _, disabled_state) = uncommitted(PostExecMode::Disabled);
+
+    assert_eq!(canonical_gas, evm_gas - 1);
+    assert_eq!(result_gas, canonical_gas, "result gas must be the canonical gas");
+    let operator_fee_saved = balance_in(&disabled_state, OPERATOR_FEE_RECIPIENT) -
+        balance_in(&verify_state, OPERATOR_FEE_RECIPIENT);
+    assert_eq!(
+        balance_in(&verify_state, Address::ZERO) - balance_in(&disabled_state, Address::ZERO),
+        U256::from(gas_price) + operator_fee_saved,
+        "uncommitted state must credit the refunded gas and the saved operator fee to the sender"
+    );
 
     let mut committed_db = prepare_observer_db();
     let mut committing = build_policy_executor_with::<NullRefundPolicy>(
@@ -207,34 +244,17 @@ fn verify_mode_result_is_settled_before_commit_with_inspector() {
         Address::ZERO,
         Inspect::Enabled,
     );
-    committing.set_post_exec_mode(PostExecMode::Verify(payload.clone()));
+    committing.set_post_exec_mode(PostExecMode::Verify(payload));
     committing.execute_transaction(&priced_tx).expect("refunded transaction commits");
     drop(committing);
     let committed_balance = revm::Database::basic(&mut committed_db, Address::ZERO)
         .expect("sender is readable")
         .expect("sender exists")
         .balance;
-
-    let mut db = prepare_observer_db();
-    let mut executor = build_policy_executor_with::<NullRefundPolicy>(
-        &mut db,
-        &receipt_builder,
-        &hardforks,
-        1,
-        Address::ZERO,
-        Inspect::Enabled,
-    );
-    executor.set_post_exec_mode(PostExecMode::Verify(payload));
-    let output = executor
-        .execute_transaction_without_commit(&priced_tx)
-        .expect("refunded transaction executes");
-
-    assert_eq!(output.canonical_gas_used, output.evm_gas_used - 1);
-    assert_eq!(output.inner.result.result.gas().tx_gas_used(), output.canonical_gas_used);
     assert_eq!(
-        output.inner.result.state[&Address::ZERO].info.balance,
+        balance_in(&verify_state, Address::ZERO),
         committed_balance,
-        "uncommitted state must already carry the refund"
+        "uncommitted state must equal what a commit writes"
     );
 }
 

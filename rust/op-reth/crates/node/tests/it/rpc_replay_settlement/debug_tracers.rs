@@ -1,0 +1,94 @@
+//! `debug_trace*` and `debug_accountAt` against the receipts and the committed state.
+
+use super::fixture::{POST_EXEC_INDEX, SettledBlock};
+use crate::lagoon::{DEPLOY_GAS, default_trace_gas};
+use alloy_primitives::U256;
+use alloy_rpc_types_trace::geth::GethTrace;
+use jsonrpsee::{core::client::ClientT, rpc_params};
+use serde_json::json;
+
+/// The default, call and prestate tracers report each regular transaction's canonical gas and
+/// the balances `debug_accountAt` replays at that index; after the last regular transaction those
+/// balances are the committed ones.
+#[tokio::test]
+async fn debug_tracers_report_settled_gas_and_balances() -> eyre::Result<()> {
+    reth_tracing::init_test_tracing();
+    let fixture = SettledBlock::sequence().await?;
+    let receipt_gas = fixture.receipt_gas()?;
+    // Pins the settlement itself: every check below compares a replay with what the node committed.
+    assert_eq!(receipt_gas[0], DEPLOY_GAS - 1, "receipt holds canonical gas");
+
+    let block_traces = fixture.block_traces().await?;
+    assert_eq!(block_traces.len(), POST_EXEC_INDEX + 1, "debug_traceBlockByHash trace count");
+
+    for index in 0..POST_EXEC_INDEX {
+        let gas_used = receipt_gas[index];
+        assert_eq!(
+            fixture.default_trace_gas_of(index).await?,
+            gas_used,
+            "debug_traceTransaction gas of transaction {index}",
+        );
+        assert_eq!(
+            default_trace_gas(&block_traces[index]),
+            gas_used,
+            "debug_traceBlockByHash gas of transaction {index}",
+        );
+        let call: GethTrace = fixture
+            .client
+            .request(
+                "debug_traceTransaction",
+                rpc_params![fixture.transaction_hash(index), json!({"tracer": "callTracer"})],
+            )
+            .await?;
+        let GethTrace::CallTracer(call_frame) = call else {
+            panic!("unexpected call trace of transaction {index}: {call:?}");
+        };
+        assert_eq!(
+            call_frame.gas_used,
+            U256::from(gas_used),
+            "callTracer gas of transaction {index}",
+        );
+
+        // Every balance the prestate diff ends on is the balance debug_accountAt replays at that
+        // index, for the sender as well as the fee vaults.
+        let diff = fixture.prestate_diff(index).await?;
+        assert!(
+            diff.post.contains_key(&fixture.sender),
+            "prestate diff of transaction {index} lacks the sender",
+        );
+        for (address, account) in &diff.post {
+            if let Some(balance) = account.balance {
+                assert_eq!(
+                    balance,
+                    fixture.replayed_balance(index, *address).await?,
+                    "prestate diff balance of {address} after transaction {index}",
+                );
+            }
+        }
+    }
+
+    // The last regular transaction leaves the committed state, since the post-exec transaction
+    // changes nothing; this anchors the replayed balances above to the provider.
+    let last_regular = POST_EXEC_INDEX - 1;
+    let committed = fixture.committed_balance(fixture.sender)?;
+    assert_eq!(
+        fixture.replayed_balance(last_regular, fixture.sender).await?,
+        committed,
+        "debug_accountAt after the last regular transaction",
+    );
+    assert_eq!(
+        fixture.replayed_balance(POST_EXEC_INDEX, fixture.sender).await?,
+        committed,
+        "debug_accountAt after the post-exec transaction",
+    );
+    for (address, account) in &fixture.prestate_diff(last_regular).await?.post {
+        if let Some(balance) = account.balance {
+            assert_eq!(
+                balance,
+                fixture.committed_balance(*address)?,
+                "committed balance of {address} after transaction {last_regular}",
+            );
+        }
+    }
+    Ok(())
+}

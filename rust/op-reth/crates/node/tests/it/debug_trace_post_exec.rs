@@ -15,7 +15,7 @@ use alloy_consensus::{
 use alloy_primitives::{Address, B256, Bytes, Signature, TxKind, U256};
 use alloy_rpc_types_eth::TransactionRequest;
 use alloy_rpc_types_trace::{common::TraceResult, geth::GethDebugTracingOptions};
-use jsonrpsee::http_client::HttpClient;
+use jsonrpsee::{core::ClientError, http_client::HttpClient};
 use op_alloy_consensus::{OpTxEnvelope, SDMGasEntry, TxDeposit, build_post_exec_tx};
 use reth_chainspec::EthChainSpec;
 use reth_node_builder::{NodeBuilder, NodeHandle};
@@ -77,10 +77,12 @@ async fn test_debug_trace_block_rejects_exhausted_budget() -> eyre::Result<()> {
     .await
     .expect_err("debug_traceBlock must reject the transfer");
 
+    let ClientError::Call(error) = error else {
+        panic!("debug_traceBlock must fail with a call error: {error:?}");
+    };
     assert_eq!(
-        error.to_string(),
-        "ErrorObject { code: InternalError, message: \"transaction gas limit 21000 is more than \
-         blocks available gas 0\", data: None }",
+        error.message(),
+        "transaction gas limit 21000 is more than blocks available gas 0",
         "debug_traceBlock error for an executor-rejected block",
     );
 
@@ -135,7 +137,7 @@ fn raw_sdm_block(
         nonce: 1,
         gas_limit: TRANSFER_GAS,
         max_fee_per_gas: u128::from(header.base_fee_per_gas.unwrap_or_default()),
-        to: TxKind::Call(Address::with_last_byte(1)),
+        to: TxKind::Call(Address::repeat_byte(0x99)),
         ..Default::default()
     }
     .into_signed(Signature::test_signature());
@@ -143,7 +145,7 @@ fn raw_sdm_block(
     let deposit = TxDeposit {
         source_hash: B256::with_last_byte(1),
         from: signer,
-        to: TxKind::Call(Address::with_last_byte(1)),
+        to: TxKind::Call(Address::repeat_byte(0x99)),
         mint: 1_000_000_000_000_000_000,
         value: U256::ZERO,
         gas_limit: 21_000,
