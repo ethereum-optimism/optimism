@@ -1,11 +1,8 @@
 //! [`Engine`] — the thin event-loop dispatcher.
 
-use super::{
-    DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD, EngineAction,
-    IDLE_FLUSH_INTERVAL, error::EngineError, state::EngineState as State,
-};
+use super::{EngineAction, EngineConfig, error::EngineError, state::EngineState as State};
 use crate::{OpProofStoragePruner, OpProofsStore};
-use crossbeam_channel::Receiver;
+use crossbeam_channel::{Receiver, Sender};
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
 use reth_provider::{
@@ -37,10 +34,13 @@ where
     Evm: ConfigureEvm,
     Provider: StateReader + DatabaseProviderFactory + StateProviderFactory + BlockReader,
 {
-    state: State<Evm, Provider, Store>,
+    /// Dropped when the engine exits by any path, which every call waiting on the handle takes
+    /// as `EngineDied`. Must stay declared first: fields drop in declaration order, and dropping
+    /// `state` joins the persistence thread, which a slow save can hold indefinitely.
+    _exited: Sender<()>,
     incoming: Receiver<EngineAction<BlockTy<Evm::Primitives>>>,
-    persistence_threshold: u64,
-    backpressure_threshold: u64,
+    state: State<Evm, Provider, Store>,
+    config: EngineConfig,
     /// Current retry delay for the sync arm; grows on failure, resets on success.
     sync_backoff: Duration,
     /// Earliest instant the next sync step may run: already past unless the last step failed.
@@ -66,25 +66,17 @@ where
         storage: Store,
         pruner: OpProofStoragePruner<Store, Provider>,
         incoming: Receiver<EngineAction<BlockTy<Evm::Primitives>>>,
+        exited: Sender<()>,
+        config: EngineConfig,
     ) -> Self {
         Self {
-            state: State::new(evm_config, provider, storage, pruner),
+            _exited: exited,
             incoming,
-            persistence_threshold: DEFAULT_PERSISTENCE_THRESHOLD,
-            backpressure_threshold: DEFAULT_BACKPRESSURE_THRESHOLD,
+            state: State::new(evm_config, provider, storage, pruner, config.persistence_timeout),
+            config,
             sync_backoff: Duration::ZERO,
             sync_retry_at: Instant::now(),
         }
-    }
-
-    pub(super) const fn with_persistence_threshold(mut self, threshold: u64) -> Self {
-        self.persistence_threshold = threshold;
-        self
-    }
-
-    pub(super) const fn with_backpressure_threshold(mut self, threshold: u64) -> Self {
-        self.backpressure_threshold = threshold;
-        self
     }
 
     /// Returns `true` if the engine is behind its sync target.
@@ -96,12 +88,12 @@ where
     /// Returns `true` if the buffer is above the backpressure threshold with a save in-flight.
     fn backpressure_active(&self) -> bool {
         self.state.persistence.in_flight.is_some() &&
-            self.state.memory.len() as u64 >= self.backpressure_threshold
+            self.state.memory.len() as u64 >= self.config.backpressure_threshold
     }
 
     /// Start a background persistence save if the memory buffer has reached the threshold.
     fn maybe_start_save(&mut self) {
-        if self.state.memory.len() as u64 >= self.persistence_threshold &&
+        if self.state.memory.len() as u64 >= self.config.persistence_threshold &&
             let Err(e) = self.state.advance_persistence()
         {
             error!(target: "trie::engine::runner", ?e, "Failed to start persistence save");
@@ -154,13 +146,13 @@ where
     ///
     /// Four receivers compete in a single `select!`:
     /// - **action**: a new [`EngineAction`] from a caller, or [`crossbeam_channel::never`] while
-    ///   backpressure is active — callers naturally block in their bounded `send` until the
-    ///   in-flight save completes and memory is pruned.
+    ///   backpressure is active — callers' actions then wait in the channel until the in-flight
+    ///   save completes and memory is pruned.
     /// - **persistence**: signals a completed background save.
     /// - **sync**: fires once `sync_retry_at` has passed, at once unless the last step failed,
     ///   while the engine is behind its sync target and not under backpressure;
     ///   [`crossbeam_channel::never`] otherwise.
-    /// - **idle-flush**: fires after [`IDLE_FLUSH_INTERVAL`] when memory holds buffered blocks but
+    /// - **idle-flush**: fires after the idle flush interval when memory holds buffered blocks but
     ///   the persistence threshold hasn't been reached and no save is in flight. Keeps a paused
     ///   chain from leaving buffered blocks invisible to the proofs RPC indefinitely.
     ///
@@ -188,7 +180,7 @@ where
         // Arm the idle-flush timer only when there's buffered work that nothing else will flush.
         let idle_flush_rx: Receiver<Instant> =
             if !self.state.memory.is_empty() && !save_in_flight && !backpressure {
-                crossbeam_channel::after(IDLE_FLUSH_INTERVAL)
+                crossbeam_channel::after(self.config.idle_flush_interval)
             } else {
                 crossbeam_channel::never()
             };
@@ -217,10 +209,10 @@ where
     /// Runs the main loop of the engine, processing incoming actions.
     pub(super) fn run(mut self) {
         debug_assert!(
-            self.persistence_threshold < self.backpressure_threshold,
+            self.config.persistence_threshold < self.config.backpressure_threshold,
             "backpressure_threshold ({}) must be greater than persistence_threshold ({})",
-            self.backpressure_threshold,
-            self.persistence_threshold,
+            self.config.backpressure_threshold,
+            self.config.persistence_threshold,
         );
         debug!(target: "trie::engine::runner", "Collector engine started");
 
@@ -230,6 +222,10 @@ where
                 ControlFlow::Continue(()) => {}
             }
             self.maybe_start_save();
+            if self.state.persistence.is_disconnected() {
+                error!(target: "trie::engine::runner", "Persistence service gone, stopping the collector engine");
+                break;
+            }
         }
 
         debug!(target: "trie::engine::runner", "Collector engine shutting down, draining in-flight persist");
@@ -243,7 +239,7 @@ mod tests {
     use super::{Engine, SYNC_BACKOFF_INITIAL, SYNC_BACKOFF_MAX, next_sync_backoff};
     use crate::{
         InMemoryProofsStorage, OpProofStoragePruner, OpProofsInitProvider, OpProofsStore,
-        engine::{EngineAction, tasks::SyncToTask},
+        engine::{EngineAction, EngineConfig, tasks::SyncToTask},
     };
     use alloy_consensus::Header;
     use alloy_eips::BlockNumHash;
@@ -284,8 +280,16 @@ mod tests {
         OpProofsInitProvider::commit(init).expect("commit");
         let pruner = OpProofStoragePruner::new(storage.clone(), provider.clone(), 1000);
         let (actions, incoming) = bounded(10);
-        let mut engine =
-            Engine::new(EthEvmConfig::ethereum(chain_spec), provider, storage, pruner, incoming);
+        let (exited, _engine_exited) = bounded(0);
+        let mut engine = Engine::new(
+            EthEvmConfig::ethereum(chain_spec),
+            provider,
+            storage,
+            pruner,
+            incoming,
+            exited,
+            EngineConfig::default(),
+        );
         engine.state.sync_target = 1;
         (engine, actions)
     }

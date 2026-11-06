@@ -3,7 +3,6 @@
 #[cfg(feature = "metrics")]
 use super::metrics::EngineMetrics;
 use super::{
-    DEFAULT_PERSISTENCE_TIMEOUT_SECS,
     buffer::state::TrieBufferState,
     error::EngineError,
     persistence::{PersistenceHandle, error::PersistenceError},
@@ -23,17 +22,26 @@ use tracing::{error, info, warn};
 
 /// Tracks all in-flight state for background persistence.
 pub(crate) struct PersistenceState {
+    /// Set once the service is found gone, which only its thread dying brings about: nothing
+    /// can be saved or unwound after that.
+    disconnected: bool,
     /// Handle to the persistence service.
     handle: PersistenceHandle,
     /// Reply channel for the in-flight save. Present only while a save is running.
     ///
     /// Exposed `pub(crate)` so the engine loop can include it in a `select!`.
     pub(crate) in_flight: Option<Receiver<Result<Option<u64>, PersistenceError>>>,
+    /// How long a wait on the service lasts before it is given up.
+    timeout: Duration,
 }
 
 impl PersistenceState {
-    const fn new(handle: PersistenceHandle) -> Self {
-        Self { handle, in_flight: None }
+    const fn new(handle: PersistenceHandle, timeout: Duration) -> Self {
+        Self { disconnected: false, handle, in_flight: None, timeout }
+    }
+
+    pub(crate) const fn is_disconnected(&self) -> bool {
+        self.disconnected
     }
 
     /// Blocking: wait for the in-flight save to finish and prune `memory`.
@@ -42,7 +50,7 @@ impl PersistenceState {
     pub(crate) fn wait(&mut self, memory: &TrieBufferState) {
         let Some(rx) = self.in_flight.take() else { return };
 
-        match rx.recv_timeout(Duration::from_secs(DEFAULT_PERSISTENCE_TIMEOUT_SECS)) {
+        match rx.recv_timeout(self.timeout) {
             Ok(Ok(Some(last_persisted))) => {
                 info!(
                     target: "trie::engine::state",
@@ -59,6 +67,7 @@ impl PersistenceState {
                 error!(target: "trie::engine::state", "Persistence timeout while waiting");
             }
             Err(RecvTimeoutError::Disconnected) => {
+                self.disconnected = true;
                 error!(target: "trie::engine::state", "Persistence service disconnected while waiting");
             }
         }
@@ -87,6 +96,7 @@ impl PersistenceState {
                 error!(target: "trie::engine::state", ?e, "Background persistence save failed");
             }
             Err(_) => {
+                self.disconnected = true;
                 error!(target: "trie::engine::state", "Persistence service disconnected unexpectedly");
             }
         }
@@ -118,7 +128,10 @@ impl PersistenceState {
         );
 
         let (tx, rx) = bounded(1);
-        self.handle.save_updates(blocks, tx)?;
+        if let Err(err) = self.handle.save_updates(blocks, tx) {
+            self.disconnected = true;
+            return Err(err.into());
+        }
         self.in_flight = Some(rx);
 
         Ok(())
@@ -126,15 +139,21 @@ impl PersistenceState {
 
     /// Send an unwind to the persistence service and block until it completes. The caller
     /// drains any in-flight save first.
-    pub(crate) fn unwind(&self, to: BlockWithParent) -> Result<(), EngineError> {
+    pub(crate) fn unwind(&mut self, to: BlockWithParent) -> Result<(), EngineError> {
         let (tx, rx) = bounded(1);
-        self.handle.unwind(to, tx)?;
+        if let Err(err) = self.handle.unwind(to, tx) {
+            self.disconnected = true;
+            return Err(err.into());
+        }
 
-        match rx.recv_timeout(Duration::from_secs(DEFAULT_PERSISTENCE_TIMEOUT_SECS)) {
+        match rx.recv_timeout(self.timeout) {
             Ok(Ok(())) => Ok(()),
             Ok(Err(e)) => Err(e.into()),
             Err(RecvTimeoutError::Timeout) => Err(EngineError::PersistenceTimeout),
-            Err(RecvTimeoutError::Disconnected) => Err(EngineError::PersistenceDisconnected),
+            Err(RecvTimeoutError::Disconnected) => {
+                self.disconnected = true;
+                Err(EngineError::PersistenceDisconnected)
+            }
         }
     }
 }
@@ -176,6 +195,7 @@ where
         provider: Provider,
         storage: Store,
         pruner: OpProofStoragePruner<Store, Provider>,
+        persistence_timeout: Duration,
     ) -> Self {
         let persistence_handle = PersistenceHandle::spawn(pruner, storage.clone());
         Self {
@@ -183,7 +203,7 @@ where
             provider,
             storage,
             memory: TrieBufferState::new(),
-            persistence: PersistenceState::new(persistence_handle),
+            persistence: PersistenceState::new(persistence_handle, persistence_timeout),
             sync_target: 0,
             #[cfg(feature = "metrics")]
             metrics: EngineMetrics::new_with_labels(&[] as &[(&str, &str)]),
@@ -289,7 +309,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{OpProofsInitProvider, db::MdbxProofsStorage};
+    use crate::{OpProofsInitProvider, db::MdbxProofsStorage, engine::EngineConfig};
     use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
     use alloy_primitives::B256;
     use reth_chainspec::MAINNET;
@@ -324,7 +344,8 @@ mod tests {
         let storage = bootstrap_storage();
         let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), 1000);
         let evm_config = EthEvmConfig::ethereum(chain_spec);
-        EngineState::new(evm_config, blockchain_db, storage, pruner)
+        let persistence_timeout = EngineConfig::default().persistence_timeout;
+        EngineState::new(evm_config, blockchain_db, storage, pruner, persistence_timeout)
     }
 
     /// An unwind target whose parent is unknown to the engine: the store holds only the anchor,

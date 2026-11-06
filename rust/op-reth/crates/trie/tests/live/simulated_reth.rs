@@ -14,7 +14,7 @@ use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_optimism_trie::{
     OpProofStoragePruner, OpProofsStore,
-    engine::{EngineError, EngineHandle, ReorgBlock},
+    engine::{EngineConfig, EngineError, EngineHandle, ReorgBlock},
 };
 use reth_primitives_traits::{RecoveredBlock, SealedHeader};
 use reth_provider::{
@@ -30,6 +30,9 @@ use std::sync::Arc;
 
 /// reth's default `--engine.memory-block-buffer-target`.
 const MEMORY_BLOCK_BUFFER_TARGET: u64 = 5;
+
+/// reth's default `--engine.persistence-threshold`.
+pub(super) const DEFAULT_PERSISTENCE_THRESHOLD: u64 = 7;
 
 /// A parent hash no block here has.
 pub(super) const UNRELATED_PARENT: B256 = B256::repeat_byte(0xBA);
@@ -279,14 +282,29 @@ impl SimulatedReth {
     where
         S: OpProofsStore + Clone + 'static,
     {
+        let config =
+            EngineConfig { backpressure_threshold, persistence_threshold, ..Default::default() };
+        self.spawn_engine_with_config(store, config, window)
+    }
+
+    /// Spawns a proofs engine over `store` with `config`, pruning the store down to `window`
+    /// blocks.
+    pub(super) fn spawn_engine_with_config<S>(
+        &self,
+        store: S,
+        config: EngineConfig,
+        window: u64,
+    ) -> EngineHandle<Block>
+    where
+        S: OpProofsStore + Clone + 'static,
+    {
         let pruner = OpProofStoragePruner::new(store.clone(), self.provider.clone(), window);
-        EngineHandle::spawn_with_thresholds(
+        EngineHandle::spawn_with_config(
             self.evm_config.clone(),
             self.provider.clone(),
             store,
             pruner,
-            persistence_threshold,
-            backpressure_threshold,
+            config,
         )
     }
 
