@@ -117,6 +117,7 @@ metrics-util = { workspace = true, features = ["debugging"] }
 # Fatal-signal handler in tests/it/crash_backtrace.rs.
 libc.workspace = true
 op-alloy-network.workspace = true
+rstest.workspace = true
 
 [features]
 default = ["reth-codec"]
