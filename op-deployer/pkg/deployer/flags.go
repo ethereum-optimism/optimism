@@ -139,7 +139,7 @@ var (
 	}
 	UseForgeFlag = &cli.BoolFlag{
 		Name:    UseForgeFlagName,
-		Usage:   "run the deployment scripts with forge (a genesis deployment still runs on the Go script host); false runs them on the Go script host, which a later release removes",
+		Usage:   "run the deployment scripts with forge (a genesis deployment still runs its L1 scripts on the Go script host); false runs them on the Go script host, which a later release removes",
 		EnvVars: PrefixEnvVar("USE_FORGE"),
 		Value:   true,
 	}
