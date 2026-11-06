@@ -46,6 +46,7 @@ func TestCLIBootstrap(t *testing.T) {
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
 		}, nil)
+		requireFastReceiptPoll(t, output)
 
 		t.Logf("Bootstrap superchain output:\n%s", output)
 
@@ -124,6 +125,7 @@ func TestCLIBootstrap(t *testing.T) {
 			"--challenger", challenger.Hex(),
 			"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
 		}, nil)
+		requireFastReceiptPoll(t, output)
 
 		t.Logf("Bootstrap implementations output:\n%s", output)
 
