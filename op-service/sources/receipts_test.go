@@ -33,23 +33,23 @@ func (b *ethBackend) GetBlockByHash(id common.Hash, fullTxs bool) (*RPCBlock, er
 	return out[0].(*RPCBlock), nil
 }
 
-func (b *ethBackend) GetTransactionReceipt(txHash common.Hash) (*types.Receipt, error) {
+func (b *ethBackend) GetTransactionReceipt(txHash common.Hash) (*optypes.Receipt, error) {
 	out := b.Mock.MethodCalled("eth_getTransactionReceipt", txHash)
-	return out[0].(*types.Receipt), *out[1].(*error)
+	return out[0].(*optypes.Receipt), *out[1].(*error)
 }
 
-func (b *ethBackend) GetBlockReceipts(id string) ([]*types.Receipt, error) {
+func (b *ethBackend) GetBlockReceipts(id string) (optypes.Receipts, error) {
 	out := b.Mock.MethodCalled("eth_getBlockReceipts", id)
-	return out[0].([]*types.Receipt), *out[1].(*error)
+	return out[0].(optypes.Receipts), *out[1].(*error)
 }
 
 type erigonBackend struct {
 	*mock.Mock
 }
 
-func (b *erigonBackend) GetBlockReceiptsByBlockHash(id string) ([]*types.Receipt, error) {
+func (b *erigonBackend) GetBlockReceiptsByBlockHash(id string) (optypes.Receipts, error) {
 	out := b.Mock.MethodCalled("erigon_getBlockReceiptsByBlockHash", id)
-	return out[0].([]*types.Receipt), *out[1].(*error)
+	return out[0].(optypes.Receipts), *out[1].(*error)
 }
 
 type alchemyBackend struct {
@@ -58,7 +58,7 @@ type alchemyBackend struct {
 
 func (b *alchemyBackend) GetTransactionReceipts(p blockHashParameter) (*receiptsWrapper, error) {
 	out := b.Mock.MethodCalled("alchemy_getTransactionReceipts", p.BlockHash.String())
-	return &receiptsWrapper{Receipts: optypes.FromGethReceipts(out[0].([]*types.Receipt))}, *out[1].(*error)
+	return &receiptsWrapper{Receipts: out[0].(optypes.Receipts)}, *out[1].(*error)
 }
 
 type debugBackend struct {
@@ -74,14 +74,14 @@ type parityBackend struct {
 	*mock.Mock
 }
 
-func (b *parityBackend) GetBlockReceipts(id string) ([]*types.Receipt, error) {
+func (b *parityBackend) GetBlockReceipts(id string) (optypes.Receipts, error) {
 	out := b.Mock.MethodCalled("parity_getBlockReceipts", id)
-	return out[0].([]*types.Receipt), *out[1].(*error)
+	return out[0].(optypes.Receipts), *out[1].(*error)
 }
 
 type ReceiptsRequest struct {
 	method ReceiptsFetchingMethod
-	result []*types.Receipt
+	result optypes.Receipts
 	err    error
 }
 
@@ -175,7 +175,7 @@ func (tc *ReceiptsTestCase) Run(t *testing.T) {
 			require.NoError(t, req.err, "error")
 			require.Equal(t, block.Hash, info.Hash(), fmt.Sprintf("req %d blockhash", i))
 			for j, rec := range req.result {
-				requireEqualReceipt(t, rec, &result[j].Receipt, "req %d result %d", i, j)
+				requireEqualReceipt(t, &rec.Receipt, &result[j].Receipt, "req %d result %d", i, j)
 			}
 		} else {
 			require.Error(t, req.err, "error")
@@ -248,7 +248,7 @@ func TestEthClient_FetchReceipts(t *testing.T) {
 				out[i].err = new(methodNotFoundError)
 			}
 			// last request fetches receipts
-			out[len(out)-1].result = receipts
+			out[len(out)-1].result = optypes.FromGethReceipts(receipts)
 			return block, out
 		}
 	}

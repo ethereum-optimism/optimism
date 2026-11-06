@@ -77,8 +77,7 @@ func conformanceFixture(t *testing.T) *conformanceRPC {
 	}
 	input, err := rlp.EncodeToBytes(payload)
 	require.NoError(t, err)
-	postTx := types.NewTx(&types.PostExecTx{Data: input})
-	postHash := postTx.Hash()
+	postHash := (&optypes.PostExecTx{Data: input}).Hash()
 	zero := common.Address{}
 
 	block := &RPCBlock{
@@ -88,7 +87,7 @@ func conformanceFixture(t *testing.T) *conformanceRPC {
 		BlobGasUsed: uint64Ptr(123),
 		Timestamp:   1_000,
 		Transactions: []RPCTransaction{
-			{Hash: depositHash, Type: types.DepositTxType},
+			{Hash: depositHash, Type: optypes.DepositTxType},
 			{Hash: userHash, Type: types.DynamicFeeTxType},
 			{Hash: postHash, Type: optypes.PostExecTxType, Input: input},
 		},
@@ -102,7 +101,7 @@ func conformanceFixture(t *testing.T) *conformanceRPC {
 		receipt.OperatorFeeConstant = bigPtr(0)
 		receipt.DAFootprintGasScalar = bigPtr(400)
 	}
-	depositReceipt := &RPCReceipt{Type: types.DepositTxType, TxHash: depositHash, BlockHash: blockHash, TransactionIndex: 0, GasUsed: 100, BlobGasUsed: uint64Ptr(99)}
+	depositReceipt := &RPCReceipt{Type: optypes.DepositTxType, TxHash: depositHash, BlockHash: blockHash, TransactionIndex: 0, GasUsed: 100, BlobGasUsed: uint64Ptr(99)}
 	userReceipt := &RPCReceipt{Type: types.DynamicFeeTxType, TxHash: userHash, BlockHash: blockHash, TransactionIndex: 1, GasUsed: 93, BlobGasUsed: uint64Ptr(123), OPGasRefund: uint64Ptr(7), L1Fee: bigPtr(3), L1GasUsed: bigPtr(4)}
 	postReceipt := &RPCReceipt{Type: optypes.PostExecTxType, TxHash: postHash, BlockHash: blockHash, TransactionIndex: 2, Status: hexutil.Uint64(types.ReceiptStatusSuccessful), GasUsed: 0, EffectiveGasPrice: bigPtr(0), BlobGasUsed: uint64Ptr(0), L1Fee: bigPtr(0), L1GasUsed: bigPtr(0)}
 	blockFields(userReceipt)
@@ -114,7 +113,7 @@ func conformanceFixture(t *testing.T) *conformanceRPC {
 		BlockNum: blockNum, BlockHash: blockHash, PostExecTxPresent: true,
 		PostExecTxIndex: &postIndex, EmbeddedPayload: &payload,
 		Txs: []ReplaySDMTx{
-			{TxIndex: 0, ReplayTxIndex: 0, TxHash: depositHash, TxType: types.DepositTxType, IsDepositTx: true, RawGasUsed: 100, CanonicalGasUsed: 100},
+			{TxIndex: 0, ReplayTxIndex: 0, TxHash: depositHash, TxType: optypes.DepositTxType, IsDepositTx: true, RawGasUsed: 100, CanonicalGasUsed: 100},
 			{TxIndex: 1, ReplayTxIndex: 1, TxHash: userHash, TxType: types.DynamicFeeTxType, RawGasUsed: 100, CanonicalGasUsed: 93, OPGasRefundPayload: &refund},
 		},
 		Summary: ReplaySDMSummary{

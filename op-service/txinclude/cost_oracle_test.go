@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -100,7 +101,14 @@ func TestCostOracleOPCost(t *testing.T) {
 		require.NoError(t, oracle.SetParams(context.Background()))
 		tx := types.NewTx(&types.DynamicFeeTx{})
 		got := oracle.OPCost(tx)
-		want, _ := types.NewL1CostFuncFjord(big.NewInt(102), big.NewInt(104), big.NewInt(103), big.NewInt(105))(tx.RollupCostData())
+		raw, err := tx.MarshalBinary()
+		require.NoError(t, err)
+		want := opfees.L1CostFjord(opfees.NewRollupCostData(raw), opfees.L1FeeParams{
+			L1BaseFee:     big.NewInt(102),
+			L1BlobBaseFee: big.NewInt(104),
+			BaseFeeScalar: big.NewInt(103),
+			BlobFeeScalar: big.NewInt(105),
+		})
 		require.Equal(t, want, got)
 	})
 }
