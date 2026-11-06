@@ -12,27 +12,33 @@ use metrics::gauge;
 pub fn init_unified_metrics(args: &MetricsArgs) -> anyhow::Result<()> {
     args.init_metrics()?;
     if args.enabled {
-        kona_gossip::Metrics::init();
-        kona_disc::Metrics::init();
-        kona_engine::Metrics::init();
-        kona_node_service::Metrics::init();
-        kona_derive::Metrics::init();
-        kona_providers_alloy::Metrics::init();
-        kona_providers_local::Metrics::init();
-        gauge!(
-            "kona_node_info",
-            &[
-                ("version", crate::version::version()),
-                ("build_timestamp", crate::version::build_timestamp()),
-                ("cargo_features", crate::version::cargo_features()),
-                ("git_sha", crate::version::git_sha()),
-                ("target_triple", crate::version::target_triple()),
-                ("build_profile", crate::version::build_profile()),
-            ]
-        )
-        .set(1);
+        init_node_metrics();
     }
     Ok(())
+}
+
+/// Describes and zeroes the node's metrics and sets its info gauge, in whichever metrics recorder
+/// is installed.
+pub fn init_node_metrics() {
+    kona_gossip::Metrics::init();
+    kona_disc::Metrics::init();
+    kona_engine::Metrics::init();
+    kona_node_service::Metrics::init();
+    kona_derive::Metrics::init();
+    kona_providers_alloy::Metrics::init();
+    kona_providers_local::Metrics::init();
+    gauge!(
+        "kona_node_info",
+        &[
+            ("version", crate::version::version()),
+            ("build_timestamp", crate::version::build_timestamp()),
+            ("cargo_features", crate::version::cargo_features()),
+            ("git_sha", crate::version::git_sha()),
+            ("target_triple", crate::version::target_triple()),
+            ("build_profile", crate::version::build_profile()),
+        ]
+    )
+    .set(1);
 }
 
 #[cfg(test)]

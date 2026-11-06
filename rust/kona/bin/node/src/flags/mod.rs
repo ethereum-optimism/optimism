@@ -13,7 +13,7 @@ mod overrides;
 pub use overrides::OverrideArgs;
 
 mod metrics;
-pub use metrics::init_unified_metrics;
+pub use metrics::{init_node_metrics, init_unified_metrics};
 
 mod sequencer;
 pub use sequencer::SequencerArgs;

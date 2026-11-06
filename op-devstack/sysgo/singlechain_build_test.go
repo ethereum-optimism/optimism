@@ -12,10 +12,14 @@ import (
 )
 
 func TestKonaOptionsRejectedBeforeStartup(t *testing.T) {
-	t.Setenv("DEVSTACK_L2CL_KIND", string(MixedL2CLKona))
 	t.Setenv("KONA_NODE_P2P_NO_DISCOVERY", "true")
-	for _, stopped := range []bool{false, true} {
-		t.Run(fmt.Sprintf("stopped=%t", stopped), func(t *testing.T) {
+	for _, tc := range []struct {
+		kind    MixedL2CLKind
+		stopped bool
+	}{{MixedL2CLKona, false}, {MixedL2CLKona, true}, {MixedL2CLOpReth, false}, {MixedL2CLOpReth, true}} {
+		stopped := tc.stopped
+		t.Run(fmt.Sprintf("kind=%s/stopped=%t", tc.kind, stopped), func(t *testing.T) {
+			t.Setenv("DEVSTACK_L2CL_KIND", string(tc.kind))
 			dt := &rejectedKonaOptionTest{T: devtest.SerialT(t)}
 			network := &L2Network{chainID: eth.ChainIDFromUInt64(901)}
 			opts := []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {

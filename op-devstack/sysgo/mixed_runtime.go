@@ -54,7 +54,15 @@ type MixedL2CLKind string
 const (
 	MixedL2CLOpNode MixedL2CLKind = "op-node"
 	MixedL2CLKona   MixedL2CLKind = "kona-node"
+	// MixedL2CLOpReth runs kona inside the op-reth L2 EL process (op-reth's
+	// --rollup.consensus.enabled), so it requires the op-reth EL kind.
+	MixedL2CLOpReth MixedL2CLKind = "op-reth"
 )
+
+// RunsKona reports whether the L2 CL kind runs kona, as a kona-node process or inside op-reth.
+func (k MixedL2CLKind) RunsKona() bool {
+	return k == MixedL2CLKona || k == MixedL2CLOpReth
+}
 
 // SkipOnOpGeth skips the test when the L2 execution layer is op-geth
 func SkipOnOpGeth(t devtest.T, reason string) {
@@ -70,15 +78,23 @@ func SkipOnOpReth(t devtest.T, reason string) {
 	}
 }
 
-// SkipOnKonaNode skips the test when the L2 consensus layer is kona-node
+// SkipOnKonaNode skips the test when the L2 consensus layer is kona, as kona-node or inside op-reth
 func SkipOnKonaNode(t devtest.T, reason string) {
-	if devstackL2CLKind() == MixedL2CLKona {
-		t.Skipf("skipping on kona-node: %s", reason)
+	if devstackL2CLKind().RunsKona() {
+		t.Skipf("skipping on kona: %s", reason)
+	}
+}
+
+// SkipOnOpRethCL skips the test when the L2 CL runs inside the L2 EL, as with the op-reth CL kind,
+// where stopping or starting either one stops or starts both.
+func SkipOnOpRethCL(t devtest.T, reason string) {
+	if devstackL2CLKind() == MixedL2CLOpReth {
+		t.Skipf("skipping on the op-reth CL: %s", reason)
 	}
 }
 
 func FlakyOnKonaNode(t devtest.T, reason string) {
-	if devstackL2CLKind() == MixedL2CLKona {
+	if devstackL2CLKind().RunsKona() {
 		t.MarkFlaky(reason)
 	}
 }
@@ -291,7 +307,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 					cfg.VerifierL1Confs = spec.VerifierL1Confs
 				})},
 			})
-		case MixedL2CLKona:
+		case MixedL2CLKona, MixedL2CLOpReth:
 			cl = startMixedKonaNode(
 				t,
 				keys,
@@ -303,6 +319,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				spec.CLKey,
 				spec.ELKey,
 				konaNodeStartConfig{
+					InOpReth:      spec.CLKind == MixedL2CLOpReth,
 					DependencySet: depSet,
 					L2CLConfig: resolveKonaL2CLConfig(t, spec.CLKey, l2Net.ChainID(), spec.IsSequencer, "", []L2CLOption{
 						L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
@@ -563,7 +580,12 @@ func startMixedKonaNode(
 	clKey string,
 	elKey string,
 	startCfg konaNodeStartConfig,
-) *KonaNode {
+) L2CLNode {
+	opReth, isOpReth := l2EL.(*OpReth)
+	if startCfg.InOpReth {
+		t.Require().Truef(isOpReth, "the %s L2 CL runs inside its L2 EL, which must be op-reth, not %T", MixedL2CLOpReth, l2EL)
+	}
+
 	tempKonaDir := t.TempDirWithPrefix("l2-cl-kona-" + NewComponentTarget(clKey, l2Net.ChainID()).String())
 
 	tempP2PPath := filepath.Join(tempKonaDir, "p2pkey.txt")
@@ -624,6 +646,13 @@ func startMixedKonaNode(
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
 	envVars = append(envVars, konaL2CLEnv(startCfg.L2CLConfig, startCfg.SequencerStopped)...)
+
+	if startCfg.InOpReth {
+		t.Logger().Info("Starting kona inside op-reth", "name", clKey, "chain", l2Net.ChainID(), "el", elKey)
+		cl := opReth.EnableRollupConsensus(envVars)
+		t.Logger().Info("Kona inside op-reth is up", "name", clKey, "chain", l2Net.ChainID(), "rpc", cl.UserRPC())
+		return cl
+	}
 
 	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",

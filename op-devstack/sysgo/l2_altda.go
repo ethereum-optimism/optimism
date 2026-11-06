@@ -13,7 +13,7 @@ import (
 // chain on alt-DA with keccak commitments, with the batcher and every op-node started from the
 // returned cfg using that DA server.
 func withAltDA(t devtest.T, cfg PresetConfig) PresetConfig {
-	t.Require().NotEqual(MixedL2CLKona, devstackL2CLKind(), "kona-node does not support alt-DA")
+	t.Require().False(devstackL2CLKind().RunsKona(), "kona does not support alt-DA")
 
 	server := altda.NewDAServer("127.0.0.1", 0, cfg.AltDAStore, t.Logger().New("component", "da-server"), false)
 	t.Require().NoError(server.Start(), "failed to start DA server")
