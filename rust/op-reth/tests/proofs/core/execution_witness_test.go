@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/rust/op-reth/tests/proofs/utils"
@@ -49,7 +50,7 @@ func TestDebugExecutionWitness(gt *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
 	t.Logf("Transaction included in block: %d", bigs.Uint64Strict(receipt.BlockNumber))
 
-	utils.WaitForProofsStoreBlock(t, opRethELNode.Escape().L2EthClient(), bigs.Uint64Strict(receipt.BlockNumber))
+	opRethELNode.WaitForProofsStoreBlock(bigs.Uint64Strict(receipt.BlockNumber), dsl.DefaultProofsCatchUpTimeout)
 	l2RethClient := opRethELNode.Escape().L2EthClient()
 
 	// Get the block to inspect the state changes

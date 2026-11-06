@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -169,7 +170,6 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 	}
 
 	latestBlock := sys.L2Chain.WaitForBlock()
-	utils.WaitForProofsStoreBlock(t, sys.RethWithProofL2ELNode().Escape().L2EthClient(), latestBlock.Number)
 
 	// verify that the L2A validator has reorged and reached the latest block. Bounded so a
 	// validator that never converges fails here instead of consuming the package timeout.
@@ -199,6 +199,6 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 	// verify that the accounts involved in the conflicting blocks
 	for i, c := range cases {
 		l.Info("Verifying proof", "case", i, "addr", c.addr.Hex(), "block", c.Block)
-		utils.FetchAndVerifyProofs(t, sys, c.addr, c.slots, c.Block)
+		sys.RethWithProofL2ELNode().VerifyProofsMatchAt(sys.L2ELSequencerNode(), c.Block, dsl.ProofAccount{Address: c.addr, StorageKeys: c.slots})
 	}
 }
