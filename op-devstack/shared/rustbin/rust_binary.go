@@ -31,10 +31,8 @@ type Spec struct {
 //   - RUST_JIT_BUILD=1: runs cargo build in debug mode (letting cargo handle rebuild detection)
 //   - Otherwise: only checks binary exists, errors if missing
 func (s Spec) EnsureExists(ctx context.Context, logger log.Logger) (string, error) {
-	envSuffix := toEnvVarSuffix(s.Binary)
-
 	// Check for explicit binary path override
-	if pathOverride := os.Getenv("RUST_BINARY_PATH_" + envSuffix); pathOverride != "" {
+	if pathOverride := os.Getenv(PathOverrideEnvVar(s.Binary)); pathOverride != "" {
 		if _, err := os.Stat(pathOverride); os.IsNotExist(err) {
 			return "", fmt.Errorf("%s binary not found at overridden path %s", s.Binary, pathOverride)
 		}
@@ -43,7 +41,7 @@ func (s Spec) EnsureExists(ctx context.Context, logger log.Logger) (string, erro
 	}
 
 	// Determine source root
-	srcRoot, err := resolveSrcRoot(s.SrcDir, envSuffix)
+	srcRoot, err := resolveSrcRoot(s.SrcDir, s.Binary)
 	if err != nil {
 		return "", err
 	}
@@ -65,9 +63,21 @@ func (s Spec) EnsureExists(ctx context.Context, logger log.Logger) (string, erro
 	return binaryPath, nil
 }
 
+// PathOverrideEnvVar names the environment variable that points EnsureExists at a prebuilt copy
+// of binary, e.g. RUST_BINARY_PATH_KONA_NODE for "kona-node".
+func PathOverrideEnvVar(binary string) string {
+	return "RUST_BINARY_PATH_" + toEnvVarSuffix(binary)
+}
+
+// srcDirOverrideEnvVar names the environment variable that points EnsureExists at the cargo
+// project root to build binary from, e.g. RUST_SRC_DIR_KONA_NODE for "kona-node".
+func srcDirOverrideEnvVar(binary string) string {
+	return "RUST_SRC_DIR_" + toEnvVarSuffix(binary)
+}
+
 // resolveSrcRoot determines the cargo project root, checking for env var override first.
-func resolveSrcRoot(defaultSrcDir, envSuffix string) (string, error) {
-	if srcOverride := os.Getenv("RUST_SRC_DIR_" + envSuffix); srcOverride != "" {
+func resolveSrcRoot(defaultSrcDir, binary string) (string, error) {
+	if srcOverride := os.Getenv(srcDirOverrideEnvVar(binary)); srcOverride != "" {
 		return srcOverride, nil
 	}
 

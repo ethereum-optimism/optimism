@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -525,6 +526,28 @@ func (el *L2ELNode) Start() {
 	lifecycle, ok := el.inner.(stack.Lifecycle)
 	el.require.Truef(ok, "L2EL node %s is not lifecycle-controllable", el.inner.Name())
 	lifecycle.Start()
+}
+
+// SwitchBinary makes the node's next Start run binary over its existing datadir and
+// configuration, the way an operator upgrades or rolls back a node in place. The node must be
+// stopped. An op-reth node resolves binary the way sysgo.OpRethWithBinary does.
+func (el *L2ELNode) SwitchBinary(binary string) {
+	el.log.Info("Switching binary", "name", el.inner.Name(), "binary", binary)
+	switchable, ok := el.inner.(stack.BinarySwitchable)
+	el.require.Truef(ok, "L2EL node %s cannot switch its binary", el.inner.Name())
+	switchable.SwitchBinary(binary)
+}
+
+// RecordLogs collects every log entry the node's process emits at or above minLevel, across
+// restarts, until the recorder is stopped or the test ends.
+func (el *L2ELNode) RecordLogs(minLevel slog.Level) *LogRecorder {
+	observable, ok := el.inner.(stack.LogObservable)
+	el.require.Truef(ok, "L2EL node %s does not expose its logs", el.inner.Name())
+	el.log.Info("Recording logs", "name", el.inner.Name(), "min_level", minLevel)
+	recorder := newLogRecorder(el.inner.Name(), minLevel, el.require)
+	recorder.stop = observable.ObserveLogs(recorder.observe)
+	el.t.Cleanup(recorder.Stop)
+	return recorder
 }
 
 func (el *L2ELNode) PeerWith(peer *L2ELNode) {

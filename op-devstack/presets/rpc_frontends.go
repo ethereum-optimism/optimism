@@ -19,6 +19,7 @@ import (
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
+	"github.com/ethereum-optimism/optimism/op-service/logpipe"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester"
@@ -153,13 +154,18 @@ type l2ELFrontend struct {
 	rpcELNode
 	l2Client       *sources.L2Client
 	l2EngineClient *sources.EngineClient
-	lifecycle      stack.Lifecycle
-	control        stack.ControlledLifecycle
-	ungraceful     stack.UngracefulLifecycle
+
+	binarySwitch stack.BinarySwitchable
+	control      stack.ControlledLifecycle
+	lifecycle    stack.Lifecycle
+	logs         stack.LogObservable
+	ungraceful   stack.UngracefulLifecycle
 }
 
 var (
 	_ stack.L2ELNode            = (*l2ELFrontend)(nil)
+	_ stack.BinarySwitchable    = (*l2ELFrontend)(nil)
+	_ stack.LogObservable       = (*l2ELFrontend)(nil)
 	_ stack.UngracefulLifecycle = (*l2ELFrontend)(nil)
 )
 
@@ -200,6 +206,16 @@ func (r *l2ELFrontend) Stop() {
 func (r *l2ELFrontend) StopUngracefully() {
 	r.require().NotNil(r.ungraceful, "L2EL node %s cannot be stopped ungracefully", r.Name())
 	r.ungraceful.StopUngracefully()
+}
+
+func (r *l2ELFrontend) SwitchBinary(binary string) {
+	r.require().NotNil(r.binarySwitch, "L2EL node %s cannot switch its binary", r.Name())
+	r.binarySwitch.SwitchBinary(binary)
+}
+
+func (r *l2ELFrontend) ObserveLogs(observer func(logpipe.LogEntry)) func() {
+	r.require().NotNil(r.logs, "L2EL node %s does not expose its logs", r.Name())
+	return r.logs.ObserveLogs(observer)
 }
 
 func (r *l2ELFrontend) StartControlled(ctx context.Context) error {

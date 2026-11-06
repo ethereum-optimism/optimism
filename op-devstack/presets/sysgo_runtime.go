@@ -69,6 +69,12 @@ func newL2ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 		if ungraceful, ok := lifecycle[0].(stack.UngracefulLifecycle); ok {
 			l2EL.ungraceful = ungraceful
 		}
+		if binarySwitch, ok := lifecycle[0].(stack.BinarySwitchable); ok {
+			l2EL.binarySwitch = binarySwitch
+		}
+		if logs, ok := lifecycle[0].(stack.LogObservable); ok {
+			l2EL.logs = logs
+		}
 	}
 	return l2EL
 }

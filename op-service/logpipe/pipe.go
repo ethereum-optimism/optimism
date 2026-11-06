@@ -29,7 +29,7 @@ func ParseRustStructuredLogs(line []byte) LogEntry {
 	var e rawRustJSONLog
 	if err := dec.Decode(&e); err != nil {
 		return StructuredRustLogEntry{
-			Message: "Invalid JSON",
+			Message: unstructuredMessage,
 			Level:   slog.LevelWarn,
 			Fields:  map[string]any{"line": string(line)},
 		}
@@ -121,4 +121,13 @@ func ToLoggerRaisedToLevel(logger log.Logger, minLevel slog.Level) func(e LogEnt
 		attrs := append(e.LogFields(), slog.String("innerLevel", strings.ToUpper(log.LevelString(lvl))))
 		logger.Log(minLevel, e.LogMessage(), attrs...)
 	}
+}
+
+// unstructuredMessage is the message of an entry made from a line that was not structured JSON.
+const unstructuredMessage = "Invalid JSON"
+
+// IsUnstructured reports whether e was made from a line that was not a structured log entry.
+func IsUnstructured(e LogEntry) bool {
+	r, ok := e.(StructuredRustLogEntry)
+	return ok && r.Message == unstructuredMessage
 }
