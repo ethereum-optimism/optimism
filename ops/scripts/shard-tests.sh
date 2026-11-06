@@ -5,7 +5,7 @@
 # this node's share to stdout, split by historical timing data
 # (--timings-type=testname, sourced from the JUnit files jobs upload via
 # store_test_results). Outside CircleCI parallelism (CIRCLE_NODE_TOTAL unset
-# or 1) every test passes through unchanged.
+# or 1) every unique test name passes through.
 #
 # Exits 1 when no test names arrive: `go test -list` failed (compile error,
 # or a crash in TestMain — which -list executes) or a name filter matched
@@ -17,6 +17,9 @@ ALL_TESTS_FILE=$(mktemp)
 trap 'rm -f "$ALL_TESTS_FILE"' EXIT
 
 grep -E '^Test' > "$ALL_TESTS_FILE" || true
+# `go test -run` matches a name in every package, so a name listed once for each
+# package that has it would run all of its copies once per node it landed on.
+LC_ALL=C sort -u -o "$ALL_TESTS_FILE" "$ALL_TESTS_FILE"
 
 TOTAL_TESTS=$(wc -l < "$ALL_TESTS_FILE" | tr -d ' ')
 if [ "$TOTAL_TESTS" -eq 0 ]; then

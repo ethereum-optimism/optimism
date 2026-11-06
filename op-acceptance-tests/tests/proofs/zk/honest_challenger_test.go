@@ -96,15 +96,16 @@ func honestChallengerBeatsUnsafeProposal(t devtest.T, sys *presets.SingleChainIn
 // super-root sources share the decision body; the supernode subtest additionally proves the
 // unchallenged valid proposal anchors (source-agnostic lifecycle behavior tested once).
 func TestZK_HonestChallenger_ValidProposal_DefenderWins(gt *testing.T) {
+	gt.Parallel()
 	gt.Run("op-node", func(gt *testing.T) {
-		t := devtest.ParallelT(gt)
+		t := devtest.SerialT(gt)
 		sys := newOpNodeSystem(t)
 		// The op-node preset runs no op-zk-proposer; seed the proposal manually.
 		game := sys.DisputeGameFactory().StartZKGame(sys.FunderL1.NewFundedEOA(eth.OneEther))
 		honestChallengerResolvesValidProposal(t, sys, game)
 	})
 	gt.Run("supernode", func(gt *testing.T) {
-		t := devtest.ParallelT(gt)
+		t := devtest.SerialT(gt)
 		sys := newSupernodeSystem(t)
 		// The honest proposer creates the valid root proposal.
 		game := honestChallengerResolvesValidProposal(t, sys, sys.DisputeGameFactory().WaitForZKGameAtIndex(0))
@@ -122,12 +123,13 @@ func TestZK_HonestChallenger_ValidProposal_DefenderWins(gt *testing.T) {
 // super-root sources share the decision body; the supernode subtest additionally proves the
 // challenger claims its credit and the invalid proposal never advances the anchor state.
 func TestZK_HonestChallenger_InvalidProposal_ChallengerWins(gt *testing.T) {
+	gt.Parallel()
 	gt.Run("op-node", func(gt *testing.T) {
-		t := devtest.ParallelT(gt)
+		t := devtest.SerialT(gt)
 		honestChallengerBeatsInvalidProposal(t, newOpNodeSystem(t))
 	})
 	gt.Run("supernode", func(gt *testing.T) {
-		t := devtest.ParallelT(gt)
+		t := devtest.SerialT(gt)
 		// This subtest asserts the anchor never moves, so no honest proposer:
 		// its valid proposals would legitimately advance the anchor.
 		sys := newSupernodeSystem(t, presets.WithoutHonestProposer())
@@ -206,12 +208,13 @@ func TestZK_HonestChallenger_InvalidChainBProposal_ChallengesProposal(gt *testin
 // CHALLENGER_WINS. This is a distinct path from a mismatched-root proposal at an already-safe
 // timestamp, and each super-root source reaches Data == nil differently, so both are exercised.
 func TestZK_HonestChallenger_UnsafeProposal_ChallengerWins(gt *testing.T) {
+	gt.Parallel()
 	gt.Run("op-node", func(gt *testing.T) {
-		t := devtest.ParallelT(gt)
+		t := devtest.SerialT(gt)
 		honestChallengerBeatsUnsafeProposal(t, newOpNodeSystem(t))
 	})
 	gt.Run("supernode", func(gt *testing.T) {
-		t := devtest.ParallelT(gt)
+		t := devtest.SerialT(gt)
 		honestChallengerBeatsUnsafeProposal(t, newSupernodeSystem(t))
 	})
 }

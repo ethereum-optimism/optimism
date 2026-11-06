@@ -2045,7 +2045,7 @@ jobs:
         type: integer
         default: 1
       acceptance_test_jobs:
-        description: "Override ACCEPTANCE_TEST_JOBS (go test -p) for this run; empty
+        description: "Override ACCEPTANCE_TEST_JOBS (tests run at once) for this run; empty
           leaves the justfile default in place"
         type: string
         default: ""

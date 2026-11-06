@@ -75,26 +75,26 @@ acceptance-test:
 
     # Each ParallelT acceptance test spins its own full devstack (L1 geth +
     # op-node + op-reth/op-geth + batcher + proposer + challenger), so the real
-    # cost driver is concurrent ParallelT goroutines, bounded by -p * -parallel.
+    # cost driver is concurrent ParallelT goroutines, bounded by jobs * -parallel.
     # The previous unbounded default (-p = CPU_COUNT ~= 20, -parallel = ~10)
     # saturated CPU+RAM and triggered mass "context deadline exceeded" failures
     # across the runner — see ethereum-optimism/optimism#20966.
     #
-    # Collapse to a single concurrency axis: -parallel=1 disables intra-package
-    # parallelism so each package binary runs one test at a time, and -p directly
-    # caps concurrent test devstacks across the runner. 12 is well under the
-    # observed ~30-effective-devstack crash threshold and lands wall time near
-    # the pre-cap baseline.
-    DEFAULT_JOBS=12
+    # Collapse to a single concurrency axis: each top-level test gets its own
+    # `go test -parallel=1`, and xargs -P directly caps concurrent test devstacks
+    # across the runner. 8 is what CI runs.
+    DEFAULT_JOBS=8
     DEFAULT_TEST_PARALLEL=1
 
     JOBS="${ACCEPTANCE_TEST_JOBS:-$DEFAULT_JOBS}"
+    # xargs -P 0 means no cap, or 100 on BusyBox.
+    [ "$JOBS" -gt 0 ] || { echo "error: ACCEPTANCE_TEST_JOBS must be a positive integer" >&2; exit 1; }
     TEST_PARALLEL="${ACCEPTANCE_TEST_PARALLEL:-$DEFAULT_TEST_PARALLEL}"
     TEST_TIMEOUT="${ACCEPTANCE_TEST_TIMEOUT:-30m}"
     echo "CPU COUNT: $CPU_COUNT"
-    echo "PACKAGE JOBS: $JOBS"
+    echo "TEST JOBS: $JOBS"
     echo "TEST PARALLELISM: $TEST_PARALLEL"
-    echo "PACKAGE TIMEOUT: $TEST_TIMEOUT"
+    echo "TEST TIMEOUT: $TEST_TIMEOUT"
 
     cd {{REPO_ROOT}}
     if ! command -v gotestsum >/dev/null; then
@@ -107,7 +107,7 @@ acceptance-test:
     mkdir -p "$LOG_ROOT" "$RESULTS_DIR"
     LOG_DIR="$LOG_ROOT/testrun-$(date -u +%Y%m%d-%H%M%S)"
     mkdir -p "$LOG_DIR/failed"
-    rm -f "$RESULTS_DIR/results.xml"
+    rm -f "$RESULTS_DIR"/results*.xml
 
     FLAKY_REPORT="$LOG_DIR/flaky-tests.txt"
     if command -v rg >/dev/null 2>&1; then
@@ -121,46 +121,83 @@ acceptance-test:
     # CircleCI test-level splitting: when running under `parallelism: N > 1`,
     # split the test set across CIRCLE_NODE_TOTAL nodes using historical timings
     # so each node runs a balanced subset. Falls back to running everything when
-    # CIRCLE_NODE_TOTAL is unset (local runs, single-node CI).
-    RUN_FLAG=""
-    JUNIT_FILE="$RESULTS_DIR/results.xml"
-    JSON_FILE="$LOG_DIR/raw_go_events.log"
-    if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
-        NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
-        NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
+    # CIRCLE_NODE_TOTAL is unset (local runs, single-node CI). `awk 1` ends the last
+    # line with a newline, since `read` and `wc -l` would miss a test without one.
+    export NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
+    go test -list '^Test' "${TEST_PACKAGES[@]}" | tee "$LOG_DIR/tests_list.txt" \
+        | {{REPO_ROOT}}/ops/scripts/shard-tests.sh | awk 1 > "$LOG_DIR/tests_shard.txt" \
+        || { grep -v '^Test' "$LOG_DIR/tests_list.txt" >&2; exit 1; }
 
-        go test -list '^Test' "${TEST_PACKAGES[@]}" \
-            | {{REPO_ROOT}}/ops/scripts/shard-tests.sh > /tmp/tests_shard.txt
+    # `go test -list` prints a package's tests and then its `ok <package>` line.
+    # Anything else could be hiding a test name, as in `setup: TestX` from a TestMain
+    # that prints with no newline.
+    awk '/^Test[^[:space:]]*$/ { names[++n] = $0; next }
+        /^ok  \t/ { for (; n > 0; n--) print $2, names[n]; next }
+        /^\?   \t/ { next }
+        { print "error: unexpected go test -list output: " $0 > "/dev/stderr"; exit 1 }' \
+        "$LOG_DIR/tests_list.txt" > "$LOG_DIR/tests_all_pairs.txt"
 
-        SHARD_COUNT=$(wc -l < /tmp/tests_shard.txt | tr -d ' ')
-        echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests:"
-        cat /tmp/tests_shard.txt
+    SHARD_COUNT=$(wc -l < "$LOG_DIR/tests_shard.txt" | tr -d ' ')
+    echo "Node $NODE_INDEX/${CIRCLE_NODE_TOTAL:-1} running $SHARD_COUNT tests:"
+    cat "$LOG_DIR/tests_shard.txt"
 
-        if [ "$SHARD_COUNT" -eq 0 ]; then
-            echo "No tests assigned to this node, skipping."
-            exit 0
-        fi
-
-        RUN_FLAG="-run=^($(paste -sd '|' /tmp/tests_shard.txt))$"
-        JUNIT_FILE="$RESULTS_DIR/results-${NODE_INDEX}.xml"
-        JSON_FILE="$LOG_DIR/raw_go_events-${NODE_INDEX}.log"
+    # There are far more tests than nodes, so an empty shard means the split failed.
+    if [ "$SHARD_COUNT" -eq 0 ]; then
+        echo "error: no tests assigned to this node" >&2
+        exit 1
     fi
 
+    # Pair each test on this node with the package(s) that have it, in shard order.
+    while read -r name; do
+        grep " $name\$" "$LOG_DIR/tests_all_pairs.txt" || { echo "error: no package found for $name" >&2; exit 1; }
+    done < "$LOG_DIR/tests_shard.txt" > "$LOG_DIR/tests_pairs.txt"
+
+    # Runs one test; passing means a clean exit and the test starting and reporting
+    # a pass or skip, since `go test` also passes when -run matches nothing. Exits
+    # are only ever 0 or 1 because xargs stops starting tests if a command exits 255
+    # or dies from a signal. A failed test keeps its own copy of the output, untangled
+    # from the other tests'.
+    run_test() {
+        local id="$NODE_INDEX-${1//\//.}.$2"
+        local failed_log="$LOG_DIR/failed/$id.log"
+        {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \
+            --format testname \
+            --junitfile "$RESULTS_DIR/results-$id.xml" \
+            --jsonfile "$LOG_DIR/raw_go_events-$id.log" \
+            -- \
+            -count=1 \
+            -parallel "$TEST_PARALLEL" \
+            -timeout "$TEST_TIMEOUT" \
+            -run "^$2\$" \
+            "$1" \
+            2>&1 | tee "$failed_log"
+        if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+            return 1
+        fi
+        if ! grep -qF "\"Action\":\"run\",\"Package\":\"$1\",\"Test\":\"$2\"" "$LOG_DIR/raw_go_events-$id.log" \
+            || ! grep -qE "\"Output\":\"--- (PASS|SKIP): $2 \(" "$LOG_DIR/raw_go_events-$id.log"; then
+            echo "FAIL $1.$2 (go test exited 0 but the test did not run and report a pass or skip)" | tee -a "$failed_log"
+            return 1
+        fi
+        rm "$failed_log"
+    }
+    export -f run_test
+    export LOG_LEVEL RESULTS_DIR LOG_DIR TEST_PARALLEL TEST_TIMEOUT
+
     set +e
-    LOG_LEVEL="${LOG_LEVEL}" {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \
-        --format testname \
-        --junitfile "$JUNIT_FILE" \
-        --jsonfile "$JSON_FILE" \
-        -- \
-        -count=1 \
-        -p "${JOBS}" \
-        -parallel "${TEST_PARALLEL}" \
-        -timeout "${TEST_TIMEOUT}" \
-        ${RUN_FLAG:+"$RUN_FLAG"} \
-        "${TEST_PACKAGES[@]}" \
+    xargs -n 2 -P "$JOBS" bash -c 'run_test "$@" </dev/null' _ < "$LOG_DIR/tests_pairs.txt" \
         2>&1 | tee "$LOG_DIR/all.log"
     TEST_STATUS=${PIPESTATUS[0]}
     set -e
+
+    RAN=$(( $(find "$LOG_DIR" -maxdepth 1 -name 'raw_go_events-*' | wc -l) ))
+    TOTAL=$(( $(wc -l < "$LOG_DIR/tests_pairs.txt") ))
+    FAILED=$(( $(find "$LOG_DIR/failed" -name '*.log' | wc -l) ))
+    echo "Ran $RAN of $TOTAL tests, $FAILED failed" | tee -a "$LOG_DIR/all.log"
+    if [ "$RAN" -ne "$TOTAL" ] && [ "$TEST_STATUS" -eq 0 ]; then
+        echo "error: not every test ran" | tee -a "$LOG_DIR/all.log"
+        TEST_STATUS=1
+    fi
 
     cp "$LOG_DIR/all.log" "$LOG_DIR/summary.log"
     exit "$TEST_STATUS"
