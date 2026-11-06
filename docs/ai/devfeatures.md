@@ -17,7 +17,7 @@ Active flags:
 |------|-------|
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `BridgeHook` | Bridge hook configuration on OptimismPortal2, currently planned only for the compliance module |
-| `OPPrivate` | The OP Private `ChainConfig` predeploy in L2 genesis, holding the chain's settlement chain ID (op-deployer chain override `settlementChainId`) |
+| `OPPrivate` | The OP Private `ChainConfig` predeploy in L2 genesis, holding the chain's settlement chain ID (op-deployer chain override `settlementChainId`, per chain only). A chain whose `settlementChainId` names an earlier chain of the same intent is a private chain: op-deployer reuses that chain's L1 contracts for it and skips it in `validate` and `verify` |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade — **enabled by default** |
 
 

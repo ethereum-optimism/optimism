@@ -15,6 +15,7 @@ import (
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -50,7 +51,7 @@ func settlementSlot(t *testing.T, st *state.State, id common.Hash) *big.Int {
 }
 
 // requireSharesSettlement checks that the private chain shares the settlement chain's L1
-// contracts and start block, and has an L2 genesis of its own.
+// contracts and has an L2 genesis of its own.
 func requireSharesSettlement(t *testing.T, st *state.State, settlementID, privateID common.Hash) {
 	t.Helper()
 	settlement, err := st.Chain(settlementID)
@@ -58,13 +59,12 @@ func requireSharesSettlement(t *testing.T, st *state.State, settlementID, privat
 	private, err := st.Chain(privateID)
 	require.NoError(t, err)
 	require.Equal(t, settlement.OpChainContracts, private.OpChainContracts)
-	require.Equal(t, settlement.StartBlock, private.StartBlock)
 	require.NotNil(t, private.Allocs)
 }
 
 // TestApplySettlementGroup applies a settlement chain and one of its private chains. The private
-// chain gets no L1 contracts of its own: it shares the settlement chain's contracts and start
-// block, and its rollup config points at them.
+// chain gets no L1 contracts of its own: it shares the settlement chain's contracts, and its
+// rollup config points at them.
 func TestApplySettlementGroup(t *testing.T) {
 	op_e2e.InitParallel(t)
 
@@ -83,13 +83,11 @@ func TestApplySettlementGroup(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, settlementRollup.L1SystemConfigAddress, privateRollup.L1SystemConfigAddress)
 	require.Equal(t, settlementRollup.DepositContractAddress, privateRollup.DepositContractAddress, "both derive from the shared portal")
-	require.Equal(t, settlementRollup.Genesis.L1, privateRollup.Genesis.L1)
-	require.Equal(t, settlementRollup.Genesis.L2Time, privateRollup.Genesis.L2Time)
 	require.Equal(t, int64(2), privateRollup.L2ChainID.Int64())
 }
 
 // TestApplySettlementGroupAddPrivateChain adds a private chain to an applied settlement chain and
-// applies again.
+// applies again. The new chain sets its own genesis time.
 func TestApplySettlementGroupAddPrivateChain(t *testing.T) {
 	op_e2e.InitParallel(t)
 
@@ -102,7 +100,13 @@ func TestApplySettlementGroupAddPrivateChain(t *testing.T) {
 
 	// The genesis target seals a new L1 genesis on every apply, which moves every chain's start
 	// block. The live target keeps a start block once set.
-	private := addChain(t, intent, dk, 2, map[string]any{"settlementChainId": 1})
+	_, settlementRollup, err := inspect.GenesisAndRollup(st, settlement.ID)
+	require.NoError(t, err)
+	genesisTime := settlementRollup.Genesis.L2Time + 600
+	private := addChain(t, intent, dk, 2, map[string]any{
+		"settlementChainId":       1,
+		"l2GenesisBlockTimestamp": hexutil.Uint64(genesisTime),
+	})
 	require.NoError(t, deployer.ApplyPipeline(context.Background(), opts))
 
 	after, err := st.Chain(settlement.ID)
@@ -110,6 +114,9 @@ func TestApplySettlementGroupAddPrivateChain(t *testing.T) {
 	require.Equal(t, contracts, after.OpChainContracts, "the settlement chain is not deployed again")
 	requireSharesSettlement(t, st, settlement.ID, private.ID)
 	require.Equal(t, int64(1), settlementSlot(t, st, private.ID).Int64())
+	_, privateRollup, err := inspect.GenesisAndRollup(st, private.ID)
+	require.NoError(t, err)
+	require.Equal(t, genesisTime, privateRollup.Genesis.L2Time)
 }
 
 // TestApplySettlementGroupRejectsSettlementChainIDChange applies a public chain, then tries to

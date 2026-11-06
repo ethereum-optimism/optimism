@@ -28,13 +28,6 @@ func SetStartBlockLiveStrategy(ctx context.Context, intent *state.Intent, env *E
 		lgr.Info("start block already set")
 		return nil
 	}
-	settlementID, private, err := PrivateChainSettlement(intent, thisIntent)
-	if err != nil {
-		return err
-	}
-	if private {
-		return copySettlementStartBlock(st, thisChainState, settlementID)
-	}
 
 	l1Client := env.L1Client.Client()
 

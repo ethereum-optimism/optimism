@@ -42,7 +42,7 @@ func SettlementChainIDOverride(intent *state.Intent, chain *state.ChainIntent) (
 
 // PrivateChainSettlement returns the settlement chain of an OP Private private chain: a chain
 // whose settlementChainId deploy override names another chain. A private chain shares the L1
-// contracts and the L1 start block of its settlement chain, which must be in the same intent.
+// contracts of its settlement chain, which must be in the same intent.
 func PrivateChainSettlement(intent *state.Intent, chain *state.ChainIntent) (common.Hash, bool, error) {
 	settlementID, err := settlementChainOf(intent, chain)
 	if err != nil {
@@ -67,8 +67,7 @@ func settlementChainOf(intent *state.Intent, chain *state.ChainIntent) (common.H
 // checkSettlementGroups checks the OP Private chains of the intent. A private chain's settlement
 // chain must be earlier in the same intent and must be its own settlement chain, so groups have
 // one level and no cycles. A private chain must configure its shared L1 contracts as its
-// settlement chain does. The chains of a group must not override their start block or genesis
-// time, which they share.
+// settlement chain does.
 func checkSettlementGroups(intent *state.Intent) error {
 	position := make(map[common.Hash]int, len(intent.Chains))
 	settlementOf := make(map[common.Hash]common.Hash, len(intent.Chains))
@@ -81,7 +80,6 @@ func checkSettlementGroups(intent *state.Intent) error {
 		settlementOf[chain.ID] = settlementID
 	}
 
-	inGroup := make(map[common.Hash]bool)
 	for i, chain := range intent.Chains {
 		settlementID := settlementOf[chain.ID]
 		if settlementID == (common.Hash{}) {
@@ -107,29 +105,15 @@ func checkSettlementGroups(intent *state.Intent) error {
 		if err := checkPrivateChainL1Config(intent, chain, intent.Chains[j]); err != nil {
 			return err
 		}
-		inGroup[chain.ID] = true
-		inGroup[settlementID] = true
-	}
-
-	for _, chain := range intent.Chains {
-		if !inGroup[chain.ID] {
-			continue
-		}
-		if key, ok := state.FindPinnedOverrideKey(chain.DeployOverrides); ok {
-			return fmt.Errorf("%w: chain %s: deployOverrides key %q is not allowed in a settlement group, whose chains share one start block and genesis time", state.ErrIncompatibleValue, chain.ID.Hex(), key)
-		}
 	}
 	return nil
 }
 
 // checkPrivateChainL1Config checks that a private chain configures its L1 contracts as its
 // settlement chain does. op-deployer deploys no L1 contracts for the private chain, so any other
-// value would never reach L1. The chain's own L2 values, such as its batcher, gas limit, EIP-1559
-// and operator fee parameters, are left alone.
+// value would never reach L1. The chain's own values, such as its batcher, gas limit, EIP-1559
+// and operator fee parameters, start block and genesis time, are left alone.
 func checkPrivateChainL1Config(intent *state.Intent, chain *state.ChainIntent, settlement *state.ChainIntent) error {
-	if chain.L1StartBlockHash != nil {
-		return fmt.Errorf("%w: private chain %s: l1StartBlockHash must be unset; the chain uses its settlement chain's start block", state.ErrIncompatibleValue, chain.ID.Hex())
-	}
 	if chain.DangerousAltDAConfig.UseAltDA || len(chain.AdditionalDisputeGames) > 0 {
 		return fmt.Errorf("%w: private chain %s: alt-DA and additional dispute games must be unset; the chain shares its settlement chain's L1 contracts", state.ErrIncompatibleValue, chain.ID.Hex())
 	}
@@ -205,19 +189,5 @@ func reuseSettlementContracts(st *state.State, chainID common.Hash, settlementID
 		return err
 	}
 	st.SetChainContracts(chainID, settlement.OpChainContracts, true)
-	return nil
-}
-
-// copySettlementStartBlock gives a private chain the start block of its settlement chain.
-func copySettlementStartBlock(st *state.State, chainState *state.ChainState, settlementID common.Hash) error {
-	settlement, err := st.Chain(settlementID)
-	if err != nil {
-		return err
-	}
-	if settlement.StartBlock == nil {
-		return fmt.Errorf("settlement chain %s of private chain %s has no start block", settlementID.Hex(), chainState.ID.Hex())
-	}
-	startBlock := *settlement.StartBlock
-	chainState.StartBlock = &startBlock
 	return nil
 }

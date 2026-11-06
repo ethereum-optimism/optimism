@@ -1,7 +1,6 @@
 package pipeline
 
 import (
-	"context"
 	"log/slog"
 	"math/big"
 	"testing"
@@ -99,9 +98,6 @@ func TestCheckSettlementGroups(t *testing.T) {
 			in.Chains[0].DeployOverrides["settlementChainId"] = 903
 			in.Chains = []*state.ChainIntent{in.Chains[2], in.Chains[0], in.Chains[1]}
 		}, "chain " + settlementID.Hex() + " is not a settlement chain"},
-		{"private chain with a start block", func(in *state.Intent) {
-			in.Chains[1].L1StartBlockHash = &common.Hash{1}
-		}, "l1StartBlockHash must be unset"},
 		{"private chain with alt-DA", func(in *state.Intent) {
 			in.Chains[1].DangerousAltDAConfig.UseAltDA = true
 		}, "alt-DA and additional dispute games must be unset"},
@@ -123,12 +119,6 @@ func TestCheckSettlementGroups(t *testing.T) {
 		{"private chain with other dispute params", func(in *state.Intent) {
 			in.Chains[1].DeployOverrides["proofMaturityDelaySeconds"] = 1
 		}, "the dispute game deploy overrides must equal that of settlement chain"},
-		{"private chain with a genesis timestamp", func(in *state.Intent) {
-			in.Chains[1].DeployOverrides["l2GenesisBlockTimestamp"] = "0x1"
-		}, `chain ` + privateID.Hex() + `: deployOverrides key "l2GenesisBlockTimestamp" is not allowed in a settlement group`},
-		{"settlement chain with an L1 starting block", func(in *state.Intent) {
-			in.Chains[0].DeployOverrides["l1StartingBlockTag"] = "latest"
-		}, `chain ` + settlementID.Hex() + `: deployOverrides key "l1StartingBlockTag" is not allowed in a settlement group`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -148,10 +138,12 @@ func TestCheckSettlementGroups(t *testing.T) {
 		require.NoError(t, checkSettlementGroups(intent))
 	})
 
-	t.Run("a settlement chain without private chains may pin its start", func(t *testing.T) {
+	t.Run("each chain of a group sets its own start", func(t *testing.T) {
 		intent := settlementGroupIntent()
-		intent.Chains = intent.Chains[:1]
+		intent.Chains[0].L1StartBlockHash = &common.Hash{1}
 		intent.Chains[0].DeployOverrides["l1StartingBlockTag"] = "latest"
+		intent.Chains[1].L1StartBlockHash = &common.Hash{2}
+		intent.Chains[1].DeployOverrides["l2GenesisBlockTimestamp"] = "0x1"
 		require.NoError(t, checkSettlementGroups(intent))
 	})
 
@@ -198,26 +190,4 @@ func TestDeployOPChainReusesSettlementContracts(t *testing.T) {
 	private, err := st.Chain(privateID)
 	require.NoError(t, err)
 	require.Equal(t, contracts, private.OpChainContracts)
-}
-
-// The live strategy copies the settlement chain's start block, without an L1 client.
-func TestSetStartBlockLiveStrategyPrivateChain(t *testing.T) {
-	intent := settlementGroupIntent()
-	env := &Env{Logger: testlog.Logger(t, slog.LevelInfo)}
-	st := &state.State{}
-	st.SetChainContracts(settlementID, addresses.OpChainContracts{}, true)
-	st.SetChainContracts(privateID, addresses.OpChainContracts{}, true)
-
-	require.ErrorContains(t, SetStartBlockLiveStrategy(context.Background(), intent, env, st, privateID),
-		"settlement chain "+settlementID.Hex()+" of private chain "+privateID.Hex()+" has no start block")
-
-	settlement, err := st.Chain(settlementID)
-	require.NoError(t, err)
-	settlement.StartBlock = &state.L1BlockRefJSON{Hash: common.Hash{9}, Number: 77, Time: 1000}
-	require.NoError(t, SetStartBlockLiveStrategy(context.Background(), intent, env, st, privateID))
-	private, err := st.Chain(privateID)
-	require.NoError(t, err)
-	require.Equal(t, *settlement.StartBlock, *private.StartBlock)
-	require.NotSame(t, settlement.StartBlock, private.StartBlock)
-	require.Nil(t, private.GenesisTime)
 }
