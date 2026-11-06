@@ -17,13 +17,14 @@ library BridgeHookTypes {
         ERC20
     }
 
-    /// @notice Where a held token transfer's token is native. The L1StandardBridge escrows
-    ///         NativeL1 tokens. A NativeL2 token is an OptimismMintableERC20 on L1, which the
-    ///         bridge mints and burns. None means no hold is recorded.
+    /// @notice How the L1StandardBridge handles a held token transfer's L1 token. It escrows an
+    ///         Escrowed token. A Mintable token reports the OptimismMintableERC20 or legacy
+    ///         mintable interface through ERC-165, so the bridge mints and burns it. None means no
+    ///         hold is recorded.
     enum TokenKind {
         None,
-        NativeL1,
-        NativeL2
+        Escrowed,
+        Mintable
     }
 
     /// @notice A deposit or withdrawal with the sender, target, values and data recorded by the

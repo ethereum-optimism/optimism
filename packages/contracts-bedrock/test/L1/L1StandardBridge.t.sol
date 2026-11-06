@@ -850,8 +850,8 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_Test is CommonTest {
 abstract contract L1StandardBridge_BridgeHook_TestInit is CommonTest {
     using stdStorage for StdStorage;
 
-    event ERC20Held(address indexed l1Token, address indexed l2Token, uint256 amount);
-    event ERC20Restored(address indexed l1Token, address indexed l2Token, uint256 amount);
+    event ERC20Held(bytes32 indexed id, address indexed l1Token, address indexed l2Token, uint256 amount);
+    event ERC20Restored(bytes32 indexed id, address indexed l1Token, address indexed l2Token, uint256 amount);
 
     bytes32 internal constant ID = keccak256("id");
 
@@ -884,7 +884,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         _escrow(L1Token, address(L2Token), _deposits);
 
         vm.expectEmit(address(l1StandardBridge));
-        emit ERC20Held(address(L1Token), address(L2Token), _amount);
+        emit ERC20Held(_id, address(L1Token), address(L2Token), _amount);
 
         vm.prank(address(optimismPortal2));
         l1StandardBridge.holdERC20(
@@ -899,7 +899,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         assertEq(L1Token.balanceOf(hook), _amount);
         assertEq(L1Token.balanceOf(bob), 0);
         assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), _deposits - _amount);
-        assertEq(uint256(l1StandardBridge.heldTokenKinds(_id)), uint256(BridgeHookTypes.TokenKind.NativeL1));
+        assertEq(uint256(l1StandardBridge.heldTokenKinds(_id)), uint256(BridgeHookTypes.TokenKind.Escrowed));
     }
 
     /// @notice Tests that a withdrawal's hold moves the escrowed amount to the hook.
@@ -908,7 +908,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         _escrow(L1Token, address(L2Token), _deposits);
 
         vm.expectEmit(address(l1StandardBridge));
-        emit ERC20Held(address(L1Token), address(L2Token), _amount);
+        emit ERC20Held(_id, address(L1Token), address(L2Token), _amount);
 
         vm.prank(address(optimismPortal2));
         l1StandardBridge.holdERC20(
@@ -923,7 +923,7 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         assertEq(L1Token.balanceOf(hook), _amount);
         assertEq(L1Token.balanceOf(bob), 0);
         assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), _deposits - _amount);
-        assertEq(uint256(l1StandardBridge.heldTokenKinds(_id)), uint256(BridgeHookTypes.TokenKind.NativeL1));
+        assertEq(uint256(l1StandardBridge.heldTokenKinds(_id)), uint256(BridgeHookTypes.TokenKind.Escrowed));
     }
 
     /// @notice Tests that a hold reverts when the pair's deposits are short, even though the
@@ -992,11 +992,11 @@ contract L1StandardBridge_HoldERC20_Test is L1StandardBridge_BridgeHook_TestInit
         assertEq(BadL1Token.balanceOf(hook), 0);
         assertEq(l1StandardBridge.deposits(address(BadL1Token), address(NativeL2Token)), 0);
         assertEq(
-            uint256(l1StandardBridge.heldTokenKinds(keccak256("deposit"))), uint256(BridgeHookTypes.TokenKind.NativeL2)
+            uint256(l1StandardBridge.heldTokenKinds(keccak256("deposit"))), uint256(BridgeHookTypes.TokenKind.Mintable)
         );
         assertEq(
             uint256(l1StandardBridge.heldTokenKinds(keccak256("withdrawal"))),
-            uint256(BridgeHookTypes.TokenKind.NativeL2)
+            uint256(BridgeHookTypes.TokenKind.Mintable)
         );
     }
 
@@ -1090,13 +1090,13 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         stdstore.target(address(l1StandardBridge))
             .sig(l1StandardBridge.heldTokenKinds.selector)
             .with_key(_id)
-            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL1));
+            .checked_write(uint256(BridgeHookTypes.TokenKind.Escrowed));
         deal(address(L1Token), hook, _amount);
         vm.prank(hook);
         L1Token.approve(address(l1StandardBridge), _amount);
 
         vm.expectEmit(address(l1StandardBridge));
-        emit ERC20Restored(address(L1Token), address(L2Token), _amount);
+        emit ERC20Restored(_id, address(L1Token), address(L2Token), _amount);
 
         vm.prank(address(optimismPortal2));
         l1StandardBridge.restoreERC20(
@@ -1121,13 +1121,13 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         stdstore.target(address(l1StandardBridge))
             .sig(l1StandardBridge.heldTokenKinds.selector)
             .with_key(_id)
-            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL1));
+            .checked_write(uint256(BridgeHookTypes.TokenKind.Escrowed));
         deal(address(L1Token), hook, _amount);
         vm.prank(hook);
         L1Token.approve(address(l1StandardBridge), _amount);
 
         vm.expectEmit(address(l1StandardBridge));
-        emit ERC20Restored(address(L1Token), address(L2Token), _amount);
+        emit ERC20Restored(_id, address(L1Token), address(L2Token), _amount);
 
         vm.prank(address(optimismPortal2));
         l1StandardBridge.restoreERC20(
@@ -1171,8 +1171,38 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), _amount);
     }
 
+    /// @notice Tests that restoring one of two holds of the same message leaves the other held.
+    function testFuzz_restoreERC20_otherIdHeld_succeeds(bytes32 _id, bytes32 _otherId, uint256 _amount) external {
+        vm.assume(_id != _otherId);
+        _amount = bound(_amount, 0, type(uint256).max / 2);
+        _escrow(L1Token, address(L2Token), 2 * _amount);
+        bytes memory message = abi.encodeCall(
+            StandardBridge.finalizeBridgeERC20, (address(L2Token), address(L1Token), alice, bob, _amount, hex"")
+        );
+
+        vm.startPrank(address(optimismPortal2));
+        l1StandardBridge.holdERC20(_id, BridgeHookTypes.Direction.Deposit, message);
+        l1StandardBridge.holdERC20(_otherId, BridgeHookTypes.Direction.Deposit, message);
+        vm.stopPrank();
+        vm.prank(hook);
+        L1Token.approve(address(l1StandardBridge), 2 * _amount);
+
+        vm.prank(address(optimismPortal2));
+        l1StandardBridge.restoreERC20(_id, BridgeHookTypes.Direction.Deposit, message);
+
+        assertEq(uint256(l1StandardBridge.heldTokenKinds(_otherId)), uint256(BridgeHookTypes.TokenKind.Escrowed));
+        assertEq(L1Token.balanceOf(hook), _amount);
+        assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), _amount);
+
+        vm.prank(address(optimismPortal2));
+        l1StandardBridge.restoreERC20(_otherId, BridgeHookTypes.Direction.Deposit, message);
+
+        assertEq(L1Token.balanceOf(hook), 0);
+        assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), 2 * _amount);
+    }
+
     /// @notice Tests that a restore uses the token kind recorded at hold, not the current one.
-    function test_restoreERC20_becameNativeL1_succeeds() external {
+    function test_restoreERC20_noLongerMintable_succeeds() external {
         bytes memory message = abi.encodeCall(
             StandardBridge.finalizeBridgeERC20, (address(NativeL2Token), address(BadL1Token), alice, bob, 100, hex"")
         );
@@ -1203,7 +1233,7 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         stdstore.target(address(l1StandardBridge))
             .sig(l1StandardBridge.heldTokenKinds.selector)
             .with_key(ID)
-            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL1));
+            .checked_write(uint256(BridgeHookTypes.TokenKind.Escrowed));
         deal(address(token), hook, 60);
         vm.prank(hook);
         token.approve(address(l1StandardBridge), 60);
@@ -1227,11 +1257,11 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         stdstore.target(address(l1StandardBridge))
             .sig(l1StandardBridge.heldTokenKinds.selector)
             .with_key(keccak256("deposit"))
-            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL2));
+            .checked_write(uint256(BridgeHookTypes.TokenKind.Mintable));
         stdstore.target(address(l1StandardBridge))
             .sig(l1StandardBridge.heldTokenKinds.selector)
             .with_key(keccak256("withdrawal"))
-            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL2));
+            .checked_write(uint256(BridgeHookTypes.TokenKind.Mintable));
 
         vm.recordLogs();
         vm.startPrank(address(optimismPortal2));
@@ -1326,7 +1356,7 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         stdstore.target(address(l1StandardBridge))
             .sig(l1StandardBridge.heldTokenKinds.selector)
             .with_key(ID)
-            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL1));
+            .checked_write(uint256(BridgeHookTypes.TokenKind.Escrowed));
         deal(address(L1Token), hook, 100);
         vm.prank(hook);
         L1Token.approve(address(l1StandardBridge), 99);
@@ -1347,7 +1377,7 @@ contract L1StandardBridge_RestoreERC20_Test is L1StandardBridge_BridgeHook_TestI
         stdstore.target(address(l1StandardBridge))
             .sig(l1StandardBridge.heldTokenKinds.selector)
             .with_key(ID)
-            .checked_write(uint256(BridgeHookTypes.TokenKind.NativeL1));
+            .checked_write(uint256(BridgeHookTypes.TokenKind.Escrowed));
         vm.mockCall(
             address(L1Token),
             abi.encodeCall(ERC20.transferFrom, (hook, address(l1StandardBridge), 100)),
