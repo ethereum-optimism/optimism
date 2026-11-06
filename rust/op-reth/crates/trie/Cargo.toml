@@ -78,6 +78,7 @@ reth-evm-ethereum.workspace = true
 reth-storage-errors.workspace = true
 secp256k1 = { workspace = true, features = ["rand", "std"] }
 mockall.workspace = true
+rstest.workspace = true
 eyre.workspace = true
 
 # misc

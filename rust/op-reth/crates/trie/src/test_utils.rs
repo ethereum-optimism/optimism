@@ -425,9 +425,14 @@ pub(crate) mod destroyed_accounts {
         hashed_cursor::{HashedCursor, HashedStorageCursor},
     };
 
+    /// Storage key of the plain slot `slot`.
+    pub(crate) fn plain_slot(slot: u64) -> B256 {
+        B256::from(U256::from(slot))
+    }
+
     /// Hashed storage key of the plain slot `slot`.
     pub(crate) fn hashed_slot(slot: u64) -> B256 {
-        keccak256(B256::from(U256::from(slot)))
+        keccak256(plain_slot(slot))
     }
 
     /// Non-wiped [`HashedStorage`] holding the plain `(slot, value)` pairs.
@@ -437,7 +442,10 @@ pub(crate) mod destroyed_accounts {
         )
     }
 
-    /// Commits `storages` as the initial state of `store`, anchored at block 0.
+    /// Anchor of the initial state [`seed_initial_storage`] commits.
+    pub(crate) const INITIAL_ANCHOR: BlockNumHash = BlockNumHash::new(0, B256::ZERO);
+
+    /// Commits `storages` as the initial state of `store`, anchored at [`INITIAL_ANCHOR`].
     pub(crate) fn seed_initial_storage<S: OpProofsStore>(
         store: &S,
         storages: &[(Address, &[(u64, u64)])],
@@ -449,7 +457,7 @@ pub(crate) mod destroyed_accounts {
             slots.sort_unstable();
             provider.store_hashed_storages(keccak256(address), slots).unwrap();
         }
-        provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).unwrap();
+        provider.set_initial_state_anchor(INITIAL_ANCHOR).unwrap();
         provider.commit_initial_state().unwrap();
         OpProofsInitProvider::commit(provider).unwrap();
     }
