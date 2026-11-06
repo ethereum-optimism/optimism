@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/protolambda/ctxlock"
 )
 
 // A CachingReceiptsProvider caches successful receipt fetches from the inner
@@ -18,7 +19,7 @@ type CachingReceiptsProvider struct {
 	cache *caching.LRUCache[common.Hash, optypes.Receipts]
 
 	// lock fetching process for each block hash to avoid duplicate requests
-	fetching   map[common.Hash]*sync.Mutex
+	fetching   map[common.Hash]*ctxlock.Lock
 	fetchingMu sync.Mutex // only protects map
 }
 
@@ -26,7 +27,7 @@ func NewCachingReceiptsProvider(inner ReceiptsProvider, m caching.Metrics, cache
 	return &CachingReceiptsProvider{
 		inner:    inner,
 		cache:    caching.NewLRUCache[common.Hash, optypes.Receipts](m, "receipts", cacheSize),
-		fetching: make(map[common.Hash]*sync.Mutex),
+		fetching: make(map[common.Hash]*ctxlock.Lock),
 	}
 }
 
@@ -34,13 +35,13 @@ func NewCachingRPCReceiptsProvider(client rpcClient, log log.Logger, config RPCR
 	return NewCachingReceiptsProvider(NewRPCReceiptsFetcher(client, log, config), m, cacheSize)
 }
 
-func (p *CachingReceiptsProvider) getOrCreateFetchingLock(blockHash common.Hash) *sync.Mutex {
+func (p *CachingReceiptsProvider) getOrCreateFetchingLock(blockHash common.Hash) *ctxlock.Lock {
 	p.fetchingMu.Lock()
 	defer p.fetchingMu.Unlock()
 	if mu, ok := p.fetching[blockHash]; ok {
 		return mu
 	}
-	mu := new(sync.Mutex)
+	mu := new(ctxlock.Lock)
 	p.fetching[blockHash] = mu
 	return mu
 }
@@ -60,7 +61,9 @@ func (p *CachingReceiptsProvider) FetchReceipts(ctx context.Context, blockInfo e
 	}
 
 	mu := p.getOrCreateFetchingLock(block.Hash)
-	mu.Lock()
+	if err := mu.LockCtx(ctx); err != nil {
+		return nil, err
+	}
 	defer mu.Unlock()
 	// Other routine might have fetched in the meantime
 	if r, ok := p.cache.Get(block.Hash); ok {
