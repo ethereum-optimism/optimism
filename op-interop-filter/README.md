@@ -4,6 +4,8 @@ A lightweight service that validates interop executing messages for op-geth or o
 
 Any reorg will trigger the failsafe which disables all interop transactions. If `--reorg-recovery-enabled` is set, reorg-triggered failsafe is automatically resolved by rewinding logs DB state to finalized.
 
+An operator can enable the failsafe manually with `admin_setFailsafeEnabled`. The filter stores this state in `failsafe.json` in `--data-dir`, so the failsafe stays on after a restart. Without `--data-dir`, the manual failsafe does not survive a restart. Set `--failsafe-enabled` to enable the manual failsafe at every start.
+
 ## Usage
 
 ### Build from source

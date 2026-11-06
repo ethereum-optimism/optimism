@@ -115,6 +115,11 @@ var (
 		Usage:   "Automatically resolve reorg-triggered failsafe by rewinding logs DBs to finalized.",
 		EnvVars: prefixEnvVars("REORG_RECOVERY_ENABLED"),
 	}
+	FailsafeEnabledFlag = &cli.BoolFlag{
+		Name:    "failsafe-enabled",
+		Usage:   "Enable the manual failsafe at start. The admin RPC can clear it, but the next start enables it again.",
+		EnvVars: prefixEnvVars("FAILSAFE_ENABLED"),
+	}
 	FailsafeLogIntervalFlag = &cli.DurationFlag{
 		Name:    "failsafe-log-interval",
 		Usage:   "Interval at which the active failsafe reason is re-logged while failsafe is enabled (e.g., 1m, 30s)",
@@ -164,6 +169,7 @@ var optionalFlags = []cli.Flag{
 	PollIntervalFlag,
 	ValidationIntervalFlag,
 	ReorgRecoveryEnabledFlag,
+	FailsafeEnabledFlag,
 	FailsafeLogIntervalFlag,
 	RPCConcurrencyFlag,
 	FetchConcurrencyFlag,
