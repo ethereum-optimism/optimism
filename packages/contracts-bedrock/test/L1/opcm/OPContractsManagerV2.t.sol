@@ -2012,6 +2012,23 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         _assertUpgradeRejectsBridgeHook(cts, makeAddr("bridgeHook"));
     }
 
+    /// @notice Tests that an upgrade rejects a hook that has code but lacks the IComplianceModule
+    ///         getters. The getter call reverts with no data, before OPCM raises its own error.
+    function test_upgrade_bridgeHookWithoutGetters_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        address hook = address(cts.l1StandardBridge);
+
+        vm.expectCall(hook, abi.encodeCall(IComplianceModule.portal, ()));
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success, bytes memory reason) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (_bridgeHookUpgradeInput(cts, hook))));
+
+        assertFalse(success, "upgrade should have reverted");
+        assertEq(reason.length, 0, "unexpected revert data");
+    }
+
     /// @notice Tests that an upgrade rejects a bridge hook built for another portal.
     function test_upgrade_bridgeHookWrongPortal_reverts() public {
         skipIfDevFeatureDisabled(DevFeatures.BRIDGE_HOOK);
