@@ -105,6 +105,8 @@ type Metrics struct {
 	DroppedPublishes *metrics.Event
 	SequencerActive  prometheus.Gauge
 
+	ConductorOverride prometheus.Gauge
+
 	*event.EventMetricsTracker
 
 	DerivedBatches metrics.EventVec
@@ -241,6 +243,11 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 			Namespace: ns,
 			Name:      "sequencer_active",
 			Help:      "1 if sequencer active, 0 otherwise",
+		}),
+		ConductorOverride: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "conductor_override",
+			Help:      "1 if the conductor leader override is set and unsafe payloads are not committed to the conductor, 0 otherwise",
 		}),
 		EventMetricsTracker: event.NewMetricsTracker(ns, factory),
 
@@ -496,6 +503,14 @@ func (m *Metrics) SetSequencerState(active bool) {
 		val = 1
 	}
 	m.SequencerActive.Set(val)
+}
+
+func (m *Metrics) SetConductorOverride(override bool) {
+	var val float64
+	if override {
+		val = 1
+	}
+	m.ConductorOverride.Set(val)
 }
 
 func (m *Metrics) RecordPipelineReset() {

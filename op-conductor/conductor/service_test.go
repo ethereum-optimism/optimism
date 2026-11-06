@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	clientmocks "github.com/ethereum-optimism/optimism/op-conductor/client/mocks"
@@ -118,6 +119,7 @@ func (s *OpConductorTestSuite) SetupTest() {
 	s.cons = &consensusmocks.Consensus{}
 	s.hmon = &healthmocks.HealthMonitor{}
 	s.cons.EXPECT().ServerID().Return("SequencerA")
+	s.cons.EXPECT().LocalUnsafePayload().Return(nil).Maybe()
 
 	conductor, err := NewOpConductor(s.ctx, &s.cfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
 	s.NoError(err)
@@ -1186,4 +1188,25 @@ func (s *OpConductorTestSuite) TestRollupBoostPartialFailure() {
 	// Verify the expected actions were taken
 	s.ctrl.AssertNumberOfCalls(s.T(), "StopSequencer", 1)
 	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
+}
+
+type unsafeHeadMetrics struct {
+	metrics.NoopMetricsImpl
+	raftUnsafeHead uint64
+}
+
+func (m *unsafeHeadMetrics) RecordRaftUnsafeHead(num uint64) { m.raftUnsafeHead = num }
+
+func TestHandleHealthUpdateRecordsRaftUnsafeHead(t *testing.T) {
+	cons := &consensusmocks.Consensus{}
+	cons.EXPECT().ServerID().Return("SequencerA")
+	cons.EXPECT().LocalUnsafePayload().Return(&eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{BlockNumber: 42},
+	})
+	m := &unsafeHeadMetrics{}
+	oc := &OpConductor{log: testlog.Logger(t, log.LevelInfo), metrics: m, cons: cons}
+
+	oc.handleHealthUpdate(nil)
+
+	require.Equal(t, uint64(42), m.raftUnsafeHead)
 }
