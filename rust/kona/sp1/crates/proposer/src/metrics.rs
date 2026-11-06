@@ -10,6 +10,7 @@ use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter};
 
 use crate::{
+    config::ProofProviderKind,
     proving::{PROOF_REQUEST_KINDS, PROOF_REQUEST_STATES, ProofRequestCounts},
     tx_sender::PUBLISH_ERROR_REASONS,
 };
@@ -303,11 +304,15 @@ const TX_FEES: &str = "op_zk_proposer_tx_fees_gwei_total";
 const TX_SEND_OUTCOMES: [&str; 3] = ["confirmed", "reverted", "failed"];
 
 /// Registers metrics after installing the recorder, without treating unread balances as zero.
-pub fn register_metrics(network: bool) {
+pub fn register_metrics(provider: ProofProviderKind) {
+    let prove_balance = match provider {
+        ProofProviderKind::Network => true,
+        ProofProviderKind::Mock | ProofProviderKind::LocalCuda => false,
+    };
     ProposerGauge::register_all();
     for metric in ProposerGauge::iter() {
         let initial = match metric {
-            ProposerGauge::ProveBalance if !network => continue,
+            ProposerGauge::ProveBalance if !prove_balance => continue,
             ProposerGauge::SignerBalanceEth |
             ProposerGauge::SignerNonce |
             ProposerGauge::SignerPendingNonce |
@@ -326,7 +331,7 @@ pub fn register_metrics(network: bool) {
     }
     describe_gauge!(
         PROOF_REQUESTS,
-        "SPN proof requests of games being proven, by request kind and state"
+        "Proof requests of games being proven, by request kind and state"
     );
     record_proof_requests(&ProofRequestCounts::new());
     describe_counter!(TX_SENDS, "L1 sends by outcome: confirmed, reverted or failed (no receipt)");
@@ -397,4 +402,31 @@ pub(crate) fn record_tx_fee_bump() {
 /// Converts an 18-decimal ETH or PROVE balance to whole tokens.
 pub(crate) fn token_balance(balance: U256) -> f64 {
     f64::from(balance) / 1e18
+}
+
+#[cfg(test)]
+mod tests {
+    use metrics_exporter_prometheus::PrometheusBuilder;
+
+    use super::*;
+
+    #[test]
+    fn local_cuda_registers_no_prove_balance() {
+        for (provider, registered) in [
+            (ProofProviderKind::Network, true),
+            (ProofProviderKind::Mock, false),
+            (ProofProviderKind::LocalCuda, false),
+        ] {
+            let recorder = PrometheusBuilder::new().build_recorder();
+            let _guard = metrics::set_default_local_recorder(&recorder);
+            register_metrics(provider);
+            let rendered = recorder.handle().render();
+            assert_eq!(
+                rendered.contains("op_zk_proposer_prove_balance NaN"),
+                registered,
+                "{provider:?}"
+            );
+            assert!(rendered.contains("op_zk_proposer_signer_balance_eth NaN"), "{provider:?}");
+        }
+    }
 }

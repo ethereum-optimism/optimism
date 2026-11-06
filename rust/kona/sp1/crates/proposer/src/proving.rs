@@ -59,7 +59,7 @@ use crate::{
     config::{LogPath, RangeSplitCount, StdinByteLimit},
     log_proofs::{
         CollectedRequest, EstimateOverBudget, LogBatch, LogBatchProver, MockLogProver,
-        NetworkLogProver, check_collected, consolidation_cost, cover, log_batch_poll_interval,
+        Sp1LogProver, check_collected, consolidation_cost, cover, log_batch_poll_interval,
         make_log_batches, request_budget, scan::scan_span, timestamp_costs,
     },
     metrics::ProposerGauge,
@@ -236,7 +236,7 @@ struct ChunkIdentity {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ProviderIdentity {
     Mock,
-    Network { range_vkey: B256, aggregation_vkey: B256, log_vkey: [u32; 8] },
+    Sp1 { range_vkey: B256, aggregation_vkey: B256, log_vkey: [u32; 8] },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -355,8 +355,8 @@ enum LimitOutcome {
     Split,
     /// It cannot be split and is over a size limit.
     TooLarge,
-    /// It fails with the error. A request that SPN cannot execute stays terminal, and SIGUSR1
-    /// can retry it.
+    /// It fails with the error. A request that the prover cannot execute stays terminal, and
+    /// SIGUSR1 can retry it.
     Fail,
 }
 
@@ -413,8 +413,8 @@ impl LogBatchProgress {
     }
 
     /// The halves to prove instead of this batch after `err`, recorded on it, when `err` is over
-    /// a size limit or SPN cannot execute the batch (see [`limit_outcome`]). A batch of one block
-    /// cannot be split.
+    /// a size limit or the prover cannot execute the batch (see [`limit_outcome`]). A batch of one
+    /// block cannot be split.
     fn split_after(&self, err: anyhow::Error) -> Result<Arc<[Self; 2]>> {
         let exceeds = is_too_large(&err) || is_unexecutable(&err);
         match limit_outcome(&err, exceeds, self.batch.blocks.len() > 1) {
@@ -628,11 +628,11 @@ fn provider_identity(
     provider: &ProofProvider,
     keys: Option<&ProofKeys>,
 ) -> Result<ProviderIdentity> {
-    if provider.is_mock() {
+    if !provider.proves_with_sp1() {
         return Ok(ProviderIdentity::Mock);
     }
-    let keys = keys.context("network proving requires prestate proving keys")?;
-    Ok(ProviderIdentity::Network {
+    let keys = keys.context("SP1 proving requires prestate proving keys")?;
+    Ok(ProviderIdentity::Sp1 {
         range_vkey: B256::from(keys.range_vk.bytes32_raw()),
         aggregation_vkey: B256::from(keys.agg_vk.bytes32_raw()),
         log_vkey: keys.log_vk.hash_u32(),
@@ -654,7 +654,8 @@ const fn terminal_request_can_retry(outcome: ProofTerminalState) -> bool {
         ProofTerminalState::Cancelled |
         ProofTerminalState::Expired |
         ProofTerminalState::Reverted |
-        ProofTerminalState::Unfulfillable => true,
+        ProofTerminalState::Unfulfillable |
+        ProofTerminalState::ProverFailed => true,
         ProofTerminalState::Unexecutable | ProofTerminalState::ValidationFailed => false,
     }
 }
@@ -810,8 +811,8 @@ async fn wait_for_log_batches(
 }
 
 /// Waits for the proofs of the live batches under `node`, in batch order. A batch over a size
-/// limit, or that SPN cannot execute, is split (see [`LogBatchProgress::split_after`]), and its
-/// halves proved instead. A split is not a batch error.
+/// limit, or that the prover cannot execute, is split (see [`LogBatchProgress::split_after`]), and
+/// its halves proved instead. A split is not a batch error.
 fn wait_for_log_batch_tree<'s>(
     prover: &'s dyn LogBatchProver,
     node: &'s LogBatchProgress,
@@ -1027,7 +1028,7 @@ const LOG_BATCH_PROOF_STDIN_BYTES: u64 = 1_572_864;
 ///
 /// The buffers are counted arithmetically instead of encoded, since the witness buffer can be
 /// gigabytes: a `u64` length prefix for the buffer list and for each buffer, then its bytes.
-fn stdin_encoded_len(stdin: &SP1Stdin) -> Result<u64> {
+pub(crate) fn stdin_encoded_len(stdin: &SP1Stdin) -> Result<u64> {
     let buffers: u64 = stdin.buffer.iter().map(|buffer| 8 + buffer.len() as u64).sum();
     let proofs =
         bincode1::serialized_size(&stdin.proofs).context("failed to measure embedded proofs")?;
@@ -1551,8 +1552,8 @@ async fn with_batch_proofs(
     Ok((consolidation, proofs))
 }
 
-/// Proves the span's range requests in network mode, collecting those it has not checked yet (see
-/// [`prove_range`]), then adds the covering batch proofs to the consolidation stdin (see
+/// Proves the span's range requests with an SP1 provider, collecting those it has not checked yet
+/// (see [`prove_range`]), then adds the covering batch proofs to the consolidation stdin (see
 /// [`with_batch_proofs`]), checks it again, and proves the consolidation. The mock provider
 /// requests nothing.
 async fn prove_checked_span(
@@ -1562,10 +1563,10 @@ async fn prove_checked_span(
 ) -> Result<SpanResult> {
     let GameAttempt { provider, keys, logs, settings, .. } = *attempt;
     let CheckedSpan { span, synthesized, configs, range, mut consolidation } = checked;
-    let keys = match (provider, keys) {
-        (ProofProvider::Mock(_), _) => None,
-        (_, Some(keys)) => Some(keys),
-        (_, None) => bail!("network proving requires prestate proving keys"),
+    let keys = if provider.proves_with_sp1() {
+        Some(keys.context("SP1 proving requires prestate proving keys")?)
+    } else {
+        None
     };
     let prover = SpanRange { attempt, keys, synthesized: &synthesized, configs: &configs };
     let ranges =
@@ -1628,7 +1629,7 @@ fn is_too_large(err: &anyhow::Error) -> bool {
     is_witness_too_large(err) || err.chain().any(|cause| cause.is::<StdinTooLarge>())
 }
 
-/// True when `err` shows a request that SPN cannot execute.
+/// True when `err` shows a request that the prover cannot execute.
 fn is_unexecutable(err: &anyhow::Error) -> bool {
     err.chain().any(|cause| {
         matches!(
@@ -1640,8 +1641,8 @@ fn is_unexecutable(err: &anyhow::Error) -> bool {
 
 /// True when `err` shows that a request is too large to prove as it is: a request over a size
 /// limit or the range chain limit, an estimate over the budget, or one of the span's own requests
-/// that SPN cannot execute. A batch failure reaches a span flattened ([`batch_failure`]), so it
-/// never matches.
+/// that the prover cannot execute. A batch failure reaches a span flattened ([`batch_failure`]), so
+/// it never matches.
 ///
 /// Any `Unexecutable` counts, whatever SPN's execute-failure cause: SP1 execution is
 /// deterministic, so the same span cannot succeed on resubmission. A guest failure is bisected
@@ -1662,7 +1663,7 @@ fn exceeds_limits(err: &anyhow::Error) -> bool {
 /// again, and each half caches its own result. The caller caches `node`'s result. The range of a
 /// single timestamp over a limit is split by chain (see [`prove_range`]). A single timestamp's
 /// consolidation over a size limit is unprovable; one over its estimate is requested anyway (see
-/// [`check_collected`]); and one that SPN cannot execute stays terminal.
+/// [`check_collected`]); and one that the prover cannot execute stays terminal.
 fn prove_span<'s, P: SpanProver>(
     prover: &'s P,
     index: usize,
@@ -1962,16 +1963,16 @@ async fn start_game_logs<'a>(
         return Ok(GameLogs::without_batches(stage));
     }
     let max_stdin_bytes = request.log.max_stdin_bytes;
-    let prover: Arc<dyn LogBatchProver + 'a> = match (provider, keys) {
-        (ProofProvider::Mock(_), _) => Arc::new(MockLogProver { l2: request.l2, max_stdin_bytes }),
-        (provider, Some(keys)) => Arc::new(NetworkLogProver {
+    let prover: Arc<dyn LogBatchProver + 'a> = if provider.proves_with_sp1() {
+        Arc::new(Sp1LogProver {
             provider,
-            keys,
+            keys: keys.context("SP1 proving requires prestate proving keys")?,
             l2: request.l2,
             max_stdin_bytes,
             poll_interval: log_batch_poll_interval(stage.batches.len()),
-        }),
-        (_, None) => bail!("network proving requires prestate proving keys"),
+        })
+    } else {
+        Arc::new(MockLogProver { l2: request.l2, max_stdin_bytes })
     };
     let proofs = start_log_batches(prover, Arc::clone(&stage)).await?;
     Ok(GameLogs { stage, proofs })
@@ -2178,7 +2179,7 @@ pub(crate) struct ProveGameRequest<'a> {
 
 /// Proves the game's span end to end and returns the on-chain proof bytes.
 ///
-/// `keys` must be `Some` in network mode (resolved per-prestate through the
+/// `keys` must be `Some` for an SP1 provider (resolved per-prestate through the
 /// prestate cache) and may be `None` in mock mode.
 pub(crate) async fn prove_game_inner(
     provider: &ProofProvider,
@@ -2186,8 +2187,8 @@ pub(crate) async fn prove_game_inner(
     host_inputs: &HostInputs,
     request: ProveGameRequest<'_>,
 ) -> Result<Vec<u8>> {
-    if !provider.is_mock() {
-        ensure!(keys.is_some(), "network proving requires prestate proving keys");
+    if provider.proves_with_sp1() {
+        ensure!(keys.is_some(), "SP1 proving requires prestate proving keys");
     }
     let (plans, progress) = plan_game_attempt(provider, keys, &request)?;
     let ProveGameRequest { game, responses, max_concurrent, log, .. } = request;
@@ -2199,10 +2200,10 @@ pub(crate) async fn prove_game_inner(
         "Proving game span"
     );
 
-    if !provider.is_mock() &&
+    if provider.proves_with_sp1() &&
         let Some(proof) =
             reuse_fulfilled_aggregation(&progress.aggregation_request, game, |proof| {
-                let keys = keys.context("network proving requires prestate proving keys")?;
+                let keys = keys.context("SP1 proving requires prestate proving keys")?;
                 provider.verify_aggregation_proof(keys, proof)
             })?
     {
@@ -2269,8 +2270,8 @@ pub(crate) async fn prove_game_inner(
             );
             Ok(MOCK_PROOF_BYTES.to_vec())
         }
-        ProofProvider::Network(_) => {
-            let keys = keys.context("network proving requires prestate proving keys")?;
+        ProofProvider::Network(_) | ProofProvider::LocalCuda(_) => {
+            let keys = keys.context("SP1 proving requires prestate proving keys")?;
             let mut stdin = SP1Stdin::new();
             let proofs = spans
                 .iter()
@@ -3058,7 +3059,8 @@ mod tests {
         assert_eq!(prover.calls(), [chain_ids(&[10, 20])]);
     }
 
-    /// Pins one chain over a size limit as unprovable, and one SPN cannot execute as terminal.
+    /// Pins one chain over a size limit as unprovable, and one the prover cannot execute as
+    /// terminal.
     #[tokio::test]
     async fn one_chain_range_over_a_limit_cannot_split() {
         let span = ChunkSpan { agreed: 99, claimed: 100 };
@@ -3373,14 +3375,14 @@ mod tests {
         let game_address = Address::repeat_byte(0x46);
         let cache = InMemoryProofProgress::default();
         let mut identity = attempt_identity(game);
-        identity.provider = ProviderIdentity::Network {
+        identity.provider = ProviderIdentity::Sp1 {
             range_vkey: B256::repeat_byte(0x10),
             aggregation_vkey: B256::repeat_byte(0x11),
             log_vkey: [0x12; 8],
         };
         let first = cache.load_or_create(game_address, identity.clone());
 
-        identity.provider = ProviderIdentity::Network {
+        identity.provider = ProviderIdentity::Sp1 {
             range_vkey: B256::repeat_byte(0x12),
             aggregation_vkey: B256::repeat_byte(0x11),
             log_vkey: [0x12; 8],
@@ -3597,6 +3599,53 @@ mod tests {
         .unwrap();
 
         assert_eq!(submissions.load(Ordering::SeqCst), 1);
+    }
+
+    /// Pins that a local prover failure returns the slot to `Missing` and submits it again.
+    #[tokio::test]
+    async fn prover_failed_terminal_resubmits() {
+        let proof_id = B256::repeat_byte(0x4a);
+        let replacement_id = B256::repeat_byte(0x4b);
+        let state = Mutex::new(RequestState::Missing);
+        let submissions = AtomicUsize::new(0);
+        let submit = async || {
+            let id = if submissions.fetch_add(1, Ordering::SeqCst) == 0 {
+                proof_id
+            } else {
+                replacement_id
+            };
+            Ok(id)
+        };
+
+        let first = complete_request(
+            &state,
+            submit,
+            async |observed| {
+                Err(ProofWaitError::Terminal {
+                    proof_id: observed,
+                    state: ProofTerminalState::ProverFailed,
+                    fulfillment_status: 0,
+                    execution_status: 0,
+                })
+            },
+            |_| Ok(()),
+        )
+        .await;
+        assert!(first.is_err());
+        assert!(matches!(*state.lock(), RequestState::Missing));
+
+        complete_request(
+            &state,
+            submit,
+            async |observed| {
+                assert_eq!(observed, replacement_id);
+                Ok(fulfilled_proof())
+            },
+            |_| Ok(()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(submissions.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test]
@@ -4127,7 +4176,7 @@ mod tests {
         assert_eq!(proven.len(), 2);
     }
 
-    /// Pins a one-block batch that SPN cannot execute as a terminal log request.
+    /// Pins a one-block batch that the prover cannot execute as a terminal log request.
     #[tokio::test]
     async fn single_block_unexecutable_batch_is_sticky() {
         let progress = GameProgress::new(game_identity());
@@ -4263,7 +4312,7 @@ mod tests {
                 public_values: SP1PublicValues::from(&batch.expected),
                 ..fulfilled_proof()
             }));
-            let prover = Arc::new(NetworkLogProver {
+            let prover = Arc::new(Sp1LogProver {
                 provider: &provider,
                 keys,
                 l2: &EmptyReceiptsL2,
