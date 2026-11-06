@@ -42,9 +42,14 @@ type ApplyConfig struct {
 	UseForge         bool
 	// ForgeSlowBroadcast confirms each Forge broadcast transaction before sending the next.
 	ForgeSlowBroadcast bool
+	// ReceiptQueryInterval is how often to poll for each broadcast's receipt. Zero uses the broadcaster's default.
+	ReceiptQueryInterval time.Duration
 }
 
 func (a *ApplyConfig) Check() error {
+	if err := broadcaster.CheckReceiptQueryInterval(a.ReceiptQueryInterval); err != nil {
+		return err
+	}
 	if a.Workdir == "" {
 		return fmt.Errorf("workdir must be specified")
 	}
@@ -98,14 +103,15 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 		ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
 
 		if err := Apply(ctx, ApplyConfig{
-			L1RPCUrl:           l1RPCUrl,
-			Workdir:            workdir,
-			PrivateKey:         privateKey,
-			DeploymentTarget:   depTarget,
-			Logger:             l,
-			CacheDir:           cacheDir,
-			UseForge:           cliCtx.Bool(UseForgeFlagName),
-			ForgeSlowBroadcast: cliCtx.Bool(ForgeSlowBroadcastFlagName),
+			L1RPCUrl:             l1RPCUrl,
+			Workdir:              workdir,
+			PrivateKey:           privateKey,
+			DeploymentTarget:     depTarget,
+			Logger:               l,
+			CacheDir:             cacheDir,
+			UseForge:             cliCtx.Bool(UseForgeFlagName),
+			ForgeSlowBroadcast:   cliCtx.Bool(ForgeSlowBroadcastFlagName),
+			ReceiptQueryInterval: cliCtx.Duration(ReceiptQueryIntervalFlagName),
 		}); err != nil {
 			return err
 		}
@@ -170,18 +176,19 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 	}
 
 	if err := ApplyPipeline(ctx, ApplyPipelineOpts{
-		L1RPCUrl:           cfg.L1RPCUrl,
-		DeploymentTarget:   cfg.DeploymentTarget,
-		DeployerPrivateKey: cfg.privateKeyECDSA,
-		Intent:             intent,
-		State:              st,
-		Logger:             cfg.Logger,
-		StateWriter:        pipeline.WorkdirStateWriter(cfg.Workdir),
-		CacheDir:           cfg.CacheDir,
-		UseForge:           cfg.UseForge,
-		ForgeSlowBroadcast: cfg.ForgeSlowBroadcast,
-		PrivateKey:         cfg.PrivateKey,
-		Workdir:            cfg.Workdir,
+		L1RPCUrl:             cfg.L1RPCUrl,
+		DeploymentTarget:     cfg.DeploymentTarget,
+		DeployerPrivateKey:   cfg.privateKeyECDSA,
+		Intent:               intent,
+		State:                st,
+		Logger:               cfg.Logger,
+		StateWriter:          pipeline.WorkdirStateWriter(cfg.Workdir),
+		CacheDir:             cfg.CacheDir,
+		UseForge:             cfg.UseForge,
+		ForgeSlowBroadcast:   cfg.ForgeSlowBroadcast,
+		ReceiptQueryInterval: cfg.ReceiptQueryInterval,
+		PrivateKey:           cfg.PrivateKey,
+		Workdir:              cfg.Workdir,
 	}); err != nil {
 		return err
 	}

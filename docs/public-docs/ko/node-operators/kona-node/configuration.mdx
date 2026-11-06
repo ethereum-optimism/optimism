@@ -1,0 +1,263 @@
+---
+title: "Kona Node CLI 레퍼런스"
+description: "카테고리별로 정리한 모든 kona-node CLI 플래그와 환경 변수, 기본 포트 및 기본 런타임 동작에 대한 레퍼런스입니다."
+diataxis: reference
+---
+
+import KonaNodePorts from "/ko/snippets/kona-node-ports.mdx"
+import { Unreleased } from "/ko/snippets/unreleased.mdx"
+
+이 문서는 `kona-node node` 하위 명령의 모든 CLI 플래그를 카테고리별로 정리합니다. 모든 플래그는 명령줄 인수 또는 환경 변수로 지정할 수 있습니다.
+
+<Note>
+각 플래그에 대한 자세한 내용은 인라인 도움말(`kona-node node --help`) 또는 소스 코드를 참조하십시오.
+</Note>
+
+## 기본 포트 {#default-ports}
+
+<KonaNodePorts />
+
+## 핵심 노드 인수 {#core-node-arguments}
+
+| 플래그 | 환경 변수 | 설명 | 필수 | 기본값 |
+|------|-----|-------------|----------|---------|
+| `--mode <validator/sequencer>` | `KONA_NODE_MODE` | 노드의 동작 모드 | 아니요 | `validator` |
+| `--l1-eth-rpc <URL>` | `KONA_NODE_L1_ETH_RPC` | L1 실행 클라이언트 RPC API의 URL | 예 | - |
+| `--l1-trust-rpc=<true/false>` | `KONA_NODE_L1_TRUST_RPC` | 검증 없이 L1 RPC를 신뢰할지 여부 | 아니요 | `false` |
+| `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | L1 beacon API의 URL | 예 | - |
+| `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | L2 실행 클라이언트의 engine API 엔드포인트 URL | 예 | - |
+| `--l2-trust-rpc=<true/false>` | `KONA_NODE_L2_TRUST_RPC` | 검증 없이 L2 RPC를 신뢰할지 여부 | 아니요 | `true` |
+| `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | 실행 클라이언트용 16진수 인코딩 JWT 시크릿이 담긴 파일의 경로 | 아니요 | - |
+| `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | 사용자 지정 L2 rollup 구성 파일의 경로 | 아니요 | - |
+| `--l1-runtime-config-reload-interval <SECONDS>` | `KONA_NODE_L1_RUNTIME_CONFIG_RELOAD_INTERVAL` | 런타임 구성을 다시 로드하는 폴링 간격 | 아니요 | `600` |
+
+## 전역 인수 {#global-arguments}
+
+| 플래그 | 환경 변수 | 설명 | 필수 | 기본값 |
+|------|-----|-------------|----------|---------|
+| `--l2-chain-id <ID/NAME>` 또는 `-c <ID/NAME>` | `KONA_NODE_L2_CHAIN_ID` | L2 체인 ID(숫자) 또는 체인 이름(문자열) | 아니요 | `10` (Optimism) |
+
+### 체인 ID 지원 {#chain-id-support}
+
+`--l2-chain-id` 플래그는 `alloy_chains` crate를 사용해 유연한 체인 식별을 지원합니다.
+
+**숫자 체인 ID:**
+```bash
+kona-node --l2-chain-id 10 node [args...]      # Optimism mainnet
+kona-node --l2-chain-id 8453 node [args...]    # Base mainnet
+kona-node --l2-chain-id 1 node [args...]       # Ethereum mainnet
+```
+
+**문자열 체인 이름:**
+```bash
+kona-node --l2-chain-id optimism node [args...]
+kona-node --l2-chain-id base node [args...]
+kona-node --l2-chain-id mainnet node [args...]
+```
+
+**짧은 플래그와 환경 변수:**
+```bash
+kona-node -c optimism node [args...]
+export KONA_NODE_L2_CHAIN_ID=optimism && kona-node node [args...]
+```
+
+지원되는 체인 이름에는 `alloy_chains`가 인식하는 모든 이름(예: `optimism`, `base`, `mainnet`)이 포함됩니다. 사용자 지정 네트워크를 위해 알려지지 않은 숫자 체인 ID도 허용됩니다.
+
+## P2P 인수 {#p2p-arguments}
+
+| 플래그 | 환경 변수 | 설명 | 기본값 |
+|------|-----|-------------|---------|
+| `--p2p.no-discovery` | `KONA_NODE_P2P_NO_DISCOVERY` | Discv5(노드 탐색)를 비활성화합니다. [탐색 없이 실행하기](#running-without-discovery)를 참조하십시오 | `false` |
+| `--p2p.priv.path <PATH>` | `KONA_NODE_P2P_PRIV_PATH` | peer ID용 16진수 인코딩 32바이트 개인 키 파일의 경로 | - |
+| `--p2p.priv.raw <HEX>` | `KONA_NODE_P2P_PRIV_RAW` | peer ID용 16진수 인코딩 32바이트 개인 키 | - |
+| `--p2p.advertise.ip <IP>` | `KONA_NODE_P2P_ADVERTISE_IP` | 외부 피어에 알릴 IP입니다. 설정하지 않으면 특정 `--p2p.listen.ip`를 사용하고, `0.0.0.0` 또는 `::`인 경우 탐색이 피어로부터 주소를 알아낼 때까지 알리지 않습니다. [알리는 주소](#advertised-address)를 참고하십시오 | - |
+| `--p2p.advertise.tcp <PORT>` | `KONA_NODE_P2P_ADVERTISE_TCP_PORT` | 알릴 TCP 포트입니다. `0`이면 LibP2P가 바인딩한 포트를 사용합니다 | `0` |
+| `--p2p.advertise.udp <PORT>` | `KONA_NODE_P2P_ADVERTISE_UDP_PORT` | 알릴 UDP 포트 | `0` |
+| `--p2p.listen.ip <IP>` | `KONA_NODE_P2P_LISTEN_IP` | LibP2P/Discv5를 바인딩할 IP | `0.0.0.0` |
+| `--p2p.listen.tcp <PORT>` | `KONA_NODE_P2P_LISTEN_TCP_PORT` | LibP2P를 바인딩할 TCP 포트 | `9222` |
+| `--p2p.listen.udp <PORT>` | `KONA_NODE_P2P_LISTEN_UDP_PORT` | Discv5를 바인딩할 UDP 포트 | `9223` |
+| `--p2p.peers.lo <N>` | `KONA_NODE_P2P_PEERS_LO` | 피어 수 하한(low-tide) | `20` |
+| `--p2p.peers.hi <N>` | `KONA_NODE_P2P_PEERS_HI` | 피어 수 상한(high-tide) | `30` |
+| `--p2p.peers.grace <SECONDS>` | `KONA_NODE_P2P_PEERS_GRACE` | 새 피어에 대한 유예 기간 | `30` |
+| `--p2p.gossip.mesh.d <N>` | `KONA_NODE_P2P_GOSSIP_MESH_D` | GossipSub 메시 목표 피어 수 | `8` |
+| `--p2p.gossip.mesh.lo <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLO` | GossipSub 메시 하한 워터마크 | `6` |
+| `--p2p.gossip.mesh.dhi <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DHI` | GossipSub 메시 상한 워터마크 | `12` |
+| `--p2p.gossip.mesh.dlazy <N>` | `KONA_NODE_P2P_GOSSIP_MESH_DLAZY` | GossipSub gossip 대상 수 | `6` |
+| `--p2p.gossip.mesh.floodpublish` | `KONA_NODE_P2P_GOSSIP_FLOOD_PUBLISH` | 알려진 모든 피어에 게시 | `false` |
+| `--p2p.scoring <none or light>` | `KONA_NODE_P2P_SCORING` | 피어 점수 산정 전략 | `light` |
+| `--p2p.ban.peers` | `KONA_NODE_P2P_BAN_PEERS` | 피어 차단(ban) 활성화 | `false` |
+| `--p2p.ban.threshold <N>` | `KONA_NODE_P2P_BAN_THRESHOLD` | 차단 임계값 | `-100` |
+| `--p2p.ban.duration <MINUTES>` | `KONA_NODE_P2P_BAN_DURATION` | 차단 기간: 차단된 피어는 연결이 끊기며, 차단이 만료되거나 [`opp2p_unblockPeer`](/ko/node-operators/kona-node/rpc/p2p#opp2p_unblockpeer)로 해제될 때까지 양방향 연결이 거부됩니다. 차단은 재시작 후에는 유지되지 않습니다 | `60` |
+| `--p2p.discovery.interval <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | 피어 탐색 간격 | `5` |
+| `--p2p.discovery.ip-votes <N>` | `KONA_NODE_P2P_DISCOVERY_IP_VOTES` | 노드가 외부 주소를 알리기 전에 같은 주소를 보고해야 하는 피어 수로, 최소 `2`입니다. `--p2p.advertise.ip`를 사용하면 무시됩니다. 투표 수가 적을수록 더 적은 피어가 주소를 결정하므로, 공개 네트워크에서는 기본값을 유지하십시오. op-node에는 이러한 플래그가 없으며 임계값이 `10`으로 고정되어 있습니다. [알리는 주소](#advertised-address)를 참고하십시오 | `10` |
+| `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | bootstore를 저장할 디렉터리 | - |
+| `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | 피어 재연결(redial) 임계값 | `500` |
+| `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | 피어 연결 시도 주기 | `60` |
+| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | bootnode ENR 또는 enode URL 목록 | - |
+| `--p2p.static-peers <MULTIADDR,...>` | `KONA_NODE_P2P_STATIC_PEERS` | 시작 시 연결하고 연결을 유지할 피어입니다. [정적 피어](#static-peers)를 참조하십시오. 별칭: `--p2p.static` | - |
+| `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | 토픽 점수 산정 활성화 | `false` |
+| `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | 탐색 결과에서 무작위 피어 제거 | - |
+| `--p2p.sequencer.key <HEX>` | `KONA_NODE_P2P_SEQUENCER_KEY` | gossip으로 전파되는 블록에 서명하는 16진수 인코딩 개인 키입니다. sequencer에는 이 플래그, `--p2p.sequencer.key.path` 또는 원격 서명자가 필요합니다 | - |
+| `--p2p.sequencer.key.path <PATH>` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH` | gossip으로 전파되는 블록에 서명하는 16진수 인코딩 개인 키가 담긴 파일의 경로 | - |
+| `--p2p.signer.endpoint <URL>` | `KONA_NODE_P2P_SIGNER_ENDPOINT` | gossip으로 전파되는 블록에 서명하는 원격 op-signer입니다. `--p2p.signer.address`가 필요합니다 | - |
+| `--p2p.signer.address <ADDRESS>` | `KONA_NODE_P2P_SIGNER_ADDRESS` | 원격 서명자 키의 주소 | - |
+
+### 알리는 주소 {#advertised-address}
+
+<Unreleased component="kona-node" />
+
+다른 노드는 탐색이 게시하는 레코드인 ENR을 통해 이 노드를 찾습니다. 이 레코드에는 gossip용 TCP 포트, 탐색용 UDP 포트, 그리고 노드가 자신의 IP를 알게 된 경우 두 포트에 접근할 수 있는 IP가 담깁니다.
+
+| `--p2p.listen.ip` | `--p2p.advertise.ip` | 알리는 IP |
+|-------------------|----------------------|---------------|
+| 모든 값 | 설정됨 | advertise IP이며, 변경되지 않습니다. |
+| `10.0.0.5` 또는 `127.0.0.1`과 같은 특정 주소 | 설정되지 않음 | 처음에는 listen IP입니다. 충분한 수의 피어가 다른 주소에 동의하면 탐색이 이를 대체합니다. |
+| 모든 인터페이스, `0.0.0.0`(기본값) 또는 `::` | 설정되지 않음 | 처음에는 없습니다. 충분한 수의 피어가 주소에 동의하면 탐색이 주소를 추가합니다. |
+
+TCP 포트는 `--p2p.advertise.tcp`가 설정된 경우 해당 값이며, 그렇지 않으면 LibP2P가 바인딩한 포트입니다. 즉, `--p2p.listen.tcp` 또는 listen 포트가 `0`일 때 선택된 포트입니다. UDP 포트는 `--p2p.advertise.udp`가 설정된 경우 해당 값이며, 그렇지 않으면 탐색이 수신 대기하는 포트입니다.
+
+`--p2p.advertise.ip`가 없으면 탐색은 bootnode를 통해 찾은 피어로부터 노드의 주소를 알아냅니다. 탐색이 연결하는 각 피어는 자신이 보는 노드의 주소를 보고합니다. bootnode 자체는 집계되지 않습니다. 이러한 피어 중 `--p2p.discovery.ip-votes`개(기본값 10개)가 같은 주소를 보고하면 노드는 그 주소를 알립니다. 그 전까지는 레코드에 IP가 없는 노드에 접근할 수 없으므로, 다른 노드는 이 노드를 유지하지 않습니다. 그 전에 연결했던 피어는 이 노드와 새 세션을 시작하거나 다른 노드로부터 이 노드의 레코드를 알게 되면 이 노드를 추가합니다.
+
+devnet이나 로컬 테스트 네트워크처럼 노드의 bootnode를 제외하고 접근 가능한 노드 수가 이보다 적은 네트워크에서는, 모든 인터페이스에서 수신 대기하는 노드가 자신의 주소를 알아내지 못하며 다른 노드도 이 노드를 찾을 수 없습니다. 모든 인터페이스에서 수신 대기하는 노드는 자신의 주소를 알아낸 후에만 집계되므로, 대부분의 노드가 그렇게 수신 대기하는 작은 네트워크에서는 어떤 노드도 주소를 알아내지 못할 수 있습니다. 이러한 네트워크에서는 다음 중 하나를 수행하십시오.
+
+- 다른 노드가 이 노드에 접근하는 주소로 `--p2p.advertise.ip`를 설정하거나, `--p2p.listen.ip`로 해당 주소에서 수신 대기합니다.
+- 또는 `--p2p.discovery.ip-votes`를 낮춥니다. 투표 수가 적을수록 더 적은 피어가 주소를 결정합니다. 공모한 두 피어가 노드를 접근 불가능하게 만들거나 다른 노드가 다른 호스트를 가리키게 할 수 있습니다. 따라서 공개 네트워크에서는 기본값을 유지하십시오.
+
+기본 제공 bootnode가 없는 체인에서 `--p2p.advertise.ip` 없이 모든 인터페이스에서 수신 대기하면, 노드는 시작 시 경고를 로그로 남깁니다.
+
+<Info>
+
+op-node는 listen IP를 알리지 않습니다. `--p2p.advertise.ip`가 없으면 op-node는 임계값이 10으로 고정된 피어 투표를 통해 자신의 주소를 알아냅니다. 따라서 op-node는 특정 주소에서 수신 대기하는 경우에도 작은 네트워크에서는 `--p2p.advertise.ip`가 필요합니다.
+
+</Info>
+
+### 정적 피어 {#static-peers}
+
+`--p2p.static-peers`는 탐색 결과와 관계없이 노드가 직접 연결하고 연결을 유지하는 피어 목록입니다. sequencer와 같은 노드가 신뢰하는 노드와 계속 연결되도록 하려면 이 플래그를 사용하십시오.
+
+<Warning>
+
+정적 피어를 설정해도 탐색이 꺼지지는 않습니다. superchain registry에 있는 체인에서는 `--p2p.bootnodes`가 없더라도 체인에 내장된 bootnode에서 탐색이 시작되며, 노드는 bootstore에 저장된 피어에도 연결을 시도합니다. 따라서 노드는 여전히 다른 노드를 찾아 연결하며, 다른 노드도 이 노드를 찾을 수 있습니다. 정적 피어에만 연결하려면 `--p2p.no-discovery`도 설정하십시오. [탐색 없이 실행하기](#running-without-discovery)를 참조하십시오.
+
+</Warning>
+
+각 항목은 피어 ID로 끝나는 TCP multiaddr입니다.
+
+```bash
+kona-node node --p2p.static-peers /dns4/node-1.example.com/tcp/9222/p2p/16Uiu2HAm...,/dns4/node-2.example.com/tcp/9222/p2p/16Uiu2HAk...
+```
+
+- `/ip4/...` 주소보다 `/dns4/...` 주소를 사용하는 것이 좋습니다. 이름은 연결을 시도할 때마다 확인되므로 피어의 IP가 바뀌어도 목록이 계속 동작합니다.
+- 플래그를 반복하거나, 환경 변수에서 필요한 것처럼 쉼표로 구분된 목록을 지정하십시오. 항목 앞뒤의 공백은 무시되며, 빈 환경 변수는 정적 피어가 없음을 의미합니다.
+- 주소가 TCP가 아니거나 `/p2p/<peer id>`로 끝나지 않으면 노드가 시작되지 않습니다.
+- 같은 피어 ID를 가진 여러 주소는 하나의 피어로 취급되며, 먼저 연결되는 주소로 연결됩니다.
+- 노드는 자신의 피어 ID를 가진 항목을 무시하므로, 그룹 내 모든 노드가 같은 목록을 사용할 수 있습니다.
+
+피어 ID는 노드의 P2P 개인 키에서 파생됩니다. 모든 정적 피어에 `--p2p.priv.path` 또는 `--p2p.priv.raw`로 고정 키를 지정하십시오. 고정 키가 없으면 노드는 시작할 때마다 새 키를 생성하므로 피어 ID도 새로 바뀝니다. 실행 중인 노드의 주소를 확인하려면 [`opp2p_self`](/ko/node-operators/kona-node/rpc/p2p#opp2p_self)를 호출하십시오. `addresses`에는 끝에 `/p2p/<peer id>`가 붙은 listen 주소가 나열됩니다. IP를 다른 노드가 이 노드에 접근할 때 사용하는 이름이나 주소로 바꾸십시오. 노드는 수신 대기를 시작할 때 피어 ID도 로그로 남깁니다. 노드를 실행하지 않고 키 파일의 피어 ID를 얻으려면 `op-node p2p priv2id < key.txt`를 사용하십시오. 이 명령은 kona 키에도 동작합니다.
+
+노드는 정적 피어를 다음과 같이 처리합니다.
+
+- 시작 시 정적 피어에 연결을 시도하고, 이후 1분마다 연결되지 않은 피어에 다시 연결을 시도합니다. 연결이 끊긴 정적 피어는 약 1초 후에 다시 연결을 시도합니다.
+- 정적 피어는 재연결 제한(`--p2p.redial`)에서 제외되고, 낮은 점수로 차단되지 않으며, `opp2p_unprotectPeer` 이후에도 보호 상태가 유지됩니다.
+- `opp2p_blockPeer`로 차단되었거나 차단된 주소 또는 서브넷에 있는 정적 피어는 연결이 끊기며, 차단이 해제될 때까지 다시 연결을 시도하지 않습니다. 차단이 해제되면 다음 확인 시점(1분 이내)에 연결을 시도합니다. 즉시 연결하려면 [`opp2p_connectPeer`](/ko/node-operators/kona-node/rpc/p2p#opp2p_connectpeer)를 호출하십시오. 차단이 정적 피어에 적용되면 노드는 경고를 로그로 남깁니다. 이는 피어 ID, 구성된 IP 주소 또는 열린 연결의 주소로 판단합니다. DNS 이름으로 지정되어 있고 연결되지 않은 정적 피어의 경우에는 이를 판단할 수 없습니다.
+- 노드는 탐색을 통해 정적 피어를 다른 노드에 전달하지 않으므로, 다른 노드는 이 노드를 통해 정적 피어를 찾을 수 없습니다. 단, 정적 피어가 자체적으로 탐색을 실행하면 여전히 발견될 수 있습니다.
+
+<Info>
+
+op-node에서는 이 플래그를 `--p2p.static`이라고 부르며, kona-node도 이 이름을 허용합니다. 환경 변수는 `KONA_NODE_P2P_STATIC`이 아니라 `KONA_NODE_P2P_STATIC_PEERS`입니다.
+
+</Info>
+
+### 탐색 없이 실행하기 {#running-without-discovery}
+
+<Unreleased component="kona-node" />
+
+`--p2p.no-discovery`를 사용하면 노드는 Discv5를 실행하지 않습니다.
+
+- UDP 포트를 바인딩하지 않으므로 `--p2p.listen.udp`를 다른 프로세스가 사용 중이어도 되며, ENR을 게시하지 않습니다.
+- `--p2p.bootnodes`, 체인에 내장된 bootnode, bootstore를 무시합니다.
+- [정적 피어](#static-peers), 이 노드에 연결해 오는 피어, [`opp2p_connectPeer`](/ko/node-operators/kona-node/rpc/p2p#opp2p_connectpeer)로 추가된 피어에만 연결합니다. 다른 노드가 이 노드를 찾을 수 없으므로, 이 노드의 주소를 받은 노드만 연결해 옵니다.
+
+연결된 피어와는 여전히 gossip을 통해 블록을 교환합니다. 노드는 서로 연결되지 않은 피어 사이에서 블록을 중계할 수 있습니다. 예를 들어 그룹 구성원들이 허브만 정적 피어로 지정한 경우 그 허브가 이 역할을 합니다.
+
+P2P RPC 메서드는 여전히 응답합니다. 탐색이 꺼졌을 때 op-node가 그렇듯이 [`opp2p_self`](/ko/node-operators/kona-node/rpc/p2p#opp2p_self)는 ENR을 반환하지 않고, [`opp2p_peerStats`](/ko/node-operators/kona-node/rpc/p2p#opp2p_peerstats)는 `table` 값으로 `0`을 반환하며, [`opp2p_discoveryTable`](/ko/node-operators/kona-node/rpc/p2p#opp2p_discoverytable)은 `discovery disabled` 오류를 반환합니다. op-node에는 없는 [`opp2p_peerCount`](/ko/node-operators/kona-node/rpc/p2p#opp2p_peercount)는 `connectedDiscovery`에 대해 `null`을 반환하고, [`opp2p_peers`](/ko/node-operators/kona-node/rpc/p2p#opp2p_peers)는 각 피어에 대해 ENR 없이 `chainID`를 `0`으로 반환합니다. op-conductor의 상태 확인은 `opp2p_peerStats`의 `connected` 값을 읽으며, 이 값에는 정적 피어가 포함됩니다.
+
+탐색이 켜져 있으면, 정적 피어가 있더라도 탐색이 시작에 실패하거나 이후에 중지되면 노드가 중지됩니다.
+
+노드는 다음과 같이 피어를 찾습니다.
+
+| 탐색 | Bootnode | 정적 피어 | 동작 |
+|-----------|-----------|--------------|----------|
+| 켜짐 | 없음, registry에 있는 체인 | 무관 | 체인에 내장된 bootnode에서 찾은 피어, bootstore에 저장된 피어, 정적 피어에 연결합니다. |
+| 켜짐 | 없음, registry에 없는 체인 | 무관 | bootstore에 저장된 피어(있는 경우)와 정적 피어에 연결합니다. 그렇지 않으면 새 네트워크의 첫 bootnode처럼, 다른 노드가 이 노드에서 부트스트랩할 때까지 아무도 찾지 못합니다. |
+| 켜짐 | 설정됨 | 무관 | 지정된 bootnode와 내장 bootnode에서 찾은 피어, bootstore에 저장된 피어, 정적 피어에 연결합니다. |
+| 꺼짐 | 무시됨 | 설정됨 | 정적 피어와 이 노드에 연결해 오는 피어에만 연결합니다. 다운된 정적 피어에는 1분마다 다시 연결을 시도하므로, 노드가 피어보다 먼저 시작해도 됩니다. |
+| 꺼짐 | 무시됨 | 없음 | 그룹의 허브처럼, 이 노드에 연결해 오는 피어 또는 `opp2p_connectPeer`로 추가된 피어에만 연결합니다. |
+
+탐색이 꺼져 있을 때 정적 피어가 설정되지 않았거나 bootnode가 설정된 경우(bootnode는 무시되므로), 노드는 시작 시 경고를 로그로 남깁니다.
+
+## RPC 인수 {#rpc-arguments}
+
+RPC 서버는 한 번 시작됩니다. 예기치 않게 중지되면 노드는 오류와 함께 종료됩니다.
+
+| 플래그 | 환경 변수 | 설명 | 기본값 |
+|------|-----|-------------|---------|
+| `--rpc.disabled` | `KONA_NODE_RPC_DISABLED` | RPC 서버 비활성화 | `false` |
+| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC 수신 주소 | `0.0.0.0` |
+| `--port <PORT>` | `KONA_NODE_RPC_PORT` | RPC 수신 포트 | `9545` |
+| `--rpc.enable-admin` | `KONA_NODE_RPC_ENABLE_ADMIN` | admin API 활성화 | `false` |
+| `--rpc.admin-state <PATH>` | `KONA_NODE_RPC_ADMIN_STATE` | admin 상태를 영구 저장할 파일 경로 | - |
+
+## Sequencer 인수 {#sequencer-arguments}
+
+| 플래그 | 환경 변수 | 설명 | 기본값 |
+|------|-----|-------------|---------|
+| `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | sequencer를 중지된 상태로 시작 | `false` |
+| `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | sequencer의 L1 블록 확인(confirmation) 수 | `4` |
+| `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | 다음 L1 origin을 엄격하게 준비하고 빈 L2 블록을 생성 | `false` |
+| `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | 외부 conductor 서비스의 RPC 엔드포인트 URL입니다. 이 값을 지정하면 sequencer 모드에서 conductor 연동이 활성화되며, validator 모드에서는 효과가 없습니다. | - |
+| `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | conductor 서비스 RPC 타임아웃 | `1` |
+
+## Interop 인수 {#interop-arguments}
+
+| 플래그 | 환경 변수 | 설명 | 기본값 |
+|------|-----|-------------|---------|
+| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | 이 체인의 interop dependency set을 기술하는 JSON 파일의 경로입니다. rollup 구성에 Lagoon 하드포크가 예정되어 있으면 필수입니다. | - |
+| `--safedb.path <PATH>` | `KONA_NODE_SAFEDB_PATH` | safe head 데이터베이스의 디렉터리입니다. 이 데이터베이스는 각 L1 블록 시점에 도달한 L2 safe head를 기록하며 `optimism_safeHeadAtL1Block`과 `superroot_atTimestamp`의 기반이 됩니다. op-challenger, op-proposer, op-dispute-mon에 필요합니다. 설정하지 않으면 아무것도 기록되지 않습니다. | - |
+
+`kona-node`는 supervisor RPC 서버를 실행하지 않으므로 `--supervisor.*`
+플래그 그룹이 없습니다. `--interop.dependency-set`이 노드의 유일한 interop 플래그입니다.
+
+## RPC 신뢰 플래그 {#rpc-trust-flags}
+
+`--l1-trust-rpc`와 `--l2-trust-rpc` 플래그는 Kona가 RPC 응답의 블록 해시를 검증할지 여부를 제어합니다. 신뢰를 비활성화해야 하는 경우에 대한 안내와 신뢰, 비신뢰, 혼합 공급자 구성 예시는 [RPC 신뢰 구성](/ko/node-operators/kona-node/run/rpc-trust)을 참조하십시오.
+
+## 기본 동작 {#default-behavior}
+
+위 플래그로 재정의하지 않는 한, `kona-node node` 실행에는 다음 기본값이 적용됩니다.
+
+- P2P 스택이 시작됩니다. libp2p swarm은 블록 gossip을 수신하기 위해
+  TCP `9222`에서 수신 대기합니다. `discv5` 탐색 서비스는
+  UDP 포트 `9223`에서 실행됩니다. 피어 점수 산정이 활성화됩니다.
+- RPC 서버가 `0.0.0.0:9545`에서 노출됩니다. Websocket 연결은
+  기본적으로 비활성화되어 있습니다.
+- Prometheus 메트릭은 비활성화되어 있습니다.
+  `--metrics.enabled` 플래그로 활성화할 수 있으며, 그러면 메트릭이 `0.0.0.0:9090`에서 제공되고,
+  `--metrics.port` 및 `--metrics.addr` 플래그로 구성할 수 있습니다.
+
+## Rollup 구성 로딩 {#rollup-configuration-loading}
+
+`--l2-config-file` CLI 플래그로 rollup 구성 파일 경로를
+지정하지 _않으면_, Rollup Config는
+[superchain registry][scr]를 통해 로드됩니다.
+
+사용자 지정 rollup 구성은 `--l2-config-file` 플래그로
+지정하거나, `kona-node`가 제공하는 재정의(override) 플래그를 사용해
+특정 값만 재정의할 수 있습니다.
+
+재정의 플래그(예: `--canyon-override`)는 `kona-node node --help`를 실행해
+도움말 메뉴에서 확인할 수 있습니다. 현재 지원되는 재정의는
+초 단위의 하드포크 타임스탬프뿐입니다.
+
+[scr]: https://github.com/ethereum-optimism/superchain-registry/tree/main
+

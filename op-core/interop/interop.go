@@ -53,6 +53,10 @@ var (
 
 var genericInvalidParamsErr = -32602
 
+// internalErr is the JSON-RPC internal error code. A database failure is the server's fault, not
+// a verdict on the request, and clients such as op-reth treat this code as no response.
+var internalErr = -32603
+
 // errorCodeMap is based on the interop supervisor spec - https://github.com/ethereum-optimism/specs/blob/28a0fac2428b10f9ee29ee1bfbbe366181cc9ac4/specs/interop/supervisor.md#json-rpc-error-codes
 var errorCodeMap = map[error]int{
 	ErrOutOfOrder:            -320900,
@@ -77,10 +81,15 @@ var errorCodeMap = map[error]int{
 	ErrRewindFailed:            genericInvalidParamsErr,
 }
 
-// GetErrorCode returns the error code for the given error based on interop supervisor spec
+// GetErrorCode returns the error code for the given error: the interop supervisor spec's code for a
+// known sentinel, except that a database failure gets the JSON-RPC internal error code.
 func GetErrorCode(err error) int {
 	if err == nil {
 		return 0
+	}
+	// Checked before errorCodeMap, since a record that fails to decode also wraps ErrDataCorruption.
+	if errors.Is(err, ErrDatabaseFailure) {
+		return internalErr
 	}
 	for knownErr, code := range errorCodeMap {
 		if errors.Is(err, knownErr) {

@@ -11,11 +11,10 @@ TEST_TIMEOUT := env('TEST_TIMEOUT', '10m')
 #   op-acceptance-tests             dedicated acceptance-test job (needs a running devnet)
 #   cannon                          dedicated cannon job (slow MIPS emulation tests)
 #   rust                            rust-e2e pipeline (needs prebuilt Rust binaries)
-#   op-deployer/pkg/deployer/forge  fails when forge is on PATH (ethereum-optimism/optimism#21200)
 #   op-e2e/actions                  dedicated go-actions-tests job (its own resource class
 #                                   and timeout; running them here too would run them twice)
 # See the list-test-packages recipe, which expands `go list ./...` minus these.
-EXCLUDED_TEST_PKGS := "op-acceptance-tests cannon rust op-deployer/pkg/deployer/forge op-e2e/actions"
+EXCLUDED_TEST_PKGS := "op-acceptance-tests cannon rust op-e2e/actions"
 
 # Fault-proof packages run in the default go-tests job and again in a dedicated
 # job with Cannon enabled, so they keep a separate list.
@@ -472,7 +471,8 @@ _check-nut-prefork-states:
   shopt -s nullglob
   for state in op-core/nuts/state/*_state.json; do
     fork="$(basename "$state" _state.json)"
-    if [ "$fork" = "jovian" ]; then
+    # The jovian seed is not regenerated. _nut-prefork-state-for also writes the multi-chain state.
+    if [ "$fork" = "jovian" ] || [[ "$fork" == *_multichain ]]; then
       continue
     fi
     just _nut-prefork-state-for "$fork"
@@ -492,11 +492,13 @@ nut-snapshot-for fork:
 nut-provenance-verify fork:
   go run ./ops/scripts/nut-provenance-verify {{fork}}
 
-# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
+# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle), and
+# <fork>_multichain_state.json from Lagoon onward.
 _nut-prefork-state-for fork:
   OP_E2E_GEN_PREFORK_STATE={{fork}} go test -count=1 -run TestGenerateForkState ./rust/kona/tests/proofs/
 
-# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
+# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle), and
+# <fork>_multichain_state.json from Lagoon onward.
 nut-prefork-state-for fork: build-contracts build-superchain-go
   just rust/build-op-reth-test-engine
   just _nut-prefork-state-for {{fork}}
@@ -562,7 +564,9 @@ latest-rc-tag component:
 #
 # Output is one `<label><TAB><path>` pair per line. Consecutive lines sharing a
 # label form a group: a set of paths that ship as one unit — a bundled binary's
-# dependency closure, or the shared infrastructure every Go component links.
+# dependency closure, the shared infrastructure every Go component links
+# (`shared`), or another component's code this one links and whose changes reach
+# its operators (`linked`). `shared` and `linked` are not artifacts.
 # Consumers that section their output group by label, keeping a closure from
 # swamping the component's own changes; consumers that only need the path set
 # read the second column. Emitting both in one stream means a component's paths
@@ -587,8 +591,17 @@ release-paths component:
     kona_host="kona-host=rust/Cargo.toml,rust/kona/bin/host/,rust/kona/crates/proof/,rust/kona/crates/protocol/,rust/kona/crates/providers/,rust/kona/crates/utilities/,rust/alloy-op-evm/,rust/alloy-op-hardforks/,rust/op-alloy/,rust/op-revm/"
     specs=()
     case "{{ component }}" in
-        op-node|op-batcher|op-proposer|op-supernode|op-dispute-mon)
+        op-node|op-proposer|op-dispute-mon)
             specs=("{{ component }}/" "$go_shared")
+            ;;
+        op-batcher)
+            # op-batcher builds channels with op-node's derivation code, against
+            # op-node's rollup config.
+            specs=("op-batcher/" "linked=op-node/rollup/derive/,op-node/params/,op-node/rollup/types.go,op-node/rollup/chain_spec.go,op-node/rollup/toggles.go" "$go_shared")
+            ;;
+        op-supernode)
+            # op-supernode runs op-node in-process.
+            specs=("op-supernode/" "linked=op-node/" "$go_shared")
             ;;
         op-challenger)
             # The op-challenger image ships three binaries, so all three are
@@ -642,7 +655,8 @@ release-paths component:
 # <from> and <to> can be explicit tags (e.g. v1.16.5), or:
 #   'latest'    - resolves to the latest stable tag (vX.Y.Z)
 #   'latest-rc' - resolves to the latest RC tag (vX.Y.Z-rc.N)
-#   'develop'   - (only for <to>) uses the develop branch tip with --unreleased
+#   any other git ref - (only for <to>) e.g. develop, origin/develop or a commit:
+#               the range ends there, with --unreleased
 #
 # Set <mode> to 'offline' to skip GitHub API calls (faster, but no PR metadata).
 #
@@ -650,6 +664,7 @@ release-paths component:
 #   just release-notes op-node                          # latest stable -> latest RC (default)
 #   just release-notes op-node latest develop           # all unreleased changes since the latest stable release
 #   just release-notes op-node latest develop offline   # same, but without GitHub API calls
+#   just release-notes op-node latest origin/develop    # same, up to the fetched remote branch
 #   just release-notes op-node v1.16.5 v1.16.6          # explicit tags
 #
 # Requires GITHUB_TOKEN for git-cliff's GitHub integration (unless mode=offline):
@@ -685,15 +700,22 @@ release-notes component from='latest' to='latest-rc' mode='':
         include_path_args+=(--include-path "$include_path")
     done <<< "$component_paths"
     tag_args=()
-    if [ "{{ to }}" = "develop" ]; then
-        tag_args=(--unreleased)
-        range_end="develop"
-    else
-        to_tag=$(resolve_tag "{{ to }}")
-        if [ -z "$to_tag" ]; then echo "error: could not resolve to tag '{{ to }}' for {{ component }}"; exit 1; fi
-        tag_args=(--tag "$to_tag")
-        range_end="$to_tag"
-    fi
+    case "{{ to }}" in
+        latest|latest-rc|v[0-9]*)
+            to_tag=$(resolve_tag "{{ to }}")
+            if [ -z "$to_tag" ]; then echo "error: could not resolve to tag '{{ to }}' for {{ component }}"; exit 1; fi
+            tag_args=(--tag "$to_tag")
+            range_end="$to_tag"
+            ;;
+        *)
+            if ! git rev-parse --verify --quiet "{{ to }}^{commit}" >/dev/null; then
+                echo "error: '{{ to }}' is neither 'latest', 'latest-rc', a version nor a git ref"
+                exit 1
+            fi
+            tag_args=(--unreleased)
+            range_end="{{ to }}"
+            ;;
+    esac
     echo "Generating release notes for ${from_tag}..${range_end}"
     offline_args=()
     if [ "{{ mode }}" = "offline" ]; then

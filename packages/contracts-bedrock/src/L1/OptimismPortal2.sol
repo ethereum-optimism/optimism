@@ -11,6 +11,7 @@ import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { EOA } from "src/libraries/EOA.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
@@ -127,10 +128,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Address of the AnchorStateRegistry contract.
     IAnchorStateRegistry public anchorStateRegistry;
 
-    /// @notice Address of the ETHLockbox contract. NOTE that as of v4.1.0 it is not possible to
-    ///         set this value in storage and it is only possible for this value to be set if the
-    ///         chain was first upgraded to v4.0.0. Chains that skip v4.0.0 will not have any
-    ///         ETHLockbox set here.
+    /// @notice Address of the ETHLockbox contract. Set by `initialize` when given a nonzero
+    ///         lockbox and by `migrateToSharedDisputeGame`. Must be nonzero while the ETH_LOCKBOX
+    ///         feature is enabled.
     IETHLockbox public ethLockbox;
 
     /// @custom:legacy
@@ -252,6 +252,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when the root claim of a dispute game is invalid.
     error OptimismPortal_InvalidRootClaim();
 
+    /// @notice Thrown when a withdrawal from the L2CrossDomainMessenger fails in the
+    ///         L1CrossDomainMessenger.
+    error OptimismPortal_L1CDMCallFailed();
+
     /// @notice Thrown when migrating to the registry that was previously
     /// set on the OptimismPortal prior to the migration
     error OptimismPortal_MigratingToSameRegistry();
@@ -275,6 +279,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when removing a bridge hook that is not set.
     error OptimismPortal_InvalidBridgeHookState();
 
+    /// @notice Thrown when the caller is not the bridge hook.
+    error OptimismPortal_NotBridgeHook();
+
     /// @notice Thrown when ETHLockbox is set/unset incorrectly depending on the feature flag.
     error OptimismPortal_InvalidLockboxState();
 
@@ -294,9 +301,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 7.1.0
+    /// @custom:semver 7.5.0
     function version() public pure virtual returns (string memory) {
-        return "7.1.0";
+        return "7.5.0";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -700,7 +707,30 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Reset the l2Sender back to the default value.
         l2Sender = Constants.DEFAULT_L2_SENDER;
 
-        // All withdrawals are immediately finalized. Replayability can
+        // Reverting here is useful for determining the exact gas cost to successfully execute the
+        // sub call to the target contract if the minimum gas limit specified by the user would not
+        // be sufficient to execute the sub call.
+        if (!success && tx.origin == Constants.ESTIMATION_ADDRESS) {
+            revert OptimismPortal_GasEstimation();
+        }
+
+        // A failed call means the L1CrossDomainMessenger reverted without recording the message,
+        // e.g. because it ran out of gas. Revert so the withdrawal stays unfinalized and can be
+        // finalized again with more gas, instead of being finalized with no way to replay it.
+        //
+        // Not every messenger failure is a gas problem. The messenger reverts whatever the gas
+        // when the message targets an unsafe address (the L1CrossDomainMessenger or this
+        // contract) or is a legacy message that was already relayed. Such withdrawals can be
+        // proven but never finalized, where before they were finalized as failed. Their funds
+        // stay locked in the same place either way.
+        //
+        // Checking the sender is enough because the L2CrossDomainMessenger only initiates
+        // withdrawals to `otherMessenger`, and blocks `L2ToL1MessagePasser` as a relay target.
+        if (!success && _tx.sender == Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
+            revert OptimismPortal_L1CDMCallFailed();
+        }
+
+        // All other withdrawals are immediately finalized. Replayability can
         // be achieved through contracts built on top of this contract
         emit WithdrawalFinalized(withdrawalHash, success);
 
@@ -710,13 +740,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             if (!success && _tx.value > 0) {
                 _lockETH(_tx.value);
             }
-        }
-
-        // Reverting here is useful for determining the exact gas cost to successfully execute the
-        // sub call to the target contract if the minimum gas limit specified by the user would not
-        // be sufficient to execute the sub call.
-        if (!success && tx.origin == Constants.ESTIMATION_ADDRESS) {
-            revert OptimismPortal_GasEstimation();
         }
     }
 
@@ -749,7 +772,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
 
         // A proven withdrawal must wait at least `proofMaturityDelaySeconds` before finalizing.
-        if (block.timestamp - provenWithdrawal.timestamp <= proofMaturityDelaySeconds) {
+        // A zero delay means the proxy was upgraded without calling `initialize`, so fail closed
+        // rather than finalize withdrawals with no review period.
+        if (proofMaturityDelaySeconds == 0 || block.timestamp - provenWithdrawal.timestamp <= proofMaturityDelaySeconds)
+        {
             revert OptimismPortal_ProofNotOldEnough();
         }
 
@@ -870,14 +896,22 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     }
 
     /// @notice Sends a held deposit to L2 on its original terms. Only callable by the bridge hook.
-    ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
+    ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens. Always
+    ///         reverts until the Portal can hold deposits.
     /// @param _item Held deposit.
-    function completeDepositTransaction(BridgeHookTypes.Item memory _item) external payable { }
+    function completeDepositTransaction(BridgeHookTypes.Item memory _item) external payable {
+        _item; // silence unused variable warning
+        revert OptimismPortal_NotBridgeHook();
+    }
 
     /// @notice Executes a held withdrawal on its original terms. Only callable by the bridge hook.
-    ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens.
+    ///         The hook must attach ETH and approve the bridge to reclaim escrowed tokens. Always
+    ///         reverts until the Portal can hold withdrawals.
     /// @param _item Held withdrawal.
-    function completeWithdrawalTransaction(BridgeHookTypes.Item memory _item) external payable { }
+    function completeWithdrawalTransaction(BridgeHookTypes.Item memory _item) external payable {
+        _item; // silence unused variable warning
+        revert OptimismPortal_NotBridgeHook();
+    }
 
     /// @notice Locks ETH in the ETHLockbox.
     /// @param _amount Amount of ETH to lock.

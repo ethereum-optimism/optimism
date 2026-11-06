@@ -1,0 +1,66 @@
+---
+title: Challenger 구성 레퍼런스
+description: CLI 플래그, 환경 변수, 기본값을 포함한 모든 op-challenger 구성 옵션에 대한 레퍼런스입니다.
+diataxis: reference
+---
+
+import OpChallengerFlags from '/ko/snippets/generated/op-challenger-flags.mdx';
+import { ConfigReferencePreamble } from '/ko/snippets/config-reference-preamble.mdx';
+
+이 페이지는 L1에서 결함 증명(fault proof) 게임을 모니터링하고, 잘못된 claim에 이의를
+제기하며, 유효한 상태 전환을 방어하는 분쟁 게임(dispute game) 에이전트인
+op-challenger의 모든 구성 옵션을 정리합니다.
+
+<ConfigReferencePreamble component="op-challenger" />
+
+prestate, trace type, 지갑, 모니터링 등 단계별 설정 지침은
+[challenger 구성 가이드](/ko/chain-operators/guides/configuration/op-challenger-config-guide)를,
+결함 증명 시스템의 작동 방식은
+[challenger 설명](/ko/op-stack/fault-proofs/challenger)을 참조하세요.
+
+## 플래그
+
+<OpChallengerFlags />
+
+## 주요 플래그 참고 사항
+
+### 조건부 필수 플래그
+
+위의 필수 플래그 표는 op-challenger가 시작 시 항상 확인하는 플래그를 나열합니다.
+구성에 따라 추가 플래그가 필수가 됩니다. 체인은 `--network` 또는
+`--game-factory-address`로 식별되어야 하며, 활성화된 각 game type에는 해당 trace
+실행 플래그가 필요합니다(예: `cannon-kona` game type에는 kona 서버와
+`--cannon-kona-prestate` 또는 `--cannon-kona-prestates-url`을 통한 absolute
+prestate가 필요합니다).
+
+### network
+
+`--network`를 superchain-registry에 포함된 체인으로 설정하면
+`--game-factory-address`가 registry에서 자동으로 확인되므로 설정할 필요가 없습니다.
+
+### game-types
+
+challenger가 플레이할 분쟁 game type을 선택합니다. 어떤 type이 체인을 방어하는지는
+체인이 실행하는 프로토콜 버전에 따라 다릅니다. game type, trace type 및 해당
+prestate 선택에 대해서는
+[challenger 구성 가이드](/ko/chain-operators/guides/configuration/op-challenger-config-guide)를
+참조하세요.
+
+### cannon-* 및 cannon-kona-*
+
+`cannon-*` 플래그는 cannon 기반 game type이 활성화된 경우에만 적용되며,
+`cannon-kona-*` 변형은 `cannon-kona` game type에만 적용됩니다. 각 설정에는 기본
+변형과 이를 재정의하는 game type별 변형이 있습니다(위 표의
+`(<game type> game type only)` 접미사).
+
+kona가 아닌 cannon game type이 실행하는 결함 증명 프로그램인 op-program은
+[지원이 종료](/ko/notices/archive/op-geth-deprecation)되었으므로, kona 변형만 계속
+유지 관리됩니다.
+
+## 유틸리티 하위 명령
+
+`op-challenger` 바이너리는 challenger 서비스 실행 외에도 분쟁 게임을 검사하고
+상호작용하기 위한 유틸리티 하위 명령을 제공합니다:
+`list-games`, `list-claims`, `list-credits`, `create-game`, `move`,
+`resolve`, `resolve-claim`, `run-trace`. 각 명령은 고유한 플래그를 사용하며, 자세한
+내용은 `op-challenger <subcommand> --help`를 실행하세요.

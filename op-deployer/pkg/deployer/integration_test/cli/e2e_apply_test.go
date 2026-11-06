@@ -60,14 +60,16 @@ func TestCLIEndToEndApply(t *testing.T) {
 			chain.Eip1559Denominator = standard.Eip1559Denominator
 			chain.Eip1559Elasticity = standard.Eip1559Elasticity
 		}
+		setSP1VerifierOverride(intent, runner.DeployMockSP1Verifier(t))
 		require.NoError(t, intent.WriteToFile(filepath.Join(workDir, "intent.toml")))
 
 		// Apply first chain with live deployment
-		runner.ExpectSuccessWithNetwork(t, []string{
+		output := runner.ExpectSuccessWithNetwork(t, []string{
 			"apply",
 			"--deployment-target", "live",
 			"--workdir", workDir,
 		}, nil)
+		requireFastReceiptPoll(t, output)
 
 		// Add second chain to intent
 		intent, err := pipeline.ReadIntent(workDir)

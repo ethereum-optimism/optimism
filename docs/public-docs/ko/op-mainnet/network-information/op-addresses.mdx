@@ -1,0 +1,59 @@
+---
+title: OP Mainnet 컨트랙트 주소
+description: OP Mainnet 및 OP Sepolia의 L1 및 L2 컨트랙트 주소 전체 목록입니다.
+diataxis: reference
+---
+
+import { SuperchainContractTable } from "/snippets/superchain-contract-table.jsx"
+import { L1ContractTable } from "/snippets/l1-contract-table.jsx"
+import { L2ContractTable } from "/snippets/l2-contract-table.jsx"
+
+이 페이지에는 OP Mainnet 및 OP Sepolia의 모든 컨트랙트 주소가 나열되어 있습니다. 개략적인 설명과 소스 코드는 [스마트 컨트랙트 개요](/ko/op-stack/protocol/smart-contracts)를 참조하세요.
+
+<Info>
+컨트랙트 주소는 [superchain-registry](https://github.com/ethereum-optimism/superchain-registry/tree/main)에서 자동으로 동기화됩니다.
+</Info>
+
+## L2 컨트랙트 주소
+
+### OP Mainnet
+
+<L2ContractTable chain="10" legacy={false} />
+
+### OP Sepolia
+
+<L2ContractTable chain="11155420" legacy={false} />
+
+## L1 컨트랙트 주소
+
+### Ethereum Mainnet
+
+<L1ContractTable chain="10" explorer="1" legacy={false} />
+
+### Ethereum Testnet (Sepolia)
+
+<L1ContractTable chain="11155420" explorer="11155111" legacy={false} />
+
+## 공유 컨트랙트
+
+### Ethereum Mainnet
+
+<SuperchainContractTable chain="1" explorer="1" />
+
+### Ethereum Testnet (Sepolia)
+
+<SuperchainContractTable chain="11155111" explorer="11155111" />
+
+## 레거시 컨트랙트
+
+<Info>
+레거시 컨트랙트는 이전 버전의 OP Stack에서 사용된 컨트랙트이며 하위 호환성을 위해 유지됩니다.
+</Info>
+
+### OP Mainnet 레거시 (L2)
+
+<L2ContractTable chain="10" legacy={true} />
+
+### Ethereum Mainnet 레거시 (L1)
+
+<L1ContractTable chain="10" explorer="1" legacy={true} />

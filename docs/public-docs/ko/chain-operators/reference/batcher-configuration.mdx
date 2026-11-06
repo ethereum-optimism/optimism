@@ -1,0 +1,60 @@
+---
+title: Batcher 구성 레퍼런스
+description: CLI 플래그, 환경 변수, 기본값을 포함한 모든 op-batcher 구성 옵션에 대한 레퍼런스입니다.
+diataxis: reference
+---
+
+import OpBatcherFlags from '/ko/snippets/generated/op-batcher-flags.mdx';
+import { ConfigReferencePreamble } from '/ko/snippets/config-reference-preamble.mdx';
+
+이 페이지는 L2 sequencer 데이터를 L1에 게시하여 검증자가 사용할 수 있도록 하는
+서비스인 op-batcher의 모든 구성 옵션을 정리합니다.
+
+<ConfigReferencePreamble component="op-batcher" />
+
+batcher 정책, 비용 조정, multi-blob 트랜잭션, sequencer 스로틀링 등 값 선택에 대한
+안내는 [batcher 구성 가이드](/ko/chain-operators/guides/configuration/batcher)를
+참조하세요.
+
+## 플래그
+
+<OpBatcherFlags />
+
+## 스로틀링
+
+`throttle.*` 플래그는 백로그가 쌓였을 때 batcher가 데이터 가용성(DA) 사용량을
+제한하는 방식을 제어합니다. 아직 L1에 게시되지 않은 sequencing된 데이터의 양
+(`unsafe_da_bytes` 메트릭)이 `--throttle.unsafe-da-bytes-lower-threshold`를 초과하면,
+batcher는 `--l2-eth-rpc` 엔드포인트와 `--throttle.additional-endpoints`에 나열된
+엔드포인트를 통해 블록 빌더에게 트랜잭션 및 블록 DA 크기를 제한하도록 지시하며,
+백로그가 커짐에 따라 구성된 상한과 하한 크기 제한 사이에서 조정합니다.
+
+`--throttle.controller-type`은 백로그에 따라 스로틀링 강도가 증가하는 방식을
+선택합니다: `step`, `linear`, `quadratic`(기본값), 또는 6개의 `throttle.pid-*`
+플래그로 조정하는 실험적 `pid` 컨트롤러입니다.
+
+PID 컨트롤러를 포함한 스로틀링 하위 시스템의 설계는 monorepo의
+[`op-batcher/throttling.md`](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/throttling.md)를
+참조하세요.
+
+## 주요 플래그 참고 사항
+
+### batch-type
+
+Span batch(`--batch-type=1`)는 더 나은 압축을 위해 연속된 L2 블록을 단일 배치로
+묶습니다. 자세한 내용은 [span batch 기능 페이지](/ko/op-stack/features/span-batches)를
+참조하세요.
+
+### data-availability-type
+
+<Info>
+  이 플래그를 `auto`로 설정하면 batcher가 현재 L1 gas 가격에 따라 `calldata`와
+  `blobs` 사이를 자동으로 전환할 수 있습니다.
+</Info>
+
+### altda.*
+
+`altda.*` 플래그는 OP Stack의 베타 기능인 Alt-DA 모드를 구성합니다.
+핵심 기여자들의 초기 검토를 거쳤지만 아직 테스트 중이며 버그나 기타 문제가 있을 수
+있습니다. 설정 지침은 [Alt-DA 모드 가이드](/ko/chain-operators/guides/features/alt-da-mode-guide)를
+참조하세요.

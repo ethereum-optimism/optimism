@@ -62,7 +62,7 @@ mod builder;
 pub use builder::{Discv5Builder, LocalNode};
 
 mod error;
-pub use error::Discv5BuilderError;
+pub use error::{AdvertiseTcpPortError, Discv5BuilderError};
 
 mod driver;
 pub use driver::Discv5Driver;

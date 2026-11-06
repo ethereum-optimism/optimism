@@ -33,8 +33,8 @@ interface GitHubRelease {
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-// Tag prefix formats confirmed from .goreleaser.yaml, release.toml, and
-// ops/scripts/find_release_tag.sh in the monorepo.
+// Tag prefixes follow the <component>/v<version> form that ops/scripts/find_release_tag.sh
+// looks up in the monorepo.
 // Order controls the Latest Releases card list on the index page.
 const COMPONENTS: Component[] = [
   // ── optimism repo ──────────────────────────────────────────────────────────

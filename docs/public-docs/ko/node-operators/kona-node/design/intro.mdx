@@ -1,0 +1,74 @@
+---
+title: "노드 설계 개요"
+diataxis: explanation
+---
+
+`kona-node`의 진입점은 [`RollupNode`][node] 서비스이며,
+이 서비스는 노드의 핵심 연결 구조를 캡슐화합니다. `RollupNode`는
+[`RollupNodeBuilder`][builder]를 통해 생성되며,
+[`start` 메서드][start]는 노드의 여러 구성 요소를 연결하고
+생성된(spawned) 작업에서 actor들을 실행하는 역할을 합니다.
+
+`RollupNode`는 [`NodeActor` trait][actor]을 통해 개별 actor를
+추상화합니다. 이 trait은 단일 `step` 메서드만 가진 최소한의
+인터페이스이며, 서비스는 actor가 치명적 오류를 보고하거나 노드가
+종료될 때까지 이 메서드를 루프에서 구동합니다.
+
+Kona는 `RollupNode`를 실행하는 데 필요한 모든 `NodeActor`의 구현을
+제공합니다. Actor는 `kona-node-service` crate의 [actors][actors]
+모듈에 정의되어 있으며, `RollupNode`의 연결 구조는
+[service][service] 모듈에 있습니다.
+
+
+### Actors
+
+`kona-node`의 아키텍처는 공유 메모리를 사용하는 대신 채널을 이용한
+메시지 전달로 상태를 공유하는 actor들의 네트워크입니다.
+
+[`RollupNode`][node]는 다음 actor들을 빌드하고 시작합니다.
+
+- **Derivation Actor**: derivation 파이프라인을 조율하며,
+  L1 블록에서 L2 payload attributes를 derive합니다. 이렇게
+  준비된 payload attributes는 실행을 위해 Engine Actor로
+  전달됩니다. derivation actor의 동작 방식은
+  [derivation][derivation] 문서에서 자세히 다룹니다.
+- **Engine Actor**: 실행 계층 클라이언트(또는 "실행 엔진")와의
+  연결을 중개합니다. engine actor는 다른 actor로부터 받은
+  메시지를 엔진 "작업"으로 변환하며, 이 작업은 우선순위에 따라
+  EL 클라이언트에 대해 실행됩니다. 읽기 전용 엔진 조회는
+  `RollupRpc`가 직접 처리합니다. 자세한 내용은 [engine][engine]
+  문서를 참조하십시오.
+- **L1 Watcher Actor**: L1 체인에서 새 head 블록과 최종 확정
+  블록을 감시하고 이를 derivation actor에 전달합니다. 또한
+  gossip 검증과 signer actor를 위해 `SystemConfig` 컨트랙트에서
+  unsafe 블록 서명자 정보를 최신 상태로 유지합니다.
+- **Network Actor**: rollup node의 P2P 네트워크를 관리합니다.
+  P2P 스택은 `discv5` 피어 탐색과 libp2p를 통한 블록 gossip으로
+  구성됩니다. 자세한 내용은 [network][p2p] 문서를
+  참조하십시오.
+- **Sequencer Actor**: sequencer actor는 `kona-node`를
+  sequencer로 실행할 수 있도록 확장합니다. sequencing은
+  기본적인 rollup node 동작의 주변 기능입니다.
+  [sequencer][sequencer] 문서를 참조하십시오.
+- **Signer Actor**: sequencer actor와 함께 실행됩니다.
+  sequencer가 빌드한 각 블록에 순서대로 서명하고,
+  gossip을 위해 network actor에 전달합니다.
+- **RPC Actor**: JSON-RPC 서버를 감독하고 재시작을 처리합니다.
+  Jsonrpsee는 등록된 모듈로 요청을 전달하며, 여기에는
+  [OP Stack Specs][specs]에서 요구하는 rollup 메서드를 제공하는
+  `RollupRpc`가 포함됩니다.
+
+
+[p2p]: ./p2p
+[engine]: ./engine
+[derivation]: ./derivation
+[sequencer]: ./sequencer
+
+[specs]: https://specs.optimism.io/protocol/rollup-node.html
+
+[service]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/node/service/src/service
+[actors]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/node/service/src/actors
+[actor]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/actors/traits.rs
+[start]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/node.rs
+[node]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/node.rs
+[builder]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/builder.rs

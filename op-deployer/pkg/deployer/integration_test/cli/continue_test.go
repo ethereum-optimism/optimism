@@ -90,7 +90,8 @@ func TestContinueCLIColdStart(t *testing.T) {
 		runner := NewCLITestRunner(t)
 		require.NoDirExists(t, filepath.Join(runner.GetWorkDir(), ".cache"))
 		nonceBefore := continueCLINonce(t, fixture)
-		runner.ExpectSuccess(t, continueCLIArgs(fixture, workdir), nil)
+		output := runner.ExpectSuccess(t, continueCLIArgs(fixture, workdir), nil)
+		requireFastReceiptPoll(t, output)
 
 		require.Equal(t, nonceBefore+1, continueCLINonce(t, fixture))
 		persisted, err := pipeline.ReadState(workdir)
@@ -120,7 +121,7 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 	privateKey, key, dk := shared.DefaultPrivkey(t)
 	l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
 	chainID := uint256.NewInt(1)
-	loc, _ := testutil.LocalArtifacts(t)
+	loc, afacts := testutil.LocalArtifacts(t)
 	setupCacheDir := t.TempDir()
 
 	intent, st := shared.NewIntent(t, l1ChainID, dk, chainID, loc, loc, continueCLIGasLimit)
@@ -133,8 +134,10 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 		CacheDir:                  setupCacheDir,
 		SuperchainProxyAdminOwner: superchainPAO,
 		Guardian:                  intent.SuperchainRoles.SuperchainGuardian,
+		ReceiptQueryInterval:      testReceiptQueryInterval,
 	})
 	require.NoError(t, err)
+	sp1Verifier := testutil.DeployMockSP1Verifier(t, l1Client, key, afacts)
 
 	impls, err := bootstrap.Implementations(ctx, bootstrap.ImplementationsConfig{
 		L1RPCUrl:                           l1RPC,
@@ -159,6 +162,8 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 		FaultGameSplitDepth:                standard.DisputeSplitDepth,
 		FaultGameClockExtension:            standard.DisputeClockExtension,
 		FaultGameMaxClockDuration:          standard.DisputeMaxClockDuration,
+		SP1Verifier:                        sp1Verifier,
+		ReceiptQueryInterval:               testReceiptQueryInterval,
 	})
 	require.NoError(t, err)
 

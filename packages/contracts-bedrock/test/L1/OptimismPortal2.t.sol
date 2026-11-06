@@ -8,7 +8,7 @@ import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { NextImpl } from "test/mocks/NextImpl.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
+import { OptimismPortal2_TestInit } from "test/setup/OptimismPortal2TestInit.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Scripts
@@ -20,8 +20,10 @@ import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Features } from "src/libraries/Features.sol";
+import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
 import "src/dispute/lib/Types.sol";
 import { UnknownChainId } from "src/dispute/lib/Errors.sol";
 
@@ -37,194 +39,6 @@ import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
-
-abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
-    address depositor;
-
-    Types.WithdrawalTransaction _defaultTx;
-    IFaultDisputeGame game;
-    uint256 _proposedGameIndex;
-    uint256 _proposedBlockNumber;
-    bytes32 _stateRoot;
-    bytes32 _storageRoot;
-    bytes32 _outputRoot;
-    bytes32 _withdrawalHash;
-    bytes[] _withdrawalProof;
-    Types.OutputRootProof internal _outputRootProof;
-    GameType internal respectedGameType;
-
-    /// @notice The configured proof maturity delay. Read once in setUp so tests can pass it back to
-    ///         initialize() without an external call consuming a pending prank.
-    uint256 internal portalProofMaturityDelay;
-
-    event ProofMaturityDelaySecondsSet(uint256 proofMaturityDelaySeconds);
-
-    // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
-    constructor() {
-        super.setUp();
-
-        _defaultTx = Types.WithdrawalTransaction({
-            nonce: 0,
-            sender: alice,
-            target: bob,
-            value: 100,
-            gasLimit: 100_000,
-            data: hex"aa" // includes calldata for ERC20 withdrawal test
-        });
-
-        if (isUsingCustomGasToken()) {
-            _defaultTx.value = 0;
-        }
-
-        // Get withdrawal proof data we can use for testing.
-        (_stateRoot, _storageRoot, _outputRoot, _withdrawalHash, _withdrawalProof) =
-            ffi.getProveWithdrawalTransactionInputs(_defaultTx);
-
-        // Setup a dummy output root proof for reuse.
-        _outputRootProof = Types.OutputRootProof({
-            version: bytes32(uint256(0)),
-            stateRoot: _stateRoot,
-            messagePasserStorageRoot: _storageRoot,
-            latestBlockhash: bytes32(uint256(0))
-        });
-    }
-
-    /// @dev Setup the system for a ready-to-use state.
-    function setUp() public virtual override {
-        if (isL1ForkTest()) {
-            // Set the proposed block number to be the next block number on the forked network
-            (, _proposedBlockNumber) = anchorStateRegistry.getAnchorRoot();
-            _proposedBlockNumber += 1;
-
-            // Set the init bond of anchor game type 0 to be 0.
-            // It is a mapping so the storage slot is calculated as keccak256(abi.encode(key, slot)).
-            // The storage slot for the initBond mapping is 102, see `snapshots/storageLayout/DisputeGameFactory.json`.
-            vm.store(
-                address(disputeGameFactory), keccak256(abi.encode(GameType.wrap(0), uint256(102))), bytes32(uint256(0))
-            );
-        } else {
-            // Set up the dummy game.
-            _proposedBlockNumber = 0xFF;
-        }
-
-        depositor = makeAddr("depositor");
-        portalProofMaturityDelay = optimismPortal2.proofMaturityDelaySeconds();
-
-        setupFaultDisputeGame(Claim.wrap(_outputRoot));
-
-        // Warp forward in time to ensure that the game is created after the retirement timestamp.
-        vm.warp(anchorStateRegistry.retirementTimestamp() + 1);
-
-        respectedGameType = optimismPortal2.respectedGameType();
-        game = IFaultDisputeGame(
-            payable(address(_createDisputeGame(respectedGameType, _outputRoot, _proposedBlockNumber)))
-        );
-
-        // Grab the index of the game we just created.
-        _proposedGameIndex = disputeGameFactory.gameCount() - 1;
-
-        // Warp beyond the chess clocks and finalize the game.
-        vm.warp(block.timestamp + game.maxClockDuration().raw() + 1 seconds);
-
-        // Fund the portal so that we can withdraw ETH.
-        vm.deal(address(optimismPortal2), 0xFFFFFFFF);
-        if (isUsingLockbox()) {
-            vm.deal(address(ethLockbox), 0xFFFFFFFF);
-        }
-    }
-
-    /// @notice Creates a dispute game with proper extraData for both regular and super game types.
-    function _createDisputeGame(
-        GameType _gameType,
-        bytes32 _outputRoot_,
-        uint256 _blockNumber
-    )
-        internal
-        returns (IDisputeGame)
-    {
-        Claim claim;
-        bytes memory extra;
-        if (DisputeGames.isSuperGame(_gameType)) {
-            Types.OutputRootWithChainId[] memory roots = new Types.OutputRootWithChainId[](1);
-            roots[0] = Types.OutputRootWithChainId({ chainId: systemConfig.l2ChainId(), root: _outputRoot_ });
-            Types.SuperRootProof memory proof = Types.SuperRootProof({
-                version: bytes1(uint8(1)), timestamp: uint64(_blockNumber), outputRoots: roots
-            });
-            claim = Claim.wrap(Hashing.hashSuperRootProof(proof));
-            extra = Encoding.encodeSuperRootProof(proof);
-        } else {
-            claim = Claim.wrap(_outputRoot_);
-            extra = abi.encode(_blockNumber);
-        }
-        return disputeGameFactory.create{ value: disputeGameFactory.initBonds(_gameType) }(_gameType, claim, extra);
-    }
-
-    /// @notice Asserts that the reentrant call will revert.
-    function callPortalAndExpectRevert() external payable {
-        vm.expectRevert(IOptimismPortal.OptimismPortal_NoReentrancy.selector);
-
-        // Arguments here don't matter, as the require check is the first thing that happens.
-        // We assume that this has already been proven.
-        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
-
-        // Assert that the withdrawal was not finalized.
-        assertFalse(optimismPortal2.finalizedWithdrawals(Hashing.hashWithdrawal(_defaultTx)));
-    }
-
-    /// @notice Checks if the ETHLockbox feature is enabled.
-    /// @return bool True if the ETHLockbox feature is enabled.
-    function isUsingLockbox() public view returns (bool) {
-        return
-            systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(optimismPortal2.ethLockbox()) != address(0);
-    }
-
-    /// @notice Checks if the Custom Gas Token feature is enabled.
-    /// @return bool True if the Custom Gas Token feature is enabled.
-    function isUsingCustomGasToken() public view returns (bool) {
-        return systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
-    }
-
-    /// @notice Enables the ETHLockbox feature if not enabled.
-    /// @param _lockbox Address of the lockbox to enable.
-    function forceEnableLockbox(address _lockbox) public {
-        if (!isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
-            vm.prank(address(proxyAdmin));
-            systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-        }
-
-        // Overwrite the lockbox either way.
-        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "ethLockbox");
-        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(address(_lockbox)))));
-
-        // If the recipient address has no code, store STOP so we don't get reverts.
-        if (address(_lockbox).code.length == 0) {
-            vm.etch(address(_lockbox), hex"00");
-        }
-    }
-
-    /// @notice Sets the bridge hook.
-    /// @param _hook Address of the bridge hook to set.
-    function forceSetBridgeHook(address _hook) public {
-        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "bridgeHook");
-        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(_hook))));
-    }
-
-    /// @notice Enables the runtime interop features used by portal migration methods.
-    function forceEnableInterop() public {
-        forceEnableLockbox(address(ethLockbox));
-
-        if (!isSysFeatureEnabled(Features.INTEROP)) {
-            vm.prank(address(proxyAdmin));
-            systemConfig.setFeature(Features.INTEROP, true);
-        }
-    }
-
-    /// @notice Sets the useCustomGasToken variable
-    function setUseCustomGasToken(bool _useCustomGasToken) public {
-        vm.prank(address(proxyAdmin));
-        systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, _useCustomGasToken);
-    }
-}
 
 /// @title OptimismPortal2_Version_Test
 /// @notice Test contract for OptimismPortal2 `version` function.
@@ -2061,6 +1875,131 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         optimismPortal2.finalizeWithdrawalTransaction{ gas: _defaultTx.gasLimit }(_defaultTx);
     }
 
+    /// @notice Returns a withdrawal that relays a message from the L2CrossDomainMessenger to `_to`.
+    function _messengerWithdrawal(
+        address _from,
+        address _to
+    )
+        internal
+        view
+        returns (Types.WithdrawalTransaction memory tx_)
+    {
+        tx_ = _defaultTx;
+        tx_.sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        tx_.target = address(l1CrossDomainMessenger);
+        tx_.gasLimit = l1CrossDomainMessenger.baseGas(hex"", 0);
+        tx_.data =
+            Encoding.encodeCrossDomainMessageV1(Encoding.encodeVersionedNonce(0, 1), _from, _to, tx_.value, 0, hex"");
+    }
+
+    /// @notice Skips fuzz runs where `_addr` is not a plain account: an address with code, a
+    ///         precompile or a Forge address.
+    function _assumePlainAccount(address _addr) internal view {
+        assumeNotForgeAddress(_addr);
+        assumeNotPrecompile(_addr);
+        // assumeNotPrecompile stops at 0xff, which misses the P256VERIFY precompile (EIP-7951).
+        vm.assume(_addr != address(0x100));
+        vm.assume(_addr.code.length == 0);
+    }
+
+    /// @notice Tests that `finalizeWithdrawalTransaction` reverts when the L1CrossDomainMessenger
+    ///         fails to relay a withdrawal from the L2CrossDomainMessenger, so the withdrawal is
+    ///         not finalized without the messenger recording it as successful or failed.
+    function testFuzz_finalizeWithdrawalTransaction_l1CrossDomainMessengerCallFails_reverts(
+        address _from,
+        address _to
+    )
+        external
+    {
+        Types.WithdrawalTransaction memory messengerTx = _messengerWithdrawal(_from, _to);
+        bytes32 withdrawalHash = _prepareWithdrawalForFinalization(messengerTx);
+        uint256 portalBalanceBefore = address(optimismPortal2).balance;
+        uint256 lockboxBalanceBefore = address(ethLockbox).balance;
+
+        // Model the messenger reverting before it records the message, e.g. by running out of gas.
+        vm.mockCallRevert(address(l1CrossDomainMessenger), messengerTx.data, hex"");
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_L1CDMCallFailed.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(messengerTx);
+
+        assertFalse(optimismPortal2.finalizedWithdrawals(withdrawalHash));
+        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+        assertEq(address(ethLockbox).balance, lockboxBalanceBefore);
+    }
+
+    /// @notice Tests that `finalizeWithdrawalTransaction` reverts with the gas estimation error
+    ///         when the L1CrossDomainMessenger fails to relay a withdrawal from the
+    ///         L2CrossDomainMessenger and the caller is the ESTIMATION_ADDRESS.
+    function testFuzz_finalizeWithdrawalTransaction_l1CrossDomainMessengerCallFailsAndCallerIsEstimationAddress_reverts(
+        address _from,
+        address _to
+    )
+        external
+    {
+        Types.WithdrawalTransaction memory messengerTx = _messengerWithdrawal(_from, _to);
+        bytes32 withdrawalHash = _prepareWithdrawalForFinalization(messengerTx);
+
+        vm.mockCallRevert(address(l1CrossDomainMessenger), messengerTx.data, hex"");
+
+        // Keep this contract, which proved the withdrawal, as the sender.
+        vm.prank(address(this), Constants.ESTIMATION_ADDRESS);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_GasEstimation.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(messengerTx);
+
+        assertFalse(optimismPortal2.finalizedWithdrawals(withdrawalHash));
+    }
+
+    /// @notice Tests that a withdrawal from the L2CrossDomainMessenger can be finalized after an
+    ///         earlier attempt failed in the L1CrossDomainMessenger.
+    function testFuzz_finalizeWithdrawalTransaction_l1CrossDomainMessengerCallFailsThenSucceeds_succeeds(
+        address _from,
+        address _to
+    )
+        external
+    {
+        // The messenger must be able to deliver ETH with empty calldata to the recipient.
+        _assumePlainAccount(_to);
+
+        Types.WithdrawalTransaction memory messengerTx = _messengerWithdrawal(_from, _to);
+        bytes32 withdrawalHash = _prepareWithdrawalForFinalization(messengerTx);
+        uint256 recipientBalanceBefore = _to.balance;
+
+        vm.mockCallRevert(address(l1CrossDomainMessenger), messengerTx.data, hex"");
+        (bool success,) =
+            address(optimismPortal2).call(abi.encodeCall(optimismPortal2.finalizeWithdrawalTransaction, (messengerTx)));
+        assertFalse(success);
+        vm.clearMockedCalls();
+
+        optimismPortal2.finalizeWithdrawalTransaction(messengerTx);
+
+        assertTrue(optimismPortal2.finalizedWithdrawals(withdrawalHash));
+        assertTrue(l1CrossDomainMessenger.successfulMessages(keccak256(messengerTx.data)));
+        assertEq(_to.balance, recipientBalanceBefore + messengerTx.value);
+    }
+
+    /// @notice Tests that a failed withdrawal to the L1CrossDomainMessenger from a sender other than
+    ///         the L2CrossDomainMessenger is still finalized.
+    function testFuzz_finalizeWithdrawalTransaction_otherSenderL1CrossDomainMessengerFails_succeeds(
+        address _from,
+        address _to
+    )
+        external
+    {
+        vm.assume(_from != Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+
+        Types.WithdrawalTransaction memory messengerTx = _messengerWithdrawal(_from, _to);
+        messengerTx.sender = _from;
+        bytes32 withdrawalHash = _prepareWithdrawalForFinalization(messengerTx);
+
+        // The messenger rejects messages that do not come from the L2CrossDomainMessenger.
+        vm.expectEmit(address(optimismPortal2));
+        emit WithdrawalFinalized(withdrawalHash, false);
+        optimismPortal2.finalizeWithdrawalTransaction(messengerTx);
+
+        assertTrue(optimismPortal2.finalizedWithdrawals(withdrawalHash));
+        assertFalse(l1CrossDomainMessenger.successfulMessages(keccak256(messengerTx.data)));
+    }
+
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts if a sub-call attempts to
     ///         finalize another withdrawal.
     function test_finalizeWithdrawalTransaction_onReentrancy_reverts() external {
@@ -2146,11 +2085,13 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         }
 
         vm.assume(
-            _target != address(optimismPortal2) // Cannot call the optimism portal or a contract
+            _sender != Predeploys.L2_CROSS_DOMAIN_MESSENGER // L2CrossDomainMessenger withdrawals revert on failure
+                && _target != address(optimismPortal2) // Cannot call the optimism portal or a contract
                 && _target.code.length == 0 // No accounts with code
                 && _target != CONSOLE // The console has no code but behaves like a contract
-                && uint160(_target) > 9 // No precompiles (or zero address)
+                && _target != address(0)
         );
+        assumeNotPrecompile(_target);
 
         // Total ETH supply is currently about 120M ETH.
         uint256 value = bound(_value, 0, 200_000_000 ether);
@@ -2225,11 +2166,13 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         }
 
         vm.assume(
-            _target != address(optimismPortal2) // Cannot call the optimism portal or a contract
+            _sender != Predeploys.L2_CROSS_DOMAIN_MESSENGER // L2CrossDomainMessenger withdrawals revert on failure
+                && _target != address(optimismPortal2) // Cannot call the optimism portal or a contract
                 && _target.code.length == 0 // No accounts with code
                 && _target != CONSOLE // The console has no code but behaves like a contract
-                && uint160(_target) > 9 // No precompiles (or zero address)
+                && _target != address(0)
         );
+        assumeNotPrecompile(_target);
 
         // Bound to prevent changes in retirementTimestamp
         _newGameType = GameType.wrap(uint32(bound(_newGameType.raw(), 0, type(uint32).max - 1)));
@@ -2347,6 +2290,76 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
 
         // Finalize the withdrawal transaction. This should succeed.
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+    }
+
+    /// @notice Tests that `finalizeWithdrawalTransaction` reverts if the AnchorStateRegistry's
+    ///         finality delay is zero, as it is when its proxy is upgraded without calling
+    ///         `initialize`.
+    function test_finalizeWithdrawalTransaction_zeroFinalityDelay_reverts() external {
+        uint256 delay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Resolve the dispute game.
+        game.resolveClaim(0, 0);
+        game.resolve();
+
+        // Warp past both the proof maturity delay and the finality delay.
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + delay + 1);
+
+        // Clear the AnchorStateRegistry's finality delay.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("AnchorStateRegistry", "disputeGameFinalityDelaySeconds");
+        vm.store(address(anchorStateRegistry), bytes32(slot.slot), bytes32(0));
+
+        // Attempt to finalize the withdrawal. This should fail.
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidRootClaim.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Set the delay again and finalize the withdrawal. This should succeed.
+        vm.prank(anchorStateRegistry.proxyAdminOwner());
+        anchorStateRegistry.setDisputeGameFinalityDelaySeconds(delay);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
+    }
+
+    /// @notice Tests that `finalizeWithdrawalTransaction` reverts if the proof maturity delay is
+    ///         zero, as it is when the portal proxy is upgraded without calling `initialize`.
+    function test_finalizeWithdrawalTransaction_zeroProofMaturityDelay_reverts() external {
+        uint256 delay = optimismPortal2.proofMaturityDelaySeconds();
+
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        // Resolve the dispute game.
+        game.resolveClaim(0, 0);
+        game.resolve();
+
+        // Warp past both the proof maturity delay and the finality delay.
+        vm.warp(block.timestamp + delay + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
+
+        // Clear the proof maturity delay.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "proofMaturityDelaySeconds");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+        assertEq(optimismPortal2.proofMaturityDelaySeconds(), 0);
+
+        // Attempt to finalize the withdrawal. This should fail.
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ProofNotOldEnough.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Set the delay again and finalize the withdrawal. This should succeed.
+        vm.prank(optimismPortal2.proxyAdminOwner());
+        optimismPortal2.setProofMaturityDelaySeconds(delay);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
         assertTrue(optimismPortal2.finalizedWithdrawals(_withdrawalHash));
     }
@@ -3376,5 +3389,59 @@ contract OptimismPortal2_BridgeHook_Test is OptimismPortal2_TestInit {
         vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidBridgeHookState.selector);
         vm.prank(proxyAdminOwner);
         optimismPortal2.removeHook();
+    }
+
+    /// @notice Tests that completeDepositTransaction reverts for a caller that is not the hook,
+    ///         so it cannot take ETH.
+    /// @param _caller The address attempting the call.
+    /// @param _value The ETH sent with the call.
+    function testFuzz_completeDepositTransaction_notBridgeHook_reverts(address _caller, uint256 _value) external {
+        vm.assume(_caller != hook);
+        _value = bound(_value, 0, 1 ether);
+        BridgeHookTypes.Item memory item;
+        vm.deal(_caller, _value);
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotBridgeHook.selector);
+        vm.prank(_caller);
+        optimismPortal2.completeDepositTransaction{ value: _value }(item);
+    }
+
+    /// @notice Tests that completeDepositTransaction reverts for the hook too, because the Portal
+    ///         cannot hold deposits yet.
+    function test_completeDepositTransaction_bridgeHook_reverts() external {
+        forceSetBridgeHook(hook);
+        BridgeHookTypes.Item memory item;
+        vm.deal(hook, 1 ether);
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotBridgeHook.selector);
+        vm.prank(hook);
+        optimismPortal2.completeDepositTransaction{ value: 1 ether }(item);
+    }
+
+    /// @notice Tests that completeWithdrawalTransaction reverts for a caller that is not the
+    ///         hook, so it cannot take ETH.
+    /// @param _caller The address attempting the call.
+    /// @param _value The ETH sent with the call.
+    function testFuzz_completeWithdrawalTransaction_notBridgeHook_reverts(address _caller, uint256 _value) external {
+        vm.assume(_caller != hook);
+        _value = bound(_value, 0, 1 ether);
+        BridgeHookTypes.Item memory item;
+        vm.deal(_caller, _value);
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotBridgeHook.selector);
+        vm.prank(_caller);
+        optimismPortal2.completeWithdrawalTransaction{ value: _value }(item);
+    }
+
+    /// @notice Tests that completeWithdrawalTransaction reverts for the hook too, because the
+    ///         Portal cannot hold withdrawals yet.
+    function test_completeWithdrawalTransaction_bridgeHook_reverts() external {
+        forceSetBridgeHook(hook);
+        BridgeHookTypes.Item memory item;
+        vm.deal(hook, 1 ether);
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotBridgeHook.selector);
+        vm.prank(hook);
+        optimismPortal2.completeWithdrawalTransaction{ value: 1 ether }(item);
     }
 }

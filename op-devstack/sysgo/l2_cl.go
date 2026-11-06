@@ -20,6 +20,8 @@ type L2CLConfig struct {
 	// SyncMode for op-node, if this is a verifier. As above, this does not select
 	// a native sync mode in Kona.
 	VerifierSyncMode nodeSync.Mode
+	// VerifierL1Confs delays L1 input to derivation, independently of sequencing.
+	VerifierL1Confs uint64
 
 	// SafeDBPath is the path to the safe DB to use. Disabled if empty.
 	SafeDBPath string

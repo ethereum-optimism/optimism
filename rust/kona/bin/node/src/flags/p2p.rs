@@ -14,8 +14,8 @@ use kona_derive::ChainProvider;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::{GaterConfig, PeerAddr};
-use kona_node_service::NetworkConfig;
-use kona_peers::{BootNode, BootStoreFile, PeerMonitoring, PeerScoreLevel};
+use kona_node_service::{IpVotes, NetworkConfig};
+use kona_peers::{BootNode, BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_providers_alloy::AlloyChainProvider;
 use libp2p::{identity::Keypair, multiaddr::Protocol};
 use std::{
@@ -51,11 +51,6 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
             .ok_or_else(|| format!("DNS resolution for '{host}' returned no addresses")),
         Err(e) => Err(format!("Failed to resolve '{host}': {e}")),
     }
-}
-
-/// Returns the port to advertise: `advertise` if set to a non-zero port, `listen` otherwise.
-fn advertised_port(advertise: Option<u16>, listen: u16) -> u16 {
-    advertise.filter(|&port| port != 0).unwrap_or(listen)
 }
 
 /// Parses one `--p2p.bootnodes` entry: an ENR (`enr:...`) or an enode URL (`enode://...`).
@@ -118,7 +113,9 @@ pub struct P2PArgs {
     pub private_key: Option<B256>,
 
     /// IP address or DNS hostname to advertise to external peers from Discv5.
-    /// Optional argument. Use the `p2p.listen.ip` if not set.
+    /// Optional argument. If not set, the node advertises `p2p.listen.ip` if it is a specific
+    /// address. On all interfaces (`0.0.0.0` or `::`), it advertises no IP until discovery learns
+    /// one from the peers it contacts.
     /// Accepts either an IP address (e.g., "1.2.3.4") or a DNS hostname (e.g.,
     /// "node1.example.com"). DNS hostnames are resolved to IP addresses at startup.
     ///
@@ -127,8 +124,8 @@ pub struct P2PArgs {
     /// behind a NAT for instance).
     #[arg(long = "p2p.advertise.ip", env = "KONA_NODE_P2P_ADVERTISE_IP", value_parser = resolve_host)]
     pub advertise_ip: Option<IpAddr>,
-    /// TCP port to advertise to external peers from the discovery layer. Same as `p2p.listen.tcp`
-    /// if set to zero.
+    /// TCP port to advertise to external peers from the discovery layer. If not set or zero, the
+    /// port `LibP2P` binds: `p2p.listen.tcp`, or the port picked for a listen port of zero.
     #[arg(long = "p2p.advertise.tcp", env = "KONA_NODE_P2P_ADVERTISE_TCP_PORT")]
     pub advertise_tcp_port: Option<u16>,
     /// UDP port to advertise to external peers from the discovery layer.
@@ -218,6 +215,9 @@ pub struct P2PArgs {
 
     /// The duration in minutes to ban a peer for.
     ///
+    /// A banned peer is disconnected, and its connections are refused in both directions until
+    /// the ban expires, or until `opp2p_unblockPeer` lifts it. Bans don't survive a restart.
+    ///
     /// For peers to be banned, the `p2p.ban.peers` flag must be set to `true`.
     /// By default peers are banned for 1 hour. This follows the `op-node` default `<https://github.com/ethereum-optimism/optimism/blob/09a8351a72e43647c8a96f98c16bb60e7b25dc6e/op-node/flags/p2p_flags.go#L131-L138>`.
     #[arg(long = "p2p.ban.duration", default_value = "60", env = "KONA_NODE_P2P_BAN_DURATION")]
@@ -231,6 +231,21 @@ pub struct P2PArgs {
         env = "KONA_NODE_P2P_DISCOVERY_INTERVAL"
     )]
     pub discovery_interval: u64,
+    /// How many peers must report the same external address before discovery advertises it in
+    /// the ENR. At least 2. Ignored with `p2p.advertise.ip`, which turns these updates off.
+    ///
+    /// The reports come from the peers this node finds through its bootnodes and contacts; the
+    /// bootnodes themselves don't count. With fewer votes, fewer peers decide the address: two
+    /// colluding peers could make the node unreachable, or point other nodes at another host.
+    /// Keep the default on public networks. On a network with fewer reachable nodes than this,
+    /// not counting the bootnodes, a node listening on all interfaces never learns its address:
+    /// set `p2p.advertise.ip`, or lower this.
+    #[arg(
+        long = "p2p.discovery.ip-votes",
+        default_value_t = IpVotes::DEFAULT,
+        env = "KONA_NODE_P2P_DISCOVERY_IP_VOTES"
+    )]
+    pub discovery_ip_votes: IpVotes,
     /// The directory to store the bootstore.
     #[arg(long = "p2p.bootstore", env = "KONA_NODE_P2P_BOOTSTORE")]
     pub bootstore: Option<PathBuf>,
@@ -355,8 +370,9 @@ impl P2PArgs {
         Ok(())
     }
 
-    /// Returns what an operator should know about how the node can find peers with these flags.
-    fn peering_warnings(&self) -> Vec<&'static str> {
+    /// Returns what an operator should know about how the node can find peers with these flags,
+    /// and how they can find it, on the chain with `chain_id`.
+    fn peering_warnings(&self, chain_id: u64) -> Vec<&'static str> {
         let mut warnings = Vec::new();
         if self.no_discovery {
             if self.static_peers.is_empty() {
@@ -368,6 +384,29 @@ impl P2PArgs {
             if !self.bootnodes.is_empty() {
                 warnings.push("Discovery is disabled, so the bootnodes are ignored");
             }
+            if self.discovery_ip_votes != IpVotes::DEFAULT {
+                warnings.push("Discovery is disabled, so --p2p.discovery.ip-votes is ignored");
+            }
+        } else if self.advertise_ip.is_some() && self.discovery_ip_votes != IpVotes::DEFAULT {
+            warnings.push(
+                "--p2p.discovery.ip-votes is ignored with --p2p.advertise.ip, which keeps the \
+                 advertised IP fixed",
+            );
+        }
+        // On all interfaces, the ENR has no IP until enough peers agree on one. A chain without
+        // built-in bootnodes, such as a devnet, may have too few nodes for that.
+        if !self.no_discovery &&
+            self.advertise_ip.is_none() &&
+            self.listen_ip.is_unspecified() &&
+            BootNodes::from_chain_id(chain_id).is_empty()
+        {
+            warnings.push(
+                "The node listens on all interfaces without --p2p.advertise.ip, so it advertises \
+                 no IP until --p2p.discovery.ip-votes of the peers it contacts agree on its \
+                 address, and other nodes can't find it before. This chain has no built-in \
+                 bootnodes, so its network may be too small for that: consider setting \
+                 --p2p.advertise.ip, or a specific --p2p.listen.ip",
+            );
         }
         warnings
     }
@@ -440,7 +479,7 @@ impl P2PArgs {
         args: &GlobalArgs,
         l1_rpc: Option<Url>,
     ) -> anyhow::Result<NetworkConfig> {
-        for warning in self.peering_warnings() {
+        for warning in self.peering_warnings(config.l2_chain_id.id()) {
             tracing::warn!(target: "p2p::flags", "{warning}");
         }
 
@@ -450,10 +489,11 @@ impl P2PArgs {
         // Fallback to the listen ip if the advertise ip is not specified
         let advertise_ip = self.advertise_ip.unwrap_or(self.listen_ip);
 
-        // If the advertise ip is set, we will disable the dynamic ENR updates.
-        let static_ip = self.advertise_ip.is_some();
+        // An advertise IP stays fixed, so discovery doesn't update it from the peers' votes.
+        let ip_votes = self.advertise_ip.is_none().then_some(self.discovery_ip_votes);
 
-        let advertise_tcp_port = advertised_port(self.advertise_tcp_port, self.listen_tcp_port);
+        // Gossip advertises the port it binds for 0, see `LocalNode::tcp_port`.
+        let advertise_tcp_port = self.advertise_tcp_port.unwrap_or_default();
         // Discovery advertises the port it listens on for 0, see `Discv5Builder::build`.
         let advertise_udp_port = self.advertise_udp_port.unwrap_or_default();
 
@@ -491,7 +531,7 @@ impl P2PArgs {
 
         let discovery_listening_address = SocketAddr::new(self.listen_ip, self.listen_udp_port);
         let discovery_config =
-            NetworkConfig::discv5_config(discovery_listening_address.into(), static_ip);
+            NetworkConfig::discv5_config(discovery_listening_address.into(), ip_votes);
 
         let mut gossip_address = libp2p::Multiaddr::from(self.listen_ip);
         gossip_address.push(libp2p::multiaddr::Protocol::Tcp(self.listen_tcp_port));
@@ -515,7 +555,6 @@ impl P2PArgs {
             discovery_address,
             discovery_randomize: self.discovery_randomize.map(Duration::from_secs),
             discovery_enabled: !self.no_discovery,
-            enr_update: !static_ip,
             gossip_address,
             keypair,
             unsafe_block_signer,
@@ -568,8 +607,14 @@ mod tests {
     use super::*;
     use alloy_primitives::b256;
     use clap::Parser;
+    use kona_genesis::OP_MAINNET_CHAIN_ID;
+    use kona_node_service::NetworkBuilder;
     use kona_peers::NodeRecord;
     use libp2p::PeerId;
+    use rstest::rstest;
+
+    /// A chain ID in no registry, so it has no built-in bootnodes, as on a devnet.
+    const DEVNET_CHAIN_ID: u64 = 0;
 
     /// A mock command that uses the `P2PArgs`.
     #[derive(Parser, Debug, Clone)]
@@ -629,6 +674,60 @@ mod tests {
         assert_eq!(args.p2p.discovery_randomize, None);
     }
 
+    /// On a chain without built-in bootnodes, a node that listens on all interfaces without an
+    /// advertise IP warns that it may never learn its address. A specific listen IP, an advertise
+    /// IP, no discovery or a chain with built-in bootnodes don't warn.
+    #[rstest]
+    #[case::ipv4_all_interfaces(DEVNET_CHAIN_ID, &[], true)]
+    #[case::ipv6_all_interfaces(DEVNET_CHAIN_ID, &["--p2p.listen.ip", "::"], true)]
+    #[case::specific_listen_ip(DEVNET_CHAIN_ID, &["--p2p.listen.ip", "127.0.0.1"], false)]
+    #[case::advertise_ip(DEVNET_CHAIN_ID, &["--p2p.advertise.ip", "1.2.3.4"], false)]
+    #[case::no_discovery(DEVNET_CHAIN_ID, &["--p2p.no-discovery"], false)]
+    #[case::chain_with_bootnodes(OP_MAINNET_CHAIN_ID, &[], false)]
+    fn test_peering_warnings_on_all_interfaces(
+        #[case] chain_id: u64,
+        #[case] flags: &[&str],
+        #[case] warns: bool,
+    ) {
+        let warnings = peering_warnings_on(chain_id, flags);
+        assert_eq!(
+            warnings.iter().any(|w| w.contains("listens on all interfaces")),
+            warns,
+            "{warnings:?}"
+        );
+    }
+
+    /// The votes default to 10, as discv5's and op-node's do. Fewer than 2 are rejected, since
+    /// discv5 panics on them.
+    #[test]
+    fn test_p2p_args_discovery_ip_votes() {
+        let parse = |args: &[&str]| {
+            MockCommand::try_parse_from(std::iter::once("test").chain(args.iter().copied()))
+                .map(|args| args.p2p.discovery_ip_votes.get())
+        };
+
+        assert_eq!(parse(&[]).unwrap(), 10);
+        assert_eq!(parse(&["--p2p.discovery.ip-votes", "2"]).unwrap(), 2);
+        assert_eq!(parse(&["--p2p.discovery.ip-votes", "30"]).unwrap(), 30);
+        for invalid in ["0", "1", "-1", "two"] {
+            assert!(parse(&["--p2p.discovery.ip-votes", invalid]).is_err(), "{invalid}");
+        }
+    }
+
+    /// The votes reach discovery, which needs that many peers to agree before it updates the
+    /// ENR's address. With an advertise IP, it never updates it.
+    #[tokio::test]
+    async fn test_discovery_ip_votes_reach_discovery() {
+        let config = network_config(&["--p2p.discovery.ip-votes", "3"]).await;
+        assert!(config.discovery_config.enr_update);
+        assert_eq!(config.discovery_config.enr_peer_update_min, 3);
+
+        let config =
+            network_config(&["--p2p.discovery.ip-votes", "3", "--p2p.advertise.ip", "127.0.0.1"])
+                .await;
+        assert!(!config.discovery_config.enr_update);
+    }
+
     #[test]
     fn test_p2p_args_no_discovery() {
         let args = MockCommand::parse_from(["test", "--p2p.no-discovery"]);
@@ -660,14 +759,19 @@ mod tests {
         assert!(check("0", false).is_err());
     }
 
-    /// Without discovery, the node warns if nothing gives it peers, and that bootnodes go unused.
+    /// Returns the peering warnings for these P2P flags on the chain with `chain_id`.
+    fn peering_warnings_on(chain_id: u64, args: &[&str]) -> Vec<&'static str> {
+        let args = MockCommand::parse_from(std::iter::once("test").chain(args.iter().copied()));
+        args.p2p.peering_warnings(chain_id)
+    }
+
+    /// Without discovery, the node warns if nothing gives it peers, and that bootnodes and IP
+    /// votes go unused. With an advertise IP, it warns that the IP votes go unused.
     #[test]
     fn test_peering_warnings() {
         let static_peer = format!("/ip4/10.0.0.1/tcp/9222/p2p/{}", PeerId::random());
-        let warnings = |args: &[&str]| {
-            let args = MockCommand::parse_from(std::iter::once("test").chain(args.iter().copied()));
-            args.p2p.peering_warnings()
-        };
+        // OP Mainnet has built-in bootnodes, so listening on all interfaces doesn't warn.
+        let warnings = |args: &[&str]| peering_warnings_on(OP_MAINNET_CHAIN_ID, args);
 
         assert!(warnings(&[]).is_empty());
         assert!(warnings(&["--p2p.bootnodes", ENODE_1]).is_empty());
@@ -690,6 +794,29 @@ mod tests {
             matches!(bootnodes.as_slice(), [w] if w.contains("bootnodes are ignored")),
             "{bootnodes:?}"
         );
+
+        // Votes only matter without an advertise IP, so only setting them with one warns.
+        let advertise_ip = ["--p2p.advertise.ip", "1.2.3.4"];
+        let ip_votes = ["--p2p.discovery.ip-votes", "3"];
+        assert!(warnings(&advertise_ip).is_empty());
+        assert!(warnings(&ip_votes).is_empty());
+        let ignored_votes = warnings(&[advertise_ip, ip_votes].concat());
+        assert!(
+            matches!(ignored_votes.as_slice(), [w] if w.contains("ip-votes is ignored")),
+            "{ignored_votes:?}"
+        );
+
+        // Without discovery, the votes are ignored too, and that is the only warning, with or
+        // without an advertise IP.
+        let static_peers = ["--p2p.no-discovery", "--p2p.static-peers", static_peer.as_str()];
+        let only_votes_ignored = |flags: &[&str]| {
+            matches!(
+                warnings(flags).as_slice(),
+                [w] if w.contains("Discovery is disabled, so --p2p.discovery.ip-votes is ignored")
+            )
+        };
+        assert!(only_votes_ignored(&[&static_peers[..], &ip_votes].concat()));
+        assert!(only_votes_ignored(&[&static_peers[..], &ip_votes, &advertise_ip].concat()));
     }
 
     #[test]
@@ -733,11 +860,54 @@ mod tests {
         assert_eq!(args.p2p.listen_tcp_port, 1234);
     }
 
-    #[test]
-    fn test_advertised_port_falls_back_to_listen_port() {
-        assert_eq!(advertised_port(None, 9223), 9223);
-        assert_eq!(advertised_port(Some(0), 9223), 9223);
-        assert_eq!(advertised_port(Some(30303), 9223), 30303);
+    /// Returns the network config for these P2P flags, for a node that listens on `127.0.0.1` on
+    /// free ports, without bootnodes or a bootstore.
+    async fn network_config(flags: &[&str]) -> NetworkConfig {
+        let args = MockCommand::parse_from(
+            [
+                "test",
+                "--p2p.listen.ip",
+                "127.0.0.1",
+                "--p2p.listen.tcp",
+                "0",
+                "--p2p.listen.udp",
+                "0",
+                "--p2p.no-bootstore",
+                "--p2p.unsafe.block.signer",
+                "0x0000000000000000000000000000000000000001",
+            ]
+            .into_iter()
+            .chain(flags.iter().copied()),
+        );
+        // Chain ID 0 is in no registry, so discovery has no bootnodes. Peer scoring needs a block
+        // time.
+        let rollup_config = RollupConfig { block_time: 2, ..Default::default() };
+        args.p2p.config(&rollup_config, &GlobalArgs::default(), None).await.unwrap()
+    }
+
+    /// A started node advertises `--p2p.advertise.tcp` if set, and otherwise the TCP port gossip
+    /// bound, with or without `--p2p.advertise.ip`. The node listens on port 0 here, so the bound
+    /// port differs from the listen port.
+    #[rstest]
+    #[case::bound_port(&[], None)]
+    #[case::advertise_tcp(&["--p2p.advertise.tcp", "30303"], Some(30303))]
+    #[case::advertise_ip(&["--p2p.advertise.ip", "127.0.0.1"], None)]
+    #[case::advertise_ip_and_tcp(
+        &["--p2p.advertise.ip", "127.0.0.1", "--p2p.advertise.tcp", "30303"],
+        Some(30303)
+    )]
+    #[tokio::test]
+    async fn test_started_node_advertises_tcp_port(
+        #[case] flags: &[&str],
+        #[case] advertised: Option<u16>,
+    ) {
+        let config = network_config(flags).await;
+        let handler = NetworkBuilder::from(config).build().unwrap().start().await.unwrap();
+
+        let bound_port = handler.gossip.peer_addr().tcp_port().expect("gossip listens on TCP");
+        let enr = handler.discovery.unwrap().handler.local_enr().await.unwrap();
+
+        assert_eq!(enr.tcp4(), Some(advertised.unwrap_or(bound_port)));
     }
 
     #[test]

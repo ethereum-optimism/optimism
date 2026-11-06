@@ -125,17 +125,12 @@ contract DeployImplementations is Script {
         deployAnchorStateRegistryImpl(_input, output_);
         deployFaultDisputeGameImpl(_input, output_);
         deployPermissionedDisputeGameImpl(_input, output_);
-        if (
-            DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-                || DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-        ) {
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
             deploySuperFaultDisputeGameImpl(_input, output_);
             deploySuperPermissionedDisputeGameImpl(output_);
         }
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            deployZKDisputeGameImpl(output_);
-            deploySP1PlonkAdapter(_input, output_);
-        }
+        deployZKDisputeGameImpl(output_);
+        deploySP1PlonkAdapter(_input, output_);
         deployStorageSetterImpl(output_);
 
         // Deploy the OP Contracts Manager with the new implementations set.
@@ -746,20 +741,10 @@ contract DeployImplementations is Script {
         );
         require(address(_input.l1ProxyAdminOwner) != address(0), "DeployImplementations: L1ProxyAdminOwner not set");
         require(address(_input.challenger) != address(0), "DeployImplementations: challenger not set");
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            require(
-                address(_input.sp1Verifier).code.length > 0,
-                "DeployImplementations: sp1Verifier must be a contract when ZK_DISPUTE_GAME is enabled"
-            );
-            (bool success, bytes memory returnData) =
-                address(_input.sp1Verifier).staticcall(abi.encodeCall(ISP1Verifier.VERSION, ()));
-            require(success && returnData.length >= 64, "DeployImplementations: sp1Verifier must expose VERSION()");
-        } else {
-            require(
-                address(_input.sp1Verifier) == address(0),
-                "DeployImplementations: sp1Verifier must be zero when ZK_DISPUTE_GAME is disabled"
-            );
-        }
+        require(address(_input.sp1Verifier).code.length > 0, "DeployImplementations: sp1Verifier must be a contract");
+        (bool success, bytes memory returnData) =
+            address(_input.sp1Verifier).staticcall(abi.encodeCall(ISP1Verifier.VERSION, ()));
+        require(success && returnData.length >= 64, "DeployImplementations: sp1Verifier must expose VERSION()");
     }
 
     function assertValidOutput(Input memory _input, Output memory _output) private {
@@ -788,31 +773,22 @@ contract DeployImplementations is Script {
             address(_output.permissionedDisputeGameImpl)
         );
 
-        if (
-            DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-                || DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-        ) {
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
             address[] memory superGameAddrs = Solarray.addresses(
                 address(_output.superFaultDisputeGameImpl), address(_output.superPermissionedDisputeGameImpl)
             );
             addrs2 = Solarray.extend(addrs2, superGameAddrs);
         }
 
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            addrs2 = Solarray.extend(
-                addrs2,
-                Solarray.addresses(address(_output.zkDisputeGameImpl), address(_output.sp1PlonkAdapterSingleton))
-            );
-        }
+        addrs2 = Solarray.extend(
+            addrs2, Solarray.addresses(address(_output.zkDisputeGameImpl), address(_output.sp1PlonkAdapterSingleton))
+        );
 
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
         require(address(_output.opcmV2) != address(0), "DeployImplementations: OPCM V2 not deployed");
 
-        if (
-            !DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-                && !DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-        ) {
+        if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
             require(
                 address(_output.superFaultDisputeGameImpl) == address(0),
                 "DeployImplementations: super game flag disabled but SuperFaultDisputeGame was deployed"
@@ -823,29 +799,10 @@ contract DeployImplementations is Script {
             );
         }
 
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            require(
-                address(_output.zkDisputeGameImpl) != address(0),
-                "DeployImplementations: ZK_DISPUTE_GAME flag enabled but ZKDisputeGame was not deployed"
-            );
-            require(
-                address(_output.sp1PlonkAdapterSingleton) != address(0),
-                "DeployImplementations: ZK_DISPUTE_GAME flag enabled but SP1PlonkAdapter was not deployed"
-            );
-            require(
-                address(_output.sp1PlonkAdapterSingleton.sp1Verifier()) == address(_input.sp1Verifier),
-                "DeployImplementations: SP1PlonkAdapter has unexpected verifier"
-            );
-        } else {
-            require(
-                address(_output.zkDisputeGameImpl) == address(0),
-                "DeployImplementations: ZK_DISPUTE_GAME flag disabled but ZKDisputeGame was deployed"
-            );
-            require(
-                address(_output.sp1PlonkAdapterSingleton) == address(0),
-                "DeployImplementations: ZK_DISPUTE_GAME flag disabled but SP1PlonkAdapter was deployed"
-            );
-        }
+        require(
+            address(_output.sp1PlonkAdapterSingleton.sp1Verifier()) == address(_input.sp1Verifier),
+            "DeployImplementations: SP1PlonkAdapter has unexpected verifier"
+        );
 
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(_output);
 
@@ -868,9 +825,7 @@ contract DeployImplementations is Script {
         ChainAssertions.checkL1StandardBridgeImpl(_output.l1StandardBridgeImpl);
         ChainAssertions.checkMIPS(_output.mipsSingleton, _output.preimageOracleSingleton);
 
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            ChainAssertions.checkZKDisputeGameImpl(_output.zkDisputeGameImpl);
-        }
+        ChainAssertions.checkZKDisputeGameImpl(_output.zkDisputeGameImpl);
 
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(_output.optimismMintableERC20FactoryImpl);
         ChainAssertions.checkOptimismPortal2({

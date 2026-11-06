@@ -1,0 +1,34 @@
+---
+title: OP Stack의 Bridged USDC Standard
+description: Bridged USDC Standard의 개요와 체인 운영자가 이를 배포하는 방법을 설명합니다.
+diataxis: explanation
+---
+
+## Bridged USDC Standard
+
+USDC는 암호화폐 생태계 전반에서 가장 많이 bridge되는 자산 중 하나이며, Circle이 별도의 조치를 취하기 전에 새로운 체인으로 bridge되는 경우가 많습니다. 이로 인해 bridged USDC가 상당한 시장 점유율을 확보했지만 생태계에서는 Circle이 발행한 native USDC를 선호하는 상황이 발생할 수 있으며, 결국 여러 버전의 USDC로 파편화되는 문제가 생깁니다. Circle은 이 파편화 문제를 방지하기 위해 [Bridged USDC Standard](https://www.circle.com/en/bridged-usdc)를 도입했습니다. 이를 통해 체인 운영자(chain operator)는 적절한 시점이 되면 Circle이 그 자리에서 native USDC로 업그레이드할 수 있는 형태의 bridged USDC를 쉽게 배포할 수 있습니다.
+
+OP Stack용 Bridged USDC Standard는 OP Stack 생태계 전반으로 Bridged USDC Standard를 확장하기 위한 효율적이고 모듈화된 솔루션을 제공합니다.
+
+체인 운영자는 OP Stack용 Bridged USDC Standard를 사용하여 자신의 OP Stack 체인에서 bridged USDC를 제공할 수 있습니다. 동시에 Circle이 기존 공급량, 보유자, 앱 통합을 유지한 채 bridged USDC를 native USDC로 매끄럽게 업그레이드할 수 있는 선택지도 확보할 수 있습니다.
+
+
+<Info>
+  체인 운영자는 OP Stack용 Bridged USDC Standard를 배포하여 사용자에게 즉시 USDC를 제공할 수 있습니다.
+  중요한 점은, 이후 체인 운영자와 Circle 간에 합의가 이루어지면 Bridged USDC Standard를 native USDC로 그 자리에서 매끄럽게 업그레이드할 수 있다는 것입니다.
+</Info>
+
+## 보안
+
+OP Stack용 참조 구현은 [Spearbit의 감사](https://github.com/defi-wonderland/opUSDC/blob/main/audits/spearbit.pdf)를 거쳤으며 프로덕션 환경에서 사용하도록 권장됩니다.
+
+## 다음 단계
+
+*   시작할 준비가 되셨나요? [OP Stack용 Bridged USDC Standard](https://github.com/defi-wonderland/opUSDC#setup) 설정 가이드를 읽어 보십시오.
+*   문제가 발생하면 [개발자 지원](https://github.com/ethereum-optimism/developers/discussions)에 문의하십시오.
+
+## Bridged USDC Standard Factory 면책 조항
+
+이 소프트웨어는 상품성, 특정 목적에의 적합성 및 비침해에 대한 보증을 포함하되 이에 국한되지 않는, 명시적이거나 묵시적인 어떠한 종류의 보증도 없이 "있는 그대로" 제공됩니다. 어떠한 경우에도 저작자 또는 저작권 보유자는 계약, 불법 행위 또는 기타 사유로 인한 소송에서 소프트웨어나 소프트웨어의 사용 또는 기타 거래로 인해, 또는 이와 관련하여 발생하는 어떠한 청구, 손해 또는 기타 책임에 대해서도 책임을 지지 않습니다.
+
+Circle이 Bridged USDC Standard 토큰 컨트랙트의 소유권을 획득하는 것과 관련된 제한 사항은 [Circle의 면책 조항](https://github.com/circlefin/stablecoin-evm/blob/master/doc/bridged_USDC_standard.md#for-more-information)을 검토하십시오.

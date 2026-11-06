@@ -1,0 +1,111 @@
+---
+title: Bootstrap 명령
+description: 새로운 OP Stack 배포를 위한 전역 싱글톤과 구현 컨트랙트를 배포하는 방법을 알아봅니다.
+diataxis: reference
+---
+
+import { Unreleased } from "/ko/snippets/unreleased.mdx"
+
+<Info>
+기존 OP Stack 배포에 합류하는 경우, [`init`](/ko/chain-operators/tools/op-deployer/usage/init) 및 [`apply`](/ko/chain-operators/tools/op-deployer/usage/apply) 명령으로 바로 이동하여 L2 체인을 생성할 수 있습니다.
+</Info>
+
+Bootstrap 명령은 새로운 OP Stack 배포를 위한 전역 싱글톤과 구현 컨트랙트를 배포하는 데 사용됩니다.
+배포된 컨트랙트는 이후 `apply` 호출에서 사용되어 새로운 L2 체인이 해당 배포에 합류할 수 있도록 합니다.
+`op-deployer apply`는 배포 대상 L1/정산 레이어(settlement layer)에 사전 배포된 표준 컨트랙트를 자동으로 사용하므로, 대부분의 사용자는 이 명령을 사용할 필요가 없습니다. 그러나 새로운 독립형 배포를 생성하는 경우에는 bootstrap 명령을 사용해야 합니다.
+
+사용 가능한 bootstrap 명령은 여러 가지가 있으며, `op-deployer bootstrap --help`를 실행하여 확인할 수 있습니다. 여기서는
+가장 중요한 명령에 초점을 맞추며, 이 명령들은 아래에 나열된 순서대로 실행해야 합니다.
+
+**이 명령들은 hot wallet에서 호출해도 안전합니다.** 이 명령으로 배포되는 컨트랙트는 모두 "ownable"이 아니므로,
+배포 주소는 이후 시스템에 대한 제어 권한을 갖지 않습니다.
+
+## 공유 컨트랙트 Bootstrap {#bootstrap-shared-contracts}
+
+```shell
+op-deployer bootstrap superchain \
+  --l1-rpc-url="<rpc url>" \
+  --private-key="<contract deployer private key>" \
+  --outfile="./.deployer/bootstrap_superchain.json" \
+  --superchain-proxy-admin-owner="<role address>" \
+  --guardian="<role address>"
+```
+
+### CLI 인수 {#cli-arguments}
+
+#### `--superchain-proxy-admin-owner`, `--guardian` {#superchain-proxy-admin-owner-guardian}
+
+개발 환경에서는 이 값들을 모두 hot wallet EOA로 지정해도 됩니다. 프로덕션 환경에서는 `--guardian`은 HSM(하드웨어 보안 모듈)으로 보호되는 hot wallet이어야 하며, `--superchain-proxy-admin-owner`는 멀티시그 cold wallet(예: Gnosis Safe)이어야 합니다.
+
+### 출력 {#output}
+
+이 명령은 여러 컨트랙트를 배포하고 다음과 같은 JSON을 출력합니다.
+
+```json
+{
+  "proxyAdminAddress": "0x269b95a33f48a9055b82ce739b0c105a83edd64a",
+  "superchainConfigImplAddress": "0x2f4c87818d67fc3c365ea10051b94f98893f3c64",
+  "superchainConfigProxyAddress": "0xd0c74806fa114c0ec176c0bf2e1e84ff0a8f91a1"
+}
+```
+
+## 구현 Bootstrap {#bootstrap-implementations}
+
+```shell
+op-deployer bootstrap implementations \
+  --l1-rpc-url="<rpc url>" \
+  --outfile="./.deployer/bootstrap_implementations.json" \
+  --private-key="<contract deployer private key>" \
+  --superchain-config-proxy="<contract address output from bootstrap superchain>" \
+  --superchain-proxy-admin="<contract address from bootstrap superchain>" \
+  --challenger="<role address for the superchain's challenger>" \
+  --upgrade-controller="<superchain-proxy-admin-owner used in bootstrap superchain>"
+```
+
+<Unreleased component="op-deployer" />
+
+구현 컨트랙트는 각 체인의 출금 지연 값이 속해야 하는 범위를 고정합니다. 비표준 범위로 배포하려면 다음 플래그를 전달하십시오.
+
+| 플래그 | 컨트랙트 | 지연 | 기본 범위 |
+| ----- | -------- | ----- | -------------- |
+| `--min-proof-maturity-delay-seconds`, `--max-proof-maturity-delay-seconds` | `OptimismPortal2` | 출금을 증명한 후 최종 확정하기까지의 시간 | 1일~7일 |
+| `--min-dispute-game-finality-delay-seconds`, `--max-dispute-game-finality-delay-seconds` | `AnchorStateRegistry` | 게임이 해결된 후 결과가 최종 확정되기까지의 시간 | 12시간~3.5일 |
+| `--min-withdrawal-delay-seconds`, `--max-withdrawal-delay-seconds` | `DelayedWETH` | bond 잠금 해제 후 출금하기까지의 시간 | 12시간~7일 |
+
+<Unreleased component="op-deployer" />
+
+구현 컨트랙트에는 `ZKDisputeGame`과 원시(raw) SP1 verifier를 래핑하는 `SP1PlonkAdapter`가 포함됩니다. Ethereum mainnet과 Sepolia에서는 op-deployer가 Succinct의 릴리스 승인 verifier를 사용합니다. 그 외의 L1에서는 `--sp1-verifier-address`를 전달해야 하며, 그렇지 않으면 명령이 실패합니다.
+
+### 출력 {#output}
+
+이 명령은 구현 컨트랙트, blueprint, OPCM을 배포합니다. 배포는 (대부분) 결정론적이므로, 구현과 생성자
+인수가 동일하게 유지되는 한 컨트랙트는 체인당 한 번만 배포됩니다. 이는 `op-deployer apply` 파이프라인에도
+적용됩니다. 즉, 누군가 특정 L1 체인에서 `op-deployer bootstrap implementations`를 실행한 적이 있다면 `apply`
+파이프라인은 해당 구현을 재사용합니다.
+
+이 명령은 다음과 같은 JSON을 출력합니다.
+
+```json
+{
+  "opcmAddress": "0x82879934658738b6d5e8f781933ae7bbae05ba31",
+  "opcmContractsContainerAddress": "0x1e8de1574a2e085b7a292c760d90cf982d3c1a11",
+  "opcmGameTypeAdderAddress": "0xcab868d42d9088b86598a96d010db5819c19b847",
+  "opcmDeployerAddress": "0xf8b6718b28fa36b430334e78adaf97174fed818c",
+  "opcmUpgraderAddress": "0xa4d0a44890fafce541bdc4c1ca36fca1b5d22f56",
+  "opcmInteropMigratorAddress": "0xf0fca53bb450dd2230c7eb58a39a5dbfc8492fb6",
+  "opcmStandardValidatorAddress": "0x1364a02f64f03cd990f105058b8cc93a9a0ab2a1",
+  "delayedWETHImplAddress": "0x570da3694c06a250aea4855b4adcd09505801f9a",
+  "optimismPortalImplAddress": "0x1aa1d3fc9b39d7edd7ca69f54a35c66dcf1168f1",
+  "ethLockboxImplAddress": "0xe6e51fa10d481002301534445612c61bae6b3258",
+  "preimageOracleSingletonAddress": "0x1fb8cdfc6831fc866ed9c51af8817da5c287add3",
+  "mipsSingletonAddress": "0x7a8456ba22df0cb303ae1c93d3cf68ea3a067006",
+  "systemConfigImplAddress": "0x9f2b1fffd8a7aeef7aeeb002fd8477a4868e7e0a",
+  "l1CrossDomainMessengerImplAddress": "0x085952eb0f0c3d1ca82061e20e0fe8203cdd630a",
+  "l1ERC721BridgeImplAddress": "0xbafd2cae054ddf69af27517c6bea912de6b7eb8f",
+  "l1StandardBridgeImplAddress": "0x6abaa7b42b9a947047c01f41b9bcb8684427bf24",
+  "optimismMintableERC20FactoryImplAddress": "0xdd0b293b8789e9208481cee5a0c7e78f451d32bf",
+  "disputeGameFactoryImplAddress": "0xe7ab0c07ee92aae31f213b23a132a155f5c2c7cc",
+  "anchorStateRegistryImplAddress": "0xda4f46fad0e38d763c56da62c4bc1e9428624893",
+  "superchainConfigImplAddress": "0xdaf60e3c5ef116810779719da88410cce847c2a4"
+}
+```

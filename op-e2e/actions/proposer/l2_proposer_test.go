@@ -58,7 +58,7 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 
 	rollupSeqCl := sequencer.RollupClient()
 	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
-		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+		rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	optimismPortal2Contract, err := bindingspreview.NewOptimismPortal2(sd.DeploymentsL1.OptimismPortalProxy, miner.EthClient())
 	require.NoError(t, err)

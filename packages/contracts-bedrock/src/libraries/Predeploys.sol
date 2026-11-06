@@ -434,12 +434,10 @@ library Predeploys {
 
         // ── Interop predeploys
         // ─────────────────────────────────────────────────────────────
-        // Interop requires both the INTEROP sys feature and the OPTIMISM_PORTAL_INTEROP dev
-        // feature. Both gates mirror the full condition checked in L2Genesis.
         records_[15] = PredeployRecord({
             proxy: CROSS_L2_INBOX,
             variants: _variants("CrossL2Inbox", "CrossL2Inbox.sol:CrossL2Inbox", 685_000),
-            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
+            devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: true,
             isProxied: true,
@@ -450,7 +448,7 @@ library Predeploys {
             variants: _variants(
                 "L2ToL2CrossDomainMessenger", "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger", 2_378_000
             ),
-            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
+            devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: true,
             isProxied: true,
@@ -459,7 +457,7 @@ library Predeploys {
         records_[17] = PredeployRecord({
             proxy: SUPERCHAIN_ETH_BRIDGE,
             variants: _variants("SuperchainETHBridge", "SuperchainETHBridge.sol:SuperchainETHBridge", 1_175_000),
-            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
+            devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: true,
             isProxied: true,
@@ -468,7 +466,7 @@ library Predeploys {
         records_[18] = PredeployRecord({
             proxy: ETH_LIQUIDITY,
             variants: _variants("ETHLiquidity", "ETHLiquidity.sol:ETHLiquidity", 750_000),
-            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
+            devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: true,
             isProxied: true,
@@ -480,7 +478,7 @@ library Predeploys {
             variants: _variants(
                 "UndeliveredMessageExporter", "UndeliveredMessageExporter.sol:UndeliveredMessageExporter", 650_000
             ),
-            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
+            devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: true,
             isProxied: true,
@@ -651,22 +649,19 @@ library Predeploys {
         PredeployRecord[] memory records = getAllRecords();
         for (uint256 i = 0; i < records.length; i++) {
             if (records[i].proxy == _addr) {
-                if (records[i].devFeatureGate != 0) {
-                    // If the feature on the gate is not present on the bitmap, the predeploy is not supported.
-                    if (!DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, records[i].devFeatureGate)) {
-                        return false;
-                    }
-                    // Additional conditions for interop
-                    if (DevFeatures.isDevFeatureEnabled(records[i].devFeatureGate, DevFeatures.OPTIMISM_PORTAL_INTEROP))
-                    {
-                        if (_fork < uint256(Fork.LAGOON) || !_useInterop) {
-                            return false;
-                        }
-                    }
+                // If the feature on the gate is not present on the bitmap, the predeploy is not supported.
+                if (
+                    records[i].devFeatureGate != 0
+                        && !DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, records[i].devFeatureGate)
+                ) {
+                    return false;
                 }
 
                 // If the predeploy has a system feature gate, check if it is supported based on the arguments.
-                if ((records[i].isCustomGasToken && !_isCustomGasToken) || (records[i].isInterop && !_useInterop)) {
+                if (records[i].isCustomGasToken && !_isCustomGasToken) {
+                    return false;
+                }
+                if (records[i].isInterop && (!_useInterop || _fork < uint256(Fork.LAGOON))) {
                     return false;
                 }
 
