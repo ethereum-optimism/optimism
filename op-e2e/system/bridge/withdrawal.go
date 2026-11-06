@@ -23,6 +23,7 @@ import (
 
 type CommonSystem interface {
 	NodeClient(role string) *ethclient.Client
+	NodeSourceClient(role string) *sources.EthClient
 	RollupClient(role string) *sources.RollupClient
 	Config() e2esys.SystemConfig
 	TestAccount(int) *ecdsa.PrivateKey
@@ -57,7 +58,7 @@ func RunWithdrawalsTest(t *testing.T, sys CommonSystem) {
 	mintAmount := big.NewInt(1_000_000_000_000)
 	opts.Value = mintAmount
 	t.Logf("WithdrawalsTest: depositing %v with L2 start balance %v...", mintAmount, startBalanceBeforeDeposit)
-	helpers.SendDepositTx(t, cfg, l1Client, l2Verif, opts, func(l2Opts *helpers.DepositTxOpts) {
+	helpers.SendDepositTx(t, cfg, l1Client, sys.NodeSourceClient(e2esys.RoleVerif), opts, func(l2Opts *helpers.DepositTxOpts) {
 		l2Opts.Value = common.Big0
 	})
 	t.Log("WithdrawalsTest: waiting for balance change...")
@@ -80,9 +81,9 @@ func RunWithdrawalsTest(t *testing.T, sys CommonSystem) {
 
 	withdrawAmount := big.NewInt(500_000_000_000)
 	t.Logf("WithdrawalsTest: sending L2 withdrawal for %v...", withdrawAmount)
-	tx, receipt := helpers.SendWithdrawal(t, cfg, l2Seq, ethPrivKey, func(opts *helpers.WithdrawalTxOpts) {
+	tx, receipt := helpers.SendWithdrawal(t, cfg, l2Seq, sys.NodeSourceClient(e2esys.RoleSeq), ethPrivKey, func(opts *helpers.WithdrawalTxOpts) {
 		opts.Value = withdrawAmount
-		opts.VerifyOnClients(l2Verif)
+		opts.VerifyOnClients(sys.NodeSourceClient(e2esys.RoleVerif))
 	})
 
 	// Verify L2 balance after withdrawal

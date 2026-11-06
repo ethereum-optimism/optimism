@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -61,28 +62,29 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	sequencer.ActBuildL2ToFjord(t)
 
 	// get latest block
-	latestBlock, err := ethCl.BlockByNumber(context.Background(), nil)
+	latestBlock, err := ethCl.HeaderByNumber(context.Background(), nil)
 	require.NoError(t, err)
-	require.Equal(t, sequencer.L2Unsafe().Number, latestBlock.NumberU64())
+	require.Equal(t, sequencer.L2Unsafe().Number, bigs.Uint64Strict(latestBlock.Number))
 
-	transactions := latestBlock.Transactions()
+	_, deposits, err := engine.SourceClient().InfoAndDepositsByHash(context.Background(), latestBlock.Hash())
+	require.NoError(t, err)
+	_, receipts, err := engine.SourceClient().FetchReceipts(context.Background(), latestBlock.Hash())
+	require.NoError(t, err)
 	// L1Block: 1 set-L1-info + 1 deploys + 1 upgradeTo + 1 enable fjord on GPO
 	// See [derive.FjordNetworkUpgradeTransactions]
-	require.Equal(t, 4, len(transactions))
+	require.Len(t, deposits, 4)
+	require.Len(t, receipts, 4, "the block carries only the deposits")
 
 	// All transactions are successful
 	for i := 1; i < 4; i++ {
-		txn := transactions[i]
-		receipt, err := ethCl.TransactionReceipt(context.Background(), txn.Hash())
-		require.NoError(t, err)
-		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
-		require.NotEmpty(t, txn.Data(), "upgrade tx must provide input data")
+		require.Equal(t, types.ReceiptStatusSuccessful, receipts[i].Status)
+		require.NotEmpty(t, deposits[i].Data, "upgrade tx must provide input data")
 	}
 
 	expectedGasPriceOracleAddress := crypto.CreateAddress(derive.GasPriceOracleFjordDeployerAddress, 0)
 
 	// Gas Price Oracle Proxy is updated
-	updatedGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, latestBlock.Number())
+	updatedGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, latestBlock.Number)
 	require.NoError(t, err)
 	require.Equal(t, expectedGasPriceOracleAddress, common.BytesToAddress(updatedGasPriceOracleAddress))
 	require.NotEqualf(t, initialGasPriceOracleAddress, updatedGasPriceOracleAddress, "Gas Price Oracle Proxy address should have changed")
@@ -105,10 +107,10 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	gpoFee, err := gasPriceOracle.GetL1Fee(&bind.CallOpts{}, txData)
 	require.NoError(t, err)
 
-	gethFee := fjordL1Cost(t, gasPriceOracle, types.RollupCostData{
-		FastLzSize: uint64(types.FlzCompressLen(txData) + 68),
+	expectedFee := fjordL1Cost(t, gasPriceOracle, opfees.RollupCostData{
+		FastLzSize: uint64(opfees.FlzCompressLen(txData) + 68),
 	})
-	require.Equal(t, bigs.Uint64Strict(gethFee), bigs.Uint64Strict(gpoFee))
+	require.Equal(t, bigs.Uint64Strict(expectedFee), bigs.Uint64Strict(gpoFee))
 
 	// Check that L1FeeUpperBound works
 	upperBound, err := gasPriceOracle.GetL1FeeUpperBound(&bind.CallOpts{}, big.NewInt(int64(len(txData))))
@@ -117,11 +119,11 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	txLen := len(txData) + 68
 	flzUpperBound := uint64(txLen + txLen/255 + 16)
 
-	upperBoundCost := fjordL1Cost(t, gasPriceOracle, types.RollupCostData{FastLzSize: flzUpperBound})
+	upperBoundCost := fjordL1Cost(t, gasPriceOracle, opfees.RollupCostData{FastLzSize: flzUpperBound})
 	require.Equal(t, bigs.Uint64Strict(upperBoundCost), bigs.Uint64Strict(upperBound))
 }
 
-func fjordL1Cost(t require.TestingT, gasPriceOracle *bindings.GasPriceOracleCaller, rollupCostData types.RollupCostData) *big.Int {
+func fjordL1Cost(t require.TestingT, gasPriceOracle *bindings.GasPriceOracleCaller, rollupCostData opfees.RollupCostData) *big.Int {
 	baseFeeScalar, err := gasPriceOracle.BaseFeeScalar(nil)
 	require.NoError(t, err)
 	l1BaseFee, err := gasPriceOracle.L1BaseFee(nil)
@@ -131,12 +133,10 @@ func fjordL1Cost(t require.TestingT, gasPriceOracle *bindings.GasPriceOracleCall
 	blobBaseFee, err := gasPriceOracle.BlobBaseFee(nil)
 	require.NoError(t, err)
 
-	costFunc := types.NewL1CostFuncFjord(
-		l1BaseFee,
-		blobBaseFee,
-		new(big.Int).SetUint64(uint64(baseFeeScalar)),
-		new(big.Int).SetUint64(uint64(blobBaseFeeScalar)))
-
-	fee, _ := costFunc(rollupCostData)
-	return fee
+	return opfees.L1CostFjord(rollupCostData, opfees.L1FeeParams{
+		L1BaseFee:     l1BaseFee,
+		L1BlobBaseFee: blobBaseFee,
+		BaseFeeScalar: new(big.Int).SetUint64(uint64(baseFeeScalar)),
+		BlobFeeScalar: new(big.Int).SetUint64(uint64(blobBaseFeeScalar)),
+	})
 }

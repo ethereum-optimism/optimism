@@ -16,6 +16,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
@@ -23,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -38,7 +40,8 @@ type ClientProvider interface {
 	NodeClient(name string) *ethclient.Client
 }
 
-func SendWithdrawal(t *testing.T, cfg e2esys.SystemConfig, l2Client *ethclient.Client, privKey *ecdsa.PrivateKey, applyOpts WithdrawalTxOptsFn) (*types.Transaction, *types.Receipt) {
+// SendWithdrawal initiates a withdrawal through l2Client and waits for its receipt on l2ReceiptClient.
+func SendWithdrawal(t *testing.T, cfg e2esys.SystemConfig, l2Client *ethclient.Client, l2ReceiptClient *sources.EthClient, privKey *ecdsa.PrivateKey, applyOpts WithdrawalTxOptsFn) (*types.Transaction, *optypes.Receipt) {
 	opts := defaultWithdrawalTxOpts()
 	applyOpts(opts)
 
@@ -53,13 +56,16 @@ func SendWithdrawal(t *testing.T, cfg e2esys.SystemConfig, l2Client *ethclient.C
 	tx, err := l2withdrawer.InitiateWithdrawal(l2opts, l2opts.From, big.NewInt(int64(opts.Gas)), opts.Data)
 	require.Nil(t, err, "sending initiate withdraw tx")
 
-	receipt, err := geth.WaitForTransaction(tx.Hash(), l2Client, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	defer cancel()
+	receipt, err := wait.ForOPReceipt(ctx, l2ReceiptClient, tx.Hash(), opts.ExpectedStatus)
 	require.Nil(t, err, "withdrawal initiated on L2 sequencer")
-	require.Equal(t, opts.ExpectedStatus, receipt.Status, "transaction had incorrect status")
 
 	for i, client := range opts.VerifyClients {
 		t.Logf("Waiting for tx %v on verification client %d", tx.Hash(), i)
-		receiptVerif, err := geth.WaitForTransaction(tx.Hash(), client, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+		receiptVerif, err := wait.ForOPReceipt(ctx, client, tx.Hash(), opts.ExpectedStatus)
+		cancel()
 		require.Nilf(t, err, "Waiting for L2 tx on verification client %d", i)
 		require.Equalf(t, receipt, receiptVerif, "Receipts should be the same on sequencer and verification client %d", i)
 	}
@@ -75,12 +81,12 @@ type WithdrawalTxOpts struct {
 	Gas            uint64
 	Data           []byte
 	ExpectedStatus uint64
-	VerifyClients  []*ethclient.Client
+	VerifyClients  []*sources.EthClient
 }
 
 // VerifyOnClients adds additional l2 clients that should sync the block the tx is included in
 // Checks that the receipt received from these clients is equal to the receipt received from the sequencer
-func (o *WithdrawalTxOpts) VerifyOnClients(clients ...*ethclient.Client) {
+func (o *WithdrawalTxOpts) VerifyOnClients(clients ...*sources.EthClient) {
 	o.VerifyClients = append(o.VerifyClients, clients...)
 }
 
@@ -101,14 +107,14 @@ func ProveAndFinalizeWithdrawal(
 	clients ClientProvider,
 	l2NodeName string,
 	ethPrivKey *ecdsa.PrivateKey,
-	l2WithdrawalReceipt *types.Receipt,
+	l2WithdrawalReceipt *optypes.Receipt,
 ) (*types.Receipt, *types.Receipt, *types.Receipt, *types.Receipt) {
 	params, proveReceipt := ProveWithdrawal(t, cfg, clients, l2NodeName, ethPrivKey, l2WithdrawalReceipt)
 	finalizeReceipt, resolveClaimReceipt, resolveReceipt := FinalizeWithdrawal(t, cfg, clients.NodeClient("l1"), ethPrivKey, params)
 	return proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt
 }
 
-func ProveWithdrawal(t *testing.T, cfg e2esys.SystemConfig, clients ClientProvider, l2NodeName string, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt) (withdrawals.ProvenWithdrawalParameters, *types.Receipt) {
+func ProveWithdrawal(t *testing.T, cfg e2esys.SystemConfig, clients ClientProvider, l2NodeName string, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *optypes.Receipt) (withdrawals.ProvenWithdrawalParameters, *types.Receipt) {
 	// Get l2BlockNumber for proof generation
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()

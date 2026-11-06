@@ -8,6 +8,7 @@ import (
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
+	opeip1559 "github.com/ethereum-optimism/optimism/op-core/eip1559"
 	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -15,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/stretchr/testify/require"
 )
 
@@ -83,14 +83,14 @@ func TestEIP1559Params(t *testing.T) {
 	require.NoError(t, err, "reading elasticity")
 	require.Equal(t, expectedElasticity, elasticity)
 
-	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, bigs.Uint64Strict(receipt.BlockNumber), l2Seq, txTimeoutDuration)
+	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, bigs.Uint64Strict(receipt.BlockNumber), sys.NodeSourceClient("sequencer"), txTimeoutDuration)
 	require.NoError(t, err, "waiting for L2 block to include the sysconfig update")
 
 	h, err := l2Seq.HeaderByNumber(context.Background(), nil)
 	require.NoError(t, err)
 
 	// confirm the extraData is being set as expected
-	require.Equal(t, eip1559.EncodeHoloceneExtraData(uint64(expectedDenom), uint64(expectedElasticity)), h.Extra)
+	require.Equal(t, opeip1559.EncodeHoloceneExtraData(uint64(expectedDenom), uint64(expectedElasticity)), h.Extra)
 
 	// confirm the next base fee will be as expected with the new 1559 parameters
 	delta := ((gasTarget - int64(h.GasUsed)) * h.BaseFee.Int64() / gasTarget / int64(expectedDenom))
@@ -98,8 +98,8 @@ func TestEIP1559Params(t *testing.T) {
 
 	b, err := geth.WaitForBlock(big.NewInt(h.Number.Int64()+1), l2Seq)
 	require.NoError(t, err, "waiting for next L2 block")
-	require.Equal(t, expectedNextFee, b.Header().BaseFee.Int64())
+	require.Equal(t, expectedNextFee, b.BaseFee.Int64())
 
 	// confirm the extraData is still being set as expected
-	require.Equal(t, eip1559.EncodeHoloceneExtraData(uint64(expectedDenom), uint64(expectedElasticity)), b.Header().Extra)
+	require.Equal(t, opeip1559.EncodeHoloceneExtraData(uint64(expectedDenom), uint64(expectedElasticity)), b.Extra)
 }

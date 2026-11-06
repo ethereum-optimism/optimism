@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,5 +26,5 @@ func TestFinalize(t *testing.T) {
 
 	l2Finalized, err := geth.WaitForBlockToBeFinalized(big.NewInt(12), l2Seq, 1*time.Minute)
 	require.NoError(t, err, "must be able to fetch a finalized L2 block")
-	require.NotZerof(t, l2Finalized.NumberU64(), "must have finalized L2 block")
+	require.NotZerof(t, bigs.Uint64Strict(l2Finalized.Number), "must have finalized L2 block")
 }
