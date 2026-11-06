@@ -58,3 +58,13 @@ func (b *L2Batcher) Start() {
 	})
 	require.NoError(b.t, err, fmt.Sprintf("Expected to be able to call StartBatcher API on chain %s, but got error", b.inner.ChainID()))
 }
+
+// Flush asks the batcher to close its open channel and submit what it has loaded now, rather than
+// when the channel fills or times out. It does not wait for the data to land on L1.
+func (b *L2Batcher) Flush() {
+	b.log.Info("Flushing batcher", "name", b.inner.Name(), "chain", b.inner.ChainID())
+	err := retry.Do0(b.ctx, 3, retry.Exponential(), func() error {
+		return b.inner.ActivityAPI().FlushBatcher(b.ctx)
+	})
+	require.NoError(b.t, err, fmt.Sprintf("Expected to be able to call FlushBatcher API on chain %s, but got error", b.inner.ChainID()))
+}
